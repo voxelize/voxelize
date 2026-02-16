@@ -365,7 +365,10 @@ impl Handler<Tick> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, _: Tick, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().tick();
+        match self.0.write() {
+            Ok(mut world) => world.tick(),
+            Err(error) => error!("Failed to acquire world write lock for tick: {:?}", error),
+        }
     }
 }
 
@@ -373,7 +376,10 @@ impl Handler<Prepare> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, _: Prepare, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().prepare();
+        match self.0.write() {
+            Ok(mut world) => world.prepare(),
+            Err(error) => error!("Failed to acquire world write lock for prepare: {:?}", error),
+        }
     }
 }
 
@@ -381,7 +387,13 @@ impl Handler<GetConfig> for SyncWorld {
     type Result = MessageResult<GetConfig>;
 
     fn handle(&mut self, _: GetConfig, _: &mut SyncContext<Self>) -> Self::Result {
-        MessageResult(self.0.read().unwrap().config().make_copy())
+        MessageResult(match self.0.read() {
+            Ok(world) => world.config().make_copy(),
+            Err(error) => {
+                error!("Failed to acquire world read lock for config: {:?}", error);
+                WorldConfig::new().build()
+            }
+        })
     }
 }
 
@@ -389,13 +401,25 @@ impl Handler<GetInfo> for SyncWorld {
     type Result = MessageResult<GetInfo>;
 
     fn handle(&mut self, _: GetInfo, _: &mut SyncContext<Self>) -> Self::Result {
-        let world = self.0.read().unwrap();
-        let config = world.config().make_copy();
-        MessageResult(WorldInfo {
-            name: world.name.clone(),
-            config,
-            preloading: world.preloading,
-            preload_progress: world.preload_progress,
+        MessageResult(match self.0.read() {
+            Ok(world) => {
+                let config = world.config().make_copy();
+                WorldInfo {
+                    name: world.name.clone(),
+                    config,
+                    preloading: world.preloading,
+                    preload_progress: world.preload_progress,
+                }
+            }
+            Err(error) => {
+                error!("Failed to acquire world read lock for world info: {:?}", error);
+                WorldInfo {
+                    name: String::new(),
+                    config: WorldConfig::new().build(),
+                    preloading: false,
+                    preload_progress: 0.0,
+                }
+            }
         })
     }
 }
@@ -404,8 +428,22 @@ impl Handler<GetWorldStats> for SyncWorld {
     type Result = MessageResult<GetWorldStats>;
 
     fn handle(&mut self, _: GetWorldStats, _: &mut SyncContext<Self>) -> Self::Result {
-        let world = self.0.read().unwrap();
-        MessageResult(world.get_stats())
+        MessageResult(match self.0.read() {
+            Ok(world) => world.get_stats(),
+            Err(error) => {
+                error!("Failed to acquire world read lock for world stats: {:?}", error);
+                WorldStatsResponse {
+                    name: String::new(),
+                    client_count: 0,
+                    entity_count: 0,
+                    message_queue_critical: 0,
+                    message_queue_normal: 0,
+                    message_queue_bulk: 0,
+                    encoded_pending: 0,
+                    encoded_processed: 0,
+                }
+            }
+        })
     }
 }
 
@@ -413,7 +451,10 @@ impl Handler<Preload> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, _: Preload, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().preload();
+        match self.0.write() {
+            Ok(mut world) => world.preload(),
+            Err(error) => error!("Failed to acquire world write lock for preload: {:?}", error),
+        }
     }
 }
 
@@ -422,7 +463,13 @@ impl Handler<ClientRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientRequest, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().on_request(&msg.client_id, msg.data);
+        match self.0.write() {
+            Ok(mut world) => world.on_request(&msg.client_id, msg.data),
+            Err(error) => error!(
+                "Failed to acquire world write lock for client request {}: {:?}",
+                msg.client_id, error
+            ),
+        }
     }
 }
 
@@ -430,10 +477,13 @@ impl Handler<ClientJoinRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientJoinRequest, _: &mut SyncContext<Self>) {
-        self.0
-            .write()
-            .unwrap()
-            .add_client(&msg.id, &msg.username, &msg.sender);
+        match self.0.write() {
+            Ok(mut world) => world.add_client(&msg.id, &msg.username, &msg.sender),
+            Err(error) => error!(
+                "Failed to acquire world write lock for client join {}: {:?}",
+                msg.id, error
+            ),
+        }
     }
 }
 
@@ -441,7 +491,13 @@ impl Handler<ClientLeaveRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientLeaveRequest, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().remove_client(&msg.id);
+        match self.0.write() {
+            Ok(mut world) => world.remove_client(&msg.id),
+            Err(error) => error!(
+                "Failed to acquire world write lock for client leave {}: {:?}",
+                msg.id, error
+            ),
+        }
     }
 }
 
@@ -449,7 +505,13 @@ impl Handler<TransportJoinRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: TransportJoinRequest, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().add_transport(&msg.id, &msg.sender);
+        match self.0.write() {
+            Ok(mut world) => world.add_transport(&msg.id, &msg.sender),
+            Err(error) => error!(
+                "Failed to acquire world write lock for transport join {}: {:?}",
+                msg.id, error
+            ),
+        }
     }
 }
 
@@ -457,7 +519,13 @@ impl Handler<TransportLeaveRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: TransportLeaveRequest, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().remove_transport(&msg.id);
+        match self.0.write() {
+            Ok(mut world) => world.remove_transport(&msg.id),
+            Err(error) => error!(
+                "Failed to acquire world write lock for transport leave {}: {:?}",
+                msg.id, error
+            ),
+        }
     }
 }
 
