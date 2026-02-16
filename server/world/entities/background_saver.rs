@@ -44,35 +44,46 @@ fn normalized_entity_type<'a>(etype: &'a str) -> Cow<'a, str> {
 
 #[inline]
 fn sanitize_entity_filename<'a>(etype: &'a str) -> Cow<'a, str> {
+    let bytes = etype.as_bytes();
+    let byte_len = bytes.len();
     let mut sanitized = String::new();
-    let mut chars = etype.char_indices().peekable();
-    while let Some((index, ch)) = chars.next() {
-        if ch == ':' && chars.peek().is_some_and(|(_, next)| *next == ':') {
+    let mut copy_start = 0usize;
+    let mut index = 0usize;
+
+    while index < byte_len {
+        if bytes[index] == b':' && index + 1 < byte_len && bytes[index + 1] == b':' {
             if sanitized.is_empty() {
-                sanitized = String::with_capacity(etype.len());
-                sanitized.push_str(&etype[..index]);
+                sanitized = String::with_capacity(byte_len);
+            }
+            if copy_start < index {
+                sanitized.push_str(&etype[copy_start..index]);
             }
             sanitized.push('-');
-            let _ = chars.next();
+            index += 2;
+            copy_start = index;
             continue;
         }
-        if ch == ' ' {
+        if bytes[index] == b' ' {
             if sanitized.is_empty() {
-                sanitized = String::with_capacity(etype.len());
-                sanitized.push_str(&etype[..index]);
+                sanitized = String::with_capacity(byte_len);
+            }
+            if copy_start < index {
+                sanitized.push_str(&etype[copy_start..index]);
             }
             sanitized.push('-');
+            index += 1;
+            copy_start = index;
             continue;
         }
-        if !sanitized.is_empty() {
-            sanitized.push(ch);
-        }
+        index += 1;
     }
     if sanitized.is_empty() {
-        Cow::Borrowed(etype)
-    } else {
-        Cow::Owned(sanitized)
+        return Cow::Borrowed(etype);
     }
+    if copy_start < byte_len {
+        sanitized.push_str(&etype[copy_start..]);
+    }
+    Cow::Owned(sanitized)
 }
 
 #[inline]
@@ -336,5 +347,11 @@ mod tests {
     fn sanitize_entity_filename_replaces_double_colons_and_spaces() {
         let sanitized = sanitize_entity_filename("block::red lamp");
         assert_eq!(sanitized.as_ref(), "block-red-lamp");
+    }
+
+    #[test]
+    fn sanitize_entity_filename_handles_unicode_input() {
+        let sanitized = sanitize_entity_filename("blöck::蓝 灯");
+        assert_eq!(sanitized.as_ref(), "blöck-蓝-灯");
     }
 }
