@@ -1541,6 +1541,43 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([]);
   });
 
+  it("normalizes explicit-empty iterator face and aabb entries to empty arrays", () => {
+    const explicitEmptyFaces = new Proxy([] as BlockFaceInit[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const explicitEmptyAabbs = new Proxy([] as AABB[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: explicitEmptyFaces as never,
+      aabbs: explicitEmptyAabbs as never,
+    });
+
+    expect(part.faces).toEqual([]);
+    expect(part.aabbs).toEqual([]);
+  });
+
   it("salvages iterator-trapped face and aabb entries during conditional part cloning", () => {
     const faces = [{ name: "IteratorFace" } as BlockFaceInit];
     Object.defineProperty(faces, Symbol.iterator, {
@@ -4095,6 +4132,27 @@ describe("Type builders", () => {
   it("normalizes sparse-hole dynamic pattern part entries to empty lists", () => {
     const pattern = createBlockDynamicPattern({
       parts: new Array(1) as never,
+    });
+
+    expect(pattern.parts).toEqual([]);
+  });
+
+  it("normalizes explicit-empty iterator dynamic pattern part entries to empty lists", () => {
+    const explicitEmptyParts = new Proxy([] as BlockConditionalPartInput[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: explicitEmptyParts as never,
     });
 
     expect(pattern.parts).toEqual([]);
