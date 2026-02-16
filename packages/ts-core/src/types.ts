@@ -947,6 +947,21 @@ const isVec3Value = (value: DynamicValue): value is Vec3 => {
   return isFiniteNumberValue(x) && isFiniteNumberValue(y) && isFiniteNumberValue(z);
 };
 
+const toVec3SnapshotOrNull = (value: DynamicValue): Vec3 | null => {
+  if (!isVec3Value(value)) {
+    return null;
+  }
+
+  const x = readArrayEntry(value, 0);
+  const y = readArrayEntry(value, 1);
+  const z = readArrayEntry(value, 2);
+  if (!isFiniteNumberValue(x) || !isFiniteNumberValue(y) || !isFiniteNumberValue(z)) {
+    return null;
+  }
+
+  return [x, y, z];
+};
+
 const isUvValue = (value: DynamicValue): value is UV => {
   if (value === null || typeof value !== "object" || isArrayValue(value)) {
     return false;
@@ -1083,13 +1098,14 @@ const toBlockRule = (
     }
 
     if (maybeRule.type === "simple") {
-      if (!isVec3Value(maybeRule.offset)) {
+      const offsetSnapshot = toVec3SnapshotOrNull(maybeRule.offset);
+      if (offsetSnapshot === null) {
         return { type: "none" };
       }
 
       const simpleRule: { type: "simple" } & BlockSimpleRule = {
         type: "simple",
-        offset: [...maybeRule.offset],
+        offset: offsetSnapshot,
       };
       const id = toOptionalRuleNumber(maybeRule.id, 0xffff);
       if (id !== undefined) {
@@ -1187,7 +1203,7 @@ const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
       isolated:
         typeof maybeFace.isolated === "boolean" ? maybeFace.isolated : undefined,
       textureGroup,
-      dir: isVec3Value(maybeFace.dir) ? [...maybeFace.dir] : undefined,
+      dir: toVec3SnapshotOrNull(maybeFace.dir) ?? undefined,
       corners: toCornerTuple(maybeFace.corners),
       range: isUvValue(maybeFace.range)
         ? {

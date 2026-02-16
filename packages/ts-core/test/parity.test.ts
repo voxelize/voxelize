@@ -1918,6 +1918,30 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("salvages iterator-trapped block-face directions in createBlockFace", () => {
+    const iteratorTrapDirection = new Proxy([1, 2, 3] as [number, number, number], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("dir iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      createBlockFace({
+        name: "Face",
+        dir: iteratorTrapDirection as never,
+      })
+    ).not.toThrow();
+    expect(
+      createBlockFace({
+        name: "Face",
+        dir: iteratorTrapDirection as never,
+      }).dir
+    ).toEqual([1, 2, 3]);
+  });
+
   it("clones block face corner arrays on construction", () => {
     const firstCorner = createCornerData([0, 0, 0], [0, 0]);
     const face = new BlockFace({
@@ -5056,6 +5080,36 @@ describe("Type builders", () => {
       type: "simple",
       offset: [1, 0, 0],
       rotation: BlockRotation.py(Math.PI / 2),
+    });
+  });
+
+  it("salvages iterator-trapped simple-rule offsets during rule sanitization", () => {
+    const iteratorTrapOffset = new Proxy([1, 2, 3] as [number, number, number], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("offset iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      createBlockRule({
+        type: "simple",
+        offset: iteratorTrapOffset as never,
+        id: 7,
+      })
+    ).not.toThrow();
+    expect(
+      createBlockRule({
+        type: "simple",
+        offset: iteratorTrapOffset as never,
+        id: 7,
+      })
+    ).toEqual({
+      type: "simple",
+      offset: [1, 2, 3],
+      id: 7,
     });
   });
 
