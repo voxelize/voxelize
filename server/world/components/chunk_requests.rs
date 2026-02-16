@@ -127,6 +127,20 @@ impl ChunkRequestsComp {
             }
             return;
         }
+        if self.requests.len() == 5 {
+            if self.requests[1] == *coords {
+                self.requests.remove(1);
+                return;
+            }
+            if self.requests[2] == *coords {
+                self.requests.remove(2);
+                return;
+            }
+            if self.requests[3] == *coords {
+                self.requests.remove(3);
+            }
+            return;
+        }
         if let Some(index) = self.requests.iter().position(|c| c == coords) {
             self.requests.remove(index);
         }
@@ -208,5 +222,26 @@ mod tests {
 
         requests.remove(&Vec2(3, 3));
         assert_eq!(requests.requests, vec![Vec2(1, 1), Vec2(4, 4)]);
+    }
+
+    #[test]
+    fn remove_handles_five_item_middle_entries() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests = vec![
+            Vec2(1, 1),
+            Vec2(2, 2),
+            Vec2(3, 3),
+            Vec2(4, 4),
+            Vec2(5, 5),
+        ];
+
+        requests.remove(&Vec2(3, 3));
+        assert_eq!(
+            requests.requests,
+            vec![Vec2(1, 1), Vec2(2, 2), Vec2(4, 4), Vec2(5, 5)]
+        );
+
+        requests.remove(&Vec2(4, 4));
+        assert_eq!(requests.requests, vec![Vec2(1, 1), Vec2(2, 2), Vec2(5, 5)]);
     }
 }
