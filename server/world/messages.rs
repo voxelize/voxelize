@@ -231,9 +231,13 @@ impl EncodedMessageQueue {
                 first.operation == ENTITY_OPERATION_UPDATE
                     && second.operation == ENTITY_OPERATION_UPDATE
             }
-            _ => entities
-                .iter()
-                .all(|entity| entity.operation == ENTITY_OPERATION_UPDATE),
+            [first, second, rest @ ..] => {
+                first.operation == ENTITY_OPERATION_UPDATE
+                    && second.operation == ENTITY_OPERATION_UPDATE
+                    && rest
+                        .iter()
+                        .all(|entity| entity.operation == ENTITY_OPERATION_UPDATE)
+            }
         }
     }
 }
