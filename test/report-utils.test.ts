@@ -23062,6 +23062,16 @@ describe("report-utils", () => {
     );
   });
 
+  it("returns an unprintable-path fallback for undefined output paths", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+
+    expect(() => writeReportToPath(reportJson, undefined as never)).not.toThrow();
+    const failureMessage = writeReportToPath(reportJson, undefined as never);
+    expect(failureMessage).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+  });
+
   it("does not coerce plain-object output paths when write fails", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     let didCallToString = false;
