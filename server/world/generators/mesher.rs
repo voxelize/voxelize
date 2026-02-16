@@ -318,53 +318,55 @@ impl Mesher {
                         }
                     }
 
-                    let chunk_meshes = chunk.meshes.get_or_insert_with(HashMap::new);
-                    for &level_u32 in chunk.updated_levels.iter() {
-                        let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
-                            min_y,
-                            space_max_height,
-                            space_sub_chunks,
-                            level_u32,
-                        ) else {
-                            continue;
-                        };
-                        let level = mesh_protocol_level(level_u32);
-                        let min = Vec3(min_x, level_start_y, min_z);
-                        let max = Vec3(max_x, level_end_y, max_z);
+                    if !chunk.updated_levels.is_empty() {
+                        let chunk_meshes = chunk.meshes.get_or_insert_with(HashMap::new);
+                        for &level_u32 in chunk.updated_levels.iter() {
+                            let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
+                                min_y,
+                                space_max_height,
+                                space_sub_chunks,
+                                level_u32,
+                            ) else {
+                                continue;
+                            };
+                            let level = mesh_protocol_level(level_u32);
+                            let min = Vec3(min_x, level_start_y, min_z);
+                            let max = Vec3(max_x, level_end_y, max_z);
 
-                        let min_arr = [min.0, min.1, min.2];
-                        let max_arr = [max.0, max.1, max.2];
+                            let min_arr = [min.0, min.1, min.2];
+                            let max_arr = [max.0, max.1, max.2];
 
-                        let mesher_geometries = if greedy_meshing {
-                            voxelize_mesher::mesh_space_greedy(
-                                &min_arr,
-                                &max_arr,
-                                &space,
-                                mesher_registry,
-                            )
-                        } else {
-                            voxelize_mesher::mesh_space(
-                                &min_arr,
-                                &max_arr,
-                                &space,
-                                mesher_registry,
-                            )
-                        };
+                            let mesher_geometries = if greedy_meshing {
+                                voxelize_mesher::mesh_space_greedy(
+                                    &min_arr,
+                                    &max_arr,
+                                    &space,
+                                    mesher_registry,
+                                )
+                            } else {
+                                voxelize_mesher::mesh_space(
+                                    &min_arr,
+                                    &max_arr,
+                                    &space,
+                                    mesher_registry,
+                                )
+                            };
 
-                        let mut geometries = Vec::with_capacity(mesher_geometries.len());
-                        for g in mesher_geometries {
-                            geometries.push(GeometryProtocol {
-                                voxel: g.voxel,
-                                at: g.at.map(|[x, y, z]| vec![x, y, z]).unwrap_or_default(),
-                                face_name: g.face_name,
-                                positions: g.positions,
-                                indices: g.indices,
-                                uvs: g.uvs,
-                                lights: g.lights,
-                            });
+                            let mut geometries = Vec::with_capacity(mesher_geometries.len());
+                            for g in mesher_geometries {
+                                geometries.push(GeometryProtocol {
+                                    voxel: g.voxel,
+                                    at: g.at.map(|[x, y, z]| vec![x, y, z]).unwrap_or_default(),
+                                    face_name: g.face_name,
+                                    positions: g.positions,
+                                    indices: g.indices,
+                                    uvs: g.uvs,
+                                    lights: g.lights,
+                                });
+                            }
+
+                            chunk_meshes.insert(level_u32, MeshProtocol { level, geometries });
                         }
-
-                        chunk_meshes.insert(level_u32, MeshProtocol { level, geometries });
                     }
 
                     if should_store_lights {
