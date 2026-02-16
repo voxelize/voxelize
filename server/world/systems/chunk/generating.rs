@@ -99,7 +99,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
         /* -------------------------------------------------------------------------- */
 
-        if interests.map.is_empty() {
+        if interests.map.is_empty() || clients.is_empty() {
             interests.weights.clear();
         } else {
             let weights_capacity = interests.weights.capacity();
@@ -114,11 +114,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             if weights.capacity() < interest_map.len() {
                 weights.reserve(interest_map.len() - weights.len());
             }
-            if clients.is_empty() {
-                for coords in interest_map.keys() {
-                    weights.insert(*coords, 0.0);
-                }
-            } else if clients.len() == 1 {
+            if clients.len() == 1 {
                 if let Some((single_client_id, single_client)) = clients.iter().next() {
                     if let Some(single_request) = requests.get(single_client.entity) {
                         let center = &single_request.center;
