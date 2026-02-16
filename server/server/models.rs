@@ -679,106 +679,62 @@ impl MessageBuilder {
         if let Some(peer) = self.single_peer {
             message.peers = vec![map_peer_protocol(peer)];
         } else if let Some(peers) = self.peers {
-            if peers.len() == 1 {
-                let mut peers = peers;
-                let single_peer = {
-                    let Some(peer) = peers.pop() else {
-                        unreachable!("single peer list length matched branch");
-                    };
-                    peer
-                };
-                message.peers = vec![map_peer_protocol(single_peer)];
-            } else {
-                let mut mapped = Vec::with_capacity(peers.len());
-                for peer in peers {
-                    mapped.push(map_peer_protocol(peer));
-                }
-                message.peers = mapped;
+            debug_assert!(peers.len() > 1, "single peer payload should use single_peer");
+            let mut mapped = Vec::with_capacity(peers.len());
+            for peer in peers {
+                mapped.push(map_peer_protocol(peer));
             }
+            message.peers = mapped;
         }
 
         if let Some(entity) = self.single_entity {
             message.entities = vec![map_entity_protocol(entity)];
         } else if let Some(entities) = self.entities {
-            if entities.len() == 1 {
-                let mut entities = entities;
-                let single_entity = {
-                    let Some(entity) = entities.pop() else {
-                        unreachable!("single entity list length matched branch");
-                    };
-                    entity
-                };
-                message.entities = vec![map_entity_protocol(single_entity)];
-            } else {
-                let mut mapped = Vec::with_capacity(entities.len());
-                for entity in entities {
-                    mapped.push(map_entity_protocol(entity));
-                }
-                message.entities = mapped;
+            debug_assert!(
+                entities.len() > 1,
+                "single entity payload should use single_entity"
+            );
+            let mut mapped = Vec::with_capacity(entities.len());
+            for entity in entities {
+                mapped.push(map_entity_protocol(entity));
             }
+            message.entities = mapped;
         }
 
         if let Some(event) = self.single_event {
             message.events = vec![map_event_protocol(event)];
         } else if let Some(events) = self.events {
-            if events.len() == 1 {
-                let mut events = events;
-                let single_event = {
-                    let Some(event) = events.pop() else {
-                        unreachable!("single event list length matched branch");
-                    };
-                    event
-                };
-                message.events = vec![map_event_protocol(single_event)];
-            } else {
-                let mut mapped = Vec::with_capacity(events.len());
-                for event in events {
-                    mapped.push(map_event_protocol(event));
-                }
-                message.events = mapped;
+            debug_assert!(events.len() > 1, "single event payload should use single_event");
+            let mut mapped = Vec::with_capacity(events.len());
+            for event in events {
+                mapped.push(map_event_protocol(event));
             }
+            message.events = mapped;
         }
 
         if let Some(chunk) = self.single_chunk {
             message.chunks = vec![map_chunk_protocol(chunk)];
         } else if let Some(chunks) = self.chunks {
-            if chunks.len() == 1 {
-                let mut chunks = chunks;
-                let single_chunk = {
-                    let Some(chunk) = chunks.pop() else {
-                        unreachable!("single chunk list length matched branch");
-                    };
-                    chunk
-                };
-                message.chunks = vec![map_chunk_protocol(single_chunk)];
-            } else {
-                let mut mapped_chunks = Vec::with_capacity(chunks.len());
-                for chunk in chunks {
-                    mapped_chunks.push(map_chunk_protocol(chunk));
-                }
-                message.chunks = mapped_chunks;
+            debug_assert!(chunks.len() > 1, "single chunk payload should use single_chunk");
+            let mut mapped_chunks = Vec::with_capacity(chunks.len());
+            for chunk in chunks {
+                mapped_chunks.push(map_chunk_protocol(chunk));
             }
+            message.chunks = mapped_chunks;
         }
 
         if let Some(update) = self.single_update {
             message.updates = vec![map_update_protocol(update)];
         } else if let Some(updates) = self.updates {
-            if updates.len() == 1 {
-                let mut updates = updates;
-                let single_update = {
-                    let Some(update) = updates.pop() else {
-                        unreachable!("single update list length matched branch");
-                    };
-                    update
-                };
-                message.updates = vec![map_update_protocol(single_update)];
-            } else {
-                let mut mapped = Vec::with_capacity(updates.len());
-                for update in updates {
-                    mapped.push(map_update_protocol(update));
-                }
-                message.updates = mapped;
+            debug_assert!(
+                updates.len() > 1,
+                "single update payload should use single_update"
+            );
+            let mut mapped = Vec::with_capacity(updates.len());
+            for update in updates {
+                mapped.push(map_update_protocol(update));
             }
+            message.updates = mapped;
         }
 
         if let Some(method) = self.method {
