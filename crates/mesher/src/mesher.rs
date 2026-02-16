@@ -1105,18 +1105,7 @@ fn should_render_face<S: VoxelAccess>(
             && !is_opaque
             && !n_block_type.is_opaque
             && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
-                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
-                || ({
-                    if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = get_block_combined_aabb(block);
-                        let mut n_bounding = get_block_combined_aabb(n_block_type);
-                        n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
-                        !(self_bounding.intersects(&n_bounding)
-                            || self_bounding.touches(&n_bounding))
-                    } else {
-                        false
-                    }
-                })))
+                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))))
         || (!see_through && (!is_opaque || !n_block_type.is_opaque))
         || (is_fluid
             && n_block_type.is_opaque
@@ -1781,16 +1770,7 @@ fn process_face<S: VoxelAccess>(
             && ((is_see_through
                 && neighbor_id == voxel_id
                 && n_block_type.transparent_standalone)
-                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
-                || ({
-                    if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let mut n_bounding = get_block_combined_aabb(n_block_type);
-                        n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
-                        !(block_aabb.intersects(&n_bounding) || block_aabb.touches(&n_bounding))
-                    } else {
-                        false
-                    }
-                })))
+                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))))
         || (!see_through && (!is_opaque || !n_block_type.is_opaque))
         || (is_fluid
             && n_block_type.is_opaque
