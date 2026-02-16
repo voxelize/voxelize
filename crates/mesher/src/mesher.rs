@@ -58,6 +58,10 @@ pub struct Block {
     pub is_all_transparent: bool,
     #[serde(skip, default)]
     pub is_all_transparent_computed: bool,
+    #[serde(skip, default)]
+    pub is_full_cube_cached: bool,
+    #[serde(skip, default)]
+    pub is_full_cube_computed: bool,
 }
 
 impl Block {
@@ -105,9 +109,20 @@ impl Block {
         self.combined_aabb_computed = true;
         self.is_all_transparent = self.is_transparent.iter().all(|value| *value);
         self.is_all_transparent_computed = true;
+        self.is_full_cube_cached = self.aabbs.len() == 1
+            && (self.aabbs[0].min_x - 0.0).abs() < f32::EPSILON
+            && (self.aabbs[0].min_y - 0.0).abs() < f32::EPSILON
+            && (self.aabbs[0].min_z - 0.0).abs() < f32::EPSILON
+            && (self.aabbs[0].max_x - 1.0).abs() < f32::EPSILON
+            && (self.aabbs[0].max_y - 1.0).abs() < f32::EPSILON
+            && (self.aabbs[0].max_z - 1.0).abs() < f32::EPSILON;
+        self.is_full_cube_computed = true;
     }
 
     pub fn is_full_cube(&self) -> bool {
+        if self.is_full_cube_computed {
+            return self.is_full_cube_cached;
+        }
         self.aabbs.len() == 1
             && (self.aabbs[0].min_x - 0.0).abs() < f32::EPSILON
             && (self.aabbs[0].min_y - 0.0).abs() < f32::EPSILON
@@ -151,6 +166,7 @@ impl Registry {
                 || !block.cardinal_face_ranges_computed
                 || !block.combined_aabb_computed
                 || !block.is_all_transparent_computed
+                || !block.is_full_cube_computed
             {
                 block.compute_name_lower();
             }
@@ -2819,6 +2835,8 @@ mod tests {
             combined_aabb_computed: false,
             is_all_transparent: false,
             is_all_transparent_computed: false,
+            is_full_cube_cached: false,
+            is_full_cube_computed: false,
         }
     }
 

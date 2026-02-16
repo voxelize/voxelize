@@ -1727,6 +1727,8 @@ impl Block {
             combined_aabb_computed: false,
             is_all_transparent: false,
             is_all_transparent_computed: false,
+            is_full_cube_cached: false,
+            is_full_cube_computed: false,
         }
     }
 
