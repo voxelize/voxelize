@@ -23777,6 +23777,30 @@ describe("report-utils", () => {
     }
   });
 
+  it("returns stable write failure messages for cross-realm boxed primitive output paths", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const cases: Array<{ readonly outputPath: object; readonly label: string }> = [
+      { outputPath: vm.runInNewContext("new Number(7)") as object, label: "7" },
+      { outputPath: vm.runInNewContext("new Boolean(true)") as object, label: "true" },
+      { outputPath: vm.runInNewContext("Object(1n)") as object, label: "1" },
+      {
+        outputPath: vm.runInNewContext(
+          "Object(Symbol('cross-realm-boxed-output-path'))"
+        ) as object,
+        label: "Symbol(cross-realm-boxed-output-path)",
+      },
+    ];
+
+    for (const { outputPath, label } of cases) {
+      expect(() => writeReportToPath(reportJson, outputPath as never)).not.toThrow();
+      const failureMessage = writeReportToPath(reportJson, outputPath as never);
+      expect(failureMessage).toContain(`Failed to write report to ${label}.`);
+      expect(failureMessage).toContain(
+        'The "path" argument must be of type string.'
+      );
+    }
+  });
+
   it("returns stable write failure messages for boxed primitives with trapped toString", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const numberWrapper = new Number(7);
@@ -24894,6 +24918,84 @@ describe("report-utils", () => {
           passed: true,
           exitCode: 0,
           outputPath: outputPath as never,
+        },
+        {
+          jsonFormat: { compact: true },
+          outputPath: outputPath as never,
+          buildTimedReport: timedReportBuilder,
+        }
+      );
+      const parsedWriteFailureResult = JSON.parse(
+        writeFailureResult.reportJson
+      ) as {
+        schemaVersion: number;
+        passed: boolean;
+        exitCode: number;
+        outputPath: string;
+        writeError: string;
+        message: string;
+        startedAt: string;
+        endedAt: string;
+        durationMs: number;
+      };
+
+      expect(writeFailureResult.writeError).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(writeFailureResult.writeError).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+      expect(parsedWriteFailureResult.passed).toBe(false);
+      expect(parsedWriteFailureResult.exitCode).toBe(1);
+      expect(parsedWriteFailureResult.outputPath).toBe(label);
+      expect(parsedWriteFailureResult.writeError).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(parsedWriteFailureResult.writeError).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.message).toContain(
+        `Failed to write report to ${label}.`
+      );
+      expect(parsedWriteFailureResult.message).toContain(
+        'The "path" argument must be of type string.'
+      );
+      expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+      expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+      expect(parsedWriteFailureResult.durationMs).toBe(1000);
+    }
+  });
+
+  it("returns structured serialize fallback for cross-realm boxed primitive output paths", () => {
+    const cases: Array<{ readonly outputPath: object; readonly label: string }> = [
+      { outputPath: vm.runInNewContext("new Number(7)") as object, label: "7" },
+      { outputPath: vm.runInNewContext("new Boolean(true)") as object, label: "true" },
+      { outputPath: vm.runInNewContext("Object(1n)") as object, label: "1" },
+      {
+        outputPath: vm.runInNewContext(
+          "Object(Symbol('cross-realm-boxed-output-path'))"
+        ) as object,
+        label: "Symbol(cross-realm-boxed-output-path)",
+      },
+    ];
+
+    for (const { outputPath, label } of cases) {
+      const timedReportBuilder = createTimedReportBuilder(
+        (() => {
+          let tick = 0;
+          return () => {
+            tick += 1;
+            return tick * 1000;
+          };
+        })(),
+        (value) => `iso-${value}`
+      );
+      const writeFailureResult = serializeReportWithOptionalWrite(
+        {
+          passed: true,
+          exitCode: 0,
+          outputPath: null,
         },
         {
           jsonFormat: { compact: true },
