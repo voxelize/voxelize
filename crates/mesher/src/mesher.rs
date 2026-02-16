@@ -1836,8 +1836,6 @@ fn process_face<S: VoxelAccess>(
     registry: &Registry,
     space: &S,
     neighbors: &NeighborCache,
-    see_through: bool,
-    is_fluid: bool,
     fluid_surface_above: bool,
     positions: &mut Vec<f32>,
     indices: &mut Vec<i32>,
@@ -1850,6 +1848,7 @@ fn process_face<S: VoxelAccess>(
 
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
+    let is_fluid = block.is_fluid;
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
 
@@ -1875,7 +1874,7 @@ fn process_face<S: VoxelAccess>(
         block,
         space,
         registry,
-        see_through,
+        is_see_through,
         is_fluid,
         fluid_surface_above,
     ) {
@@ -2207,8 +2206,6 @@ fn process_non_greedy_face<S: VoxelAccess>(
         registry,
         space,
         neighbors,
-        block.is_see_through,
-        block.is_fluid,
         fluid_surface_above,
         &mut geometry.positions,
         &mut geometry.indices,
@@ -2550,7 +2547,6 @@ pub fn mesh_space<S: VoxelAccess>(
                 };
                 let rotation = space.get_voxel_rotation(vx, vy, vz);
 
-                let is_see_through = block.is_see_through;
                 let is_empty = block.is_empty;
                 let is_opaque = block.is_opaque;
                 let is_fluid = block.is_fluid;
@@ -2622,8 +2618,6 @@ pub fn mesh_space<S: VoxelAccess>(
                         registry,
                         space,
                         &neighbors,
-                        is_see_through,
-                        is_fluid,
                         fluid_surface_above,
                         &mut geometry.positions,
                         &mut geometry.indices,
