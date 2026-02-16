@@ -98,7 +98,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
         /* -------------------------------------------------------------------------- */
 
-        let mut weights = std::mem::take(&mut interests.weights);
+        let weights_capacity = interests.weights.capacity();
+        let mut weights = std::mem::replace(
+            &mut interests.weights,
+            hashbrown::HashMap::with_capacity(weights_capacity),
+        );
         let interest_map = &interests.map;
         if !weights.is_empty() {
             weights.retain(|coords, _| interest_map.contains_key(coords));
