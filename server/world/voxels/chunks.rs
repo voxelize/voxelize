@@ -20,6 +20,12 @@ use crate::{
 };
 
 #[inline]
+fn take_map_with_capacity<K, V>(buffer: &mut HashMap<K, V>) -> HashMap<K, V> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, HashMap::with_capacity(capacity))
+}
+
+#[inline]
 fn for_each_voxel_affected_chunk_from_mapped<F: FnMut(Vec2<i32>)>(
     cx: i32,
     cz: i32,
@@ -658,8 +664,8 @@ impl Chunks {
             return;
         }
         self.updates.reserve(staged_count);
-
-        for (voxel, val) in self.updates_staging.drain() {
+        let staged_updates = take_map_with_capacity(&mut self.updates_staging);
+        for (voxel, val) in staged_updates {
             self.updates.push_back((voxel, val));
         }
     }
