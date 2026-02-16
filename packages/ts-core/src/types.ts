@@ -58,6 +58,30 @@ export interface BlockFaceInit {
   range?: UV;
 }
 
+type BlockFaceNameLike = string | number | boolean | object | null | undefined;
+
+const toBlockFaceNameOrFallback = (
+  value: BlockFaceNameLike,
+  fallback: string
+): string => {
+  return typeof value === "string" ? value : fallback;
+};
+
+const toBlockFaceNameLowerOrFallback = (
+  value: BlockFaceNameLike,
+  fallback: string
+): string => {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  try {
+    return value.toLowerCase();
+  } catch {
+    return fallback;
+  }
+};
+
 export class BlockFace {
   public name: string;
   public nameLower: string;
@@ -77,8 +101,9 @@ export class BlockFace {
     corners = createDefaultCorners(),
     range = createUV(),
   }: BlockFaceInit) {
-    this.name = name;
-    this.nameLower = name.toLowerCase();
+    const normalizedName = toBlockFaceNameOrFallback(name, "Face");
+    this.name = normalizedName;
+    this.nameLower = toBlockFaceNameLowerOrFallback(normalizedName, "face");
     this.independent = independent;
     this.isolated = isolated;
     this.textureGroup = textureGroup;
@@ -93,15 +118,22 @@ export class BlockFace {
   }
 
   computeNameLower(): void {
-    this.nameLower = this.name.toLowerCase();
+    const fallbackNameLower =
+      typeof this.nameLower === "string" ? this.nameLower : "face";
+    this.nameLower = toBlockFaceNameLowerOrFallback(
+      this.name,
+      fallbackNameLower
+    );
   }
 
   getNameLower(): string {
-    if (this.nameLower.length === 0) {
-      return this.name;
+    const normalizedNameLower =
+      typeof this.nameLower === "string" ? this.nameLower : "";
+    if (normalizedNameLower.length === 0) {
+      return toBlockFaceNameOrFallback(this.name, "");
     }
 
-    return this.nameLower;
+    return normalizedNameLower;
   }
 }
 

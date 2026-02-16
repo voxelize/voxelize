@@ -1659,6 +1659,40 @@ describe("Type builders", () => {
     expect(face.getNameLower()).toBe("NewFace");
   });
 
+  it("sanitizes malformed BlockFace name fields without throwing", () => {
+    const face = new BlockFace({ name: "TopFace" });
+    const trappedNameValue = {
+      toLowerCase() {
+        throw new Error("name trap");
+      },
+    };
+    (face as { name: string | object }).name = trappedNameValue;
+    expect(() => face.computeNameLower()).not.toThrow();
+    expect(face.nameLower).toBe("topface");
+
+    const trappedNameLower = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("nameLower trap");
+        },
+      }
+    );
+    (face as { nameLower: string | object }).nameLower = trappedNameLower;
+    expect(() => face.getNameLower()).not.toThrow();
+    expect(face.getNameLower()).toBe("");
+
+    const malformedNameFace = new BlockFace({
+      name: {
+        [Symbol.toPrimitive]() {
+          throw new Error("constructor name trap");
+        },
+      } as never,
+    });
+    expect(malformedNameFace.name).toBe("Face");
+    expect(malformedNameFace.nameLower).toBe("face");
+  });
+
   it("clones block face corner arrays on construction", () => {
     const firstCorner = createCornerData([0, 0, 0], [0, 0]);
     const face = new BlockFace({
