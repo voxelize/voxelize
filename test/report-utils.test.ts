@@ -297,6 +297,36 @@ describe("report-utils", () => {
     expect(report.passed).toBe(true);
   });
 
+  it("sanitizes malformed report payloads before schema serialization", () => {
+    expect(toReport("text" as never)).toEqual({
+      schemaVersion: REPORT_SCHEMA_VERSION,
+    });
+    expect(toReport([1, 2, 3] as never)).toEqual({
+      schemaVersion: REPORT_SCHEMA_VERSION,
+    });
+
+    const trappedReport = new Proxy(Object.create(null), {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      },
+    });
+    expect(() => toReport(trappedReport as never)).not.toThrow();
+    expect(toReport(trappedReport as never)).toEqual({
+      schemaVersion: REPORT_SCHEMA_VERSION,
+    });
+
+    expect(
+      JSON.parse(toReportJson("text" as never)) as { schemaVersion: number }
+    ).toEqual({
+      schemaVersion: REPORT_SCHEMA_VERSION,
+    });
+    expect(
+      JSON.parse(toReportJson(trappedReport as never)) as { schemaVersion: number }
+    ).toEqual({
+      schemaVersion: REPORT_SCHEMA_VERSION,
+    });
+  });
+
   it("serializes report payloads with schema version", () => {
     const serialized = toReportJson({ passed: false, exitCode: 1 });
     const parsed = JSON.parse(serialized) as {

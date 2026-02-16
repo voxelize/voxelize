@@ -146,9 +146,25 @@ export const parseJsonOutput = (value) => {
   }
 };
 
+const toReportSnapshotOrEmpty = (report) => {
+  if (report === null || typeof report !== "object") {
+    return {};
+  }
+
+  try {
+    if (Array.isArray(report)) {
+      return {};
+    }
+
+    return { ...report };
+  } catch {
+    return {};
+  }
+};
+
 export const toReport = (report) => {
   return {
-    ...report,
+    ...toReportSnapshotOrEmpty(report),
     schemaVersion: REPORT_SCHEMA_VERSION,
   };
 };
