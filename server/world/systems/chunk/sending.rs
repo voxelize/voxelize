@@ -167,6 +167,26 @@ fn prepare_chunk_batch_buffer(
 }
 
 #[inline]
+fn retain_active_client_batches(
+    batches: &mut HashMap<String, Vec<ChunkProtocol>>,
+    clients: &Clients,
+) {
+    if batches.len() <= clients.len() {
+        return;
+    }
+    if clients.len() == 1 {
+        if let Some((single_client_id, _)) = clients.iter().next() {
+            let single_client_id = single_client_id.as_str();
+            batches.retain(|client_id, _| client_id.as_str() == single_client_id);
+        } else {
+            batches.clear();
+        }
+        return;
+    }
+    batches.retain(|client_id, _| clients.contains_key(client_id));
+}
+
+#[inline]
 fn take_chunk_models_to_send(
     chunk_models: &mut Vec<ChunkProtocol>,
 ) -> Option<Result<Vec<ChunkProtocol>, ChunkProtocol>> {
@@ -303,18 +323,10 @@ impl<'a> System<'a> for ChunkSendingSystem {
         let client_update_mesh = &mut self.client_update_mesh_buffer;
         let client_update_data = &mut self.client_update_data_buffer;
         let client_count = clients.len();
-        if client_load_mesh.len() > client_count {
-            client_load_mesh.retain(|client_id, _| clients.contains_key(client_id));
-        }
-        if client_load_data.len() > client_count {
-            client_load_data.retain(|client_id, _| clients.contains_key(client_id));
-        }
-        if client_update_mesh.len() > client_count {
-            client_update_mesh.retain(|client_id, _| clients.contains_key(client_id));
-        }
-        if client_update_data.len() > client_count {
-            client_update_data.retain(|client_id, _| clients.contains_key(client_id));
-        }
+        retain_active_client_batches(client_load_mesh, &clients);
+        retain_active_client_batches(client_load_data, &clients);
+        retain_active_client_batches(client_update_mesh, &clients);
+        retain_active_client_batches(client_update_data, &clients);
         let client_load_mesh_touched = &mut self.client_load_mesh_touched;
         let client_load_data_touched = &mut self.client_load_data_touched;
         let client_update_mesh_touched = &mut self.client_update_mesh_touched;
