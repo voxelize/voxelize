@@ -2402,3 +2402,53 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 
     MeshOutput { geometries }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{mesh_chunk, mesh_chunk_with_registry, ChunkData, MeshConfig, MeshInput, MeshInputNoRegistry, Registry};
+
+    fn centered_chunks() -> Vec<Option<ChunkData>> {
+        let mut chunks: Vec<Option<ChunkData>> = std::iter::repeat_with(|| None).take(9).collect();
+        chunks[4] = Some(ChunkData {
+            voxels: vec![0],
+            lights: vec![0],
+            shape: [1, 1, 1],
+            min: [0, 0, 0],
+        });
+        chunks
+    }
+
+    #[test]
+    fn mesh_chunk_returns_empty_for_non_positive_chunk_size() {
+        let output = mesh_chunk(MeshInput {
+            chunks: centered_chunks(),
+            min: [0, 0, 0],
+            max: [1, 1, 1],
+            registry: Registry::new(vec![]),
+            config: MeshConfig {
+                chunk_size: 0,
+                greedy_meshing: false,
+            },
+        });
+
+        assert!(output.geometries.is_empty());
+    }
+
+    #[test]
+    fn mesh_chunk_with_registry_returns_empty_for_non_positive_chunk_size() {
+        let output = mesh_chunk_with_registry(
+            MeshInputNoRegistry {
+                chunks: centered_chunks(),
+                min: [0, 0, 0],
+                max: [1, 1, 1],
+                config: MeshConfig {
+                    chunk_size: -16,
+                    greedy_meshing: true,
+                },
+            },
+            &Registry::new(vec![]),
+        );
+
+        assert!(output.geometries.is_empty());
+    }
+}
