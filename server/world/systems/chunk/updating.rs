@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 
 use hashbrown::{hash_map::RawEntryMut, HashMap};
 use log::warn;
@@ -151,6 +151,38 @@ fn compute_flood_bounds(
         ),
         Vec3(shape_x, shape_y, shape_z),
     ))
+}
+
+#[inline]
+fn compare_voxel_positions(a: &Vec3<i32>, b: &Vec3<i32>) -> Ordering {
+    a.0
+        .cmp(&b.0)
+        .then_with(|| a.1.cmp(&b.1))
+        .then_with(|| a.2.cmp(&b.2))
+}
+
+#[inline]
+fn sort_due_voxels(due_voxels: &mut Vec<Vec3<i32>>) {
+    match due_voxels.len() {
+        0 | 1 => {}
+        2 => {
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[1]).is_gt() {
+                due_voxels.swap(0, 1);
+            }
+        }
+        3 => {
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[1]).is_gt() {
+                due_voxels.swap(0, 1);
+            }
+            if compare_voxel_positions(&due_voxels[1], &due_voxels[2]).is_gt() {
+                due_voxels.swap(1, 2);
+            }
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[1]).is_gt() {
+                due_voxels.swap(0, 1);
+            }
+        }
+        _ => due_voxels.sort_unstable_by(compare_voxel_positions),
+    }
 }
 
 fn process_pending_updates(
@@ -1033,14 +1065,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         // Sort by position for deterministic ordering when multiple voxels are due at the same tick
         if let Some(due_voxels) = due_voxels.as_mut() {
-            if due_voxels.len() > 1 {
-                due_voxels.sort_unstable_by(|a, b| {
-                    a.0
-                        .cmp(&b.0)
-                        .then_with(|| a.1.cmp(&b.1))
-                        .then_with(|| a.2.cmp(&b.2))
-                });
-            }
+            sort_due_voxels(due_voxels);
         }
 
         // Process active voxels sequentially with immediate state application.
@@ -1143,7 +1168,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 mod tests {
     use super::{
         block_entity_type_from_name, compute_flood_bounds, normalized_chunk_size,
-        schedule_active_tick,
+        schedule_active_tick, sort_due_voxels,
     };
     use crate::{LightNode, Vec3};
 
@@ -1199,5 +1224,26 @@ mod tests {
     fn block_entity_type_from_name_normalizes_prefix_once() {
         assert_eq!(block_entity_type_from_name("block::grass"), "block::grass");
         assert_eq!(block_entity_type_from_name("grass"), "block::grass");
+    }
+
+    #[test]
+    fn sort_due_voxels_orders_two_positions() {
+        let mut due_voxels = vec![Vec3(2, 0, 0), Vec3(1, 0, 0)];
+
+        sort_due_voxels(&mut due_voxels);
+
+        assert_eq!(due_voxels, vec![Vec3(1, 0, 0), Vec3(2, 0, 0)]);
+    }
+
+    #[test]
+    fn sort_due_voxels_orders_three_positions() {
+        let mut due_voxels = vec![Vec3(3, 0, 0), Vec3(1, 0, 0), Vec3(2, 0, 0)];
+
+        sort_due_voxels(&mut due_voxels);
+
+        assert_eq!(
+            due_voxels,
+            vec![Vec3(1, 0, 0), Vec3(2, 0, 0), Vec3(3, 0, 0)]
+        );
     }
 }
