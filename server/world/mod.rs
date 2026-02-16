@@ -167,7 +167,7 @@ fn strip_command_prefix<'a>(body: &'a str, command_symbol: &str) -> Option<&'a s
         0 => Some(body),
         1 => {
             let body_bytes = body.as_bytes();
-            if body_bytes.first().copied() == symbol_bytes.first().copied() {
+            if body_bytes.first().copied() == Some(symbol_bytes[0]) {
                 body.get(1..)
             } else {
                 None
