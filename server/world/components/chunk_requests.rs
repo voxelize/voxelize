@@ -194,8 +194,36 @@ impl ChunkRequestsComp {
     }
 
     pub fn sort(&mut self) {
-        if self.requests.len() <= 1 {
-            return;
+        match self.requests.len() {
+            0 | 1 => return,
+            2 => {
+                let first_distance = manhattan_distance(&self.requests[0], &self.center);
+                let second_distance = manhattan_distance(&self.requests[1], &self.center);
+                if first_distance > second_distance {
+                    self.requests.swap(0, 1);
+                }
+                return;
+            }
+            3 => {
+                let mut first_distance =
+                    manhattan_distance(&self.requests[0], &self.center);
+                let mut second_distance =
+                    manhattan_distance(&self.requests[1], &self.center);
+                let third_distance = manhattan_distance(&self.requests[2], &self.center);
+                if first_distance > second_distance {
+                    self.requests.swap(0, 1);
+                    std::mem::swap(&mut first_distance, &mut second_distance);
+                }
+                if second_distance > third_distance {
+                    self.requests.swap(1, 2);
+                    second_distance = third_distance;
+                }
+                if first_distance > second_distance {
+                    self.requests.swap(0, 1);
+                }
+                return;
+            }
+            _ => {}
         }
         self.requests
             .sort_unstable_by_key(|coords| manhattan_distance(coords, &self.center));
@@ -380,6 +408,31 @@ mod tests {
         assert_eq!(requests.requests[0], Vec2(i32::MAX - 1, i32::MAX));
         assert_eq!(requests.requests[1], Vec2(i32::MAX, i32::MAX - 1));
         assert_eq!(requests.requests[2], Vec2(i32::MIN, i32::MIN));
+    }
+
+    #[test]
+    fn sort_orders_two_requests_without_generic_sort() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.center = Vec2(0, 0);
+        requests.requests = vec![Vec2(5, 0), Vec2(1, 0)];
+
+        requests.sort();
+
+        assert_eq!(requests.requests, vec![Vec2(1, 0), Vec2(5, 0)]);
+    }
+
+    #[test]
+    fn sort_orders_three_requests_without_generic_sort() {
+        let mut requests = ChunkRequestsComp::new();
+        requests.center = Vec2(0, 0);
+        requests.requests = vec![Vec2(3, 0), Vec2(2, 0), Vec2(1, 0)];
+
+        requests.sort();
+
+        assert_eq!(
+            requests.requests,
+            vec![Vec2(1, 0), Vec2(2, 0), Vec2(3, 0)]
+        );
     }
 
     #[test]
