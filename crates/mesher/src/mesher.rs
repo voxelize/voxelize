@@ -1124,9 +1124,13 @@ fn should_render_face<S: VoxelAccess>(
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
 
-    let n_block_type = match registry.get_block_by_id(neighbor_id) {
-        Some(b) => b,
-        None => return n_is_void,
+    let n_block_type = if !n_is_void && neighbor_id == voxel_id {
+        block
+    } else {
+        match registry.get_block_by_id(neighbor_id) {
+            Some(b) => b,
+            None => return n_is_void,
+        }
     };
 
     let is_opaque = block.is_opaque;
@@ -1788,9 +1792,13 @@ fn process_face<S: VoxelAccess>(
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
 
-    let n_block_type = match registry.get_block_by_id(neighbor_id) {
-        Some(b) => b,
-        None => return,
+    let n_block_type = if !n_is_void && neighbor_id == voxel_id {
+        block
+    } else {
+        match registry.get_block_by_id(neighbor_id) {
+            Some(b) => b,
+            None => return,
+        }
     };
 
     if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
