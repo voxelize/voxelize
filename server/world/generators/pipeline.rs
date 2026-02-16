@@ -424,11 +424,11 @@ impl Pipeline {
             return Vec::new();
         }
         if pending_len == 1 {
-            if let Some(coords) = self.pending_regenerate.iter().next().copied() {
-                self.pending_regenerate.clear();
-                return vec![coords];
-            }
-            return Vec::new();
+            let Some(coords) = self.pending_regenerate.iter().next().copied() else {
+                unreachable!("single pending regenerate length matched branch");
+            };
+            self.pending_regenerate.clear();
+            return vec![coords];
         }
 
         let mut drained = Vec::with_capacity(pending_len);

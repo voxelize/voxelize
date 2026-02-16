@@ -31,8 +31,11 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
         return None;
     }
     if updated_levels.len() == 1 {
-        let Some(level) = updated_levels.iter().next().copied() else {
-            return None;
+        let level = {
+            let Some(single_level) = updated_levels.iter().next().copied() else {
+                unreachable!("single updated level length matched branch");
+            };
+            single_level
         };
         updated_levels.clear();
         let max_level_exclusive = level.saturating_add(1);
