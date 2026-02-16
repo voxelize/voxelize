@@ -113,6 +113,7 @@ fn normalize_filter_for_batching(filter: &mut ClientFilter) {
     ids.dedup();
 }
 
+#[inline]
 fn can_batch(msg_type: i32) -> bool {
     msg_type == MessageType::Peer as i32
         || msg_type == MessageType::Entity as i32
@@ -120,10 +121,12 @@ fn can_batch(msg_type: i32) -> bool {
         || msg_type == MessageType::Event as i32
 }
 
+#[inline]
 fn is_immediate(msg_type: i32) -> bool {
     msg_type == MessageType::Chat as i32 || msg_type == MessageType::Method as i32
 }
 
+#[inline]
 fn should_send_to_transport(msg_type: i32) -> bool {
     msg_type == MessageType::Entity as i32 || msg_type == MessageType::Peer as i32
 }
