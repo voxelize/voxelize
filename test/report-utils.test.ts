@@ -4224,6 +4224,47 @@ describe("report-utils", () => {
     expect(unavailableStrictMetadataOverrideValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const emptyIteratorStrictMetadataOverrideValidation =
+      createCliOptionValidation(["--output", "-l"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 1;
+              }
+              if (property === "0") {
+                return "--output";
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(emptyIteratorStrictMetadataOverrideValidation.supportedCliOptions).toEqual(
+      ["--output"]
+    );
+    expect(
+      emptyIteratorStrictMetadataOverrideValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(emptyIteratorStrictMetadataOverrideValidation.unknownOptions).toEqual([
+      "-l",
+    ]);
+    expect(emptyIteratorStrictMetadataOverrideValidation.unknownOptionCount).toBe(1);
+    expect(
+      emptyIteratorStrictMetadataOverrideValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): -l. Supported options: --output.");
+    expect(
+      emptyIteratorStrictMetadataOverrideValidation.validationErrorCode
+    ).toBe("unsupported_options");
     const unavailableStrictMetadataOverrideAliasValidation =
       createCliOptionValidation(["--output", "-j"], {
         canonicalOptions: ["--output", "--json"],
