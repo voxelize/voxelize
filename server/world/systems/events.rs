@@ -272,6 +272,36 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
 }
 
 #[inline]
+fn build_transport_events_message(
+    world_name: &str,
+    transports_map: &mut Vec<EventProtocol>,
+) -> Option<Message> {
+    if transports_map.is_empty() {
+        return None;
+    }
+    if transports_map.len() == 1 {
+        let single_event = transports_map.pop()?;
+        return Some(
+            Message::new(&MessageType::Event)
+                .world_name(world_name)
+                .event_owned(single_event)
+                .build(),
+        );
+    }
+    let next_transport_event_capacity = transports_map.capacity();
+    let transports_events_to_send = std::mem::replace(
+        transports_map,
+        Vec::with_capacity(next_transport_event_capacity),
+    );
+    Some(
+        Message::new(&MessageType::Event)
+            .world_name(world_name)
+            .events_owned(transports_events_to_send)
+            .build(),
+    )
+}
+
+#[inline]
 fn take_client_events_to_send(
     client_events: &mut Vec<EventProtocol>,
 ) -> Option<Result<Vec<EventProtocol>, EventProtocol>> {
@@ -367,25 +397,10 @@ impl<'a> System<'a> for EventsSystem {
                     payload: payload.unwrap_or_else(|| String::from("{}")),
                 });
             }
-            let next_transport_event_capacity = transports_map.capacity();
-            let transports_events_to_send = std::mem::replace(
-                transports_map,
-                Vec::with_capacity(next_transport_event_capacity),
-            );
-            let message = if transports_events_to_send.len() == 1 {
-                let mut transports_events_to_send = transports_events_to_send;
-                let Some(single_event) = transports_events_to_send.pop() else {
-                    return;
-                };
-                Message::new(&MessageType::Event)
-                    .world_name(&world_metadata.world_name)
-                    .event_owned(single_event)
-                    .build()
-            } else {
-                Message::new(&MessageType::Event)
-                    .world_name(&world_metadata.world_name)
-                    .events_owned(transports_events_to_send)
-                    .build()
+            let Some(message) =
+                build_transport_events_message(&world_metadata.world_name, transports_map)
+            else {
+                return;
             };
             let encoded = Bytes::from(encode_message(&message));
             send_to_transports(&transports, encoded);
@@ -662,28 +677,12 @@ impl<'a> System<'a> for EventsSystem {
         }
 
         if has_transports {
-            let next_transport_event_capacity = transports_map.capacity();
-            let transports_events_to_send = std::mem::replace(
-                transports_map,
-                Vec::with_capacity(next_transport_event_capacity),
-            );
-            let message = if transports_events_to_send.len() == 1 {
-                let mut transports_events_to_send = transports_events_to_send;
-                let Some(single_event) = transports_events_to_send.pop() else {
-                    return;
-                };
-                Message::new(&MessageType::Event)
-                    .world_name(&world_metadata.world_name)
-                    .event_owned(single_event)
-                    .build()
-            } else {
-                Message::new(&MessageType::Event)
-                    .world_name(&world_metadata.world_name)
-                    .events_owned(transports_events_to_send)
-                    .build()
-            };
-            let encoded = Bytes::from(encode_message(&message));
-            send_to_transports(&transports, encoded);
+            if let Some(message) =
+                build_transport_events_message(&world_metadata.world_name, transports_map)
+            {
+                let encoded = Bytes::from(encode_message(&message));
+                send_to_transports(&transports, encoded);
+            }
         }
     }
 }
