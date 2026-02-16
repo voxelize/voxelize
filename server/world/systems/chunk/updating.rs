@@ -901,7 +901,8 @@ fn process_pending_updates(
 
     if !chunks.cache.is_empty() {
         let mut cache = std::mem::take(&mut chunks.cache);
-        let mut processes = Vec::with_capacity(cache.len());
+        let process_initial_capacity = cache.len().min(64);
+        let mut processes = None;
         for coords in cache.drain() {
             chunks.add_chunk_to_save(&coords, true);
             if !chunks.is_chunk_ready(&coords) {
@@ -919,10 +920,14 @@ fn process_pending_updates(
             let Some(chunk) = chunks.raw(&coords).cloned() else {
                 continue;
             };
-            processes.push((chunk, space));
+            processes
+                .get_or_insert_with(|| Vec::with_capacity(process_initial_capacity))
+                .push((chunk, space));
         }
 
-        mesher.process(processes, &MessageType::Update, registry, config);
+        if let Some(processes) = processes {
+            mesher.process(processes, &MessageType::Update, registry, config);
+        }
     }
 
     let mut results = results.unwrap_or_default();
