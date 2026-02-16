@@ -163,6 +163,7 @@ impl Mesher {
 
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.map.remove(coords);
+        self.pending_remesh.remove(coords);
         self.remove_queued_chunk(coords);
     }
 
@@ -534,5 +535,22 @@ mod tests {
 
         assert_eq!(mesher.get(), Some(coords));
         assert!(!mesher.queued.contains(&coords));
+    }
+
+    #[test]
+    fn remove_chunk_clears_pending_remesh_and_queued_tracking() {
+        let mut mesher = Mesher::new();
+        let coords = Vec2(4, -2);
+
+        mesher.map.insert(coords);
+        mesher.pending_remesh.insert(coords);
+        mesher.add_chunk(&coords, false);
+
+        mesher.remove_chunk(&coords);
+
+        assert!(!mesher.map.contains(&coords));
+        assert!(!mesher.pending_remesh.contains(&coords));
+        assert!(!mesher.queued.contains(&coords));
+        assert!(!mesher.queue.iter().any(|queued| queued == &coords));
     }
 }

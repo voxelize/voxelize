@@ -336,6 +336,8 @@ impl Pipeline {
     /// Remove a chunk coordinate from the pipeline.
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.chunks.remove(coords);
+        self.pending_regenerate.remove(coords);
+        self.leftovers.remove(coords);
         self.remove_queued_chunk(coords);
     }
 
@@ -622,5 +624,23 @@ mod tests {
 
         assert_eq!(pipeline.get(), Some(coords));
         assert!(!pipeline.queued.contains(&coords));
+    }
+
+    #[test]
+    fn remove_chunk_clears_pending_and_leftover_tracking() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(4, -6);
+        pipeline.chunks.insert(coords);
+        pipeline.pending_regenerate.insert(coords);
+        pipeline.leftovers.insert(coords, Vec::new());
+        pipeline.add_chunk(&coords, false);
+
+        pipeline.remove_chunk(&coords);
+
+        assert!(!pipeline.chunks.contains(&coords));
+        assert!(!pipeline.pending_regenerate.contains(&coords));
+        assert!(!pipeline.leftovers.contains_key(&coords));
+        assert!(!pipeline.queued.contains(&coords));
+        assert!(!pipeline.queue.iter().any(|queued| queued == &coords));
     }
 }
