@@ -3869,8 +3869,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
 
                 let is_see_through = block.is_see_through;
                 let is_fluid = block.is_fluid;
-                let skip_opaque_checks = is_see_through || block.is_all_transparent;
                 if cached_non_greedy_voxel_key != Some(voxel_key) {
+                    let skip_opaque_checks = is_see_through || block.is_all_transparent;
                     cached_non_greedy_rotation = decode_rotation_bits(rotation_bits);
                     let neighbors = populate_neighbors_for_face_processing(
                         vx,
