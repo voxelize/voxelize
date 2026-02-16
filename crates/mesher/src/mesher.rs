@@ -2342,6 +2342,11 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
             }
 
+            let mut cached_non_greedy_coords: Option<(i32, i32, i32)> = None;
+            let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
+            let mut cached_non_greedy_block_id: Option<u32> = None;
+            let mut cached_non_greedy_block: Option<&Block> = None;
+            let mut cached_non_greedy_block_aabb: Option<AABB> = None;
             for (
                 vx,
                 vy,
@@ -2355,10 +2360,28 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let block = match registry.get_block_by_id(voxel_id) {
-                    Some(block) => block,
-                    None => continue,
+                if cached_non_greedy_block_id != Some(voxel_id) {
+                    cached_non_greedy_block = registry.get_block_by_id(voxel_id);
+                    cached_non_greedy_block_aabb =
+                        cached_non_greedy_block.map(|block| AABB::union_all(&block.aabbs));
+                    cached_non_greedy_block_id = Some(voxel_id);
+                }
+                let Some(block) = cached_non_greedy_block else {
+                    continue;
                 };
+                let Some(block_aabb) = cached_non_greedy_block_aabb.as_ref() else {
+                    continue;
+                };
+
+                let coords = (vx, vy, vz);
+                if cached_non_greedy_coords != Some(coords) {
+                    cached_non_greedy_neighbors = Some(NeighborCache::populate(vx, vy, vz, space));
+                    cached_non_greedy_coords = Some(coords);
+                }
+                let Some(neighbors) = cached_non_greedy_neighbors.as_ref() else {
+                    continue;
+                };
+
                 let geometry = if face.isolated {
                     let geo_key = build_isolated_geo_key(
                         block.get_name_lower(),
@@ -2387,8 +2410,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     get_or_insert_shared_geometry(&mut map, block.get_name_lower(), voxel_id)
                 };
 
-                let block_aabb = AABB::union_all(&block.aabbs);
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 process_face(
                     vx,
                     vy,
@@ -2396,12 +2417,12 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     voxel_id,
                     &rotation,
                     &face,
-                    &block,
-                    &block_aabb,
+                    block,
+                    block_aabb,
                     &uv_range,
                     registry,
                     space,
-                    &neighbors,
+                    neighbors,
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
