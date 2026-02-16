@@ -354,7 +354,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         single_client_id,
                     );
                     let entity_id_owned = entity_id.to_owned();
-                    let is_new_for_client = known_entities.insert(entity_id_owned.clone());
+                    let is_new_for_client = if known_entities.contains(entity_id) {
+                        false
+                    } else {
+                        known_entities.insert(entity_id_owned.clone());
+                        true
+                    };
                     let operation = if is_new_for_client || *is_new {
                         EntityOperation::Create
                     } else {
@@ -384,7 +389,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             client_id,
                         );
                         let entity_id_owned = entity_id.to_owned();
-                        let is_new_for_client = known_entities.insert(entity_id_owned.clone());
+                        let is_new_for_client = if known_entities.contains(entity_id) {
+                            false
+                        } else {
+                            known_entities.insert(entity_id_owned.clone());
+                            true
+                        };
                         let operation = if is_new_for_client || *is_new {
                             EntityOperation::Create
                         } else {
