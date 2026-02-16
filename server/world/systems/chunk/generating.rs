@@ -487,7 +487,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 continue;
             }
 
-            pipeline.leftovers.remove(&coords);
+            if has_leftovers {
+                pipeline.leftovers.remove(&coords);
+            }
 
             if config.saving {
                 chunks.add_chunk_to_save(&coords, false);
