@@ -157,7 +157,7 @@ fn process_pending_updates(
     let num_to_process = max_updates.min(total_updates);
     let mut results = Vec::with_capacity(num_to_process);
 
-    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> =
+    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, &crate::Block)>> =
         HashMap::with_capacity(num_to_process);
 
     for _ in 0..num_to_process {
@@ -167,19 +167,19 @@ fn process_pending_updates(
         let Vec3(vx, vy, vz) = voxel;
 
         let updated_id = BlockUtils::extract_id(raw);
-        if vy < 0
-            || (has_max_height_limit && vy >= max_height_limit)
-            || !registry.has_type(updated_id)
-        {
+        if vy < 0 || (has_max_height_limit && vy >= max_height_limit) {
             continue;
         }
+        let Some(updated_type) = registry.get_known_block_by_id(updated_id) else {
+            continue;
+        };
 
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         match updates_by_chunk.raw_entry_mut().from_key(&coords) {
-            RawEntryMut::Occupied(mut entry) => entry.get_mut().push((voxel, raw)),
+            RawEntryMut::Occupied(mut entry) => entry.get_mut().push((voxel, raw, updated_type)),
             RawEntryMut::Vacant(entry) => {
                 let mut chunk_updates = Vec::with_capacity(1);
-                chunk_updates.push((voxel, raw));
+                chunk_updates.push((voxel, raw, updated_type));
                 entry.insert(coords, chunk_updates);
             }
         }
@@ -190,7 +190,7 @@ fn process_pending_updates(
 
     for (coords, chunk_updates) in updates_by_chunk {
         if !chunks.is_chunk_ready(&coords) {
-            for (voxel, raw) in chunk_updates.into_iter().rev() {
+            for (voxel, raw, _) in chunk_updates.into_iter().rev() {
                 chunks.updates.push_front((voxel, raw));
             }
             continue;
@@ -211,23 +211,20 @@ fn process_pending_updates(
         }
 
         if !neighbors_ready {
-            for (voxel, raw) in chunk_updates.into_iter().rev() {
+            for (voxel, raw, _) in chunk_updates.into_iter().rev() {
                 chunks.updates.push_front((voxel, raw));
             }
             continue;
         }
 
-        for (voxel, raw) in chunk_updates {
+        for (voxel, raw, updated_type) in chunk_updates {
             let Vec3(vx, vy, vz) = voxel;
             let updated_id = BlockUtils::extract_id(raw);
             let current_id = chunks.get_voxel(vx, vy, vz);
-
-            if registry.is_air(updated_id) && registry.is_air(current_id) {
+            let current_type = registry.get_block_by_id(current_id);
+            if updated_type.name == "Air" && current_type.name == "Air" {
                 continue;
             }
-
-            let current_type = registry.get_block_by_id(current_id);
-            let updated_type = registry.get_block_by_id(updated_id);
 
             let current_is_light = current_type.is_light_at(&voxel, &*chunks);
             let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
@@ -302,7 +299,7 @@ fn process_pending_updates(
                 let neighbor_block = registry.get_block_by_id(neighbor_id);
 
                 let should_activate = neighbor_block.is_active
-                    && (neighbor_block.is_fluid || !registry.is_air(neighbor_id));
+                    && (neighbor_block.is_fluid || neighbor_block.name != "Air");
 
                 if should_activate {
                     if let Some(active_ticker) = neighbor_block.active_ticker.as_ref() {

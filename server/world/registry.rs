@@ -405,6 +405,11 @@ impl Registry {
         self.blocks_by_id.contains_key(&id)
     }
 
+    #[inline]
+    pub fn get_known_block_by_id(&self, id: u32) -> Option<&Block> {
+        self.blocks_by_id.get(&id)
+    }
+
     /// Get UV map by block.
     pub fn get_uv_map(&self, block: &Block) -> HashMap<String, UV> {
         let mut uv_map = HashMap::with_capacity(block.faces.len());
