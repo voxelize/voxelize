@@ -2363,6 +2363,34 @@ describe("Type builders", () => {
     });
   });
 
+  it("preserves explicit-empty iterator combination rule entries", () => {
+    const explicitEmptyRules = new Proxy([] as BlockRuleInput[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: explicitEmptyRules as never,
+      })
+    ).toEqual({
+      type: "combination",
+      logic: BlockRuleLogic.And,
+      rules: [],
+    });
+  });
+
   it("clones nested rules with createBlockRule", () => {
     const sourceRule: BlockRule = {
       type: "combination",
@@ -5677,6 +5705,61 @@ describe("BlockRuleEvaluator", () => {
         access
       )
     ).toBe(false);
+  });
+
+  it("preserves explicit-empty iterator combination collection semantics", () => {
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+    const explicitEmptyRules = new Proxy([] as BlockRule[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.And,
+          rules: explicitEmptyRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Or,
+          rules: explicitEmptyRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+    expect(
+      BlockRuleEvaluator.evaluate(
+        {
+          type: "combination",
+          logic: BlockRuleLogic.Not,
+          rules: explicitEmptyRules as never,
+        },
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
   });
 
   it("salvages key-based combination entries when length access traps", () => {
