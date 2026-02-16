@@ -746,6 +746,16 @@ impl Chunks {
                     return;
                 }
             }
+            5 => {
+                if listeners[0] == *listener
+                    || listeners[1] == *listener
+                    || listeners[2] == *listener
+                    || listeners[3] == *listener
+                    || listeners[4] == *listener
+                {
+                    return;
+                }
+            }
             _ => {
                 let last_listener_index = listeners.len() - 1;
                 if listeners[last_listener_index] == *listener {
@@ -1190,6 +1200,23 @@ mod tests {
         }
         chunks.add_listener(&coords, &Vec2(3, 3));
         chunks.add_listener(&coords, &Vec2(5, 5));
+
+        let stored = chunks.listeners.get(&coords).expect("listeners missing");
+        assert_eq!(stored, &listeners);
+    }
+
+    #[test]
+    fn add_listener_dedupes_five_listener_lists() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let coords = Vec2(7, -8);
+        let listeners = vec![Vec2(0, 0), Vec2(1, 1), Vec2(2, 2), Vec2(3, 3), Vec2(4, 4)];
+
+        for listener in &listeners {
+            chunks.add_listener(&coords, listener);
+        }
+        chunks.add_listener(&coords, &Vec2(2, 2));
+        chunks.add_listener(&coords, &Vec2(4, 4));
 
         let stored = chunks.listeners.get(&coords).expect("listeners missing");
         assert_eq!(stored, &listeners);
