@@ -2254,12 +2254,24 @@ impl World {
             {
                 let init_payload =
                     serde_json::to_string(&json).unwrap_or_else(|_| String::from("{}"));
-                Message::new(&MessageType::Init)
+                let mut init_builder = Message::new(&MessageType::Init)
                     .world_name(&self.name)
-                    .json_owned(init_payload)
-                    .peers_owned(peers)
-                    .entities_owned(entities)
-                    .build()
+                    .json_owned(init_payload);
+                if peers.len() == 1 {
+                    if let Some(single_peer) = peers.pop() {
+                        init_builder = init_builder.peer_owned(single_peer);
+                    }
+                } else {
+                    init_builder = init_builder.peers_owned(peers);
+                }
+                if entities.len() == 1 {
+                    if let Some(single_entity) = entities.pop() {
+                        init_builder = init_builder.entity_owned(single_entity);
+                    }
+                } else {
+                    init_builder = init_builder.entities_owned(entities);
+                }
+                init_builder.build()
             },
             entity_ids,
         )
