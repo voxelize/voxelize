@@ -431,8 +431,13 @@ export class CSMRenderer {
               return;
             }
           }
-        } else if (cache.includes(object)) {
-          return;
+        } else {
+          const lastIndex = cacheLength - 1;
+          for (let objectIndex = 0; objectIndex < lastIndex; objectIndex++) {
+            if (cache[objectIndex] === object) {
+              return;
+            }
+          }
         }
       }
       cache.push(object);
