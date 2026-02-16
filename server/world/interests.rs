@@ -48,6 +48,9 @@ impl ChunkInterests {
     }
 
     pub fn compare(&self, coords_a: &Vec2<i32>, coords_b: &Vec2<i32>) -> Ordering {
+        if coords_a == coords_b {
+            return Ordering::Equal;
+        }
         let weight_a = comparable_weight(self.get_weight(coords_a));
         let weight_b = comparable_weight(self.get_weight(coords_b));
         weight_a.total_cmp(&weight_b)
@@ -260,5 +263,13 @@ mod tests {
         interests.set_weight(&b, 1.0);
 
         assert_eq!(interests.compare(&a, &b), Ordering::Greater);
+    }
+
+    #[test]
+    fn compare_short_circuits_identical_coords() {
+        let interests = ChunkInterests::new();
+        let coords = Vec2(12, -9);
+
+        assert_eq!(interests.compare(&coords, &coords), Ordering::Equal);
     }
 }
