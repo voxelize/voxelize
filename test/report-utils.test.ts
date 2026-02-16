@@ -21816,6 +21816,79 @@ describe("report-utils", () => {
     ]);
   });
 
+  it("salvages empty-iterator length-zero step/check args via keyed fallback", () => {
+    const keyedCheckArgs = new Proxy(["check-valid.mjs"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkCommand: "node",
+          checkArgs: keyedCheckArgs,
+          stepIndex: 1,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "node",
+        checkArgs: ["check-valid.mjs"],
+        checkArgCount: 1,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkCommand: "node",
+          checkArgs: keyedCheckArgs,
+          checkIndex: 1,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "node",
+        checkArgs: ["check-valid.mjs"],
+        checkArgCount: 1,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+  });
+
   it("normalizes sparse-hole step/check args to empty arrays", () => {
     const sparseCheckArgs = new Array(1);
     expect(
