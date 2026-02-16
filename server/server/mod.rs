@@ -68,6 +68,16 @@ fn normalized_action_name<'a>(action: &'a str) -> Cow<'a, str> {
     }
 }
 
+#[inline]
+fn fallback_world_info() -> WorldInfo {
+    WorldInfo {
+        name: String::new(),
+        config: WorldConfig::new().build(),
+        preloading: false,
+        preload_progress: 0.0,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
@@ -379,12 +389,7 @@ impl Server {
                 Ok(info) => infos.push(info),
                 Err(error) => {
                     warn!("Failed to fetch world preload info: {}", error);
-                    infos.push(WorldInfo {
-                        name: String::new(),
-                        config: WorldConfig::new().build(),
-                        preloading: false,
-                        preload_progress: 0.0,
-                    });
+                    infos.push(fallback_world_info());
                 }
             }
         }
@@ -416,12 +421,7 @@ impl Server {
                     Ok(info) => infos.push(info),
                     Err(error) => {
                         warn!("Failed to refresh world preload info: {}", error);
-                        infos.push(WorldInfo {
-                            name: String::new(),
-                            config: WorldConfig::new().build(),
-                            preloading: false,
-                            preload_progress: 0.0,
-                        });
+                        infos.push(fallback_world_info());
                     }
                 }
             }
