@@ -4053,10 +4053,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_opaque = block.is_opaque;
-                    let faces_empty = block.faces.is_empty();
                     if block.is_empty {
                         continue;
                     }
+                    let faces_empty = block.faces.is_empty();
                     let cache_ready = block.cache_ready;
                     let has_dynamic_patterns = if !is_fluid && faces_empty {
                         let has_dynamic_patterns = if cache_ready {
