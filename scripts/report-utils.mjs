@@ -2866,11 +2866,12 @@ export const createCliOptionValidation = (
     "optionArgs",
     null
   );
-  const outputPathError = readCliOptionConfigValue(
+  const outputPathErrorValue = readCliOptionConfigValue(
     optionMetadata,
     "outputPathError",
     null
   );
+  const outputPathError = toSanitizedOutputLineOrNull(outputPathErrorValue);
   const precomputedSupportedCliOptions = readCliOptionConfigValue(
     optionMetadata,
     "supportedCliOptions",
@@ -2941,15 +2942,19 @@ export const createCliOptionValidation = (
 export const deriveCliValidationFailureMessage = (
   failureMetadata = null
 ) => {
-  const outputPathError = readCliOptionConfigValue(
-    failureMetadata,
-    "outputPathError",
-    null
+  const outputPathError = toSanitizedOutputLineOrNull(
+    readCliOptionConfigValue(
+      failureMetadata,
+      "outputPathError",
+      null
+    )
   );
-  const unsupportedOptionsError = readCliOptionConfigValue(
-    failureMetadata,
-    "unsupportedOptionsError",
-    null
+  const unsupportedOptionsError = toSanitizedOutputLineOrNull(
+    readCliOptionConfigValue(
+      failureMetadata,
+      "unsupportedOptionsError",
+      null
+    )
   );
   if (outputPathError !== null) {
     return outputPathError;

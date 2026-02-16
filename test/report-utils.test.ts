@@ -4449,6 +4449,102 @@ describe("report-utils", () => {
     expect(
       deriveCliValidationFailureMessage(failureMetadata as never)
     ).toBe("Unsupported option(s): --mystery.");
+
+    const crossRealmWrappedOutputPathError = vm.runInNewContext(
+      "new String('  Missing value for --output option.  ')"
+    );
+    let didCallCrossRealmWrappedOutputPathErrorToString = false;
+    Object.defineProperty(crossRealmWrappedOutputPathError, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedOutputPathErrorToString = true;
+        throw new Error("cross-realm wrapped outputPathError toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedOutputPathErrorValueOf = false;
+    Object.defineProperty(crossRealmWrappedOutputPathError, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedOutputPathErrorValueOf = true;
+        throw new Error("cross-realm wrapped outputPathError valueOf trap");
+      },
+    });
+    const crossRealmWrappedUnsupportedOptionsError = vm.runInNewContext(
+      "new String('  Unsupported option(s): --mystery.  ')"
+    );
+    let didCallCrossRealmWrappedUnsupportedOptionsErrorToString = false;
+    Object.defineProperty(
+      crossRealmWrappedUnsupportedOptionsError,
+      "toString",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedUnsupportedOptionsErrorToString = true;
+          throw new Error(
+            "cross-realm wrapped unsupportedOptionsError toString trap"
+          );
+        },
+      }
+    );
+    let didCallCrossRealmWrappedUnsupportedOptionsErrorValueOf = false;
+    Object.defineProperty(
+      crossRealmWrappedUnsupportedOptionsError,
+      "valueOf",
+      {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value() {
+          didCallCrossRealmWrappedUnsupportedOptionsErrorValueOf = true;
+          throw new Error(
+            "cross-realm wrapped unsupportedOptionsError valueOf trap"
+          );
+        },
+      }
+    );
+
+    const validationFromWrappedOutputPathError = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        outputPathError: crossRealmWrappedOutputPathError as never,
+      }
+    );
+    expect(validationFromWrappedOutputPathError.validationErrorCode).toBe(
+      "output_option_missing_value"
+    );
+    const validationFromMalformedOutputPathError = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json"],
+        outputPathError: Object.create(null) as never,
+      }
+    );
+    expect(validationFromMalformedOutputPathError.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    expect(
+      deriveCliValidationFailureMessage({
+        outputPathError: crossRealmWrappedOutputPathError as never,
+        unsupportedOptionsError: crossRealmWrappedUnsupportedOptionsError as never,
+      })
+    ).toBe("Missing value for --output option.");
+    expect(
+      deriveCliValidationFailureMessage({
+        unsupportedOptionsError: crossRealmWrappedUnsupportedOptionsError as never,
+      })
+    ).toBe("Unsupported option(s): --mystery.");
+    expect(didCallCrossRealmWrappedOutputPathErrorToString).toBe(false);
+    expect(didCallCrossRealmWrappedOutputPathErrorValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedUnsupportedOptionsErrorToString).toBe(false);
+    expect(didCallCrossRealmWrappedUnsupportedOptionsErrorValueOf).toBe(false);
   });
 
   it("parses unknown cli options with alias and value support", () => {
