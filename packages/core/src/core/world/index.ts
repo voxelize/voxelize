@@ -7505,20 +7505,33 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
     return null;
   }
 
+  private findTypeSeparator(type: string, startIndex = 0) {
+    const maxIndex = type.length - 1;
+    if (startIndex >= maxIndex) {
+      return -1;
+    }
+    for (let index = startIndex; index < maxIndex; index++) {
+      if (type.charCodeAt(index) === 58 && type.charCodeAt(index + 1) === 58) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
   private resolveBlockByEntityType(type: string): Block | null {
     const cachedBlock = this.blockEntityTypeBlockCache.get(type);
     if (cachedBlock !== undefined) {
       return cachedBlock;
     }
 
-    const blockNamePrefixIndex = type.indexOf("::");
+    const blockNamePrefixIndex = this.findTypeSeparator(type);
     if (blockNamePrefixIndex < 0) {
       this.blockEntityTypeBlockCache.set(type, null);
       return null;
     }
 
     const blockNameStart = blockNamePrefixIndex + 2;
-    const blockNameEnd = type.indexOf("::", blockNameStart);
+    const blockNameEnd = this.findTypeSeparator(type, blockNameStart);
     const blockName =
       blockNameEnd >= 0
         ? type.slice(blockNameStart, blockNameEnd)
