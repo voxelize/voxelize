@@ -398,6 +398,9 @@ impl Mesher {
         };
         if self.map.remove(&first_result.0.coords) {
             let remaining_results = self.receiver.len();
+            if remaining_results == 0 {
+                return vec![first_result];
+            }
             let mut results = Vec::with_capacity(
                 (remaining_results + 1).min(self.map.len().saturating_add(1)),
             );
@@ -431,7 +434,7 @@ impl Default for Mesher {
 mod tests {
     use hashbrown::HashSet;
 
-    use crate::Vec2;
+    use crate::{Chunk, ChunkOptions, MessageType, Vec2};
 
     use super::{mesh_protocol_level, sub_chunk_y_bounds, Mesher};
 
@@ -543,6 +546,31 @@ mod tests {
 
         assert_eq!(mesher.get(), Some(coords));
         assert!(!mesher.queued.contains(&coords));
+    }
+
+    #[test]
+    fn results_drains_single_valid_message_without_extra_allocation_path() {
+        let mut mesher = Mesher::new();
+        let coords = Vec2(6, -1);
+        mesher.map.insert(coords);
+        let chunk = Chunk::new(
+            "single-mesher-result",
+            coords.0,
+            coords.1,
+            &ChunkOptions {
+                size: 1,
+                max_height: 1,
+                sub_chunks: 1,
+            },
+        );
+        assert!(mesher.sender.send((chunk, MessageType::Load)).is_ok());
+
+        let results = mesher.results();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0.coords, coords);
+        assert_eq!(results[0].1, MessageType::Load);
+        assert!(!mesher.map.contains(&coords));
     }
 
     #[test]

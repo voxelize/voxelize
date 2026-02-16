@@ -472,6 +472,9 @@ impl Pipeline {
         };
         if self.chunks.remove(&first_result.0.coords) {
             let remaining_results = self.receiver.len();
+            if remaining_results == 0 {
+                return vec![first_result];
+            }
             let mut results = Vec::with_capacity(
                 (remaining_results + 1).min(self.chunks.len().saturating_add(1)),
             );
@@ -534,7 +537,7 @@ impl Pipeline {
 mod tests {
     use hashbrown::HashSet;
 
-    use crate::Vec2;
+    use crate::{Chunk, ChunkOptions, Vec2};
 
     use super::Pipeline;
     use super::{clamped_flatland_top_height, FlatlandStage};
@@ -632,6 +635,31 @@ mod tests {
 
         assert_eq!(pipeline.get(), Some(coords));
         assert!(!pipeline.queued.contains(&coords));
+    }
+
+    #[test]
+    fn results_drains_single_valid_message_without_extra_allocation_path() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(-5, 2);
+        pipeline.chunks.insert(coords);
+        let chunk = Chunk::new(
+            "single-pipeline-result",
+            coords.0,
+            coords.1,
+            &ChunkOptions {
+                size: 1,
+                max_height: 1,
+                sub_chunks: 1,
+            },
+        );
+        assert!(pipeline.sender.send((chunk, Vec::new())).is_ok());
+
+        let results = pipeline.results();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0.coords, coords);
+        assert!(results[0].1.is_empty());
+        assert!(!pipeline.chunks.contains(&coords));
     }
 
     #[test]
