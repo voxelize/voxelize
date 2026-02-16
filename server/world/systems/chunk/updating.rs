@@ -397,10 +397,11 @@ fn process_pending_updates(
                 };
 
                 let neighbor_id = chunks.get_voxel(nx, ny, nz);
+                if neighbor_id == 0 {
+                    continue;
+                }
                 let neighbor_block = registry.get_block_by_id(neighbor_id);
-
-                let should_activate = neighbor_block.is_active
-                    && (neighbor_block.is_fluid || neighbor_block.id != 0);
+                let should_activate = neighbor_block.is_active;
 
                 if should_activate {
                     if let Some(active_ticker) = neighbor_block.active_ticker.as_ref() {
