@@ -65,16 +65,8 @@ fn sanitize_entity_filename<'a>(etype: &'a str) -> Cow<'a, str> {
 }
 
 #[inline]
-fn build_entity_payload_json(etype: &str, metadata_json: &str) -> Option<String> {
-    let escaped_etype = serde_json::to_string(etype).ok()?;
-    let mut payload =
-        String::with_capacity(escaped_etype.len() + metadata_json.len() + 22);
-    payload.push_str("{\"etype\":");
-    payload.push_str(&escaped_etype);
-    payload.push_str(",\"metadata\":");
-    payload.push_str(metadata_json);
-    payload.push('}');
-    Some(payload)
+fn escaped_json_string(value: &str) -> Option<String> {
+    serde_json::to_string(value).ok()
 }
 
 pub struct BackgroundEntitiesSaver {
@@ -175,9 +167,7 @@ impl BackgroundEntitiesSaver {
         } else {
             normalized_etype
         };
-        let Some(payload_json) =
-            build_entity_payload_json(etype_value.as_ref(), &data.metadata_json)
-        else {
+        let Some(escaped_etype) = escaped_json_string(etype_value.as_ref()) else {
             warn!("Failed to build persisted entity payload for {}", id);
             return;
         };
@@ -206,7 +196,13 @@ impl BackgroundEntitiesSaver {
 
         match File::create(&path_to_use) {
             Ok(mut file) => {
-                if let Err(e) = file.write_all(payload_json.as_bytes()) {
+                if let Err(e) = file
+                    .write_all(b"{\"etype\":")
+                    .and_then(|_| file.write_all(escaped_etype.as_bytes()))
+                    .and_then(|_| file.write_all(b",\"metadata\":"))
+                    .and_then(|_| file.write_all(data.metadata_json.as_bytes()))
+                    .and_then(|_| file.write_all(b"}"))
+                {
                     warn!("Failed to write entity file: {}", e);
                 }
             }
