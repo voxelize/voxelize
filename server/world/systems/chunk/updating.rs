@@ -508,7 +508,7 @@ fn process_pending_updates(
             rotation,
             current_type,
             updated_type,
-            updated_is_light,
+            stored_updated_is_light,
             is_removed_light_source,
             current_rotatable,
             updated_rotatable,
@@ -517,6 +517,11 @@ fn process_pending_updates(
         ) in processed_updates
         {
             let Vec3(vx, vy, vz) = voxel;
+            let updated_is_light = if updated_has_dynamic_patterns {
+                updated_type.is_light_at(&voxel, &*chunks)
+            } else {
+                stored_updated_is_light
+            };
 
             if is_removed_light_source && !current_type.is_opaque {
                 continue;
