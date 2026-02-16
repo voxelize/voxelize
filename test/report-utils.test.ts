@@ -32855,6 +32855,103 @@ describe("report-utils", () => {
     expect(didCallCrossRealmWrappedExampleDurationMsToString).toBe(false);
     expect(didCallCrossRealmWrappedExampleDurationMsValueOf).toBe(false);
 
+    const crossRealmWrappedExampleAttempted = vm.runInNewContext(
+      "new Boolean(true)"
+    );
+    let didCallCrossRealmWrappedExampleAttemptedToString = false;
+    Object.defineProperty(crossRealmWrappedExampleAttempted, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleAttemptedToString = true;
+        throw new Error("cross-realm wrapped example attempted toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedExampleAttemptedValueOf = false;
+    Object.defineProperty(crossRealmWrappedExampleAttempted, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleAttemptedValueOf = true;
+        throw new Error("cross-realm wrapped example attempted valueOf trap");
+      },
+    });
+    const crossRealmWrappedExampleRuleMatched = vm.runInNewContext(
+      "new Boolean(true)"
+    );
+    let didCallCrossRealmWrappedExampleRuleMatchedToString = false;
+    Object.defineProperty(crossRealmWrappedExampleRuleMatched, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleRuleMatchedToString = true;
+        throw new Error("cross-realm wrapped example ruleMatched toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedExampleRuleMatchedValueOf = false;
+    Object.defineProperty(crossRealmWrappedExampleRuleMatched, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExampleRuleMatchedValueOf = true;
+        throw new Error("cross-realm wrapped example ruleMatched valueOf trap");
+      },
+    });
+    const crossRealmWrappedExamplePayloadValid = vm.runInNewContext(
+      "new Boolean(true)"
+    );
+    let didCallCrossRealmWrappedExamplePayloadValidToString = false;
+    Object.defineProperty(crossRealmWrappedExamplePayloadValid, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExamplePayloadValidToString = true;
+        throw new Error("cross-realm wrapped example payloadValid toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedExamplePayloadValidValueOf = false;
+    Object.defineProperty(crossRealmWrappedExamplePayloadValid, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedExamplePayloadValidValueOf = true;
+        throw new Error("cross-realm wrapped example payloadValid valueOf trap");
+      },
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: crossRealmWrappedExampleAttempted as never,
+        exampleRuleMatched: crossRealmWrappedExampleRuleMatched as never,
+        examplePayloadValid: crossRealmWrappedExamplePayloadValid as never,
+        exampleExitCode: 0,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "ok",
+      exampleRuleMatched: true,
+      examplePayloadValid: true,
+      examplePayloadIssues: [],
+      examplePayloadIssueCount: 0,
+      exampleExitCode: 0,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(didCallCrossRealmWrappedExampleAttemptedToString).toBe(false);
+    expect(didCallCrossRealmWrappedExampleAttemptedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedExampleRuleMatchedToString).toBe(false);
+    expect(didCallCrossRealmWrappedExampleRuleMatchedValueOf).toBe(false);
+    expect(didCallCrossRealmWrappedExamplePayloadValidToString).toBe(false);
+    expect(didCallCrossRealmWrappedExamplePayloadValidValueOf).toBe(false);
+
     const crossRealmWrappedExampleStatus = vm.runInNewContext(
       "new String(' OK ')"
     );

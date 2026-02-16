@@ -1267,6 +1267,21 @@ const toNonNegativeFiniteNumberOrNull = (value) => {
     : null;
 };
 
+const toBooleanOrNull = (value) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (value !== null && typeof value === "object") {
+    const wrappedPrimitiveValue = toPrimitiveWrapperValueOrNull(value);
+    return typeof wrappedPrimitiveValue === "boolean"
+      ? wrappedPrimitiveValue
+      : null;
+  }
+
+  return null;
+};
+
 const toTrimmedStringOrNull = (value) => {
   if (typeof value === "string") {
     const normalizedValue = value.trim();
@@ -1647,8 +1662,7 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
   const exampleArgCount =
     toNonNegativeIntegerOrNull(exampleArgCountValue) ?? exampleArgs?.length ?? null;
   const exampleAttemptedValue = safeReadProperty(report, "exampleAttempted");
-  const exampleAttempted =
-    typeof exampleAttemptedValue === "boolean" ? exampleAttemptedValue : null;
+  const exampleAttempted = toBooleanOrNull(exampleAttemptedValue);
   const exampleExitCodeValue = safeReadProperty(report, "exampleExitCode");
   const exampleExitCode =
     toNonNegativeIntegerOrNull(exampleExitCodeValue);
@@ -1658,13 +1672,9 @@ export const extractTsCoreExampleSummaryFromReport = (report) => {
   const exampleOutputLineValue = safeReadProperty(report, "exampleOutputLine");
   const exampleOutputLine = toSanitizedOutputLineOrNull(exampleOutputLineValue);
   const exampleRuleMatchedValue = safeReadProperty(report, "exampleRuleMatched");
-  const exampleRuleMatched =
-    typeof exampleRuleMatchedValue === "boolean" ? exampleRuleMatchedValue : null;
+  const exampleRuleMatched = toBooleanOrNull(exampleRuleMatchedValue);
   const examplePayloadValidValue = safeReadProperty(report, "examplePayloadValid");
-  const examplePayloadValid =
-    typeof examplePayloadValidValue === "boolean"
-      ? examplePayloadValidValue
-      : null;
+  const examplePayloadValid = toBooleanOrNull(examplePayloadValidValue);
   const rawExamplePayloadIssues = normalizeTsCorePayloadIssues(
     safeReadProperty(report, "examplePayloadIssues")
   );
