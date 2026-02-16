@@ -431,20 +431,27 @@ fn process_pending_updates(
     }
 
     let removed_light_source_count = removed_light_sources.as_ref().map_or(0, Vec::len);
-    let mut red_removals = Vec::with_capacity(removed_light_source_count);
-    let mut green_removals = Vec::with_capacity(removed_light_source_count);
-    let mut blue_removals = Vec::with_capacity(removed_light_source_count);
+    let removal_initial_capacity = removed_light_source_count.min(32);
+    let mut red_removals: Option<Vec<Vec3<i32>>> = None;
+    let mut green_removals: Option<Vec<Vec3<i32>>> = None;
+    let mut blue_removals: Option<Vec<Vec3<i32>>> = None;
 
     if let Some(removed_light_sources) = removed_light_sources.as_ref() {
         for &(voxel, red_level, green_level, blue_level, is_opaque) in removed_light_sources {
             if red_level > 0 {
-                red_removals.push(voxel);
+                red_removals
+                    .get_or_insert_with(|| Vec::with_capacity(removal_initial_capacity))
+                    .push(voxel);
             }
             if green_level > 0 {
-                green_removals.push(voxel);
+                green_removals
+                    .get_or_insert_with(|| Vec::with_capacity(removal_initial_capacity))
+                    .push(voxel);
             }
             if blue_level > 0 {
-                blue_removals.push(voxel);
+                blue_removals
+                    .get_or_insert_with(|| Vec::with_capacity(removal_initial_capacity))
+                    .push(voxel);
             }
 
             let Vec3(vx, vy, vz) = voxel;
@@ -460,28 +467,28 @@ fn process_pending_updates(
         }
     }
 
-    if !red_removals.is_empty() {
+    if let Some(red_removals) = red_removals.as_ref() {
         Lights::remove_lights_with_light_config(
             &mut *chunks,
-            &red_removals,
+            red_removals,
             &RED,
             light_registry,
             light_cfg,
         );
     }
-    if !green_removals.is_empty() {
+    if let Some(green_removals) = green_removals.as_ref() {
         Lights::remove_lights_with_light_config(
             &mut *chunks,
-            &green_removals,
+            green_removals,
             &GREEN,
             light_registry,
             light_cfg,
         );
     }
-    if !blue_removals.is_empty() {
+    if let Some(blue_removals) = blue_removals.as_ref() {
         Lights::remove_lights_with_light_config(
             &mut *chunks,
-            &blue_removals,
+            blue_removals,
             &BLUE,
             light_registry,
             light_cfg,
