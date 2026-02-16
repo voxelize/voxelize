@@ -15,6 +15,7 @@ const REGION_NEIGHBOR_OFFSETS: [(i32, i32); 8] = [
     (1, 1),
 ];
 const SMALL_INTEREST_REGION_SCAN_LIMIT: usize = 8;
+const SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT: usize = 8;
 
 #[inline]
 fn comparable_weight(weight: Option<&f32>) -> f32 {
@@ -47,11 +48,18 @@ impl ChunkInterests {
     }
 
     pub fn is_interested(&self, client_id: &str, coords: &Vec2<i32>) -> bool {
-        if let Some(clients) = self.map.get(coords) {
-            clients.contains(client_id)
-        } else {
-            false
+        let Some(clients) = self.map.get(coords) else {
+            return false;
+        };
+        if clients.len() > SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT {
+            return clients.contains(client_id);
         }
+        for existing_client_id in clients {
+            if existing_client_id.as_str() == client_id {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn get_interests(&self, coords: &Vec2<i32>) -> Option<&HashSet<String>> {
@@ -441,6 +449,26 @@ mod tests {
             .expect("expected registered clients");
         assert_eq!(interested.len(), 1);
         assert!(interested.contains("a"));
+    }
+
+    #[test]
+    fn is_interested_handles_small_and_large_client_sets() {
+        let mut interests = ChunkInterests::new();
+        let small_coords = Vec2(1, 2);
+        interests.add("a", &small_coords);
+        interests.add("b", &small_coords);
+        interests.add("c", &small_coords);
+        assert!(interests.is_interested("b", &small_coords));
+        assert!(!interests.is_interested("missing", &small_coords));
+
+        let large_coords = Vec2(2, 3);
+        for client_id in [
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
+        ] {
+            interests.add(client_id, &large_coords);
+        }
+        assert!(interests.is_interested("h", &large_coords));
+        assert!(!interests.is_interested("missing", &large_coords));
     }
 
     #[test]
