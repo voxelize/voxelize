@@ -230,7 +230,7 @@ impl Voxelize {
 
         let server_addr = server.start();
 
-        if serve.is_empty() {
+        if !serve.is_empty() {
             info!("Attempting to serve static folder: {}", serve);
         }
 
