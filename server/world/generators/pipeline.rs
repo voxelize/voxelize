@@ -308,8 +308,8 @@ impl Pipeline {
 
     /// Add a chunk coordinate to the pipeline to be processed.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if self.has_chunk(coords) {
-            self.mark_for_regenerate(coords);
+        if self.chunks.contains(coords) {
+            self.pending_regenerate.insert(*coords);
             return;
         }
         if self.queue.is_empty() {
@@ -582,5 +582,17 @@ mod tests {
         let expected: HashSet<_> = [first, second].into_iter().collect();
         assert_eq!(drained, expected);
         assert!(pipeline.pending_regenerate.is_empty());
+    }
+
+    #[test]
+    fn add_chunk_marks_tracked_chunk_for_regeneration_without_queue_push() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(5, -11);
+        pipeline.chunks.insert(coords);
+
+        pipeline.add_chunk(&coords, false);
+
+        assert!(pipeline.pending_regenerate.contains(&coords));
+        assert!(pipeline.queue.is_empty());
     }
 }
