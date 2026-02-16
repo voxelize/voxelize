@@ -29,7 +29,47 @@ fn contains_single_client_interest(ids: &HashSet<String>, single_client_id: &str
             };
             single_id.as_str() == single_client_id
         }
-        2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 => {
+        2 => {
+            let mut ids_iter = ids.iter();
+            let first_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("two client-interest length matched branch");
+                };
+                id
+            };
+            let second_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("two client-interest length matched branch");
+                };
+                id
+            };
+            first_id.as_str() == single_client_id || second_id.as_str() == single_client_id
+        }
+        3 => {
+            let mut ids_iter = ids.iter();
+            let first_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("three client-interest length matched branch");
+                };
+                id
+            };
+            let second_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("three client-interest length matched branch");
+                };
+                id
+            };
+            let third_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("three client-interest length matched branch");
+                };
+                id
+            };
+            first_id.as_str() == single_client_id
+                || second_id.as_str() == single_client_id
+                || third_id.as_str() == single_client_id
+        }
+        4 | 5 | 6 | 7 | 8 | 9 => {
             for id in ids {
                 if id.as_str() == single_client_id {
                     return true;
@@ -763,6 +803,12 @@ mod tests {
 
     #[test]
     fn contains_single_client_interest_matches_small_and_large_sets() {
+        let mut pair = HashSet::with_capacity(2);
+        pair.insert("left".to_string());
+        pair.insert("right".to_string());
+        assert!(contains_single_client_interest(&pair, "left"));
+        assert!(!contains_single_client_interest(&pair, "missing"));
+
         let mut tiny = HashSet::with_capacity(4);
         tiny.insert("a".to_string());
         tiny.insert("b".to_string());
