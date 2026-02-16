@@ -130,10 +130,10 @@ const toBlockFaceNameLowerOrFallback = (
 };
 
 type UvLikeValue = {
-  startU?: number;
-  endU?: number;
-  startV?: number;
-  endV?: number;
+  startU?: NumericLikeValue;
+  endU?: NumericLikeValue;
+  startV?: NumericLikeValue;
+  endV?: NumericLikeValue;
 } | null | undefined;
 
 const readFiniteUvFieldOrZero = (
@@ -146,9 +146,7 @@ const readFiniteUvFieldOrZero = (
 
   try {
     const numericValue = value[key];
-    return typeof numericValue === "number" && Number.isFinite(numericValue)
-      ? numericValue
-      : 0;
+    return toFiniteNumberOrZero(numericValue);
   } catch {
     return 0;
   }

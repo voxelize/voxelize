@@ -3712,7 +3712,7 @@ describe("Type builders", () => {
       createCornerData([0, 0, 0], [0, 0]),
       createCornerData([0, 0, 0], [0, 0]),
     ]);
-    expect(part.faces[0].range).toEqual(createUV(0, 1, 0, 3));
+    expect(part.faces[0].range).toEqual(createUV(0, 1, 2, 3));
   });
 
   it("clones provided conditional part rules", () => {
