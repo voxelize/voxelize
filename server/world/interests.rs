@@ -192,6 +192,43 @@ impl ChunkInterests {
             };
             return coords_within_region(center, third_coords);
         }
+        if self.map.len() == 4 {
+            let mut interests_iter = self.map.keys();
+            let first_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                coords
+            };
+            if coords_within_region(center, first_coords) {
+                return true;
+            }
+            let second_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                coords
+            };
+            if coords_within_region(center, second_coords) {
+                return true;
+            }
+            let third_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                coords
+            };
+            if coords_within_region(center, third_coords) {
+                return true;
+            }
+            let fourth_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                coords
+            };
+            return coords_within_region(center, fourth_coords);
+        }
         if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
             for coords in self.map.keys() {
                 if coords_within_region(center, coords) {
@@ -294,6 +331,71 @@ impl ChunkInterests {
                     merged
                 }
             }
+        } else if self.map.len() == 4 {
+            let mut interests_iter = self.map.iter();
+            let (first_coords, first_interested) = {
+                let Some(first_interest) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                first_interest
+            };
+            let (second_coords, second_interested) = {
+                let Some(second_interest) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                second_interest
+            };
+            let (third_coords, third_interested) = {
+                let Some(third_interest) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                third_interest
+            };
+            let (fourth_coords, fourth_interested) = {
+                let Some(fourth_interest) = interests_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                fourth_interest
+            };
+            let mut merged_clients: Option<HashSet<String>> = None;
+            let mut single_interest: Option<&HashSet<String>> = None;
+            if coords_within_region(center, first_coords) {
+                single_interest = Some(first_interested);
+            }
+            if coords_within_region(center, second_coords) {
+                if let Some(clients) = merged_clients.as_mut() {
+                    extend_interest_set(clients, second_interested);
+                } else if let Some(seed) = single_interest {
+                    merged_clients = Some(merge_interest_sets(seed, second_interested));
+                } else {
+                    single_interest = Some(second_interested);
+                }
+            }
+            if coords_within_region(center, third_coords) {
+                if let Some(clients) = merged_clients.as_mut() {
+                    extend_interest_set(clients, third_interested);
+                } else if let Some(seed) = single_interest {
+                    merged_clients = Some(merge_interest_sets(seed, third_interested));
+                } else {
+                    single_interest = Some(third_interested);
+                }
+            }
+            if coords_within_region(center, fourth_coords) {
+                if let Some(clients) = merged_clients.as_mut() {
+                    extend_interest_set(clients, fourth_interested);
+                } else if let Some(seed) = single_interest {
+                    merged_clients = Some(merge_interest_sets(seed, fourth_interested));
+                } else {
+                    single_interest = Some(fourth_interested);
+                }
+            }
+            if let Some(clients) = merged_clients {
+                return clients;
+            }
+            if let Some(interested) = single_interest {
+                return interested.clone();
+            }
+            HashSet::new()
         } else if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
             let mut merged_clients: Option<HashSet<String>> = None;
             let mut single_interest: Option<&HashSet<String>> = None;
@@ -537,6 +639,80 @@ impl ChunkInterests {
             }
             return;
         }
+        if self.map.len() == 4 {
+            let mut coords_iter = self.map.keys().copied();
+            let first_coords = {
+                let Some(first) = coords_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                first
+            };
+            let second_coords = {
+                let Some(second) = coords_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                second
+            };
+            let third_coords = {
+                let Some(third) = coords_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                third
+            };
+            let fourth_coords = {
+                let Some(fourth) = coords_iter.next() else {
+                    unreachable!("four-interest map length matched branch");
+                };
+                fourth
+            };
+            let has_weights = !self.weights.is_empty();
+
+            let mut should_remove_first = false;
+            if let Some(clients) = self.map.get_mut(&first_coords) {
+                clients.remove(client_id);
+                should_remove_first = clients.is_empty();
+            }
+            let mut should_remove_second = false;
+            if let Some(clients) = self.map.get_mut(&second_coords) {
+                clients.remove(client_id);
+                should_remove_second = clients.is_empty();
+            }
+            let mut should_remove_third = false;
+            if let Some(clients) = self.map.get_mut(&third_coords) {
+                clients.remove(client_id);
+                should_remove_third = clients.is_empty();
+            }
+            let mut should_remove_fourth = false;
+            if let Some(clients) = self.map.get_mut(&fourth_coords) {
+                clients.remove(client_id);
+                should_remove_fourth = clients.is_empty();
+            }
+            if should_remove_first {
+                self.map.remove(&first_coords);
+                if has_weights {
+                    self.weights.remove(&first_coords);
+                }
+            }
+            if should_remove_second {
+                self.map.remove(&second_coords);
+                if has_weights {
+                    self.weights.remove(&second_coords);
+                }
+            }
+            if should_remove_third {
+                self.map.remove(&third_coords);
+                if has_weights {
+                    self.weights.remove(&third_coords);
+                }
+            }
+            if should_remove_fourth {
+                self.map.remove(&fourth_coords);
+                if has_weights {
+                    self.weights.remove(&fourth_coords);
+                }
+            }
+            return;
+        }
         if self.weights.is_empty() {
             self.map.retain(|_, clients| {
                 clients.remove(client_id);
@@ -627,6 +803,20 @@ mod tests {
     }
 
     #[test]
+    fn has_interests_in_region_handles_four_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("a", &Vec2(10, 10));
+        interests.add("b", &Vec2(14, 14));
+        interests.add("c", &Vec2(-5, -5));
+        interests.add("d", &Vec2(30, 30));
+
+        assert!(interests.has_interests_in_region(&Vec2(11, 11)));
+        assert!(interests.has_interests_in_region(&Vec2(-4, -5)));
+        assert!(interests.has_interests_in_region(&Vec2(31, 31)));
+        assert!(!interests.has_interests_in_region(&Vec2(12, 12)));
+    }
+
+    #[test]
     fn get_interested_clients_in_region_skips_overflowing_neighbors() {
         let mut interests = ChunkInterests::new();
         interests.add("center", &Vec2(i32::MAX, i32::MAX));
@@ -679,6 +869,26 @@ mod tests {
         assert_eq!(near_clients.len(), 2);
         assert!(near_clients.contains("near"));
         assert!(near_clients.contains("also-near"));
+        assert!(!near_clients.contains("far"));
+
+        let far_clients = interests.get_interested_clients_in_region(&Vec2(9, -2));
+        assert_eq!(far_clients.len(), 1);
+        assert!(far_clients.contains("far"));
+    }
+
+    #[test]
+    fn get_interested_clients_in_region_handles_four_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("near", &Vec2(3, -2));
+        interests.add("also-near", &Vec2(4, -2));
+        interests.add("third-near", &Vec2(4, -1));
+        interests.add("far", &Vec2(8, -2));
+
+        let near_clients = interests.get_interested_clients_in_region(&Vec2(4, -2));
+        assert_eq!(near_clients.len(), 3);
+        assert!(near_clients.contains("near"));
+        assert!(near_clients.contains("also-near"));
+        assert!(near_clients.contains("third-near"));
         assert!(!near_clients.contains("far"));
 
         let far_clients = interests.get_interested_clients_in_region(&Vec2(9, -2));
@@ -932,5 +1142,62 @@ mod tests {
         assert_eq!(interests.get_weight(&first_coords), None);
         assert_eq!(interests.get_weight(&second_coords), None);
         assert_eq!(interests.get_weight(&third_coords), None);
+    }
+
+    #[test]
+    fn remove_client_handles_four_entry_map_partial_removal() {
+        let mut interests = ChunkInterests::new();
+        let removed_coords = Vec2(16, 1);
+        let retained_coords = Vec2(17, 1);
+        let untouched_coords = Vec2(18, 1);
+        let another_untouched_coords = Vec2(19, 1);
+        interests.add("a", &removed_coords);
+        interests.add("a", &retained_coords);
+        interests.add("b", &retained_coords);
+        interests.add("b", &untouched_coords);
+        interests.add("c", &another_untouched_coords);
+        interests.set_weight(&removed_coords, 6.0);
+        interests.set_weight(&retained_coords, 7.0);
+        interests.set_weight(&untouched_coords, 8.0);
+        interests.set_weight(&another_untouched_coords, 9.0);
+
+        interests.remove_client("a");
+
+        assert!(!interests.has_interests(&removed_coords));
+        assert!(interests.has_interests(&retained_coords));
+        assert!(interests.has_interests(&untouched_coords));
+        assert!(interests.has_interests(&another_untouched_coords));
+        assert_eq!(interests.get_weight(&removed_coords), None);
+        assert_eq!(interests.get_weight(&retained_coords), Some(&7.0));
+        assert_eq!(interests.get_weight(&untouched_coords), Some(&8.0));
+        assert_eq!(interests.get_weight(&another_untouched_coords), Some(&9.0));
+    }
+
+    #[test]
+    fn remove_client_handles_four_entry_map_full_removal() {
+        let mut interests = ChunkInterests::new();
+        let first_coords = Vec2(20, 1);
+        let second_coords = Vec2(21, 1);
+        let third_coords = Vec2(22, 1);
+        let fourth_coords = Vec2(23, 1);
+        interests.add("a", &first_coords);
+        interests.add("a", &second_coords);
+        interests.add("a", &third_coords);
+        interests.add("a", &fourth_coords);
+        interests.set_weight(&first_coords, 1.0);
+        interests.set_weight(&second_coords, 2.0);
+        interests.set_weight(&third_coords, 3.0);
+        interests.set_weight(&fourth_coords, 4.0);
+
+        interests.remove_client("a");
+
+        assert!(!interests.has_interests(&first_coords));
+        assert!(!interests.has_interests(&second_coords));
+        assert!(!interests.has_interests(&third_coords));
+        assert!(!interests.has_interests(&fourth_coords));
+        assert_eq!(interests.get_weight(&first_coords), None);
+        assert_eq!(interests.get_weight(&second_coords), None);
+        assert_eq!(interests.get_weight(&third_coords), None);
+        assert_eq!(interests.get_weight(&fourth_coords), None);
     }
 }
