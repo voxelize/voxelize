@@ -1069,6 +1069,49 @@ describe("BlockRotation", () => {
     expect(didCallWrappedAxisToStringTag).toBe(false);
   });
 
+  it("salvages wrapped axis values from direct value mutations", () => {
+    const nzAxis = BlockRotation.NZ().axis;
+    const rotation = BlockRotation.py(0);
+    const wrappedAxis = vm.runInNewContext(`new Number(${nzAxis})`);
+    let didCallWrappedAxisToString = false;
+    Object.defineProperty(wrappedAxis, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedAxisToString = true;
+        throw new Error("wrapped mutated axis toString trap");
+      },
+    });
+    let didCallWrappedAxisValueOf = false;
+    Object.defineProperty(wrappedAxis, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedAxisValueOf = true;
+        throw new Error("wrapped mutated axis valueOf trap");
+      },
+    });
+    let didCallWrappedAxisToStringTag = false;
+    Object.defineProperty(wrappedAxis, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedAxisToStringTag = true;
+        throw new Error("wrapped mutated axis toStringTag trap");
+      },
+    });
+
+    (rotation as { value: number | object }).value = wrappedAxis as never;
+
+    expect(rotation.axis).toBe(nzAxis);
+    expect(BlockRotation.decode(rotation)).toEqual([nzAxis, 0]);
+    expect(didCallWrappedAxisToString).toBe(false);
+    expect(didCallWrappedAxisValueOf).toBe(false);
+    expect(didCallWrappedAxisToStringTag).toBe(false);
+  });
+
   it("sanitizes decode and equality checks for trap-driven rotations", () => {
     const axisTrapRotation = Object.create(null) as {
       readonly axis: number;

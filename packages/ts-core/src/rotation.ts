@@ -370,12 +370,8 @@ export class BlockRotation {
 
   get axis(): number {
     try {
-      const axisValue = this.value;
-      return typeof axisValue === "number" &&
-        Number.isFinite(axisValue) &&
-        isKnownRotationAxis(axisValue)
-        ? axisValue
-        : PY_ROTATION;
+      const axisValue = this.value as number | object | null | undefined;
+      return toKnownRotationAxisOrNull(axisValue) ?? PY_ROTATION;
     } catch {
       return PY_ROTATION;
     }
