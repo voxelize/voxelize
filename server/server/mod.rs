@@ -477,7 +477,7 @@ impl Server {
 
     /// Setup Fern for debug logging.
     fn setup_logger() {
-        fern::Dispatch::new()
+        let dispatch = fern::Dispatch::new()
             .format(|out, message, record| {
                 let colors = ColoredLevelConfig::new().info(Color::Green);
 
@@ -499,9 +499,10 @@ impl Server {
             .level_for("webrtc_data", log::LevelFilter::Warn)
             .level_for("webrtc_mdns", log::LevelFilter::Warn)
             .level_for("webrtc_util", log::LevelFilter::Warn)
-            .chain(std::io::stdout())
-            .apply()
-            .expect("Fern did not run successfully");
+            .chain(std::io::stdout());
+        if let Err(error) = dispatch.apply() {
+            warn!("Fern logger setup failed: {}", error);
+        }
     }
 
     pub fn set_action_handle<F: Fn(Value, &mut Server) + 'static>(
