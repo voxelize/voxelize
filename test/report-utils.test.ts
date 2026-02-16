@@ -6100,6 +6100,73 @@ describe("report-utils", () => {
     expect(
       sparseHolePrecomputedSupportedTokensWithoutCatalog.validationErrorCode
     ).toBe("unsupported_options");
+    const emptyIteratorLengthZeroAndIndexedPrecomputedSupportedTokens = new Proxy(
+      ["--json"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const emptyIteratorLengthZeroAndIndexedPrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions:
+          emptyIteratorLengthZeroAndIndexedPrecomputedSupportedTokens as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedValidation.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    const emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: "--json" as never,
+        supportedCliOptions:
+          emptyIteratorLengthZeroAndIndexedPrecomputedSupportedTokens as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation.supportedCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
+    expect(
+      emptyIteratorLengthZeroAndIndexedPrecomputedWithoutCatalogValidation.validationErrorCode
+    ).toBe("unsupported_options");
     const iteratorOnlyWhitespacePrecomputedSupportedTokens = new Proxy(
       ["   "],
       {
