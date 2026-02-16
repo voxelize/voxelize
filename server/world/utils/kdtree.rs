@@ -336,19 +336,26 @@ impl KdTree {
         if self.kind_map.is_empty() {
             return;
         }
-        if self.kind_map.len() == 1 && self.kind_map.contains_key(&retained_id) {
+        if self.kind_map.len() == 1 {
+            if self.kind_map.keys().next().copied() == Some(retained_id) {
+                return;
+            }
+            self.reset();
             return;
         }
-        if !self.kind_map.contains_key(&retained_id) {
+        if self.kind_map.get(&retained_id).is_none() {
             self.reset();
             return;
         }
         if self.kind_map.len() == 2 {
-            let other_id = self
-                .kind_map
-                .keys()
-                .copied()
-                .find(|candidate_id| *candidate_id != retained_id);
+            let mut ids = self.kind_map.keys().copied();
+            let first_id = ids.next();
+            let second_id = ids.next();
+            let other_id = if first_id == Some(retained_id) {
+                second_id
+            } else {
+                first_id
+            };
             if let Some(other_id) = other_id {
                 self.remove_entity_by_id(other_id);
             }
