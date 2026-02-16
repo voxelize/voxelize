@@ -144,6 +144,9 @@ fn process_pending_updates(
     current_tick: u64,
     max_updates: usize,
 ) -> Vec<UpdateProtocol> {
+    let has_max_height_limit = max_height.is_some();
+    let max_height_limit = max_height.unwrap_or(i32::MAX);
+
     chunks.flush_staged_updates();
 
     if chunks.updates.is_empty() {
@@ -165,7 +168,7 @@ fn process_pending_updates(
 
         let updated_id = BlockUtils::extract_id(raw);
         if vy < 0
-            || max_height.is_some_and(|world_max_height| vy >= world_max_height)
+            || (has_max_height_limit && vy >= max_height_limit)
             || !registry.has_type(updated_id)
         {
             continue;
@@ -492,7 +495,7 @@ fn process_pending_updates(
                 let Some(nvy) = vy.checked_add(oy) else {
                     continue;
                 };
-                if nvy < 0 || max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
+                if nvy < 0 || (has_max_height_limit && nvy >= max_height_limit) {
                     continue;
                 }
 
@@ -622,7 +625,7 @@ fn process_pending_updates(
                     continue;
                 }
 
-                if max_height.is_some_and(|world_max_height| nvy >= world_max_height) {
+                if has_max_height_limit && nvy >= max_height_limit {
                     if Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz) {
                         sun_flood.push_back(LightNode {
                             voxel: [nvx, vy, nvz],
