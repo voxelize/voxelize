@@ -689,7 +689,10 @@ impl<'a> System<'a> for BroadcastSystem {
         let client_count = clients.len();
         let has_transports = !transports.is_empty();
         let single_client = if client_count == 1 {
-            clients.iter().next().map(|(id, client)| (id.as_str(), client))
+            let Some((single_client_id, single_client)) = clients.iter().next() else {
+                unreachable!("single client length matched branch");
+            };
+            Some((single_client_id.as_str(), single_client))
         } else {
             None
         };
