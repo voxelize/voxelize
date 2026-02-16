@@ -160,6 +160,23 @@ fn normalized_lookup_name<'a>(name: &'a str) -> Cow<'a, str> {
     }
 }
 
+#[inline]
+fn strip_command_prefix<'a>(body: &'a str, command_symbol: &str) -> Option<&'a str> {
+    let symbol_bytes = command_symbol.as_bytes();
+    match symbol_bytes.len() {
+        0 => Some(body),
+        1 => {
+            let body_bytes = body.as_bytes();
+            if body_bytes.first().copied() == symbol_bytes.first().copied() {
+                body.get(1..)
+            } else {
+                None
+            }
+        }
+        _ => body.strip_prefix(command_symbol),
+    }
+}
+
 #[derive(Deserialize)]
 struct PersistedEntityRecord {
     etype: String,
@@ -2086,7 +2103,7 @@ impl World {
 
         let command = {
             let config = self.config();
-            chat.body.strip_prefix(config.command_symbol.as_str())
+            strip_command_prefix(chat.body.as_str(), config.command_symbol.as_str())
         };
         if let Some(command) = command {
             if let Some(handle) = self.command_handle.as_ref().map(Arc::clone) {
@@ -2302,7 +2319,8 @@ mod tests {
 
     use super::{
         collect_preload_targets, preload_check_radius, preload_expected_chunk_count,
-        preload_light_padding, normalized_lookup_name, Chunks, Vec2, WorldConfig,
+        preload_light_padding, normalized_lookup_name, strip_command_prefix, Chunks, Vec2,
+        WorldConfig,
     };
 
     #[test]
@@ -2317,6 +2335,19 @@ mod tests {
     fn normalized_lookup_name_lowercases_ascii_and_unicode_uppercase() {
         assert_eq!(normalized_lookup_name("MeThOd").as_ref(), "method");
         assert_eq!(normalized_lookup_name("Äction").as_ref(), "äction");
+    }
+
+    #[test]
+    fn strip_command_prefix_handles_single_and_multi_byte_symbols() {
+        assert_eq!(strip_command_prefix("/spawn", "/"), Some("spawn"));
+        assert_eq!(strip_command_prefix("spawn", "/"), None);
+        assert_eq!(strip_command_prefix("命令跑", "命令"), Some("跑"));
+        assert_eq!(strip_command_prefix("命令跑", "指令"), None);
+    }
+
+    #[test]
+    fn strip_command_prefix_handles_empty_symbol() {
+        assert_eq!(strip_command_prefix("say hi", ""), Some("say hi"));
     }
 
     #[test]
