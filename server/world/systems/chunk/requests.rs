@@ -100,6 +100,28 @@ fn flush_chunk_requests_for_client(
 }
 
 #[inline]
+fn flush_chunk_requests_for_touched_client(
+    queue: &mut MessageQueues,
+    chunks: &Chunks,
+    chunk_models_buffer: &mut Vec<crate::ChunkProtocol>,
+    to_send: &mut HashMap<String, HashSet<Vec2<i32>>>,
+    client_id: String,
+    sub_chunks_u32: u32,
+) {
+    let Some(coords_to_send) = to_send.get_mut(&client_id) else {
+        return;
+    };
+    flush_chunk_requests_for_client(
+        queue,
+        chunks,
+        chunk_models_buffer,
+        client_id,
+        coords_to_send,
+        sub_chunks_u32,
+    );
+}
+
+#[inline]
 fn retain_active_request_batches(
     to_send: &mut HashMap<String, HashSet<Vec2<i32>>>,
     clients: &Clients,
@@ -145,7 +167,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             config.sub_chunks as u32
         };
 
-        let to_send = &mut self.to_send_buffer;
+        let mut to_send = &mut self.to_send_buffer;
         let to_send_touched_clients = &mut self.to_send_touched_clients_buffer;
         let to_add_back_to_requested = &mut self.to_add_back_to_requested_buffer;
         let chunk_models_buffer = &mut self.chunk_models_buffer;
@@ -276,254 +298,425 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         }
         match to_send_touched_clients.len() {
             1 => {
-                let Some(id) = to_send_touched_clients.pop() else {
+                let Some(first_id) = to_send_touched_clients.pop() else {
                     return;
                 };
-                if let Some(coords_to_send) = to_send.get_mut(&id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
             }
             2 => {
                 let Some(first_id) = to_send_touched_clients.pop() else {
                     return;
                 };
                 let Some(second_id) = to_send_touched_clients.pop() else {
-                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            first_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
                     return;
                 };
-                if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        first_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
-                if let Some(coords_to_send) = to_send.get_mut(&second_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        second_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
             }
             3 => {
                 let Some(first_id) = to_send_touched_clients.pop() else {
                     return;
                 };
                 let Some(second_id) = to_send_touched_clients.pop() else {
-                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            first_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
                     return;
                 };
                 let Some(third_id) = to_send_touched_clients.pop() else {
-                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            first_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
-                    if let Some(coords_to_send) = to_send.get_mut(&second_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            second_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
                     return;
                 };
-                if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        first_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
-                if let Some(coords_to_send) = to_send.get_mut(&second_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        second_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
-                if let Some(coords_to_send) = to_send.get_mut(&third_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        third_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    third_id,
+                    sub_chunks_u32,
+                );
             }
             4 => {
                 let Some(first_id) = to_send_touched_clients.pop() else {
                     return;
                 };
                 let Some(second_id) = to_send_touched_clients.pop() else {
-                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            first_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
                     return;
                 };
                 let Some(third_id) = to_send_touched_clients.pop() else {
-                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            first_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
-                    if let Some(coords_to_send) = to_send.get_mut(&second_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            second_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
                     return;
                 };
                 let Some(fourth_id) = to_send_touched_clients.pop() else {
-                    if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            first_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
-                    if let Some(coords_to_send) = to_send.get_mut(&second_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            second_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
-                    if let Some(coords_to_send) = to_send.get_mut(&third_id) {
-                        flush_chunk_requests_for_client(
-                            &mut queue,
-                            &chunks,
-                            chunk_models_buffer,
-                            third_id,
-                            coords_to_send,
-                            sub_chunks_u32,
-                        );
-                    }
                     return;
                 };
-                if let Some(coords_to_send) = to_send.get_mut(&first_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        first_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
-                if let Some(coords_to_send) = to_send.get_mut(&second_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        second_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
-                if let Some(coords_to_send) = to_send.get_mut(&third_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        third_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
-                if let Some(coords_to_send) = to_send.get_mut(&fourth_id) {
-                    flush_chunk_requests_for_client(
-                        &mut queue,
-                        &chunks,
-                        chunk_models_buffer,
-                        fourth_id,
-                        coords_to_send,
-                        sub_chunks_u32,
-                    );
-                }
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    third_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fourth_id,
+                    sub_chunks_u32,
+                );
+            }
+            5 => {
+                let Some(first_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(third_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fourth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fifth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    third_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fourth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fifth_id,
+                    sub_chunks_u32,
+                );
+            }
+            6 => {
+                let Some(first_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(third_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fourth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fifth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(sixth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    third_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fourth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fifth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    sixth_id,
+                    sub_chunks_u32,
+                );
+            }
+            7 => {
+                let Some(first_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(third_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fourth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fifth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(sixth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(seventh_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    third_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fourth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fifth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    sixth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    seventh_id,
+                    sub_chunks_u32,
+                );
+            }
+            8 => {
+                let Some(first_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(third_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fourth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(fifth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(sixth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(seventh_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                let Some(eighth_id) = to_send_touched_clients.pop() else {
+                    return;
+                };
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    first_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    second_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    third_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fourth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    fifth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    sixth_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    seventh_id,
+                    sub_chunks_u32,
+                );
+                flush_chunk_requests_for_touched_client(
+                    &mut queue,
+                    &chunks,
+                    chunk_models_buffer,
+                    &mut to_send,
+                    eighth_id,
+                    sub_chunks_u32,
+                );
             }
             _ => {
                 while let Some(id) = to_send_touched_clients.pop() {
-                    let Some(coords_to_send) = to_send.get_mut(&id) else {
-                        continue;
-                    };
-                    flush_chunk_requests_for_client(
+                    flush_chunk_requests_for_touched_client(
                         &mut queue,
                         &chunks,
                         chunk_models_buffer,
+                        &mut to_send,
                         id,
-                        coords_to_send,
                         sub_chunks_u32,
                     );
                 }
