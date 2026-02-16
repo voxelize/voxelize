@@ -1250,6 +1250,62 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("salvages keyed transparency arrays in conditional parts", () => {
+    const keyedTransparency = new Proxy([true, false, true, false, true, false], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const part = createBlockConditionalPart({
+      isTransparent: keyedTransparency as never,
+    });
+
+    expect(part.isTransparent).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it("normalizes explicit-empty iterator transparency arrays in conditional parts", () => {
+    const explicitEmptyTransparency = new Proxy([] as boolean[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const part = createBlockConditionalPart({
+      isTransparent: explicitEmptyTransparency as never,
+    });
+
+    expect(part.isTransparent).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it("clones transparency helper outputs in conditional parts", () => {
     const transparency = createFaceTransparency([true, false, false, false, false, false]);
     const part = createBlockConditionalPart({
