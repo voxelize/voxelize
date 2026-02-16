@@ -1013,7 +1013,8 @@ const cloneStringEntriesFromIndexedKeys = (value) => {
       continue;
     }
 
-    if (typeof entryValue !== "string") {
+    const normalizedStringEntryValue = toStringEntryValueOrNull(entryValue);
+    if (normalizedStringEntryValue === null) {
       continue;
     }
 
@@ -1043,7 +1044,7 @@ const cloneStringEntriesFromIndexedKeys = (value) => {
 
     orderedStringEntries.splice(insertPosition, 0, {
       index: numericIndex,
-      value: entryValue,
+      value: normalizedStringEntryValue,
     });
     if (orderedStringEntries.length > MAX_ARRAY_LENGTH_FALLBACK_SCAN) {
       orderedStringEntries.pop();
@@ -1051,6 +1052,21 @@ const cloneStringEntriesFromIndexedKeys = (value) => {
   }
 
   return orderedStringEntries;
+};
+
+const toStringEntryValueOrNull = (value) => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (!isStringObjectValue(value)) {
+    return null;
+  }
+
+  const wrappedPrimitiveValue = toPrimitiveWrapperValueOrNull(value);
+  return typeof wrappedPrimitiveValue === "string"
+    ? wrappedPrimitiveValue
+    : null;
 };
 
 const cloneObjectEntriesFromIndexedKeys = (value) => {
@@ -1350,9 +1366,17 @@ const toStringArrayOrNull = (value) => {
 const toStringArrayFromClonedIndexedEntries = (sourceValue, clonedIndexedEntries) => {
   const indexedEntries = clonedIndexedEntries.entries;
 
-  const normalizedStringEntries = indexedEntries.filter((entry) => {
-    return typeof entry.value === "string";
-  });
+  const normalizedStringEntries = [];
+  for (const entry of indexedEntries) {
+    const normalizedStringEntryValue = toStringEntryValueOrNull(entry.value);
+    if (normalizedStringEntryValue === null) {
+      continue;
+    }
+
+    normalizedStringEntries.push(
+      toIndexedArrayEntry(entry.index, normalizedStringEntryValue)
+    );
+  }
   if (normalizedStringEntries.length === indexedEntries.length) {
     return toValuesFromIndexedArrayEntries(normalizedStringEntries);
   }

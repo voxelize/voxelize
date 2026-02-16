@@ -3078,6 +3078,143 @@ describe("report-utils", () => {
     expect(mixedTypeArgs.positionalArgs).toEqual(["--no-build"]);
     expect(mixedTypeArgs.optionTerminatorUsed).toBe(true);
 
+    const crossRealmJsonArg = vm.runInNewContext("new String('--json')");
+    let didCallCrossRealmJsonToString = false;
+    Object.defineProperty(crossRealmJsonArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmJsonToString = true;
+        throw new Error("cross-realm --json toString trap");
+      },
+    });
+    let didCallCrossRealmJsonValueOf = false;
+    Object.defineProperty(crossRealmJsonArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmJsonValueOf = true;
+        throw new Error("cross-realm --json valueOf trap");
+      },
+    });
+
+    const crossRealmOutputArg = vm.runInNewContext("new String('--output')");
+    let didCallCrossRealmOutputToString = false;
+    Object.defineProperty(crossRealmOutputArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmOutputToString = true;
+        throw new Error("cross-realm --output toString trap");
+      },
+    });
+    let didCallCrossRealmOutputArgValueOf = false;
+    Object.defineProperty(crossRealmOutputArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmOutputArgValueOf = true;
+        throw new Error("cross-realm --output valueOf trap");
+      },
+    });
+
+    const crossRealmOutputValueArg = vm.runInNewContext(
+      "new String('report.json')"
+    );
+    let didCallCrossRealmOutputValueToString = false;
+    Object.defineProperty(crossRealmOutputValueArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmOutputValueToString = true;
+        throw new Error("cross-realm output value toString trap");
+      },
+    });
+    let didCallCrossRealmOutputValueArgValueOf = false;
+    Object.defineProperty(crossRealmOutputValueArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmOutputValueArgValueOf = true;
+        throw new Error("cross-realm output value valueOf trap");
+      },
+    });
+
+    const crossRealmTerminatorArg = vm.runInNewContext("new String('--')");
+    let didCallCrossRealmTerminatorToString = false;
+    Object.defineProperty(crossRealmTerminatorArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmTerminatorToString = true;
+        throw new Error("cross-realm terminator toString trap");
+      },
+    });
+    let didCallCrossRealmTerminatorValueOf = false;
+    Object.defineProperty(crossRealmTerminatorArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmTerminatorValueOf = true;
+        throw new Error("cross-realm terminator valueOf trap");
+      },
+    });
+
+    const crossRealmPositionalArg = vm.runInNewContext("new String('--no-build')");
+    let didCallCrossRealmPositionalToString = false;
+    Object.defineProperty(crossRealmPositionalArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmPositionalToString = true;
+        throw new Error("cross-realm positional toString trap");
+      },
+    });
+    let didCallCrossRealmPositionalValueOf = false;
+    Object.defineProperty(crossRealmPositionalArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmPositionalValueOf = true;
+        throw new Error("cross-realm positional valueOf trap");
+      },
+    });
+
+    const crossRealmWrapperArgs = splitCliArgs([
+      crossRealmJsonArg as never,
+      crossRealmOutputArg as never,
+      crossRealmOutputValueArg as never,
+      crossRealmTerminatorArg as never,
+      crossRealmPositionalArg as never,
+    ]);
+    expect(crossRealmWrapperArgs.optionArgs).toEqual([
+      "--json",
+      "--output",
+      "report.json",
+    ]);
+    expect(crossRealmWrapperArgs.positionalArgs).toEqual(["--no-build"]);
+    expect(crossRealmWrapperArgs.optionTerminatorUsed).toBe(true);
+    expect(didCallCrossRealmJsonToString).toBe(false);
+    expect(didCallCrossRealmJsonValueOf).toBe(false);
+    expect(didCallCrossRealmOutputToString).toBe(false);
+    expect(didCallCrossRealmOutputArgValueOf).toBe(false);
+    expect(didCallCrossRealmOutputValueToString).toBe(false);
+    expect(didCallCrossRealmOutputValueArgValueOf).toBe(false);
+    expect(didCallCrossRealmTerminatorToString).toBe(false);
+    expect(didCallCrossRealmTerminatorValueOf).toBe(false);
+    expect(didCallCrossRealmPositionalToString).toBe(false);
+    expect(didCallCrossRealmPositionalValueOf).toBe(false);
+
     const iteratorTrapArgs = ["--json", "--output", "report.json"];
     Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
       configurable: true,
@@ -31137,6 +31274,73 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+
+    const crossRealmWasmCommandArg = vm.runInNewContext(
+      "new String('check-wasm-pack.mjs')"
+    );
+    let didCallCrossRealmWasmCommandToString = false;
+    Object.defineProperty(crossRealmWasmCommandArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWasmCommandToString = true;
+        throw new Error("cross-realm wasm command toString trap");
+      },
+    });
+    let didCallCrossRealmWasmCommandValueOf = false;
+    Object.defineProperty(crossRealmWasmCommandArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWasmCommandValueOf = true;
+        throw new Error("cross-realm wasm command valueOf trap");
+      },
+    });
+
+    const crossRealmWasmJsonArg = vm.runInNewContext("new String('--json')");
+    let didCallCrossRealmWasmJsonToString = false;
+    Object.defineProperty(crossRealmWasmJsonArg, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWasmJsonToString = true;
+        throw new Error("cross-realm wasm json toString trap");
+      },
+    });
+    let didCallCrossRealmWasmJsonValueOf = false;
+    Object.defineProperty(crossRealmWasmJsonArg, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWasmJsonValueOf = true;
+        throw new Error("cross-realm wasm json valueOf trap");
+      },
+    });
+
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: [
+          crossRealmWasmCommandArg as never,
+          crossRealmWasmJsonArg as never,
+        ],
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["check-wasm-pack.mjs", "--json"],
+      wasmPackCheckArgCount: 2,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
+    expect(didCallCrossRealmWasmCommandToString).toBe(false);
+    expect(didCallCrossRealmWasmCommandValueOf).toBe(false);
+    expect(didCallCrossRealmWasmJsonToString).toBe(false);
+    expect(didCallCrossRealmWasmJsonValueOf).toBe(false);
+
     const ownKeysHasTrapArgs = new Proxy(
       ["check-wasm-pack.mjs", "--json"],
       {
@@ -31436,6 +31640,63 @@ describe("report-utils", () => {
   it("normalizes ts-core payload issue lists", () => {
     expect(normalizeTsCorePayloadIssues(null)).toBeNull();
     expect(normalizeTsCorePayloadIssues("voxel.id")).toBeNull();
+
+    const crossRealmVoxelIssue = vm.runInNewContext("new String(' voxel.id ')");
+    let didCallCrossRealmVoxelIssueToString = false;
+    Object.defineProperty(crossRealmVoxelIssue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmVoxelIssueToString = true;
+        throw new Error("cross-realm voxel issue toString trap");
+      },
+    });
+    let didCallCrossRealmVoxelIssueValueOf = false;
+    Object.defineProperty(crossRealmVoxelIssue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmVoxelIssueValueOf = true;
+        throw new Error("cross-realm voxel issue valueOf trap");
+      },
+    });
+
+    const crossRealmLightIssue = vm.runInNewContext("new String('light.red')");
+    let didCallCrossRealmLightIssueToString = false;
+    Object.defineProperty(crossRealmLightIssue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmLightIssueToString = true;
+        throw new Error("cross-realm light issue toString trap");
+      },
+    });
+    let didCallCrossRealmLightIssueValueOf = false;
+    Object.defineProperty(crossRealmLightIssue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmLightIssueValueOf = true;
+        throw new Error("cross-realm light issue valueOf trap");
+      },
+    });
+
+    expect(
+      normalizeTsCorePayloadIssues([
+        crossRealmVoxelIssue as never,
+        crossRealmLightIssue as never,
+        crossRealmVoxelIssue as never,
+      ])
+    ).toEqual(["voxel.id", "light.red"]);
+    expect(didCallCrossRealmVoxelIssueToString).toBe(false);
+    expect(didCallCrossRealmVoxelIssueValueOf).toBe(false);
+    expect(didCallCrossRealmLightIssueToString).toBe(false);
+    expect(didCallCrossRealmLightIssueValueOf).toBe(false);
+
     expect(
       normalizeTsCorePayloadIssues([
         " voxel.id ",
