@@ -183,11 +183,10 @@ impl FragmentAssembler {
             let state = self.fragments.remove(&message_id)?;
             let mut complete = Vec::with_capacity(state.total_payload_bytes);
             for fragment in state.parts {
-                if let Some(fragment) = fragment {
-                    complete.extend_from_slice(&fragment);
-                } else {
-                    return None;
-                }
+                let Some(fragment) = fragment else {
+                    unreachable!("complete fragment count matched branch");
+                };
+                complete.extend_from_slice(&fragment);
             }
 
             return Some(complete);
