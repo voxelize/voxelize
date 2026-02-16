@@ -486,7 +486,12 @@ fn process_pending_updates(
         };
 
         if updated_type.is_opaque || updated_type.light_reduce {
-            if chunks.get_sunlight(vx, vy, vz) != 0 {
+            let sunlight_level = chunks.get_sunlight(vx, vy, vz);
+            let red_level = chunks.get_red_light(vx, vy, vz);
+            let green_level = chunks.get_green_light(vx, vy, vz);
+            let blue_level = chunks.get_blue_light(vx, vy, vz);
+
+            if sunlight_level != 0 {
                 Lights::remove_light_with_light_config(
                     &mut *chunks,
                     &voxel,
@@ -495,7 +500,7 @@ fn process_pending_updates(
                     light_cfg,
                 );
             }
-            if chunks.get_torch_light(vx, vy, vz, &RED) != 0 {
+            if red_level != 0 {
                 Lights::remove_light_with_light_config(
                     &mut *chunks,
                     &voxel,
@@ -504,7 +509,7 @@ fn process_pending_updates(
                     light_cfg,
                 );
             }
-            if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0 {
+            if green_level != 0 {
                 Lights::remove_light_with_light_config(
                     &mut *chunks,
                     &voxel,
@@ -513,7 +518,7 @@ fn process_pending_updates(
                     light_cfg,
                 );
             }
-            if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
+            if blue_level != 0 {
                 Lights::remove_light_with_light_config(
                     &mut *chunks,
                     &voxel,
