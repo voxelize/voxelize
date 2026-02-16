@@ -436,6 +436,14 @@ describe("report-utils", () => {
       throw new Error("Expected fallback output path from trap-driven cwd.");
     }
     expect(path.basename(resolvedFromTrapDrivenCwd.outputPath)).toBe("report.json");
+    const resolvedFromEmptyExplicitCwd = resolveOutputPath(
+      ["--json", "--output", "./report.json"],
+      ""
+    );
+    expect(resolvedFromEmptyExplicitCwd.error).toBeNull();
+    expect(resolvedFromEmptyExplicitCwd.outputPath).toBe(
+      path.resolve(process.cwd(), "./report.json")
+    );
     const originalProcessCwdDescriptor = Object.getOwnPropertyDescriptor(
       process,
       "cwd"
@@ -455,6 +463,25 @@ describe("report-utils", () => {
       ]);
       expect(resolvedFromThrowingProcessCwd.error).toBeNull();
       expect(resolvedFromThrowingProcessCwd.outputPath).toBe(
+        path.resolve(path.parse(process.execPath).root || "/", "./report.json")
+      );
+    } finally {
+      if (originalProcessCwdDescriptor !== undefined) {
+        Object.defineProperty(process, "cwd", originalProcessCwdDescriptor);
+      }
+    }
+    Object.defineProperty(process, "cwd", {
+      configurable: true,
+      writable: true,
+      value: () => "",
+    });
+    try {
+      const resolvedFromEmptyProcessCwd = resolveOutputPath(
+        ["--json", "--output", "./report.json"],
+        ""
+      );
+      expect(resolvedFromEmptyProcessCwd.error).toBeNull();
+      expect(resolvedFromEmptyProcessCwd.outputPath).toBe(
         path.resolve(path.parse(process.execPath).root || "/", "./report.json")
       );
     } finally {

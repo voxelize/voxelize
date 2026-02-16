@@ -2826,9 +2826,6 @@ export const resolveOutputPath = (
       if (typeof processCwd === "string" && processCwd.length > 0) {
         return processCwd;
       }
-      if (typeof processCwd === "string") {
-        return processCwd;
-      }
     } catch {
       // fall through to root fallback
     }
@@ -2845,7 +2842,8 @@ export const resolveOutputPath = (
     return "/";
   };
 
-  const resolvedCwd = typeof cwd === "string" ? cwd : resolveFallbackCwd();
+  const resolvedCwd =
+    typeof cwd === "string" && cwd.length > 0 ? cwd : resolveFallbackCwd();
   const outputPathValue = resolveLastOptionValue(
     args,
     "--output",
