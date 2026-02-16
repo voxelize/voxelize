@@ -2295,15 +2295,20 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         &rotation,
                         registry,
                         |face, world_space| {
-                            let mut face_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
-                            if (block.rotatable || block.y_rotatable) && !world_space {
+                            let effective_dir = if (block.rotatable || block.y_rotatable)
+                                && !world_space
+                            {
+                                let mut face_dir =
+                                    [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
                                 rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
-                            }
-                            let effective_dir = [
-                                face_dir[0].round() as i32,
-                                face_dir[1].round() as i32,
-                                face_dir[2].round() as i32,
-                            ];
+                                [
+                                    face_dir[0].round() as i32,
+                                    face_dir[1].round() as i32,
+                                    face_dir[2].round() as i32,
+                                ]
+                            } else {
+                                face.dir
+                            };
                             if effective_dir != dir {
                                 return;
                             }
