@@ -473,6 +473,14 @@ fn flush_chunk_batch_for_client(
 }
 
 #[inline]
+fn pop_touched_client_id(touched_clients: &mut Vec<String>) -> String {
+    let Some(client_id) = touched_clients.pop() else {
+        unreachable!("touched-client length matched branch");
+    };
+    client_id
+}
+
+#[inline]
 fn flush_chunk_batches_touched(
     queue: &mut MessageQueues,
     message_type: &MessageType,
@@ -484,69 +492,39 @@ fn flush_chunk_batches_touched(
     }
     match touched_clients.len() {
         1 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
         }
         2 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(second_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
         }
         3 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(second_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(third_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
         }
         4 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(second_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(third_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fourth_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
         }
         5 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(second_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(third_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fourth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fifth_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
@@ -554,24 +532,12 @@ fn flush_chunk_batches_touched(
             flush_chunk_batch_for_client(queue, message_type, batches, fifth_client_id);
         }
         6 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(second_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(third_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fourth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fifth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(sixth_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
@@ -580,27 +546,13 @@ fn flush_chunk_batches_touched(
             flush_chunk_batch_for_client(queue, message_type, batches, sixth_client_id);
         }
         7 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(second_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(third_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fourth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fifth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(sixth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(seventh_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
+            let seventh_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
@@ -610,30 +562,14 @@ fn flush_chunk_batches_touched(
             flush_chunk_batch_for_client(queue, message_type, batches, seventh_client_id);
         }
         8 => {
-            let Some(first_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(second_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(third_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fourth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(fifth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(sixth_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(seventh_client_id) = touched_clients.pop() else {
-                return;
-            };
-            let Some(eighth_client_id) = touched_clients.pop() else {
-                return;
-            };
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
+            let seventh_client_id = pop_touched_client_id(touched_clients);
+            let eighth_client_id = pop_touched_client_id(touched_clients);
             flush_chunk_batch_for_client(queue, message_type, batches, first_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, second_client_id);
             flush_chunk_batch_for_client(queue, message_type, batches, third_client_id);
