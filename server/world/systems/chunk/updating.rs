@@ -75,6 +75,20 @@ fn compute_flood_bounds(
     queue: &[LightNode],
     max_light_level: u32,
 ) -> Option<(Vec3<i32>, Vec3<usize>)> {
+    if queue.len() == 1 {
+        let [x, y, z] = queue[0].voxel;
+        let expand = i64::from(max_light_level);
+        let min_x = i64::from(x).saturating_sub(expand);
+        let min_z = i64::from(z).saturating_sub(expand);
+        let max_x = i64::from(x).saturating_add(expand);
+        let max_z = i64::from(z).saturating_add(expand);
+        let shape_x = clamp_i64_to_usize(max_x.saturating_sub(min_x).saturating_add(1));
+        let shape_z = clamp_i64_to_usize(max_z.saturating_sub(min_z).saturating_add(1));
+        return Some((
+            Vec3(clamp_i64_to_i32(min_x), y, clamp_i64_to_i32(min_z)),
+            Vec3(shape_x, 1, shape_z),
+        ));
+    }
     let (first_node, queue_iter) = queue.split_first()?;
     let mut min_x = i64::from(first_node.voxel[0]);
     let mut min_y = i64::from(first_node.voxel[1]);
@@ -1151,6 +1165,18 @@ mod tests {
         assert!(bounds.1.0 > i32::MAX as usize);
         assert_eq!(bounds.1.1, 1);
         assert!(bounds.1.2 > i32::MAX as usize);
+    }
+
+    #[test]
+    fn compute_flood_bounds_handles_single_node_fast_path() {
+        let queue = vec![LightNode {
+            voxel: [10, 20, 30],
+            level: 5,
+        }];
+
+        let bounds = compute_flood_bounds(&queue, 4).expect("bounds should exist");
+        assert_eq!(bounds.0, Vec3(6, 20, 26));
+        assert_eq!(bounds.1, Vec3(9, 1, 9));
     }
 
     #[test]
