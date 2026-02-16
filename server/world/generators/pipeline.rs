@@ -233,6 +233,7 @@ pub struct Pipeline {
 
     /// A queue of chunk coordinates that are waiting to be processed.
     pub(crate) queue: VecDeque<Vec2<i32>>,
+    pub(crate) queued: HashSet<Vec2<i32>>,
 
     /// A map of leftover changes from processing chunk stages.
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
@@ -251,7 +252,7 @@ pub struct Pipeline {
 impl Pipeline {
     #[inline]
     fn remove_queued_chunk(&mut self, coords: &Vec2<i32>) {
-        if self.queue.is_empty() {
+        if !self.queued.remove(coords) {
             return;
         }
         if self.queue.front().is_some_and(|front| front == coords) {
@@ -278,6 +279,7 @@ impl Pipeline {
             leftovers: HashMap::new(),
             pending_regenerate: HashSet::new(),
             queue: VecDeque::new(),
+            queued: HashSet::new(),
             stages: Vec::new(),
         }
     }
@@ -312,29 +314,23 @@ impl Pipeline {
             self.pending_regenerate.insert(*coords);
             return;
         }
-        if self.queue.is_empty() {
+        if self.queued.contains(coords) {
             if prioritized {
-                self.queue.push_front(*coords);
-            } else {
-                self.queue.push_back(*coords);
-            }
-            return;
-        }
-        if prioritized {
-            if self.queue.front().is_some_and(|front| front == coords) {
+                if self.queue.front().is_some_and(|front| front == coords) {
+                    return;
+                }
+            } else if self.queue.back().is_some_and(|back| back == coords) {
                 return;
             }
-        } else if self.queue.back().is_some_and(|back| back == coords) {
-            return;
+            self.remove_queued_chunk(coords);
         }
-
-        self.remove_queued_chunk(coords);
 
         if prioritized {
             self.queue.push_front(*coords);
         } else {
             self.queue.push_back(*coords);
         }
+        self.queued.insert(*coords);
     }
 
     /// Remove a chunk coordinate from the pipeline.
@@ -356,7 +352,9 @@ impl Pipeline {
 
     /// Pop the first chunk coordinate in the queue.
     pub fn get(&mut self) -> Option<Vec2<i32>> {
-        self.queue.pop_front()
+        let coords = self.queue.pop_front()?;
+        self.queued.remove(&coords);
+        Some(coords)
     }
 
     /// Add a stage to the chunking pipeline.
@@ -596,5 +594,33 @@ mod tests {
 
         assert!(pipeline.pending_regenerate.contains(&coords));
         assert!(pipeline.queue.is_empty());
+    }
+
+    #[test]
+    fn add_chunk_reprioritizes_existing_queued_entry_without_duplicates() {
+        let mut pipeline = Pipeline::new();
+        let first = Vec2(2, 3);
+        let second = Vec2(-4, 1);
+
+        pipeline.add_chunk(&first, false);
+        pipeline.add_chunk(&second, false);
+        pipeline.add_chunk(&first, true);
+
+        assert_eq!(pipeline.queue.len(), 2);
+        assert_eq!(pipeline.queued.len(), 2);
+        assert_eq!(pipeline.queue.front(), Some(&first));
+        assert_eq!(pipeline.queue.back(), Some(&second));
+    }
+
+    #[test]
+    fn get_removes_coords_from_queued_set() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(-7, 6);
+
+        pipeline.add_chunk(&coords, false);
+        assert!(pipeline.queued.contains(&coords));
+
+        assert_eq!(pipeline.get(), Some(coords));
+        assert!(!pipeline.queued.contains(&coords));
     }
 }
