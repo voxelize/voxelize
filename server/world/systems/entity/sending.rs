@@ -98,6 +98,24 @@ fn get_or_cache_metadata_json(
     }
 }
 
+#[inline]
+fn take_entity_updates_to_send(updates: &mut Vec<EntityProtocol>) -> Option<Vec<EntityProtocol>> {
+    if updates.is_empty() {
+        return None;
+    }
+    if updates.len() == 1 {
+        if let Some(single_update) = updates.pop() {
+            return Some(vec![single_update]);
+        }
+        return None;
+    }
+    let next_update_capacity = updates.capacity();
+    Some(std::mem::replace(
+        updates,
+        Vec::with_capacity(next_update_capacity),
+    ))
+}
+
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
@@ -650,10 +668,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         if self.clients_with_updates_buffer.len() == 1 {
             if let Some(client_id) = self.clients_with_updates_buffer.pop() {
                 if let Some(updates) = self.client_updates_buffer.get_mut(&client_id) {
-                    if !updates.is_empty() {
-                        let next_update_capacity = updates.capacity();
-                        let updates_to_send =
-                            std::mem::replace(updates, Vec::with_capacity(next_update_capacity));
+                    if let Some(updates_to_send) = take_entity_updates_to_send(updates) {
                         queue.push((
                             Message::new(&MessageType::Entity)
                                 .entities_owned(updates_to_send)
@@ -669,12 +684,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     Some(updates) => updates,
                     None => continue,
                 };
-                if updates.is_empty() {
+                let Some(updates_to_send) = take_entity_updates_to_send(updates) else {
                     continue;
-                }
-                let next_update_capacity = updates.capacity();
-                let updates_to_send =
-                    std::mem::replace(updates, Vec::with_capacity(next_update_capacity));
+                };
                 queue.push((
                     Message::new(&MessageType::Entity)
                         .entities_owned(updates_to_send)
