@@ -131,6 +131,9 @@ impl<'a> System<'a> for PhysicsSystem {
             physics.move_rapier_body(interactor.body_handle(), &position.0);
             collision_map.insert(*interactor.collider_handle(), ent);
         }
+        if collision_map.is_empty() {
+            return;
+        }
 
         // Tick the rapier physics engine, and add the collisions to individual entities.
         let collision_events = &mut self.collision_events_buffer;
