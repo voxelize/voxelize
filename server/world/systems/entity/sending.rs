@@ -294,13 +294,16 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             None
         };
 
-        let mut entity_to_client_id: HashMap<u32, &str> = HashMap::new();
-        if single_client.is_none() && has_entity_metadata_updates {
-            entity_to_client_id.reserve(clients.len());
+        let entity_to_client_id = if single_client.is_none() && has_entity_metadata_updates {
+            let mut entity_to_client_id: HashMap<u32, &str> =
+                HashMap::with_capacity(clients.len());
             for (client_id, client) in clients.iter() {
                 entity_to_client_id.insert(client.entity.id(), client_id.as_str());
             }
-        }
+            Some(entity_to_client_id)
+        } else {
+            None
+        };
 
         let default_pos = Vec3(0.0, 0.0, 0.0);
 
@@ -345,6 +348,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     );
                     continue;
                 }
+                let Some(entity_to_client_id) = entity_to_client_id.as_ref() else {
+                    continue;
+                };
                 kdtree.for_each_player_id_within_radius(pos, entity_visible_radius, |player_entity_id| {
                     if let Some(client_id) = entity_to_client_id.get(&player_entity_id) {
                         let client_id = *client_id;
