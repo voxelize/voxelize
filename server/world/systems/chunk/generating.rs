@@ -109,6 +109,33 @@ fn compare_chunk_interest_weights(
     weight_a.total_cmp(&weight_b)
 }
 
+#[inline]
+fn sort_chunk_coords_by_interest(
+    coords: &mut [Vec2<i32>],
+    weights: &HashMap<Vec2<i32>, f32>,
+) {
+    match coords.len() {
+        0 | 1 => {}
+        2 => {
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[1]).is_gt() {
+                coords.swap(0, 1);
+            }
+        }
+        3 => {
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[1]).is_gt() {
+                coords.swap(0, 1);
+            }
+            if compare_chunk_interest_weights(weights, &coords[1], &coords[2]).is_gt() {
+                coords.swap(1, 2);
+            }
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[1]).is_gt() {
+                coords.swap(0, 1);
+            }
+        }
+        _ => coords.sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b)),
+    }
+}
+
 #[derive(Default)]
 pub struct ChunkGeneratingSystem;
 
@@ -280,10 +307,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         if pipeline.queue.len() > 1 && !interests.weights.is_empty() {
             let weights = &interests.weights;
-            pipeline
-                .queue
-                .make_contiguous()
-                .sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b));
+            sort_chunk_coords_by_interest(pipeline.queue.make_contiguous(), weights);
         }
 
         let to_load_initial_capacity = pending_queue_len.min(32);
@@ -521,10 +545,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         if mesher.queue.len() > 1 && !interests.weights.is_empty() {
             let weights = &interests.weights;
-            mesher
-                .queue
-                .make_contiguous()
-                .sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b));
+            sort_chunk_coords_by_interest(mesher.queue.make_contiguous(), weights);
         }
 
         let ready_chunk_initial_capacity = mesher.queue.len().min(64);
@@ -621,6 +642,7 @@ mod tests {
     use super::{
         accumulate_chunk_interest_weight, chunk_interest_alignment, comparable_interest_weight,
         compare_chunk_interest_weights, contains_single_client_interest, next_pipeline_stage,
+        sort_chunk_coords_by_interest,
     };
     use hashbrown::{HashMap, HashSet};
     use crate::Vec2;
@@ -744,5 +766,35 @@ mod tests {
             compare_chunk_interest_weights(&weights, &a, &a),
             std::cmp::Ordering::Equal
         );
+    }
+
+    #[test]
+    fn sort_chunk_coords_by_interest_orders_two_entries() {
+        let mut weights = HashMap::new();
+        let first = Vec2(0, 0);
+        let second = Vec2(1, 1);
+        weights.insert(first, 2.0);
+        weights.insert(second, 1.0);
+
+        let mut coords = vec![first, second];
+        sort_chunk_coords_by_interest(&mut coords, &weights);
+
+        assert_eq!(coords, vec![second, first]);
+    }
+
+    #[test]
+    fn sort_chunk_coords_by_interest_orders_three_entries() {
+        let mut weights = HashMap::new();
+        let first = Vec2(0, 0);
+        let second = Vec2(1, 1);
+        let third = Vec2(2, 2);
+        weights.insert(first, 3.0);
+        weights.insert(second, 1.0);
+        weights.insert(third, 2.0);
+
+        let mut coords = vec![first, second, third];
+        sort_chunk_coords_by_interest(&mut coords, &weights);
+
+        assert_eq!(coords, vec![second, third, first]);
     }
 }
