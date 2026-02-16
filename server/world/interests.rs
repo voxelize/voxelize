@@ -406,6 +406,63 @@ impl ChunkInterests {
             }
             return;
         }
+        if self.map.len() == 3 {
+            let mut coords_iter = self.map.keys().copied();
+            let first_coords = {
+                let Some(first) = coords_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                first
+            };
+            let second_coords = {
+                let Some(second) = coords_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                second
+            };
+            let third_coords = {
+                let Some(third) = coords_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                third
+            };
+            let has_weights = !self.weights.is_empty();
+
+            let mut should_remove_first = false;
+            if let Some(clients) = self.map.get_mut(&first_coords) {
+                clients.remove(client_id);
+                should_remove_first = clients.is_empty();
+            }
+            let mut should_remove_second = false;
+            if let Some(clients) = self.map.get_mut(&second_coords) {
+                clients.remove(client_id);
+                should_remove_second = clients.is_empty();
+            }
+            let mut should_remove_third = false;
+            if let Some(clients) = self.map.get_mut(&third_coords) {
+                clients.remove(client_id);
+                should_remove_third = clients.is_empty();
+            }
+            if should_remove_first {
+                self.map.remove(&first_coords);
+                if has_weights {
+                    self.weights.remove(&first_coords);
+                }
+            }
+            if should_remove_second {
+                self.map.remove(&second_coords);
+                if has_weights {
+                    self.weights.remove(&second_coords);
+                }
+            }
+            if should_remove_third {
+                self.map.remove(&third_coords);
+                if has_weights {
+                    self.weights.remove(&third_coords);
+                }
+            }
+            return;
+        }
         if self.weights.is_empty() {
             self.map.retain(|_, clients| {
                 clients.remove(client_id);
@@ -724,5 +781,52 @@ mod tests {
         assert!(!interests.has_interests(&second_coords));
         assert_eq!(interests.get_weight(&first_coords), None);
         assert_eq!(interests.get_weight(&second_coords), None);
+    }
+
+    #[test]
+    fn remove_client_handles_three_entry_map_partial_removal() {
+        let mut interests = ChunkInterests::new();
+        let removed_coords = Vec2(10, 1);
+        let retained_coords = Vec2(11, 1);
+        let untouched_coords = Vec2(12, 1);
+        interests.add("a", &removed_coords);
+        interests.add("a", &retained_coords);
+        interests.add("b", &retained_coords);
+        interests.add("b", &untouched_coords);
+        interests.set_weight(&removed_coords, 6.0);
+        interests.set_weight(&retained_coords, 7.0);
+        interests.set_weight(&untouched_coords, 8.0);
+
+        interests.remove_client("a");
+
+        assert!(!interests.has_interests(&removed_coords));
+        assert!(interests.has_interests(&retained_coords));
+        assert!(interests.has_interests(&untouched_coords));
+        assert_eq!(interests.get_weight(&removed_coords), None);
+        assert_eq!(interests.get_weight(&retained_coords), Some(&7.0));
+        assert_eq!(interests.get_weight(&untouched_coords), Some(&8.0));
+    }
+
+    #[test]
+    fn remove_client_handles_three_entry_map_full_removal() {
+        let mut interests = ChunkInterests::new();
+        let first_coords = Vec2(13, 1);
+        let second_coords = Vec2(14, 1);
+        let third_coords = Vec2(15, 1);
+        interests.add("a", &first_coords);
+        interests.add("a", &second_coords);
+        interests.add("a", &third_coords);
+        interests.set_weight(&first_coords, 1.0);
+        interests.set_weight(&second_coords, 2.0);
+        interests.set_weight(&third_coords, 3.0);
+
+        interests.remove_client("a");
+
+        assert!(!interests.has_interests(&first_coords));
+        assert!(!interests.has_interests(&second_coords));
+        assert!(!interests.has_interests(&third_coords));
+        assert_eq!(interests.get_weight(&first_coords), None);
+        assert_eq!(interests.get_weight(&second_coords), None);
+        assert_eq!(interests.get_weight(&third_coords), None);
     }
 }
