@@ -198,6 +198,40 @@ fn fanout_chunk_model(
             push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
             return;
         }
+        5 => {
+            let mut interested_iter = interested_clients.iter();
+            let Some(first_client_id) = interested_iter.next() else {
+                return;
+            };
+            let Some(second_client_id) = interested_iter.next() else {
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(third_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fourth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            let Some(fifth_client_id) = interested_iter.next() else {
+                push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+                push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+                push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+                return;
+            };
+            push_chunk_batch(batches, touched_clients, second_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, third_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fourth_client_id, &chunk_model);
+            push_chunk_batch(batches, touched_clients, fifth_client_id, &chunk_model);
+            push_chunk_batch_owned(batches, touched_clients, first_client_id, chunk_model);
+            return;
+        }
         _ => {}
     }
 
