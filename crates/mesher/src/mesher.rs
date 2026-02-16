@@ -238,6 +238,7 @@ const FACE_RANGE_PX: usize = 2;
 const FACE_RANGE_NX: usize = 3;
 const FACE_RANGE_PZ: usize = 4;
 const FACE_RANGE_NZ: usize = 5;
+const CARDINAL_FACE_NAMES: [&str; 6] = ["py", "ny", "px", "nx", "pz", "nz"];
 
 #[inline]
 fn lowercase_if_needed<'a>(value: &'a str) -> Cow<'a, str> {
@@ -368,6 +369,7 @@ impl NeighborCache {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 struct FaceKey {
     block_id: u32,
+    face_name_index: Option<u8>,
     face_name: String,
     independent: bool,
     ao: [i32; 4],
@@ -2389,14 +2391,24 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 cached_face_shading = Some(shading);
                                 shading
                             };
-                            let face_name = if face.independent {
-                                face.name.clone()
+                            let (face_name_index, face_name) = if face.independent {
+                                if let Some(face_index) = cardinal_face_index_from_dir(effective_dir) {
+                                    let canonical_face_name = CARDINAL_FACE_NAMES[face_index];
+                                    if face.name == canonical_face_name {
+                                        (Some(face_index as u8), String::new())
+                                    } else {
+                                        (None, face.name.clone())
+                                    }
+                                } else {
+                                    (None, face.name.clone())
+                                }
                             } else {
-                                String::new()
+                                (None, String::new())
                             };
 
                             let key = FaceKey {
                                 block_id: block.id,
+                                face_name_index,
                                 face_name,
                                 independent: face.independent,
                                 ao: aos,
@@ -2429,16 +2441,33 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     None => continue,
                 };
                 let geometry = if quad.data.key.independent {
-                    let face_name_lower =
-                        lowercase_if_needed(quad.data.key.face_name.as_str());
-                    let geo_key =
-                        build_independent_geo_key(block.get_name_lower(), face_name_lower.as_ref());
-                    map.entry(geo_key).or_insert_with(|| {
-                        let mut g = GeometryProtocol::default();
-                        g.voxel = quad.data.key.block_id;
-                        g.face_name = Some(quad.data.key.face_name.clone());
-                        g
-                    })
+                    if let Some(face_name) = quad
+                        .data
+                        .key
+                        .face_name_index
+                        .and_then(|index| CARDINAL_FACE_NAMES.get(index as usize))
+                    {
+                        let geo_key = build_independent_geo_key(block.get_name_lower(), face_name);
+                        map.entry(geo_key).or_insert_with(|| {
+                            let mut g = GeometryProtocol::default();
+                            g.voxel = quad.data.key.block_id;
+                            g.face_name = Some((*face_name).to_string());
+                            g
+                        })
+                    } else {
+                        let face_name_lower =
+                            lowercase_if_needed(quad.data.key.face_name.as_str());
+                        let geo_key = build_independent_geo_key(
+                            block.get_name_lower(),
+                            face_name_lower.as_ref(),
+                        );
+                        map.entry(geo_key).or_insert_with(|| {
+                            let mut g = GeometryProtocol::default();
+                            g.voxel = quad.data.key.block_id;
+                            g.face_name = Some(quad.data.key.face_name.clone());
+                            g
+                        })
+                    }
                 } else {
                     get_or_insert_shared_geometry(&mut map, block.get_name_lower(), quad.data.key.block_id)
                 };
