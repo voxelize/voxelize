@@ -4725,6 +4725,127 @@ describe("report-utils", () => {
       optionCatalogOverrideWithEmptyPrecomputedValidation.validationErrorCode
     ).toBe("unsupported_options");
     expect(optionCatalogOverrideWithEmptyPrecomputedCanonicalReadCount).toBe(0);
+    let optionCatalogOverrideWithMixedWhitespacePrecomputedCanonicalReadCount = 0;
+    const optionCatalogOverrideWithMixedWhitespacePrecomputedCanonicalOptions =
+      new Proxy(["--json"], {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithMixedWhitespacePrecomputedCanonicalReadCount +=
+              1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+    const optionCatalogOverrideWithMixedWhitespacePrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          optionCatalogOverrideWithMixedWhitespacePrecomputedCanonicalOptions as never,
+        supportedCliOptions: ["--json", "   "],
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "--output": "--output",
+          },
+        } as never,
+      });
+    expect(
+      optionCatalogOverrideWithMixedWhitespacePrecomputedValidation.supportedCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      optionCatalogOverrideWithMixedWhitespacePrecomputedValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      optionCatalogOverrideWithMixedWhitespacePrecomputedValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      optionCatalogOverrideWithMixedWhitespacePrecomputedValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      optionCatalogOverrideWithMixedWhitespacePrecomputedValidation.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
+    expect(
+      optionCatalogOverrideWithMixedWhitespacePrecomputedValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      optionCatalogOverrideWithMixedWhitespacePrecomputedCanonicalReadCount
+    ).toBe(0);
+    let optionCatalogOverrideWithIteratorWhitespacePrecomputedCanonicalReadCount = 0;
+    const optionCatalogOverrideWithIteratorWhitespacePrecomputedCanonicalOptions =
+      new Proxy(["--json"], {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error("iterator trap");
+          }
+          if (property === "length") {
+            return 1;
+          }
+          if (property === "0") {
+            optionCatalogOverrideWithIteratorWhitespacePrecomputedCanonicalReadCount +=
+              1;
+            return "--json";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+    const optionCatalogOverrideWithIteratorWhitespacePrecomputedTokens = new Proxy(
+      ["   "],
+      {
+        get(target, property, receiver) {
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          if (property === Symbol.iterator) {
+            return function* () {
+              yield "   ";
+            };
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const optionCatalogOverrideWithIteratorWhitespacePrecomputedValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions:
+          optionCatalogOverrideWithIteratorWhitespacePrecomputedCanonicalOptions as never,
+        supportedCliOptions:
+          optionCatalogOverrideWithIteratorWhitespacePrecomputedTokens as never,
+        optionCatalog: {
+          availableCliOptionCanonicalMap: {
+            "--json": "--json",
+            "--output": "--output",
+          },
+        } as never,
+      });
+    expect(
+      optionCatalogOverrideWithIteratorWhitespacePrecomputedValidation.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      optionCatalogOverrideWithIteratorWhitespacePrecomputedValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      optionCatalogOverrideWithIteratorWhitespacePrecomputedValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      optionCatalogOverrideWithIteratorWhitespacePrecomputedValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      optionCatalogOverrideWithIteratorWhitespacePrecomputedValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      optionCatalogOverrideWithIteratorWhitespacePrecomputedValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      optionCatalogOverrideWithIteratorWhitespacePrecomputedCanonicalReadCount
+    ).toBe(0);
     let optionCatalogOverrideWithStalePrecomputedCanonicalReadCount = 0;
     const optionCatalogOverrideWithStalePrecomputedCanonicalOptions = new Proxy(
       ["--json"],
