@@ -31,9 +31,23 @@ impl FlameNode {
         let name = &stack[0];
         let rest = &stack[1..];
 
-        let idx = self.children.iter().position(|c| &c.name == name);
-        let child_idx = match idx {
-            Some(i) => i,
+        if let Some(last_child) = self.children.last_mut() {
+            if &last_child.name == name {
+                last_child.add_stack(rest, count);
+                return;
+            }
+        }
+
+        let mut child_idx = None;
+        for (index, child) in self.children.iter().enumerate() {
+            if &child.name == name {
+                child_idx = Some(index);
+                break;
+            }
+        }
+
+        let child_idx = match child_idx {
+            Some(index) => index,
             None => {
                 self.children.push(FlameNode::new(name.clone()));
                 self.children.len() - 1
