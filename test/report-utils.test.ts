@@ -11111,6 +11111,82 @@ describe("report-utils", () => {
     expect(
       diagnosticsFromOwnKeysLengthReadableReadTrapTerminatorArgs.activeCliOptionOccurrenceCount
     ).toBe(0);
+    const diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride =
+      createCliDiagnostics(["--json", "--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: new Proxy(["--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.supportedCliOptions
+    ).toEqual(["--json", "--output"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.unknownOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.validationErrorCode
+    ).toBe("unsupported_options");
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
     const diagnosticsFromOwnKeysLengthReadableAndReadTrapValueMetadataOverride =
       createCliDiagnostics(["--only", "-x"], {
         canonicalOptions: ["--output", "--only"],
