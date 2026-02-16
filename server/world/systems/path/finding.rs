@@ -13,6 +13,16 @@ use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 pub struct PathFindingSystem {
     voxel_cache_buffer: HashMap<(i32, i32, i32), bool>,
 }
+const WALL_NEIGHBOR_OFFSETS: [(i32, i32); 8] = [
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -1),
+    (0, 1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+];
 
 #[inline]
 fn set_entity_path(path: &mut PathComp, next_path: Option<Vec<Vec3<i32>>>) {
@@ -140,20 +150,15 @@ impl<'a> System<'a> for PathFindingSystem {
         };
 
         let has_wall_nearby = |vx: i32, vy: i32, vz: i32| -> bool {
-            for dx in -1..=1 {
+            for (dx, dz) in WALL_NEIGHBOR_OFFSETS {
                 let Some(nx) = vx.checked_add(dx) else {
                     continue;
                 };
-                for dz in -1..=1 {
-                    if dx == 0 && dz == 0 {
-                        continue;
-                    }
-                    let Some(nz) = vz.checked_add(dz) else {
-                        continue;
-                    };
-                    if !get_is_voxel_passable(nx, vy, nz) {
-                        return true;
-                    }
+                let Some(nz) = vz.checked_add(dz) else {
+                    continue;
+                };
+                if !get_is_voxel_passable(nx, vy, nz) {
+                    return true;
                 }
             }
             false
