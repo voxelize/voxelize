@@ -19,6 +19,71 @@ use crate::{
     VoxelUpdate, WorldConfig,
 };
 
+#[inline]
+fn for_each_voxel_affected_chunk<F: FnMut(Vec2<i32>)>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    chunk_size: usize,
+    min_chunk: [i32; 2],
+    max_chunk: [i32; 2],
+    mut visit: F,
+) {
+    let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+    let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+    let is_within_world = |coords: &Vec2<i32>| {
+        coords.0 >= min_chunk[0]
+            && coords.0 <= max_chunk[0]
+            && coords.1 >= min_chunk[1]
+            && coords.1 <= max_chunk[1]
+    };
+    let mut push_with_offset = |offset_x: i32, offset_z: i32| {
+        let Some(nx) = cx.checked_add(offset_x) else {
+            return;
+        };
+        let Some(nz) = cz.checked_add(offset_z) else {
+            return;
+        };
+        let coords = Vec2(nx, nz);
+        if is_within_world(&coords) {
+            visit(coords);
+        }
+    };
+
+    push_with_offset(0, 0);
+
+    let a = lx == 0;
+    let b = lz == 0;
+    let c = lx == chunk_size - 1;
+    let d = lz == chunk_size - 1;
+
+    if a {
+        push_with_offset(-1, 0);
+    }
+    if b {
+        push_with_offset(0, -1);
+    }
+    if c {
+        push_with_offset(1, 0);
+    }
+    if d {
+        push_with_offset(0, 1);
+    }
+
+    if a && b {
+        push_with_offset(-1, -1);
+    }
+    if a && d {
+        push_with_offset(-1, 1);
+    }
+    if b && c {
+        push_with_offset(1, -1);
+    }
+    if c && d {
+        push_with_offset(1, 1);
+    }
+}
+
 use super::{
     access::VoxelAccess,
     chunk::Chunk,
@@ -369,58 +434,35 @@ impl Chunks {
     pub fn voxel_affected_chunks(&self, vx: i32, vy: i32, vz: i32) -> Vec<Vec2<i32>> {
         let mut neighbors = Vec::with_capacity(9);
         let chunk_size = self.chunk_size();
-
-        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
-        let mut push_if_within_world = |coords: Vec2<i32>| {
-            if self.is_within_world(&coords) {
-                neighbors.push(coords);
-            }
-        };
-        let mut push_with_offset = |offset_x: i32, offset_z: i32| {
-            let Some(nx) = cx.checked_add(offset_x) else {
-                return;
-            };
-            let Some(nz) = cz.checked_add(offset_z) else {
-                return;
-            };
-            push_if_within_world(Vec2(nx, nz));
-        };
-
-        push_with_offset(0, 0);
-
-        let a = lx == 0;
-        let b = lz == 0;
-        let c = lx == chunk_size - 1;
-        let d = lz == chunk_size - 1;
-
-        if a {
-            push_with_offset(-1, 0);
-        }
-        if b {
-            push_with_offset(0, -1);
-        }
-        if c {
-            push_with_offset(1, 0);
-        }
-        if d {
-            push_with_offset(0, 1);
-        }
-
-        if a && b {
-            push_with_offset(-1, -1);
-        }
-        if a && d {
-            push_with_offset(-1, 1);
-        }
-        if b && c {
-            push_with_offset(1, -1);
-        }
-        if c && d {
-            push_with_offset(1, 1);
-        }
+        for_each_voxel_affected_chunk(
+            vx,
+            vy,
+            vz,
+            chunk_size,
+            self.config.min_chunk,
+            self.config.max_chunk,
+            |coords| neighbors.push(coords),
+        );
 
         neighbors
+    }
+
+    #[inline]
+    pub fn cache_voxel_affected_chunks(&mut self, vx: i32, vy: i32, vz: i32) {
+        let chunk_size = self.chunk_size();
+        let min_chunk = self.config.min_chunk;
+        let max_chunk = self.config.max_chunk;
+        for_each_voxel_affected_chunk(
+            vx,
+            vy,
+            vz,
+            chunk_size,
+            min_chunk,
+            max_chunk,
+            |coords| {
+                self.cache.insert(coords);
+            },
+        );
     }
 
     /// Get a list of chunks that light could traverse within.
@@ -937,6 +979,8 @@ impl voxelize_lighter::LightVoxelAccess for Chunks {
 
 #[cfg(test)]
 mod tests {
+    use hashbrown::HashSet;
+
     use super::Chunks;
     use crate::{MessageType, Vec2, WorldConfig};
 
@@ -978,6 +1022,25 @@ mod tests {
             traversed,
             vec![Vec2(0, 0), Vec2(0, 1), Vec2(1, 0), Vec2(1, 1)]
         );
+    }
+
+    #[test]
+    fn cache_voxel_affected_chunks_matches_vector_variant() {
+        let config = WorldConfig::new()
+            .chunk_size(16)
+            .min_chunk([0, 0])
+            .max_chunk([2, 2])
+            .build();
+        let mut chunks = Chunks::new(&config);
+
+        let expected: HashSet<_> = chunks
+            .voxel_affected_chunks(16, 8, 0)
+            .into_iter()
+            .collect();
+        chunks.cache_voxel_affected_chunks(16, 8, 0);
+        let cached: HashSet<_> = chunks.cache.iter().copied().collect();
+
+        assert_eq!(cached, expected);
     }
 
     #[test]

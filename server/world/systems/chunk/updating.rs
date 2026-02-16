@@ -386,9 +386,7 @@ fn process_pending_updates(
                 chunks, &registry, vx, vy, vz, updated_id,
             );
 
-            for coords in chunks.voxel_affected_chunks(vx, vy, vz) {
-                chunks.cache.insert(coords);
-            }
+            chunks.cache_voxel_affected_chunks(vx, vy, vz);
 
             processed_updates.push((
                 voxel,
