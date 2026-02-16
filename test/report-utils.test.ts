@@ -22420,6 +22420,38 @@ describe("report-utils", () => {
     expect(
       summarizeStepFailureResults(explicitEmptyIteratorStepFailures as never)
     ).toEqual([]);
+    const ownKeysTrappedEmptyIteratorStepFailures = new Proxy(
+      [
+        {
+          name: "step-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          stepIndex: 1,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults(ownKeysTrappedEmptyIteratorStepFailures as never)
+    ).toEqual([]);
     const emptyIteratorLengthZeroIndexedSteps = new Proxy(iteratorTrapSteps, {
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
@@ -22836,6 +22868,37 @@ describe("report-utils", () => {
     );
     expect(
       summarizeCheckFailureResults(explicitEmptyIteratorCheckFailures as never)
+    ).toEqual([]);
+    const ownKeysTrappedEmptyIteratorCheckFailures = new Proxy(
+      [
+        {
+          name: "check-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkIndex: 1,
+          passed: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults(ownKeysTrappedEmptyIteratorCheckFailures as never)
     ).toEqual([]);
     const emptyIteratorLengthZeroIndexedChecks = new Proxy(iteratorTrapChecks, {
       get(target, property, receiver) {
