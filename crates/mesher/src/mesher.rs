@@ -317,6 +317,31 @@ struct NeighborCache {
     opaque: [bool; 27],
 }
 
+#[inline]
+fn lookup_cached_opaque(
+    registry: &Registry,
+    voxel_id: u32,
+    cached_ids: &mut [u32; 8],
+    cached_opaques: &mut [bool; 8],
+    cached_len: &mut usize,
+) -> bool {
+    for cache_index in 0..*cached_len {
+        if cached_ids[cache_index] == voxel_id {
+            return cached_opaques[cache_index];
+        }
+    }
+    let is_opaque = registry
+        .get_block_by_id(voxel_id)
+        .map(|block| block.is_opaque)
+        .unwrap_or(false);
+    if *cached_len < cached_ids.len() {
+        cached_ids[*cached_len] = voxel_id;
+        cached_opaques[*cached_len] = is_opaque;
+        *cached_len += 1;
+    }
+    is_opaque
+}
+
 impl NeighborCache {
     #[inline]
     fn offset_to_index(x: i32, y: i32, z: i32) -> usize {
@@ -326,6 +351,9 @@ impl NeighborCache {
     fn populate<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S, registry: &Registry) -> Self {
         let mut data = [[0u32; 2]; 27];
         let mut opaque = [false; 27];
+        let mut cached_ids = [0u32; 8];
+        let mut cached_opaques = [false; 8];
+        let mut cached_len = 0usize;
 
         for x in -1..=1 {
             for y in -1..=1 {
@@ -334,10 +362,13 @@ impl NeighborCache {
                     let raw_voxel = space.get_raw_voxel(vx + x, vy + y, vz + z);
                     data[idx][0] = raw_voxel;
                     let voxel_id = extract_id(raw_voxel);
-                    opaque[idx] = registry
-                        .get_block_by_id(voxel_id)
-                        .map(|block| block.is_opaque)
-                        .unwrap_or(false);
+                    opaque[idx] = lookup_cached_opaque(
+                        registry,
+                        voxel_id,
+                        &mut cached_ids,
+                        &mut cached_opaques,
+                        &mut cached_len,
+                    );
                     let (sun, red, green, blue) = space.get_all_lights(vx + x, vy + y, vz + z);
                     data[idx][1] = (sun << 12) | (red << 8) | (green << 4) | blue;
                 }
