@@ -17,10 +17,6 @@ pub const RIVER_HEIGHT: f64 = 0.25;
 pub const PLAINS_HEIGHT: f64 = 0.347;
 pub const RIVER_WIDTH: f64 = 0.36;
 
-pub const VARIANCE: f64 = 5.0;
-pub const SNOW_HEIGHT: f64 = 0.6;
-pub const STONE_HEIGHT: f64 = 0.5;
-
 struct TreeStage {
     // trees + tree type
     all_trees: Vec<(Trees, String)>,
