@@ -454,6 +454,9 @@ impl<'a> System<'a> for EventsSystem {
                 }
             }
         }
+        if touched_clients.is_empty() && (!has_transports || transports_map.is_empty()) {
+            return;
+        }
 
         // Process the dispatch map, sending them directly for fastest event responses.
         for id in touched_clients.drain(..) {
