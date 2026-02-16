@@ -178,6 +178,13 @@ impl ChunkInterests {
         if self.map.is_empty() {
             return;
         }
+        if self.weights.is_empty() {
+            self.map.retain(|_, clients| {
+                clients.remove(client_id);
+                !clients.is_empty()
+            });
+            return;
+        }
         let mut removed_coords: Option<Vec<Vec2<i32>>> = None;
         self.map.retain(|coords, clients| {
             clients.remove(client_id);
