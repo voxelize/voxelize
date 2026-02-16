@@ -154,21 +154,26 @@ impl EncodedMessageQueue {
         let pending_len = self.pending.len();
         if pending_len == 1 {
             reserve_for_append(&mut self.processed, 1);
-            if let Some((message, filter)) = self.pending.pop() {
-                let (is_rtc_eligible, is_transport_eligible) =
-                    Self::compute_delivery_eligibility(&message);
-                let encoded = EncodedMessage {
-                    data: Bytes::from(encode_message(&message)),
-                    is_rtc_eligible,
-                    is_transport_eligible,
+            let (message, filter) = {
+                let Some(single_pending) = self.pending.pop() else {
+                    unreachable!("single pending message length matched branch");
                 };
-                self.processed.push((encoded, filter));
-            }
+                single_pending
+            };
+            let (is_rtc_eligible, is_transport_eligible) =
+                Self::compute_delivery_eligibility(&message);
+            let encoded = EncodedMessage {
+                data: Bytes::from(encode_message(&message)),
+                is_rtc_eligible,
+                is_transport_eligible,
+            };
+            self.processed.push((encoded, filter));
             return;
         }
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             reserve_for_append(&mut self.processed, pending_len);
-            for (message, filter) in self.pending.drain(..) {
+            let pending = take_vec_with_capacity(&mut self.pending);
+            for (message, filter) in pending {
                 let (is_rtc_eligible, is_transport_eligible) =
                     Self::compute_delivery_eligibility(&message);
                 let encoded = EncodedMessage {
