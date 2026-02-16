@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt::Write as _;
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use voxelize_core::{
@@ -224,6 +224,22 @@ fn build_isolated_geo_key(
     key.push_str("::");
     let _ = write!(key, "{}-{}-{}", vx, vy, vz);
     key
+}
+
+#[inline]
+fn get_or_insert_shared_geometry<'a>(
+    map: &'a mut HashMap<String, GeometryProtocol>,
+    block_name: &str,
+    voxel_id: u32,
+) -> &'a mut GeometryProtocol {
+    match map.raw_entry_mut().from_key(block_name) {
+        RawEntryMut::Occupied(entry) => entry.into_mut(),
+        RawEntryMut::Vacant(entry) => {
+            let mut geometry = GeometryProtocol::default();
+            geometry.voxel = voxel_id;
+            entry.insert(block_name.to_owned(), geometry).1
+        }
+    }
 }
 
 const FLUID_BASE_HEIGHT: f32 = 0.875;
@@ -2256,26 +2272,20 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     Some(b) => b,
                     None => continue,
                 };
-                let geo_key = if quad.data.key.independent {
+                let geometry = if quad.data.key.independent {
                     let face_name_lower =
                         lowercase_if_needed(quad.data.key.face_name.as_str());
-                    format!(
-                        "{}::{}",
-                        block.get_name_lower(),
-                        face_name_lower
-                    )
-                } else {
-                    block.get_name_lower().to_string()
-                };
-
-                let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut g = GeometryProtocol::default();
-                    g.voxel = quad.data.key.block_id;
-                    if quad.data.key.independent {
+                    let geo_key =
+                        build_independent_geo_key(block.get_name_lower(), face_name_lower.as_ref());
+                    map.entry(geo_key).or_insert_with(|| {
+                        let mut g = GeometryProtocol::default();
+                        g.voxel = quad.data.key.block_id;
                         g.face_name = Some(quad.data.key.face_name.clone());
-                    }
-                    g
-                });
+                        g
+                    })
+                } else {
+                    get_or_insert_shared_geometry(&mut map, block.get_name_lower(), quad.data.key.block_id)
+                };
 
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
             }
@@ -2294,31 +2304,33 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let geo_key = if face.isolated {
-                    build_isolated_geo_key(
+                let geometry = if face.isolated {
+                    let geo_key = build_isolated_geo_key(
                         block.get_name_lower(),
                         face.get_name_lower(),
                         vx,
                         vy,
                         vz,
-                    )
-                } else if face.independent {
-                    build_independent_geo_key(block.get_name_lower(), face.get_name_lower())
-                } else {
-                    block.get_name_lower().to_string()
-                };
-
-                let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut g = GeometryProtocol::default();
-                    g.voxel = voxel_id;
-                    if face.independent || face.isolated {
+                    );
+                    map.entry(geo_key).or_insert_with(|| {
+                        let mut g = GeometryProtocol::default();
+                        g.voxel = voxel_id;
                         g.face_name = Some(face.name.clone());
-                    }
-                    if face.isolated {
                         g.at = Some([vx, vy, vz]);
-                    }
-                    g
-                });
+                        g
+                    })
+                } else if face.independent {
+                    let geo_key =
+                        build_independent_geo_key(block.get_name_lower(), face.get_name_lower());
+                    map.entry(geo_key).or_insert_with(|| {
+                        let mut g = GeometryProtocol::default();
+                        g.voxel = voxel_id;
+                        g.face_name = Some(face.name.clone());
+                        g
+                    })
+                } else {
+                    get_or_insert_shared_geometry(&mut map, block.get_name_lower(), voxel_id)
+                };
 
                 let block_aabb = AABB::union_all(&block.aabbs);
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
@@ -2418,31 +2430,33 @@ pub fn mesh_space<S: VoxelAccess>(
                 let block_aabb = AABB::union_all(&block.aabbs);
 
                 for (face, world_space) in faces.iter() {
-                    let key = if face.isolated {
-                        build_isolated_geo_key(
+                    let geometry = if face.isolated {
+                        let key = build_isolated_geo_key(
                             block.get_name_lower(),
                             face.get_name_lower(),
                             vx,
                             vy,
                             vz,
-                        )
+                        );
+                        map.entry(key).or_insert_with(|| {
+                            let mut g = GeometryProtocol::default();
+                            g.voxel = block.id;
+                            g.face_name = Some(face.name.clone());
+                            g.at = Some([vx, vy, vz]);
+                            g
+                        })
                     } else if face.independent {
-                        build_independent_geo_key(block.get_name_lower(), face.get_name_lower())
+                        let key =
+                            build_independent_geo_key(block.get_name_lower(), face.get_name_lower());
+                        map.entry(key).or_insert_with(|| {
+                            let mut g = GeometryProtocol::default();
+                            g.voxel = block.id;
+                            g.face_name = Some(face.name.clone());
+                            g
+                        })
                     } else {
-                        block.get_name_lower().to_string()
+                        get_or_insert_shared_geometry(&mut map, block.get_name_lower(), block.id)
                     };
-
-                    let geometry = map.entry(key).or_insert_with(GeometryProtocol::default);
-
-                    geometry.voxel = block.id;
-
-                    if face.independent || face.isolated {
-                        geometry.face_name = Some(face.name.clone());
-                    }
-
-                    if face.isolated {
-                        geometry.at = Some([vx, vy, vz]);
-                    }
 
                     process_face(
                         vx,
