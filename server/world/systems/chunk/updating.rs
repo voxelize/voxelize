@@ -974,7 +974,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         chunks.clear_cache();
 
         // Collect all due active voxels
-        let mut due_voxels = Vec::with_capacity(chunks.active_voxel_heap.len().min(256));
+        let due_voxels_initial_capacity = chunks.active_voxel_heap.len().min(256);
+        let mut due_voxels: Option<Vec<Vec3<i32>>> = None;
         while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
             if active.tick > current_tick {
                 break;
@@ -983,52 +984,59 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 break;
             };
             if chunks.active_voxel_set.remove(&active.voxel).is_some() {
-                due_voxels.push(active.voxel);
+                due_voxels
+                    .get_or_insert_with(|| Vec::with_capacity(due_voxels_initial_capacity))
+                    .push(active.voxel);
             }
         }
 
         // Sort by position for deterministic ordering when multiple voxels are due at the same tick
-        if due_voxels.len() > 1 {
-            due_voxels.sort_unstable_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+        if let Some(due_voxels) = due_voxels.as_mut() {
+            if due_voxels.len() > 1 {
+                due_voxels.sort_unstable_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+            }
         }
 
         // Process active voxels sequentially with immediate state application.
         // After each active voxel queues its updates, we fully process those updates
         // so the next active voxel sees the updated world state.
         // This is required for correct cellular automaton behavior (e.g., water removal cascades).
-        let mut all_results = Vec::with_capacity(due_voxels.len());
+        let due_voxel_count = due_voxels.as_ref().map_or(0, Vec::len);
+        let mut all_results = Vec::with_capacity(due_voxel_count);
 
-        for voxel in due_voxels.iter() {
-            let Vec3(vx, vy, vz) = *voxel;
-            let id = chunks.get_voxel(vx, vy, vz);
-            let block = registry.get_block_by_id(id);
+        if let Some(due_voxels) = due_voxels.as_ref() {
+            for voxel in due_voxels.iter() {
+                let Vec3(vx, vy, vz) = *voxel;
+                let id = chunks.get_voxel(vx, vy, vz);
+                let block = registry.get_block_by_id(id);
 
-            if let Some(updater) = &block.active_updater {
-                let updates = updater(Vec3(vx, vy, vz), &*chunks, &registry);
-                for (pos, val) in updates {
-                    chunks.update_voxel(&pos, val);
+                if let Some(updater) = &block.active_updater {
+                    let updates = updater(Vec3(vx, vy, vz), &*chunks, &registry);
+                    for (pos, val) in updates {
+                        chunks.update_voxel(&pos, val);
+                    }
                 }
-            }
-            if chunks.updates_staging.is_empty() && chunks.updates.is_empty() {
-                continue;
-            }
+                if chunks.updates_staging.is_empty() && chunks.updates.is_empty() {
+                    continue;
+                }
 
-            let results = process_pending_updates(
-                &mut chunks,
-                &mut mesher,
-                &lazy,
-                &entities,
-                &config,
-                &registry,
-                light_registry,
-                &light_config,
-                max_light_level,
-                max_height,
-                chunk_size,
-                current_tick,
-                max_updates_per_tick,
-            );
-            all_results.extend(results);
+                let results = process_pending_updates(
+                    &mut chunks,
+                    &mut mesher,
+                    &lazy,
+                    &entities,
+                    &config,
+                    &registry,
+                    light_registry,
+                    &light_config,
+                    max_light_level,
+                    max_height,
+                    chunk_size,
+                    current_tick,
+                    max_updates_per_tick,
+                );
+                all_results.extend(results);
+            }
         }
 
         // Process any remaining updates (from non-active sources like player actions)
