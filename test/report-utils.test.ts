@@ -3056,6 +3056,71 @@ describe("report-utils", () => {
     expect(hasCliOption(iteratorTrapArgs as never, "--no-build", ["--verify"])).toBe(
       true
     );
+    const ownKeysTrappedLengthReadableReadTrapArgs = new Proxy(
+      ["--json", "--verify"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      hasCliOption(
+        ownKeysTrappedLengthReadableReadTrapArgs as never,
+        "--no-build",
+        ["--verify"]
+      )
+    ).toBe(true);
+    const ownKeysTrappedLengthReadableReadTrapAliases = new Proxy(
+      ["--verify", "-n"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      hasCliOption(
+        ["--json", "--verify"],
+        "--no-build",
+        ownKeysTrappedLengthReadableReadTrapAliases as never
+      )
+    ).toBe(false);
+    expect(
+      hasCliOption(
+        ownKeysTrappedLengthReadableReadTrapArgs as never,
+        "--no-build",
+        ownKeysTrappedLengthReadableReadTrapAliases as never
+      )
+    ).toBe(false);
   });
 
   it("parses unknown cli options with alias and value support", () => {
