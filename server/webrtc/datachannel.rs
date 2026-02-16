@@ -42,20 +42,23 @@ pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
     }
 
     let total_fragments = data.len().div_ceil(MAX_PAYLOAD_SIZE);
+    let total_fragments_u32 = total_fragments as u32;
+    let total_fragments_bytes = total_fragments_u32.to_le_bytes();
+    let mut fragment_index_u32 = 0u32;
     let mut fragments = Vec::with_capacity(total_fragments);
 
-    for (i, chunk) in data.chunks(MAX_PAYLOAD_SIZE).enumerate() {
+    for chunk in data.chunks(MAX_PAYLOAD_SIZE) {
         let mut fragment = Vec::with_capacity(FRAGMENT_HEADER_SIZE + chunk.len());
 
         fragment.push(FRAGMENT_MARKER);
 
-        fragment.extend_from_slice(&(total_fragments as u32).to_le_bytes());
-
-        fragment.extend_from_slice(&(i as u32).to_le_bytes());
+        fragment.extend_from_slice(&total_fragments_bytes);
+        fragment.extend_from_slice(&fragment_index_u32.to_le_bytes());
 
         fragment.extend_from_slice(chunk);
 
         fragments.push(fragment);
+        fragment_index_u32 = fragment_index_u32.saturating_add(1);
     }
 
     fragments
