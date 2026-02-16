@@ -2497,7 +2497,9 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             let (face_name_index, face_name) = if face.independent {
                                 if let Some(face_index) = cardinal_face_index_from_dir(effective_dir) {
                                     let canonical_face_name = CARDINAL_FACE_NAMES[face_index];
-                                    if face.name.is_empty() || face.name == canonical_face_name {
+                                    if face.name.is_empty()
+                                        || face.get_name_lower() == canonical_face_name
+                                    {
                                         (Some(face_index as u8), String::new())
                                     } else {
                                         (None, face.name.clone())
