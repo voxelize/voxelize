@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt::Write as _;
 
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
@@ -176,6 +177,32 @@ fn lowercase_if_needed<'a>(value: &'a str) -> Cow<'a, str> {
         }
     }
     Cow::Borrowed(value)
+}
+
+#[inline]
+fn build_independent_geo_key(block_name: &str, face_name: &str) -> String {
+    let mut key = String::with_capacity(block_name.len() + face_name.len() + 2);
+    key.push_str(block_name);
+    key.push_str("::");
+    key.push_str(face_name);
+    key
+}
+
+#[inline]
+fn build_isolated_geo_key(
+    block_name: &str,
+    face_name: &str,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+) -> String {
+    let mut key = String::with_capacity(block_name.len() + face_name.len() + 32);
+    key.push_str(block_name);
+    key.push_str("::");
+    key.push_str(face_name);
+    key.push_str("::");
+    let _ = write!(key, "{}-{}-{}", vx, vy, vz);
+    key
 }
 
 const FLUID_BASE_HEIGHT: f32 = 0.875;
@@ -2247,16 +2274,15 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
             ) in non_greedy_faces.drain(..)
             {
                 let geo_key = if face.isolated {
-                    format!(
-                        "{}::{}::{}-{}-{}",
+                    build_isolated_geo_key(
                         block.get_name_lower(),
                         face.get_name_lower(),
                         vx,
                         vy,
-                        vz
+                        vz,
                     )
                 } else if face.independent {
-                    format!("{}::{}", block.get_name_lower(), face.get_name_lower())
+                    build_independent_geo_key(block.get_name_lower(), face.get_name_lower())
                 } else {
                     block.get_name_lower().to_string()
                 };
@@ -2377,16 +2403,15 @@ pub fn mesh_space<S: VoxelAccess>(
 
                 for (face, world_space) in faces.iter() {
                     let key = if face.isolated {
-                        format!(
-                            "{}::{}::{}-{}-{}",
+                        build_isolated_geo_key(
                             block.get_name_lower(),
                             face.get_name_lower(),
                             vx,
                             vy,
-                            vz
+                            vz,
                         )
                     } else if face.independent {
-                        format!("{}::{}", block.get_name_lower(), face.get_name_lower())
+                        build_independent_geo_key(block.get_name_lower(), face.get_name_lower())
                     } else {
                         block.get_name_lower().to_string()
                     };
@@ -2496,8 +2521,8 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 #[cfg(test)]
 mod tests {
     use super::{
-        cardinal_face_index, cardinal_face_index_from_dir, collect_cardinal_face_ranges,
-        lowercase_if_needed, mesh_chunk,
+        build_independent_geo_key, build_isolated_geo_key, cardinal_face_index,
+        cardinal_face_index_from_dir, collect_cardinal_face_ranges, lowercase_if_needed, mesh_chunk,
         mesh_chunk_with_registry, BlockFace, ChunkData, MeshConfig, MeshInput,
         MeshInputNoRegistry, Registry, UV, VoxelSpace,
     };
@@ -2688,5 +2713,18 @@ mod tests {
         assert_eq!(ranges[2], UV::default());
         assert_eq!(ranges[3], UV::default());
         assert_eq!(ranges[5], UV::default());
+    }
+
+    #[test]
+    fn build_independent_geo_key_uses_expected_separator_format() {
+        assert_eq!(build_independent_geo_key("stone", "py"), "stone::py");
+    }
+
+    #[test]
+    fn build_isolated_geo_key_appends_position_suffix() {
+        assert_eq!(
+            build_isolated_geo_key("stone", "py", -1, 64, 2),
+            "stone::py::-1-64-2"
+        );
     }
 }
