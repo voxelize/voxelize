@@ -470,9 +470,15 @@ pub fn remove_lights<I>(
     I: IntoIterator<Item = [i32; 3]>,
 {
     let is_sunlight = *color == LightColor::Sunlight;
-    let voxels = voxels.into_iter();
+    let mut voxels = voxels.into_iter();
     let (voxel_count_lower, voxel_count_upper) = voxels.size_hint();
     if voxel_count_upper == Some(0) {
+        return;
+    }
+    if voxel_count_lower == 1 && voxel_count_upper == Some(1) {
+        if let Some(voxel) = voxels.next() {
+            remove_light(space, voxel, color, config, registry);
+        }
         return;
     }
     let voxel_capacity = voxel_count_upper.unwrap_or(voxel_count_lower);
@@ -979,6 +985,35 @@ mod tests {
         assert_eq!(space.get_red_light(source_a[0], source_a[1], source_a[2]), 0);
         assert_eq!(space.get_red_light(source_b[0], source_b[1], source_b[2]), 0);
         assert_eq!(space.get_red_light(8, 32, 8), 0);
+    }
+
+    #[test]
+    fn remove_lights_single_source_uses_singleton_path() {
+        let registry = test_registry();
+        let config = test_config();
+        let mut space = TestSpace::new([0, 0, 0], [16, 64, 16]);
+
+        let source = [8, 32, 8];
+        assert!(space.set_voxel(source[0], source[1], source[2], 2));
+        space.set_red_light(source[0], source[1], source[2], 15);
+
+        flood_light(
+            &mut space,
+            VecDeque::from(vec![LightNode {
+                voxel: source,
+                level: 15,
+            }]),
+            &LightColor::Red,
+            &config,
+            None,
+            &registry,
+        );
+        assert!(space.get_red_light(9, 32, 8) > 0);
+
+        remove_lights(&mut space, [source], &LightColor::Red, &config, &registry);
+
+        assert_eq!(space.get_red_light(source[0], source[1], source[2]), 0);
+        assert_eq!(space.get_red_light(9, 32, 8), 0);
     }
 
     #[test]
