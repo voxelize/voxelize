@@ -58,7 +58,7 @@ where
 fn retain_tree_entities(tree: &mut KdTree, current_ids: &HashSet<u32>) {
     match current_ids.len() {
         0 => {
-            if tree.len() != 0 {
+            if !tree.is_empty() {
                 tree.reset();
             }
         }

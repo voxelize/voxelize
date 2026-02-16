@@ -290,6 +290,11 @@ impl KdTree {
         self.entity_map.len()
     }
 
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.entity_map.is_empty()
+    }
+
     pub fn get_position(&self, ent: Entity) -> Option<[f32; 3]> {
         self.all.positions.get(&ent.id()).copied()
     }

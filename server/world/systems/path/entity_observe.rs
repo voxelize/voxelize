@@ -28,7 +28,7 @@ impl<'a> System<'a> for EntityObserveSystem {
 
         let (tree, positions, ids, mut targets, timing) = data;
         let _t = timing.timer("entity-observe");
-        if tree.len() == 0 {
+        if tree.is_empty() {
             (&positions, &mut targets)
                 .par_join()
                 .for_each(|(_, target)| clear_target_if_set(target));
