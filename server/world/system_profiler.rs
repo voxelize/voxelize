@@ -49,6 +49,51 @@ impl SystemTimings {
         if self.samples.is_empty() {
             return HashMap::new();
         }
+        if self.samples.len() == 1 {
+            let Some((name, samples)) = self.samples.iter().next() else {
+                return HashMap::new();
+            };
+            if samples.is_empty() {
+                return HashMap::new();
+            }
+            if samples.len() == 1 {
+                if let Some(sample) = samples.front() {
+                    let duration = sample.duration_ms;
+                    let mut summary = HashMap::with_capacity(1);
+                    summary.insert(
+                        name.clone(),
+                        SystemStats {
+                            avg: duration,
+                            max: duration,
+                            min: duration,
+                            samples: 1,
+                        },
+                    );
+                    return summary;
+                }
+                return HashMap::new();
+            }
+            let mut sum = 0.0;
+            let mut max = f64::NEG_INFINITY;
+            let mut min = f64::INFINITY;
+            for sample in samples {
+                let duration = sample.duration_ms;
+                sum += duration;
+                max = max.max(duration);
+                min = min.min(duration);
+            }
+            let mut summary = HashMap::with_capacity(1);
+            summary.insert(
+                name.clone(),
+                SystemStats {
+                    avg: sum / samples.len() as f64,
+                    max,
+                    min,
+                    samples: samples.len(),
+                },
+            );
+            return summary;
+        }
         let mut summary = HashMap::with_capacity(self.samples.len());
         for (name, samples) in self.samples.iter() {
             if samples.is_empty() {
@@ -243,5 +288,19 @@ mod tests {
         assert_eq!(stats.min, 10.0);
         assert_eq!(stats.max, 30.0);
         assert_eq!(stats.avg, 20.0);
+    }
+
+    #[test]
+    fn get_summary_handles_single_system_single_sample() {
+        let mut timings = SystemTimings::default();
+        timings.record("system", 42.0);
+
+        let summary = timings.get_summary();
+        assert_eq!(summary.len(), 1);
+        let stats = summary.get("system").expect("expected system summary");
+        assert_eq!(stats.samples, 1);
+        assert_eq!(stats.min, 42.0);
+        assert_eq!(stats.max, 42.0);
+        assert_eq!(stats.avg, 42.0);
     }
 }
