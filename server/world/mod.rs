@@ -1928,6 +1928,14 @@ impl World {
         let mut chunks = self.chunks_mut();
 
         if let Some(bulk) = data.bulk_update {
+            let max_bulk_len = bulk
+                .vx
+                .len()
+                .min(bulk.vy.len())
+                .min(bulk.vz.len())
+                .min(bulk.voxels.len());
+            let bulk_updates_initial_capacity = max_bulk_len.min(128);
+            let mut bulk_updates: Option<Vec<(Vec3<i32>, u32)>> = None;
             for (((&vx, &vy), &vz), &voxel) in bulk
                 .vx
                 .iter()
@@ -1941,9 +1949,16 @@ impl World {
                     continue;
                 }
 
-                chunks.update_voxel(&Vec3(vx, vy, vz), voxel);
+                bulk_updates
+                    .get_or_insert_with(|| Vec::with_capacity(bulk_updates_initial_capacity))
+                    .push((Vec3(vx, vy, vz), voxel));
+            }
+            if let Some(bulk_updates) = bulk_updates {
+                chunks.update_voxels(&bulk_updates);
             }
         } else {
+            let updates_initial_capacity = data.updates.len().min(64);
+            let mut staged_updates: Option<Vec<(Vec3<i32>, u32)>> = None;
             for update in data.updates {
                 let coords =
                     ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
@@ -1952,7 +1967,12 @@ impl World {
                     continue;
                 }
 
-                chunks.update_voxel(&Vec3(update.vx, update.vy, update.vz), update.voxel);
+                staged_updates
+                    .get_or_insert_with(|| Vec::with_capacity(updates_initial_capacity))
+                    .push((Vec3(update.vx, update.vy, update.vz), update.voxel));
+            }
+            if let Some(staged_updates) = staged_updates {
+                chunks.update_voxels(&staged_updates);
             }
         }
     }
