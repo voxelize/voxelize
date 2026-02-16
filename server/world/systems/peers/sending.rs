@@ -55,7 +55,8 @@ impl<'a> System<'a> for PeersSendingSystem {
         if peers.is_empty() {
             return;
         }
-        let peers_to_send = std::mem::replace(peers, Vec::with_capacity(peers.len()));
+        let next_capacity = peers.capacity();
+        let peers_to_send = std::mem::replace(peers, Vec::with_capacity(next_capacity));
 
         queue.push((
             Message::new(&MessageType::Peer)
