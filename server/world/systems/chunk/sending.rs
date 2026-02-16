@@ -540,7 +540,7 @@ fn flush_chunk_batches_touched(
             flush_chunk_batch_for_client(queue, message_type, batches, fourth_client_id);
         }
         _ => {
-            for client_id in touched_clients.drain(..) {
+            while let Some(client_id) = touched_clients.pop() {
                 flush_chunk_batch_for_client(queue, message_type, batches, client_id);
             }
         }

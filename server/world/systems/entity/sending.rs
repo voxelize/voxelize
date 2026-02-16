@@ -835,7 +835,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 );
             }
             _ => {
-                for client_id in self.clients_with_updates_buffer.drain(..) {
+                while let Some(client_id) = self.clients_with_updates_buffer.pop() {
                     flush_entity_updates_for_client(
                         &mut queue,
                         &mut self.client_updates_buffer,

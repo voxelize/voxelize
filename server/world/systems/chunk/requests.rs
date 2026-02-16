@@ -497,7 +497,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 }
             }
             _ => {
-                for id in to_send_touched_clients.drain(..) {
+                while let Some(id) = to_send_touched_clients.pop() {
                     let Some(coords_to_send) = to_send.get_mut(&id) else {
                         continue;
                     };

@@ -1251,7 +1251,7 @@ impl<'a> System<'a> for EventsSystem {
                 flush_events_for_client(dispatch_map, &clients, fourth_client_id);
             }
             _ => {
-                for client_id in touched_clients.drain(..) {
+                while let Some(client_id) = touched_clients.pop() {
                     flush_events_for_client(dispatch_map, &clients, client_id);
                 }
             }
