@@ -76,7 +76,12 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
     }
 
     let mut updated_levels_iter = take_set_with_capacity(updated_levels).into_iter();
-    let first = updated_levels_iter.next()?;
+    let first = {
+        let Some(level) = updated_levels_iter.next() else {
+            unreachable!("non-empty updated level length matched branch");
+        };
+        level
+    };
     let mut min_level = first;
     let mut max_level = first;
     for level in updated_levels_iter {
