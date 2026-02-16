@@ -27405,6 +27405,47 @@ describe("report-utils", () => {
         },
       })
     ).toBe("ok");
+    const ownKeysTrappedDirectWasmPackMap = new Proxy(
+      Object.create(null) as Record<string, string>,
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === "wasm-pack") {
+            return " ok ";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackStatusFromReport({
+        checkStatusMap: ownKeysTrappedDirectWasmPackMap,
+      })
+    ).toBe("ok");
+    const ownKeysTrappedIndirectWasmPackMap = new Proxy(
+      Object.create(null) as Record<string, string>,
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === "wasm-pack") {
+            return "mystery";
+          }
+          if (property === " WASM-PACK ") {
+            return " missing ";
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackStatusFromReport({
+        checkStatusMap: ownKeysTrappedIndirectWasmPackMap,
+      })
+    ).toBeNull();
     const reportWithTrimmedWasmPackMapKey = Object.create(null) as {
       readonly checkStatusMap: Record<string, string>;
     };
