@@ -23506,6 +23506,31 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    const explicitEmptyIteratorWasmArgs = new Proxy([] as string[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: explicitEmptyIteratorWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: [],
+      wasmPackCheckArgCount: 0,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     const emptyIteratorLengthZeroAndOwnKeysTrapWasmArgs = new Proxy(
       ["check-wasm-pack.mjs"],
       {
@@ -23931,6 +23956,33 @@ describe("report-utils", () => {
       createPrefixedWasmPackCheckSummary(
         {
           wasmPackCheckArgs: new Array(1),
+        },
+        "client"
+      )
+    ).toEqual({
+      clientWasmPackCheckStatus: null,
+      clientWasmPackCheckCommand: null,
+      clientWasmPackCheckArgs: [],
+      clientWasmPackCheckArgCount: 0,
+      clientWasmPackCheckExitCode: null,
+      clientWasmPackCheckOutputLine: null,
+    });
+    expect(
+      createPrefixedWasmPackCheckSummary(
+        {
+          wasmPackCheckArgs: new Proxy([] as string[], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
         },
         "client"
       )
@@ -24855,6 +24907,39 @@ describe("report-utils", () => {
       exampleDurationMs: null,
       exampleOutputLine: null,
     });
+    const explicitEmptyIteratorExampleArgs = new Proxy([] as string[], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 0;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: explicitEmptyIteratorExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: [],
+      exampleArgCount: 0,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
     const emptyIteratorLengthZeroAndOwnKeysTrapExampleArgs = new Proxy(
       ["packages/ts-core/examples/end-to-end.mjs"],
       {
@@ -25368,6 +25453,41 @@ describe("report-utils", () => {
       createPrefixedTsCoreExampleSummary(
         {
           exampleArgs: new Array(1),
+          exampleAttempted: true,
+          exampleExitCode: 1,
+        },
+        "tsCore"
+      )
+    ).toEqual({
+      tsCoreExampleCommand: null,
+      tsCoreExampleArgs: [],
+      tsCoreExampleArgCount: 0,
+      tsCoreExampleAttempted: true,
+      tsCoreExampleStatus: "failed",
+      tsCoreExampleRuleMatched: null,
+      tsCoreExamplePayloadValid: null,
+      tsCoreExamplePayloadIssues: null,
+      tsCoreExamplePayloadIssueCount: null,
+      tsCoreExampleExitCode: 1,
+      tsCoreExampleDurationMs: null,
+      tsCoreExampleOutputLine: null,
+    });
+    expect(
+      createPrefixedTsCoreExampleSummary(
+        {
+          exampleArgs: new Proxy([] as string[], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 0;
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
           exampleAttempted: true,
           exampleExitCode: 1,
         },
