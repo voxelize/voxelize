@@ -412,8 +412,25 @@ const toNormalizedPrimitiveMessageOrNull = (value) => {
   return null;
 };
 
+const toErrorLikeMessageOrNull = (value) => {
+  if (value === null || typeof value !== "object") {
+    return null;
+  }
+
+  let rawMessage = undefined;
+  try {
+    rawMessage = value.message;
+  } catch {
+    return null;
+  }
+
+  return toNormalizedPrimitiveMessageOrNull(rawMessage);
+};
+
 const toSerializationErrorMessage = (error) => {
-  const fallbackMessage = toNormalizedPrimitiveMessageOrNull(error);
+  const fallbackMessage =
+    toNormalizedPrimitiveMessageOrNull(error) ??
+    toErrorLikeMessageOrNull(error);
 
   let isErrorValue = false;
   try {
@@ -3267,7 +3284,9 @@ const toOutputPathMessageValue = (outputPath) => {
 };
 
 const toErrorMessageDetail = (error) => {
-  const fallbackDetail = toNormalizedPrimitiveMessageOrNull(error);
+  const fallbackDetail =
+    toNormalizedPrimitiveMessageOrNull(error) ??
+    toErrorLikeMessageOrNull(error);
 
   let isErrorValue = false;
   try {
