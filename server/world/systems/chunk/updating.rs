@@ -240,7 +240,7 @@ fn process_pending_updates(
                 removed_light_sources.push((voxel, current_type));
             }
 
-            let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
+            let existing_entity = chunks.block_entities.remove(&voxel);
             if let Some(existing_entity) = existing_entity {
                 lazy.exec_mut(move |world| {
                     if let Err(error) = world.delete_entity(existing_entity) {
@@ -251,7 +251,7 @@ fn process_pending_updates(
 
             if updated_type.is_entity {
                 let entity = entities.create();
-                chunks.block_entities.insert(Vec3(vx, vy, vz), entity);
+                chunks.block_entities.insert(voxel, entity);
                 lazy.insert(entity, IDComp::new(&nanoid!()));
                 lazy.insert(entity, EntityFlag::default());
                 let block_name = registry.get_name_by_id(updated_id);
@@ -272,13 +272,9 @@ fn process_pending_updates(
 
             if updated_type.is_active {
                 if let Some(active_ticker) = updated_type.active_ticker.as_ref() {
-                    let ticks = active_ticker(
-                        Vec3(vx, vy, vz),
-                        &*chunks,
-                        registry,
-                    );
+                    let ticks = active_ticker(voxel, &*chunks, registry);
                     chunks.mark_voxel_active(
-                        &Vec3(vx, vy, vz),
+                        &voxel,
                         schedule_active_tick(current_tick, ticks),
                     );
                 }
