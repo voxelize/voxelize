@@ -613,14 +613,19 @@ impl World {
     /// Create a new voxelize world.
     pub fn new(name: &str, config: &WorldConfig) -> Self {
         let id = nanoid!();
+        let mut config_copy = config.clone();
 
-        if config.saving {
-            let folder = PathBuf::from(&config.save_dir);
+        if config_copy.saving {
+            let folder = PathBuf::from(&config_copy.save_dir);
 
             // If folder doesn't exist, create it.
             if !folder.exists() {
                 if let Err(e) = fs::create_dir_all(&folder) {
-                    panic!("Could not create world folder: {}", e);
+                    warn!(
+                        "Could not create world folder {:?}, disabling persistence: {}",
+                        folder, e
+                    );
+                    config_copy.saving = false;
                 }
             }
         }
@@ -654,14 +659,14 @@ impl World {
         ecs.register::<DoNotPersistComp>();
 
         ecs.insert(name.to_owned());
-        ecs.insert(config.clone());
+        ecs.insert(config_copy.clone());
         ecs.insert(world_metadata);
         ecs.insert(timing_context);
 
-        ecs.insert(Chunks::new(config));
-        ecs.insert(BackgroundEntitiesSaver::new(&config));
-        let chunk_folder = if config.saving {
-            let mut folder = PathBuf::from(&config.save_dir);
+        ecs.insert(Chunks::new(&config_copy));
+        ecs.insert(BackgroundEntitiesSaver::new(&config_copy));
+        let chunk_folder = if config_copy.saving {
+            let mut folder = PathBuf::from(&config_copy.save_dir);
             folder.push("chunks");
             Some(folder)
         } else {
@@ -669,9 +674,9 @@ impl World {
         };
         ecs.insert(BackgroundChunkSaver::new(chunk_folder));
         ecs.insert(Stats::new(
-            config.saving,
-            &config.save_dir,
-            config.default_time,
+            config_copy.saving,
+            &config_copy.save_dir,
+            config_copy.default_time,
         ));
 
         ecs.insert(Mesher::new());
