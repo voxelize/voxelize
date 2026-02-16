@@ -1,6 +1,7 @@
 use std::{cmp::Reverse, collections::VecDeque};
 
 use hashbrown::{hash_map::RawEntryMut, HashMap};
+use log::warn;
 use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
@@ -247,9 +248,9 @@ fn process_pending_updates(
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
             if let Some(existing_entity) = existing_entity {
                 lazy.exec_mut(move |world| {
-                    world
-                        .delete_entity(existing_entity)
-                        .expect("Failed to delete entity");
+                    if let Err(error) = world.delete_entity(existing_entity) {
+                        warn!("Failed to delete existing block entity {:?}: {:?}", existing_entity, error);
+                    }
                 });
             }
 
