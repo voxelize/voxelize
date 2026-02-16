@@ -4993,6 +4993,42 @@ describe("Type builders", () => {
     ]);
   });
 
+  it("salvages empty-iterator length-zero corner collections in createBlockFace", () => {
+    const keyedCorners = new Proxy(
+      [
+        createCornerData([0, 0, 0], [0, 0]),
+        createCornerData([1, 0, 0], [1, 0]),
+        createCornerData([1, 1, 0], [1, 1]),
+        createCornerData([0, 1, 0], [0, 1]),
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    const face = createBlockFace({
+      name: "TrapFace",
+      corners: keyedCorners as never,
+    });
+
+    expect(face.corners).toEqual([
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([1, 0, 0], [1, 0]),
+      createCornerData([1, 1, 0], [1, 1]),
+      createCornerData([0, 1, 0], [0, 1]),
+    ]);
+  });
+
   it("sanitizes irrecoverable corner collection traps in createBlockFace", () => {
     const trappedCorners = new Proxy(
       [
