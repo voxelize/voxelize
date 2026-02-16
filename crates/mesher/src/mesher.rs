@@ -845,6 +845,31 @@ fn cardinal_face_index(name: &str) -> Option<usize> {
 }
 
 #[inline]
+fn canonical_face_name_from_dir(dir: [i32; 3]) -> Option<&'static str> {
+    cardinal_face_index_from_dir(dir).map(|face_index| CARDINAL_FACE_NAMES[face_index])
+}
+
+#[inline]
+fn canonical_or_face_name_lower(face: &BlockFace) -> Cow<'_, str> {
+    if let Some(canonical) = canonical_face_name_from_dir(face.dir) {
+        if face.name.is_empty() || face.get_name_lower() == canonical {
+            return Cow::Borrowed(canonical);
+        }
+    }
+    lowercase_if_needed(face.get_name_lower())
+}
+
+#[inline]
+fn canonical_or_face_name_owned(face: &BlockFace) -> String {
+    if let Some(canonical) = canonical_face_name_from_dir(face.dir) {
+        if face.name.is_empty() || face.get_name_lower() == canonical {
+            return canonical.to_string();
+        }
+    }
+    face.name.clone()
+}
+
+#[inline]
 fn collect_cardinal_face_ranges(original_faces: &[BlockFace]) -> [UV; 6] {
     let mut ranges = std::array::from_fn(|_| UV::default());
     for face in original_faces {
@@ -925,7 +950,7 @@ fn create_fluid_faces<S: VoxelAccess>(
 
     [
         BlockFace {
-            name: "py".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, 1, 0],
             independent: true,
@@ -952,7 +977,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "ny".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, -1, 0],
             independent: false,
@@ -979,7 +1004,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "px".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [1, 0, 0],
             independent: true,
@@ -1006,7 +1031,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "nx".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [-1, 0, 0],
             independent: true,
@@ -1033,7 +1058,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "pz".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, 0, 1],
             independent: true,
@@ -1060,7 +1085,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             ],
         },
         BlockFace {
-            name: "nz".to_string(),
+            name: String::new(),
             name_lower: String::new(),
             dir: [0, 0, -1],
             independent: true,
@@ -2141,26 +2166,30 @@ fn process_non_greedy_face<S: VoxelAccess>(
     world_space: bool,
 ) {
     let geometry = if face.isolated {
+        let face_name_lower = canonical_or_face_name_lower(face);
         let geo_key = build_isolated_geo_key(
             block.get_name_lower(),
-            face.get_name_lower(),
+            face_name_lower.as_ref(),
             vx,
             vy,
             vz,
         );
+        let face_name = canonical_or_face_name_owned(face);
         map.entry(geo_key).or_insert_with(|| {
             let mut g = GeometryProtocol::default();
             g.voxel = voxel_id;
-            g.face_name = Some(face.name.clone());
+            g.face_name = Some(face_name);
             g.at = Some([vx, vy, vz]);
             g
         })
     } else if face.independent {
-        let geo_key = build_independent_geo_key(block.get_name_lower(), face.get_name_lower());
+        let face_name_lower = canonical_or_face_name_lower(face);
+        let geo_key = build_independent_geo_key(block.get_name_lower(), face_name_lower.as_ref());
+        let face_name = canonical_or_face_name_owned(face);
         map.entry(geo_key).or_insert_with(|| {
             let mut g = GeometryProtocol::default();
             g.voxel = voxel_id;
-            g.face_name = Some(face.name.clone());
+            g.face_name = Some(face_name);
             g
         })
     } else {
@@ -2414,7 +2443,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             let (face_name_index, face_name) = if face.independent {
                                 if let Some(face_index) = cardinal_face_index_from_dir(effective_dir) {
                                     let canonical_face_name = CARDINAL_FACE_NAMES[face_index];
-                                    if face.name == canonical_face_name {
+                                    if face.name.is_empty() || face.name == canonical_face_name {
                                         (Some(face_index as u8), String::new())
                                     } else {
                                         (None, face.name.clone())
@@ -2553,27 +2582,31 @@ pub fn mesh_space<S: VoxelAccess>(
                 let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
                 let mut process_mesh_face = |face: &BlockFace, world_space: bool| {
                     let geometry = if face.isolated {
+                        let face_name_lower = canonical_or_face_name_lower(face);
                         let key = build_isolated_geo_key(
                             block.get_name_lower(),
-                            face.get_name_lower(),
+                            face_name_lower.as_ref(),
                             vx,
                             vy,
                             vz,
                         );
+                        let face_name = canonical_or_face_name_owned(face);
                         map.entry(key).or_insert_with(|| {
                             let mut g = GeometryProtocol::default();
                             g.voxel = block.id;
-                            g.face_name = Some(face.name.clone());
+                            g.face_name = Some(face_name);
                             g.at = Some([vx, vy, vz]);
                             g
                         })
                     } else if face.independent {
+                        let face_name_lower = canonical_or_face_name_lower(face);
                         let key =
-                            build_independent_geo_key(block.get_name_lower(), face.get_name_lower());
+                            build_independent_geo_key(block.get_name_lower(), face_name_lower.as_ref());
+                        let face_name = canonical_or_face_name_owned(face);
                         map.entry(key).or_insert_with(|| {
                             let mut g = GeometryProtocol::default();
                             g.voxel = block.id;
-                            g.face_name = Some(face.name.clone());
+                            g.face_name = Some(face_name);
                             g
                         })
                     } else {
