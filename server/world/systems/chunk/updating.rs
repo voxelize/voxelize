@@ -5,6 +5,7 @@ use log::warn;
 use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
+use crate::world::generators::light_config;
 use super::height_updates::update_chunk_column_height_for_voxel_update;
 use crate::{
     BlockUtils, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp,
@@ -144,6 +145,8 @@ fn process_pending_updates(
     } else {
         Some(config.max_height as i32)
     };
+    let light_registry = registry.lighter_registry_ref();
+    let light_config = light_config(config);
 
     chunks.flush_staged_updates();
 
@@ -365,18 +368,42 @@ fn process_pending_updates(
 
         let Vec3(vx, vy, vz) = *voxel;
         if light_block.is_opaque && chunks.get_sunlight(vx, vy, vz) != 0 {
-            Lights::remove_light(&mut *chunks, voxel, &SUNLIGHT, config, registry);
+            Lights::remove_light_with_light_config(
+                &mut *chunks,
+                voxel,
+                &SUNLIGHT,
+                light_registry.as_ref(),
+                &light_config,
+            );
         }
     }
 
     if !red_removals.is_empty() {
-        Lights::remove_lights(&mut *chunks, &red_removals, &RED, config, registry);
+        Lights::remove_lights_with_light_config(
+            &mut *chunks,
+            &red_removals,
+            &RED,
+            light_registry.as_ref(),
+            &light_config,
+        );
     }
     if !green_removals.is_empty() {
-        Lights::remove_lights(&mut *chunks, &green_removals, &GREEN, config, registry);
+        Lights::remove_lights_with_light_config(
+            &mut *chunks,
+            &green_removals,
+            &GREEN,
+            light_registry.as_ref(),
+            &light_config,
+        );
     }
     if !blue_removals.is_empty() {
-        Lights::remove_lights(&mut *chunks, &blue_removals, &BLUE, config, registry);
+        Lights::remove_lights_with_light_config(
+            &mut *chunks,
+            &blue_removals,
+            &BLUE,
+            light_registry.as_ref(),
+            &light_config,
+        );
     }
 
     let mut red_flood = VecDeque::new();
@@ -421,16 +448,40 @@ fn process_pending_updates(
 
         if updated_type.is_opaque || updated_type.light_reduce {
             if chunks.get_sunlight(vx, vy, vz) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, config, registry);
+                Lights::remove_light_with_light_config(
+                    &mut *chunks,
+                    &voxel,
+                    &SUNLIGHT,
+                    light_registry.as_ref(),
+                    &light_config,
+                );
             }
             if chunks.get_torch_light(vx, vy, vz, &RED) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &RED, config, registry);
+                Lights::remove_light_with_light_config(
+                    &mut *chunks,
+                    &voxel,
+                    &RED,
+                    light_registry.as_ref(),
+                    &light_config,
+                );
             }
             if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &GREEN, config, registry);
+                Lights::remove_light_with_light_config(
+                    &mut *chunks,
+                    &voxel,
+                    &GREEN,
+                    light_registry.as_ref(),
+                    &light_config,
+                );
             }
             if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &BLUE, config, registry);
+                Lights::remove_light_with_light_config(
+                    &mut *chunks,
+                    &voxel,
+                    &BLUE,
+                    light_registry.as_ref(),
+                    &light_config,
+                );
             }
         } else {
             let mut remove_counts = 0;
@@ -483,12 +534,12 @@ fn process_pending_updates(
                             && source_level == max_light_level)
                     {
                         remove_counts += 1;
-                        Lights::remove_light(
+                        Lights::remove_light_with_light_config(
                             &mut *chunks,
                             &Vec3(nvx, nvy, nvz),
                             color,
-                            config,
-                            registry,
+                            light_registry.as_ref(),
+                            &light_config,
                         );
                     }
                 }
@@ -496,16 +547,40 @@ fn process_pending_updates(
 
             if remove_counts == 0 {
                 if chunks.get_sunlight(vx, vy, vz) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, config, registry);
+                    Lights::remove_light_with_light_config(
+                        &mut *chunks,
+                        &voxel,
+                        &SUNLIGHT,
+                        light_registry.as_ref(),
+                        &light_config,
+                    );
                 }
                 if chunks.get_torch_light(vx, vy, vz, &RED) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &RED, config, registry);
+                    Lights::remove_light_with_light_config(
+                        &mut *chunks,
+                        &voxel,
+                        &RED,
+                        light_registry.as_ref(),
+                        &light_config,
+                    );
                 }
                 if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &GREEN, config, registry);
+                    Lights::remove_light_with_light_config(
+                        &mut *chunks,
+                        &voxel,
+                        &GREEN,
+                        light_registry.as_ref(),
+                        &light_config,
+                    );
                 }
                 if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &BLUE, config, registry);
+                    Lights::remove_light_with_light_config(
+                        &mut *chunks,
+                        &voxel,
+                        &BLUE,
+                        light_registry.as_ref(),
+                        &light_config,
+                    );
                 }
             }
         }
@@ -612,12 +687,12 @@ fn process_pending_updates(
 
     if !red_flood.is_empty() {
         let bounds = compute_flood_bounds(&red_flood, max_light_level);
-        Lights::flood_light(
+        Lights::flood_light_with_light_config(
             &mut *chunks,
             red_flood,
             &RED,
-            registry,
-            config,
+            light_registry.as_ref(),
+            &light_config,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );
@@ -625,12 +700,12 @@ fn process_pending_updates(
 
     if !green_flood.is_empty() {
         let bounds = compute_flood_bounds(&green_flood, max_light_level);
-        Lights::flood_light(
+        Lights::flood_light_with_light_config(
             &mut *chunks,
             green_flood,
             &GREEN,
-            registry,
-            config,
+            light_registry.as_ref(),
+            &light_config,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );
@@ -638,12 +713,12 @@ fn process_pending_updates(
 
     if !blue_flood.is_empty() {
         let bounds = compute_flood_bounds(&blue_flood, max_light_level);
-        Lights::flood_light(
+        Lights::flood_light_with_light_config(
             &mut *chunks,
             blue_flood,
             &BLUE,
-            registry,
-            config,
+            light_registry.as_ref(),
+            &light_config,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );
@@ -651,12 +726,12 @@ fn process_pending_updates(
 
     if !sun_flood.is_empty() {
         let bounds = compute_flood_bounds(&sun_flood, max_light_level);
-        Lights::flood_light(
+        Lights::flood_light_with_light_config(
             &mut *chunks,
             sun_flood,
             &SUNLIGHT,
-            registry,
-            config,
+            light_registry.as_ref(),
+            &light_config,
             bounds.as_ref().map(|b| &b.0),
             bounds.as_ref().map(|b| &b.1),
         );

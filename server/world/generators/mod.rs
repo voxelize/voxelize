@@ -9,7 +9,7 @@ mod terrain;
 mod trees;
 
 pub use self::noise::*;
-pub use lights::{LightNode, Lights};
+pub use lights::{light_config, LightNode, Lights};
 pub use lsystem::*;
 pub use mesher::Mesher;
 pub use pathfinding::*;

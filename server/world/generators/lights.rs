@@ -172,14 +172,29 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        let light_registry = registry.lighter_registry_ref();
         let light_config = light_config(config);
+        Self::remove_light_with_light_config(
+            space,
+            voxel,
+            color,
+            registry.lighter_registry_ref().as_ref(),
+            &light_config,
+        );
+    }
+
+    pub fn remove_light_with_light_config(
+        space: &mut dyn LightVoxelAccess,
+        voxel: &Vec3<i32>,
+        color: &LightColor,
+        light_registry: &LightRegistry,
+        light_config: &LightConfig,
+    ) {
         lighter_remove_light(
             space,
             [voxel.0, voxel.1, voxel.2],
             color,
-            &light_config,
-            light_registry.as_ref(),
+            light_config,
+            light_registry,
         );
     }
 
@@ -190,14 +205,29 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        let light_registry = registry.lighter_registry_ref();
         let light_config = light_config(config);
+        Self::remove_lights_with_light_config(
+            space,
+            voxels,
+            color,
+            registry.lighter_registry_ref().as_ref(),
+            &light_config,
+        );
+    }
+
+    pub fn remove_lights_with_light_config(
+        space: &mut dyn LightVoxelAccess,
+        voxels: &[Vec3<i32>],
+        color: &LightColor,
+        light_registry: &LightRegistry,
+        light_config: &LightConfig,
+    ) {
         lighter_remove_lights(
             space,
             voxels.iter().map(|v| [v.0, v.1, v.2]),
             color,
-            &light_config,
-            light_registry.as_ref(),
+            light_config,
+            light_registry,
         );
     }
 
