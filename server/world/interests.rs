@@ -83,7 +83,7 @@ impl ChunkInterests {
         }
 
         let mut first_interested: Option<&HashSet<String>> = None;
-        let mut additional_interested: Vec<&HashSet<String>> = Vec::with_capacity(8);
+        let mut additional_interested: Option<Vec<&HashSet<String>>> = None;
         let mut expected_clients = 0usize;
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
@@ -98,7 +98,9 @@ impl ChunkInterests {
                     if first_interested.is_none() {
                         first_interested = Some(interested);
                     } else {
-                        additional_interested.push(interested);
+                        additional_interested
+                            .get_or_insert_with(|| Vec::with_capacity(8))
+                            .push(interested);
                     }
                 }
             }
@@ -106,14 +108,14 @@ impl ChunkInterests {
         if expected_clients == 0 {
             return HashSet::new();
         }
-        if additional_interested.is_empty() {
+        let Some(additional_interested) = additional_interested else {
             if let Some(interested) = first_interested {
                 let mut clients = HashSet::with_capacity(interested.len());
                 clients.extend(interested.iter().cloned());
                 return clients;
             }
             return HashSet::new();
-        }
+        };
 
         let mut clients = HashSet::with_capacity(expected_clients);
         if let Some(interested) = first_interested {
