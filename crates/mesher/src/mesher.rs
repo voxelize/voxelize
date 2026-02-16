@@ -108,7 +108,9 @@ impl Registry {
         let mut cache = HashMap::with_capacity(self.blocks_by_id.len());
         for (idx, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
             cache.insert(*id, idx);
-            block.compute_name_lower();
+            if block.name_lower.is_empty() || !block.has_standard_faces_computed {
+                block.compute_name_lower();
+            }
         }
         self.lookup_cache = Some(cache);
     }
