@@ -379,37 +379,41 @@ const isCompactJsonSerializationEnabled = (options) => {
   }
 };
 
-const toSerializationErrorMessage = (error) => {
-  const toTrimmedErrorMessageOrNull = (value) => {
+const toNormalizedPrimitiveMessageOrNull = (value) => {
+  if (typeof value === "string") {
     const normalizedValue = value.trim();
     return normalizedValue.length > 0 ? normalizedValue : null;
-  };
+  }
 
-  const toPrimitiveErrorMessageOrNull = (value) => {
-    if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean" ||
-      typeof value === "bigint" ||
-      typeof value === "symbol"
-    ) {
-      try {
-        const primitiveMessage = String(value);
-        return toTrimmedErrorMessageOrNull(primitiveMessage);
-      } catch {
-        return null;
-      }
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
+    try {
+      const primitiveMessage = String(value).trim();
+      return primitiveMessage.length > 0 ? primitiveMessage : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (value !== null && typeof value === "object") {
+    const wrappedPrimitiveMessage = toPrimitiveWrapperStringOrNull(value);
+    if (wrappedPrimitiveMessage === null) {
+      return null;
     }
 
-    if (value !== null && typeof value === "object") {
-      const wrappedPrimitiveMessage = toPrimitiveWrapperStringOrNull(value);
-      if (wrappedPrimitiveMessage !== null) {
-        return toTrimmedErrorMessageOrNull(wrappedPrimitiveMessage);
-      }
-    }
+    const normalizedWrappedMessage = wrappedPrimitiveMessage.trim();
+    return normalizedWrappedMessage.length > 0 ? normalizedWrappedMessage : null;
+  }
 
-    return null;
-  };
+  return null;
+};
+
+const toSerializationErrorMessage = (error) => {
+  const fallbackMessage = toNormalizedPrimitiveMessageOrNull(error);
 
   let isErrorValue = false;
   try {
@@ -419,31 +423,25 @@ const toSerializationErrorMessage = (error) => {
   }
 
   if (!isErrorValue) {
-    return (
-      toPrimitiveErrorMessageOrNull(error) ??
-      "Unknown report serialization error."
-    );
+    return fallbackMessage ?? "Unknown report serialization error.";
   }
 
   let rawMessage = "";
   try {
     rawMessage = error.message;
   } catch {
-    return (
-      toPrimitiveErrorMessageOrNull(error) ??
-      "Unknown report serialization error."
-    );
+    return fallbackMessage ?? "Unknown report serialization error.";
   }
 
   if (typeof rawMessage !== "string") {
     return (
-      toPrimitiveErrorMessageOrNull(rawMessage) ??
-      toPrimitiveErrorMessageOrNull(error) ??
+      toNormalizedPrimitiveMessageOrNull(rawMessage) ??
+      fallbackMessage ??
       "Unknown report serialization error."
     );
   }
 
-  const normalizedMessage = toTrimmedErrorMessageOrNull(rawMessage);
+  const normalizedMessage = toNormalizedPrimitiveMessageOrNull(rawMessage);
   return normalizedMessage !== null
     ? normalizedMessage
     : "Unknown report serialization error.";
@@ -3269,42 +3267,7 @@ const toOutputPathMessageValue = (outputPath) => {
 };
 
 const toErrorMessageDetail = (error) => {
-  const toTrimmedDetailOrNull = (value) => {
-    if (typeof value === "string") {
-      const normalizedStringValue = value.trim();
-      return normalizedStringValue.length > 0 ? normalizedStringValue : null;
-    }
-
-    if (
-      typeof value === "number" ||
-      typeof value === "boolean" ||
-      typeof value === "bigint" ||
-      typeof value === "symbol"
-    ) {
-      try {
-        const primitiveStringValue = String(value).trim();
-        return primitiveStringValue.length > 0 ? primitiveStringValue : null;
-      } catch {
-        return null;
-      }
-    }
-
-    if (value !== null && typeof value === "object") {
-      const wrappedPrimitiveValue = toPrimitiveWrapperStringOrNull(value);
-      if (wrappedPrimitiveValue === null) {
-        return null;
-      }
-
-      const normalizedWrappedPrimitiveValue = wrappedPrimitiveValue.trim();
-      return normalizedWrappedPrimitiveValue.length > 0
-        ? normalizedWrappedPrimitiveValue
-        : null;
-    }
-
-    return null;
-  };
-
-  const fallbackDetail = toTrimmedDetailOrNull(error);
+  const fallbackDetail = toNormalizedPrimitiveMessageOrNull(error);
 
   let isErrorValue = false;
   try {
@@ -3324,7 +3287,7 @@ const toErrorMessageDetail = (error) => {
     return fallbackDetail !== null ? ` ${fallbackDetail}` : "";
   }
 
-  const normalizedMessageDetail = toTrimmedDetailOrNull(messageValue);
+  const normalizedMessageDetail = toNormalizedPrimitiveMessageOrNull(messageValue);
   if (normalizedMessageDetail !== null) {
     return ` ${normalizedMessageDetail}`;
   }
