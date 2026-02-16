@@ -153,8 +153,20 @@ export const toReport = (report) => {
   };
 };
 
+const isCompactJsonSerializationEnabled = (options) => {
+  if (options === null || typeof options !== "object") {
+    return false;
+  }
+
+  try {
+    return options.compact === true;
+  } catch {
+    return false;
+  }
+};
+
 export const toReportJson = (report, options = {}) => {
-  const compact = options.compact === true;
+  const compact = isCompactJsonSerializationEnabled(options);
   return JSON.stringify(toReport(report), null, compact ? 0 : 2);
 };
 

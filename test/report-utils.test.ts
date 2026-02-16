@@ -321,6 +321,69 @@ describe("report-utils", () => {
     );
   });
 
+  it("sanitizes malformed compact json serialization options", () => {
+    expect(() =>
+      toReportJson({ passed: true, exitCode: 0 }, null as never)
+    ).not.toThrow();
+    const serializedFromNullOptions = toReportJson(
+      { passed: true, exitCode: 0 },
+      null as never
+    );
+    const parsedFromNullOptions = JSON.parse(serializedFromNullOptions) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+    };
+    expect(parsedFromNullOptions.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedFromNullOptions.passed).toBe(true);
+    expect(parsedFromNullOptions.exitCode).toBe(0);
+    expect(serializedFromNullOptions).toContain("\n");
+
+    const trappedCompactOptions = new Proxy(Object.create(null), {
+      get(_target, property) {
+        if (property === "compact") {
+          throw new Error("compact trap");
+        }
+        return undefined;
+      },
+    });
+    expect(() =>
+      toReportJson({ passed: true, exitCode: 0 }, trappedCompactOptions as never)
+    ).not.toThrow();
+    const serializedFromTrappedOptions = toReportJson(
+      { passed: true, exitCode: 0 },
+      trappedCompactOptions as never
+    );
+    const parsedFromTrappedOptions = JSON.parse(serializedFromTrappedOptions) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+    };
+    expect(parsedFromTrappedOptions.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedFromTrappedOptions.passed).toBe(true);
+    expect(parsedFromTrappedOptions.exitCode).toBe(0);
+    expect(serializedFromTrappedOptions).toContain("\n");
+    expect(serializedFromTrappedOptions).not.toBe(
+      `{"passed":true,"exitCode":0,"schemaVersion":${REPORT_SCHEMA_VERSION}}`
+    );
+
+    const serializedFromPrimitiveOptions = toReportJson(
+      { passed: true, exitCode: 0 },
+      "compact" as never
+    );
+    const parsedFromPrimitiveOptions = JSON.parse(
+      serializedFromPrimitiveOptions
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+    };
+    expect(parsedFromPrimitiveOptions.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedFromPrimitiveOptions.passed).toBe(true);
+    expect(parsedFromPrimitiveOptions.exitCode).toBe(0);
+    expect(serializedFromPrimitiveOptions).toContain("\n");
+  });
+
   it("resolves output paths and validates missing values", () => {
     const resolved = resolveOutputPath(
       ["--json", "--output", "./report.json"],
