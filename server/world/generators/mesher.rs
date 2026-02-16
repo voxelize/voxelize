@@ -251,8 +251,6 @@ impl Mesher {
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
                     let coords = space.coords;
-                    let min = space.min;
-                    let shape = space.shape;
                     let should_store_lights = chunk.meshes.is_none();
                     let space_max_height = space.options.max_height;
                     let space_sub_chunks = space.options.sub_chunks;
@@ -262,6 +260,8 @@ impl Mesher {
                     let Vec3(max_x, _, max_z) = chunk.max;
 
                     if should_store_lights {
+                        let min = space.min;
+                        let shape = space.shape;
                         let mut light_queues: [VecDeque<LightNode>; LIGHT_COLORS.len()] =
                             std::array::from_fn(|_| VecDeque::new());
 
