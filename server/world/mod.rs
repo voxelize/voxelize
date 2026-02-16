@@ -1505,10 +1505,18 @@ impl World {
     }
 
     pub fn populate_entity(&mut self, ent: Entity, id: &str, etype: &str, metadata: MetadataComp) {
-        self.ecs_mut()
+        let mut insertion_failed = false;
+        if let Err(error) = self
+            .ecs_mut()
             .write_storage::<IDComp>()
             .insert(ent, IDComp::new(id))
-            .expect("Failed to insert ID component");
+        {
+            warn!(
+                "Failed to insert ID component for revived entity {}: {:?}",
+                id, error
+            );
+            insertion_failed = true;
+        }
 
         let (entity_type, is_block) = if etype.starts_with("block::") {
             (etype, true)
@@ -1516,30 +1524,75 @@ impl World {
             (etype, false)
         };
 
-        self.ecs_mut()
+        if let Err(error) = self
+            .ecs_mut()
             .write_storage::<ETypeComp>()
             .insert(ent, ETypeComp::new(entity_type, is_block))
-            .expect("Failed to insert entity type component");
+        {
+            warn!(
+                "Failed to insert EType component for entity {}: {:?}",
+                id, error
+            );
+            insertion_failed = true;
+        }
 
-        self.ecs_mut()
+        if let Err(error) = self
+            .ecs_mut()
             .write_storage::<EntityFlag>()
             .insert(ent, EntityFlag::default())
-            .expect("Failed to insert entity flag");
+        {
+            warn!(
+                "Failed to insert EntityFlag component for entity {}: {:?}",
+                id, error
+            );
+            insertion_failed = true;
+        }
 
-        self.ecs_mut()
+        if let Err(error) = self
+            .ecs_mut()
             .write_storage::<CurrentChunkComp>()
             .insert(ent, CurrentChunkComp::default())
-            .expect("Failed to insert current chunk component");
+        {
+            warn!(
+                "Failed to insert CurrentChunk component for entity {}: {:?}",
+                id, error
+            );
+            insertion_failed = true;
+        }
 
-        self.ecs_mut()
+        if let Err(error) = self
+            .ecs_mut()
             .write_storage::<CollisionsComp>()
             .insert(ent, CollisionsComp::new())
-            .expect("Failed to insert collisions component");
+        {
+            warn!(
+                "Failed to insert Collisions component for entity {}: {:?}",
+                id, error
+            );
+            insertion_failed = true;
+        }
 
-        self.ecs_mut()
+        if let Err(error) = self
+            .ecs_mut()
             .write_storage::<MetadataComp>()
             .insert(ent, metadata)
-            .expect("Failed to insert metadata component");
+        {
+            warn!(
+                "Failed to insert Metadata component for entity {}: {:?}",
+                id, error
+            );
+            insertion_failed = true;
+        }
+
+        if insertion_failed {
+            if let Err(error) = self.ecs_mut().delete_entity(ent) {
+                warn!(
+                    "Failed to cleanup partially-populated entity {}: {:?}",
+                    id, error
+                );
+            }
+            return;
+        }
 
         let ent_id = ent.id();
 
