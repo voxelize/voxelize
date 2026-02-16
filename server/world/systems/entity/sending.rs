@@ -644,22 +644,41 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.bookkeeping_records_buffer = old_entities;
         bookkeeping.entity_positions = entity_positions;
 
-        for client_id in self.clients_with_updates_buffer.drain(..) {
-            let updates = match self.client_updates_buffer.get_mut(&client_id) {
-                Some(updates) => updates,
-                None => continue,
-            };
-            if updates.is_empty() {
-                continue;
+        if self.clients_with_updates_buffer.len() == 1 {
+            if let Some(client_id) = self.clients_with_updates_buffer.pop() {
+                if let Some(updates) = self.client_updates_buffer.get_mut(&client_id) {
+                    if !updates.is_empty() {
+                        let next_update_capacity = updates.capacity();
+                        let updates_to_send =
+                            std::mem::replace(updates, Vec::with_capacity(next_update_capacity));
+                        queue.push((
+                            Message::new(&MessageType::Entity)
+                                .entities_owned(updates_to_send)
+                                .build(),
+                            ClientFilter::Direct(client_id),
+                        ));
+                    }
+                }
             }
-            let next_update_capacity = updates.capacity();
-            let updates_to_send = std::mem::replace(updates, Vec::with_capacity(next_update_capacity));
-            queue.push((
-                Message::new(&MessageType::Entity)
-                    .entities_owned(updates_to_send)
-                    .build(),
-                ClientFilter::Direct(client_id),
-            ));
+        } else {
+            for client_id in self.clients_with_updates_buffer.drain(..) {
+                let updates = match self.client_updates_buffer.get_mut(&client_id) {
+                    Some(updates) => updates,
+                    None => continue,
+                };
+                if updates.is_empty() {
+                    continue;
+                }
+                let next_update_capacity = updates.capacity();
+                let updates_to_send =
+                    std::mem::replace(updates, Vec::with_capacity(next_update_capacity));
+                queue.push((
+                    Message::new(&MessageType::Entity)
+                        .entities_owned(updates_to_send)
+                        .build(),
+                    ClientFilter::Direct(client_id),
+                ));
+            }
         }
     }
 }
