@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, collections::VecDeque};
+use std::cmp::Reverse;
 
 use hashbrown::{hash_map::RawEntryMut, HashMap};
 use log::warn;
@@ -72,11 +72,10 @@ fn normalized_chunk_size(chunk_size: usize) -> usize {
 }
 
 fn compute_flood_bounds(
-    queue: &VecDeque<LightNode>,
+    queue: &[LightNode],
     max_light_level: u32,
 ) -> Option<(Vec3<i32>, Vec3<usize>)> {
-    let mut queue_iter = queue.iter();
-    let first_node = queue_iter.next()?;
+    let (first_node, queue_iter) = queue.split_first()?;
     let mut min_x = i64::from(first_node.voxel[0]);
     let mut min_y = i64::from(first_node.voxel[1]);
     let mut min_z = i64::from(first_node.voxel[2]);
@@ -529,10 +528,10 @@ fn process_pending_updates(
         .as_ref()
         .map_or(0, Vec::len)
         .min(64);
-    let mut red_flood = VecDeque::with_capacity(flood_initial_capacity);
-    let mut green_flood = VecDeque::with_capacity(flood_initial_capacity);
-    let mut blue_flood = VecDeque::with_capacity(flood_initial_capacity);
-    let mut sun_flood = VecDeque::with_capacity(flood_initial_capacity);
+    let mut red_flood = Vec::with_capacity(flood_initial_capacity);
+    let mut green_flood = Vec::with_capacity(flood_initial_capacity);
+    let mut blue_flood = Vec::with_capacity(flood_initial_capacity);
+    let mut sun_flood = Vec::with_capacity(flood_initial_capacity);
 
     if let Some(processed_updates) = processed_updates {
         for (
@@ -754,21 +753,21 @@ fn process_pending_updates(
 
                 if red_level > 0 {
                     chunks.set_torch_light(vx, vy, vz, red_level, &RED);
-                    red_flood.push_back(LightNode {
+                    red_flood.push(LightNode {
                         voxel: [voxel.0, voxel.1, voxel.2],
                         level: red_level,
                     });
                 }
                 if green_level > 0 {
                     chunks.set_torch_light(vx, vy, vz, green_level, &GREEN);
-                    green_flood.push_back(LightNode {
+                    green_flood.push(LightNode {
                         voxel: [voxel.0, voxel.1, voxel.2],
                         level: green_level,
                     });
                 }
                 if blue_level > 0 {
                     chunks.set_torch_light(vx, vy, vz, blue_level, &BLUE);
-                    blue_flood.push_back(LightNode {
+                    blue_flood.push(LightNode {
                         voxel: [voxel.0, voxel.1, voxel.2],
                         level: blue_level,
                     });
@@ -791,7 +790,7 @@ fn process_pending_updates(
 
                 if has_max_height_limit && nvy >= max_height_limit {
                     if Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz) {
-                        sun_flood.push_back(LightNode {
+                        sun_flood.push(LightNode {
                             voxel: [nvx, vy, nvz],
                             level: max_light_level,
                         })
@@ -816,7 +815,7 @@ fn process_pending_updates(
                         let reduce = if updated_type.light_reduce { 1 } else { 0 };
                         let sun_val = chunks.get_sunlight(nvx, nvy, nvz);
                         if sun_val > reduce {
-                            sun_flood.push_back(LightNode {
+                            sun_flood.push(LightNode {
                                 voxel: n_voxel,
                                 level: sun_val - reduce,
                             })
@@ -825,7 +824,7 @@ fn process_pending_updates(
                         if !is_removed_light_source {
                             let red_val = chunks.get_torch_light(nvx, nvy, nvz, &RED);
                             if red_val > reduce {
-                                red_flood.push_back(LightNode {
+                                red_flood.push(LightNode {
                                     voxel: n_voxel,
                                     level: red_val - reduce,
                                 })
@@ -833,7 +832,7 @@ fn process_pending_updates(
 
                             let green_val = chunks.get_torch_light(nvx, nvy, nvz, &GREEN);
                             if green_val > reduce {
-                                green_flood.push_back(LightNode {
+                                green_flood.push(LightNode {
                                     voxel: n_voxel,
                                     level: green_val - reduce,
                                 })
@@ -841,7 +840,7 @@ fn process_pending_updates(
 
                             let blue_val = chunks.get_torch_light(nvx, nvy, nvz, &BLUE);
                             if blue_val > reduce {
-                                blue_flood.push_back(LightNode {
+                                blue_flood.push(LightNode {
                                     voxel: n_voxel,
                                     level: blue_val - reduce,
                                 })
@@ -855,7 +854,7 @@ fn process_pending_updates(
 
     if !red_flood.is_empty() {
         let bounds = compute_flood_bounds(&red_flood, max_light_level);
-        Lights::flood_light_with_light_config(
+        Lights::flood_light_nodes_with_light_config(
             &mut *chunks,
             red_flood,
             &RED,
@@ -868,7 +867,7 @@ fn process_pending_updates(
 
     if !green_flood.is_empty() {
         let bounds = compute_flood_bounds(&green_flood, max_light_level);
-        Lights::flood_light_with_light_config(
+        Lights::flood_light_nodes_with_light_config(
             &mut *chunks,
             green_flood,
             &GREEN,
@@ -881,7 +880,7 @@ fn process_pending_updates(
 
     if !blue_flood.is_empty() {
         let bounds = compute_flood_bounds(&blue_flood, max_light_level);
-        Lights::flood_light_with_light_config(
+        Lights::flood_light_nodes_with_light_config(
             &mut *chunks,
             blue_flood,
             &BLUE,
@@ -894,7 +893,7 @@ fn process_pending_updates(
 
     if !sun_flood.is_empty() {
         let bounds = compute_flood_bounds(&sun_flood, max_light_level);
-        Lights::flood_light_with_light_config(
+        Lights::flood_light_nodes_with_light_config(
             &mut *chunks,
             sun_flood,
             &SUNLIGHT,
@@ -1121,8 +1120,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
-
     use super::{compute_flood_bounds, normalized_chunk_size, schedule_active_tick};
     use crate::{LightNode, Vec3};
 
@@ -1138,16 +1135,16 @@ mod tests {
 
     #[test]
     fn compute_flood_bounds_returns_none_for_empty_queues() {
-        let queue = VecDeque::new();
+        let queue: Vec<LightNode> = Vec::new();
         assert_eq!(compute_flood_bounds(&queue, 15), None);
     }
 
     #[test]
     fn compute_flood_bounds_clamps_extreme_expansion_without_wrapping() {
-        let queue = VecDeque::from([LightNode {
+        let queue = vec![LightNode {
             voxel: [i32::MAX, i32::MAX, i32::MAX],
             level: 15,
-        }]);
+        }];
 
         let bounds = compute_flood_bounds(&queue, u32::MAX).expect("bounds should exist");
         assert_eq!(bounds.0, Vec3(i32::MIN, i32::MAX, i32::MIN));

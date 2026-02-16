@@ -511,23 +511,23 @@ pub fn remove_lights<I>(
     flood_light_from_nodes(space, fill, color, config, None, registry);
 }
 
-pub fn propagate(
+pub fn propagate_nodes(
     space: &mut dyn LightVoxelAccess,
     min: [i32; 3],
     shape: [usize; 3],
     registry: &LightRegistry,
     config: &LightConfig,
-) -> [VecDeque<LightNode>; 4] {
+) -> [Vec<LightNode>; 4] {
     let [start_x, _, start_z] = min;
     let [shape_x, _, shape_z] = shape;
     let max_height = config.max_height;
     let max_light_level = config.max_light_level;
     if shape_x == 0 || shape_z == 0 || max_height <= 0 {
         return [
-            VecDeque::new(),
-            VecDeque::new(),
-            VecDeque::new(),
-            VecDeque::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
         ];
     }
     let shape_x_i64 = if shape_x > MAX_I64_USIZE {
@@ -544,18 +544,18 @@ pub fn propagate(
         || i64::from(start_z).saturating_add(shape_z_i64) > i64::from(i32::MAX) + 1
     {
         return [
-            VecDeque::new(),
-            VecDeque::new(),
-            VecDeque::new(),
-            VecDeque::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
         ];
     }
     let Some(mask_len) = shape_x.checked_mul(shape_z) else {
         return [
-            VecDeque::new(),
-            VecDeque::new(),
-            VecDeque::new(),
-            VecDeque::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
         ];
     };
 
@@ -700,6 +700,18 @@ pub fn propagate(
         }
     }
 
+    [sunlight_queue, red_light_queue, green_light_queue, blue_light_queue]
+}
+
+pub fn propagate(
+    space: &mut dyn LightVoxelAccess,
+    min: [i32; 3],
+    shape: [usize; 3],
+    registry: &LightRegistry,
+    config: &LightConfig,
+) -> [VecDeque<LightNode>; 4] {
+    let [sunlight_queue, red_light_queue, green_light_queue, blue_light_queue] =
+        propagate_nodes(space, min, shape, registry, config);
     [
         sunlight_queue.into(),
         red_light_queue.into(),

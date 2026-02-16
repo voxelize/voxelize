@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
@@ -268,8 +268,8 @@ impl Mesher {
                     if should_store_lights {
                         let min = space.min;
                         let shape = space.shape;
-                        let mut light_queues: [VecDeque<LightNode>; LIGHT_COLORS.len()] =
-                            std::array::from_fn(|_| VecDeque::new());
+                        let mut light_queues: [Vec<LightNode>; LIGHT_COLORS.len()] =
+                            std::array::from_fn(|_| Vec::new());
 
                         for dx in -1..=1 {
                             for dz in -1..=1 {
@@ -295,7 +295,7 @@ impl Mesher {
                                     chunk_size_usize + if center { 2 } else { 0 },
                                 );
 
-                                let light_subqueues = Lights::propagate_with_light_config(
+                                let light_subqueues = Lights::propagate_nodes_with_light_config(
                                     &mut space,
                                     &min,
                                     &shape,
@@ -311,7 +311,7 @@ impl Mesher {
 
                         for (queue, color) in light_queues.into_iter().zip(LIGHT_COLORS.iter()) {
                             if !queue.is_empty() {
-                                Lights::flood_light_with_light_config(
+                                Lights::flood_light_nodes_with_light_config(
                                     &mut space,
                                     queue,
                                     color,

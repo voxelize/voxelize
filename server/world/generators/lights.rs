@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 use crate::{LightColor, Registry, Vec3, WorldConfig};
 use voxelize_lighter::{
     can_enter as lighter_can_enter, can_enter_into as lighter_can_enter_into,
-    flood_light as lighter_flood_light, propagate as lighter_propagate,
+    flood_light as lighter_flood_light, flood_light_nodes as lighter_flood_light_nodes,
+    propagate as lighter_propagate, propagate_nodes as lighter_propagate_nodes,
     remove_light as lighter_remove_light, remove_lights as lighter_remove_lights, LightBounds,
     LightConfig, LightNode as LighterNode, LightRegistry, LightVoxelAccess,
 };
@@ -122,6 +123,26 @@ impl Lights {
     ) {
         let bounds = convert_bounds(min, shape, light_config);
         lighter_flood_light(space, queue, color, light_config, bounds.as_ref(), light_registry);
+    }
+
+    pub fn flood_light_nodes_with_light_config(
+        space: &mut dyn LightVoxelAccess,
+        nodes: Vec<LightNode>,
+        color: &LightColor,
+        light_registry: &LightRegistry,
+        light_config: &LightConfig,
+        min: Option<&Vec3<i32>>,
+        shape: Option<&Vec3<usize>>,
+    ) {
+        let bounds = convert_bounds(min, shape, light_config);
+        lighter_flood_light_nodes(
+            space,
+            nodes,
+            color,
+            light_config,
+            bounds.as_ref(),
+            light_registry,
+        );
     }
 
     pub fn flood_light_with_light_registry(
@@ -266,6 +287,22 @@ impl Lights {
         light_config: &LightConfig,
     ) -> [VecDeque<LightNode>; 4] {
         lighter_propagate(
+            space,
+            [min.0, min.1, min.2],
+            [shape.0, shape.1, shape.2],
+            light_registry,
+            light_config,
+        )
+    }
+
+    pub fn propagate_nodes_with_light_config(
+        space: &mut dyn LightVoxelAccess,
+        min: &Vec3<i32>,
+        shape: &Vec3<usize>,
+        light_registry: &LightRegistry,
+        light_config: &LightConfig,
+    ) -> [Vec<LightNode>; 4] {
+        lighter_propagate_nodes(
             space,
             [min.0, min.1, min.2],
             [shape.0, shape.1, shape.2],
