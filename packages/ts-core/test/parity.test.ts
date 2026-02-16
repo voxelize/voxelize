@@ -1597,6 +1597,19 @@ describe("BlockRotation", () => {
     expect(axisGetter.call(trapValueContext as never)).toBe(PY_ROTATION);
   });
 
+  it("normalizes non-finite axis reads and writes", () => {
+    const rotation = BlockRotation.py(Math.PI / 2);
+
+    expect(() => {
+      rotation.axis = Number.POSITIVE_INFINITY as never;
+    }).not.toThrow();
+    expect(rotation.value).toBe(PY_ROTATION);
+    expect(rotation.axis).toBe(PY_ROTATION);
+
+    rotation.value = Number.NaN as never;
+    expect(rotation.axis).toBe(PY_ROTATION);
+  });
+
   it("supports uppercase constructor aliases", () => {
     expect(BlockRotation.PX(0).axis).toBe(2);
     expect(BlockRotation.NX(0).axis).toBe(3);
