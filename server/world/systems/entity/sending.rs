@@ -22,6 +22,12 @@ pub struct EntitiesSendingSystem {
 }
 
 #[inline]
+fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, Vec::with_capacity(capacity))
+}
+
+#[inline]
 fn normalized_visible_radius(radius: f32) -> (f32, f32) {
     if radius.is_nan() {
         return (f32::MAX, f32::MAX);
@@ -449,9 +455,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     bookkeeping.client_known_entities.get_mut(single_client_id)
                 {
                     if !known_entities.is_empty() {
-                        for (deleted_entity_id, etype, metadata_str) in
-                            self.deleted_entities_buffer.drain(..)
-                        {
+                        let deleted_entities =
+                            take_vec_with_capacity(&mut self.deleted_entities_buffer);
+                        for (deleted_entity_id, etype, metadata_str) in deleted_entities {
                             if !known_entities.remove(&deleted_entity_id) {
                                 continue;
                             }
