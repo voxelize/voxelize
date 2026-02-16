@@ -472,6 +472,82 @@ impl EncodedMessageQueue {
                 .push(Self::encode_pending_message(eighth_message, eighth_filter));
             return;
         }
+        if pending_len == 9 {
+            reserve_for_append(&mut self.processed, 9);
+            let (ninth_message, ninth_filter) = {
+                let Some(ninth_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                ninth_pending
+            };
+            let (eighth_message, eighth_filter) = {
+                let Some(eighth_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                eighth_pending
+            };
+            let (seventh_message, seventh_filter) = {
+                let Some(seventh_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                seventh_pending
+            };
+            let (sixth_message, sixth_filter) = {
+                let Some(sixth_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                sixth_pending
+            };
+            let (fifth_message, fifth_filter) = {
+                let Some(fifth_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                fifth_pending
+            };
+            let (fourth_message, fourth_filter) = {
+                let Some(fourth_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                fourth_pending
+            };
+            let (third_message, third_filter) = {
+                let Some(third_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                third_pending
+            };
+            let (second_message, second_filter) = {
+                let Some(second_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                second_pending
+            };
+            let (first_message, first_filter) = {
+                let Some(first_pending) = self.pending.pop() else {
+                    unreachable!("nonuple pending message length matched branch");
+                };
+                first_pending
+            };
+            self.processed
+                .push(Self::encode_pending_message(first_message, first_filter));
+            self.processed
+                .push(Self::encode_pending_message(second_message, second_filter));
+            self.processed
+                .push(Self::encode_pending_message(third_message, third_filter));
+            self.processed
+                .push(Self::encode_pending_message(fourth_message, fourth_filter));
+            self.processed
+                .push(Self::encode_pending_message(fifth_message, fifth_filter));
+            self.processed
+                .push(Self::encode_pending_message(sixth_message, sixth_filter));
+            self.processed
+                .push(Self::encode_pending_message(seventh_message, seventh_filter));
+            self.processed
+                .push(Self::encode_pending_message(eighth_message, eighth_filter));
+            self.processed
+                .push(Self::encode_pending_message(ninth_message, ninth_filter));
+            return;
+        }
         if pending_len <= SYNC_ENCODE_BATCH_LIMIT {
             reserve_for_append(&mut self.processed, pending_len);
             let pending = take_vec_with_capacity(&mut self.pending);
@@ -865,6 +941,13 @@ mod tests {
 
         assert!(queue.pending.is_empty());
         assert_eq!(queue.processed.len(), 9);
+        for index in 0..9 {
+            let expected_id = format!("client-{index}");
+            assert!(matches!(
+                queue.processed.get(index).map(|(_, filter)| filter),
+                Some(ClientFilter::Direct(id)) if id == &expected_id
+            ));
+        }
     }
 
     #[test]
