@@ -100,6 +100,53 @@ fn normalize_filter_for_dispatch(filter: &mut ClientFilter) {
 
 #[inline]
 fn for_each_unique_id<F: FnMut(&str)>(ids: &[String], mut visit: F) {
+    match ids {
+        [] => return,
+        [first] => {
+            visit(first.as_str());
+            return;
+        }
+        [first, second] => {
+            let first = first.as_str();
+            let second = second.as_str();
+            visit(first);
+            if second != first {
+                visit(second);
+            }
+            return;
+        }
+        [first, second, third] => {
+            let first = first.as_str();
+            let second = second.as_str();
+            let third = third.as_str();
+            visit(first);
+            if second != first {
+                visit(second);
+            }
+            if third != first && third != second {
+                visit(third);
+            }
+            return;
+        }
+        [first, second, third, fourth] => {
+            let first = first.as_str();
+            let second = second.as_str();
+            let third = third.as_str();
+            let fourth = fourth.as_str();
+            visit(first);
+            if second != first {
+                visit(second);
+            }
+            if third != first && third != second {
+                visit(third);
+            }
+            if fourth != first && fourth != second && fourth != third {
+                visit(fourth);
+            }
+            return;
+        }
+        _ => {}
+    }
     for index in 0..ids.len() {
         let id = ids[index].as_str();
         let mut duplicate = false;
