@@ -23394,6 +23394,31 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
   });
 
+  it("skips writes for undefined output paths", () => {
+    const noWriteResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: undefined,
+      }
+    );
+    const parsedNoWriteResult = JSON.parse(
+      noWriteResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+    };
+
+    expect(noWriteResult.writeError).toBeNull();
+    expect(parsedNoWriteResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedNoWriteResult.passed).toBe(true);
+    expect(parsedNoWriteResult.exitCode).toBe(0);
+  });
+
   it("returns structured serialize fallback when output-path validation throws revoked errors", () => {
     const revokedValidationError = (() => {
       const errorProxy = Proxy.revocable(new Error("revoked validation trap"), {});
