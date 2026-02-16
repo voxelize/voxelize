@@ -4936,6 +4936,59 @@ describe("report-utils", () => {
       "--json",
       "--mystery",
     ]);
+    const unknownFromOwnKeysLengthReadableAndReadTrapCanonicalOptions =
+      parseUnknownCliOptions(["--output", "--json"], {
+        canonicalOptions: new Proxy(["--json", "--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 2;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(unknownFromOwnKeysLengthReadableAndReadTrapCanonicalOptions).toEqual([
+      "--json",
+    ]);
+    const unknownFromOwnKeysLengthReadableAndReadTrapAliasTokens =
+      parseUnknownCliOptions(["-n", "--verify"], {
+        canonicalOptions: ["--no-build"],
+        optionAliases: {
+          "--no-build": new Proxy(["--verify", "-n"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+        },
+      });
+    expect(unknownFromOwnKeysLengthReadableAndReadTrapAliasTokens).toEqual([
+      "--verify",
+    ]);
     const nonArrayAliasMetadata = {
       "--no-build": new Set(["--verify"]),
     };
@@ -8539,6 +8592,75 @@ describe("report-utils", () => {
     expect(statefulAliasValidation.unsupportedOptionsError).toBeNull();
     expect(statefulAliasValidation.validationErrorCode).toBeNull();
     expect(statefulAliasTokenReadCount).toBe(2);
+    const canonicalTrapValidation = createCliOptionValidation(
+      ["--output", "--json"],
+      {
+        canonicalOptions: new Proxy(["--json", "--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 2;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(canonicalTrapValidation.supportedCliOptions).toEqual(["--output"]);
+    expect(canonicalTrapValidation.supportedCliOptionCount).toBe(1);
+    expect(canonicalTrapValidation.unknownOptions).toEqual(["--json"]);
+    expect(canonicalTrapValidation.unknownOptionCount).toBe(1);
+    expect(canonicalTrapValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --json. Supported options: --output."
+    );
+    expect(canonicalTrapValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const aliasTrapValidation = createCliOptionValidation(["-n", "--verify"], {
+      canonicalOptions: ["--no-build"],
+      optionAliases: {
+        "--no-build": new Proxy(["--verify", "-n"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 2;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      },
+    });
+    expect(aliasTrapValidation.supportedCliOptions).toEqual([
+      "--no-build",
+      "-n",
+    ]);
+    expect(aliasTrapValidation.supportedCliOptionCount).toBe(2);
+    expect(aliasTrapValidation.unknownOptions).toEqual(["--verify"]);
+    expect(aliasTrapValidation.unknownOptionCount).toBe(1);
+    expect(aliasTrapValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --verify. Supported options: --no-build, -n."
+    );
+    expect(aliasTrapValidation.validationErrorCode).toBe("unsupported_options");
     let statefulValueMetadataReadCount = 0;
     const statefulValueMetadataValidation = createCliOptionValidation(
       ["--output", "-j"],
@@ -19576,6 +19698,117 @@ describe("report-utils", () => {
     ]);
     expect(activeMetadataFromAliasReadCount.activeCliOptionOccurrenceCount).toBe(1);
     expect(aliasActiveReadCount).toBe(2);
+    const activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions =
+      parseActiveCliOptionMetadata(["--output", "--json"], {
+        canonicalOptions: new Proxy(["--json", "--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 2;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionTokens
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapCanonicalOptions.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens =
+      parseActiveCliOptionMetadata(["-n", "--verify"], {
+        canonicalOptions: ["--no-build"],
+        optionAliases: {
+          "--no-build": new Proxy(["--verify", "-n"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+        },
+      });
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptions
+    ).toEqual(["--no-build"]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionTokens
+    ).toEqual(["-n"]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "-n",
+        canonicalOption: "--no-build",
+      },
+    ]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "-n",
+        canonicalOption: "--no-build",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataFromOwnKeysLengthReadableAndReadTrapAliasTokens.activeCliOptionOccurrenceCount
+    ).toBe(1);
     let optionArgsActiveReadCount = 0;
     const activeMetadataFromOptionArgsReadCount = parseActiveCliOptionMetadata(
       new Proxy(["--json"], {
