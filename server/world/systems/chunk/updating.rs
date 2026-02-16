@@ -249,6 +249,7 @@ fn process_pending_updates(
             } else {
                 updated_type.is_light
             };
+            let is_removed_light_source = current_is_light && !updated_is_light;
 
             if !chunks.set_voxel(vx, vy, vz, updated_id) {
                 continue;
@@ -256,7 +257,7 @@ fn process_pending_updates(
             let stage = BlockUtils::extract_stage(raw);
             chunks.set_voxel_stage(vx, vy, vz, stage);
 
-            if current_is_light && !updated_is_light {
+            if is_removed_light_source {
                 removed_light_sources.push((voxel, current_type));
             }
 
@@ -345,6 +346,7 @@ fn process_pending_updates(
                 rotation,
                 current_type,
                 updated_type,
+                is_removed_light_source,
                 current_rotatable,
                 updated_rotatable,
                 needs_transparency,
@@ -439,6 +441,7 @@ fn process_pending_updates(
         rotation,
         current_type,
         updated_type,
+        is_removed_light_source,
         current_rotatable,
         updated_rotatable,
         needs_transparency,
@@ -446,17 +449,11 @@ fn process_pending_updates(
     {
         let Vec3(vx, vy, vz) = voxel;
 
-        let current_is_light = if current_type.dynamic_patterns.is_some() {
-            current_type.is_light_at(&voxel, &*chunks)
-        } else {
-            current_type.is_light
-        };
         let updated_is_light = if updated_type.dynamic_patterns.is_some() {
             updated_type.is_light_at(&voxel, &*chunks)
         } else {
             updated_type.is_light
         };
-        let is_removed_light_source = current_is_light && !updated_is_light;
 
         if is_removed_light_source && !current_type.is_opaque {
             continue;
