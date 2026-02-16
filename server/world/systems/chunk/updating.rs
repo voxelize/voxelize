@@ -212,6 +212,7 @@ fn process_pending_updates(
 
     let removed_light_sources_initial_capacity = num_to_process.min(32);
     let processed_updates_initial_capacity = num_to_process.min(64);
+    let results_initial_capacity = num_to_process.min(64);
     let mut removed_light_sources: Option<Vec<(Vec3<i32>, u32, u32, u32, bool)>> = None;
     let mut processed_updates: Option<Vec<(
         Vec3<i32>,
@@ -443,7 +444,7 @@ fn process_pending_updates(
                 ));
 
             results
-                .get_or_insert_with(|| Vec::with_capacity(num_to_process.min(64)))
+                .get_or_insert_with(|| Vec::with_capacity(results_initial_capacity))
                 .push(UpdateProtocol {
                     vx,
                     vy,
