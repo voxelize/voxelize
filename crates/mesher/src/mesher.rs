@@ -149,6 +149,12 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [0, 0, 1],
     [0, 0, -1],
 ];
+const FACE_RANGE_PY: usize = 0;
+const FACE_RANGE_NY: usize = 1;
+const FACE_RANGE_PX: usize = 2;
+const FACE_RANGE_NX: usize = 3;
+const FACE_RANGE_PZ: usize = 4;
+const FACE_RANGE_NZ: usize = 5;
 
 #[inline]
 fn lowercase_if_needed<'a>(value: &'a str) -> Cow<'a, str> {
@@ -586,13 +592,27 @@ fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
 }
 
 #[inline]
-fn get_face_range(original_faces: &[BlockFace], name: &str) -> UV {
+fn cardinal_face_index(name: &str) -> Option<usize> {
+    match name {
+        "py" => Some(FACE_RANGE_PY),
+        "ny" => Some(FACE_RANGE_NY),
+        "px" => Some(FACE_RANGE_PX),
+        "nx" => Some(FACE_RANGE_NX),
+        "pz" => Some(FACE_RANGE_PZ),
+        "nz" => Some(FACE_RANGE_NZ),
+        _ => None,
+    }
+}
+
+#[inline]
+fn collect_cardinal_face_ranges(original_faces: &[BlockFace]) -> [UV; 6] {
+    let mut ranges = std::array::from_fn(|_| UV::default());
     for face in original_faces {
-        if face.get_name_lower() == name {
-            return face.range.clone();
+        if let Some(face_index) = cardinal_face_index(face.get_name_lower()) {
+            ranges[face_index] = face.range.clone();
         }
     }
-    UV::default()
+    ranges
 }
 
 fn create_fluid_faces<S: VoxelAccess>(
@@ -621,6 +641,7 @@ fn create_fluid_faces<S: VoxelAccess>(
     let h_pxpz =
         calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry)
             - FLUID_SURFACE_OFFSET;
+    let ranges = collect_cardinal_face_ranges(original_faces);
 
     vec![
         BlockFace {
@@ -630,7 +651,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_face_range(original_faces, "py"),
+            range: ranges[FACE_RANGE_PY].clone(),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -657,7 +678,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: false,
             isolated: false,
             texture_group: None,
-            range: get_face_range(original_faces, "ny"),
+            range: ranges[FACE_RANGE_NY].clone(),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -684,7 +705,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_face_range(original_faces, "px"),
+            range: ranges[FACE_RANGE_PX].clone(),
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -711,7 +732,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_face_range(original_faces, "nx"),
+            range: ranges[FACE_RANGE_NX].clone(),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -738,7 +759,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_face_range(original_faces, "pz"),
+            range: ranges[FACE_RANGE_PZ].clone(),
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -765,7 +786,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_face_range(original_faces, "nz"),
+            range: ranges[FACE_RANGE_NZ].clone(),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],
@@ -2449,8 +2470,9 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 #[cfg(test)]
 mod tests {
     use super::{
-        mesh_chunk, mesh_chunk_with_registry, ChunkData, MeshConfig, MeshInput, MeshInputNoRegistry,
-        Registry, VoxelSpace, lowercase_if_needed,
+        cardinal_face_index, collect_cardinal_face_ranges, lowercase_if_needed, mesh_chunk,
+        mesh_chunk_with_registry, BlockFace, ChunkData, MeshConfig, MeshInput,
+        MeshInputNoRegistry, Registry, UV, VoxelSpace,
     };
     use std::borrow::Cow;
 
@@ -2580,5 +2602,53 @@ mod tests {
             lowercase_if_needed("PZ").as_ref(),
             "pz"
         );
+    }
+
+    #[test]
+    fn cardinal_face_index_maps_expected_face_names() {
+        assert_eq!(cardinal_face_index("py"), Some(0));
+        assert_eq!(cardinal_face_index("ny"), Some(1));
+        assert_eq!(cardinal_face_index("px"), Some(2));
+        assert_eq!(cardinal_face_index("nx"), Some(3));
+        assert_eq!(cardinal_face_index("pz"), Some(4));
+        assert_eq!(cardinal_face_index("nz"), Some(5));
+        assert_eq!(cardinal_face_index("diag"), None);
+    }
+
+    #[test]
+    fn collect_cardinal_face_ranges_defaults_missing_faces() {
+        let py_range = UV {
+            start_u: 0.1,
+            end_u: 0.2,
+            start_v: 0.3,
+            end_v: 0.4,
+        };
+        let pz_range = UV {
+            start_u: 0.5,
+            end_u: 0.6,
+            start_v: 0.7,
+            end_v: 0.8,
+        };
+        let ranges = collect_cardinal_face_ranges(&[
+            BlockFace {
+                name: "PY".to_string(),
+                name_lower: "py".to_string(),
+                range: py_range.clone(),
+                ..BlockFace::default()
+            },
+            BlockFace {
+                name: "pz".to_string(),
+                name_lower: "pz".to_string(),
+                range: pz_range.clone(),
+                ..BlockFace::default()
+            },
+        ]);
+
+        assert_eq!(ranges[0], py_range);
+        assert_eq!(ranges[4], pz_range);
+        assert_eq!(ranges[1], UV::default());
+        assert_eq!(ranges[2], UV::default());
+        assert_eq!(ranges[3], UV::default());
+        assert_eq!(ranges[5], UV::default());
     }
 }
