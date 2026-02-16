@@ -143,6 +143,34 @@ impl ChunkInterests {
             };
             return coords_within_region(center, second_coords);
         }
+        if self.map.len() == 3 {
+            let mut interests_iter = self.map.keys();
+            let first_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                coords
+            };
+            if coords_within_region(center, first_coords) {
+                return true;
+            }
+            let second_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                coords
+            };
+            if coords_within_region(center, second_coords) {
+                return true;
+            }
+            let third_coords = {
+                let Some(coords) = interests_iter.next() else {
+                    unreachable!("three-interest map length matched branch");
+                };
+                coords
+            };
+            return coords_within_region(center, third_coords);
+        }
         if self.map.len() <= SMALL_INTEREST_REGION_SCAN_LIMIT {
             for coords in self.map.keys() {
                 if coords_within_region(center, coords) {
@@ -537,6 +565,18 @@ mod tests {
         interests.add("b", &Vec2(14, 14));
 
         assert!(interests.has_interests_in_region(&Vec2(11, 11)));
+        assert!(!interests.has_interests_in_region(&Vec2(12, 12)));
+    }
+
+    #[test]
+    fn has_interests_in_region_handles_three_entry_neighbors() {
+        let mut interests = ChunkInterests::new();
+        interests.add("a", &Vec2(10, 10));
+        interests.add("b", &Vec2(14, 14));
+        interests.add("c", &Vec2(-5, -5));
+
+        assert!(interests.has_interests_in_region(&Vec2(11, 11)));
+        assert!(interests.has_interests_in_region(&Vec2(-4, -5)));
         assert!(!interests.has_interests_in_region(&Vec2(12, 12)));
     }
 
