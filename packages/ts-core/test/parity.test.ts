@@ -1528,6 +1528,49 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([]);
   });
 
+  it("sanitizes empty-iterator face and aabb entries when indexed reads trap", () => {
+    const trappedFaces = new Proxy([{ name: "IteratorFace" }], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const trappedAabbs = new Proxy([AABB.create(0, 0, 0, 1, 1, 1)], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          throw new Error("read trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const part = createBlockConditionalPart({
+      faces: trappedFaces as never,
+      aabbs: trappedAabbs as never,
+    });
+
+    expect(part.faces).toEqual([]);
+    expect(part.aabbs).toEqual([]);
+  });
+
   it("salvages key-based face and aabb entries when length access traps", () => {
     const sparseFaces = [] as Array<BlockFaceInit | undefined>;
     sparseFaces[5_000] = { name: "SparseFace" };
@@ -3828,6 +3871,30 @@ describe("Type builders", () => {
         }
         if (property === "length") {
           throw new Error("length trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const pattern = createBlockDynamicPattern({
+      parts: trappedParts as never,
+    });
+
+    expect(pattern.parts).toEqual([]);
+  });
+
+  it("sanitizes empty-iterator dynamic pattern part entries when indexed reads trap", () => {
+    const trappedParts = new Proxy([{ worldSpace: true }], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 1;
+        }
+        if (property === "0") {
+          throw new Error("read trap");
         }
         return Reflect.get(target, property, receiver);
       },
