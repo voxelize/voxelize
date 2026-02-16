@@ -277,9 +277,10 @@ impl BlockFace {
         dir: [i32; 3],
         corners: [CornerData; 4],
     ) -> Self {
+        let name_lower = name.to_lowercase();
         Self {
-            name: name.clone(),
-            name_lower: name.to_lowercase(),
+            name,
+            name_lower,
             independent,
             isolated,
             texture_group: None,
