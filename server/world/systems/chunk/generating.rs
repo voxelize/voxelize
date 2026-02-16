@@ -302,7 +302,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     }
                 }
 
-                let chunk = chunks.raw(&coords).unwrap().clone();
+                let Some(chunk) = chunks.raw(&coords).cloned() else {
+                    continue;
+                };
                 if let Some(data) = stage.needs_space() {
                     let mut space = chunks.make_space(&coords, margin);
 
@@ -410,7 +412,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     .needs_voxels()
                     .needs_lights()
                     .build();
-                let chunk = chunks.raw(&coords).unwrap().to_owned();
+                let Some(chunk) = chunks.raw(&coords).cloned() else {
+                    continue;
+                };
                 chunks.add_chunk_to_save(&coords, true);
                 remesh_processes.push((chunk, space));
             }
@@ -481,7 +485,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 chunks.add_chunk_to_save(&coords, false);
             }
 
-            let chunk = chunks.raw(&coords).unwrap().clone();
+            let Some(chunk) = chunks.raw(&coords).cloned() else {
+                continue;
+            };
             ready_chunks.push((coords, chunk));
         }
 
