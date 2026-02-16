@@ -2000,8 +2000,14 @@ impl World {
                 chunks.update_voxels(&bulk_updates);
             }
         } else {
-            if data.updates.len() == 1 {
-                let update = &data.updates[0];
+            let mut updates = data.updates;
+            if updates.len() == 1 {
+                let update = {
+                    let Some(single_update) = updates.pop() else {
+                        unreachable!("single update length matched branch");
+                    };
+                    single_update
+                };
                 let coords =
                     ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
 
@@ -2010,9 +2016,9 @@ impl World {
                 }
                 return;
             }
-            let updates_initial_capacity = data.updates.len().min(64);
+            let updates_initial_capacity = updates.len().min(64);
             let mut staged_updates: Option<Vec<(Vec3<i32>, u32)>> = None;
-            for update in data.updates {
+            for update in updates {
                 let coords =
                     ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
 
