@@ -55,6 +55,13 @@ fn ids_contains_target(ids: &[String], target: &str) -> bool {
                 || third.as_str() == target
                 || fourth.as_str() == target
         }
+        [first, second, third, fourth, fifth] => {
+            first.as_str() == target
+                || second.as_str() == target
+                || third.as_str() == target
+                || fourth.as_str() == target
+                || fifth.as_str() == target
+        }
         _ => {
             for id in ids {
                 if id.as_str() == target {
@@ -78,6 +85,11 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
         [first, second, third] if first == second && first == third => Some(first.as_str()),
         [first, second, third, fourth]
             if first == second && first == third && first == fourth =>
+        {
+            Some(first.as_str())
+        }
+        [first, second, third, fourth, fifth]
+            if first == second && first == third && first == fourth && first == fifth =>
         {
             Some(first.as_str())
         }
@@ -615,8 +627,8 @@ impl<'a> System<'a> for BroadcastSystem {
 #[cfg(test)]
 mod tests {
     use super::{
-        batch_messages, ids_are_strictly_sorted, ids_contains_target, sorted_ids_contains,
-        targets_all_clients,
+        batch_messages, ids_are_strictly_sorted, ids_contains_target, include_single_target,
+        sorted_ids_contains, targets_all_clients,
     };
     use crate::{ClientFilter, Message, MessageType};
 
@@ -639,6 +651,20 @@ mod tests {
         assert!(!ids_contains_target(&ids(&["a", "b"]), "z"));
         assert!(ids_contains_target(&ids(&["a", "c", "d"]), "c"));
         assert!(ids_contains_target(&ids(&["d", "a", "c"]), "c"));
+        assert!(ids_contains_target(&ids(&["e", "d", "c", "b", "a"]), "c"));
+        assert!(!ids_contains_target(&ids(&["e", "d", "c", "b", "a"]), "z"));
+    }
+
+    #[test]
+    fn include_single_target_detects_uniform_five_item_filters() {
+        assert_eq!(
+            include_single_target(&ids(&["k", "k", "k", "k", "k"])),
+            Some("k")
+        );
+        assert_eq!(
+            include_single_target(&ids(&["k", "k", "k", "k", "z"])),
+            None
+        );
     }
 
     #[test]
