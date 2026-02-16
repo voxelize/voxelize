@@ -26055,6 +26055,31 @@ describe("report-utils", () => {
     expect(normalizeTsCorePayloadIssues(ownKeysTrappedEmptyIteratorIssues)).toEqual(
       []
     );
+    const ownKeysTrappedLengthReadablePrefixReadTrapIssues = new Proxy(
+      ["voxel.id", "light.red"],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      normalizeTsCorePayloadIssues(ownKeysTrappedLengthReadablePrefixReadTrapIssues)
+    ).toEqual(["light.red"]);
     const ownKeysTrapIssues = new Proxy(["voxel.id"], {
       ownKeys: () => {
         throw new Error("ownKeys trap");
@@ -26831,6 +26856,45 @@ describe("report-utils", () => {
       examplePayloadValid: false,
       examplePayloadIssues: [],
       examplePayloadIssueCount: 0,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleAttempted: true,
+        examplePayloadValid: false,
+        examplePayloadIssues: new Proxy(["voxel.id", "light.red"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 2;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: null,
+      exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: false,
+      examplePayloadIssues: ["light.red"],
+      examplePayloadIssueCount: 1,
       exampleExitCode: 1,
       exampleDurationMs: null,
       exampleOutputLine: null,
