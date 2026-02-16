@@ -618,6 +618,11 @@ fn extract_id(voxel: u32) -> u32 {
     voxel & 0xFFFF
 }
 
+#[inline]
+fn extract_stage(voxel: u32) -> u32 {
+    (voxel >> 24) & 0xF
+}
+
 fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     let num_s1 = !side1 as i32;
     let num_s2 = !side2 as i32;
@@ -669,11 +674,13 @@ fn sample_fluid_neighbors<S: VoxelAccess>(
             let nx = vx + dx;
             let nz = vz + dz;
 
-            upper_fluid[x_index][z_index] = space.get_voxel(nx, vy + 1, nz) == fluid_id;
+            let upper_raw = space.get_raw_voxel(nx, vy + 1, nz);
+            upper_fluid[x_index][z_index] = extract_id(upper_raw) == fluid_id;
 
-            let neighbor_id = space.get_voxel(nx, vy, nz);
+            let neighbor_raw = space.get_raw_voxel(nx, vy, nz);
+            let neighbor_id = extract_id(neighbor_raw);
             neighbors[x_index][z_index] = if neighbor_id == fluid_id {
-                let stage = space.get_voxel_stage(nx, vy, nz);
+                let stage = extract_stage(neighbor_raw);
                 FluidNeighborSample::Fluid(get_fluid_effective_height(stage))
             } else if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
                 if neighbor_block.is_empty {
