@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import * as reportUtilsModule from "../scripts/report-utils.mjs";
 
 import {
   REPORT_SCHEMA_VERSION,
@@ -99,6 +100,56 @@ const createFullyTrappedStringArray = (values: readonly string[]): string[] => {
 };
 
 describe("report-utils", () => {
+  it("keeps exported helpers non-throwing under malformed arg matrices", () => {
+    const revokedObject = (() => {
+      const objectProxy = Proxy.revocable({}, {});
+      objectProxy.revoke();
+      return objectProxy.proxy;
+    })();
+    const revokedArray = (() => {
+      const arrayProxy = Proxy.revocable([], {});
+      arrayProxy.revoke();
+      return arrayProxy.proxy;
+    })();
+    const trappedValue = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("malformed arg trap");
+        },
+      }
+    );
+    const malformedArgSets: Array<Array<null | undefined | number | string | boolean | object>> = [
+      [],
+      [undefined],
+      [null],
+      [trappedValue],
+      [revokedObject],
+      [revokedArray],
+      [trappedValue, revokedObject],
+      [42, trappedValue, revokedArray],
+    ];
+
+    const thrownSignatures: string[] = [];
+    for (const [exportName, exportValue] of Object.entries(reportUtilsModule)) {
+      if (typeof exportValue !== "function") {
+        continue;
+      }
+
+      for (const args of malformedArgSets) {
+        try {
+          Reflect.apply(exportValue, undefined, args);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+          thrownSignatures.push(`${exportName}(${args.length}): ${errorMessage}`);
+        }
+      }
+    }
+
+    expect(thrownSignatures).toEqual([]);
+  });
+
   it("parses valid json output", () => {
     expect(parseJsonOutput("{\"ok\":true}")).toEqual({ ok: true });
   });
