@@ -268,8 +268,9 @@ impl Physics {
 
         // if autostep, and on ground, run collisions again with stepped up aabb
         if body.auto_step {
-            let mut tmp_box = tmp_box.unwrap();
-            Physics::try_auto_stepping(space, registry, body, &mut tmp_box, &dx);
+            if let Some(mut tmp_box) = tmp_box {
+                Physics::try_auto_stepping(space, registry, body, &mut tmp_box, &dx);
+            }
         }
 
         let mut impacts: Vec3<f32> = Vec3::default();
