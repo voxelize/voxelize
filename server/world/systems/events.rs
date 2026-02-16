@@ -550,6 +550,12 @@ fn send_to_transports(transports: &Transports, payload: Bytes) {
 }
 
 #[inline]
+fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, Vec::with_capacity(capacity))
+}
+
+#[inline]
 fn build_transport_events_message(
     world_name: &str,
     transports_map: &mut Vec<EventProtocol>,
@@ -704,8 +710,9 @@ impl<'a> System<'a> for EventsSystem {
                 transports_map.reserve(queued_events_count - transports_map.len());
             }
         }
+        let queued_events = take_vec_with_capacity(&mut events.queue);
         if client_count == 0 {
-            for event in events.queue.drain(..) {
+            for event in queued_events {
                 let Event { name, payload, .. } = event;
                 transports_map.push(EventProtocol {
                     name,
@@ -730,7 +737,7 @@ impl<'a> System<'a> for EventsSystem {
             false
         };
 
-        for event in events.queue.drain(..) {
+        for event in queued_events {
             let Event {
                 name,
                 payload,
