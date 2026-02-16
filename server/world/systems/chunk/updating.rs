@@ -965,7 +965,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         // Sort by position for deterministic ordering when multiple voxels are due at the same tick
         if due_voxels.len() > 1 {
-            due_voxels.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+            due_voxels.sort_unstable_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
         }
 
         // Process active voxels sequentially with immediate state application.
