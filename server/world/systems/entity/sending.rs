@@ -373,6 +373,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         if !self.deleted_entities_buffer.is_empty() {
+            let deleted_entities_count = self.deleted_entities_buffer.len();
             if let Some((single_client_id, _)) = single_client {
                 if let Some(known_entities) =
                     bookkeeping.client_known_entities.get_mut(single_client_id)
@@ -429,7 +430,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         },
                     );
                 }
-            } else if self.deleted_entities_buffer.len() <= 4 {
+            } else if deleted_entities_count <= 4 {
                 for client_id in clients.keys() {
                     let client_id = client_id.as_str();
                     let Some(known_entities) =
@@ -470,7 +471,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     if known_entities.is_empty() {
                         continue;
                     }
-                    if self.deleted_entities_buffer.len() < known_entities.len() {
+                    if deleted_entities_count < known_entities.len() {
                         for (deleted_entity_id, etype, metadata_str) in &self.deleted_entities_buffer
                         {
                             if !known_entities.remove(deleted_entity_id) {
@@ -491,7 +492,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         continue;
                     }
                     let deleted_entities_lookup = deleted_entities_lookup.get_or_insert_with(|| {
-                        let mut lookup = HashMap::with_capacity(self.deleted_entities_buffer.len());
+                        let mut lookup = HashMap::with_capacity(deleted_entities_count);
                         for (entity_id, etype, metadata_str) in &self.deleted_entities_buffer {
                             lookup.insert(entity_id.as_str(), (etype, metadata_str));
                         }
