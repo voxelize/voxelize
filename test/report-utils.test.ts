@@ -24487,6 +24487,46 @@ describe("report-utils", () => {
         steps: ownKeysTrappedEmptyIteratorFailureSteps,
       })
     ).toBeNull();
+    const ownKeysTrappedLengthReadablePrefixReadTrapFailureSteps = new Proxy(
+      [
+        {
+          name: "Ignored failure",
+          passed: false,
+          skipped: false,
+          reason: "ignored",
+        },
+        {
+          name: "WASM artifact preflight",
+          passed: false,
+          skipped: false,
+          reason: "artifact missing",
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      deriveFailureMessageFromReport({
+        steps: ownKeysTrappedLengthReadablePrefixReadTrapFailureSteps,
+      })
+    ).toBe("WASM artifact preflight: artifact missing");
 
     expect(
       deriveFailureMessageFromReport({
