@@ -74,18 +74,16 @@ fn compute_flood_bounds(
     queue: &VecDeque<LightNode>,
     max_light_level: u32,
 ) -> Option<(Vec3<i32>, Vec3<usize>)> {
-    if queue.is_empty() {
-        return None;
-    }
-
-    let mut min_x = i64::from(queue[0].voxel[0]);
-    let mut min_y = i64::from(queue[0].voxel[1]);
-    let mut min_z = i64::from(queue[0].voxel[2]);
+    let mut queue_iter = queue.iter();
+    let first_node = queue_iter.next()?;
+    let mut min_x = i64::from(first_node.voxel[0]);
+    let mut min_y = i64::from(first_node.voxel[1]);
+    let mut min_z = i64::from(first_node.voxel[2]);
     let mut max_x = min_x;
     let mut max_y = min_y;
     let mut max_z = min_z;
 
-    for node in queue.iter().skip(1) {
+    for node in queue_iter {
         let [x, y, z] = node.voxel;
         let x = i64::from(x);
         let y = i64::from(y);
