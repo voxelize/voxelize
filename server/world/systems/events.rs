@@ -40,7 +40,8 @@ fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
 
 #[inline]
 fn ids_contains_target(ids: &[String], target: &str) -> bool {
-    if ids.len() > SMALL_FILTER_LINEAR_SCAN_LIMIT && ids_are_strictly_sorted(ids) {
+    if ids.len() > SMALL_FILTER_LINEAR_SCAN_LIMIT {
+        debug_assert!(ids_are_strictly_sorted(ids));
         return sorted_ids_contains(ids, target);
     }
     match ids {
