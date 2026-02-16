@@ -106,6 +106,11 @@ fn parse_slice_triplet(value: &[i32]) -> Option<[i32; 3]> {
 }
 
 #[inline]
+fn has_valid_bounds(min: &[i32; 3], max: &[i32; 3]) -> bool {
+    min[0] < max[0] && min[1] < max[1] && min[2] < max[2]
+}
+
+#[inline]
 fn mesh_with_cached_registry(input: MeshInputNoRegistry) -> Option<MeshOutput> {
     CACHED_REGISTRY.with(|registry| {
         let registry_ref = registry.borrow();
@@ -172,7 +177,8 @@ pub fn mesh_chunk(input: JsValue) -> JsValue {
         Some(input) => input,
         None => return empty_mesh_output(),
     };
-    if parsed_input.config.chunk_size <= 0 {
+    if parsed_input.config.chunk_size <= 0 || !has_valid_bounds(&parsed_input.min, &parsed_input.max)
+    {
         return empty_mesh_output();
     }
     let Some(output) = mesh_with_cached_registry(parsed_input) else {
@@ -200,6 +206,9 @@ pub fn mesh_chunk_fast(
         Some(max) => max,
         None => return empty_mesh_output(),
     };
+    if !has_valid_bounds(&min_triplet, &max_triplet) {
+        return empty_mesh_output();
+    }
 
     let mut chunks: Vec<Option<ChunkData>> = Vec::with_capacity(chunks_data.length() as usize);
     JS_KEYS.with(|keys| {
@@ -230,7 +239,9 @@ pub fn mesh_chunk_full(input: JsValue) -> JsValue {
         Some(input) => input,
         None => return empty_mesh_output(),
     };
-    if parsed_input.config.chunk_size <= 0 {
+    if parsed_input.config.chunk_size <= 0
+        || !has_valid_bounds(&parsed_input.min, &parsed_input.max)
+    {
         return empty_mesh_output();
     }
     parsed_input.registry.build_cache();

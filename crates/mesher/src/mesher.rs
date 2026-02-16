@@ -2364,6 +2364,10 @@ pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
     if input.config.chunk_size <= 0 {
         return MeshOutput { geometries: vec![] };
     }
+    if input.min[0] >= input.max[0] || input.min[1] >= input.max[1] || input.min[2] >= input.max[2]
+    {
+        return MeshOutput { geometries: vec![] };
+    }
     let Some(center_chunk) = input.chunks.get(4).and_then(|c| c.as_ref()) else {
         return MeshOutput { geometries: vec![] };
     };
@@ -2387,6 +2391,10 @@ pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
 
 pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry) -> MeshOutput {
     if input.config.chunk_size <= 0 {
+        return MeshOutput { geometries: vec![] };
+    }
+    if input.min[0] >= input.max[0] || input.min[1] >= input.max[1] || input.min[2] >= input.max[2]
+    {
         return MeshOutput { geometries: vec![] };
     }
     let Some(center_chunk) = input.chunks.get(4).and_then(|c| c.as_ref()) else {
@@ -2443,6 +2451,22 @@ mod tests {
     }
 
     #[test]
+    fn mesh_chunk_returns_empty_for_invalid_bounds() {
+        let output = mesh_chunk(MeshInput {
+            chunks: centered_chunks(),
+            min: [2, 0, 0],
+            max: [2, 1, 1],
+            registry: Registry::new(vec![]),
+            config: MeshConfig {
+                chunk_size: 16,
+                greedy_meshing: false,
+            },
+        });
+
+        assert!(output.geometries.is_empty());
+    }
+
+    #[test]
     fn mesh_chunk_with_registry_returns_empty_for_non_positive_chunk_size() {
         let output = mesh_chunk_with_registry(
             MeshInputNoRegistry {
@@ -2451,6 +2475,24 @@ mod tests {
                 max: [1, 1, 1],
                 config: MeshConfig {
                     chunk_size: -16,
+                    greedy_meshing: true,
+                },
+            },
+            &Registry::new(vec![]),
+        );
+
+        assert!(output.geometries.is_empty());
+    }
+
+    #[test]
+    fn mesh_chunk_with_registry_returns_empty_for_invalid_bounds() {
+        let output = mesh_chunk_with_registry(
+            MeshInputNoRegistry {
+                chunks: centered_chunks(),
+                min: [0, 4, 0],
+                max: [1, 4, 1],
+                config: MeshConfig {
+                    chunk_size: 16,
                     greedy_meshing: true,
                 },
             },
