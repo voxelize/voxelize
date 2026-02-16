@@ -91,7 +91,13 @@ impl<'a> System<'a> for EntityTreeSystem {
             return;
         }
         if tree.len() > current_ids.len() {
-            tree.retain(|ent_id| current_ids.contains(&ent_id));
+            if current_ids.len() == 1 {
+                if let Some(current_id) = current_ids.iter().next().copied() {
+                    tree.retain(|ent_id| ent_id == current_id);
+                }
+            } else {
+                tree.retain(|ent_id| current_ids.contains(&ent_id));
+            }
         }
     }
 }
