@@ -23329,6 +23329,61 @@ describe("report-utils", () => {
     expect(parsedWriteFailureResult.durationMs).toBe(1000);
   });
 
+  it("returns structured serialize fallback for blank output paths", () => {
+    const timedReportBuilder = createTimedReportBuilder(
+      (() => {
+        let tick = 0;
+        return () => {
+          tick += 1;
+          return tick * 1000;
+        };
+      })(),
+      (value) => `iso-${value}`
+    );
+    const writeFailureResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+        outputPath: "",
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: "",
+        buildTimedReport: timedReportBuilder,
+      }
+    );
+    const parsedWriteFailureResult = JSON.parse(
+      writeFailureResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    };
+
+    expect(writeFailureResult.writeError).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedWriteFailureResult.passed).toBe(false);
+    expect(parsedWriteFailureResult.exitCode).toBe(1);
+    expect(parsedWriteFailureResult.outputPath).toBe("(unprintable output path)");
+    expect(parsedWriteFailureResult.writeError).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+    expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+    expect(parsedWriteFailureResult.durationMs).toBe(1000);
+  });
+
   it("returns structured serialize fallback when output-path validation throws revoked errors", () => {
     const revokedValidationError = (() => {
       const errorProxy = Proxy.revocable(new Error("revoked validation trap"), {});
