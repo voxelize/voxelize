@@ -39,6 +39,12 @@ pub struct BackgroundChunkSaver {
     handle: Option<JoinHandle<()>>,
 }
 
+#[inline]
+fn take_map_with_capacity<K, V>(map: &mut HashMap<K, V>) -> HashMap<K, V> {
+    let capacity = map.capacity();
+    std::mem::replace(map, HashMap::with_capacity(capacity))
+}
+
 impl BackgroundChunkSaver {
     pub fn new(folder: Option<PathBuf>) -> Self {
         let (sender, receiver) = bounded::<ChunkSaveData>(5000);
@@ -98,7 +104,8 @@ impl BackgroundChunkSaver {
     }
 
     fn flush_pending(pending: &mut HashMap<Vec2<i32>, ChunkSaveData>, folder: &PathBuf) {
-        for (_, data) in pending.drain() {
+        let pending = take_map_with_capacity(pending);
+        for (_, data) in pending {
             Self::save_chunk_to_disk(data, folder);
         }
     }

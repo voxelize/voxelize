@@ -70,6 +70,12 @@ fn escaped_json_string(value: &str) -> Option<String> {
 }
 
 #[inline]
+fn take_map_with_capacity<K, V>(map: &mut HashMap<K, V>) -> HashMap<K, V> {
+    let capacity = map.capacity();
+    std::mem::replace(map, HashMap::with_capacity(capacity))
+}
+
+#[inline]
 fn normalize_block_entity_type<'a>(normalized_etype: Cow<'a, str>) -> Cow<'a, str> {
     if is_block_entity_type(normalized_etype.as_ref()) {
         return normalized_etype;
@@ -165,7 +171,8 @@ impl BackgroundEntitiesSaver {
     }
 
     fn flush_pending(pending: &mut HashMap<String, EntitySaveData>, folder: &PathBuf) {
-        for (id, data) in pending.drain() {
+        let pending = take_map_with_capacity(pending);
+        for (id, data) in pending {
             Self::save_entity_to_disk(&id, &data, folder);
         }
     }
