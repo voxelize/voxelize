@@ -82,11 +82,16 @@ impl BackgroundEntitiesSaver {
         let mut folder = PathBuf::from(&config.save_dir);
         folder.push("entities");
 
-        if config.saving && config.save_entities {
-            fs::create_dir_all(&folder).expect("Unable to create entities directory...");
+        let mut saving = config.saving && config.save_entities;
+        if saving {
+            if let Err(error) = fs::create_dir_all(&folder) {
+                warn!(
+                    "Unable to create entities directory {:?}: {}",
+                    folder, error
+                );
+                saving = false;
+            }
         }
-
-        let saving = config.saving && config.save_entities;
         let (sender, receiver) = bounded::<(String, EntitySaveData)>(10000);
         let shutdown = Arc::new(AtomicBool::new(false));
 

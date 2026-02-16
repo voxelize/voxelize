@@ -70,12 +70,19 @@ impl EntitiesSaver {
         let mut folder = PathBuf::from(&config.save_dir);
         folder.push("entities");
 
-        if config.saving && config.save_entities {
-            fs::create_dir_all(&folder).expect("Unable to create entities directory...");
+        let mut saving = config.saving && config.save_entities;
+        if saving {
+            if let Err(error) = fs::create_dir_all(&folder) {
+                warn!(
+                    "Unable to create entities directory {:?}: {}",
+                    folder, error
+                );
+                saving = false;
+            }
         }
 
         Self {
-            saving: config.saving && config.save_entities,
+            saving,
             folder,
         }
     }
