@@ -6441,6 +6441,40 @@ describe("report-utils", () => {
     ).toBe(
       "Unsupported option(s): --mystery. Supported options: --json, --output."
     );
+    const emptyIteratorLengthZeroAndOwnKeysTrapSupportedTokens = new Proxy(
+      ["--json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const emptyIteratorLengthZeroAndOwnKeysTrapPrecomputedSupportedTokens =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json"],
+        supportedCliOptions:
+          emptyIteratorLengthZeroAndOwnKeysTrapSupportedTokens as never,
+      });
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapPrecomputedSupportedTokens.supportedCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapPrecomputedSupportedTokens.supportedCliOptionCount
+    ).toBe(1);
+    expect(
+      emptyIteratorLengthZeroAndOwnKeysTrapPrecomputedSupportedTokens.unsupportedOptionsError
+    ).toBe("Unsupported option(s): --mystery. Supported options: --json.");
     const emptyIteratorLengthAndOwnKeysTrapSupportedTokens = new Proxy(
       ["--json", "--output"],
       {

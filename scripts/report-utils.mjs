@@ -702,6 +702,16 @@ const cloneIndexedArrayFromIndexedAccess = (value) => {
   }
 
   const keyFallbackClone = cloneArrayFromIndexedKeys(value);
+  const lengthFallbackCloneIsEmptyArray =
+    lengthFallbackClone !== null && lengthFallbackClone.length === 0;
+  if (
+    keyFallbackClone === null &&
+    !hasNonUndefinedLengthFallbackEntry &&
+    lengthFallbackCloneIsEmptyArray
+  ) {
+    return null;
+  }
+
   if (keyFallbackClone !== null && keyFallbackClone.length > 0) {
     if (hasNonUndefinedLengthFallbackEntry && lengthFallbackClone !== null) {
       return mergeIndexedFallbackEntries(
