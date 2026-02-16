@@ -222,6 +222,35 @@ impl ChunkInterests {
             }
             return;
         }
+        if self.map.len() == 2 {
+            let mut coords_iter = self.map.keys().copied();
+            let Some(first_coords) = coords_iter.next() else {
+                return;
+            };
+            let Some(second_coords) = coords_iter.next() else {
+                return;
+            };
+
+            let mut should_remove_first = false;
+            if let Some(clients) = self.map.get_mut(&first_coords) {
+                clients.remove(client_id);
+                should_remove_first = clients.is_empty();
+            }
+            let mut should_remove_second = false;
+            if let Some(clients) = self.map.get_mut(&second_coords) {
+                clients.remove(client_id);
+                should_remove_second = clients.is_empty();
+            }
+            if should_remove_first {
+                self.map.remove(&first_coords);
+                self.weights.remove(&first_coords);
+            }
+            if should_remove_second {
+                self.map.remove(&second_coords);
+                self.weights.remove(&second_coords);
+            }
+            return;
+        }
         if self.weights.is_empty() {
             self.map.retain(|_, clients| {
                 clients.remove(client_id);
@@ -429,5 +458,42 @@ mod tests {
 
         assert!(interests.has_interests(&coords));
         assert_eq!(interests.get_weight(&coords), Some(&3.0));
+    }
+
+    #[test]
+    fn remove_client_handles_two_entry_map_partial_removal() {
+        let mut interests = ChunkInterests::new();
+        let removed_coords = Vec2(8, 1);
+        let retained_coords = Vec2(9, 1);
+        interests.add("a", &removed_coords);
+        interests.add("a", &retained_coords);
+        interests.add("b", &retained_coords);
+        interests.set_weight(&removed_coords, 4.0);
+        interests.set_weight(&retained_coords, 5.0);
+
+        interests.remove_client("a");
+
+        assert!(!interests.has_interests(&removed_coords));
+        assert!(interests.has_interests(&retained_coords));
+        assert_eq!(interests.get_weight(&removed_coords), None);
+        assert_eq!(interests.get_weight(&retained_coords), Some(&5.0));
+    }
+
+    #[test]
+    fn remove_client_handles_two_entry_map_full_removal() {
+        let mut interests = ChunkInterests::new();
+        let first_coords = Vec2(4, 6);
+        let second_coords = Vec2(5, 6);
+        interests.add("a", &first_coords);
+        interests.add("a", &second_coords);
+        interests.set_weight(&first_coords, 2.0);
+        interests.set_weight(&second_coords, 3.0);
+
+        interests.remove_client("a");
+
+        assert!(!interests.has_interests(&first_coords));
+        assert!(!interests.has_interests(&second_coords));
+        assert_eq!(interests.get_weight(&first_coords), None);
+        assert_eq!(interests.get_weight(&second_coords), None);
     }
 }
