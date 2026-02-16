@@ -150,17 +150,32 @@ fn sort_chunk_coords_by_interest(
             }
         }
         5 => {
-            for i in 1..5 {
-                let mut j = i;
-                while j > 0 {
-                    if !compare_chunk_interest_weights(weights, &coords[j - 1], &coords[j])
-                        .is_gt()
-                    {
-                        break;
-                    }
-                    coords.swap(j - 1, j);
-                    j -= 1;
-                }
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[1]).is_gt() {
+                coords.swap(0, 1);
+            }
+            if compare_chunk_interest_weights(weights, &coords[3], &coords[4]).is_gt() {
+                coords.swap(3, 4);
+            }
+            if compare_chunk_interest_weights(weights, &coords[2], &coords[4]).is_gt() {
+                coords.swap(2, 4);
+            }
+            if compare_chunk_interest_weights(weights, &coords[2], &coords[3]).is_gt() {
+                coords.swap(2, 3);
+            }
+            if compare_chunk_interest_weights(weights, &coords[1], &coords[4]).is_gt() {
+                coords.swap(1, 4);
+            }
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[3]).is_gt() {
+                coords.swap(0, 3);
+            }
+            if compare_chunk_interest_weights(weights, &coords[0], &coords[2]).is_gt() {
+                coords.swap(0, 2);
+            }
+            if compare_chunk_interest_weights(weights, &coords[1], &coords[3]).is_gt() {
+                coords.swap(1, 3);
+            }
+            if compare_chunk_interest_weights(weights, &coords[1], &coords[2]).is_gt() {
+                coords.swap(1, 2);
             }
         }
         _ => coords.sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b)),

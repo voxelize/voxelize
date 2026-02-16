@@ -253,19 +253,51 @@ impl ChunkRequestsComp {
                 return;
             }
             5 => {
-                for i in 1..5 {
-                    let mut j = i;
-                    while j > 0 {
-                        let prev_distance =
-                            manhattan_distance(&self.requests[j - 1], &self.center);
-                        let curr_distance =
-                            manhattan_distance(&self.requests[j], &self.center);
-                        if prev_distance <= curr_distance {
-                            break;
-                        }
-                        self.requests.swap(j - 1, j);
-                        j -= 1;
-                    }
+                let mut first_distance =
+                    manhattan_distance(&self.requests[0], &self.center);
+                let mut second_distance =
+                    manhattan_distance(&self.requests[1], &self.center);
+                let mut third_distance =
+                    manhattan_distance(&self.requests[2], &self.center);
+                let mut fourth_distance =
+                    manhattan_distance(&self.requests[3], &self.center);
+                let mut fifth_distance =
+                    manhattan_distance(&self.requests[4], &self.center);
+
+                if first_distance > second_distance {
+                    self.requests.swap(0, 1);
+                    std::mem::swap(&mut first_distance, &mut second_distance);
+                }
+                if fourth_distance > fifth_distance {
+                    self.requests.swap(3, 4);
+                    std::mem::swap(&mut fourth_distance, &mut fifth_distance);
+                }
+                if third_distance > fifth_distance {
+                    self.requests.swap(2, 4);
+                    std::mem::swap(&mut third_distance, &mut fifth_distance);
+                }
+                if third_distance > fourth_distance {
+                    self.requests.swap(2, 3);
+                    std::mem::swap(&mut third_distance, &mut fourth_distance);
+                }
+                if second_distance > fifth_distance {
+                    self.requests.swap(1, 4);
+                    std::mem::swap(&mut second_distance, &mut fifth_distance);
+                }
+                if first_distance > fourth_distance {
+                    self.requests.swap(0, 3);
+                    std::mem::swap(&mut first_distance, &mut fourth_distance);
+                }
+                if first_distance > third_distance {
+                    self.requests.swap(0, 2);
+                    std::mem::swap(&mut first_distance, &mut third_distance);
+                }
+                if second_distance > fourth_distance {
+                    self.requests.swap(1, 3);
+                    std::mem::swap(&mut second_distance, &mut fourth_distance);
+                }
+                if second_distance > third_distance {
+                    self.requests.swap(1, 2);
                 }
                 return;
             }

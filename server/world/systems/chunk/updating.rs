@@ -199,16 +199,32 @@ fn sort_due_voxels(due_voxels: &mut Vec<Vec3<i32>>) {
             }
         }
         5 => {
-            for i in 1..5 {
-                let mut j = i;
-                while j > 0 {
-                    if !compare_voxel_positions(&due_voxels[j - 1], &due_voxels[j]).is_gt()
-                    {
-                        break;
-                    }
-                    due_voxels.swap(j - 1, j);
-                    j -= 1;
-                }
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[1]).is_gt() {
+                due_voxels.swap(0, 1);
+            }
+            if compare_voxel_positions(&due_voxels[3], &due_voxels[4]).is_gt() {
+                due_voxels.swap(3, 4);
+            }
+            if compare_voxel_positions(&due_voxels[2], &due_voxels[4]).is_gt() {
+                due_voxels.swap(2, 4);
+            }
+            if compare_voxel_positions(&due_voxels[2], &due_voxels[3]).is_gt() {
+                due_voxels.swap(2, 3);
+            }
+            if compare_voxel_positions(&due_voxels[1], &due_voxels[4]).is_gt() {
+                due_voxels.swap(1, 4);
+            }
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[3]).is_gt() {
+                due_voxels.swap(0, 3);
+            }
+            if compare_voxel_positions(&due_voxels[0], &due_voxels[2]).is_gt() {
+                due_voxels.swap(0, 2);
+            }
+            if compare_voxel_positions(&due_voxels[1], &due_voxels[3]).is_gt() {
+                due_voxels.swap(1, 3);
+            }
+            if compare_voxel_positions(&due_voxels[1], &due_voxels[2]).is_gt() {
+                due_voxels.swap(1, 2);
             }
         }
         _ => due_voxels.sort_unstable_by(compare_voxel_positions),
