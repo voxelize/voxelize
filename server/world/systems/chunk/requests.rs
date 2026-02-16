@@ -57,6 +57,11 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let to_add_back_to_requested = &mut self.to_add_back_to_requested_buffer;
         let chunk_models_buffer = &mut self.chunk_models_buffer;
         let client_count = clients.len();
+        if client_count == 0 {
+            to_send.clear();
+            to_send_touched_clients.clear();
+            return;
+        }
         if to_send.capacity() < client_count && to_send.len() < client_count {
             to_send.reserve(client_count - to_send.len());
         }
@@ -64,16 +69,11 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         if to_send_touched_clients.capacity() < client_count {
             to_send_touched_clients.reserve(client_count - to_send_touched_clients.len());
         }
-        if clients.is_empty() {
-            to_send.clear();
-        } else if !to_send.is_empty() && to_send.len() > clients.len() {
+        if !to_send.is_empty() && to_send.len() > clients.len() {
             to_send.retain(|client_id, _| clients.contains_key(client_id));
         }
         if !can_send_responses {
             to_send.clear();
-        }
-        if clients.is_empty() {
-            return;
         }
         if (&ids, &requests).join().next().is_none() {
             return;
