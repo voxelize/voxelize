@@ -55,11 +55,11 @@ impl ChunkUtils {
 
     /// Parse a chunk coordinate from a chunk representation.
     pub fn parse_chunk_name(name: &str) -> Vec2<i32> {
-        let (raw_x, rest) = name
-            .split_once(CHUNK_NAME_SEPARATOR)
-            .expect("Invalid chunk name format");
+        let Some((raw_x, rest)) = name.split_once(CHUNK_NAME_SEPARATOR) else {
+            return Vec2(0, 0);
+        };
         let raw_z = first_segment(rest);
-        Vec2(raw_x.parse().unwrap(), raw_z.parse().unwrap())
+        Vec2(raw_x.parse().unwrap_or(0), raw_z.parse().unwrap_or(0))
     }
 
     /// Generate a voxel representation from a voxel coordinate.
@@ -72,17 +72,17 @@ impl ChunkUtils {
 
     /// Parse a voxel coordinate from a voxel representation.
     pub fn parse_voxel_name(name: &str) -> Vec3<i32> {
-        let (raw_x, rest) = name
-            .split_once(CHUNK_NAME_SEPARATOR)
-            .expect("Invalid voxel name format");
-        let (raw_y, rest) = rest
-            .split_once(CHUNK_NAME_SEPARATOR)
-            .expect("Invalid voxel name format");
+        let Some((raw_x, rest)) = name.split_once(CHUNK_NAME_SEPARATOR) else {
+            return Vec3(0, 0, 0);
+        };
+        let Some((raw_y, rest)) = rest.split_once(CHUNK_NAME_SEPARATOR) else {
+            return Vec3(0, 0, 0);
+        };
         let raw_z = first_segment(rest);
         Vec3(
-            raw_x.parse().unwrap(),
-            raw_y.parse().unwrap(),
-            raw_z.parse().unwrap(),
+            raw_x.parse().unwrap_or(0),
+            raw_y.parse().unwrap_or(0),
+            raw_z.parse().unwrap_or(0),
         )
     }
 
@@ -232,6 +232,22 @@ mod tests {
         assert_eq!(vx, 1);
         assert_eq!(vy, 2);
         assert_eq!(vz, 3);
+    }
+
+    #[test]
+    fn parse_chunk_name_returns_zero_vector_for_invalid_values() {
+        let Vec2(cx, cz) = ChunkUtils::parse_chunk_name("bad-input");
+        assert_eq!(cx, 0);
+        assert_eq!(cz, 0);
+    }
+
+    #[test]
+    fn parse_voxel_name_returns_zero_vector_for_invalid_values() {
+        let invalid = format!("1{}bad", CHUNK_NAME_SEPARATOR);
+        let Vec3(vx, vy, vz) = ChunkUtils::parse_voxel_name(&invalid);
+        assert_eq!(vx, 0);
+        assert_eq!(vy, 0);
+        assert_eq!(vz, 0);
     }
 
     #[test]
