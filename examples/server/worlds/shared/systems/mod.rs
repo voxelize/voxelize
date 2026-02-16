@@ -22,11 +22,15 @@ pub fn setup_dispatcher(world: &mut World) {
             .with(VoidKillSystem, "void-kill", &[])
             .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntityObserveSystem, "entity-observe", &[])
-            .with(PathFindingSystem, "path-finding", &["entity-observe"])
+            .with(
+                PathFindingSystem::default(),
+                "path-finding",
+                &["entity-observe"],
+            )
             .with(TextMetadataSystem, "text-meta", &[])
             .with(TargetMetadataSystem, "target-meta", &[])
             .with(PathMetadataSystem, "path-meta", &[])
-            .with(EntityTreeSystem, "entity-tree", &[])
+            .with(EntityTreeSystem::default(), "entity-tree", &[])
             .with(WalkTowardsSystem, "walk-towards", &["path-finding"])
             .with(
                 EntitiesMetaSystem,
@@ -44,15 +48,27 @@ pub fn setup_dispatcher(world: &mut World) {
             .with(ExtraPeerMetaSystem, "peers-extra-meta", &[])
             .with(CurrentChunkSystem, "current-chunk", &[])
             .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
-            .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
+            .with(
+                ChunkRequestsSystem::default(),
+                "chunk-requests",
+                &["current-chunk"],
+            )
             .with(
                 ChunkGeneratingSystem,
                 "chunk-generation",
                 &["chunk-requests"],
             )
-            .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
+            .with(
+                ChunkSendingSystem::default(),
+                "chunk-sending",
+                &["chunk-generation"],
+            )
             .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
-            .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
+            .with(
+                PhysicsSystem::default(),
+                "physics",
+                &["current-chunk", "update-stats"],
+            )
             .with(DataSavingSystem, "entities-saving", &["entities-meta"])
             .with(
                 EntitiesSendingSystem::default(),
@@ -60,7 +76,7 @@ pub fn setup_dispatcher(world: &mut World) {
                 &["entities-meta"],
             )
             .with(
-                PeersSendingSystem,
+                PeersSendingSystem::default(),
                 "peers-sending",
                 &["peers-meta", "peers-extra-meta"],
             )
@@ -74,6 +90,6 @@ pub fn setup_dispatcher(world: &mut World) {
                 "cleanup",
                 &["entities-sending", "peers-sending"],
             )
-            .with(EventsSystem, "events", &["broadcast"])
+            .with(EventsSystem::default(), "events", &["broadcast"])
     });
 }
