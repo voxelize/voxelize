@@ -342,6 +342,36 @@ fn lookup_cached_opaque(
     is_opaque
 }
 
+#[inline]
+fn lookup_cached_neighbor_sample(
+    registry: &Registry,
+    voxel_id: u32,
+    cached_ids: &mut [u32; 8],
+    cached_samples: &mut [FluidNeighborSample; 8],
+    cached_len: &mut usize,
+) -> FluidNeighborSample {
+    for cache_index in 0..*cached_len {
+        if cached_ids[cache_index] == voxel_id {
+            return cached_samples[cache_index];
+        }
+    }
+    let sample = if let Some(neighbor_block) = registry.get_block_by_id(voxel_id) {
+        if neighbor_block.is_empty {
+            FluidNeighborSample::Empty
+        } else {
+            FluidNeighborSample::Solid
+        }
+    } else {
+        FluidNeighborSample::Unknown
+    };
+    if *cached_len < cached_ids.len() {
+        cached_ids[*cached_len] = voxel_id;
+        cached_samples[*cached_len] = sample;
+        *cached_len += 1;
+    }
+    sample
+}
+
 impl NeighborCache {
     #[inline]
     fn offset_to_index(x: i32, y: i32, z: i32) -> usize {
@@ -709,6 +739,9 @@ fn sample_fluid_neighbors<S: VoxelAccess>(
 ) -> ([[bool; 3]; 3], [[FluidNeighborSample; 3]; 3]) {
     let mut upper_fluid = [[false; 3]; 3];
     let mut neighbors = [[FluidNeighborSample::Unknown; 3]; 3];
+    let mut cached_ids = [0u32; 8];
+    let mut cached_samples = [FluidNeighborSample::Unknown; 8];
+    let mut cached_len = 0usize;
 
     for dx in -1..=1 {
         let x_index = fluid_offset_index(dx);
@@ -725,14 +758,14 @@ fn sample_fluid_neighbors<S: VoxelAccess>(
             neighbors[x_index][z_index] = if neighbor_id == fluid_id {
                 let stage = extract_stage(neighbor_raw);
                 FluidNeighborSample::Fluid(get_fluid_effective_height(stage))
-            } else if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
-                if neighbor_block.is_empty {
-                    FluidNeighborSample::Empty
-                } else {
-                    FluidNeighborSample::Solid
-                }
             } else {
-                FluidNeighborSample::Unknown
+                lookup_cached_neighbor_sample(
+                    registry,
+                    neighbor_id,
+                    &mut cached_ids,
+                    &mut cached_samples,
+                    &mut cached_len,
+                )
             };
         }
     }
