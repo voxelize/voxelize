@@ -182,7 +182,7 @@ impl<'a> System<'a> for EventsSystem {
                     payload: payload.unwrap_or_else(|| String::from("{}")),
                 });
             }
-            let next_transport_event_capacity = transports_map.len();
+            let next_transport_event_capacity = transports_map.capacity();
             let transports_events_to_send = std::mem::replace(
                 transports_map,
                 Vec::with_capacity(next_transport_event_capacity),
@@ -472,7 +472,7 @@ impl<'a> System<'a> for EventsSystem {
                 None => continue,
             };
             if let Some(client) = clients.get(&id) {
-                let next_client_event_capacity = client_events.len();
+                let next_client_event_capacity = client_events.capacity();
                 let client_events_to_send = std::mem::replace(
                     client_events,
                     Vec::with_capacity(next_client_event_capacity),
@@ -486,7 +486,7 @@ impl<'a> System<'a> for EventsSystem {
         }
 
         if has_transports {
-            let next_transport_event_capacity = transports_map.len();
+            let next_transport_event_capacity = transports_map.capacity();
             let transports_events_to_send = std::mem::replace(
                 transports_map,
                 Vec::with_capacity(next_transport_event_capacity),
