@@ -51,15 +51,35 @@ impl ChunkInterests {
         let Some(clients) = self.map.get(coords) else {
             return false;
         };
-        if clients.len() > SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT {
-            return clients.contains(client_id);
-        }
-        for existing_client_id in clients {
-            if existing_client_id.as_str() == client_id {
-                return true;
+        match clients.len() {
+            0 => false,
+            1 => {
+                let mut clients_iter = clients.iter();
+                let Some(first_client_id) = clients_iter.next() else {
+                    unreachable!("single-interest client length matched branch");
+                };
+                first_client_id.as_str() == client_id
             }
+            2 => {
+                let mut clients_iter = clients.iter();
+                let Some(first_client_id) = clients_iter.next() else {
+                    unreachable!("two-interest client length matched branch");
+                };
+                let Some(second_client_id) = clients_iter.next() else {
+                    unreachable!("two-interest client length matched branch");
+                };
+                first_client_id.as_str() == client_id || second_client_id.as_str() == client_id
+            }
+            _ if clients.len() <= SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT => {
+                for existing_client_id in clients {
+                    if existing_client_id.as_str() == client_id {
+                        return true;
+                    }
+                }
+                false
+            }
+            _ => clients.contains(client_id),
         }
-        false
     }
 
     pub fn get_interests(&self, coords: &Vec2<i32>) -> Option<&HashSet<String>> {
@@ -555,6 +575,22 @@ mod tests {
         }
         assert!(interests.is_interested("h", &large_coords));
         assert!(!interests.is_interested("missing", &large_coords));
+    }
+
+    #[test]
+    fn is_interested_handles_single_and_two_client_sets() {
+        let mut interests = ChunkInterests::new();
+        let single_coords = Vec2(7, 8);
+        interests.add("solo", &single_coords);
+        assert!(interests.is_interested("solo", &single_coords));
+        assert!(!interests.is_interested("other", &single_coords));
+
+        let pair_coords = Vec2(9, 10);
+        interests.add("first", &pair_coords);
+        interests.add("second", &pair_coords);
+        assert!(interests.is_interested("first", &pair_coords));
+        assert!(interests.is_interested("second", &pair_coords));
+        assert!(!interests.is_interested("other", &pair_coords));
     }
 
     #[test]
