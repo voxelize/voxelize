@@ -2356,12 +2356,12 @@ pub fn mesh_space<S: VoxelAccess>(
 }
 
 pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
-    let center_chunk = input.chunks.get(4).and_then(|c| c.as_ref());
-    if center_chunk.is_none() {
+    if input.config.chunk_size <= 0 {
         return MeshOutput { geometries: vec![] };
     }
-
-    let center_chunk = center_chunk.unwrap();
+    let Some(center_chunk) = input.chunks.get(4).and_then(|c| c.as_ref()) else {
+        return MeshOutput { geometries: vec![] };
+    };
     let center_coords = [
         center_chunk.min[0] / input.config.chunk_size,
         center_chunk.min[2] / input.config.chunk_size,
@@ -2381,12 +2381,12 @@ pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
 }
 
 pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry) -> MeshOutput {
-    let center_chunk = input.chunks.get(4).and_then(|c| c.as_ref());
-    if center_chunk.is_none() {
+    if input.config.chunk_size <= 0 {
         return MeshOutput { geometries: vec![] };
     }
-
-    let center_chunk = center_chunk.unwrap();
+    let Some(center_chunk) = input.chunks.get(4).and_then(|c| c.as_ref()) else {
+        return MeshOutput { geometries: vec![] };
+    };
     let center_coords = [
         center_chunk.min[0] / input.config.chunk_size,
         center_chunk.min[2] / input.config.chunk_size,
