@@ -142,6 +142,29 @@ impl ChunkInterests {
                     || third_client_id.as_str() == client_id
                     || fourth_client_id.as_str() == client_id
             }
+            5 => {
+                let mut clients_iter = clients.iter();
+                let Some(first_client_id) = clients_iter.next() else {
+                    unreachable!("five-interest client length matched branch");
+                };
+                let Some(second_client_id) = clients_iter.next() else {
+                    unreachable!("five-interest client length matched branch");
+                };
+                let Some(third_client_id) = clients_iter.next() else {
+                    unreachable!("five-interest client length matched branch");
+                };
+                let Some(fourth_client_id) = clients_iter.next() else {
+                    unreachable!("five-interest client length matched branch");
+                };
+                let Some(fifth_client_id) = clients_iter.next() else {
+                    unreachable!("five-interest client length matched branch");
+                };
+                first_client_id.as_str() == client_id
+                    || second_client_id.as_str() == client_id
+                    || third_client_id.as_str() == client_id
+                    || fourth_client_id.as_str() == client_id
+                    || fifth_client_id.as_str() == client_id
+            }
             _ if clients.len() <= SMALL_INTEREST_CLIENT_SET_SCAN_LIMIT => {
                 for existing_client_id in clients {
                     if existing_client_id.as_str() == client_id {
@@ -1275,7 +1298,7 @@ mod tests {
     }
 
     #[test]
-    fn is_interested_handles_three_and_four_client_sets() {
+    fn is_interested_handles_three_four_and_five_client_sets() {
         let mut interests = ChunkInterests::new();
         let triple_coords = Vec2(11, 12);
         interests.add("first", &triple_coords);
@@ -1293,6 +1316,16 @@ mod tests {
         assert!(interests.is_interested("two", &quad_coords));
         assert!(interests.is_interested("four", &quad_coords));
         assert!(!interests.is_interested("other", &quad_coords));
+
+        let quint_coords = Vec2(15, 16);
+        interests.add("one", &quint_coords);
+        interests.add("two", &quint_coords);
+        interests.add("three", &quint_coords);
+        interests.add("four", &quint_coords);
+        interests.add("five", &quint_coords);
+        assert!(interests.is_interested("three", &quint_coords));
+        assert!(interests.is_interested("five", &quint_coords));
+        assert!(!interests.is_interested("other", &quint_coords));
     }
 
     #[test]
