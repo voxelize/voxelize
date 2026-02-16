@@ -2,6 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
+use log::warn;
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
@@ -28,6 +29,29 @@ fn clamp_u128_to_i64(value: u128) -> i64 {
 #[inline]
 fn mesh_protocol_level(level: u32) -> i32 {
     i32::try_from(level).unwrap_or(i32::MAX)
+}
+
+fn build_mesher_pool() -> ThreadPool {
+    let thread_count = std::thread::available_parallelism()
+        .map(|parallelism| parallelism.get())
+        .unwrap_or(4);
+    let primary_builder = ThreadPoolBuilder::new()
+        .thread_name(|index| format!("chunk-meshing-{index}"))
+        .num_threads(thread_count);
+    if let Ok(pool) = primary_builder.build() {
+        return pool;
+    }
+    warn!(
+        "Failed to build mesher thread pool with {} threads, retrying with single thread",
+        thread_count
+    );
+    let fallback_builder = ThreadPoolBuilder::new()
+        .thread_name(|index| format!("chunk-meshing-{index}"))
+        .num_threads(1);
+    if let Ok(pool) = fallback_builder.build() {
+        return pool;
+    }
+    panic!("Failed to build mesher thread pool");
 }
 
 const LIGHT_COLORS: [LightColor; 4] = [
@@ -103,15 +127,7 @@ impl Mesher {
             pending_remesh: HashSet::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
-            pool: ThreadPoolBuilder::new()
-                .thread_name(|index| format!("chunk-meshing-{index}"))
-                .num_threads(
-                    std::thread::available_parallelism()
-                        .map(|p| p.get())
-                        .unwrap_or(4),
-                )
-                .build()
-                .unwrap(),
+            pool: build_mesher_pool(),
         }
     }
 
