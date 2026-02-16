@@ -36,7 +36,8 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
     if updated_levels.is_empty() {
         return None;
     }
-    if updated_levels.len() == 1 {
+    let updated_levels_len = updated_levels.len();
+    if updated_levels_len == 1 {
         let level = {
             let Some(single_level) = updated_levels.iter().next().copied() else {
                 unreachable!("single updated level length matched branch");
@@ -49,6 +50,29 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
             return None;
         }
         return Some((level, max_level_exclusive));
+    }
+    if updated_levels_len == 2 {
+        let mut levels_iter = updated_levels.iter().copied();
+        let first = {
+            let Some(level) = levels_iter.next() else {
+                unreachable!("two updated levels length matched branch");
+            };
+            level
+        };
+        let second = {
+            let Some(level) = levels_iter.next() else {
+                unreachable!("two updated levels length matched branch");
+            };
+            level
+        };
+        updated_levels.clear();
+        let min_level = first.min(second);
+        let max_level = first.max(second);
+        let max_level_exclusive = max_level.saturating_add(1);
+        if max_level_exclusive <= min_level {
+            return None;
+        }
+        return Some((min_level, max_level_exclusive));
     }
 
     let mut updated_levels_iter = take_set_with_capacity(updated_levels).into_iter();
@@ -657,6 +681,16 @@ mod tests {
         levels.insert(4);
 
         assert_eq!(take_updated_level_range(&mut levels), Some((4, 5)));
+        assert!(levels.is_empty());
+    }
+
+    #[test]
+    fn take_updated_level_range_handles_two_levels() {
+        let mut levels = HashSet::new();
+        levels.insert(11);
+        levels.insert(9);
+
+        assert_eq!(take_updated_level_range(&mut levels), Some((9, 12)));
         assert!(levels.is_empty());
     }
 
