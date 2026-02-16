@@ -116,6 +116,65 @@ describe("BlockUtils", () => {
     }
   });
 
+  it("sanitizes malformed rotation insertion inputs without throwing", () => {
+    const valueTrapRotation = Object.create(null) as {
+      readonly value: number;
+      readonly yRotation: number;
+    };
+    Object.defineProperty(valueTrapRotation, "value", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("value trap");
+      },
+    });
+    Object.defineProperty(valueTrapRotation, "yRotation", {
+      configurable: true,
+      enumerable: true,
+      value: Math.PI / 2,
+    });
+    const revokedRotation = (() => {
+      const rotationProxy = Proxy.revocable({
+        value: PY_ROTATION,
+        yRotation: Math.PI / 2,
+      }, {});
+      rotationProxy.revoke();
+      return rotationProxy.proxy;
+    })();
+
+    expect(() => BlockUtils.insertRotation(0, null as never)).not.toThrow();
+    const insertedFromNull = BlockUtils.insertRotation(0, null as never);
+    expect(BlockUtils.extractRotation(insertedFromNull).equals(BlockRotation.py(0))).toBe(
+      true
+    );
+
+    expect(() =>
+      BlockUtils.insertRotation(0, valueTrapRotation as never)
+    ).not.toThrow();
+    const insertedFromValueTrap = BlockUtils.insertRotation(
+      0,
+      valueTrapRotation as never
+    );
+    const [trappedAxis, trappedSegment] = BlockRotation.decode(
+      BlockUtils.extractRotation(insertedFromValueTrap)
+    );
+    expect(trappedAxis).toBe(PY_ROTATION);
+    expect(trappedSegment).toBe(4);
+
+    expect(() =>
+      BlockUtils.insertRotation(0, revokedRotation as never)
+    ).not.toThrow();
+    const insertedFromRevokedRotation = BlockUtils.insertRotation(
+      0,
+      revokedRotation as never
+    );
+    expect(
+      BlockUtils.extractRotation(insertedFromRevokedRotation).equals(
+        BlockRotation.py(0)
+      )
+    ).toBe(true);
+  });
+
   it("keeps packed voxel values in unsigned 32-bit space", () => {
     const packed = BlockUtils.insertId(-1, 1);
     expect(packed).toBe(0xffff0001);
@@ -150,6 +209,49 @@ describe("BlockUtils", () => {
 
     expect(Voxel.id(packed)).toBe(0x2345);
     expect(Voxel.stage(packed)).toBe(15);
+  });
+
+  it("sanitizes malformed voxel pack payloads without throwing", () => {
+    const fieldsWithIdTrap = Object.create(null) as {
+      readonly id: number;
+      readonly stage: number;
+    };
+    Object.defineProperty(fieldsWithIdTrap, "id", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("id trap");
+      },
+    });
+    Object.defineProperty(fieldsWithIdTrap, "stage", {
+      configurable: true,
+      enumerable: true,
+      value: 5,
+    });
+    const revokedFields = (() => {
+      const fieldsProxy = Proxy.revocable({
+        id: 9,
+        stage: 3,
+      }, {});
+      fieldsProxy.revoke();
+      return fieldsProxy.proxy;
+    })();
+
+    expect(() => Voxel.pack(null as never)).not.toThrow();
+    const packedFromNull = Voxel.pack(null as never);
+    expect(Voxel.id(packedFromNull)).toBe(0);
+    expect(Voxel.stage(packedFromNull)).toBe(0);
+    expect(Voxel.rotation(packedFromNull).equals(BlockRotation.py(0))).toBe(true);
+
+    expect(() => Voxel.pack(fieldsWithIdTrap as never)).not.toThrow();
+    const packedFromIdTrap = Voxel.pack(fieldsWithIdTrap as never);
+    expect(Voxel.id(packedFromIdTrap)).toBe(0);
+    expect(Voxel.stage(packedFromIdTrap)).toBe(5);
+
+    expect(() => Voxel.pack(revokedFields as never)).not.toThrow();
+    const packedFromRevokedFields = Voxel.pack(revokedFields as never);
+    expect(Voxel.id(packedFromRevokedFields)).toBe(0);
+    expect(Voxel.stage(packedFromRevokedFields)).toBe(0);
   });
 });
 
@@ -193,6 +295,63 @@ describe("LightUtils", () => {
   it("returns zero when packing empty light channel objects", () => {
     expect(Light.pack({})).toBe(0);
     expect(Light.unpack(0)).toEqual({
+      sunlight: 0,
+      red: 0,
+      green: 0,
+      blue: 0,
+    });
+  });
+
+  it("sanitizes malformed light pack payloads without throwing", () => {
+    const channelsWithRedTrap = Object.create(null) as {
+      readonly sunlight: number;
+      readonly red: number;
+      readonly blue: number;
+    };
+    Object.defineProperty(channelsWithRedTrap, "sunlight", {
+      configurable: true,
+      enumerable: true,
+      value: 12,
+    });
+    Object.defineProperty(channelsWithRedTrap, "red", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("red trap");
+      },
+    });
+    Object.defineProperty(channelsWithRedTrap, "blue", {
+      configurable: true,
+      enumerable: true,
+      value: 3,
+    });
+    const revokedChannels = (() => {
+      const channelsProxy = Proxy.revocable({
+        sunlight: 15,
+        red: 8,
+        green: 4,
+        blue: 2,
+      }, {});
+      channelsProxy.revoke();
+      return channelsProxy.proxy;
+    })();
+
+    expect(() => Light.pack(null as never)).not.toThrow();
+    expect(Light.unpack(Light.pack(null as never))).toEqual({
+      sunlight: 0,
+      red: 0,
+      green: 0,
+      blue: 0,
+    });
+    expect(() => Light.pack(channelsWithRedTrap as never)).not.toThrow();
+    expect(Light.unpack(Light.pack(channelsWithRedTrap as never))).toEqual({
+      sunlight: 12,
+      red: 0,
+      green: 0,
+      blue: 3,
+    });
+    expect(() => Light.pack(revokedChannels as never)).not.toThrow();
+    expect(Light.unpack(Light.pack(revokedChannels as never))).toEqual({
       sunlight: 0,
       red: 0,
       green: 0,

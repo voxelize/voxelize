@@ -1,4 +1,5 @@
 import {
+  PY_ROTATION,
   ROTATION_MASK,
   STAGE_MASK,
   Y_ROTATION_MASK,
@@ -18,6 +19,90 @@ export interface VoxelFields {
   stage: number;
 }
 
+type RotationLikeRecord = {
+  value?: number;
+  yRotation?: number;
+};
+
+const toRotationLikeRecordOrNull = (
+  rotation: RotationLike | null | undefined
+): RotationLikeRecord | null => {
+  return rotation !== null && typeof rotation === "object"
+    ? (rotation as RotationLikeRecord)
+    : null;
+};
+
+const safeReadRotationLikeField = (
+  rotation: RotationLikeRecord | null,
+  key: "value" | "yRotation",
+  fallbackValue: number
+): number => {
+  if (rotation === null) {
+    return fallbackValue;
+  }
+
+  try {
+    const fieldValue = rotation[key];
+    return typeof fieldValue === "number" ? fieldValue : fallbackValue;
+  } catch {
+    return fallbackValue;
+  }
+};
+
+type VoxelPackFieldRecord = {
+  id?: number;
+  rotation?: RotationLike;
+  stage?: number;
+};
+
+const toVoxelPackFieldRecordOrNull = (
+  fields: { id: number; rotation?: RotationLike; stage?: number } | null | undefined
+): VoxelPackFieldRecord | null => {
+  return fields !== null && typeof fields === "object"
+    ? (fields as VoxelPackFieldRecord)
+    : null;
+};
+
+const safeReadVoxelPackId = (fields: VoxelPackFieldRecord | null): number => {
+  if (fields === null) {
+    return 0;
+  }
+
+  try {
+    return fields.id ?? 0;
+  } catch {
+    return 0;
+  }
+};
+
+const safeReadVoxelPackRotation = (
+  fields: VoxelPackFieldRecord | null
+): RotationLike | undefined => {
+  if (fields === null) {
+    return undefined;
+  }
+
+  try {
+    return fields.rotation;
+  } catch {
+    return undefined;
+  }
+};
+
+const safeReadVoxelPackStage = (
+  fields: VoxelPackFieldRecord | null
+): number | undefined => {
+  if (fields === null) {
+    return undefined;
+  }
+
+  try {
+    return fields.stage;
+  } catch {
+    return undefined;
+  }
+};
+
 export class BlockUtils {
   static extractId(voxel: number): number {
     return voxel & 0xffff;
@@ -34,8 +119,19 @@ export class BlockUtils {
   }
 
   static insertRotation(voxel: number, rotation: RotationLike): number {
+    const normalizedRotation = toRotationLikeRecordOrNull(rotation);
+    const normalizedRotationValue = safeReadRotationLikeField(
+      normalizedRotation,
+      "value",
+      PY_ROTATION
+    );
+    const normalizedYRotation = safeReadRotationLikeField(
+      normalizedRotation,
+      "yRotation",
+      0
+    );
     const [rotationValue, yRotation] = BlockRotation.decode(
-      new BlockRotation(rotation.value, rotation.yRotation)
+      new BlockRotation(normalizedRotationValue, normalizedYRotation)
     );
     const value = (voxel & ROTATION_MASK) | ((rotationValue & 0xf) << 16);
     return toUint32((value & Y_ROTATION_MASK) | ((yRotation & 0xf) << 20));
@@ -108,7 +204,12 @@ export class Voxel {
     rotation?: RotationLike;
     stage?: number;
   }): number {
-    return BlockUtils.insertAll(fields.id, fields.rotation, fields.stage);
+    const normalizedFields = toVoxelPackFieldRecordOrNull(fields);
+    return BlockUtils.insertAll(
+      safeReadVoxelPackId(normalizedFields),
+      safeReadVoxelPackRotation(normalizedFields),
+      safeReadVoxelPackStage(normalizedFields)
+    );
   }
 
   static unpack(voxel: number): VoxelFields {

@@ -72,6 +72,36 @@ export interface LightChannels {
   blue: number;
 }
 
+type LightChannelRecord = {
+  sunlight?: number;
+  red?: number;
+  green?: number;
+  blue?: number;
+};
+
+const toLightChannelRecordOrNull = (
+  channels: Partial<LightChannels> | null | undefined
+): LightChannelRecord | null => {
+  return channels !== null && typeof channels === "object"
+    ? (channels as LightChannelRecord)
+    : null;
+};
+
+const safeReadLightChannel = (
+  channels: LightChannelRecord | null,
+  key: keyof LightChannelRecord
+): number | undefined => {
+  if (channels === null) {
+    return undefined;
+  }
+
+  try {
+    return channels[key];
+  } catch {
+    return undefined;
+  }
+};
+
 export class Light {
   static sunlight(light: number): number {
     return LightUtils.extractSunlight(light);
@@ -107,21 +137,26 @@ export class Light {
 
   static pack(channels: Partial<LightChannels>): number {
     let light = 0;
+    const normalizedChannels = toLightChannelRecordOrNull(channels);
+    const sunlight = safeReadLightChannel(normalizedChannels, "sunlight");
+    const red = safeReadLightChannel(normalizedChannels, "red");
+    const green = safeReadLightChannel(normalizedChannels, "green");
+    const blue = safeReadLightChannel(normalizedChannels, "blue");
 
-    if (channels.sunlight !== undefined) {
-      light = Light.withSunlight(light, channels.sunlight);
+    if (sunlight !== undefined) {
+      light = Light.withSunlight(light, sunlight);
     }
 
-    if (channels.red !== undefined) {
-      light = Light.withRed(light, channels.red);
+    if (red !== undefined) {
+      light = Light.withRed(light, red);
     }
 
-    if (channels.green !== undefined) {
-      light = Light.withGreen(light, channels.green);
+    if (green !== undefined) {
+      light = Light.withGreen(light, green);
     }
 
-    if (channels.blue !== undefined) {
-      light = Light.withBlue(light, channels.blue);
+    if (blue !== undefined) {
+      light = Light.withBlue(light, blue);
     }
 
     return light;
