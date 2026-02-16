@@ -71,9 +71,10 @@ impl ItemRegistry {
     {
         let lower_name = Self::normalized_name(name).into_owned();
 
-        if self.items_by_id.contains_key(&id) {
-            panic!("Duplicated item id: {}", id);
-        }
+        let id_entry = match self.items_by_id.entry(id) {
+            Entry::Occupied(_) => panic!("Duplicated item id: {}", id),
+            Entry::Vacant(entry) => entry,
+        };
         let name_entry = match self.items_by_name.entry(lower_name) {
             Entry::Occupied(_) => panic!("Duplicated item name: {}", name),
             Entry::Vacant(entry) => entry,
@@ -83,7 +84,7 @@ impl ItemRegistry {
         let def = builder_fn(builder).build();
 
         name_entry.insert(id);
-        self.items_by_id.insert(id, def);
+        id_entry.insert(def);
         self.next_auto_id = self.next_auto_id.max(id.saturating_add(1));
         self
     }
@@ -181,5 +182,21 @@ mod tests {
         assert_eq!(registry.get_id_by_name("wood"), Some(1));
         assert_eq!(registry.get_id_by_name("gem"), Some(10));
         assert_eq!(registry.get_id_by_name("stone"), Some(11));
+    }
+
+    #[test]
+    #[should_panic(expected = "Duplicated item id")]
+    fn register_with_id_panics_on_duplicate_id() {
+        let mut registry = ItemRegistry::new();
+        registry.register_with_id(7, "wood", |builder| builder);
+        registry.register_with_id(7, "stone", |builder| builder);
+    }
+
+    #[test]
+    #[should_panic(expected = "Duplicated item name")]
+    fn register_with_id_panics_on_duplicate_name_case_insensitive() {
+        let mut registry = ItemRegistry::new();
+        registry.register_with_id(7, "wood", |builder| builder);
+        registry.register_with_id(8, "WOOD", |builder| builder);
     }
 }
