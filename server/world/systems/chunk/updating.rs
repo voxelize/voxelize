@@ -300,7 +300,7 @@ fn process_pending_updates(
 
             if let Some((red_level, green_level, blue_level)) = removed_source_levels {
                 removed_light_sources
-                    .get_or_insert_with(|| Vec::with_capacity(num_to_process))
+                    .get_or_insert_with(|| Vec::with_capacity(num_to_process.min(32)))
                     .push((
                         voxel,
                         red_level,
