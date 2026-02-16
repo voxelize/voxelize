@@ -428,14 +428,54 @@ fn retain_active_dispatch_clients(
 
 #[inline]
 fn send_to_transports(transports: &Transports, payload: Bytes) {
-    let mut senders = transports.values();
-    let Some(first_sender) = senders.next() else {
-        return;
-    };
-    for sender in senders {
-        let _ = sender.send(payload.clone());
+    match transports.len() {
+        0 => {}
+        1 => {
+            if let Some(sender) = transports.values().next() {
+                let _ = sender.send(payload);
+            }
+        }
+        2 => {
+            let mut senders = transports.values();
+            let Some(first_sender) = senders.next() else {
+                return;
+            };
+            let Some(second_sender) = senders.next() else {
+                let _ = first_sender.send(payload);
+                return;
+            };
+            let _ = second_sender.send(payload.clone());
+            let _ = first_sender.send(payload);
+        }
+        3 => {
+            let mut senders = transports.values();
+            let Some(first_sender) = senders.next() else {
+                return;
+            };
+            let Some(second_sender) = senders.next() else {
+                let _ = first_sender.send(payload);
+                return;
+            };
+            let Some(third_sender) = senders.next() else {
+                let _ = second_sender.send(payload.clone());
+                let _ = first_sender.send(payload);
+                return;
+            };
+            let _ = second_sender.send(payload.clone());
+            let _ = third_sender.send(payload.clone());
+            let _ = first_sender.send(payload);
+        }
+        _ => {
+            let mut senders = transports.values();
+            let Some(first_sender) = senders.next() else {
+                return;
+            };
+            for sender in senders {
+                let _ = sender.send(payload.clone());
+            }
+            let _ = first_sender.send(payload);
+        }
     }
-    let _ = first_sender.send(payload);
 }
 
 #[inline]
