@@ -372,11 +372,8 @@ const isCompactJsonSerializationEnabled = (options) => {
     return false;
   }
 
-  try {
-    return options.compact === true;
-  } catch {
-    return false;
-  }
+  const compactValue = safeReadProperty(options, "compact");
+  return toBooleanOrNull(compactValue) === true;
 };
 
 const toNormalizedPrimitiveMessageOrNull = (value) => {

@@ -1151,6 +1151,76 @@ describe("report-utils", () => {
       `{"passed":true,"exitCode":0,"schemaVersion":${REPORT_SCHEMA_VERSION}}`
     );
 
+    const crossRealmWrappedCompactTrue = vm.runInNewContext("new Boolean(true)");
+    let didCallCrossRealmWrappedCompactTrueToString = false;
+    Object.defineProperty(crossRealmWrappedCompactTrue, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCompactTrueToString = true;
+        throw new Error("cross-realm wrapped compact=true toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedCompactTrueValueOf = false;
+    Object.defineProperty(crossRealmWrappedCompactTrue, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCompactTrueValueOf = true;
+        throw new Error("cross-realm wrapped compact=true valueOf trap");
+      },
+    });
+    const serializedFromWrappedCompactTrue = toReportJson(
+      { passed: true, exitCode: 0 },
+      { compact: crossRealmWrappedCompactTrue as never }
+    );
+    expect(serializedFromWrappedCompactTrue).toBe(
+      `{"passed":true,"exitCode":0,"schemaVersion":${REPORT_SCHEMA_VERSION}}`
+    );
+    expect(didCallCrossRealmWrappedCompactTrueToString).toBe(false);
+    expect(didCallCrossRealmWrappedCompactTrueValueOf).toBe(false);
+
+    const crossRealmWrappedCompactFalse = vm.runInNewContext("new Boolean(false)");
+    let didCallCrossRealmWrappedCompactFalseToString = false;
+    Object.defineProperty(crossRealmWrappedCompactFalse, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCompactFalseToString = true;
+        throw new Error("cross-realm wrapped compact=false toString trap");
+      },
+    });
+    let didCallCrossRealmWrappedCompactFalseValueOf = false;
+    Object.defineProperty(crossRealmWrappedCompactFalse, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmWrappedCompactFalseValueOf = true;
+        throw new Error("cross-realm wrapped compact=false valueOf trap");
+      },
+    });
+    const serializedFromWrappedCompactFalse = toReportJson(
+      { passed: true, exitCode: 0 },
+      { compact: crossRealmWrappedCompactFalse as never }
+    );
+    const parsedFromWrappedCompactFalse = JSON.parse(
+      serializedFromWrappedCompactFalse
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+    };
+    expect(parsedFromWrappedCompactFalse.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedFromWrappedCompactFalse.passed).toBe(true);
+    expect(parsedFromWrappedCompactFalse.exitCode).toBe(0);
+    expect(serializedFromWrappedCompactFalse).toContain("\n");
+    expect(didCallCrossRealmWrappedCompactFalseToString).toBe(false);
+    expect(didCallCrossRealmWrappedCompactFalseValueOf).toBe(false);
+
     const serializedFromPrimitiveOptions = toReportJson(
       { passed: true, exitCode: 0 },
       "compact" as never
