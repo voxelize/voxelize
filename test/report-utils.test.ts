@@ -20801,6 +20801,43 @@ describe("report-utils", () => {
         skippedSteps: [],
       }
     );
+    const ownKeysTrappedLengthReadablePrefixReadTrapSteps = new Proxy(
+      [
+        { name: "step-a", passed: true, skipped: false },
+        { name: "step-b", passed: true, skipped: false },
+      ],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepResults(ownKeysTrappedLengthReadablePrefixReadTrapSteps as never)
+    ).toEqual({
+      totalSteps: 1,
+      passedStepCount: 1,
+      failedStepCount: 0,
+      skippedStepCount: 0,
+      firstFailedStep: null,
+      passedSteps: ["step-b"],
+      failedSteps: [],
+      skippedSteps: [],
+    });
     const emptyIteratorLengthZeroIndexedSteps = new Proxy(
       [{ name: "step-a", passed: true, skipped: false }],
       {
@@ -22452,6 +22489,64 @@ describe("report-utils", () => {
     expect(
       summarizeStepFailureResults(ownKeysTrappedEmptyIteratorStepFailures as never)
     ).toEqual([]);
+    const ownKeysTrappedLengthReadablePrefixReadTrapStepFailures = new Proxy(
+      [
+        {
+          name: "step-skipped",
+          scriptName: "check-skipped.mjs",
+          supportsNoBuild: true,
+          stepIndex: 0,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+        },
+        {
+          name: "step-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          stepIndex: 1,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeStepFailureResults(
+        ownKeysTrappedLengthReadablePrefixReadTrapStepFailures as never
+      )
+    ).toEqual([
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
     const emptyIteratorLengthZeroIndexedSteps = new Proxy(iteratorTrapSteps, {
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
@@ -22900,6 +22995,62 @@ describe("report-utils", () => {
     expect(
       summarizeCheckFailureResults(ownKeysTrappedEmptyIteratorCheckFailures as never)
     ).toEqual([]);
+    const ownKeysTrappedLengthReadablePrefixReadTrapCheckFailures = new Proxy(
+      [
+        {
+          name: "check-skipped",
+          scriptName: "check-skipped.mjs",
+          supportsNoBuild: true,
+          checkIndex: 0,
+          passed: false,
+          exitCode: 2,
+        },
+        {
+          name: "check-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkIndex: 1,
+          passed: false,
+          exitCode: 2,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckFailureResults(
+        ownKeysTrappedLengthReadablePrefixReadTrapCheckFailures as never
+      )
+    ).toEqual([
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
     const emptyIteratorLengthZeroIndexedChecks = new Proxy(iteratorTrapChecks, {
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
@@ -23714,6 +23865,41 @@ describe("report-utils", () => {
         failedChecks: [],
       }
     );
+    const ownKeysTrappedLengthReadablePrefixReadTrapChecks = new Proxy(
+      [
+        { name: "devEnvironmentA", passed: true },
+        { name: "devEnvironmentB", passed: true },
+      ],
+      {
+        ownKeys: () => {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      summarizeCheckResults(ownKeysTrappedLengthReadablePrefixReadTrapChecks as never)
+    ).toEqual({
+      totalChecks: 1,
+      passedCheckCount: 1,
+      failedCheckCount: 0,
+      firstFailedCheck: null,
+      passedChecks: ["devEnvironmentB"],
+      failedChecks: [],
+    });
     const emptyIteratorLengthZeroIndexedChecks = new Proxy(
       [{ name: "devEnvironment", passed: true }],
       {
