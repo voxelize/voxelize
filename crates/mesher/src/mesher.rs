@@ -834,7 +834,7 @@ fn create_fluid_faces<S: VoxelAccess>(
     [
         BlockFace {
             name: "py".to_string(),
-            name_lower: "py".to_string(),
+            name_lower: String::new(),
             dir: [0, 1, 0],
             independent: true,
             isolated: false,
@@ -861,7 +861,7 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "ny".to_string(),
-            name_lower: "ny".to_string(),
+            name_lower: String::new(),
             dir: [0, -1, 0],
             independent: false,
             isolated: false,
@@ -888,7 +888,7 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "px".to_string(),
-            name_lower: "px".to_string(),
+            name_lower: String::new(),
             dir: [1, 0, 0],
             independent: true,
             isolated: false,
@@ -915,7 +915,7 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "nx".to_string(),
-            name_lower: "nx".to_string(),
+            name_lower: String::new(),
             dir: [-1, 0, 0],
             independent: true,
             isolated: false,
@@ -942,7 +942,7 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "pz".to_string(),
-            name_lower: "pz".to_string(),
+            name_lower: String::new(),
             dir: [0, 0, 1],
             independent: true,
             isolated: false,
@@ -969,7 +969,7 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "nz".to_string(),
-            name_lower: "nz".to_string(),
+            name_lower: String::new(),
             dir: [0, 0, -1],
             independent: true,
             isolated: false,
