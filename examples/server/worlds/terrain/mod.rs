@@ -466,6 +466,13 @@ pub fn setup_terrain_world() -> World {
                 return;
             }
         };
+        if !parsed_time.time.is_finite() {
+            warn!(
+                "Ignoring terrain time update because payload time is invalid: {}",
+                parsed_time.time
+            );
+            return;
+        }
         world
             .stats_mut()
             .set_time(parsed_time.time.rem_euclid(time_per_day));
