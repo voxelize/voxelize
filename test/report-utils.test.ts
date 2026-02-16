@@ -25036,6 +25036,40 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    const ownKeysTrappedLengthReadablePrefixReadTrapWasmArgs = new Proxy(
+      ["check-wasm-pack.mjs", "--json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: ownKeysTrappedLengthReadablePrefixReadTrapWasmArgs,
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: ["--json"],
+      wasmPackCheckArgCount: 1,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     let statefulSparsePrefixReadCount = 0;
     const statefulSparseWasmArgsTarget: string[] = [];
     statefulSparseWasmArgsTarget[0] = "check-wasm-pack.mjs";
@@ -26624,6 +26658,48 @@ describe("report-utils", () => {
       exampleCommand: null,
       exampleArgs: [],
       exampleArgCount: 0,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    const ownKeysTrappedLengthReadablePrefixReadTrapExampleArgs = new Proxy(
+      ["packages/ts-core/examples/end-to-end.mjs", "--json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: ownKeysTrappedLengthReadablePrefixReadTrapExampleArgs,
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: ["--json"],
+      exampleArgCount: 1,
       exampleAttempted: true,
       exampleStatus: "failed",
       exampleRuleMatched: null,
