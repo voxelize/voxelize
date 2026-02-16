@@ -3959,6 +3959,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         .as_ref()
         .map_or(0, |flags| flags.len());
     let mut uncached_greedy_eligibility = vec![-1i8; uncached_eligibility_cache_len];
+    let mut uncached_greedy_face_indices = vec![[i16::MIN; 6]; uncached_eligibility_cache_len];
+    let mut sparse_uncached_greedy_face_indices_by_block: Option<HashMap<u32, [i16; 6]>> = None;
 
     let mut greedy_mask: Vec<Option<FaceData>> = Vec::new();
     let identity_rotation = BlockRotation::PY(0.0);
@@ -4067,16 +4069,36 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_non_greedy_block = !greedy_without_rotation;
                     let greedy_face_index = if is_non_greedy_block {
                         -1i16
-                    } else {
-                        if cache_ready {
-                            let face_index = block.greedy_face_indices[dir_index];
-                            if face_index == -1 {
-                                continue;
-                            }
-                            face_index
-                        } else {
-                            -1
+                    } else if cache_ready {
+                        let face_index = block.greedy_face_indices[dir_index];
+                        if face_index == -1 {
+                            continue;
                         }
+                        face_index
+                    } else {
+                        let face_index = {
+                            let block_id_index = block.id as usize;
+                            if block_id_index < uncached_greedy_face_indices.len() {
+                                let face_indices =
+                                    &mut uncached_greedy_face_indices[block_id_index];
+                                if face_indices[0] == i16::MIN {
+                                    *face_indices = compute_greedy_face_indices(&block.faces);
+                                }
+                                face_indices[dir_index]
+                            } else {
+                                let face_indices_by_block =
+                                    sparse_uncached_greedy_face_indices_by_block
+                                        .get_or_insert_with(|| HashMap::with_capacity(16));
+                                face_indices_by_block
+                                    .entry(block.id)
+                                    .or_insert_with(|| compute_greedy_face_indices(&block.faces))
+                                    [dir_index]
+                            }
+                        };
+                        if face_index == -1 {
+                            continue;
+                        }
+                        face_index
                     };
 
                     let current_voxel_index = if is_opaque || is_non_greedy_block {
