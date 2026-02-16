@@ -294,7 +294,9 @@ impl Pipeline {
             return Vec::new();
         }
         if pending_len == 1 {
-            let coords = *self.pending_regenerate.iter().next().unwrap();
+            let Some(coords) = self.pending_regenerate.iter().next().copied() else {
+                return Vec::new();
+            };
             self.pending_regenerate.clear();
             return vec![coords];
         }
@@ -406,7 +408,9 @@ impl Pipeline {
         let registry = Arc::new(registry.to_owned());
         let config = Arc::new(config.to_owned());
         if processes_with_stages.len() == 1 {
-            let (chunk, space, stage) = processes_with_stages.pop().unwrap();
+            let Some((chunk, space, stage)) = processes_with_stages.pop() else {
+                return;
+            };
             rayon::spawn(move || {
                 let mut chunk = stage.process(
                     chunk,

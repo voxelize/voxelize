@@ -170,7 +170,9 @@ impl Mesher {
             return Vec::new();
         }
         if pending_len == 1 {
-            let coords = *self.pending_remesh.iter().next().unwrap();
+            let Some(coords) = self.pending_remesh.iter().next().copied() else {
+                return Vec::new();
+            };
             self.pending_remesh.clear();
             return vec![coords];
         }
@@ -189,7 +191,9 @@ impl Mesher {
     ) {
         let mut processes = processes;
         if processes.len() == 1 {
-            let (chunk, space) = processes.pop().unwrap();
+            let Some((chunk, space)) = processes.pop() else {
+                return;
+            };
             if self.map.insert(chunk.coords) {
                 processes.push((chunk, space));
             } else {
