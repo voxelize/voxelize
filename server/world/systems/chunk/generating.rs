@@ -69,7 +69,76 @@ fn contains_single_client_interest(ids: &HashSet<String>, single_client_id: &str
                 || second_id.as_str() == single_client_id
                 || third_id.as_str() == single_client_id
         }
-        4 | 5 | 6 | 7 | 8 | 9 => {
+        4 => {
+            let mut ids_iter = ids.iter();
+            let first_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("four client-interest length matched branch");
+                };
+                id
+            };
+            let second_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("four client-interest length matched branch");
+                };
+                id
+            };
+            let third_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("four client-interest length matched branch");
+                };
+                id
+            };
+            let fourth_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("four client-interest length matched branch");
+                };
+                id
+            };
+            first_id.as_str() == single_client_id
+                || second_id.as_str() == single_client_id
+                || third_id.as_str() == single_client_id
+                || fourth_id.as_str() == single_client_id
+        }
+        5 => {
+            let mut ids_iter = ids.iter();
+            let first_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("five client-interest length matched branch");
+                };
+                id
+            };
+            let second_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("five client-interest length matched branch");
+                };
+                id
+            };
+            let third_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("five client-interest length matched branch");
+                };
+                id
+            };
+            let fourth_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("five client-interest length matched branch");
+                };
+                id
+            };
+            let fifth_id = {
+                let Some(id) = ids_iter.next() else {
+                    unreachable!("five client-interest length matched branch");
+                };
+                id
+            };
+            first_id.as_str() == single_client_id
+                || second_id.as_str() == single_client_id
+                || third_id.as_str() == single_client_id
+                || fourth_id.as_str() == single_client_id
+                || fifth_id.as_str() == single_client_id
+        }
+        6 | 7 | 8 | 9 => {
             for id in ids {
                 if id.as_str() == single_client_id {
                     return true;
@@ -815,6 +884,20 @@ mod tests {
         tiny.insert("c".to_string());
         assert!(contains_single_client_interest(&tiny, "b"));
         assert!(!contains_single_client_interest(&tiny, "z"));
+
+        let mut four = HashSet::with_capacity(4);
+        for id in ["a", "b", "c", "d"] {
+            four.insert(id.to_string());
+        }
+        assert!(contains_single_client_interest(&four, "c"));
+        assert!(!contains_single_client_interest(&four, "missing"));
+
+        let mut five = HashSet::with_capacity(5);
+        for id in ["a", "b", "c", "d", "e"] {
+            five.insert(id.to_string());
+        }
+        assert!(contains_single_client_interest(&five, "e"));
+        assert!(!contains_single_client_interest(&five, "missing"));
 
         let mut larger = HashSet::with_capacity(8);
         for id in ["a", "b", "c", "d", "e", "f", "g", "h", "i"] {
