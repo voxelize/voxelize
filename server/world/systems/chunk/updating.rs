@@ -221,6 +221,7 @@ fn process_pending_updates(
         bool,
         bool,
         bool,
+        bool,
     )>> = None;
 
     for (coords, chunk_updates) in updates_by_chunk {
@@ -418,6 +419,7 @@ fn process_pending_updates(
                     current_rotatable,
                     updated_rotatable,
                     needs_transparency,
+                    updated_has_dynamic_patterns,
                 ));
 
             results.push(UpdateProtocol {
@@ -511,6 +513,7 @@ fn process_pending_updates(
             current_rotatable,
             updated_rotatable,
             needs_transparency,
+            updated_has_dynamic_patterns,
         ) in processed_updates
         {
             let Vec3(vx, vy, vz) = voxel;
@@ -698,7 +701,7 @@ fn process_pending_updates(
             }
 
             if updated_is_light {
-                let (red_level, green_level, blue_level) = if updated_type.dynamic_patterns.is_some() {
+                let (red_level, green_level, blue_level) = if updated_has_dynamic_patterns {
                     (
                         updated_type.get_torch_light_level_at(&voxel, &*chunks, &RED),
                         updated_type.get_torch_light_level_at(&voxel, &*chunks, &GREEN),
