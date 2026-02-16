@@ -26,6 +26,12 @@ impl ChunkSendingSystem {
 }
 
 #[inline]
+fn take_set_with_capacity<T>(buffer: &mut HashSet<T>) -> HashSet<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, HashSet::with_capacity(capacity))
+}
+
+#[inline]
 fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u32)> {
     if updated_levels.is_empty() {
         return None;
@@ -45,11 +51,11 @@ fn take_updated_level_range(updated_levels: &mut HashSet<u32>) -> Option<(u32, u
         return Some((level, max_level_exclusive));
     }
 
-    let mut iter = updated_levels.drain();
-    let first = iter.next()?;
+    let mut updated_levels_iter = take_set_with_capacity(updated_levels).into_iter();
+    let first = updated_levels_iter.next()?;
     let mut min_level = first;
     let mut max_level = first;
-    for level in iter {
+    for level in updated_levels_iter {
         min_level = min_level.min(level);
         max_level = max_level.max(level);
     }
