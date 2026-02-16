@@ -2613,6 +2613,42 @@ describe("Type builders", () => {
     });
   });
 
+  it("normalizes ownKeys-trapped empty-iterator combination rule entries to none", () => {
+    const ownKeysTrappedRules = new Proxy(
+      [
+        {
+          type: "simple",
+          offset: [0, 0, 0],
+          id: 5,
+        },
+      ],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 0;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: ownKeysTrappedRules as never,
+      })
+    ).toEqual(BLOCK_RULE_NONE);
+  });
+
   it("clones nested rules with createBlockRule", () => {
     const sourceRule: BlockRule = {
       type: "combination",
