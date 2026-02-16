@@ -202,8 +202,7 @@ fn process_pending_updates(
         }
     }
 
-    let mut removed_light_sources =
-        Vec::with_capacity(num_to_process);
+    let mut removed_light_sources: Option<Vec<(Vec3<i32>, u32, u32, u32, bool)>> = None;
     let mut processed_updates = Vec::with_capacity(num_to_process);
 
     for (coords, chunk_updates) in updates_by_chunk {
@@ -300,13 +299,15 @@ fn process_pending_updates(
             chunks.set_voxel_stage(vx, vy, vz, stage);
 
             if let Some((red_level, green_level, blue_level)) = removed_source_levels {
-                removed_light_sources.push((
-                    voxel,
-                    red_level,
-                    green_level,
-                    blue_level,
-                    current_type.is_opaque,
-                ));
+                removed_light_sources
+                    .get_or_insert_with(|| Vec::with_capacity(num_to_process))
+                    .push((
+                        voxel,
+                        red_level,
+                        green_level,
+                        blue_level,
+                        current_type.is_opaque,
+                    ));
             }
 
             let existing_entity = chunks.block_entities.remove(&voxel);
@@ -411,30 +412,33 @@ fn process_pending_updates(
         }
     }
 
-    let mut red_removals = Vec::with_capacity(removed_light_sources.len());
-    let mut green_removals = Vec::with_capacity(removed_light_sources.len());
-    let mut blue_removals = Vec::with_capacity(removed_light_sources.len());
+    let removed_light_source_count = removed_light_sources.as_ref().map_or(0, Vec::len);
+    let mut red_removals = Vec::with_capacity(removed_light_source_count);
+    let mut green_removals = Vec::with_capacity(removed_light_source_count);
+    let mut blue_removals = Vec::with_capacity(removed_light_source_count);
 
-    for &(voxel, red_level, green_level, blue_level, is_opaque) in &removed_light_sources {
-        if red_level > 0 {
-            red_removals.push(voxel);
-        }
-        if green_level > 0 {
-            green_removals.push(voxel);
-        }
-        if blue_level > 0 {
-            blue_removals.push(voxel);
-        }
+    if let Some(removed_light_sources) = removed_light_sources.as_ref() {
+        for &(voxel, red_level, green_level, blue_level, is_opaque) in removed_light_sources {
+            if red_level > 0 {
+                red_removals.push(voxel);
+            }
+            if green_level > 0 {
+                green_removals.push(voxel);
+            }
+            if blue_level > 0 {
+                blue_removals.push(voxel);
+            }
 
-        let Vec3(vx, vy, vz) = voxel;
-        if is_opaque && chunks.get_sunlight(vx, vy, vz) != 0 {
-            Lights::remove_light_with_light_config(
-                &mut *chunks,
-                &voxel,
-                &SUNLIGHT,
-                light_registry,
-                light_cfg,
-            );
+            let Vec3(vx, vy, vz) = voxel;
+            if is_opaque && chunks.get_sunlight(vx, vy, vz) != 0 {
+                Lights::remove_light_with_light_config(
+                    &mut *chunks,
+                    &voxel,
+                    &SUNLIGHT,
+                    light_registry,
+                    light_cfg,
+                );
+            }
         }
     }
 
