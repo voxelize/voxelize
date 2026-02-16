@@ -643,6 +643,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         bookkeeping.entities = new_bookkeeping_records;
         self.bookkeeping_records_buffer = old_entities;
         bookkeeping.entity_positions = entity_positions;
+        if self.clients_with_updates_buffer.is_empty() {
+            return;
+        }
 
         if self.clients_with_updates_buffer.len() == 1 {
             if let Some(client_id) = self.clients_with_updates_buffer.pop() {
