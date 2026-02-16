@@ -119,6 +119,25 @@ describe("report-utils", () => {
         },
       }
     );
+    const ownKeysTrappedObject = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+      }
+    );
+    const ownKeysTrappedArray = new Proxy([1, 2, 3], {
+      ownKeys() {
+        throw new Error("array ownKeys trap");
+      },
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("array iterator trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
     const malformedThisValues: Array<
       null | undefined | number | string | boolean | bigint | symbol | object
     > = [
@@ -131,6 +150,8 @@ describe("report-utils", () => {
       Symbol("ctx"),
       {},
       trappedValue,
+      ownKeysTrappedObject,
+      ownKeysTrappedArray,
       revokedObject,
       revokedArray,
     ];
@@ -143,8 +164,11 @@ describe("report-utils", () => {
       [trappedValue],
       [revokedObject],
       [revokedArray],
+      [ownKeysTrappedObject],
+      [ownKeysTrappedArray],
       [Symbol("arg-token")],
       [BigInt(7)],
+      [trappedValue, ownKeysTrappedObject],
       [trappedValue, revokedObject],
       [42, trappedValue, revokedArray, Symbol("arg-sentinel")],
     ];
