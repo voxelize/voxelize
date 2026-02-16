@@ -77,7 +77,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             to_send.clear();
             to_send_touched_clients.clear();
         }
-        if (&ids, &requests).join().next().is_none() {
+        if (&requests).join().next().is_none() {
             return;
         }
 
