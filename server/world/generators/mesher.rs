@@ -199,11 +199,10 @@ impl Mesher {
             return Vec::new();
         }
         if pending_len == 1 {
-            let Some(coords) = self.pending_remesh.iter().next().copied() else {
-                return Vec::new();
-            };
-            self.pending_remesh.clear();
-            return vec![coords];
+            if let Some(coords) = self.pending_remesh.drain().next() {
+                return vec![coords];
+            }
+            return Vec::new();
         }
 
         let mut drained = Vec::with_capacity(pending_len);
