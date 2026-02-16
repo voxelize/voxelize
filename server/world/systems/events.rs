@@ -264,10 +264,24 @@ impl<'a> System<'a> for EventsSystem {
                 transports_map,
                 Vec::with_capacity(next_transport_event_capacity),
             );
-            let message = Message::new(&MessageType::Event)
-                .world_name(&world_metadata.world_name)
-                .events_owned(transports_events_to_send)
-                .build();
+            let message = if transports_events_to_send.len() == 1 {
+                let mut transports_events_to_send = transports_events_to_send;
+                if let Some(single_event) = transports_events_to_send.pop() {
+                    Message::new(&MessageType::Event)
+                        .world_name(&world_metadata.world_name)
+                        .event_owned(single_event)
+                        .build()
+                } else {
+                    Message::new(&MessageType::Event)
+                        .world_name(&world_metadata.world_name)
+                        .build()
+                }
+            } else {
+                Message::new(&MessageType::Event)
+                    .world_name(&world_metadata.world_name)
+                    .events_owned(transports_events_to_send)
+                    .build()
+            };
             let encoded = Bytes::from(encode_message(&message));
             send_to_transports(&transports, encoded);
             return;
@@ -548,10 +562,24 @@ impl<'a> System<'a> for EventsSystem {
                 transports_map,
                 Vec::with_capacity(next_transport_event_capacity),
             );
-            let message = Message::new(&MessageType::Event)
-                .world_name(&world_metadata.world_name)
-                .events_owned(transports_events_to_send)
-                .build();
+            let message = if transports_events_to_send.len() == 1 {
+                let mut transports_events_to_send = transports_events_to_send;
+                if let Some(single_event) = transports_events_to_send.pop() {
+                    Message::new(&MessageType::Event)
+                        .world_name(&world_metadata.world_name)
+                        .event_owned(single_event)
+                        .build()
+                } else {
+                    Message::new(&MessageType::Event)
+                        .world_name(&world_metadata.world_name)
+                        .build()
+                }
+            } else {
+                Message::new(&MessageType::Event)
+                    .world_name(&world_metadata.world_name)
+                    .events_owned(transports_events_to_send)
+                    .build()
+            };
             let encoded = Bytes::from(encode_message(&message));
             send_to_transports(&transports, encoded);
         }
