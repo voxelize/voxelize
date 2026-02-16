@@ -1973,9 +1973,9 @@ describe("Numeric helpers", () => {
       trappedArray,
     ];
     const allowedErrorPatterns = [
-      /^BlockUtils\.insertAll\(\d+\): RangeError: Maximum stage is 15$/,
-      /^BlockUtils\.insertStage\(\d+\): RangeError: Maximum stage is 15$/,
-      /^Voxel\.withStage\(\d+\): RangeError: Maximum stage is 15$/,
+      /^BlockUtils\.insertAll(?:\[this:[^|]+\|args:\d+\]|\(\d+\)): RangeError: Maximum stage is 15$/,
+      /^BlockUtils\.insertStage(?:\[this:[^|]+\|args:\d+\]|\(\d+\)): RangeError: Maximum stage is 15$/,
+      /^Voxel\.withStage(?:\[this:[^|]+\|args:\d+\]|\(\d+\)): RangeError: Maximum stage is 15$/,
     ];
     const unexpectedThrownSignatures: string[] = [];
 
@@ -2011,15 +2011,18 @@ describe("Numeric helpers", () => {
           continue;
         }
 
-        for (const args of malformedArgSets) {
-          try {
-            Reflect.apply(staticMethod, exportValue, args);
-          } catch (error) {
-            const errorSignature =
-              error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-            const signature = `${exportName}.${staticMethodName}(${args.length}): ${errorSignature}`;
-            if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
-              unexpectedThrownSignatures.push(signature);
+        for (const thisValue of malformedThisValues) {
+          for (const args of malformedArgSets) {
+            try {
+              Reflect.apply(staticMethod, thisValue, args);
+            } catch (error) {
+              const errorSignature =
+                error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+              const thisLabel = thisValue === null ? "null" : typeof thisValue;
+              const signature = `${exportName}.${staticMethodName}[this:${thisLabel}|args:${args.length}]: ${errorSignature}`;
+              if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
+                unexpectedThrownSignatures.push(signature);
+              }
             }
           }
         }
