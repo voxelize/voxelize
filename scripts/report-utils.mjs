@@ -726,10 +726,21 @@ const cloneIndexedArraySafelyWithMetadata = (value) => {
   }
 
   try {
+    const iteratorEntries = Array.from(value).map((entryValue, entryIndex) => {
+      return toIndexedArrayEntry(entryIndex, entryValue);
+    });
+    if (iteratorEntries.length === 0) {
+      const fallbackEntries = cloneIndexedArrayFromIndexedAccess(value);
+      if (fallbackEntries !== null && fallbackEntries.length > 0) {
+        return {
+          entries: fallbackEntries,
+          fromIndexedFallback: true,
+        };
+      }
+    }
+
     return {
-      entries: Array.from(value).map((entryValue, entryIndex) => {
-        return toIndexedArrayEntry(entryIndex, entryValue);
-      }),
+      entries: iteratorEntries,
       fromIndexedFallback: false,
     };
   } catch {
