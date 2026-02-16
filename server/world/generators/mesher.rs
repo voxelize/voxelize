@@ -306,7 +306,11 @@ impl Mesher {
                                     for (queue, subqueue) in
                                         light_queues.iter_mut().zip(light_subqueues)
                                     {
-                                        queue.extend(subqueue);
+                                        if queue.is_empty() {
+                                            *queue = subqueue;
+                                        } else if !subqueue.is_empty() {
+                                            queue.extend(subqueue);
+                                        }
                                     }
                                 } else {
                                     light_queues = Some(light_subqueues);
