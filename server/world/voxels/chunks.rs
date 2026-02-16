@@ -533,10 +533,14 @@ impl Chunks {
             .saturating_add(chunk_size.saturating_sub(1))
             / chunk_size)
             .min(i32::MAX as usize) as i32;
-        let min_x = coords.0.saturating_sub(extended).max(self.config.min_chunk[0]);
-        let max_x = coords.0.saturating_add(extended).min(self.config.max_chunk[0]);
-        let min_z = coords.1.saturating_sub(extended).max(self.config.min_chunk[1]);
-        let max_z = coords.1.saturating_add(extended).min(self.config.max_chunk[1]);
+        let min_chunk_x = self.config.min_chunk[0];
+        let max_chunk_x = self.config.max_chunk[0];
+        let min_chunk_z = self.config.min_chunk[1];
+        let max_chunk_z = self.config.max_chunk[1];
+        let min_x = coords.0.saturating_sub(extended).max(min_chunk_x);
+        let max_x = coords.0.saturating_add(extended).min(max_chunk_x);
+        let min_z = coords.1.saturating_sub(extended).max(min_chunk_z);
+        let max_z = coords.1.saturating_add(extended).min(max_chunk_z);
         if min_x > max_x || min_z > max_z {
             return None;
         }
@@ -556,18 +560,14 @@ impl Chunks {
             .min(i32::MAX as usize) as i32;
         let min_center = clamped_radius.saturating_neg();
         let max_center = clamped_radius;
-        let min_x = min_center
-            .saturating_sub(extended)
-            .max(self.config.min_chunk[0]);
-        let max_x = max_center
-            .saturating_add(extended)
-            .min(self.config.max_chunk[0]);
-        let min_z = min_center
-            .saturating_sub(extended)
-            .max(self.config.min_chunk[1]);
-        let max_z = max_center
-            .saturating_add(extended)
-            .min(self.config.max_chunk[1]);
+        let min_chunk_x = self.config.min_chunk[0];
+        let max_chunk_x = self.config.max_chunk[0];
+        let min_chunk_z = self.config.min_chunk[1];
+        let max_chunk_z = self.config.max_chunk[1];
+        let min_x = min_center.saturating_sub(extended).max(min_chunk_x);
+        let max_x = max_center.saturating_add(extended).min(max_chunk_x);
+        let min_z = min_center.saturating_sub(extended).max(min_chunk_z);
+        let max_z = max_center.saturating_add(extended).min(max_chunk_z);
         if min_x > max_x || min_z > max_z {
             return None;
         }
