@@ -5,7 +5,7 @@ use voxelize_lighter::{
     can_enter as lighter_can_enter, can_enter_into as lighter_can_enter_into,
     flood_light as lighter_flood_light, propagate as lighter_propagate,
     remove_light as lighter_remove_light, remove_lights as lighter_remove_lights, LightBounds,
-    LightConfig, LightNode as LighterNode, LightVoxelAccess,
+    LightConfig, LightNode as LighterNode, LightRegistry, LightVoxelAccess,
 };
 
 pub type LightNode = LighterNode;
@@ -111,6 +111,20 @@ mod tests {
 pub struct Lights;
 
 impl Lights {
+    pub fn flood_light_with_light_registry(
+        space: &mut dyn LightVoxelAccess,
+        queue: VecDeque<LightNode>,
+        color: &LightColor,
+        light_registry: &LightRegistry,
+        config: &WorldConfig,
+        min: Option<&Vec3<i32>>,
+        shape: Option<&Vec3<usize>>,
+    ) {
+        let light_config = convert_config(config);
+        let bounds = convert_bounds(min, shape, &light_config);
+        lighter_flood_light(space, queue, color, &light_config, bounds.as_ref(), light_registry);
+    }
+
     pub fn flood_light(
         space: &mut dyn LightVoxelAccess,
         queue: VecDeque<LightNode>,
@@ -120,16 +134,14 @@ impl Lights {
         min: Option<&Vec3<i32>>,
         shape: Option<&Vec3<usize>>,
     ) {
-        let light_registry = registry.lighter_registry_ref();
-        let light_config = convert_config(config);
-        let bounds = convert_bounds(min, shape, &light_config);
-        lighter_flood_light(
+        Self::flood_light_with_light_registry(
             space,
             queue,
             color,
-            &light_config,
-            bounds.as_ref(),
-            light_registry.as_ref(),
+            registry.lighter_registry_ref().as_ref(),
+            config,
+            min,
+            shape,
         );
     }
 
@@ -176,15 +188,24 @@ impl Lights {
         registry: &Registry,
         config: &WorldConfig,
     ) -> [VecDeque<LightNode>; 4] {
-        let light_registry = registry.lighter_registry_ref();
-        let light_config = convert_config(config);
-        lighter_propagate(
+        Self::propagate_with_light_registry(
             space,
-            [min.0, min.1, min.2],
-            [shape.0, shape.1, shape.2],
-            light_registry.as_ref(),
-            &light_config,
+            min,
+            shape,
+            registry.lighter_registry_ref().as_ref(),
+            config,
         )
+    }
+
+    pub fn propagate_with_light_registry(
+        space: &mut dyn LightVoxelAccess,
+        min: &Vec3<i32>,
+        shape: &Vec3<usize>,
+        light_registry: &LightRegistry,
+        config: &WorldConfig,
+    ) -> [VecDeque<LightNode>; 4] {
+        let light_config = convert_config(config);
+        lighter_propagate(space, [min.0, min.1, min.2], [shape.0, shape.1, shape.2], light_registry, &light_config)
     }
 
     pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {

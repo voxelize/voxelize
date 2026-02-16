@@ -231,7 +231,7 @@ impl Mesher {
         let sender = Arc::clone(&self.sender);
         let msg_type = *r#type;
         let mesher_registry = Arc::clone(registry.mesher_registry_ref());
-        let registry = Arc::new(registry.clone());
+        let light_registry = Arc::clone(registry.lighter_registry_ref());
         let config = Arc::new(config.clone());
         let greedy_meshing = config.greedy_meshing;
         let chunk_size = if config.chunk_size == 0 {
@@ -283,8 +283,13 @@ impl Mesher {
                                     chunk_size_usize + if center { 2 } else { 0 },
                                 );
 
-                                let light_subqueues =
-                                    Lights::propagate(&mut space, &min, &shape, &registry, &config);
+                                let light_subqueues = Lights::propagate_with_light_registry(
+                                    &mut space,
+                                    &min,
+                                    &shape,
+                                    light_registry.as_ref(),
+                                    &config,
+                                );
 
                                 for (queue, subqueue) in light_queues.iter_mut().zip(light_subqueues) {
                                     queue.extend(subqueue);
@@ -294,18 +299,17 @@ impl Mesher {
 
                         for (queue, color) in light_queues.into_iter().zip(LIGHT_COLORS.iter()) {
                             if !queue.is_empty() {
-                                Lights::flood_light(
+                                Lights::flood_light_with_light_registry(
                                     &mut space,
                                     queue,
                                     color,
-                                    &registry,
+                                    light_registry.as_ref(),
                                     &config,
                                     Some(&min),
                                     Some(&shape),
                                 );
                             }
                         }
-
                     }
 
                     let chunk_meshes = chunk.meshes.get_or_insert_with(HashMap::new);
