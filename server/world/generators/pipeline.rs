@@ -495,9 +495,6 @@ impl Pipeline {
             }
             return results;
         }
-        if self.receiver.is_empty() {
-            return Vec::new();
-        }
         let initial_capacity = self.receiver.len().min(self.chunks.len());
         let mut results = None;
 
