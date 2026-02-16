@@ -1591,9 +1591,19 @@ fn has_cardinal_faces(block: &Block) -> bool {
 }
 
 #[inline(always)]
-fn can_greedy_mesh_block(block: &Block) -> bool {
+fn block_greedy_without_rotation_cached(block: &Block, uncached_eligibility: &mut [i8]) -> bool {
     if block.cache_ready {
-        block.greedy_mesh_eligible_no_rotation
+        return block.greedy_mesh_eligible_no_rotation;
+    }
+    let cache_index = block.id as usize;
+    if cache_index < uncached_eligibility.len() {
+        let cached = uncached_eligibility[cache_index];
+        if cached != -1 {
+            return cached == 1;
+        }
+        let value = block.can_greedy_mesh_without_rotation();
+        uncached_eligibility[cache_index] = if value { 1 } else { 0 };
+        value
     } else {
         block.can_greedy_mesh_without_rotation()
     }
@@ -3203,6 +3213,11 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
     const OCCLUSION_UNKNOWN: u8 = 2;
     let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
+    let uncached_eligibility_cache_len = registry
+        .dense_block_flags
+        .as_ref()
+        .map_or(0, |flags| flags.len());
+    let mut uncached_greedy_eligibility = vec![-1i8; uncached_eligibility_cache_len];
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: Vec<Option<FaceData>> = vec![None; slice_size * slice_size];
@@ -3323,7 +3338,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         }
                     }
 
-                    let is_non_greedy_block = !can_greedy_mesh_block(block);
+                    let is_non_greedy_block = !block_greedy_without_rotation_cached(
+                        block,
+                        &mut uncached_greedy_eligibility,
+                    );
                     let non_greedy_voxel_key = if is_non_greedy_block {
                         let voxel_key = ((vx - min_x) as usize) * yz_span
                             + ((vy - min_y) as usize) * z_span
@@ -3937,6 +3955,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
     const OCCLUSION_UNKNOWN: u8 = 2;
     let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
+    let uncached_eligibility_cache_len = registry
+        .dense_block_flags
+        .as_ref()
+        .map_or(0, |flags| flags.len());
+    let mut uncached_greedy_eligibility = vec![-1i8; uncached_eligibility_cache_len];
 
     let mut greedy_mask: Vec<Option<FaceData>> = Vec::new();
     let identity_rotation = BlockRotation::PY(0.0);
@@ -4038,11 +4061,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     }
 
-                    let greedy_without_rotation = if cache_ready {
-                        block.greedy_mesh_eligible_no_rotation
-                    } else {
-                        block.can_greedy_mesh_without_rotation()
-                    };
+                    let greedy_without_rotation = block_greedy_without_rotation_cached(
+                        block,
+                        &mut uncached_greedy_eligibility,
+                    );
                     let is_non_greedy_block = !greedy_without_rotation;
                     let greedy_face_index = if is_non_greedy_block {
                         -1i16
