@@ -356,12 +356,18 @@ impl Registry {
 
     /// Check if block is air by id.
     pub fn is_air(&self, id: u32) -> bool {
-        self.get_block_by_id(id).name == "Air"
+        self.blocks_by_id
+            .get(&id)
+            .map(|block| block.name == "Air")
+            .unwrap_or(true)
     }
 
     /// Check if block is fluid by id.
     pub fn is_fluid(&self, id: u32) -> bool {
-        self.get_block_by_id(id).is_fluid
+        self.blocks_by_id
+            .get(&id)
+            .map(|block| block.is_fluid)
+            .unwrap_or(false)
     }
 
     /// Get type map of all blocks.
