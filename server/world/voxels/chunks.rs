@@ -463,6 +463,9 @@ impl Chunks {
         let Some((min_x, max_x, min_z, max_z)) = self.light_traversed_bounds(coords) else {
             return Vec::new();
         };
+        if min_x == max_x && min_z == max_z {
+            return vec![Vec2(min_x, min_z)];
+        }
 
         let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
         let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
