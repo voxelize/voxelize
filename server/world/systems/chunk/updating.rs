@@ -666,7 +666,9 @@ fn process_pending_updates(
                 .needs_voxels()
                 .needs_lights()
                 .build();
-            let chunk = chunks.raw(&coords).unwrap().to_owned();
+            let Some(chunk) = chunks.raw(&coords).cloned() else {
+                continue;
+            };
             processes.push((chunk, space));
         }
 
@@ -720,7 +722,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             if active.tick > current_tick {
                 break;
             }
-            let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
+            let Some(Reverse(active)) = chunks.active_voxel_heap.pop() else {
+                break;
+            };
             if chunks.active_voxel_set.remove(&active.voxel).is_some() {
                 due_voxels.push(active.voxel);
             }
