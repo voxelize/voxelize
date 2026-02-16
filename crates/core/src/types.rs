@@ -303,7 +303,6 @@ impl BlockFace {
 }
 
 const PI_2: f32 = PI / 2.0;
-const TRANSPARENCY_FACE_MARKERS: [f32; 6] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum BlockRotation {
@@ -501,16 +500,18 @@ impl BlockRotation {
 
     #[inline]
     fn transparency_for_marker(marker: f32, source_faces: &[bool; 6]) -> bool {
-        let mut nearest_face = 0usize;
-        let mut nearest_distance = (marker - TRANSPARENCY_FACE_MARKERS[0]).abs();
-        for (face_index, face_marker) in TRANSPARENCY_FACE_MARKERS.iter().enumerate().skip(1) {
-            let distance = (marker - *face_marker).abs();
-            if distance < nearest_distance {
-                nearest_distance = distance;
-                nearest_face = face_index;
-            }
+        if !marker.is_finite() {
+            return source_faces[5];
         }
-        source_faces[nearest_face]
+        let rounded = marker.round();
+        let source_index = if rounded <= 1.0 {
+            0
+        } else if rounded >= 6.0 {
+            5
+        } else {
+            rounded as usize - 1
+        };
+        source_faces[source_index]
     }
 
     fn rotate_x(&self, node: &mut [f32; 3], theta: f32) {

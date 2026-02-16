@@ -19,18 +19,38 @@ static TRANSPARENCY_ROTATION_MAPS: OnceLock<
 
 #[inline]
 fn transparency_source_index(marker: f32) -> usize {
-    if marker == 1.0 {
-        0
-    } else if marker == 2.0 {
-        1
-    } else if marker == 3.0 {
-        2
-    } else if marker == 4.0 {
-        3
-    } else if marker == 5.0 {
-        4
-    } else {
+    if !marker.is_finite() {
         5
+    } else {
+        let rounded = marker.round();
+        if rounded <= 1.0 {
+            0
+        } else if rounded >= 6.0 {
+            5
+        } else {
+            rounded as usize - 1
+        }
+    }
+}
+
+#[cfg(test)]
+mod transparency_source_index_tests {
+    use super::transparency_source_index;
+
+    #[test]
+    fn transparency_source_index_rounds_close_markers() {
+        assert_eq!(transparency_source_index(0.999_999_94), 0);
+        assert_eq!(transparency_source_index(2.000_000_2), 1);
+        assert_eq!(transparency_source_index(3.49), 2);
+        assert_eq!(transparency_source_index(4.51), 4);
+    }
+
+    #[test]
+    fn transparency_source_index_clamps_non_finite_and_out_of_bounds_values() {
+        assert_eq!(transparency_source_index(f32::NAN), 5);
+        assert_eq!(transparency_source_index(f32::INFINITY), 5);
+        assert_eq!(transparency_source_index(-10.0), 0);
+        assert_eq!(transparency_source_index(100.0), 5);
     }
 }
 
