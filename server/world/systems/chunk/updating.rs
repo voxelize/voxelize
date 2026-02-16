@@ -452,6 +452,10 @@ fn process_pending_updates(
         }
     }
 
+    if processed_updates.is_none() {
+        return results;
+    }
+
     let removed_light_source_count = removed_light_sources.as_ref().map_or(0, Vec::len);
     let removal_initial_capacity = removed_light_source_count.min(32);
     let mut red_removals: Option<Vec<Vec3<i32>>> = None;
