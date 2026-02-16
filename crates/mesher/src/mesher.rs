@@ -4519,11 +4519,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         });
                         let uv_range = face.range;
                         let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
-                            if block.greedy_face_indices[dir_index] == face_index as i16 {
-                                block.greedy_face_uv_quantized[dir_index]
-                            } else {
-                                quantize_uv_range(uv_range)
-                            }
+                            block.greedy_face_uv_quantized[dir_index]
                         } else {
                             quantize_uv_range(uv_range)
                         };
