@@ -9088,6 +9088,84 @@ describe("report-utils", () => {
     ]);
     expect(statefulValueOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(1);
     expect(statefulValueOptionReadCount).toBe(1);
+    const emptyIteratorValueOptionDiagnostics = createCliDiagnostics(
+      ["--output", "-l"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-l"],
+        },
+        optionsWithValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              return "--output";
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(emptyIteratorValueOptionDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-l",
+    ]);
+    expect(emptyIteratorValueOptionDiagnostics.supportedCliOptionCount).toBe(3);
+    expect(emptyIteratorValueOptionDiagnostics.availableCliOptionAliases).toEqual({
+      "--json": ["-l"],
+    });
+    expect(emptyIteratorValueOptionDiagnostics.availableCliOptionCanonicalMap).toEqual(
+      {
+        "--output": "--output",
+        "--json": "--json",
+        "-l": "--json",
+      }
+    );
+    expect(emptyIteratorValueOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(emptyIteratorValueOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(emptyIteratorValueOptionDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(emptyIteratorValueOptionDiagnostics.validationErrorCode).toBeNull();
+    expect(emptyIteratorValueOptionDiagnostics.activeCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(emptyIteratorValueOptionDiagnostics.activeCliOptionCount).toBe(2);
+    expect(emptyIteratorValueOptionDiagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+      "-l",
+    ]);
+    expect(emptyIteratorValueOptionDiagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-l",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(emptyIteratorValueOptionDiagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(emptyIteratorValueOptionDiagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-l",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(emptyIteratorValueOptionDiagnostics.activeCliOptionOccurrenceCount).toBe(2);
     let statefulStrictValueOptionReadCount = 0;
     const statefulStrictValueOptionDiagnostics = createCliDiagnostics(
       ["--output", "-j"],
@@ -9178,6 +9256,97 @@ describe("report-utils", () => {
       statefulStrictValueOptionDiagnostics.activeCliOptionOccurrenceCount
     ).toBe(2);
     expect(statefulStrictValueOptionReadCount).toBe(2);
+    const emptyIteratorStrictValueOptionDiagnostics = createCliDiagnostics(
+      ["--output", "-j"],
+      {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: new Proxy(["--output"], {
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              return "--output";
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      }
+    );
+    expect(emptyIteratorStrictValueOptionDiagnostics.supportedCliOptions).toEqual([
+      "--output",
+      "--json",
+      "-j",
+    ]);
+    expect(emptyIteratorStrictValueOptionDiagnostics.supportedCliOptionCount).toBe(
+      3
+    );
+    expect(emptyIteratorStrictValueOptionDiagnostics.availableCliOptionAliases).toEqual(
+      {
+        "--json": ["-j"],
+      }
+    );
+    expect(
+      emptyIteratorStrictValueOptionDiagnostics.availableCliOptionCanonicalMap
+    ).toEqual({
+      "--output": "--output",
+      "--json": "--json",
+      "-j": "--json",
+    });
+    expect(emptyIteratorStrictValueOptionDiagnostics.unknownOptions).toEqual([]);
+    expect(emptyIteratorStrictValueOptionDiagnostics.unknownOptionCount).toBe(0);
+    expect(emptyIteratorStrictValueOptionDiagnostics.unsupportedOptionsError).toBeNull();
+    expect(emptyIteratorStrictValueOptionDiagnostics.validationErrorCode).toBeNull();
+    expect(emptyIteratorStrictValueOptionDiagnostics.activeCliOptions).toEqual([
+      "--output",
+      "--json",
+    ]);
+    expect(emptyIteratorStrictValueOptionDiagnostics.activeCliOptionCount).toBe(2);
+    expect(emptyIteratorStrictValueOptionDiagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+      "-j",
+    ]);
+    expect(
+      emptyIteratorStrictValueOptionDiagnostics.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      emptyIteratorStrictValueOptionDiagnostics.activeCliOptionResolutionCount
+    ).toBe(2);
+    expect(
+      emptyIteratorStrictValueOptionDiagnostics.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "-j",
+        canonicalOption: "--json",
+        index: 1,
+      },
+    ]);
+    expect(
+      emptyIteratorStrictValueOptionDiagnostics.activeCliOptionOccurrenceCount
+    ).toBe(2);
     const nonArrayAliasMetadataDiagnostics = createCliDiagnostics(
       ["--verify", "--mystery"],
       {
