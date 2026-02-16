@@ -543,27 +543,12 @@ const isRotationValue = (value: DynamicValue): value is number => {
   return isNonNegativeIntegerValue(value) && value <= 0x0f;
 };
 
-const isBooleanObjectValue = (value: DynamicValue): value is Boolean => {
-  if (value === null || typeof value !== "object") {
-    return false;
-  }
-
-  try {
-    return (
-      Object.prototype.toString.call(value) === "[object Boolean]" ||
-      value instanceof Boolean
-    );
-  } catch {
-    return false;
-  }
-};
-
 const toBooleanValueOrNull = (value: DynamicValue): boolean | null => {
   if (typeof value === "boolean") {
     return value;
   }
 
-  if (!isBooleanObjectValue(value)) {
+  if (value === null || typeof value !== "object") {
     return null;
   }
 

@@ -90,42 +90,12 @@ const toObjectRecordOrNull = (value: RuleOptionValue): RuleOptionRecord | null =
     : null;
 };
 
-const isBooleanObjectValue = (value: RuleOptionValue): value is Boolean => {
-  if (value === null || typeof value !== "object") {
-    return false;
-  }
-
-  try {
-    return (
-      Object.prototype.toString.call(value) === "[object Boolean]" ||
-      value instanceof Boolean
-    );
-  } catch {
-    return false;
-  }
-};
-
-const isNumberObjectValue = (value: RuleOptionValue): value is Number => {
-  if (value === null || typeof value !== "object") {
-    return false;
-  }
-
-  try {
-    return (
-      Object.prototype.toString.call(value) === "[object Number]" ||
-      value instanceof Number
-    );
-  } catch {
-    return false;
-  }
-};
-
 const toFiniteNumberOrDefault = (value: RuleOptionValue, fallback: number): number => {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : fallback;
   }
 
-  if (!isNumberObjectValue(value)) {
+  if (value === null || typeof value !== "object") {
     return fallback;
   }
 
@@ -142,7 +112,7 @@ const toBooleanOrDefault = (value: RuleOptionValue, fallback: boolean): boolean 
     return value;
   }
 
-  if (!isBooleanObjectValue(value)) {
+  if (value === null || typeof value !== "object") {
     return fallback;
   }
 

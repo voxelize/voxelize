@@ -2812,6 +2812,42 @@ describe("Type builders", () => {
     expect(didCallCrossRealmWrappedFalseValueOf).toBe(false);
   });
 
+  it("normalizes wrapped boolean transparency entries when toStringTag traps", () => {
+    const wrappedTransparencyTrue = new Boolean(true);
+    let didCallWrappedTransparencyTrueToStringTag = false;
+    Object.defineProperty(wrappedTransparencyTrue, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedTransparencyTrueToStringTag = true;
+        throw new Error("wrapped transparency true toStringTag trap");
+      },
+    });
+    const wrappedTransparencyFalse = new Boolean(false);
+    let didCallWrappedTransparencyFalseToStringTag = false;
+    Object.defineProperty(wrappedTransparencyFalse, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedTransparencyFalseToStringTag = true;
+        throw new Error("wrapped transparency false toStringTag trap");
+      },
+    });
+
+    expect(
+      createFaceTransparency([
+        wrappedTransparencyTrue as never,
+        wrappedTransparencyFalse as never,
+        wrappedTransparencyTrue as never,
+        wrappedTransparencyFalse as never,
+        wrappedTransparencyTrue as never,
+        wrappedTransparencyFalse as never,
+      ])
+    ).toEqual([true, false, true, false, true, false]);
+    expect(didCallWrappedTransparencyTrueToStringTag).toBe(false);
+    expect(didCallWrappedTransparencyFalseToStringTag).toBe(false);
+  });
+
   it("supports frozen transparency arrays in createFaceTransparency", () => {
     const frozenTransparency = Object.freeze([true, false, true, false, true, false] as const);
     const createdTransparency = createFaceTransparency(frozenTransparency);
@@ -3130,6 +3166,26 @@ describe("Type builders", () => {
     expect(wrappedWorldSpacePart.worldSpace).toBe(true);
     expect(didCallCrossRealmWrappedWorldSpaceTrueToString).toBe(false);
     expect(didCallCrossRealmWrappedWorldSpaceTrueValueOf).toBe(false);
+
+    const wrappedWorldSpaceToStringTagTrap = new Boolean(true);
+    let didCallWrappedWorldSpaceToStringTag = false;
+    Object.defineProperty(
+      wrappedWorldSpaceToStringTagTrap,
+      Symbol.toStringTag,
+      {
+        configurable: true,
+        enumerable: false,
+        get() {
+          didCallWrappedWorldSpaceToStringTag = true;
+          throw new Error("wrapped worldSpace toStringTag trap");
+        },
+      }
+    );
+    const wrappedWorldSpaceToStringTagPart = createBlockConditionalPart({
+      worldSpace: wrappedWorldSpaceToStringTagTrap as never,
+    });
+    expect(wrappedWorldSpaceToStringTagPart.worldSpace).toBe(true);
+    expect(didCallWrappedWorldSpaceToStringTag).toBe(false);
   });
 
   it("preserves provided conditional part fields", () => {
@@ -10107,6 +10163,67 @@ describe("BlockRuleEvaluator", () => {
     expect(matched).toBe(true);
     expect(didCallWrappedRotationYToString).toBe(false);
     expect(didCallWrappedRotationYValueOf).toBe(false);
+  });
+
+  it("normalizes wrapped rule-evaluation options when toStringTag traps", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 127,
+    };
+    const wrappedYRotatable = new Boolean(true);
+    let didCallWrappedYRotatableToStringTag = false;
+    Object.defineProperty(wrappedYRotatable, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedYRotatableToStringTag = true;
+        throw new Error("wrapped yRotatable toStringTag trap");
+      },
+    });
+    const wrappedWorldSpace = new Boolean(false);
+    let didCallWrappedWorldSpaceToStringTag = false;
+    Object.defineProperty(wrappedWorldSpace, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedWorldSpaceToStringTag = true;
+        throw new Error("wrapped worldSpace toStringTag trap");
+      },
+    });
+    const wrappedRotationY = new Number(Math.PI / 2);
+    let didCallWrappedRotationYToStringTag = false;
+    Object.defineProperty(wrappedRotationY, Symbol.toStringTag, {
+      configurable: true,
+      enumerable: false,
+      get() {
+        didCallWrappedRotationYToStringTag = true;
+        throw new Error("wrapped rotation.yRotation toStringTag trap");
+      },
+    });
+
+    const matched = BlockRuleEvaluator.evaluate(
+      rule,
+      [0, 0, 0],
+      {
+        getVoxel: (x: number, y: number, z: number) =>
+          x === 0 && y === 0 && z === 1 ? 127 : 0,
+        getVoxelRotation: () => BlockRotation.py(0),
+        getVoxelStage: () => 0,
+      },
+      {
+        rotation: {
+          yRotation: wrappedRotationY as never,
+        },
+        yRotatable: wrappedYRotatable as never,
+        worldSpace: wrappedWorldSpace as never,
+      }
+    );
+
+    expect(matched).toBe(true);
+    expect(didCallWrappedYRotatableToStringTag).toBe(false);
+    expect(didCallWrappedWorldSpaceToStringTag).toBe(false);
+    expect(didCallWrappedRotationYToStringTag).toBe(false);
   });
 
   it("guards option getter traps while evaluating rules", () => {
