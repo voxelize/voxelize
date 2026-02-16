@@ -204,6 +204,9 @@ fn collect_preload_targets(chunks: &Chunks, radius: i32) -> Vec<Vec2<i32>> {
     else {
         return Vec::new();
     };
+    if min_x == max_x && min_z == max_z {
+        return vec![Vec2(min_x, min_z)];
+    }
     let width_x = (i64::from(max_x) - i64::from(min_x) + 1) as usize;
     let width_z = (i64::from(max_z) - i64::from(min_z) + 1) as usize;
     let mut targets = Vec::with_capacity(width_x.saturating_mul(width_z));
