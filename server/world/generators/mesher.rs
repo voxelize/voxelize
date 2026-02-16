@@ -232,7 +232,7 @@ impl Mesher {
         let msg_type = *r#type;
         let mesher_registry = Arc::clone(registry.mesher_registry_ref());
         let light_registry = Arc::clone(registry.lighter_registry_ref());
-        let light_config = Arc::new(light_config(config));
+        let light_config = light_config(config);
         let greedy_meshing = config.greedy_meshing;
         let chunk_size = if config.chunk_size == 0 {
             1
@@ -244,6 +244,9 @@ impl Mesher {
         let chunk_size_usize = chunk_size as usize;
 
         self.pool.spawn(move || {
+            let mesher_registry = mesher_registry.as_ref();
+            let light_registry = light_registry.as_ref();
+            let light_config = &light_config;
             processes
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
@@ -290,8 +293,8 @@ impl Mesher {
                                     &mut space,
                                     &min,
                                     &shape,
-                                    light_registry.as_ref(),
-                                    light_config.as_ref(),
+                                    light_registry,
+                                    light_config,
                                 );
 
                                 for (queue, subqueue) in light_queues.iter_mut().zip(light_subqueues) {
@@ -306,8 +309,8 @@ impl Mesher {
                                     &mut space,
                                     queue,
                                     color,
-                                    light_registry.as_ref(),
-                                    light_config.as_ref(),
+                                    light_registry,
+                                    light_config,
                                     Some(&min),
                                     Some(&shape),
                                 );
@@ -337,14 +340,14 @@ impl Mesher {
                                 &min_arr,
                                 &max_arr,
                                 &space,
-                                mesher_registry.as_ref(),
+                                mesher_registry,
                             )
                         } else {
                             voxelize_mesher::mesh_space(
                                 &min_arr,
                                 &max_arr,
                                 &space,
-                                mesher_registry.as_ref(),
+                                mesher_registry,
                             )
                         };
 
