@@ -4137,14 +4137,14 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     };
 
                     if is_opaque {
-                        let cached = fully_occluded_opaque[current_voxel_index];
-                        let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
+                        let occlusion = &mut fully_occluded_opaque[current_voxel_index];
+                        let is_fully_occluded = if *occlusion == OCCLUSION_UNKNOWN {
                             let value =
                                 is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
-                            fully_occluded_opaque[current_voxel_index] = if value { 1 } else { 0 };
+                            *occlusion = if value { 1 } else { 0 };
                             value
                         } else {
-                            cached == 1
+                            *occlusion == 1
                         };
                         if is_fully_occluded {
                             continue;
