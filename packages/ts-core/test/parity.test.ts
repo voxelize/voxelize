@@ -7153,6 +7153,28 @@ describe("BlockRuleEvaluator", () => {
     );
   });
 
+  it("sanitizes malformed direct evaluateWithNormalizedOptions calls without throwing", () => {
+    const rawEvaluateWithNormalizedOptions = Reflect.get(
+      BlockRuleEvaluator,
+      "evaluateWithNormalizedOptions"
+    );
+    if (typeof rawEvaluateWithNormalizedOptions !== "function") {
+      throw new Error("Expected evaluateWithNormalizedOptions static method.");
+    }
+    const evaluateWithNormalizedOptions =
+      rawEvaluateWithNormalizedOptions as (...args: never[]) => boolean;
+    const simpleRule = {
+      type: "simple" as const,
+      offset: [0, 0, 0] as [number, number, number],
+      id: 7,
+    };
+
+    expect(() => evaluateWithNormalizedOptions(BLOCK_RULE_NONE as never)).not.toThrow();
+    expect(evaluateWithNormalizedOptions(BLOCK_RULE_NONE as never)).toBe(true);
+    expect(() => evaluateWithNormalizedOptions(simpleRule as never)).not.toThrow();
+    expect(evaluateWithNormalizedOptions(simpleRule as never)).toBe(false);
+  });
+
   it("sanitizes revoked combination rule arrays without throwing", () => {
     const revokedRules = (() => {
       const arrayProxy = Proxy.revocable([], {});

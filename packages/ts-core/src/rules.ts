@@ -17,6 +17,12 @@ type NormalizedRuleEvaluationOptions = {
   worldSpace: boolean;
 };
 
+const DEFAULT_NORMALIZED_RULE_EVALUATION_OPTIONS: NormalizedRuleEvaluationOptions = {
+  rotationY: 0,
+  yRotatable: false,
+  worldSpace: false,
+};
+
 const isArrayValue = (value: RuleOptionValue): value is RuleOptionValue[] => {
   try {
     return Array.isArray(value);
@@ -93,11 +99,7 @@ const normalizeRuleEvaluationOptions = (
 ): NormalizedRuleEvaluationOptions => {
   const optionRecord = toObjectRecordOrNull(options);
   if (optionRecord === null) {
-    return {
-      rotationY: 0,
-      yRotatable: false,
-      worldSpace: false,
-    };
+    return DEFAULT_NORMALIZED_RULE_EVALUATION_OPTIONS;
   }
 
   const rotationValue = safeReadRecordValue(optionRecord, "rotation");
@@ -602,8 +604,8 @@ export class BlockRuleEvaluator {
     rule: BlockRule,
     position: Vec3,
     access: RuleAccess,
-    options: NormalizedRuleEvaluationOptions,
-    activeCombinationRules: Set<BlockRule>
+    options: NormalizedRuleEvaluationOptions = DEFAULT_NORMALIZED_RULE_EVALUATION_OPTIONS,
+    activeCombinationRules: Set<BlockRule> = new Set<BlockRule>()
   ): boolean {
     const { rotationY, yRotatable, worldSpace } = options;
     const ruleRecord = rule as RuleOptionRecord;
