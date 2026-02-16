@@ -3351,10 +3351,11 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         let voxel_key = ((vx - min_x) as usize) * yz_span
                             + ((vy - min_y) as usize) * z_span
                             + (vz - min_z) as usize;
-                        if processed_non_greedy[voxel_key] {
+                        let processed = &mut processed_non_greedy[voxel_key];
+                        if *processed {
                             continue;
                         }
-                        processed_non_greedy[voxel_key] = true;
+                        *processed = true;
                         Some(voxel_key as u32)
                     } else {
                         None
