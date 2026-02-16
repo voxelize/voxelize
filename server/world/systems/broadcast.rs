@@ -287,6 +287,11 @@ impl<'a> System<'a> for BroadcastSystem {
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
         let client_count = clients.len();
         let has_transports = !transports.is_empty();
+        let single_client = if client_count == 1 {
+            clients.iter().next().map(|(id, client)| (id.as_str(), client))
+        } else {
+            None
+        };
         if client_count == 0 {
             if has_transports {
                 for (encoded, _) in done_messages {
@@ -316,10 +321,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             }
-            if client_count == 1 {
-                let Some((single_id, single_client)) = clients.iter().next() else {
-                    continue;
-                };
+            if let Some((single_id, single_client)) = single_client {
                 let should_send = match &filter {
                     ClientFilter::All => true,
                     ClientFilter::Include(ids) => ids_contains_target(ids, single_id),
