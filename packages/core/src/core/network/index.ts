@@ -28,21 +28,43 @@ const defaultOptions: NetworkOptions = {
   maxBacklogFactor: 16,
 };
 
+const isWsProtocol = (protocol: string) => {
+  return protocol.length >= 2 && protocol.charCodeAt(0) === 119 && protocol.charCodeAt(1) === 115;
+};
+
+const isWssProtocol = (protocol: string) => {
+  return isWsProtocol(protocol) && protocol.length >= 3 && protocol.charCodeAt(2) === 115;
+};
+
+const isHttpProtocol = (protocol: string) => {
+  return (
+    protocol.length >= 4 &&
+    protocol.charCodeAt(0) === 104 &&
+    protocol.charCodeAt(1) === 116 &&
+    protocol.charCodeAt(2) === 116 &&
+    protocol.charCodeAt(3) === 112
+  );
+};
+
+const isHttpsProtocol = (protocol: string) => {
+  return isHttpProtocol(protocol) && protocol.length >= 5 && protocol.charCodeAt(4) === 115;
+};
+
 const toHttpProtocol = (protocol: string) => {
-  if (protocol.startsWith("wss")) {
+  if (isWssProtocol(protocol)) {
     return "https:";
   }
-  if (protocol.startsWith("ws")) {
+  if (isWsProtocol(protocol)) {
     return "http:";
   }
   return protocol;
 };
 
 const toWsProtocol = (protocol: string) => {
-  if (protocol.startsWith("https")) {
+  if (isHttpsProtocol(protocol)) {
     return "wss:";
   }
-  if (protocol.startsWith("http")) {
+  if (isHttpProtocol(protocol)) {
     return "ws:";
   }
   return protocol;

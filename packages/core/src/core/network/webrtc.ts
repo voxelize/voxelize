@@ -14,11 +14,19 @@ const readUint32LE = (bytes: Uint8Array, offset: number): number => {
   ) >>> 0;
 };
 
+const isWsProtocol = (protocol: string) => {
+  return protocol.length >= 2 && protocol.charCodeAt(0) === 119 && protocol.charCodeAt(1) === 115;
+};
+
+const isWssProtocol = (protocol: string) => {
+  return isWsProtocol(protocol) && protocol.length >= 3 && protocol.charCodeAt(2) === 115;
+};
+
 const toHttpProtocol = (protocol: string) => {
-  if (protocol.startsWith("wss")) {
+  if (isWssProtocol(protocol)) {
     return "https:";
   }
-  if (protocol.startsWith("ws")) {
+  if (isWsProtocol(protocol)) {
     return "http:";
   }
   return protocol;
