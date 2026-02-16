@@ -265,6 +265,7 @@ pub struct MessageBuilder {
     method: Option<MethodProtocol>,
 
     peers: Option<Vec<PeerProtocol>>,
+    single_entity: Option<EntityProtocol>,
     entities: Option<Vec<EntityProtocol>>,
     single_event: Option<EventProtocol>,
     events: Option<Vec<EventProtocol>>,
@@ -346,6 +347,7 @@ impl MessageBuilder {
 
     /// Configure the entities data of the protocol.
     pub fn entities(mut self, entities: &[EntityProtocol]) -> Self {
+        self.single_entity = None;
         if entities.is_empty() {
             self.entities = None;
         } else {
@@ -354,8 +356,15 @@ impl MessageBuilder {
         self
     }
 
+    pub fn entity_owned(mut self, entity: EntityProtocol) -> Self {
+        self.single_entity = Some(entity);
+        self.entities = None;
+        self
+    }
+
     /// Configure owned entities data of the protocol.
     pub fn entities_owned(mut self, entities: Vec<EntityProtocol>) -> Self {
+        self.single_entity = None;
         if entities.is_empty() {
             self.entities = None;
         } else {
@@ -475,7 +484,14 @@ impl MessageBuilder {
             message.peers = mapped;
         }
 
-        if let Some(entities) = self.entities {
+        if let Some(entity) = self.single_entity {
+            message.entities = vec![protocols::Entity {
+                operation: entity.operation as i32,
+                id: entity.id,
+                r#type: entity.r#type,
+                metadata: entity.metadata.unwrap_or_default(),
+            }];
+        } else if let Some(entities) = self.entities {
             let mut mapped = Vec::with_capacity(entities.len());
             for entity in entities {
                 mapped.push(protocols::Entity {
@@ -670,5 +686,47 @@ mod tests {
 
         assert_eq!(message.events.len(), 1);
         assert_eq!(message.events[0].name, "new");
+    }
+
+    #[test]
+    fn entity_owned_sets_single_entity_payload() {
+        let message = Message::new(&MessageType::Entity)
+            .entity_owned(EntityProtocol {
+                operation: EntityOperation::Update,
+                id: "entity-1".to_owned(),
+                r#type: "npc".to_owned(),
+                metadata: Some("{\"hp\":10}".to_owned()),
+            })
+            .build();
+
+        assert_eq!(message.entities.len(), 1);
+        assert_eq!(message.entities[0].id, "entity-1");
+        assert_eq!(message.entities[0].r#type, "npc");
+        assert_eq!(message.entities[0].metadata, "{\"hp\":10}");
+    }
+
+    #[test]
+    fn entity_owned_overrides_previous_entity_list() {
+        let message = Message::new(&MessageType::Entity)
+            .entities_owned(vec![EntityProtocol {
+                operation: EntityOperation::Update,
+                id: "old".to_owned(),
+                r#type: "npc".to_owned(),
+                metadata: None,
+            }])
+            .entity_owned(EntityProtocol {
+                operation: EntityOperation::Delete,
+                id: "new".to_owned(),
+                r#type: "npc".to_owned(),
+                metadata: None,
+            })
+            .build();
+
+        assert_eq!(message.entities.len(), 1);
+        assert_eq!(message.entities[0].id, "new");
+        assert_eq!(
+            EntityOperation::try_from(message.entities[0].operation),
+            Ok(EntityOperation::Delete)
+        );
     }
 }
