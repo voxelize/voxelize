@@ -2243,6 +2243,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     if !should_render {
                         continue;
                     }
+                    let neighbors = NeighborCache::populate(vx, vy, vz, space);
 
                     for_each_meshing_face(
                         block,
@@ -2282,8 +2283,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 ));
                                 return;
                             }
-
-                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
                             let (aos, lights) =
                                 compute_face_ao_and_light(dir, block, &neighbors, registry);
 
