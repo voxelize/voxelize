@@ -3469,12 +3469,9 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     } else {
                         None
                     };
-                    let direct_face = if let Some(face_index) = cached_face_index {
+                    let direct_face_index = if let Some(face_index) = cached_face_index {
                         if face_index >= 0 {
-                            block
-                                .faces
-                                .get(face_index as usize)
-                                .map(|face| (face_index, face))
+                            Some(face_index)
                         } else {
                             None
                         }
@@ -3485,7 +3482,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         if face_index == -1 {
                             false
                         } else if face_index >= 0 {
-                            direct_face.is_some()
+                            (face_index as usize) < block.faces.len()
                         } else {
                             true
                         }
@@ -3527,7 +3524,8 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         as u32;
                     let mut cached_neighbors = None;
                     let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
-                    if let Some((face_index, face)) = direct_face {
+                    if let Some(face_index) = direct_face_index {
+                        let face = &block.faces[face_index as usize];
                         if face_matches_direction(face, false) {
                             let uv_range = face.range;
                             if face.isolated {
