@@ -373,6 +373,37 @@ const isCompactJsonSerializationEnabled = (options) => {
 };
 
 const toSerializationErrorMessage = (error) => {
+  const toTrimmedErrorMessageOrNull = (value) => {
+    const normalizedValue = value.trim();
+    return normalizedValue.length > 0 ? normalizedValue : null;
+  };
+
+  const toPrimitiveErrorMessageOrNull = (value) => {
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint" ||
+      typeof value === "symbol"
+    ) {
+      try {
+        const primitiveMessage = String(value);
+        return toTrimmedErrorMessageOrNull(primitiveMessage);
+      } catch {
+        return null;
+      }
+    }
+
+    if (value !== null && typeof value === "object") {
+      const wrappedPrimitiveMessage = toPrimitiveWrapperStringOrNull(value);
+      if (wrappedPrimitiveMessage !== null) {
+        return toTrimmedErrorMessageOrNull(wrappedPrimitiveMessage);
+      }
+    }
+
+    return null;
+  };
+
   let isErrorValue = false;
   try {
     isErrorValue = error instanceof Error;
@@ -381,22 +412,31 @@ const toSerializationErrorMessage = (error) => {
   }
 
   if (!isErrorValue) {
-    return "Unknown report serialization error.";
+    return (
+      toPrimitiveErrorMessageOrNull(error) ??
+      "Unknown report serialization error."
+    );
   }
 
   let rawMessage = "";
   try {
     rawMessage = error.message;
   } catch {
-    return "Unknown report serialization error.";
+    return (
+      toPrimitiveErrorMessageOrNull(error) ??
+      "Unknown report serialization error."
+    );
   }
 
   if (typeof rawMessage !== "string") {
-    return "Unknown report serialization error.";
+    return (
+      toPrimitiveErrorMessageOrNull(error) ??
+      "Unknown report serialization error."
+    );
   }
 
-  const normalizedMessage = rawMessage.trim();
-  return normalizedMessage.length > 0
+  const normalizedMessage = toTrimmedErrorMessageOrNull(rawMessage);
+  return normalizedMessage !== null
     ? normalizedMessage
     : "Unknown report serialization error.";
 };

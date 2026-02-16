@@ -788,6 +788,134 @@ describe("report-utils", () => {
     );
   });
 
+  it("surfaces primitive serialization throw values without coercing plain objects", () => {
+    const wrappedStringFailure = new String("wrapped serialization trap");
+    let didCallWrappedStringToString = false;
+    Object.defineProperty(wrappedStringFailure, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedStringToString = true;
+        throw new Error("wrapped serialization toString trap");
+      },
+    });
+
+    const wrappedSymbolFailure = Object(Symbol("wrapped-serialization-symbol"));
+    let didCallWrappedSymbolValueOf = false;
+    Object.defineProperty(wrappedSymbolFailure, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedSymbolValueOf = true;
+        throw new Error("wrapped serialization symbol valueOf trap");
+      },
+    });
+
+    const primitiveFailureCases: Array<{
+      readonly thrownValue: string | number | boolean | bigint | symbol | object;
+      readonly expectedSerializationError: string;
+    }> = [
+      {
+        thrownValue: "primitive serialization trap",
+        expectedSerializationError: "primitive serialization trap",
+      },
+      {
+        thrownValue: 42,
+        expectedSerializationError: "42",
+      },
+      {
+        thrownValue: false,
+        expectedSerializationError: "false",
+      },
+      {
+        thrownValue: 9n,
+        expectedSerializationError: "9",
+      },
+      {
+        thrownValue: Symbol("serialization-symbol"),
+        expectedSerializationError: "Symbol(serialization-symbol)",
+      },
+      {
+        thrownValue: wrappedStringFailure,
+        expectedSerializationError: "wrapped serialization trap",
+      },
+      {
+        thrownValue: wrappedSymbolFailure,
+        expectedSerializationError: "Symbol(wrapped-serialization-symbol)",
+      },
+    ];
+
+    for (const { thrownValue, expectedSerializationError } of primitiveFailureCases) {
+      const reportWithPrimitiveFailure = {
+        toJSON() {
+          throw thrownValue;
+        },
+      };
+      expect(() => toReportJson(reportWithPrimitiveFailure as never)).not.toThrow();
+      const parsedPrimitiveFailureReport = JSON.parse(
+        toReportJson(reportWithPrimitiveFailure as never)
+      ) as {
+        schemaVersion: number;
+        passed: boolean;
+        exitCode: number;
+        message: string;
+        serializationError: string;
+      };
+      expect(parsedPrimitiveFailureReport.schemaVersion).toBe(
+        REPORT_SCHEMA_VERSION
+      );
+      expect(parsedPrimitiveFailureReport.passed).toBe(false);
+      expect(parsedPrimitiveFailureReport.exitCode).toBe(1);
+      expect(parsedPrimitiveFailureReport.message).toBe(
+        "Failed to serialize report JSON."
+      );
+      expect(parsedPrimitiveFailureReport.serializationError).toBe(
+        expectedSerializationError
+      );
+    }
+
+    let didCallPlainObjectToString = false;
+    const plainObjectFailure = {
+      toString() {
+        didCallPlainObjectToString = true;
+        throw new Error("plain object toString trap");
+      },
+    };
+    const reportWithPlainObjectFailure = {
+      toJSON() {
+        throw plainObjectFailure;
+      },
+    };
+    expect(() =>
+      toReportJson(reportWithPlainObjectFailure as never)
+    ).not.toThrow();
+    const parsedPlainObjectFailureReport = JSON.parse(
+      toReportJson(reportWithPlainObjectFailure as never)
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      message: string;
+      serializationError: string;
+    };
+    expect(parsedPlainObjectFailureReport.schemaVersion).toBe(
+      REPORT_SCHEMA_VERSION
+    );
+    expect(parsedPlainObjectFailureReport.passed).toBe(false);
+    expect(parsedPlainObjectFailureReport.exitCode).toBe(1);
+    expect(parsedPlainObjectFailureReport.message).toBe(
+      "Failed to serialize report JSON."
+    );
+    expect(parsedPlainObjectFailureReport.serializationError).toBe(
+      "Unknown report serialization error."
+    );
+    expect(didCallWrappedStringToString).toBe(false);
+    expect(didCallWrappedSymbolValueOf).toBe(false);
+    expect(didCallPlainObjectToString).toBe(false);
+  });
+
   it("supports compact json serialization option", () => {
     const compactSerialized = toReportJson(
       { passed: true, exitCode: 0 },
