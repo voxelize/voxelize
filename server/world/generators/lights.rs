@@ -120,7 +120,7 @@ impl Lights {
         min: Option<&Vec3<i32>>,
         shape: Option<&Vec3<usize>>,
     ) {
-        let light_registry = registry.lighter_registry();
+        let light_registry = registry.lighter_registry_ref();
         let light_config = convert_config(config);
         let bounds = convert_bounds(min, shape, &light_config);
         lighter_flood_light(
@@ -140,7 +140,7 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        let light_registry = registry.lighter_registry();
+        let light_registry = registry.lighter_registry_ref();
         let light_config = convert_config(config);
         lighter_remove_light(
             space,
@@ -158,7 +158,7 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
-        let light_registry = registry.lighter_registry();
+        let light_registry = registry.lighter_registry_ref();
         let light_config = convert_config(config);
         lighter_remove_lights(
             space,
@@ -176,7 +176,7 @@ impl Lights {
         registry: &Registry,
         config: &WorldConfig,
     ) -> [VecDeque<LightNode>; 4] {
-        let light_registry = registry.lighter_registry();
+        let light_registry = registry.lighter_registry_ref();
         let light_config = convert_config(config);
         lighter_propagate(
             space,

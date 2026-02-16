@@ -541,8 +541,8 @@ impl Registry {
         prepared_blocks
     }
 
-    pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
-        Arc::clone(self.mesher_registry_cache.get_or_init(|| {
+    pub fn mesher_registry_ref(&self) -> &Arc<voxelize_mesher::Registry> {
+        self.mesher_registry_cache.get_or_init(|| {
             let mut blocks_by_id = Vec::with_capacity(self.blocks_by_id.len());
             for (id, block) in self.blocks_by_id.iter() {
                 blocks_by_id.push((*id, block.to_mesher_block()));
@@ -551,26 +551,34 @@ impl Registry {
             let mut registry = voxelize_mesher::Registry::new(blocks_by_id);
             registry.build_cache();
             Arc::new(registry)
-        }))
+        })
+    }
+
+    pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
+        Arc::clone(self.mesher_registry_ref())
     }
 
     pub fn to_mesher_registry(&self) -> voxelize_mesher::Registry {
-        self.mesher_registry().as_ref().clone()
+        self.mesher_registry_ref().as_ref().clone()
     }
 
-    pub fn lighter_registry(&self) -> Arc<voxelize_lighter::LightRegistry> {
-        Arc::clone(self.lighter_registry_cache.get_or_init(|| {
+    pub fn lighter_registry_ref(&self) -> &Arc<voxelize_lighter::LightRegistry> {
+        self.lighter_registry_cache.get_or_init(|| {
             let mut blocks_by_id = Vec::with_capacity(self.blocks_by_id.len());
             for (id, block) in self.blocks_by_id.iter() {
                 blocks_by_id.push((*id, block.to_lighter_block()));
             }
 
             Arc::new(voxelize_lighter::LightRegistry::new(blocks_by_id))
-        }))
+        })
+    }
+
+    pub fn lighter_registry(&self) -> Arc<voxelize_lighter::LightRegistry> {
+        Arc::clone(self.lighter_registry_ref())
     }
 
     pub fn to_lighter_registry(&self) -> voxelize_lighter::LightRegistry {
-        self.lighter_registry().as_ref().clone()
+        self.lighter_registry_ref().as_ref().clone()
     }
 
     fn invalidate_cached_registries(&mut self) {
