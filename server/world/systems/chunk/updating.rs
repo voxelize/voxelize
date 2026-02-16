@@ -273,12 +273,17 @@ fn process_pending_updates(
             }
 
             if updated_type.is_active {
-                let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
-                    Vec3(vx, vy, vz),
-                    &*chunks,
-                    registry,
-                );
-                chunks.mark_voxel_active(&Vec3(vx, vy, vz), schedule_active_tick(current_tick, ticks));
+                if let Some(active_ticker) = updated_type.active_ticker.as_ref() {
+                    let ticks = active_ticker(
+                        Vec3(vx, vy, vz),
+                        &*chunks,
+                        registry,
+                    );
+                    chunks.mark_voxel_active(
+                        &Vec3(vx, vy, vz),
+                        schedule_active_tick(current_tick, ticks),
+                    );
+                }
             }
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS_WITH_STAIRS {
@@ -299,15 +304,17 @@ fn process_pending_updates(
                     && (neighbor_block.is_fluid || !registry.is_air(neighbor_id));
 
                 if should_activate {
-                    let ticks = (&neighbor_block.active_ticker.as_ref().unwrap())(
-                        Vec3(nx, ny, nz),
-                        &*chunks,
-                        registry,
-                    );
-                    chunks.mark_voxel_active(
-                        &Vec3(nx, ny, nz),
-                        schedule_active_tick(current_tick, ticks),
-                    );
+                    if let Some(active_ticker) = neighbor_block.active_ticker.as_ref() {
+                        let ticks = active_ticker(
+                            Vec3(nx, ny, nz),
+                            &*chunks,
+                            registry,
+                        );
+                        chunks.mark_voxel_active(
+                            &Vec3(nx, ny, nz),
+                            schedule_active_tick(current_tick, ticks),
+                        );
+                    }
                 }
             }
 
