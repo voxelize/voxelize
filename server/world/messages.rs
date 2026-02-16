@@ -191,6 +191,9 @@ impl EncodedMessageQueue {
 
     pub fn receive(&mut self) -> Vec<(EncodedMessage, ClientFilter)> {
         if self.processed.is_empty() {
+            if self.receiver.is_empty() {
+                return Vec::new();
+            }
             let mut first_batch = match self.receiver.try_recv() {
                 Ok(messages) => messages,
                 Err(_) => return Vec::new(),
@@ -202,6 +205,9 @@ impl EncodedMessageQueue {
             return first_batch;
         }
         let mut result = std::mem::take(&mut self.processed);
+        if self.receiver.is_empty() {
+            return result;
+        }
         while let Ok(mut messages) = self.receiver.try_recv() {
             reserve_for_append(&mut result, messages.len());
             result.append(&mut messages);
