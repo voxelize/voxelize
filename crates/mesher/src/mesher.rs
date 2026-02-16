@@ -1638,6 +1638,34 @@ fn get_dynamic_faces<S: VoxelAccess>(
     block.faces.iter().cloned().map(|f| (f, false)).collect()
 }
 
+#[inline]
+fn for_each_meshing_face<S: VoxelAccess, F: FnMut(&BlockFace, bool)>(
+    block: &Block,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    space: &S,
+    rotation: &BlockRotation,
+    registry: &Registry,
+    mut visit: F,
+) {
+    if block.is_fluid && has_standard_six_faces(block) {
+        let faces = create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry);
+        for face in faces.iter() {
+            visit(face, false);
+        }
+    } else if block.dynamic_patterns.is_some() {
+        let faces = get_dynamic_faces(block, [vx, vy, vz], space, rotation);
+        for (face, world_space) in faces.iter() {
+            visit(face, *world_space);
+        }
+    } else {
+        for face in block.faces.iter() {
+            visit(face, false);
+        }
+    }
+}
+
 fn process_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -2165,18 +2193,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
-                    let faces: Vec<(BlockFace, bool)> =
-                        if is_fluid && has_standard_six_faces(block) {
-                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                                .into_iter()
-                                .map(|f| (f, false))
-                                .collect()
-                        } else if block.dynamic_patterns.is_some() {
-                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                        } else {
-                            block.faces.iter().cloned().map(|f| (f, false)).collect()
-                        };
-
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
                     if is_non_greedy_block {
@@ -2185,7 +2201,15 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         }
                         processed_non_greedy.insert((vx, vy, vz));
 
-                        for (face, world_space) in faces.iter() {
+                        for_each_meshing_face(
+                            block,
+                            vx,
+                            vy,
+                            vz,
+                            space,
+                            &rotation,
+                            registry,
+                            |face, world_space| {
                             let uv_range = face.range.clone();
                             non_greedy_faces.push((
                                 vx,
@@ -2198,29 +2222,10 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 uv_range,
                                 is_see_through,
                                 is_fluid,
-                                *world_space,
+                                world_space,
                             ));
-                        }
-                        continue;
-                    }
-
-                    let matching_faces: Vec<_> = faces
-                        .iter()
-                        .filter(|(f, world_space)| {
-                            let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
-                            if (block.rotatable || block.y_rotatable) && !*world_space {
-                                rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
-                            }
-                            let effective_dir = [
-                                face_dir[0].round() as i32,
-                                face_dir[1].round() as i32,
-                                face_dir[2].round() as i32,
-                            ];
-                            effective_dir == dir
-                        })
-                        .collect();
-
-                    if matching_faces.is_empty() {
+                            },
+                        );
                         continue;
                     }
 
@@ -2241,51 +2246,72 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
 
-                    for (face, world_space) in matching_faces {
-                        let uv_range = face.range.clone();
+                    for_each_meshing_face(
+                        block,
+                        vx,
+                        vy,
+                        vz,
+                        space,
+                        &rotation,
+                        registry,
+                        |face, world_space| {
+                            let mut face_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+                            if (block.rotatable || block.y_rotatable) && !world_space {
+                                rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
+                            }
+                            let effective_dir = [
+                                face_dir[0].round() as i32,
+                                face_dir[1].round() as i32,
+                                face_dir[2].round() as i32,
+                            ];
+                            if effective_dir != dir {
+                                return;
+                            }
 
-                        if face.isolated {
-                            non_greedy_faces.push((
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                rotation.clone(),
-                                block.clone(),
-                                face.clone(),
+                            let uv_range = face.range.clone();
+                            if face.isolated {
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    rotation.clone(),
+                                    block.clone(),
+                                    face.clone(),
+                                    uv_range,
+                                    is_see_through,
+                                    is_fluid,
+                                    world_space,
+                                ));
+                                return;
+                            }
+
+                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                            let (aos, lights) =
+                                compute_face_ao_and_light(dir, block, &neighbors, registry);
+
+                            let key = FaceKey {
+                                block_id: block.id,
+                                face_name: face.name.clone(),
+                                independent: face.independent,
+                                ao: aos,
+                                light: lights,
+                                uv_start_u: (uv_range.start_u * 1000000.0) as u32,
+                                uv_end_u: (uv_range.end_u * 1000000.0) as u32,
+                                uv_start_v: (uv_range.start_v * 1000000.0) as u32,
+                                uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                            };
+
+                            let data = FaceData {
+                                key,
                                 uv_range,
                                 is_see_through,
                                 is_fluid,
-                                *world_space,
-                            ));
-                            continue;
-                        }
+                            };
 
-                        let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                        let (aos, lights) =
-                            compute_face_ao_and_light(dir, block, &neighbors, registry);
-
-                        let key = FaceKey {
-                            block_id: block.id,
-                            face_name: face.name.clone(),
-                            independent: face.independent,
-                            ao: aos,
-                            light: lights,
-                            uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-                            uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-                            uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-                            uv_end_v: (uv_range.end_v * 1000000.0) as u32,
-                        };
-
-                        let data = FaceData {
-                            key,
-                            uv_range,
-                            is_see_through,
-                            is_fluid,
-                        };
-
-                        greedy_mask.insert((u, v), data);
-                    }
+                            greedy_mask.insert((u, v), data);
+                        },
+                    );
                 }
             }
 
