@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use hashbrown::{hash_map::RawEntryMut, HashMap, HashSet};
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -83,6 +85,28 @@ fn accumulate_chunk_interest_weight(weight: f32, distance: f32, alignment: f32) 
 #[inline]
 fn next_pipeline_stage(curr_stage: usize) -> usize {
     curr_stage.saturating_add(1)
+}
+
+#[inline]
+fn comparable_interest_weight(weights: &HashMap<Vec2<i32>, f32>, coords: &Vec2<i32>) -> f32 {
+    match weights.get(coords).copied() {
+        Some(weight) if weight.is_finite() => weight,
+        Some(_) | None => f32::MAX,
+    }
+}
+
+#[inline]
+fn compare_chunk_interest_weights(
+    weights: &HashMap<Vec2<i32>, f32>,
+    coords_a: &Vec2<i32>,
+    coords_b: &Vec2<i32>,
+) -> Ordering {
+    if coords_a == coords_b {
+        return Ordering::Equal;
+    }
+    let weight_a = comparable_interest_weight(weights, coords_a);
+    let weight_b = comparable_interest_weight(weights, coords_b);
+    weight_a.total_cmp(&weight_b)
 }
 
 #[derive(Default)]
@@ -255,10 +279,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut processes = None;
 
         if pipeline.queue.len() > 1 && !interests.weights.is_empty() {
+            let weights = &interests.weights;
             pipeline
                 .queue
                 .make_contiguous()
-                .sort_unstable_by(|a, b| interests.compare(a, b));
+                .sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b));
         }
 
         let to_load_initial_capacity = pending_queue_len.min(32);
@@ -495,10 +520,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
 
         if mesher.queue.len() > 1 && !interests.weights.is_empty() {
+            let weights = &interests.weights;
             mesher
                 .queue
                 .make_contiguous()
-                .sort_unstable_by(|a, b| interests.compare(a, b));
+                .sort_unstable_by(|a, b| compare_chunk_interest_weights(weights, a, b));
         }
 
         let ready_chunk_initial_capacity = mesher.queue.len().min(64);
@@ -593,10 +619,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 #[cfg(test)]
 mod tests {
     use super::{
-        accumulate_chunk_interest_weight, chunk_interest_alignment, contains_single_client_interest,
-        next_pipeline_stage,
+        accumulate_chunk_interest_weight, chunk_interest_alignment, comparable_interest_weight,
+        compare_chunk_interest_weights, contains_single_client_interest, next_pipeline_stage,
     };
-    use hashbrown::HashSet;
+    use hashbrown::{HashMap, HashSet};
     use crate::Vec2;
 
     #[test]
@@ -682,5 +708,41 @@ mod tests {
         }
         assert!(contains_single_client_interest(&larger, "d"));
         assert!(!contains_single_client_interest(&larger, "missing"));
+    }
+
+    #[test]
+    fn comparable_interest_weight_clamps_non_finite_and_missing_values() {
+        let mut weights = HashMap::new();
+        let finite = Vec2(0, 0);
+        let non_finite = Vec2(1, 1);
+        let missing = Vec2(2, 2);
+        weights.insert(finite, 3.5);
+        weights.insert(non_finite, f32::NAN);
+
+        assert_eq!(comparable_interest_weight(&weights, &finite), 3.5);
+        assert_eq!(comparable_interest_weight(&weights, &non_finite), f32::MAX);
+        assert_eq!(comparable_interest_weight(&weights, &missing), f32::MAX);
+    }
+
+    #[test]
+    fn compare_chunk_interest_weights_orders_by_weight() {
+        let mut weights = HashMap::new();
+        let a = Vec2(0, 0);
+        let b = Vec2(1, 1);
+        weights.insert(a, 2.0);
+        weights.insert(b, 5.0);
+
+        assert_eq!(
+            compare_chunk_interest_weights(&weights, &a, &b),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            compare_chunk_interest_weights(&weights, &b, &a),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            compare_chunk_interest_weights(&weights, &a, &a),
+            std::cmp::Ordering::Equal
+        );
     }
 }
