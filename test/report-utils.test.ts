@@ -294,6 +294,39 @@ describe("report-utils", () => {
     });
   });
 
+  it("supports cross-realm string-wrapper parsing when wrapper methods trap", () => {
+    const crossRealmStringWrapper = vm.runInNewContext(
+      "new String('{\"ok\":true}')"
+    );
+    let didCallCrossRealmToString = false;
+    Object.defineProperty(crossRealmStringWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmToString = true;
+        throw new Error("cross-realm toString trap");
+      },
+    });
+    let didCallCrossRealmValueOf = false;
+    Object.defineProperty(crossRealmStringWrapper, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmValueOf = true;
+        throw new Error("cross-realm valueOf trap");
+      },
+    });
+
+    expect(() => parseJsonOutput(crossRealmStringWrapper as never)).not.toThrow();
+    expect(parseJsonOutput(crossRealmStringWrapper as never)).toEqual({
+      ok: true,
+    });
+    expect(didCallCrossRealmToString).toBe(false);
+    expect(didCallCrossRealmValueOf).toBe(false);
+  });
+
   it("does not coerce non-string objects during output parsing", () => {
     let didCallToString = false;
     const nonStringObject = {
@@ -23885,6 +23918,47 @@ describe("report-utils", () => {
     expect(didCallBigintToString).toBe(false);
   });
 
+  it("returns stable write failure messages for cross-realm boxed primitives with trapped wrapper methods", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const crossRealmNumberWrapper = vm.runInNewContext("new Number(7)");
+    let didCallCrossRealmNumberToString = false;
+    Object.defineProperty(crossRealmNumberWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmNumberToString = true;
+        throw new Error("cross-realm number toString trap");
+      },
+    });
+    let didCallCrossRealmNumberValueOf = false;
+    Object.defineProperty(crossRealmNumberWrapper, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmNumberValueOf = true;
+        throw new Error("cross-realm number valueOf trap");
+      },
+    });
+
+    expect(() =>
+      writeReportToPath(reportJson, crossRealmNumberWrapper as never)
+    ).not.toThrow();
+    const failureMessage = writeReportToPath(
+      reportJson,
+      crossRealmNumberWrapper as never
+    );
+    expect(failureMessage).toContain("Failed to write report to 7.");
+    expect(failureMessage).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(failureMessage).not.toContain("cross-realm number toString trap");
+    expect(failureMessage).not.toContain("cross-realm number valueOf trap");
+    expect(didCallCrossRealmNumberToString).toBe(false);
+    expect(didCallCrossRealmNumberValueOf).toBe(false);
+  });
+
   it("salvages trapped symbol wrappers in output-path messaging", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const trappedSymbolWrapper = Object(Symbol("boxed-output-path"));
@@ -25197,6 +25271,111 @@ describe("report-utils", () => {
     expect(didCallNumberToString).toBe(false);
     expect(didCallBooleanToString).toBe(false);
     expect(didCallBigintToString).toBe(false);
+  });
+
+  it("returns structured serialize fallback for cross-realm boxed primitives with trapped wrapper methods", () => {
+    const crossRealmNumberWrapper = vm.runInNewContext("new Number(7)");
+    let didCallCrossRealmNumberToString = false;
+    Object.defineProperty(crossRealmNumberWrapper, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmNumberToString = true;
+        throw new Error("cross-realm number toString trap");
+      },
+    });
+    let didCallCrossRealmNumberValueOf = false;
+    Object.defineProperty(crossRealmNumberWrapper, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallCrossRealmNumberValueOf = true;
+        throw new Error("cross-realm number valueOf trap");
+      },
+    });
+    const timedReportBuilder = createTimedReportBuilder(
+      (() => {
+        let tick = 0;
+        return () => {
+          tick += 1;
+          return tick * 1000;
+        };
+      })(),
+      (value) => `iso-${value}`
+    );
+    const writeFailureResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+        outputPath: null,
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: crossRealmNumberWrapper as never,
+        buildTimedReport: timedReportBuilder,
+      }
+    );
+    const parsedWriteFailureResult = JSON.parse(
+      writeFailureResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    };
+
+    expect(writeFailureResult.writeError).toContain(
+      "Failed to write report to 7."
+    );
+    expect(writeFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(writeFailureResult.writeError).not.toContain(
+      "cross-realm number toString trap"
+    );
+    expect(writeFailureResult.writeError).not.toContain(
+      "cross-realm number valueOf trap"
+    );
+    expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedWriteFailureResult.passed).toBe(false);
+    expect(parsedWriteFailureResult.exitCode).toBe(1);
+    expect(parsedWriteFailureResult.outputPath).toBe("7");
+    expect(parsedWriteFailureResult.writeError).toContain(
+      "Failed to write report to 7."
+    );
+    expect(parsedWriteFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.writeError).not.toContain(
+      "cross-realm number toString trap"
+    );
+    expect(parsedWriteFailureResult.writeError).not.toContain(
+      "cross-realm number valueOf trap"
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      "Failed to write report to 7."
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.message).not.toContain(
+      "cross-realm number toString trap"
+    );
+    expect(parsedWriteFailureResult.message).not.toContain(
+      "cross-realm number valueOf trap"
+    );
+    expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+    expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+    expect(parsedWriteFailureResult.durationMs).toBe(1000);
+    expect(didCallCrossRealmNumberToString).toBe(false);
+    expect(didCallCrossRealmNumberValueOf).toBe(false);
   });
 
   it("salvages trapped symbol wrappers in serialize fallback", () => {
