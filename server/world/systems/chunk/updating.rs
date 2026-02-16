@@ -158,7 +158,7 @@ fn process_pending_updates(
     if num_to_process == 0 {
         return Vec::new();
     }
-    let mut results = Vec::with_capacity(num_to_process);
+    let mut results: Option<Vec<UpdateProtocol>> = None;
 
     let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, u32, &crate::Block)>> =
         HashMap::with_capacity(num_to_process);
@@ -207,7 +207,7 @@ fn process_pending_updates(
         }
     }
     if updates_by_chunk.is_empty() {
-        return results;
+        return results.unwrap_or_default();
     }
 
     let removed_light_sources_initial_capacity = num_to_process.min(32);
@@ -442,18 +442,20 @@ fn process_pending_updates(
                     updated_has_dynamic_patterns,
                 ));
 
-            results.push(UpdateProtocol {
-                vx,
-                vy,
-                vz,
-                voxel: 0,
-                light: 0,
-            });
+            results
+                .get_or_insert_with(|| Vec::with_capacity(num_to_process.min(64)))
+                .push(UpdateProtocol {
+                    vx,
+                    vy,
+                    vz,
+                    voxel: 0,
+                    light: 0,
+                });
         }
     }
 
     if processed_updates.is_none() {
-        return results;
+        return results.unwrap_or_default();
     }
 
     let removed_light_source_count = removed_light_sources.as_ref().map_or(0, Vec::len);
@@ -923,6 +925,7 @@ fn process_pending_updates(
         mesher.process(processes, &MessageType::Update, registry, config);
     }
 
+    let mut results = results.unwrap_or_default();
     for update in &mut results {
         update.voxel = chunks.get_raw_voxel(update.vx, update.vy, update.vz);
         update.light = chunks.get_raw_light(update.vx, update.vy, update.vz);
