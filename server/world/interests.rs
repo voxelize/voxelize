@@ -29,8 +29,8 @@ fn comparable_weight(weight: Option<&f32>) -> f32 {
 
 #[inline]
 fn coords_within_region(center: &Vec2<i32>, coords: &Vec2<i32>) -> bool {
-    let dx = (i64::from(coords.0) - i64::from(center.0)).unsigned_abs();
-    let dz = (i64::from(coords.1) - i64::from(center.1)).unsigned_abs();
+    let dx = coords.0.abs_diff(center.0);
+    let dz = coords.1.abs_diff(center.1);
     dx <= 1 && dz <= 1
 }
 
@@ -441,8 +441,18 @@ impl ChunkInterests {
 mod tests {
     use std::cmp::Ordering;
 
-    use super::{comparable_weight, ChunkInterests};
+    use super::{comparable_weight, coords_within_region, ChunkInterests};
     use crate::Vec2;
+
+    #[test]
+    fn coords_within_region_handles_i32_extremes() {
+        let min_center = Vec2(i32::MIN, i32::MIN);
+        let max_center = Vec2(i32::MAX, i32::MAX);
+
+        assert!(coords_within_region(&min_center, &Vec2(i32::MIN, i32::MIN + 1)));
+        assert!(coords_within_region(&max_center, &Vec2(i32::MAX - 1, i32::MAX)));
+        assert!(!coords_within_region(&min_center, &max_center));
+    }
 
     #[test]
     fn has_interests_in_region_handles_i32_edge_centers() {
