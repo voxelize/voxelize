@@ -175,6 +175,48 @@ describe("BlockUtils", () => {
     ).toBe(true);
   });
 
+  it("sanitizes malformed voxel-word extraction inputs without throwing", () => {
+    const trapDrivenVoxelWord = {
+      [Symbol.toPrimitive]() {
+        throw new Error("coercion trap");
+      },
+    };
+
+    expect(() => BlockUtils.extractId(trapDrivenVoxelWord as never)).not.toThrow();
+    expect(BlockUtils.extractId(trapDrivenVoxelWord as never)).toBe(0);
+    expect(() =>
+      BlockUtils.extractRotation(trapDrivenVoxelWord as never)
+    ).not.toThrow();
+    expect(
+      BlockUtils.extractRotation(trapDrivenVoxelWord as never).equals(
+        BlockRotation.py(0)
+      )
+    ).toBe(true);
+    expect(() =>
+      BlockUtils.extractStage(trapDrivenVoxelWord as never)
+    ).not.toThrow();
+    expect(BlockUtils.extractStage(trapDrivenVoxelWord as never)).toBe(0);
+    expect(() => Voxel.unpack(trapDrivenVoxelWord as never)).not.toThrow();
+    const unpacked = Voxel.unpack(trapDrivenVoxelWord as never);
+    expect(unpacked.id).toBe(0);
+    expect(unpacked.stage).toBe(0);
+    expect(unpacked.rotation.equals(BlockRotation.py(0))).toBe(true);
+    expect(() =>
+      BlockUtils.insertId(trapDrivenVoxelWord as never, 9)
+    ).not.toThrow();
+    expect(Voxel.id(BlockUtils.insertId(trapDrivenVoxelWord as never, 9))).toBe(9);
+    expect(() =>
+      BlockUtils.insertRotation(
+        trapDrivenVoxelWord as never,
+        BlockRotation.py(Math.PI / 2)
+      )
+    ).not.toThrow();
+    expect(() =>
+      BlockUtils.insertStage(trapDrivenVoxelWord as never, 5)
+    ).not.toThrow();
+    expect(Voxel.stage(BlockUtils.insertStage(trapDrivenVoxelWord as never, 5))).toBe(5);
+  });
+
   it("keeps packed voxel values in unsigned 32-bit space", () => {
     const packed = BlockUtils.insertId(-1, 1);
     expect(packed).toBe(0xffff0001);
@@ -357,6 +399,48 @@ describe("LightUtils", () => {
       green: 0,
       blue: 0,
     });
+  });
+
+  it("sanitizes malformed light-word extraction inputs without throwing", () => {
+    const trapDrivenLightWord = {
+      [Symbol.toPrimitive]() {
+        throw new Error("coercion trap");
+      },
+    };
+
+    expect(() => Light.sunlight(trapDrivenLightWord as never)).not.toThrow();
+    expect(Light.sunlight(trapDrivenLightWord as never)).toBe(0);
+    expect(() => Light.red(trapDrivenLightWord as never)).not.toThrow();
+    expect(Light.red(trapDrivenLightWord as never)).toBe(0);
+    expect(() => Light.green(trapDrivenLightWord as never)).not.toThrow();
+    expect(Light.green(trapDrivenLightWord as never)).toBe(0);
+    expect(() => Light.blue(trapDrivenLightWord as never)).not.toThrow();
+    expect(Light.blue(trapDrivenLightWord as never)).toBe(0);
+    expect(() => Light.unpack(trapDrivenLightWord as never)).not.toThrow();
+    expect(Light.unpack(trapDrivenLightWord as never)).toEqual({
+      sunlight: 0,
+      red: 0,
+      green: 0,
+      blue: 0,
+    });
+    expect(() => LightUtils.extractAll(trapDrivenLightWord as never)).not.toThrow();
+    expect(LightUtils.extractAll(trapDrivenLightWord as never)).toEqual([0, 0, 0, 0]);
+    expect(() =>
+      LightUtils.insertSunlight(trapDrivenLightWord as never, 12)
+    ).not.toThrow();
+    expect(
+      LightUtils.extractSunlight(
+        LightUtils.insertSunlight(trapDrivenLightWord as never, 12)
+      )
+    ).toBe(12);
+    expect(() =>
+      LightUtils.insertRedLight(trapDrivenLightWord as never, 7)
+    ).not.toThrow();
+    expect(
+      LightUtils.extractRedLight(
+        LightUtils.insertRedLight(trapDrivenLightWord as never, 7)
+      )
+    ).toBe(7);
   });
 
   it("ignores upper bits when unpacking light channels", () => {

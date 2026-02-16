@@ -19,6 +19,25 @@ export interface VoxelFields {
   stage: number;
 }
 
+type NumericLikeValue = number | string | boolean | object | null | undefined;
+
+const toFiniteNumberOrZero = (value: NumericLikeValue): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  try {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const toUint32WordOrZero = (value: NumericLikeValue): number => {
+  return toFiniteNumberOrZero(value) >>> 0;
+};
+
 type RotationLikeRecord = {
   value?: number;
   yRotation?: number;
@@ -105,20 +124,24 @@ const safeReadVoxelPackStage = (
 
 export class BlockUtils {
   static extractId(voxel: number): number {
-    return voxel & 0xffff;
+    return toUint32WordOrZero(voxel) & 0xffff;
   }
 
   static insertId(voxel: number, id: number): number {
-    return toUint32((voxel & 0xffff0000) | (id & 0xffff));
+    const voxelWord = toUint32WordOrZero(voxel);
+    const normalizedId = toFiniteNumberOrZero(id);
+    return toUint32((voxelWord & 0xffff0000) | (normalizedId & 0xffff));
   }
 
   static extractRotation(voxel: number): BlockRotation {
-    const rotation = (voxel >>> 16) & 0xf;
-    const yRotation = (voxel >>> 20) & 0xf;
+    const voxelWord = toUint32WordOrZero(voxel);
+    const rotation = (voxelWord >>> 16) & 0xf;
+    const yRotation = (voxelWord >>> 20) & 0xf;
     return BlockRotation.encode(rotation, yRotation);
   }
 
   static insertRotation(voxel: number, rotation: RotationLike): number {
+    const voxelWord = toUint32WordOrZero(voxel);
     const normalizedRotation = toRotationLikeRecordOrNull(rotation);
     const normalizedRotationValue = safeReadRotationLikeField(
       normalizedRotation,
@@ -133,17 +156,18 @@ export class BlockUtils {
     const [rotationValue, yRotation] = BlockRotation.decode(
       new BlockRotation(normalizedRotationValue, normalizedYRotation)
     );
-    const value = (voxel & ROTATION_MASK) | ((rotationValue & 0xf) << 16);
+    const value = (voxelWord & ROTATION_MASK) | ((rotationValue & 0xf) << 16);
     return toUint32((value & Y_ROTATION_MASK) | ((yRotation & 0xf) << 20));
   }
 
   static extractStage(voxel: number): number {
-    return (voxel >>> 24) & 0xf;
+    return (toUint32WordOrZero(voxel) >>> 24) & 0xf;
   }
 
   static insertStage(voxel: number, stage: number): number {
     assertStage(stage);
-    return toUint32((voxel & STAGE_MASK) | ((stage & 0xf) << 24));
+    const voxelWord = toUint32WordOrZero(voxel);
+    return toUint32((voxelWord & STAGE_MASK) | ((stage & 0xf) << 24));
   }
 
   static insertAll(

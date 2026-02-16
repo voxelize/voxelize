@@ -7,6 +7,25 @@ export enum LightColor {
   Blue = "blue",
 }
 
+type NumericLikeValue = number | string | boolean | object | null | undefined;
+
+const toFiniteNumberOrZero = (value: NumericLikeValue): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  try {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const toUint32WordOrZero = (value: NumericLikeValue): number => {
+  return toFiniteNumberOrZero(value) >>> 0;
+};
+
 export const lightColorFromIndex = (color: number): LightColor => {
   switch (color) {
     case 0:
@@ -24,35 +43,43 @@ export const lightColorFromIndex = (color: number): LightColor => {
 
 export class LightUtils {
   static extractSunlight(light: number): number {
-    return (light >>> 12) & 0xf;
+    return (toUint32WordOrZero(light) >>> 12) & 0xf;
   }
 
   static insertSunlight(light: number, level: number): number {
-    return toUint32((light & 0x0fff) | ((level & 0xf) << 12));
+    const lightWord = toUint32WordOrZero(light);
+    const normalizedLevel = toFiniteNumberOrZero(level);
+    return toUint32((lightWord & 0x0fff) | ((normalizedLevel & 0xf) << 12));
   }
 
   static extractRedLight(light: number): number {
-    return (light >>> 8) & 0xf;
+    return (toUint32WordOrZero(light) >>> 8) & 0xf;
   }
 
   static insertRedLight(light: number, level: number): number {
-    return toUint32((light & 0xf0ff) | ((level & 0xf) << 8));
+    const lightWord = toUint32WordOrZero(light);
+    const normalizedLevel = toFiniteNumberOrZero(level);
+    return toUint32((lightWord & 0xf0ff) | ((normalizedLevel & 0xf) << 8));
   }
 
   static extractGreenLight(light: number): number {
-    return (light >>> 4) & 0xf;
+    return (toUint32WordOrZero(light) >>> 4) & 0xf;
   }
 
   static insertGreenLight(light: number, level: number): number {
-    return toUint32((light & 0xff0f) | ((level & 0xf) << 4));
+    const lightWord = toUint32WordOrZero(light);
+    const normalizedLevel = toFiniteNumberOrZero(level);
+    return toUint32((lightWord & 0xff0f) | ((normalizedLevel & 0xf) << 4));
   }
 
   static extractBlueLight(light: number): number {
-    return light & 0xf;
+    return toUint32WordOrZero(light) & 0xf;
   }
 
   static insertBlueLight(light: number, level: number): number {
-    return toUint32((light & 0xfff0) | (level & 0xf));
+    const lightWord = toUint32WordOrZero(light);
+    const normalizedLevel = toFiniteNumberOrZero(level);
+    return toUint32((lightWord & 0xfff0) | (normalizedLevel & 0xf));
   }
 
   static extractAll(light: number): [number, number, number, number] {
