@@ -85,7 +85,7 @@ fn compute_flood_bounds(
     let mut max_y = min_y;
     let mut max_z = min_z;
 
-    for node in queue.iter() {
+    for node in queue.iter().skip(1) {
         let [x, y, z] = node.voxel;
         let x = i64::from(x);
         let y = i64::from(y);
