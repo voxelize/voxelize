@@ -194,7 +194,18 @@ const toSerializationErrorMessage = (error) => {
     return "Unknown report serialization error.";
   }
 
-  const normalizedMessage = error.message.trim();
+  let rawMessage = "";
+  try {
+    rawMessage = error.message;
+  } catch {
+    return "Unknown report serialization error.";
+  }
+
+  if (typeof rawMessage !== "string") {
+    return "Unknown report serialization error.";
+  }
+
+  const normalizedMessage = rawMessage.trim();
   return normalizedMessage.length > 0
     ? normalizedMessage
     : "Unknown report serialization error.";

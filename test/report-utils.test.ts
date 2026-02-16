@@ -492,6 +492,43 @@ describe("report-utils", () => {
       }
     );
     expect(compactSerializedBigIntReport).not.toContain("\n");
+
+    const trappedSerializationError = new Proxy(new Error("serialization trap"), {
+      get(target, property, receiver) {
+        if (property === "message") {
+          throw new Error("message trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const reportWithTrappedSerializationError = {
+      toJSON() {
+        throw trappedSerializationError;
+      },
+    };
+    expect(() =>
+      toReportJson(reportWithTrappedSerializationError as never)
+    ).not.toThrow();
+    const parsedTrappedSerializationErrorReport = JSON.parse(
+      toReportJson(reportWithTrappedSerializationError as never)
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      message: string;
+      serializationError: string;
+    };
+    expect(parsedTrappedSerializationErrorReport.schemaVersion).toBe(
+      REPORT_SCHEMA_VERSION
+    );
+    expect(parsedTrappedSerializationErrorReport.passed).toBe(false);
+    expect(parsedTrappedSerializationErrorReport.exitCode).toBe(1);
+    expect(parsedTrappedSerializationErrorReport.message).toBe(
+      "Failed to serialize report JSON."
+    );
+    expect(parsedTrappedSerializationErrorReport.serializationError).toBe(
+      "Unknown report serialization error."
+    );
   });
 
   it("supports compact json serialization option", () => {
