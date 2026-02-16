@@ -1099,13 +1099,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         if let Some(all_results) = all_results {
             let new_message = if all_results.len() == 1 {
                 let mut all_results = all_results;
-                if let Some(single_update) = all_results.pop() {
-                    Message::new(&MessageType::Update)
-                        .update_owned(single_update)
-                        .build()
-                } else {
-                    Message::new(&MessageType::Update).build()
-                }
+                let Some(single_update) = all_results.pop() else {
+                    return;
+                };
+                Message::new(&MessageType::Update)
+                    .update_owned(single_update)
+                    .build()
             } else {
                 Message::new(&MessageType::Update)
                     .updates_owned(all_results)
