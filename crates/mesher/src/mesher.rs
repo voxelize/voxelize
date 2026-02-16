@@ -307,17 +307,22 @@ impl<'a> VoxelSpace<'a> {
         let lx = vx.rem_euclid(self.chunk_size) as usize;
         let ly = vy as usize;
         let lz = vz.rem_euclid(self.chunk_size) as usize;
+        let shape_y = chunk.shape[1];
+        let shape_z = chunk.shape[2];
 
-        if ly >= chunk.shape[1] {
+        if ly >= shape_y {
             return None;
         }
 
-        let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
-        if index < chunk.voxels.len() {
-            Some(index)
-        } else {
-            None
+        let column_stride = shape_y.checked_mul(shape_z)?;
+        let x_offset = lx.checked_mul(column_stride)?;
+        let y_offset = ly.checked_mul(shape_z)?;
+        let yz_offset = y_offset.checked_add(lz)?;
+        let index = x_offset.checked_add(yz_offset)?;
+        if index >= chunk.voxels.len() || index >= chunk.lights.len() {
+            return None;
         }
+        Some(index)
     }
 
     #[inline]
@@ -2405,7 +2410,10 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 
 #[cfg(test)]
 mod tests {
-    use super::{mesh_chunk, mesh_chunk_with_registry, ChunkData, MeshConfig, MeshInput, MeshInputNoRegistry, Registry};
+    use super::{
+        mesh_chunk, mesh_chunk_with_registry, ChunkData, MeshConfig, MeshInput, MeshInputNoRegistry,
+        Registry, VoxelSpace,
+    };
 
     fn centered_chunks() -> Vec<Option<ChunkData>> {
         let mut chunks: Vec<Option<ChunkData>> = std::iter::repeat_with(|| None).take(9).collect();
@@ -2450,5 +2458,41 @@ mod tests {
         );
 
         assert!(output.geometries.is_empty());
+    }
+
+    #[test]
+    fn voxel_space_get_index_returns_none_for_mismatched_light_length() {
+        let mut chunks = centered_chunks();
+        chunks[4] = Some(ChunkData {
+            voxels: vec![7],
+            lights: Vec::new(),
+            shape: [1, 1, 1],
+            min: [0, 0, 0],
+        });
+        let space = VoxelSpace::new(&chunks, 16, [0, 0]);
+
+        let Some(center_chunk) = chunks[4].as_ref() else {
+            panic!("missing center chunk");
+        };
+        assert_eq!(space.get_index(center_chunk, 0, 0, 0), None);
+        assert_eq!(space.get_all_lights(0, 0, 0), (0, 0, 0, 0));
+    }
+
+    #[test]
+    fn voxel_space_get_index_returns_none_on_shape_overflow() {
+        let mut chunks = centered_chunks();
+        chunks[4] = Some(ChunkData {
+            voxels: vec![9],
+            lights: vec![0],
+            shape: [usize::MAX, usize::MAX, usize::MAX],
+            min: [0, 0, 0],
+        });
+        let space = VoxelSpace::new(&chunks, 16, [0, 0]);
+
+        let Some(center_chunk) = chunks[4].as_ref() else {
+            panic!("missing center chunk");
+        };
+        assert_eq!(space.get_index(center_chunk, 0, 0, 0), None);
+        assert_eq!(space.get_voxel(0, 0, 0), 0);
     }
 }
