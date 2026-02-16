@@ -36,6 +36,28 @@ const getFirstEqualsIndex = (value: string) => {
   }
   return -1;
 };
+const REQUIRED_ERROR_MARKER_LENGTH = 8;
+const containsRequiredErrorMarker = (message: string) => {
+  const length = message.length;
+  if (length < REQUIRED_ERROR_MARKER_LENGTH) {
+    return false;
+  }
+  for (let index = 0; index <= length - REQUIRED_ERROR_MARKER_LENGTH; index++) {
+    if (
+      message.charCodeAt(index) === 82 &&
+      message.charCodeAt(index + 1) === 101 &&
+      message.charCodeAt(index + 2) === 113 &&
+      message.charCodeAt(index + 3) === 117 &&
+      message.charCodeAt(index + 4) === 105 &&
+      message.charCodeAt(index + 5) === 114 &&
+      message.charCodeAt(index + 6) === 101 &&
+      message.charCodeAt(index + 7) === 100
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
 const assignParsedArg = (
   rawObj: Record<string, string>,
   rawObjKeys: string[],
@@ -655,7 +677,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
               `$#FF6B6B$Invalid ${fieldName}. Valid: $white$${preview}$#FF6B6B$ (+${options.length - 5} more)`
             );
           }
-        } else if (argMeta?.required && issue.message.includes("Required")) {
+        } else if (
+          argMeta?.required &&
+          containsRequiredErrorMarker(issue.message)
+        ) {
           errorLines.push(
             `$#FF6B6B$Missing required argument: $white$<${fieldName}>`
           );
