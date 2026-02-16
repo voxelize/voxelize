@@ -572,6 +572,8 @@ pub fn propagate(
 
                 let raw_voxel = space.get_raw_voxel(vx, y, vz);
                 let block = registry.get_block_by_id(raw_voxel & 0xFFFF);
+                let mut raw_light = space.get_raw_light(vx, y, vz);
+                let mut light_changed = false;
                 if block.is_light {
                     let (red_level, green_level, blue_level) =
                         if block.has_dynamic_torch_mask(ALL_TORCH_COLOR_MASK) {
@@ -585,7 +587,11 @@ pub fn propagate(
                         };
 
                     if red_level > 0 {
-                        space.set_red_light(vx, y, vz, red_level);
+                        let inserted = LightUtils::insert_red_light(raw_light, red_level);
+                        if inserted != raw_light {
+                            raw_light = inserted;
+                            light_changed = true;
+                        }
                         red_light_queue.push(LightNode {
                             voxel: [vx, y, vz],
                             level: red_level,
@@ -593,7 +599,11 @@ pub fn propagate(
                     }
 
                     if green_level > 0 {
-                        space.set_green_light(vx, y, vz, green_level);
+                        let inserted = LightUtils::insert_green_light(raw_light, green_level);
+                        if inserted != raw_light {
+                            raw_light = inserted;
+                            light_changed = true;
+                        }
                         green_light_queue.push(LightNode {
                             voxel: [vx, y, vz],
                             level: green_level,
@@ -601,7 +611,11 @@ pub fn propagate(
                     }
 
                     if blue_level > 0 {
-                        space.set_blue_light(vx, y, vz, blue_level);
+                        let inserted = LightUtils::insert_blue_light(raw_light, blue_level);
+                        if inserted != raw_light {
+                            raw_light = inserted;
+                            light_changed = true;
+                        }
                         blue_light_queue.push(LightNode {
                             voxel: [vx, y, vz],
                             level: blue_level,
@@ -613,11 +627,17 @@ pub fn propagate(
                     block.get_transparency_from_raw_voxel(raw_voxel);
 
                 if block.is_opaque {
+                    if light_changed {
+                        let _ = space.set_raw_light(vx, y, vz, raw_light);
+                    }
                     mask[current_mask_index] = 0;
                     continue;
                 }
 
                 if !py || !ny {
+                    if light_changed {
+                        let _ = space.set_raw_light(vx, y, vz, raw_light);
+                    }
                     mask[current_mask_index] = 0;
                     continue;
                 }
@@ -626,7 +646,11 @@ pub fn propagate(
                 if block.light_reduce {
                     if current_mask != 0 {
                         let sunlight = current_mask - 1;
-                        space.set_sunlight(vx, y, vz, sunlight);
+                        let inserted = LightUtils::insert_sunlight(raw_light, sunlight);
+                        if inserted != raw_light {
+                            raw_light = inserted;
+                            light_changed = true;
+                        }
                         if sunlight > 0 {
                             sunlight_queue.push(LightNode {
                                 voxel: [vx, y, vz],
@@ -635,10 +659,20 @@ pub fn propagate(
                         }
                         mask[current_mask_index] = 0;
                     }
+                    if light_changed {
+                        let _ = space.set_raw_light(vx, y, vz, raw_light);
+                    }
                     continue;
                 }
 
-                space.set_sunlight(vx, y, vz, current_mask);
+                let inserted = LightUtils::insert_sunlight(raw_light, current_mask);
+                if inserted != raw_light {
+                    raw_light = inserted;
+                    light_changed = true;
+                }
+                if light_changed {
+                    let _ = space.set_raw_light(vx, y, vz, raw_light);
+                }
 
                 if current_mask == max_light_level {
                     let should_add_max =
