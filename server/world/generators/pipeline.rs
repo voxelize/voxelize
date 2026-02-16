@@ -461,7 +461,10 @@ impl Pipeline {
             Err(_) => return Vec::new(),
         };
         if self.chunks.remove(&first_result.0.coords) {
-            let mut results = Vec::with_capacity(4.min(self.chunks.len().saturating_add(1)));
+            let remaining_results = self.receiver.len();
+            let mut results = Vec::with_capacity(
+                (remaining_results + 1).min(self.chunks.len().saturating_add(1)),
+            );
             results.push(first_result);
             while let Ok(result) = self.receiver.try_recv() {
                 if self.chunks.remove(&result.0.coords) {
@@ -470,7 +473,7 @@ impl Pipeline {
             }
             return results;
         }
-        let mut results = Vec::with_capacity(4.min(self.chunks.len()));
+        let mut results = Vec::with_capacity(self.receiver.len().min(self.chunks.len()));
 
         while let Ok(result) = self.receiver.try_recv() {
             if self.chunks.remove(&result.0.coords) {
