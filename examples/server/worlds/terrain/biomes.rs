@@ -30,7 +30,7 @@ impl<T: std::cmp::PartialEq> Biomes<T> {
         nearest.first().map(|(_, biome)| *biome)
     }
 
-    pub fn add_criterion(mut self, name: &str, options: &NoiseOptions) -> Self {
+    pub fn add_criterion(mut self, _name: &str, options: &NoiseOptions) -> Self {
         self.criteria
             .push(SeededNoise::new(self.config.seed, options));
         self.tree = KdTree::new(self.criteria.len());
@@ -69,12 +69,12 @@ impl ChunkStage for BiomeStage {
         "biome".to_string()
     }
 
-    fn process(&self, mut chunk: Chunk, resources: Resources, space: Option<Space>) -> Chunk {
+    fn process(&self, mut chunk: Chunk, resources: Resources, _space: Option<Space>) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
         let registry = resources.registry;
-        let config = resources.config;
+        let _config = resources.config;
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {

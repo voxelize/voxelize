@@ -1,23 +1,16 @@
 mod comps;
 mod systems;
 
-use log::info;
 use log::warn;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use specs::{Builder, Component, DispatcherBuilder, NullStorage, VecStorage, WorldExt};
+use specs::{Builder, Component, NullStorage, VecStorage, WorldExt};
 use voxelize::{
-    BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
-    ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
-    EntitiesMetaSystem, EntitiesSendingSystem, Event, EventsSystem, FlatlandStage, InteractorComp,
-    PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, Registry, RigidBody,
-    RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
+    Event, FlatlandStage, InteractorComp, PositionComp, Registry, RigidBody, RigidBodyComp, Vec3,
+    World, WorldConfig, AABB,
 };
 
-use self::{
-    comps::CountdownComp,
-    systems::{CountdownSystem, NameMetadataSystem},
-};
+use self::comps::CountdownComp;
 
 use super::shared::{setup_components, setup_dispatcher, setup_entities, setup_methods};
 
@@ -32,11 +25,6 @@ pub struct Name(pub String);
 #[derive(Serialize, Deserialize, Debug)]
 struct SpawnMethodPayload {
     position: Vec3<f32>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct TimeMethodPayload {
-    time: f32,
 }
 
 pub fn setup_flat_world(registry: &Registry) -> World {

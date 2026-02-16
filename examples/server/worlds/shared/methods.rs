@@ -1,13 +1,9 @@
 use log::warn;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use specs::{Builder, Join, WorldExt};
-use voxelize::{
-    CollisionsComp, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, MetadataComp, PositionComp,
-    Vec3, World,
-};
+use specs::{Join, WorldExt};
+use voxelize::{EntityFlag, IDComp, Vec3, World};
 
-use super::components::{BotFlag, TextComp};
+use super::components::TextComp;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TimeMethodPayload {

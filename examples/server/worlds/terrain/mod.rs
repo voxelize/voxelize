@@ -1,12 +1,11 @@
 pub mod biomes;
 
-use noise::{Curve, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, ScaleBias};
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::f64;
 use voxelize::{
-    Biome, Chunk, ChunkStage, KdTree, LSystem, NoiseOptions, Resources, SeededNoise, Space,
-    Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
+    Biome, Chunk, ChunkStage, KdTree, LSystem, NoiseOptions, Resources, Space, Terrain,
+    TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
 };
 
 use super::shared::{

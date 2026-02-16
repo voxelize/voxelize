@@ -1,4 +1,3 @@
-use fern::meta;
 use serde::Deserialize;
 use specs::Entity;
 use voxelize::{default_client_parser, World};
