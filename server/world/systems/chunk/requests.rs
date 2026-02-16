@@ -24,6 +24,12 @@ fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
 }
 
 #[inline]
+fn take_set_with_capacity<T>(buffer: &mut HashSet<T>) -> HashSet<T> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, HashSet::with_capacity(capacity))
+}
+
+#[inline]
 fn enqueue_chunk_models_for_client(
     queue: &mut MessageQueues,
     chunk_models_buffer: &mut Vec<crate::ChunkProtocol>,
@@ -99,7 +105,8 @@ fn flush_chunk_requests_for_client(
     if chunk_models_buffer.capacity() < coords_to_send_len {
         chunk_models_buffer.reserve(coords_to_send_len - chunk_models_buffer.len());
     }
-    for coords in coords_to_send.drain() {
+    let coords_to_send = take_set_with_capacity(coords_to_send);
+    for coords in coords_to_send {
         if let Some(chunk) = chunks.get(&coords) {
             chunk_models_buffer.push(chunk.to_model(true, true, 0..sub_chunks_u32));
         }
