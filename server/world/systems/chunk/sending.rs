@@ -170,6 +170,24 @@ fn prepare_chunk_batch_buffer(
 }
 
 #[inline]
+fn take_chunk_models_to_send(chunk_models: &mut Vec<ChunkProtocol>) -> Option<Vec<ChunkProtocol>> {
+    if chunk_models.is_empty() {
+        return None;
+    }
+    if chunk_models.len() == 1 {
+        if let Some(single_model) = chunk_models.pop() {
+            return Some(vec![single_model]);
+        }
+        return None;
+    }
+    let next_chunk_capacity = chunk_models.capacity();
+    Some(std::mem::replace(
+        chunk_models,
+        Vec::with_capacity(next_chunk_capacity),
+    ))
+}
+
+#[inline]
 fn flush_chunk_batches_touched(
     queue: &mut MessageQueues,
     message_type: &MessageType,
@@ -186,12 +204,9 @@ fn flush_chunk_batches_touched(
         let Some(chunk_models) = batches.get_mut(&client_id) else {
             return;
         };
-        if chunk_models.is_empty() {
+        let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
             return;
-        }
-        let next_chunk_capacity = chunk_models.capacity();
-        let chunk_models_to_send =
-            std::mem::replace(chunk_models, Vec::with_capacity(next_chunk_capacity));
+        };
         let message = Message::new(message_type)
             .chunks_owned(chunk_models_to_send)
             .build();
@@ -202,12 +217,9 @@ fn flush_chunk_batches_touched(
         let Some(chunk_models) = batches.get_mut(&client_id) else {
             continue;
         };
-        if chunk_models.is_empty() {
+        let Some(chunk_models_to_send) = take_chunk_models_to_send(chunk_models) else {
             continue;
-        }
-        let next_chunk_capacity = chunk_models.capacity();
-        let chunk_models_to_send =
-            std::mem::replace(chunk_models, Vec::with_capacity(next_chunk_capacity));
+        };
         let message = Message::new(message_type)
             .chunks_owned(chunk_models_to_send)
             .build();
