@@ -188,7 +188,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
 
         let pending_queue_len = pipeline.queue.len();
-        let mut processes = Vec::with_capacity(pending_queue_len);
+        let process_initial_capacity = pending_queue_len.min(64);
+        let mut processes = None;
 
         if pipeline.queue.len() > 1 && !interests.weights.is_empty() {
             pipeline
@@ -316,9 +317,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     }
 
                     let space = space.build();
-                    processes.push((chunk, Some(space)));
+                    processes
+                        .get_or_insert_with(|| Vec::with_capacity(process_initial_capacity))
+                        .push((chunk, Some(space)));
                 } else {
-                    processes.push((chunk, None));
+                    processes
+                        .get_or_insert_with(|| Vec::with_capacity(process_initial_capacity))
+                        .push((chunk, None));
                 }
             }
         }
@@ -352,7 +357,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
         }
 
-        if !processes.is_empty() {
+        if let Some(processes) = processes {
             pipeline.process(processes, &registry, &config);
         }
 
