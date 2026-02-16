@@ -17,6 +17,11 @@ const MESSAGE_TYPE_UNLOAD: i32 = MessageType::Unload as i32;
 const ENTITY_OPERATION_UPDATE: i32 = EntityOperation::Update as i32;
 
 #[inline]
+fn compute_transport_eligibility(msg_type: i32) -> bool {
+    msg_type == MESSAGE_TYPE_ENTITY || msg_type == MESSAGE_TYPE_PEER
+}
+
+#[inline]
 fn reserve_for_append<T>(buffer: &mut Vec<T>, additional: usize) {
     let remaining_capacity = buffer.capacity() - buffer.len();
     if remaining_capacity < additional {
@@ -29,6 +34,7 @@ pub struct EncodedMessage {
     pub data: Bytes,
     pub msg_type: i32,
     pub is_rtc_eligible: bool,
+    pub is_transport_eligible: bool,
 }
 
 pub struct MessageQueues {
@@ -149,6 +155,7 @@ impl EncodedMessageQueue {
                     data: Bytes::from(encode_message(&message)),
                     msg_type,
                     is_rtc_eligible,
+                    is_transport_eligible: compute_transport_eligibility(msg_type),
                 };
                 self.processed.push((encoded, filter));
             }
@@ -163,6 +170,7 @@ impl EncodedMessageQueue {
                     data: Bytes::from(encode_message(&message)),
                     msg_type,
                     is_rtc_eligible,
+                    is_transport_eligible: compute_transport_eligibility(msg_type),
                 };
                 self.processed.push((encoded, filter));
             }
@@ -181,6 +189,7 @@ impl EncodedMessageQueue {
                         data: Bytes::from(encode_message(&message)),
                         msg_type,
                         is_rtc_eligible,
+                        is_transport_eligible: compute_transport_eligibility(msg_type),
                     };
                     (encoded, filter)
                 })
@@ -241,6 +250,7 @@ mod tests {
             data: Bytes::from(vec![marker]),
             msg_type: MessageType::Peer as i32,
             is_rtc_eligible: true,
+            is_transport_eligible: true,
         }
     }
 
