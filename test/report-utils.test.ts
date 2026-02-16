@@ -1542,6 +1542,61 @@ describe("report-utils", () => {
     ]);
     expect(malformedArgs.positionalArgs).toEqual([]);
     expect(malformedArgs.optionTerminatorUsed).toBe(false);
+    const emptyIteratorArgs = new Proxy(["--json", "--", "--no-build"], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          return function* () {
+            return;
+          };
+        }
+        if (property === "length") {
+          return 3;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const emptyIteratorResult = splitCliArgs(emptyIteratorArgs as never);
+    expect(emptyIteratorResult.optionArgs).toEqual(["--json"]);
+    expect(emptyIteratorResult.positionalArgs).toEqual(["--no-build"]);
+    expect(emptyIteratorResult.optionTerminatorUsed).toBe(true);
+    const emptyIteratorLengthTrappedArgs = new Proxy(
+      ["--json", "--", "--no-build"],
+      {
+        ownKeys() {
+          return ["2", "0", "1", "length"];
+        },
+        getOwnPropertyDescriptor(target, property) {
+          if (property === "0" || property === "1" || property === "2") {
+            return {
+              configurable: true,
+              enumerable: true,
+              writable: true,
+              value: Reflect.get(target, property),
+            };
+          }
+          return Reflect.getOwnPropertyDescriptor(target, property);
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            throw new Error("length trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const emptyIteratorLengthTrappedResult = splitCliArgs(
+      emptyIteratorLengthTrappedArgs as never
+    );
+    expect(emptyIteratorLengthTrappedResult.optionArgs).toEqual(["--json"]);
+    expect(emptyIteratorLengthTrappedResult.positionalArgs).toEqual([
+      "--no-build",
+    ]);
+    expect(emptyIteratorLengthTrappedResult.optionTerminatorUsed).toBe(true);
 
     const largeLengthTrapArgs = new Proxy(["--json", "--mystery"], {
       get(target, property, receiver) {
@@ -4076,6 +4131,44 @@ describe("report-utils", () => {
       malformedValueMetadataOverrideValidation.unsupportedOptionsError
     ).toBeNull();
     expect(malformedValueMetadataOverrideValidation.validationErrorCode).toBeNull();
+    const emptyIteratorValueMetadataOverrideValidation =
+      createCliOptionValidation(["--output", "-artifact-report.json"], {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: new Proxy(["--output"], {
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 1;
+              }
+              if (property === "0") {
+                return "--output";
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(emptyIteratorValueMetadataOverrideValidation.supportedCliOptions).toEqual(
+      ["--output"]
+    );
+    expect(
+      emptyIteratorValueMetadataOverrideValidation.supportedCliOptionCount
+    ).toBe(1);
+    expect(emptyIteratorValueMetadataOverrideValidation.unknownOptions).toEqual([]);
+    expect(emptyIteratorValueMetadataOverrideValidation.unknownOptionCount).toBe(0);
+    expect(
+      emptyIteratorValueMetadataOverrideValidation.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      emptyIteratorValueMetadataOverrideValidation.validationErrorCode
+    ).toBeNull();
     const unavailableValueMetadataOverrideValidation = createCliOptionValidation(
       ["--output", "-l"],
       {
