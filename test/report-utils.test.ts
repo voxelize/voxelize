@@ -2157,6 +2157,75 @@ describe("report-utils", () => {
     expect(lengthAndOwnKeysTrapResult.optionArgs).toEqual([]);
     expect(lengthAndOwnKeysTrapResult.positionalArgs).toEqual([]);
     expect(lengthAndOwnKeysTrapResult.optionTerminatorUsed).toBe(false);
+    const ownKeysTrappedLengthReadablePrefixReadTrapArgs = new Proxy(
+      ["--json", "--output", "report.json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 3;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const ownKeysTrappedLengthReadablePrefixReadTrapResult = splitCliArgs(
+      ownKeysTrappedLengthReadablePrefixReadTrapArgs as never
+    );
+    expect(ownKeysTrappedLengthReadablePrefixReadTrapResult.optionArgs).toEqual([
+      "--output",
+      "report.json",
+    ]);
+    expect(ownKeysTrappedLengthReadablePrefixReadTrapResult.positionalArgs).toEqual(
+      []
+    );
+    expect(
+      ownKeysTrappedLengthReadablePrefixReadTrapResult.optionTerminatorUsed
+    ).toBe(false);
+    const ownKeysTrappedLengthReadablePrefixReadTrapTerminatorArgs = new Proxy(
+      ["--json", "--", "report.json"],
+      {
+        ownKeys() {
+          throw new Error("ownKeys trap");
+        },
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              return;
+            };
+          }
+          if (property === "length") {
+            return 3;
+          }
+          if (property === "0") {
+            throw new Error("read trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const ownKeysTrappedLengthReadablePrefixReadTrapTerminatorResult = splitCliArgs(
+      ownKeysTrappedLengthReadablePrefixReadTrapTerminatorArgs as never
+    );
+    expect(
+      ownKeysTrappedLengthReadablePrefixReadTrapTerminatorResult.optionArgs
+    ).toEqual([]);
+    expect(
+      ownKeysTrappedLengthReadablePrefixReadTrapTerminatorResult.positionalArgs
+    ).toEqual(["report.json"]);
+    expect(
+      ownKeysTrappedLengthReadablePrefixReadTrapTerminatorResult.optionTerminatorUsed
+    ).toBe(true);
 
     const lengthTrapArgs = new Proxy(["--json", "--output", "report.json"], {
       get(target, property, receiver) {
