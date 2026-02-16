@@ -743,6 +743,33 @@ fn take_client_events_to_send(
     )))
 }
 
+#[inline]
+fn flush_events_for_client(
+    dispatch_map: &mut HashMap<String, Vec<EventProtocol>>,
+    clients: &Clients,
+    client_id: String,
+) {
+    let Some(client_events) = dispatch_map.get_mut(&client_id) else {
+        return;
+    };
+    let Some(client_events_to_send) = take_client_events_to_send(client_events) else {
+        return;
+    };
+    let Some(client) = clients.get(&client_id) else {
+        return;
+    };
+    let message = match client_events_to_send {
+        Ok(events_to_send) => Message::new(&MessageType::Event)
+            .events_owned(events_to_send)
+            .build(),
+        Err(single_event) => Message::new(&MessageType::Event)
+            .event_owned(single_event)
+            .build(),
+    };
+    let encoded = Bytes::from(encode_message(&message));
+    let _ = client.sender.send(encoded);
+}
+
 impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
@@ -1165,52 +1192,45 @@ impl<'a> System<'a> for EventsSystem {
         }
 
         // Process the dispatch map, sending them directly for fastest event responses.
-        if touched_clients.len() == 1 {
-            if let Some(id) = touched_clients.pop() {
-                if let Some(client_events) = dispatch_map.get_mut(&id) {
-                    if let Some(client_events_to_send) = take_client_events_to_send(client_events)
-                    {
-                        if let Some(client) = clients.get(&id) {
-                            let message = match client_events_to_send {
-                                Ok(events_to_send) => {
-                                    Message::new(&MessageType::Event)
-                                        .events_owned(events_to_send)
-                                        .build()
-                                }
-                                Err(single_event) => {
-                                    Message::new(&MessageType::Event)
-                                        .event_owned(single_event)
-                                        .build()
-                                }
-                            };
-                            let encoded = Bytes::from(encode_message(&message));
-                            let _ = client.sender.send(encoded);
-                        }
-                    }
+        match touched_clients.len() {
+            1 => {
+                if let Some(client_id) = touched_clients.pop() {
+                    flush_events_for_client(dispatch_map, &clients, client_id);
                 }
             }
-        } else {
-        for id in touched_clients.drain(..) {
-            let client_events = match dispatch_map.get_mut(&id) {
-                Some(events) => events,
-                None => continue,
-            };
-            let Some(client_events_to_send) = take_client_events_to_send(client_events) else {
-                continue;
-            };
-            if let Some(client) = clients.get(&id) {
-                let message = match client_events_to_send {
-                    Ok(events_to_send) => Message::new(&MessageType::Event)
-                        .events_owned(events_to_send)
-                        .build(),
-                    Err(single_event) => Message::new(&MessageType::Event)
-                        .event_owned(single_event)
-                        .build(),
+            2 => {
+                let Some(first_client_id) = touched_clients.pop() else {
+                    return;
                 };
-                let encoded = Bytes::from(encode_message(&message));
-                let _ = client.sender.send(encoded);
+                let Some(second_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    return;
+                };
+                flush_events_for_client(dispatch_map, &clients, first_client_id);
+                flush_events_for_client(dispatch_map, &clients, second_client_id);
             }
-        }
+            3 => {
+                let Some(first_client_id) = touched_clients.pop() else {
+                    return;
+                };
+                let Some(second_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    return;
+                };
+                let Some(third_client_id) = touched_clients.pop() else {
+                    flush_events_for_client(dispatch_map, &clients, first_client_id);
+                    flush_events_for_client(dispatch_map, &clients, second_client_id);
+                    return;
+                };
+                flush_events_for_client(dispatch_map, &clients, first_client_id);
+                flush_events_for_client(dispatch_map, &clients, second_client_id);
+                flush_events_for_client(dispatch_map, &clients, third_client_id);
+            }
+            _ => {
+                for client_id in touched_clients.drain(..) {
+                    flush_events_for_client(dispatch_map, &clients, client_id);
+                }
+            }
         }
 
         if has_transports {
