@@ -721,6 +721,35 @@ impl Chunks {
                             && *voxel != fifth_staged_voxel
                     });
                 }
+                6 => {
+                    let mut staged_voxels = self.updates_staging.keys();
+                    let Some(first_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some(second_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some(third_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some(fourth_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some(fifth_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some(sixth_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    self.updates.retain(|(voxel, _)| {
+                        *voxel != first_staged_voxel
+                            && *voxel != second_staged_voxel
+                            && *voxel != third_staged_voxel
+                            && *voxel != fourth_staged_voxel
+                            && *voxel != fifth_staged_voxel
+                            && *voxel != sixth_staged_voxel
+                    });
+                }
                 _ => {
                     self.updates
                         .retain(|(voxel, _)| !self.updates_staging.contains_key(voxel));
@@ -860,6 +889,52 @@ impl Chunks {
                 self.updates.push_back((fifth_voxel, fifth_val));
                 return;
             }
+            6 => {
+                let (
+                    (first_voxel, first_val),
+                    (second_voxel, second_val),
+                    (third_voxel, third_val),
+                    (fourth_voxel, fourth_val),
+                    (fifth_voxel, fifth_val),
+                    (sixth_voxel, sixth_val),
+                ) = {
+                    let mut staged_updates = self.updates_staging.iter();
+                    let Some((first_voxel, first_val)) = staged_updates.next() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some((second_voxel, second_val)) = staged_updates.next() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some((third_voxel, third_val)) = staged_updates.next() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some((fourth_voxel, fourth_val)) = staged_updates.next() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some((fifth_voxel, fifth_val)) = staged_updates.next() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    let Some((sixth_voxel, sixth_val)) = staged_updates.next() else {
+                        unreachable!("six staged updates length matched branch");
+                    };
+                    (
+                        (*first_voxel, *first_val),
+                        (*second_voxel, *second_val),
+                        (*third_voxel, *third_val),
+                        (*fourth_voxel, *fourth_val),
+                        (*fifth_voxel, *fifth_val),
+                        (*sixth_voxel, *sixth_val),
+                    )
+                };
+                self.updates_staging.clear();
+                self.updates.push_back((first_voxel, first_val));
+                self.updates.push_back((second_voxel, second_val));
+                self.updates.push_back((third_voxel, third_val));
+                self.updates.push_back((fourth_voxel, fourth_val));
+                self.updates.push_back((fifth_voxel, fifth_val));
+                self.updates.push_back((sixth_voxel, sixth_val));
+                return;
+            }
             _ => {}
         }
         self.updates.reserve(staged_count);
@@ -911,6 +986,21 @@ impl Chunks {
                 self.updates_staging.insert(*third_voxel, *third_val);
                 self.updates_staging.insert(*fourth_voxel, *fourth_val);
                 self.updates_staging.insert(*fifth_voxel, *fifth_val);
+            }
+            [
+                (first_voxel, first_val),
+                (second_voxel, second_val),
+                (third_voxel, third_val),
+                (fourth_voxel, fourth_val),
+                (fifth_voxel, fifth_val),
+                (sixth_voxel, sixth_val),
+            ] => {
+                self.updates_staging.insert(*first_voxel, *first_val);
+                self.updates_staging.insert(*second_voxel, *second_val);
+                self.updates_staging.insert(*third_voxel, *third_val);
+                self.updates_staging.insert(*fourth_voxel, *fourth_val);
+                self.updates_staging.insert(*fifth_voxel, *fifth_val);
+                self.updates_staging.insert(*sixth_voxel, *sixth_val);
             }
             _ => {
                 self.updates_staging.reserve(voxels.len());
@@ -1496,6 +1586,52 @@ mod tests {
     }
 
     #[test]
+    fn flush_staged_updates_replaces_duplicates_for_six_staged_voxels() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let keep_voxel = Vec3(9, 9, 9);
+        let first_voxel = Vec3(1, 1, 1);
+        let second_voxel = Vec3(2, 2, 2);
+        let third_voxel = Vec3(3, 3, 3);
+        let fourth_voxel = Vec3(4, 4, 4);
+        let fifth_voxel = Vec3(5, 5, 5);
+        let sixth_voxel = Vec3(6, 6, 6);
+
+        chunks.updates.push_back((keep_voxel, 90));
+        chunks.updates.push_back((first_voxel, 10));
+        chunks.updates.push_back((second_voxel, 20));
+        chunks.updates.push_back((third_voxel, 30));
+        chunks.updates.push_back((fourth_voxel, 40));
+        chunks.updates.push_back((fifth_voxel, 50));
+        chunks.updates.push_back((sixth_voxel, 60));
+
+        chunks.updates_staging.insert(first_voxel, 11);
+        chunks.updates_staging.insert(second_voxel, 22);
+        chunks.updates_staging.insert(third_voxel, 33);
+        chunks.updates_staging.insert(fourth_voxel, 44);
+        chunks.updates_staging.insert(fifth_voxel, 55);
+        chunks.updates_staging.insert(sixth_voxel, 66);
+
+        chunks.flush_staged_updates();
+
+        assert!(chunks.updates_staging.is_empty());
+        assert_eq!(chunks.updates.len(), 7);
+
+        let mut merged_updates = HashMap::with_capacity(chunks.updates.len());
+        for (voxel, val) in chunks.updates.iter().copied() {
+            assert!(merged_updates.insert(voxel, val).is_none());
+        }
+
+        assert_eq!(merged_updates.get(&keep_voxel), Some(&90));
+        assert_eq!(merged_updates.get(&first_voxel), Some(&11));
+        assert_eq!(merged_updates.get(&second_voxel), Some(&22));
+        assert_eq!(merged_updates.get(&third_voxel), Some(&33));
+        assert_eq!(merged_updates.get(&fourth_voxel), Some(&44));
+        assert_eq!(merged_updates.get(&fifth_voxel), Some(&55));
+        assert_eq!(merged_updates.get(&sixth_voxel), Some(&66));
+    }
+
+    #[test]
     fn flush_staged_updates_moves_three_staged_voxels_when_queue_empty() {
         let config = WorldConfig::new().build();
         let mut chunks = Chunks::new(&config);
@@ -1555,6 +1691,27 @@ mod tests {
         chunks.update_voxels(&updates);
 
         assert_eq!(chunks.updates_staging.len(), 5);
+        for (voxel, value) in updates {
+            assert_eq!(chunks.updates_staging.get(&voxel), Some(&value));
+        }
+    }
+
+    #[test]
+    fn update_voxels_handles_six_entry_batches() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let updates = [
+            (Vec3(1, 2, 3), 11),
+            (Vec3(4, 5, 6), 22),
+            (Vec3(7, 8, 9), 33),
+            (Vec3(10, 11, 12), 44),
+            (Vec3(13, 14, 15), 55),
+            (Vec3(16, 17, 18), 66),
+        ];
+
+        chunks.update_voxels(&updates);
+
+        assert_eq!(chunks.updates_staging.len(), 6);
         for (voxel, value) in updates {
             assert_eq!(chunks.updates_staging.get(&voxel), Some(&value));
         }
