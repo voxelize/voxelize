@@ -4,6 +4,17 @@ use hashbrown::{hash_map::Entry, HashMap, HashSet};
 
 use crate::Vec2;
 
+const REGION_NEIGHBOR_OFFSETS: [(i32, i32); 8] = [
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -1),
+    (0, 1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+];
+
 #[inline]
 fn comparable_weight(weight: Option<&f32>) -> f32 {
     let value = *weight.unwrap_or(&f32::MAX);
@@ -70,20 +81,15 @@ impl ChunkInterests {
         if self.map.contains_key(center) {
             return true;
         }
-        for dx in -1..=1 {
+        for (dx, dz) in REGION_NEIGHBOR_OFFSETS {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
             };
-            for dz in -1..=1 {
-                if dx == 0 && dz == 0 {
-                    continue;
-                }
-                let Some(nz) = center.1.checked_add(dz) else {
-                    continue;
-                };
-                if self.map.contains_key(&Vec2(nx, nz)) {
-                    return true;
-                }
+            let Some(nz) = center.1.checked_add(dz) else {
+                continue;
+            };
+            if self.map.contains_key(&Vec2(nx, nz)) {
+                return true;
             }
         }
         false
@@ -97,35 +103,30 @@ impl ChunkInterests {
         let first_interested = self.map.get(center);
         let mut merged_clients: Option<HashSet<String>> = None;
         let mut single_interest = first_interested;
-        for dx in -1..=1 {
+        for (dx, dz) in REGION_NEIGHBOR_OFFSETS {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
             };
-            for dz in -1..=1 {
-                if dx == 0 && dz == 0 {
+            let Some(nz) = center.1.checked_add(dz) else {
+                continue;
+            };
+            if let Some(interested) = self.map.get(&Vec2(nx, nz)) {
+                if let Some(clients) = merged_clients.as_mut() {
+                    let remaining_capacity = clients.capacity() - clients.len();
+                    if remaining_capacity < interested.len() {
+                        clients.reserve(interested.len() - remaining_capacity);
+                    }
+                    clients.extend(interested.iter().cloned());
                     continue;
                 }
-                let Some(nz) = center.1.checked_add(dz) else {
-                    continue;
-                };
-                if let Some(interested) = self.map.get(&Vec2(nx, nz)) {
-                    if let Some(clients) = merged_clients.as_mut() {
-                        let remaining_capacity = clients.capacity() - clients.len();
-                        if remaining_capacity < interested.len() {
-                            clients.reserve(interested.len() - remaining_capacity);
-                        }
-                        clients.extend(interested.iter().cloned());
-                        continue;
-                    }
-                    if let Some(seed) = single_interest {
-                        let mut clients =
-                            HashSet::with_capacity(seed.len().saturating_add(interested.len()));
-                        clients.extend(seed.iter().cloned());
-                        clients.extend(interested.iter().cloned());
-                        merged_clients = Some(clients);
-                    } else {
-                        single_interest = Some(interested);
-                    }
+                if let Some(seed) = single_interest {
+                    let mut clients =
+                        HashSet::with_capacity(seed.len().saturating_add(interested.len()));
+                    clients.extend(seed.iter().cloned());
+                    clients.extend(interested.iter().cloned());
+                    merged_clients = Some(clients);
+                } else {
+                    single_interest = Some(interested);
                 }
             }
         }
