@@ -44,6 +44,98 @@ const isStringObjectValue = (value) => {
   }
 };
 
+const isNumberObjectValue = (value) => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return value instanceof Number;
+  } catch {
+    return false;
+  }
+};
+
+const isBooleanObjectValue = (value) => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return value instanceof Boolean;
+  } catch {
+    return false;
+  }
+};
+
+const isBigIntObjectValue = (value) => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return value instanceof BigInt;
+  } catch {
+    return false;
+  }
+};
+
+const isSymbolObjectValue = (value) => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return value instanceof Symbol;
+  } catch {
+    return false;
+  }
+};
+
+const toPrimitiveWrapperStringOrNull = (value) => {
+  const isSupportedWrapper =
+    isStringObjectValue(value) ||
+    isNumberObjectValue(value) ||
+    isBooleanObjectValue(value) ||
+    isBigIntObjectValue(value) ||
+    isSymbolObjectValue(value);
+  if (!isSupportedWrapper) {
+    return null;
+  }
+
+  try {
+    const wrappedStringValue = String(value);
+    if (wrappedStringValue.length > 0) {
+      return wrappedStringValue;
+    }
+  } catch {
+    // fall through to valueOf coercion fallback
+  }
+
+  try {
+    const valueOf = value.valueOf;
+    if (typeof valueOf !== "function") {
+      return null;
+    }
+
+    const primitiveValue = valueOf.call(value);
+    if (
+      typeof primitiveValue !== "string" &&
+      typeof primitiveValue !== "number" &&
+      typeof primitiveValue !== "boolean" &&
+      typeof primitiveValue !== "bigint" &&
+      typeof primitiveValue !== "symbol"
+    ) {
+      return null;
+    }
+
+    const primitiveStringValue = String(primitiveValue);
+    return primitiveStringValue.length > 0 ? primitiveStringValue : null;
+  } catch {
+    return null;
+  }
+};
+
 export const parseJsonOutput = (value) => {
   let outputValue = value;
   if (typeof outputValue !== "string") {
@@ -3022,6 +3114,11 @@ const toOutputPathMessageValue = (outputPath) => {
     } catch {
       return FALLBACK_UNPRINTABLE_OUTPUT_PATH;
     }
+  }
+
+  const wrappedPrimitiveOutputPath = toPrimitiveWrapperStringOrNull(outputPath);
+  if (wrappedPrimitiveOutputPath !== null) {
+    return wrappedPrimitiveOutputPath;
   }
 
   return FALLBACK_UNPRINTABLE_OUTPUT_PATH;
