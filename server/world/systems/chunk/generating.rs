@@ -15,13 +15,22 @@ const SMALL_PARALLEL_CHUNK_LOAD_LIMIT: usize = 2;
 
 #[inline]
 fn contains_single_client_interest(ids: &HashSet<String>, single_client_id: &str) -> bool {
-    if ids.len() == 1 {
-        return ids
+    match ids.len() {
+        0 => false,
+        1 => ids
             .iter()
             .next()
-            .is_some_and(|id| id.as_str() == single_client_id);
+            .is_some_and(|id| id.as_str() == single_client_id),
+        2 | 3 | 4 => {
+            for id in ids {
+                if id.as_str() == single_client_id {
+                    return true;
+                }
+            }
+            false
+        }
+        _ => ids.contains(single_client_id),
     }
-    ids.contains(single_client_id)
 }
 
 #[inline]
@@ -579,8 +588,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 #[cfg(test)]
 mod tests {
     use super::{
-        accumulate_chunk_interest_weight, chunk_interest_alignment, next_pipeline_stage,
+        accumulate_chunk_interest_weight, chunk_interest_alignment, contains_single_client_interest,
+        next_pipeline_stage,
     };
+    use hashbrown::HashSet;
     use crate::Vec2;
 
     #[test]
@@ -649,5 +660,22 @@ mod tests {
     fn next_pipeline_stage_saturates_at_usize_max() {
         assert_eq!(next_pipeline_stage(0), 1);
         assert_eq!(next_pipeline_stage(usize::MAX), usize::MAX);
+    }
+
+    #[test]
+    fn contains_single_client_interest_matches_small_and_large_sets() {
+        let mut tiny = HashSet::with_capacity(4);
+        tiny.insert("a".to_string());
+        tiny.insert("b".to_string());
+        tiny.insert("c".to_string());
+        assert!(contains_single_client_interest(&tiny, "b"));
+        assert!(!contains_single_client_interest(&tiny, "z"));
+
+        let mut larger = HashSet::with_capacity(8);
+        for id in ["a", "b", "c", "d", "e"] {
+            larger.insert(id.to_string());
+        }
+        assert!(contains_single_client_interest(&larger, "d"));
+        assert!(!contains_single_client_interest(&larger, "missing"));
     }
 }
