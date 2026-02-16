@@ -231,7 +231,6 @@ fn process_pending_updates(
             let current_is_light = current_type.is_light_at(&voxel, &*chunks);
             let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
 
-            let rotation = BlockUtils::extract_rotation(raw);
             let stage = BlockUtils::extract_stage(raw);
 
             if !chunks.set_voxel(vx, vy, vz, updated_id) {
@@ -320,6 +319,7 @@ fn process_pending_updates(
             }
 
             if updated_type.rotatable || updated_type.y_rotatable {
+                let rotation = BlockUtils::extract_rotation(raw);
                 chunks.set_voxel_rotation(vx, vy, vz, &rotation);
             }
 
@@ -395,10 +395,26 @@ fn process_pending_updates(
             continue;
         }
 
-        let rotation = BlockUtils::extract_rotation(raw);
-        let current_transparency = current_type.get_rotated_transparency(&rotation);
-        let updated_transparency = if updated_type.rotatable || updated_type.y_rotatable {
-            updated_type.get_rotated_transparency(&rotation)
+        let current_rotatable = current_type.rotatable || current_type.y_rotatable;
+        let updated_rotatable = updated_type.rotatable || updated_type.y_rotatable;
+        let rotation = if current_rotatable || updated_rotatable {
+            Some(BlockUtils::extract_rotation(raw))
+        } else {
+            None
+        };
+        let current_transparency = if current_rotatable {
+            match rotation.as_ref() {
+                Some(rotation) => current_type.get_rotated_transparency(rotation),
+                None => current_type.is_transparent,
+            }
+        } else {
+            current_type.is_transparent
+        };
+        let updated_transparency = if updated_rotatable {
+            match rotation.as_ref() {
+                Some(rotation) => updated_type.get_rotated_transparency(rotation),
+                None => updated_type.is_transparent,
+            }
         } else {
             updated_type.is_transparent
         };
