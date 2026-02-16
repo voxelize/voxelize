@@ -3239,9 +3239,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
         let mask_width = (u_range.1 - u_range.0) as usize;
         let mask_height = (v_range.1 - v_range.0) as usize;
         let mask_len = mask_width * mask_height;
-        if greedy_mask.len() < mask_len {
-            greedy_mask.resize(mask_len, None);
-        }
         if non_greedy_faces.capacity() < mask_len {
             non_greedy_faces.reserve(mask_len - non_greedy_faces.capacity());
         }
