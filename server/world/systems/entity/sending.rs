@@ -528,7 +528,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 {
                     if !known_entities.is_empty() {
                         known_entities.retain(|entity_id| {
-                            if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                            let record = new_bookkeeping_records.get(entity_id);
+                            if let Some((etype, ..)) = record {
                                 if etype.starts_with("block::") {
                                     return true;
                                 }
@@ -547,9 +548,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             if !should_delete {
                                 return true;
                             }
-                            if let Some((etype, _ent, metadata, _persisted)) =
-                                new_bookkeeping_records.get(entity_id)
-                            {
+                            if let Some((etype, _ent, metadata, _persisted)) = record {
                                 let metadata_json = get_or_cache_metadata_json(
                                     &mut self.metadata_json_cache_buffer,
                                     entity_id,
@@ -587,7 +586,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     continue;
                 }
                 known_entities.retain(|entity_id| {
-                    if let Some((etype, ..)) = new_bookkeeping_records.get(entity_id) {
+                    let record = new_bookkeeping_records.get(entity_id);
+                    if let Some((etype, ..)) = record {
                         if etype.starts_with("block::") {
                             return true;
                         }
@@ -604,9 +604,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     if !should_delete {
                         return true;
                     }
-                    if let Some((etype, _ent, metadata, _persisted)) =
-                        new_bookkeeping_records.get(entity_id)
-                    {
+                    if let Some((etype, _ent, metadata, _persisted)) = record {
                         let metadata_json = get_or_cache_metadata_json(
                             &mut self.metadata_json_cache_buffer,
                             entity_id,
