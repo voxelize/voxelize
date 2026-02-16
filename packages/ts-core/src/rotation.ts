@@ -150,25 +150,22 @@ const readAabbSnapshotSafely = (aabb: AABB): AabbSnapshot | null => {
 const readFaceTransparencySafely = (
   transparency: FaceTransparency
 ): FaceTransparency => {
-  try {
-    const px = transparency[0];
-    const py = transparency[1];
-    const pz = transparency[2];
-    const nx = transparency[3];
-    const ny = transparency[4];
-    const nz = transparency[5];
+  const readTransparencyChannelSafely = (index: number): boolean => {
+    try {
+      return transparency[index] === true;
+    } catch {
+      return false;
+    }
+  };
 
-    return [
-      px === true,
-      py === true,
-      pz === true,
-      nx === true,
-      ny === true,
-      nz === true,
-    ];
-  } catch {
-    return [false, false, false, false, false, false];
-  }
+  return [
+    readTransparencyChannelSafely(0),
+    readTransparencyChannelSafely(1),
+    readTransparencyChannelSafely(2),
+    readTransparencyChannelSafely(3),
+    readTransparencyChannelSafely(4),
+    readTransparencyChannelSafely(5),
+  ];
 };
 
 const readVec3SnapshotSafely = (node: Vec3): Vec3 | null => {

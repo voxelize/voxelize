@@ -1361,6 +1361,49 @@ describe("BlockRotation", () => {
     ]);
   });
 
+  it("salvages readable transparency channels when sibling reads trap", () => {
+    const trappedTransparency = Object.create(null) as FaceTransparency;
+    Object.defineProperty(trappedTransparency, 0, {
+      configurable: true,
+      enumerable: true,
+      value: true,
+    });
+    Object.defineProperty(trappedTransparency, 1, {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+    Object.defineProperty(trappedTransparency, 2, {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("transparency trap");
+      },
+    });
+    Object.defineProperty(trappedTransparency, 3, {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+    Object.defineProperty(trappedTransparency, 4, {
+      configurable: true,
+      enumerable: true,
+      value: true,
+    });
+    Object.defineProperty(trappedTransparency, 5, {
+      configurable: true,
+      enumerable: true,
+      value: false,
+    });
+
+    expect(() =>
+      BlockRotation.py(0).rotateTransparency(trappedTransparency as never)
+    ).not.toThrow();
+    expect(
+      BlockRotation.py(0).rotateTransparency(trappedTransparency as never)
+    ).toEqual([true, false, false, false, true, false]);
+  });
+
   it("rotates transparency for non-zero y rotation on PY axis", () => {
     const rotation = BlockRotation.encode(PY_ROTATION, 4);
     const input: [boolean, boolean, boolean, boolean, boolean, boolean] = [
