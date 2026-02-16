@@ -140,6 +140,7 @@ fn process_pending_updates(
     light_cfg: &voxelize_lighter::LightConfig,
     max_light_level: u32,
     max_height: Option<i32>,
+    chunk_size: usize,
     current_tick: u64,
     max_updates: usize,
 ) -> Vec<UpdateProtocol> {
@@ -155,7 +156,6 @@ fn process_pending_updates(
 
     let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> =
         HashMap::with_capacity(num_to_process);
-    let chunk_size = normalized_chunk_size(config.chunk_size);
 
     for _ in 0..num_to_process {
         let Some((voxel, raw)) = chunks.updates.pop_front() else {
@@ -802,6 +802,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         } else {
             Some(config.max_height as i32)
         };
+        let chunk_size = normalized_chunk_size(config.chunk_size);
         let light_registry = registry.lighter_registry_ref().as_ref();
         let light_config = light_config(&config);
 
@@ -858,6 +859,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 &light_config,
                 max_light_level,
                 max_height,
+                chunk_size,
                 current_tick,
                 max_updates_per_tick,
             );
@@ -876,6 +878,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             &light_config,
             max_light_level,
             max_height,
+            chunk_size,
             current_tick,
             max_updates_per_tick,
         );
