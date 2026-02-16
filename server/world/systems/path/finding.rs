@@ -105,48 +105,37 @@ impl<'a> System<'a> for PathFindingSystem {
             if !aabb_width.is_finite() || aabb_width < 0.0 {
                 return false;
             }
+            let Some(below_y) = pos.1.checked_sub(1) else {
+                return false;
+            };
             let half_width = clamp_f64_to_i32((f64::from(aabb_width) * 0.5).ceil()).max(0);
             if half_width == 0 {
-                let Some(below_y) = pos.1.checked_sub(1) else {
-                    return false;
-                };
                 let below = chunks.get_voxel(pos.0, below_y, pos.2);
                 let block = registry.get_block_by_id(below);
                 return !block.is_passable && !block.is_fluid;
             }
 
-            // Check corners and edges of the bot's base
-            let check_points = [
-                (-half_width, -half_width),
-                (half_width, -half_width),
-                (-half_width, half_width),
-                (half_width, half_width),
-                (0, -half_width),
-                (0, half_width),
-                (-half_width, 0),
-                (half_width, 0),
-            ];
-
-            for (dx, dz) in check_points {
+            let is_supported_point = |dx: i32, dz: i32| {
                 let Some(check_x) = pos.0.checked_add(dx) else {
-                    continue;
+                    return false;
                 };
                 let Some(check_z) = pos.2.checked_add(dz) else {
-                    continue;
+                    return false;
                 };
 
-                // Check if there's a solid block below this point
-                let Some(below_y) = pos.1.checked_sub(1) else {
-                    continue;
-                };
                 let below = chunks.get_voxel(check_x, below_y, check_z);
                 let block = registry.get_block_by_id(below);
-                if !block.is_passable && !block.is_fluid {
-                    return true;
-                }
-            }
+                !block.is_passable && !block.is_fluid
+            };
 
-            false
+            is_supported_point(-half_width, -half_width)
+                || is_supported_point(half_width, -half_width)
+                || is_supported_point(-half_width, half_width)
+                || is_supported_point(half_width, half_width)
+                || is_supported_point(0, -half_width)
+                || is_supported_point(0, half_width)
+                || is_supported_point(-half_width, 0)
+                || is_supported_point(half_width, 0)
         };
 
         let has_wall_nearby = |vx: i32, vy: i32, vz: i32| -> bool {
