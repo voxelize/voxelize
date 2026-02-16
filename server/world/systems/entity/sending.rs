@@ -345,12 +345,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         &mut bookkeeping.client_known_entities,
                         single_client_id,
                     );
-                    let client_known = known_entities.contains(entity_id);
                     let entity_id_owned = entity_id.to_owned();
-                    if !client_known {
-                        known_entities.insert(entity_id_owned.clone());
-                    }
-                    let operation = if !client_known || *is_new {
+                    let is_new_for_client = known_entities.insert(entity_id_owned.clone());
+                    let operation = if is_new_for_client || *is_new {
                         EntityOperation::Create
                     } else {
                         EntityOperation::Update
@@ -378,12 +375,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             &mut bookkeeping.client_known_entities,
                             client_id,
                         );
-                        let client_known = known_entities.contains(entity_id);
                         let entity_id_owned = entity_id.to_owned();
-                        if !client_known {
-                            known_entities.insert(entity_id_owned.clone());
-                        }
-                        let operation = if !client_known || *is_new {
+                        let is_new_for_client = known_entities.insert(entity_id_owned.clone());
+                        let operation = if is_new_for_client || *is_new {
                             EntityOperation::Create
                         } else {
                             EntityOperation::Update
