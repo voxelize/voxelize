@@ -84,6 +84,12 @@ impl<'a> System<'a> for EntityTreeSystem {
             }
         }
 
+        if current_ids.is_empty() {
+            if tree.len() != 0 {
+                tree.reset();
+            }
+            return;
+        }
         if tree.len() > current_ids.len() {
             tree.retain(|ent_id| current_ids.contains(&ent_id));
         }
