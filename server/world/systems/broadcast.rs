@@ -268,12 +268,19 @@ impl<'a> System<'a> for BroadcastSystem {
         }
 
         let mut async_messages = encoded_queue.receive();
-        let mut done_messages = immediate_encoded;
-        let remaining_capacity = done_messages.capacity() - done_messages.len();
-        if remaining_capacity < async_messages.len() {
-            done_messages.reserve(async_messages.len() - remaining_capacity);
-        }
-        done_messages.append(&mut async_messages);
+        let done_messages = if immediate_encoded.is_empty() {
+            async_messages
+        } else if async_messages.is_empty() {
+            immediate_encoded
+        } else {
+            let mut done_messages = immediate_encoded;
+            let remaining_capacity = done_messages.capacity() - done_messages.len();
+            if remaining_capacity < async_messages.len() {
+                done_messages.reserve(async_messages.len() - remaining_capacity);
+            }
+            done_messages.append(&mut async_messages);
+            done_messages
+        };
 
         if done_messages.is_empty() {
             return;
