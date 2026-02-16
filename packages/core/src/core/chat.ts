@@ -481,19 +481,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     positionalValues.length = 0;
     const hasPositionalKeys = positionalKeys.length > 0;
     const hasBooleanKeys = booleanKeys.size > 0;
-    const hasEquals = containsEquals(raw);
-
-    if (!hasBooleanKeys && !hasEquals) {
-      const assignCount =
-        wordsLength < positionalKeys.length ? wordsLength : positionalKeys.length;
-      for (let keyIndex = 0; keyIndex < assignCount; keyIndex++) {
-        const key = positionalKeys[keyIndex];
-        assignParsedArg(rawObj, rawObjKeys, key, words[keyIndex]);
-      }
-      return schema.parse(rawObj);
-    }
-
     if (!hasBooleanKeys) {
+      if (!containsEquals(raw)) {
+        const assignCount =
+          wordsLength < positionalKeys.length ? wordsLength : positionalKeys.length;
+        for (let keyIndex = 0; keyIndex < assignCount; keyIndex++) {
+          const key = positionalKeys[keyIndex];
+          assignParsedArg(rawObj, rawObjKeys, key, words[keyIndex]);
+        }
+        return schema.parse(rawObj);
+      }
+
       for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
         const word = words[wordIndex];
         const eqIndex = getFirstEqualsIndex(word);
@@ -508,7 +506,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         positionalValues.push(word);
       }
     } else if (!hasPositionalKeys) {
-      if (!hasEquals) {
+      if (!containsEquals(raw)) {
         for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
           const word = words[wordIndex];
           if (booleanKeys.has(word)) {
@@ -533,7 +531,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         }
       }
     } else {
-      if (!hasEquals) {
+      if (!containsEquals(raw)) {
         for (let wordIndex = 0; wordIndex < wordsLength; wordIndex++) {
           const word = words[wordIndex];
           if (booleanKeys.has(word)) {
