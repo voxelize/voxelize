@@ -23229,6 +23229,31 @@ describe("report-utils", () => {
     }
   });
 
+  it("falls back to unprintable output-path messaging for trapped symbol wrappers", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const trappedSymbolWrapper = Object(Symbol("boxed-output-path"));
+    Object.defineProperty(trappedSymbolWrapper, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("symbol wrapper valueOf trap");
+      },
+    });
+
+    expect(() =>
+      writeReportToPath(reportJson, trappedSymbolWrapper as never)
+    ).not.toThrow();
+    const failureMessage = writeReportToPath(reportJson, trappedSymbolWrapper as never);
+    expect(failureMessage).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(failureMessage).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(failureMessage).not.toContain("symbol wrapper valueOf trap");
+  });
+
   it("returns an unprintable-path fallback for blank output paths", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
 
@@ -23855,6 +23880,88 @@ describe("report-utils", () => {
       expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
       expect(parsedWriteFailureResult.durationMs).toBe(1000);
     }
+  });
+
+  it("returns unprintable serialize fallback for trapped symbol wrappers", () => {
+    const trappedSymbolWrapper = Object(Symbol("boxed-output-path"));
+    Object.defineProperty(trappedSymbolWrapper, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        throw new Error("symbol wrapper valueOf trap");
+      },
+    });
+    const timedReportBuilder = createTimedReportBuilder(
+      (() => {
+        let tick = 0;
+        return () => {
+          tick += 1;
+          return tick * 1000;
+        };
+      })(),
+      (value) => `iso-${value}`
+    );
+    const writeFailureResult = serializeReportWithOptionalWrite(
+      {
+        passed: true,
+        exitCode: 0,
+        outputPath: trappedSymbolWrapper as never,
+      },
+      {
+        jsonFormat: { compact: true },
+        outputPath: trappedSymbolWrapper as never,
+        buildTimedReport: timedReportBuilder,
+      }
+    );
+    const parsedWriteFailureResult = JSON.parse(
+      writeFailureResult.reportJson
+    ) as {
+      schemaVersion: number;
+      passed: boolean;
+      exitCode: number;
+      outputPath: string;
+      writeError: string;
+      message: string;
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+    };
+
+    expect(writeFailureResult.writeError).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(writeFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(writeFailureResult.writeError).not.toContain(
+      "symbol wrapper valueOf trap"
+    );
+    expect(parsedWriteFailureResult.schemaVersion).toBe(REPORT_SCHEMA_VERSION);
+    expect(parsedWriteFailureResult.passed).toBe(false);
+    expect(parsedWriteFailureResult.exitCode).toBe(1);
+    expect(parsedWriteFailureResult.outputPath).toBe("(unprintable output path)");
+    expect(parsedWriteFailureResult.writeError).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(parsedWriteFailureResult.writeError).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.writeError).not.toContain(
+      "symbol wrapper valueOf trap"
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      "Failed to write report to (unprintable output path)."
+    );
+    expect(parsedWriteFailureResult.message).toContain(
+      'The "path" argument must be of type string.'
+    );
+    expect(parsedWriteFailureResult.message).not.toContain(
+      "symbol wrapper valueOf trap"
+    );
+    expect(parsedWriteFailureResult.startedAt).toBe("iso-1000");
+    expect(parsedWriteFailureResult.endedAt).toBe("iso-2000");
+    expect(parsedWriteFailureResult.durationMs).toBe(1000);
   });
 
   it("returns structured serialize fallback for blank output paths", () => {
