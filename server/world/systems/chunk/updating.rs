@@ -491,10 +491,10 @@ fn process_pending_updates(
             let mut remove_counts = 0;
 
             let light_data = [
-                (&SUNLIGHT, chunks.get_sunlight(vx, vy, vz)),
-                (&RED, chunks.get_red_light(vx, vy, vz)),
-                (&GREEN, chunks.get_green_light(vx, vy, vz)),
-                (&BLUE, chunks.get_blue_light(vx, vy, vz)),
+                (None, chunks.get_sunlight(vx, vy, vz)),
+                (Some(&RED), chunks.get_red_light(vx, vy, vz)),
+                (Some(&GREEN), chunks.get_green_light(vx, vy, vz)),
+                (Some(&BLUE), chunks.get_blue_light(vx, vy, vz)),
             ];
 
             for &[ox, oy, oz] in VOXEL_NEIGHBORS.iter() {
@@ -522,22 +522,21 @@ fn process_pending_updates(
                     continue;
                 }
 
-                for &(color, source_level) in light_data.iter() {
-                    let is_sunlight = *color == LightColor::Sunlight;
-
-                    let n_level = if is_sunlight {
-                        chunks.get_sunlight(nvx, nvy, nvz)
-                    } else {
+                for &(torch_color, source_level) in light_data.iter() {
+                    let n_level = if let Some(color) = torch_color {
                         chunks.get_torch_light(nvx, nvy, nvz, color)
+                    } else {
+                        chunks.get_sunlight(nvx, nvy, nvz)
                     };
 
                     if n_level < source_level
                         || (oy == -1
-                            && is_sunlight
+                            && torch_color.is_none()
                             && n_level == max_light_level
                             && source_level == max_light_level)
                     {
                         remove_counts += 1;
+                        let color = torch_color.unwrap_or(&SUNLIGHT);
                         Lights::remove_light_with_light_config(
                             &mut *chunks,
                             &Vec3(nvx, nvy, nvz),
