@@ -1177,6 +1177,16 @@ fn extract_stage(voxel: u32) -> u32 {
 }
 
 #[inline(always)]
+fn quantize_uv_range(uv_range: UV) -> [u32; 4] {
+    [
+        (uv_range.start_u * 1000000.0) as u32,
+        (uv_range.end_u * 1000000.0) as u32,
+        (uv_range.start_v * 1000000.0) as u32,
+        (uv_range.end_v * 1000000.0) as u32,
+    ]
+}
+
+#[inline(always)]
 fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     let num_s1 = !side1 as i32;
     let num_s2 = !side2 as i32;
@@ -3526,12 +3536,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
                                     block.greedy_face_uv_quantized[dir_index]
                                 } else {
-                                    [
-                                        (uv_range.start_u * 1000000.0) as u32,
-                                        (uv_range.end_u * 1000000.0) as u32,
-                                        (uv_range.start_v * 1000000.0) as u32,
-                                        (uv_range.end_v * 1000000.0) as u32,
-                                    ]
+                                    quantize_uv_range(uv_range)
                                 };
                                 let key = FaceKey {
                                     block_id: block.id,
@@ -3585,6 +3590,21 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 });
                                 compute_face_ao_and_light(dir_index, block, neighbors, registry)
                             });
+                            let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
+                                if let Some(face_dir_index) = cardinal_dir_index(face.dir) {
+                                    if block.greedy_face_indices[face_dir_index]
+                                        == face_index as i16
+                                    {
+                                        block.greedy_face_uv_quantized[face_dir_index]
+                                    } else {
+                                        quantize_uv_range(uv_range)
+                                    }
+                                } else {
+                                    quantize_uv_range(uv_range)
+                                }
+                            } else {
+                                quantize_uv_range(uv_range)
+                            };
                             let key = FaceKey {
                                 block_id: block.id,
                                 face_name: None,
@@ -3592,10 +3612,10 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 independent: face.independent,
                                 ao: aos,
                                 light: lights,
-                                uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-                                uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-                                uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-                                uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                                uv_start_u,
+                                uv_end_u,
+                                uv_start_v,
+                                uv_end_v,
                             };
                             let data = FaceData {
                                 key,
