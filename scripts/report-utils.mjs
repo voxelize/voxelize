@@ -1,5 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  isBigIntObject as isBigIntObjectType,
+  isBooleanObject as isBooleanObjectType,
+  isNumberObject as isNumberObjectType,
+  isStringObject as isStringObjectType,
+  isSymbolObject as isSymbolObjectType,
+} from "node:util/types";
 
 export const REPORT_SCHEMA_VERSION = 1;
 const ANSI_CSI_ESCAPE_SEQUENCE_REGEX =
@@ -38,7 +45,7 @@ const isStringObjectValue = (value) => {
   }
 
   try {
-    return value instanceof String;
+    return isStringObjectType(value) || value instanceof String;
   } catch {
     return false;
   }
@@ -50,7 +57,7 @@ const isNumberObjectValue = (value) => {
   }
 
   try {
-    return value instanceof Number;
+    return isNumberObjectType(value) || value instanceof Number;
   } catch {
     return false;
   }
@@ -62,7 +69,7 @@ const isBooleanObjectValue = (value) => {
   }
 
   try {
-    return value instanceof Boolean;
+    return isBooleanObjectType(value) || value instanceof Boolean;
   } catch {
     return false;
   }
@@ -74,7 +81,7 @@ const isBigIntObjectValue = (value) => {
   }
 
   try {
-    return value instanceof BigInt;
+    return isBigIntObjectType(value) || value instanceof BigInt;
   } catch {
     return false;
   }
@@ -86,7 +93,7 @@ const isSymbolObjectValue = (value) => {
   }
 
   try {
-    return value instanceof Symbol;
+    return isSymbolObjectType(value) || value instanceof Symbol;
   } catch {
     return false;
   }

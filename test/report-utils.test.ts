@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import vm from "node:vm";
 
 import { describe, expect, it } from "vitest";
 import * as reportUtilsModule from "../scripts/report-utils.mjs";
@@ -213,6 +214,13 @@ describe("report-utils", () => {
     expect(parseJsonOutput(new String("{\"ok\":true}") as never)).toEqual({
       ok: true,
     });
+    const crossRealmStringWrapper = vm.runInNewContext(
+      "new String('{\"ok\":true}')"
+    );
+    expect(() => parseJsonOutput(crossRealmStringWrapper as never)).not.toThrow();
+    expect(parseJsonOutput(crossRealmStringWrapper as never)).toEqual({
+      ok: true,
+    });
 
     const trappedToStringWrapper = new String("{\"ok\":true}");
     let didCallWrappedToString = false;
@@ -273,6 +281,17 @@ describe("report-utils", () => {
     })();
     expect(() => parseJsonOutput(revokedStringWrapper as never)).not.toThrow();
     expect(parseJsonOutput(revokedStringWrapper as never)).toBeNull();
+  });
+
+  it("supports cross-realm string-wrapper parsing", () => {
+    const crossRealmStringWrapper = vm.runInNewContext(
+      "new String('{\"ok\":true}')"
+    );
+
+    expect(() => parseJsonOutput(crossRealmStringWrapper as never)).not.toThrow();
+    expect(parseJsonOutput(crossRealmStringWrapper as never)).toEqual({
+      ok: true,
+    });
   });
 
   it("does not coerce non-string objects during output parsing", () => {
@@ -23576,6 +23595,27 @@ describe("report-utils", () => {
     );
   });
 
+  it("returns a stable write failure message for cross-realm wrapped-string output paths", () => {
+    const reportJson = toReportJson({ passed: false, exitCode: 1 });
+    const crossRealmWrappedOutputPath = vm.runInNewContext(
+      "new String('cross-realm-output-path')"
+    );
+
+    expect(() =>
+      writeReportToPath(reportJson, crossRealmWrappedOutputPath as never)
+    ).not.toThrow();
+    const failureMessage = writeReportToPath(
+      reportJson,
+      crossRealmWrappedOutputPath as never
+    );
+    expect(failureMessage).toContain(
+      "Failed to write report to cross-realm-output-path."
+    );
+    expect(failureMessage).toContain(
+      'The "path" argument must be of type string.'
+    );
+  });
+
   it("salvages wrapped-string output paths when toString traps", () => {
     const reportJson = toReportJson({ passed: false, exitCode: 1 });
     const wrappedOutputPath = new String("wrapped-output-path");
@@ -25518,6 +25558,32 @@ describe("report-utils", () => {
     });
     expect(didCallStartToString).toBe(false);
     expect(didCallEndToString).toBe(false);
+  });
+
+  it("accepts cross-realm wrapped-string formatter outputs when building timed reports", () => {
+    const nowValues = [1_000, 2_000];
+    let nowIndex = 0;
+    const withTiming = createTimedReportBuilder(
+      () => {
+        const currentValue =
+          nowValues[nowIndex] ?? nowValues[nowValues.length - 1];
+        nowIndex += 1;
+        return currentValue;
+      },
+      (value) => {
+        return vm.runInNewContext("new String(value)", {
+          value: `iso-${value}`,
+        }) as never;
+      }
+    );
+
+    expect(withTiming({ passed: true, exitCode: 0 })).toEqual({
+      passed: true,
+      exitCode: 0,
+      startedAt: "iso-1000",
+      endedAt: "iso-2000",
+      durationMs: 1_000,
+    });
   });
 
   it("falls back to default ISO timestamps for trapped wrapped formatter proxies", () => {
