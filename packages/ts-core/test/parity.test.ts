@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as tsCoreModule from "../src";
 
 import {
   AABB,
@@ -1774,6 +1775,75 @@ describe("Numeric helpers", () => {
 
     expect(() => toUint32(trapValue as never)).not.toThrow();
     expect(toUint32(trapValue as never)).toBe(0);
+  });
+
+  it("keeps non-class exported helpers deterministic under malformed args", () => {
+    const revokedObject = (() => {
+      const objectProxy = Proxy.revocable({ value: 1 }, {});
+      objectProxy.revoke();
+      return objectProxy.proxy;
+    })();
+    const revokedArray = (() => {
+      const arrayProxy = Proxy.revocable([1, 2, 3], {});
+      arrayProxy.revoke();
+      return arrayProxy.proxy;
+    })();
+    const trappedObject = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("malformed arg trap");
+        },
+      }
+    );
+    type MalformedArg = null | undefined | number | string | boolean | object;
+    const malformedArgSets: MalformedArg[][] = [
+      [],
+      [undefined],
+      [null],
+      [trappedObject],
+      [revokedObject],
+      [revokedArray],
+      [Number.NaN],
+      [Number.POSITIVE_INFINITY],
+      ["text"],
+      [trappedObject, revokedObject],
+      [42, trappedObject, revokedArray],
+    ];
+    const allowedErrorSignaturesByExportName = new Map<string, Set<string>>([
+      ["assertStage", new Set(["RangeError: Maximum stage is 15"])],
+      ["lightColorFromIndex", new Set(["RangeError: Invalid light color!"])],
+    ]);
+    const unexpectedThrownSignatures: string[] = [];
+
+    for (const [exportName, exportValue] of Object.entries(tsCoreModule)) {
+      if (typeof exportValue !== "function") {
+        continue;
+      }
+
+      const functionSource = Function.prototype.toString.call(exportValue);
+      if (functionSource.startsWith("class ")) {
+        continue;
+      }
+
+      const allowedErrorSignatures =
+        allowedErrorSignaturesByExportName.get(exportName) ?? new Set<string>();
+      for (const args of malformedArgSets) {
+        try {
+          Reflect.apply(exportValue, undefined, args);
+        } catch (error) {
+          const errorSignature =
+            error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+          if (!allowedErrorSignatures.has(errorSignature)) {
+            unexpectedThrownSignatures.push(
+              `${exportName}(${args.length}): ${errorSignature}`
+            );
+          }
+        }
+      }
+    }
+
+    expect(unexpectedThrownSignatures).toEqual([]);
   });
 });
 
