@@ -638,14 +638,68 @@ impl Chunks {
         }
 
         if !self.updates.is_empty() {
-            if self.updates_staging.len() == 1 {
-                let Some(staged_voxel) = self.updates_staging.keys().next().copied() else {
-                    unreachable!("single staged update length matched branch");
-                };
-                self.updates.retain(|(voxel, _)| *voxel != staged_voxel);
-            } else {
-                self.updates
-                    .retain(|(voxel, _)| !self.updates_staging.contains_key(voxel));
+            match self.updates_staging.len() {
+                1 => {
+                    let Some(first_staged_voxel) = self.updates_staging.keys().next().copied() else {
+                        unreachable!("single staged update length matched branch");
+                    };
+                    self.updates
+                        .retain(|(voxel, _)| *voxel != first_staged_voxel);
+                }
+                2 => {
+                    let mut staged_voxels = self.updates_staging.keys();
+                    let Some(first_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("two staged updates length matched branch");
+                    };
+                    let Some(second_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("two staged updates length matched branch");
+                    };
+                    self.updates.retain(|(voxel, _)| {
+                        *voxel != first_staged_voxel && *voxel != second_staged_voxel
+                    });
+                }
+                3 => {
+                    let mut staged_voxels = self.updates_staging.keys();
+                    let Some(first_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("three staged updates length matched branch");
+                    };
+                    let Some(second_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("three staged updates length matched branch");
+                    };
+                    let Some(third_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("three staged updates length matched branch");
+                    };
+                    self.updates.retain(|(voxel, _)| {
+                        *voxel != first_staged_voxel
+                            && *voxel != second_staged_voxel
+                            && *voxel != third_staged_voxel
+                    });
+                }
+                4 => {
+                    let mut staged_voxels = self.updates_staging.keys();
+                    let Some(first_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    let Some(second_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    let Some(third_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    let Some(fourth_staged_voxel) = staged_voxels.next().copied() else {
+                        unreachable!("four staged updates length matched branch");
+                    };
+                    self.updates.retain(|(voxel, _)| {
+                        *voxel != first_staged_voxel
+                            && *voxel != second_staged_voxel
+                            && *voxel != third_staged_voxel
+                            && *voxel != fourth_staged_voxel
+                    });
+                }
+                _ => {
+                    self.updates
+                        .retain(|(voxel, _)| !self.updates_staging.contains_key(voxel));
+                }
             }
         }
 
@@ -1146,10 +1200,10 @@ impl voxelize_lighter::LightVoxelAccess for Chunks {
 
 #[cfg(test)]
 mod tests {
-    use hashbrown::HashSet;
+    use hashbrown::{HashMap, HashSet};
 
     use super::Chunks;
-    use crate::{MessageType, Vec2, WorldConfig};
+    use crate::{MessageType, Vec2, Vec3, WorldConfig};
 
     #[test]
     fn add_chunk_to_save_skips_when_saving_disabled() {
@@ -1176,6 +1230,44 @@ mod tests {
             chunks.to_send.front().map(|(_, msg_type)| *msg_type),
             Some(MessageType::Load)
         );
+    }
+
+    #[test]
+    fn flush_staged_updates_replaces_duplicates_for_four_staged_voxels() {
+        let config = WorldConfig::new().build();
+        let mut chunks = Chunks::new(&config);
+        let keep_voxel = Vec3(9, 9, 9);
+        let first_voxel = Vec3(1, 1, 1);
+        let second_voxel = Vec3(2, 2, 2);
+        let third_voxel = Vec3(3, 3, 3);
+        let fourth_voxel = Vec3(4, 4, 4);
+
+        chunks.updates.push_back((keep_voxel, 90));
+        chunks.updates.push_back((first_voxel, 10));
+        chunks.updates.push_back((second_voxel, 20));
+        chunks.updates.push_back((third_voxel, 30));
+        chunks.updates.push_back((fourth_voxel, 40));
+
+        chunks.updates_staging.insert(first_voxel, 11);
+        chunks.updates_staging.insert(second_voxel, 22);
+        chunks.updates_staging.insert(third_voxel, 33);
+        chunks.updates_staging.insert(fourth_voxel, 44);
+
+        chunks.flush_staged_updates();
+
+        assert!(chunks.updates_staging.is_empty());
+        assert_eq!(chunks.updates.len(), 5);
+
+        let mut merged_updates = HashMap::with_capacity(chunks.updates.len());
+        for (voxel, val) in chunks.updates.iter().copied() {
+            assert!(merged_updates.insert(voxel, val).is_none());
+        }
+
+        assert_eq!(merged_updates.get(&keep_voxel), Some(&90));
+        assert_eq!(merged_updates.get(&first_voxel), Some(&11));
+        assert_eq!(merged_updates.get(&second_voxel), Some(&22));
+        assert_eq!(merged_updates.get(&third_voxel), Some(&33));
+        assert_eq!(merged_updates.get(&fourth_voxel), Some(&44));
     }
 
     #[test]
