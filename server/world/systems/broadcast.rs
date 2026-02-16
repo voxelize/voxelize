@@ -13,6 +13,7 @@ use crate::{
 
 pub struct BroadcastSystem;
 const SMALL_FILTER_LINEAR_SCAN_LIMIT: usize = 8;
+const MEDIUM_FILTER_LINEAR_SCAN_LIMIT: usize = 16;
 
 #[inline]
 fn ids_are_strictly_sorted(ids: &[String]) -> bool {
@@ -68,6 +69,24 @@ fn include_single_target(ids: &[String]) -> Option<&str> {
             }
             Some(first_id)
         }
+    }
+}
+
+#[inline]
+fn for_each_unique_id<F: FnMut(&str)>(ids: &[String], mut visit: F) {
+    for index in 0..ids.len() {
+        let id = ids[index].as_str();
+        let mut duplicate = false;
+        for prev_index in 0..index {
+            if ids[prev_index].as_str() == id {
+                duplicate = true;
+                break;
+            }
+        }
+        if duplicate {
+            continue;
+        }
+        visit(id);
     }
 }
 
@@ -391,25 +410,14 @@ impl<'a> System<'a> for BroadcastSystem {
                             send_to_id(second_id);
                         }
                     } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
-                        for include_index in 0..ids.len() {
-                            let include_id = ids[include_index].as_str();
-                            let mut duplicate = false;
-                            for prev_index in 0..include_index {
-                                if ids[prev_index].as_str() == include_id {
-                                    duplicate = true;
-                                    break;
-                                }
-                            }
-                            if duplicate {
-                                continue;
-                            }
-                            send_to_id(include_id);
-                        }
+                        for_each_unique_id(ids, |include_id| send_to_id(include_id));
                     } else if ids.len() < client_count {
                         if ids_are_strictly_sorted(ids) {
                             for include_id in ids.iter() {
                                 send_to_id(include_id);
                             }
+                        } else if ids.len() <= MEDIUM_FILTER_LINEAR_SCAN_LIMIT {
+                            for_each_unique_id(ids, |include_id| send_to_id(include_id));
                         } else {
                             let mut seen_ids: HashSet<&str> = HashSet::with_capacity(ids.len());
                             for include_id in ids.iter() {
@@ -423,6 +431,12 @@ impl<'a> System<'a> for BroadcastSystem {
                         if ids_are_strictly_sorted(ids) {
                             for (id, client) in clients.iter() {
                                 if sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else if ids.len() <= MEDIUM_FILTER_LINEAR_SCAN_LIMIT {
+                            for (id, client) in clients.iter() {
+                                if ids_contains_target(ids, id.as_str()) {
                                     send_to_client(id, client);
                                 }
                             }
@@ -470,15 +484,7 @@ impl<'a> System<'a> for BroadcastSystem {
                         }
                     } else if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
                         for (id, client) in clients.iter() {
-                            let id = id.as_str();
-                            let mut excluded = false;
-                            for excluded_id in ids.iter() {
-                                if excluded_id.as_str() == id {
-                                    excluded = true;
-                                    break;
-                                }
-                            }
-                            if !excluded {
+                            if !ids_contains_target(ids, id.as_str()) {
                                 send_to_client(id, client);
                             }
                         }
@@ -486,6 +492,12 @@ impl<'a> System<'a> for BroadcastSystem {
                         if ids_are_strictly_sorted(ids) {
                             for (id, client) in clients.iter() {
                                 if !sorted_ids_contains(ids, id.as_str()) {
+                                    send_to_client(id, client);
+                                }
+                            }
+                        } else if ids.len() <= MEDIUM_FILTER_LINEAR_SCAN_LIMIT {
+                            for (id, client) in clients.iter() {
+                                if !ids_contains_target(ids, id.as_str()) {
                                     send_to_client(id, client);
                                 }
                             }
