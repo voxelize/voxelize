@@ -176,6 +176,9 @@ fn flush_chunk_batches_touched(
     batches: &mut HashMap<String, Vec<ChunkProtocol>>,
     touched_clients: &mut Vec<String>,
 ) {
+    if touched_clients.is_empty() {
+        return;
+    }
     for client_id in touched_clients.drain(..) {
         let Some(chunk_models) = batches.get_mut(&client_id) else {
             continue;
