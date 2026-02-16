@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use actix::Message as ActixMessage;
+use log::warn;
 use lz4_flex::block::compress_prepend_size;
 use lz4_flex::frame::FrameEncoder;
 use prost::Message as ProstMesssage;
@@ -114,15 +115,21 @@ impl Message {
 /// Encode message into protocol buffers with LZ4 frame compression for large messages.
 pub fn encode_message(message: &Message) -> Vec<u8> {
     let mut buf = Vec::with_capacity(message.encoded_len());
-    message.encode(&mut buf).unwrap();
+    if let Err(error) = message.encode(&mut buf) {
+        warn!("Failed to encode protobuf message: {}", error);
+        return Vec::new();
+    }
 
     if buf.len() > COMPRESSION_THRESHOLD {
         let mut encoder = FrameEncoder::new(Vec::with_capacity(buf.len()));
-        encoder.write_all(&buf).unwrap();
-        encoder.finish().unwrap()
-    } else {
-        buf
+        if encoder.write_all(&buf).is_ok() {
+            if let Ok(compressed) = encoder.finish() {
+                return compressed;
+            }
+        }
+        warn!("Failed to compress protobuf message, sending uncompressed payload");
     }
+    buf
 }
 
 /// Decode protocol buffers into a message struct.
