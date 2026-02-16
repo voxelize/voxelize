@@ -28,6 +28,12 @@ fn take_vec_with_capacity<T>(buffer: &mut Vec<T>) -> Vec<T> {
 }
 
 #[inline]
+fn take_map_with_capacity<K, V>(buffer: &mut HashMap<K, V>) -> HashMap<K, V> {
+    let capacity = buffer.capacity();
+    std::mem::replace(buffer, HashMap::with_capacity(capacity))
+}
+
+#[inline]
 fn normalized_visible_radius(radius: f32) -> (f32, f32) {
     if radius.is_nan() {
         return (f32::MAX, f32::MAX);
@@ -306,7 +312,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         if has_clients {
             self.deleted_entities_buffer.reserve(old_entities.len());
         }
-        for (id, (etype, ent, mut metadata, persisted)) in old_entities.drain() {
+        let stale_entities = take_map_with_capacity(&mut old_entities);
+        for (id, (etype, ent, mut metadata, persisted)) in stale_entities {
             if persisted {
                 bg_saver.remove(&id);
             }
