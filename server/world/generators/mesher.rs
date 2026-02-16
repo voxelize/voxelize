@@ -174,10 +174,12 @@ impl Mesher {
         self.queue.pop_front()
     }
 
-    pub fn mark_for_remesh(&mut self, coords: &Vec2<i32>) {
+    pub fn mark_for_remesh(&mut self, coords: &Vec2<i32>) -> bool {
         if self.map.contains(coords) {
             self.pending_remesh.insert(*coords);
+            return true;
         }
+        false
     }
 
     pub fn drain_pending_remesh(&mut self) -> Vec<Vec2<i32>> {
@@ -469,5 +471,26 @@ mod tests {
         let expected: HashSet<_> = [first, second].into_iter().collect();
         assert_eq!(drained, expected);
         assert!(mesher.pending_remesh.is_empty());
+    }
+
+    #[test]
+    fn mark_for_remesh_returns_false_when_chunk_is_not_processing() {
+        let mut mesher = Mesher::new();
+        let coords = Vec2(8, -6);
+
+        assert!(!mesher.mark_for_remesh(&coords));
+        assert!(!mesher.pending_remesh.contains(&coords));
+    }
+
+    #[test]
+    fn mark_for_remesh_marks_processing_chunk() {
+        let mut mesher = Mesher::new();
+        let coords = Vec2(8, -6);
+        mesher.map.insert(coords);
+
+        assert!(mesher.mark_for_remesh(&coords));
+        assert!(mesher.pending_remesh.contains(&coords));
+        assert!(mesher.mark_for_remesh(&coords));
+        assert_eq!(mesher.pending_remesh.len(), 1);
     }
 }

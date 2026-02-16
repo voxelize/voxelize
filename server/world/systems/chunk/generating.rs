@@ -402,8 +402,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if !chunks.is_chunk_ready(&coords) {
                     continue;
                 }
-                if mesher.has_chunk(&coords) {
-                    mesher.mark_for_remesh(&coords);
+                if mesher.mark_for_remesh(&coords) {
                     continue;
                 }
                 let space = chunks
