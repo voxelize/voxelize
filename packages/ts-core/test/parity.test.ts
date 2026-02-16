@@ -3672,7 +3672,7 @@ describe("Type builders", () => {
     expect(part.aabbs).toEqual([]);
   });
 
-  it("sanitizes malformed optional BlockFaceInit fields to defaults", () => {
+  it("sanitizes malformed optional BlockFaceInit fields with finite fallbacks", () => {
     const malformedFace = {
       name: "MalformedFace",
       dir: ["x", 0, 0],
@@ -3700,7 +3700,7 @@ describe("Type builders", () => {
       createCornerData([0, 0, 0], [0, 0]),
       createCornerData([0, 0, 0], [0, 0]),
     ]);
-    expect(part.faces[0].range).toEqual(createUV());
+    expect(part.faces[0].range).toEqual(createUV(0, 1, 0, 3));
   });
 
   it("clones provided conditional part rules", () => {
@@ -6568,6 +6568,89 @@ describe("Type builders", () => {
     expect(createBlockFace(faceWithThrowingName as never)).toEqual(
       new BlockFace({ name: "Face" })
     );
+  });
+
+  it("salvages readable createBlockFace fields when optional getters trap", () => {
+    const trappedRange = new Proxy(
+      {
+        startU: 1,
+        endU: 2,
+        startV: 3,
+        endV: 4,
+      } as UV,
+      {
+        get(target, property, receiver) {
+          if (property === "startU") {
+            throw new Error("startU trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const corner = createCornerData([0, 0, 0], [0, 0]);
+    const faceWithThrowingGetters = Object.create(null) as {
+      readonly name: string;
+      readonly independent: boolean;
+      readonly isolated: boolean;
+      readonly textureGroup: string;
+      readonly dir: [number, number, number];
+      readonly corners: [CornerData, CornerData, CornerData, CornerData];
+      readonly range: UV;
+    };
+    Object.defineProperty(faceWithThrowingGetters, "name", {
+      configurable: true,
+      enumerable: true,
+      value: "RecoveredFace",
+    });
+    Object.defineProperty(faceWithThrowingGetters, "independent", {
+      configurable: true,
+      enumerable: true,
+      value: true,
+    });
+    Object.defineProperty(faceWithThrowingGetters, "isolated", {
+      configurable: true,
+      enumerable: true,
+      value: true,
+    });
+    Object.defineProperty(faceWithThrowingGetters, "textureGroup", {
+      configurable: true,
+      enumerable: true,
+      value: "group-a",
+    });
+    Object.defineProperty(faceWithThrowingGetters, "dir", {
+      configurable: true,
+      enumerable: true,
+      value: [0, 1, 0],
+    });
+    Object.defineProperty(faceWithThrowingGetters, "corners", {
+      configurable: true,
+      enumerable: true,
+      value: [corner, corner, corner, corner],
+    });
+    Object.defineProperty(faceWithThrowingGetters, "range", {
+      configurable: true,
+      enumerable: true,
+      value: trappedRange,
+    });
+
+    const face = createBlockFace(faceWithThrowingGetters as never);
+    expect(face.name).toBe("RecoveredFace");
+    expect(face.independent).toBe(true);
+    expect(face.isolated).toBe(true);
+    expect(face.textureGroup).toBe("group-a");
+    expect(face.dir).toEqual([0, 1, 0]);
+    expect(face.corners).toEqual([
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+      createCornerData([0, 0, 0], [0, 0]),
+    ]);
+    expect(face.range).toEqual({
+      startU: 0,
+      endU: 2,
+      startV: 3,
+      endV: 4,
+    });
   });
 
   it("sanitizes malformed vector and corner access traps in createBlockFace", () => {

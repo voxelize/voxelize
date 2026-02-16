@@ -1172,66 +1172,48 @@ export const createBlockRule = (
 };
 
 const toBlockFaceInit = (face: BlockFaceInput): BlockFaceInit | null => {
-  try {
-    const maybeFace: {
-      name?: DynamicValue;
-      independent?: DynamicValue;
-      isolated?: DynamicValue;
-      textureGroup?: DynamicValue;
-      dir?: DynamicValue;
-      corners?: DynamicValue;
-      range?: DynamicValue;
-    } | null = isBlockFaceInstance(face)
-      ? {
-          name: face.name,
-          independent: face.independent,
-          isolated: face.isolated,
-          textureGroup: face.textureGroup,
-          dir: face.dir,
-          corners: face.corners,
-          range: face.range,
-        }
-      : isPlainObjectValue(face)
-        ? face
-        : null;
-    if (maybeFace === null) {
-      return null;
-    }
-
-    if (typeof maybeFace.name !== "string") {
-      return null;
-    }
-
-    const textureGroup =
-      maybeFace.textureGroup === undefined ||
-      maybeFace.textureGroup === null ||
-      typeof maybeFace.textureGroup === "string"
-        ? maybeFace.textureGroup
-        : undefined;
-
-    return {
-      name: maybeFace.name,
-      independent:
-        typeof maybeFace.independent === "boolean"
-          ? maybeFace.independent
-          : undefined,
-      isolated:
-        typeof maybeFace.isolated === "boolean" ? maybeFace.isolated : undefined,
-      textureGroup,
-      dir: toVec3SnapshotOrNull(maybeFace.dir) ?? undefined,
-      corners: toCornerTuple(maybeFace.corners),
-      range: isUvValue(maybeFace.range)
-        ? {
-            startU: maybeFace.range.startU,
-            endU: maybeFace.range.endU,
-            startV: maybeFace.range.startV,
-            endV: maybeFace.range.endV,
-          }
-        : undefined,
-    };
-  } catch {
+  const maybeFace: Record<string, DynamicValue> | null =
+    isBlockFaceInstance(face) || isPlainObjectValue(face)
+      ? (face as Record<string, DynamicValue>)
+      : null;
+  if (maybeFace === null) {
     return null;
   }
+
+  const nameValue = readObjectEntry(maybeFace, "name");
+  if (typeof nameValue !== "string") {
+    return null;
+  }
+
+  const independentValue = readObjectEntry(maybeFace, "independent");
+  const isolatedValue = readObjectEntry(maybeFace, "isolated");
+  const textureGroupValue = readObjectEntry(maybeFace, "textureGroup");
+  const dirValue = readObjectEntry(maybeFace, "dir");
+  const cornersValue = readObjectEntry(maybeFace, "corners");
+  const rangeValue = readObjectEntry(maybeFace, "range");
+
+  const textureGroup =
+    textureGroupValue === undefined ||
+    textureGroupValue === null ||
+    typeof textureGroupValue === "string"
+      ? textureGroupValue
+      : undefined;
+
+  return {
+    name: nameValue,
+    independent: typeof independentValue === "boolean" ? independentValue : undefined,
+    isolated: typeof isolatedValue === "boolean" ? isolatedValue : undefined,
+    textureGroup,
+    dir: toVec3SnapshotOrNull(dirValue) ?? undefined,
+    corners: toCornerTuple(cornersValue),
+    range:
+      rangeValue !== null &&
+      rangeValue !== undefined &&
+      typeof rangeValue === "object" &&
+      !isArrayValue(rangeValue)
+        ? cloneUvSafely(rangeValue as UvLikeValue)
+        : undefined,
+  };
 };
 
 const cloneBlockFace = (
