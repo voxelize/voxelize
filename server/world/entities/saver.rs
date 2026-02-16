@@ -5,7 +5,9 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::{MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
+use crate::{
+    world::is_block_entity_type, MetadataComp, PositionComp, RigidBodyComp, WorldConfig,
+};
 
 /// Takes all the metadata components, and saves them into the
 /// world saving directory by their ID's.
@@ -65,6 +67,18 @@ fn escaped_json_string(value: &str) -> Option<String> {
     serde_json::to_string(value).ok()
 }
 
+#[inline]
+fn normalize_block_entity_type<'a>(normalized_etype: Cow<'a, str>) -> Cow<'a, str> {
+    if is_block_entity_type(normalized_etype.as_ref()) {
+        return normalized_etype;
+    }
+    let normalized_etype = normalized_etype.as_ref();
+    let mut prefixed = String::with_capacity(7 + normalized_etype.len());
+    prefixed.push_str("block::");
+    prefixed.push_str(normalized_etype);
+    Cow::Owned(prefixed)
+}
+
 impl EntitiesSaver {
     pub fn new(config: &WorldConfig) -> Self {
         let mut folder = PathBuf::from(&config.save_dir);
@@ -94,14 +108,7 @@ impl EntitiesSaver {
 
         let normalized_etype = normalized_entity_type(etype);
         let etype_value = if is_block {
-            let normalized_etype = normalized_etype.as_ref();
-            let block_suffix = normalized_etype
-                .strip_prefix("block::")
-                .unwrap_or(normalized_etype);
-            let mut prefixed = String::with_capacity(7 + block_suffix.len());
-            prefixed.push_str("block::");
-            prefixed.push_str(block_suffix);
-            Cow::Owned(prefixed)
+            normalize_block_entity_type(normalized_etype)
         } else {
             normalized_etype
         };
@@ -203,5 +210,24 @@ pub fn set_position(ecs: &mut ECSWorld, entity: Entity, x: f32, y: f32, z: f32) 
     let mut bodies = ecs.write_storage::<RigidBodyComp>();
     if let Some(body) = bodies.get_mut(entity) {
         body.0.set_position(x, y, z);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use super::normalize_block_entity_type;
+
+    #[test]
+    fn normalize_block_entity_type_keeps_existing_prefix() {
+        let normalized = normalize_block_entity_type(Cow::Borrowed("block::stone"));
+        assert!(matches!(normalized, Cow::Borrowed("block::stone")));
+    }
+
+    #[test]
+    fn normalize_block_entity_type_adds_missing_prefix() {
+        let normalized = normalize_block_entity_type(Cow::Borrowed("stone"));
+        assert_eq!(normalized.as_ref(), "block::stone");
     }
 }

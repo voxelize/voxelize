@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use crate::{MetadataComp, WorldConfig};
+use crate::{world::is_block_entity_type, MetadataComp, WorldConfig};
 
 #[derive(Clone)]
 pub struct EntitySaveData {
@@ -67,6 +67,18 @@ fn sanitize_entity_filename<'a>(etype: &'a str) -> Cow<'a, str> {
 #[inline]
 fn escaped_json_string(value: &str) -> Option<String> {
     serde_json::to_string(value).ok()
+}
+
+#[inline]
+fn normalize_block_entity_type<'a>(normalized_etype: Cow<'a, str>) -> Cow<'a, str> {
+    if is_block_entity_type(normalized_etype.as_ref()) {
+        return normalized_etype;
+    }
+    let normalized_etype = normalized_etype.as_ref();
+    let mut prefixed = String::with_capacity(7 + normalized_etype.len());
+    prefixed.push_str("block::");
+    prefixed.push_str(normalized_etype);
+    Cow::Owned(prefixed)
 }
 
 pub struct BackgroundEntitiesSaver {
@@ -161,14 +173,7 @@ impl BackgroundEntitiesSaver {
     fn save_entity_to_disk(id: &str, data: &EntitySaveData, folder: &PathBuf) {
         let normalized_etype = normalized_entity_type(&data.etype);
         let etype_value = if data.is_block {
-            let normalized_etype = normalized_etype.as_ref();
-            let block_suffix = normalized_etype
-                .strip_prefix("block::")
-                .unwrap_or(normalized_etype);
-            let mut prefixed = String::with_capacity(7 + block_suffix.len());
-            prefixed.push_str("block::");
-            prefixed.push_str(block_suffix);
-            Cow::Owned(prefixed)
+            normalize_block_entity_type(normalized_etype)
         } else {
             normalized_etype
         };
@@ -282,5 +287,24 @@ impl Drop for BackgroundEntitiesSaver {
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use super::normalize_block_entity_type;
+
+    #[test]
+    fn normalize_block_entity_type_keeps_existing_prefix() {
+        let normalized = normalize_block_entity_type(Cow::Borrowed("block::lamp"));
+        assert!(matches!(normalized, Cow::Borrowed("block::lamp")));
+    }
+
+    #[test]
+    fn normalize_block_entity_type_adds_missing_prefix() {
+        let normalized = normalize_block_entity_type(Cow::Borrowed("lamp"));
+        assert_eq!(normalized.as_ref(), "block::lamp");
     }
 }
