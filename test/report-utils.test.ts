@@ -4878,6 +4878,69 @@ describe("report-utils", () => {
     expect(iteratorOnlyKnownPrecomputedValidation.validationErrorCode).toBe(
       "unsupported_options"
     );
+    const partialIteratorPrecomputedSupportedTokens = new Proxy(
+      ["--json", "--output"],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            return function* () {
+              yield "--json";
+            };
+          }
+          if (property === "length") {
+            return 2;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const partialIteratorPrecomputedValidation = createCliOptionValidation(
+      ["--mystery"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        supportedCliOptions: partialIteratorPrecomputedSupportedTokens as never,
+      }
+    );
+    expect(partialIteratorPrecomputedValidation.supportedCliOptions).toEqual([
+      "--json",
+    ]);
+    expect(partialIteratorPrecomputedValidation.supportedCliOptionCount).toBe(1);
+    expect(partialIteratorPrecomputedValidation.unknownOptions).toEqual([
+      "--mystery",
+    ]);
+    expect(partialIteratorPrecomputedValidation.unknownOptionCount).toBe(1);
+    expect(partialIteratorPrecomputedValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json."
+    );
+    expect(partialIteratorPrecomputedValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+    const partialIteratorPrecomputedValidationWithoutCatalog =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: "--json" as never,
+        supportedCliOptions: partialIteratorPrecomputedSupportedTokens as never,
+      });
+    expect(partialIteratorPrecomputedValidationWithoutCatalog.supportedCliOptions).toEqual(
+      ["--json"]
+    );
+    expect(
+      partialIteratorPrecomputedValidationWithoutCatalog.supportedCliOptionCount
+    ).toBe(1);
+    expect(partialIteratorPrecomputedValidationWithoutCatalog.unknownOptions).toEqual(
+      ["--mystery"]
+    );
+    expect(
+      partialIteratorPrecomputedValidationWithoutCatalog.unknownOptionCount
+    ).toBe(1);
+    expect(
+      partialIteratorPrecomputedValidationWithoutCatalog.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json."
+    );
+    expect(
+      partialIteratorPrecomputedValidationWithoutCatalog.validationErrorCode
+    ).toBe("unsupported_options");
     const emptyIteratorKnownPrecomputedSupportedTokens = new Proxy(["--json"], {
       get(target, property, receiver) {
         if (property === "length") {

@@ -743,11 +743,11 @@ const cloneIndexedArraySafelyWithMetadata = (value) => {
       const fallbackEntries = cloneIndexedArrayFromIndexedAccess(value);
       if (fallbackEntries === null) {
         return {
-          entries: [],
+          entries: iteratorEntries,
           fromIndexedFallback: true,
         };
       }
-      if (fallbackEntries !== null && fallbackEntries.length > 0) {
+      if (fallbackEntries.length > 0) {
         return {
           entries: fallbackEntries,
           fromIndexedFallback: true,
