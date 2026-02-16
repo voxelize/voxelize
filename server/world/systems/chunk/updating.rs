@@ -1048,22 +1048,24 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         }
 
         // Process any remaining updates (from non-active sources like player actions)
-        let results = process_pending_updates(
-            &mut chunks,
-            &mut mesher,
-            &lazy,
-            &entities,
-            &config,
-            &registry,
-            light_registry,
-            &light_config,
-            max_light_level,
-            max_height,
-            chunk_size,
-            current_tick,
-            max_updates_per_tick,
-        );
-        all_results.extend(results);
+        if !chunks.updates_staging.is_empty() || !chunks.updates.is_empty() {
+            let results = process_pending_updates(
+                &mut chunks,
+                &mut mesher,
+                &lazy,
+                &entities,
+                &config,
+                &registry,
+                light_registry,
+                &light_config,
+                max_light_level,
+                max_height,
+                chunk_size,
+                current_tick,
+                max_updates_per_tick,
+            );
+            all_results.extend(results);
+        }
 
         if !all_results.is_empty() {
             let new_message = Message::new(&MessageType::Update)
