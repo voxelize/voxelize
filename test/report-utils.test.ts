@@ -2513,6 +2513,20 @@ describe("report-utils", () => {
       }
     );
     expect(unknownWithWhitespaceValueMetadataOverride).toEqual([]);
+    const unknownWithExplicitEmptyValueMetadataOverride = parseUnknownCliOptions(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: false,
+        } as never,
+      }
+    );
+    expect(unknownWithExplicitEmptyValueMetadataOverride).toEqual([
+      "-artifact-report.json",
+    ]);
     const unknownWithUnavailableValueMetadataOverride = parseUnknownCliOptions(
       ["--output", "-l"],
       {
@@ -4393,6 +4407,33 @@ describe("report-utils", () => {
     expect(whitespaceValueMetadataOverrideValidation.unknownOptionCount).toBe(0);
     expect(whitespaceValueMetadataOverrideValidation.unsupportedOptionsError).toBeNull();
     expect(whitespaceValueMetadataOverrideValidation.validationErrorCode).toBeNull();
+    const explicitEmptyValueMetadataOverrideValidation = createCliOptionValidation(
+      ["--output", "-artifact-report.json"],
+      {
+        canonicalOptions: ["--output"],
+        optionsWithValues: ["--output"],
+        valueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: false,
+        } as never,
+      }
+    );
+    expect(explicitEmptyValueMetadataOverrideValidation.supportedCliOptions).toEqual(
+      ["--output"]
+    );
+    expect(explicitEmptyValueMetadataOverrideValidation.supportedCliOptionCount).toBe(
+      1
+    );
+    expect(explicitEmptyValueMetadataOverrideValidation.unknownOptions).toEqual([
+      "-artifact-report.json",
+    ]);
+    expect(explicitEmptyValueMetadataOverrideValidation.unknownOptionCount).toBe(1);
+    expect(explicitEmptyValueMetadataOverrideValidation.unsupportedOptionsError).toBe(
+      "Unsupported option(s): -artifact-report.json. Supported options: --output."
+    );
+    expect(explicitEmptyValueMetadataOverrideValidation.validationErrorCode).toBe(
+      "unsupported_options"
+    );
     const unavailableValueMetadataOverrideValidation = createCliOptionValidation(
       ["--output", "-l"],
       {
@@ -14866,6 +14907,51 @@ describe("report-utils", () => {
     expect(
       activeMetadataWithWhitespaceStrictMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(2);
+    const activeMetadataWithExplicitEmptyStrictMetadataOverride =
+      parseActiveCliOptionMetadata(["--output", "-j"], {
+        canonicalOptions: ["--output", "--json"],
+        optionAliases: {
+          "--json": ["-j"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+        strictValueOptionTokenMetadata: {
+          tokens: [],
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptions
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--output"]);
+    expect(
+      activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithExplicitEmptyStrictMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
 
     const iteratorTrapArgs = ["--json", "--output", "./report.json"];
     Object.defineProperty(iteratorTrapArgs, Symbol.iterator, {
