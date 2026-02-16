@@ -3087,6 +3087,32 @@ describe("report-utils", () => {
     expect(unknownWithEmptyIteratorLengthAndReadTrapOptionArgsOverride).toEqual([
       "--mystery",
     ]);
+    const unknownWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride =
+      parseUnknownCliOptions(["--mystery"], {
+        canonicalOptions: ["--json"],
+        optionArgs: new Proxy(["--json"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(unknownWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride).toEqual(
+      ["--mystery"]
+    );
     const unknownWithMalformedValueMetadataOverride = parseUnknownCliOptions(
       ["--output", "-artifact-report.json"],
       {
@@ -5409,6 +5435,50 @@ describe("report-utils", () => {
     );
     expect(
       emptyIteratorLengthAndReadTrapOptionArgsValidation.validationErrorCode
+    ).toBe("unsupported_options");
+    const ownKeysLengthReadableAndReadTrapOptionArgsValidation =
+      createCliOptionValidation(["--mystery"], {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+        optionArgs: new Proxy(["--json"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(ownKeysLengthReadableAndReadTrapOptionArgsValidation.supportedCliOptions).toEqual(
+      ["--json", "--output"]
+    );
+    expect(
+      ownKeysLengthReadableAndReadTrapOptionArgsValidation.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      ownKeysLengthReadableAndReadTrapOptionArgsValidation.unknownOptions
+    ).toEqual(["--mystery"]);
+    expect(
+      ownKeysLengthReadableAndReadTrapOptionArgsValidation.unknownOptionCount
+    ).toBe(1);
+    expect(
+      ownKeysLengthReadableAndReadTrapOptionArgsValidation.unsupportedOptionsError
+    ).toBe(
+      "Unsupported option(s): --mystery. Supported options: --json, --output."
+    );
+    expect(
+      ownKeysLengthReadableAndReadTrapOptionArgsValidation.validationErrorCode
     ).toBe("unsupported_options");
     const malformedValueMetadataOverrideValidation = createCliOptionValidation(
       ["--output", "-artifact-report.json"],
@@ -17224,6 +17294,61 @@ describe("report-utils", () => {
     ]);
     expect(
       activeMetadataWithEmptyIteratorLengthAndReadTrapOptionArgsOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
+    const activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride =
+      parseActiveCliOptionMetadata(["--json"], {
+        canonicalOptions: ["--json", "--output"],
+        optionArgs: new Proxy(["--output"], {
+          ownKeys() {
+            throw new Error("ownKeys trap");
+          },
+          get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+              return function* () {
+                return;
+              };
+            }
+            if (property === "length") {
+              return 1;
+            }
+            if (property === "0") {
+              throw new Error("read trap");
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }) as never,
+      });
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptions
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionTokens
+    ).toEqual(["--json"]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+      },
+    ]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--json",
+        canonicalOption: "--json",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapOptionArgsOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
     const activeMetadataWithMalformedValueMetadataOverride =
       parseActiveCliOptionMetadata(["--output", "-j"], {
