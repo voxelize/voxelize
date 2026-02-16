@@ -326,7 +326,9 @@ fn process_pending_updates(
                 continue;
             }
             let stage = BlockUtils::extract_stage(raw);
-            chunks.set_voxel_stage(vx, vy, vz, stage);
+            if stage != 0 {
+                chunks.set_voxel_stage(vx, vy, vz, stage);
+            }
 
             if let Some((red_level, green_level, blue_level)) = removed_source_levels {
                 removed_light_sources
