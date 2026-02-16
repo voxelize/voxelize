@@ -32,6 +32,18 @@ fn set_entity_path(path: &mut PathComp, next_path: Option<Vec<Vec3<i32>>>) {
     }
 }
 
+#[inline]
+fn set_entity_path_single(path: &mut PathComp, point: Vec3<i32>) {
+    let should_update = match path.path.as_ref() {
+        Some(current_path) => current_path.len() != 1 || current_path[0] != point,
+        None => true,
+    };
+    if should_update {
+        path.path = Some(vec![point]);
+        path.dirty = true;
+    }
+}
+
 impl<'a> System<'a> for PathFindingSystem {
     type SystemData = (
         ReadExpect<'a, Chunks>,
@@ -244,7 +256,7 @@ impl<'a> System<'a> for PathFindingSystem {
                         return;
                     }
                     if start == goal {
-                        set_entity_path(entity_path, Some(vec![start]));
+                        set_entity_path_single(entity_path, start);
                         return;
                     }
 
