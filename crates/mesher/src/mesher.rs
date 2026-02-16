@@ -1114,10 +1114,11 @@ fn compute_face_ao_and_light(
         {
             neighbors.get_all_lights(0, 0, 0)
         } else {
-            let mut sum_sunlights = Vec::with_capacity(8);
-            let mut sum_red_lights = Vec::with_capacity(8);
-            let mut sum_green_lights = Vec::with_capacity(8);
-            let mut sum_blue_lights = Vec::with_capacity(8);
+            let mut sum_sunlights = 0u32;
+            let mut sum_red_lights = 0u32;
+            let mut sum_green_lights = 0u32;
+            let mut sum_blue_lights = 0u32;
+            let mut sample_count = 0u32;
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -1221,22 +1222,22 @@ fn compute_face_ao_and_light(
                             }
                         }
 
-                        sum_sunlights.push(local_sunlight);
-                        sum_red_lights.push(local_red_light);
-                        sum_green_lights.push(local_green_light);
-                        sum_blue_lights.push(local_blue_light);
+                        sum_sunlights = sum_sunlights.saturating_add(local_sunlight);
+                        sum_red_lights = sum_red_lights.saturating_add(local_red_light);
+                        sum_green_lights = sum_green_lights.saturating_add(local_green_light);
+                        sum_blue_lights = sum_blue_lights.saturating_add(local_blue_light);
+                        sample_count = sample_count.saturating_add(1);
                     }
                 }
             }
 
-            let len = sum_sunlights.len();
-            if len > 0 {
-                let len_f32 = len as f32;
+            if sample_count > 0 {
+                let sample_count_f32 = sample_count as f32;
                 (
-                    (sum_sunlights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_red_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_green_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_blue_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
+                    (sum_sunlights as f32 / sample_count_f32) as u32,
+                    (sum_red_lights as f32 / sample_count_f32) as u32,
+                    (sum_green_lights as f32 / sample_count_f32) as u32,
+                    (sum_blue_lights as f32 / sample_count_f32) as u32,
                 )
             } else {
                 (0, 0, 0, 0)
