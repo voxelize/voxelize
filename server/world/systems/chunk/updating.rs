@@ -157,7 +157,7 @@ fn process_pending_updates(
     let num_to_process = max_updates.min(total_updates);
     let mut results = Vec::with_capacity(num_to_process);
 
-    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, &crate::Block)>> =
+    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, u32, &crate::Block)>> =
         HashMap::with_capacity(num_to_process);
 
     for _ in 0..num_to_process {
@@ -176,10 +176,14 @@ fn process_pending_updates(
 
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         match updates_by_chunk.raw_entry_mut().from_key(&coords) {
-            RawEntryMut::Occupied(mut entry) => entry.get_mut().push((voxel, raw, updated_type)),
+            RawEntryMut::Occupied(mut entry) => {
+                entry
+                    .get_mut()
+                    .push((voxel, raw, updated_id, updated_type))
+            }
             RawEntryMut::Vacant(entry) => {
                 let mut chunk_updates = Vec::with_capacity(1);
-                chunk_updates.push((voxel, raw, updated_type));
+                chunk_updates.push((voxel, raw, updated_id, updated_type));
                 entry.insert(coords, chunk_updates);
             }
         }
@@ -190,7 +194,7 @@ fn process_pending_updates(
 
     for (coords, chunk_updates) in updates_by_chunk {
         if !chunks.is_chunk_ready(&coords) {
-            for (voxel, raw, _) in chunk_updates.into_iter().rev() {
+            for (voxel, raw, _, _) in chunk_updates.into_iter().rev() {
                 chunks.updates.push_front((voxel, raw));
             }
             continue;
@@ -211,15 +215,14 @@ fn process_pending_updates(
         }
 
         if !neighbors_ready {
-            for (voxel, raw, _) in chunk_updates.into_iter().rev() {
+            for (voxel, raw, _, _) in chunk_updates.into_iter().rev() {
                 chunks.updates.push_front((voxel, raw));
             }
             continue;
         }
 
-        for (voxel, raw, updated_type) in chunk_updates {
+        for (voxel, raw, updated_id, updated_type) in chunk_updates {
             let Vec3(vx, vy, vz) = voxel;
-            let updated_id = BlockUtils::extract_id(raw);
             let current_id = chunks.get_voxel(vx, vy, vz);
             let current_type = registry.get_block_by_id(current_id);
             if updated_type.name == "Air" && current_type.name == "Air" {
