@@ -225,7 +225,7 @@ fn process_pending_updates(
             let Vec3(vx, vy, vz) = voxel;
             let current_id = chunks.get_voxel(vx, vy, vz);
             let current_type = registry.get_block_by_id(current_id);
-            if updated_type.name == "Air" && current_type.name == "Air" {
+            if updated_type.id == 0 && current_type.id == 0 {
                 continue;
             }
 
@@ -295,7 +295,7 @@ fn process_pending_updates(
                 let neighbor_block = registry.get_block_by_id(neighbor_id);
 
                 let should_activate = neighbor_block.is_active
-                    && (neighbor_block.is_fluid || neighbor_block.name != "Air");
+                    && (neighbor_block.is_fluid || neighbor_block.id != 0);
 
                 if should_activate {
                     if let Some(active_ticker) = neighbor_block.active_ticker.as_ref() {
@@ -513,7 +513,11 @@ fn process_pending_updates(
                     continue;
                 }
 
+                let neighbor_voxel = Vec3(nvx, nvy, nvz);
                 for &(torch_color, source_level) in light_data.iter() {
+                    if source_level == 0 {
+                        continue;
+                    }
                     let n_level = if let Some(color) = torch_color {
                         chunks.get_torch_light(nvx, nvy, nvz, color)
                     } else {
@@ -530,7 +534,7 @@ fn process_pending_updates(
                         let color = torch_color.unwrap_or(&SUNLIGHT);
                         Lights::remove_light_with_light_config(
                             &mut *chunks,
-                            &Vec3(nvx, nvy, nvz),
+                            &neighbor_voxel,
                             color,
                             light_registry,
                             light_cfg,
