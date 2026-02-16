@@ -105,8 +105,36 @@ const isBooleanObjectValue = (value: RuleOptionValue): value is Boolean => {
   }
 };
 
+const isNumberObjectValue = (value: RuleOptionValue): value is Number => {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+
+  try {
+    return (
+      Object.prototype.toString.call(value) === "[object Number]" ||
+      value instanceof Number
+    );
+  } catch {
+    return false;
+  }
+};
+
 const toFiniteNumberOrDefault = (value: RuleOptionValue, fallback: number): number => {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  if (!isNumberObjectValue(value)) {
+    return fallback;
+  }
+
+  try {
+    const wrappedNumberValue = Number.prototype.valueOf.call(value);
+    return Number.isFinite(wrappedNumberValue) ? wrappedNumberValue : fallback;
+  } catch {
+    return fallback;
+  }
 };
 
 const toBooleanOrDefault = (value: RuleOptionValue, fallback: boolean): boolean => {

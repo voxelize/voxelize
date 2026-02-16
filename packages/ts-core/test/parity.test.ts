@@ -10058,6 +10058,57 @@ describe("BlockRuleEvaluator", () => {
     expect(didCallWrappedWorldSpaceTrueValueOf).toBe(false);
   });
 
+  it("normalizes wrapped rule-evaluation rotation options", () => {
+    const rule = {
+      type: "simple" as const,
+      offset: [1, 0, 0] as [number, number, number],
+      id: 26,
+    };
+    const wrappedRotationY = vm.runInNewContext("new Number(Math.PI / 2)");
+    let didCallWrappedRotationYToString = false;
+    Object.defineProperty(wrappedRotationY, "toString", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedRotationYToString = true;
+        throw new Error("wrapped rotation.yRotation toString trap");
+      },
+    });
+    let didCallWrappedRotationYValueOf = false;
+    Object.defineProperty(wrappedRotationY, "valueOf", {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value() {
+        didCallWrappedRotationYValueOf = true;
+        throw new Error("wrapped rotation.yRotation valueOf trap");
+      },
+    });
+
+    const matched = BlockRuleEvaluator.evaluate(
+      rule,
+      [0, 0, 0],
+      {
+        getVoxel: (x: number, y: number, z: number) =>
+          x === 0 && y === 0 && z === 1 ? 26 : 0,
+        getVoxelRotation: () => BlockRotation.py(0),
+        getVoxelStage: () => 0,
+      },
+      {
+        rotation: {
+          yRotation: wrappedRotationY as never,
+        },
+        yRotatable: true,
+        worldSpace: false,
+      }
+    );
+
+    expect(matched).toBe(true);
+    expect(didCallWrappedRotationYToString).toBe(false);
+    expect(didCallWrappedRotationYValueOf).toBe(false);
+  });
+
   it("guards option getter traps while evaluating rules", () => {
     const rule = {
       type: "simple" as const,
