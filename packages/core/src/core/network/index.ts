@@ -743,7 +743,7 @@ export class Network {
     }
 
     const currentIntercepts = this.intercepts;
-    if (intercepts.length <= 6) {
+    if (intercepts.length <= 8) {
       const removalTargets: NetIntercept[] = [];
       const removalCounts: number[] = [];
       for (
