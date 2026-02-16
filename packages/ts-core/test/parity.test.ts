@@ -6002,6 +6002,81 @@ describe("Type builders", () => {
       BlockRotation.py(0)
     );
   });
+
+  it("sanitizes revoked proxy helper inputs without throwing", () => {
+    const revokedObject = (() => {
+      const objectProxy = Proxy.revocable({}, {});
+      objectProxy.revoke();
+      return objectProxy.proxy;
+    })();
+    const revokedArray = (() => {
+      const arrayProxy = Proxy.revocable([], {});
+      arrayProxy.revoke();
+      return arrayProxy.proxy;
+    })();
+
+    expect(() => createFaceTransparency(revokedArray as never)).not.toThrow();
+    expect(createFaceTransparency(revokedArray as never)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(() => createBlockConditionalPart(revokedObject as never)).not.toThrow();
+    expect(createBlockConditionalPart(revokedObject as never)).toEqual({
+      rule: BLOCK_RULE_NONE,
+      faces: [],
+      aabbs: [],
+      isTransparent: [false, false, false, false, false, false],
+      worldSpace: false,
+    });
+    expect(() => createBlockDynamicPattern(revokedObject as never)).not.toThrow();
+    expect(createBlockDynamicPattern(revokedObject as never)).toEqual({
+      parts: [],
+    });
+    expect(() => createBlockRule(revokedObject as never)).not.toThrow();
+    expect(createBlockRule(revokedObject as never)).toEqual(BLOCK_RULE_NONE);
+    expect(() =>
+      createBlockRule({
+        type: "simple",
+        offset: revokedArray as never,
+        id: 9,
+      } as never)
+    ).not.toThrow();
+    expect(
+      createBlockRule({
+        type: "simple",
+        offset: revokedArray as never,
+        id: 9,
+      } as never)
+    ).toEqual(BLOCK_RULE_NONE);
+    expect(() =>
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: revokedArray as never,
+      } as never)
+    ).not.toThrow();
+    expect(
+      createBlockRule({
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: revokedArray as never,
+      } as never)
+    ).toEqual(BLOCK_RULE_NONE);
+    expect(() => createBlockFace(revokedObject as never)).not.toThrow();
+    expect(createBlockFace(revokedObject as never)).toEqual(
+      new BlockFace({ name: "Face" })
+    );
+    expect(() => createAABB(revokedObject as never)).not.toThrow();
+    expect(createAABB(revokedObject as never)).toEqual(AABB.empty());
+    expect(() => createBlockRotation(revokedObject as never)).not.toThrow();
+    expect(createBlockRotation(revokedObject as never)).toEqual(
+      BlockRotation.py(0)
+    );
+  });
 });
 
 describe("BlockRuleEvaluator", () => {
@@ -6015,6 +6090,31 @@ describe("BlockRuleEvaluator", () => {
     expect(BlockRuleEvaluator.evaluate(BLOCK_RULE_NONE, [12, -5, 3], access)).toBe(
       true
     );
+  });
+
+  it("sanitizes revoked combination rule arrays without throwing", () => {
+    const revokedRules = (() => {
+      const arrayProxy = Proxy.revocable([], {});
+      arrayProxy.revoke();
+      return arrayProxy.proxy;
+    })();
+    const malformedRule = {
+      type: "combination" as const,
+      logic: BlockRuleLogic.And,
+      rules: revokedRules as never,
+    };
+    const access = {
+      getVoxel: () => 0,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(malformedRule as never, [0, 0, 0], access)
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(malformedRule as never, [0, 0, 0], access)
+    ).toBe(true);
   });
 
   it("evaluates simple rules", () => {

@@ -237,6 +237,14 @@ const isBooleanValue = (value: DynamicValue): value is boolean => {
   return typeof value === "boolean";
 };
 
+const isArrayValue = (value: DynamicValue): value is readonly DynamicValue[] => {
+  try {
+    return Array.isArray(value);
+  } catch {
+    return false;
+  }
+};
+
 const hasPlainObjectPrototype = (value: object): boolean => {
   try {
     const prototype = Object.getPrototypeOf(value);
@@ -249,7 +257,7 @@ const hasPlainObjectPrototype = (value: object): boolean => {
 const isPlainObjectValue = (
   value: DynamicValue
 ): value is Record<string, DynamicValue> => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (value === null || typeof value !== "object" || isArrayValue(value)) {
     return false;
   }
 
@@ -527,7 +535,7 @@ const cloneArrayFromIndexedAccess = (
 };
 
 const cloneArrayEntriesSafely = (value: DynamicValue): DynamicValue[] | null => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return null;
   }
 
@@ -589,7 +597,7 @@ const isAabbInstance = (value: DynamicValue): value is AABB => {
 export const createFaceTransparency = (
   value: FaceTransparencyLike = null
 ): FaceTransparency => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return [false, false, false, false, false, false];
   }
 
@@ -612,7 +620,7 @@ export const createFaceTransparency = (
 };
 
 const isVec2Value = (value: DynamicValue): value is Vec2 => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return false;
   }
 
@@ -633,7 +641,7 @@ const isVec2Value = (value: DynamicValue): value is Vec2 => {
 };
 
 const isVec3Value = (value: DynamicValue): value is Vec3 => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return false;
   }
 
@@ -655,7 +663,7 @@ const isVec3Value = (value: DynamicValue): value is Vec3 => {
 };
 
 const isUvValue = (value: DynamicValue): value is UV => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (value === null || typeof value !== "object" || isArrayValue(value)) {
     return false;
   }
 
@@ -674,7 +682,7 @@ const isUvValue = (value: DynamicValue): value is UV => {
 };
 
 const isCornerDataValue = (value: DynamicValue): value is CornerData => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (value === null || typeof value !== "object" || isArrayValue(value)) {
     return false;
   }
 

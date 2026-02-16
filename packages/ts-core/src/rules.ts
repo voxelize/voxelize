@@ -17,6 +17,14 @@ type NormalizedRuleEvaluationOptions = {
   worldSpace: boolean;
 };
 
+const isArrayValue = (value: RuleOptionValue): value is RuleOptionValue[] => {
+  try {
+    return Array.isArray(value);
+  } catch {
+    return false;
+  }
+};
+
 const normalizeRuleYRotation = (rotation: number): number => {
   if (!Number.isFinite(rotation)) {
     return 0;
@@ -204,7 +212,7 @@ const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
 
   if (ruleType === "simple") {
     const offsetValue = safeReadRecordValue(valueRecord, "offset");
-    if (!Array.isArray(offsetValue)) {
+    if (!isArrayValue(offsetValue)) {
       return BLOCK_RULE_NONE;
     }
 
@@ -247,7 +255,7 @@ const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
     ) {
       return BLOCK_RULE_NONE;
     }
-    if (!Array.isArray(rulesValue)) {
+    if (!isArrayValue(rulesValue)) {
       return BLOCK_RULE_NONE;
     }
 
@@ -265,7 +273,7 @@ type IndexedRuleEntry = {
 const toRuleEntriesFromLengthFallback = (
   value: RuleOptionValue
 ): IndexedRuleEntry[] => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return [];
   }
 
@@ -365,7 +373,7 @@ const insertBoundedSortedRuleIndex = (
 const toRuleEntriesFromKeyFallback = (
   value: RuleOptionValue
 ): IndexedRuleEntry[] => {
-  if (!Array.isArray(value)) {
+  if (!isArrayValue(value)) {
     return [];
   }
 
@@ -489,7 +497,7 @@ const toRuleEntriesOrEmpty = (
     return [];
   }
 
-  if (!Array.isArray(rawRules)) {
+  if (!isArrayValue(rawRules)) {
     return [];
   }
 
