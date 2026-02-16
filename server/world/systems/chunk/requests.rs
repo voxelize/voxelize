@@ -62,18 +62,20 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             to_send_touched_clients.clear();
             return;
         }
-        if to_send.capacity() < client_count && to_send.len() < client_count {
-            to_send.reserve(client_count - to_send.len());
-        }
-        to_send_touched_clients.clear();
-        if to_send_touched_clients.capacity() < client_count {
-            to_send_touched_clients.reserve(client_count - to_send_touched_clients.len());
-        }
-        if !to_send.is_empty() && to_send.len() > clients.len() {
-            to_send.retain(|client_id, _| clients.contains_key(client_id));
-        }
-        if !can_send_responses {
+        if can_send_responses {
+            if to_send.capacity() < client_count && to_send.len() < client_count {
+                to_send.reserve(client_count - to_send.len());
+            }
+            to_send_touched_clients.clear();
+            if to_send_touched_clients.capacity() < client_count {
+                to_send_touched_clients.reserve(client_count - to_send_touched_clients.len());
+            }
+            if !to_send.is_empty() && to_send.len() > clients.len() {
+                to_send.retain(|client_id, _| clients.contains_key(client_id));
+            }
+        } else {
             to_send.clear();
+            to_send_touched_clients.clear();
         }
         if (&ids, &requests).join().next().is_none() {
             return;
