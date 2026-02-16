@@ -2112,7 +2112,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         u32,
         BlockRotation,
         BlockFace,
-        UV,
         bool,
         bool,
         bool,
@@ -2207,7 +2206,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             &rotation,
                             registry,
                             |face, world_space| {
-                            let uv_range = face.range.clone();
                             non_greedy_faces.push((
                                 vx,
                                 vy,
@@ -2215,7 +2213,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 voxel_id,
                                 rotation,
                                 face.clone(),
-                                uv_range,
                                 is_see_through,
                                 is_fluid,
                                 world_space,
@@ -2275,7 +2272,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                     voxel_id,
                                     rotation,
                                     face.clone(),
-                                    uv_range,
                                     is_see_through,
                                     is_fluid,
                                     world_space,
@@ -2354,7 +2350,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 voxel_id,
                 rotation,
                 face,
-                uv_range,
                 is_see_through,
                 is_fluid,
                 world_space,
@@ -2419,7 +2414,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     &face,
                     block,
                     block_aabb,
-                    &uv_range,
+                    &face.range,
                     registry,
                     space,
                     neighbors,
