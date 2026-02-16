@@ -570,10 +570,20 @@ export class Network {
     }
 
     if (intercepts.length === 1) {
-      const index = this.intercepts.indexOf(intercepts[0]);
-      if (index !== -1) {
-        this.intercepts.splice(index, 1);
+      const interceptToRemove = intercepts[0];
+      const currentIntercepts = this.intercepts;
+      let removed = false;
+      let writeIndex = 0;
+      for (let readIndex = 0; readIndex < currentIntercepts.length; readIndex++) {
+        const intercept = currentIntercepts[readIndex];
+        if (!removed && intercept === interceptToRemove) {
+          removed = true;
+          continue;
+        }
+        currentIntercepts[writeIndex] = intercept;
+        writeIndex++;
       }
+      currentIntercepts.length = writeIndex;
 
       return this;
     }
