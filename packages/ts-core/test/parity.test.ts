@@ -1845,6 +1845,142 @@ describe("Numeric helpers", () => {
 
     expect(unexpectedThrownSignatures).toEqual([]);
   });
+
+  it("keeps class exports deterministic under malformed invocation matrices", () => {
+    const revokedObject = (() => {
+      const objectProxy = Proxy.revocable({ value: 1 }, {});
+      objectProxy.revoke();
+      return objectProxy.proxy;
+    })();
+    const revokedArray = (() => {
+      const arrayProxy = Proxy.revocable([1, 2, 3], {});
+      arrayProxy.revoke();
+      return arrayProxy.proxy;
+    })();
+    const trappedObject = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("malformed arg trap");
+        },
+      }
+    );
+    const trappedArray = new Proxy([1, 2, 3], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator || property === "length") {
+          throw new Error("array trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    type MalformedArg = null | undefined | number | string | boolean | object;
+    const malformedArgSets: MalformedArg[][] = [
+      [],
+      [undefined],
+      [null],
+      [trappedObject],
+      [revokedObject],
+      [revokedArray],
+      [Number.NaN],
+      [Number.POSITIVE_INFINITY],
+      ["text"],
+      [trappedObject, revokedObject],
+      [42, trappedObject, revokedArray],
+      [trappedArray],
+    ];
+    const malformedThisValues: Array<null | undefined | object> = [
+      undefined,
+      null,
+      {},
+      trappedObject,
+      revokedObject,
+      revokedArray,
+      trappedArray,
+    ];
+    const allowedErrorPatterns = [
+      /^BlockUtils\.insertAll\(\d+\): RangeError: Maximum stage is 15$/,
+      /^BlockUtils\.insertStage\(\d+\): RangeError: Maximum stage is 15$/,
+      /^Voxel\.withStage\(\d+\): RangeError: Maximum stage is 15$/,
+    ];
+    const unexpectedThrownSignatures: string[] = [];
+
+    for (const [exportName, exportValue] of Object.entries(tsCoreModule)) {
+      if (typeof exportValue !== "function") {
+        continue;
+      }
+
+      const functionSource = Function.prototype.toString.call(exportValue);
+      if (!functionSource.startsWith("class ")) {
+        continue;
+      }
+
+      for (const args of malformedArgSets) {
+        try {
+          Reflect.construct(exportValue, args);
+        } catch (error) {
+          const errorSignature =
+            error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+          const signature = `${exportName}.construct(${args.length}): ${errorSignature}`;
+          if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
+            unexpectedThrownSignatures.push(signature);
+          }
+        }
+      }
+
+      const staticMethodNames = Object.getOwnPropertyNames(exportValue).filter((name) => {
+        return name !== "length" && name !== "name" && name !== "prototype";
+      });
+      for (const staticMethodName of staticMethodNames) {
+        const staticMethod = Reflect.get(exportValue, staticMethodName);
+        if (typeof staticMethod !== "function") {
+          continue;
+        }
+
+        for (const args of malformedArgSets) {
+          try {
+            Reflect.apply(staticMethod, exportValue, args);
+          } catch (error) {
+            const errorSignature =
+              error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            const signature = `${exportName}.${staticMethodName}(${args.length}): ${errorSignature}`;
+            if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
+              unexpectedThrownSignatures.push(signature);
+            }
+          }
+        }
+      }
+
+      const prototypeMethodNames = Object.getOwnPropertyNames(
+        exportValue.prototype
+      ).filter((name) => {
+        return name !== "constructor";
+      });
+      for (const prototypeMethodName of prototypeMethodNames) {
+        const prototypeMethod = Reflect.get(exportValue.prototype, prototypeMethodName);
+        if (typeof prototypeMethod !== "function") {
+          continue;
+        }
+
+        for (const thisValue of malformedThisValues) {
+          for (const args of malformedArgSets) {
+            try {
+              Reflect.apply(prototypeMethod, thisValue, args);
+            } catch (error) {
+              const errorSignature =
+                error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+              const thisLabel = thisValue === null ? "null" : typeof thisValue;
+              const signature = `${exportName}.prototype.${prototypeMethodName}[this:${thisLabel}|args:${args.length}]: ${errorSignature}`;
+              if (!allowedErrorPatterns.some((pattern) => pattern.test(signature))) {
+                unexpectedThrownSignatures.push(signature);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    expect(unexpectedThrownSignatures).toEqual([]);
+  });
 });
 
 describe("Type builders", () => {
