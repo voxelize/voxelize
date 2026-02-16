@@ -632,8 +632,14 @@ impl Chunks {
         }
 
         if !self.updates.is_empty() {
-            self.updates
-                .retain(|(v, _)| !self.updates_staging.contains_key(v));
+            if self.updates_staging.len() == 1 {
+                if let Some(staged_voxel) = self.updates_staging.keys().next().copied() {
+                    self.updates.retain(|(voxel, _)| *voxel != staged_voxel);
+                }
+            } else {
+                self.updates
+                    .retain(|(voxel, _)| !self.updates_staging.contains_key(voxel));
+            }
         }
 
         let staged_count = self.updates_staging.len();
