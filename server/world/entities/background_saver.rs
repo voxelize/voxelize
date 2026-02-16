@@ -91,6 +91,45 @@ fn escaped_json_string(value: &str) -> Option<String> {
     serde_json::to_string(value).ok()
 }
 
+const JSON_EXTENSION_LENGTH: usize = 5;
+const SUFFIXED_ENTITY_FILENAME_EXTRA_LENGTH: usize = JSON_EXTENSION_LENGTH + 1;
+
+#[inline]
+fn has_json_extension(bytes: &[u8], start: usize) -> bool {
+    bytes.len() == start + JSON_EXTENSION_LENGTH
+        && bytes[start] == b'.'
+        && bytes[start + 1] == b'j'
+        && bytes[start + 2] == b's'
+        && bytes[start + 3] == b'o'
+        && bytes[start + 4] == b'n'
+}
+
+#[inline]
+fn filename_matches_entity_id(filename: &str, id: &str) -> bool {
+    let filename_bytes = filename.as_bytes();
+    let id_bytes = id.as_bytes();
+    let id_len = id_bytes.len();
+    let filename_len = filename_bytes.len();
+
+    if filename_len == id_len + JSON_EXTENSION_LENGTH
+        && &filename_bytes[..id_len] == id_bytes
+        && has_json_extension(filename_bytes, id_len)
+    {
+        return true;
+    }
+    if filename_len < id_len + SUFFIXED_ENTITY_FILENAME_EXTRA_LENGTH {
+        return false;
+    }
+
+    let suffix_start = filename_len - (id_len + SUFFIXED_ENTITY_FILENAME_EXTRA_LENGTH);
+    if filename_bytes[suffix_start] != b'-' {
+        return false;
+    }
+    let id_start = suffix_start + 1;
+    let id_end = id_start + id_len;
+    &filename_bytes[id_start..id_end] == id_bytes && has_json_extension(filename_bytes, id_end)
+}
+
 #[inline]
 fn take_map_with_capacity<K, V>(map: &mut HashMap<K, V>) -> HashMap<K, V> {
     let capacity = map.capacity();
@@ -278,15 +317,13 @@ impl BackgroundEntitiesSaver {
         if !self.saving {
             return;
         }
-        let suffixed_file_name = format!("-{}.json", id);
-        let legacy_file_name = format!("{}.json", id);
         let mut removed_any = false;
 
         if let Ok(entries) = fs::read_dir(&self.folder) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
                 if let Some(filename) = entry_path.file_name().and_then(|n| n.to_str()) {
-                    if filename.ends_with(&suffixed_file_name) || filename == legacy_file_name {
+                    if filename_matches_entity_id(filename, id) {
                         if let Err(e) = fs::remove_file(&entry_path) {
                             warn!(
                                 "Failed to remove entity file: {}. Entity could still be saving?",
@@ -323,7 +360,9 @@ impl Drop for BackgroundEntitiesSaver {
 mod tests {
     use std::borrow::Cow;
 
-    use super::{normalize_block_entity_type, sanitize_entity_filename};
+    use super::{
+        filename_matches_entity_id, normalize_block_entity_type, sanitize_entity_filename,
+    };
 
     #[test]
     fn normalize_block_entity_type_keeps_existing_prefix() {
@@ -353,5 +392,16 @@ mod tests {
     fn sanitize_entity_filename_handles_unicode_input() {
         let sanitized = sanitize_entity_filename("blöck::蓝 灯");
         assert_eq!(sanitized.as_ref(), "blöck-蓝-灯");
+    }
+
+    #[test]
+    fn filename_matches_entity_id_handles_legacy_and_suffixed_names() {
+        assert!(filename_matches_entity_id("abc123.json", "abc123"));
+        assert!(filename_matches_entity_id(
+            "block-lamp-abc123.json",
+            "abc123"
+        ));
+        assert!(!filename_matches_entity_id("block-lamp-abc123.txt", "abc123"));
+        assert!(!filename_matches_entity_id("block-lamp-zzz999.json", "abc123"));
     }
 }
