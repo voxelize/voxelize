@@ -3551,20 +3551,18 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                     world_space: false,
                                 });
                             } else {
-                                let (aos, lights) = if let Some(ao_light) = cached_ao_light {
-                                    ao_light
-                                } else {
-                                    let neighbors = cached_neighbors.get_or_insert_with(|| {
-                                        populate_neighbors_for_face_processing(
-                                            vx,
-                                            vy,
-                                            vz,
-                                            space,
-                                            skip_opaque_checks,
-                                        )
-                                    });
-                                    compute_face_ao_and_light(dir_index, block, neighbors, registry)
-                                };
+                                let neighbors = cached_neighbors.get_or_insert_with(|| {
+                                    populate_neighbors_for_face_processing(
+                                        vx,
+                                        vy,
+                                        vz,
+                                        space,
+                                        skip_opaque_checks,
+                                    )
+                                });
+                                let (aos, lights) = compute_face_ao_and_light(
+                                    dir_index, block, neighbors, registry,
+                                );
                                 let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
                                     block.greedy_face_uv_quantized[dir_index]
                                 } else {
