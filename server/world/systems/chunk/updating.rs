@@ -155,6 +155,9 @@ fn process_pending_updates(
 
     let total_updates = chunks.updates.len();
     let num_to_process = max_updates.min(total_updates);
+    if num_to_process == 0 {
+        return Vec::new();
+    }
     let mut results = Vec::with_capacity(num_to_process);
 
     let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, u32, &crate::Block)>> =
