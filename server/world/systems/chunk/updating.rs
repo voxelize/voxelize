@@ -332,7 +332,15 @@ fn process_pending_updates(
                 chunks.cache.insert(coords);
             }
 
-            processed_updates.push((voxel, rotation, current_type, updated_type));
+            processed_updates.push((
+                voxel,
+                rotation,
+                current_type,
+                updated_type,
+                current_rotatable,
+                updated_rotatable,
+                needs_transparency,
+            ));
 
             results.push(UpdateProtocol {
                 vx,
@@ -418,7 +426,16 @@ fn process_pending_updates(
     let mut blue_flood = VecDeque::new();
     let mut sun_flood = VecDeque::new();
 
-    for (voxel, rotation, current_type, updated_type) in processed_updates {
+    for (
+        voxel,
+        rotation,
+        current_type,
+        updated_type,
+        current_rotatable,
+        updated_rotatable,
+        needs_transparency,
+    ) in processed_updates
+    {
         let Vec3(vx, vy, vz) = voxel;
 
         let current_is_light = current_type.is_light_at(&voxel, &*chunks);
@@ -429,11 +446,7 @@ fn process_pending_updates(
             continue;
         }
 
-        let needs_transparency =
-            !updated_type.is_opaque && (!updated_type.light_reduce || current_type.is_opaque);
         let (current_transparency, updated_transparency) = if needs_transparency {
-            let current_rotatable = current_type.rotatable || current_type.y_rotatable;
-            let updated_rotatable = updated_type.rotatable || updated_type.y_rotatable;
             let current_transparency = if current_rotatable {
                 match rotation.as_ref() {
                     Some(rotation) => current_type.get_rotated_transparency(rotation),
