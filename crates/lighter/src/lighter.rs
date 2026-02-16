@@ -22,15 +22,15 @@ const TARGET_FACE_BY_DIR: [usize; 6] = [3, 0, 5, 2, 4, 1];
 const MAX_I64_USIZE: usize = i64::MAX as usize;
 
 #[inline]
-fn direction_to_index(dx: i32, dy: i32, dz: i32) -> usize {
+fn direction_to_index(dx: i32, dy: i32, dz: i32) -> Option<usize> {
     match (dx, dy, dz) {
-        (1, 0, 0) => 0,
-        (-1, 0, 0) => 1,
-        (0, 0, 1) => 2,
-        (0, 0, -1) => 3,
-        (0, 1, 0) => 4,
-        (0, -1, 0) => 5,
-        _ => panic!("Light neighboring direction should be on exactly one axis."),
+        (1, 0, 0) => Some(0),
+        (-1, 0, 0) => Some(1),
+        (0, 0, 1) => Some(2),
+        (0, 0, -1) => Some(3),
+        (0, 1, 0) => Some(4),
+        (0, -1, 0) => Some(5),
+        _ => None,
     }
 }
 
@@ -144,12 +144,16 @@ fn block_emits_torch_at(
 }
 
 pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
-    let index = direction_to_index(dx, dy, dz);
+    let Some(index) = direction_to_index(dx, dy, dz) else {
+        return false;
+    };
     can_enter_into_direction(target, index)
 }
 
 pub fn can_enter(source: &[bool; 6], target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
-    let index = direction_to_index(dx, dy, dz);
+    let Some(index) = direction_to_index(dx, dy, dz) else {
+        return false;
+    };
     can_enter_direction(source, target, index)
 }
 
@@ -812,6 +816,8 @@ mod tests {
         assert!(can_enter_into(&target, 1, 0, 0));
         assert!(can_enter_into(&target, -1, 0, 0));
         assert!(!can_enter_into(&opaque, 0, 1, 0));
+        assert!(!can_enter(&source, &target, 1, 1, 0));
+        assert!(!can_enter_into(&target, 0, 0, 0));
     }
 
     #[test]
