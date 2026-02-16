@@ -38,35 +38,27 @@ fn sorted_ids_contains(ids: &[String], target: &str) -> bool {
 
 #[inline]
 fn ids_contains_target(ids: &[String], target: &str) -> bool {
-    match ids.len() {
-        0 => false,
-        1 => ids[0] == target,
-        2 => ids[0] == target || ids[1] == target,
-        _ => {
-            for id in ids.iter() {
-                if id.as_str() == target {
-                    return true;
-                }
-            }
-            false
-        }
+    match ids {
+        [] => false,
+        [id] => id.as_str() == target,
+        [first, second] => first.as_str() == target || second.as_str() == target,
+        _ => ids.iter().any(|id| id.as_str() == target),
     }
 }
 
 #[inline]
 fn include_single_target(ids: &[String]) -> Option<&str> {
-    match ids.len() {
-        0 => None,
-        1 => Some(ids[0].as_str()),
-        2 if ids[0] == ids[1] => Some(ids[0].as_str()),
-        _ => {
-            let first_id = ids[0].as_str();
-            for index in 1..ids.len() {
-                if ids[index].as_str() != first_id {
-                    return None;
-                }
+    match ids {
+        [] => None,
+        [id] => Some(id.as_str()),
+        [first, second] if first == second => Some(first.as_str()),
+        [first, rest @ ..] => {
+            let first_id = first.as_str();
+            if rest.iter().all(|id| id.as_str() == first_id) {
+                Some(first_id)
+            } else {
+                None
             }
-            Some(first_id)
         }
     }
 }
