@@ -10,7 +10,7 @@ use crate::{
     WorldConfig,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Resources<'a> {
     pub registry: &'a Registry,
     pub config: &'a WorldConfig,
@@ -45,7 +45,7 @@ impl ChunkStage for MetaStage {
 
     fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
         for stage in &self.stages {
-            chunk = stage.process(chunk, resources.clone(), None);
+            chunk = stage.process(chunk, resources, None);
             chunk.calculate_max_height(&resources.registry);
         }
 
