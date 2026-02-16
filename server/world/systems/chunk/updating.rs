@@ -206,6 +206,9 @@ fn process_pending_updates(
             }
         }
     }
+    if updates_by_chunk.is_empty() {
+        return results;
+    }
 
     let mut removed_light_sources: Option<Vec<(Vec3<i32>, u32, u32, u32, bool)>> = None;
     let mut processed_updates: Option<Vec<(
