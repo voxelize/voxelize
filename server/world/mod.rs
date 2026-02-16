@@ -1234,11 +1234,13 @@ impl World {
                     return;
                 };
 
-                handle(
-                    self,
-                    serde_json::from_str(&data.json)
-                        .expect("Something went wrong with the transport JSON value."),
-                );
+                match serde_json::from_str(&data.json) {
+                    Ok(payload) => handle(self, payload),
+                    Err(error) => warn!(
+                        "Failed to parse transport payload from client {}: {} ({})",
+                        client_id, data.json, error
+                    ),
+                }
             }
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
