@@ -173,6 +173,132 @@ fn retain_active_client_updates(
     retain_active_client_batches_map(client_updates, clients);
 }
 
+#[inline]
+fn flush_entity_updates_touched(
+    queue: &mut MessageQueues,
+    client_updates_buffer: &mut HashMap<String, Vec<EntityProtocol>>,
+    touched_clients: &mut Vec<String>,
+) {
+    if touched_clients.is_empty() {
+        return;
+    }
+    match touched_clients.len() {
+        1 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+        }
+        2 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+        }
+        3 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, third_client_id);
+        }
+        4 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, third_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fourth_client_id);
+        }
+        5 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, third_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fourth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fifth_client_id);
+        }
+        6 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, third_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fourth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fifth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, sixth_client_id);
+        }
+        7 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
+            let seventh_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, third_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fourth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fifth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, sixth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, seventh_client_id);
+        }
+        8 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
+            let seventh_client_id = pop_touched_client_id(touched_clients);
+            let eighth_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, third_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fourth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fifth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, sixth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, seventh_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, eighth_client_id);
+        }
+        9 => {
+            let first_client_id = pop_touched_client_id(touched_clients);
+            let second_client_id = pop_touched_client_id(touched_clients);
+            let third_client_id = pop_touched_client_id(touched_clients);
+            let fourth_client_id = pop_touched_client_id(touched_clients);
+            let fifth_client_id = pop_touched_client_id(touched_clients);
+            let sixth_client_id = pop_touched_client_id(touched_clients);
+            let seventh_client_id = pop_touched_client_id(touched_clients);
+            let eighth_client_id = pop_touched_client_id(touched_clients);
+            let ninth_client_id = pop_touched_client_id(touched_clients);
+            flush_entity_updates_for_client(queue, client_updates_buffer, first_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, second_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, third_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fourth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, fifth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, sixth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, seventh_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, eighth_client_id);
+            flush_entity_updates_for_client(queue, client_updates_buffer, ninth_client_id);
+        }
+        _ => {
+            while let Some(client_id) = touched_clients.pop() {
+                flush_entity_updates_for_client(queue, client_updates_buffer, client_id);
+            }
+        }
+    }
+}
+
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
@@ -713,318 +839,22 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         bookkeeping.entities = new_bookkeeping_records;
         self.bookkeeping_records_buffer = old_entities;
         bookkeeping.entity_positions = entity_positions;
-        if self.clients_with_updates_buffer.is_empty() {
-            return;
-        }
-
-        match self.clients_with_updates_buffer.len() {
-            1 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-            }
-            2 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-            }
-            3 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    third_client_id,
-                );
-            }
-            4 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fourth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    third_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fourth_client_id,
-                );
-            }
-            5 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fourth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fifth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    third_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fourth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fifth_client_id,
-                );
-            }
-            6 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fourth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fifth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let sixth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    third_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fourth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fifth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    sixth_client_id,
-                );
-            }
-            7 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fourth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fifth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let sixth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let seventh_client_id =
-                    pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    third_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fourth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fifth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    sixth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    seventh_client_id,
-                );
-            }
-            8 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fourth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fifth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let sixth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let seventh_client_id =
-                    pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let eighth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    third_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fourth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fifth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    sixth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    seventh_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    eighth_client_id,
-                );
-            }
-            9 => {
-                let first_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let second_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let third_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fourth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let fifth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let sixth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let seventh_client_id =
-                    pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let eighth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                let ninth_client_id = pop_touched_client_id(&mut self.clients_with_updates_buffer);
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    first_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    second_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    third_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fourth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    fifth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    sixth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    seventh_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    eighth_client_id,
-                );
-                flush_entity_updates_for_client(
-                    &mut queue,
-                    &mut self.client_updates_buffer,
-                    ninth_client_id,
-                );
-            }
-            _ => {
-                while let Some(client_id) = self.clients_with_updates_buffer.pop() {
-                    flush_entity_updates_for_client(
-                        &mut queue,
-                        &mut self.client_updates_buffer,
-                        client_id,
-                    );
-                }
-            }
-        }
+        flush_entity_updates_touched(
+            &mut queue,
+            &mut self.client_updates_buffer,
+            &mut self.clients_with_updates_buffer,
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{is_outside_visible_radius_sq, normalized_visible_radius};
+    use hashbrown::{HashMap, HashSet};
+
+    use super::{
+        flush_entity_updates_touched, is_outside_visible_radius_sq, normalized_visible_radius,
+    };
+    use crate::{ClientFilter, EntityOperation, EntityProtocol, MessageQueues};
 
     #[test]
     fn normalized_visible_radius_handles_invalid_values() {
@@ -1053,5 +883,48 @@ mod tests {
         assert!(!is_outside_visible_radius_sq(1.0, 2.0, 2.0, 9.0));
         assert!(is_outside_visible_radius_sq(4.0, 0.0, 0.0, 9.0));
         assert!(is_outside_visible_radius_sq(f32::NAN, 0.0, 0.0, 9.0));
+    }
+
+    #[test]
+    fn flush_entity_updates_touched_emits_nine_direct_entity_messages() {
+        let mut queue = MessageQueues::new();
+        let mut updates: HashMap<String, Vec<EntityProtocol>> = HashMap::new();
+        let mut touched_clients = Vec::new();
+        let expected_ids: HashSet<String> = ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+
+        for client_id in ["a", "b", "c", "d", "e", "f", "g", "h", "i"] {
+            touched_clients.push(client_id.to_string());
+            updates.insert(
+                client_id.to_string(),
+                vec![EntityProtocol {
+                    operation: EntityOperation::Update,
+                    id: format!("entity-{client_id}"),
+                    r#type: "npc".to_string(),
+                    metadata: Some("{}".to_string()),
+                }],
+            );
+        }
+
+        flush_entity_updates_touched(&mut queue, &mut updates, &mut touched_clients);
+
+        assert!(touched_clients.is_empty());
+        assert_eq!(queue.queue_stats(), (9, 0, 0));
+
+        let drained = queue.drain_prioritized();
+        assert_eq!(drained.len(), 9);
+        let mut seen_ids = HashSet::with_capacity(9);
+        for (message, filter) in drained {
+            let ClientFilter::Direct(id) = filter else {
+                panic!("expected direct filter for flushed entity updates");
+            };
+            assert!(expected_ids.contains(&id));
+            assert_eq!(message.entities.len(), 1);
+            assert_eq!(message.entities[0].id, format!("entity-{id}"));
+            seen_ids.insert(id);
+        }
+        assert_eq!(seen_ids, expected_ids);
     }
 }
