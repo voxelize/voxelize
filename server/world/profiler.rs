@@ -72,13 +72,11 @@ impl Profiler {
         indent: usize,
         printed: &mut HashSet<&'a str>,
     ) {
-        if printed.contains(label) {
-            return;
-        }
-
         if let Some((_, duration)) = self.times.get(label) {
+            if !printed.insert(label) {
+                return;
+            }
             info!("{}{} took {:?}", " ".repeat(indent * 2), label, duration);
-            printed.insert(label);
 
             for hierarchy in self.hierarchy_records.iter() {
                 let mut seen_label = false;
