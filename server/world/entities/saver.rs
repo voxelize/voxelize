@@ -65,11 +65,6 @@ fn escaped_json_string(value: &str) -> Option<String> {
     serde_json::to_string(value).ok()
 }
 
-#[inline]
-fn serialized_metadata_json(metadata: &MetadataComp) -> Option<String> {
-    serde_json::to_string(metadata).ok()
-}
-
 impl EntitiesSaver {
     pub fn new(config: &WorldConfig) -> Self {
         let mut folder = PathBuf::from(&config.save_dir);
@@ -107,10 +102,7 @@ impl EntitiesSaver {
             warn!("Unable to serialize persisted entity type for {}", id);
             return;
         };
-        let Some(metadata_json) = serialized_metadata_json(metadata) else {
-            warn!("Unable to serialize persisted entity metadata for {}", id);
-            return;
-        };
+        let metadata_json = metadata.to_persisted_json_snapshot();
 
         let sanitized_filename = sanitize_entity_filename(etype_value.as_ref());
         let mut new_filename = String::with_capacity(sanitized_filename.len() + id.len() + 6);
