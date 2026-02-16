@@ -425,8 +425,20 @@ impl Chunks {
 
     /// Get neighboring coords of a voxel coordinate.
     pub fn voxel_affected_chunks(&self, vx: i32, vy: i32, vz: i32) -> Vec<Vec2<i32>> {
-        let mut neighbors = Vec::with_capacity(9);
         let chunk_size = self.chunk_size();
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
+        if cx < self.config.min_chunk[0]
+            || cx > self.config.max_chunk[0]
+            || cz < self.config.min_chunk[1]
+            || cz > self.config.max_chunk[1]
+        {
+            return Vec::new();
+        }
+        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        if lx > 0 && lz > 0 && lx < chunk_size - 1 && lz < chunk_size - 1 {
+            return vec![Vec2(cx, cz)];
+        }
+        let mut neighbors = Vec::with_capacity(9);
         for_each_voxel_affected_chunk(
             vx,
             vy,
@@ -443,8 +455,17 @@ impl Chunks {
     #[inline]
     pub fn cache_voxel_affected_chunks(&mut self, vx: i32, vy: i32, vz: i32) {
         let chunk_size = self.chunk_size();
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let min_chunk = self.config.min_chunk;
         let max_chunk = self.config.max_chunk;
+        if cx < min_chunk[0] || cx > max_chunk[0] || cz < min_chunk[1] || cz > max_chunk[1] {
+            return;
+        }
+        let Vec3(lx, _, lz) = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        if lx > 0 && lz > 0 && lx < chunk_size - 1 && lz < chunk_size - 1 {
+            self.cache.insert(Vec2(cx, cz));
+            return;
+        }
         for_each_voxel_affected_chunk(
             vx,
             vy,
