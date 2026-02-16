@@ -70,18 +70,6 @@ fn next_pipeline_stage(curr_stage: usize) -> usize {
     curr_stage.saturating_add(1)
 }
 
-#[inline]
-fn set_chunk_weight(weights: &mut HashMap<Vec2<i32>, f32>, coords: Vec2<i32>, weight: f32) {
-    match weights.raw_entry_mut().from_key(&coords) {
-        RawEntryMut::Occupied(mut entry) => {
-            *entry.get_mut() = weight;
-        }
-        RawEntryMut::Vacant(entry) => {
-            entry.insert(coords, weight);
-        }
-    }
-}
-
 #[derive(Default)]
 pub struct ChunkGeneratingSystem;
 
@@ -131,9 +119,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 HashMap::with_capacity(weights_capacity),
             );
             let interest_map = &interests.map;
-            if !weights.is_empty() {
-                weights.retain(|coords, _| interest_map.contains_key(coords));
-            }
+            weights.clear();
             if weights.capacity() < interest_map.len() {
                 weights.reserve(interest_map.len() - weights.len());
             }
@@ -148,9 +134,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                                 let dist = ChunkUtils::distance_squared(center, coords);
                                 let alignment = chunk_interest_alignment(center, coords, direction);
                                 let weight = accumulate_chunk_interest_weight(0.0, dist, alignment);
-                                set_chunk_weight(&mut weights, *coords, weight);
+                                weights.insert(*coords, weight);
                             } else {
-                                set_chunk_weight(&mut weights, *coords, 0.0);
+                                weights.insert(*coords, 0.0);
                             }
                         }
                     } else {
@@ -180,7 +166,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         }
                     }
 
-                    set_chunk_weight(&mut weights, *coords, weight);
+                    weights.insert(*coords, weight);
                 }
             }
 
