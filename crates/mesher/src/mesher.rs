@@ -354,6 +354,9 @@ impl NeighborCache {
         let mut cached_ids = [0u32; 8];
         let mut cached_opaques = [false; 8];
         let mut cached_len = 0usize;
+        let mut last_voxel_id = 0u32;
+        let mut last_is_opaque = false;
+        let mut has_last_voxel = false;
 
         for x in -1..=1 {
             for y in -1..=1 {
@@ -362,13 +365,22 @@ impl NeighborCache {
                     let raw_voxel = space.get_raw_voxel(vx + x, vy + y, vz + z);
                     data[idx][0] = raw_voxel;
                     let voxel_id = extract_id(raw_voxel);
-                    opaque[idx] = lookup_cached_opaque(
-                        registry,
-                        voxel_id,
-                        &mut cached_ids,
-                        &mut cached_opaques,
-                        &mut cached_len,
-                    );
+                    let is_opaque = if has_last_voxel && voxel_id == last_voxel_id {
+                        last_is_opaque
+                    } else {
+                        let is_opaque = lookup_cached_opaque(
+                            registry,
+                            voxel_id,
+                            &mut cached_ids,
+                            &mut cached_opaques,
+                            &mut cached_len,
+                        );
+                        last_voxel_id = voxel_id;
+                        last_is_opaque = is_opaque;
+                        has_last_voxel = true;
+                        is_opaque
+                    };
+                    opaque[idx] = is_opaque;
                     let (sun, red, green, blue) = space.get_all_lights(vx + x, vy + y, vz + z);
                     data[idx][1] = (sun << 12) | (red << 8) | (green << 4) | blue;
                 }
