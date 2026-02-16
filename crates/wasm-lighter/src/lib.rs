@@ -15,12 +15,11 @@ thread_local! {
     static EMPTY_BATCH_RESULT: JsValue = {
         let output = Object::new();
         let modified_chunks = Array::new_with_length(0);
-        Reflect::set(
+        let _ = Reflect::set(
             &output,
             &JsValue::from_str("modifiedChunks"),
             &modified_chunks,
-        )
-        .expect("Unable to set modified chunks");
+        );
         let modified_chunks_obj: Object = modified_chunks.unchecked_into();
         Object::freeze(&modified_chunks_obj);
         Object::freeze(&output);
@@ -704,23 +703,28 @@ pub fn process_light_batch_fast(
     }
     JS_KEYS.with(|keys| {
         let output = Object::new();
-        let modified_chunks_js = Array::new_with_length(modified_chunks.len() as u32);
+        let modified_chunks_js = Array::new();
 
-        for (index, chunk) in modified_chunks.iter().enumerate() {
+        for chunk in &modified_chunks {
             let chunk_obj = Object::new();
             let coords = Array::new_with_length(2);
             coords.set(0, JsValue::from_f64(chunk.coords[0] as f64));
             coords.set(1, JsValue::from_f64(chunk.coords[1] as f64));
-            Reflect::set(&chunk_obj, &keys.coords, &coords).expect("Unable to set chunk coords");
+            if Reflect::set(&chunk_obj, &keys.coords, &coords).is_err() {
+                continue;
+            }
 
             let lights = Uint32Array::from(chunk.lights.as_slice());
-            Reflect::set(&chunk_obj, &keys.lights, &lights).expect("Unable to set chunk lights");
+            if Reflect::set(&chunk_obj, &keys.lights, &lights).is_err() {
+                continue;
+            }
 
-            modified_chunks_js.set(index as u32, chunk_obj.into());
+            modified_chunks_js.push(&chunk_obj.into());
         }
 
-        Reflect::set(&output, &keys.modified_chunks, &modified_chunks_js)
-            .expect("Unable to set modified chunks");
+        if Reflect::set(&output, &keys.modified_chunks, &modified_chunks_js).is_err() {
+            return empty_batch_result();
+        }
         output.into()
     })
 }
