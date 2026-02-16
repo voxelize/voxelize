@@ -1027,7 +1027,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     continue;
                 }
 
-                let results = process_pending_updates(
+                let mut results = process_pending_updates(
                     &mut chunks,
                     &mut mesher,
                     &lazy,
@@ -1046,7 +1046,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     continue;
                 }
                 if let Some(all_results) = all_results.as_mut() {
-                    all_results.extend(results);
+                    all_results.append(&mut results);
                 } else {
                     all_results = Some(results);
                 }
@@ -1055,7 +1055,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         // Process any remaining updates (from non-active sources like player actions)
         if !chunks.updates_staging.is_empty() || !chunks.updates.is_empty() {
-            let results = process_pending_updates(
+            let mut results = process_pending_updates(
                 &mut chunks,
                 &mut mesher,
                 &lazy,
@@ -1072,7 +1072,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             );
             if !results.is_empty() {
                 if let Some(all_results) = all_results.as_mut() {
-                    all_results.extend(results);
+                    all_results.append(&mut results);
                 } else {
                     all_results = Some(results);
                 }
