@@ -3483,6 +3483,37 @@ describe("report-utils", () => {
     expect(unknownWithEmptyIteratorLengthAndReadTrapStrictMetadataOverride).toEqual(
       ["-l"]
     );
+    const unknownWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride =
+      parseUnknownCliOptions(["--only", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--only"],
+        optionsWithStrictValues: [],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output", "--only"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      unknownWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride
+    ).toEqual([]);
     const unknownWithExplicitEmptyStrictMetadataOverride = parseUnknownCliOptions(
       ["--output", "-l"],
       {
@@ -11087,6 +11118,84 @@ describe("report-utils", () => {
     expect(
       diagnosticsFromOwnKeysLengthReadableAndReadTrapValueMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(1);
+    const diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride =
+      createCliDiagnostics(["--only", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--only"],
+        optionsWithStrictValues: [],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output", "--only"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.supportedCliOptions
+    ).toEqual(["--output", "--only"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.supportedCliOptionCount
+    ).toBe(2);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.unknownOptions
+    ).toEqual([]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.unknownOptionCount
+    ).toBe(0);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.unsupportedOptionsError
+    ).toBeNull();
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.validationErrorCode
+    ).toBeNull();
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptions
+    ).toEqual(["--only"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--only"]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(
+      diagnosticsFromOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
   });
 
   it("sanitizes malformed metadata inputs in unified cli diagnostics", () => {
@@ -18141,6 +18250,66 @@ describe("report-utils", () => {
     expect(
       activeMetadataWithEmptyIteratorLengthAndReadTrapStrictMetadataOverride.activeCliOptionOccurrenceCount
     ).toBe(2);
+    const activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride =
+      parseActiveCliOptionMetadata(["--only", "-l"], {
+        canonicalOptions: ["--output", "--only"],
+        optionsWithValues: ["--only"],
+        optionsWithStrictValues: [],
+        strictValueOptionTokenMetadata: {
+          tokens: new Proxy(["--output", "--only"], {
+            ownKeys() {
+              throw new Error("ownKeys trap");
+            },
+            get(target, property, receiver) {
+              if (property === Symbol.iterator) {
+                return function* () {
+                  return;
+                };
+              }
+              if (property === "length") {
+                return 2;
+              }
+              if (property === "0") {
+                throw new Error("read trap");
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }) as never,
+          unavailable: false,
+        } as never,
+      });
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptions
+    ).toEqual(["--only"]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionTokens
+    ).toEqual(["--only"]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionResolutions
+    ).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionResolutionCount
+    ).toBe(1);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionOccurrences
+    ).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+    ]);
+    expect(
+      activeMetadataWithOwnKeysLengthReadableAndReadTrapStrictMetadataOverride.activeCliOptionOccurrenceCount
+    ).toBe(1);
     const activeMetadataWithExplicitEmptyStrictMetadataOverride =
       parseActiveCliOptionMetadata(["--output", "-j"], {
         canonicalOptions: ["--output", "--json"],
