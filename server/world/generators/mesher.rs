@@ -28,7 +28,11 @@ fn clamp_u128_to_i64(value: u128) -> i64 {
 
 #[inline]
 fn mesh_protocol_level(level: u32) -> i32 {
-    i32::try_from(level).unwrap_or(i32::MAX)
+    if level > i32::MAX as u32 {
+        i32::MAX
+    } else {
+        level as i32
+    }
 }
 
 fn build_mesher_pool() -> ThreadPool {
