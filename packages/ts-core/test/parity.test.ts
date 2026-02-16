@@ -999,6 +999,22 @@ describe("BlockRotation", () => {
         return Reflect.get(target, property, receiver);
       },
     });
+    const rotateYTrapRotation = new Proxy(BlockRotation.py(Math.PI / 2), {
+      get(target, property, receiver) {
+        if (property === "rotateY") {
+          throw new Error("rotateY trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const rotateNodeTrapRotation = new Proxy(BlockRotation.py(Math.PI / 2), {
+      get(target, property, receiver) {
+        if (property === "rotateNode") {
+          throw new Error("rotateNode trap");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
 
     const axisTrapNode: [number, number, number] = [1, 0, 0];
     expect(() =>
@@ -1013,6 +1029,13 @@ describe("BlockRotation", () => {
       (yRotationTrapRotation as never).rotateNode(yTrapNode, true, false)
     ).not.toThrow();
     expect(yTrapNode).toEqual([1, 0, 0]);
+    const rotateYTrapNode: [number, number, number] = [1, 0, 0];
+    expect(() =>
+      (rotateYTrapRotation as never).rotateNode(rotateYTrapNode, true, false)
+    ).not.toThrow();
+    expect(rotateYTrapNode[0]).toBeCloseTo(0, 10);
+    expect(rotateYTrapNode[1]).toBeCloseTo(0, 10);
+    expect(rotateYTrapNode[2]).toBeCloseTo(0, 10);
 
     const sourceAabb = AABB.create(0, 0, 0, 1, 1, 1);
     const expectedAxisTrapAabb = BlockRotation.py(Math.PI / 2).rotateAABB(
@@ -1032,6 +1055,12 @@ describe("BlockRotation", () => {
     expect(
       (yRotationTrapRotation as never).rotateAABB(sourceAabb, true, true)
     ).toEqual(BlockRotation.py(0).rotateAABB(sourceAabb, true, true));
+    expect(() =>
+      (rotateNodeTrapRotation as never).rotateAABB(sourceAabb, true, true)
+    ).not.toThrow();
+    expect(
+      (rotateNodeTrapRotation as never).rotateAABB(sourceAabb, true, true)
+    ).toEqual(expectedAxisTrapAabb);
 
     const transparency: [boolean, boolean, boolean, boolean, boolean, boolean] = [
       true,

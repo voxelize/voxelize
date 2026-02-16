@@ -200,6 +200,93 @@ const writeVec3SnapshotSafely = (node: Vec3, snapshot: Vec3): void => {
   }
 };
 
+const rotateNodeOnXAxis = (node: Vec3, theta: number): void => {
+  const sinTheta = Math.sin(theta);
+  const cosTheta = Math.cos(theta);
+  const y = node[1];
+  const z = node[2];
+  node[1] = y * cosTheta - z * sinTheta;
+  node[2] = z * cosTheta + y * sinTheta;
+};
+
+const rotateNodeOnYAxis = (node: Vec3, theta: number): void => {
+  const sinTheta = Math.sin(theta);
+  const cosTheta = Math.cos(theta);
+  const x = node[0];
+  const z = node[2];
+  node[0] = z * sinTheta + x * cosTheta;
+  node[2] = z * cosTheta - x * sinTheta;
+};
+
+const rotateNodeOnZAxis = (node: Vec3, theta: number): void => {
+  const sinTheta = Math.sin(theta);
+  const cosTheta = Math.cos(theta);
+  const x = node[0];
+  const y = node[1];
+  node[0] = x * cosTheta - y * sinTheta;
+  node[1] = y * cosTheta + x * sinTheta;
+};
+
+const applyRotationToNode = (
+  node: Vec3,
+  axis: number,
+  normalizedYRotation: number,
+  yRotate: boolean,
+  translate: boolean
+): void => {
+  if (yRotate && Math.abs(normalizedYRotation) > ANGLE_EPSILON) {
+    node[0] -= 0.5;
+    node[2] -= 0.5;
+    rotateNodeOnYAxis(node, normalizedYRotation);
+    node[0] += 0.5;
+    node[2] += 0.5;
+  }
+
+  switch (axis) {
+    case PX_ROTATION: {
+      rotateNodeOnZAxis(node, -PI_2);
+      if (translate) {
+        node[1] += 1.0;
+      }
+      break;
+    }
+    case NX_ROTATION: {
+      rotateNodeOnZAxis(node, PI_2);
+      if (translate) {
+        node[0] += 1.0;
+      }
+      break;
+    }
+    case PY_ROTATION: {
+      break;
+    }
+    case NY_ROTATION: {
+      rotateNodeOnXAxis(node, PI_2 * 2.0);
+      if (translate) {
+        node[1] += 1.0;
+        node[2] += 1.0;
+      }
+      break;
+    }
+    case PZ_ROTATION: {
+      rotateNodeOnXAxis(node, PI_2);
+      if (translate) {
+        node[1] += 1.0;
+      }
+      break;
+    }
+    case NZ_ROTATION: {
+      rotateNodeOnXAxis(node, -PI_2);
+      if (translate) {
+        node[2] += 1.0;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+};
+
 export class BlockRotation {
   public value: number;
   public yRotation: number;
@@ -326,63 +413,20 @@ export class BlockRotation {
     const rotatedNode: Vec3 = [...nodeSnapshot];
     const normalizedYRotation = normalizeYRotation(readRotationYSafely(this));
     const axis = readRotationAxisSafely(this);
-    if (yRotate && Math.abs(normalizedYRotation) > ANGLE_EPSILON) {
-      rotatedNode[0] -= 0.5;
-      rotatedNode[2] -= 0.5;
-      this.rotateY(rotatedNode, normalizedYRotation);
-      rotatedNode[0] += 0.5;
-      rotatedNode[2] += 0.5;
-    }
-
-    switch (axis) {
-      case PX_ROTATION: {
-        this.rotateZ(rotatedNode, -PI_2);
-        if (translate) {
-          rotatedNode[1] += 1.0;
-        }
-        break;
-      }
-      case NX_ROTATION: {
-        this.rotateZ(rotatedNode, PI_2);
-        if (translate) {
-          rotatedNode[0] += 1.0;
-        }
-        break;
-      }
-      case PY_ROTATION: {
-        break;
-      }
-      case NY_ROTATION: {
-        this.rotateX(rotatedNode, PI_2 * 2.0);
-        if (translate) {
-          rotatedNode[1] += 1.0;
-          rotatedNode[2] += 1.0;
-        }
-        break;
-      }
-      case PZ_ROTATION: {
-        this.rotateX(rotatedNode, PI_2);
-        if (translate) {
-          rotatedNode[1] += 1.0;
-        }
-        break;
-      }
-      case NZ_ROTATION: {
-        this.rotateX(rotatedNode, -PI_2);
-        if (translate) {
-          rotatedNode[2] += 1.0;
-        }
-        break;
-      }
-      default:
-        break;
-    }
+    applyRotationToNode(
+      rotatedNode,
+      axis,
+      normalizedYRotation,
+      yRotate,
+      translate
+    );
 
     writeVec3SnapshotSafely(node, rotatedNode);
   }
 
   rotateAABB(aabb: AABB, yRotate = true, translate = true): AABB {
     const axis = readRotationAxisSafely(this);
+    const normalizedYRotation = normalizeYRotation(readRotationYSafely(this));
     const aabbSnapshot = readAabbSnapshotSafely(aabb);
     if (aabbSnapshot === null) {
       return AABB.empty();
@@ -408,7 +452,13 @@ export class BlockRotation {
       ];
 
       for (const node of minNodes) {
-        this.rotateNode(node, true, true);
+        applyRotationToNode(
+          node,
+          axis,
+          normalizedYRotation,
+          true,
+          true
+        );
 
         if (minX === null || node[0] < minX) {
           minX = node[0];
@@ -427,7 +477,13 @@ export class BlockRotation {
       ];
 
       for (const node of maxNodes) {
-        this.rotateNode(node, true, true);
+        applyRotationToNode(
+          node,
+          axis,
+          normalizedYRotation,
+          true,
+          true
+        );
 
         if (maxX === null || node[0] > maxX) {
           maxX = node[0];
@@ -439,8 +495,8 @@ export class BlockRotation {
       }
     }
 
-    this.rotateNode(min, false, translate);
-    this.rotateNode(max, false, translate);
+    applyRotationToNode(min, axis, normalizedYRotation, false, translate);
+    applyRotationToNode(max, axis, normalizedYRotation, false, translate);
 
     return new AABB(
       minX ?? Math.min(min[0], max[0]),
@@ -467,8 +523,8 @@ export class BlockRotation {
     const positive: Vec3 = [1.0, 2.0, 3.0];
     const negative: Vec3 = [4.0, 5.0, 6.0];
 
-    this.rotateNode(positive, true, false);
-    this.rotateNode(negative, true, false);
+    applyRotationToNode(positive, axis, normalizedYRotation, true, false);
+    applyRotationToNode(negative, axis, normalizedYRotation, true, false);
 
     const normalizedTransparency: FaceTransparency = [px, py, pz, nx, ny, nz];
     const p = positive.map((value) => {
@@ -486,32 +542,5 @@ export class BlockRotation {
     const [otherAxis, otherYRotation] = BlockRotation.decode(other);
 
     return thisAxis === otherAxis && thisYRotation === otherYRotation;
-  }
-
-  private rotateX(node: Vec3, theta: number): void {
-    const sinTheta = Math.sin(theta);
-    const cosTheta = Math.cos(theta);
-    const y = node[1];
-    const z = node[2];
-    node[1] = y * cosTheta - z * sinTheta;
-    node[2] = z * cosTheta + y * sinTheta;
-  }
-
-  private rotateY(node: Vec3, theta: number): void {
-    const sinTheta = Math.sin(theta);
-    const cosTheta = Math.cos(theta);
-    const x = node[0];
-    const z = node[2];
-    node[0] = z * sinTheta + x * cosTheta;
-    node[2] = z * cosTheta - x * sinTheta;
-  }
-
-  private rotateZ(node: Vec3, theta: number): void {
-    const sinTheta = Math.sin(theta);
-    const cosTheta = Math.cos(theta);
-    const x = node[0];
-    const y = node[1];
-    node[0] = x * cosTheta - y * sinTheta;
-    node[1] = y * cosTheta + x * sinTheta;
   }
 }
