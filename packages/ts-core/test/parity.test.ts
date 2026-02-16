@@ -1844,7 +1844,15 @@ describe("Numeric helpers", () => {
         },
       }
     );
-    type MalformedArg = null | undefined | number | string | boolean | object;
+    type MalformedArg =
+      | null
+      | undefined
+      | number
+      | string
+      | boolean
+      | bigint
+      | symbol
+      | object;
     const malformedArgSets: MalformedArg[][] = [
       [],
       [undefined],
@@ -1854,9 +1862,11 @@ describe("Numeric helpers", () => {
       [revokedArray],
       [Number.NaN],
       [Number.POSITIVE_INFINITY],
+      [Symbol("arg-token")],
+      [BigInt(7)],
       ["text"],
       [trappedObject, revokedObject],
-      [42, trappedObject, revokedArray],
+      [42, trappedObject, revokedArray, Symbol("arg-sentinel")],
     ];
     const allowedErrorSignaturesByExportName = new Map<string, Set<string>>([
       ["assertStage", new Set(["RangeError: Maximum stage is 15"])],
@@ -1921,7 +1931,15 @@ describe("Numeric helpers", () => {
         return Reflect.get(target, property, receiver);
       },
     });
-    type MalformedArg = null | undefined | number | string | boolean | object;
+    type MalformedArg =
+      | null
+      | undefined
+      | number
+      | string
+      | boolean
+      | bigint
+      | symbol
+      | object;
     const malformedArgSets: MalformedArg[][] = [
       [],
       [undefined],
@@ -1931,14 +1949,23 @@ describe("Numeric helpers", () => {
       [revokedArray],
       [Number.NaN],
       [Number.POSITIVE_INFINITY],
+      [Symbol("arg-token")],
+      [BigInt(7)],
       ["text"],
       [trappedObject, revokedObject],
-      [42, trappedObject, revokedArray],
+      [42, trappedObject, revokedArray, Symbol("arg-sentinel")],
       [trappedArray],
     ];
-    const malformedThisValues: Array<null | undefined | object> = [
+    const malformedThisValues: Array<
+      null | undefined | number | string | boolean | bigint | symbol | object
+    > = [
       undefined,
       null,
+      7,
+      "ctx",
+      true,
+      BigInt(5),
+      Symbol("ctx"),
       {},
       trappedObject,
       revokedObject,
