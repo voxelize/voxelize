@@ -20630,6 +20630,67 @@ describe("report-utils", () => {
     ]);
   });
 
+  it("normalizes sparse-hole step/check args to empty arrays", () => {
+    const sparseCheckArgs = new Array(1);
+    expect(
+      summarizeStepFailureResults([
+        {
+          name: "step-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkCommand: "node",
+          checkArgs: sparseCheckArgs as never,
+          stepIndex: 1,
+          passed: false,
+          skipped: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "step-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        stepIndex: 1,
+        checkCommand: "node",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Step failed with exit code 2.",
+      },
+    ]);
+    expect(
+      summarizeCheckFailureResults([
+        {
+          name: "check-valid",
+          scriptName: "check-valid.mjs",
+          supportsNoBuild: true,
+          checkCommand: "node",
+          checkArgs: sparseCheckArgs as never,
+          checkIndex: 1,
+          passed: false,
+          exitCode: 2,
+          report: null,
+          output: null,
+        },
+      ])
+    ).toEqual([
+      {
+        name: "check-valid",
+        scriptName: "check-valid.mjs",
+        supportsNoBuild: true,
+        checkIndex: 1,
+        checkCommand: "node",
+        checkArgs: [],
+        checkArgCount: 0,
+        exitCode: 2,
+        message: "Preflight check failed with exit code 2.",
+      },
+    ]);
+  });
+
   it("sanitizes malformed step/check failure entries with trap inputs", () => {
     const stepWithTrapPassed = Object.create(null) as {
       readonly name: string;
@@ -22723,6 +22784,18 @@ describe("report-utils", () => {
       wasmPackCheckExitCode: null,
       wasmPackCheckOutputLine: null,
     });
+    expect(
+      extractWasmPackCheckSummaryFromReport({
+        wasmPackCheckArgs: new Array(1),
+      })
+    ).toEqual({
+      wasmPackCheckStatus: null,
+      wasmPackCheckCommand: null,
+      wasmPackCheckArgs: [],
+      wasmPackCheckArgCount: 0,
+      wasmPackCheckExitCode: null,
+      wasmPackCheckOutputLine: null,
+    });
     const emptyIteratorLengthZeroAndOwnKeysTrapWasmArgs = new Proxy(
       ["check-wasm-pack.mjs"],
       {
@@ -24027,6 +24100,26 @@ describe("report-utils", () => {
       exampleCommand: null,
       exampleArgs: null,
       exampleArgCount: null,
+      exampleAttempted: true,
+      exampleStatus: "failed",
+      exampleRuleMatched: null,
+      examplePayloadValid: null,
+      examplePayloadIssues: null,
+      examplePayloadIssueCount: null,
+      exampleExitCode: 1,
+      exampleDurationMs: null,
+      exampleOutputLine: null,
+    });
+    expect(
+      extractTsCoreExampleSummaryFromReport({
+        exampleArgs: new Array(1),
+        exampleAttempted: true,
+        exampleExitCode: 1,
+      })
+    ).toEqual({
+      exampleCommand: null,
+      exampleArgs: [],
+      exampleArgCount: 0,
       exampleAttempted: true,
       exampleStatus: "failed",
       exampleRuleMatched: null,
