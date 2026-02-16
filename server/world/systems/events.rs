@@ -629,9 +629,78 @@ impl<'a> System<'a> for EventsSystem {
                             continue;
                         }
                         if ids.len() <= SMALL_FILTER_LINEAR_SCAN_LIMIT {
-                            for (id, client) in clients.iter() {
-                                if !ids_contains_target(ids, id.as_str()) {
-                                    send_to_client(id, client.entity);
+                            match ids.as_slice() {
+                                [first_id, second_id, third_id] => {
+                                    let first_id = first_id.as_str();
+                                    let second_id = second_id.as_str();
+                                    let third_id = third_id.as_str();
+                                    for (id, client) in clients.iter() {
+                                        let id = id.as_str();
+                                        if id != first_id && id != second_id && id != third_id {
+                                            send_to_client(id, client.entity);
+                                        }
+                                    }
+                                }
+                                [first_id, second_id, third_id, fourth_id] => {
+                                    let first_id = first_id.as_str();
+                                    let second_id = second_id.as_str();
+                                    let third_id = third_id.as_str();
+                                    let fourth_id = fourth_id.as_str();
+                                    for (id, client) in clients.iter() {
+                                        let id = id.as_str();
+                                        if id != first_id
+                                            && id != second_id
+                                            && id != third_id
+                                            && id != fourth_id
+                                        {
+                                            send_to_client(id, client.entity);
+                                        }
+                                    }
+                                }
+                                [first_id, second_id, third_id, fourth_id, fifth_id] => {
+                                    let first_id = first_id.as_str();
+                                    let second_id = second_id.as_str();
+                                    let third_id = third_id.as_str();
+                                    let fourth_id = fourth_id.as_str();
+                                    let fifth_id = fifth_id.as_str();
+                                    for (id, client) in clients.iter() {
+                                        let id = id.as_str();
+                                        if id != first_id
+                                            && id != second_id
+                                            && id != third_id
+                                            && id != fourth_id
+                                            && id != fifth_id
+                                        {
+                                            send_to_client(id, client.entity);
+                                        }
+                                    }
+                                }
+                                [first_id, second_id, third_id, fourth_id, fifth_id, sixth_id] => {
+                                    let first_id = first_id.as_str();
+                                    let second_id = second_id.as_str();
+                                    let third_id = third_id.as_str();
+                                    let fourth_id = fourth_id.as_str();
+                                    let fifth_id = fifth_id.as_str();
+                                    let sixth_id = sixth_id.as_str();
+                                    for (id, client) in clients.iter() {
+                                        let id = id.as_str();
+                                        if id != first_id
+                                            && id != second_id
+                                            && id != third_id
+                                            && id != fourth_id
+                                            && id != fifth_id
+                                            && id != sixth_id
+                                        {
+                                            send_to_client(id, client.entity);
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    for (id, client) in clients.iter() {
+                                        if !ids_contains_target(ids, id.as_str()) {
+                                            send_to_client(id, client.entity);
+                                        }
+                                    }
                                 }
                             }
                         } else {
