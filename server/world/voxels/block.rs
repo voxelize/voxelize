@@ -1668,22 +1668,28 @@ impl Block {
                 let vy = simple_rule.offset.1 + pos.1;
                 let vz = simple_rule.offset.2 + pos.2;
 
-                let id_match = simple_rule.id.map_or(true, |rule_id| {
+                if let Some(rule_id) = simple_rule.id {
                     let id = space.get_voxel(vx, vy, vz);
-                    id == rule_id
-                });
+                    if id != rule_id {
+                        return false;
+                    }
+                }
 
-                let rotation_match = simple_rule.rotation.as_ref().map_or(true, |rule_rotation| {
+                if let Some(rule_rotation) = simple_rule.rotation.as_ref() {
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
-                    rotation == *rule_rotation
-                });
+                    if rotation != *rule_rotation {
+                        return false;
+                    }
+                }
 
-                let stage_match = simple_rule.stage.map_or(true, |rule_stage| {
+                if let Some(rule_stage) = simple_rule.stage {
                     let stage = space.get_voxel_stage(vx, vy, vz);
-                    stage == rule_stage
-                });
+                    if stage != rule_stage {
+                        return false;
+                    }
+                }
 
-                id_match && rotation_match && stage_match
+                true
             }
             BlockRule::Combination { logic, rules } => match logic {
                 BlockRuleLogic::And => Self::evaluate_all_rules(rules, pos, space),
