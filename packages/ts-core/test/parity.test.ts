@@ -26,6 +26,7 @@ import {
   Y_ROT_MAP,
   Y_ROT_MAP_EIGHT,
   Y_ROT_MAP_FOUR,
+  assertStage,
   createAABB,
   createBlockConditionalPart,
   createBlockDynamicPattern,
@@ -1675,6 +1676,29 @@ describe("Numeric helpers", () => {
     expect(toSaturatedUint32(-5)).toBe(0);
     expect(toSaturatedUint32(12.9)).toBe(12);
     expect(toSaturatedUint32(0xffffffff + 1)).toBe(0xffffffff);
+  });
+
+  it("sanitizes malformed saturating-uint32 inputs without throwing", () => {
+    const trapValue = {
+      [Symbol.toPrimitive]() {
+        throw new Error("uint32 saturation trap");
+      },
+    };
+
+    expect(() => toSaturatedUint32(trapValue as never)).not.toThrow();
+    expect(toSaturatedUint32(trapValue as never)).toBe(0);
+  });
+
+  it("rejects malformed stage assertions with RangeError", () => {
+    const trapValue = {
+      [Symbol.toPrimitive]() {
+        throw new Error("stage assertion trap");
+      },
+    };
+
+    expect(() => assertStage(trapValue as never)).toThrowError(RangeError);
+    expect(() => assertStage("3" as never)).toThrowError(RangeError);
+    expect(() => assertStage(null as never)).toThrowError(RangeError);
   });
 
   it("sanitizes trap-driven toUint32 coercion inputs", () => {
