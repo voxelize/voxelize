@@ -92,8 +92,8 @@ impl ChunkInterests {
         }
 
         let first_interested = self.map.get(center);
-        let mut additional_interested: Option<Vec<&HashSet<String>>> = None;
-        let mut expected_clients = first_interested.map_or(0, |clients| clients.len());
+        let mut merged_clients: Option<HashSet<String>> = None;
+        let mut single_interest = first_interested;
         for dx in -1..=1 {
             let Some(nx) = center.0.checked_add(dx) else {
                 continue;
@@ -106,33 +106,35 @@ impl ChunkInterests {
                     continue;
                 };
                 if let Some(interested) = self.map.get(&Vec2(nx, nz)) {
-                    expected_clients = expected_clients.saturating_add(interested.len());
-                    additional_interested
-                        .get_or_insert_with(|| Vec::with_capacity(8))
-                        .push(interested);
+                    if let Some(clients) = merged_clients.as_mut() {
+                        let remaining_capacity = clients.capacity() - clients.len();
+                        if remaining_capacity < interested.len() {
+                            clients.reserve(interested.len() - remaining_capacity);
+                        }
+                        clients.extend(interested.iter().cloned());
+                        continue;
+                    }
+                    if let Some(seed) = single_interest {
+                        let mut clients =
+                            HashSet::with_capacity(seed.len().saturating_add(interested.len()));
+                        clients.extend(seed.iter().cloned());
+                        clients.extend(interested.iter().cloned());
+                        merged_clients = Some(clients);
+                    } else {
+                        single_interest = Some(interested);
+                    }
                 }
             }
         }
-        if expected_clients == 0 {
-            return HashSet::new();
+        if let Some(clients) = merged_clients {
+            return clients;
         }
-        let Some(additional_interested) = additional_interested else {
-            if let Some(interested) = first_interested {
-                let mut clients = HashSet::with_capacity(interested.len());
-                clients.extend(interested.iter().cloned());
-                return clients;
-            }
-            return HashSet::new();
-        };
-
-        let mut clients = HashSet::with_capacity(expected_clients);
-        if let Some(interested) = first_interested {
+        if let Some(interested) = single_interest {
+            let mut clients = HashSet::with_capacity(interested.len());
             clients.extend(interested.iter().cloned());
+            return clients;
         }
-        for interested in additional_interested {
-            clients.extend(interested.iter().cloned());
-        }
-        clients
+        HashSet::new()
     }
 
     pub fn add(&mut self, client_id: &str, coords: &Vec2<i32>) {
