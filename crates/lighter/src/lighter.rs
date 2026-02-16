@@ -536,10 +536,11 @@ pub fn propagate(
         ];
     };
 
-    let mut red_light_queue = Vec::<LightNode>::new();
-    let mut green_light_queue = Vec::<LightNode>::new();
-    let mut blue_light_queue = Vec::<LightNode>::new();
-    let mut sunlight_queue = Vec::<LightNode>::new();
+    let queue_initial_capacity = mask_len.min(64);
+    let mut red_light_queue = Vec::<LightNode>::with_capacity(queue_initial_capacity);
+    let mut green_light_queue = Vec::<LightNode>::with_capacity(queue_initial_capacity);
+    let mut blue_light_queue = Vec::<LightNode>::with_capacity(queue_initial_capacity);
+    let mut sunlight_queue = Vec::<LightNode>::with_capacity(queue_initial_capacity);
 
     let mut mask = vec![max_light_level; mask_len];
 
