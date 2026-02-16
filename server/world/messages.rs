@@ -209,6 +209,7 @@ impl EncodedMessageQueue {
         result
     }
 
+    #[inline]
     fn compute_delivery_eligibility(message: &Message) -> (bool, bool) {
         let message_type = message.r#type;
         let is_transport_eligible =
