@@ -131,7 +131,13 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     };
 
                     if clients_to_send.len() >= max_response_per_tick {
+                        if clients_to_send.contains(&coords) {
+                            continue;
+                        }
                         to_add_back_to_requested.push(coords);
+                        continue;
+                    }
+                    if !clients_to_send.insert(coords) {
                         continue;
                     }
                     if !touched_client {
@@ -140,7 +146,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     }
 
                     interests.add(client_id, &coords);
-                    clients_to_send.insert(coords);
                 } else {
                     if !interests.has_interests(&coords) {
                         if let Some((min_x, max_x, min_z, max_z)) =
