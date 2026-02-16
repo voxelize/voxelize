@@ -8902,6 +8902,64 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("sanitizes trap-driven offset coordinate reads as deterministic outcomes", () => {
+    const constrainedRule = {
+      type: "simple" as const,
+      offset: new Proxy([0, 0, 0], {
+        get(target, property, receiver) {
+          if (property === "0") {
+            throw new Error("offset trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }) as never,
+      id: 22,
+    };
+    const unconstrainedRule = {
+      type: "simple" as const,
+      offset: (() => {
+        const offsetProxy = Proxy.revocable([0, 0, 0], {});
+        offsetProxy.revoke();
+        return offsetProxy.proxy;
+      })() as never,
+    };
+    const access = {
+      getVoxel: () => 22,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(
+        constrainedRule as never,
+        [0, 0, 0],
+        access
+      )
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(
+        constrainedRule as never,
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(
+        unconstrainedRule as never,
+        [0, 0, 0],
+        access
+      )
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(
+        unconstrainedRule as never,
+        [0, 0, 0],
+        access
+      )
+    ).toBe(true);
+  });
+
   it("rotates offsets for negative y-rotation values", () => {
     const rule = {
       type: "simple" as const,

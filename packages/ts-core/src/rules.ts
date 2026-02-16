@@ -210,6 +210,32 @@ const toRoundedCheckPositionOrNull = (
   return [checkX, checkY, checkZ];
 };
 
+const toFiniteVec3SnapshotOrNull = (value: Vec3): Vec3 | null => {
+  let x: RuleOptionValue = null;
+  let y: RuleOptionValue = null;
+  let z: RuleOptionValue = null;
+  try {
+    x = value[0];
+    y = value[1];
+    z = value[2];
+  } catch {
+    return null;
+  }
+
+  if (
+    typeof x !== "number" ||
+    !Number.isFinite(x) ||
+    typeof y !== "number" ||
+    !Number.isFinite(y) ||
+    typeof z !== "number" ||
+    !Number.isFinite(z)
+  ) {
+    return null;
+  }
+
+  return [x, y, z];
+};
+
 const toRuleEntryOrNone = (value: RuleOptionValue): BlockRule => {
   if (value === null || typeof value !== "object") {
     return BLOCK_RULE_NONE;
@@ -574,11 +600,15 @@ export class BlockRuleEvaluator {
     }
 
     if (rule.type === "simple") {
-      let offset: Vec3 = [...rule.offset];
       const hasRuleConstraint =
         (rule.id !== undefined && rule.id !== null) ||
         (rule.rotation !== undefined && rule.rotation !== null) ||
         (rule.stage !== undefined && rule.stage !== null);
+      const offsetSnapshot = toFiniteVec3SnapshotOrNull(rule.offset);
+      if (offsetSnapshot === null) {
+        return !hasRuleConstraint;
+      }
+      let offset: Vec3 = offsetSnapshot;
 
       if (yRotatable && !worldSpace) {
         offset = rotateOffsetY(offset, rotationY);
