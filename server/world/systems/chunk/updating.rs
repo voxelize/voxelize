@@ -239,8 +239,16 @@ fn process_pending_updates(
                 None
             };
 
-            let current_is_light = current_type.is_light_at(&voxel, &*chunks);
-            let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
+            let current_is_light = if current_type.dynamic_patterns.is_some() {
+                current_type.is_light_at(&voxel, &*chunks)
+            } else {
+                current_type.is_light
+            };
+            let updated_is_light = if updated_type.dynamic_patterns.is_some() {
+                updated_type.is_light_at(&voxel, &*chunks)
+            } else {
+                updated_type.is_light
+            };
 
             if !chunks.set_voxel(vx, vy, vz, updated_id) {
                 continue;
@@ -438,8 +446,16 @@ fn process_pending_updates(
     {
         let Vec3(vx, vy, vz) = voxel;
 
-        let current_is_light = current_type.is_light_at(&voxel, &*chunks);
-        let updated_is_light = updated_type.is_light_at(&voxel, &*chunks);
+        let current_is_light = if current_type.dynamic_patterns.is_some() {
+            current_type.is_light_at(&voxel, &*chunks)
+        } else {
+            current_type.is_light
+        };
+        let updated_is_light = if updated_type.dynamic_patterns.is_some() {
+            updated_type.is_light_at(&voxel, &*chunks)
+        } else {
+            updated_type.is_light
+        };
         let is_removed_light_source = current_is_light && !updated_is_light;
 
         if is_removed_light_source && !current_type.is_opaque {
