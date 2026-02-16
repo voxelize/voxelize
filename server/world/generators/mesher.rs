@@ -251,6 +251,9 @@ impl Mesher {
                     let min = space.min;
                     let shape = space.shape;
                     let should_store_lights = chunk.meshes.is_none();
+                    let space_max_height = space.options.max_height;
+                    let space_sub_chunks = space.options.sub_chunks;
+                    let space_max_height_usize = space_max_height as usize;
 
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
@@ -279,7 +282,7 @@ impl Mesher {
                                 );
                                 let shape = Vec3(
                                     chunk_size_usize + if center { 2 } else { 0 },
-                                    space.options.max_height as usize,
+                                    space_max_height_usize,
                                     chunk_size_usize + if center { 2 } else { 0 },
                                 );
 
@@ -316,8 +319,8 @@ impl Mesher {
                     for &level_u32 in chunk.updated_levels.iter() {
                         let Some((level_start_y, level_end_y)) = sub_chunk_y_bounds(
                             min_y,
-                            space.options.max_height,
-                            space.options.sub_chunks,
+                            space_max_height,
+                            space_sub_chunks,
                             level_u32,
                         ) else {
                             continue;
