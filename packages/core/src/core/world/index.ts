@@ -115,6 +115,19 @@ function computeFlatNormals(geometry: BufferGeometry) {
   );
 }
 
+const GIF_EXTENSION_LENGTH = 4;
+
+const isGifSource = (source: string) => {
+  const sourceLength = source.length;
+  return (
+    sourceLength >= GIF_EXTENSION_LENGTH &&
+    source.charCodeAt(sourceLength - GIF_EXTENSION_LENGTH) === 46 &&
+    source.charCodeAt(sourceLength - 3) === 103 &&
+    source.charCodeAt(sourceLength - 2) === 105 &&
+    source.charCodeAt(sourceLength - 1) === 102
+  );
+};
+
 import {
   Block,
   BlockDynamicPattern,
@@ -1636,7 +1649,7 @@ export class World<T = MessageProtocol["json"]> extends Scene implements NetInte
   ) {
     this.checkIsInitialized("apply GIF animation", false);
 
-    if (!source.endsWith(".gif")) {
+    if (!isGifSource(source)) {
       console.warn(
         "There's a chance that this file isn't a GIF as it doesn't end with .gif"
       );
