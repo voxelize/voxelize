@@ -210,7 +210,19 @@ const toRoundedCheckPositionOrNull = (
   return [checkX, checkY, checkZ];
 };
 
-const toFiniteVec3SnapshotOrNull = (value: Vec3): Vec3 | null => {
+const toFiniteVec3SnapshotOrNull = (value: RuleOptionValue): Vec3 | null => {
+  if (!isArrayValue(value)) {
+    return null;
+  }
+
+  try {
+    if (value.length !== 3) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
   let x: RuleOptionValue = null;
   let y: RuleOptionValue = null;
   let z: RuleOptionValue = null;
@@ -594,17 +606,24 @@ export class BlockRuleEvaluator {
     activeCombinationRules: Set<BlockRule>
   ): boolean {
     const { rotationY, yRotatable, worldSpace } = options;
+    const ruleRecord = rule as RuleOptionRecord;
+    const ruleType = safeReadRecordValue(ruleRecord, "type");
 
-    if (rule.type === "none") {
+    if (ruleType === "none") {
       return true;
     }
 
-    if (rule.type === "simple") {
+    if (ruleType === "simple") {
+      const id = safeReadRecordValue(ruleRecord, "id");
+      const rotation = safeReadRecordValue(ruleRecord, "rotation");
+      const stage = safeReadRecordValue(ruleRecord, "stage");
       const hasRuleConstraint =
-        (rule.id !== undefined && rule.id !== null) ||
-        (rule.rotation !== undefined && rule.rotation !== null) ||
-        (rule.stage !== undefined && rule.stage !== null);
-      const offsetSnapshot = toFiniteVec3SnapshotOrNull(rule.offset);
+        (id !== undefined && id !== null) ||
+        (rotation !== undefined && rotation !== null) ||
+        (stage !== undefined && stage !== null);
+      const offsetSnapshot = toFiniteVec3SnapshotOrNull(
+        safeReadRecordValue(ruleRecord, "offset")
+      );
       if (offsetSnapshot === null) {
         return !hasRuleConstraint;
       }
@@ -619,19 +638,19 @@ export class BlockRuleEvaluator {
         return !hasRuleConstraint;
       }
 
-      if (rule.id !== undefined && rule.id !== null) {
+      if (id !== undefined && id !== null) {
         const actualId = readVoxelIdSafely(
           access,
           checkPosition[0],
           checkPosition[1],
           checkPosition[2]
         );
-        if (actualId === null || actualId !== rule.id) {
+        if (actualId === null || actualId !== id) {
           return false;
         }
       }
 
-      if (rule.rotation !== undefined && rule.rotation !== null) {
+      if (rotation !== undefined && rotation !== null) {
         const actualRotation = readVoxelRotationSafely(
           access,
           checkPosition[0],
@@ -640,20 +659,20 @@ export class BlockRuleEvaluator {
         );
         if (
           actualRotation === null ||
-          !areRotationsEqualSafely(actualRotation, rule.rotation)
+          !areRotationsEqualSafely(actualRotation, rotation as BlockRotation)
         ) {
           return false;
         }
       }
 
-      if (rule.stage !== undefined && rule.stage !== null) {
+      if (stage !== undefined && stage !== null) {
         const actualStage = readVoxelStageSafely(
           access,
           checkPosition[0],
           checkPosition[1],
           checkPosition[2]
         );
-        if (actualStage === null || actualStage !== rule.stage) {
+        if (actualStage === null || actualStage !== stage) {
           return false;
         }
       }
@@ -665,10 +684,12 @@ export class BlockRuleEvaluator {
       return true;
     }
 
-    const ruleEntries = toRuleEntriesOrEmpty(rule);
+    const combinationRule = rule as Extract<BlockRule, { type: "combination" }>;
+    const ruleEntries = toRuleEntriesOrEmpty(combinationRule);
+    const logic = safeReadRecordValue(ruleRecord, "logic");
     activeCombinationRules.add(rule);
     try {
-      switch (rule.logic) {
+      switch (logic) {
         case BlockRuleLogic.And:
           return ruleEntries.every((subRule) =>
             BlockRuleEvaluator.evaluateWithNormalizedOptions(

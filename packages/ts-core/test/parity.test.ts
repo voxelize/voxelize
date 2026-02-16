@@ -8960,6 +8960,101 @@ describe("BlockRuleEvaluator", () => {
     ).toBe(true);
   });
 
+  it("sanitizes trap-driven rule property reads without throwing", () => {
+    const typeTrapRule = new Proxy(
+      {
+        type: "simple",
+        offset: [0, 0, 0] as [number, number, number],
+        id: 30,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === "type") {
+            throw new Error("type trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const offsetGetterTrapRule = Object.create(null) as {
+      readonly type: string;
+      readonly offset: [number, number, number];
+      readonly id: number;
+    };
+    Object.defineProperty(offsetGetterTrapRule, "type", {
+      configurable: true,
+      enumerable: true,
+      value: "simple",
+    });
+    Object.defineProperty(offsetGetterTrapRule, "id", {
+      configurable: true,
+      enumerable: true,
+      value: 30,
+    });
+    Object.defineProperty(offsetGetterTrapRule, "offset", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        throw new Error("offset getter trap");
+      },
+    });
+    const logicTrapRule = new Proxy(
+      {
+        type: "combination",
+        logic: BlockRuleLogic.And,
+        rules: [
+          {
+            type: "simple" as const,
+            offset: [0, 0, 0] as [number, number, number],
+            id: 30,
+          },
+        ],
+      },
+      {
+        get(target, property, receiver) {
+          if (property === "logic") {
+            throw new Error("logic trap");
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }
+    );
+    const access = {
+      getVoxel: () => 30,
+      getVoxelRotation: () => BlockRotation.py(0),
+      getVoxelStage: () => 0,
+    };
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(typeTrapRule as never, [0, 0, 0], access)
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(typeTrapRule as never, [0, 0, 0], access)
+    ).toBe(false);
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(
+        offsetGetterTrapRule as never,
+        [0, 0, 0],
+        access
+      )
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(
+        offsetGetterTrapRule as never,
+        [0, 0, 0],
+        access
+      )
+    ).toBe(false);
+
+    expect(() =>
+      BlockRuleEvaluator.evaluate(logicTrapRule as never, [0, 0, 0], access)
+    ).not.toThrow();
+    expect(
+      BlockRuleEvaluator.evaluate(logicTrapRule as never, [0, 0, 0], access)
+    ).toBe(false);
+  });
+
   it("rotates offsets for negative y-rotation values", () => {
     const rule = {
       type: "simple" as const,
