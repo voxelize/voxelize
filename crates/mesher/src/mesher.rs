@@ -3307,18 +3307,23 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     if block.is_empty {
                         continue;
                     }
-                    let mut has_dynamic_patterns_cached: Option<bool> = None;
-                    if !block.is_fluid && block.faces.is_empty() {
-                        let has_dynamic_patterns = if block.cache_ready {
+                    let cache_ready = block.cache_ready;
+                    let is_fluid = block.is_fluid;
+                    let has_dynamic_patterns = if !is_fluid && block.faces.is_empty() {
+                        let has_dynamic_patterns = if cache_ready {
                             block.has_dynamic_patterns
                         } else {
                             block.has_dynamic_patterns_cached()
                         };
-                        has_dynamic_patterns_cached = Some(has_dynamic_patterns);
                         if !has_dynamic_patterns {
                             continue;
                         }
-                    }
+                        has_dynamic_patterns
+                    } else if cache_ready {
+                        block.has_dynamic_patterns
+                    } else {
+                        block.has_dynamic_patterns_cached()
+                    };
 
                     if block.is_opaque {
                         let voxel_index = ((vx - min_x) as usize) * yz_span
@@ -3355,8 +3360,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         None
                     };
 
-                    let cache_ready = block.cache_ready;
-                    let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
                     let skip_opaque_checks = is_see_through || block.is_all_transparent;
                     let block_needs_face_rotation = block.rotatable || block.y_rotatable;
@@ -3372,13 +3375,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         } else {
                             block.has_standard_six_faces_cached()
                         };
-                    let has_dynamic_patterns = if let Some(cached) = has_dynamic_patterns_cached {
-                        cached
-                    } else if cache_ready {
-                        block.has_dynamic_patterns
-                    } else {
-                        block.has_dynamic_patterns_cached()
-                    };
                     let use_static_faces = !has_standard_six_faces && !has_dynamic_patterns;
                     let uncached_face_index =
                         if use_static_faces && !cache_ready && !block_needs_face_rotation {
@@ -4062,18 +4058,21 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
                     let cache_ready = block.cache_ready;
-                    let mut has_dynamic_patterns_cached: Option<bool> = None;
-                    if !is_fluid && faces_empty {
+                    let has_dynamic_patterns = if !is_fluid && faces_empty {
                         let has_dynamic_patterns = if cache_ready {
                             block.has_dynamic_patterns
                         } else {
                             block.has_dynamic_patterns_cached()
                         };
-                        has_dynamic_patterns_cached = Some(has_dynamic_patterns);
                         if !has_dynamic_patterns {
                             continue;
                         }
-                    }
+                        has_dynamic_patterns
+                    } else if cache_ready {
+                        block.has_dynamic_patterns
+                    } else {
+                        block.has_dynamic_patterns_cached()
+                    };
 
                     let greedy_without_rotation = block_greedy_without_rotation_cached(
                         block,
@@ -4225,14 +4224,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 );
                             }
                         } else {
-                            let has_dynamic_patterns =
-                                if let Some(cached) = has_dynamic_patterns_cached {
-                                    cached
-                                } else if cache_ready {
-                                    block.has_dynamic_patterns
-                                } else {
-                                    block.has_dynamic_patterns_cached()
-                                };
                             if has_dynamic_patterns {
                                 let neighbors = populate_neighbors_for_face_processing(
                                     vx,
