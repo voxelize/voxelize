@@ -18,8 +18,20 @@ pub(crate) fn retain_active_client_batches_map<T>(
     batches: &mut HashMap<String, T>,
     clients: &Clients,
 ) {
-    if batches.len() <= clients.len() {
+    if batches.is_empty() {
         return;
+    }
+    if batches.len() <= clients.len() {
+        let mut all_client_ids_are_active = true;
+        for batch_client_id in batches.keys() {
+            if !clients.contains_key(batch_client_id) {
+                all_client_ids_are_active = false;
+                break;
+            }
+        }
+        if all_client_ids_are_active {
+            return;
+        }
     }
     match clients.len() {
         0 => {
@@ -213,5 +225,39 @@ mod tests {
             assert!(batches.contains_key(id));
         }
         assert!(!batches.contains_key("stale"));
+    }
+
+    #[test]
+    fn retain_active_client_batches_map_removes_stale_when_lengths_match() {
+        let mut world = World::new();
+        let mut clients = Clients::new();
+        clients.insert("active".to_string(), make_client(&mut world, "active"));
+        clients.insert("other".to_string(), make_client(&mut world, "other"));
+
+        let mut batches: HashMap<String, i32> = HashMap::new();
+        batches.insert("active".to_string(), 1);
+        batches.insert("stale".to_string(), 1);
+
+        retain_active_client_batches_map(&mut batches, &clients);
+
+        assert_eq!(batches.len(), 1);
+        assert!(batches.contains_key("active"));
+        assert!(!batches.contains_key("stale"));
+    }
+
+    #[test]
+    fn retain_active_client_batches_map_keeps_only_active_subset_when_smaller() {
+        let mut world = World::new();
+        let mut clients = Clients::new();
+        clients.insert("active".to_string(), make_client(&mut world, "active"));
+        clients.insert("other".to_string(), make_client(&mut world, "other"));
+        clients.insert("third".to_string(), make_client(&mut world, "third"));
+
+        let mut batches: HashMap<String, i32> = HashMap::new();
+        batches.insert("stale".to_string(), 1);
+
+        retain_active_client_batches_map(&mut batches, &clients);
+
+        assert!(batches.is_empty());
     }
 }
