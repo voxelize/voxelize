@@ -1,6 +1,3 @@
-mod comps;
-mod systems;
-
 use log::warn;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
@@ -9,8 +6,6 @@ use voxelize::{
     Event, FlatlandStage, InteractorComp, PositionComp, Registry, RigidBody, RigidBodyComp, Vec3,
     World, WorldConfig, AABB,
 };
-
-use self::comps::CountdownComp;
 
 use super::shared::{setup_components, setup_dispatcher, setup_entities, setup_methods};
 
@@ -56,7 +51,6 @@ pub fn setup_flat_world(registry: &Registry) -> World {
 
     world.ecs_mut().register::<BoxFlag>();
     world.ecs_mut().register::<Name>();
-    world.ecs_mut().register::<CountdownComp>();
 
     world.set_entity_loader("box", |world, metadata| {
         let position = metadata.get::<PositionComp>("position").unwrap_or_default();
@@ -72,7 +66,6 @@ pub fn setup_flat_world(registry: &Registry) -> World {
             .with(RigidBodyComp::new(&body))
             .with(InteractorComp::new(&interactor))
             .with(Name("Box".to_owned()))
-            // .with(CountdownComp::new(300))
             .with(position)
     });
 
