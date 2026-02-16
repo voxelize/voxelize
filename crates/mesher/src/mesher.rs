@@ -2052,6 +2052,76 @@ fn process_face<S: VoxelAccess>(
     }
 }
 
+#[inline]
+fn process_non_greedy_face<S: VoxelAccess>(
+    map: &mut HashMap<String, GeometryProtocol>,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    voxel_id: u32,
+    rotation: &BlockRotation,
+    face: &BlockFace,
+    block: &Block,
+    block_aabb: &AABB,
+    registry: &Registry,
+    space: &S,
+    neighbors: &NeighborCache,
+    fluid_surface_above: bool,
+    min: &[i32; 3],
+    world_space: bool,
+) {
+    let geometry = if face.isolated {
+        let geo_key = build_isolated_geo_key(
+            block.get_name_lower(),
+            face.get_name_lower(),
+            vx,
+            vy,
+            vz,
+        );
+        map.entry(geo_key).or_insert_with(|| {
+            let mut g = GeometryProtocol::default();
+            g.voxel = voxel_id;
+            g.face_name = Some(face.name.clone());
+            g.at = Some([vx, vy, vz]);
+            g
+        })
+    } else if face.independent {
+        let geo_key = build_independent_geo_key(block.get_name_lower(), face.get_name_lower());
+        map.entry(geo_key).or_insert_with(|| {
+            let mut g = GeometryProtocol::default();
+            g.voxel = voxel_id;
+            g.face_name = Some(face.name.clone());
+            g
+        })
+    } else {
+        get_or_insert_shared_geometry(map, block.get_name_lower(), voxel_id)
+    };
+
+    process_face(
+        vx,
+        vy,
+        vz,
+        voxel_id,
+        rotation,
+        face,
+        block,
+        block_aabb,
+        &face.range,
+        registry,
+        space,
+        neighbors,
+        block.is_see_through,
+        block.is_fluid,
+        fluid_surface_above,
+        &mut geometry.positions,
+        &mut geometry.indices,
+        &mut geometry.uvs,
+        &mut geometry.lights,
+        min,
+        world_space,
+    );
+}
+
 pub fn mesh_space_greedy<S: VoxelAccess>(
     min: &[i32; 3],
     max: &[i32; 3],
@@ -2078,16 +2148,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
     let mut greedy_mask: HashMap<(i32, i32), FaceData> =
         HashMap::with_capacity(slice_area_capacity);
-    let mut non_greedy_faces: Vec<(
-        i32,
-        i32,
-        i32,
-        u32,
-        BlockRotation,
-        BlockFace,
-        bool,
-        bool,
-    )> = Vec::with_capacity(slice_area_capacity);
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
@@ -2120,7 +2180,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
         for slice in slice_range {
             greedy_mask.clear();
-            non_greedy_faces.clear();
 
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
@@ -2168,6 +2227,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         if !processed_non_greedy.insert((vx, vy, vz)) {
                             continue;
                         }
+                        let neighbors = NeighborCache::populate(vx, vy, vz, space, registry);
+                        let block_aabb = get_block_combined_aabb(block);
                         let fluid_surface_above =
                             is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
 
@@ -2180,16 +2241,23 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             &rotation,
                             registry,
                             |face, world_space| {
-                            non_greedy_faces.push((
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                rotation,
-                                face.clone(),
-                                fluid_surface_above,
-                                world_space,
-                            ));
+                                process_non_greedy_face(
+                                    &mut map,
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    &rotation,
+                                    face,
+                                    block,
+                                    &block_aabb,
+                                    registry,
+                                    space,
+                                    &neighbors,
+                                    fluid_surface_above,
+                                    min,
+                                    world_space,
+                                );
                             },
                         );
                         continue;
@@ -2241,16 +2309,23 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
                             let uv_range = face.range;
                             if face.isolated {
-                                non_greedy_faces.push((
+                                process_non_greedy_face(
+                                    &mut map,
                                     vx,
                                     vy,
                                     vz,
                                     voxel_id,
-                                    rotation,
-                                    face.clone(),
+                                    &rotation,
+                                    face,
+                                    block,
+                                    &block_aabb,
+                                    registry,
+                                    space,
+                                    &neighbors,
                                     fluid_surface_above,
+                                    min,
                                     world_space,
-                                ));
+                                );
                                 return;
                             }
                             let (aos, lights) = if let Some(shading) = cached_face_shading {
@@ -2315,98 +2390,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 };
 
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
-            }
-
-            let mut cached_non_greedy_coords: Option<(i32, i32, i32)> = None;
-            let mut cached_non_greedy_neighbors: Option<NeighborCache> = None;
-            let mut cached_non_greedy_block_id: Option<u32> = None;
-            let mut cached_non_greedy_block: Option<&Block> = None;
-            let mut cached_non_greedy_block_aabb: Option<AABB> = None;
-            for (
-                vx,
-                vy,
-                vz,
-                voxel_id,
-                rotation,
-                face,
-                fluid_surface_above,
-                world_space,
-            ) in non_greedy_faces.drain(..)
-            {
-                if cached_non_greedy_block_id != Some(voxel_id) {
-                    cached_non_greedy_block = registry.get_block_by_id(voxel_id);
-                    cached_non_greedy_block_aabb =
-                        cached_non_greedy_block.map(get_block_combined_aabb);
-                    cached_non_greedy_block_id = Some(voxel_id);
-                }
-                let Some(block) = cached_non_greedy_block else {
-                    continue;
-                };
-                let Some(block_aabb) = cached_non_greedy_block_aabb.as_ref() else {
-                    continue;
-                };
-
-                let coords = (vx, vy, vz);
-                if cached_non_greedy_coords != Some(coords) {
-                    cached_non_greedy_neighbors =
-                        Some(NeighborCache::populate(vx, vy, vz, space, registry));
-                    cached_non_greedy_coords = Some(coords);
-                }
-                let Some(neighbors) = cached_non_greedy_neighbors.as_ref() else {
-                    continue;
-                };
-
-                let geometry = if face.isolated {
-                    let geo_key = build_isolated_geo_key(
-                        block.get_name_lower(),
-                        face.get_name_lower(),
-                        vx,
-                        vy,
-                        vz,
-                    );
-                    map.entry(geo_key).or_insert_with(|| {
-                        let mut g = GeometryProtocol::default();
-                        g.voxel = voxel_id;
-                        g.face_name = Some(face.name.clone());
-                        g.at = Some([vx, vy, vz]);
-                        g
-                    })
-                } else if face.independent {
-                    let geo_key =
-                        build_independent_geo_key(block.get_name_lower(), face.get_name_lower());
-                    map.entry(geo_key).or_insert_with(|| {
-                        let mut g = GeometryProtocol::default();
-                        g.voxel = voxel_id;
-                        g.face_name = Some(face.name.clone());
-                        g
-                    })
-                } else {
-                    get_or_insert_shared_geometry(&mut map, block.get_name_lower(), voxel_id)
-                };
-
-                process_face(
-                    vx,
-                    vy,
-                    vz,
-                    voxel_id,
-                    &rotation,
-                    &face,
-                    block,
-                    block_aabb,
-                    &face.range,
-                    registry,
-                    space,
-                    neighbors,
-                    block.is_see_through,
-                    block.is_fluid,
-                    fluid_surface_above,
-                    &mut geometry.positions,
-                    &mut geometry.indices,
-                    &mut geometry.uvs,
-                    &mut geometry.lights,
-                    min,
-                    world_space,
-                );
             }
         }
     }
