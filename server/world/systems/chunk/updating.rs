@@ -2,7 +2,7 @@ use std::{cmp::Reverse, collections::VecDeque};
 
 use hashbrown::HashMap;
 use nanoid::nanoid;
-use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
+use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect, WriteStorage};
 
 use crate::{
     BlockUtils, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp,
@@ -42,11 +42,168 @@ const BLUE: LightColor = LightColor::Blue;
 const SUNLIGHT: LightColor = LightColor::Sunlight;
 const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
 
+fn get_chest_adjacent_offsets(y_rot: u32) -> [(i32, i32, i32); 2] {
+    let is_x_axis = y_rot == 0 || y_rot == 8;
+    if is_x_axis {
+        [(1, 0, 0), (-1, 0, 0)]
+    } else {
+        [(0, 0, 1), (0, 0, -1)]
+    }
+}
+
+fn try_link_chest(
+    chunks: &Chunks,
+    json_storage: &mut WriteStorage<JsonComp>,
+    new_entity: specs::Entity,
+    voxel: &Vec3<i32>,
+    y_rot: u32,
+    registry: &Registry,
+    default_json: &str,
+) {
+    let offsets = get_chest_adjacent_offsets(y_rot);
+
+    for (dx, dy, dz) in &offsets {
+        let nx = voxel.0 + dx;
+        let ny = voxel.1 + dy;
+        let nz = voxel.2 + dz;
+
+        let neighbor_id = chunks.get_voxel(nx, ny, nz);
+        let neighbor_type = registry.get_block_by_id(neighbor_id);
+        if neighbor_type.name != "Chest" {
+            continue;
+        }
+
+        let neighbor_raw = chunks.get_raw_voxel(nx, ny, nz);
+        let neighbor_y_rot = (neighbor_raw >> 20) & 0xF;
+        if neighbor_y_rot != y_rot {
+            continue;
+        }
+
+        let neighbor_entity = match chunks.block_entities.get(&Vec3(nx, ny, nz)) {
+            Some(&e) => e,
+            None => continue,
+        };
+
+        let neighbor_json_str = match json_storage.get(neighbor_entity) {
+            Some(j) => j.0.clone(),
+            None => continue,
+        };
+        let neighbor_parsed: serde_json::Value =
+            match serde_json::from_str(&neighbor_json_str) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+        if neighbor_parsed.get("partner").is_some()
+            && !neighbor_parsed["partner"].is_null()
+        {
+            continue;
+        }
+
+        let far_x = nx + dx;
+        let far_y = ny + dy;
+        let far_z = nz + dz;
+        let far_id = chunks.get_voxel(far_x, far_y, far_z);
+        let far_type = registry.get_block_by_id(far_id);
+        if far_type.name == "Chest" {
+            let far_raw = chunks.get_raw_voxel(far_x, far_y, far_z);
+            let far_y_rot = (far_raw >> 20) & 0xF;
+            if far_y_rot == y_rot {
+                continue;
+            }
+        }
+
+        let mut new_json: serde_json::Value = serde_json::from_str(default_json)
+            .unwrap_or_else(|_| serde_json::json!({}));
+        new_json["partner"] = serde_json::json!([nx, ny, nz]);
+        new_json["yRotation"] = serde_json::json!(y_rot);
+
+        let new_json_str =
+            serde_json::to_string(&new_json).unwrap_or_else(|_| default_json.to_string());
+        json_storage
+            .insert(new_entity, JsonComp::new(&new_json_str))
+            .ok();
+
+        let mut neighbor_obj: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(&neighbor_json_str).unwrap_or_default();
+        neighbor_obj.insert(
+            "partner".to_string(),
+            serde_json::json!([voxel.0, voxel.1, voxel.2]),
+        );
+        neighbor_obj.insert("yRotation".to_string(), serde_json::json!(y_rot));
+        let neighbor_new_str = serde_json::to_string(&neighbor_obj)
+            .unwrap_or_else(|_| neighbor_json_str.clone());
+        if let Some(j) = json_storage.get_mut(neighbor_entity) {
+            j.0 = neighbor_new_str;
+        }
+
+        return;
+    }
+
+    let mut new_json: serde_json::Value = serde_json::from_str(default_json)
+        .unwrap_or_else(|_| serde_json::json!({}));
+    new_json["yRotation"] = serde_json::json!(y_rot);
+    let new_json_str =
+        serde_json::to_string(&new_json).unwrap_or_else(|_| default_json.to_string());
+    json_storage
+        .insert(new_entity, JsonComp::new(&new_json_str))
+        .ok();
+}
+
+fn try_unlink_partner(
+    chunks: &Chunks,
+    json_storage: &mut WriteStorage<JsonComp>,
+    entity: specs::Entity,
+) {
+    let json_str = match json_storage.get(entity) {
+        Some(j) => j.0.clone(),
+        None => return,
+    };
+
+    let parsed: serde_json::Value = match serde_json::from_str(&json_str) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    let partner_arr = match parsed.get("partner") {
+        Some(v) if v.is_array() => v.as_array().unwrap(),
+        _ => return,
+    };
+
+    if partner_arr.len() != 3 {
+        return;
+    }
+
+    let px = partner_arr[0].as_i64().unwrap_or(0) as i32;
+    let py = partner_arr[1].as_i64().unwrap_or(0) as i32;
+    let pz = partner_arr[2].as_i64().unwrap_or(0) as i32;
+
+    let partner_entity = match chunks.block_entities.get(&Vec3(px, py, pz)) {
+        Some(&e) => e,
+        None => return,
+    };
+
+    let partner_json_str = match json_storage.get(partner_entity) {
+        Some(j) => j.0.clone(),
+        None => return,
+    };
+
+    let mut partner_obj: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&partner_json_str).unwrap_or_default();
+    partner_obj.insert("partner".to_string(), serde_json::Value::Null);
+    let partner_new_str = serde_json::to_string(&partner_obj)
+        .unwrap_or_else(|_| partner_json_str.clone());
+    if let Some(j) = json_storage.get_mut(partner_entity) {
+        j.0 = partner_new_str;
+    }
+}
+
 fn process_pending_updates(
     chunks: &mut Chunks,
     mesher: &mut Mesher,
     lazy: &LazyUpdate,
     entities: &Entities,
+    json_storage: &mut WriteStorage<JsonComp>,
     config: &WorldConfig,
     registry: &Registry,
     current_tick: u64,
@@ -134,6 +291,9 @@ fn process_pending_updates(
 
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
             if let Some(existing_entity) = existing_entity {
+                if current_type.name == "Chest" {
+                    try_unlink_partner(&*chunks, json_storage, existing_entity);
+                }
                 lazy.exec_mut(move |world| {
                     world
                         .delete_entity(existing_entity)
@@ -163,7 +323,21 @@ fn process_pending_updates(
                 lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
                 lazy.insert(entity, CurrentChunkComp::default());
                 let default_json = updated_type.default_entity_json.as_deref().unwrap_or("{}");
-                lazy.insert(entity, JsonComp::new(default_json));
+
+                if updated_type.name == "Chest" {
+                    let y_rot = (raw >> 20) & 0xF;
+                    try_link_chest(
+                        &*chunks,
+                        json_storage,
+                        entity,
+                        &voxel,
+                        y_rot,
+                        registry,
+                        default_json,
+                    );
+                } else {
+                    lazy.insert(entity, JsonComp::new(default_json));
+                }
             }
 
             chunks.set_voxel(vx, vy, vz, updated_id);
@@ -628,6 +802,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         ReadExpect<'a, LazyUpdate>,
         Entities<'a>,
         ReadExpect<'a, crate::WorldTimingContext>,
+        WriteStorage<'a, JsonComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -641,6 +816,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             lazy,
             entities,
             timing,
+            mut json_storage,
         ) = data;
         let _t = timing.timer("chunk-updating");
 
@@ -687,6 +863,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 &mut mesher,
                 &lazy,
                 &entities,
+                &mut json_storage,
                 &config,
                 &registry,
                 current_tick,
@@ -695,12 +872,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             all_results.extend(results);
         }
 
-        // Process any remaining updates (from non-active sources like player actions)
         let results = process_pending_updates(
             &mut chunks,
             &mut mesher,
             &lazy,
             &entities,
+            &mut json_storage,
             &config,
             &registry,
             current_tick,
