@@ -705,6 +705,20 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   public lightRegistry: LightSourceRegistry | null = null;
 
+  private aabbOverrides = new Map<string, AABB[]>();
+
+  setAABBOverride = (voxel: Coords3, aabbs: AABB[]) => {
+    this.aabbOverrides.set(ChunkUtils.getVoxelName(voxel), aabbs);
+  };
+
+  removeAABBOverride = (voxel: Coords3) => {
+    this.aabbOverrides.delete(ChunkUtils.getVoxelName(voxel));
+  };
+
+  getAABBOverride = (voxel: Coords3): AABB[] | undefined => {
+    return this.aabbOverrides.get(ChunkUtils.getVoxelName(voxel));
+  };
+
   /**
    * Whether or not this world is connected to the server and initialized with data from the server.
    */
@@ -2236,7 +2250,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       ignorePassables?: boolean;
       ignoreSeeThrough?: boolean;
       ignoreList?: number[];
-      aabbOverrides?: Map<string, AABB[]>;
     } = {}
   ) => {
     this.checkIsInitialized("raycast voxels", false);
@@ -2249,7 +2262,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     const ignoreList = new Set(options.ignoreList || []);
-    const aabbOverrides = options.aabbOverrides;
 
     return raycast(
       (wx, wy, wz) => {
@@ -2293,9 +2305,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         const vy = Math.floor(wy);
         const vz = Math.floor(wz);
 
-        if (aabbOverrides) {
+        if (this.aabbOverrides.size > 0) {
           const key = ChunkUtils.getVoxelName([vx, vy, vz]);
-          const override = aabbOverrides.get(key);
+          const override = this.aabbOverrides.get(key);
           if (override) {
             return override;
           }

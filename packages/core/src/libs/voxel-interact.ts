@@ -216,8 +216,6 @@ export class VoxelInteract extends Group {
    */
   private newTargetPosition = new Vector3();
 
-  private aabbOverrides = new Map<string, AABB[]>();
-
   private targetGroup = new Group();
 
   private potentialGroup = new Group();
@@ -266,15 +264,15 @@ export class VoxelInteract extends Group {
   }
 
   setAABBOverride = (voxel: Coords3, aabbs: AABB[]) => {
-    this.aabbOverrides.set(ChunkUtils.getVoxelName(voxel), aabbs);
+    this.world.setAABBOverride(voxel, aabbs);
   };
 
   removeAABBOverride = (voxel: Coords3) => {
-    this.aabbOverrides.delete(ChunkUtils.getVoxelName(voxel));
+    this.world.removeAABBOverride(voxel);
   };
 
   getAABBOverride = (voxel: Coords3): AABB[] | undefined => {
-    return this.aabbOverrides.get(ChunkUtils.getVoxelName(voxel));
+    return this.world.getAABBOverride(voxel);
   };
 
   toggle = (force = null) => {
@@ -320,7 +318,6 @@ export class VoxelInteract extends Group {
       reachDistance,
       {
         ignoreFluids: this.options.ignoreFluids,
-        aabbOverrides: this.aabbOverrides,
       }
     );
 
@@ -352,8 +349,7 @@ export class VoxelInteract extends Group {
     const { lookingAt } = this;
 
     if (lookingAt && this.target) {
-      const overrideKey = ChunkUtils.getVoxelName(this.target);
-      const override = this.aabbOverrides.get(overrideKey);
+      const override = this.world.getAABBOverride(this.target);
 
       let union: AABB | null = null;
 
