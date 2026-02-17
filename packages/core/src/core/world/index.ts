@@ -2236,6 +2236,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ignorePassables?: boolean;
       ignoreSeeThrough?: boolean;
       ignoreList?: number[];
+      aabbOverrides?: Map<string, AABB[]>;
     } = {}
   ) => {
     this.checkIsInitialized("raycast voxels", false);
@@ -2248,6 +2249,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     const ignoreList = new Set(options.ignoreList || []);
+    const aabbOverrides = options.aabbOverrides;
 
     return raycast(
       (wx, wy, wz) => {
@@ -2287,10 +2289,19 @@ export class World<T = any> extends Scene implements NetIntercept {
           return [];
         }
 
-        const rotation = this.getVoxelRotationAt(wx, wy, wz);
         const vx = Math.floor(wx);
         const vy = Math.floor(wy);
         const vz = Math.floor(wz);
+
+        if (aabbOverrides) {
+          const key = ChunkUtils.getVoxelName([vx, vy, vz]);
+          const override = aabbOverrides.get(key);
+          if (override) {
+            return override;
+          }
+        }
+
+        const rotation = this.getVoxelRotationAt(wx, wy, wz);
 
         if (dynamicPatterns && dynamicPatterns.length > 0) {
           const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(

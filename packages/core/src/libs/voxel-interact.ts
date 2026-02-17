@@ -216,14 +216,10 @@ export class VoxelInteract extends Group {
    */
   private newTargetPosition = new Vector3();
 
-  /**
-   * A Three.js group that contains the target block's highlight.
-   */
+  private aabbOverrides = new Map<string, AABB[]>();
+
   private targetGroup = new Group();
 
-  /**
-   * A Three.js group that contains the potential block placement's arrows.
-   */
   private potentialGroup = new Group();
 
   /**
@@ -269,11 +265,18 @@ export class VoxelInteract extends Group {
     this.potentialGroup.visible = potentialVisuals;
   }
 
-  /**
-   * Toggle on/off of this {@link VoxelInteract} instance.
-   *
-   * @param force Whether or not should it be a forceful toggle on/off. Defaults to `null`.
-   */
+  setAABBOverride = (voxel: Coords3, aabbs: AABB[]) => {
+    this.aabbOverrides.set(ChunkUtils.getVoxelName(voxel), aabbs);
+  };
+
+  removeAABBOverride = (voxel: Coords3) => {
+    this.aabbOverrides.delete(ChunkUtils.getVoxelName(voxel));
+  };
+
+  getAABBOverride = (voxel: Coords3): AABB[] | undefined => {
+    return this.aabbOverrides.get(ChunkUtils.getVoxelName(voxel));
+  };
+
   toggle = (force = null) => {
     this.active = force === null ? !this.active : force;
 
@@ -317,6 +320,7 @@ export class VoxelInteract extends Group {
       reachDistance,
       {
         ignoreFluids: this.options.ignoreFluids,
+        aabbOverrides: this.aabbOverrides,
       }
     );
 
@@ -348,35 +352,50 @@ export class VoxelInteract extends Group {
     const { lookingAt } = this;
 
     if (lookingAt && this.target) {
-      const { isDynamic, dynamicFn, dynamicPatterns } = lookingAt;
-
-      const aabbsWithFlags = dynamicPatterns
-        ? this.world.getBlockAABBsForDynamicPatterns(
-            voxel[0],
-            voxel[1],
-            voxel[2],
-            dynamicPatterns
-          )
-        : isDynamic
-        ? dynamicFn(voxel as Coords3).aabbs.map((aabb: AABB) => ({
-            aabb,
-            worldSpace: false,
-          }))
-        : lookingAt.aabbs.map((aabb: AABB) => ({ aabb, worldSpace: false }));
-
-      if (!aabbsWithFlags.length) return;
-
-      const rotation = this.world.getVoxelRotationAt(...this.target);
+      const overrideKey = ChunkUtils.getVoxelName(this.target);
+      const override = this.aabbOverrides.get(overrideKey);
 
       let union: AABB | null = null;
-      for (const { aabb, worldSpace } of aabbsWithFlags) {
-        const rotatedAabb = worldSpace ? aabb : rotation.rotateAABB(aabb);
-        union = union ? union.union(rotatedAabb) : rotatedAabb;
+
+      if (override && override.length > 0) {
+        for (const aabb of override) {
+          union = union ? union.union(aabb) : aabb.clone();
+        }
+      } else {
+        const { isDynamic, dynamicFn, dynamicPatterns } = lookingAt;
+
+        const aabbsWithFlags = dynamicPatterns
+          ? this.world.getBlockAABBsForDynamicPatterns(
+              voxel[0],
+              voxel[1],
+              voxel[2],
+              dynamicPatterns
+            )
+          : isDynamic
+          ? dynamicFn(voxel as Coords3).aabbs.map((aabb: AABB) => ({
+              aabb,
+              worldSpace: false,
+            }))
+          : lookingAt.aabbs.map((aabb: AABB) => ({
+              aabb,
+              worldSpace: false,
+            }));
+
+        if (!aabbsWithFlags.length) return;
+
+        const rotation = this.world.getVoxelRotationAt(...this.target);
+
+        for (const { aabb, worldSpace } of aabbsWithFlags) {
+          const rotatedAabb = worldSpace ? aabb : rotation.rotateAABB(aabb);
+          union = union ? union.union(rotatedAabb) : rotatedAabb;
+        }
+
+        if (!union) return;
+
+        union.translate(this.target);
       }
 
       if (!union) return;
-
-      union.translate(this.target);
 
       let { width, height, depth } = union;
 
