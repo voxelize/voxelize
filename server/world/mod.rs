@@ -1788,10 +1788,27 @@ impl World {
                         .unwrap_or_else(|_| {
                             panic!("EType filed does not exist on file: {:?}", path)
                         });
-                    let metadata: MetadataComp =
+                    let mut metadata: MetadataComp =
                         serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
                             |_| panic!("Metadata field does not exist on file: {:?}", path),
                         );
+
+                    if etype.starts_with("block::") {
+                        if let Some(Value::String(json_str)) = metadata.map.get("json") {
+                            if let Ok(mut parsed) =
+                                serde_json::from_str::<serde_json::Map<String, Value>>(json_str)
+                            {
+                                if parsed.remove("viewers").is_some() {
+                                    metadata.map.insert(
+                                        "json".to_owned(),
+                                        Value::String(
+                                            serde_json::to_string(&parsed).unwrap_or_default(),
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                    }
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
                         loaded_entities.insert(id.to_owned(), (etype, ent, metadata, true));
