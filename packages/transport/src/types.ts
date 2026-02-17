@@ -72,7 +72,7 @@ export type MessageProtocol<
   Peer = any,
   Entity = any,
   Event = any,
-  Method = any
+  Method = any,
 > = {
   type:
     | "INIT"

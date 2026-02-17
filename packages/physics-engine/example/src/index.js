@@ -61,12 +61,12 @@ const engine = new Engine(
     airDrag: 0.1,
     fluidDrag: 1.4,
     fluidDensity: 1.4,
-  }
+  },
 );
 
 const floor = new Mesh(
   new PlaneBufferGeometry(100, 100),
-  new MeshBasicMaterial({ color: "#112233", side: DoubleSide })
+  new MeshBasicMaterial({ color: "#112233", side: DoubleSide }),
 );
 floor.position.y = 1;
 floor.rotateX(Math.PI / 2);
@@ -79,7 +79,7 @@ const renderAABB = (aabb) => {
   mesh.position.set(
     aabb.minX + aabb.width / 2,
     aabb.minY + aabb.height / 2,
-    aabb.minZ + aabb.depth / 2
+    aabb.minZ + aabb.depth / 2,
   );
   return mesh;
 };

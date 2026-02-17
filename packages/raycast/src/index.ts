@@ -4,7 +4,7 @@ export function raycastAABB(
   origin: number[],
   normal: number[],
   aabb: AABB,
-  maxDistance = Infinity
+  maxDistance = Infinity,
 ): { axis: number; distance: number } | null {
   const [nx, ny, nz] = normal;
 
@@ -17,13 +17,13 @@ export function raycastAABB(
 
   const tMin = Math.max(
     Math.max(Math.min(t1, t2), Math.min(t3, t4)),
-    Math.min(t5, t6)
+    Math.min(t5, t6),
   );
   const tMinAxis =
     tMin === t1 || tMin === t2 ? 0 : tMin === t3 || tMin === t4 ? 1 : 2;
   const tMax = Math.min(
     Math.min(Math.max(t1, t2), Math.max(t3, t4)),
-    Math.max(t5, t6)
+    Math.max(t5, t6),
   );
   const tMaxAxis =
     tMin === t1 || tMin === t2 ? 0 : tMin === t3 || tMin === t4 ? 1 : 2;
@@ -63,7 +63,7 @@ function raycast(
   getVoxel: (vx: number, vy: number, vz: number) => AABB[],
   origin: number[],
   direction: number[],
-  maxDistance: number
+  maxDistance: number,
 ): { point: number[]; normal: number[]; voxel: number[] } | null {
   let dx = +direction[0];
   let dy = +direction[1];
@@ -111,7 +111,7 @@ function raycast(
         origin,
         [dx, dy, dz],
         aabb.clone(),
-        maxDistance
+        maxDistance,
       );
       if (result) {
         hit = result;

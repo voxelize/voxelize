@@ -111,7 +111,7 @@ export class Perspective {
   constructor(
     controls: RigidControls,
     world: World,
-    options: Partial<PerspectiveOptions> = {}
+    options: Partial<PerspectiveOptions> = {},
   ) {
     if (!controls) {
       throw new Error("Perspective: invalid rigid controls.");
@@ -161,7 +161,7 @@ export class Perspective {
       {
         identifier: Perspective.INPUT_IDENTIFIER,
         checkType: "code",
-      }
+      },
     );
 
     // no clue why but this seems to work, f5 seems to be reversed
@@ -255,7 +255,7 @@ export class Perspective {
         {
           ignoreFluids: this.options.ignoreFluids,
           ignoreSeeThrough: this.options.ignoreSeeThrough,
-        }
+        },
       );
 
       if (!result) {

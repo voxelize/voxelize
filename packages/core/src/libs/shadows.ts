@@ -67,7 +67,10 @@ export class Shadow extends Mesh {
    * @param world The world to cast shadows in.
    * @param options The options of the shadow.
    */
-  constructor(public world: World, options: Partial<ShadowOptions> = {}) {
+  constructor(
+    public world: World,
+    options: Partial<ShadowOptions> = {},
+  ) {
     super(Shadow.GEOMETRY, Shadow.MATERIAL);
 
     this.options = {
@@ -93,7 +96,7 @@ export class Shadow extends Mesh {
     const result = this.world.raycastVoxels(
       position.toArray(),
       [0, -1, 0],
-      maxDistance
+      maxDistance,
     );
 
     this.visible = !!result;
@@ -109,14 +112,14 @@ export class Shadow extends Mesh {
     const dist = Math.sqrt(
       (point[0] - position.x) ** 2 +
         (point[1] - position.y) ** 2 +
-        (point[2] - position.z) ** 2
+        (point[2] - position.z) ** 2,
     );
     const scale = Math.max(1 - dist / maxDistance, 0) ** 2;
 
     const newPosition = new Vector3(
       point[0],
       point[1] + Shadow.Y_OFFSET,
-      point[2]
+      point[2],
     );
     newPosition.sub(position);
 

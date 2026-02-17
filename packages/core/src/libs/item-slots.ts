@@ -94,7 +94,7 @@ export class ItemSlot<T = number> {
     1,
     -1,
     0,
-    10
+    10,
   );
 
   public element: HTMLDivElement;
@@ -274,7 +274,7 @@ export class ItemSlot<T = number> {
 
   private updateCamera = () => {
     this.camera.position.copy(
-      this.offset.clone().multiplyScalar((this.zoom || 1) * 3.5)
+      this.offset.clone().multiplyScalar((this.zoom || 1) * 3.5),
     );
 
     this.camera.lookAt(0, 0, 0);
@@ -283,7 +283,7 @@ export class ItemSlot<T = number> {
     // Rotate light position by y axis 45 degrees.
     lightPosition.applyAxisAngle(
       new Vector3(0, 1, 0),
-      this.lightRotationOffset
+      this.lightRotationOffset,
     );
 
     this.light.position.copy(lightPosition);
@@ -314,13 +314,13 @@ export class ItemSlots<T = number> {
   public onSlotClick: (slot: ItemSlot<T>) => void = noop;
   public onSlotUpdate: (slot: ItemSlot<T>) => void = noop;
   public onFocusChange = (
-    callbackFunc: (prevSlot: ItemSlot<T>, nextSlot: ItemSlot<T>) => void
+    callbackFunc: (prevSlot: ItemSlot<T>, nextSlot: ItemSlot<T>) => void,
   ) => {
     this.focusChangeCallbacks.push(callbackFunc);
   };
   public triggerFocusChange = (
     prevSlot: ItemSlot<T>,
-    nextSlot: ItemSlot<T>
+    nextSlot: ItemSlot<T>,
   ) => {
     for (const callback of this.focusChangeCallbacks) {
       callback(prevSlot, nextSlot);
@@ -331,7 +331,7 @@ export class ItemSlots<T = number> {
 
   private focusChangeCallbacks: ((
     prevSlot: ItemSlot<T>,
-    nextSlot: ItemSlot<T>
+    nextSlot: ItemSlot<T>,
   ) => void)[] = [];
 
   private animationFrame = -1;
@@ -341,9 +341,7 @@ export class ItemSlots<T = number> {
       focusFirstByDefault,
       activatedByDefault,
       slotHeight,
-      slotMargin,
       slotWidth,
-      slotPadding,
       slotGap,
     } = (this.options = merge(defaultOptions, options));
 
@@ -388,7 +386,7 @@ export class ItemSlots<T = number> {
   setObject = (
     row: number,
     col: number,
-    object: Object3D | HTMLImageElement | undefined
+    object: Object3D | HTMLImageElement | undefined,
   ) => {
     if (!this.slots[row] || !this.slots[row][col]) {
       return;
@@ -599,7 +597,7 @@ export class ItemSlots<T = number> {
             if (col === 0) {
               this.setFocused(
                 row === 0 ? verticalCount - 1 : row - 1,
-                horizontalCount - 1
+                horizontalCount - 1,
               );
             } else {
               this.setFocused(row, col - 1);
@@ -621,7 +619,7 @@ export class ItemSlots<T = number> {
               this.setFocused(row, col + 1);
             }
           },
-          namespace
+          namespace,
         )
       : noop;
 
@@ -724,14 +722,8 @@ export class ItemSlots<T = number> {
       perspective,
     } = this.options;
 
-    const {
-      slotWidth,
-      slotHeight,
-      slotMargin,
-      slotPadding,
-      slotGap,
-      wrapperPadding,
-    } = this.options;
+    const { slotWidth, slotHeight, slotMargin, slotGap, wrapperPadding } =
+      this.options;
 
     const width =
       slotWidth * horizontalCount +

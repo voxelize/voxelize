@@ -6,7 +6,7 @@ export interface ItemDef {
 
 export function getItemComponent<T>(
   item: ItemDef | undefined,
-  key: string
+  key: string,
 ): T | undefined {
   if (!item) return undefined;
   return item.components[key] as T | undefined;
@@ -14,7 +14,7 @@ export function getItemComponent<T>(
 
 export function hasItemComponent(
   item: ItemDef | undefined,
-  key: string
+  key: string,
 ): boolean {
   if (!item) return false;
   return key in item.components;

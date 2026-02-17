@@ -46,7 +46,10 @@ export class BlockOverlayEffect extends Effect {
    * @param world The world that the effect is in.
    * @param camera The camera that the effect is applied to.
    */
-  constructor(public world: World, public camera: PerspectiveCamera) {
+  constructor(
+    public world: World,
+    public camera: PerspectiveCamera,
+  ) {
     super("BlockOverlayEffect", OverlayFragmentShader, {
       uniforms: new Map([
         ["overlay", new Uniform(new Vector3(0, 0, 1))],
@@ -65,7 +68,7 @@ export class BlockOverlayEffect extends Effect {
   addOverlay = (idOrName: number | string, color: Color, opacity: number) => {
     this.overlays.set(
       typeof idOrName === "number" ? idOrName : idOrName.toLowerCase(),
-      [color, opacity]
+      [color, opacity],
     );
   };
 

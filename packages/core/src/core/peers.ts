@@ -77,7 +77,7 @@ const defaultOptions: PeersOptions = {
  */
 export class Peers<
     C extends Object3D = Object3D,
-    T = { direction: number[]; position: number[] }
+    T = { direction: number[]; position: number[] },
   >
   extends Group
   implements NetIntercept
@@ -124,7 +124,10 @@ export class Peers<
    * @param object The object that is used to send client's own data back to the server.
    * @param options Parameters to customize the effect.
    */
-  constructor(public object?: Object3D, options: Partial<PeersOptions> = {}) {
+  constructor(
+    public object?: Object3D,
+    options: Partial<PeersOptions> = {},
+  ) {
     super();
 
     this.options = { ...defaultOptions, ...options };
@@ -160,7 +163,7 @@ export class Peers<
   onPeerUpdate: (
     object: C,
     data: T,
-    info: { id: string; username: string }
+    info: { id: string; username: string },
   ) => void;
 
   /**
@@ -181,7 +184,10 @@ export class Peers<
    */
   onMessage = (
     message: MessageProtocol<{ id: string }, T>,
-    { username, metadata }: { username: string; metadata?: Record<string, any> }
+    {
+      username,
+      metadata,
+    }: { username: string; metadata?: Record<string, any> },
   ) => {
     this.ownUsername = username;
     this.ownMetadata = metadata;
@@ -271,7 +277,7 @@ export class Peers<
 
         if (!this.onPeerUpdate) {
           console.warn(
-            "Peers.onPeerUpdate is not defined, skipping peer update."
+            "Peers.onPeerUpdate is not defined, skipping peer update.",
           );
         } else {
           this.onPeerUpdate(object, peer.metadata, {

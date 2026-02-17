@@ -21,7 +21,7 @@ transport.connect("ws://127.0.0.1:4000/", "test").then(() => {
       Math.floor(Math.random() * 10) - 5,
       Math.floor(Math.random() * 10) + 90,
       Math.floor(Math.random() * 10) - 5,
-      Math.floor(Math.random() * 5)
+      Math.floor(Math.random() * 5),
     );
   }, 500);
   const updates = [];

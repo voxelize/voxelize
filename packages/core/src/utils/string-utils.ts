@@ -5,7 +5,7 @@ export type FindSimilarOptions = {
 export function findSimilar(
   target: string,
   available: string[],
-  options: FindSimilarOptions = {}
+  options: FindSimilarOptions = {},
 ): string[] {
   const { maxSuggestions = 3 } = options;
   const targetLower = target.toLowerCase();
@@ -46,7 +46,7 @@ export type FormatSuggestionOptions = {
 export function formatSuggestion(
   suggestions: string[],
   allAvailable: string[],
-  options: FormatSuggestionOptions = {}
+  options: FormatSuggestionOptions = {},
 ): string {
   const { maxFallbackItems = 10 } = options;
 

@@ -89,7 +89,7 @@ type GeometryProtocol = {
 
 function workerComputeNormals(
   positions: Float32Array,
-  indices: Uint16Array
+  indices: Uint16Array,
 ): Float32Array {
   const normals = new Float32Array(positions.length);
   for (let i = 0; i < indices.length; i += 3) {
@@ -191,7 +191,7 @@ onmessage = async function (e) {
         voxels: ArrayBuffer;
         lights: ArrayBuffer;
         options: { size: number; maxHeight: number };
-      } | null
+      } | null,
     ): ChunkData | null => {
       if (!chunkData) return null;
 
@@ -210,7 +210,7 @@ onmessage = async function (e) {
         shape: [size, maxHeight, size] as [number, number, number],
         min: [x * size, 0, z * size] as [number, number, number],
       };
-    }
+    },
   );
 
   minArray[0] = min[0];
@@ -225,7 +225,7 @@ onmessage = async function (e) {
     minArray,
     maxArray,
     chunkSize,
-    greedyMeshing
+    greedyMeshing,
   ) as { geometries: GeometryProtocol[] };
   const geometries = result.geometries;
 
@@ -290,7 +290,7 @@ function convertRegistryToWasm(rawRegistry: {
           boolean,
           boolean,
           boolean,
-          boolean
+          boolean,
         ],
         transparentStandalone: block.transparentStandalone as boolean,
         occludesFluid: (block.occludesFluid as boolean) ?? false,
@@ -298,12 +298,12 @@ function convertRegistryToWasm(rawRegistry: {
         aabbs: convertAabbs(block.aabbs as Record<string, unknown>[]),
         dynamicPatterns: block.dynamicPatterns
           ? convertDynamicPatterns(
-              block.dynamicPatterns as Record<string, unknown>[]
+              block.dynamicPatterns as Record<string, unknown>[],
             )
           : null,
       };
       return [id, wasmBlock];
-    }
+    },
   );
 
   return { blocksById };
@@ -343,7 +343,7 @@ function convertAabbs(aabbs: Record<string, unknown>[]): WasmBlock["aabbs"] {
 }
 
 function convertDynamicPatterns(
-  patterns: Record<string, unknown>[]
+  patterns: Record<string, unknown>[],
 ): WasmBlock["dynamicPatterns"] {
   if (!patterns) return null;
   return patterns.map((pattern) => ({
@@ -357,7 +357,7 @@ function convertDynamicPatterns(
         boolean,
         boolean,
         boolean,
-        boolean
+        boolean,
       ]) ?? [false, false, false, false, false, false],
       worldSpace: (part.worldSpace as boolean) ?? false,
     })),

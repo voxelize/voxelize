@@ -97,7 +97,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
   on = (name: string, handler: EventHandler) => {
     if (this.has(name)) {
       console.warn(
-        `Registering handler for ${name} canceled: handler already exists.`
+        `Registering handler for ${name} canceled: handler already exists.`,
       );
       return;
     }

@@ -108,7 +108,7 @@ export class VoxelOpacityVolume {
         texWidth,
         texHeight,
         texDepth,
-        res
+        res,
       );
     }
 
@@ -122,7 +122,7 @@ export class VoxelOpacityVolume {
     texWidth: number,
     texHeight: number,
     texDepth: number,
-    res: number
+    res: number,
   ) {
     const chunkSize = chunk.options.size;
     const maxHeight = chunk.options.maxHeight;

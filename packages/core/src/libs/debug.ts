@@ -146,7 +146,7 @@ export class Debug extends Group {
    */
   constructor(
     domElement: HTMLElement = document.body,
-    options: Partial<DebugOptions> = {}
+    options: Partial<DebugOptions> = {},
   ) {
     super();
 
@@ -175,7 +175,7 @@ export class Debug extends Group {
     title: string,
     object?: T,
     attribute?: keyof T,
-    formatter = (str: string) => str
+    formatter = (str: string) => str,
   ) => {
     const wrapper = this.makeDataEntry();
 
@@ -277,8 +277,8 @@ export class Debug extends Group {
     const newVisibility = force
       ? "visible"
       : visibility === "visible"
-      ? "hidden"
-      : "visible";
+        ? "hidden"
+        : "visible";
 
     this.entriesWrapper.style.visibility = newVisibility;
     this.dataWrapper.style.visibility = newVisibility;
@@ -325,7 +325,7 @@ export class Debug extends Group {
               element.textContent = formattedValue;
             }
           }
-        }
+        },
       );
     });
 

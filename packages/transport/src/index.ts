@@ -296,7 +296,7 @@ export class Transport extends WebSocket {
                 if (geometry) {
                   if (geometry.indices) {
                     const decompressedI32 = decompressToInt32Array(
-                      geometry.indices
+                      geometry.indices,
                     );
                     const indices = new Uint16Array(decompressedI32.length);
                     for (let idx = 0; idx < decompressedI32.length; idx++) {
@@ -309,7 +309,7 @@ export class Transport extends WebSocket {
                   }
                   if (geometry.positions) {
                     geometry.positions = decompressToFloat32Array(
-                      geometry.positions
+                      geometry.positions,
                     );
                   }
                   if (geometry.uvs) {
@@ -333,12 +333,12 @@ export class Transport extends WebSocket {
     message.type = Message.Type[message.type];
     if (message.entities) {
       message.entities.forEach(
-        (entity) => (entity.metadata = JSON.stringify(entity.metadata))
+        (entity) => (entity.metadata = JSON.stringify(entity.metadata)),
       );
     }
     if (message.peers) {
       message.peers.forEach(
-        (peer) => (peer.metadata = JSON.stringify(peer.metadata))
+        (peer) => (peer.metadata = JSON.stringify(peer.metadata)),
       );
     }
     return Message.encode(Message.create(message)).finish();

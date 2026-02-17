@@ -14,7 +14,7 @@ function noise(
   z: number,
   octaves: number,
   falloff: number,
-  lacunarity = 0.8
+  lacunarity = 0.8,
 ) {
   let total = 0;
   let frequency = 1.0;
@@ -65,7 +65,7 @@ onmessage = function (e) {
             vy * noiseScale,
             vz * noiseScale,
             octaves,
-            falloff
+            falloff,
           ) > threshold
             ? 1
             : 0;

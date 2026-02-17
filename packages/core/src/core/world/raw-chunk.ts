@@ -220,11 +220,11 @@ export class RawChunk {
     vx: number,
     vy: number,
     vz: number,
-    rotation: BlockRotation
+    rotation: BlockRotation,
   ) {
     const value = BlockUtils.insertRotation(
       this.getRawValue(vx, vy, vz),
-      rotation
+      rotation,
     );
     this.setRawValue(vx, vy, vz, value);
   }
@@ -409,7 +409,7 @@ export class RawChunk {
     vy: number,
     vz: number,
     level: number,
-    color: LightColor
+    color: LightColor,
   ) {
     switch (color) {
       case "RED":
@@ -479,7 +479,7 @@ export class RawChunk {
       lx,
       ly,
       lz,
-      LightUtils.insertRedLight(this.lights.get(lx, ly, lz), level)
+      LightUtils.insertRedLight(this.lights.get(lx, ly, lz), level),
     );
   }
 
@@ -491,13 +491,13 @@ export class RawChunk {
     lx: number,
     ly: number,
     lz: number,
-    level: number
+    level: number,
   ) {
     return this.lights.set(
       lx,
       ly,
       lz,
-      LightUtils.insertGreenLight(this.lights.get(lx, ly, lz), level)
+      LightUtils.insertGreenLight(this.lights.get(lx, ly, lz), level),
     );
   }
 
@@ -510,7 +510,7 @@ export class RawChunk {
       lx,
       ly,
       lz,
-      LightUtils.insertBlueLight(this.lights.get(lx, ly, lz), level)
+      LightUtils.insertBlueLight(this.lights.get(lx, ly, lz), level),
     );
   }
 
@@ -523,7 +523,7 @@ export class RawChunk {
       lx,
       ly,
       lz,
-      LightUtils.insertSunlight(this.lights.get(lx, ly, lz), level)
+      LightUtils.insertSunlight(this.lights.get(lx, ly, lz), level),
     );
   }
 

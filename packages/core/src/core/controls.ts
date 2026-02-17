@@ -479,7 +479,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     camera: PerspectiveCamera,
     domElement: HTMLElement,
     world: World,
-    options: Partial<RigidControlsOptions> = {}
+    options: Partial<RigidControlsOptions> = {},
   ) {
     super();
 
@@ -528,7 +528,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   }
 
   onMessage = (
-    message: MessageProtocol<any, any, any, [number, number, number]>
+    message: MessageProtocol<any, any, any, [number, number, number]>,
   ) => {
     switch (message.type) {
       case "INIT": {
@@ -643,11 +643,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.domElement.addEventListener("mousemove", mouseMoveHandler);
     this.domElement.ownerDocument.addEventListener(
       "pointerlockchange",
-      pointerLockChangeHandler
+      pointerLockChangeHandler,
     );
     this.domElement.ownerDocument.addEventListener(
       "pointerlockerror",
-      pointerLockErrorHandler
+      pointerLockErrorHandler,
     );
     this.domElement.addEventListener("click", documentClickHandler);
 
@@ -655,11 +655,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.domElement.removeEventListener("mousemove", mouseMoveHandler);
       this.domElement.ownerDocument.removeEventListener(
         "pointerlockchange",
-        pointerLockChangeHandler
+        pointerLockChangeHandler,
       );
       this.domElement.ownerDocument.removeEventListener(
         "pointerlockerror",
-        pointerLockErrorHandler
+        pointerLockErrorHandler,
       );
       this.domElement.removeEventListener("click", documentClickHandler);
     });
@@ -687,8 +687,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             identifier: RigidControls.INPUT_IDENTIFIER,
             occasion: "keydown",
             checkType: "code",
-          }
-        )
+          },
+        ),
       );
 
       unbinds.push(
@@ -703,8 +703,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             identifier: RigidControls.INPUT_IDENTIFIER,
             occasion: "keyup",
             checkType: "code",
-          }
-        )
+          },
+        ),
       );
     });
 
@@ -792,7 +792,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(
       [vx, 0, vz],
-      this.world.options.chunkSize
+      this.world.options.chunkSize,
     );
     const chunk = this.world.getChunkByCoords(cx, cz);
     const teleport = () => {
@@ -895,8 +895,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       new Vector3(
         this.options.initialDirection[0],
         this.options.initialDirection[1],
-        this.options.initialDirection[2]
-      ).normalize()
+        this.options.initialDirection[2],
+      ).normalize(),
     );
 
     this.object.rotation.set(0, 0, 0);
@@ -1332,7 +1332,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.newPosition.set(
       x,
       y + this._smoothedBodyHeight * (eyeHeight - 0.5),
-      z
+      z,
     );
   };
 
@@ -1419,7 +1419,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     this.euler.x = Math.max(
       PI_2 - this.options.maxPolarAngle,
-      Math.min(PI_2 - this.options.minPolarAngle, this.euler.x)
+      Math.min(PI_2 - this.options.minPolarAngle, this.euler.x),
     );
 
     this.quaternion.setFromEuler(this.euler);

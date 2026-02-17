@@ -76,7 +76,7 @@ export class WorkerPool {
    */
   constructor(
     public Proto: new (options?: WorkerOptions) => Worker,
-    public options: WorkerPoolOptions = defaultOptions
+    public options: WorkerPoolOptions = defaultOptions,
   ) {
     const { maxWorker, name } = options;
 

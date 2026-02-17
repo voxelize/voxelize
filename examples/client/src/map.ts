@@ -27,7 +27,7 @@ export class Map {
   constructor(
     public world: World,
     public parent = document.body,
-    public dimension = 5
+    public dimension = 5,
   ) {
     DOMUtils.applyStyles(this.wrapper, {
       display: "none",
@@ -128,7 +128,7 @@ export class Map {
 
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(
       center.toArray() as Coords3,
-      this.world.options.chunkSize
+      this.world.options.chunkSize,
     );
 
     for (
@@ -146,19 +146,19 @@ export class Map {
           status === "to request"
             ? 1
             : status === "requested"
-            ? 2
-            : status === "processing"
-            ? 3
-            : status === "loaded"
-            ? 4
-            : 0;
+              ? 2
+              : status === "processing"
+                ? 3
+                : status === "loaded"
+                  ? 4
+                  : 0;
 
         const shade2 =
           x ** 2 + z ** 2 <= renderRadius ** 2
             ? 2
             : x ** 2 + z ** 2 <= deleteRadius ** 2
-            ? 1
-            : 0;
+              ? 1
+              : 0;
 
         if (x === 0 && z === 0) {
           this.p5.fill("#4B56D2");
@@ -166,7 +166,7 @@ export class Map {
           this.p5.fill(
             shade2 * MAP_GRADIENT_SCALE,
             0,
-            shade * MAP_GRADIENT_SCALE
+            shade * MAP_GRADIENT_SCALE,
           );
         }
 
@@ -176,7 +176,7 @@ export class Map {
           x * dimension + MAP_DIMENSION / 2 - dimension / 2,
           z * dimension + MAP_DIMENSION / 2 - dimension / 2,
           dimension,
-          dimension
+          dimension,
         );
 
         this.p5.fill(255);
@@ -191,7 +191,7 @@ export class Map {
 
     const vec = this.p5.createVector(
       direction.x * this.dimension,
-      direction.z * this.dimension
+      direction.z * this.dimension,
     );
 
     this.p5.push();

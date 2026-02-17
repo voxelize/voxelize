@@ -60,7 +60,7 @@ export class Registry {
 
     return {
       blocksByName: Array.from(this.blocksByName.entries()).map(
-        ([name, block]) => [name, serializeBlock(block)]
+        ([name, block]) => [name, serializeBlock(block)],
       ),
       blocksById: Array.from(this.blocksById.entries()).map(([id, block]) => [
         id,

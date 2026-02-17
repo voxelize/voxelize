@@ -12,7 +12,7 @@ export type ImageResolver = (name: string) => string;
 
 function dataEqual(
   a: Record<string, unknown> | undefined,
-  b: Record<string, unknown> | undefined
+  b: Record<string, unknown> | undefined,
 ): boolean {
   if (a === b) return true;
   if (!a && !b) return true;
@@ -128,7 +128,7 @@ export class ItemRegistry {
       const item = this.getById(slot.id);
       const stackable = getItemComponent<{ maxStack: number }>(
         item,
-        "stackable"
+        "stackable",
       );
       return stackable?.maxStack ?? 1;
     }
@@ -139,7 +139,7 @@ export class ItemRegistry {
     const item = this.getById(itemId);
     const durable = getItemComponent<{ maxDurability: number }>(
       item,
-      "durable"
+      "durable",
     );
     return durable?.maxDurability;
   }

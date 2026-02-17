@@ -31,25 +31,25 @@ const SWING_QUATERNIONS = [
     0.22181091786438836,
     0.1299627903568272,
     0.4885423545532194,
-    0.8338081060090633
+    0.8338081060090633,
   ),
   new Quaternion(
     0.893363678312996,
     -0.013401460299294354,
     -0.006736763863508881,
-    0.4490839065760065
+    0.4490839065760065,
   ),
   new Quaternion(
     0.9328672195091751,
     -0.12196055833290745,
     -0.04393897067375234,
-    0.3360859113864748
+    0.3360859113864748,
   ),
   new Quaternion(
     0.7659226373876284,
     0.04985520396032439,
     0.04163546301748589,
-    0.6396432289914226
+    0.6396432289914226,
   ),
 ];
 
@@ -492,7 +492,7 @@ export class Character extends Group {
       position,
       quaternion,
       [position, position, position, position],
-      SWING_QUATERNIONS
+      SWING_QUATERNIONS,
     );
 
     this.mixer = new AnimationMixer(this.rightArmGroup);
@@ -541,11 +541,11 @@ export class Character extends Group {
       VoxMathUtils.directionToQuaternion(
         direction[0],
         direction[1],
-        direction[2]
-      )
+        direction[2],
+      ),
     );
     this.newBodyDirection.copy(
-      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2])
+      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2]),
     );
   }
 
@@ -807,7 +807,7 @@ export class Character extends Group {
       this.leftArmGroup,
       this.rightArmGroup,
       this.leftLegGroup,
-      this.rightLegGroup
+      this.rightLegGroup,
     );
 
     // this.headGroup.position.y -= this.totalHeight / 2;
@@ -861,7 +861,7 @@ export class Character extends Group {
     if (this.newBodyDirection.length() !== 0) {
       this.bodyGroup.quaternion.slerp(
         this.newBodyDirection,
-        this.options.rotationLerp
+        this.options.rotationLerp,
       );
     }
   };
@@ -879,12 +879,12 @@ export class Character extends Group {
     this.leftArmGroup.rotation.x = MathUtils.lerp(
       this.leftArmGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale) * amplitude,
-      this.options.swingLerp
+      this.options.swingLerp,
     );
     this.leftArmGroup.rotation.z = MathUtils.lerp(
       this.leftArmGroup.rotation.z,
       Math.cos((performance.now() * speed) / scale) ** 2 * amplitude * 0.1,
-      this.options.swingLerp
+      this.options.swingLerp,
     );
 
     if (this.armSwingAnimation.isRunning()) return;
@@ -892,12 +892,12 @@ export class Character extends Group {
     this.rightArmGroup.rotation.x = MathUtils.lerp(
       this.rightArmGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale + Math.PI) * amplitude,
-      this.options.swingLerp
+      this.options.swingLerp,
     );
     this.rightArmGroup.rotation.z = MathUtils.lerp(
       this.rightArmGroup.rotation.z,
       -(Math.sin((performance.now() * speed) / scale) ** 2 * amplitude * 0.1),
-      this.options.swingLerp
+      this.options.swingLerp,
     );
   };
 
@@ -914,12 +914,12 @@ export class Character extends Group {
     this.leftLegGroup.rotation.x = MathUtils.lerp(
       this.leftLegGroup.rotation.x,
       -Math.sin((performance.now() * speed) / scale) * amplitude,
-      this.options.swingLerp
+      this.options.swingLerp,
     );
     this.rightLegGroup.rotation.x = MathUtils.lerp(
       this.rightLegGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale) * amplitude,
-      this.options.swingLerp
+      this.options.swingLerp,
     );
   };
 
@@ -940,7 +940,7 @@ export class Character extends Group {
    */
   public setArmHoldingObject = (
     object: Object3D | undefined,
-    side: "left" | "right" = "right"
+    side: "left" | "right" = "right",
   ) => {
     const objectName = "armObject";
 
@@ -962,8 +962,8 @@ export class Character extends Group {
         new Vector3(
           (this.options.arms.width * (side === "left" ? -1 : 1)) / 2,
           -this.options.arms.height,
-          0
-        )
+          0,
+        ),
       );
 
       armGroup.add(object);

@@ -4,9 +4,7 @@ import {
   Color,
   FrontSide,
   Group,
-  IUniform,
   LinearMipMapLinearFilter,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
@@ -14,7 +12,6 @@ import {
   SRGBColorSpace,
   Side,
   Texture,
-  Vector3,
 } from "three";
 
 import {
@@ -94,7 +91,7 @@ export type CanvasBoxOptions = {
  */
 export type ArtFunction = (
   context: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
 ) => void;
 
 /**
@@ -217,7 +214,7 @@ export class BoxLayer extends Mesh {
     depthSegments: number,
     side: Side,
     transparent: boolean,
-    receiveShadows = false
+    receiveShadows = false,
   ) {
     super(new BoxGeometry(width, height, depth));
 
@@ -261,10 +258,10 @@ export class BoxLayer extends Mesh {
       side === "all"
         ? BOX_SIDES
         : side === "sides"
-        ? (["front", "back", "left", "right"] as BoxSides[])
-        : Array.isArray(side)
-        ? side
-        : [side];
+          ? (["front", "back", "left", "right"] as BoxSides[])
+          : Array.isArray(side)
+            ? side
+            : [side];
 
     for (const face of actualSides) {
       const material = this.materials.get(face);
@@ -350,14 +347,14 @@ export class BoxLayer extends Mesh {
             "#include <uv_pars_vertex>",
             `#include <uv_pars_vertex>
 ${ENTITY_SHADOW_VERTEX_PARS}
-`
+`,
           )
           .replace(
             "#include <worldpos_vertex>",
             `#include <worldpos_vertex>
 vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
 ${ENTITY_SHADOW_VERTEX_MAIN}
-`
+`,
           );
 
         shader.fragmentShader = shader.fragmentShader
@@ -365,14 +362,14 @@ ${ENTITY_SHADOW_VERTEX_MAIN}
             "#include <common>",
             `#include <common>
 ${ENTITY_SHADOW_FRAGMENT_PARS}
-`
+`,
           )
           .replace(
             "#include <dithering_fragment>",
             `#include <dithering_fragment>
 float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
 gl_FragColor.rgb *= shadow;
-`
+`,
           );
       };
 
@@ -494,7 +491,7 @@ export class CanvasBox extends Group {
   paint = (
     side: BoxSides[] | BoxSides,
     art: ArtFunction | Color | Texture,
-    layer = 0
+    layer = 0,
   ) => {
     if (layer >= this.boxLayers.length) {
       throw new Error("Canvas box layer does not exist.");
@@ -543,7 +540,7 @@ export class CanvasBox extends Group {
         depthSegments ? depthSegments : widthSegments,
         side,
         transparent,
-        receiveShadows
+        receiveShadows,
       );
       this.boxLayers.push(newBoxLayer);
       this.add(newBoxLayer);
@@ -614,7 +611,7 @@ const drawMoon =
       1,
       x + moonRadius / 2,
       y + moonRadius / 2,
-      moonRadius * 2
+      moonRadius * 2,
     );
     grd.addColorStop(0, DOMUtils.rgba(1, 1, 1, 0.3));
     grd.addColorStop(1, DOMUtils.rgba(1, 1, 1, 0));
@@ -624,7 +621,7 @@ const drawMoon =
       moonRadius * 2,
       0,
       2 * Math.PI,
-      false
+      false,
     );
     context.fillStyle = grd;
     context.fill();
@@ -680,7 +677,7 @@ const drawStars =
       "#FFFFFF",
       "#8589FF",
       "#FF8585",
-    ]
+    ],
   ) =>
   (context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     const alpha = context.globalAlpha;
@@ -693,7 +690,7 @@ const drawStars =
         Math.random() * 0.5,
         0,
         2 * Math.PI,
-        false
+        false,
       );
       context.fillStyle =
         starColors[Math.floor(Math.random() * starColors.length)];

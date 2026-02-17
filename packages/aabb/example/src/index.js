@@ -4,6 +4,7 @@ import {
   Scene,
   Vector3,
   Mesh,
+  MeshBasicMaterial,
   PlaneBufferGeometry,
   DoubleSide,
 } from "three";
@@ -26,7 +27,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 
 const floor = new Mesh(
   new PlaneBufferGeometry(100, 100),
-  new MeshBasicMaterial({ color: "#112233", side: DoubleSide })
+  new MeshBasicMaterial({ color: "#112233", side: DoubleSide }),
 );
 floor.position.y = 1;
 floor.rotateX(Math.PI / 2);
@@ -38,7 +39,6 @@ const onAnimationFrameHandler = (timeStamp) => {
   controls.update();
   renderer.render(scene, camera);
 
-  const delta = timeStamp - lastTime;
   lastTime = timeStamp;
 
   window.requestAnimationFrame(onAnimationFrameHandler);

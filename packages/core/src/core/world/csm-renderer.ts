@@ -206,7 +206,7 @@ export class CSMRenderer {
         mainCamera,
         effectivePosition,
         prevSplit,
-        this.cascades[i].split
+        this.cascades[i].split,
       );
       prevSplit = this.cascades[i].split;
       this.cascadeDirty[i] = false;
@@ -219,7 +219,7 @@ export class CSMRenderer {
     mainCamera: Camera,
     playerPosition: Vector3,
     _nearSplit: number,
-    farSplit: number
+    farSplit: number,
   ) {
     const cascade = this.cascades[index];
     const { lightMargin } = this.config;
@@ -251,7 +251,7 @@ export class CSMRenderer {
     for (let i = 0; i < 8; i++) {
       radius = Math.max(
         radius,
-        this.cornerPool[i].distanceTo(this.frustumCenter)
+        this.cornerPool[i].distanceTo(this.frustumCenter),
       );
     }
     radius = Math.ceil(radius * 16) / 16;
@@ -268,7 +268,7 @@ export class CSMRenderer {
     this.lightViewMatrix.lookAt(
       this.tempLookAtTarget,
       this.frustumCenter,
-      this.frustumUp
+      this.frustumUp,
     );
     this.lightSpaceCenter
       .copy(this.frustumCenter)
@@ -326,7 +326,7 @@ export class CSMRenderer {
     scene: Scene,
     entities?: Object3D[],
     maxEntityShadowDistance = 32,
-    instancePools?: Group[]
+    instancePools?: Group[],
   ) {
     const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
     if (!anyNeedsRender) {
@@ -435,7 +435,7 @@ export class CSMRenderer {
         for (const entity of entities) {
           if (entity.userData.castsShadow === false) continue;
           const distSq = entity.position.distanceToSquared(
-            this.lastCameraPosition
+            this.lastCameraPosition,
           );
           if (distSq >= maxDistSq) continue;
           if (!this.cascadeFrustum.containsPoint(entity.position)) continue;

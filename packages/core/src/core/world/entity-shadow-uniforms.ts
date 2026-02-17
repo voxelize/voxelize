@@ -50,7 +50,7 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
 
 export function updateEntityShadowUniforms(
   target: EntityShadowUniforms,
-  source: ShaderLightingUniforms
+  source: ShaderLightingUniforms,
 ): void {
   target.uShadowMap0.value = source.shadowMap0.value;
   target.uShadowMap1.value = source.shadowMap1.value;

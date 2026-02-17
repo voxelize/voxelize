@@ -69,7 +69,10 @@ export class LightShined {
    * @param world The world that the effect is applied to.
    * @param options Parameters to customize the effect.
    */
-  constructor(public world: World, options: Partial<LightShinedOptions> = {}) {
+  constructor(
+    public world: World,
+    options: Partial<LightShinedOptions> = {},
+  ) {
     this.options = { ...defaultOptions, ...options };
 
     this.ignore(Shadow);
@@ -142,21 +145,21 @@ export class LightShined {
           `
           uniform vec3 lightEffect;
           void main() {
-          `
+          `,
         );
         shader.fragmentShader = shader.fragmentShader.replace(
           "void main() {",
           `
           uniform vec3 lightEffect;
           void main() {
-          `
+          `,
         );
         shader.fragmentShader = shader.fragmentShader.replace(
           "#include <color_fragment>",
           `
           #include <color_fragment>
           diffuseColor.rgb *= lightEffect;
-          `
+          `,
         );
       };
       material.needsUpdate = true;
@@ -281,7 +284,7 @@ export class LightShined {
     const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
     const s = Math.min(
       sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
-      1
+      1,
     );
 
     const torchR = (red / maxLightLevel) ** 2;
@@ -292,7 +295,7 @@ export class LightShined {
     return tempColor.setRGB(
       s + torchR * torchAttenuation,
       s + torchG * torchAttenuation,
-      s + torchB * torchAttenuation
+      s + torchB * torchAttenuation,
     );
   }
 
@@ -340,7 +343,7 @@ export class LightShined {
     return tempColor.setRGB(
       Math.min(totalR, this.options.maxBrightness),
       Math.min(totalG, this.options.maxBrightness),
-      Math.min(totalB, this.options.maxBrightness)
+      Math.min(totalB, this.options.maxBrightness),
     );
   }
 
@@ -359,7 +362,7 @@ export class LightShined {
 
       const attenuation = Math.pow(
         Math.max(0, 1 - dist / light.radius),
-        light.falloffExponent
+        light.falloffExponent,
       );
       const intensity = light.intensity * attenuation;
 
@@ -389,7 +392,7 @@ export class LightShined {
     const hit = this.world.raycastVoxels(
       pos.toArray() as [number, number, number],
       dir,
-      maxDist
+      maxDist,
     );
 
     if (hit) {

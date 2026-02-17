@@ -24,11 +24,11 @@ export class AnimationUtils {
     initialPosition: Vector3,
     initialQuaternion: Quaternion,
     midPositions: Vector3[],
-    midQuaternions: Quaternion[]
+    midQuaternions: Quaternion[],
   ) {
     if (midPositions.length !== midQuaternions.length) {
       throw new Error(
-        "midPositions and midQuaternions must have the same length"
+        "midPositions and midQuaternions must have the same length",
       );
     }
     if (midPositions.length !== times.length - 2) {
@@ -41,51 +41,51 @@ export class AnimationUtils {
     positionValues.push(
       initialPosition.x,
       initialPosition.y,
-      initialPosition.z
+      initialPosition.z,
     );
     quaternionValues.push(
       initialQuaternion.x,
       initialQuaternion.y,
       initialQuaternion.z,
-      initialQuaternion.w
+      initialQuaternion.w,
     );
 
     for (let i = 0; i < midPositions.length; i++) {
       positionValues.push(
         midPositions[i].x,
         midPositions[i].y,
-        midPositions[i].z
+        midPositions[i].z,
       );
       quaternionValues.push(
         midQuaternions[i].x,
         midQuaternions[i].y,
         midQuaternions[i].z,
-        midQuaternions[i].w
+        midQuaternions[i].w,
       );
     }
 
     positionValues.push(
       initialPosition.x,
       initialPosition.y,
-      initialPosition.z
+      initialPosition.z,
     );
     quaternionValues.push(
       initialQuaternion.x,
       initialQuaternion.y,
       initialQuaternion.z,
-      initialQuaternion.w
+      initialQuaternion.w,
     );
 
     const positionKF = new VectorKeyframeTrack(
       ".position",
       times,
-      positionValues
+      positionValues,
     );
 
     const quaternionKF = new QuaternionKeyframeTrack(
       ".quaternion",
       times,
-      quaternionValues
+      quaternionValues,
     );
 
     return new AnimationClip(name, times[times.length - 1], [

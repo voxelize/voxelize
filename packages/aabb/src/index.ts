@@ -8,7 +8,7 @@ export class AABB {
     public minZ: number,
     public maxX: number,
     public maxY: number,
-    public maxZ: number
+    public maxZ: number,
   ) {}
 
   /**
@@ -47,7 +47,7 @@ export class AABB {
     return Math.sqrt(
       (this.maxX - this.minX) ** 2 +
         (this.maxY - this.minY) ** 2 +
-        (this.maxZ - this.minZ) ** 2
+        (this.maxZ - this.minZ) ** 2,
     );
   }
 
@@ -213,7 +213,7 @@ export class AABB {
       Math.min(this.minZ, aabb.minZ),
       Math.max(this.maxX, aabb.maxX),
       Math.max(this.maxY, aabb.maxY),
-      Math.max(this.maxZ, aabb.maxZ)
+      Math.max(this.maxZ, aabb.maxZ),
     );
   };
 
@@ -229,7 +229,7 @@ export class AABB {
       Math.max(this.minZ, aabb.minZ),
       Math.min(this.maxX, aabb.maxX),
       Math.min(this.maxY, aabb.maxY),
-      Math.min(this.maxZ, aabb.maxZ)
+      Math.min(this.maxZ, aabb.maxZ),
     );
   };
 
@@ -339,7 +339,7 @@ export class AABB {
       this.minZ,
       this.maxX,
       this.maxY,
-      this.maxZ
+      this.maxZ,
     );
   };
 

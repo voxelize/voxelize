@@ -75,7 +75,7 @@ export function setupTransparentSorting(object: Object3D): void {
       sortTransparentMesh(
         child,
         child.userData.transparentSortData as TransparentMeshData,
-        camera
+        camera,
       );
     };
   });
@@ -90,7 +90,7 @@ function radixSortDescending(
   faceOrder: Uint32Array,
   faceCount: number,
   keys: Uint32Array,
-  temp: Uint32Array
+  temp: Uint32Array,
 ): void {
   for (let i = 0; i < faceCount; i++) {
     _floatView[0] = distances[i];
@@ -131,7 +131,7 @@ function radixSortDescending(
 export function sortTransparentMesh(
   mesh: Mesh,
   data: TransparentMeshData,
-  camera: Camera
+  camera: Camera,
 ): void {
   mesh.getWorldPosition(_worldPos);
   camera.getWorldPosition(_camWorldPos);
@@ -177,7 +177,8 @@ export function sortTransparentMesh(
     sortedIndices[dstOffset + 5] = originalIndices[srcOffset + 5];
   }
 
-  const indexAttr = mesh.geometry.index!;
+  const indexAttr = mesh.geometry.index;
+  if (!indexAttr) return;
   const targetArray = indexAttr.array;
   (targetArray as Uint32Array).set(sortedIndices);
   indexAttr.needsUpdate = true;

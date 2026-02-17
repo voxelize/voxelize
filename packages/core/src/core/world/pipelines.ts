@@ -82,7 +82,7 @@ export class ChunkPipeline {
   markProcessing(
     coords: Coords2,
     source: "update" | "load",
-    data: ChunkProtocol
+    data: ChunkProtocol,
   ): void {
     const name = ChunkUtils.getChunkName(coords);
     const existing = this.states.get(name);
@@ -115,7 +115,7 @@ export class ChunkPipeline {
   }
 
   getProcessingData(
-    name: string
+    name: string,
   ): { source: "update" | "load"; data: ChunkProtocol } | undefined {
     const state = this.states.get(name);
     return state?.stage === "processing"

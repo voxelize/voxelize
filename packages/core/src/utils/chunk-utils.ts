@@ -71,7 +71,7 @@ export class ChunkUtils {
    */
   static mapVoxelToChunkLocal = (
     voxelPos: Coords3,
-    chunkSize: number
+    chunkSize: number,
   ): Coords3 => {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxelPos, chunkSize);
     const [vx, vy, vz] = voxelPos;

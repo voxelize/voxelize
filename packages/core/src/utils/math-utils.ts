@@ -46,7 +46,7 @@ export class MathUtils {
 
       return () => {
         return q.setFromRotationMatrix(
-          m.lookAt(new Vector3(-dx, -dy, -dz), zero, one)
+          m.lookAt(new Vector3(-dx, -dy, -dz), zero, one),
         );
       };
     })();

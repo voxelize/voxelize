@@ -104,7 +104,7 @@ export class LightVolume {
     this.tempVolumeMax.copy(this.volumeMin).add(this.volumeSize);
     const lights = registry.getLightsInRegion(
       this.volumeMin,
-      this.tempVolumeMax
+      this.tempVolumeMax,
     );
 
     this.data.fill(0);
@@ -127,7 +127,7 @@ export class LightVolume {
     light: DynamicLight,
     texWidth: number,
     texHeight: number,
-    texDepth: number
+    texDepth: number,
   ) {
     const res = this.config.resolution;
     const radius = light.radius;
@@ -138,17 +138,17 @@ export class LightVolume {
     const minX = Math.max(0, Math.floor((this.tempLocalPos.x - radius) / res));
     const maxX = Math.min(
       texWidth - 1,
-      Math.ceil((this.tempLocalPos.x + radius) / res)
+      Math.ceil((this.tempLocalPos.x + radius) / res),
     );
     const minY = Math.max(0, Math.floor((this.tempLocalPos.y - radius) / res));
     const maxY = Math.min(
       texHeight - 1,
-      Math.ceil((this.tempLocalPos.y + radius) / res)
+      Math.ceil((this.tempLocalPos.y + radius) / res),
     );
     const minZ = Math.max(0, Math.floor((this.tempLocalPos.z - radius) / res));
     const maxZ = Math.min(
       texDepth - 1,
-      Math.ceil((this.tempLocalPos.z + radius) / res)
+      Math.ceil((this.tempLocalPos.z + radius) / res),
     );
 
     for (let x = minX; x <= maxX; x++) {
@@ -172,15 +172,15 @@ export class LightVolume {
 
           this.data[idx + 0] = Math.min(
             255,
-            this.data[idx + 0] + Math.round(light.color.r * 255 * intensity)
+            this.data[idx + 0] + Math.round(light.color.r * 255 * intensity),
           );
           this.data[idx + 1] = Math.min(
             255,
-            this.data[idx + 1] + Math.round(light.color.g * 255 * intensity)
+            this.data[idx + 1] + Math.round(light.color.g * 255 * intensity),
           );
           this.data[idx + 2] = Math.min(
             255,
-            this.data[idx + 2] + Math.round(light.color.b * 255 * intensity)
+            this.data[idx + 2] + Math.round(light.color.b * 255 * intensity),
           );
           this.data[idx + 3] = 255;
         }
@@ -206,7 +206,7 @@ export class LightVolume {
     return new Vector3(
       Math.ceil(width / res),
       Math.ceil(height / res),
-      Math.ceil(depth / res)
+      Math.ceil(depth / res),
     );
   }
 

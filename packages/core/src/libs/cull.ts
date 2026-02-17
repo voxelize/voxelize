@@ -26,7 +26,7 @@ const cullPool = new WorkerPool(CullWorker, {
 
 export async function cull(
   array: NdArray,
-  options: CullOptionsType
+  options: CullOptionsType,
 ): Promise<MeshResultType> {
   const { stride, data } = array;
   const { dimensions, min, max, realMin, realMax } = options;

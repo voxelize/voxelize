@@ -30,7 +30,7 @@ const CharacterView = () => {
         75,
         canvas.clientWidth / canvas.clientHeight,
         0.1,
-        1000
+        1000,
       );
 
       const CAMERA_OFFSET_Y = 0.5;
@@ -63,7 +63,7 @@ const CharacterView = () => {
 
         character.set(
           [0, 0, 0],
-          [target.x, target.y - CAMERA_OFFSET_Y * 2, target.z]
+          [target.x, target.y - CAMERA_OFFSET_Y * 2, target.z],
         );
         character.update();
 

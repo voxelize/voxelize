@@ -31,14 +31,14 @@ function decompressLz4Block(data: Uint8Array): Uint8Array {
 
 function decompressToUint32Array(
   data: Uint8Array,
-  transferables: ArrayBuffer[]
+  transferables: ArrayBuffer[],
 ): Uint32Array {
   if (!data || data.length === 0) return new Uint32Array(0);
   const bytes = decompressLz4Block(data);
   const result = new Uint32Array(
     bytes.buffer,
     bytes.byteOffset,
-    bytes.byteLength / 4
+    bytes.byteLength / 4,
   );
   transferables.push(result.buffer as ArrayBuffer);
   return result;
@@ -46,14 +46,14 @@ function decompressToUint32Array(
 
 function decompressToInt32Array(
   data: Uint8Array,
-  transferables: ArrayBuffer[]
+  transferables: ArrayBuffer[],
 ): Int32Array {
   if (!data || data.length === 0) return new Int32Array(0);
   const bytes = decompressLz4Block(data);
   const result = new Int32Array(
     bytes.buffer,
     bytes.byteOffset,
-    bytes.byteLength / 4
+    bytes.byteLength / 4,
   );
   transferables.push(result.buffer as ArrayBuffer);
   return result;
@@ -61,14 +61,14 @@ function decompressToInt32Array(
 
 function decompressToFloat32Array(
   data: Uint8Array,
-  transferables: ArrayBuffer[]
+  transferables: ArrayBuffer[],
 ): Float32Array {
   if (!data || data.length === 0) return new Float32Array(0);
   const bytes = decompressLz4Block(data);
   const result = new Float32Array(
     bytes.buffer,
     bytes.byteOffset,
-    bytes.byteLength / 4
+    bytes.byteLength / 4,
   );
   transferables.push(result.buffer as ArrayBuffer);
   return result;
@@ -94,7 +94,7 @@ function deepParseJSON(value: unknown): unknown {
 
 export function decodeMessage(
   buffer: Uint8Array,
-  transferables: ArrayBuffer[]
+  transferables: ArrayBuffer[],
 ): Record<string, unknown> {
   if (isLz4Frame(buffer)) {
     buffer = lz4.decompress(buffer);
@@ -159,13 +159,13 @@ export function decodeMessage(
       if (chunk.lights) {
         chunk.lights = decompressToUint32Array(
           chunk.lights as Uint8Array,
-          transferables
+          transferables,
         );
       }
       if (chunk.voxels) {
         chunk.voxels = decompressToUint32Array(
           chunk.voxels as Uint8Array,
-          transferables
+          transferables,
         );
       }
 
@@ -182,7 +182,7 @@ export function decodeMessage(
                 if (geo.indices) {
                   const decompressedI32 = decompressToInt32Array(
                     geo.indices as Uint8Array,
-                    []
+                    [],
                   );
                   const indices = new Uint16Array(decompressedI32.length);
                   for (let idx = 0; idx < decompressedI32.length; idx++) {
@@ -194,19 +194,19 @@ export function decodeMessage(
                 if (geo.lights) {
                   geo.lights = decompressToInt32Array(
                     geo.lights as Uint8Array,
-                    transferables
+                    transferables,
                   );
                 }
                 if (geo.positions) {
                   geo.positions = decompressToFloat32Array(
                     geo.positions as Uint8Array,
-                    transferables
+                    transferables,
                   );
                 }
                 if (geo.uvs) {
                   geo.uvs = decompressToFloat32Array(
                     geo.uvs as Uint8Array,
-                    transferables
+                    transferables,
                   );
                 }
               }

@@ -132,7 +132,7 @@ export class BlockUtils {
       getVoxelAt: (x: number, y: number, z: number) => number;
       getVoxelRotationAt: (x: number, y: number, z: number) => BlockRotation;
       getVoxelStageAt: (x: number, y: number, z: number) => number;
-    }
+    },
   ): boolean => {
     if (rule.type === "none") {
       return true;
@@ -174,15 +174,15 @@ export class BlockUtils {
       switch (logic) {
         case BlockRuleLogic.And:
           return rules.every((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions),
           );
         case BlockRuleLogic.Or:
           return rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions),
           );
         case BlockRuleLogic.Not:
           return !rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions),
           );
         default:
           return false; // Unsupported logic

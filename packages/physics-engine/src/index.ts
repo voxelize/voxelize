@@ -38,7 +38,7 @@ export class Engine {
     private getClimbableAABBs: (vx: number, vy: number, vz: number) => AABB[],
     private getVoxelStage: (vx: number, vy: number, vz: number) => number,
     private getFluidFlowForce: (vx: number, vy: number, vz: number) => number,
-    public options: EngineOptions
+    public options: EngineOptions,
   ) {}
 
   addBody = (options: Partial<BodyOptions>) => {
@@ -73,7 +73,7 @@ export class Engine {
       gravityMultiplier,
       stepHeight,
       onStep,
-      onCollide
+      onCollide,
     );
     this.bodies.push(b);
     return b;
@@ -90,7 +90,7 @@ export class Engine {
       0,
       this.options.gravity[0] ** 2 +
         this.options.gravity[1] ** 2 +
-        this.options.gravity[2] ** 2
+        this.options.gravity[2] ** 2,
     );
     this.bodies.forEach((b) => this.iterateBody(b, dt, noGravity));
   };
@@ -256,7 +256,7 @@ export class Engine {
       if (foundX !== null) {
         const minClingFactor = Math.min(
           clingingFactorInVoxel,
-          foundX - oldBox.minX
+          foundX - oldBox.minX,
         );
         walls.push(
           new AABB(
@@ -265,8 +265,8 @@ export class Engine {
             oldBox.minZ,
             foundX - minClingFactor + bodyXWidth + 0.1,
             footY + 1,
-            oldBox.maxZ
-          )
+            oldBox.maxZ,
+          ),
         );
       }
     } else if (dx[0] < 0 && (isDangerousDropNxPz || isDangerousDropNxNz)) {
@@ -274,7 +274,7 @@ export class Engine {
       if (foundX !== null) {
         const minClingFactor = Math.min(
           clingingFactorInVoxel,
-          oldBox.maxX - foundX
+          oldBox.maxX - foundX,
         );
         walls.push(
           new AABB(
@@ -283,8 +283,8 @@ export class Engine {
             oldBox.minZ,
             foundX + minClingFactor - bodyXWidth,
             footY + 1,
-            oldBox.maxZ
-          )
+            oldBox.maxZ,
+          ),
         );
       }
     }
@@ -294,7 +294,7 @@ export class Engine {
       if (foundZ !== null) {
         const minClingFactor = Math.min(
           clingingFactorInVoxel,
-          foundZ - oldBox.minZ
+          foundZ - oldBox.minZ,
         );
         walls.push(
           new AABB(
@@ -303,8 +303,8 @@ export class Engine {
             foundZ - minClingFactor + bodyZWidth,
             oldBox.maxX,
             footY + 1,
-            foundZ - minClingFactor + bodyZWidth + 0.1
-          )
+            foundZ - minClingFactor + bodyZWidth + 0.1,
+          ),
         );
       }
     } else if (dx[2] < 0 && (isDangerousDropPxNz || isDangerousDropNxNz)) {
@@ -312,7 +312,7 @@ export class Engine {
       if (foundZ !== null) {
         const minClingFactor = Math.min(
           clingingFactorInVoxel,
-          oldBox.maxZ - foundZ
+          oldBox.maxZ - foundZ,
         );
         walls.push(
           new AABB(
@@ -321,8 +321,8 @@ export class Engine {
             foundZ + minClingFactor - bodyZWidth - 0.1,
             oldBox.maxX,
             footY + 1,
-            foundZ + minClingFactor - bodyZWidth
-          )
+            foundZ + minClingFactor - bodyZWidth,
+          ),
         );
       }
     }
@@ -553,7 +553,7 @@ export class Engine {
     const lateralVel = [...body.velocity];
     lateralVel[axis] = 0;
     const vCurr = Math.sqrt(
-      lateralVel[0] ** 2 + lateralVel[1] ** 2 + lateralVel[2] ** 2
+      lateralVel[0] ** 2 + lateralVel[1] ** 2 + lateralVel[2] ** 2,
     );
     if (approxEquals(vCurr, 0)) return;
 
@@ -590,7 +590,7 @@ export class Engine {
     box: AABB,
     velocity: number[],
     resting: number[],
-    extras: AABB[] = []
+    extras: AABB[] = [],
   ) => {
     resting[0] = 0;
     resting[1] = 0;
@@ -607,7 +607,7 @@ export class Engine {
       },
       true,
       100,
-      extras
+      extras,
     );
   };
 
@@ -639,7 +639,7 @@ export class Engine {
         axis: number,
         dir: number,
         vec: number[],
-        vox?: number[]
+        vox?: number[],
       ) {
         if (axis === 1) {
           vec[axis] = 0;
@@ -648,7 +648,7 @@ export class Engine {
           voxel = vox || [];
           return true;
         }
-      }
+      },
     );
 
     const y = body.aabb.minY;
@@ -734,7 +734,7 @@ export class Engine {
         isResting = true;
         return true;
       },
-      false
+      false,
     );
 
     return isResting;

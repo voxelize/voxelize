@@ -61,7 +61,7 @@ const IframeDemo = () => {
       : "https://create.town";
     const splashTitle = encodeURIComponent("Voxelize");
     const splashSubtitle = encodeURIComponent(
-      "Click to play, scroll to read docs"
+      "Click to play, scroll to read docs",
     );
     return `${base}?cacheBuster=${cacheBuster}&splash_title=${splashTitle}&splash_subtitle=${splashSubtitle}`;
   }, [cacheBuster]);
@@ -153,7 +153,7 @@ const MobileHero = () => {
       : "https://create.town";
     const splashTitle = encodeURIComponent("Voxelize");
     const splashSubtitle = encodeURIComponent(
-      "Click to play, scroll to read docs"
+      "Click to play, scroll to read docs",
     );
     return `${base}?cacheBuster=${cacheBuster}&mode=spectator&embedded=true&splash_title=${splashTitle}&splash_subtitle=${splashSubtitle}`;
   }, [cacheBuster]);

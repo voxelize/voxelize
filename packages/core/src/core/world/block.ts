@@ -480,7 +480,7 @@ export class BlockRotation {
       realMin[2],
       realMax[0],
       realMax[1],
-      realMax[2]
+      realMax[2],
     );
   };
 
@@ -490,7 +490,7 @@ export class BlockRotation {
     boolean,
     boolean,
     boolean,
-    boolean
+    boolean,
   ]) {
     const rot = this.value;
 

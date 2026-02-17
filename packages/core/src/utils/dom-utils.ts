@@ -13,7 +13,7 @@ export class DOMUtils {
    */
   static applyStyles = (
     ele: HTMLElement | HTMLElement[] | undefined,
-    style: Partial<CSSStyleDeclaration>
+    style: Partial<CSSStyleDeclaration>,
   ) => {
     if (!ele) return;
 

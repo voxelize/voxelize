@@ -17,12 +17,12 @@ import { defaultArmsOptions } from "./character";
 
 const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
-  new THREE.Euler(-Math.PI / 4, 0, -Math.PI / 8)
+  new THREE.Euler(-Math.PI / 4, 0, -Math.PI / 8),
 );
 const BLOCK_POSITION = new THREE.Vector3(1.4, -1.4, -2.061);
 const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
-  -Math.PI / 4
+  -Math.PI / 4,
 );
 const ARM_TRANSITION_DURATION = 0.2; // Duration in seconds for arm transition animation
 
@@ -58,7 +58,7 @@ const SWING_QUATERNIONS = [
     -0.37533027751786524,
     -0.0746578340503426,
     -0.18023995550173696,
-    0.9061274463528878
+    0.9061274463528878,
   ),
 ];
 
@@ -147,7 +147,7 @@ export class Arm extends THREE.Group {
       this.options.armObjectOptions?.position,
       this.options.armObjectOptions?.quaternion,
       this.options.armObjectOptions?.swingPositions,
-      this.options.armObjectOptions?.swingQuaternions
+      this.options.armObjectOptions?.swingQuaternions,
     );
     this.blockSwingClip = AnimationUtils.generateClip(
       "blockSwing",
@@ -155,12 +155,12 @@ export class Arm extends THREE.Group {
       this.options.blockObjectOptions?.position,
       this.options.blockObjectOptions?.quaternion,
       this.options.blockObjectOptions?.swingPositions,
-      this.options.blockObjectOptions?.swingQuaternions
+      this.options.blockObjectOptions?.swingQuaternions,
     );
 
     this.customSwingClips = {};
     for (const [type, options] of Object.entries(
-      this.options.customObjectOptions || {}
+      this.options.customObjectOptions || {},
     )) {
       this.customSwingClips[type] = AnimationUtils.generateClip(
         `customSwing-${type}`,
@@ -168,7 +168,7 @@ export class Arm extends THREE.Group {
         options.position,
         options.quaternion,
         options.swingPositions ?? generateSwingPositions(options.position),
-        options.swingQuaternions ?? SWING_QUATERNIONS
+        options.swingQuaternions ?? SWING_QUATERNIONS,
       );
     }
 
@@ -181,7 +181,7 @@ export class Arm extends THREE.Group {
 
   updateShadowUniforms(
     lightingUniforms: ShaderLightingUniforms,
-    playerWorldPosition?: THREE.Vector3
+    playerWorldPosition?: THREE.Vector3,
   ): void {
     if (!this.options.receiveShadows) return;
 
@@ -235,7 +235,7 @@ export class Arm extends THREE.Group {
   public setArmObject = (
     object: THREE.Object3D | undefined,
     animate: boolean,
-    customType?: string
+    customType?: string,
   ) => {
     if (!animate) {
       this.clear();
@@ -302,7 +302,7 @@ export class Arm extends THREE.Group {
     arm.position.set(
       this.options.armObjectOptions?.position.x,
       this.options.armObjectOptions?.position.y,
-      this.options.armObjectOptions?.position.z
+      this.options.armObjectOptions?.position.z,
     );
     arm.quaternion.multiply(this.options.armObjectOptions?.quaternion);
 
@@ -319,7 +319,7 @@ export class Arm extends THREE.Group {
     object.position.set(
       this.options.blockObjectOptions?.position.x,
       this.options.blockObjectOptions?.position.y,
-      this.options.blockObjectOptions?.position.z
+      this.options.blockObjectOptions?.position.z,
     );
     object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
@@ -343,7 +343,7 @@ export class Arm extends THREE.Group {
     object.position.set(
       options.position.x,
       options.position.y,
-      options.position.z
+      options.position.z,
     );
     object.quaternion.multiply(options.quaternion);
 
@@ -383,14 +383,14 @@ export class Arm extends THREE.Group {
               "#include <uv_pars_vertex>",
               `#include <uv_pars_vertex>
 ${ENTITY_SHADOW_VERTEX_PARS}
-`
+`,
             )
             .replace(
               "#include <worldpos_vertex>",
               `#include <worldpos_vertex>
 vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
 ${ENTITY_SHADOW_VERTEX_MAIN}
-`
+`,
             );
 
           shader.fragmentShader = shader.fragmentShader
@@ -398,14 +398,14 @@ ${ENTITY_SHADOW_VERTEX_MAIN}
               "#include <common>",
               `#include <common>
 ${ENTITY_SHADOW_FRAGMENT_PARS}
-`
+`,
             )
             .replace(
               "#include <dithering_fragment>",
               `#include <dithering_fragment>
 float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
 gl_FragColor.rgb *= shadow;
-`
+`,
             );
         };
 
@@ -449,7 +449,7 @@ gl_FragColor.rgb *= shadow;
           const newY = THREE.MathUtils.lerp(
             this.initialArmY,
             this.targetArmY,
-            easedProgress
+            easedProgress,
           );
           this.currentArmObject.position.y = newY;
         }
@@ -490,7 +490,7 @@ gl_FragColor.rgb *= shadow;
           const newY = THREE.MathUtils.lerp(
             this.initialArmY,
             this.targetArmY,
-            easedProgress
+            easedProgress,
           );
           this.currentArmObject.position.y = newY;
         }

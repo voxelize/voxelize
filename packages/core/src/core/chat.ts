@@ -11,7 +11,7 @@ import { NetIntercept } from "./network";
 export type CommandOptions<
   T extends ZodObject<Record<string, ZodTypeAny>> = ZodObject<
     Record<string, never>
-  >
+  >,
 > = {
   description: string;
   category?: string;
@@ -27,7 +27,7 @@ export type CommandOptions<
 export type CommandInfo<
   T extends ZodObject<Record<string, ZodTypeAny>> = ZodObject<
     Record<string, never>
-  >
+  >,
 > = {
   process: (args: z.infer<T>) => void;
   description: string;
@@ -151,7 +151,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
             const errorMessage = this.formatCommandError(
               error,
               trigger,
-              commandInfo
+              commandInfo,
             );
             this.onChat({
               type: "SYSTEM",
@@ -164,7 +164,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
       if (this.fallbackCommand) {
         this.fallbackCommand(
-          chat.body.substring(this._commandSymbol.length).trim()
+          chat.body.substring(this._commandSymbol.length).trim(),
         );
       }
     }
@@ -210,7 +210,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private parseArgs<T extends ZodObject<Record<string, ZodTypeAny>>>(
     raw: string,
-    schema: T
+    schema: T,
   ): z.infer<T> {
     const shape = schema.shape;
     const keys = Object.keys(shape);
@@ -279,7 +279,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private formatCommandError(
     error: unknown,
     trigger: string,
-    commandInfo: CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
+    commandInfo: CommandInfo<ZodObject<Record<string, ZodTypeAny>>>,
   ): string {
     const argMetadata = this.extractArgMetadata(commandInfo.args);
     const usageArgs = argMetadata
@@ -306,19 +306,19 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           if (options.length <= 6) {
             errorLines.push(
               `$#FF6B6B$Invalid ${fieldName}. Valid options: $white$${options.join(
-                ", "
-              )}`
+                ", ",
+              )}`,
             );
           } else {
             errorLines.push(
               `$#FF6B6B$Invalid ${fieldName}. Valid: $white$${options
                 .slice(0, 5)
-                .join(", ")}$#FF6B6B$ (+${options.length - 5} more)`
+                .join(", ")}$#FF6B6B$ (+${options.length - 5} more)`,
             );
           }
         } else if (argMeta?.required && issue.message.includes("Required")) {
           errorLines.push(
-            `$#FF6B6B$Missing required argument: $white$<${fieldName}>`
+            `$#FF6B6B$Missing required argument: $white$<${fieldName}>`,
           );
         } else {
           errorLines.push(`$#FF6B6B$${fieldName}: $white$${issue.message}`);
@@ -347,11 +347,11 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   public addCommand<
     T extends ZodObject<Record<string, ZodTypeAny>> = ZodObject<
       Record<string, never>
-    >
+    >,
   >(
     trigger: string,
     process: (args: z.infer<T>) => void,
-    options: CommandOptions<T>
+    options: CommandOptions<T>,
   ): () => void {
     if (this.commands.has(trigger)) {
       throw new Error(`Command trigger already taken: ${trigger}`);
@@ -374,20 +374,20 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     this.commands.set(
       trigger,
-      commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
+      commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>,
     );
 
     for (const alias of commandInfo.aliases) {
       if (this.commands.has(alias)) {
         console.warn(
-          `Command alias for "${trigger}", "${alias}" ignored as already taken.`
+          `Command alias for "${trigger}", "${alias}" ignored as already taken.`,
         );
         continue;
       }
 
       this.commands.set(
         alias,
-        commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>
+        commandInfo as CommandInfo<ZodObject<Record<string, ZodTypeAny>>>,
       );
     }
 
@@ -451,13 +451,13 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private isOptionalSchema(
-    schema: ZodTypeAny
+    schema: ZodTypeAny,
   ): schema is ZodOptional<ZodTypeAny> {
     return "unwrap" in schema && typeof schema.unwrap === "function";
   }
 
   private isEnumSchema(
-    schema: ZodTypeAny
+    schema: ZodTypeAny,
   ): schema is ZodTypeAny & { options: string[] } {
     return "options" in schema && Array.isArray(schema.options);
   }
@@ -497,7 +497,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private extractArgMetadata(
     schema: ZodObject<Record<string, ZodTypeAny>> | undefined,
-    tabComplete?: Partial<Record<string, () => string[]>>
+    tabComplete?: Partial<Record<string, () => string[]>>,
   ): ArgMetadata[] {
     if (!schema) {
       return [];

@@ -98,7 +98,7 @@ vec4 unpackLight(int l) {
 ${SIMPLEX_NOISE_GLSL}
 
 #include <common>
-`
+`,
     )
     .replace(
       "#include <color_vertex>",
@@ -114,7 +114,7 @@ vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
 
 vLight = unpackLight(light & 0xFFFF);
-`
+`,
     )
     .replace(
       "#include <begin_vertex>",
@@ -132,7 +132,7 @@ if (shouldWave == 1) {
 
   transformed.y += wave1 + wave2 + wave3;
 }
-`
+`,
     )
     .replace(
       "#include <worldpos_vertex>",
@@ -144,7 +144,7 @@ vec4 worldPosition = vec4( transformed, 1.0 );
 worldPosition = modelMatrix * worldPosition;
 vWorldPosition = worldPosition;
 vWorldNormal = normalize(mat3(modelMatrix) * normal);
-`
+`,
     ),
   fragment: ShaderLib.basic.fragmentShader
     .replace(
@@ -170,7 +170,7 @@ varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
 
 #include <common>
-`
+`,
     )
     .replace(
       "#include <map_fragment>",
@@ -229,7 +229,7 @@ varying vec3 vWorldNormal;
   
   diffuseColor *= sampledDiffuseColor;
 #endif
-`
+`,
     )
     .replace(
       "#include <envmap_fragment>",
@@ -249,7 +249,7 @@ outgoingLight.rgb *= combinedLight;
 
 float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
 outgoingLight *= aoFactor;
-`
+`,
     )
     .replace(
       "#include <fog_fragment>",
@@ -262,7 +262,7 @@ outgoingLight *= aoFactor;
     float fogFactor = max(distFog, heightFog * heightDistScale);
 
     gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
-    `
+    `,
     ),
 };
 
@@ -274,7 +274,7 @@ export const customShaders = {
       scale: number;
       rooted: boolean;
       yScale: number;
-    }> = {}
+    }> = {},
   ) {
     return createSwayShader(DEFAULT_CHUNK_SHADERS, options);
   },
@@ -286,7 +286,7 @@ export const customShaders = {
       scale: number;
       rooted: boolean;
       yScale: number;
-    }> = {}
+    }> = {},
   ) {
     return createSwayShader(SHADER_LIGHTING_CHUNK_SHADERS, options);
   },
@@ -298,7 +298,7 @@ export const customShaders = {
       scale: number;
       rooted: boolean;
       yScale: number;
-    }> = {}
+    }> = {},
   ) {
     return createSwayShader(SHADER_LIGHTING_CROSS_CHUNK_SHADERS, options);
   },
@@ -342,7 +342,7 @@ vec4 unpackLight(int l) {
 ${SIMPLEX_NOISE_GLSL}
 
 #include <common>
-`
+`,
     )
     .replace(
       "#include <color_vertex>",
@@ -357,7 +357,7 @@ vAO = uAOTable[ao] / 255.0;
 vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
 vLight = unpackLight(light & 0xFFFF);
-`
+`,
     )
     .replace(
       "#include <begin_vertex>",
@@ -375,7 +375,7 @@ if (shouldWave == 1) {
 
   transformed.y += wave1 + wave2 + wave3;
 }
-`
+`,
     )
     .replace(
       "#include <worldpos_vertex>",
@@ -398,7 +398,7 @@ vec4 offsetPosition = worldPosition + vec4(normalOffset, 0.0);
 vShadowCoord0 = uShadowMatrix0 * offsetPosition;
 vShadowCoord1 = uShadowMatrix1 * offsetPosition;
 vShadowCoord2 = uShadowMatrix2 * offsetPosition;
-`
+`,
     ),
   fragment: ShaderLib.basic.fragmentShader
     .replace(
@@ -585,7 +585,7 @@ vec3 sampleLightVolume() {
 }
 
 #include <common>
-`
+`,
     )
     .replace(
       "#include <map_fragment>",
@@ -643,7 +643,7 @@ vec3 sampleLightVolume() {
   
   diffuseColor *= sampledDiffuseColor;
 #endif
-`
+`,
     )
     .replace(
       "#include <envmap_fragment>",
@@ -779,7 +779,7 @@ if (vIsFluid > 0.5) {
   vec3 absorption = vec3(0.025, 0.012, 0.004);
   outgoingLight.rgb *= exp(-absorption * waterDepth * uWaterAbsorption);
 }
-`
+`,
     )
     .replace(
       "#include <fog_fragment>",
@@ -821,7 +821,7 @@ if (uShadowDebugMode > 0.5) {
     gl_FragColor.rgb = vec3(tunnelDarkening);
   }
 }
-`
+`,
     ),
 };
 
@@ -835,7 +835,7 @@ float sunExposure = vLight.a;
 vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity;`,
       `float sunExposure = vLight.a;
 
-vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`
+vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`,
     )
     .replace(
       `float getShadow() {
@@ -847,7 +847,7 @@ vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`
   float NdotL = 0.5;
   if (false) {
     return mix(1.0, 0.0, uShadowStrength);
-  }`
+  }`,
     )
     .replace(`if (vIsFluid > 0.5) {`, `if (false) {`),
 };
@@ -860,7 +860,7 @@ export function createSwayShader(
     scale: number;
     rooted: boolean;
     yScale: number;
-  }> = {}
+  }> = {},
 ) {
   const { speed, amplitude, rooted, scale, yScale } = {
     speed: 1,
@@ -881,10 +881,10 @@ float swayNoise = snoise(vec3(
   position.z * swayScale + windOffset.y
 ));
 transformed.x += rootScale * ${scale.toFixed(
-    2
+    2,
   )} * swayNoise * 2.0 * ${amplitude.toFixed(2)};
 transformed.z += rootScale * ${scale.toFixed(
-    2
+    2,
   )} * swayNoise * ${amplitude.toFixed(2)} * uWindSpeed * 0.5;
 `;
 
@@ -893,7 +893,7 @@ transformed.z += rootScale * ${scale.toFixed(
   if (!vertexShader.includes("snoise")) {
     vertexShader = vertexShader.replace(
       "#include <common>",
-      `${SIMPLEX_NOISE_GLSL}\n#include <common>`
+      `${SIMPLEX_NOISE_GLSL}\n#include <common>`,
     );
   }
 
@@ -902,13 +902,13 @@ transformed.z += rootScale * ${scale.toFixed(
       "#include <begin_vertex>",
       `
 vec3 transformed = vec3(position);
-${swayCode}`
+${swayCode}`,
     );
   } else if (vertexShader.includes("vec3 transformed = vec3(position);")) {
     vertexShader = vertexShader.replace(
       "vec3 transformed = vec3(position);",
       `vec3 transformed = vec3(position);
-${swayCode}`
+${swayCode}`,
     );
   }
 

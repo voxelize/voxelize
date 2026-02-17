@@ -121,7 +121,7 @@ export class Network {
 
   connect = async (
     serverURL: string,
-    options: NetworkConnectionOptions = {}
+    options: NetworkConnectionOptions = {},
   ) => {
     if (!serverURL) {
       throw new Error("No server URL provided.");
@@ -194,7 +194,7 @@ export class Network {
             `  ReadyState: ${ws.readyState} (${
               ["CONNECTING", "OPEN", "CLOSING", "CLOSED"][ws.readyState]
             })\n` +
-            `  Pending packets: ${this.packetQueue.length}`
+            `  Pending packets: ${this.packetQueue.length}`,
         );
       };
       ws.onmessage = ({ data }) => {
@@ -216,7 +216,7 @@ export class Network {
         console.log(
           `[NETWORK] WebSocket closed, code: ${event.code} reason: ${
             event.reason || "(none)"
-          }`
+          }`,
         );
 
         this.connected = false;
@@ -236,7 +236,7 @@ export class Network {
   join = async (world: string) => {
     if (this.waitingForInit) {
       console.warn(
-        "[NETWORK] Already waiting for INIT, ignoring duplicate join request"
+        "[NETWORK] Already waiting for INIT, ignoring duplicate join request",
       );
       return new Promise<Network>((resolve) => {
         const checkInterval = setInterval(() => {
@@ -337,13 +337,13 @@ export class Network {
     const queueLength = this.packetQueue.length;
     const backlogFactor = Math.min(
       this.options.maxBacklogFactor,
-      Math.ceil(queueLength / 25)
+      Math.ceil(queueLength / 25),
     );
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
 
     const packets = this.packetQueue.splice(
       0,
-      Math.min(packetsToProcess, this.packetQueue.length)
+      Math.min(packetsToProcess, this.packetQueue.length),
     );
 
     const availableWorkers = Math.max(1, this.pool.availableCount);
@@ -356,8 +356,8 @@ export class Network {
 
     Promise.all(
       batches.map((batch, idx) =>
-        this.decode(batch).then((msgs) => ({ idx, msgs }))
-      )
+        this.decode(batch).then((msgs) => ({ idx, msgs })),
+      ),
     ).then((results) => {
       results.sort((a, b) => a.idx - b.idx);
       for (const { msgs } of results) {
@@ -471,7 +471,7 @@ export class Network {
       if (id) {
         if (this.clientInfo.id && this.clientInfo.id !== id) {
           throw new Error(
-            "Something went wrong with IDs! Better check if you're passing two same ID's to the same Voxelize server."
+            "Something went wrong with IDs! Better check if you're passing two same ID's to the same Voxelize server.",
           );
         }
 
@@ -507,12 +507,12 @@ export class Network {
     message.type = Message.Type[message.type as string];
     if (message.entities) {
       (message.entities as Array<Record<string, unknown>>).forEach(
-        (entity) => (entity.metadata = JSON.stringify(entity.metadata))
+        (entity) => (entity.metadata = JSON.stringify(entity.metadata)),
       );
     }
     if (message.peers) {
       (message.peers as Array<Record<string, unknown>>).forEach(
-        (peer) => (peer.metadata = JSON.stringify(peer.metadata))
+        (peer) => (peer.metadata = JSON.stringify(peer.metadata)),
       );
     }
     return protocol.Message.encode(protocol.Message.create(message)).finish();

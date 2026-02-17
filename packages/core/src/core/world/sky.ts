@@ -233,9 +233,9 @@ export class Sky extends CanvasBox {
             time >= startTime
               ? (time - startTime) / transitionTime
               : (time + timePerDay - startTime) / transitionTime,
-            1.0
+            1.0,
           ),
-          0.0
+          0.0,
         );
 
         shadingStack.push([weight, data]);
@@ -303,19 +303,19 @@ export class Sky extends CanvasBox {
     this.uTopColor.value.setRGB(
       weightedTopRGB[0],
       weightedTopRGB[1],
-      weightedTopRGB[2]
+      weightedTopRGB[2],
     );
 
     this.uMiddleColor.value.setRGB(
       weightedMiddleRGB[0],
       weightedMiddleRGB[1],
-      weightedMiddleRGB[2]
+      weightedMiddleRGB[2],
     );
 
     this.uBottomColor.value.setRGB(
       weightedBottomRGB[0],
       weightedBottomRGB[1],
-      weightedBottomRGB[2]
+      weightedBottomRGB[2],
     );
 
     this.uSkyOffset.value = weightedSkyOffset;

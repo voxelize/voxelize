@@ -141,11 +141,11 @@ export function sweep(
     axis: number,
     dir: number,
     leftover: number[],
-    voxel?: number[]
+    voxel?: number[],
   ) => boolean,
   translate = true,
   maxIterations = 100,
-  extras: AABB[] = []
+  extras: AABB[] = [],
 ) {
   if (maxIterations <= 0) return;
 
@@ -224,7 +224,7 @@ export function sweep(
       callback,
       translate,
       maxIterations - 1,
-      extras
+      extras,
     );
   }
 }

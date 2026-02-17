@@ -72,7 +72,7 @@ export class AtlasTexture extends CanvasTexture {
   constructor(
     countPerSide: number,
     dimension: number,
-    canvas = document.createElement("canvas")
+    canvas = document.createElement("canvas"),
   ) {
     super(canvas);
 
@@ -128,7 +128,7 @@ export class AtlasTexture extends CanvasTexture {
           (x / countPerSide) * canvasWidth,
           (y / countPerSide) * canvasHeight,
           canvasWidth / countPerSide,
-          canvasHeight / countPerSide
+          canvasHeight / countPerSide,
         );
       }
     }
@@ -147,7 +147,7 @@ export class AtlasTexture extends CanvasTexture {
         startV: 0,
         endV: 1,
       },
-      color
+      color,
     );
   }
 
@@ -166,7 +166,7 @@ export class AtlasTexture extends CanvasTexture {
       | Color
       | Texture,
     clearRect = true,
-    opacity = 1.0
+    opacity = 1.0,
   ) {
     const { startU, endV } = range;
 
@@ -194,7 +194,7 @@ export class AtlasTexture extends CanvasTexture {
         (startU - this.atlasOffset) * canvasWidth,
         (1 - endV - this.atlasOffset) * canvasHeight,
         this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
       );
     }
 
@@ -208,7 +208,7 @@ export class AtlasTexture extends CanvasTexture {
         (startU - this.atlasOffset) * canvasWidth,
         (1 - endV - this.atlasOffset) * canvasHeight,
         this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
       );
 
       return;
@@ -222,7 +222,7 @@ export class AtlasTexture extends CanvasTexture {
         (startU - this.atlasOffset) * canvasWidth,
         (1 - endV - this.atlasOffset) * canvasHeight,
         this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
       );
 
       // Carve out the middle.
@@ -230,7 +230,7 @@ export class AtlasTexture extends CanvasTexture {
         (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
         (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
         this.dimension * this.atlasRatio,
-        this.dimension * this.atlasRatio
+        this.dimension * this.atlasRatio,
       );
     }
 
@@ -240,7 +240,7 @@ export class AtlasTexture extends CanvasTexture {
       (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
       (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
       this.dimension * this.atlasRatio,
-      this.dimension * this.atlasRatio
+      this.dimension * this.atlasRatio,
     );
 
     context.restore();
@@ -251,7 +251,7 @@ export class AtlasTexture extends CanvasTexture {
   registerAnimation(
     range: UV,
     keyframes: [number, Color | HTMLImageElement][],
-    fadeFrames = 0
+    fadeFrames = 0,
   ) {
     const animation = new FaceAnimation(range, keyframes, fadeFrames);
 
@@ -282,14 +282,14 @@ export class AtlasTexture extends CanvasTexture {
               range,
               nextKeyframe[1],
               true,
-              fraction / fadeFrames
+              fraction / fadeFrames,
             );
 
             this.drawImageToRange(
               range,
               keyframe[1],
               false,
-              1 - fraction / fadeFrames
+              1 - fraction / fadeFrames,
             );
 
             this.needsUpdate = true;
@@ -320,7 +320,7 @@ export class AtlasTexture extends CanvasTexture {
     const newWidth = Math.pow(2, Math.round(Math.log(oldWidth) / Math.log(2)));
     const newHeight = Math.pow(
       2,
-      Math.round(Math.log(oldHeight) / Math.log(2))
+      Math.round(Math.log(oldHeight) / Math.log(2)),
     );
     const newCanvas = document.createElement("canvas");
     newCanvas.width = newWidth;
@@ -334,7 +334,7 @@ export class AtlasTexture extends CanvasTexture {
   static makeUnknownImage(
     dimension: number,
     color1 = "#FF00FF",
-    color2 = "#000000"
+    color2 = "#000000",
   ) {
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
@@ -371,7 +371,7 @@ export class AtlasTexture extends CanvasTexture {
         startV: 0,
         endV: 0,
       },
-      image
+      image,
     );
 
     newAtlas.minFilter = NearestFilter;
@@ -415,7 +415,7 @@ export class FaceAnimation {
   constructor(
     range: UV,
     keyframes: [number, HTMLImageElement | Color][],
-    fadeFrames = 0
+    fadeFrames = 0,
   ) {
     if (!range) {
       throw new Error("Texture range is required for FaceAnimation.");

@@ -1,5 +1,5 @@
 // Server configuration
-export const BACKEND_SERVER_INSTANCE = new URL(window.location.href); 
+export const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
   BACKEND_SERVER_INSTANCE.port = "4000";
 }
@@ -42,6 +42,14 @@ export const BOT_SCALE = 0.5;
 
 // Item bar configuration
 export const ITEM_BAR_KEYS = [
-  "Digit1", "Digit2", "Digit3", "Digit4", "Digit5",
-  "Digit6", "Digit7", "Digit8", "Digit9", "Digit0"
+  "Digit1",
+  "Digit2",
+  "Digit3",
+  "Digit4",
+  "Digit5",
+  "Digit6",
+  "Digit7",
+  "Digit8",
+  "Digit9",
+  "Digit0",
 ];

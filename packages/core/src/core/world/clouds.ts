@@ -340,7 +340,7 @@ export class Clouds extends Group {
       await this.makeCell(
         this.xOffset + (direction > 0 ? width : 0),
         z + this.zOffset,
-        arr[z]
+        arr[z],
       );
     }
 
@@ -387,7 +387,7 @@ export class Clouds extends Group {
       const newCell = await this.makeCell(
         x + this.xOffset,
         this.zOffset + (direction > 0 ? width : 0),
-        cell
+        cell,
       );
 
       // Safe array insertions
@@ -451,7 +451,7 @@ export class Clouds extends Group {
         },
         resolve,
         buffers: [array.data.buffer.slice(0)],
-      })
+      }),
     );
 
     array.data = data;

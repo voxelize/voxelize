@@ -26,7 +26,7 @@ function computeDistance(
   obj: Mesh,
   camX: number,
   camY: number,
-  camZ: number
+  camZ: number,
 ): number {
   const geo = obj.geometry;
   if (geo?.boundingBox) {
@@ -34,7 +34,7 @@ function computeDistance(
     _localCamPos.set(
       camX - _worldPos.x,
       camY - _worldPos.y,
-      camZ - _worldPos.z
+      camZ - _worldPos.z,
     );
     geo.boundingBox.clampPoint(_localCamPos, _closest);
     return (
@@ -50,7 +50,7 @@ function computeDistance(
       _localCamPos.set(
         camX - _worldPos.x,
         camY - _worldPos.y,
-        camZ - _worldPos.z
+        camZ - _worldPos.z,
       );
       geo.boundingBox.clampPoint(_localCamPos, _closest);
       return (
@@ -72,7 +72,7 @@ function getDistance(
   obj: Mesh,
   camX: number,
   camY: number,
-  camZ: number
+  camZ: number,
 ): number {
   const cached = _distanceCache.get(obj);
   if (cached && cached.epoch === _sortEpoch) {

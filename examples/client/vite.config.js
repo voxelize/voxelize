@@ -24,11 +24,11 @@ export default {
       // hacky way to point to styles.css
       "@voxelize/core/styles.css": path.resolve(
         __dirname,
-        "../../packages/core/src/styles.css"
+        "../../packages/core/src/styles.css",
       ),
       "@voxelize/core": path.resolve(
         __dirname,
-        "../../packages/core/src/index.ts"
+        "../../packages/core/src/index.ts",
       ),
     },
   },

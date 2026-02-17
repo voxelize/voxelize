@@ -49,13 +49,13 @@ export class PointLightShadowRenderer {
         minFilter: NearestFilter,
         magFilter: NearestFilter,
         generateMipmaps: false,
-      }
+      },
     );
 
     this.cubeCamera = new CubeCamera(
       this.config.near,
       this.config.far,
-      this.cubeRenderTarget
+      this.cubeRenderTarget,
     );
 
     this.depthMaterial = new MeshDepthMaterial({
@@ -93,7 +93,7 @@ export class PointLightShadowRenderer {
   update(
     renderer: WebGLRenderer,
     scene: Scene,
-    skipObjects: Object3D[] = []
+    skipObjects: Object3D[] = [],
   ): boolean {
     this.frameCount++;
 

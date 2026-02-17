@@ -173,7 +173,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
   click = (
     type: ClickType,
     callback: (event: MouseEvent) => boolean | void,
-    namespace: T | "*" = "*"
+    namespace: T | "*" = "*",
   ) => {
     const id = uuidv4();
     this.clickCallbacks.get(type)?.set(id, { namespace, callback });
@@ -191,7 +191,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
   scroll = (
     up: (delta?: number) => boolean | void,
     down: (delta?: number) => boolean | void,
-    namespace: T | "*" = "*"
+    namespace: T | "*" = "*",
   ) => {
     const id = uuidv4();
     this.scrollCallbacks.set(id, { up, down, namespace });
@@ -211,7 +211,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
     key: string,
     callback: (event: KeyboardEvent) => boolean | void,
     namespaces: T | T[] | "*" = "*",
-    specifics: InputSpecifics = {}
+    specifics: InputSpecifics = {},
   ) => {
     key = this.modifyKey(key);
 
@@ -226,7 +226,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const existing = this.keyBounds.get(name) || [];
     if (existing.some((item) => item.identifier === identifier)) {
       throw new Error(
-        `Error registering input, key ${key} with checkType ${checkType}: already bound.`
+        `Error registering input, key ${key} with checkType ${checkType}: already bound.`,
       );
     }
 
@@ -243,8 +243,8 @@ export class Inputs<T extends string = any> extends EventEmitter {
       occasion === "keydown"
         ? this.keyDownCallbacks
         : occasion === "keyup"
-        ? this.keyUpCallbacks
-        : this.keyPressCallbacks;
+          ? this.keyUpCallbacks
+          : this.keyPressCallbacks;
 
     callbackMap.set(name, [...(callbackMap.get(name) || []), callbackWrapper]);
 
@@ -260,7 +260,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
       const boundItems = this.keyBounds.get(name) || [];
       const index = boundItems.findIndex(
-        (item) => item.identifier === identifier
+        (item) => item.identifier === identifier,
       );
       if (index !== -1) {
         boundItems.splice(index, 1);
@@ -324,7 +324,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
       occasion?: InputOccasion;
       identifier?: string;
       checkType?: "key" | "code";
-    } = {}
+    } = {},
   ) => {
     const originalKeyA = keyA;
     const originalKeyB = keyB;
@@ -390,7 +390,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
       occasion?: InputOccasion;
       identifier?: string;
       checkType?: "key" | "code";
-    } = {}
+    } = {},
   ) => {
     const originalNewKey = newKey;
     oldKey = this.modifyKey(oldKey);
@@ -493,7 +493,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   private initializeClickListeners = () => {
     (["left", "middle", "right"] as ClickType[]).forEach((type) =>
-      this.clickCallbacks.set(type, new Map())
+      this.clickCallbacks.set(type, new Map()),
     );
 
     const listener = (event: MouseEvent) => {
@@ -517,7 +517,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
     document.addEventListener("mousedown", listener, false);
     this.unbinds.push(() =>
-      document.removeEventListener("mousedown", listener, false)
+      document.removeEventListener("mousedown", listener, false),
     );
   };
 

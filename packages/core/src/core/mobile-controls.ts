@@ -26,7 +26,7 @@ export class MobileRigidControls extends RigidControls {
     camera: PerspectiveCamera,
     domElement: HTMLElement,
     world: World,
-    options: Partial<RigidControlsOptions> = {}
+    options: Partial<RigidControlsOptions> = {},
   ) {
     super(camera, domElement, world, options);
 
@@ -77,7 +77,7 @@ export class MobileRigidControls extends RigidControls {
     this.mobileEuler.x -= deltaY * sensitivity;
     this.mobileEuler.x = Math.max(
       PI_2 - this.options.maxPolarAngle,
-      Math.min(PI_2 - this.options.minPolarAngle, this.mobileEuler.x)
+      Math.min(PI_2 - this.options.minPolarAngle, this.mobileEuler.x),
     );
 
     this.mobileQuaternion.setFromEuler(this.mobileEuler);

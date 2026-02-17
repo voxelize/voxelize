@@ -179,7 +179,7 @@ export class Creature extends Group {
       const p1 = this.positionBuffer[1];
       const t = Math.max(
         0,
-        Math.min(1, (renderTime - p0.time) / (p1.time - p0.time))
+        Math.min(1, (renderTime - p0.time) / (p1.time - p0.time)),
       );
       this.newPosition.lerpVectors(p0.pos, p1.pos, t);
       this.newDirection.slerpQuaternions(p0.dir, p1.dir, t);
@@ -200,7 +200,7 @@ export class Creature extends Group {
     const dir = VoxMathUtils.directionToQuaternion(
       direction[0],
       0,
-      direction[2]
+      direction[2],
     );
     const now = performance.now();
     this.positionBuffer.push({ time: now, pos, dir });
@@ -402,22 +402,22 @@ export class Creature extends Group {
     this.frontLeftLegGroup.rotation.x = MathUtils.lerp(
       this.frontLeftLegGroup.rotation.x,
       angle1,
-      swingLerp
+      swingLerp,
     );
     this.backRightLegGroup.rotation.x = MathUtils.lerp(
       this.backRightLegGroup.rotation.x,
       angle1,
-      swingLerp
+      swingLerp,
     );
     this.frontRightLegGroup.rotation.x = MathUtils.lerp(
       this.frontRightLegGroup.rotation.x,
       angle2,
-      swingLerp
+      swingLerp,
     );
     this.backLeftLegGroup.rotation.x = MathUtils.lerp(
       this.backLeftLegGroup.rotation.x,
       angle2,
-      swingLerp
+      swingLerp,
     );
   };
 }

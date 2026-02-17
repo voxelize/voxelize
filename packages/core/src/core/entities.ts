@@ -59,7 +59,7 @@ export class Entities extends Group implements NetIntercept {
 
   setClass = (
     type: string,
-    entity: (new (id: string) => Entity) | ((id: string) => Entity)
+    entity: (new (id: string) => Entity) | ((id: string) => Entity),
   ) => {
     this.types.set(type.toLowerCase(), entity);
   };

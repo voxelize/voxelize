@@ -244,7 +244,7 @@ export class SpriteText extends Sprite {
       : [this.borderWidth, this.borderWidth]; // x,y border
     const relBorder = border.map((b) => b * this.fontSize * 0.1) as [
       number,
-      number
+      number,
     ]; // border in canvas units
 
     const borderRadius = Array.isArray(this.borderRadius)
@@ -262,7 +262,7 @@ export class SpriteText extends Sprite {
       : [this.padding, this.padding]; // x,y padding
     const relPadding = padding.map((p) => p * this.fontSize * 0.1) as [
       number,
-      number
+      number,
     ]; // padding in canvas units
 
     const lines = this.text.split("\n");
@@ -275,11 +275,11 @@ export class SpriteText extends Sprite {
 
         let sumLength = 0;
         splitted.forEach(
-          ({ text }) => (sumLength += ctx.measureText(text).width)
+          ({ text }) => (sumLength += ctx.measureText(text).width),
         );
 
         return sumLength;
-      })
+      }),
     );
     const innerHeight = this.fontSize * lines.length;
     canvas.width = innerWidth + relBorder[0] * 2 + relPadding[0] * 2;
@@ -309,15 +309,15 @@ export class SpriteText extends Sprite {
         ctx.moveTo(Math.max(relBorder[0], relBorderRadius[0]), hb);
         ctx.lineTo(
           canvas.width - Math.max(relBorder[0], relBorderRadius[1]),
-          hb
+          hb,
         );
         ctx.moveTo(
           Math.max(relBorder[0], relBorderRadius[3]),
-          canvas.height - hb
+          canvas.height - hb,
         );
         ctx.lineTo(
           canvas.width - Math.max(relBorder[0], relBorderRadius[2]),
-          canvas.height - hb
+          canvas.height - hb,
         );
         ctx.stroke();
       }
@@ -371,7 +371,7 @@ export class SpriteText extends Sprite {
           relBorder[0],
           relBorder[1],
           canvas.width - relBorder[0] * 2,
-          canvas.height - relBorder[1] * 2
+          canvas.height - relBorder[1] * 2,
         );
       } else {
         // fill with rounded corners
@@ -442,7 +442,7 @@ export class SpriteText extends Sprite {
 
       let sumLength = 0;
       splitted.forEach(
-        ({ text }) => (sumLength += ctx.measureText(text).width)
+        ({ text }) => (sumLength += ctx.measureText(text).width),
       );
 
       let lineX = (innerWidth - sumLength) / 2;

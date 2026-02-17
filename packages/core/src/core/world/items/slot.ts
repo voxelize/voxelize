@@ -21,7 +21,7 @@ export const blockSlot = (id: number, count: number): SlotContent => ({
 export const itemSlot = (
   id: number,
   count: number,
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
 ): SlotContent => ({
   type: "item",
   id,
@@ -32,7 +32,7 @@ export const itemSlot = (
 export const itemSlotWithDurability = (
   id: number,
   count: number,
-  durability: number
+  durability: number,
 ): SlotContent => ({
   type: "item",
   id,
@@ -49,7 +49,7 @@ export function getSlotData<T>(slot: SlotContent, key: string): T | undefined {
 export function setSlotData<T>(
   slot: SlotContent,
   key: string,
-  value: T
+  value: T,
 ): SlotContent {
   if (slot.type !== "item") return slot;
   return {

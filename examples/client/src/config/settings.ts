@@ -1,11 +1,12 @@
 import * as THREE from "three";
-import { 
-  MAX_BUILD_RADIUS, 
-  MIN_BUILD_RADIUS, 
+
+import {
+  MAX_BUILD_RADIUS,
+  MIN_BUILD_RADIUS,
   CIRCULAR_BUILD,
   HOTBAR_CONTENT,
   BOT_SCALE,
-  DEFAULT_PIXEL_RATIO
+  DEFAULT_PIXEL_RATIO,
 } from "./constants";
 
 export const defaultWorldSettings = {
@@ -19,7 +20,7 @@ export const defaultCameraSettings = {
   fov: 90,
   near: 0.1,
   far: 5000,
-  aspect: window.innerWidth / window.innerHeight
+  aspect: window.innerWidth / window.innerHeight,
 };
 
 export const defaultControlSettings = {
@@ -32,7 +33,7 @@ export const defaultFogSettings = {
   waterNearMultiplier: 0.1,
   waterFarMultiplier: 0.8,
   normalNearMultiplier: 0.7,
-  normalFarMultiplier: 1
+  normalFarMultiplier: 1,
 };
 
 export const defaultItemBarSettings = {
@@ -42,20 +43,20 @@ export const defaultItemBarSettings = {
     left: "50%",
     transform: "translateX(-50%)",
   },
-  scrollable: false
+  scrollable: false,
 };
 
 export const defaultBuildSettings = {
   radius: 1,
   maxRadius: MAX_BUILD_RADIUS,
   minRadius: MIN_BUILD_RADIUS,
-  circular: CIRCULAR_BUILD
+  circular: CIRCULAR_BUILD,
 };
 
 export const defaultGuiSettings = {
   domElementStyle: {
     top: "10px",
-  }
+  },
 };
 
 export const defaultDebugSettings = {
@@ -63,13 +64,13 @@ export const defaultDebugSettings = {
     top: "unset",
     bottom: "10px",
     left: "10px",
-  }
+  },
 };
 
 export const defaultRendererSettings = {
   pixelRatio: DEFAULT_PIXEL_RATIO,
   outputColorSpace: THREE.SRGBColorSpace,
-  transparent: true
+  transparent: true,
 };
 
 export const defaultBotSettings = {
@@ -84,5 +85,5 @@ export const defaultBlockObjectSettings = {
   rotation: new THREE.Vector3(0, 1, 0),
   rotationAngle: -Math.PI / 4,
   position: new THREE.Vector3(0, -0.15, -0.15),
-  material: "basic"
+  material: "basic",
 };

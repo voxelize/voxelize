@@ -43,20 +43,20 @@ export class ColorText {
    */
   public static split(
     text: string,
-    defaultColor = "black"
+    defaultColor = "black",
   ): { color: string; text: string }[] {
     const splitted = text
       .split(
         new RegExp(
-          `(\\${ColorText.SPLITTER}[^\\${ColorText.SPLITTER}]*\\${ColorText.SPLITTER})`
-        )
+          `(\\${ColorText.SPLITTER}[^\\${ColorText.SPLITTER}]*\\${ColorText.SPLITTER})`,
+        ),
       )
       .filter(Boolean);
 
     if (splitted.length) {
       if (!splitted[0].includes(ColorText.SPLITTER)) {
         splitted.unshift(
-          `${ColorText.SPLITTER}${defaultColor}${ColorText.SPLITTER}`
+          `${ColorText.SPLITTER}${defaultColor}${ColorText.SPLITTER}`,
         );
       }
 

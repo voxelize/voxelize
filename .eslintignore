@@ -1,3 +1,4 @@
 node_modules
 dist
 build
+crates/wasm-mesher/pkg

@@ -70,7 +70,7 @@ class Loader {
 
   loadGifImages = (
     source: string,
-    onLoaded?: (images: HTMLImageElement[]) => void
+    onLoaded?: (images: HTMLImageElement[]) => void,
   ) => {
     const promise = new Promise<HTMLImageElement[]>((resolve) => {
       const run = async () => {
@@ -134,7 +134,7 @@ class Loader {
 
   loadImage = (
     source: string,
-    onLoaded?: (image: HTMLImageElement) => void
+    onLoaded?: (image: HTMLImageElement) => void,
   ): Promise<HTMLImageElement> => {
     const cached = this.images.get(source);
     if (cached && !Array.isArray(cached)) {
@@ -182,7 +182,7 @@ class Loader {
 
     if (Array.isArray(texture)) {
       throw new Error(
-        "`getTexture` was called on a gif texture. Use `getGifTexture` instead."
+        "`getTexture` was called on a gif texture. Use `getGifTexture` instead.",
       );
     }
 
@@ -200,7 +200,7 @@ class Loader {
 
     if (!Array.isArray(texture)) {
       throw new Error(
-        "`getGifTexture` was called on a non-gif texture. Use `getTexture` instead."
+        "`getGifTexture` was called on a non-gif texture. Use `getTexture` instead.",
       );
     }
 
@@ -215,7 +215,7 @@ class Loader {
    */
   loadAudioBuffer = (
     source: string,
-    onLoaded?: (buffer: AudioBuffer) => void
+    onLoaded?: (buffer: AudioBuffer) => void,
   ) => {
     return new Promise<AudioBuffer>((resolveOuter) => {
       const callback = async () => {

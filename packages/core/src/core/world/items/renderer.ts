@@ -13,11 +13,14 @@ import { ItemDef } from "./item";
 
 export type ItemRendererFactory = (
   itemDef: ItemDef,
-  world: World
+  world: World,
 ) => ItemRenderer;
 
 export abstract class ItemRenderer {
-  constructor(protected itemDef: ItemDef, protected world: World) {}
+  constructor(
+    protected itemDef: ItemDef,
+    protected world: World,
+  ) {}
 
   get id(): number {
     return this.itemDef.id;
@@ -142,7 +145,7 @@ function generateMeshDataFromImage(image: HTMLImageElement): ImageItemMeshData {
           vertexIndex + face[2],
           vertexIndex + face[0],
           vertexIndex + face[2],
-          vertexIndex + face[3]
+          vertexIndex + face[3],
         );
       }
 

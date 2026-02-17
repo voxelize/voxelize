@@ -29,7 +29,7 @@ interface VoxelAccess {
     vx: number,
     vy: number,
     vz: number,
-    color: LightColor
+    color: LightColor,
   ): number;
   setSunlightAt(vx: number, vy: number, vz: number, level: number): void;
   setTorchLightAt(
@@ -37,7 +37,7 @@ interface VoxelAccess {
     vy: number,
     vz: number,
     level: number,
-    color: LightColor
+    color: LightColor,
   ): void;
   markChunkModified(cx: number, cz: number): void;
 }
@@ -52,7 +52,7 @@ class BoundedSpace implements VoxelAccess {
     private gridDepth: number,
     private gridOffsetX: number,
     private gridOffsetZ: number,
-    private chunkSize: number
+    private chunkSize: number,
   ) {}
 
   private hashChunkCoords(cx: number, cz: number): number {
@@ -113,7 +113,7 @@ class BoundedSpace implements VoxelAccess {
     vx: number,
     vy: number,
     vz: number,
-    color: LightColor
+    color: LightColor,
   ): number {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
     const chunk = this.getCachedChunk(cx, cz);
@@ -134,7 +134,7 @@ class BoundedSpace implements VoxelAccess {
     vy: number,
     vz: number,
     level: number,
-    color: LightColor
+    color: LightColor,
   ): void {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
     const chunk = this.getCachedChunk(cx, cz);
@@ -162,7 +162,7 @@ function floodLight(
   color: LightColor,
   min: Coords3 | undefined,
   max: Coords3 | undefined,
-  options: WorldOptions
+  options: WorldOptions,
 ) {
   const { maxHeight, minChunk, maxChunk, maxLightLevel, chunkSize } = options;
 
@@ -183,7 +183,9 @@ function floodLight(
     let block = blockCache.get(key);
     if (!block) {
       const id = space.getVoxelAt(vx, vy, vz);
-      block = registry.blocksById.get(id)!;
+      const b = registry.blocksById.get(id);
+      if (!b) throw new Error(`Unknown block id: ${id}`);
+      block = b;
       blockCache.set(key, block);
     }
     return block;
@@ -192,7 +194,7 @@ function floodLight(
   const getCachedRotation = (
     vx: number,
     vy: number,
-    vz: number
+    vz: number,
   ): BlockRotation => {
     const key = hashCoords(vx, vy, vz);
     let rotation = rotationCache.get(key);
@@ -246,7 +248,7 @@ function floodLight(
       const nRotation = getCachedRotation(nvx, nvy, nvz);
       const nTransparency = BlockUtils.getBlockRotatedTransparency(
         nBlock,
-        nRotation
+        nRotation,
       );
       const reduce =
         isSunlight &&
@@ -282,101 +284,11 @@ function floodLight(
   }
 }
 
-function removeLight(
-  space: VoxelAccess,
-  voxel: Coords3,
-  color: LightColor,
-  options: WorldOptions
-): LightNode[] {
-  const { maxHeight, maxLightLevel } = options;
-
-  const fill: LightNode[] = [];
-  const queue: LightNode[] = [];
-
-  const isSunlight = color === "SUNLIGHT";
-  const [vx, vy, vz] = voxel;
-
-  queue.push({
-    voxel,
-    level: isSunlight
-      ? space.getSunlightAt(vx, vy, vz)
-      : space.getTorchLightAt(vx, vy, vz, color),
-  });
-
-  if (isSunlight) {
-    space.setSunlightAt(vx, vy, vz, 0);
-  } else {
-    space.setTorchLightAt(vx, vy, vz, 0, color);
-  }
-
-  for (let i = 0; i < queue.length; i++) {
-    const { voxel, level } = queue[i];
-    const [vx, vy, vz] = voxel;
-
-    for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
-      const nvy = vy + oy;
-
-      if (nvy < 0 || nvy >= maxHeight) {
-        continue;
-      }
-
-      const nvx = vx + ox;
-      const nvz = vz + oz;
-
-      const nBlockId = space.getVoxelAt(nvx, nvy, nvz);
-      const nBlock = registry.blocksById.get(nBlockId)!;
-      const rotation = space.getVoxelRotationAt(nvx, nvy, nvz);
-      const nTransparency = BlockUtils.getBlockRotatedTransparency(
-        nBlock,
-        rotation
-      );
-
-      if (
-        (isSunlight
-          ? true
-          : BlockUtils.getBlockTorchLightLevel(nBlock, color) === 0) &&
-        !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
-      ) {
-        continue;
-      }
-
-      const nVoxel: Coords3 = [nvx, nvy, nvz];
-      const nl = isSunlight
-        ? space.getSunlightAt(nvx, nvy, nvz)
-        : space.getTorchLightAt(nvx, nvy, nvz, color);
-
-      if (nl === 0) {
-        continue;
-      }
-
-      if (
-        nl < level ||
-        (isSunlight &&
-          oy === -1 &&
-          level === maxLightLevel &&
-          nl === maxLightLevel)
-      ) {
-        queue.push({ voxel: nVoxel, level: nl });
-
-        if (isSunlight) {
-          space.setSunlightAt(nvx, nvy, nvz, 0);
-        } else {
-          space.setTorchLightAt(nvx, nvy, nvz, 0, color);
-        }
-      } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
-        fill.push({ voxel: nVoxel, level: nl });
-      }
-    }
-  }
-
-  return fill;
-}
-
 function removeLightsBatch(
   space: VoxelAccess,
   voxels: Coords3[],
   color: LightColor,
-  options: WorldOptions
+  options: WorldOptions,
 ): LightNode[] {
   if (!voxels.length) return [];
 
@@ -413,11 +325,12 @@ function removeLightsBatch(
       const nvz = vz + oz;
 
       const nBlockId = space.getVoxelAt(nvx, nvy, nvz);
-      const nBlock = registry.blocksById.get(nBlockId)!;
+      const nBlock = registry.blocksById.get(nBlockId);
+      if (!nBlock) continue;
       const rotation = space.getVoxelRotationAt(nvx, nvy, nvz);
       const nTransparency = BlockUtils.getBlockRotatedTransparency(
         nBlock,
-        rotation
+        rotation,
       );
 
       if (
@@ -525,7 +438,7 @@ onmessage = function (e) {
       gridDepth,
       gridOffsetX,
       gridOffsetZ,
-      options.chunkSize
+      options.chunkSize,
     );
 
     const { min, shape } = boundingBox;
@@ -540,7 +453,7 @@ onmessage = function (e) {
         space,
         lightOps.removals,
         color,
-        options
+        options,
       );
       if (fillQueue.length > 0) {
         floodLight(space, fillQueue, color, min, maxCoords, options);
@@ -573,7 +486,7 @@ onmessage = function (e) {
       },
       {
         transfer: modifiedChunks.map((c) => c.lights.data.buffer),
-      }
+      },
     );
   }
 };

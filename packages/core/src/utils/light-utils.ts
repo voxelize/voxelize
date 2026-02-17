@@ -116,11 +116,11 @@ export class LightUtils {
     target: boolean[],
     dx: number,
     dy: number,
-    dz: number
+    dz: number,
   ) => {
     if (Math.abs(dx + dy + dz) !== 1) {
       throw new Error(
-        "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
+        "This isn't supposed to happen. Light neighboring direction should be on 1 axis only.",
       );
     }
 
@@ -170,11 +170,11 @@ export class LightUtils {
     target: boolean[],
     dx: number,
     dy: number,
-    dz: number
+    dz: number,
   ) => {
     if (Math.abs(dx + dy + dz) !== 1) {
       throw new Error(
-        "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
+        "This isn't supposed to happen. Light neighboring direction should be on 1 axis only.",
       );
     }
 

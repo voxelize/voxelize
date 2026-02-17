@@ -38,7 +38,7 @@ const camera = new THREE.PerspectiveCamera(
   90,
   window.innerWidth / window.innerHeight,
   0.1,
-  5000
+  5000,
 );
 
 const renderer = new THREE.WebGLRenderer({
@@ -46,7 +46,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.setSize(
   renderer.domElement.offsetWidth,
-  renderer.domElement.offsetHeight
+  renderer.domElement.offsetHeight,
 );
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -140,7 +140,7 @@ const controls = new VOXELIZE.RigidControls(
     initialPosition: [0, 82, 0],
     flyForce: 400,
     // stepHeight: 1,
-  }
+  },
 );
 
 controls.connect(inputs, "in-game");
@@ -150,7 +150,7 @@ inputs.bind(
   () => {
     controls.toggleGhostMode();
   },
-  "in-game"
+  "in-game",
 );
 inputs.bind("KeyF", controls.toggleFly, "in-game");
 
@@ -172,7 +172,7 @@ const circular = true;
 inputs.scroll(
   () => (radius = Math.min(maxRadius, radius + 1)),
   () => (radius = Math.max(minRadius, radius - 1)),
-  "in-game"
+  "in-game",
 );
 
 const bulkDestroy = () => {
@@ -226,7 +226,7 @@ inputs.click(
     slot.setObject(world.makeBlockMesh(block.id, { material: "standard" }));
     slot.setContent(block.id);
   },
-  "in-game"
+  "in-game",
 );
 
 const bulkPlace = () => {
@@ -258,8 +258,8 @@ const bulkPlace = () => {
             block.yRotatableSegments === "All"
               ? yRotation
               : block.yRotatableSegments === "Eight"
-              ? yRotation8
-              : yRotation4,
+                ? yRotation8
+                : yRotation4,
         });
       }
     }
@@ -286,7 +286,7 @@ inputs.click(
       const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
       if (
         aabbs.find((aabb) =>
-          aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
+          aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb),
         )
       )
         return;
@@ -302,7 +302,7 @@ inputs.click(
 
     bulkPlace();
   },
-  "in-game"
+  "in-game",
 );
 
 // Add a character to the control
@@ -336,7 +336,7 @@ inputs.bind(
       inputs.setNamespace("chat");
     });
   },
-  "in-game"
+  "in-game",
 );
 
 inputs.bind(
@@ -348,7 +348,7 @@ inputs.bind(
   {
     // Need this so that ESC doesn't unlock the pointerlock.
     occasion: "keyup",
-  }
+  },
 );
 
 inputs.bind(
@@ -356,7 +356,7 @@ inputs.bind(
   () => {
     controls.lock();
   },
-  "chat"
+  "chat",
 );
 
 inputs.bind("KeyP", () => {
@@ -377,7 +377,7 @@ inputs.bind(
       position: controls.object.position.toArray(),
     });
   },
-  "in-game"
+  "in-game",
 );
 
 inputs.bind("KeyN", () => {
@@ -410,7 +410,7 @@ const RANDOM_TELEPORT_WIDTH = 1000000;
 inputs.bind("]", () => {
   controls.teleportToTop(
     Math.random() * RANDOM_TELEPORT_WIDTH,
-    Math.random() * RANDOM_TELEPORT_WIDTH
+    Math.random() * RANDOM_TELEPORT_WIDTH,
   );
 });
 
@@ -460,7 +460,7 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
   onPeerUpdate = (
     object: VOXELIZE.Character,
     data: PeersMeta,
-    info: { id: string; username: string }
+    info: { id: string; username: string },
   ) => {
     object.set(data.position, data.direction);
     object.username = info.username;
@@ -478,7 +478,7 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
         const size = 0.3;
         characterBlock.quaternion.setFromAxisAngle(
           new THREE.Vector3(0, 1, 0),
-          -Math.PI / 4
+          -Math.PI / 4,
         );
         characterBlock.scale.set(size, size, size);
         characterBlock.position.set(0, -size * 0.5, -size * 0.5);
@@ -554,7 +554,7 @@ debug.registerDisplay("Voxel Stage", () => {
 
 debug.registerDisplay("Time", () => {
   return `${Math.floor(
-    (world.time / world.options.timePerDay) * 100
+    (world.time / world.options.timePerDay) * 100,
   )}% (${world.time.toFixed(2)})`;
 });
 
@@ -658,8 +658,8 @@ class Box extends VOXELIZE.Entity<{
     this.add(
       new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 0.5, 0.5),
-        new THREE.MeshBasicMaterial()
-      )
+        new THREE.MeshBasicMaterial(),
+      ),
     );
 
     shadows.add(this);
@@ -874,7 +874,7 @@ world.addBlockEntityUpdateListener((data) => {
       "mushroom",
       "top-py-",
       new THREE.Color(...color),
-      data.voxel
+      data.voxel,
     );
   }
   // console.log(
@@ -918,7 +918,7 @@ bar.onFocusChange((_, current) => {
     const size = 0.3;
     characterBlock.quaternion.setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
-      -Math.PI / 4
+      -Math.PI / 4,
     );
     characterBlock.scale.set(size, size, size);
     characterBlock.position.set(0, -size * 0.5, -size * 0.5);
@@ -956,20 +956,20 @@ const update = () => {
   world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
     world.chunks.uniforms.fogNear.value,
     fogNear,
-    0.08
+    0.08,
   );
 
   world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
     world.chunks.uniforms.fogFar.value,
     fogFar,
-    0.08
+    0.08,
   );
 
   world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
   world.update(
     controls.object.position,
-    camera.getWorldDirection(new THREE.Vector3())
+    camera.getWorldDirection(new THREE.Vector3()),
   );
 
   entities.update();
@@ -978,7 +978,6 @@ const update = () => {
   debug.update();
 };
 
-let _frame: number;
 let isFocused = true;
 
 const composer = new EffectComposer(renderer);
@@ -989,7 +988,7 @@ overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
 composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
 const animate = () => {
-  _frame = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
   if (isFocused) update();
   composer.render();
   renderer.clearDepth();
@@ -1077,7 +1076,7 @@ const start = async () => {
         const index = parseInt(key.replace("Digit", ""));
         bar.setFocused(0, index - 1);
       },
-      "in-game"
+      "in-game",
     );
   });
   bar.connect(inputs);
@@ -1102,7 +1101,7 @@ const start = async () => {
 
       world.updateVoxels(updates);
     },
-    "in-game"
+    "in-game",
   );
 
   // world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {

@@ -92,13 +92,13 @@ export class Arrow extends ArrowHelper {
     this.add(
       new Mesh(
         new CylinderGeometry(radius, radius, height),
-        new MeshBasicMaterial({ color })
-      )
+        new MeshBasicMaterial({ color }),
+      ),
     );
 
     const cone = new Mesh(
       new CylinderGeometry(0, coneRadius, coneHeight),
-      new MeshBasicMaterial({ color })
+      new MeshBasicMaterial({ color }),
     );
     cone.position.y = (coneHeight + height) / 2;
 

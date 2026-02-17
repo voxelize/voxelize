@@ -155,7 +155,7 @@ export class Portrait {
     this.camera.position.set(
       negative * xFactor * zoom * 3.5,
       negative * yFactor * zoom * 3.5,
-      negative * zFactor * zoom * 3.5
+      negative * zFactor * zoom * 3.5,
     );
     this.camera.lookAt(0, 0, 0);
 
@@ -228,7 +228,7 @@ export class Portrait {
       0,
       0,
       width,
-      height
+      height,
     );
 
     if (renderOnce) {

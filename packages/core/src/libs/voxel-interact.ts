@@ -240,7 +240,7 @@ export class VoxelInteract extends Group {
   constructor(
     public object: Object3D,
     public world: World,
-    options: Partial<VoxelInteractOptions> = {}
+    options: Partial<VoxelInteractOptions> = {},
   ) {
     super();
 
@@ -295,11 +295,11 @@ export class VoxelInteract extends Group {
 
     this.targetGroup.scale.lerp(
       this.newTargetScale,
-      this.options.highlightLerp
+      this.options.highlightLerp,
     );
     this.targetGroup.position.lerp(
       this.newTargetPosition,
-      this.options.highlightLerp
+      this.options.highlightLerp,
     );
 
     const objPos = new Vector3();
@@ -318,7 +318,7 @@ export class VoxelInteract extends Group {
       reachDistance,
       {
         ignoreFluids: this.options.ignoreFluids,
-      }
+      },
     );
 
     // No target.
@@ -365,17 +365,17 @@ export class VoxelInteract extends Group {
               voxel[0],
               voxel[1],
               voxel[2],
-              dynamicPatterns
+              dynamicPatterns,
             )
           : isDynamic
-          ? dynamicFn(voxel as Coords3).aabbs.map((aabb: AABB) => ({
-              aabb,
-              worldSpace: false,
-            }))
-          : lookingAt.aabbs.map((aabb: AABB) => ({
-              aabb,
-              worldSpace: false,
-            }));
+            ? dynamicFn(voxel as Coords3).aabbs.map((aabb: AABB) => ({
+                aabb,
+                worldSpace: false,
+              }))
+            : lookingAt.aabbs.map((aabb: AABB) => ({
+                aabb,
+                worldSpace: false,
+              }));
 
         if (!aabbsWithFlags.length) return;
 
@@ -416,14 +416,14 @@ export class VoxelInteract extends Group {
           ? PX_ROTATION
           : NX_ROTATION
         : ny !== 0
-        ? ny > 0
-          ? PY_ROTATION
-          : NY_ROTATION
-        : nz !== 0
-        ? nz > 0
-          ? PZ_ROTATION
-          : NZ_ROTATION
-        : 0;
+          ? ny > 0
+            ? PY_ROTATION
+            : NY_ROTATION
+          : nz !== 0
+            ? nz > 0
+              ? PZ_ROTATION
+              : NZ_ROTATION
+            : 0;
 
     const calculateYRotation = (segmentCount: 4 | 8 | 16) => {
       if (Math.abs(ny) !== 0) {
@@ -448,8 +448,8 @@ export class VoxelInteract extends Group {
           segmentCount === 4
             ? Y_ROT_MAP_FOUR
             : segmentCount === 8
-            ? Y_ROT_MAP_EIGHT
-            : Y_ROT_MAP;
+              ? Y_ROT_MAP_EIGHT
+              : Y_ROT_MAP;
 
         rotMap.forEach(([a, yRot]) => {
           if (Math.abs(normalized - a) < min) {
@@ -487,8 +487,8 @@ export class VoxelInteract extends Group {
         segmentCount === 4
           ? Y_ROT_MAP_FOUR
           : segmentCount === 8
-          ? Y_ROT_MAP_EIGHT
-          : Y_ROT_MAP;
+            ? Y_ROT_MAP_EIGHT
+            : Y_ROT_MAP;
 
       rotMap.forEach(([a, yRot]) => {
         if (Math.abs(normalized - a) < min) {
@@ -512,10 +512,10 @@ export class VoxelInteract extends Group {
       ny === 1
         ? "bottom"
         : ny === -1
-        ? "top"
-        : ((point[1] % 1) + 1) % 1 >= 0.5
-        ? "top"
-        : "bottom";
+          ? "top"
+          : ((point[1] % 1) + 1) % 1 >= 0.5
+            ? "top"
+            : "bottom";
 
     const calculateFacingPlayerRotation = (): {
       rotation: number;
@@ -559,8 +559,8 @@ export class VoxelInteract extends Group {
           segmentCount === 4
             ? Y_ROT_MAP_FOUR
             : segmentCount === 8
-            ? Y_ROT_MAP_EIGHT
-            : Y_ROT_MAP;
+              ? Y_ROT_MAP_EIGHT
+              : Y_ROT_MAP;
 
         let min = Infinity;
         let closest = 0;
@@ -604,7 +604,7 @@ export class VoxelInteract extends Group {
       this.potentialGroup.position.set(
         this.potential.voxel[0] + 0.5,
         this.potential.voxel[1] + 0.5,
-        this.potential.voxel[2] + 0.5
+        this.potential.voxel[2] + 0.5,
       );
       this.potentialArrow.setDirection(new Vector3(nx, ny, nz));
     }
@@ -618,7 +618,7 @@ export class VoxelInteract extends Group {
       return this.world.getBlockAt(
         this.target[0],
         this.target[1],
-        this.target[2]
+        this.target[2],
       );
     }
 
@@ -686,7 +686,7 @@ export class VoxelInteract extends Group {
     } else if (highlightType === "box") {
       const box = new Mesh(
         new BoxGeometry(highlightScale, highlightScale, highlightScale),
-        mat
+        mat,
       );
 
       box.position.x += 0.5;

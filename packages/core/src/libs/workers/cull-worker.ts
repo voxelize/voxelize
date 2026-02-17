@@ -66,7 +66,7 @@ function get(
   x: number,
   y: number,
   z: number,
-  stride: number[]
+  stride: number[],
 ) {
   const index = x * stride[0] + y * stride[1] + z * stride[2];
   return index > arr.length || index < 0 ? 0 : arr[index];
@@ -144,6 +144,6 @@ onmessage = function (e) {
       indices: indicesArray,
     },
     // @ts-ignore
-    [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer]
+    [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer],
   );
 };
