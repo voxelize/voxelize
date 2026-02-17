@@ -1,0 +1,28 @@
+{
+  "name": "@voxelize/ts-core",
+  "version": "1.0.0",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    "require": "./dist/index.js",
+    "import": "./dist/index.mjs",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "watch": "cross-env NODE_ENV=development npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
+    "clean": "rm -rf ./dist ./tsconfig.tsbuildinfo",
+    "compile": "cross-env VITE_CJS_IGNORE_WARNING=true vite build",
+    "build": "pnpm run clean && pnpm run compile && pnpm run types",
+    "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
+    "test": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --run",
+    "example:end-to-end:no-build": "node ./examples/end-to-end.mjs",
+    "example:end-to-end": "pnpm run build && node ./examples/end-to-end.mjs",
+    "prepublishOnly": "pnpm run build",
+    "preinstall": "npx only-allow pnpm"
+  }
+}

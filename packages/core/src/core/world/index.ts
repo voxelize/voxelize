@@ -123,6 +123,7 @@ import {
   BlockUpdate,
   BlockUpdateWithSource,
   PY_ROTATION,
+  Y_ROT_SEGMENTS,
 } from "./block";
 import { Chunk } from "./chunk";
 import { ChunkRenderer } from "./chunk-renderer";
@@ -1682,10 +1683,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const oldRotation = chunk.getVoxelRotation(px, py, pz);
     chunk.setVoxelRotation(px, py, pz, rotation);
 
-    if (
-      oldRotation.value !== rotation.value ||
-      oldRotation.yRotation !== rotation.yRotation
-    ) {
+    if (!oldRotation.equals(rotation)) {
       this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
     }
 
@@ -2308,11 +2306,15 @@ export class World<T = any> extends Scene implements NetIntercept {
             wx,
             wy,
             wz,
-            dynamicPatterns
+            dynamicPatterns,
+            {
+              rotation,
+              yRotatable: block.yRotatable,
+            }
           );
           return aabbsWithFlags.map(({ aabb, worldSpace }) =>
             worldSpace
-              ? aabb.translate([vx, vy, vz])
+              ? aabb.clone().translate([vx, vy, vz])
               : rotation.rotateAABB(aabb).translate([vx, vy, vz])
           );
         }
@@ -2338,11 +2340,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       return [];
     }
     if (block.dynamicPatterns && block.dynamicPatterns.length > 0) {
+      const rotation = this.getVoxelRotationAt(vx, vy, vz);
       return this.getBlockAABBsForDynamicPatterns(
         vx,
         vy,
         vz,
-        block.dynamicPatterns
+        block.dynamicPatterns,
+        {
+          rotation,
+          yRotatable: block.yRotatable,
+        }
       ).map(({ aabb }) => aabb);
     }
 
@@ -2358,12 +2365,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     vx: number,
     vy: number,
     vz: number,
-    dynamicPatterns: BlockDynamicPattern[]
+    dynamicPatterns: BlockDynamicPattern[],
+    options: {
+      rotation?: BlockRotation;
+      yRotatable?: boolean;
+    } = {}
   ): { aabb: AABB; worldSpace: boolean }[] => {
     for (const dynamicPattern of dynamicPatterns) {
       const aabbsWithFlags: { aabb: AABB; worldSpace: boolean }[] = [];
 
       for (const part of dynamicPattern.parts) {
+        const worldSpace =
+          (part as { worldSpace?: boolean }).worldSpace ?? false;
         const patternsMatched = BlockUtils.evaluateBlockRule(
           part.rule,
           [vx, vy, vz],
@@ -2374,24 +2387,24 @@ export class World<T = any> extends Scene implements NetIntercept {
               this.getVoxelRotationAt(vx, vy, vz),
             getVoxelStageAt: (vx: number, vy: number, vz: number) =>
               this.getVoxelStageAt(vx, vy, vz),
+          },
+          {
+            rotation: options.rotation,
+            yRotatable: options.yRotatable,
+            worldSpace,
           }
         );
 
         if (patternsMatched) {
-          const worldSpace =
-            (part as { worldSpace?: boolean }).worldSpace ?? false;
           for (const aabb of part.aabbs) {
-            const resolvedAabb =
-              aabb instanceof AABB
-                ? aabb
-                : new AABB(
-                    (aabb as AABB).minX,
-                    (aabb as AABB).minY,
-                    (aabb as AABB).minZ,
-                    (aabb as AABB).maxX,
-                    (aabb as AABB).maxY,
-                    (aabb as AABB).maxZ
-                  );
+            const resolvedAabb = new AABB(
+              aabb.minX,
+              aabb.minY,
+              aabb.minZ,
+              aabb.maxX,
+              aabb.maxY,
+              aabb.maxZ
+            );
             aabbsWithFlags.push({ aabb: resolvedAabb, worldSpace });
           }
         }
@@ -2410,10 +2423,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     vy: number,
     vz: number,
     dynamicPatterns: BlockDynamicPattern[],
-    defaultPassable: boolean
+    defaultPassable: boolean,
+    options: {
+      rotation?: BlockRotation;
+      yRotatable?: boolean;
+    } = {}
   ): boolean => {
     for (const dynamicPattern of dynamicPatterns) {
       for (const part of dynamicPattern.parts) {
+        const worldSpace =
+          (part as { worldSpace?: boolean }).worldSpace ?? false;
         const patternsMatched = BlockUtils.evaluateBlockRule(
           part.rule,
           [vx, vy, vz],
@@ -2424,6 +2443,11 @@ export class World<T = any> extends Scene implements NetIntercept {
               this.getVoxelRotationAt(vx, vy, vz),
             getVoxelStageAt: (vx: number, vy: number, vz: number) =>
               this.getVoxelStageAt(vx, vy, vz),
+          },
+          {
+            rotation: options.rotation,
+            yRotatable: options.yRotatable,
+            worldSpace,
           }
         );
 
@@ -2488,6 +2512,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
    * block is not {@link Block | Block.yRotatable}).
    *
+   * Numeric options are normalized before enqueueing:
+   * - `rotation` is rounded and clamped to `0..5`
+   * - `yRotation` is rounded and normalized to `0..15`
+   * - `stage` is rounded and clamped to `0..15`
+   *
    * @param vx The voxel's X position.
    * @param vy The voxel's Y position.
    * @param vz The voxel's Z position.
@@ -2533,6 +2562,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
    * block is not {@link Block | Block.yRotatable}).
    *
+   * Numeric fields are normalized before enqueueing:
+   * - `rotation` is rounded and clamped to `0..5`
+   * - `yRotation` is rounded and normalized to `0..15`
+   * - `stage` is rounded and clamped to `0..15`
+   *
    * @param updates A list of updates to send to the server.
    */
   updateVoxels = (
@@ -2540,6 +2574,41 @@ export class World<T = any> extends Scene implements NetIntercept {
     source: "client" | "server" = "client"
   ) => {
     this.checkIsInitialized("update voxels", false);
+
+    const normalizeNumeric = (value: number | undefined, fallback: number) => {
+      return Number.isFinite(value) ? value : fallback;
+    };
+
+    const normalizeStage = (value: number | undefined) => {
+      const normalized = Math.round(normalizeNumeric(value, 0));
+      if (normalized < 0) {
+        return 0;
+      }
+
+      if (normalized > 15) {
+        return 15;
+      }
+
+      return normalized;
+    };
+
+    const normalizeRotationAxis = (value: number | undefined) => {
+      const normalized = Math.round(normalizeNumeric(value, 0));
+      if (normalized < 0) {
+        return 0;
+      }
+
+      if (normalized > 5) {
+        return 5;
+      }
+
+      return normalized;
+    };
+
+    const normalizeYRotationSegment = (value: number | undefined) => {
+      const normalized = Math.round(normalizeNumeric(value, 0));
+      return ((normalized % Y_ROT_SEGMENTS) + Y_ROT_SEGMENTS) % Y_ROT_SEGMENTS;
+    };
 
     const voxelUpdates = updates
       .filter((update) => {
@@ -2551,7 +2620,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const currId = this.getVoxelAt(vx, vy, vz);
         const currRot = this.getVoxelRotationAt(vx, vy, vz);
+        const [, currYRotation] = BlockRotation.decode(currRot);
         const currStage = this.getVoxelStageAt(vx, vy, vz);
+
+        const normalizedRotation = normalizeRotationAxis(rotation);
+        const normalizedYRotation = normalizeYRotationSegment(yRotation);
+        const normalizedStage = normalizeStage(stage);
 
         if (!this.getBlockById(type)) {
           console.warn(`Block ID ${type} does not exist.`);
@@ -2560,9 +2634,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (
           currId === type &&
-          (rotation !== undefined ? currRot.value === rotation : false) &&
-          (yRotation !== undefined ? currRot.yRotation === yRotation : false) &&
-          (stage !== undefined ? currStage === stage : false)
+          currRot.value === normalizedRotation &&
+          currYRotation === normalizedYRotation &&
+          currStage === normalizedStage
         ) {
           return false;
         }
@@ -2570,9 +2644,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         return true;
       })
       .map((update) => {
-        if (isNaN(update.rotation)) {
-          update.rotation = 0;
-        }
+        update.rotation = normalizeRotationAxis(update.rotation);
+        update.yRotation = normalizeYRotationSegment(update.yRotation);
+        update.stage = normalizeStage(update.stage);
 
         if (!this.getBlockById(update.type).yRotatable) {
           update.yRotation = 0;
@@ -2607,8 +2681,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const needsUpdate =
         currentType !== type ||
-        currentRotation.value !== rotation.value ||
-        currentRotation.yRotation !== rotation.yRotation ||
+        !currentRotation.equals(rotation) ||
         currentStage !== stage;
 
       if (needsUpdate) {
@@ -2976,13 +3049,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Get a mesh of the model of the given block.
    *
-   * @param id The ID of the block.
-   * @param options The options of creating this block mesh.
-   * @param options.material The type of material to use for this generated mesh.
-   * @param options.separateFaces: Whether or not to separate the faces of the block into different meshes.
-   * @param options.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
-   * @param options.centered: Whether or not to center the geometry vertices around origin (default: false).
-   * @param options.cached: Whether to return a cached mesh if available (default: false). When true, the same mesh instance is returned for identical options. Callers should clone the mesh if they need to modify it.
+   * @param idOrName The ID or name of the block.
+   * @param options The options of creating this block mesh, including material, face separation, crumbs, centering, and mesh caching behavior.
    * @returns A 3D mesh (group) of the block model.
    */
   makeBlockMesh = (
@@ -4657,7 +4725,11 @@ export class World<T = any> extends Scene implements NetIntercept {
             vy,
             vz,
             dynamicPatterns,
-            isPassable
+            isPassable,
+            {
+              rotation: chunk.getVoxelRotation(vx, vy, vz),
+              yRotatable: block.yRotatable,
+            }
           );
           if (passable || isFluid) return [];
 
@@ -4666,11 +4738,15 @@ export class World<T = any> extends Scene implements NetIntercept {
             vx,
             vy,
             vz,
-            dynamicPatterns
+            dynamicPatterns,
+            {
+              rotation,
+              yRotatable: block.yRotatable,
+            }
           );
           return aabbsWithFlags.map(({ aabb, worldSpace }) =>
             worldSpace
-              ? aabb.translate([vx, vy, vz])
+              ? aabb.clone().translate([vx, vy, vz])
               : rotation.rotateAABB(aabb).translate([vx, vy, vz])
           );
         }

@@ -1,16 +1,45 @@
 import {
-  Block,
-  BlockRotation,
-  BlockRule,
-  BlockRuleLogic,
-} from "../core/world/block";
+  BlockRule as TSCoreBlockRule,
+  BlockRuleEvaluator as TSCoreBlockRuleEvaluator,
+  BlockRotation as TSCoreBlockRotation,
+  BlockUtils as TSCoreBlockUtils,
+} from "@voxelize/ts-core";
+
+import { Block, BlockRotation, BlockRule } from "../core/world/block";
 import { Coords3 } from "../types";
 
 import { LightColor } from "./light-utils";
 
-const ROTATION_MASK = 0xfff0ffff;
-const Y_ROTATION_MASK = 0xff0fffff;
-const STAGE_MASK = 0xf0ffffff;
+const toTSCoreRotation = (rotation: BlockRotation) => {
+  return new TSCoreBlockRotation(rotation.value, rotation.yRotation);
+};
+
+const toTSCoreRule = (rule: BlockRule): TSCoreBlockRule => {
+  if (rule.type === "none") {
+    return { type: "none" };
+  }
+
+  if (rule.type === "simple") {
+    let mappedRotation: TSCoreBlockRotation | undefined;
+    if (rule.rotation !== undefined) {
+      mappedRotation = toTSCoreRotation(rule.rotation);
+    }
+
+    return {
+      type: "simple",
+      offset: [...rule.offset],
+      id: rule.id,
+      stage: rule.stage,
+      rotation: mappedRotation,
+    };
+  }
+
+  return {
+    type: "combination",
+    logic: rule.logic,
+    rules: rule.rules.map((nestedRule) => toTSCoreRule(nestedRule)),
+  };
+};
 
 /**
  * A utility class for extracting and inserting voxel data from and into numbers.
@@ -19,10 +48,7 @@ const STAGE_MASK = 0xf0ffffff;
  * - Voxel type: `0x0000ffff`
  * - Rotation: `0x000f0000`
  * - Y-rotation: `0x00f00000`
- * - Stage: `0xff000000`
- *
- * TODO-DOCS
- * For more information about voxel data, see [here](/)
+ * - Stage: `0x0f000000`
  *
  * # Example
  * ```ts
@@ -40,7 +66,7 @@ export class BlockUtils {
    * @returns The extracted voxel id.
    */
   static extractID = (voxel: number) => {
-    return voxel & 0xffff;
+    return TSCoreBlockUtils.extractID(voxel);
   };
 
   /**
@@ -51,7 +77,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertID = (voxel: number, id: number) => {
-    return (voxel & 0xffff0000) | (id & 0xffff);
+    return TSCoreBlockUtils.insertID(voxel, id);
   };
 
   /**
@@ -61,9 +87,8 @@ export class BlockUtils {
    * @returns The extracted voxel rotation.
    */
   static extractRotation = (voxel: number) => {
-    const rotation = (voxel >> 16) & 0xf;
-    const yRot = (voxel >> 20) & 0xf;
-    return BlockRotation.encode(rotation, yRot);
+    const rotation = TSCoreBlockUtils.extractRotation(voxel);
+    return new BlockRotation(rotation.value, rotation.yRotation);
   };
 
   /**
@@ -74,9 +99,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertRotation = (voxel: number, rotation: BlockRotation) => {
-    const [rot, yRot] = BlockRotation.decode(rotation);
-    const value = (voxel & ROTATION_MASK) | ((rot & 0xf) << 16);
-    return (value & Y_ROTATION_MASK) | ((yRot & 0xf) << 20);
+    return TSCoreBlockUtils.insertRotation(voxel, toTSCoreRotation(rotation));
   };
 
   /**
@@ -86,7 +109,7 @@ export class BlockUtils {
    * @returns The extracted voxel stage.
    */
   static extractStage = (voxel: number) => {
-    return (voxel >> 24) & 0xf;
+    return TSCoreBlockUtils.extractStage(voxel);
   };
 
   /**
@@ -97,7 +120,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertStage = (voxel: number, stage: number) => {
-    return (voxel & STAGE_MASK) | (stage << 24);
+    return TSCoreBlockUtils.insertStage(voxel, stage);
   };
 
   static insertAll = (id: number, rotation?: BlockRotation, stage?: number) => {
@@ -132,64 +155,34 @@ export class BlockUtils {
       getVoxelAt: (x: number, y: number, z: number) => number;
       getVoxelRotationAt: (x: number, y: number, z: number) => BlockRotation;
       getVoxelStageAt: (x: number, y: number, z: number) => number;
-    }
+    },
+    options: {
+      rotation?: BlockRotation;
+      yRotatable?: boolean;
+      worldSpace?: boolean;
+    } = {}
   ): boolean => {
-    if (rule.type === "none") {
-      return true;
-    }
+    const mappedRule = toTSCoreRule(rule);
+    const mappedOptions = {
+      ...options,
+      rotation:
+        options.rotation === undefined
+          ? undefined
+          : toTSCoreRotation(options.rotation),
+    };
 
-    if (rule.type === "simple") {
-      const { offset, id, rotation, stage } = rule;
-      const [vx, vy, vz] = voxel;
-      const ox = offset[0] + vx;
-      const oy = offset[1] + vy;
-      const oz = offset[2] + vz;
-
-      if (id !== null) {
-        const voxelId = functions.getVoxelAt(ox, oy, oz);
-        if (voxelId !== id) return false;
-      }
-
-      if (rotation !== null) {
-        const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
-        if (
-          voxelRotation.value !== rotation.value ||
-          voxelRotation.yRotation !== rotation.yRotation
-        )
-          return false;
-      }
-
-      if (stage !== null) {
-        const voxelStage = functions.getVoxelStageAt(ox, oy, oz);
-        if (voxelStage !== stage) return false;
-      }
-
-      // If all conditions pass, return true
-      return true;
-    }
-
-    if (rule.type === "combination") {
-      const { logic, rules } = rule;
-
-      switch (logic) {
-        case BlockRuleLogic.And:
-          return rules.every((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
-        case BlockRuleLogic.Or:
-          return rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
-        case BlockRuleLogic.Not:
-          return !rules.some((subRule) =>
-            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
-          );
-        default:
-          return false; // Unsupported logic
-      }
-    }
-
-    return false; // Default case for safety
+    return TSCoreBlockRuleEvaluator.evaluate(
+      mappedRule,
+      voxel,
+      {
+        getVoxel: functions.getVoxelAt,
+        getVoxelRotation: (x: number, y: number, z: number) => {
+          return toTSCoreRotation(functions.getVoxelRotationAt(x, y, z));
+        },
+        getVoxelStage: functions.getVoxelStageAt,
+      },
+      mappedOptions
+    );
   };
 
   static getBlockEntityId(id: string, voxel: Coords3) {
@@ -197,7 +190,5 @@ export class BlockUtils {
     return `block::${id}::${vx}::${vy}::${vz}`;
   }
 
-  private constructor() {
-    // NOTHING
-  }
+  private constructor() {}
 }

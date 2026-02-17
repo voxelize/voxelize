@@ -1,14 +1,13 @@
+import { LightUtils as TSCoreLightUtils } from "@voxelize/ts-core";
+
 /**
  * A utility class for extracting and inserting light data from and into numbers.
  *
  * The light data is stored in the following format:
- * - Sunlight: `0xff000000`
- * - Red light: `0x00ff0000`
- * - Green light: `0x0000ff00`
- * - Blue light: `0x000000ff`
- *
- * TODO-DOCS
- * For more information about lighting data, see [here](/)
+ * - Sunlight: `0x0000f000`
+ * - Red light: `0x00000f00`
+ * - Green light: `0x000000f0`
+ * - Blue light: `0x0000000f`
  *
  * # Example
  * ```ts
@@ -19,6 +18,19 @@
  * @category Utils
  */
 export class LightUtils {
+  private static isSingleAxisDirection = (dx: number, dy: number, dz: number) => {
+    if (!Number.isInteger(dx) || !Number.isInteger(dy) || !Number.isInteger(dz)) {
+      return false;
+    }
+
+    const nonZeroCount = [dx, dy, dz].filter((value) => value !== 0).length;
+    if (nonZeroCount !== 1) {
+      return false;
+    }
+
+    return Math.abs(dx) + Math.abs(dy) + Math.abs(dz) === 1;
+  };
+
   /**
    * Extract the sunlight level from a number.
    *
@@ -26,7 +38,7 @@ export class LightUtils {
    * @returns The extracted sunlight value.
    */
   static extractSunlight = (light: number) => {
-    return (light >> 12) & 0xf;
+    return TSCoreLightUtils.extractSunlight(light);
   };
 
   /**
@@ -37,7 +49,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertSunlight = (light: number, level: number) => {
-    return (light & 0xfff) | (level << 12);
+    return TSCoreLightUtils.insertSunlight(light, level);
   };
 
   /**
@@ -47,7 +59,7 @@ export class LightUtils {
    * @returns The extracted red light value.
    */
   static extractRedLight = (light: number) => {
-    return (light >> 8) & 0xf;
+    return TSCoreLightUtils.extractRedLight(light);
   };
 
   /**
@@ -58,7 +70,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertRedLight = (light: number, level: number) => {
-    return (light & 0xf0ff) | (level << 8);
+    return TSCoreLightUtils.insertRedLight(light, level);
   };
 
   /**
@@ -68,7 +80,7 @@ export class LightUtils {
    * @returns The extracted green light value.
    */
   static extractGreenLight = (light: number) => {
-    return (light >> 4) & 0xf;
+    return TSCoreLightUtils.extractGreenLight(light);
   };
 
   /**
@@ -79,7 +91,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertGreenLight = (light: number, level: number) => {
-    return (light & 0xff0f) | (level << 4);
+    return TSCoreLightUtils.insertGreenLight(light, level);
   };
 
   /**
@@ -89,7 +101,7 @@ export class LightUtils {
    * @returns The extracted blue light value.
    */
   static extractBlueLight = (light: number) => {
-    return light & 0xf;
+    return TSCoreLightUtils.extractBlueLight(light);
   };
 
   /**
@@ -100,7 +112,7 @@ export class LightUtils {
    * @returns The inserted light value.
    */
   static insertBlueLight = (light: number, level: number) => {
-    return (light & 0xfff0) | level;
+    return TSCoreLightUtils.insertBlueLight(light, level);
   };
 
   /**
@@ -118,7 +130,7 @@ export class LightUtils {
     dy: number,
     dz: number
   ) => {
-    if (Math.abs(dx + dy + dz) !== 1) {
+    if (!LightUtils.isSingleAxisDirection(dx, dy, dz)) {
       throw new Error(
         "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
       );
@@ -172,7 +184,7 @@ export class LightUtils {
     dy: number,
     dz: number
   ) => {
-    if (Math.abs(dx + dy + dz) !== 1) {
+    if (!LightUtils.isSingleAxisDirection(dx, dy, dz)) {
       throw new Error(
         "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
       );
@@ -210,9 +222,7 @@ export class LightUtils {
     return snz && tpz;
   };
 
-  private constructor() {
-    // NOTHING
-  }
+  private constructor() {}
 }
 
 /**

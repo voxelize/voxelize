@@ -17,7 +17,7 @@
     "watch:build": "pnpm types --watch --preserveWatchOutput",
     "watch:compile": "pnpm compile --watch",
     "copy": "cp ./src/styles.css ./dist",
-    "test": "vitest --run",
+    "test": "cross-env VITE_CJS_IGNORE_WARNING=true vitest --config ../../vitest.config.ts --run",
     "prepublishOnly": "pnpm run build",
     "preinstall": "npx only-allow pnpm"
   },
@@ -44,6 +44,7 @@
     "@voxelize/physics-engine": "workspace:*",
     "@voxelize/protocol": "workspace:*",
     "@voxelize/raycast": "workspace:*",
+    "@voxelize/ts-core": "workspace:*",
     "@voxelize/wasm-mesher": "workspace:*",
     "deepmerge": "^4.3.1",
     "domurl": "^2.3.4",

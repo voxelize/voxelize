@@ -22,7 +22,7 @@ const defaultConfig: LightVolumeConfig = {
 export class LightVolume {
   private config: LightVolumeConfig;
   private texture: Data3DTexture;
-  private data: Uint8Array;
+  private data = new Uint8Array(new ArrayBuffer(0));
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
   private lastCenterX = NaN;
@@ -44,7 +44,9 @@ export class LightVolume {
     const texHeight = Math.ceil(height / res);
     const texDepth = Math.ceil(depth / res);
 
-    this.data = new Uint8Array(texWidth * texHeight * texDepth * 4);
+    this.data = new Uint8Array(
+      new ArrayBuffer(texWidth * texHeight * texDepth * 4)
+    );
     this.data.fill(255);
 
     this.texture = new Data3DTexture(this.data, texWidth, texHeight, texDepth);

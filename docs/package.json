@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "cross-env TYPEDOC_WATCH=true docusaurus start --port 3040",
-    "build": "docusaurus build",
+    "prepare:typedoc": "pnpm --filter @voxelize/protocol proto:generate && pnpm --filter @voxelize/aabb build && pnpm --filter @voxelize/raycast build && pnpm --filter @voxelize/physics-engine build && pnpm --filter @voxelize/ts-core build",
+    "start": "pnpm run prepare:typedoc && cross-env NO_UPDATE_NOTIFIER=1 TYPEDOC_WATCH=true docusaurus start --port 3040",
+    "build": "pnpm run prepare:typedoc && cross-env NO_UPDATE_NOTIFIER=1 docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "cross-env USE_SSH=true docusaurus deploy",
     "clear": "docusaurus clear",
@@ -23,7 +24,7 @@
     "@docusaurus/tsconfig": "3.7.0",
     "@docusaurus/types": "3.7.0",
     "@mdx-js/react": "^3.1.0",
-    "@voxelize/core": "^0.1.224",
+    "@voxelize/core": "workspace:*",
     "clsx": "^1.2.1",
     "docusaurus-plugin-typedoc": "^0.21.0",
     "postprocessing": "^6.37.1",
@@ -43,9 +44,10 @@
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
+    "typedoc": "0.25.13",
     "typedoc-plugin-markdown": "^3.17.1",
-    "typedoc-plugin-no-inherit": "^1.5.0",
-    "typescript": "~5.2.2"
+    "typedoc-plugin-no-inherit": "1.4.0",
+    "typescript": "^5.4.5"
   },
   "browserslist": {
     "production": [

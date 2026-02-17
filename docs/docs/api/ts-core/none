@@ -1,0 +1,111 @@
+---
+id: "none"
+title: "@voxelize/ts-core"
+sidebar_label: "Readme"
+sidebar_position: 0
+custom_edit_url: null
+---
+
+# @voxelize/ts-core
+
+TypeScript core primitives for Voxelize.
+
+`@voxelize/ts-core` is a lightweight Rust-free package for voxel bit packing, light packing, block rotations, AABB math, and block rule evaluation. It mirrors the behavior of `voxelize-core` in Rust while providing an idiomatic TypeScript surface.
+
+## Install
+
+```bash
+pnpm add @voxelize/ts-core
+```
+
+## Quick start
+
+```ts
+import {
+  BlockRotation,
+  Light,
+  Voxel,
+  BlockRuleEvaluator,
+  BlockRuleLogic,
+  type VoxelAccess,
+} from "@voxelize/ts-core";
+
+const rotation = BlockRotation.encode(0, 4);
+const voxel = Voxel.pack({ id: 42, rotation, stage: 7 });
+const light = Light.pack({ sunlight: 15, red: 10, green: 5, blue: 3 });
+
+const unpackedVoxel = Voxel.unpack(voxel);
+const unpackedLight = Light.unpack(light);
+```
+
+You can also use axis-friendly constructors:
+
+```ts
+const facingUp = BlockRotation.PY(0);
+const facingPositiveX = BlockRotation.PX(Math.PI / 2);
+```
+
+`Voxel.pack` and `BlockUtils.insertRotation` also accept rotation-like objects:
+
+```ts
+const voxel = Voxel.pack({
+  id: 7,
+  rotation: { value: 0, yRotation: Math.PI / 2 },
+  stage: 1,
+});
+```
+
+## Core API
+
+- `Voxel` and `BlockUtils`
+  - pack and unpack voxel id, rotation, and stage
+- `Light` and `LightUtils`
+  - pack and unpack sunlight + RGB torch channels
+- `BlockRotation`
+  - encode/decode major axis + y-rotation segments
+  - rotate nodes, AABBs, and transparency masks
+- `AABB`
+  - union/intersection/translate/touches/intersects utilities
+- `BlockRuleEvaluator`
+  - evaluate `BlockRule` trees against a voxel access implementation
+- `VoxelAccess`
+  - interface contract for meshing/generation-style data access
+
+## Bit layout
+
+Voxel value (`u32` style in JS):
+
+- id: lower 16 bits
+- rotation axis: bits 16..19
+- y-rotation segment: bits 20..23
+- stage: bits 24..27
+
+Light value:
+
+- sunlight: bits 12..15
+- red: bits 8..11
+- green: bits 4..7
+- blue: bits 0..3
+
+## End-to-end example
+
+Run the included end-to-end demo:
+
+```bash
+pnpm --filter @voxelize/ts-core example:end-to-end
+```
+
+It executes the complete flow:
+
+1. Pack voxel + light values
+2. Store/retrieve through an in-memory space
+3. Apply AABB rotation
+4. Evaluate block rules
+5. Serialize and validate roundtrip data
+
+## Development
+
+```bash
+pnpm --filter @voxelize/ts-core test
+pnpm --filter @voxelize/ts-core build
+```

@@ -1,24 +1,16 @@
 import path from "path";
 
 import glsl from "vite-plugin-glsl";
-import { replaceCodePlugin } from "vite-plugin-replace";
 
 /** @type {import('vite').UserConfig} */
 export default {
   optimizeDeps: {
     force: true,
   },
-  plugins: [
-    glsl(),
-    replaceCodePlugin({
-      replacements: [
-        {
-          from: "__VOXELIZE_VERSION__",
-          to: "(dev)",
-        },
-      ],
-    }),
-  ],
+  plugins: [glsl()],
+  define: {
+    __VOXELIZE_VERSION__: JSON.stringify("(dev)"),
+  },
   resolve: {
     alias: {
       // hacky way to point to styles.css

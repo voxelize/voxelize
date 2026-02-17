@@ -23,12 +23,26 @@ import { setupWorld } from "./world";
 
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
+type DemoWorld = VOXELIZE.World & {
+  chunks: {
+    toRequest: number[];
+    requested: Set<string>;
+    toProcess: number[];
+    loaded: Set<string>;
+    uniforms: {
+      fogNear: { value: number };
+      fogFar: { value: number };
+      fogColor: { value: THREE.Color };
+    };
+  };
+};
+
 /* -------------------------------------------------------------------------- */
 /*                               VOXELIZE WORLD                               */
 /* -------------------------------------------------------------------------- */
 const world = new VOXELIZE.World({
   textureUnitDimension: 8,
-});
+}) as DemoWorld;
 // actual world setup code handled later after network and world are initialized
 
 /* -------------------------------------------------------------------------- */
@@ -170,8 +184,12 @@ const minRadius = 1;
 const circular = true;
 
 inputs.scroll(
-  () => (radius = Math.min(maxRadius, radius + 1)),
-  () => (radius = Math.max(minRadius, radius - 1)),
+  () => {
+    radius = Math.min(maxRadius, radius + 1);
+  },
+  () => {
+    radius = Math.max(minRadius, radius - 1);
+  },
   "in-game"
 );
 
@@ -564,7 +582,10 @@ debug.registerDisplay("Sunlight", () => {
 
 ["Red", "Green", "Blue"].forEach((color) => {
   debug.registerDisplay(`${color} Light`, () => {
-    return world.getTorchLightAt(...controls.voxel, color.toUpperCase() as any);
+    return world.getTorchLightAt(
+      ...controls.voxel,
+      color.toUpperCase() as VOXELIZE.LightColor
+    );
   });
 });
 
@@ -599,7 +620,7 @@ debug.registerDisplay("# of points", () => {
 });
 
 debug.registerDisplay("Concurrent WebWorkers", () => {
-  return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
+  return VOXELIZE.WorkerPool.WORKING_COUNT;
 });
 
 // packet queue length defined after network is initialized
@@ -978,7 +999,6 @@ const update = () => {
   debug.update();
 };
 
-let _frame: number;
 let isFocused = true;
 
 const composer = new EffectComposer(renderer);
@@ -989,7 +1009,7 @@ overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
 composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
 const animate = () => {
-  _frame = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
   if (isFocused) update();
   composer.render();
   renderer.clearDepth();
@@ -997,7 +1017,7 @@ const animate = () => {
 };
 
 const start = async () => {
-  let clearUpdate: any;
+  let clearUpdate: (() => void) | undefined;
 
   const handleVisibilityChange = () => {
     if (document.hidden) {
@@ -1010,7 +1030,7 @@ const start = async () => {
       console.log("Page is visible");
       if (clearUpdate) {
         clearUpdate();
-        clearUpdate = null;
+        clearUpdate = undefined;
       }
       isFocused = true;
     }

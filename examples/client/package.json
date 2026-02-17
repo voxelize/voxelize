@@ -4,15 +4,21 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "demo": "vite --clearScreen false --port 3000",
-    "build": "tsc && vite build",
+    "check:wasm": "node ./scripts/check-wasm-mesher.mjs",
+    "check:wasm:json": "node ./scripts/check-wasm-mesher.mjs --json",
+    "check:wasm:json:compact": "node ./scripts/check-wasm-mesher.mjs --json --compact",
+    "check:wasm:verify": "node ./scripts/check-wasm-mesher.mjs --verify",
+    "check:wasm:verify:json": "node ./scripts/check-wasm-mesher.mjs --json --verify",
+    "check:wasm:verify:json:compact": "node ./scripts/check-wasm-mesher.mjs --json --verify --compact",
+    "typecheck": "tsc --noEmit",
+    "demo": "pnpm run check:wasm && vite --clearScreen false --port 3000",
+    "build": "pnpm run check:wasm && pnpm run typecheck && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
     "@types/p5": "^1.7.6",
-    "typescript": "^4.9.5",
-    "vite": "^4.5.9",
-    "vite-plugin-replace": "^0.1.1"
+    "typescript": "^5.4.5",
+    "vite": "^4.5.9"
   },
   "dependencies": {
     "@types/three": "^0.165.0",
