@@ -23,6 +23,7 @@ type WasmBlock = {
   isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
   transparentStandalone: boolean;
   occludesFluid: boolean;
+  isPlant: boolean;
   faces: {
     name: string;
     independent: boolean;
@@ -294,6 +295,7 @@ function convertRegistryToWasm(rawRegistry: {
         ],
         transparentStandalone: block.transparentStandalone as boolean,
         occludesFluid: (block.occludesFluid as boolean) ?? false,
+        isPlant: (block.isPlant as boolean) ?? false,
         faces: convertFaces(block.faces as Record<string, unknown>[]),
         aabbs: convertAabbs(block.aabbs as Record<string, unknown>[]),
         dynamicPatterns: block.dynamicPatterns

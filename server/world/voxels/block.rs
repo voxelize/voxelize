@@ -1379,6 +1379,8 @@ pub struct Block {
     /// Does this block prevent fluids from rendering faces against it?
     pub occludes_fluid: bool,
 
+    pub is_plant: bool,
+
     /// Is this block transparent from looking from all 6 sides?
     /// The order is: px, py, pz, nx, ny, nz.
     pub is_transparent: [bool; 6],
@@ -1640,6 +1642,7 @@ impl Block {
             is_transparent: self.is_transparent,
             transparent_standalone: self.transparent_standalone,
             occludes_fluid: self.occludes_fluid,
+            is_plant: self.is_plant,
             faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
             aabbs: self.aabbs.clone(),
             dynamic_patterns: self
@@ -1684,6 +1687,7 @@ pub struct BlockBuilder {
     aabbs: Vec<AABB>,
     is_see_through: bool,
     occludes_fluid: bool,
+    is_plant: bool,
     is_px_transparent: bool,
     is_py_transparent: bool,
     is_pz_transparent: bool,
@@ -1771,8 +1775,13 @@ impl BlockBuilder {
     }
 
     /// Configure whether or not this block can be passed through. Default is false.
-    pub fn is_passable(mut self, is_plant: bool) -> Self {
-        self.is_passable = is_plant;
+    pub fn is_passable(mut self, is_passable: bool) -> Self {
+        self.is_passable = is_passable;
+        self
+    }
+
+    pub fn is_plant(mut self, is_plant: bool) -> Self {
+        self.is_plant = is_plant;
         self
     }
 
@@ -1995,6 +2004,7 @@ impl BlockBuilder {
             aabbs: self.aabbs,
             is_see_through: self.is_see_through,
             occludes_fluid: self.occludes_fluid,
+            is_plant: self.is_plant,
             is_transparent: [
                 self.is_px_transparent,
                 self.is_py_transparent,

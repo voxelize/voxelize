@@ -23,6 +23,8 @@ pub struct Block {
     pub transparent_standalone: bool,
     #[serde(default)]
     pub occludes_fluid: bool,
+    #[serde(default)]
+    pub is_plant: bool,
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
@@ -1593,7 +1595,7 @@ fn process_face<S: VoxelAccess>(
     } else {
         (0.0, 0.0)
     };
-    let (diag_x_offset, diag_z_offset) = if is_diagonal {
+    let (diag_x_offset, diag_z_offset) = if is_diagonal && block.is_plant {
         plant_position_jitter(vx, vy, vz)
     } else {
         (0.0, 0.0)
