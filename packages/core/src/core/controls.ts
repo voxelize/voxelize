@@ -841,8 +841,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   toggleGhostMode = () => {
     const { aabb } = this.body;
     const [px, py, pz] = this.body.getPosition();
-    const { bodyWidth, bodyHeight, bodyDepth } = this.options;
+    const { bodyWidth, bodyHeight, bodyDepth, crouchBodyHeight } = this.options;
 
+    if (this._crouching) {
+      const heightDiff = bodyHeight - crouchBodyHeight;
+      aabb.maxY += heightDiff;
+    }
     this._crouching = false;
 
     if (this.ghostMode) {
@@ -1321,12 +1325,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.updateCrouchAABB();
 
     const [x, y, z] = this.body.getPosition();
-    const effectiveHeight = this.body.aabb.maxY - this.body.aabb.minY;
+    const targetHeight = this._crouching
+      ? this.options.crouchBodyHeight
+      : this.options.bodyHeight;
     if (this._smoothedBodyHeight < 0) {
-      this._smoothedBodyHeight = effectiveHeight;
+      this._smoothedBodyHeight = targetHeight;
     } else {
       this._smoothedBodyHeight +=
-        (effectiveHeight - this._smoothedBodyHeight) * 0.25;
+        (targetHeight - this._smoothedBodyHeight) * 0.25;
     }
     const { eyeHeight } = this.options;
     this.newPosition.set(
