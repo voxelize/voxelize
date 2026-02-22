@@ -1,5 +1,5 @@
 import {
-  Clock,
+  Timer,
   Color,
   DoubleSide,
   Group,
@@ -122,7 +122,7 @@ export class Creature extends Group {
   onMove: () => void;
   onIdle: () => void;
 
-  private clock = new Clock();
+  private timer = new Timer();
   private positionBuffer: Array<{
     time: number;
     pos: Vector3;
@@ -158,7 +158,8 @@ export class Creature extends Group {
   }
 
   update() {
-    const dt = this.clock.getDelta();
+    this.timer.update();
+    const dt = this.timer.getDelta();
     this.interpolateFromBuffer();
     this.calculateDelta();
     this.playLegsWalkingAnimation();

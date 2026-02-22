@@ -34,7 +34,7 @@
     "react-dom": "^18.3.1",
     "react-type-animation": "^3.2.0",
     "styled-components": "^6.1.16",
-    "three": "^0.165.0"
+    "three": "^0.183.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.7.0",

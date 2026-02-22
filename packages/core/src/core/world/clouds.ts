@@ -1,7 +1,7 @@
 import ndarray from "ndarray";
 import {
   BufferGeometry,
-  Clock,
+  Timer,
   Color,
   Float32BufferAttribute,
   FrontSide,
@@ -202,7 +202,7 @@ export class Clouds extends Group {
   /**
    * A inner THREE.JS clock used to determine the time delta between frames.
    */
-  private clock = new Clock();
+  private timer = new Timer();
 
   /**
    * Create a new {@link Clouds} instance, initializing it asynchronously automatically.
@@ -269,7 +269,8 @@ export class Clouds extends Group {
     if (!this.isInitialized) return;
 
     // Normalize the delta
-    const delta = Math.min(0.1, this.clock.getDelta());
+    this.timer.update();
+    const delta = Math.min(0.1, this.timer.getDelta());
 
     const { speedFactor, count, dimensions } = this.options;
 

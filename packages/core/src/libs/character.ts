@@ -2,7 +2,7 @@ import {
   AnimationAction,
   AnimationClip,
   AnimationMixer,
-  Clock,
+  Timer,
   Color,
   DoubleSide,
   Group,
@@ -426,7 +426,7 @@ export class Character extends Group {
   /**
    * An internal clock instance for calculating delta time.
    */
-  private clock = new Clock();
+  private timer = new Timer();
 
   /**
    * Create a new Voxelize character.
@@ -508,7 +508,8 @@ export class Character extends Group {
    */
   update() {
     // Normalize the delta
-    const delta = Math.min(0.1, this.clock.getDelta());
+    this.timer.update();
+    const delta = Math.min(0.1, this.timer.getDelta());
 
     this.mixer.update(delta);
     this.calculateDelta();

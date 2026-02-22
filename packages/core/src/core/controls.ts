@@ -4,7 +4,7 @@ import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
 import { MessageProtocol } from "@voxelize/protocol";
 import {
-  Clock,
+  Timer,
   Euler,
   Group,
   PerspectiveCamera,
@@ -446,7 +446,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   /**
    * An internal clock instance for calculating delta time.
    */
-  private clock = new Clock();
+  private timer = new Timer();
 
   /**
    * A list of packets that will be sent to the server.
@@ -588,7 +588,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   update = () => {
     // Normalize the delta
-    const delta = Math.min(0.1, this.clock.getDelta());
+    this.timer.update();
+    const delta = Math.min(0.1, this.timer.getDelta());
 
     this.object.quaternion.slerp(this.quaternion, this.options.rotationLerp);
     this.object.position.lerp(this.newPosition, this.options.positionLerp);

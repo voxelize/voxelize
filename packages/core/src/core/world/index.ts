@@ -17,7 +17,7 @@ import {
   BufferGeometry,
   Camera,
   CanvasTexture,
-  Clock,
+  Timer,
   Color,
   DoubleSide,
   Float32BufferAttribute,
@@ -749,7 +749,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * The internal clock.
    */
-  private clock = new Clock();
+  private timer = new Timer();
 
   /**
    * A map of initialize listeners on chunks.
@@ -1092,7 +1092,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           mat.map.needsUpdate = true;
           mat.needsUpdate = true;
         } else if (ThreeUtils.isColor(data)) {
-          const canvas = mat.map.image;
+          const canvas = mat.map.image as HTMLCanvasElement;
           canvas.width = 1;
           canvas.height = 1;
           const ctx = canvas.getContext("2d");
@@ -1372,7 +1372,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       // If the block's material is not set up to an atlas texture, we need to set it up.
       if (!(mat.map instanceof AtlasTexture)) {
-        const { image } = mat.map;
+        const image = mat.map.image as HTMLCanvasElement | HTMLImageElement;
 
         if (image && image.width) {
           const atlas = new AtlasTexture(1, image.width);
@@ -1472,7 +1472,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const mat = this.getBlockFaceMaterial(block.id, face.name);
-      const canvas = mat.map.image ?? mat.map.source.data;
+      const canvas = (mat.map.image ?? mat.map.source.data) as
+        | HTMLCanvasElement
+        | HTMLImageElement;
 
       // Wait for the image to load.
       if (canvas instanceof HTMLImageElement) {
@@ -3432,7 +3434,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    const delta = this.clock.getDelta();
+    this.timer.update();
+    const delta = this.timer.getDelta();
 
     const center = ChunkUtils.mapVoxelToChunk(
       position.toArray() as Coords3,

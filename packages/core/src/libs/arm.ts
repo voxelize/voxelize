@@ -116,7 +116,7 @@ export class Arm extends THREE.Group {
   /**
    * An internal clock instance for calculating delta time.
    */
-  private clock = new THREE.Clock();
+  private timer = new THREE.Timer();
 
   // Animation properties for the arm transition
   private isTransitioning = false;
@@ -253,7 +253,7 @@ export class Arm extends THREE.Group {
 
       if (!this.isTransitioning) {
         this.isTransitioning = true;
-        this.transitionStartTime = this.clock.elapsedTime;
+        this.transitionStartTime = this.timer.getElapsed();
         this.transitionDirection = 0;
 
         if (this.children.length > 0) {
@@ -263,7 +263,7 @@ export class Arm extends THREE.Group {
         }
       } else if (this.transitionDirection === 1) {
         this.transitionDirection = 0;
-        this.transitionStartTime = this.clock.elapsedTime;
+        this.transitionStartTime = this.timer.getElapsed();
 
         if (this.currentArmObject) {
           this.initialArmY = this.currentArmObject.position.y;
@@ -422,13 +422,14 @@ gl_FragColor.rgb *= shadow;
    */
   public update() {
     // Normalize the delta
-    const delta = Math.min(0.1, this.clock.getDelta());
+    this.timer.update();
+    const delta = Math.min(0.1, this.timer.getDelta());
 
     this.mixer.update(delta);
 
     // Handle arm object transition animation if active
     if (this.isTransitioning) {
-      const elapsed = this.clock.elapsedTime - this.transitionStartTime;
+      const elapsed = this.timer.getElapsed() - this.transitionStartTime;
       const progress = Math.min(elapsed / this.transitionDuration, 1);
 
       // Use more subtle easing functions
@@ -481,7 +482,7 @@ gl_FragColor.rgb *= shadow;
 
           // Start the up animation
           this.transitionDirection = 1;
-          this.transitionStartTime = this.clock.elapsedTime;
+          this.transitionStartTime = this.timer.getElapsed();
         }
       } else {
         // Moving up phase - use easeInOutQuad for natural entrance

@@ -285,7 +285,7 @@ export class BoxLayer extends Mesh {
       };
 
       if (isTexture(art)) {
-        context.drawImage(art.image, 0, 0, width, height);
+        context.drawImage(art.image as CanvasImageSource, 0, 0, width, height);
       } else {
         if (isColor(art)) {
           context.save();

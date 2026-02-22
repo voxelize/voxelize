@@ -15,12 +15,12 @@
     "vite-plugin-replace": "^0.1.1"
   },
   "dependencies": {
-    "@types/three": "^0.165.0",
+    "@types/three": "^0.182.0",
     "@voxelize/aabb": "^1.0.0",
     "@voxelize/core": "workspace:*",
     "lil-gui": "^0.17.0",
     "p5": "^1.11.3",
     "postprocessing": "^6.37.1",
-    "three": "^0.165.0"
+    "three": "^0.183.0"
   }
 }

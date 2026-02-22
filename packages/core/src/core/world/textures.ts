@@ -171,8 +171,8 @@ export class AtlasTexture extends CanvasTexture {
     const { startU, endV } = range;
 
     const image2 = ThreeUtils.isTexture(image)
-      ? image.image
-      : (image as any as HTMLImageElement);
+      ? (image.image as CanvasImageSource)
+      : (image as HTMLImageElement);
 
     if (!image2) {
       return;
