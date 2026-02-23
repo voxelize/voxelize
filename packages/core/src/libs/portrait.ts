@@ -6,8 +6,8 @@ import {
   Scene,
   Vector2,
   Vector3,
-  WebGLRenderer,
 } from "three";
+import { WebGPURenderer } from "three/webgpu";
 
 import { CameraPerspective } from "../common";
 
@@ -77,14 +77,24 @@ const defaultOptions: PortraitOptions = {
  * ```
  */
 export class Portrait {
-  private static _renderer: WebGLRenderer | null = null;
+  private static _renderer: WebGPURenderer | null = null;
+  private static _rendererInitPromise: Promise<void> | null = null;
+  private static _rendererReady = false;
 
-  public static get renderer(): WebGLRenderer {
+  public static get renderer(): WebGPURenderer {
     if (!Portrait._renderer) {
-      Portrait._renderer = new WebGLRenderer({
+      Portrait._renderer = new WebGPURenderer({
         antialias: false,
-        failIfMajorPerformanceCaveat: false,
       });
+      Portrait._renderer.outputColorSpace = SRGBColorSpace;
+      Portrait._rendererInitPromise = Portrait._renderer
+        .init()
+        .then(() => {
+          Portrait._rendererReady = true;
+        })
+        .catch((error) => {
+          console.error("Failed to initialize portrait WebGPU renderer", error);
+        });
     }
     return Portrait._renderer;
   }
@@ -130,7 +140,7 @@ export class Portrait {
       throw new Error("A target object is required for portraits.");
     }
 
-    Portrait.renderer.outputColorSpace = SRGBColorSpace;
+    void Portrait.renderer;
 
     const { width, height, zoom, perspective, lightRotationOffset } =
       (this.options = {
@@ -169,7 +179,9 @@ export class Portrait {
 
     this.setObject(object);
 
-    this.render();
+    void Portrait._rendererInitPromise?.then(() => {
+      this.render();
+    });
   }
 
   /**
@@ -203,6 +215,10 @@ export class Portrait {
   private render = () => {
     this.animationFrameId = requestAnimationFrame(this.render);
 
+    if (!Portrait._rendererReady) {
+      return;
+    }
+
     const renderer = Portrait.renderer;
     const { renderOnce } = this.options;
 
@@ -217,6 +233,9 @@ export class Portrait {
 
     const rendererCanvas = renderer.domElement;
     const ctx = this.canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
 
     ctx.globalCompositeOperation = "copy";
     ctx.drawImage(

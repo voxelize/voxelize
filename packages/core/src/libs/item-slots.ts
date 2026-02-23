@@ -12,8 +12,8 @@ import {
   SRGBColorSpace,
   Texture,
   Vector3,
-  WebGLRenderer,
 } from "three";
+import { WebGPURenderer } from "three/webgpu";
 
 import { CameraPerspective, noop } from "../common";
 import { Inputs } from "../core/inputs";
@@ -297,7 +297,7 @@ export class ItemSlots<T = number> {
 
   public canvas: HTMLCanvasElement;
 
-  public renderer: WebGLRenderer;
+  public renderer: WebGPURenderer;
 
   public focusedRow = -1;
 
@@ -335,6 +335,8 @@ export class ItemSlots<T = number> {
   ) => void)[] = [];
 
   private animationFrame = -1;
+  private rendererReady = false;
+  private rendererInitPromise: Promise<void> | null = null;
 
   constructor(options: Partial<ItemSlotsOptions> = {}) {
     const {
@@ -368,7 +370,16 @@ export class ItemSlots<T = number> {
       display: "flex",
     });
 
-    this.render();
+    if (this.rendererReady) {
+      this.render();
+      return;
+    }
+
+    void this.rendererInitPromise?.then(() => {
+      if (this.activated) {
+        this.render();
+      }
+    });
   };
 
   deactivate = () => {
@@ -638,7 +649,7 @@ export class ItemSlots<T = number> {
   render = () => {
     this.animationFrame = requestAnimationFrame(this.render);
 
-    if (!this.activated) return;
+    if (!this.activated || !this.rendererReady) return;
 
     const { horizontalCount, verticalCount, slotMargin, slotPadding } =
       this.options;
@@ -799,12 +810,20 @@ export class ItemSlots<T = number> {
 
     this.wrapper.appendChild(this.canvas);
 
-    this.renderer = new WebGLRenderer({
+    this.renderer = new WebGPURenderer({
       canvas: this.canvas,
       antialias: false,
       alpha: true,
     });
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.setSize(width, height);
+    this.rendererInitPromise = this.renderer
+      .init()
+      .then(() => {
+        this.rendererReady = true;
+      })
+      .catch((error) => {
+        console.error("Failed to initialize item slots WebGPU renderer", error);
+      });
   };
 }

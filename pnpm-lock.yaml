@@ -123,7 +123,7 @@ importers:
         version: 3.1.0(@types/react@19.0.11)(react@18.3.1)
       '@voxelize/core':
         specifier: ^0.1.224
-        version: 0.1.224(@swc/core@1.15.5)(bufferutil@4.0.9)(postcss@8.5.6)(postprocessing@6.37.1(three@0.165.0))(three@0.165.0)(utf-8-validate@5.0.10)
+        version: 0.1.224(@swc/core@1.15.5)(bufferutil@4.0.9)(postcss@8.5.6)(postprocessing@6.37.1(three@0.183.1))(three@0.183.1)(utf-8-validate@5.0.10)
       clsx:
         specifier: ^1.2.1
         version: 1.2.1
@@ -132,7 +132,7 @@ importers:
         version: 0.21.0(typedoc-plugin-markdown@3.17.1(typedoc@0.25.13(typescript@5.2.2)))(typedoc@0.25.13(typescript@5.2.2))
       postprocessing:
         specifier: ^6.37.1
-        version: 6.37.1(three@0.165.0)
+        version: 6.37.1(three@0.183.1)
       prism-react-renderer:
         specifier: ^2.4.1
         version: 2.4.1(react@18.3.1)
@@ -155,8 +155,8 @@ importers:
         specifier: ^6.1.16
         version: 6.1.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       three:
-        specifier: ^0.165.0
-        version: 0.165.0
+        specifier: ^0.183.0
+        version: 0.183.1
     devDependencies:
       autoprefixer:
         specifier: ^10.4.21
@@ -180,8 +180,8 @@ importers:
   examples/client:
     dependencies:
       '@types/three':
-        specifier: ^0.165.0
-        version: 0.165.0
+        specifier: ^0.182.0
+        version: 0.182.0
       '@voxelize/aabb':
         specifier: ^1.0.0
         version: 1.0.0(@swc/core@1.15.5)(postcss@8.5.6)
@@ -194,19 +194,16 @@ importers:
       p5:
         specifier: ^1.11.3
         version: 1.11.3
-      postprocessing:
-        specifier: ^6.37.1
-        version: 6.37.1(three@0.165.0)
       three:
-        specifier: ^0.165.0
-        version: 0.165.0
+        specifier: ^0.183.0
+        version: 0.183.1
     devDependencies:
       '@types/p5':
         specifier: ^1.7.6
         version: 1.7.6
       typescript:
-        specifier: ^4.9.5
-        version: 4.9.5
+        specifier: ^5.8.2
+        version: 5.8.2
       vite:
         specifier: ^4.5.9
         version: 4.5.9(@types/node@22.13.10)(terser@5.39.0)
@@ -218,10 +215,10 @@ importers:
     dependencies:
       tsup:
         specifier: ^5.12.9
-        version: 5.12.9(@swc/core@1.15.5)(postcss@8.5.6)(typescript@4.9.5)
+        version: 5.12.9(@swc/core@1.15.5)(postcss@8.5.6)(typescript@5.8.2)
       typescript:
-        specifier: ^4.9.5
-        version: 4.9.5
+        specifier: ^5
+        version: 5.8.2
       vitest:
         specifier: ^0.10.5
         version: 0.10.5
@@ -251,8 +248,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       three:
-        specifier: ^0.165.0
-        version: 0.165.0
+        specifier: ^0.183.0
+        version: 0.183.1
       webpack:
         specifier: ^5.98.0
         version: 5.98.0(@swc/core@1.15.5)(esbuild@0.14.54)(webpack-cli@4.10.0)
@@ -313,9 +310,6 @@ importers:
       omggif:
         specifier: ^1.0.10
         version: 1.0.10
-      postprocessing:
-        specifier: ^6.35.0
-        version: 6.37.1(three@0.165.0)
       regenerator-runtime:
         specifier: ^0.13.11
         version: 0.13.11
@@ -348,14 +342,14 @@ importers:
         specifier: ^0.17.3
         version: 0.17.3
       '@types/three':
-        specifier: ^0.165.0
-        version: 0.165.0
+        specifier: ^0.182.0
+        version: 0.182.0
       '@types/uuid':
         specifier: ^8.3.4
         version: 8.3.4
       three:
-        specifier: ^0.165.0
-        version: 0.165.0
+        specifier: ^0.183.0
+        version: 0.183.1
       vite:
         specifier: ^5.4.14
         version: 5.4.14(@types/node@22.13.10)(terser@5.39.0)
@@ -444,10 +438,10 @@ importers:
         version: link:../aabb
       tsup:
         specifier: ^5.12.9
-        version: 5.12.9(@swc/core@1.15.5)(postcss@8.5.6)(typescript@4.9.5)
+        version: 5.12.9(@swc/core@1.15.5)(postcss@8.5.6)(typescript@5.8.2)
       typescript:
-        specifier: ^4.9.5
-        version: 4.9.5
+        specifier: ^5
+        version: 5.8.2
       vitest:
         specifier: ^0.10.5
         version: 0.10.5
@@ -480,8 +474,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       three:
-        specifier: ^0.165.0
-        version: 0.165.0
+        specifier: ^0.183.0
+        version: 0.183.1
       webpack:
         specifier: ^5.98.0
         version: 5.98.0(@swc/core@1.15.5)(webpack-cli@4.10.0)
@@ -1468,6 +1462,9 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       postcss: ^8.4
+
+  '@dimforge/rapier3d-compat@0.12.0':
+    resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
 
   '@discoveryjs/json-ext@0.5.7':
     resolution: {integrity: sha512-dBVuXR082gk3jsFp7Rd/JI4kytwGHecnCoTtXFb7DB6CNHp4rg5k1bhg0nWdLGLnOV71lmDzGQaLMy8iPLY0pw==}
@@ -2991,8 +2988,8 @@ packages:
   '@types/stylis@4.2.5':
     resolution: {integrity: sha512-1Xve+NMN7FWjY14vLoY5tL3BVEQ/n42YLwaqJIPYhotZ9uBHt87VceMwWQpzmdEt2TNXIorIFG+YeCUUW7RInw==}
 
-  '@types/three@0.165.0':
-    resolution: {integrity: sha512-AJK8JZAFNBF0kBXiAIl5pggYlzAGGA8geVYQXAcPCEDRbyA+oEjkpUBcJJrtNz6IiALwzGexFJGZG2yV3WsYBw==}
+  '@types/three@0.182.0':
+    resolution: {integrity: sha512-WByN9V3Sbwbe2OkWuSGyoqQO8Du6yhYaXtXLoA5FkKTUJorZ+yOHBZ35zUUPQXlAKABZmbYp5oAqpA4RBjtJ/Q==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -3162,6 +3159,9 @@ packages:
 
   '@webassemblyjs/wast-printer@1.14.1':
     resolution: {integrity: sha512-kPSSXE6De1XOR820C90RIo2ogvZG+c3KiHzqUoO/F34Y2shGzesfqv7o57xrxovZJH/MetF5UjroJ/R/3isoiw==}
+
+  '@webgpu/types@0.1.69':
+    resolution: {integrity: sha512-RPmm6kgRbI8e98zSD3RVACvnuktIja5+yLgDAkTmxLr90BEwdTXRQWNLF3ETTTyH/8mKhznZuN5AveXYFEsMGQ==}
 
   '@webpack-cli/configtest@1.2.0':
     resolution: {integrity: sha512-4FB8Tj6xyVkyqjj1OaTqCjXYULB9FMkqQ8yGrZjRDrYh0nOE+7Lhs45WioWQQMV+ceFlE368Ukhe6xdvJM9Egg==}
@@ -6639,8 +6639,8 @@ packages:
   mermaid@11.12.1:
     resolution: {integrity: sha512-UlIZrRariB11TY1RtTgUWp65tphtBv4CSq7vyS2ZZ2TgoMjs2nloq+wFqxiwcxlhHUvs7DPGgMjs2aeQxz5h9g==}
 
-  meshoptimizer@0.18.1:
-    resolution: {integrity: sha512-ZhoIoL7TNV4s5B6+rx5mC//fw8/POGyNxS/DZyCJeiZ12ScLfVwRE/GfsxwiTkMYYD5DmK2/JXnEVXqL4rF+Sw==}
+  meshoptimizer@0.22.0:
+    resolution: {integrity: sha512-IebiK79sqIy+E4EgOr+CAw+Ke8hAspXKzBd0JdgEmPHiAwmvEj2S4h1rfvo+o/BnfEYd/jAOg5IeeIjzlzSnDg==}
 
   methods@1.1.2:
     resolution: {integrity: sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w==}
@@ -9103,8 +9103,8 @@ packages:
   thenify@3.3.1:
     resolution: {integrity: sha512-RVZSIV5IG10Hk3enotrhvz0T9em6cyHBLkH/YAZuKqd8hRkKhSfCGIcP2KUY0EPxndzANBmNllzWPwak+bheSw==}
 
-  three@0.165.0:
-    resolution: {integrity: sha512-cc96IlVYGydeceu0e5xq70H8/yoVT/tXBxV/W8A/U6uOq7DXc4/s1Mkmnu6SqoYGhSRWWYFOhVwvq6V0VtbplA==}
+  three@0.183.1:
+    resolution: {integrity: sha512-Psv6bbd3d/M/01MT2zZ+VmD0Vj2dbWTNhfe4CuSg7w5TuW96M3NOyCVuh9SZQ05CpGmD7NEcJhZw4GVjhCYxfQ==}
 
   through2@2.0.5:
     resolution: {integrity: sha512-/mrRod8xqpA+IHSLyGCQ2s8SPHiCDEeQJSep1jqLYeEUClOFG2Qsh+4FU6G9VeqpZnGW/Su8LQGc4YKni5rYSQ==}
@@ -11232,6 +11232,8 @@ snapshots:
   '@csstools/utilities@2.0.0(postcss@8.5.6)':
     dependencies:
       postcss: 8.5.6
+
+  '@dimforge/rapier3d-compat@0.12.0': {}
 
   '@discoveryjs/json-ext@0.5.7': {}
 
@@ -13424,13 +13426,15 @@ snapshots:
 
   '@types/stylis@4.2.5': {}
 
-  '@types/three@0.165.0':
+  '@types/three@0.182.0':
     dependencies:
+      '@dimforge/rapier3d-compat': 0.12.0
       '@tweenjs/tween.js': 23.1.3
       '@types/stats.js': 0.17.3
       '@types/webxr': 0.5.21
+      '@webgpu/types': 0.1.69
       fflate: 0.8.2
-      meshoptimizer: 0.18.1
+      meshoptimizer: 0.22.0
 
   '@types/trusted-types@2.0.7':
     optional: true
@@ -13594,7 +13598,7 @@ snapshots:
       - supports-color
       - ts-node
 
-  '@voxelize/core@0.1.224(@swc/core@1.15.5)(bufferutil@4.0.9)(postcss@8.5.6)(postprocessing@6.37.1(three@0.165.0))(three@0.165.0)(utf-8-validate@5.0.10)':
+  '@voxelize/core@0.1.224(@swc/core@1.15.5)(bufferutil@4.0.9)(postcss@8.5.6)(postprocessing@6.37.1(three@0.183.1))(three@0.183.1)(utf-8-validate@5.0.10)':
     dependencies:
       '@tweenjs/tween.js': 18.6.4
       '@voxelize/aabb': 1.0.0(@swc/core@1.15.5)(postcss@8.5.6)
@@ -13610,10 +13614,10 @@ snapshots:
       ndarray: 1.0.19
       noisejs: 2.1.0
       omggif: 1.0.10
-      postprocessing: 6.37.1(three@0.165.0)
+      postprocessing: 6.37.1(three@0.183.1)
       regenerator-runtime: 0.13.11
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      three: 0.165.0
+      three: 0.183.1
       uuid: 8.3.2
     transitivePeerDependencies:
       - '@swc/core'
@@ -13747,6 +13751,8 @@ snapshots:
     dependencies:
       '@webassemblyjs/ast': 1.14.1
       '@xtuc/long': 4.2.2
+
+  '@webgpu/types@0.1.69': {}
 
   '@webpack-cli/configtest@1.2.0(webpack-cli@4.10.0)(webpack@5.98.0)':
     dependencies:
@@ -17935,7 +17941,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  meshoptimizer@0.18.1: {}
+  meshoptimizer@0.22.0: {}
 
   methods@1.1.2: {}
 
@@ -19580,9 +19586,9 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postprocessing@6.37.1(three@0.165.0):
+  postprocessing@6.37.1(three@0.183.1):
     dependencies:
-      three: 0.165.0
+      three: 0.183.1
 
   prelude-ls@1.1.2: {}
 
@@ -20969,7 +20975,7 @@ snapshots:
     dependencies:
       any-promise: 1.3.0
 
-  three@0.165.0: {}
+  three@0.183.1: {}
 
   through2@2.0.5:
     dependencies:
@@ -21073,6 +21079,30 @@ snapshots:
       '@swc/core': 1.15.5
       postcss: 8.5.6
       typescript: 4.9.5
+    transitivePeerDependencies:
+      - supports-color
+      - ts-node
+
+  tsup@5.12.9(@swc/core@1.15.5)(postcss@8.5.6)(typescript@5.8.2):
+    dependencies:
+      bundle-require: 3.1.2(esbuild@0.14.54)
+      cac: 6.7.14
+      chokidar: 3.6.0
+      debug: 4.4.0
+      esbuild: 0.14.54
+      execa: 5.1.1
+      globby: 11.1.0
+      joycon: 3.1.1
+      postcss-load-config: 3.1.4(postcss@8.5.6)
+      resolve-from: 5.0.0
+      rollup: 2.79.2
+      source-map: 0.8.0-beta.0
+      sucrase: 3.35.0
+      tree-kill: 1.2.2
+    optionalDependencies:
+      '@swc/core': 1.15.5
+      postcss: 8.5.6
+      typescript: 5.8.2
     transitivePeerDependencies:
       - supports-color
       - ts-node

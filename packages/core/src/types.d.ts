@@ -23,14 +23,13 @@ declare module "*?worker&inline" {
   export default WebWorkerFactory;
 }
 
-declare module "*.glsl" {
-  const value: string;
-  export default value;
+declare module "three/webgpu" {
+  export * from "three/build/three.webgpu.js";
+  import { WebGLCubeRenderTarget } from "three";
+
+  export class CubeRenderTarget extends WebGLCubeRenderTarget {}
 }
 
-declare module "*.glsl?raw" {
-  const value: string;
-  export default value;
+declare module "three/tsl" {
+  export * from "three/build/three.tsl.js";
 }
-
-declare module "postprocessing";

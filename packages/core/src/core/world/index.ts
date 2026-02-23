@@ -23,24 +23,22 @@ import {
   Float32BufferAttribute,
   FrontSide,
   Group,
+  IUniform,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
   SRGBColorSpace,
   Scene,
-  ShaderLib,
-  ShaderMaterial,
   Sphere,
   Texture,
   MathUtils as ThreeMathUtils,
   Uniform,
-  UniformsUtils,
   Vector2,
   Vector3,
-  WebGLRenderer,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import type { Renderer } from "three/webgpu";
 
 import {
   TRANSPARENT_FLUID_RENDER_ORDER,
@@ -134,10 +132,6 @@ import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
-import {
-  DEFAULT_CHUNK_SHADERS,
-  SHADER_LIGHTING_CHUNK_SHADERS,
-} from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
@@ -156,8 +150,6 @@ export * from "./light-volume";
 export * from "./loader";
 export * from "./pipelines";
 export * from "./registry";
-export * from "./shaders";
-export * from "./shadow-sampling";
 export * from "./sky";
 export * from "./textures";
 export * from "./uv";
@@ -326,16 +318,15 @@ const VOXEL_NEIGHBORS = [
   [0, 1, 0],
   [0, -1, 0],
 ];
+let hasWarnedShaderOverridesDisabled = false;
 
 /**
- * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
- * if you want to change its map, you also have to change its `uniforms.map`.
+ * Custom chunk material for chunks.
  */
-export type CustomChunkShaderMaterial = ShaderMaterial & {
-  /**
-   * The texture that this map runs on.
-   */
+export type CustomChunkShaderMaterial = MeshBasicMaterial & {
   map: Texture;
+  uniforms: Record<string, IUniform>;
+  renderStage: number;
 };
 
 /**
@@ -1180,18 +1171,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Handle different types of source inputs
     if (typeof source === "string") {
       this.loader.loadImage(source).then((image) => {
-        if (isolatedMat.map) {
-          isolatedMat.map.dispose();
-        }
         isolatedMat.map = new Texture(image);
         isolatedMat.map.colorSpace = SRGBColorSpace;
         isolatedMat.map.needsUpdate = true;
         isolatedMat.needsUpdate = true;
       });
     } else if (source instanceof HTMLImageElement) {
-      if (isolatedMat.map) {
-        isolatedMat.map.dispose();
-      }
       isolatedMat.map = new Texture(source);
       isolatedMat.map.colorSpace = SRGBColorSpace;
       isolatedMat.map.needsUpdate = true;
@@ -1223,9 +1208,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         isolatedMat.needsUpdate = true;
       }
     } else if (ThreeUtils.isTexture(source)) {
-      if (isolatedMat.map) {
-        isolatedMat.map.dispose();
-      }
       isolatedMat.map = source;
       isolatedMat.map.needsUpdate = true;
       isolatedMat.needsUpdate = true;
@@ -3247,22 +3229,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     idOrName: number | string,
     faceName: string | null = null,
     data: {
-      vertexShader: string;
-      fragmentShader: string;
-      uniforms?: { [key: string]: Uniform };
-    } = {
-      vertexShader: DEFAULT_CHUNK_SHADERS.vertex,
-      fragmentShader: DEFAULT_CHUNK_SHADERS.fragment,
-      uniforms: {},
-    },
+      uniforms?: { [key: string]: IUniform };
+    } = {},
   ) => {
     this.checkIsInitialized("customize material shaders", false);
 
-    const {
-      vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
-      fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
-      uniforms = {},
-    } = data;
+    const { uniforms = {} } = data;
 
     const mat = this.getBlockFaceMaterial(idOrName, faceName);
 
@@ -3272,12 +3244,19 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    mat.vertexShader = vertexShader;
-    mat.fragmentShader = fragmentShader;
     mat.uniforms = {
       ...mat.uniforms,
       ...uniforms,
     };
+    mat.userData.shaderOverrides = {
+      uniforms,
+    };
+    if (!hasWarnedShaderOverridesDisabled) {
+      console.warn(
+        "[World] customizeMaterialShaders is disabled for WebGPU-safe chunk materials. Requested shader overrides were stored but are not applied.",
+      );
+      hasWarnedShaderOverridesDisabled = true;
+    }
     mat.needsUpdate = true;
 
     return mat;
@@ -4157,7 +4136,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     // Update the clouds' colors based on the sky's colors.
     const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
-    const cloudColorHSL = cloudColor.getHSL({});
+    const cloudColorHSL = cloudColor.getHSL({ h: 0, s: 0, l: 0 });
     cloudColor.setHSL(
       cloudColorHSL.h,
       cloudColorHSL.s,
@@ -4347,7 +4326,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   renderShadowMaps(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     entities?: Object3D[],
     instancePools?: Group[],
   ) {
@@ -5889,25 +5868,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Make a chunk shader material with the current atlas.
    */
-  private makeShaderMaterial = (
-    fragmentShader?: string,
-    vertexShader?: string,
-    uniforms: Record<string, Uniform> = {},
-  ) => {
-    const useShaderLighting = this.usesShaderLighting;
-    const baseShaders = useShaderLighting
-      ? SHADER_LIGHTING_CHUNK_SHADERS
-      : DEFAULT_CHUNK_SHADERS;
-
-    const actualFragmentShader = fragmentShader ?? baseShaders.fragment;
-    const actualVertexShader = vertexShader ?? baseShaders.vertex;
-
+  private makeShaderMaterial = (uniforms: Record<string, IUniform> = {}) => {
     const chunksUniforms = {
       ...this.chunkRenderer.uniforms,
       ...this.options.chunkUniformsOverwrite,
     };
 
-    const shaderLightingUniforms = useShaderLighting
+    const shaderLightingUniforms = this.usesShaderLighting
       ? {
           uSunDirection: this.chunkRenderer.shaderLightingUniforms.sunDirection,
           uSunColor: this.chunkRenderer.shaderLightingUniforms.sunColor,
@@ -5947,46 +5914,85 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       : {};
 
-    const material = new ShaderMaterial({
+    const material = new MeshBasicMaterial({
       vertexColors: true,
-      fragmentShader: actualFragmentShader,
-      vertexShader: actualVertexShader,
-      uniforms: {
-        ...UniformsUtils.clone(ShaderLib.basic.uniforms),
-        uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
-        uSunlightIntensity: chunksUniforms.sunlightIntensity,
-        uAOTable: chunksUniforms.ao,
-        uMinLightLevel: chunksUniforms.minLightLevel,
-        uBaseAmbient: chunksUniforms.baseAmbient,
-        uFogNear: chunksUniforms.fogNear,
-        uFogFar: chunksUniforms.fogFar,
-        uFogColor: chunksUniforms.fogColor,
-        uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
-        uFogHeightDensity: chunksUniforms.fogHeightDensity,
-        uWindDirection: chunksUniforms.windDirection,
-        uWindSpeed: chunksUniforms.windSpeed,
-        uTime: chunksUniforms.time,
-        uAtlasSize: chunksUniforms.atlasSize,
-        uShowGreedyDebug: chunksUniforms.showGreedyDebug,
-        ...shaderLightingUniforms,
-        ...uniforms,
-      },
     }) as CustomChunkShaderMaterial;
+    const initialMap = AtlasTexture.makeUnknownTexture(
+      this.options.textureUnitDimension,
+    );
+    material.map = initialMap;
 
-    Object.defineProperty(material, "renderStage", {
-      get: function () {
-        return material.uniforms.renderStage.value;
-      },
-
-      set: function (stage) {
-        material.uniforms.renderStage.value = parseFloat(stage);
+    const mapUniform = new Uniform<Texture>(initialMap);
+    Object.defineProperty(mapUniform, "value", {
+      configurable: true,
+      enumerable: true,
+      get: () => material.map,
+      set: (value: Texture) => {
+        material.map = value;
       },
     });
 
-    material.map = AtlasTexture.makeUnknownTexture(
-      this.options.textureUnitDimension,
-    );
-    material.uniforms.map = { value: material.map };
+    const alphaTestUniform = new Uniform<number>(material.alphaTest);
+    Object.defineProperty(alphaTestUniform, "value", {
+      configurable: true,
+      enumerable: true,
+      get: () => material.alphaTest,
+      set: (value: number) => {
+        material.alphaTest = value;
+      },
+    });
+
+    const initialRenderStage = 0;
+    material.userData.renderStage = initialRenderStage;
+
+    const renderStageUniform = new Uniform<number>(initialRenderStage);
+    Object.defineProperty(renderStageUniform, "value", {
+      configurable: true,
+      enumerable: true,
+      get: () => Number(material.userData.renderStage ?? 0),
+      set: (value: number) => {
+        material.userData.renderStage = value;
+      },
+    });
+
+    material.uniforms = {
+      uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
+      uSunlightIntensity: chunksUniforms.sunlightIntensity,
+      uAOTable: chunksUniforms.ao,
+      uMinLightLevel: chunksUniforms.minLightLevel,
+      uBaseAmbient: chunksUniforms.baseAmbient,
+      uFogNear: chunksUniforms.fogNear,
+      uFogFar: chunksUniforms.fogFar,
+      uFogColor: chunksUniforms.fogColor,
+      uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
+      uFogHeightDensity: chunksUniforms.fogHeightDensity,
+      uWindDirection: chunksUniforms.windDirection,
+      uWindSpeed: chunksUniforms.windSpeed,
+      uTime: chunksUniforms.time,
+      uAtlasSize: chunksUniforms.atlasSize,
+      uShowGreedyDebug: chunksUniforms.showGreedyDebug,
+      ...shaderLightingUniforms,
+      ...uniforms,
+      map: mapUniform,
+      alphaTest: alphaTestUniform,
+      renderStage: renderStageUniform,
+    };
+
+    Object.defineProperty(material, "renderStage", {
+      get: function () {
+        return Number(material.userData.renderStage ?? 0);
+      },
+
+      set: function (stage: number | string) {
+        const parsed =
+          typeof stage === "number" ? stage : parseFloat(String(stage));
+        const nextStage = Number.isFinite(parsed) ? parsed : 0;
+        material.userData.renderStage = nextStage;
+        material.uniforms.renderStage.value = nextStage;
+      },
+    });
+
+    material.uniforms.map.value = material.map;
 
     return material;
   };

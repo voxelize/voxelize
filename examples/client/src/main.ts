@@ -2,13 +2,8 @@ import "./style.css";
 
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
-import {
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
 import * as THREE from "three";
+import { WebGPURenderer } from "three/webgpu";
 
 import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
@@ -41,7 +36,7 @@ const camera = new THREE.PerspectiveCamera(
   5000,
 );
 
-const renderer = new THREE.WebGLRenderer({
+const renderer = new WebGPURenderer({
   canvas,
 });
 renderer.setSize(
@@ -50,6 +45,10 @@ renderer.setSize(
 );
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+let rendererReady = false;
+const rendererInitPromise = renderer.init().then(() => {
+  rendererReady = true;
+});
 
 // resize window event listener found inside start() function
 
@@ -509,14 +508,16 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
       holdingObjectId = this.ownPeer.userData.holdingObjectId ?? 0;
     }
 
+    const metadata: PeersMeta = {
+      position: [px, py, pz],
+      direction: [dx, dy, dz],
+      holding_object_id: holdingObjectId,
+    };
+
     return {
       id: this.ownID,
       username: this.ownUsername,
-      metadata: {
-        position: [px, py, pz],
-        direction: [dx, dy, dz],
-        holding_object_id: holdingObjectId,
-      } as any as PeersMeta,
+      metadata,
     };
   };
 }
@@ -564,7 +565,10 @@ debug.registerDisplay("Sunlight", () => {
 
 ["Red", "Green", "Blue"].forEach((color) => {
   debug.registerDisplay(`${color} Light`, () => {
-    return world.getTorchLightAt(...controls.voxel, color.toUpperCase() as any);
+    return world.getTorchLightAt(
+      ...controls.voxel,
+      color.toUpperCase() as "RED" | "GREEN" | "BLUE",
+    );
   });
 });
 
@@ -896,7 +900,7 @@ window.addEventListener("resize", () => {
   const height = window.innerHeight as number;
 
   renderer.setSize(width, height);
-  renderer.pixelRatio = window.devicePixelRatio;
+  renderer.setPixelRatio(window.devicePixelRatio);
 
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
@@ -980,23 +984,19 @@ const update = () => {
 
 let isFocused = true;
 
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-
-const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
-composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
-
 const animate = () => {
-  requestAnimationFrame(animate);
-  if (isFocused) update();
-  composer.render();
-  renderer.clearDepth();
-  renderer.render(armScene, armCamera);
+  renderer.setAnimationLoop(() => {
+    if (isFocused) update();
+    if (!rendererReady) return;
+
+    renderer.render(world, camera);
+    renderer.clearDepth();
+    renderer.render(armScene, armCamera);
+  });
 };
 
 const start = async () => {
-  let clearUpdate: any;
+  let clearUpdate: (() => void) | null = null;
 
   const handleVisibilityChange = () => {
     if (document.hidden) {
@@ -1017,6 +1017,7 @@ const start = async () => {
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
+  await rendererInitPromise;
   animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });

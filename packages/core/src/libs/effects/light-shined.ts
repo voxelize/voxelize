@@ -7,6 +7,14 @@ import { Shadow } from "../shadows";
 
 const position = new Vector3();
 const tempColor = new Color();
+type Object3DConstructor = new (...args: never[]) => Object3D;
+type LightAwareMaterial = Material & {
+  color: Color;
+  userData: Material["userData"] & {
+    lightEffectSetup?: boolean;
+    lightBaseColor?: Color;
+  };
+};
 
 export type LightShinedOptions = {
   /**
@@ -59,7 +67,7 @@ export class LightShined {
   /**
    * A list of types that are ignored by this effect.
    */
-  public ignored: Set<any> = new Set();
+  public ignored: Set<Object3DConstructor> = new Set();
 
   private positionOverrides = new Map<Object3D, Vector3>();
 
@@ -118,61 +126,41 @@ export class LightShined {
     this.positionOverrides.delete(obj);
   };
 
-  ignore = (...types: any[]) => {
+  ignore = (...types: Object3DConstructor[]) => {
     types.forEach((type) => {
       this.ignored.add(type);
     });
   };
 
   private setupLightMaterials = (obj: Object3D) => {
+    const isLightAwareMaterial = (
+      material: Material,
+    ): material is LightAwareMaterial => {
+      return (
+        "color" in material &&
+        (material as { color?: Color }).color instanceof Color
+      );
+    };
+
     const setupMaterial = (material: Material) => {
-      if (
-        ThreeUtils.isShaderMaterial(material) ||
-        material.userData.lightEffectSetup
-      )
-        return;
+      if (ThreeUtils.isShaderMaterial(material)) return;
+      if (!isLightAwareMaterial(material)) return;
+      if (material.userData.lightEffectSetup) return;
 
       const lightUniform = { value: new Color(1, 1, 1) };
-      const oldOnBeforeCompile = material.onBeforeCompile;
-      material.onBeforeCompile = (shader, renderer) => {
-        if (oldOnBeforeCompile) {
-          oldOnBeforeCompile(shader, renderer);
-        }
-
-        shader.uniforms.lightEffect = lightUniform;
-        shader.vertexShader = shader.vertexShader.replace(
-          "void main() {",
-          `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "void main() {",
-          `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "#include <color_fragment>",
-          `
-          #include <color_fragment>
-          diffuseColor.rgb *= lightEffect;
-          `,
-        );
-      };
-      material.needsUpdate = true;
+      material.userData.lightBaseColor = material.color.clone();
       if (!obj.userData.lightUniforms) {
         obj.userData.lightUniforms = [];
       }
       obj.userData.lightUniforms.push(lightUniform);
+      if (!obj.userData.lightMaterials) {
+        obj.userData.lightMaterials = [];
+      }
+      obj.userData.lightMaterials.push(material);
       material.userData.lightEffectSetup = true;
     };
 
-    const isMesh = (object: any): object is Mesh => {
-      return object.isMesh;
-    };
+    const isMesh = (object: Object3D): object is Mesh => object instanceof Mesh;
 
     const setupObjectAndChildren = (object: Object3D) => {
       if (isMesh(object)) {
@@ -225,8 +213,11 @@ export class LightShined {
       if (obj instanceof type) return;
     }
 
-    if (obj.userData.lightUniforms) {
-      obj.userData.lightUniforms.forEach((uniform: { value: Color }) => {
+    const lightUniforms = obj.userData.lightUniforms as
+      | { value: Color }[]
+      | undefined;
+    if (lightUniforms) {
+      lightUniforms.forEach((uniform) => {
         if (obj.userData.justChanged) {
           uniform.value.copy(color);
         } else {
@@ -238,6 +229,21 @@ export class LightShined {
         uniform.value.b = Math.min(uniform.value.b, this.options.maxBrightness);
       });
     }
+
+    const lightMaterials = obj.userData.lightMaterials as
+      | LightAwareMaterial[]
+      | undefined;
+    if (lightMaterials && lightUniforms) {
+      const length = Math.min(lightMaterials.length, lightUniforms.length);
+      for (let i = 0; i < length; i++) {
+        const material = lightMaterials[i];
+        const uniform = lightUniforms[i];
+        const baseColor = material.userData.lightBaseColor;
+        if (!baseColor) continue;
+        material.color.copy(baseColor).multiply(uniform.value);
+      }
+    }
+
     obj.userData.justChanged = false;
   };
 

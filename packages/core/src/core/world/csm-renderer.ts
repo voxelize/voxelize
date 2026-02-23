@@ -5,17 +5,16 @@ import {
   Frustum,
   Group,
   Matrix4,
-  MeshDepthMaterial,
+  MeshBasicMaterial,
   Object3D,
   OrthographicCamera,
-  RGBADepthPacking,
   Scene,
   Texture,
   UnsignedIntType,
   Vector3,
-  WebGLRenderTarget,
-  WebGLRenderer,
+  RenderTarget,
 } from "three";
+import type { Renderer } from "three/webgpu";
 
 export interface CSMConfig {
   cascades: number;
@@ -28,7 +27,7 @@ export interface CSMConfig {
 }
 
 interface Cascade {
-  renderTarget: WebGLRenderTarget;
+  renderTarget: RenderTarget;
   camera: OrthographicCamera;
   matrix: Matrix4;
   split: number;
@@ -50,7 +49,7 @@ export class CSMRenderer {
   private lightDirection = new Vector3(0, -1, 0.3).normalize();
   private lastLightDirection = new Vector3(0, -1, 0.3).normalize();
   private frustum = new Frustum();
-  private depthMaterial: MeshDepthMaterial;
+  private depthMaterial: MeshBasicMaterial;
   private frameCount = 0;
   private lastCameraPosition = new Vector3();
   private cascadeDirty: boolean[] = [];
@@ -78,8 +77,9 @@ export class CSMRenderer {
   constructor(config: Partial<CSMConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
 
-    this.depthMaterial = new MeshDepthMaterial({
-      depthPacking: RGBADepthPacking,
+    this.depthMaterial = new MeshBasicMaterial({
+      colorWrite: false,
+      side: THREE.DoubleSide,
     });
     this.initCascades();
   }
@@ -99,7 +99,7 @@ export class CSMRenderer {
     for (let i = 0; i < cascades; i++) {
       const size = shadowMapSize;
 
-      const renderTarget = new WebGLRenderTarget(size, size, {
+      const renderTarget = new RenderTarget(size, size, {
         depthTexture: new DepthTexture(size, size),
       });
       renderTarget.depthTexture.type = UnsignedIntType;
@@ -322,7 +322,7 @@ export class CSMRenderer {
   }
 
   render(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     scene: Scene,
     entities?: Object3D[],
     maxEntityShadowDistance = 32,

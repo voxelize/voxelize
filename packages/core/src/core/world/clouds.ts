@@ -8,14 +8,20 @@ import {
   Group,
   Int8BufferAttribute,
   Mesh,
-  ShaderMaterial,
   Vector3,
+  type IUniform,
 } from "three";
+import {
+  cameraPosition,
+  mix,
+  positionWorld,
+  smoothstep,
+  uniform,
+} from "three/tsl";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
-import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
-import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
@@ -136,6 +142,18 @@ const defaultOptions: CloudsOptions = {
   cloudHeight: 256,
 };
 
+type CloudsMaterialUniforms = {
+  uFogNear: IUniform<number>;
+  uFogFar: IUniform<number>;
+  uFogColor: IUniform<Color>;
+  uCloudColor: IUniform<Color>;
+  uCloudAlpha: IUniform<number>;
+};
+
+type CloudsNodeMaterial = MeshBasicNodeMaterial & {
+  uniforms: CloudsMaterialUniforms;
+};
+
 /**
  * A class that generates and manages clouds. Clouds are essentially a 2D grid of cells that contain further sub-grids of
  * cloud blocks. This 2D grid move altogether in the `+x` direction, and is generated at the start asynchronously using
@@ -162,7 +180,7 @@ export class Clouds extends Group {
   /**
    * The shard shader material used to render the clouds.
    */
-  public material: ShaderMaterial;
+  public material: CloudsNodeMaterial;
 
   /**
    * A 2D array of cloud meshes. The first dimension is the x-axis, and the second dimension is the z-axis.
@@ -203,6 +221,11 @@ export class Clouds extends Group {
    * A inner THREE.JS clock used to determine the time delta between frames.
    */
   private timer = new Timer();
+  private fogNearNode = uniform(500);
+  private fogFarNode = uniform(1000);
+  private fogColorNode = uniform(new Color("#fff"));
+  private cloudColorNode = uniform(new Color("#fff"));
+  private cloudAlphaNode = uniform(0.8);
 
   /**
    * Create a new {@link Clouds} instance, initializing it asynchronously automatically.
@@ -220,25 +243,36 @@ export class Clouds extends Group {
       this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
-    this.material = new ShaderMaterial({
-      transparent: true,
-      vertexShader: CloudsVertexShader,
-      fragmentShader: CloudsFragmentShader,
-      side: FrontSide,
-      uniforms: {
-        uFogNear: uFogNear || { value: 500 },
-        uFogFar: uFogFar || { value: 1000 },
-        uFogColor: uFogColor || { value: new Color("#fff") },
-        uCloudColor: {
-          value: new Color(color),
-        },
-        uCloudAlpha: {
-          value: alpha,
-        },
+    const uniforms: CloudsMaterialUniforms = {
+      uFogNear: uFogNear || { value: 500 },
+      uFogFar: uFogFar || { value: 1000 },
+      uFogColor: uFogColor || { value: new Color("#fff") },
+      uCloudColor: {
+        value: new Color(color),
       },
-    });
+      uCloudAlpha: {
+        value: alpha,
+      },
+    };
+
+    this.material = new MeshBasicNodeMaterial({
+      transparent: true,
+      side: FrontSide,
+    }) as CloudsNodeMaterial;
+    this.material.uniforms = uniforms;
+    this.material.colorNode = mix(
+      this.cloudColorNode,
+      this.fogColorNode,
+      smoothstep(
+        this.fogNearNode,
+        this.fogFarNode,
+        positionWorld.xz.sub(cameraPosition.xz).length().div(8),
+      ),
+    );
+    this.material.opacityNode = this.cloudAlphaNode;
 
     this.material.toneMapped = false;
+    this.syncCloudNodeUniforms();
 
     this.initialize();
   }
@@ -266,6 +300,8 @@ export class Clouds extends Group {
    * @param position The new position that this cloud should be centered around.
    */
   update = (position: Vector3) => {
+    this.syncCloudNodeUniforms();
+
     if (!this.isInitialized) return;
 
     // Normalize the delta
@@ -305,6 +341,17 @@ export class Clouds extends Group {
     }
 
     this.position.lerp(this.newPosition, this.options.lerpFactor);
+  };
+
+  private syncCloudNodeUniforms = () => {
+    const { uFogNear, uFogFar, uFogColor, uCloudColor, uCloudAlpha } =
+      this.material.uniforms;
+
+    this.fogNearNode.value = uFogNear.value;
+    this.fogFarNode.value = uFogFar.value;
+    this.fogColorNode.value = uFogColor.value;
+    this.cloudColorNode.value = uCloudColor.value;
+    this.cloudAlphaNode.value = uCloudAlpha.value;
   };
 
   /**
@@ -435,7 +482,7 @@ export class Clouds extends Group {
     const min = [x * count - 1, 0, z * count - 1];
     const max = [(x + 1) * count + 1, height, (z + 1) * count + 1];
 
-    const data = await new Promise<any>((resolve) =>
+    const data = await new Promise<Uint8Array>((resolve) =>
       this.pool.addJob({
         message: {
           data: array.data,
@@ -450,7 +497,7 @@ export class Clouds extends Group {
             seed,
           },
         },
-        resolve,
+        resolve: (value: Uint8Array) => resolve(value),
         buffers: [array.data.buffer.slice(0)],
       }),
     );

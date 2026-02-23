@@ -10,7 +10,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
-    "compile": "vite build",
+    "compile": "node ../../node_modules/vite/bin/vite.js build --config vite.config.mjs",
     "build": "pnpm run clean && pnpm run compile && pnpm run types && pnpm run copy",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "watch": "cross-env NODE_ENV=development npm-run-all --parallel watch:*",
@@ -22,7 +22,6 @@
     "preinstall": "npx only-allow pnpm"
   },
   "peerDependencies": {
-    "postprocessing": "^6.35.0",
     "three": "^0.183.0"
   },
   "devDependencies": {

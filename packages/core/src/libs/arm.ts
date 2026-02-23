@@ -3,9 +3,6 @@ import * as THREE from "three";
 import { Inputs } from "../core/inputs";
 import {
   createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
   EntityShadowUniforms,
   ShaderLightingUniforms,
   updateEntityShadowUniforms,
@@ -374,43 +371,7 @@ export class Arm extends THREE.Group {
 
         const shadowUniforms = createEntityShadowUniforms();
         this.heldObjectShadowUniforms.push(shadowUniforms);
-
-        material.onBeforeCompile = (shader) => {
-          Object.assign(shader.uniforms, shadowUniforms);
-
-          shader.vertexShader = shader.vertexShader
-            .replace(
-              "#include <uv_pars_vertex>",
-              `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-`,
-            )
-            .replace(
-              "#include <worldpos_vertex>",
-              `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-`,
-            );
-
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "#include <common>",
-              `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-`,
-            )
-            .replace(
-              "#include <dithering_fragment>",
-              `#include <dithering_fragment>
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
-gl_FragColor.rgb *= shadow;
-`,
-            );
-        };
-
-        material.onBeforeCompile.toString = () => "held-object-shadow-shader";
-        material.needsUpdate = true;
+        material.userData.receiveShadows = true;
       }
     });
   }
