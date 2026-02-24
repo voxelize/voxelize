@@ -314,6 +314,11 @@ export class BoxLayer extends Mesh {
     canvas.width = width;
     canvas.height = height;
 
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, width, height);
+    }
+
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
 
