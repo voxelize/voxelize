@@ -30,14 +30,21 @@ the `VoxelAccess` trait, allowing the shared meshing functions to work seamlessl
 
 When making changes to meshing algorithms:
 
-1. Edit this crate (`packages/mesher/src/`)
-2. Rebuild WASM: `cd packages/wasm-mesher && wasm-pack build --target web`
-3. Rebuild client: `cd packages/core && pnpm compile`
-4. Server will automatically use the changes when rebuilt
+1. Edit this crate (`crates/mesher/src/`).
+2. Run mesher tests:
+   - `cargo test --manifest-path crates/mesher/Cargo.toml`
+3. Run snapshot regressions (greedy + non-greedy):
+   - `cargo test --manifest-path crates/mesher/Cargo.toml --test greedy_snapshot_tests`
+4. Update snapshots intentionally when behavior changes:
+   - `VOXELIZE_UPDATE_SNAPSHOTS=1 cargo test --manifest-path crates/mesher/Cargo.toml --test greedy_snapshot_tests`
+5. Run benchmarks:
+   - `cargo bench --manifest-path crates/mesher/Cargo.toml --bench greedy_mesher_bench`
+6. Rebuild WASM wrapper when needed:
+   - `cd crates/wasm-mesher && wasm-pack build --target web`
 
 ## Structure
 
-- `src/access.rs` - `VoxelAccess` trait for abstracting voxel data access
-- `src/types.rs` - Core types (Block, BlockFace, Registry, GeometryProtocol, etc.)
-- `src/mesher.rs` - Meshing algorithms (greedy meshing, face culling, AO, lighting)
+- `src/mesher.rs` - Meshing algorithms and data structures (greedy and non-greedy)
 - `src/lib.rs` - Public exports
+- `tests/greedy_snapshot_tests.rs` - Snapshot regressions across block-property fixtures
+- `benches/greedy_mesher_bench.rs` - Criterion benchmarks for greedy/non-greedy performance

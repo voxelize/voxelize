@@ -12,6 +12,8 @@ pub struct Block {
     pub name: String,
     #[serde(skip)]
     pub name_lower: String,
+    #[serde(skip, default)]
+    pub cache_ready: bool,
     pub rotatable: bool,
     pub y_rotatable: bool,
     pub is_empty: bool,
@@ -20,6 +22,32 @@ pub struct Block {
     pub is_opaque: bool,
     pub is_see_through: bool,
     pub is_transparent: [bool; 6],
+    #[serde(skip, default)]
+    pub is_all_transparent: bool,
+    #[serde(skip, default = "default_greedy_face_indices")]
+    pub greedy_face_indices: [i16; 6],
+    #[serde(skip, default)]
+    pub has_standard_six_faces: bool,
+    #[serde(skip, default)]
+    pub fluid_face_uvs: Option<[UV; 6]>,
+    #[serde(skip, default)]
+    pub greedy_face_uv_quantized: [[u32; 4]; 6],
+    #[serde(skip, default)]
+    pub has_diagonal_faces: bool,
+    #[serde(skip, default)]
+    pub has_independent_or_isolated_faces: bool,
+    #[serde(skip, default)]
+    pub has_dynamic_patterns: bool,
+    #[serde(skip, default)]
+    pub uses_main_geometry_only: bool,
+    #[serde(skip, default)]
+    pub block_min_cached: [f32; 3],
+    #[serde(skip, default)]
+    pub is_full_cube_cached: bool,
+    #[serde(skip, default)]
+    pub has_mixed_diagonal_and_cardinal: bool,
+    #[serde(skip, default)]
+    pub greedy_mesh_eligible_no_rotation: bool,
     pub transparent_standalone: bool,
     #[serde(default)]
     pub occludes_fluid: bool,
@@ -33,9 +61,104 @@ pub struct Block {
 impl Block {
     pub fn compute_name_lower(&mut self) {
         self.name_lower = self.name.to_lowercase();
-        for face in &mut self.faces {
+        self.cache_ready = true;
+        self.is_all_transparent = self.is_transparent.iter().all(|transparent| *transparent);
+        self.greedy_face_indices = default_greedy_face_indices();
+        self.is_full_cube_cached = is_full_cube_from_aabbs(&self.aabbs);
+        self.block_min_cached = if self.is_full_cube_cached {
+            [0.0, 0.0, 0.0]
+        } else {
+            let block_aabb = AABB::union_all(&self.aabbs);
+            [block_aabb.min_x, block_aabb.min_y, block_aabb.min_z]
+        };
+        let mut has_standard_six_faces = false;
+        let mut fluid_face_uvs = std::array::from_fn(|_| UV::default());
+        let mut greedy_face_uv_quantized = [[0u32; 4]; 6];
+        let mut has_diagonal = false;
+        let mut has_cardinal = false;
+        let mut has_independent_or_isolated_faces = false;
+        for (face_index, face) in self.faces.iter_mut().enumerate() {
             face.compute_name_lower();
+            if face.independent || face.isolated {
+                has_independent_or_isolated_faces = true;
+            }
+            match face.get_name_lower() {
+                "py" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[0] = face.range;
+                }
+                "ny" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[1] = face.range;
+                }
+                "px" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[2] = face.range;
+                }
+                "nx" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[3] = face.range;
+                }
+                "pz" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[4] = face.range;
+                }
+                "nz" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[5] = face.range;
+                }
+                _ => {}
+            }
+            if face.dir == [0, 0, 0] {
+                has_diagonal = true;
+            } else {
+                let manhattan = face.dir[0].abs() + face.dir[1].abs() + face.dir[2].abs();
+                if manhattan == 1 {
+                    has_cardinal = true;
+                }
+            }
+            if let Some(dir_index) = cardinal_dir_index(face.dir) {
+                if self.greedy_face_indices[dir_index] == -1 {
+                    self.greedy_face_indices[dir_index] = face_index as i16;
+                } else {
+                    self.greedy_face_indices[dir_index] = -2;
+                }
+            }
         }
+        self.has_standard_six_faces = has_standard_six_faces;
+        self.fluid_face_uvs = if has_standard_six_faces {
+            Some(fluid_face_uvs)
+        } else {
+            None
+        };
+        let mut dir_index = 0usize;
+        while dir_index < self.greedy_face_indices.len() {
+            let face_index = self.greedy_face_indices[dir_index];
+            if face_index >= 0 {
+                let uv = self.faces[face_index as usize].range;
+                greedy_face_uv_quantized[dir_index] = [
+                    (uv.start_u * 1000000.0) as u32,
+                    (uv.end_u * 1000000.0) as u32,
+                    (uv.start_v * 1000000.0) as u32,
+                    (uv.end_v * 1000000.0) as u32,
+                ];
+            }
+            dir_index += 1;
+        }
+        self.greedy_face_uv_quantized = greedy_face_uv_quantized;
+        self.has_diagonal_faces = has_diagonal;
+        self.has_independent_or_isolated_faces = has_independent_or_isolated_faces;
+        self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
+        self.has_dynamic_patterns = self.dynamic_patterns.is_some();
+        self.uses_main_geometry_only = !self.is_fluid
+            && !self.has_dynamic_patterns
+            && !self.has_independent_or_isolated_faces;
+        self.greedy_mesh_eligible_no_rotation = !self.is_fluid
+            && !self.rotatable
+            && !self.y_rotatable
+            && !self.has_dynamic_patterns
+            && self.is_full_cube_cached
+            && !self.has_mixed_diagonal_and_cardinal;
         if let Some(patterns) = &mut self.dynamic_patterns {
             for pattern in patterns {
                 for part in &mut pattern.parts {
@@ -48,21 +171,108 @@ impl Block {
     }
 
     pub fn is_full_cube(&self) -> bool {
-        self.aabbs.len() == 1
-            && (self.aabbs[0].min_x - 0.0).abs() < f32::EPSILON
-            && (self.aabbs[0].min_y - 0.0).abs() < f32::EPSILON
-            && (self.aabbs[0].min_z - 0.0).abs() < f32::EPSILON
-            && (self.aabbs[0].max_x - 1.0).abs() < f32::EPSILON
-            && (self.aabbs[0].max_y - 1.0).abs() < f32::EPSILON
-            && (self.aabbs[0].max_z - 1.0).abs() < f32::EPSILON
+        if !self.cache_ready {
+            is_full_cube_from_aabbs(&self.aabbs)
+        } else {
+            self.is_full_cube_cached
+        }
     }
 
     pub fn get_name_lower(&self) -> &str {
-        if self.name_lower.is_empty() {
+        if !self.cache_ready {
             &self.name
         } else {
             &self.name_lower
         }
+    }
+
+    pub fn has_standard_six_faces_cached(&self) -> bool {
+        if !self.cache_ready {
+            has_standard_six_faces(&self.faces)
+        } else {
+            self.has_standard_six_faces
+        }
+    }
+
+    pub fn can_greedy_mesh_without_rotation(&self) -> bool {
+        if !self.cache_ready {
+            !self.is_fluid
+                && !self.rotatable
+                && !self.y_rotatable
+                && self.dynamic_patterns.is_none()
+                && self.is_full_cube()
+                && !(has_diagonal_faces(self) && has_cardinal_faces(self))
+        } else {
+            self.greedy_mesh_eligible_no_rotation
+        }
+    }
+
+    pub fn has_diagonal_faces_cached(&self) -> bool {
+        if !self.cache_ready {
+            has_diagonal_faces(self)
+        } else {
+            self.has_diagonal_faces
+        }
+    }
+
+    pub fn has_independent_or_isolated_faces_cached(&self) -> bool {
+        if !self.cache_ready {
+            self.faces
+                .iter()
+                .any(|face| face.independent || face.isolated)
+        } else {
+            self.has_independent_or_isolated_faces
+        }
+    }
+
+    pub fn has_dynamic_patterns_cached(&self) -> bool {
+        if !self.cache_ready {
+            self.dynamic_patterns.is_some()
+        } else {
+            self.has_dynamic_patterns
+        }
+    }
+
+    pub fn uses_main_geometry_only_cached(&self) -> bool {
+        if !self.cache_ready {
+            !self.is_fluid
+                && self.dynamic_patterns.is_none()
+                && !self
+                    .faces
+                    .iter()
+                    .any(|face| face.independent || face.isolated)
+        } else {
+            self.uses_main_geometry_only
+        }
+    }
+}
+
+#[inline]
+const fn default_greedy_face_indices() -> [i16; 6] {
+    [-1; 6]
+}
+
+#[inline]
+fn is_full_cube_from_aabbs(aabbs: &[AABB]) -> bool {
+    aabbs.len() == 1
+        && (aabbs[0].min_x - 0.0).abs() < f32::EPSILON
+        && (aabbs[0].min_y - 0.0).abs() < f32::EPSILON
+        && (aabbs[0].min_z - 0.0).abs() < f32::EPSILON
+        && (aabbs[0].max_x - 1.0).abs() < f32::EPSILON
+        && (aabbs[0].max_y - 1.0).abs() < f32::EPSILON
+        && (aabbs[0].max_z - 1.0).abs() < f32::EPSILON
+}
+
+#[inline(always)]
+const fn cardinal_dir_index(dir: [i32; 3]) -> Option<usize> {
+    match dir {
+        [1, 0, 0] => Some(0),
+        [-1, 0, 0] => Some(1),
+        [0, 1, 0] => Some(2),
+        [0, -1, 0] => Some(3),
+        [0, 0, 1] => Some(4),
+        [0, 0, -1] => Some(5),
+        _ => None,
     }
 }
 
@@ -72,6 +282,8 @@ pub struct Registry {
     pub blocks_by_id: Vec<(u32, Block)>,
     #[serde(skip)]
     lookup_cache: Option<HashMap<u32, usize>>,
+    #[serde(skip)]
+    dense_lookup: Option<Vec<usize>>,
 }
 
 impl Registry {
@@ -79,21 +291,51 @@ impl Registry {
         Self {
             blocks_by_id,
             lookup_cache: None,
+            dense_lookup: None,
         }
     }
 
     pub fn build_cache(&mut self) {
         let mut cache = HashMap::with_capacity(self.blocks_by_id.len());
+        let mut max_id = 0u32;
         for (idx, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
             cache.insert(*id, idx);
+            if *id > max_id {
+                max_id = *id;
+            }
             block.compute_name_lower();
         }
         self.lookup_cache = Some(cache);
+
+        let dense_limit = self.blocks_by_id.len().saturating_mul(16);
+        if (max_id as usize) <= dense_limit {
+            let mut dense = vec![usize::MAX; max_id as usize + 1];
+            for (idx, (id, _)) in self.blocks_by_id.iter().enumerate() {
+                dense[*id as usize] = idx;
+            }
+            self.dense_lookup = Some(dense);
+        } else {
+            self.dense_lookup = None;
+        }
     }
 
+    #[inline(always)]
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {
-        if let Some(cache) = &self.lookup_cache {
-            cache.get(&id).map(|&idx| &self.blocks_by_id[idx].1)
+        if let Some(dense) = &self.dense_lookup {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
+                if idx != usize::MAX {
+                    return Some(&self.blocks_by_id[idx].1);
+                }
+            }
+            None
+        } else if let Some(cache) = &self.lookup_cache {
+            if let Some(&idx) = cache.get(&id) {
+                Some(&self.blocks_by_id[idx].1)
+            } else {
+                None
+            }
         } else {
             self.blocks_by_id
                 .iter()
@@ -102,13 +344,127 @@ impl Registry {
         }
     }
 
+    #[inline(always)]
     pub fn has_type(&self, id: u32) -> bool {
-        if let Some(cache) = &self.lookup_cache {
+        if let Some(dense) = &self.dense_lookup {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                dense[dense_index] != usize::MAX
+            } else {
+                false
+            }
+        } else if let Some(cache) = &self.lookup_cache {
             cache.contains_key(&id)
         } else {
             self.blocks_by_id
                 .iter()
                 .any(|(block_id, _)| *block_id == id)
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_opaque_id(&self, id: u32) -> bool {
+        if let Some(dense) = &self.dense_lookup {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
+                return idx != usize::MAX && self.blocks_by_id[idx].1.is_opaque;
+            }
+            false
+        } else if let Some(cache) = &self.lookup_cache {
+            if let Some(&idx) = cache.get(&id) {
+                self.blocks_by_id[idx].1.is_opaque
+            } else {
+                false
+            }
+        } else {
+            self.blocks_by_id
+                .iter()
+                .find(|(block_id, _)| *block_id == id)
+                .map(|(_, block)| block.is_opaque)
+                .unwrap_or(false)
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_empty_id(&self, id: u32) -> bool {
+        if let Some(dense) = &self.dense_lookup {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
+                return idx != usize::MAX && self.blocks_by_id[idx].1.is_empty;
+            }
+            false
+        } else if let Some(cache) = &self.lookup_cache {
+            if let Some(&idx) = cache.get(&id) {
+                self.blocks_by_id[idx].1.is_empty
+            } else {
+                false
+            }
+        } else {
+            self.blocks_by_id
+                .iter()
+                .find(|(block_id, _)| *block_id == id)
+                .map(|(_, block)| block.is_empty)
+                .unwrap_or(false)
+        }
+    }
+
+    #[inline(always)]
+    pub fn has_type_and_is_opaque(&self, id: u32) -> (bool, bool) {
+        if let Some(dense) = &self.dense_lookup {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
+                if idx != usize::MAX {
+                    return (true, self.blocks_by_id[idx].1.is_opaque);
+                }
+            }
+            (false, false)
+        } else if let Some(cache) = &self.lookup_cache {
+            if let Some(&idx) = cache.get(&id) {
+                (true, self.blocks_by_id[idx].1.is_opaque)
+            } else {
+                (false, false)
+            }
+        } else if let Some((_, block)) = self
+            .blocks_by_id
+            .iter()
+            .find(|(block_id, _)| *block_id == id)
+        {
+            (true, block.is_opaque)
+        } else {
+            (false, false)
+        }
+    }
+
+    #[inline(always)]
+    pub fn has_type_and_opaque_and_empty(&self, id: u32) -> (bool, bool, bool) {
+        if let Some(dense) = &self.dense_lookup {
+            let dense_index = id as usize;
+            if dense_index < dense.len() {
+                let idx = dense[dense_index];
+                if idx != usize::MAX {
+                    let block = &self.blocks_by_id[idx].1;
+                    return (true, block.is_opaque, block.is_empty);
+                }
+            }
+            (false, false, false)
+        } else if let Some(cache) = &self.lookup_cache {
+            if let Some(&idx) = cache.get(&id) {
+                let block = &self.blocks_by_id[idx].1;
+                (true, block.is_opaque, block.is_empty)
+            } else {
+                (false, false, false)
+            }
+        } else if let Some((_, block)) = self
+            .blocks_by_id
+            .iter()
+            .find(|(block_id, _)| *block_id == id)
+        {
+            (true, block.is_opaque, block.is_empty)
+        } else {
+            (false, false, false)
         }
     }
 }
@@ -153,27 +509,63 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
 const FLUID_BASE_HEIGHT: f32 = 0.875;
 const FLUID_STAGE_DROPOFF: f32 = 0.1;
 const FLUID_SURFACE_OFFSET: f32 = 0.005;
+const FLUID_CORNER_NXNZ: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
+const FLUID_CORNER_PXNZ: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
+const FLUID_CORNER_NXPZ: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
+const FLUID_CORNER_PXPZ: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
+
+const fn fluid_effective_height_const(stage: u32) -> f32 {
+    let height = FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF);
+    if height > 0.1 {
+        height
+    } else {
+        0.1
+    }
+}
+
+const FLUID_EFFECTIVE_HEIGHT_LUT: [f32; 16] = [
+    fluid_effective_height_const(0),
+    fluid_effective_height_const(1),
+    fluid_effective_height_const(2),
+    fluid_effective_height_const(3),
+    fluid_effective_height_const(4),
+    fluid_effective_height_const(5),
+    fluid_effective_height_const(6),
+    fluid_effective_height_const(7),
+    fluid_effective_height_const(8),
+    fluid_effective_height_const(9),
+    fluid_effective_height_const(10),
+    fluid_effective_height_const(11),
+    fluid_effective_height_const(12),
+    fluid_effective_height_const(13),
+    fluid_effective_height_const(14),
+    fluid_effective_height_const(15),
+];
 
 struct NeighborCache {
     data: [[u32; 2]; 27],
 }
 
 impl NeighborCache {
-    #[inline]
+    #[inline(always)]
     fn offset_to_index(x: i32, y: i32, z: i32) -> usize {
         ((x + 1) + (y + 1) * 3 + (z + 1) * 9) as usize
     }
 
     fn populate<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S) -> Self {
         let mut data = [[0u32; 2]; 27];
-
-        for x in -1..=1 {
+        let mut idx = 0usize;
+        for z in -1..=1 {
+            let sample_z = vz + z;
             for y in -1..=1 {
-                for z in -1..=1 {
-                    let idx = Self::offset_to_index(x, y, z);
-                    data[idx][0] = space.get_raw_voxel(vx + x, vy + y, vz + z);
-                    let (sun, red, green, blue) = space.get_all_lights(vx + x, vy + y, vz + z);
-                    data[idx][1] = (sun << 12) | (red << 8) | (green << 4) | blue;
+                let sample_y = vy + y;
+                for x in -1..=1 {
+                    let sample_x = vx + x;
+                    let (raw_voxel, raw_light) =
+                        space.get_raw_voxel_and_raw_light(sample_x, sample_y, sample_z);
+                    data[idx][0] = raw_voxel;
+                    data[idx][1] = raw_light;
+                    idx += 1;
                 }
             }
         }
@@ -181,34 +573,113 @@ impl NeighborCache {
         Self { data }
     }
 
-    #[inline]
+    fn populate_voxels_and_center_light<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S) -> Self {
+        let mut data = [[0u32; 2]; 27];
+        let mut idx = 0usize;
+        for z in -1..=1 {
+            let sample_z = vz + z;
+            for y in -1..=1 {
+                let sample_y = vy + y;
+                for x in -1..=1 {
+                    let sample_x = vx + x;
+                    if x == 0 && y == 0 && z == 0 {
+                        let (raw_voxel, raw_light) =
+                            space.get_raw_voxel_and_raw_light(sample_x, sample_y, sample_z);
+                        data[idx][0] = raw_voxel;
+                        data[idx][1] = raw_light;
+                    } else {
+                        data[idx][0] = space.get_raw_voxel(sample_x, sample_y, sample_z);
+                    }
+                    idx += 1;
+                }
+            }
+        }
+
+        Self { data }
+    }
+
+    #[inline(always)]
     fn get_raw_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         let idx = Self::offset_to_index(dx, dy, dz);
         self.data[idx][0]
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         extract_id(self.get_raw_voxel(dx, dy, dz))
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_raw_light(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         let idx = Self::offset_to_index(dx, dy, dz);
         self.data[idx][1]
     }
+}
 
-    #[inline]
-    fn get_all_lights(&self, dx: i32, dy: i32, dz: i32) -> (u32, u32, u32, u32) {
-        let light = self.get_raw_light(dx, dy, dz);
-        LightUtils::extract_all(light)
+#[inline(always)]
+fn populate_neighbors_for_face_processing<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    space: &S,
+    skip_opaque_checks: bool,
+) -> NeighborCache {
+    if skip_opaque_checks {
+        NeighborCache::populate_voxels_and_center_light(vx, vy, vz, space)
+    } else {
+        NeighborCache::populate(vx, vy, vz, space)
     }
+}
+
+#[inline(always)]
+fn build_neighbor_opaque_mask(neighbors: &NeighborCache, registry: &Registry) -> [bool; 27] {
+    let mut mask = [false; 27];
+    if let Some(dense) = &registry.dense_lookup {
+        let blocks = &registry.blocks_by_id;
+        let dense_len = dense.len();
+        for (idx, entry) in neighbors.data.iter().enumerate() {
+            let voxel_id = (entry[0] & 0xFFFF) as usize;
+            if voxel_id < dense_len {
+                let dense_index = dense[voxel_id];
+                mask[idx] = dense_index != usize::MAX && blocks[dense_index].1.is_opaque;
+            }
+        }
+        return mask;
+    }
+
+    if let Some(cache) = &registry.lookup_cache {
+        let blocks = &registry.blocks_by_id;
+        for (idx, entry) in neighbors.data.iter().enumerate() {
+            let voxel_id = entry[0] & 0xFFFF;
+            if let Some(&lookup_index) = cache.get(&voxel_id) {
+                mask[idx] = blocks[lookup_index].1.is_opaque;
+            }
+        }
+        return mask;
+    }
+
+    for (idx, entry) in neighbors.data.iter().enumerate() {
+        let voxel_id = entry[0] & 0xFFFF;
+        mask[idx] = registry
+            .blocks_by_id
+            .iter()
+            .find(|(block_id, _)| *block_id == voxel_id)
+            .map(|(_, block)| block.is_opaque)
+            .unwrap_or(false);
+    }
+    mask
+}
+
+#[inline(always)]
+fn neighbor_is_opaque(mask: &[bool; 27], ox: i32, oy: i32, oz: i32) -> bool {
+    mask[NeighborCache::offset_to_index(ox, oy, oz)]
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 struct FaceKey {
     block_id: u32,
-    face_name: String,
+    face_name: Option<String>,
+    face_index: i16,
     independent: bool,
     ao: [i32; 4],
     light: [i32; 4],
@@ -223,7 +694,6 @@ struct FaceKey {
 struct FaceData {
     key: FaceKey,
     uv_range: UV,
-    is_see_through: bool,
     is_fluid: bool,
 }
 
@@ -234,6 +704,22 @@ struct GreedyQuad {
     w: i32,
     h: i32,
     data: FaceData,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+enum GeometryMapKey {
+    Block(u32),
+    Face(u32, String),
+    Isolated(u32, String, i32, i32, i32),
+}
+
+#[inline]
+fn estimate_geometry_capacity(min: &[i32; 3], max: &[i32; 3]) -> usize {
+    let dx = (max[0] - min[0]).max(0) as usize;
+    let dy = (max[1] - min[1]).max(0) as usize;
+    let dz = (max[2] - min[2]).max(0) as usize;
+    let volume = dx.saturating_mul(dy).saturating_mul(dz);
+    (volume / 4).max(64)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -273,48 +759,78 @@ pub struct MeshOutput {
 struct VoxelSpace<'a> {
     chunks: &'a [Option<ChunkData>],
     chunk_size: i32,
+    chunk_size_mask_usize: usize,
+    chunk_size_is_pow2: bool,
     center_coords: [i32; 2],
 }
 
+const CHUNK_GRID_INDEX: [[usize; 3]; 3] = [[0, 1, 2], [3, 4, 5], [6, 7, 8]];
+
 impl<'a> VoxelSpace<'a> {
     fn new(chunks: &'a [Option<ChunkData>], chunk_size: i32, center_coords: [i32; 2]) -> Self {
+        let chunk_size_is_pow2 = chunk_size > 0 && (chunk_size & (chunk_size - 1)) == 0;
+        let chunk_size_mask_usize = if chunk_size_is_pow2 {
+            (chunk_size - 1) as usize
+        } else {
+            0
+        };
         Self {
             chunks,
             chunk_size,
+            chunk_size_mask_usize,
+            chunk_size_is_pow2,
             center_coords,
         }
     }
 
     #[inline]
     fn map_voxel_to_chunk(&self, vx: i32, vz: i32) -> [i32; 2] {
+        let chunk_size = self.chunk_size;
         [
-            vx.div_euclid(self.chunk_size),
-            vz.div_euclid(self.chunk_size),
+            vx.div_euclid(chunk_size),
+            vz.div_euclid(chunk_size),
         ]
     }
 
     #[inline]
     fn get_chunk(&self, coords: [i32; 2]) -> Option<&ChunkData> {
-        let dx = coords[0] - self.center_coords[0];
-        let dz = coords[1] - self.center_coords[1];
-        if dx < -1 || dx > 1 || dz < -1 || dz > 1 {
+        let center_x = self.center_coords[0];
+        let center_z = self.center_coords[1];
+        let dx_offset = (coords[0] - center_x + 1) as u32;
+        let dz_offset = (coords[1] - center_z + 1) as u32;
+        if dx_offset > 2 || dz_offset > 2 {
             return None;
         }
-        let index = ((dz + 1) * 3 + (dx + 1)) as usize;
+        let index = CHUNK_GRID_INDEX[dz_offset as usize][dx_offset as usize];
         self.chunks.get(index).and_then(|c| c.as_ref())
     }
 
-    #[inline]
+    #[inline(always)]
     fn get_index(&self, chunk: &ChunkData, vx: i32, vy: i32, vz: i32) -> Option<usize> {
-        let lx = vx.rem_euclid(self.chunk_size) as usize;
-        let ly = vy as usize;
-        let lz = vz.rem_euclid(self.chunk_size) as usize;
-
-        if ly >= chunk.shape[1] {
+        if vy < 0 {
             return None;
         }
+        let shape_y = chunk.shape[1];
+        let shape_z = chunk.shape[2];
+        let ly = vy as usize;
+        if ly >= shape_y {
+            return None;
+        }
+        let (lx, lz) = if self.chunk_size_is_pow2 {
+            let vx_u = vx as usize;
+            let vz_u = vz as usize;
+            (
+                vx_u & self.chunk_size_mask_usize,
+                vz_u & self.chunk_size_mask_usize,
+            )
+        } else {
+            (
+                vx.rem_euclid(self.chunk_size) as usize,
+                vz.rem_euclid(self.chunk_size) as usize,
+            )
+        };
 
-        let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+        let index = lx * shape_y * shape_z + ly * shape_z + lz;
         if index < chunk.voxels.len() {
             Some(index)
         } else {
@@ -344,15 +860,36 @@ impl<'a> VoxelSpace<'a> {
         0
     }
 
-    #[inline]
-    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
-        let raw = self.get_raw_voxel(vx, vy, vz);
-        let rotation = (raw >> 16) & 0xF;
-        let y_rotation = (raw >> 20) & 0xF;
-        BlockRotation::encode(rotation, y_rotation)
+    #[inline(always)]
+    fn get_raw_voxel_and_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, (u32, u32, u32, u32)) {
+        let coords = self.map_voxel_to_chunk(vx, vz);
+        if let Some(chunk) = self.get_chunk(coords) {
+            if let Some(index) = self.get_index(chunk, vx, vy, vz) {
+                let raw_voxel = chunk.voxels[index];
+                return (raw_voxel, LightUtils::extract_all(chunk.lights[index]));
+            }
+        }
+        (0, (0, 0, 0, 0))
     }
 
-    #[inline]
+    #[inline(always)]
+    fn get_raw_voxel_and_raw_light(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32) {
+        let coords = self.map_voxel_to_chunk(vx, vz);
+        if let Some(chunk) = self.get_chunk(coords) {
+            if let Some(index) = self.get_index(chunk, vx, vy, vz) {
+                return (chunk.voxels[index], chunk.lights[index]);
+            }
+        }
+        (0, 0)
+    }
+
+    #[inline(always)]
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
+        let raw = self.get_raw_voxel(vx, vy, vz);
+        extract_rotation(raw)
+    }
+
+    #[inline(always)]
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         let raw = self.get_raw_voxel(vx, vy, vz);
         (raw >> 24) & 0xF
@@ -399,8 +936,11 @@ impl<'a> VoxelSpace<'a> {
 
     #[inline]
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        if vy < 0 {
+            return false;
+        }
         let coords = self.map_voxel_to_chunk(vx, vz);
-        self.get_chunk(coords).is_some() && vy >= 0
+        self.get_chunk(coords).is_some()
     }
 
     #[inline]
@@ -416,6 +956,14 @@ impl<'a> VoxelAccess for VoxelSpace<'a> {
 
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         VoxelSpace::get_raw_voxel(self, vx, vy, vz)
+    }
+
+    fn get_raw_voxel_and_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, (u32, u32, u32, u32)) {
+        VoxelSpace::get_raw_voxel_and_lights(self, vx, vy, vz)
+    }
+
+    fn get_raw_voxel_and_raw_light(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32) {
+        VoxelSpace::get_raw_voxel_and_raw_light(self, vx, vy, vz)
     }
 
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
@@ -447,10 +995,28 @@ impl<'a> VoxelAccess for VoxelSpace<'a> {
     }
 }
 
+#[inline(always)]
 fn extract_id(voxel: u32) -> u32 {
     voxel & 0xFFFF
 }
 
+#[inline(always)]
+fn extract_rotation(voxel: u32) -> BlockRotation {
+    let rotation_bits = voxel >> 16;
+    if (rotation_bits & 0xFF) == 0 {
+        return BlockRotation::PY(0.0);
+    }
+    let rotation = rotation_bits & 0xF;
+    let y_rotation = (rotation_bits >> 4) & 0xF;
+    BlockRotation::encode(rotation, y_rotation)
+}
+
+#[inline(always)]
+fn extract_stage(voxel: u32) -> u32 {
+    (voxel >> 24) & 0xF
+}
+
+#[inline(always)]
 fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     let num_s1 = !side1 as i32;
     let num_s2 = !side2 as i32;
@@ -463,33 +1029,33 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     }
 }
 
+#[inline(always)]
+fn has_channel_midpoint_anomaly(a: u32, b: u32, c: u32, d: u32) -> bool {
+    let ad_sum = a + d;
+    (2 * b > ad_sum && ad_sum > 2 * c) || (2 * c > ad_sum && ad_sum > 2 * b)
+}
+
+#[inline(always)]
+fn pack_light_nibbles(sunlight: u32, red: u32, green: u32, blue: u32) -> u32 {
+    ((sunlight & 0xF) << 12) | ((red & 0xF) << 8) | ((green & 0xF) << 4) | (blue & 0xF)
+}
+
+#[inline(always)]
 fn get_fluid_effective_height(stage: u32) -> f32 {
-    (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
+    FLUID_EFFECTIVE_HEIGHT_LUT[(stage & 0xF) as usize]
 }
 
+#[inline(always)]
 fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &S) -> bool {
-    space.get_voxel(vx, vy + 1, vz) == fluid_id
+    extract_id(space.get_raw_voxel(vx, vy + 1, vz)) == fluid_id
 }
 
-fn get_fluid_height_at<S: VoxelAccess>(
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    fluid_id: u32,
-    space: &S,
-) -> Option<f32> {
-    if space.get_voxel(vx, vy, vz) == fluid_id {
-        let stage = space.get_voxel_stage(vx, vy, vz);
-        Some(get_fluid_effective_height(stage))
-    } else {
-        None
-    }
-}
-
+#[inline(always)]
 fn calculate_fluid_corner_height<S: VoxelAccess>(
     vx: i32,
     vy: i32,
     vz: i32,
+    self_height: f32,
     corner_x: i32,
     corner_z: i32,
     corner_offsets: &[[i32; 2]; 3],
@@ -505,13 +1071,10 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     ];
 
     for [dx, dz] in upper_check_offsets {
-        if space.get_voxel(vx + dx, vy + 1, vz + dz) == fluid_id {
+        if extract_id(space.get_raw_voxel(vx + dx, vy + 1, vz + dz)) == fluid_id {
             return 1.0;
         }
     }
-
-    let self_stage = space.get_voxel_stage(vx, vy, vz);
-    let self_height = get_fluid_effective_height(self_stage);
 
     let mut total_height = self_height;
     let mut count = 1.0;
@@ -525,16 +1088,21 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
         if has_fluid_above(nx, vy, nz, fluid_id, space) {
             total_height += 1.0;
             count += 1.0;
-        } else if let Some(h) = get_fluid_height_at(nx, vy, nz, fluid_id, space) {
-            total_height += h;
-            count += 1.0;
         } else {
-            let neighbor_id = space.get_voxel(nx, vy, nz);
-            if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
-                if neighbor_block.is_empty {
-                    has_air_neighbor = true;
-                } else {
-                    has_solid_neighbor = true;
+            let raw_neighbor_voxel = space.get_raw_voxel(nx, vy, nz);
+            let neighbor_id = extract_id(raw_neighbor_voxel);
+            if neighbor_id == fluid_id {
+                total_height += get_fluid_effective_height(extract_stage(raw_neighbor_voxel));
+                count += 1.0;
+            } else {
+                let (neighbor_has_type, _, neighbor_is_empty) =
+                    registry.has_type_and_opaque_and_empty(neighbor_id);
+                if neighbor_has_type {
+                    if neighbor_is_empty {
+                        has_air_neighbor = true;
+                    } else {
+                        has_solid_neighbor = true;
+                    }
                 }
             }
         }
@@ -548,58 +1116,118 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
 
 fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
     faces.iter().any(|f| {
-        let name_lower = f.name.to_lowercase();
-        name_lower == "py"
-            || name_lower == "ny"
-            || name_lower == "px"
-            || name_lower == "nx"
-            || name_lower == "pz"
-            || name_lower == "nz"
+        matches!(
+            f.get_name_lower(),
+            "py" | "ny" | "px" | "nx" | "pz" | "nz"
+        )
     })
 }
 
+fn standard_face_uvs(faces: &[BlockFace]) -> [UV; 6] {
+    let mut uvs = std::array::from_fn(|_| UV::default());
+    for face in faces {
+        match face.get_name_lower() {
+            "py" => uvs[0] = face.range,
+            "ny" => uvs[1] = face.range,
+            "px" => uvs[2] = face.range,
+            "nx" => uvs[3] = face.range,
+            "pz" => uvs[4] = face.range,
+            "nz" => uvs[5] = face.range,
+            _ => {}
+        }
+    }
+    uvs
+}
+
+#[inline(always)]
 fn create_fluid_faces<S: VoxelAccess>(
     vx: i32,
     vy: i32,
     vz: i32,
     fluid_id: u32,
     space: &S,
-    original_faces: &[BlockFace],
+    block: &Block,
     registry: &Registry,
-) -> Vec<BlockFace> {
-    let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
-    let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
-    let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
-    let corner_pxpz: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
+) -> [BlockFace; 6] {
+    let self_height = get_fluid_effective_height(extract_stage(space.get_raw_voxel(vx, vy, vz)));
+    let (h_nxnz, h_pxnz, h_nxpz, h_pxpz) = if has_fluid_above(vx, vy, vz, fluid_id, space) {
+        let h_top = 1.0 - FLUID_SURFACE_OFFSET;
+        (h_top, h_top, h_top, h_top)
+    } else {
+        (
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                0,
+                0,
+                &FLUID_CORNER_NXNZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                1,
+                0,
+                &FLUID_CORNER_PXNZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                0,
+                1,
+                &FLUID_CORNER_NXPZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                self_height,
+                1,
+                1,
+                &FLUID_CORNER_PXPZ,
+                fluid_id,
+                space,
+                registry,
+            ) - FLUID_SURFACE_OFFSET,
+        )
+    };
 
-    let h_nxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 0, &corner_nxnz, fluid_id, space, registry)
-            - FLUID_SURFACE_OFFSET;
-    let h_pxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 0, &corner_pxnz, fluid_id, space, registry)
-            - FLUID_SURFACE_OFFSET;
-    let h_nxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 1, &corner_nxpz, fluid_id, space, registry)
-            - FLUID_SURFACE_OFFSET;
-    let h_pxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry)
-            - FLUID_SURFACE_OFFSET;
+    let fallback_uvs;
+    let standard_uvs = if block.cache_ready {
+        block
+            .fluid_face_uvs
+            .as_ref()
+            .expect("cached fluid blocks with standard faces must have cached face uvs")
+    } else if let Some(uvs) = block.fluid_face_uvs.as_ref() {
+        uvs
+    } else {
+        fallback_uvs = standard_face_uvs(&block.faces);
+        &fallback_uvs
+    };
 
-    let mut uv_map: HashMap<String, UV> = HashMap::new();
-    for face in original_faces {
-        uv_map.insert(face.name.clone(), face.range.clone());
-    }
-    let get_range = |name: &str| uv_map.get(name).cloned().unwrap_or_default();
-
-    vec![
+    [
         BlockFace {
             name: "py".to_string(),
-            name_lower: "py".to_string(),
+            name_lower: String::new(),
             dir: [0, 1, 0],
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("py"),
+            range: standard_uvs[0],
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -621,12 +1249,12 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "ny".to_string(),
-            name_lower: "ny".to_string(),
+            name_lower: String::new(),
             dir: [0, -1, 0],
             independent: false,
             isolated: false,
             texture_group: None,
-            range: get_range("ny"),
+            range: standard_uvs[1],
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -648,12 +1276,12 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "px".to_string(),
-            name_lower: "px".to_string(),
+            name_lower: String::new(),
             dir: [1, 0, 0],
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("px"),
+            range: standard_uvs[2],
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -675,12 +1303,12 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "nx".to_string(),
-            name_lower: "nx".to_string(),
+            name_lower: String::new(),
             dir: [-1, 0, 0],
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("nx"),
+            range: standard_uvs[3],
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -702,12 +1330,12 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "pz".to_string(),
-            name_lower: "pz".to_string(),
+            name_lower: String::new(),
             dir: [0, 0, 1],
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("pz"),
+            range: standard_uvs[4],
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -729,12 +1357,12 @@ fn create_fluid_faces<S: VoxelAccess>(
         },
         BlockFace {
             name: "nz".to_string(),
-            name_lower: "nz".to_string(),
+            name_lower: String::new(),
             dir: [0, 0, -1],
             independent: true,
             isolated: false,
             texture_group: None,
-            range: get_range("nz"),
+            range: standard_uvs[5],
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],
@@ -762,14 +1390,12 @@ fn has_diagonal_faces(block: &Block) -> bool {
 }
 
 #[inline]
-fn diagonal_face_offsets(vx: i32, vy: i32, vz: i32) -> (f32, f32) {
+fn diagonal_face_offset_x(vx: i32, vy: i32, vz: i32) -> f32 {
     let h = (vx as u32).wrapping_mul(73856093)
         ^ (vy as u32).wrapping_mul(19349663)
         ^ (vz as u32).wrapping_mul(83492791);
     let h = h.wrapping_mul(2654435761);
-    let ox = ((h >> 24) & 0xFF) as f32 / 255.0 * 0.04;
-    let oz = ((h >> 16) & 0xFF) as f32 / 255.0 * 0.04;
-    (ox, oz)
+    ((h >> 24) & 0xFF) as f32 / 255.0 * 0.04
 }
 
 #[inline]
@@ -790,16 +1416,48 @@ fn has_cardinal_faces(block: &Block) -> bool {
     })
 }
 
-fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
-    !block.is_fluid
-        && !block.rotatable
-        && !block.y_rotatable
-        && block.dynamic_patterns.is_none()
-        && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
-        && block.is_full_cube()
-        && !(has_diagonal_faces(block) && has_cardinal_faces(block))
+#[inline(always)]
+fn can_greedy_mesh_block(block: &Block) -> bool {
+    if block.cache_ready {
+        block.greedy_mesh_eligible_no_rotation
+    } else {
+        block.can_greedy_mesh_without_rotation()
+    }
 }
 
+#[inline(always)]
+fn face_name_owned(face: &BlockFace) -> String {
+    if face.name_lower.is_empty() {
+        face.name.clone()
+    } else {
+        face.name_lower.clone()
+    }
+}
+
+#[inline(always)]
+fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: i32) -> GeometryMapKey {
+    if face.isolated {
+        GeometryMapKey::Isolated(block.id, face_name_owned(face), vx, vy, vz)
+    } else if face.independent {
+        GeometryMapKey::Face(block.id, face_name_owned(face))
+    } else {
+        GeometryMapKey::Block(block.id)
+    }
+}
+
+#[inline(always)]
+fn block_min_corner(block: &Block) -> [f32; 3] {
+    if block.cache_ready {
+        block.block_min_cached
+    } else if block.is_full_cube() {
+        [0.0, 0.0, 0.0]
+    } else {
+        let block_aabb = AABB::union_all(&block.aabbs);
+        [block_aabb.min_x, block_aabb.min_y, block_aabb.min_z]
+    }
+}
+
+#[inline(always)]
 fn should_render_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -810,167 +1468,237 @@ fn should_render_face<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
     see_through: bool,
-    is_fluid: bool,
+    zero_is_empty: bool,
 ) -> bool {
+    let is_opaque = block.is_opaque;
+    if !see_through && !is_opaque {
+        return true;
+    }
+
     let nvx = vx + dir[0];
     let nvy = vy + dir[1];
     let nvz = vz + dir[2];
 
-    let neighbor_id = space.get_voxel(nvx, nvy, nvz);
-    let n_is_void = !space.contains(nvx, nvy, nvz);
-
-    if !n_is_void && !registry.has_type(neighbor_id) {
-        return false;
+    let neighbor_id = extract_id(space.get_raw_voxel(nvx, nvy, nvz));
+    if neighbor_id == 0 && zero_is_empty {
+        return true;
     }
 
-    let n_block_type = match registry.get_block_by_id(neighbor_id) {
-        Some(b) => b,
-        None => return n_is_void,
-    };
-
-    let is_opaque = block.is_opaque;
-    let is_see_through = block.is_see_through;
-
-    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
-        return false;
+    if !see_through {
+        let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
+        if neighbor_is_opaque {
+            return false;
+        }
+        if neighbor_has_type {
+            return true;
+        }
+        return !space.contains(nvx, nvy, nvz);
     }
 
-    if is_fluid && n_block_type.occludes_fluid {
-        return false;
+    if neighbor_id == voxel_id {
+        return !is_opaque && block.transparent_standalone;
     }
 
-    (n_is_void || n_block_type.is_empty)
-        || (see_through
-            && !is_opaque
-            && !n_block_type.is_opaque
-            && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
-                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
-                || ({
-                    if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = AABB::union_all(&block.aabbs);
-                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
-                        n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
-                        !(self_bounding.intersects(&n_bounding)
-                            || self_bounding.touches(&n_bounding))
-                    } else {
-                        false
-                    }
-                })))
-        || (!see_through && (!is_opaque || !n_block_type.is_opaque))
-        || (is_fluid
-            && n_block_type.is_opaque
-            && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space)
-            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
+    let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
+
+    if neighbor_is_opaque {
+        return false;
+    }
+    if !neighbor_has_type {
+        return !space.contains(nvx, nvy, nvz);
+    }
+    if !is_opaque {
+        return true;
+    }
+    registry.is_empty_id(neighbor_id)
 }
 
+#[inline(always)]
+fn is_surrounded_by_opaque_neighbors<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    space: &S,
+    registry: &Registry,
+) -> bool {
+    let id_px = extract_id(space.get_raw_voxel(vx + 1, vy, vz));
+    let id_nx = extract_id(space.get_raw_voxel(vx - 1, vy, vz));
+    let id_py = extract_id(space.get_raw_voxel(vx, vy + 1, vz));
+    let id_ny = extract_id(space.get_raw_voxel(vx, vy - 1, vz));
+    let id_pz = extract_id(space.get_raw_voxel(vx, vy, vz + 1));
+    let id_nz = extract_id(space.get_raw_voxel(vx, vy, vz - 1));
+
+    if let Some(dense) = &registry.dense_lookup {
+        let blocks = &registry.blocks_by_id;
+        let dense_len = dense.len();
+        macro_rules! dense_opaque {
+            ($id:expr) => {{
+                let lookup_index = $id as usize;
+                if lookup_index < dense_len {
+                    let dense_index = dense[lookup_index];
+                    dense_index != usize::MAX && blocks[dense_index].1.is_opaque
+                } else {
+                    false
+                }
+            }};
+        }
+        return dense_opaque!(id_px)
+            && dense_opaque!(id_nx)
+            && dense_opaque!(id_py)
+            && dense_opaque!(id_ny)
+            && dense_opaque!(id_pz)
+            && dense_opaque!(id_nz);
+    }
+
+    if let Some(cache) = &registry.lookup_cache {
+        let blocks = &registry.blocks_by_id;
+        macro_rules! cache_opaque {
+            ($id:expr) => {{
+                if let Some(&lookup_index) = cache.get(&$id) {
+                    blocks[lookup_index].1.is_opaque
+                } else {
+                    false
+                }
+            }};
+        }
+        return cache_opaque!(id_px)
+            && cache_opaque!(id_nx)
+            && cache_opaque!(id_py)
+            && cache_opaque!(id_ny)
+            && cache_opaque!(id_pz)
+            && cache_opaque!(id_nz);
+    }
+
+    registry.is_opaque_id(id_px)
+        && registry.is_opaque_id(id_nx)
+        && registry.is_opaque_id(id_py)
+        && registry.is_opaque_id(id_ny)
+        && registry.is_opaque_id(id_pz)
+        && registry.is_opaque_id(id_nz)
+}
+
+const FACE_CORNERS_PX: [[f32; 3]; 4] = [
+    [1.0, 1.0, 1.0],
+    [1.0, 0.0, 1.0],
+    [1.0, 1.0, 0.0],
+    [1.0, 0.0, 0.0],
+];
+const FACE_CORNERS_NX: [[f32; 3]; 4] = [
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0],
+    [0.0, 1.0, 1.0],
+    [0.0, 0.0, 1.0],
+];
+const FACE_CORNERS_PY: [[f32; 3]; 4] = [
+    [0.0, 1.0, 1.0],
+    [1.0, 1.0, 1.0],
+    [0.0, 1.0, 0.0],
+    [1.0, 1.0, 0.0],
+];
+const FACE_CORNERS_NY: [[f32; 3]; 4] = [
+    [1.0, 0.0, 1.0],
+    [0.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0],
+];
+const FACE_CORNERS_PZ: [[f32; 3]; 4] = [
+    [0.0, 0.0, 1.0],
+    [1.0, 0.0, 1.0],
+    [0.0, 1.0, 1.0],
+    [1.0, 1.0, 1.0],
+];
+const FACE_CORNERS_NZ: [[f32; 3]; 4] = [
+    [1.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0],
+    [1.0, 1.0, 0.0],
+    [0.0, 1.0, 0.0],
+];
+const FACE_CORNERS_BY_DIR_INDEX: [[[f32; 3]; 4]; 6] = [
+    FACE_CORNERS_PX,
+    FACE_CORNERS_NX,
+    FACE_CORNERS_PY,
+    FACE_CORNERS_NY,
+    FACE_CORNERS_PZ,
+    FACE_CORNERS_NZ,
+];
+const GREEDY_DIRECTIONS_WITH_INDEX: [([i32; 3], usize); 6] = [
+    ([1, 0, 0], 0),
+    ([-1, 0, 0], 1),
+    ([0, 1, 0], 2),
+    ([0, -1, 0], 3),
+    ([0, 0, 1], 4),
+    ([0, 0, -1], 5),
+];
+
+#[inline(always)]
+fn face_corner_positions_by_dir_index(dir_index: usize) -> &'static [[f32; 3]; 4] {
+    debug_assert!(dir_index < FACE_CORNERS_BY_DIR_INDEX.len());
+    unsafe { FACE_CORNERS_BY_DIR_INDEX.get_unchecked(dir_index) }
+}
+
+#[inline(always)]
 fn compute_face_ao_and_light(
-    dir: [i32; 3],
+    dir_index: usize,
     block: &Block,
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let block_aabb = AABB::union_all(&block.aabbs);
-
     let is_see_through = block.is_see_through;
-    let is_all_transparent = block.is_transparent[0]
-        && block.is_transparent[1]
-        && block.is_transparent[2]
-        && block.is_transparent[3]
-        && block.is_transparent[4]
-        && block.is_transparent[5];
-
-    let corner_positions: [[f32; 3]; 4] = match dir {
-        [1, 0, 0] => [
-            [1.0, 1.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [1.0, 1.0, 0.0],
-            [1.0, 0.0, 0.0],
-        ],
-        [-1, 0, 0] => [
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 1.0, 1.0],
-            [0.0, 0.0, 1.0],
-        ],
-        [0, 1, 0] => [
-            [0.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-            [0.0, 1.0, 0.0],
-            [1.0, 1.0, 0.0],
-        ],
-        [0, -1, 0] => [
-            [1.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-        ],
-        [0, 0, 1] => [
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [0.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ],
-        [0, 0, -1] => [
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ],
-        _ => return ([3, 3, 3, 3], [0, 0, 0, 0]),
-    };
+    let is_all_transparent = block.is_all_transparent;
+    if is_see_through || is_all_transparent {
+        let light = (neighbors.get_raw_light(0, 0, 0) & 0xFFFF) as i32;
+        return ([3, 3, 3, 3], [light; 4]);
+    }
+    let [block_min_x, block_min_y, block_min_z] = block_min_corner(block);
+    let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
+    let corner_positions = face_corner_positions_by_dir_index(dir_index);
 
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
+    let dir_is_x = dir_index <= 1;
+    let dir_is_y = (dir_index & !1) == 2;
+    let block_min_x_eps = block_min_x + 0.01;
+    let block_min_y_eps = block_min_y + 0.01;
+    let block_min_z_eps = block_min_z + 0.01;
+    let mask = &opaque_mask;
+    let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
 
     for (i, pos) in corner_positions.iter().enumerate() {
-        let dx = if pos[0] <= block_aabb.min_x + 0.01 {
+        let dx = if pos[0] <= block_min_x_eps {
             -1
         } else {
             1
         };
-        let dy = if pos[1] <= block_aabb.min_y + 0.01 {
+        let dy = if pos[1] <= block_min_y_eps {
             -1
         } else {
             1
         };
-        let dz = if pos[2] <= block_aabb.min_z + 0.01 {
+        let dz = if pos[2] <= block_min_z_eps {
             -1
         } else {
             1
         };
 
-        let get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
-            let id = neighbors.get_voxel(ox, oy, oz);
-            registry
-                .get_block_by_id(id)
-                .map(|b| b.is_opaque)
-                .unwrap_or(false)
-        };
+        let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
+        let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
+        let b110 = !neighbor_is_opaque(mask, dx, dy, 0);
+        let b111 = !neighbor_is_opaque(mask, dx, dy, dz);
 
-        let b011 = !get_block_opaque(0, dy, dz);
-        let b101 = !get_block_opaque(dx, 0, dz);
-        let b110 = !get_block_opaque(dx, dy, 0);
-        let b111 = !get_block_opaque(dx, dy, dz);
-
-        let ao = if is_see_through || is_all_transparent {
-            3
-        } else if dir[0].abs() == 1 {
+        let ao = if dir_is_x {
             vertex_ao(b110, b101, b111)
-        } else if dir[1].abs() == 1 {
+        } else if dir_is_y {
             vertex_ao(b110, b011, b111)
         } else {
             vertex_ao(b011, b101, b111)
         };
 
-        let (sunlight, red_light, green_light, blue_light) = if is_see_through || is_all_transparent
-        {
-            neighbors.get_all_lights(0, 0, 0)
-        } else {
-            let mut sum_sunlights = Vec::with_capacity(8);
-            let mut sum_red_lights = Vec::with_capacity(8);
-            let mut sum_green_lights = Vec::with_capacity(8);
-            let mut sum_blue_lights = Vec::with_capacity(8);
+        let (sunlight, red_light, green_light, blue_light) = {
+            let mut sum_sunlights = 0u32;
+            let mut sum_red_lights = 0u32;
+            let mut sum_green_lights = 0u32;
+            let mut sum_blue_lights = 0u32;
+            let mut light_count = 0u32;
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -979,117 +1707,81 @@ fn compute_face_ao_and_light(
                         let ddy = y * dy;
                         let ddz = z * dz;
 
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
-                            continue;
-                        }
-
-                        let diagonal4_id = neighbors.get_voxel(ddx, ddy, ddz);
-                        let diagonal4_opaque = registry
-                            .get_block_by_id(diagonal4_id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false);
+                        let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
 
                         if diagonal4_opaque {
                             continue;
                         }
 
-                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_id =
-                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
-                            let facing_opaque = registry
-                                .get_block_by_id(facing_id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-
-                            if facing_opaque {
-                                continue;
-                            }
+                        let is_face_plane_sample = if dir_is_x {
+                            ddx == 0
+                        } else if dir_is_y {
+                            ddy == 0
+                        } else {
+                            ddz == 0
+                        };
+                        if is_face_plane_sample && center_opaque {
+                            continue;
                         }
 
-                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(0, ddy, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, 0, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xy_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, ddy, 0))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
+                        if x == 1 && y == 1 && z == 1 {
+                            let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
+                            let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
+                            let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
                             }
 
                             if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
                                 if neighbor_y_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
                                 if neighbor_x_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
                                 if neighbor_x_opaque && neighbor_y_opaque {
                                     continue;
                                 }
                             }
                         }
 
-                        sum_sunlights.push(local_sunlight);
-                        sum_red_lights.push(local_red_light);
-                        sum_green_lights.push(local_green_light);
-                        sum_blue_lights.push(local_blue_light);
+                        let local_light = neighbors.get_raw_light(ddx, ddy, ddz);
+                        if local_light == 0 {
+                            continue;
+                        }
+                        let local_sunlight = (local_light >> 12) & 0xF;
+                        let local_red_light = (local_light >> 8) & 0xF;
+                        let local_green_light = (local_light >> 4) & 0xF;
+                        let local_blue_light = local_light & 0xF;
+
+                        sum_sunlights += local_sunlight;
+                        sum_red_lights += local_red_light;
+                        sum_green_lights += local_green_light;
+                        sum_blue_lights += local_blue_light;
+                        light_count += 1;
                     }
                 }
             }
 
-            let len = sum_sunlights.len();
-            if len > 0 {
-                let len_f32 = len as f32;
+            if light_count > 0 {
                 (
-                    (sum_sunlights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_red_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_green_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_blue_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
+                    sum_sunlights / light_count,
+                    sum_red_lights / light_count,
+                    sum_green_lights / light_count,
+                    sum_blue_lights / light_count,
                 )
             } else {
                 (0, 0, 0, 0)
@@ -1097,12 +1789,176 @@ fn compute_face_ao_and_light(
         };
 
         aos[i] = ao;
-        let mut light = 0u32;
-        light = LightUtils::insert_red_light(light, red_light);
-        light = LightUtils::insert_green_light(light, green_light);
-        light = LightUtils::insert_blue_light(light, blue_light);
-        light = LightUtils::insert_sunlight(light, sunlight);
-        lights[i] = light as i32;
+        lights[i] = pack_light_nibbles(sunlight, red_light, green_light, blue_light) as i32;
+    }
+
+    (aos, lights)
+}
+
+#[inline(always)]
+fn compute_face_ao_and_light_fast(
+    dir_index: usize,
+    block: &Block,
+    neighbors: &NeighborCache,
+    registry: &Registry,
+) -> ([i32; 4], [i32; 4]) {
+    let is_see_through = block.is_see_through;
+    let is_all_transparent = block.is_all_transparent;
+    let skip_opaque_checks = is_see_through || is_all_transparent;
+    if skip_opaque_checks {
+        let light = (neighbors.get_raw_light(0, 0, 0) & 0xFFFF) as i32;
+        return ([3, 3, 3, 3], [light; 4]);
+    }
+    let (block_min_x, block_min_y, block_min_z) = if block.cache_ready {
+        (
+            block.block_min_cached[0],
+            block.block_min_cached[1],
+            block.block_min_cached[2],
+        )
+    } else if block.is_full_cube() {
+        (0.0, 0.0, 0.0)
+    } else {
+        let block_aabb = AABB::union_all(&block.aabbs);
+        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
+    };
+    let opaque_mask = build_neighbor_opaque_mask(neighbors, registry);
+    let dir_is_x = dir_index <= 1;
+    let dir_is_y = (dir_index & !1) == 2;
+    let block_min_x_eps = block_min_x + 0.01;
+    let block_min_y_eps = block_min_y + 0.01;
+    let block_min_z_eps = block_min_z + 0.01;
+    let corner_positions = face_corner_positions_by_dir_index(dir_index);
+
+    let mut aos = [0i32; 4];
+    let mut lights = [0i32; 4];
+    let mask = &opaque_mask;
+    let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
+
+    for (i, pos) in corner_positions.iter().enumerate() {
+        let dx = if pos[0] <= block_min_x_eps {
+            -1
+        } else {
+            1
+        };
+        let dy = if pos[1] <= block_min_y_eps {
+            -1
+        } else {
+            1
+        };
+        let dz = if pos[2] <= block_min_z_eps {
+            -1
+        } else {
+            1
+        };
+
+        let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
+        let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
+        let b110 = !neighbor_is_opaque(mask, dx, dy, 0);
+        let b111 = !neighbor_is_opaque(mask, dx, dy, dz);
+
+        let ao = if dir_is_x {
+            vertex_ao(b110, b101, b111)
+        } else if dir_is_y {
+            vertex_ao(b110, b011, b111)
+        } else {
+            vertex_ao(b011, b101, b111)
+        };
+
+        let mut sum_sunlights = 0u32;
+        let mut sum_red_lights = 0u32;
+        let mut sum_green_lights = 0u32;
+        let mut sum_blue_lights = 0u32;
+        let mut count = 0u32;
+
+        for x in 0..=1 {
+            for y in 0..=1 {
+                for z in 0..=1 {
+                    let ddx = x * dx;
+                    let ddy = y * dy;
+                    let ddz = z * dz;
+
+                    let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
+
+                    if diagonal4_opaque {
+                        continue;
+                    }
+
+                    let is_face_plane_sample = if dir_is_x {
+                        ddx == 0
+                    } else if dir_is_y {
+                        ddy == 0
+                    } else {
+                        ddz == 0
+                    };
+                    if is_face_plane_sample && center_opaque {
+                        continue;
+                    }
+
+                    if x == 1 && y == 1 && z == 1 {
+                        let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
+                        let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
+                        let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
+
+                        if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
+                            continue;
+                        }
+
+                        if diagonal_xy_opaque && diagonal_xz_opaque {
+                            let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
+                            let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
+                            if neighbor_y_opaque && neighbor_z_opaque {
+                                continue;
+                            }
+                        }
+
+                        if diagonal_xy_opaque && diagonal_yz_opaque {
+                            let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                            let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
+                            if neighbor_x_opaque && neighbor_z_opaque {
+                                continue;
+                            }
+                        }
+
+                        if diagonal_xz_opaque && diagonal_yz_opaque {
+                            let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                            let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
+                            if neighbor_x_opaque && neighbor_y_opaque {
+                                continue;
+                            }
+                        }
+                    }
+
+                    let local_light = neighbors.get_raw_light(ddx, ddy, ddz);
+                    if local_light == 0 {
+                        continue;
+                    }
+                    let local_sunlight = (local_light >> 12) & 0xF;
+                    let local_red_light = (local_light >> 8) & 0xF;
+                    let local_green_light = (local_light >> 4) & 0xF;
+                    let local_blue_light = local_light & 0xF;
+
+                    sum_sunlights += local_sunlight;
+                    sum_red_lights += local_red_light;
+                    sum_green_lights += local_green_light;
+                    sum_blue_lights += local_blue_light;
+                    count += 1;
+                }
+            }
+        }
+
+        let (sunlight, red_light, green_light, blue_light) = if count > 0 {
+            (
+                sum_sunlights / count,
+                sum_red_lights / count,
+                sum_green_lights / count,
+                sum_blue_lights / count,
+            )
+        } else {
+            (0, 0, 0, 0)
+        };
+
+        aos[i] = ao;
+        lights[i] = pack_light_nibbles(sunlight, red_light, green_light, blue_light) as i32;
     }
 
     (aos, lights)
@@ -1111,11 +1967,14 @@ fn compute_face_ao_and_light(
 fn extract_greedy_quads(
     mask: &mut HashMap<(i32, i32), FaceData>,
     min_u: i32,
-    max_u: i32,
     min_v: i32,
-    max_v: i32,
+    width: i32,
+    height: i32,
 ) -> Vec<GreedyQuad> {
-    let mut quads = Vec::new();
+    let max_u = min_u + width;
+    let max_v = min_v + height;
+    let estimated_cells = (width * height).max(0) as usize;
+    let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
 
     for v in min_v..max_v {
         for u in min_u..max_u {
@@ -1165,11 +2024,106 @@ fn extract_greedy_quads(
     quads
 }
 
+fn extract_greedy_quads_dense(
+    mask: &mut [Option<FaceData>],
+    min_u: i32,
+    min_v: i32,
+    width: usize,
+    height: usize,
+) -> Vec<GreedyQuad> {
+    let estimated_cells = width * height;
+    let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
+    let mut v_off = 0usize;
+    'rows: while v_off < height {
+        let row_start = v_off * width;
+        let mut u_off = 0usize;
+        while u_off < width {
+            let start_index = row_start + u_off;
+            debug_assert!(start_index < mask.len());
+            let start_cell = unsafe { mask.get_unchecked_mut(start_index) };
+            if let Some(data) = start_cell.take() {
+                let data_key = &data.key;
+                let mut quad_width = 1usize;
+                let mut next_u_off = u_off + 1;
+                while next_u_off < width {
+                    let neighbor_index = row_start + next_u_off;
+                    debug_assert!(neighbor_index < mask.len());
+                    let neighbor_cell = unsafe { mask.get_unchecked_mut(neighbor_index) };
+                    if let Some(neighbor) = neighbor_cell.as_ref() {
+                        if neighbor.key == *data_key {
+                            *neighbor_cell = None;
+                            quad_width += 1;
+                            next_u_off += 1;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                let mut quad_height = 1usize;
+                let mut next_row_start = start_index + width;
+                let mut next_row_end = next_row_start + quad_width;
+                let mut next_v_off = v_off + 1;
+                'height: while next_v_off < height {
+                    let row_start = next_row_start;
+                    let row_end = next_row_end;
+                    debug_assert!(row_end <= mask.len());
+                    let mut neighbor_index = row_start;
+                    while neighbor_index < row_end {
+                        let neighbor_cell = unsafe { mask.get_unchecked_mut(neighbor_index) };
+                        if let Some(neighbor) = neighbor_cell.as_ref() {
+                            if neighbor.key != *data_key {
+                                break 'height;
+                            }
+                        } else {
+                            break 'height;
+                        }
+                        neighbor_index += 1;
+                    }
+
+                    let mut neighbor_index = row_start;
+                    while neighbor_index < row_end {
+                        let neighbor_cell = unsafe { mask.get_unchecked_mut(neighbor_index) };
+                        *neighbor_cell = None;
+                        neighbor_index += 1;
+                    }
+                    quad_height += 1;
+                    next_v_off += 1;
+                    next_row_start += width;
+                    next_row_end += width;
+                }
+
+                quads.push(GreedyQuad {
+                    x: min_u + u_off as i32,
+                    y: min_v + v_off as i32,
+                    w: quad_width as i32,
+                    h: quad_height as i32,
+                    data,
+                });
+                if quad_width == width {
+                    v_off += quad_height;
+                    continue 'rows;
+                }
+                u_off = next_u_off;
+            } else {
+                u_off += 1;
+            }
+        }
+        v_off += 1;
+    }
+
+    quads
+}
+
+#[inline(always)]
 fn process_greedy_quad(
     quad: &GreedyQuad,
-    axis: usize,
     slice: i32,
+    slice_offset: f32,
     dir: [i32; 3],
+    dir_index: usize,
     min: &[i32; 3],
     block: &Block,
     geometry: &mut GeometryProtocol,
@@ -1178,24 +2132,35 @@ fn process_greedy_quad(
     let is_opaque = block.is_opaque;
     let is_fluid = quad.data.is_fluid;
 
-    let UV {
-        start_u,
-        end_u,
-        start_v,
-        end_v,
-    } = quad.data.uv_range.clone();
+    let start_u = quad.data.uv_range.start_u;
+    let end_u = quad.data.uv_range.end_u;
+    let start_v = quad.data.uv_range.start_v;
+    let end_v = quad.data.uv_range.end_v;
+    let uv_span_u = end_u - start_u;
+    let uv_span_v = end_v - start_v;
 
     let scale = if is_opaque { 0.0 } else { 0.0001 };
+    let min_x_f = min_x as f32;
+    let min_y_f = min_y as f32;
+    let min_z_f = min_z as f32;
+    let dir_scale_x = dir[0] as f32 * scale;
+    let dir_scale_y = dir[1] as f32 * scale;
+    let dir_scale_z = dir[2] as f32 * scale;
+    let pos_offset_x = min_x_f + dir_scale_x;
+    let pos_offset_y = min_y_f + dir_scale_y;
+    let pos_offset_z = min_z_f + dir_scale_z;
+    let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
+    let light_flags = fluid_bit | (1 << 19);
 
     let u_min = quad.x as f32;
     let u_max = (quad.x + quad.w) as f32;
     let v_min = quad.y as f32;
     let v_max = (quad.y + quad.h) as f32;
 
-    let slice_pos = slice as f32 + if dir[axis] > 0 { 1.0 } else { 0.0 };
+    let slice_pos = slice as f32 + slice_offset;
 
-    let (corners, uv_corners): ([[f32; 3]; 4], [[f32; 2]; 4]) = match (dir[0], dir[1], dir[2]) {
-        (1, 0, 0) => (
+    let (corners, uv_corners): ([[f32; 3]; 4], [[f32; 2]; 4]) = match dir_index {
+        0 => (
             [
                 [slice_pos, v_max, u_max],
                 [slice_pos, v_min, u_max],
@@ -1204,7 +2169,7 @@ fn process_greedy_quad(
             ],
             [[0.0, 1.0], [0.0, 0.0], [1.0, 1.0], [1.0, 0.0]],
         ),
-        (-1, 0, 0) => (
+        1 => (
             [
                 [slice_pos, v_max, u_min],
                 [slice_pos, v_min, u_min],
@@ -1213,7 +2178,7 @@ fn process_greedy_quad(
             ],
             [[0.0, 1.0], [0.0, 0.0], [1.0, 1.0], [1.0, 0.0]],
         ),
-        (0, 1, 0) => (
+        2 => (
             [
                 [u_min, slice_pos, v_max],
                 [u_max, slice_pos, v_max],
@@ -1222,7 +2187,7 @@ fn process_greedy_quad(
             ],
             [[1.0, 1.0], [0.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
         ),
-        (0, -1, 0) => (
+        3 => (
             [
                 [u_max, slice_pos, v_max],
                 [u_min, slice_pos, v_max],
@@ -1231,7 +2196,7 @@ fn process_greedy_quad(
             ],
             [[1.0, 0.0], [0.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
         ),
-        (0, 0, 1) => (
+        4 => (
             [
                 [u_min, v_min, slice_pos],
                 [u_max, v_min, slice_pos],
@@ -1240,7 +2205,7 @@ fn process_greedy_quad(
             ],
             [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
         ),
-        (0, 0, -1) => (
+        5 => (
             [
                 [u_max, v_min, slice_pos],
                 [u_min, v_min, slice_pos],
@@ -1252,81 +2217,86 @@ fn process_greedy_quad(
         _ => return,
     };
 
+    let face_aos = quad.data.key.ao;
+    let face_lights = quad.data.key.light;
     let ndx = (geometry.positions.len() / 3) as i32;
 
     for i in 0..4 {
         let pos = corners[i];
-        geometry
-            .positions
-            .push(pos[0] - min_x as f32 - dir[0] as f32 * scale);
-        geometry
-            .positions
-            .push(pos[1] - min_y as f32 - dir[1] as f32 * scale);
-        geometry
-            .positions
-            .push(pos[2] - min_z as f32 - dir[2] as f32 * scale);
+        geometry.positions.push(pos[0] - pos_offset_x);
+        geometry.positions.push(pos[1] - pos_offset_y);
+        geometry.positions.push(pos[2] - pos_offset_z);
 
-        let u = uv_corners[i][0] * (end_u - start_u) + start_u;
-        let v = uv_corners[i][1] * (end_v - start_v) + start_v;
+        let u = uv_corners[i][0] * uv_span_u + start_u;
+        let v = uv_corners[i][1] * uv_span_v + start_v;
         geometry.uvs.push(u);
         geometry.uvs.push(v);
 
-        let ao = quad.data.key.ao[i];
-        let light = quad.data.key.light[i];
-        let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let greedy_bit = 1 << 19;
-        geometry
-            .lights
-            .push(light | (ao << 16) | fluid_bit | greedy_bit);
+        let ao = face_aos[i];
+        let light = face_lights[i];
+        geometry.lights.push(light | (ao << 16) | light_flags);
     }
 
-    let face_aos = quad.data.key.ao;
-    let face_lights = quad.data.key.light;
-
-    let a_rt = LightUtils::extract_red_light(face_lights[0] as u32) as i32;
-    let b_rt = LightUtils::extract_red_light(face_lights[1] as u32) as i32;
-    let c_rt = LightUtils::extract_red_light(face_lights[2] as u32) as i32;
-    let d_rt = LightUtils::extract_red_light(face_lights[3] as u32) as i32;
-
-    let a_gt = LightUtils::extract_green_light(face_lights[0] as u32) as i32;
-    let b_gt = LightUtils::extract_green_light(face_lights[1] as u32) as i32;
-    let c_gt = LightUtils::extract_green_light(face_lights[2] as u32) as i32;
-    let d_gt = LightUtils::extract_green_light(face_lights[3] as u32) as i32;
-
-    let a_bt = LightUtils::extract_blue_light(face_lights[0] as u32) as i32;
-    let b_bt = LightUtils::extract_blue_light(face_lights[1] as u32) as i32;
-    let c_bt = LightUtils::extract_blue_light(face_lights[2] as u32) as i32;
-    let d_bt = LightUtils::extract_blue_light(face_lights[3] as u32) as i32;
-
-    let threshold = 0;
-
-    let one_tr0 = a_rt <= threshold || b_rt <= threshold || c_rt <= threshold || d_rt <= threshold;
-    let one_tg0 = a_gt <= threshold || b_gt <= threshold || c_gt <= threshold || d_gt <= threshold;
-    let one_tb0 = a_bt <= threshold || b_bt <= threshold || c_bt <= threshold || d_bt <= threshold;
-
-    let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
-    let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
-    let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
-    let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
-
-    let anzp1_r = (b_rt as f32 > (a_rt + d_rt) as f32 / 2.0
-        && (a_rt + d_rt) as f32 / 2.0 > c_rt as f32)
-        || (c_rt as f32 > (a_rt + d_rt) as f32 / 2.0 && (a_rt + d_rt) as f32 / 2.0 > b_rt as f32);
-    let anzp1_g = (b_gt as f32 > (a_gt + d_gt) as f32 / 2.0
-        && (a_gt + d_gt) as f32 / 2.0 > c_gt as f32)
-        || (c_gt as f32 > (a_gt + d_gt) as f32 / 2.0 && (a_gt + d_gt) as f32 / 2.0 > b_gt as f32);
-    let anzp1_b = (b_bt as f32 > (a_bt + d_bt) as f32 / 2.0
-        && (a_bt + d_bt) as f32 / 2.0 > c_bt as f32)
-        || (c_bt as f32 > (a_bt + d_bt) as f32 / 2.0 && (a_bt + d_bt) as f32 / 2.0 > b_bt as f32);
-
-    let anz_r = one_tr0 && anzp1_r;
-    let anz_g = one_tg0 && anzp1_g;
-    let anz_b = one_tb0 && anzp1_b;
-
-    if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
-        || (ozao_r || ozao_g || ozao_b)
-        || (anz_r || anz_g || anz_b)
+    if face_aos[0] == face_aos[1]
+        && face_aos[1] == face_aos[2]
+        && face_aos[2] == face_aos[3]
+        && face_lights[0] == face_lights[1]
+        && face_lights[1] == face_lights[2]
+        && face_lights[2] == face_lights[3]
     {
+        geometry.indices.push(ndx);
+        geometry.indices.push(ndx + 1);
+        geometry.indices.push(ndx + 2);
+        geometry.indices.push(ndx + 2);
+        geometry.indices.push(ndx + 1);
+        geometry.indices.push(ndx + 3);
+        return;
+    }
+
+    let ao_diag_sum = face_aos[0] + face_aos[3];
+    let ao_off_sum = face_aos[1] + face_aos[2];
+    let should_flip = if ao_diag_sum > ao_off_sum {
+        true
+    } else {
+        let light0 = face_lights[0] as u32;
+        let light1 = face_lights[1] as u32;
+        let light2 = face_lights[2] as u32;
+        let light3 = face_lights[3] as u32;
+        let a_rt = (light0 >> 8) & 0xF;
+        let b_rt = (light1 >> 8) & 0xF;
+        let c_rt = (light2 >> 8) & 0xF;
+        let d_rt = (light3 >> 8) & 0xF;
+
+        let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
+        let fequals = ao_diag_sum == ao_off_sum;
+        let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+        let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+        if ozao_r || anz_r {
+            true
+        } else {
+            let a_gt = (light0 >> 4) & 0xF;
+            let b_gt = (light1 >> 4) & 0xF;
+            let c_gt = (light2 >> 4) & 0xF;
+            let d_gt = (light3 >> 4) & 0xF;
+            let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+            let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+            let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+            if ozao_g || anz_g {
+                true
+            } else {
+                let a_bt = light0 & 0xF;
+                let b_bt = light1 & 0xF;
+                let c_bt = light2 & 0xF;
+                let d_bt = light3 & 0xF;
+                let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
+                let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+                let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+                ozao_b || anz_b
+            }
+        }
+    };
+
+    if should_flip {
         geometry.indices.push(ndx);
         geometry.indices.push(ndx + 1);
         geometry.indices.push(ndx + 3);
@@ -1343,88 +2313,114 @@ fn process_greedy_quad(
     }
 }
 
-fn rotate_offset_y(offset: &mut [f32; 3], rotation: &BlockRotation) {
-    let rot = match rotation {
+#[inline(always)]
+fn rotation_radians(rotation: &BlockRotation) -> f32 {
+    match rotation {
         BlockRotation::PX(rot) => *rot,
         BlockRotation::NX(rot) => *rot,
         BlockRotation::PY(rot) => *rot,
         BlockRotation::NY(rot) => *rot,
         BlockRotation::PZ(rot) => *rot,
         BlockRotation::NZ(rot) => *rot,
-    };
-
-    if rot.abs() > f32::EPSILON {
-        let cos_rot = rot.cos();
-        let sin_rot = rot.sin();
-        let x = offset[0];
-        let z = offset[2];
-        offset[0] = x * cos_rot - z * sin_rot;
-        offset[2] = x * sin_rot + z * cos_rot;
     }
 }
 
-fn evaluate_block_rule<S: VoxelAccess>(
+#[inline(always)]
+fn evaluate_block_rule_with_trig<S: VoxelAccess>(
     rule: &BlockRule,
     pos: [i32; 3],
     space: &S,
-    rotation: &BlockRotation,
-    y_rotatable: bool,
-    world_space: bool,
+    rotation_trig: Option<(f32, f32)>,
 ) -> bool {
     match rule {
         BlockRule::None => true,
         BlockRule::Simple(simple) => {
-            let mut offset = [
-                simple.offset[0] as f32,
-                simple.offset[1] as f32,
-                simple.offset[2] as f32,
-            ];
-
-            if y_rotatable && !world_space {
-                rotate_offset_y(&mut offset, rotation);
+            if simple.id.is_none() && simple.rotation.is_none() && simple.stage.is_none() {
+                return true;
             }
+            let [pos_x, pos_y, pos_z] = pos;
 
-            let check_pos = [
-                pos[0] + offset[0].round() as i32,
-                pos[1] + offset[1].round() as i32,
-                pos[2] + offset[2].round() as i32,
-            ];
+            let [offset_x, offset_y, offset_z] = simple.offset;
+            let (check_x, check_y, check_z) = if let Some((sin_rot, cos_rot)) = rotation_trig {
+                if offset_x != 0 || offset_z != 0 {
+                    let x = offset_x as f32;
+                    let z = offset_z as f32;
+                    (
+                        pos_x + (x * cos_rot - z * sin_rot).round() as i32,
+                        pos_y + offset_y,
+                        pos_z + (x * sin_rot + z * cos_rot).round() as i32,
+                    )
+                } else {
+                    (pos_x + offset_x, pos_y + offset_y, pos_z + offset_z)
+                }
+            } else {
+                (pos_x + offset_x, pos_y + offset_y, pos_z + offset_z)
+            };
+            let has_no_rotation_or_stage = simple.rotation.is_none() && simple.stage.is_none();
+            let raw_voxel = space.get_raw_voxel(check_x, check_y, check_z);
 
-            let mut rule_ok = true;
-            let actual_id = space.get_voxel(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_id) = simple.id {
+                let actual_id = extract_id(raw_voxel);
                 if actual_id != expected_id {
-                    rule_ok = false;
+                    return false;
+                }
+
+                if has_no_rotation_or_stage {
+                    return true;
                 }
             }
 
-            let actual_rotation =
-                space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_rotation) = &simple.rotation {
-                if actual_rotation != *expected_rotation {
-                    rule_ok = false;
+                let (expected_rotation_code, expected_y_rotation_code) =
+                    BlockRotation::decode(expected_rotation);
+                let actual_rotation_code = (raw_voxel >> 16) & 0xF;
+                let actual_y_rotation_code = (raw_voxel >> 20) & 0xF;
+                if actual_rotation_code != expected_rotation_code
+                    || actual_y_rotation_code != expected_y_rotation_code
+                {
+                    return false;
                 }
             }
 
-            let actual_stage = space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_stage) = simple.stage {
+                let actual_stage = (raw_voxel >> 24) & 0xF;
                 if actual_stage != expected_stage {
-                    rule_ok = false;
+                    return false;
                 }
             }
 
-            rule_ok
+            true
         }
         BlockRule::Combination { logic, rules } => match logic {
-            BlockRuleLogic::And => rules
-                .iter()
-                .all(|r| evaluate_block_rule(r, pos, space, rotation, y_rotatable, world_space)),
-            BlockRuleLogic::Or => rules
-                .iter()
-                .any(|r| evaluate_block_rule(r, pos, space, rotation, y_rotatable, world_space)),
+            BlockRuleLogic::And => {
+                for nested_rule in rules {
+                    if !evaluate_block_rule_with_trig(
+                        nested_rule,
+                        pos,
+                        space,
+                        rotation_trig,
+                    ) {
+                        return false;
+                    }
+                }
+                true
+            }
+            BlockRuleLogic::Or => {
+                for nested_rule in rules {
+                    if evaluate_block_rule_with_trig(
+                        nested_rule,
+                        pos,
+                        space,
+                        rotation_trig,
+                    ) {
+                        return true;
+                    }
+                }
+                false
+            }
             BlockRuleLogic::Not => {
                 if let Some(first) = rules.first() {
-                    !evaluate_block_rule(first, pos, space, rotation, y_rotatable, world_space)
+                    !evaluate_block_rule_with_trig(first, pos, space, rotation_trig)
                 } else {
                     true
                 }
@@ -1433,39 +2429,114 @@ fn evaluate_block_rule<S: VoxelAccess>(
     }
 }
 
-fn get_dynamic_faces<S: VoxelAccess>(
+fn visit_dynamic_faces<S, F>(
     block: &Block,
     pos: [i32; 3],
     space: &S,
     rotation: &BlockRotation,
-) -> Vec<(BlockFace, bool)> {
+    mut visitor: F,
+)
+where
+    S: VoxelAccess,
+    F: FnMut(&BlockFace, bool),
+{
+    let mut local_rotation_trig: Option<(f32, f32)> = None;
+    let mut local_rotation_trig_ready = false;
+    let y_rotatable = block.y_rotatable;
+    let rotation_rad = if y_rotatable {
+        rotation_radians(rotation)
+    } else {
+        0.0
+    };
+
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
-            let mut matched_faces: Vec<(BlockFace, bool)> = Vec::new();
-            let mut any_matched = false;
+            let mut matched_rule = false;
 
             for part in &pattern.parts {
-                let rule_result = evaluate_block_rule(
+                let world_space = part.world_space;
+                let rotation_trig = if world_space {
+                    None
+                } else {
+                    if !local_rotation_trig_ready {
+                        local_rotation_trig_ready = true;
+                        if y_rotatable {
+                            if rotation_rad.abs() > f32::EPSILON {
+                                let (sin_rot, cos_rot) = rotation_rad.sin_cos();
+                                local_rotation_trig = Some((sin_rot, cos_rot));
+                            }
+                        }
+                    }
+                    local_rotation_trig
+                };
+                let rule_result = evaluate_block_rule_with_trig(
                     &part.rule,
                     pos,
                     space,
-                    rotation,
-                    block.y_rotatable,
-                    part.world_space,
+                    rotation_trig,
                 );
                 if rule_result {
-                    any_matched = true;
-                    matched_faces.extend(part.faces.iter().cloned().map(|f| (f, part.world_space)));
+                    matched_rule = true;
+                    for face in &part.faces {
+                        visitor(face, world_space);
+                    }
                 }
             }
 
-            if any_matched {
-                return matched_faces;
+            if matched_rule {
+                return;
             }
         }
     }
 
-    block.faces.iter().cloned().map(|f| (f, false)).collect()
+    for face in &block.faces {
+        visitor(face, false);
+    }
+}
+
+struct FaceProcessCache {
+    opaque_mask: Option<[bool; 27]>,
+    center_light: Option<u32>,
+    fluid_surface_above: bool,
+    block_min: [f32; 3],
+}
+
+#[inline(always)]
+fn build_face_process_cache<S: VoxelAccess>(
+    block: &Block,
+    is_see_through: bool,
+    is_fluid: bool,
+    neighbors: &NeighborCache,
+    registry: &Registry,
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    voxel_id: u32,
+    space: &S,
+) -> FaceProcessCache {
+    let is_all_transparent = block.is_all_transparent;
+    let skip_opaque_checks = is_see_through || is_all_transparent;
+
+    let center_light = if skip_opaque_checks {
+        Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
+    } else {
+        None
+    };
+
+    FaceProcessCache {
+        opaque_mask: if !skip_opaque_checks {
+            Some(build_neighbor_opaque_mask(neighbors, registry))
+        } else {
+            None
+        },
+        center_light,
+        fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+        block_min: if skip_opaque_checks && !is_fluid {
+            [0.0, 0.0, 0.0]
+        } else {
+            block_min_corner(block)
+        },
+    }
 }
 
 fn process_face<S: VoxelAccess>(
@@ -1475,11 +2546,12 @@ fn process_face<S: VoxelAccess>(
     voxel_id: u32,
     rotation: &BlockRotation,
     face: &BlockFace,
+    uv_range: &UV,
     block: &Block,
-    uv_map: &HashMap<String, UV>,
     registry: &Registry,
     space: &S,
     neighbors: &NeighborCache,
+    cache: &FaceProcessCache,
     see_through: bool,
     is_fluid: bool,
     positions: &mut Vec<f32>,
@@ -1492,108 +2564,117 @@ fn process_face<S: VoxelAccess>(
     let [min_x, min_y, min_z] = *min;
 
     let is_opaque = block.is_opaque;
-    let is_see_through = block.is_see_through;
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
-    let is_transparent = block.is_transparent;
-
-    let mut dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
-    let is_all_transparent = is_transparent[0]
-        && is_transparent[1]
-        && is_transparent[2]
-        && is_transparent[3]
-        && is_transparent[4]
-        && is_transparent[5];
-
-    if (rotatable || y_rotatable) && !world_space {
-        rotation.rotate_node(&mut dir, y_rotatable, false);
-    }
-
-    let dir = [
-        dir[0].round() as i32,
-        dir[1].round() as i32,
-        dir[2].round() as i32,
-    ];
-
-    let nvx = vx + dir[0];
-    let nvy = vy + dir[1];
-    let nvz = vz + dir[2];
-
-    let neighbor_id = space.get_voxel(nvx, nvy, nvz);
-    let n_is_void = !space.contains(nvx, nvy, nvz);
-
-    if !n_is_void && !registry.has_type(neighbor_id) {
-        return;
-    }
-
-    let n_block_type = match registry.get_block_by_id(neighbor_id) {
-        Some(b) => b,
-        None => return,
+    let needs_rotation = (rotatable || y_rotatable) && !world_space;
+    let is_all_transparent = block.is_all_transparent;
+    let dir = if needs_rotation {
+        let mut rotated_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+        rotation.rotate_node(&mut rotated_dir, y_rotatable, false);
+        [
+            rotated_dir[0].round() as i32,
+            rotated_dir[1].round() as i32,
+            rotated_dir[2].round() as i32,
+        ]
+    } else {
+        face.dir
     };
 
-    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
-        return;
-    }
+    let should_mesh = if !is_fluid && !see_through && !is_opaque {
+        true
+    } else {
+        let neighbor_id = if !needs_rotation {
+            neighbors.get_voxel(dir[0], dir[1], dir[2])
+        } else {
+            let rotated_dir_in_cache =
+                dir[0] >= -1 && dir[0] <= 1 && dir[1] >= -1 && dir[1] <= 1 && dir[2] >= -1 && dir[2] <= 1;
+            if rotated_dir_in_cache {
+                neighbors.get_voxel(dir[0], dir[1], dir[2])
+            } else {
+                extract_id(space.get_raw_voxel(vx + dir[0], vy + dir[1], vz + dir[2]))
+            }
+        };
 
-    if is_fluid && n_block_type.occludes_fluid {
-        return;
-    }
+        if !is_fluid {
+            if !see_through {
+                !registry.is_opaque_id(neighbor_id)
+            } else if !is_opaque {
+                if neighbor_id == voxel_id {
+                    block.transparent_standalone
+                } else {
+                    let (neighbor_has_type, neighbor_is_opaque) =
+                        registry.has_type_and_is_opaque(neighbor_id);
+                    !neighbor_is_opaque && neighbor_has_type
+                }
+            } else {
+                registry.is_empty_id(neighbor_id)
+            }
+        } else {
+            if registry.is_empty_id(neighbor_id) {
+                true
+            } else {
+                let n_block_type = match registry.get_block_by_id(neighbor_id) {
+                    Some(b) => b,
+                    None => return,
+                };
 
-    let n_is_empty = n_is_void || n_block_type.is_empty;
+                if !block.is_waterlogged && n_block_type.is_waterlogged {
+                    return;
+                }
 
-    let should_mesh = n_is_empty
-        || (see_through
-            && !is_opaque
-            && !n_block_type.is_opaque
-            && ((is_see_through
-                && neighbor_id == voxel_id
-                && n_block_type.transparent_standalone)
-                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
-                || ({
-                    if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = AABB::union_all(&block.aabbs);
-                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
-                        n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
-                        !(self_bounding.intersects(&n_bounding)
-                            || self_bounding.touches(&n_bounding))
-                    } else {
-                        false
-                    }
-                })))
-        || (!see_through && (!is_opaque || !n_block_type.is_opaque))
-        || (is_fluid
-            && n_block_type.is_opaque
-            && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space)
-            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]));
+                if n_block_type.occludes_fluid {
+                    return;
+                }
+
+                (see_through
+                    && !is_opaque
+                    && !n_block_type.is_opaque
+                    && (neighbor_id != voxel_id || n_block_type.transparent_standalone))
+                    || (!see_through && (!is_opaque || !n_block_type.is_opaque))
+                    || (n_block_type.is_opaque
+                        && !n_block_type.is_fluid
+                        && !cache.fluid_surface_above
+                        && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
+            }
+        }
+    };
 
     if !should_mesh {
         return;
     }
 
-    let UV {
-        start_u,
-        end_u,
-        start_v,
-        end_v,
-    } = uv_map.get(&face.name).cloned().unwrap_or_default();
+    let start_u = uv_range.start_u;
+    let end_u = uv_range.end_u;
+    let start_v = uv_range.start_v;
+    let end_v = uv_range.end_v;
+    let uv_span_u = end_u - start_u;
+    let uv_span_v = end_v - start_v;
 
     let ndx = (positions.len() / 3) as i32;
-    let mut face_aos = Vec::with_capacity(4);
 
-    let mut four_sunlights = Vec::with_capacity(4);
-    let mut four_red_lights = Vec::with_capacity(4);
-    let mut four_green_lights = Vec::with_capacity(4);
-    let mut four_blue_lights = Vec::with_capacity(4);
-
-    let block_aabb = AABB::union_all(&block.aabbs);
+    let block_min = cache.block_min;
+    let skip_opaque_checks = see_through || is_all_transparent;
+    let needs_opaque_checks = !skip_opaque_checks;
+    let opaque_mask = if needs_opaque_checks {
+        cache.opaque_mask.as_ref()
+    } else {
+        None
+    };
+    let fluid_surface_above = cache.fluid_surface_above;
+    let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
+    let apply_wave_bit = is_fluid && !fluid_surface_above;
 
     let is_diagonal = dir == [0, 0, 0];
-    let has_diagonals = is_see_through && has_diagonal_faces(block);
-    let (hash_ox, hash_oz) = if has_diagonals {
-        diagonal_face_offsets(vx, vy, vz)
+    let has_diagonals = see_through
+        && if block.cache_ready {
+            block.has_diagonal_faces
+        } else {
+            block.has_diagonal_faces_cached()
+        };
+    let hash_ox = if has_diagonals {
+        diagonal_face_offset_x(vx, vy, vz)
     } else {
-        (0.0, 0.0)
+        0.0
     };
     let (diag_x_offset, diag_z_offset) = if is_diagonal && block.is_plant {
         plant_position_jitter(vx, vy, vz)
@@ -1607,80 +2688,135 @@ fn process_face<S: VoxelAccess>(
     } else {
         0.0001
     };
+    let base_x = vx as f32 - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset;
+    let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
+    let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
 
-    for corner in face.corners.iter() {
-        let mut pos = corner.pos;
+    if skip_opaque_checks {
+        let center_light_i32 = cache
+            .center_light
+            .expect("center light exists when opaque checks are skipped")
+            as i32;
+        let base_light_i32 = center_light_i32 | 3 << 16 | fluid_bit;
+        if apply_wave_bit {
+            let block_min_y_eps = block_min[1] + 0.01;
+            if needs_rotation {
+                for corner in &face.corners {
+                    let mut pos = corner.pos;
+                    rotation.rotate_node(&mut pos, y_rotatable, true);
 
-        if (rotatable || y_rotatable) && !world_space {
-            rotation.rotate_node(&mut pos, y_rotatable, true);
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
+
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
+
+                    let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
+                    lights.push(base_light_i32 | wave_bit);
+                }
+            } else {
+                for corner in &face.corners {
+                    let pos = corner.pos;
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
+
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
+
+                    let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
+                    lights.push(base_light_i32 | wave_bit);
+                }
+            }
+        } else {
+            if needs_rotation {
+                for corner in &face.corners {
+                    let mut pos = corner.pos;
+                    rotation.rotate_node(&mut pos, y_rotatable, true);
+
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
+
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
+                    lights.push(base_light_i32);
+                }
+            } else {
+                for corner in &face.corners {
+                    let pos = corner.pos;
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
+
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
+                    lights.push(base_light_i32);
+                }
+            }
         }
-
-        let pos_x = pos[0] + vx as f32;
-        let pos_y = pos[1] + vy as f32;
-        let pos_z = pos[2] + vz as f32;
-
-        positions.push(pos_x - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset);
-        positions.push(pos_y - min_y as f32 - dir[1] as f32 * face_inset);
-        positions.push(pos_z - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset);
-
-        uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
-        uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
-
-        let dx = if pos[0] <= block_aabb.min_x + 0.01 {
-            -1
-        } else {
+    } else {
+        let mut face_aos = [0i32; 4];
+        let mut four_red_lights = [0u32; 4];
+        let mut four_green_lights = [0u32; 4];
+        let mut four_blue_lights = [0u32; 4];
+        let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
+        let dir_is_x = dir[0] != 0;
+        let dir_is_y = dir[1] != 0;
+        let is_cardinal_dir = dir != [0, 0, 0];
+        let cardinal_axis = if dir_is_x {
+            0
+        } else if dir_is_y {
             1
-        };
-        let dy = if pos[1] <= block_aabb.min_y + 0.01 {
-            -1
         } else {
-            1
+            2
         };
-        let dz = if pos[2] <= block_aabb.min_z + 0.01 {
-            -1
-        } else {
-            1
-        };
+        let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
+        let block_min_x_eps = block_min[0] + 0.01;
+        let block_min_y_eps = block_min[1] + 0.01;
+        let block_min_z_eps = block_min[2] + 0.01;
+        let mut corner_positions = [
+            face.corners[0].pos,
+            face.corners[1].pos,
+            face.corners[2].pos,
+            face.corners[3].pos,
+        ];
+        if needs_rotation {
+            for pos in &mut corner_positions {
+                rotation.rotate_node(pos, y_rotatable, true);
+            }
+        }
+        for (corner_index, corner) in face.corners.iter().enumerate() {
+            let pos = corner_positions[corner_index];
 
-        let get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
-            let id = neighbors.get_voxel(ox, oy, oz);
-            registry
-                .get_block_by_id(id)
-                .map(|b| b.is_opaque)
-                .unwrap_or(false)
-        };
+            positions.push(pos[0] + base_x);
+            positions.push(pos[1] + base_y);
+            positions.push(pos[2] + base_z);
 
-        let b011 = !get_block_opaque(0, dy, dz);
-        let b101 = !get_block_opaque(dx, 0, dz);
-        let b110 = !get_block_opaque(dx, dy, 0);
-        let b111 = !get_block_opaque(dx, dy, dz);
+            uvs.push(corner.uv[0] * uv_span_u + start_u);
+            uvs.push(corner.uv[1] * uv_span_v + start_v);
 
-        let ao = if is_see_through || is_all_transparent {
-            3
-        } else if dir[0].abs() == 1 {
-            vertex_ao(b110, b101, b111)
-        } else if dir[1].abs() == 1 {
-            vertex_ao(b110, b011, b111)
-        } else {
-            vertex_ao(b011, b101, b111)
-        };
+            let dx = if pos[0] <= block_min_x_eps { -1 } else { 1 };
+            let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
+            let dz = if pos[2] <= block_min_z_eps { -1 } else { 1 };
 
-        let sunlight;
-        let red_light;
-        let green_light;
-        let blue_light;
-
-        if is_see_through || is_all_transparent {
-            let (s, r, g, b) = neighbors.get_all_lights(0, 0, 0);
-            sunlight = s;
-            red_light = r;
-            green_light = g;
-            blue_light = b;
-        } else {
-            let mut sum_sunlights = Vec::with_capacity(8);
-            let mut sum_red_lights = Vec::with_capacity(8);
-            let mut sum_green_lights = Vec::with_capacity(8);
-            let mut sum_blue_lights = Vec::with_capacity(8);
+            let b011 = !neighbor_is_opaque(mask, 0, dy, dz);
+            let b101 = !neighbor_is_opaque(mask, dx, 0, dz);
+            let b110 = !neighbor_is_opaque(mask, dx, dy, 0);
+            let b111 = !neighbor_is_opaque(mask, dx, dy, dz);
+            let ao = if dir_is_x {
+                vertex_ao(b110, b101, b111)
+            } else if dir_is_y {
+                vertex_ao(b110, b011, b111)
+            } else {
+                vertex_ao(b011, b101, b111)
+            };
+            let mut sum_sunlights = 0u32;
+            let mut sum_red_lights = 0u32;
+            let mut sum_green_lights = 0u32;
+            let mut sum_blue_lights = 0u32;
+            let mut light_count = 0u32;
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -1689,224 +2825,201 @@ fn process_face<S: VoxelAccess>(
                         let ddy = y * dy;
                         let ddz = z * dz;
 
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
-                            continue;
-                        }
-
-                        let diagonal4_id = neighbors.get_voxel(ddx, ddy, ddz);
-                        let diagonal4_opaque = registry
-                            .get_block_by_id(diagonal4_id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false);
+                        let diagonal4_opaque = neighbor_is_opaque(mask, ddx, ddy, ddz);
 
                         if diagonal4_opaque {
                             continue;
                         }
 
-                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_id =
-                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
-                            let facing_opaque = registry
-                                .get_block_by_id(facing_id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
+                        if is_cardinal_dir {
+                            let is_face_plane_sample = match cardinal_axis {
+                                0 => ddx == 0,
+                                1 => ddy == 0,
+                                _ => ddz == 0,
+                            };
+                            if is_face_plane_sample && center_opaque {
+                                continue;
+                            }
+                        } else if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
+                            let facing_opaque =
+                                neighbor_is_opaque(mask, ddx * dir[0], ddy * dir[1], ddz * dir[2]);
 
                             if facing_opaque {
                                 continue;
                             }
                         }
 
-                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(0, ddy, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, 0, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xy_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, ddy, 0))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
+                        if x == 1 && y == 1 && z == 1 {
+                            let diagonal_yz_opaque = neighbor_is_opaque(mask, 0, ddy, ddz);
+                            let diagonal_xz_opaque = neighbor_is_opaque(mask, ddx, 0, ddz);
+                            let diagonal_xy_opaque = neighbor_is_opaque(mask, ddx, ddy, 0);
 
                             if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
                                 continue;
                             }
 
                             if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
                                 if neighbor_y_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                                let neighbor_z_opaque = neighbor_is_opaque(mask, 0, 0, ddz);
                                 if neighbor_x_opaque && neighbor_z_opaque {
                                     continue;
                                 }
                             }
 
                             if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
+                                let neighbor_x_opaque = neighbor_is_opaque(mask, ddx, 0, 0);
+                                let neighbor_y_opaque = neighbor_is_opaque(mask, 0, ddy, 0);
                                 if neighbor_x_opaque && neighbor_y_opaque {
                                     continue;
                                 }
                             }
                         }
 
-                        sum_sunlights.push(local_sunlight);
-                        sum_red_lights.push(local_red_light);
-                        sum_green_lights.push(local_green_light);
-                        sum_blue_lights.push(local_blue_light);
+                        let local_light = neighbors.get_raw_light(ddx, ddy, ddz);
+                        if local_light == 0 {
+                            continue;
+                        }
+                        let local_sunlight = (local_light >> 12) & 0xF;
+                        let local_red_light = (local_light >> 8) & 0xF;
+                        let local_green_light = (local_light >> 4) & 0xF;
+                        let local_blue_light = local_light & 0xF;
+
+                        sum_sunlights += local_sunlight;
+                        sum_red_lights += local_red_light;
+                        sum_green_lights += local_green_light;
+                        sum_blue_lights += local_blue_light;
+                        light_count += 1;
                     }
                 }
             }
 
-            let len = sum_sunlights.len();
-            if len > 0 {
-                let len_f32 = len as f32;
-                sunlight = (sum_sunlights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                red_light = (sum_red_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                green_light = (sum_green_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                blue_light = (sum_blue_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
+            let (sunlight, red_light, green_light, blue_light) = if light_count > 0 {
+                (
+                    sum_sunlights / light_count,
+                    sum_red_lights / light_count,
+                    sum_green_lights / light_count,
+                    sum_blue_lights / light_count,
+                )
             } else {
-                sunlight = 0;
-                red_light = 0;
-                green_light = 0;
-                blue_light = 0;
-            }
+                (0, 0, 0, 0)
+            };
+
+            let light = pack_light_nibbles(sunlight, red_light, green_light, blue_light);
+            let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
+            lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
+
+            four_red_lights[corner_index] = red_light;
+            four_green_lights[corner_index] = green_light;
+            four_blue_lights[corner_index] = blue_light;
+            face_aos[corner_index] = ao;
         }
+        let a_rt = four_red_lights[0];
+        let b_rt = four_red_lights[1];
+        let c_rt = four_red_lights[2];
+        let d_rt = four_red_lights[3];
 
-        let mut light = 0u32;
-        light = LightUtils::insert_red_light(light, red_light);
-        light = LightUtils::insert_green_light(light, green_light);
-        light = LightUtils::insert_blue_light(light, blue_light);
-        light = LightUtils::insert_sunlight(light, sunlight);
-        let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
-        let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
-            1 << 20
+        let a_gt = four_green_lights[0];
+        let b_gt = four_green_lights[1];
+        let c_gt = four_green_lights[2];
+        let d_gt = four_green_lights[3];
+
+        let a_bt = four_blue_lights[0];
+        let b_bt = four_blue_lights[1];
+        let c_bt = four_blue_lights[2];
+        let d_bt = four_blue_lights[3];
+
+        let ao_diag_sum = face_aos[0] + face_aos[3];
+        let ao_off_sum = face_aos[1] + face_aos[2];
+        let should_flip = if ao_diag_sum > ao_off_sum {
+            true
         } else {
-            0
+            let fequals = ao_diag_sum == ao_off_sum;
+            if !fequals
+                && a_rt != 0
+                && b_rt != 0
+                && c_rt != 0
+                && d_rt != 0
+                && a_gt != 0
+                && b_gt != 0
+                && c_gt != 0
+                && d_gt != 0
+                && a_bt != 0
+                && b_bt != 0
+                && c_bt != 0
+                && d_bt != 0
+            {
+                false
+            } else {
+                let one_tr0 = a_rt == 0 || b_rt == 0 || c_rt == 0 || d_rt == 0;
+            let ozao_r = fequals && a_rt + d_rt < b_rt + c_rt;
+            let anz_r = one_tr0 && has_channel_midpoint_anomaly(a_rt, b_rt, c_rt, d_rt);
+            if ozao_r || anz_r {
+                true
+            } else {
+                let one_tg0 = a_gt == 0 || b_gt == 0 || c_gt == 0 || d_gt == 0;
+                let ozao_g = fequals && a_gt + d_gt < b_gt + c_gt;
+                let anz_g = one_tg0 && has_channel_midpoint_anomaly(a_gt, b_gt, c_gt, d_gt);
+                if ozao_g || anz_g {
+                    true
+                } else {
+                    let one_tb0 = a_bt == 0 || b_bt == 0 || c_bt == 0 || d_bt == 0;
+                    let ozao_b = fequals && a_bt + d_bt < b_bt + c_bt;
+                    let anz_b = one_tb0 && has_channel_midpoint_anomaly(a_bt, b_bt, c_bt, d_bt);
+                    ozao_b || anz_b
+                }
+            }
+            }
         };
-        lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
 
-        four_sunlights.push(sunlight);
-        four_red_lights.push(red_light);
-        four_green_lights.push(green_light);
-        four_blue_lights.push(blue_light);
-        face_aos.push(ao);
+        indices.push(ndx);
+        indices.push(ndx + 1);
+
+        if should_flip {
+            indices.push(ndx + 3);
+            indices.push(ndx + 3);
+            indices.push(ndx + 2);
+            indices.push(ndx);
+        } else {
+            indices.push(ndx + 2);
+            indices.push(ndx + 2);
+            indices.push(ndx + 1);
+            indices.push(ndx + 3);
+        }
+        return;
     }
-
-    let a_rt = four_red_lights[0];
-    let b_rt = four_red_lights[1];
-    let c_rt = four_red_lights[2];
-    let d_rt = four_red_lights[3];
-
-    let a_gt = four_green_lights[0];
-    let b_gt = four_green_lights[1];
-    let c_gt = four_green_lights[2];
-    let d_gt = four_green_lights[3];
-
-    let a_bt = four_blue_lights[0];
-    let b_bt = four_blue_lights[1];
-    let c_bt = four_blue_lights[2];
-    let d_bt = four_blue_lights[3];
-
-    let threshold = 0;
-
-    let one_tr0 = a_rt <= threshold || b_rt <= threshold || c_rt <= threshold || d_rt <= threshold;
-    let one_tg0 = a_gt <= threshold || b_gt <= threshold || c_gt <= threshold || d_gt <= threshold;
-    let one_tb0 = a_bt <= threshold || b_bt <= threshold || c_bt <= threshold || d_bt <= threshold;
-
-    let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
-    let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
-    let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
-    let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
-
-    let anzp1_r = (b_rt as f32 > (a_rt + d_rt) as f32 / 2.0
-        && (a_rt + d_rt) as f32 / 2.0 > c_rt as f32)
-        || (c_rt as f32 > (a_rt + d_rt) as f32 / 2.0 && (a_rt + d_rt) as f32 / 2.0 > b_rt as f32);
-    let anzp1_g = (b_gt as f32 > (a_gt + d_gt) as f32 / 2.0
-        && (a_gt + d_gt) as f32 / 2.0 > c_gt as f32)
-        || (c_gt as f32 > (a_gt + d_gt) as f32 / 2.0 && (a_gt + d_gt) as f32 / 2.0 > b_gt as f32);
-    let anzp1_b = (b_bt as f32 > (a_bt + d_bt) as f32 / 2.0
-        && (a_bt + d_bt) as f32 / 2.0 > c_bt as f32)
-        || (c_bt as f32 > (a_bt + d_bt) as f32 / 2.0 && (a_bt + d_bt) as f32 / 2.0 > b_bt as f32);
-
-    let anz_r = one_tr0 && anzp1_r;
-    let anz_g = one_tg0 && anzp1_g;
-    let anz_b = one_tb0 && anzp1_b;
 
     indices.push(ndx);
     indices.push(ndx + 1);
-
-    if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
-        || (ozao_r || ozao_g || ozao_b)
-        || (anz_r || anz_g || anz_b)
-    {
-        indices.push(ndx + 3);
-        indices.push(ndx + 3);
-        indices.push(ndx + 2);
-        indices.push(ndx);
-    } else {
-        indices.push(ndx + 2);
-        indices.push(ndx + 2);
-        indices.push(ndx + 1);
-        indices.push(ndx + 3);
-    }
+    indices.push(ndx + 2);
+    indices.push(ndx + 2);
+    indices.push(ndx + 1);
+    indices.push(ndx + 3);
 }
 
-pub fn mesh_space_greedy<S: VoxelAccess>(
+fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     min: &[i32; 3],
     max: &[i32; 3],
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
+        HashMap::with_capacity(estimate_geometry_capacity(min, max));
+    let zero_is_empty = registry
+        .get_block_by_id(0)
+        .map(|block| block.is_empty)
+        .unwrap_or(true);
     let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
-
-    let directions: [(i32, i32, i32); 6] = [
-        (1, 0, 0),
-        (-1, 0, 0),
-        (0, 1, 0),
-        (0, -1, 0),
-        (0, 0, 1),
-        (0, 0, -1),
-    ];
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: HashMap<(i32, i32), FaceData> =
@@ -1925,8 +3038,9 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         bool,
     )> = Vec::new();
 
-    for (dx, dy, dz) in directions {
-        let dir = [dx, dy, dz];
+    for (dir, dir_index) in GREEDY_DIRECTIONS_WITH_INDEX {
+        let [dx, dy, dz] = dir;
+        let slice_offset = if dx > 0 || dy > 0 || dz > 0 { 1.0 } else { 0.0 };
 
         let (axis, u_axis, v_axis) = if dx != 0 {
             (0, 2, 1)
@@ -1960,19 +3074,16 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
             for u in u_range.0..u_range.1 {
                 for v in v_range.0..v_range.1 {
-                    let (vx, vy, vz) = match (axis, u_axis, v_axis) {
-                        (0, 2, 1) => (slice, v, u),
-                        (1, 0, 2) => (u, slice, v),
-                        (2, 0, 1) => (u, v, slice),
-                        _ => continue,
+                    let (vx, vy, vz) = if axis == 0 {
+                        (slice, v, u)
+                    } else if axis == 1 {
+                        (u, slice, v)
+                    } else {
+                        (u, v, slice)
                     };
 
-                    let voxel_id = space.get_voxel(vx, vy, vz);
-                    if !registry.has_type(voxel_id) {
-                        continue;
-                    }
-
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
+                    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+                    let voxel_id = extract_id(raw_voxel);
                     let block = match registry.get_block_by_id(voxel_id) {
                         Some(b) => b,
                         None => continue,
@@ -1981,45 +3092,78 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     if block.is_empty {
                         continue;
                     }
-
-                    if block.is_opaque {
-                        let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                            let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                            registry
-                                .get_block_by_id(id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false)
-                        });
-                        if all_neighbors_opaque {
+                    if !block.is_fluid && block.faces.is_empty() {
+                        let has_dynamic_patterns = if block.cache_ready {
+                            block.has_dynamic_patterns
+                        } else {
+                            block.has_dynamic_patterns_cached()
+                        };
+                        if !has_dynamic_patterns {
                             continue;
                         }
                     }
 
+                    if block.is_opaque {
+                        if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
+                            continue;
+                        }
+                    }
+
+                    let is_non_greedy_block = !can_greedy_mesh_block(block);
+                    if is_non_greedy_block && processed_non_greedy.contains(&(vx, vy, vz)) {
+                        continue;
+                    }
+
+                    let cache_ready = block.cache_ready;
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
+                    let skip_opaque_checks = is_see_through || block.is_all_transparent;
+                    let block_needs_face_rotation = block.rotatable || block.y_rotatable;
+                    let mut rotation = BlockRotation::PY(0.0);
+                    if block_needs_face_rotation {
+                        rotation = extract_rotation(raw_voxel);
+                    }
 
+                    let has_standard_six_faces = is_fluid
+                        && if cache_ready {
+                            block.has_standard_six_faces
+                        } else {
+                            block.has_standard_six_faces_cached()
+                        };
                     let faces: Vec<(BlockFace, bool)> =
-                        if is_fluid && has_standard_six_faces(&block.faces) {
-                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                        if has_standard_six_faces {
+                            create_fluid_faces(vx, vy, vz, block.id, space, block, registry)
                                 .into_iter()
                                 .map(|f| (f, false))
                                 .collect()
-                        } else if block.dynamic_patterns.is_some() {
-                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
                         } else {
-                            block.faces.iter().cloned().map(|f| (f, false)).collect()
+                            let has_dynamic_patterns = if cache_ready {
+                                block.has_dynamic_patterns
+                            } else {
+                                block.has_dynamic_patterns_cached()
+                            };
+                            if has_dynamic_patterns {
+                                let mut faces = Vec::with_capacity(8);
+                                visit_dynamic_faces(
+                                    block,
+                                    [vx, vy, vz],
+                                    space,
+                                    &rotation,
+                                    |face, world_space| {
+                                    faces.push((face.clone(), world_space));
+                                    },
+                                );
+                                faces
+                            } else {
+                                block.faces.iter().cloned().map(|f| (f, false)).collect()
+                            }
                         };
 
-                    let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
-
                     if is_non_greedy_block {
-                        if processed_non_greedy.contains(&(vx, vy, vz)) {
-                            continue;
-                        }
                         processed_non_greedy.insert((vx, vy, vz));
 
                         for (face, world_space) in faces.iter() {
-                            let uv_range = face.range.clone();
+                            let uv_range = face.range;
                             non_greedy_faces.push((
                                 vx,
                                 vy,
@@ -2037,23 +3181,24 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
 
-                    let matching_faces: Vec<_> = faces
-                        .iter()
-                        .filter(|(f, world_space)| {
-                            let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
-                            if (block.rotatable || block.y_rotatable) && !*world_space {
-                                rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
-                            }
-                            let effective_dir = [
-                                face_dir[0].round() as i32,
-                                face_dir[1].round() as i32,
-                                face_dir[2].round() as i32,
-                            ];
-                            effective_dir == dir
-                        })
-                        .collect();
+                    let face_matches_direction = |face: &BlockFace, world_space: bool| {
+                        if !block_needs_face_rotation || world_space {
+                            return face.dir == dir;
+                        }
+                        let mut face_dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
+                        rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
+                        let effective_dir = [
+                            face_dir[0].round() as i32,
+                            face_dir[1].round() as i32,
+                            face_dir[2].round() as i32,
+                        ];
+                        effective_dir == dir
+                    };
 
-                    if matching_faces.is_empty() {
+                    if !faces
+                        .iter()
+                        .any(|(face, world_space)| face_matches_direction(face, *world_space))
+                    {
                         continue;
                     }
 
@@ -2067,15 +3212,20 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         space,
                         registry,
                         is_see_through,
-                        is_fluid,
+                        zero_is_empty,
                     );
 
                     if !should_render {
                         continue;
                     }
 
-                    for (face, world_space) in matching_faces {
-                        let uv_range = face.range.clone();
+                    let mut cached_neighbors = None;
+                    let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
+                    for (face, world_space) in faces.iter() {
+                        if !face_matches_direction(face, *world_space) {
+                            continue;
+                        }
+                        let uv_range = face.range;
 
                         if face.isolated {
                             non_greedy_faces.push((
@@ -2094,13 +3244,27 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             continue;
                         }
 
-                        let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                        let (aos, lights) =
-                            compute_face_ao_and_light(dir, block, &neighbors, registry);
+                        let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                            let neighbors = cached_neighbors.get_or_insert_with(|| {
+                                populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                )
+                            });
+                            compute_face_ao_and_light(dir_index, block, neighbors, registry)
+                        });
 
                         let key = FaceKey {
                             block_id: block.id,
-                            face_name: face.name.clone(),
+                            face_name: if face.independent {
+                                Some(face_name_owned(face))
+                            } else {
+                                None
+                            },
+                            face_index: -1,
                             independent: face.independent,
                             ao: aos,
                             light: lights,
@@ -2113,7 +3277,6 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         let data = FaceData {
                             key,
                             uv_range,
-                            is_see_through,
                             is_fluid,
                         };
 
@@ -2123,33 +3286,81 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
             }
 
             let quads =
-                extract_greedy_quads(&mut greedy_mask, u_range.0, u_range.1, v_range.0, v_range.1);
+                extract_greedy_quads(
+                    &mut greedy_mask,
+                    u_range.0,
+                    v_range.0,
+                    u_range.1 - u_range.0,
+                    v_range.1 - v_range.0,
+                );
 
+            let mut cached_quad_block_id = u32::MAX;
+            let mut cached_quad_block: Option<&Block> = None;
             for quad in quads {
-                let block = match registry.get_block_by_id(quad.data.key.block_id) {
-                    Some(b) => b,
-                    None => continue,
-                };
-                let geo_key = if quad.data.key.independent {
-                    format!(
-                        "{}::{}",
-                        block.get_name_lower(),
-                        quad.data.key.face_name.to_lowercase()
-                    )
+                let quad_key = &quad.data.key;
+                let block_id = quad_key.block_id;
+                let block = if cached_quad_block_id == block_id {
+                    match cached_quad_block {
+                        Some(block) => block,
+                        None => continue,
+                    }
                 } else {
-                    block.get_name_lower().to_string()
+                    match registry.get_block_by_id(block_id) {
+                        Some(block) => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = Some(block);
+                            block
+                        }
+                        None => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = None;
+                            continue;
+                        }
+                    }
+                };
+                let geo_key = if quad_key.independent {
+                    let face_name = if let Some(face_name) = quad.data.key.face_name.as_ref() {
+                        face_name.clone()
+                    } else if quad_key.face_index >= 0 {
+                        let face = &block.faces[quad_key.face_index as usize];
+                        if block.cache_ready {
+                            face.name_lower.clone()
+                        } else {
+                            face_name_owned(face)
+                        }
+                    } else {
+                        unreachable!("independent greedy quad must include a face identifier")
+                    };
+                    GeometryMapKey::Face(block.id, face_name)
+                } else {
+                    GeometryMapKey::Block(block.id)
                 };
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
-                    g.voxel = quad.data.key.block_id;
-                    if quad.data.key.independent {
-                        g.face_name = Some(quad.data.key.face_name.clone());
+                    g.voxel = block_id;
+                    if quad_key.independent {
+                        g.face_name = if let Some(face_name) = quad_key.face_name.as_ref() {
+                            Some(face_name.clone())
+                        } else if quad_key.face_index >= 0 {
+                            Some(block.faces[quad_key.face_index as usize].name.clone())
+                        } else {
+                            None
+                        };
                     }
                     g
                 });
 
-                process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
+                process_greedy_quad(
+                    &quad,
+                    slice,
+                    slice_offset,
+                    dir,
+                    dir_index,
+                    min,
+                    block,
+                    geometry,
+                );
             }
 
             for (
@@ -2166,20 +3377,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let geo_key = if face.isolated {
-                    format!(
-                        "{}::{}::{}-{}-{}",
-                        block.get_name_lower(),
-                        face.get_name_lower(),
-                        vx,
-                        vy,
-                        vz
-                    )
-                } else if face.independent {
-                    format!("{}::{}", block.get_name_lower(), face.get_name_lower())
-                } else {
-                    block.get_name_lower().to_string()
-                };
+                let geo_key = geometry_key_for_face(&block, &face, vx, vy, vz);
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
@@ -2193,10 +3391,26 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     g
                 });
 
-                let mut uv_map = HashMap::new();
-                uv_map.insert(face.name.clone(), uv_range);
-
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let skip_opaque_checks = is_see_through || block.is_all_transparent;
+                let neighbors = populate_neighbors_for_face_processing(
+                    vx,
+                    vy,
+                    vz,
+                    space,
+                    skip_opaque_checks,
+                );
+                let face_cache = build_face_process_cache(
+                    &block,
+                    is_see_through,
+                    is_fluid,
+                    &neighbors,
+                    registry,
+                    vx,
+                    vy,
+                    vz,
+                    voxel_id,
+                    space,
+                );
                 process_face(
                     vx,
                     vy,
@@ -2204,11 +3418,12 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     voxel_id,
                     &rotation,
                     &face,
+                    &uv_range,
                     &block,
-                    &uv_map,
                     registry,
                     space,
                     &neighbors,
+                    &face_cache,
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
@@ -2222,10 +3437,745 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         }
     }
 
-    map.into_iter()
-        .map(|(_, geometry)| geometry)
+    map.into_values()
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
+}
+
+pub fn mesh_space_greedy_legacy<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> Vec<GeometryProtocol> {
+    mesh_space_greedy_legacy_impl(min, max, space, registry)
+}
+
+fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> Vec<GeometryProtocol> {
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
+        HashMap::with_capacity(estimate_geometry_capacity(min, max));
+    let zero_is_empty = registry
+        .get_block_by_id(0)
+        .map(|block| block.is_empty)
+        .unwrap_or(true);
+
+    let [min_x, min_y, min_z] = *min;
+    let [max_x, max_y, max_z] = *max;
+    let x_span = (max_x - min_x).max(0) as usize;
+    let y_span = (max_y - min_y).max(0) as usize;
+    let z_span = (max_z - min_z).max(0) as usize;
+    let yz_span = y_span * z_span;
+    let mut processed_non_greedy = vec![false; x_span * y_span * z_span];
+    const OCCLUSION_UNKNOWN: u8 = 2;
+    let mut fully_occluded_opaque = vec![OCCLUSION_UNKNOWN; x_span * y_span * z_span];
+
+    let mut greedy_mask: Vec<Option<FaceData>> = Vec::new();
+    let identity_rotation = BlockRotation::PY(0.0);
+
+    for (dir, dir_index) in GREEDY_DIRECTIONS_WITH_INDEX {
+        let [dx, dy, dz] = dir;
+        let slice_offset = if dx > 0 || dy > 0 || dz > 0 { 1.0 } else { 0.0 };
+        let mut cached_voxel_block_id = u32::MAX;
+        let mut cached_voxel_block: Option<&Block> = None;
+
+        let (axis, u_axis, v_axis) = if dx != 0 {
+            (0, 2, 1)
+        } else if dy != 0 {
+            (1, 0, 2)
+        } else {
+            (2, 0, 1)
+        };
+
+        let slice_range = match axis {
+            0 => min_x..max_x,
+            1 => min_y..max_y,
+            _ => min_z..max_z,
+        };
+
+        let u_range = match u_axis {
+            0 => (min_x, max_x),
+            1 => (min_y, max_y),
+            _ => (min_z, max_z),
+        };
+
+        let v_range = match v_axis {
+            0 => (min_x, max_x),
+            1 => (min_y, max_y),
+            _ => (min_z, max_z),
+        };
+
+        let mask_width = (u_range.1 - u_range.0) as usize;
+        let mask_height = (v_range.1 - v_range.0) as usize;
+        let mask_len = mask_width * mask_height;
+        if greedy_mask.len() < mask_len {
+            greedy_mask.resize(mask_len, None);
+        }
+
+        for slice in slice_range {
+            for u in u_range.0..u_range.1 {
+                let u_mask_offset = (u - u_range.0) as usize;
+                for v in v_range.0..v_range.1 {
+                    let (vx, vy, vz) = if axis == 0 {
+                        (slice, v, u)
+                    } else if axis == 1 {
+                        (u, slice, v)
+                    } else {
+                        (u, v, slice)
+                    };
+
+                    let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+                    let voxel_id = extract_id(raw_voxel);
+                    if voxel_id == 0 && zero_is_empty {
+                        continue;
+                    }
+                    let block = if cached_voxel_block_id == voxel_id {
+                        match cached_voxel_block {
+                            Some(block) => block,
+                            None => continue,
+                        }
+                    } else {
+                        match registry.get_block_by_id(voxel_id) {
+                            Some(candidate) => {
+                                cached_voxel_block_id = voxel_id;
+                                cached_voxel_block = Some(candidate);
+                                candidate
+                            }
+                            None => {
+                                cached_voxel_block_id = voxel_id;
+                                cached_voxel_block = None;
+                                continue;
+                            }
+                        }
+                    };
+
+                    let is_fluid = block.is_fluid;
+                    let is_opaque = block.is_opaque;
+                    let faces_empty = block.faces.is_empty();
+                    if block.is_empty {
+                        continue;
+                    }
+                    let cache_ready = block.cache_ready;
+                    let mut has_dynamic_patterns_cached: Option<bool> = None;
+                    if !is_fluid && faces_empty {
+                        let has_dynamic_patterns = if cache_ready {
+                            block.has_dynamic_patterns
+                        } else {
+                            block.has_dynamic_patterns_cached()
+                        };
+                        has_dynamic_patterns_cached = Some(has_dynamic_patterns);
+                        if !has_dynamic_patterns {
+                            continue;
+                        }
+                    }
+
+                    let greedy_without_rotation = if cache_ready {
+                        block.greedy_mesh_eligible_no_rotation
+                    } else {
+                        block.can_greedy_mesh_without_rotation()
+                    };
+                    let is_non_greedy_block = !greedy_without_rotation;
+                    let greedy_face_index = if is_non_greedy_block {
+                        -1i16
+                    } else {
+                        let face_index = block.greedy_face_indices[dir_index];
+                        if face_index == -1 {
+                            continue;
+                        }
+                        face_index
+                    };
+
+                    let current_voxel_index = if is_opaque || is_non_greedy_block {
+                        ((vx - min_x) as usize) * yz_span
+                            + ((vy - min_y) as usize) * z_span
+                            + (vz - min_z) as usize
+                    } else {
+                        0
+                    };
+
+                    if is_opaque {
+                        let cached = fully_occluded_opaque[current_voxel_index];
+                        let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
+                            let value = is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
+                            fully_occluded_opaque[current_voxel_index] = if value { 1 } else { 0 };
+                            value
+                        } else {
+                            cached == 1
+                        };
+                        if is_fully_occluded {
+                            continue;
+                        }
+                    }
+                    if is_non_greedy_block {
+                        if processed_non_greedy[current_voxel_index] {
+                            continue;
+                        }
+                    }
+
+                    let is_see_through = block.is_see_through;
+                    let is_all_transparent = block.is_all_transparent;
+                    let skip_opaque_checks = is_see_through || is_all_transparent;
+
+                    if is_non_greedy_block {
+                        let non_greedy_voxel_index = current_voxel_index;
+                        let block_needs_rotation = block.rotatable || block.y_rotatable;
+                        let mut rotation = BlockRotation::PY(0.0);
+                        if block_needs_rotation {
+                            rotation = extract_rotation(raw_voxel);
+                        }
+                        processed_non_greedy[non_greedy_voxel_index] = true;
+                        let has_standard_six_faces = is_fluid
+                            && if cache_ready {
+                                block.has_standard_six_faces
+                            } else {
+                                block.has_standard_six_faces_cached()
+                            };
+                        if has_standard_six_faces {
+                            let fluid_faces =
+                                create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
+                            let neighbors = populate_neighbors_for_face_processing(
+                                vx,
+                                vy,
+                                vz,
+                                space,
+                                skip_opaque_checks,
+                            );
+                            let face_cache = build_face_process_cache(
+                                block,
+                                is_see_through,
+                                is_fluid,
+                                &neighbors,
+                                registry,
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                space,
+                            );
+                            for face in fluid_faces {
+                                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
+                                let geometry = map.entry(geo_key).or_insert_with(|| {
+                                    let mut entry = GeometryProtocol::default();
+                                    entry.voxel = voxel_id;
+                                    if face.independent || face.isolated {
+                                        entry.face_name = Some(face.name.clone());
+                                    }
+                                    if face.isolated {
+                                        entry.at = Some([vx, vy, vz]);
+                                    }
+                                    entry
+                                });
+                                process_face(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    &rotation,
+                                    &face,
+                                    &face.range,
+                                    block,
+                                    registry,
+                                    space,
+                                    &neighbors,
+                                    &face_cache,
+                                    is_see_through,
+                                    is_fluid,
+                                    &mut geometry.positions,
+                                    &mut geometry.indices,
+                                    &mut geometry.uvs,
+                                    &mut geometry.lights,
+                                    min,
+                                    false,
+                                );
+                            }
+                        } else {
+                            let has_dynamic_patterns = if let Some(cached) =
+                                has_dynamic_patterns_cached
+                            {
+                                cached
+                            } else if cache_ready {
+                                block.has_dynamic_patterns
+                            } else {
+                                block.has_dynamic_patterns_cached()
+                            };
+                            if has_dynamic_patterns {
+                                let neighbors = populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                );
+                                let face_cache = build_face_process_cache(
+                                    block,
+                                    is_see_through,
+                                    is_fluid,
+                                    &neighbors,
+                                    registry,
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    space,
+                                );
+                                visit_dynamic_faces(
+                                    block,
+                                    [vx, vy, vz],
+                                    space,
+                                    &rotation,
+                                    |face, world_space| {
+                                        let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                        let geometry = map.entry(geo_key).or_insert_with(|| {
+                                            let mut entry = GeometryProtocol::default();
+                                            entry.voxel = voxel_id;
+                                            if face.independent || face.isolated {
+                                                entry.face_name = Some(face.name.clone());
+                                            }
+                                            if face.isolated {
+                                                entry.at = Some([vx, vy, vz]);
+                                            }
+                                            entry
+                                        });
+                                        let needs_rotation =
+                                            block_needs_rotation && !world_space;
+                                        let face_rotation = if needs_rotation {
+                                            &rotation
+                                        } else {
+                                            &identity_rotation
+                                        };
+                                        process_face(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            voxel_id,
+                                            face_rotation,
+                                            face,
+                                            &face.range,
+                                            block,
+                                            registry,
+                                            space,
+                                            &neighbors,
+                                            &face_cache,
+                                            is_see_through,
+                                            is_fluid,
+                                            &mut geometry.positions,
+                                            &mut geometry.indices,
+                                            &mut geometry.uvs,
+                                            &mut geometry.lights,
+                                            min,
+                                            world_space,
+                                        );
+                                    },
+                                );
+                            } else {
+                                if faces_empty {
+                                    continue;
+                                }
+                                let uses_main_geometry_only = if cache_ready {
+                                    block.uses_main_geometry_only
+                                } else {
+                                    block.uses_main_geometry_only_cached()
+                                };
+                                let neighbors = populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                );
+                                let face_cache = build_face_process_cache(
+                                    block,
+                                    is_see_through,
+                                    is_fluid,
+                                    &neighbors,
+                                    registry,
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    space,
+                                );
+                                if uses_main_geometry_only {
+                                    let geometry =
+                                        map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
+                                            let mut entry = GeometryProtocol::default();
+                                            entry.voxel = block.id;
+                                        entry
+                                        });
+                                    for face in &block.faces {
+                                        process_face(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            voxel_id,
+                                            &rotation,
+                                            face,
+                                            &face.range,
+                                            block,
+                                            registry,
+                                            space,
+                                            &neighbors,
+                                            &face_cache,
+                                            is_see_through,
+                                            is_fluid,
+                                            &mut geometry.positions,
+                                            &mut geometry.indices,
+                                            &mut geometry.uvs,
+                                            &mut geometry.lights,
+                                            min,
+                                            false,
+                                        );
+                                    }
+                                } else {
+                                    for face in &block.faces {
+                                        let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                                        let geometry = map.entry(geo_key).or_insert_with(|| {
+                                            let mut entry = GeometryProtocol::default();
+                                            entry.voxel = voxel_id;
+                                            if face.independent || face.isolated {
+                                                entry.face_name = Some(face.name.clone());
+                                            }
+                                            if face.isolated {
+                                                entry.at = Some([vx, vy, vz]);
+                                            }
+                                            entry
+                                        });
+                                        process_face(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            voxel_id,
+                                            &rotation,
+                                            face,
+                                            &face.range,
+                                            block,
+                                            registry,
+                                            space,
+                                            &neighbors,
+                                            &face_cache,
+                                            is_see_through,
+                                            is_fluid,
+                                            &mut geometry.positions,
+                                            &mut geometry.indices,
+                                            &mut geometry.uvs,
+                                            &mut geometry.lights,
+                                            min,
+                                            false,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    let should_render = should_render_face(
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        dir,
+                        block,
+                        space,
+                        registry,
+                        is_see_through,
+                        zero_is_empty,
+                    );
+
+                    if !should_render {
+                        continue;
+                    }
+                    let current_mask_index =
+                        (v - v_range.0) as usize * mask_width + u_mask_offset;
+
+                    if greedy_face_index >= 0 {
+                        let face = &block.faces[greedy_face_index as usize];
+                        if !face.independent && !face.isolated {
+                            let (aos, lights) = if skip_opaque_checks {
+                                let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
+                                let light = (center_light & 0xFFFF) as i32;
+                                ([3, 3, 3, 3], [light; 4])
+                            } else {
+                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                                compute_face_ao_and_light_fast(
+                                    dir_index,
+                                    block,
+                                    &neighbors,
+                                    registry,
+                                )
+                            };
+                            let uv_range = face.range;
+                            let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
+                                block.greedy_face_uv_quantized[dir_index]
+                            } else {
+                                [
+                                    (uv_range.start_u * 1000000.0) as u32,
+                                    (uv_range.end_u * 1000000.0) as u32,
+                                    (uv_range.start_v * 1000000.0) as u32,
+                                    (uv_range.end_v * 1000000.0) as u32,
+                                ]
+                            };
+                            greedy_mask[current_mask_index] = Some(FaceData {
+                                key: FaceKey {
+                                    block_id: block.id,
+                                    face_name: None,
+                                    face_index: -1,
+                                    independent: false,
+                                    ao: aos,
+                                    light: lights,
+                                    uv_start_u,
+                                    uv_end_u,
+                                    uv_start_v,
+                                    uv_end_v,
+                                },
+                                uv_range,
+                                is_fluid,
+                            });
+                            continue;
+                        }
+                    }
+
+                    let mut neighbors = None;
+                    let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
+                    let mut isolated_neighbors: Option<NeighborCache> = None;
+                    let mut isolated_face_cache: Option<FaceProcessCache> = None;
+                    let mut push_greedy_face = |face: &BlockFace, face_index: usize| {
+                        if face.isolated {
+                            if isolated_neighbors.is_none() {
+                                let neighbors = populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                );
+                                let face_cache = build_face_process_cache(
+                                    block,
+                                    is_see_through,
+                                    is_fluid,
+                                    &neighbors,
+                                    registry,
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    space,
+                                );
+                                isolated_neighbors = Some(neighbors);
+                                isolated_face_cache = Some(face_cache);
+                            }
+                            let geo_key = geometry_key_for_face(block, face, vx, vy, vz);
+                            let geometry = map.entry(geo_key).or_insert_with(|| {
+                                let mut entry = GeometryProtocol::default();
+                                entry.voxel = voxel_id;
+                                entry.face_name = Some(face.name.clone());
+                                entry.at = Some([vx, vy, vz]);
+                                entry
+                            });
+                            let neighbors = isolated_neighbors
+                                .as_ref()
+                                .expect("isolated neighbors cache must exist");
+                            let face_cache = isolated_face_cache
+                                .as_ref()
+                                .expect("isolated face cache must exist");
+                            process_face(
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                &identity_rotation,
+                                face,
+                                &face.range,
+                                block,
+                                registry,
+                                space,
+                                neighbors,
+                                face_cache,
+                                is_see_through,
+                                is_fluid,
+                                &mut geometry.positions,
+                                &mut geometry.indices,
+                                &mut geometry.uvs,
+                                &mut geometry.lights,
+                                min,
+                                false,
+                            );
+                            return;
+                        }
+
+                        let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
+                            if skip_opaque_checks {
+                                let (_, center_light) = space.get_raw_voxel_and_raw_light(vx, vy, vz);
+                                let light = (center_light & 0xFFFF) as i32;
+                                ([3, 3, 3, 3], [light; 4])
+                            } else {
+                                let neighbors_ref = neighbors
+                                    .get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
+                                compute_face_ao_and_light_fast(
+                                    dir_index,
+                                    block,
+                                    neighbors_ref,
+                                    registry,
+                                )
+                            }
+                        });
+                        let uv_range = face.range;
+                        let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
+                            if let Some(face_dir_index) = cardinal_dir_index(face.dir) {
+                                if block.greedy_face_indices[face_dir_index] == face_index as i16 {
+                                    block.greedy_face_uv_quantized[face_dir_index]
+                                } else {
+                                    [
+                                        (uv_range.start_u * 1000000.0) as u32,
+                                        (uv_range.end_u * 1000000.0) as u32,
+                                        (uv_range.start_v * 1000000.0) as u32,
+                                        (uv_range.end_v * 1000000.0) as u32,
+                                    ]
+                                }
+                            } else {
+                                [
+                                    (uv_range.start_u * 1000000.0) as u32,
+                                    (uv_range.end_u * 1000000.0) as u32,
+                                    (uv_range.start_v * 1000000.0) as u32,
+                                    (uv_range.end_v * 1000000.0) as u32,
+                                ]
+                            }
+                        } else {
+                            [
+                                (uv_range.start_u * 1000000.0) as u32,
+                                (uv_range.end_u * 1000000.0) as u32,
+                                (uv_range.start_v * 1000000.0) as u32,
+                                (uv_range.end_v * 1000000.0) as u32,
+                            ]
+                        };
+
+                        let key = FaceKey {
+                            block_id: block.id,
+                            face_name: None,
+                            face_index: if face.independent { face_index as i16 } else { -1 },
+                            independent: face.independent,
+                            ao: aos,
+                            light: lights,
+                            uv_start_u,
+                            uv_end_u,
+                            uv_start_v,
+                            uv_end_v,
+                        };
+                        greedy_mask[current_mask_index] = Some(FaceData {
+                            key,
+                            uv_range,
+                            is_fluid,
+                        });
+                    };
+
+                    if greedy_face_index >= 0 {
+                        let face_index = greedy_face_index as usize;
+                        let face = &block.faces[face_index];
+                        push_greedy_face(face, face_index);
+                    } else {
+                        for (face_index, face) in block.faces.iter().enumerate() {
+                            if face.dir == dir {
+                                push_greedy_face(face, face_index);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let quads = extract_greedy_quads_dense(
+                &mut greedy_mask[..mask_len],
+                u_range.0,
+                v_range.0,
+                mask_width,
+                mask_height,
+            );
+
+            let mut cached_quad_block_id = u32::MAX;
+            let mut cached_quad_block: Option<&Block> = None;
+            for quad in quads {
+                let quad_key = &quad.data.key;
+                let block_id = quad_key.block_id;
+                let block = if cached_quad_block_id == block_id {
+                    match cached_quad_block {
+                        Some(block) => block,
+                        None => continue,
+                    }
+                } else {
+                    match registry.get_block_by_id(block_id) {
+                        Some(block) => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = Some(block);
+                            block
+                        }
+                        None => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = None;
+                            continue;
+                        }
+                    }
+                };
+                let geo_key = if quad_key.independent {
+                    let face_name = if let Some(face_name) = quad.data.key.face_name.as_ref() {
+                        face_name.clone()
+                    } else if quad_key.face_index >= 0 {
+                        let face = &block.faces[quad_key.face_index as usize];
+                        if block.cache_ready {
+                            face.name_lower.clone()
+                        } else {
+                            face_name_owned(face)
+                        }
+                    } else {
+                        unreachable!("independent greedy quad must include a face identifier")
+                    };
+                    GeometryMapKey::Face(block.id, face_name)
+                } else {
+                    GeometryMapKey::Block(block.id)
+                };
+
+                let geometry = map.entry(geo_key).or_insert_with(|| {
+                    let mut entry = GeometryProtocol::default();
+                    entry.voxel = block_id;
+                    if quad_key.independent {
+                        entry.face_name = if let Some(face_name) = quad_key.face_name.as_ref() {
+                            Some(face_name.clone())
+                        } else if quad_key.face_index >= 0 {
+                            Some(block.faces[quad_key.face_index as usize].name.clone())
+                        } else {
+                            None
+                        };
+                    }
+                    entry
+                });
+
+                process_greedy_quad(
+                    &quad,
+                    slice,
+                    slice_offset,
+                    dir,
+                    dir_index,
+                    min,
+                    block,
+                    geometry,
+                );
+            }
+        }
+    }
+
+    map.into_values()
+        .filter(|geometry| !geometry.indices.is_empty())
+        .collect()
+}
+
+pub fn mesh_space_greedy<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> Vec<GeometryProtocol> {
+    mesh_space_greedy_fast_impl(min, max, space, registry)
 }
 
 pub fn mesh_space<S: VoxelAccess>(
@@ -2234,125 +4184,213 @@ pub fn mesh_space<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> =
+        HashMap::with_capacity(estimate_geometry_capacity(min, max));
+    let zero_is_empty = registry
+        .get_block_by_id(0)
+        .map(|block| block.is_empty)
+        .unwrap_or(true);
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
+    let mut cached_voxel_block_id = u32::MAX;
+    let mut cached_voxel_block: Option<&Block> = None;
 
     for vx in min_x..max_x {
         for vz in min_z..max_z {
             for vy in min_y..max_y {
-                let voxel_id = space.get_voxel(vx, vy, vz);
-
-                if !registry.has_type(voxel_id) {
+                let raw_voxel = space.get_raw_voxel(vx, vy, vz);
+                let voxel_id = extract_id(raw_voxel);
+                if voxel_id == 0 && zero_is_empty {
                     continue;
                 }
-
-                let rotation = space.get_voxel_rotation(vx, vy, vz);
-                let block = match registry.get_block_by_id(voxel_id) {
-                    Some(b) => b,
-                    None => continue,
+                let block = if cached_voxel_block_id == voxel_id {
+                    match cached_voxel_block {
+                        Some(block) => block,
+                        None => continue,
+                    }
+                } else {
+                    match registry.get_block_by_id(voxel_id) {
+                        Some(b) => {
+                            cached_voxel_block_id = voxel_id;
+                            cached_voxel_block = Some(b);
+                            b
+                        }
+                        None => {
+                            cached_voxel_block_id = voxel_id;
+                            cached_voxel_block = None;
+                            continue;
+                        }
+                    }
                 };
 
-                let is_see_through = block.is_see_through;
                 let is_empty = block.is_empty;
+                if is_empty {
+                    continue;
+                }
+                let is_see_through = block.is_see_through;
                 let is_opaque = block.is_opaque;
                 let is_fluid = block.is_fluid;
+                let cache_ready = block.cache_ready;
+                let has_dynamic_patterns = if cache_ready {
+                    block.has_dynamic_patterns
+                } else {
+                    block.has_dynamic_patterns_cached()
+                };
 
-                if is_empty {
+                if !is_fluid && !has_dynamic_patterns && block.faces.is_empty() {
                     continue;
                 }
 
                 if is_opaque {
-                    let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                        let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                        registry
-                            .get_block_by_id(id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false)
-                    });
-                    if all_neighbors_opaque {
+                    if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
                         continue;
                     }
                 }
 
-                let faces: Vec<(BlockFace, bool)> =
-                    if is_fluid && has_standard_six_faces(&block.faces) {
-                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                            .into_iter()
-                            .map(|f| (f, false))
-                            .collect()
-                    } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                    } else {
-                        block.faces.iter().cloned().map(|f| (f, false)).collect()
-                    };
-
-                let mut uv_map = HashMap::new();
-                for (face, _) in &faces {
-                    uv_map.insert(face.name.clone(), face.range.clone());
+                let mut rotation = BlockRotation::PY(0.0);
+                if block.rotatable || block.y_rotatable {
+                    rotation = extract_rotation(raw_voxel);
                 }
+                let is_all_transparent = block.is_all_transparent;
+                let skip_opaque_checks = is_see_through || is_all_transparent;
+                let neighbors = populate_neighbors_for_face_processing(
+                    vx,
+                    vy,
+                    vz,
+                    space,
+                    skip_opaque_checks,
+                );
+                let center_light = if skip_opaque_checks {
+                    Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
+                } else {
+                    None
+                };
+                let face_cache = FaceProcessCache {
+                    opaque_mask: if !skip_opaque_checks {
+                        Some(build_neighbor_opaque_mask(&neighbors, registry))
+                    } else {
+                        None
+                    },
+                    center_light,
+                    fluid_surface_above: is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space),
+                    block_min: if skip_opaque_checks && !is_fluid {
+                        [0.0, 0.0, 0.0]
+                    } else {
+                        block_min_corner(block)
+                    },
+                };
 
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let uses_main_geometry_only = if cache_ready {
+                    block.uses_main_geometry_only
+                } else {
+                    block.uses_main_geometry_only_cached()
+                };
+                if uses_main_geometry_only {
+                    let geometry = map.entry(GeometryMapKey::Block(block.id)).or_insert_with(|| {
+                        let mut entry = GeometryProtocol::default();
+                        entry.voxel = block.id;
+                        entry
+                    });
 
-                for (face, world_space) in faces.iter() {
-                    let key = if face.isolated {
-                        format!(
-                            "{}::{}::{}-{}-{}",
-                            block.get_name_lower(),
-                            face.get_name_lower(),
+                    for face in &block.faces {
+                        process_face(
                             vx,
                             vy,
-                            vz
-                        )
-                    } else if face.independent {
-                        format!("{}::{}", block.get_name_lower(), face.get_name_lower())
-                    } else {
-                        block.get_name_lower().to_string()
+                            vz,
+                            voxel_id,
+                            &rotation,
+                            face,
+                            &face.range,
+                            block,
+                            registry,
+                            space,
+                            &neighbors,
+                            &face_cache,
+                            is_see_through,
+                            is_fluid,
+                            &mut geometry.positions,
+                            &mut geometry.indices,
+                            &mut geometry.uvs,
+                            &mut geometry.lights,
+                            min,
+                            false,
+                        );
+                    }
+                } else {
+                    let mut process_single_face = |face: &BlockFace, world_space: bool| {
+                        let key = geometry_key_for_face(block, face, vx, vy, vz);
+
+                        let geometry = map.entry(key).or_insert_with(|| {
+                            let mut entry = GeometryProtocol::default();
+                            entry.voxel = block.id;
+                            if face.independent || face.isolated {
+                                entry.face_name = Some(face.name.clone());
+                            }
+                            if face.isolated {
+                                entry.at = Some([vx, vy, vz]);
+                            }
+                            entry
+                        });
+
+                        process_face(
+                            vx,
+                            vy,
+                            vz,
+                            voxel_id,
+                            &rotation,
+                            face,
+                            &face.range,
+                            block,
+                            registry,
+                            space,
+                            &neighbors,
+                            &face_cache,
+                            is_see_through,
+                            is_fluid,
+                            &mut geometry.positions,
+                            &mut geometry.indices,
+                            &mut geometry.uvs,
+                            &mut geometry.lights,
+                            min,
+                            world_space,
+                        );
                     };
 
-                    let mut geometry = map.remove(&key).unwrap_or_default();
+                    let has_standard_six_faces = is_fluid
+                        && if cache_ready {
+                            block.has_standard_six_faces
+                        } else {
+                            block.has_standard_six_faces_cached()
+                        };
 
-                    geometry.voxel = block.id;
-
-                    if face.independent || face.isolated {
-                        geometry.face_name = Some(face.name.clone());
+                    if has_standard_six_faces {
+                        let fluid_faces =
+                            create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
+                        for face in &fluid_faces {
+                            process_single_face(face, false);
+                        }
+                    } else if has_dynamic_patterns {
+                        visit_dynamic_faces(
+                            block,
+                            [vx, vy, vz],
+                            space,
+                            &rotation,
+                            |face, world_space| {
+                                process_single_face(face, world_space);
+                            },
+                        );
+                    } else {
+                        for face in &block.faces {
+                            process_single_face(face, false);
+                        }
                     }
-
-                    if face.isolated {
-                        geometry.at = Some([vx, vy, vz]);
-                    }
-
-                    process_face(
-                        vx,
-                        vy,
-                        vz,
-                        voxel_id,
-                        &rotation,
-                        face,
-                        block,
-                        &uv_map,
-                        registry,
-                        space,
-                        &neighbors,
-                        is_see_through,
-                        is_fluid,
-                        &mut geometry.positions,
-                        &mut geometry.indices,
-                        &mut geometry.uvs,
-                        &mut geometry.lights,
-                        min,
-                        *world_space,
-                    );
-
-                    map.insert(key, geometry);
                 }
             }
         }
     }
 
-    map.into_iter()
-        .map(|(_, geometry)| geometry)
+    map.into_values()
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
 }
