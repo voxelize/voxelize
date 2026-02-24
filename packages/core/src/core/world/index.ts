@@ -36,9 +36,38 @@ import {
   Uniform,
   Vector2,
   Vector3,
+  WebGLCoordinateSystem,
+  WebGPUCoordinateSystem,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { Renderer } from "three/webgpu";
+import {
+  abs,
+  add,
+  attribute,
+  div,
+  dot,
+  floor,
+  fract,
+  max,
+  mix,
+  mod,
+  mul,
+  normalize,
+  normalWorld,
+  positionWorld,
+  positionView,
+  step,
+  sub,
+  texture,
+  uniform,
+  uniformTexture,
+  uv,
+  varying,
+  vec2,
+  vec3,
+  vec4,
+} from "three/tsl";
+import { MeshBasicNodeMaterial, type Renderer } from "three/webgpu";
 
 import {
   TRANSPARENT_FLUID_RENDER_ORDER,
@@ -52,6 +81,8 @@ import {
 } from "../../core/transparent-sorter";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
+import { cascadeShadowNode } from "../../shaders/nodes/cascade-shadow-node";
+import { voxelFogNode } from "../../shaders/nodes/voxel-fog-node";
 import { Coords2, Coords3 } from "../../types";
 import {
   BLUE_LIGHT,
@@ -112,6 +143,15 @@ function computeFlatNormals(geometry: BufferGeometry) {
     "normal",
     new BufferAttribute(computeNormalsFromBuffers(pos, idx.array), 3),
   );
+}
+
+function toFloatLightBuffer(values: ArrayLike<number>): Float32Array {
+  const floatValues = new Float32Array(values.length);
+  for (let i = 0; i < values.length; i += 1) {
+    floatValues[i] = values[i];
+  }
+
+  return floatValues;
 }
 
 import {
@@ -323,10 +363,11 @@ let hasWarnedShaderOverridesDisabled = false;
 /**
  * Custom chunk material for chunks.
  */
-export type CustomChunkShaderMaterial = MeshBasicMaterial & {
+export type CustomChunkShaderMaterial = MeshBasicNodeMaterial & {
   map: Texture;
   uniforms: Record<string, IUniform>;
   renderStage: number;
+  syncNodeUniforms?: () => void;
 };
 
 /**
@@ -822,6 +863,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private accumulatedLightOps: LightOperations | null = null;
   private accumulatedStartSequenceId = 0;
+  private shadowUvFlipY = 0;
+  private shadowUseDirectDepth = 0;
 
   /**
    * Create a new Voxelize world.
@@ -3525,9 +3568,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       case "STATS": {
         const { json } = message;
-
-        if (Math.abs(json.time - this.time) > this.options.timeForceThreshold) {
-          this._time = json.time;
+        const incomingTime = json.time;
+        const previousTime = this.time;
+        const timeDelta = Math.abs(incomingTime - previousTime);
+        const shouldForceSync = timeDelta > this.options.timeForceThreshold;
+        if (shouldForceSync) {
+          this._time = incomingTime;
         }
 
         break;
@@ -4180,6 +4226,14 @@ export class World<T = any> extends Scene implements NetIntercept {
   updateShaderLighting(camera: Camera, position: Vector3) {
     if (!this.usesShaderLighting) return;
 
+    const cameraCoordinateSystem =
+      (camera as Camera & { coordinateSystem?: number }).coordinateSystem ??
+      WebGLCoordinateSystem;
+    const usesWebGpuShadowConvention =
+      cameraCoordinateSystem === WebGPUCoordinateSystem;
+    this.shadowUvFlipY = usesWebGpuShadowConvention ? 1 : 0;
+    this.shadowUseDirectDepth = usesWebGpuShadowConvention ? 1 : 0;
+
     const { timePerDay } = this.options;
     const timeRatio = this.time / timePerDay;
     const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
@@ -4323,6 +4377,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.lightVolume.getVolumeSize(),
       );
     }
+
+    for (const material of this.chunkRenderer.materials.values()) {
+      if (!material.syncNodeUniforms) {
+        continue;
+      }
+
+      material.syncNodeUniforms();
+    }
   }
 
   renderShadowMaps(
@@ -4382,10 +4444,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const geo of geometries) {
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
         const geometry = new BufferGeometry();
+        const lightBuffer = toFloatLightBuffer(lights);
 
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
+        geometry.setAttribute("light", new BufferAttribute(lightBuffer, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
         if (geo.normals && geo.normals.length > 0) {
           geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
@@ -4493,10 +4556,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         const geo = geometries[i];
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
         const geometry = new BufferGeometry();
+        const lightBuffer = toFloatLightBuffer(lights);
 
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
+        geometry.setAttribute("light", new BufferAttribute(lightBuffer, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
         if (geo.normals && geo.normals.length > 0) {
           geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
@@ -5868,7 +5932,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Make a chunk shader material with the current atlas.
    */
-  private makeShaderMaterial = (uniforms: Record<string, IUniform> = {}) => {
+  private makeShaderMaterial = (
+    uniforms: Record<string, IUniform> = {},
+    mapTexture?: Texture,
+  ) => {
     const chunksUniforms = {
       ...this.chunkRenderer.uniforms,
       ...this.options.chunkUniformsOverwrite,
@@ -5914,21 +5981,315 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       : {};
 
-    const material = new MeshBasicMaterial({
+    const material = new MeshBasicNodeMaterial({
       vertexColors: true,
     }) as CustomChunkShaderMaterial;
-    const initialMap = AtlasTexture.makeUnknownTexture(
+    const fallbackUnknownTexture = AtlasTexture.makeUnknownTexture(
       this.options.textureUnitDimension,
     );
+    const providedMapTexture = mapTexture ?? fallbackUnknownTexture;
+    const initialMap =
+      providedMapTexture instanceof Texture
+        ? providedMapTexture
+        : fallbackUnknownTexture;
     material.map = initialMap;
+    const ensureMaterialMapTexture = (): Texture => {
+      const currentMap = material.map;
+      if (currentMap instanceof Texture) {
+        return currentMap;
+      }
+      material.map = initialMap;
+
+      return material.map instanceof Texture ? material.map : initialMap;
+    };
+    ensureMaterialMapTexture();
+    const atlasSizeNode = uniform(chunksUniforms.atlasSize.value);
+    const showGreedyDebugNode = uniform(chunksUniforms.showGreedyDebug.value);
+    const lightIntensityAdjustmentNode = uniform(
+      chunksUniforms.lightIntensityAdjustment.value,
+    );
+    const sunlightIntensityNode = uniform(
+      chunksUniforms.sunlightIntensity.value,
+    );
+    const aoTableNode = uniform(chunksUniforms.ao.value.clone());
+    const minLightLevelNode = uniform(chunksUniforms.minLightLevel.value);
+    const baseAmbientNode = uniform(chunksUniforms.baseAmbient.value);
+    const fogNearNode = uniform(chunksUniforms.fogNear.value);
+    const fogFarNode = uniform(chunksUniforms.fogFar.value);
+    const fogColorNode = uniform(chunksUniforms.fogColor.value.clone());
+    const fogHeightOriginNode = uniform(chunksUniforms.fogHeightOrigin.value);
+    const fogHeightDensityNode = uniform(chunksUniforms.fogHeightDensity.value);
+
+    const sunDirectionNode = uniform(
+      this.chunkRenderer.shaderLightingUniforms.sunDirection.value.clone(),
+    );
+    const sunColorNode = uniform(
+      this.chunkRenderer.shaderLightingUniforms.sunColor.value.clone(),
+    );
+    const ambientColorNode = uniform(
+      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.clone(),
+    );
+    const rawShadowMap0 = this.csmRenderer?.getShadowMap(0) ?? initialMap;
+    const rawShadowMap1 = this.csmRenderer?.getShadowMap(1) ?? initialMap;
+    const rawShadowMap2 = this.csmRenderer?.getShadowMap(2) ?? initialMap;
+    const shadowMap0Texture =
+      rawShadowMap0 instanceof Texture ? rawShadowMap0 : initialMap;
+    const shadowMap1Texture =
+      rawShadowMap1 instanceof Texture ? rawShadowMap1 : initialMap;
+    const shadowMap2Texture =
+      rawShadowMap2 instanceof Texture ? rawShadowMap2 : initialMap;
+    const shadowMatrix0Node = uniform(
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix0.value.clone(),
+    );
+    const shadowMatrix1Node = uniform(
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix1.value.clone(),
+    );
+    const shadowMatrix2Node = uniform(
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix2.value.clone(),
+    );
+    const cascadeSplit0Node = uniform(
+      this.chunkRenderer.shaderLightingUniforms.cascadeSplit0.value,
+    );
+    const cascadeSplit1Node = uniform(
+      this.chunkRenderer.shaderLightingUniforms.cascadeSplit1.value,
+    );
+    const cascadeSplit2Node = uniform(
+      this.chunkRenderer.shaderLightingUniforms.cascadeSplit2.value,
+    );
+    const shadowBiasNode = uniform(
+      this.chunkRenderer.shaderLightingUniforms.shadowBias.value,
+    );
+    const shadowStrengthNode = uniform(
+      this.chunkRenderer.shaderLightingUniforms.shadowStrength.value,
+    );
+    const shadowFlipYNode = uniform(this.shadowUvFlipY);
+    const shadowUseDirectDepthNode = uniform(this.shadowUseDirectDepth);
+
+    const packedLightAttribute = attribute("light", "float");
+    const packedLight = floor(add(packedLightAttribute, 0.5));
+    const torchRed = varying(
+      div(mod(floor(div(packedLight, 256.0)), 16.0), 15.0),
+    );
+    const torchGreen = varying(
+      div(mod(floor(div(packedLight, 16.0)), 16.0), 15.0),
+    );
+    const torchBlue = varying(
+      div(mod(floor(div(packedLight, 1.0)), 16.0), 15.0),
+    );
+    const sunlightLevel = varying(
+      div(mod(floor(div(packedLight, 4096.0)), 16.0), 15.0),
+    );
+    const aoIndex = varying(mod(floor(div(packedLight, 65536.0)), 4.0));
+    const isFluid = varying(mod(floor(div(packedLight, 262144.0)), 2.0));
+    const isGreedy = varying(mod(floor(div(packedLight, 524288.0)), 2.0));
+
+    const ao0 = div(aoTableNode.x, 255.0);
+    const ao1 = div(aoTableNode.y, 255.0);
+    const ao2 = div(aoTableNode.z, 255.0);
+    const ao3 = div(aoTableNode.w, 255.0);
+    const aoMask0 = sub(1.0, step(0.5, aoIndex));
+    const aoMask1 = sub(step(0.5, aoIndex), step(1.5, aoIndex));
+    const aoMask2 = sub(step(1.5, aoIndex), step(2.5, aoIndex));
+    const aoMask3 = step(2.5, aoIndex);
+    const aoValue = add(
+      add(mul(ao0, aoMask0), mul(ao1, aoMask1)),
+      add(mul(ao2, aoMask2), mul(ao3, aoMask3)),
+    );
+
+    const worldNormalNode = varying(normalize(normalWorld));
+    const absWorldNormal = abs(worldNormalNode);
+    const dominantAxis = max(
+      absWorldNormal.x,
+      max(absWorldNormal.y, absWorldNormal.z),
+    );
+    const axisThreshold = sub(dominantAxis, 0.01);
+    const isX = step(axisThreshold, absWorldNormal.x);
+    const isY = mul(step(axisThreshold, absWorldNormal.y), sub(1.0, isX));
+    const isZ = sub(1.0, max(isX, isY));
+    const uvTop = vec2(
+      sub(1.0, fract(positionWorld.x)),
+      fract(positionWorld.z),
+    );
+    const uvBottom = vec2(
+      fract(positionWorld.x),
+      sub(1.0, fract(positionWorld.z)),
+    );
+    const uvXPos = vec2(
+      sub(1.0, fract(positionWorld.z)),
+      fract(positionWorld.y),
+    );
+    const uvXNeg = vec2(fract(positionWorld.z), fract(positionWorld.y));
+    const uvZPos = vec2(fract(positionWorld.x), fract(positionWorld.y));
+    const uvZNeg = vec2(
+      sub(1.0, fract(positionWorld.x)),
+      fract(positionWorld.y),
+    );
+    const localUvY = mix(uvBottom, uvTop, step(0.0, worldNormalNode.y));
+    const localUvX = mix(uvXNeg, uvXPos, step(0.0, worldNormalNode.x));
+    const localUvZ = mix(uvZNeg, uvZPos, step(0.0, worldNormalNode.z));
+    const greedyLocalUv = add(
+      add(mul(localUvX, isX), mul(localUvY, isY)),
+      mul(localUvZ, isZ),
+    );
+    const baseUv = uv();
+    const cellSize = div(1.0, max(atlasSizeNode, 1.0));
+    const cellPadding = div(cellSize, 4.0);
+    const atlasCellMin = mul(floor(div(baseUv, cellSize)), cellSize);
+    const innerMin = add(atlasCellMin, vec2(cellPadding, cellPadding));
+    const innerSize = sub(cellSize, mul(cellPadding, 2.0));
+    const greedyUv = add(innerMin, mul(greedyLocalUv, innerSize));
+    const finalUv = mix(baseUv, greedyUv, step(0.5, isGreedy));
+
+    const mapTextureNode = uniformTexture(initialMap);
+    const sampledTexel = texture(mapTextureNode, finalUv);
+    const greedyTint = mix(sampledTexel.rgb, vec3(0.0, 1.0, 0.0), 0.4);
+    const nonGreedyTint = mix(sampledTexel.rgb, vec3(1.0, 0.0, 0.0), 0.4);
+    const greedyDebugColor = mix(
+      nonGreedyTint,
+      greedyTint,
+      step(0.5, isGreedy),
+    );
+    const sampledColor = mix(
+      sampledTexel.rgb,
+      greedyDebugColor,
+      step(0.5, showGreedyDebugNode),
+    );
+
+    const torchLight = vec3(torchRed, torchGreen, torchBlue);
+    const litColor = this.usesShaderLighting
+      ? (() => {
+          const rawNdotL = dot(worldNormalNode, normalize(sunDirectionNode));
+          const slopeBias = max(mul(sub(1.0, rawNdotL), 0.005), 0.001);
+          const viewDepth = sub(0.0, positionView.z);
+          const sampledShadow = cascadeShadowNode({
+            viewDepth,
+            shadowCoord0: shadowMatrix0Node.mul(vec4(positionWorld, 1.0)),
+            shadowCoord1: shadowMatrix1Node.mul(vec4(positionWorld, 1.0)),
+            shadowCoord2: shadowMatrix2Node.mul(vec4(positionWorld, 1.0)),
+            shadowMap0: shadowMap0Texture,
+            shadowMap1: shadowMap1Texture,
+            shadowMap2: shadowMap2Texture,
+            cascadeSplit0: cascadeSplit0Node,
+            cascadeSplit1: cascadeSplit1Node,
+            cascadeSplit2: cascadeSplit2Node,
+            baseBias: max(shadowBiasNode, slopeBias),
+            shadowStrength: shadowStrengthNode,
+            flipY: shadowFlipYNode,
+            useDirectDepth: shadowUseDirectDepthNode,
+          });
+          const receivesDirectSunMask = mul(
+            step(0.0, rawNdotL),
+            step(0.05, sunlightLevel),
+          );
+          const noSunShadow = sub(1.0, shadowStrengthNode);
+          const shadowWithSunMask = mix(
+            noSunShadow,
+            sampledShadow,
+            receivesDirectSunMask,
+          );
+          const shadowFactor = mix(
+            1.0,
+            shadowWithSunMask,
+            step(0.01, shadowStrengthNode),
+          );
+          const sunExposure = sunlightLevel;
+          const sunNdotL = max(add(mul(rawNdotL, 0.85), 0.15), 0.0);
+          const sunContribution = mul(
+            sunColorNode,
+            mul(
+              mul(mul(sunNdotL, shadowFactor), sunlightIntensityNode),
+              sunExposure,
+            ),
+          );
+
+          const smoothTorch = mul(
+            mul(torchLight, torchLight),
+            sub(vec3(3.0, 3.0, 3.0), mul(torchLight, 2.0)),
+          );
+          const torchBrightness = max(
+            smoothTorch.r,
+            max(smoothTorch.g, smoothTorch.b),
+          );
+          const torchLightTotal = mul(smoothTorch, 1.2);
+
+          const ambientOcclusionFromShadow = mix(0.5, 1.0, shadowFactor);
+          const tunnelDarkening = mul(sunExposure, sunExposure);
+          const hemisphereBlend = add(mul(worldNormalNode.y, 0.5), 0.5);
+          const groundColor = mul(ambientColorNode, 0.4);
+          const skyAmbient = mix(
+            groundColor,
+            ambientColorNode,
+            hemisphereBlend,
+          );
+
+          const aoFactor = mix(aoValue, 1.0, mul(isFluid, 0.8));
+          const sunContributionLuma = add(
+            add(mul(sunContribution.r, 0.33), mul(sunContribution.g, 0.33)),
+            mul(sunContribution.b, 0.33),
+          );
+          const torchDominance = div(
+            torchBrightness,
+            add(add(torchBrightness, sunContributionLuma), 0.01),
+          );
+          const torchAOReduction = mul(torchDominance, 0.3);
+          const enhancedAO = mix(aoFactor, 1.0, torchAOReduction);
+
+          const sunTotal = add(
+            mul(mul(skyAmbient, ambientOcclusionFromShadow), tunnelDarkening),
+            sunContribution,
+          );
+          const oneVec = vec3(1.0, 1.0, 1.0);
+          const totalLight = sub(
+            oneVec,
+            mul(sub(oneVec, sunTotal), sub(oneVec, torchLightTotal)),
+          );
+
+          return mul(mul(sampledColor, totalLight), enhancedAO);
+        })()
+      : (() => {
+          const sunlightFactor = mul(
+            mul(sunlightLevel, sunlightIntensityNode),
+            lightIntensityAdjustmentNode,
+          );
+          const ambientFloor = add(
+            baseAmbientNode,
+            mul(minLightLevelNode, sunlightLevel),
+          );
+          const combinedLight = add(
+            vec3(ambientFloor),
+            add(
+              vec3(sunlightFactor),
+              mul(torchLight, lightIntensityAdjustmentNode),
+            ),
+          );
+          const aoMix = mix(aoValue, 1.0, mul(isFluid, 0.8));
+
+          return mul(mul(sampledColor, combinedLight), aoMix);
+        })();
+    const foggedColor = voxelFogNode({
+      inputColor: litColor,
+      worldPosition: positionWorld,
+      fogColor: fogColorNode,
+      fogNear: fogNearNode,
+      fogFar: fogFarNode,
+      fogHeightOrigin: fogHeightOriginNode,
+      fogHeightDensity: fogHeightDensityNode,
+    });
+    material.colorNode = vec4(foggedColor, sampledTexel.a);
+    material.alphaTest = 0.01;
 
     const mapUniform = new Uniform<Texture>(initialMap);
     Object.defineProperty(mapUniform, "value", {
       configurable: true,
       enumerable: true,
-      get: () => material.map,
-      set: (value: Texture) => {
-        material.map = value;
+      get: () => ensureMaterialMapTexture(),
+      set: (value: Texture | null) => {
+        if (value instanceof Texture) {
+          material.map = value;
+          return;
+        }
+
+        material.map = initialMap;
       },
     });
 
@@ -5992,7 +6353,58 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
     });
 
-    material.uniforms.map.value = material.map;
+    material.uniforms.map.value = ensureMaterialMapTexture();
+
+    const syncNodeUniforms = () => {
+      material.uniforms.map.value = ensureMaterialMapTexture();
+      const currentMap = material.map;
+      if (
+        currentMap instanceof Texture &&
+        mapTextureNode.value !== currentMap
+      ) {
+        mapTextureNode.value = currentMap;
+      }
+      atlasSizeNode.value = chunksUniforms.atlasSize.value;
+      showGreedyDebugNode.value = chunksUniforms.showGreedyDebug.value;
+      lightIntensityAdjustmentNode.value =
+        chunksUniforms.lightIntensityAdjustment.value;
+      sunlightIntensityNode.value = chunksUniforms.sunlightIntensity.value;
+      aoTableNode.value.copy(chunksUniforms.ao.value);
+      minLightLevelNode.value = chunksUniforms.minLightLevel.value;
+      baseAmbientNode.value = chunksUniforms.baseAmbient.value;
+      fogNearNode.value = chunksUniforms.fogNear.value;
+      fogFarNode.value = chunksUniforms.fogFar.value;
+      fogColorNode.value.copy(chunksUniforms.fogColor.value);
+      fogHeightOriginNode.value = chunksUniforms.fogHeightOrigin.value;
+      fogHeightDensityNode.value = chunksUniforms.fogHeightDensity.value;
+
+      if (this.usesShaderLighting) {
+        const lighting = this.chunkRenderer.shaderLightingUniforms;
+        sunlightIntensityNode.value = lighting.sunlightIntensity.value;
+        sunDirectionNode.value.copy(lighting.sunDirection.value).normalize();
+        sunColorNode.value.copy(lighting.sunColor.value);
+        ambientColorNode.value.copy(lighting.ambientColor.value);
+        shadowMatrix0Node.value.copy(lighting.shadowMatrix0.value);
+        shadowMatrix1Node.value.copy(lighting.shadowMatrix1.value);
+        shadowMatrix2Node.value.copy(lighting.shadowMatrix2.value);
+        cascadeSplit0Node.value = lighting.cascadeSplit0.value;
+        cascadeSplit1Node.value = lighting.cascadeSplit1.value;
+        cascadeSplit2Node.value = lighting.cascadeSplit2.value;
+        shadowBiasNode.value = lighting.shadowBias.value;
+        shadowStrengthNode.value = lighting.shadowStrength.value;
+        shadowFlipYNode.value = this.shadowUvFlipY;
+        shadowUseDirectDepthNode.value = this.shadowUseDirectDepth;
+      }
+
+      material.userData.nodeSunlightIntensity = sunlightIntensityNode.value;
+      material.userData.nodeShadowStrength = shadowStrengthNode.value;
+    };
+
+    syncNodeUniforms();
+    material.syncNodeUniforms = syncNodeUniforms;
+    material.onBeforeRender = () => {
+      syncNodeUniforms();
+    };
 
     return material;
   };
@@ -6017,7 +6429,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightReduce: boolean,
       transparentStandalone: boolean,
     ) => {
-      const mat = this.makeShaderMaterial();
+      const mat = this.makeShaderMaterial({}, map);
 
       mat.side = transparent ? DoubleSide : FrontSide;
       mat.transparent = transparent;
