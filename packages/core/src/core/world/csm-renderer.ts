@@ -3,6 +3,7 @@ import {
   Camera,
   DepthTexture,
   Frustum,
+  LessEqualCompare,
   Group,
   Matrix4,
   MeshBasicMaterial,
@@ -25,6 +26,10 @@ export interface CSMConfig {
   lightMargin: number;
   shadowCasterDistance: number;
 }
+
+type CoordinateSystemCamera = Camera & {
+  coordinateSystem?: number;
+};
 
 interface Cascade {
   renderTarget: RenderTarget;
@@ -99,10 +104,12 @@ export class CSMRenderer {
     for (let i = 0; i < cascades; i++) {
       const size = shadowMapSize;
 
+      const depthTexture = new DepthTexture(size, size);
+      depthTexture.type = UnsignedIntType;
+      depthTexture.compareFunction = LessEqualCompare;
       const renderTarget = new RenderTarget(size, size, {
-        depthTexture: new DepthTexture(size, size),
+        depthTexture,
       });
-      renderTarget.depthTexture.type = UnsignedIntType;
 
       const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
 
@@ -189,6 +196,23 @@ export class CSMRenderer {
     this.lastCameraPosition.copy(effectivePosition);
 
     mainCamera.updateMatrixWorld();
+    const mainCameraWithCoordinateSystem = mainCamera as CoordinateSystemCamera;
+    const mainCameraCoordinateSystem =
+      mainCameraWithCoordinateSystem.coordinateSystem;
+    let synchronizedCascadeCoordinateSystems = 0;
+    if (mainCameraCoordinateSystem !== undefined) {
+      for (const cascade of this.cascades) {
+        const cascadeCamera = cascade.camera as CoordinateSystemCamera;
+        if (cascadeCamera.coordinateSystem !== mainCameraCoordinateSystem) {
+          cascadeCamera.coordinateSystem = mainCameraCoordinateSystem;
+          synchronizedCascadeCoordinateSystems += 1;
+        }
+      }
+      if (synchronizedCascadeCoordinateSystems > 0) {
+        this.markAllCascadesDirty();
+      }
+    }
+
     this.tempMatrix
       .copy(mainCamera.projectionMatrix)
       .multiply(mainCamera.matrixWorldInverse);
@@ -321,6 +345,20 @@ export class CSMRenderer {
     }
   }
 
+  private isMaterialMarkedSkipShadow(
+    material: THREE.Material | THREE.Material[] | null | undefined,
+  ): boolean {
+    if (!material) {
+      return false;
+    }
+
+    if (Array.isArray(material)) {
+      return material.some((entry) => entry.userData?.skipShadow === true);
+    }
+
+    return material.userData?.skipShadow === true;
+  }
+
   render(
     renderer: Renderer,
     scene: Scene,
@@ -333,6 +371,9 @@ export class CSMRenderer {
       return;
     }
 
+    const previousAutoClear = renderer.autoClear;
+    renderer.autoClear = false;
+
     const originalOverrideMaterial = scene.overrideMaterial;
 
     const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
@@ -342,6 +383,28 @@ export class CSMRenderer {
         object.visible = false;
       }
     }
+    const autoHiddenNegativeRenderOrderObjects: {
+      object: Object3D;
+      visible: boolean;
+    }[] = [];
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.visible) {
+        return;
+      }
+
+      if (object.userData?.isChunk === true) {
+        return;
+      }
+
+      if (object.userData?.castsShadow === true) {
+        return;
+      }
+
+      if (object.renderOrder < 0) {
+        autoHiddenNegativeRenderOrderObjects.push({ object, visible: true });
+        object.visible = false;
+      }
+    });
 
     if (entities) {
       for (const entity of entities) {
@@ -401,7 +464,10 @@ export class CSMRenderer {
           }
         }
       }
-      if (i >= 2 && instancePools) {
+      const shouldHideInstancePoolsDuringScenePass = Boolean(
+        instancePools && (i >= 2 || (this.shouldRenderEntityShadows && i < 2)),
+      );
+      if (shouldHideInstancePoolsDuringScenePass && instancePools) {
         for (const pool of instancePools) {
           if (pool.visible) {
             hiddenEntities.push({ object: pool, visible: true });
@@ -432,15 +498,35 @@ export class CSMRenderer {
       if (this.shouldRenderEntityShadows && entities && i < 2) {
         const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
         const originalParents: Map<Object3D, Object3D | null> = new Map();
+        const entityWorldPosition = new Vector3();
         for (const entity of entities) {
-          if (entity.userData.castsShadow === false) continue;
-          const distSq = entity.position.distanceToSquared(
+          if (!entity.visible) {
+            continue;
+          }
+          if (entity.userData.castsShadow === false) {
+            continue;
+          }
+
+          entity.getWorldPosition(entityWorldPosition);
+          const localDistSq = entity.position.distanceToSquared(
             this.lastCameraPosition,
           );
-          if (distSq >= maxDistSq) continue;
-          if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
+          const localWithinDistance = localDistSq < maxDistSq;
+          const localInsideFrustum = this.cascadeFrustum.containsPoint(
+            entity.position,
+          );
+          if (!localWithinDistance) {
+            continue;
+          }
+          if (!localInsideFrustum) {
+            continue;
+          }
+
+          entity.updateMatrixWorld(true);
           originalParents.set(entity, entity.parent);
           this.entityBatchGroup.add(entity);
+          this.entityBatchGroup.updateMatrixWorld(true);
+          entity.updateMatrixWorld(true);
         }
         if (this.entityBatchGroup.children.length > 0) {
           const batchAsScene = this.entityBatchGroup as unknown as Scene;
@@ -468,8 +554,12 @@ export class CSMRenderer {
     for (const { object, visible } of hiddenObjects) {
       object.visible = visible;
     }
+    for (const { object, visible } of autoHiddenNegativeRenderOrderObjects) {
+      object.visible = visible;
+    }
 
     scene.overrideMaterial = originalOverrideMaterial;
+    renderer.autoClear = previousAutoClear;
     renderer.setRenderTarget(null);
   }
 
@@ -483,6 +573,7 @@ export class CSMRenderer {
       return;
     }
     this.cascadeNeedsRender[0] = true;
+    this.cascadeNeedsRender[1] = true;
   }
 
   getUniforms(): {
