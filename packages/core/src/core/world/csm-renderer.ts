@@ -63,6 +63,8 @@ export class CSMRenderer {
   private tempVec3 = new Vector3();
 
   private skipShadowObjectsCache: Object3D[] = [];
+  private negativeRenderOrderCache: Object3D[] = [];
+  private negativeRenderOrderCacheDirty = true;
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
@@ -170,6 +172,33 @@ export class CSMRenderer {
         this.skipShadowObjectsCache.push(object);
       }
     });
+    this.negativeRenderOrderCacheDirty = true;
+  }
+
+  markNegativeRenderOrderDirty() {
+    this.negativeRenderOrderCacheDirty = true;
+  }
+
+  private rebuildNegativeRenderOrderCache(scene: Scene) {
+    this.negativeRenderOrderCache = [];
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.visible) {
+        return;
+      }
+
+      if (object.userData?.isChunk === true) {
+        return;
+      }
+
+      if (object.userData?.castsShadow === true) {
+        return;
+      }
+
+      if (object.renderOrder < 0) {
+        this.negativeRenderOrderCache.push(object);
+      }
+    });
+    this.negativeRenderOrderCacheDirty = false;
   }
 
   update(mainCamera: Camera, sunDirection: Vector3, playerPosition?: Vector3) {
@@ -383,28 +412,19 @@ export class CSMRenderer {
         object.visible = false;
       }
     }
+    if (this.negativeRenderOrderCacheDirty) {
+      this.rebuildNegativeRenderOrderCache(scene);
+    }
     const autoHiddenNegativeRenderOrderObjects: {
       object: Object3D;
       visible: boolean;
     }[] = [];
-    scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh) || !object.visible) {
-        return;
-      }
-
-      if (object.userData?.isChunk === true) {
-        return;
-      }
-
-      if (object.userData?.castsShadow === true) {
-        return;
-      }
-
-      if (object.renderOrder < 0) {
+    for (const object of this.negativeRenderOrderCache) {
+      if (object.visible) {
         autoHiddenNegativeRenderOrderObjects.push({ object, visible: true });
         object.visible = false;
       }
-    });
+    }
 
     if (entities) {
       for (const entity of entities) {
@@ -568,12 +588,12 @@ export class CSMRenderer {
 
   markCascadesForEntityRender() {
     this.entityShadowFrameCounter++;
-    this.shouldRenderEntityShadows = this.entityShadowFrameCounter % 1 === 0;
-    if (!this.shouldRenderEntityShadows) {
-      return;
+    this.shouldRenderEntityShadows = true;
+    if (this.entityShadowFrameCounter % 2 === 0) {
+      this.cascadeNeedsRender[0] = true;
+    } else {
+      this.cascadeNeedsRender[1] = true;
     }
-    this.cascadeNeedsRender[0] = true;
-    this.cascadeNeedsRender[1] = true;
   }
 
   getUniforms(): {

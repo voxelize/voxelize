@@ -67,7 +67,11 @@ import {
   vec3,
   vec4,
 } from "three/tsl";
-import { MeshBasicNodeMaterial, type Renderer } from "three/webgpu";
+import {
+  BundleGroup,
+  MeshBasicNodeMaterial,
+  type Renderer,
+} from "three/webgpu";
 
 import {
   TRANSPARENT_FLUID_RENDER_ORDER,
@@ -865,6 +869,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private accumulatedStartSequenceId = 0;
   private shadowUvFlipY = 0;
   private shadowUseDirectDepth = 0;
+  private nodeUniformGeneration = 0;
+  private chunkBundleGroup = new BundleGroup();
 
   /**
    * Create a new Voxelize world.
@@ -888,6 +894,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.setupComponents();
     this.setupUniforms();
     this.startDeltaCleanup();
+
+    this.chunkBundleGroup.matrixWorldAutoUpdate = false;
+    this.add(this.chunkBundleGroup);
+    this.chunkBundleGroup.updateMatrixWorld(true);
 
     setWorkerInterval(() => {
       this.packets.push({
@@ -3507,6 +3517,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const emitServerUpdatesDuration =
       performance.now() - startEmitServerUpdates;
 
+    this.nodeUniformGeneration++;
+
     const overallDuration = performance.now() - startOverall;
     if (overallDuration > 1000 / 60) {
       const isDebug = false;
@@ -4022,6 +4034,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     toRemove.forEach((name) => this.chunkPipeline.remove(name));
+    if (toRemove.length > 0) {
+      this.chunkBundleGroup.needsUpdate = true;
+    }
 
     this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
@@ -4064,11 +4079,22 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private setPlantMeshVisibility(meshes: Mesh[], showPlants: boolean) {
+    let changed = false;
     for (const mesh of meshes) {
       if (mesh && this._plantBlockIds.has(mesh.userData.voxel)) {
-        mesh.visible = showPlants;
+        if (mesh.visible !== showPlants) {
+          mesh.visible = showPlants;
+          changed = true;
+        }
       }
     }
+    if (changed) {
+      this.chunkBundleGroup.needsUpdate = true;
+    }
+  }
+
+  invalidateChunkBundle() {
+    this.chunkBundleGroup.needsUpdate = true;
   }
 
   updatePlantVisibilityForChunk(chunk: Chunk) {
@@ -4389,13 +4415,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    for (const material of this.chunkRenderer.materials.values()) {
-      if (!material.syncNodeUniforms) {
-        continue;
-      }
-
-      material.syncNodeUniforms();
-    }
+    this.nodeUniformGeneration++;
   }
 
   renderShadowMaps(
@@ -4536,6 +4556,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
+        mesh.matrixWorldAutoUpdate = false;
+        mesh.matrixWorld.copy(mesh.matrix);
         mesh.userData = { isChunk: true, merged: true, voxel };
         if (material.transparent) {
           const block = this.getBlockByIdSafe(voxel);
@@ -4620,6 +4642,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
+        mesh.matrixWorldAutoUpdate = false;
+        mesh.matrixWorld.copy(mesh.matrix);
         mesh.userData = { isChunk: true, voxel };
         if (material.transparent) {
           const block = this.getBlockByIdSafe(voxel);
@@ -4647,8 +4671,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    if (!this.children.includes(chunk.group)) {
-      this.add(chunk.group);
+    if (!this.chunkBundleGroup.children.includes(chunk.group)) {
+      this.chunkBundleGroup.add(chunk.group);
+      this.chunkBundleGroup.needsUpdate = true;
     }
 
     if (!chunk.meshes.has(level)) {
@@ -4656,6 +4681,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     chunk.meshes.get(level)?.push(...meshes);
+    this.chunkBundleGroup.needsUpdate = true;
 
     const [pcx, pcz] = this._lastCenterChunk;
     const showPlants = (cx - pcx) ** 2 + (cz - pcz) ** 2 <= this.plantRadiusSq;
@@ -6366,7 +6392,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     material.uniforms.map.value = ensureMaterialMapTexture();
 
+    let lastSyncedGeneration = -1;
+
     const syncNodeUniforms = () => {
+      const currentGeneration = this.nodeUniformGeneration;
+      if (lastSyncedGeneration === currentGeneration) return;
+      lastSyncedGeneration = currentGeneration;
+
       material.uniforms.map.value = ensureMaterialMapTexture();
       const currentMap = material.map;
       if (

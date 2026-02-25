@@ -4,7 +4,6 @@ import {
   div,
   float,
   int,
-  max,
   mix,
   mul,
   step,
@@ -17,17 +16,42 @@ import {
 type TslNode = ReturnType<typeof float>;
 type TextureInput = Parameters<typeof texture>[0];
 
+const sampleShadowCompare = ({
+  shadowMap,
+  uv,
+  depth,
+}: {
+  shadowMap: TextureInput;
+  uv: TslNode;
+  depth: TslNode;
+}) => {
+  return texture(shadowMap, uv).compare(depth);
+};
+
 const projectShadowCoordinate = ({
   shadowCoord,
   bias,
+  flipY,
+  useDirectDepth,
 }: {
   shadowCoord: TslNode;
   bias: TslNode;
+  flipY: TslNode;
+  useDirectDepth: TslNode;
 }) => {
   const invW = div(1.0, shadowCoord.w);
   const projected = mul(shadowCoord.xyz, invW);
-  const uv = mul(projected.xy, 0.5).add(0.5);
-  const depth = sub(mul(projected.z, 0.5).add(0.5), bias);
+  const uvX = mul(projected.x, 0.5).add(0.5);
+  const uvYRaw = mul(projected.y, 0.5).add(0.5);
+  const uvYFlipped = sub(1.0, uvYRaw);
+  const uvY = mix(uvYRaw, uvYFlipped, step(0.5, flipY));
+  const uv = vec2(uvX, uvY);
+  const legacyDepth = mul(projected.z, 0.5).add(0.5);
+  const directDepth = projected.z;
+  const depth = sub(
+    mix(legacyDepth, directDepth, step(0.5, useDirectDepth)),
+    bias,
+  );
 
   const insideX = mul(step(0.0, uv.x), step(uv.x, 1.0));
   const insideY = mul(step(0.0, uv.y), step(uv.y, 1.0));
@@ -41,32 +65,49 @@ const sampleShadowFast = ({
   shadowMap,
   shadowCoord,
   bias,
+  flipY,
+  useDirectDepth,
 }: {
   shadowMap: TextureInput;
   shadowCoord: TslNode;
   bias: TslNode;
+  flipY: TslNode;
+  useDirectDepth: TslNode;
 }) => {
-  const { uv, depth, inside } = projectShadowCoordinate({ shadowCoord, bias });
+  const { uv, depth, inside } = projectShadowCoordinate({
+    shadowCoord,
+    bias,
+    flipY,
+    useDirectDepth,
+  });
   const mapSize = textureSize(texture(shadowMap), int(0));
   const texelSize = div(vec2(1.0, 1.0), vec2(mapSize));
 
-  const litCenter = step(depth, texture(shadowMap, uv).r);
-  const lit00 = step(
+  const litCenter = sampleShadowCompare({
+    shadowMap,
+    uv,
     depth,
-    texture(shadowMap, uv.add(mul(texelSize, vec2(-1.0, -1.0)))).r,
-  );
-  const lit10 = step(
+  });
+  const lit00 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(mul(texelSize, vec2(-1.0, -1.0))),
     depth,
-    texture(shadowMap, uv.add(mul(texelSize, vec2(1.0, -1.0)))).r,
-  );
-  const lit01 = step(
+  });
+  const lit10 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(mul(texelSize, vec2(1.0, -1.0))),
     depth,
-    texture(shadowMap, uv.add(mul(texelSize, vec2(-1.0, 1.0)))).r,
-  );
-  const lit11 = step(
+  });
+  const lit01 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(mul(texelSize, vec2(-1.0, 1.0))),
     depth,
-    texture(shadowMap, uv.add(mul(texelSize, vec2(1.0, 1.0)))).r,
-  );
+  });
+  const lit11 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(mul(texelSize, vec2(1.0, 1.0))),
+    depth,
+  });
 
   const litSum = add(add(add(add(litCenter, lit00), lit10), lit01), lit11);
   const pcf = div(litSum, 5.0);
@@ -78,116 +119,88 @@ const sampleShadowPCSS = ({
   shadowMap,
   shadowCoord,
   bias,
+  flipY,
+  useDirectDepth,
 }: {
   shadowMap: TextureInput;
   shadowCoord: TslNode;
   bias: TslNode;
+  flipY: TslNode;
+  useDirectDepth: TslNode;
 }) => {
-  const { uv, depth, inside } = projectShadowCoordinate({ shadowCoord, bias });
+  const { uv, depth, inside } = projectShadowCoordinate({
+    shadowCoord,
+    bias,
+    flipY,
+    useDirectDepth,
+  });
   const mapSize = textureSize(texture(shadowMap), int(0));
   const texelSize = div(vec2(1.0, 1.0), vec2(mapSize));
-  const searchRadius = 3.0;
+  const filterRadius = 2.0;
 
-  const bSample0 = texture(
+  const litCenter = sampleShadowCompare({
     shadowMap,
-    uv.add(mul(mul(texelSize, vec2(-0.94201624, -0.39906216)), searchRadius)),
-  ).r;
-  const bSample1 = texture(
+    uv,
+    depth,
+  });
+  const lit0 = sampleShadowCompare({
     shadowMap,
-    uv.add(mul(mul(texelSize, vec2(0.94558609, -0.76890725)), searchRadius)),
-  ).r;
-  const bSample2 = texture(
+    uv: uv.add(
+      mul(mul(texelSize, vec2(-0.94201624, -0.39906216)), filterRadius),
+    ),
+    depth,
+  });
+  const lit1 = sampleShadowCompare({
     shadowMap,
-    uv.add(mul(mul(texelSize, vec2(-0.0941841, -0.9293887)), searchRadius)),
-  ).r;
-  const bSample3 = texture(
+    uv: uv.add(
+      mul(mul(texelSize, vec2(0.94558609, -0.76890725)), filterRadius),
+    ),
+    depth,
+  });
+  const lit2 = sampleShadowCompare({
     shadowMap,
-    uv.add(mul(mul(texelSize, vec2(0.34495938, 0.2938776)), searchRadius)),
-  ).r;
-
-  const blocker0 = step(bias, sub(depth, bSample0));
-  const blocker1 = step(bias, sub(depth, bSample1));
-  const blocker2 = step(bias, sub(depth, bSample2));
-  const blocker3 = step(bias, sub(depth, bSample3));
-  const blockerCount = add(add(blocker0, blocker1), add(blocker2, blocker3));
-  const blockerDepthSum = add(
-    add(mul(bSample0, blocker0), mul(bSample1, blocker1)),
-    add(mul(bSample2, blocker2), mul(bSample3, blocker3)),
-  );
-  const avgBlockerDepth = div(blockerDepthSum, max(blockerCount, 1.0));
-  const penumbraSize = div(
-    sub(depth, avgBlockerDepth),
-    max(avgBlockerDepth, 0.0001),
-  );
-  const filterRadius = clamp(mul(penumbraSize, 2.0), 1.0, 3.0);
-  const hasBlocker = step(0.5, blockerCount);
-
-  const litCenter = step(depth, texture(shadowMap, uv).r);
-  const lit0 = step(
+    uv: uv.add(mul(mul(texelSize, vec2(-0.0941841, -0.9293887)), filterRadius)),
     depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(-0.94201624, -0.39906216)), filterRadius)),
-    ).r,
-  );
-  const lit1 = step(
+  });
+  const lit3 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(mul(mul(texelSize, vec2(0.34495938, 0.2938776)), filterRadius)),
     depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(0.94558609, -0.76890725)), filterRadius)),
-    ).r,
-  );
-  const lit2 = step(
+  });
+  const lit4 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(
+      mul(mul(texelSize, vec2(-0.91588581, 0.45771432)), filterRadius),
+    ),
     depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(-0.0941841, -0.9293887)), filterRadius)),
-    ).r,
-  );
-  const lit3 = step(
+  });
+  const lit5 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(
+      mul(mul(texelSize, vec2(-0.81544232, -0.87912464)), filterRadius),
+    ),
     depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(0.34495938, 0.2938776)), filterRadius)),
-    ).r,
-  );
-  const lit4 = step(
+  });
+  const lit6 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(mul(mul(texelSize, vec2(0.97484398, 0.75648379)), filterRadius)),
     depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(-0.91588581, 0.45771432)), filterRadius)),
-    ).r,
-  );
-  const lit5 = step(
+  });
+  const lit7 = sampleShadowCompare({
+    shadowMap,
+    uv: uv.add(
+      mul(mul(texelSize, vec2(0.44323325, -0.97511554)), filterRadius),
+    ),
     depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(-0.81544232, -0.87912464)), filterRadius)),
-    ).r,
-  );
-  const lit6 = step(
-    depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(0.97484398, 0.75648379)), filterRadius)),
-    ).r,
-  );
-  const lit7 = step(
-    depth,
-    texture(
-      shadowMap,
-      uv.add(mul(mul(texelSize, vec2(0.44323325, -0.97511554)), filterRadius)),
-    ).r,
-  );
+  });
 
   const litSum = add(
     add(add(add(litCenter, lit0), add(lit1, lit2)), add(lit3, lit4)),
     add(lit5, add(lit6, lit7)),
   );
   const pcf = div(litSum, 9.0);
-  const pcss = mix(1.0, pcf, hasBlocker);
 
-  return mix(1.0, pcss, inside);
+  return mix(1.0, pcf, inside);
 };
 
 export type CascadeShadowParams = {
@@ -203,6 +216,8 @@ export type CascadeShadowParams = {
   cascadeSplit2: TslNode;
   baseBias: TslNode;
   shadowStrength: TslNode;
+  flipY: TslNode;
+  useDirectDepth: TslNode;
 };
 
 export const cascadeShadowNode = ({
@@ -218,21 +233,29 @@ export const cascadeShadowNode = ({
   cascadeSplit2,
   baseBias,
   shadowStrength,
+  flipY,
+  useDirectDepth,
 }: CascadeShadowParams) => {
   const c0 = sampleShadowPCSS({
     shadowMap: shadowMap0,
     shadowCoord: shadowCoord0,
     bias: baseBias,
+    flipY,
+    useDirectDepth,
   });
   const c1 = sampleShadowPCSS({
     shadowMap: shadowMap1,
     shadowCoord: shadowCoord1,
     bias: mul(baseBias, 1.5),
+    flipY,
+    useDirectDepth,
   });
   const c2 = sampleShadowFast({
     shadowMap: shadowMap2,
     shadowCoord: shadowCoord2,
     bias: mul(baseBias, 2.0),
+    flipY,
+    useDirectDepth,
   });
 
   const blendRegion = 0.1;

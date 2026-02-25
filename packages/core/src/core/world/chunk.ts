@@ -11,7 +11,12 @@ export class Chunk extends RawChunk {
   public added = false;
   public isDirty = false;
 
-  public group = new Group();
+  public group = (() => {
+    const g = new Group();
+    g.matrixAutoUpdate = false;
+    g.matrixWorldAutoUpdate = false;
+    return g;
+  })();
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     super(id, coords, options);
