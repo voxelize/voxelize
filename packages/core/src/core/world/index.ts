@@ -4071,6 +4071,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  updatePlantVisibilityForChunk(chunk: Chunk) {
+    const radiusSq = this.plantRadiusSq;
+    const [cx, cz] = this._lastCenterChunk;
+    const [x, z] = chunk.coords;
+    const showPlants = (x - cx) ** 2 + (z - cz) ** 2 <= radiusSq;
+
+    chunk.meshes.forEach((levelMeshes) => {
+      this.setPlantMeshVisibility(levelMeshes, showPlants);
+    });
+  }
+
   private updatePlantVisibility(center: Coords2) {
     const radiusSq = this.plantRadiusSq;
     const [cx, cz] = center;

@@ -54,5 +54,7 @@ export class Chunk extends RawChunk {
         }
       });
     });
+
+    this.group.removeFromParent();
   }
 }
