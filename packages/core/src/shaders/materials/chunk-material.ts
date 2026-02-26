@@ -48,8 +48,6 @@ interface ChunkMaterialConfig {
 export function createDefaultChunkMaterial(config: ChunkMaterialConfig) {
   const material = new MeshBasicNodeMaterial();
   material.side = DoubleSide;
-  material.transparent = true;
-  material.alphaTest = 0.1;
 
   const uSunlightIntensity = uniform(1.0);
   const uMinLightLevel = uniform(0.1);
@@ -115,7 +113,6 @@ export function createDefaultChunkMaterial(config: ChunkMaterialConfig) {
   );
 
   material.colorNode = foggedColor;
-  material.opacityNode = texColor.w;
 
   return {
     material,
