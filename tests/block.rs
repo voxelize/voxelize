@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::PI;
+
     use voxelize::{BlockRotation, BlockUtils};
 
     #[test]
@@ -17,21 +19,23 @@ mod tests {
 
     #[test]
     fn rotation_insertion() {
-        // let mut voxel = 0;
+        let mut voxel = 0;
         let id = 13;
 
-        // TODO: add rotation tests.
+        voxel = BlockUtils::insert_id(voxel, id);
+        assert_eq!(BlockUtils::extract_rotation(voxel), BlockRotation::PY(0.0));
+        assert_eq!(BlockUtils::extract_id(voxel), id);
 
-        // voxel = BlockUtils::insert_id(voxel, id);
-        // assert_eq!(BlockUtils::extract_rotation(voxel), BlockRotation::PY(0.0));
+        voxel = BlockUtils::insert_rotation(voxel, &BlockRotation::NX(0.0));
+        assert_eq!(BlockUtils::extract_rotation(voxel), BlockRotation::NX(0.0));
+        assert_eq!(BlockUtils::extract_id(voxel), id);
 
-        // voxel = BlockUtils::insert_rotation(voxel, &BlockRotation::NX(0.0));
-        // assert_eq!(BlockUtils::extract_rotation(voxel), BlockRotation::NX(0.0));
-
-        // voxel = BlockUtils::insert_rotation(voxel, &BlockRotation::PZ(90.0));
-        // assert_eq!(BlockUtils::extract_rotation(voxel), BlockRotation::PZ(90.0));
-
-        // assert_eq!(BlockUtils::extract_id(voxel), id);
+        voxel = BlockUtils::insert_rotation(voxel, &BlockRotation::PZ(PI / 2.0));
+        assert_eq!(
+            BlockUtils::extract_rotation(voxel),
+            BlockRotation::PZ(PI / 2.0)
+        );
+        assert_eq!(BlockUtils::extract_id(voxel), id);
     }
 
     #[test]
