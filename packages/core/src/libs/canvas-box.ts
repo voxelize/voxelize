@@ -84,6 +84,11 @@ export type CanvasBoxOptions = {
    * Whether this canvas box should receive shadows. Defaults to `false`.
    */
   receiveShadows?: boolean;
+
+  /**
+   * Whether this canvas box is used in the modern TSL pipeline.
+   */
+  useTSL?: boolean;
 };
 
 /**
@@ -117,6 +122,7 @@ const defaultOptions: CanvasBoxOptions = {
   side: FrontSide,
   transparent: false,
   receiveShadows: false,
+  useTSL: false,
 };
 
 /**
@@ -193,6 +199,11 @@ export class BoxLayer extends Mesh {
   private receiveShadows: boolean;
 
   /**
+   * Whether this layer uses the modern TSL pipeline.
+   */
+  private useTSL: boolean;
+
+  /**
    * Create a six-sided canvas box layer.
    *
    * @param width The width of the box layer.
@@ -215,6 +226,7 @@ export class BoxLayer extends Mesh {
     side: Side,
     transparent: boolean,
     receiveShadows = false,
+    useTSL = false,
   ) {
     super(new BoxGeometry(width, height, depth));
 
@@ -227,6 +239,7 @@ export class BoxLayer extends Mesh {
     this.side = side;
     this.transparent = transparent;
     this.receiveShadows = receiveShadows;
+    this.useTSL = useTSL;
 
     if (receiveShadows) {
       this.shadowUniforms = createEntityShadowUniforms();
@@ -337,7 +350,7 @@ export class BoxLayer extends Mesh {
       material.map.needsUpdate = true;
     }
 
-    if (this.receiveShadows && this.shadowUniforms) {
+    if (this.receiveShadows && this.shadowUniforms && !this.useTSL) {
       const shadowUniforms = this.shadowUniforms;
       material.onBeforeCompile = (shader) => {
         Object.assign(shader.uniforms, shadowUniforms);
@@ -520,6 +533,7 @@ export class CanvasBox extends Group {
       depthSegments,
       transparent,
       receiveShadows,
+      useTSL,
     } = this.options;
 
     if (!width) {
@@ -541,6 +555,7 @@ export class CanvasBox extends Group {
         side,
         transparent,
         receiveShadows,
+        useTSL,
       );
       this.boxLayers.push(newBoxLayer);
       this.add(newBoxLayer);

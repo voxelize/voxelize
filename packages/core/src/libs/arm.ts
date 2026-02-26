@@ -71,6 +71,7 @@ export type ArmOptions = {
   customObjectOptions?: Record<string, ArmObjectOptions>;
   receiveShadows?: boolean;
   minOccluderDepth?: number;
+  useTSL?: boolean;
 };
 
 type ArmObjectOptions = {
@@ -281,6 +282,7 @@ export class Arm extends THREE.Group {
       height: 1,
       depth: 0.3,
       receiveShadows: this.options.receiveShadows,
+      useTSL: this.options.useTSL,
     });
 
     if (this.options.armTexture) {
@@ -359,9 +361,8 @@ export class Arm extends THREE.Group {
   };
 
   private injectShadowShaders(object: THREE.Object3D): void {
-    if (!this.options.receiveShadows) return;
-
     this.heldObjectShadowUniforms = [];
+    if (!this.options.receiveShadows || this.options.useTSL) return;
 
     object.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;

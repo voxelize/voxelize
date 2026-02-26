@@ -125,6 +125,10 @@ import {
   PY_ROTATION,
 } from "./block";
 import { Chunk } from "./chunk";
+import {
+  createDefaultChunkMaterial,
+  createShaderLightingChunkMaterial,
+} from "./chunk-material-tsl";
 import { ChunkRenderer } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
@@ -132,6 +136,10 @@ import { ItemDef, ItemRegistry } from "./items";
 import { LightSourceRegistry } from "./light-registry";
 import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
+import {
+  MaterialNodeRegistry,
+  type MaterialNodeOverrides,
+} from "./material-node-customization";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
 import {
@@ -161,6 +169,17 @@ export * from "./shadow-sampling";
 export * from "./sky";
 export * from "./textures";
 export * from "./uv";
+export * from "./fog-nodes";
+export * from "./light-unpack-nodes";
+export * from "./shadow-nodes";
+export * from "./greedy-uv-nodes";
+export * from "./simplex-noise-tsl";
+export * from "./water-nodes";
+export * from "./sway-nodes";
+export * from "./chunk-material-tsl";
+export * from "./sky-tsl";
+export * from "./clouds-tsl";
+export * from "./material-node-customization";
 
 export type TextureInfo = {
   blockId: number;
@@ -470,6 +489,8 @@ export type WorldClientOptions = {
    */
   shaderBasedLighting: boolean;
 
+  useTSL?: boolean;
+
   /**
    * Ratio of render radius beyond which plant meshes are hidden.
    * Plant meshes in chunks farther than `plantRenderRatio * renderRadius` chunks
@@ -641,6 +662,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.options.shaderBasedLighting === true;
   }
 
+  public useTSL = false;
+
   /**
    * The block registry that holds all block data, such as texture and block properties.
    */
@@ -670,6 +693,8 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Chunk rendering state (materials, uniforms).
    */
   public chunkRenderer: ChunkRenderer;
+
+  public materialNodeRegistry?: MaterialNodeRegistry;
 
   /**
    * The voxel physics engine using `@voxelize/physics-engine`.
@@ -845,6 +870,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...defaultOptions,
       ...options,
     });
+    this.useTSL = options.useTSL ?? false;
 
     this.lightWorkerPool = new WorkerPool(LightWorker, {
       maxWorker: this.options.maxLightWorkers,
@@ -3283,6 +3309,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     return mat;
   };
 
+  customizeMaterialNodes = (
+    idOrName: number | string,
+    faceName: string | null = null,
+    overrides: MaterialNodeOverrides,
+  ) => {
+    if (!this.materialNodeRegistry) {
+      this.materialNodeRegistry = new MaterialNodeRegistry();
+    }
+    const blockId = typeof idOrName === "number" ? String(idOrName) : idOrName;
+    this.materialNodeRegistry.register(blockId, faceName, overrides);
+  };
+
   customizeBlockDynamic = (
     idOrName: number | string,
     fn: Block["dynamicFn"],
@@ -3397,14 +3435,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     // Initialize shader-based lighting components after server options are known
     if (this.usesShaderLighting && !this.csmRenderer) {
-      this.csmRenderer = new CSMRenderer({
-        cascades: 3,
-        shadowMapSize: 4096,
-        maxShadowDistance: 128,
-        shadowBias: 0.0005,
-        shadowNormalBias: 0.02,
-        lightMargin: 32,
-      });
+      this.csmRenderer = new CSMRenderer(
+        {
+          cascades: 3,
+          shadowMapSize: 4096,
+          maxShadowDistance: 128,
+          shadowBias: 0.0005,
+          shadowNormalBias: 0.02,
+          lightMargin: 32,
+        },
+        this.useTSL,
+      );
       this.lightVolume = new LightVolume({
         size: [128, 64, 128],
         resolution: 1,
@@ -4155,8 +4196,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
-    // Update the clouds' colors based on the sky's colors.
-    const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
+    const cloudColor = this.clouds.cloudColorUniform.value;
     const cloudColorHSL = cloudColor.getHSL({});
     cloudColor.setHSL(
       cloudColorHSL.h,
@@ -4637,16 +4677,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkPipeline = new ChunkPipeline();
     this.meshPipeline = new MeshPipeline();
     this.chunkRenderer = new ChunkRenderer();
+    if (this.useTSL) {
+      this.materialNodeRegistry = new MaterialNodeRegistry();
+    }
 
     if (this.usesShaderLighting) {
-      this.csmRenderer = new CSMRenderer({
-        cascades: 3,
-        shadowMapSize: 4096,
-        maxShadowDistance: 128,
-        shadowBias: 0.0005,
-        shadowNormalBias: 0.02,
-        lightMargin: 32,
-      });
+      this.csmRenderer = new CSMRenderer(
+        {
+          cascades: 3,
+          shadowMapSize: 4096,
+          maxShadowDistance: 128,
+          shadowBias: 0.0005,
+          shadowNormalBias: 0.02,
+          lightMargin: 32,
+        },
+        this.useTSL,
+      );
       this.lightVolume = new LightVolume({
         size: [128, 64, 128],
         resolution: 1,
@@ -4658,8 +4704,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
     }
 
-    this.sky = new Sky(skyOptions);
-    this.clouds = new Clouds(cloudsOptions);
+    this.sky = new Sky({ ...skyOptions, useTSL: this.useTSL });
+    this.clouds = new Clouds({ ...cloudsOptions, useTSL: this.useTSL });
 
     this.add(this.sky, this.clouds);
 
@@ -5893,7 +5939,51 @@ export class World<T = any> extends Scene implements NetIntercept {
     fragmentShader?: string,
     vertexShader?: string,
     uniforms: Record<string, Uniform> = {},
+    tslAtlas?: Texture,
   ) => {
+    if (this.useTSL) {
+      const useShaderLighting = this.usesShaderLighting;
+      const createMaterial = useShaderLighting
+        ? createShaderLightingChunkMaterial
+        : createDefaultChunkMaterial;
+      const material = createMaterial({
+        uniforms: this.chunkRenderer.uniforms,
+        shaderLightingUniforms: useShaderLighting
+          ? this.chunkRenderer.shaderLightingUniforms
+          : undefined,
+        atlas:
+          tslAtlas ??
+          AtlasTexture.makeUnknownTexture(this.options.textureUnitDimension),
+        transparent: false,
+        isFluid: false,
+      });
+      Object.defineProperty(material, "renderStage", {
+        get: function () {
+          return material.userData.renderStage ?? 0;
+        },
+        set: function (stage) {
+          material.userData.renderStage = parseFloat(String(stage));
+        },
+      });
+      material.map = AtlasTexture.makeUnknownTexture(
+        this.options.textureUnitDimension,
+      );
+
+      const uniformsProxy: Record<string, { value: unknown }> = {};
+      (material as unknown as { uniforms: typeof uniformsProxy }).uniforms =
+        new Proxy(uniformsProxy, {
+          get: (target, prop) => {
+            if (typeof prop === "string" && !(prop in target)) {
+              target[prop] = { value: null };
+            }
+            return target[prop as string];
+          },
+        });
+      uniformsProxy.map = { value: material.map };
+
+      return material as unknown as CustomChunkShaderMaterial;
+    }
+
     const useShaderLighting = this.usesShaderLighting;
     const baseShaders = useShaderLighting
       ? SHADER_LIGHTING_CHUNK_SHADERS
@@ -6011,7 +6101,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightReduce: boolean,
       transparentStandalone: boolean,
     ) => {
-      const mat = this.makeShaderMaterial();
+      const mat = this.makeShaderMaterial(undefined, undefined, {}, map);
 
       mat.side = transparent ? DoubleSide : FrontSide;
       mat.transparent = transparent;

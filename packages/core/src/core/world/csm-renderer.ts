@@ -16,6 +16,7 @@ import {
   WebGLRenderTarget,
   WebGLRenderer,
 } from "three";
+import { NodeMaterial } from "three/webgpu";
 
 export interface CSMConfig {
   cascades: number;
@@ -50,7 +51,7 @@ export class CSMRenderer {
   private lightDirection = new Vector3(0, -1, 0.3).normalize();
   private lastLightDirection = new Vector3(0, -1, 0.3).normalize();
   private frustum = new Frustum();
-  private depthMaterial: MeshDepthMaterial;
+  private depthMaterial: MeshDepthMaterial | NodeMaterial;
   private frameCount = 0;
   private lastCameraPosition = new Vector3();
   private cascadeDirty: boolean[] = [];
@@ -75,12 +76,21 @@ export class CSMRenderer {
     .fill(null)
     .map(() => new Vector3());
 
-  constructor(config: Partial<CSMConfig> = {}) {
+  constructor(config: Partial<CSMConfig> = {}, useTSL = false) {
     this.config = { ...defaultConfig, ...config };
 
-    this.depthMaterial = new MeshDepthMaterial({
-      depthPacking: RGBADepthPacking,
-    });
+    if (useTSL) {
+      const depthMaterial = new NodeMaterial() as NodeMaterial & {
+        depthPacking?: number;
+      };
+      depthMaterial.depthPacking = RGBADepthPacking;
+      depthMaterial.colorWrite = false;
+      this.depthMaterial = depthMaterial;
+    } else {
+      this.depthMaterial = new MeshDepthMaterial({
+        depthPacking: RGBADepthPacking,
+      });
+    }
     this.initCascades();
   }
 

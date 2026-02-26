@@ -17,11 +17,13 @@ export type LightShinedOptions = {
    * The maximum brightness cap for the light effect. Defaults to `2.5`.
    */
   maxBrightness: number;
+  useTSL?: boolean;
 };
 
 const defaultOptions: LightShinedOptions = {
   lerpFactor: 0.1,
   maxBrightness: 2.5,
+  useTSL: false,
 };
 
 /**
@@ -125,6 +127,8 @@ export class LightShined {
   };
 
   private setupLightMaterials = (obj: Object3D) => {
+    if (this.options.useTSL) return;
+
     const setupMaterial = (material: Material) => {
       if (
         ThreeUtils.isShaderMaterial(material) ||

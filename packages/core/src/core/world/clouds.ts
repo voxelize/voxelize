@@ -11,6 +11,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
@@ -18,6 +19,7 @@ import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
+import { createCloudMaterial } from "./clouds-tsl";
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
 
 /**
@@ -117,6 +119,7 @@ export type CloudsOptions = {
   uFogColor?: {
     value: Color;
   };
+  useTSL: boolean;
 };
 
 const defaultOptions: CloudsOptions = {
@@ -134,6 +137,7 @@ const defaultOptions: CloudsOptions = {
   falloff: 0.9,
   seed: -1,
   cloudHeight: 256,
+  useTSL: false,
 };
 
 /**
@@ -162,11 +166,10 @@ export class Clouds extends Group {
   /**
    * The shard shader material used to render the clouds.
    */
-  public material: ShaderMaterial;
+  public material: ShaderMaterial | MeshBasicNodeMaterial;
 
-  /**
-   * A 2D array of cloud meshes. The first dimension is the x-axis, and the second dimension is the z-axis.
-   */
+  public cloudColorUniform: { value: Color };
+
   public meshes: Mesh[][] = [];
 
   /**
@@ -220,23 +223,34 @@ export class Clouds extends Group {
       this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
-    this.material = new ShaderMaterial({
-      transparent: true,
-      vertexShader: CloudsVertexShader,
-      fragmentShader: CloudsFragmentShader,
-      side: FrontSide,
-      uniforms: {
-        uFogNear: uFogNear || { value: 500 },
-        uFogFar: uFogFar || { value: 1000 },
-        uFogColor: uFogColor || { value: new Color("#fff") },
-        uCloudColor: {
-          value: new Color(color),
-        },
-        uCloudAlpha: {
-          value: alpha,
-        },
-      },
-    });
+    const fogNearUniform = uFogNear || { value: 500 };
+    const fogFarUniform = uFogFar || { value: 1000 };
+    const fogColorUniform = uFogColor || { value: new Color("#fff") };
+    const cloudColorUniform = { value: new Color(color) };
+    this.cloudColorUniform = cloudColorUniform;
+    const cloudAlphaUniform = { value: alpha };
+
+    this.material = this.options.useTSL
+      ? createCloudMaterial({
+          fogNear: fogNearUniform,
+          fogFar: fogFarUniform,
+          fogColor: fogColorUniform,
+          cloudColor: cloudColorUniform,
+          cloudAlpha: cloudAlphaUniform,
+        })
+      : new ShaderMaterial({
+          transparent: true,
+          vertexShader: CloudsVertexShader,
+          fragmentShader: CloudsFragmentShader,
+          side: FrontSide,
+          uniforms: {
+            uFogNear: fogNearUniform,
+            uFogFar: fogFarUniform,
+            uFogColor: fogColorUniform,
+            uCloudColor: cloudColorUniform,
+            uCloudAlpha: cloudAlphaUniform,
+          },
+        });
 
     this.material.toneMapped = false;
 

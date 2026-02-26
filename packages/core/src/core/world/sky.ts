@@ -11,6 +11,8 @@ import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
+import { createSkyMaterial } from "./sky-tsl";
+
 export type SkyShadingCycleData = {
   start: number;
   name: string;
@@ -36,12 +38,14 @@ export type SkyOptions = {
   lerpFactor: number;
 
   transitionSpan: number;
+  useTSL: boolean;
 };
 
 const defaultOptions: SkyOptions = {
   dimension: 2000,
   lerpFactor: 0.1,
   transitionSpan: 0.05,
+  useTSL: false,
 };
 
 /**
@@ -357,21 +361,29 @@ export class Sky extends CanvasBox {
     };
 
     const shadingGeometry = new DodecahedronGeometry(this.options.dimension, 2);
-    const shadingMaterial = new ShaderMaterial({
-      uniforms: {
-        uTopColor: this.uTopColor,
-        uMiddleColor: this.uMiddleColor,
-        uBottomColor: this.uBottomColor,
-        uSkyOffset: this.uSkyOffset,
-        uVoidOffset: this.uVoidOffset,
-        uExponent: { value: 0.6 },
-        uExponent2: { value: 1.2 },
-      },
-      vertexShader: SkyVertexShader,
-      fragmentShader: SkyFragmentShader,
-      depthWrite: false,
-      side: BackSide,
-    });
+    const shadingMaterial = this.options.useTSL
+      ? createSkyMaterial({
+          topColor: this.uTopColor,
+          middleColor: this.uMiddleColor,
+          bottomColor: this.uBottomColor,
+          skyOffset: this.uSkyOffset,
+          voidOffset: this.uVoidOffset,
+        })
+      : new ShaderMaterial({
+          uniforms: {
+            uTopColor: this.uTopColor,
+            uMiddleColor: this.uMiddleColor,
+            uBottomColor: this.uBottomColor,
+            uSkyOffset: this.uSkyOffset,
+            uVoidOffset: this.uVoidOffset,
+            uExponent: { value: 0.6 },
+            uExponent2: { value: 1.2 },
+          },
+          vertexShader: SkyVertexShader,
+          fragmentShader: SkyFragmentShader,
+          depthWrite: false,
+          side: BackSide,
+        });
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
     shadingMesh.renderOrder = -1;
     shadingMesh.frustumCulled = false;

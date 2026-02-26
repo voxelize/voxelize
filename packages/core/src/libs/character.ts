@@ -214,6 +214,11 @@ export type CharacterOptions = {
    * Whether this character should receive shadows. Defaults to `false`.
    */
   receiveShadows?: boolean;
+
+  /**
+   * Whether this character is used in the modern TSL pipeline.
+   */
+  useTSL?: boolean;
 };
 
 export const defaultCharacterOptions: CharacterOptions = {
@@ -222,6 +227,7 @@ export const defaultCharacterOptions: CharacterOptions = {
   positionLerp: 0.7,
   rotationLerp: 0.2,
   idleArmSwing: 0.06,
+  useTSL: false,
 };
 
 export const defaultHeadOptions: HeadOptions = {
@@ -701,41 +707,48 @@ export class Character extends Group {
    */
   private createModel = () => {
     const receiveShadows = this.options.receiveShadows ?? false;
+    const useTSL = this.options.useTSL ?? false;
 
     const head = new CanvasBox({
       ...defaultHeadOptions,
       ...(this.options.head ? this.options.head : {}),
       receiveShadows,
+      useTSL,
     });
 
     const body = new CanvasBox({
       ...defaultBodyOptions,
       ...(this.options.body ? this.options.body : {}),
       receiveShadows,
+      useTSL,
     });
 
     const leftArm = new CanvasBox({
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
+      useTSL,
     });
 
     const rightArm = new CanvasBox({
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
+      useTSL,
     });
 
     const leftLeg = new CanvasBox({
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
+      useTSL,
     });
 
     const rightLeg = new CanvasBox({
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
+      useTSL,
     });
 
     this.headGroup = new Group();
