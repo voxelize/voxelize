@@ -335,10 +335,11 @@ const VOXEL_NEIGHBORS = [
  * if you want to change its map, you also have to change its `uniforms.map`.
  */
 export type CustomChunkShaderMaterial = ShaderMaterial & {
-  /**
-   * The texture that this map runs on.
-   */
   map: Texture;
+};
+
+export type ChunkMaterial = Material & {
+  map: Texture | null;
 };
 
 /**
@@ -1091,7 +1092,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (face.independent) {
         if (ThreeUtils.isTexture(source)) {
           mat.map = source;
-          mat.uniforms.map = { value: source };
+          if (mat instanceof ShaderMaterial) {
+            mat.uniforms.map = { value: source };
+          }
           mat.needsUpdate = true;
         } else if (data instanceof HTMLImageElement) {
           mat.map.image = data;
@@ -1243,7 +1246,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       throw new Error("Unsupported source type for texture.");
     }
 
-    if (isolatedMat.map) {
+    if (isolatedMat.map && isolatedMat instanceof ShaderMaterial) {
       isolatedMat.uniforms.map.value = isolatedMat.map;
     }
     isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
@@ -1390,7 +1393,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           mat.map.dispose();
           mat.map = atlas;
-          mat.uniforms.map = { value: atlas };
+          if (mat instanceof ShaderMaterial) {
+            mat.uniforms.map = { value: atlas };
+          }
           mat.needsUpdate = true;
         } else {
           throw new Error(
@@ -4165,14 +4170,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
-    // Update the clouds' colors based on the sky's colors.
-    const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
-    const cloudColorHSL = cloudColor.getHSL({});
-    cloudColor.setHSL(
-      cloudColorHSL.h,
-      cloudColorHSL.s,
-      ThreeMathUtils.clamp(sunlightIntensity, 0, 1),
-    );
+    if (this.clouds.material instanceof ShaderMaterial) {
+      const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
+      const cloudColorHSL = cloudColor.getHSL({});
+      cloudColor.setHSL(
+        cloudColorHSL.h,
+        cloudColorHSL.s,
+        ThreeMathUtils.clamp(sunlightIntensity, 0, 1),
+      );
+    }
 
     const fogColor = this.chunkRenderer.uniforms.fogColor.value;
     if (fogColor) {
@@ -4405,7 +4411,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         string,
         {
           geometry: BufferGeometry;
-          material: CustomChunkShaderMaterial;
+          material: ChunkMaterial;
           voxel: number;
         }[]
       >();
