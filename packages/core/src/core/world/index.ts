@@ -962,9 +962,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       arrayBuffers.push(...chunkArrayBuffers);
     }
 
+    const { NodeMaterialClass: _, ...serializableOptions } = this.options;
     const data = {
       chunksData,
-      options: this.options,
+      options: serializableOptions,
       min: subChunkMin,
       max: subChunkMax,
     };
