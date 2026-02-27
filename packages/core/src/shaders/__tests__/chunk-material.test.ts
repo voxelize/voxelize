@@ -1,13 +1,15 @@
 import {
   BoxGeometry,
   DataTexture,
+  DoubleSide,
   Int32BufferAttribute,
   Mesh,
   NearestFilter,
 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 
-import { createDefaultChunkMaterial } from "../materials/chunk-material";
+import { buildDefaultChunkNodes } from "../materials/chunk-material";
 
 import { createTestContext, TestContext } from "./setup";
 
@@ -45,7 +47,6 @@ function createTestChunkGeometry(): BoxGeometry {
     const sunlight = Math.min(15, Math.max(0, Math.floor((y + 1) * 7.5))) & 0xf;
     const red = Math.min(15, Math.max(0, Math.floor((x + 2) * 3.75))) & 0xf;
     const green = Math.min(15, Math.max(0, Math.floor((z + 2) * 3.75))) & 0xf;
-    const blue = 0;
     const ao = i % 4 & 0x3;
     const isGreedy = 1;
 
@@ -54,8 +55,7 @@ function createTestChunkGeometry(): BoxGeometry {
       (ao << 16) |
       (sunlight << 12) |
       (red << 8) |
-      (green << 4) |
-      blue;
+      (green << 4);
   }
 
   geometry.setAttribute("light", new Int32BufferAttribute(lightData, 1));
@@ -72,15 +72,16 @@ afterAll(() => {
   ctx?.dispose();
 });
 
-describe("createDefaultChunkMaterial", () => {
-  it("compiles with test chunk geometry and atlas", () => {
+describe("buildDefaultChunkNodes", () => {
+  it("compiles when applied to a MeshBasicNodeMaterial", () => {
     const atlas = createTestAtlas();
     const geometry = createTestChunkGeometry();
 
-    const { material } = createDefaultChunkMaterial({
-      atlas,
-      atlasSize: 16,
-    });
+    const material = new MeshBasicNodeMaterial();
+    material.side = DoubleSide;
+
+    const { colorNode } = buildDefaultChunkNodes({ atlas, atlasSize: 16 });
+    material.colorNode = colorNode;
 
     const mesh = new Mesh(geometry, material);
     ctx.scene.add(mesh);

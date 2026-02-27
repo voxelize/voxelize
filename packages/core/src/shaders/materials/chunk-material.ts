@@ -15,7 +15,6 @@ import {
   normalWorld,
   uv,
 } from "three/tsl";
-import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { greedyUVNode } from "../nodes/greedy-uv-node";
 import { voxelFogNode } from "../nodes/voxel-fog-node";
@@ -45,10 +44,23 @@ interface ChunkMaterialConfig {
   atlasSize: number;
 }
 
-export function createDefaultChunkMaterial(config: ChunkMaterialConfig) {
-  const material = new MeshBasicNodeMaterial();
-  material.side = DoubleSide;
+interface ChunkMaterialSetup {
+  colorNode: NodeRef;
+  uniforms: {
+    sunlightIntensity: ReturnType<typeof uniform>;
+    minLightLevel: ReturnType<typeof uniform>;
+    baseAmbient: ReturnType<typeof uniform>;
+    lightIntensityAdjustment: ReturnType<typeof uniform>;
+    fogNear: ReturnType<typeof uniform>;
+    fogFar: ReturnType<typeof uniform>;
+    fogHeightOrigin: ReturnType<typeof uniform>;
+    fogHeightDensity: ReturnType<typeof uniform>;
+  };
+}
 
+export function buildDefaultChunkNodes(
+  config: ChunkMaterialConfig,
+): ChunkMaterialSetup {
   const uSunlightIntensity = uniform(1.0);
   const uMinLightLevel = uniform(0.1);
   const uBaseAmbient = uniform(0.1);
@@ -112,10 +124,8 @@ export function createDefaultChunkMaterial(config: ChunkMaterialConfig) {
     uFogHeightDensity,
   );
 
-  material.colorNode = foggedColor;
-
   return {
-    material,
+    colorNode: foggedColor,
     uniforms: {
       sunlightIntensity: uSunlightIntensity,
       minLightLevel: uMinLightLevel,
