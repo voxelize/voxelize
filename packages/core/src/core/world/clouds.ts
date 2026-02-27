@@ -7,15 +7,18 @@ import {
   FrontSide,
   Group,
   Int8BufferAttribute,
+  Material,
   Mesh,
   ShaderMaterial,
   Vector3,
 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
 import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
+import { buildCloudNodes } from "../../shaders/materials/cloud-material";
 import { Coords2, Coords3 } from "../../types";
 
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
@@ -220,25 +223,38 @@ export class Clouds extends Group {
       this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
-    this.material = new ShaderMaterial({
-      transparent: true,
-      vertexShader: CloudsVertexShader,
-      fragmentShader: CloudsFragmentShader,
-      side: FrontSide,
-      uniforms: {
-        uFogNear: uFogNear || { value: 500 },
-        uFogFar: uFogFar || { value: 1000 },
-        uFogColor: uFogColor || { value: new Color("#fff") },
-        uCloudColor: {
-          value: new Color(color),
+    if (
+      (options as CloudsOptions & { useNodeMaterials?: boolean })
+        .useNodeMaterials
+    ) {
+      const nodeMat = new MeshBasicNodeMaterial();
+      nodeMat.transparent = true;
+      nodeMat.side = FrontSide;
+      const { colorNode, opacityNode } = buildCloudNodes();
+      nodeMat.colorNode = colorNode;
+      nodeMat.opacityNode = opacityNode;
+      nodeMat.toneMapped = false;
+      this.material = nodeMat as unknown as ShaderMaterial;
+    } else {
+      this.material = new ShaderMaterial({
+        transparent: true,
+        vertexShader: CloudsVertexShader,
+        fragmentShader: CloudsFragmentShader,
+        side: FrontSide,
+        uniforms: {
+          uFogNear: uFogNear || { value: 500 },
+          uFogFar: uFogFar || { value: 1000 },
+          uFogColor: uFogColor || { value: new Color("#fff") },
+          uCloudColor: {
+            value: new Color(color),
+          },
+          uCloudAlpha: {
+            value: alpha,
+          },
         },
-        uCloudAlpha: {
-          value: alpha,
-        },
-      },
-    });
-
-    this.material.toneMapped = false;
+      });
+      this.material.toneMapped = false;
+    }
 
     this.initialize();
   }

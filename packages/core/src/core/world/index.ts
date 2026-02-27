@@ -41,6 +41,7 @@ import {
   WebGLRenderer,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import {
   TRANSPARENT_FLUID_RENDER_ORDER,
@@ -54,6 +55,8 @@ import {
 } from "../../core/transparent-sorter";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
+import { buildDefaultChunkNodes } from "../../shaders/materials/chunk-material";
+import { buildShaderLitChunkNodes } from "../../shaders/materials/shader-lit-chunk-material";
 import { Coords2, Coords3 } from "../../types";
 import {
   BLUE_LIGHT,
@@ -478,6 +481,8 @@ export type WorldClientOptions = {
    * Defaults to `0.5`.
    */
   plantRenderRatio: number;
+
+  useNodeMaterials: boolean;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -507,6 +512,7 @@ const defaultOptions: WorldClientOptions = {
   mergeChunkGeometries: false,
   shaderBasedLighting: false,
   plantRenderRatio: 0.5,
+  useNodeMaterials: false,
 };
 
 /**
@@ -1175,7 +1181,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
-    const isolatedMat = mat || this.makeShaderMaterial();
+    const isolatedMat =
+      mat ||
+      (this.options.useNodeMaterials
+        ? this.makeNodeMaterial()
+        : this.makeShaderMaterial());
 
     // Handle different types of source inputs
     if (typeof source === "string") {
@@ -4658,8 +4668,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
     }
 
-    this.sky = new Sky(skyOptions);
-    this.clouds = new Clouds(cloudsOptions);
+    this.sky = new Sky({
+      ...skyOptions,
+      ...(this.options.useNodeMaterials ? { useNodeMaterials: true } : {}),
+    } as typeof skyOptions);
+    this.clouds = new Clouds({
+      ...cloudsOptions,
+      ...(this.options.useNodeMaterials ? { useNodeMaterials: true } : {}),
+    } as typeof cloudsOptions);
 
     this.add(this.sky, this.clouds);
 
@@ -5991,6 +6007,50 @@ export class World<T = any> extends Scene implements NetIntercept {
     return material;
   };
 
+  private makeNodeMaterial = () => {
+    const material = new MeshBasicNodeMaterial() as MeshBasicNodeMaterial & {
+      map: Texture | null;
+      tslUniforms: Record<string, { value: number | object }>;
+    };
+    material.side = FrontSide;
+
+    const atlas = this.atlas?.canvas
+      ? new CanvasTexture(this.atlas.canvas)
+      : AtlasTexture.makeUnknownTexture(this.options.textureUnitDimension);
+
+    if (atlas instanceof CanvasTexture) {
+      atlas.colorSpace = SRGBColorSpace;
+    }
+
+    const atlasSize = this.atlas?.countPerSide ?? 1;
+
+    if (this.usesShaderLighting) {
+      const shadowMaps: [Texture, Texture, Texture] = [
+        this.csmRenderer?.getShadowMap(0) ?? AtlasTexture.makeUnknownTexture(1),
+        this.csmRenderer?.getShadowMap(1) ?? AtlasTexture.makeUnknownTexture(1),
+        this.csmRenderer?.getShadowMap(2) ?? AtlasTexture.makeUnknownTexture(1),
+      ];
+      const shadowMapSize = 2048;
+
+      const result = buildShaderLitChunkNodes({
+        atlas,
+        atlasSize,
+        shadowMaps,
+        shadowMapSize,
+      });
+      material.colorNode = result.colorNode;
+      material.tslUniforms = result.uniforms;
+    } else {
+      const result = buildDefaultChunkNodes({ atlas, atlasSize });
+      material.colorNode = result.colorNode;
+      material.tslUniforms = result.uniforms;
+    }
+
+    material.map = atlas;
+
+    return material;
+  };
+
   private async loadMaterials() {
     const { textureUnitDimension } = this.options;
 
@@ -6011,6 +6071,19 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightReduce: boolean,
       transparentStandalone: boolean,
     ) => {
+      if (this.options.useNodeMaterials) {
+        const mat = this.makeNodeMaterial();
+        mat.side = transparent ? DoubleSide : FrontSide;
+        mat.transparent = transparent;
+        if (transparent) {
+          mat.depthWrite = !isFluid && transparentStandalone;
+          mat.alphaTest = 0.1;
+        }
+        mat.map = map;
+        mat.userData.skipShadow = isFluid || (transparent && !lightReduce);
+        return mat;
+      }
+
       const mat = this.makeShaderMaterial();
 
       mat.side = transparent ? DoubleSide : FrontSide;

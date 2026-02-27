@@ -6,8 +6,10 @@ import {
   ShaderMaterial,
   Vector3,
 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
+import { buildSkyNodes } from "../../shaders/materials/sky-material";
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
@@ -70,6 +72,8 @@ const defaultOptions: SkyOptions = {
  */
 export class Sky extends CanvasBox {
   public declare options: CanvasBoxOptions & SkyOptions;
+  public _skyTSLUniforms: Record<string, { value: number | object }> | null =
+    null;
 
   /**
    * The top color of the sky gradient. Change this by calling {@link Sky.setTopColor}.
@@ -357,21 +361,39 @@ export class Sky extends CanvasBox {
     };
 
     const shadingGeometry = new DodecahedronGeometry(this.options.dimension, 2);
-    const shadingMaterial = new ShaderMaterial({
-      uniforms: {
-        uTopColor: this.uTopColor,
-        uMiddleColor: this.uMiddleColor,
-        uBottomColor: this.uBottomColor,
-        uSkyOffset: this.uSkyOffset,
-        uVoidOffset: this.uVoidOffset,
-        uExponent: { value: 0.6 },
-        uExponent2: { value: 1.2 },
-      },
-      vertexShader: SkyVertexShader,
-      fragmentShader: SkyFragmentShader,
-      depthWrite: false,
-      side: BackSide,
-    });
+
+    let shadingMaterial;
+    if (
+      (this.options as SkyOptions & { useNodeMaterials?: boolean })
+        .useNodeMaterials
+    ) {
+      const nodeMat = new MeshBasicNodeMaterial();
+      nodeMat.depthWrite = false;
+      nodeMat.side = BackSide;
+      const { colorNode, uniforms: skyUniforms } = buildSkyNodes();
+      nodeMat.colorNode = colorNode;
+      skyUniforms.topColor.value = this.uTopColor.value;
+      skyUniforms.middleColor.value = this.uMiddleColor.value;
+      skyUniforms.bottomColor.value = this.uBottomColor.value;
+      this._skyTSLUniforms = skyUniforms;
+      shadingMaterial = nodeMat;
+    } else {
+      shadingMaterial = new ShaderMaterial({
+        uniforms: {
+          uTopColor: this.uTopColor,
+          uMiddleColor: this.uMiddleColor,
+          uBottomColor: this.uBottomColor,
+          uSkyOffset: this.uSkyOffset,
+          uVoidOffset: this.uVoidOffset,
+          uExponent: { value: 0.6 },
+          uExponent2: { value: 1.2 },
+        },
+        vertexShader: SkyVertexShader,
+        fragmentShader: SkyFragmentShader,
+        depthWrite: false,
+        side: BackSide,
+      });
+    }
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
     shadingMesh.renderOrder = -1;
     shadingMesh.frustumCulled = false;
