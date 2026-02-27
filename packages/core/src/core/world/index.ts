@@ -41,7 +41,6 @@ import {
   WebGLRenderer,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import {
   TRANSPARENT_FLUID_RENDER_ORDER,
@@ -484,6 +483,23 @@ export type WorldClientOptions = {
   plantRenderRatio: number;
 
   useNodeMaterials: boolean;
+
+  NodeMaterialClass:
+    | (new () => Material & {
+        colorNode:
+          | ReturnType<typeof buildDefaultChunkNodes>["colorNode"]
+          | null;
+        opacityNode:
+          | ReturnType<typeof buildDefaultChunkNodes>["colorNode"]
+          | null;
+        map: Texture | null;
+        side: number;
+        transparent: boolean;
+        depthWrite: boolean;
+        alphaTest: number;
+        toneMapped: boolean;
+      })
+    | null;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -514,6 +530,7 @@ const defaultOptions: WorldClientOptions = {
   shaderBasedLighting: false,
   plantRenderRatio: 0.5,
   useNodeMaterials: false,
+  NodeMaterialClass: null,
 };
 
 /**
@@ -4676,11 +4693,21 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.sky = new Sky({
       ...skyOptions,
-      ...(this.options.useNodeMaterials ? { useNodeMaterials: true } : {}),
+      ...(this.options.useNodeMaterials
+        ? {
+            useNodeMaterials: true,
+            NodeMaterialClass: this.options.NodeMaterialClass,
+          }
+        : {}),
     } as typeof skyOptions);
     this.clouds = new Clouds({
       ...cloudsOptions,
-      ...(this.options.useNodeMaterials ? { useNodeMaterials: true } : {}),
+      ...(this.options.useNodeMaterials
+        ? {
+            useNodeMaterials: true,
+            NodeMaterialClass: this.options.NodeMaterialClass,
+          }
+        : {}),
     } as typeof cloudsOptions);
 
     this.add(this.sky, this.clouds);
@@ -6014,8 +6041,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   private makeNodeMaterial = () => {
-    const material = new MeshBasicNodeMaterial() as MeshBasicNodeMaterial & {
-      map: Texture | null;
+    const Cls = this.options.NodeMaterialClass;
+    if (!Cls) {
+      throw new Error(
+        "useNodeMaterials is true but NodeMaterialClass was not provided",
+      );
+    }
+    const material = new Cls() as InstanceType<typeof Cls> & {
       tslUniforms: Record<string, { value: number | object }>;
     };
     material.side = FrontSide;

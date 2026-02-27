@@ -12,7 +12,6 @@ import {
   ShaderMaterial,
   Vector3,
 } from "three";
-import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
@@ -223,11 +222,18 @@ export class Clouds extends Group {
       this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
-    if (
-      (options as CloudsOptions & { useNodeMaterials?: boolean })
-        .useNodeMaterials
-    ) {
-      const nodeMat = new MeshBasicNodeMaterial();
+    const extOpts = options as CloudsOptions & {
+      useNodeMaterials?: boolean;
+      NodeMaterialClass?: new () => Material & {
+        colorNode: unknown;
+        opacityNode: unknown;
+      };
+    };
+    if (extOpts.useNodeMaterials && extOpts.NodeMaterialClass) {
+      const nodeMat = new extOpts.NodeMaterialClass() as Material & {
+        colorNode: unknown;
+        opacityNode: unknown;
+      };
       nodeMat.transparent = true;
       nodeMat.side = FrontSide;
       const { colorNode, opacityNode } = buildCloudNodes();

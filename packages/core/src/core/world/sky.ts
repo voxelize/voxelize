@@ -2,11 +2,11 @@ import {
   BackSide,
   Color,
   DodecahedronGeometry,
+  Material,
   Mesh,
   ShaderMaterial,
   Vector3,
 } from "three";
-import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
 import { buildSkyNodes } from "../../shaders/materials/sky-material";
@@ -363,11 +363,14 @@ export class Sky extends CanvasBox {
     const shadingGeometry = new DodecahedronGeometry(this.options.dimension, 2);
 
     let shadingMaterial;
-    if (
-      (this.options as SkyOptions & { useNodeMaterials?: boolean })
-        .useNodeMaterials
-    ) {
-      const nodeMat = new MeshBasicNodeMaterial();
+    const extOpts = this.options as SkyOptions & {
+      useNodeMaterials?: boolean;
+      NodeMaterialClass?: new () => Material & { colorNode: unknown };
+    };
+    if (extOpts.useNodeMaterials && extOpts.NodeMaterialClass) {
+      const nodeMat = new extOpts.NodeMaterialClass() as Material & {
+        colorNode: unknown;
+      };
       nodeMat.depthWrite = false;
       nodeMat.side = BackSide;
       const { colorNode, uniforms: skyUniforms } = buildSkyNodes();
