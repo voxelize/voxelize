@@ -131,6 +131,8 @@ export class Arm extends THREE.Group {
 
   private heldObjectShadowUniforms: EntityShadowUniforms[] = [];
 
+  public heldLightColor = new THREE.Color(1, 1, 1);
+
   emitSwingEvent: () => void;
 
   constructor(options: Partial<ArmOptions> = {}) {
@@ -364,19 +366,22 @@ export class Arm extends THREE.Group {
     this.heldObjectShadowUniforms = [];
 
     object.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return;
-      const materials = Array.isArray(child.material)
-        ? child.material
-        : [child.material];
+      if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
+      const mesh = child as THREE.Mesh;
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
 
       for (const material of materials) {
-        if (!(material instanceof THREE.MeshBasicMaterial)) continue;
+        if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
 
         const shadowUniforms = createEntityShadowUniforms();
         this.heldObjectShadowUniforms.push(shadowUniforms);
 
+        const lightColorRef = this.heldLightColor;
         material.onBeforeCompile = (shader) => {
           Object.assign(shader.uniforms, shadowUniforms);
+          shader.uniforms.uLightColor = { value: lightColorRef };
 
           shader.vertexShader = shader.vertexShader
             .replace(
@@ -398,13 +403,14 @@ ${ENTITY_SHADOW_VERTEX_MAIN}
               "#include <common>",
               `#include <common>
 ${ENTITY_SHADOW_FRAGMENT_PARS}
+uniform vec3 uLightColor;
 `,
             )
             .replace(
               "#include <dithering_fragment>",
               `#include <dithering_fragment>
 float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
-gl_FragColor.rgb *= shadow;
+gl_FragColor.rgb *= shadow * uLightColor;
 `,
             );
         };
