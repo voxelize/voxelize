@@ -54,6 +54,8 @@ import {
 } from "../../core/transparent-sorter";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
+import { buildDefaultChunkNodes } from "../../shaders/materials/chunk-material";
+import { buildShaderLitChunkNodes } from "../../shaders/materials/shader-lit-chunk-material";
 import { Coords2, Coords3 } from "../../types";
 import {
   BLUE_LIGHT,
@@ -332,10 +334,11 @@ const VOXEL_NEIGHBORS = [
  * if you want to change its map, you also have to change its `uniforms.map`.
  */
 export type CustomChunkShaderMaterial = ShaderMaterial & {
-  /**
-   * The texture that this map runs on.
-   */
   map: Texture;
+};
+
+export type ChunkMaterial = Material & {
+  map: Texture | null;
 };
 
 /**
@@ -478,6 +481,25 @@ export type WorldClientOptions = {
    * Defaults to `0.5`.
    */
   plantRenderRatio: number;
+
+  useNodeMaterials: boolean;
+
+  NodeMaterialClass:
+    | (new () => Material & {
+        colorNode:
+          | ReturnType<typeof buildDefaultChunkNodes>["colorNode"]
+          | null;
+        opacityNode:
+          | ReturnType<typeof buildDefaultChunkNodes>["colorNode"]
+          | null;
+        map: Texture | null;
+        side: number;
+        transparent: boolean;
+        depthWrite: boolean;
+        alphaTest: number;
+        toneMapped: boolean;
+      })
+    | null;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -507,6 +529,8 @@ const defaultOptions: WorldClientOptions = {
   mergeChunkGeometries: false,
   shaderBasedLighting: false,
   plantRenderRatio: 0.5,
+  useNodeMaterials: false,
+  NodeMaterialClass: null,
 };
 
 /**
@@ -1085,7 +1109,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (face.independent) {
         if (ThreeUtils.isTexture(source)) {
           mat.map = source;
-          mat.uniforms.map = { value: source };
+          if (mat instanceof ShaderMaterial) {
+            mat.uniforms.map = { value: source };
+          }
           mat.needsUpdate = true;
         } else if (data instanceof HTMLImageElement) {
           mat.map.image = data;
@@ -1175,7 +1201,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
-    const isolatedMat = mat || this.makeShaderMaterial();
+    const isolatedMat =
+      mat ||
+      (this.options.useNodeMaterials
+        ? this.makeNodeMaterial()
+        : this.makeShaderMaterial());
 
     // Handle different types of source inputs
     if (typeof source === "string") {
@@ -1233,7 +1263,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       throw new Error("Unsupported source type for texture.");
     }
 
-    if (isolatedMat.map) {
+    if (isolatedMat.map && isolatedMat instanceof ShaderMaterial) {
       isolatedMat.uniforms.map.value = isolatedMat.map;
     }
     isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
@@ -1380,7 +1410,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           mat.map.dispose();
           mat.map = atlas;
-          mat.uniforms.map = { value: atlas };
+          if (mat instanceof ShaderMaterial) {
+            mat.uniforms.map = { value: atlas };
+          }
           mat.needsUpdate = true;
         } else {
           throw new Error(
@@ -4155,14 +4187,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
-    // Update the clouds' colors based on the sky's colors.
-    const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
-    const cloudColorHSL = cloudColor.getHSL({});
-    cloudColor.setHSL(
-      cloudColorHSL.h,
-      cloudColorHSL.s,
-      ThreeMathUtils.clamp(sunlightIntensity, 0, 1),
-    );
+    if (this.clouds.material instanceof ShaderMaterial) {
+      const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
+      const cloudColorHSL = cloudColor.getHSL({});
+      cloudColor.setHSL(
+        cloudColorHSL.h,
+        cloudColorHSL.s,
+        ThreeMathUtils.clamp(sunlightIntensity, 0, 1),
+      );
+    }
 
     const fogColor = this.chunkRenderer.uniforms.fogColor.value;
     if (fogColor) {
@@ -4395,7 +4428,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         string,
         {
           geometry: BufferGeometry;
-          material: CustomChunkShaderMaterial;
+          material: ChunkMaterial;
           voxel: number;
         }[]
       >();
@@ -4658,8 +4691,24 @@ export class World<T = any> extends Scene implements NetIntercept {
       cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
     }
 
-    this.sky = new Sky(skyOptions);
-    this.clouds = new Clouds(cloudsOptions);
+    this.sky = new Sky({
+      ...skyOptions,
+      ...(this.options.useNodeMaterials
+        ? {
+            useNodeMaterials: true,
+            NodeMaterialClass: this.options.NodeMaterialClass,
+          }
+        : {}),
+    } as typeof skyOptions);
+    this.clouds = new Clouds({
+      ...cloudsOptions,
+      ...(this.options.useNodeMaterials
+        ? {
+            useNodeMaterials: true,
+            NodeMaterialClass: this.options.NodeMaterialClass,
+          }
+        : {}),
+    } as typeof cloudsOptions);
 
     this.add(this.sky, this.clouds);
 
@@ -5991,6 +6040,55 @@ export class World<T = any> extends Scene implements NetIntercept {
     return material;
   };
 
+  private makeNodeMaterial = () => {
+    const Cls = this.options.NodeMaterialClass;
+    if (!Cls) {
+      throw new Error(
+        "useNodeMaterials is true but NodeMaterialClass was not provided",
+      );
+    }
+    const material = new Cls() as InstanceType<typeof Cls> & {
+      tslUniforms: Record<string, { value: number | object }>;
+    };
+    material.side = FrontSide;
+
+    const atlas = this.atlas?.canvas
+      ? new CanvasTexture(this.atlas.canvas)
+      : AtlasTexture.makeUnknownTexture(this.options.textureUnitDimension);
+
+    if (atlas instanceof CanvasTexture) {
+      atlas.colorSpace = SRGBColorSpace;
+    }
+
+    const atlasSize = this.atlas?.countPerSide ?? 1;
+
+    if (this.usesShaderLighting) {
+      const shadowMaps: [Texture, Texture, Texture] = [
+        this.csmRenderer?.getShadowMap(0) ?? AtlasTexture.makeUnknownTexture(1),
+        this.csmRenderer?.getShadowMap(1) ?? AtlasTexture.makeUnknownTexture(1),
+        this.csmRenderer?.getShadowMap(2) ?? AtlasTexture.makeUnknownTexture(1),
+      ];
+      const shadowMapSize = 2048;
+
+      const result = buildShaderLitChunkNodes({
+        atlas,
+        atlasSize,
+        shadowMaps,
+        shadowMapSize,
+      });
+      material.colorNode = result.colorNode;
+      material.tslUniforms = result.uniforms;
+    } else {
+      const result = buildDefaultChunkNodes({ atlas, atlasSize });
+      material.colorNode = result.colorNode;
+      material.tslUniforms = result.uniforms;
+    }
+
+    material.map = atlas;
+
+    return material;
+  };
+
   private async loadMaterials() {
     const { textureUnitDimension } = this.options;
 
@@ -6011,6 +6109,19 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightReduce: boolean,
       transparentStandalone: boolean,
     ) => {
+      if (this.options.useNodeMaterials) {
+        const mat = this.makeNodeMaterial();
+        mat.side = transparent ? DoubleSide : FrontSide;
+        mat.transparent = transparent;
+        if (transparent) {
+          mat.depthWrite = !isFluid && transparentStandalone;
+          mat.alphaTest = 0.1;
+        }
+        mat.map = map;
+        mat.userData.skipShadow = isFluid || (transparent && !lightReduce);
+        return mat;
+      }
+
       const mat = this.makeShaderMaterial();
 
       mat.side = transparent ? DoubleSide : FrontSide;

@@ -15,6 +15,8 @@
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "test-dev": "vitest",
     "test": "vitest --run",
+    "test:tsl": "cd packages/core && pnpm test:tsl",
+    "test:tsl:dev": "cd packages/core && pnpm test:tsl:dev",
     "test:rust": "cargo test --test mesher_tests --test lights_tests",
     "test:rust:all": "cargo test --lib --tests",
     "bench": "cargo bench --bench mesher_bench --bench lights_bench",

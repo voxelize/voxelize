@@ -8,7 +8,7 @@ import {
   Vector4,
 } from "three";
 
-import { CustomChunkShaderMaterial } from ".";
+import type { ChunkMaterial } from ".";
 
 export interface ShaderLightingUniforms {
   sunDirection: { value: Vector3 };
@@ -38,7 +38,7 @@ export interface ShaderLightingUniforms {
 }
 
 export class ChunkRenderer {
-  public materials: Map<string, CustomChunkShaderMaterial> = new Map();
+  public materials: Map<string, ChunkMaterial> = new Map();
 
   public uniforms: {
     fogColor: { value: Color };
