@@ -463,6 +463,58 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     }
 }
 
+fn self_ao_probe(local_pos: [f32; 3], ox: f32, oy: f32, oz: f32, aabbs: &[AABB]) -> bool {
+    let eps: f32 = 0.05;
+    let margin: f32 = 0.001;
+    let px = local_pos[0] + ox * eps;
+    let py = local_pos[1] + oy * eps;
+    let pz = local_pos[2] + oz * eps;
+    aabbs.iter().any(|aabb| {
+        px >= aabb.min_x - margin
+            && px <= aabb.max_x + margin
+            && py >= aabb.min_y - margin
+            && py <= aabb.max_y + margin
+            && pz >= aabb.min_z - margin
+            && pz <= aabb.max_z + margin
+    })
+}
+
+fn compute_self_ao(
+    local_pos: [f32; 3],
+    face_dir: [i32; 3],
+    face_bbox_min: [f32; 3],
+    aabbs: &[AABB],
+) -> (bool, bool, bool, bool) {
+    let ldx = if face_dir[0] != 0 {
+        face_dir[0]
+    } else if local_pos[0] <= face_bbox_min[0] + 0.01 {
+        -1
+    } else {
+        1
+    };
+    let ldy = if face_dir[1] != 0 {
+        face_dir[1]
+    } else if local_pos[1] <= face_bbox_min[1] + 0.01 {
+        -1
+    } else {
+        1
+    };
+    let ldz = if face_dir[2] != 0 {
+        face_dir[2]
+    } else if local_pos[2] <= face_bbox_min[2] + 0.01 {
+        -1
+    } else {
+        1
+    };
+
+    let s011 = self_ao_probe(local_pos, 0.0, ldy as f32, ldz as f32, aabbs);
+    let s101 = self_ao_probe(local_pos, ldx as f32, 0.0, ldz as f32, aabbs);
+    let s110 = self_ao_probe(local_pos, ldx as f32, ldy as f32, 0.0, aabbs);
+    let s111 = self_ao_probe(local_pos, ldx as f32, ldy as f32, ldz as f32, aabbs);
+
+    (s011, s101, s110, s111)
+}
+
 fn get_fluid_effective_height(stage: u32) -> f32 {
     (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
 }
@@ -1588,6 +1640,18 @@ fn process_face<S: VoxelAccess>(
 
     let block_aabb = AABB::union_all(&block.aabbs);
 
+    let has_multi_aabb = block.aabbs.len() > 1;
+    let mut face_bbox_min = [f32::MAX; 3];
+    let mut face_bbox_max = [f32::MIN; 3];
+    if has_multi_aabb {
+        for c in face.corners.iter() {
+            for a in 0..3 {
+                face_bbox_min[a] = face_bbox_min[a].min(c.pos[a]);
+                face_bbox_max[a] = face_bbox_max[a].max(c.pos[a]);
+            }
+        }
+    }
+
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
     let (hash_ox, hash_oz) = if has_diagonals {
@@ -1642,20 +1706,49 @@ fn process_face<S: VoxelAccess>(
             1
         };
 
-        let get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
+        let get_block_occluder = |ox: i32, oy: i32, oz: i32| -> bool {
             let id = neighbors.get_voxel(ox, oy, oz);
             registry
                 .get_block_by_id(id)
-                .map(|b| b.is_opaque)
+                .map(|b| {
+                    if has_multi_aabb {
+                        b.is_opaque || (!b.is_empty && !b.is_see_through && !b.is_fluid)
+                    } else {
+                        b.is_opaque
+                    }
+                })
                 .unwrap_or(false)
         };
 
-        let b011 = !get_block_opaque(0, dy, dz);
-        let b101 = !get_block_opaque(dx, 0, dz);
-        let b110 = !get_block_opaque(dx, dy, 0);
-        let b111 = !get_block_opaque(dx, dy, dz);
+        let mut b011 = !get_block_occluder(0, dy, dz);
+        let mut b101 = !get_block_occluder(dx, 0, dz);
+        let mut b110 = !get_block_occluder(dx, dy, 0);
+        let mut b111 = !get_block_occluder(dx, dy, dz);
 
-        let ao = if is_see_through || is_all_transparent {
+        let mut has_self_occlusion = false;
+        if has_multi_aabb && !is_see_through {
+            let (s011, s101, s110, s111) =
+                compute_self_ao(corner.pos, face.dir, face_bbox_min, &block.aabbs);
+            if s011 {
+                b011 = false;
+                has_self_occlusion = true;
+            }
+            if s101 {
+                b101 = false;
+                has_self_occlusion = true;
+            }
+            if s110 {
+                b110 = false;
+                has_self_occlusion = true;
+            }
+            if s111 {
+                b111 = false;
+                has_self_occlusion = true;
+            }
+        }
+
+        let has_any_occlusion = !b011 || !b101 || !b110 || !b111;
+        let ao = if (is_see_through || is_all_transparent) && !has_any_occlusion {
             3
         } else if dir[0].abs() == 1 {
             vertex_ao(b110, b101, b111)
@@ -2403,4 +2496,155 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
     };
 
     MeshOutput { geometries }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stairs_aabbs() -> Vec<AABB> {
+        vec![
+            AABB {
+                min_x: 0.0,
+                min_y: 0.0,
+                min_z: 0.0,
+                max_x: 1.0,
+                max_y: 0.5,
+                max_z: 1.0,
+            },
+            AABB {
+                min_x: 0.0,
+                min_y: 0.5,
+                min_z: 0.0,
+                max_x: 1.0,
+                max_y: 1.0,
+                max_z: 0.5,
+            },
+        ]
+    }
+
+    #[test]
+    fn self_ao_stair_step_edge_vertex_gets_occlusion() {
+        let aabbs = stairs_aabbs();
+        let face_dir = [0, 1, 0];
+        let face_bbox_min = [0.0, 0.5, 0.5];
+
+        let step_edge = [0.0_f32, 0.5, 0.5];
+        let (s011, s101, s110, s111) = compute_self_ao(step_edge, face_dir, face_bbox_min, &aabbs);
+
+        assert!(
+            s011 || s101 || s110 || s111,
+            "step-edge vertex at {step_edge:?} must have at least one self-occluded direction, \
+             got s011={s011} s101={s101} s110={s110} s111={s111}",
+        );
+    }
+
+    #[test]
+    fn self_ao_stair_far_corner_no_occlusion() {
+        let aabbs = stairs_aabbs();
+        let face_dir = [0, 1, 0];
+        let face_bbox_min = [0.0, 0.5, 0.5];
+
+        let far_corner = [0.0_f32, 0.5, 1.0];
+        let (s011, s101, s110, s111) = compute_self_ao(far_corner, face_dir, face_bbox_min, &aabbs);
+
+        assert!(
+            !s011 && !s101 && !s110 && !s111,
+            "far corner at {far_corner:?} should have no self-occlusion, \
+             got s011={s011} s101={s101} s110={s110} s111={s111}",
+        );
+    }
+
+    #[test]
+    fn self_ao_stair_step_face_bottom_gets_occlusion() {
+        let aabbs = stairs_aabbs();
+        let face_dir = [0, 0, 1];
+        let face_bbox_min = [0.0, 0.5, 0.5];
+
+        let bottom_of_step = [0.5_f32, 0.5, 0.5];
+        let (s011, s101, s110, s111) =
+            compute_self_ao(bottom_of_step, face_dir, face_bbox_min, &aabbs);
+
+        assert!(
+            s011 || s101 || s110 || s111,
+            "bottom of step face at {bottom_of_step:?} must have self-occlusion, \
+             got s011={s011} s101={s101} s110={s110} s111={s111}",
+        );
+    }
+
+    #[test]
+    fn self_ao_stair_step_face_top_no_occlusion() {
+        let aabbs = stairs_aabbs();
+        let face_dir = [0, 0, 1];
+        let face_bbox_min = [0.0, 0.5, 0.5];
+
+        let top_of_step = [0.5_f32, 1.0, 0.5];
+        let (s011, s101, s110, s111) =
+            compute_self_ao(top_of_step, face_dir, face_bbox_min, &aabbs);
+
+        assert!(
+            !s011 && !s101 && !s110 && !s111,
+            "top of step face at {top_of_step:?} should have no self-occlusion, \
+             got s011={s011} s101={s101} s110={s110} s111={s111}",
+        );
+    }
+
+    #[test]
+    fn self_ao_produces_correct_vertex_ao_values() {
+        let aabbs = stairs_aabbs();
+        let face_dir = [0, 1, 0];
+        let face_bbox_min = [0.0, 0.5, 0.5];
+
+        let step_edge = [0.5_f32, 0.5, 0.5];
+        let (s011, _, s110, s111) = compute_self_ao(step_edge, face_dir, face_bbox_min, &aabbs);
+
+        let b011 = !s011;
+        let b110 = !s110;
+        let b111 = !s111;
+        let ao = vertex_ao(b110, b011, b111);
+
+        assert!(
+            ao < 3,
+            "step-edge vertex should have ao < 3, got ao={ao}. \
+             s011={s011} s110={s110} s111={s111}",
+        );
+
+        let far_corner = [0.5_f32, 0.5, 1.0];
+        let (s011f, _, s110f, s111f) = compute_self_ao(far_corner, face_dir, face_bbox_min, &aabbs);
+
+        let b011f = !s011f;
+        let b110f = !s110f;
+        let b111f = !s111f;
+        let ao_far = vertex_ao(b110f, b011f, b111f);
+
+        assert_eq!(ao_far, 3, "far corner should have ao=3, got ao={ao_far}");
+    }
+
+    #[test]
+    fn self_ao_single_aabb_no_occlusion() {
+        let aabbs = vec![AABB {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 0.5,
+            max_z: 1.0,
+        }];
+
+        let face_dir = [0, 1, 0];
+        let face_bbox_min = [0.0, 0.5, 0.0];
+
+        for pos in [
+            [0.0_f32, 0.5, 0.0],
+            [1.0, 0.5, 0.0],
+            [0.0, 0.5, 1.0],
+            [1.0, 0.5, 1.0],
+        ] {
+            let (s011, s101, s110, s111) = compute_self_ao(pos, face_dir, face_bbox_min, &aabbs);
+            assert!(
+                !s011 && !s101 && !s110 && !s111,
+                "single-AABB slab vertex at {pos:?} should have no self-occlusion",
+            );
+        }
+    }
 }
