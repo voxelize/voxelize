@@ -821,6 +821,36 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.object.lookAt(vec);
   };
 
+  setDirection = (dx: number, dy: number, dz: number) => {
+    const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (len === 0) return;
+    dx /= len;
+    dy /= len;
+    dz /= len;
+
+    const pitch = Math.asin(Math.max(-1, Math.min(1, dy)));
+    const yaw = Math.atan2(-dx, -dz);
+
+    this.euler.set(pitch, yaw, 0, "YXZ");
+    this.quaternion.setFromEuler(this.euler);
+    this.object.quaternion.copy(this.quaternion);
+  };
+
+  teleportToExact = (x: number, y: number, z: number) => {
+    this.newPosition.set(x, y, z);
+    this.object.position.set(x, y, z);
+
+    if (this.body) {
+      const { eyeHeight } = this.options;
+      const bodyY = y - this._smoothedBodyHeight * (eyeHeight - 0.5);
+      this.body.resting = [0, 0, 0];
+      this.body.velocity = [0, 0, 0];
+      this.body.forces = [0, 0, 0];
+      this.body.impulses = [0, 0, 0];
+      this.body.setPosition([x, bodyY, z]);
+    }
+  };
+
   /**
    * Reset all of the control's movements.
    */

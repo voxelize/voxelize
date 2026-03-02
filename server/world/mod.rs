@@ -187,6 +187,9 @@ pub struct World {
     /// The modifier of any new client.
     client_modifier: Option<Arc<dyn Fn(&mut World, Entity) + Send + Sync>>,
 
+    /// Called before a client entity is removed from the world.
+    client_leave_modifier: Option<Arc<dyn Fn(&mut World, Entity) + Send + Sync>>,
+
     /// The metadata parser for clients.
     client_parser: Arc<dyn Fn(&mut World, &str, Entity) + Send + Sync>,
 
@@ -579,6 +582,7 @@ impl World {
             entity_loaders: HashMap::default(),
             client_parser: Arc::new(default_client_parser),
             client_modifier: None,
+            client_leave_modifier: None,
             transport_handle: None,
             command_handle: None,
             extra_init_data: HashMap::default(),
@@ -810,7 +814,7 @@ impl World {
 
     /// Add a transport sender to this world.
     pub(crate) fn add_transport(&mut self, id: &str, sender: &WsSender) {
-        let (init_message, _) = self.generate_init_message(id);
+        let (init_message, _) = self.generate_init_message(id, None, None);
         self.send(sender, &init_message);
         self.write_resource::<Transports>()
             .insert(id.to_owned(), sender.clone());
@@ -823,8 +827,6 @@ impl World {
 
     /// Add a client to the world by an ID and a WebSocket sender.
     pub(crate) fn add_client(&mut self, id: &str, username: &str, sender: &WsSender) {
-        let (init_message, init_entity_ids) = self.generate_init_message(id);
-
         let body =
             RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
 
@@ -850,6 +852,21 @@ impl World {
         if let Some(modifier) = self.client_modifier.to_owned() {
             modifier(self, ent);
         }
+
+        let saved_position = self
+            .read_component::<PositionComp>()
+            .get(ent)
+            .map(|p| [p.0 .0, p.0 .1, p.0 .2])
+            .filter(|p| p[0] != 0.0 || p[1] != 0.0 || p[2] != 0.0);
+
+        let saved_direction = self
+            .read_component::<DirectionComp>()
+            .get(ent)
+            .map(|d| [d.0 .0, d.0 .1, d.0 .2])
+            .filter(|d| d[0] != 0.0 || d[1] != 0.0 || d[2] != 0.0);
+
+        let (init_message, init_entity_ids) =
+            self.generate_init_message(id, saved_position, saved_direction);
 
         self.clients_mut().insert(
             id.to_owned(),
@@ -890,11 +907,13 @@ impl World {
         self.bookkeeping_mut().remove_client(id);
 
         if let Some(client) = removed {
-            // Use a flag to track if we need to delete the entity
+            if let Some(handler) = self.client_leave_modifier.to_owned() {
+                handler(self, client.entity);
+            }
+
             let mut should_delete_entity = true;
 
             {
-                // Remove rapier physics body.
                 let interactors = self.ecs.read_storage::<InteractorComp>();
 
                 // Safely get the interactor component, with error handling
@@ -973,6 +992,13 @@ impl World {
         modifier: F,
     ) {
         self.client_modifier = Some(Arc::new(modifier));
+    }
+
+    pub fn set_client_leave_modifier<F: Fn(&mut World, Entity) + Send + Sync + 'static>(
+        &mut self,
+        modifier: F,
+    ) {
+        self.client_leave_modifier = Some(Arc::new(modifier));
     }
 
     pub fn set_client_parser<F: Fn(&mut World, &str, Entity) + Send + Sync + 'static>(
@@ -1839,7 +1865,12 @@ impl World {
         }
     }
 
-    fn generate_init_message(&self, id: &str) -> (Message, Vec<String>) {
+    fn generate_init_message(
+        &self,
+        id: &str,
+        saved_position: Option<[f32; 3]>,
+        saved_direction: Option<[f32; 3]>,
+    ) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
         let mut json = HashMap::new();
 
@@ -1850,6 +1881,13 @@ impl World {
             "stats".to_owned(),
             json!(self.read_resource::<Stats>().get_stats()),
         );
+
+        if let Some(pos) = saved_position {
+            json.insert("savedPosition".to_owned(), json!(pos));
+        }
+        if let Some(dir) = saved_direction {
+            json.insert("savedDirection".to_owned(), json!(dir));
+        }
 
         if let Some(items) = &self.items {
             json.insert("items".to_owned(), items.to_client_json());
