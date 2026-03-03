@@ -307,13 +307,17 @@ export class LightShined {
 
     const shadowFactor = this.computeShadowFactor(pos);
 
-    const avgNdotL = 0.5;
-    const sunContrib = sunlightIntensity.value * avgNdotL * shadowFactor;
-
-    const torchLight = this.getTorchLightAtPosition(pos);
-
     const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
     const lightValues = this.world.getLightValuesAt(...voxel);
+
+    const sunExposure = lightValues ? lightValues.sunlight / maxLightLevel : 0;
+    const tunnelDarkening = sunExposure * sunExposure;
+
+    const avgNdotL = 0.5;
+    const sunContrib =
+      sunlightIntensity.value * avgNdotL * shadowFactor * sunExposure;
+
+    const torchLight = this.getTorchLightAtPosition(pos);
 
     let cpuTorchR = 0,
       cpuTorchG = 0,
@@ -324,19 +328,30 @@ export class LightShined {
       cpuTorchB = (lightValues.blue / maxLightLevel) ** 2;
     }
 
-    const sunBasedLight = ambientColor.value.r + sunColor.value.r * sunContrib;
+    const globalAmbientR = 0.04;
+    const globalAmbientG = 0.045;
+    const globalAmbientB = 0.06;
+
+    const skyAmbientR = ambientColor.value.r * tunnelDarkening;
+    const skyAmbientG = ambientColor.value.g * tunnelDarkening;
+    const skyAmbientB = ambientColor.value.b * tunnelDarkening;
+
+    const sunBasedLight = skyAmbientR + sunColor.value.r * sunContrib;
     const torchAttenuation = 1.0 - Math.min(sunBasedLight, 1.0) * 0.8;
 
     const totalR =
-      ambientColor.value.r +
+      globalAmbientR +
+      skyAmbientR +
       sunColor.value.r * sunContrib +
       (torchLight.r + cpuTorchR) * torchAttenuation;
     const totalG =
-      ambientColor.value.g +
+      globalAmbientG +
+      skyAmbientG +
       sunColor.value.g * sunContrib +
       (torchLight.g + cpuTorchG) * torchAttenuation;
     const totalB =
-      ambientColor.value.b +
+      globalAmbientB +
+      skyAmbientB +
       sunColor.value.b * sunContrib +
       (torchLight.b + cpuTorchB) * torchAttenuation;
 

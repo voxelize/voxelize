@@ -325,8 +325,6 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
-    this.injectShadowShaders(object);
-
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -375,6 +373,8 @@ export class Arm extends THREE.Group {
       for (const material of materials) {
         if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
 
+        material.userData.lightEffectSetup = true;
+
         const shadowUniforms = createEntityShadowUniforms();
         this.heldObjectShadowUniforms.push(shadowUniforms);
 
@@ -409,8 +409,7 @@ uniform vec3 uLightColor;
             .replace(
               "#include <dithering_fragment>",
               `#include <dithering_fragment>
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
-gl_FragColor.rgb *= shadow * uLightColor;
+gl_FragColor.rgb *= uLightColor;
 `,
             );
         };
