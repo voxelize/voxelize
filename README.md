@@ -25,6 +25,8 @@
 ![](/assets/Screen%20Shot%202022-07-31%20at%2011.58.11%20PM.png)
 ![](</assets/Screen%20Shot%202022-07-22%20at%208.01.48%20PM%20(2).png>)
 
+Hello, World!
+
 ## Disclaimer
 
 This is purely a passionate project. The v0 of this engine, [mc.js](https://github.com/shaoruu/mc.js), was <i>brutally</i> taken down by Microsoft by a DMCA strike with some false claims (claimed that I was collecting actual MC user information even though mc.js wasn't deployed anywhere), so although inspired, I have to clarify that this voxel engine is NOT affiliated with Minecraft, nor does it have any intention collecting existing Minecraft user information (or from any licensed voxel engines). This engine is simply made out of passion, and the textures and assets used in the game are all either licensed for free use or hand-drawn by me. I am a big fan of Minecraft, so Mojang/Microsoft, if you see this, let's work together instead of taking me down :) (Minecraft web demo?)
