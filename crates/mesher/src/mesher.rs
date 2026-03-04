@@ -1725,30 +1725,24 @@ fn process_face<S: VoxelAccess>(
         let mut b110 = !get_block_occluder(dx, dy, 0);
         let mut b111 = !get_block_occluder(dx, dy, dz);
 
-        let mut has_self_occlusion = false;
         if has_multi_aabb && !is_see_through {
             let (s011, s101, s110, s111) =
                 compute_self_ao(corner.pos, face.dir, face_bbox_min, &block.aabbs);
             if s011 {
                 b011 = false;
-                has_self_occlusion = true;
             }
             if s101 {
                 b101 = false;
-                has_self_occlusion = true;
             }
             if s110 {
                 b110 = false;
-                has_self_occlusion = true;
             }
             if s111 {
                 b111 = false;
-                has_self_occlusion = true;
             }
         }
 
-        let has_any_occlusion = !b011 || !b101 || !b110 || !b111;
-        let ao = if (is_see_through || is_all_transparent) && !has_any_occlusion {
+        let ao = if is_see_through {
             3
         } else if dir[0].abs() == 1 {
             vertex_ao(b110, b101, b111)
