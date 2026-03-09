@@ -70,6 +70,7 @@ export type ArmOptions = {
   armTexture?: THREE.Texture;
   customObjectOptions?: Record<string, ArmObjectOptions>;
   receiveShadows?: boolean;
+  receiveHeldObjectShadows?: boolean;
   minOccluderDepth?: number;
 };
 
@@ -174,7 +175,7 @@ export class Arm extends THREE.Group {
       );
     }
 
-    if (this.options.receiveShadows) {
+    if (this.shouldReceiveArmShadows()) {
       this.userData.receiveShadows = true;
     }
 
@@ -185,25 +186,31 @@ export class Arm extends THREE.Group {
     lightingUniforms: ShaderLightingUniforms,
     playerWorldPosition?: THREE.Vector3,
   ): void {
-    if (!this.options.receiveShadows) return;
+    const receiveArmShadows = this.shouldReceiveArmShadows();
+    const receiveHeldObjectShadows = this.shouldReceiveHeldObjectShadows();
+    if (!receiveArmShadows && !receiveHeldObjectShadows) return;
 
     const minDepth = this.options.minOccluderDepth ?? 0.0;
 
-    this.traverse((child) => {
-      if (child instanceof CanvasBox && child.shadowUniforms) {
-        updateEntityShadowUniforms(child.shadowUniforms, lightingUniforms);
-        child.shadowUniforms.uMinOccluderDepth.value = minDepth;
-        if (playerWorldPosition) {
-          child.shadowUniforms.uWorldOffset.value.copy(playerWorldPosition);
+    if (receiveArmShadows) {
+      this.traverse((child) => {
+        if (child instanceof CanvasBox && child.shadowUniforms) {
+          updateEntityShadowUniforms(child.shadowUniforms, lightingUniforms);
+          child.shadowUniforms.uMinOccluderDepth.value = minDepth;
+          if (playerWorldPosition) {
+            child.shadowUniforms.uWorldOffset.value.copy(playerWorldPosition);
+          }
         }
-      }
-    });
+      });
+    }
 
-    for (const uniforms of this.heldObjectShadowUniforms) {
-      updateEntityShadowUniforms(uniforms, lightingUniforms);
-      uniforms.uMinOccluderDepth.value = minDepth;
-      if (playerWorldPosition) {
-        uniforms.uWorldOffset.value.copy(playerWorldPosition);
+    if (receiveHeldObjectShadows) {
+      for (const uniforms of this.heldObjectShadowUniforms) {
+        updateEntityShadowUniforms(uniforms, lightingUniforms);
+        uniforms.uMinOccluderDepth.value = minDepth;
+        if (playerWorldPosition) {
+          uniforms.uWorldOffset.value.copy(playerWorldPosition);
+        }
       }
     }
   }
@@ -282,7 +289,7 @@ export class Arm extends THREE.Group {
       width: 0.5,
       height: 1,
       depth: 0.3,
-      receiveShadows: this.options.receiveShadows,
+      receiveShadows: this.shouldReceiveArmShadows(),
     });
 
     if (this.options.armTexture) {
@@ -359,9 +366,8 @@ export class Arm extends THREE.Group {
   };
 
   private injectShadowShaders(object: THREE.Object3D): void {
-    if (!this.options.receiveShadows) return;
-
     this.heldObjectShadowUniforms = [];
+    if (!this.shouldReceiveHeldObjectShadows()) return;
 
     object.traverse((child) => {
       if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
@@ -418,6 +424,16 @@ gl_FragColor.rgb *= uLightColor;
         material.needsUpdate = true;
       }
     });
+  }
+
+  private shouldReceiveArmShadows(): boolean {
+    return this.options.receiveShadows === true;
+  }
+
+  private shouldReceiveHeldObjectShadows(): boolean {
+    return (
+      this.options.receiveHeldObjectShadows ?? this.shouldReceiveArmShadows()
+    );
   }
 
   /**
