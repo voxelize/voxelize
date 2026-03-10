@@ -9,7 +9,7 @@ type EntityId = u32;
 
 #[derive(Debug)]
 struct EntityTree {
-    tree: KiddoTree<f32, EntityId, 3, 32, u16>,
+    tree: KiddoTree<f32, EntityId, 3, 256, u16>,
     positions: HashMap<EntityId, [f32; 3]>,
 }
 
