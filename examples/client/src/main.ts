@@ -603,10 +603,6 @@ debug.registerDisplay("# of points", () => {
   return renderer.info.render.points;
 });
 
-debug.registerDisplay("Concurrent WebWorkers", () => {
-  return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
-});
-
 // packet queue length defined after network is initialized
 
 const gui = new GUI();
