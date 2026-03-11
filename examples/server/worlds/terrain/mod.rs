@@ -1,5 +1,3 @@
-pub mod biomes;
-
 use noise::{Curve, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, ScaleBias};
 use serde::{Deserialize, Serialize};
 use std::f64;
