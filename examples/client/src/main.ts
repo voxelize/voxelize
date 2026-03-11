@@ -646,7 +646,8 @@ const currentWorldName =
 
 if (
   BACKEND_SERVER_INSTANCE.hostname === "localhost" &&
-  BACKEND_SERVER_INSTANCE.port === "3000"
+  (BACKEND_SERVER_INSTANCE.port === "3000" ||
+    BACKEND_SERVER_INSTANCE.port === "3030")
 ) {
   BACKEND_SERVER_INSTANCE.port = "4000";
 }

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "demo": "vite --clearScreen false --port 3000",
+    "demo": "vite --clearScreen false --port 3030",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
