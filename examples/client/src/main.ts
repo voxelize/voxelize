@@ -648,7 +648,10 @@ const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
 const currentWorldName =
   localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
 
-if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
+if (
+  BACKEND_SERVER_INSTANCE.hostname === "localhost" &&
+  BACKEND_SERVER_INSTANCE.port === "3000"
+) {
   BACKEND_SERVER_INSTANCE.port = "4000";
 }
 

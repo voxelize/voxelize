@@ -8,6 +8,17 @@ export default {
   optimizeDeps: {
     force: true,
   },
+  server: {
+    proxy: {
+      "/ws/": {
+        target: "http://localhost:4000",
+        ws: true,
+      },
+      "/info": {
+        target: "http://localhost:4000",
+      },
+    },
+  },
   plugins: [
     glsl(),
     replaceCodePlugin({
