@@ -29,12 +29,6 @@ See `package.json` scripts at the repo root. Key commands:
 - `pnpm run test:rust` -- `cargo test --test mesher_tests --test lights_tests`
 - `cargo check --lib` -- check Rust library compiles
 
-### Pre-existing issues (as of 2026-03)
-
-1. **Rust demo example does not compile** (`cargo check --example demo`). The example at `examples/server/main.rs` references APIs that have been refactored in the library (e.g., `AABB::from_faces` removed, `BlockConditionalPart` has new required fields, `kdtree` crate removed). This means `pnpm run demo:rs` and `pnpm run demo` will fail.
-2. **Rust mesher tests do not compile** (`cargo test --test mesher_tests`). Same API drift issue. The lights tests do pass: `cargo test --test lights_tests`.
-3. **Frontend `postprocessing`/`three` version mismatch** in `examples/client`. The `postprocessing` v6.37.1 package imports `LuminanceFormat` which was removed in Three.js v0.183.0. This causes Vite module resolution failures at runtime, making the demo client page blank.
-
 ### Gotchas
 
 - The `pnpm-workspace.yaml` includes `onlyBuiltDependencies` to avoid interactive `pnpm approve-builds` prompts.

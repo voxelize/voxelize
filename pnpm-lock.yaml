@@ -195,8 +195,8 @@ importers:
         specifier: ^1.11.3
         version: 1.11.3
       postprocessing:
-        specifier: ^6.37.1
-        version: 6.37.1(three@0.183.2)
+        specifier: ^6.38.3
+        version: 6.38.3(three@0.183.2)
       three:
         specifier: ^0.183.0
         version: 0.183.2
@@ -7996,6 +7996,11 @@ packages:
     resolution: {integrity: sha512-fZszlSB8j+PaxtS8g4qMxdj+ifzvoCPnbHSOjclTlr4mbhd6/huQqOViM6lhhPIrW2fiZc+IRcnReoKYvyMwNg==}
     peerDependencies:
       three: '>= 0.157.0 < 0.175.0'
+
+  postprocessing@6.38.3:
+    resolution: {integrity: sha512-5qCFp8j62nWL6sSVv/RKuHscQUIV+VMMgWeHLYZQEBpAk7G+r3jA3bSKON7gZjiuxdZ/F4PXj2Jc1oPh/7Eg+g==}
+    peerDependencies:
+      three: '>= 0.157.0 < 0.184.0'
 
   prelude-ls@1.1.2:
     resolution: {integrity: sha512-ESF23V4SKG6lVSGZgYNpbsiaAkdab6ZgOxe52p7+Kid3W3u3bxR4Vfd/o21dmN7jSt0IwgZ4v5MUd26FEtXE9w==}
@@ -19595,6 +19600,10 @@ snapshots:
       source-map-js: 1.2.1
 
   postprocessing@6.37.1(three@0.183.2):
+    dependencies:
+      three: 0.183.2
+
+  postprocessing@6.38.3(three@0.183.2):
     dependencies:
       three: 0.183.2
 
