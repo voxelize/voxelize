@@ -29,6 +29,10 @@ See `package.json` scripts at the repo root. Key commands:
 - `pnpm run test:rust` -- `cargo test --test mesher_tests --test lights_tests`
 - `cargo check --lib` -- check Rust library compiles
 
+### Proxy setup for port-forwarded environments
+
+The Vite dev server config (`examples/client/vite.config.js`) proxies `/ws/` and `/info` to the Rust backend on port 4000. This means the frontend works through single-port proxies (e.g., Cursor Cloud port forwarding) without needing port 4000 directly exposed. The client code in `main.ts` only swaps to port 4000 when accessed at `localhost:3000` directly.
+
 ### Gotchas
 
 - The `pnpm-workspace.yaml` includes `onlyBuiltDependencies` to avoid interactive `pnpm approve-builds` prompts.
