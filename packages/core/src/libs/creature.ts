@@ -117,6 +117,7 @@ export class Creature extends Group {
   public positionLerpOverride: number | null = null;
   public newPosition = new Vector3();
   public newDirection = new Quaternion();
+  public newBodyDirection = new Quaternion();
   public extraData: unknown = null;
 
   onMove: () => void;
@@ -126,7 +127,8 @@ export class Creature extends Group {
   private positionBuffer: Array<{
     time: number;
     pos: Vector3;
-    dir: Quaternion;
+    headDir: Quaternion;
+    bodyDir: Quaternion;
   }> = [];
   private interpolationDelay = 50;
 
@@ -183,28 +185,36 @@ export class Creature extends Group {
         Math.min(1, (renderTime - p0.time) / (p1.time - p0.time)),
       );
       this.newPosition.lerpVectors(p0.pos, p1.pos, t);
-      this.newDirection.slerpQuaternions(p0.dir, p1.dir, t);
+      this.newDirection.slerpQuaternions(p0.headDir, p1.headDir, t);
+      this.newBodyDirection.slerpQuaternions(p0.bodyDir, p1.bodyDir, t);
     } else if (this.positionBuffer.length === 1) {
       this.newPosition.copy(this.positionBuffer[0].pos);
-      this.newDirection.copy(this.positionBuffer[0].dir);
+      this.newDirection.copy(this.positionBuffer[0].headDir);
+      this.newBodyDirection.copy(this.positionBuffer[0].bodyDir);
     }
   }
 
   snapToTarget() {
     this.position.copy(this.newPosition);
-    this.quaternion.copy(this.newDirection);
+    this.headGroup.rotation.setFromQuaternion(this.newDirection);
+    this.bodyGroup.quaternion.copy(this.newBodyDirection);
   }
 
   set(position: number[], direction: number[]) {
     if (!position || !direction) return;
     const pos = new Vector3(position[0], position[1], position[2]);
-    const dir = VoxMathUtils.directionToQuaternion(
-      direction[0],
-      0,
-      direction[2],
+    const headDir = new Quaternion().copy(
+      VoxMathUtils.directionToQuaternion(
+        direction[0],
+        direction[1],
+        direction[2],
+      ),
+    );
+    const bodyDir = new Quaternion().copy(
+      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2]),
     );
     const now = performance.now();
-    this.positionBuffer.push({ time: now, pos, dir });
+    this.positionBuffer.push({ time: now, pos, headDir, bodyDir });
     while (this.positionBuffer.length > 10) {
       this.positionBuffer.shift();
     }
@@ -326,19 +336,19 @@ export class Creature extends Group {
 
     this.frontLeftLegGroup.add(this.frontLeftLeg);
     this.frontLeftLeg.position.y = -legHeight / 2;
-    this.frontLeftLegGroup.position.set(-legHalfWidth, legHeight, legFrontZ);
+    this.frontLeftLegGroup.position.set(-legHalfWidth, 0, legFrontZ);
 
     this.frontRightLegGroup.add(this.frontRightLeg);
     this.frontRightLeg.position.y = -legHeight / 2;
-    this.frontRightLegGroup.position.set(legHalfWidth, legHeight, legFrontZ);
+    this.frontRightLegGroup.position.set(legHalfWidth, 0, legFrontZ);
 
     this.backLeftLegGroup.add(this.backLeftLeg);
     this.backLeftLeg.position.y = -legHeight / 2;
-    this.backLeftLegGroup.position.set(-legHalfWidth, legHeight, legBackZ);
+    this.backLeftLegGroup.position.set(-legHalfWidth, 0, legBackZ);
 
     this.backRightLegGroup.add(this.backRightLeg);
     this.backRightLeg.position.y = -legHeight / 2;
-    this.backRightLegGroup.position.set(legHalfWidth, legHeight, legBackZ);
+    this.backRightLegGroup.position.set(legHalfWidth, 0, legBackZ);
 
     this.head.paint("all", new Color(headOpts.color));
     this.head.paint("front", new Color(headOpts.faceColor));
@@ -348,12 +358,15 @@ export class Creature extends Group {
     this.backLeftLeg.paint("all", new Color(legOpts.color));
     this.backRightLeg.paint("all", new Color(legOpts.color));
 
+    this.bodyGroup.add(
+      this.frontLeftLegGroup,
+      this.frontRightLegGroup,
+      this.backLeftLegGroup,
+      this.backRightLegGroup,
+    );
+
     this.add(this.headGroup);
     this.add(this.bodyGroup);
-    this.add(this.frontLeftLegGroup);
-    this.add(this.frontRightLegGroup);
-    this.add(this.backLeftLegGroup);
-    this.add(this.backRightLegGroup);
   };
 
   private calculateDelta = () => {
@@ -382,11 +395,14 @@ export class Creature extends Group {
       this.position.lerp(this.newPosition, posLerp);
     }
     if (this.newDirection.length() !== 0) {
+      this.headGroup.rotation.setFromQuaternion(this.newDirection);
+    }
+    if (this.newBodyDirection.length() !== 0) {
       const baseRotLerp = this.options.rotationLerp ?? 0.2;
       const targetFps = 60;
       const dtNormalized = dt * targetFps;
       const rotLerp = 1 - Math.pow(1 - baseRotLerp, dtNormalized);
-      this.quaternion.slerp(this.newDirection, rotLerp);
+      this.bodyGroup.quaternion.slerp(this.newBodyDirection, rotLerp);
     }
   };
 
