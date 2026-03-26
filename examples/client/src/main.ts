@@ -541,10 +541,15 @@ const debug = new VOXELIZE.Debug(document.body, {
   },
 });
 
-debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
-debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
-debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
-debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
+debug.registerDisplay(
+  "Chunks Requested",
+  () => world.chunkPipeline.requestedCount,
+);
+debug.registerDisplay(
+  "Chunks Processing",
+  () => world.chunkPipeline.processingCount,
+);
+debug.registerDisplay("Chunks Loaded", () => world.chunkPipeline.loadedCount);
 
 debug.registerDisplay("Position", controls, "voxel");
 
@@ -598,10 +603,6 @@ debug.registerDisplay("# of points", () => {
   return renderer.info.render.points;
 });
 
-debug.registerDisplay("Concurrent WebWorkers", () => {
-  return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
-});
-
 // packet queue length defined after network is initialized
 
 const gui = new GUI();
@@ -643,7 +644,11 @@ const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
 const currentWorldName =
   localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
 
-if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
+if (
+  BACKEND_SERVER_INSTANCE.hostname === "localhost" &&
+  (BACKEND_SERVER_INSTANCE.port === "3000" ||
+    BACKEND_SERVER_INSTANCE.port === "3030")
+) {
   BACKEND_SERVER_INSTANCE.port = "4000";
 }
 
@@ -951,21 +956,21 @@ const update = () => {
     : world.options.chunkSize * world.renderRadius;
   const fogColor = inWater
     ? new THREE.Color("#5F9DF7")
-    : world.chunks.uniforms.fogColor.value;
+    : world.chunkRenderer.uniforms.fogColor.value;
 
-  world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
-    world.chunks.uniforms.fogNear.value,
+  world.chunkRenderer.uniforms.fogNear.value = THREE.MathUtils.lerp(
+    world.chunkRenderer.uniforms.fogNear.value,
     fogNear,
     0.08,
   );
 
-  world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
-    world.chunks.uniforms.fogFar.value,
+  world.chunkRenderer.uniforms.fogFar.value = THREE.MathUtils.lerp(
+    world.chunkRenderer.uniforms.fogFar.value,
     fogFar,
     0.08,
   );
 
-  world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
+  world.chunkRenderer.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
   world.update(
     controls.object.position,

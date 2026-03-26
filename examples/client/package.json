@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "demo": "vite --clearScreen false --port 3000",
+    "demo": "vite --clearScreen false --port 3030",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
@@ -20,7 +20,7 @@
     "@voxelize/core": "workspace:*",
     "lil-gui": "^0.17.0",
     "p5": "^1.11.3",
-    "postprocessing": "^6.37.1",
+    "postprocessing": "^6.38.3",
     "three": "^0.183.0"
   }
 }
