@@ -117,7 +117,7 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   biomesDOM.appendChild(biomeEntry);
   // });
 
-  const diagonalFaces = ["one1", "one2", "two1", "two2"];
+  const diagonalFaces = ["one", "two"];
 
   await world.applyBlockTextures([
     { idOrName: "Dirt", faceNames: all, source: DirtImage },
@@ -174,14 +174,14 @@ export async function setupWorld(world: VOXELIZE.World) {
     { idOrName: "Glass", faceNames: all, source: GlassImage },
     {
       idOrName: "Mushroom",
-      faceNames: all.map((name) => `bottom-${name}-`),
+      faceNames: all.map((name) => `bottom-${name}`),
       source: new THREE.Color("#A27B5C"),
     },
     {
       idOrName: "Mushroom",
       faceNames: all
         .filter((name) => name !== "py")
-        .map((name) => `top-${name}-`),
+        .map((name) => `top-${name}`),
       source: new THREE.Color("#E4DCCF"),
     },
     { idOrName: "Biggie", faceNames: all, source: new THREE.Color("#2C3639") },
