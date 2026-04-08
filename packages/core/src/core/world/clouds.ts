@@ -1,5 +1,14 @@
 import ndarray from "ndarray";
 import {
+  Fn,
+  cameraPosition,
+  mix,
+  positionWorld,
+  smoothstep,
+  sqrt,
+  uniform,
+} from "three/tsl";
+import {
   BufferGeometry,
   Timer,
   Color,
@@ -8,14 +17,12 @@ import {
   Group,
   Int8BufferAttribute,
   Mesh,
-  ShaderMaterial,
   Vector3,
-} from "three";
+} from "three/webgpu";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
-import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
-import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
@@ -159,14 +166,14 @@ export class Clouds extends Group {
    */
   public isInitialized = false;
 
-  /**
-   * The shard shader material used to render the clouds.
-   */
-  public material: ShaderMaterial;
+  public material: MeshBasicNodeMaterial;
 
-  /**
-   * A 2D array of cloud meshes. The first dimension is the x-axis, and the second dimension is the z-axis.
-   */
+  public uFogNear: { value: number };
+  public uFogFar: { value: number };
+  public uFogColor: { value: Color };
+  public uCloudColor: { value: Color };
+  public uCloudAlpha: { value: number };
+
   public meshes: Mesh[][] = [];
 
   /**
@@ -220,24 +227,31 @@ export class Clouds extends Group {
       this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
-    this.material = new ShaderMaterial({
-      transparent: true,
-      vertexShader: CloudsVertexShader,
-      fragmentShader: CloudsFragmentShader,
-      side: FrontSide,
-      uniforms: {
-        uFogNear: uFogNear || { value: 500 },
-        uFogFar: uFogFar || { value: 1000 },
-        uFogColor: uFogColor || { value: new Color("#fff") },
-        uCloudColor: {
-          value: new Color(color),
-        },
-        uCloudAlpha: {
-          value: alpha,
-        },
-      },
+    const cloudColor = uniform(new Color(color));
+    const cloudAlpha = uniform(alpha);
+    const fogNear = uniform(uFogNear ? uFogNear.value : 500);
+    const fogFar = uniform(uFogFar ? uFogFar.value : 1000);
+    const fogColor = uniform(uFogColor ? uFogColor.value : new Color("#fff"));
+
+    this.uCloudColor = cloudColor;
+    this.uCloudAlpha = cloudAlpha;
+    this.uFogNear = fogNear;
+    this.uFogFar = fogFar;
+    this.uFogColor = fogColor;
+
+    const colorNode = Fn(() => {
+      const dx = positionWorld.x.sub(cameraPosition.x);
+      const dz = positionWorld.z.sub(cameraPosition.z);
+      const depth = sqrt(dx.mul(dx).add(dz.mul(dz))).div(8.0);
+      const fogFactor = smoothstep(fogNear, fogFar, depth);
+      return mix(cloudColor, fogColor, fogFactor);
     });
 
+    this.material = new MeshBasicNodeMaterial();
+    this.material.colorNode = colorNode();
+    this.material.opacityNode = cloudAlpha;
+    this.material.transparent = true;
+    this.material.side = FrontSide;
     this.material.toneMapped = false;
 
     this.initialize();

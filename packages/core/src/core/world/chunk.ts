@@ -1,5 +1,5 @@
 import { ChunkProtocol } from "@voxelize/protocol";
-import { Group, Mesh } from "three";
+import { Group, Mesh } from "three/webgpu";
 
 import { Coords2 } from "../../types";
 

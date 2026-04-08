@@ -11,6 +11,7 @@ import {
   UpdateProtocol,
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
   BoxGeometry,
   BufferAttribute,
@@ -29,18 +30,14 @@ import {
   Object3D,
   SRGBColorSpace,
   Scene,
-  ShaderLib,
-  ShaderMaterial,
   Sphere,
   Texture,
   MathUtils as ThreeMathUtils,
-  Uniform,
-  UniformsUtils,
   Vector2,
   Vector3,
-  WebGLRenderer,
-} from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+  WebGPURenderer,
+} from "three/webgpu";
+import type { MeshBasicNodeMaterial } from "three/webgpu";
 
 import {
   TRANSPARENT_FLUID_RENDER_ORDER,
@@ -134,12 +131,14 @@ import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
-import {
-  DEFAULT_CHUNK_SHADERS,
-  SHADER_LIGHTING_CHUNK_SHADERS,
-} from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
+import {
+  makeChunkNodeMaterial,
+  syncChunkUniforms,
+  syncShaderLightingUniforms,
+} from "./tsl/index";
+import type { ChunkMaterialUniforms, SwayOptions } from "./tsl/index";
 import { UV } from "./uv";
 import LightWorker from "./workers/light-worker.ts?worker&inline";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
@@ -150,14 +149,14 @@ export * from "./chunk-renderer";
 export * from "./clouds";
 export * from "./csm-renderer";
 export * from "./entity-shadow-uniforms";
+export * from "./tsl/entity-shadow";
 export * from "./items";
 export * from "./light-registry";
 export * from "./light-volume";
 export * from "./loader";
 export * from "./pipelines";
 export * from "./registry";
-export * from "./shaders";
-export * from "./shadow-sampling";
+export * from "./tsl/index";
 export * from "./sky";
 export * from "./textures";
 export * from "./uv";
@@ -327,14 +326,7 @@ const VOXEL_NEIGHBORS = [
   [0, -1, 0],
 ];
 
-/**
- * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
- * if you want to change its map, you also have to change its `uniforms.map`.
- */
-export type CustomChunkShaderMaterial = ShaderMaterial & {
-  /**
-   * The texture that this map runs on.
-   */
+export type CustomChunkShaderMaterial = MeshBasicNodeMaterial & {
   map: Texture;
 };
 
@@ -670,6 +662,8 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Chunk rendering state (materials, uniforms).
    */
   public chunkRenderer: ChunkRenderer;
+
+  private _chunkMaterialUniforms: ChunkMaterialUniforms | null = null;
 
   /**
    * The voxel physics engine using `@voxelize/physics-engine`.
@@ -1085,7 +1079,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (face.independent) {
         if (ThreeUtils.isTexture(source)) {
           mat.map = source;
-          mat.uniforms.map = { value: source };
+          if (mat.userData.atlasNode) {
+            mat.userData.atlasNode.value = source;
+          }
           mat.needsUpdate = true;
         } else if (data instanceof HTMLImageElement) {
           mat.map.image = data;
@@ -1233,8 +1229,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       throw new Error("Unsupported source type for texture.");
     }
 
-    if (isolatedMat.map) {
-      isolatedMat.uniforms.map.value = isolatedMat.map;
+    if (isolatedMat.map && isolatedMat.userData.atlasNode) {
+      isolatedMat.userData.atlasNode.value = isolatedMat.map;
     }
     isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
     isolatedMat.transparent = block.isSeeThrough;
@@ -1380,7 +1376,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           mat.map.dispose();
           mat.map = atlas;
-          mat.uniforms.map = { value: atlas };
+          if (mat.userData.atlasNode) {
+            mat.userData.atlasNode.value = atlas;
+          }
           mat.needsUpdate = true;
         } else {
           throw new Error(
@@ -3246,41 +3244,42 @@ export class World<T = any> extends Scene implements NetIntercept {
   customizeMaterialShaders = (
     idOrName: number | string,
     faceName: string | null = null,
-    data: {
-      vertexShader: string;
-      fragmentShader: string;
-      uniforms?: { [key: string]: Uniform };
-    } = {
-      vertexShader: DEFAULT_CHUNK_SHADERS.vertex,
-      fragmentShader: DEFAULT_CHUNK_SHADERS.fragment,
-      uniforms: {},
-    },
+    data: { sway?: SwayOptions; isCross?: boolean } = {},
   ) => {
     this.checkIsInitialized("customize material shaders", false);
 
-    const {
-      vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
-      fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
-      uniforms = {},
-    } = data;
-
-    const mat = this.getBlockFaceMaterial(idOrName, faceName);
-
-    if (!mat) {
+    const oldMat = this.getBlockFaceMaterial(idOrName, faceName);
+    if (!oldMat) {
       throw new Error(
         `Could not find material for block ${idOrName} and face ${faceName}`,
       );
     }
 
-    mat.vertexShader = vertexShader;
-    mat.fragmentShader = fragmentShader;
-    mat.uniforms = {
-      ...mat.uniforms,
-      ...uniforms,
-    };
-    mat.needsUpdate = true;
+    if (!data.sway && !data.isCross) return oldMat;
 
-    return mat;
+    const newMat = this.makeShaderMaterial({
+      swayOptions: data.sway,
+      isCross: data.isCross,
+    });
+
+    newMat.side = oldMat.side;
+    newMat.transparent = oldMat.transparent;
+    newMat.depthWrite = oldMat.depthWrite;
+    newMat.alphaTest = oldMat.alphaTest;
+    newMat.map = oldMat.map;
+    if (newMat.userData.atlasNode) {
+      newMat.userData.atlasNode.value = oldMat.map;
+    }
+    newMat.userData.skipShadow = oldMat.userData.skipShadow;
+
+    const block = this.getBlockOf(idOrName);
+    const key = faceName
+      ? this.makeChunkMaterialKey(block.id, faceName)
+      : this.makeChunkMaterialKey(block.id);
+    this.chunkRenderer.materials.set(key, newMat);
+
+    oldMat.dispose();
+    return newMat;
   };
 
   customizeBlockDynamic = (
@@ -3413,6 +3412,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     await this.loadMaterials();
+    await this.compileChunkMaterials();
 
     const registryData = this.registry.serialize();
     this.meshWorkerPool.postMessage({ type: "init", registryData });
@@ -4157,8 +4157,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
     // Update the clouds' colors based on the sky's colors.
-    const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
-    const cloudColorHSL = cloudColor.getHSL({});
+    const cloudColor = this.clouds.uCloudColor.value;
+    const cloudColorHSL = cloudColor.getHSL({ h: 0, s: 0, l: 0 });
     cloudColor.setHSL(
       cloudColorHSL.h,
       cloudColorHSL.s,
@@ -4185,9 +4185,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
-  /**
-   * Update the uniform values.
-   */
   private updateUniforms = () => {
     const t = performance.now();
     this.chunkRenderer.uniforms.time.value = t;
@@ -4197,6 +4194,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       Math.cos(windAngle),
       Math.sin(windAngle),
     );
+
+    if (this._chunkMaterialUniforms) {
+      syncChunkUniforms(this._chunkMaterialUniforms);
+    }
   };
 
   updateShaderLighting(camera: Camera, position: Vector3) {
@@ -4345,10 +4346,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.lightVolume.getVolumeSize(),
       );
     }
+
+    syncShaderLightingUniforms(this.chunkRenderer.shaderLightingUniforms);
   }
 
   renderShadowMaps(
-    renderer: WebGLRenderer,
+    renderer: WebGPURenderer,
     entities?: Object3D[],
     instancePools?: Group[],
   ) {
@@ -5887,107 +5890,46 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   };
 
-  /**
-   * Make a chunk shader material with the current atlas.
-   */
+  private getChunkMaterialUniforms(): ChunkMaterialUniforms {
+    if (!this._chunkMaterialUniforms) {
+      const merged = {
+        ...this.chunkRenderer.uniforms,
+        ...this.options.chunkUniformsOverwrite,
+      };
+      this._chunkMaterialUniforms = {
+        time: merged.time,
+        sunlightIntensity: merged.sunlightIntensity,
+        aoTable: merged.ao,
+        minLightLevel: merged.minLightLevel,
+        baseAmbient: merged.baseAmbient,
+        lightIntensityAdjustment: merged.lightIntensityAdjustment,
+        fogNear: merged.fogNear,
+        fogFar: merged.fogFar,
+        fogColor: merged.fogColor,
+        fogHeightOrigin: merged.fogHeightOrigin,
+        fogHeightDensity: merged.fogHeightDensity,
+        windDirection: merged.windDirection,
+        windSpeed: merged.windSpeed,
+        atlasSize: merged.atlasSize,
+        showGreedyDebug: merged.showGreedyDebug,
+      };
+    }
+    return this._chunkMaterialUniforms;
+  }
+
   private makeShaderMaterial = (
-    fragmentShader?: string,
-    vertexShader?: string,
-    uniforms: Record<string, Uniform> = {},
+    opts: { swayOptions?: SwayOptions; isCross?: boolean } = {},
   ) => {
-    const useShaderLighting = this.usesShaderLighting;
-    const baseShaders = useShaderLighting
-      ? SHADER_LIGHTING_CHUNK_SHADERS
-      : DEFAULT_CHUNK_SHADERS;
-
-    const actualFragmentShader = fragmentShader ?? baseShaders.fragment;
-    const actualVertexShader = vertexShader ?? baseShaders.vertex;
-
-    const chunksUniforms = {
-      ...this.chunkRenderer.uniforms,
-      ...this.options.chunkUniformsOverwrite,
-    };
-
-    const shaderLightingUniforms = useShaderLighting
-      ? {
-          uSunDirection: this.chunkRenderer.shaderLightingUniforms.sunDirection,
-          uSunColor: this.chunkRenderer.shaderLightingUniforms.sunColor,
-          uAmbientColor: this.chunkRenderer.shaderLightingUniforms.ambientColor,
-          uShadowMap0: this.chunkRenderer.shaderLightingUniforms.shadowMap0,
-          uShadowMap1: this.chunkRenderer.shaderLightingUniforms.shadowMap1,
-          uShadowMap2: this.chunkRenderer.shaderLightingUniforms.shadowMap2,
-          uShadowMatrix0:
-            this.chunkRenderer.shaderLightingUniforms.shadowMatrix0,
-          uShadowMatrix1:
-            this.chunkRenderer.shaderLightingUniforms.shadowMatrix1,
-          uShadowMatrix2:
-            this.chunkRenderer.shaderLightingUniforms.shadowMatrix2,
-          uCascadeSplit0:
-            this.chunkRenderer.shaderLightingUniforms.cascadeSplit0,
-          uCascadeSplit1:
-            this.chunkRenderer.shaderLightingUniforms.cascadeSplit1,
-          uCascadeSplit2:
-            this.chunkRenderer.shaderLightingUniforms.cascadeSplit2,
-          uShadowBias: this.chunkRenderer.shaderLightingUniforms.shadowBias,
-          uShadowStrength:
-            this.chunkRenderer.shaderLightingUniforms.shadowStrength,
-          uLightVolume: this.chunkRenderer.shaderLightingUniforms.lightVolume,
-          uLightVolumeMin:
-            this.chunkRenderer.shaderLightingUniforms.lightVolumeMin,
-          uLightVolumeSize:
-            this.chunkRenderer.shaderLightingUniforms.lightVolumeSize,
-          uWaterTint: this.chunkRenderer.shaderLightingUniforms.waterTint,
-          uWaterAbsorption:
-            this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
-          uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
-          uSkyTopColor: this.chunkRenderer.shaderLightingUniforms.skyTopColor,
-          uSkyMiddleColor:
-            this.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
-          uShadowDebugMode:
-            this.chunkRenderer.shaderLightingUniforms.shadowDebugMode,
-        }
-      : {};
-
-    const material = new ShaderMaterial({
-      vertexColors: true,
-      fragmentShader: actualFragmentShader,
-      vertexShader: actualVertexShader,
-      uniforms: {
-        ...UniformsUtils.clone(ShaderLib.basic.uniforms),
-        uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
-        uSunlightIntensity: chunksUniforms.sunlightIntensity,
-        uAOTable: chunksUniforms.ao,
-        uMinLightLevel: chunksUniforms.minLightLevel,
-        uBaseAmbient: chunksUniforms.baseAmbient,
-        uFogNear: chunksUniforms.fogNear,
-        uFogFar: chunksUniforms.fogFar,
-        uFogColor: chunksUniforms.fogColor,
-        uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
-        uFogHeightDensity: chunksUniforms.fogHeightDensity,
-        uWindDirection: chunksUniforms.windDirection,
-        uWindSpeed: chunksUniforms.windSpeed,
-        uTime: chunksUniforms.time,
-        uAtlasSize: chunksUniforms.atlasSize,
-        uShowGreedyDebug: chunksUniforms.showGreedyDebug,
-        ...shaderLightingUniforms,
-        ...uniforms,
-      },
+    const material = makeChunkNodeMaterial({
+      isShaderLighting: this.usesShaderLighting,
+      isCross: opts.isCross,
+      swayOptions: opts.swayOptions,
+      uniforms: this.getChunkMaterialUniforms(),
+      shaderLightingUniforms: this.usesShaderLighting
+        ? this.chunkRenderer.shaderLightingUniforms
+        : undefined,
+      atlas: AtlasTexture.makeUnknownTexture(this.options.textureUnitDimension),
     }) as CustomChunkShaderMaterial;
-
-    Object.defineProperty(material, "renderStage", {
-      get: function () {
-        return material.uniforms.renderStage.value;
-      },
-
-      set: function (stage) {
-        material.uniforms.renderStage.value = parseFloat(stage);
-      },
-    });
-
-    material.map = AtlasTexture.makeUnknownTexture(
-      this.options.textureUnitDimension,
-    );
-    material.uniforms.map = { value: material.map };
 
     return material;
   };
@@ -6019,10 +5961,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (transparent) {
         mat.depthWrite = !isFluid && transparentStandalone;
         mat.alphaTest = 0.1;
-        mat.uniforms.alphaTest.value = 0.1;
       }
       mat.map = map;
-      mat.uniforms.map.value = map;
+      if (mat.userData.atlasNode) {
+        mat.userData.atlasNode.value = map;
+      }
       mat.userData.skipShadow = isFluid || (transparent && !lightReduce);
 
       return mat;
@@ -6073,6 +6016,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkRenderer.materials.set(independentKey, independentMat);
       });
     });
+  }
+
+  private async compileChunkMaterials() {
+    const materials = Array.from(this.chunkRenderer.materials.values());
+    await Promise.all(
+      materials.map((mat) =>
+        "compileAsync" in mat && typeof mat.compileAsync === "function"
+          ? mat.compileAsync()
+          : Promise.resolve(),
+      ),
+    );
   }
 
   private makeChunkMaterialKey(id: number, faceName?: string, voxel?: Coords3) {

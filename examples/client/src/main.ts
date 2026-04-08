@@ -2,13 +2,8 @@ import "./style.css";
 
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
-import {
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
-import * as THREE from "three";
+import { mix, pass, vec4 } from "three/tsl";
+import * as THREE from "three/webgpu";
 
 import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
@@ -41,7 +36,7 @@ const camera = new THREE.PerspectiveCamera(
   5000,
 );
 
-const renderer = new THREE.WebGLRenderer({
+const renderer = new THREE.WebGPURenderer({
   canvas,
 });
 renderer.setSize(
@@ -663,7 +658,7 @@ class Box extends VOXELIZE.Entity<{
     this.add(
       new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 0.5, 0.5),
-        new THREE.MeshBasicMaterial(),
+        new THREE.MeshBasicNodeMaterial(),
       ),
     );
 
@@ -797,7 +792,7 @@ class Bot extends VOXELIZE.Entity<BotData> {
         const node = nodes[i];
         const color = new THREE.Color("#fff");
         const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-        const material = new THREE.MeshBasicMaterial({
+        const material = new THREE.MeshBasicNodeMaterial({
           color,
           opacity: 0.3,
           transparent: true,
@@ -943,6 +938,7 @@ const update = () => {
   controls.update();
   lightShined.update();
   shadows.update();
+  overlayEffect.update();
 
   const inWater =
     world.getBlockAt(...camera.getWorldPosition(new THREE.Vector3()).toArray())
@@ -985,23 +981,21 @@ const update = () => {
 
 let isFocused = true;
 
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-
 const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
 overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
-composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
-
-const animate = () => {
-  requestAnimationFrame(animate);
-  if (isFocused) update();
-  composer.render();
-  renderer.clearDepth();
-  renderer.render(armScene, armCamera);
-};
 
 const start = async () => {
-  let clearUpdate: any;
+  await renderer.init();
+
+  const postProcessing = new THREE.PostProcessing(renderer);
+  const scenePass = pass(world, camera);
+  postProcessing.outputNode = mix(
+    scenePass,
+    vec4(overlayEffect.colorUniform, 1.0),
+    overlayEffect.opacityUniform,
+  );
+
+  let clearUpdate: (() => void) | null = null;
 
   const handleVisibilityChange = () => {
     if (document.hidden) {
@@ -1021,6 +1015,14 @@ const start = async () => {
   };
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  const animate = () => {
+    requestAnimationFrame(animate);
+    if (isFocused) update();
+    postProcessing.render();
+    renderer.clearDepth();
+    renderer.render(armScene, armCamera);
+  };
 
   animate();
 

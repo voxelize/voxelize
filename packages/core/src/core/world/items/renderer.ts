@@ -3,9 +3,9 @@ import {
   BufferGeometry,
   Group,
   Mesh,
-  MeshBasicMaterial,
   Object3D,
-} from "three";
+} from "three/webgpu";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import type { World } from "../index";
 
@@ -170,7 +170,7 @@ function createMeshFromData(data: ImageItemMeshData): Group {
   geometry.setIndex(new BufferAttribute(data.indices, 1));
   geometry.computeBoundingSphere();
 
-  const material = new MeshBasicMaterial({ vertexColors: true });
+  const material = new MeshBasicNodeMaterial({ vertexColors: true });
   const mesh = new Mesh(geometry, material);
 
   mesh.position.set(1, -1.8, -2);
@@ -193,7 +193,7 @@ function createDropMeshFromData(data: ImageItemMeshData): Mesh {
   geometry.setIndex(new BufferAttribute(data.indices, 1));
   geometry.computeBoundingSphere();
 
-  const material = new MeshBasicMaterial({ vertexColors: true });
+  const material = new MeshBasicNodeMaterial({ vertexColors: true });
   return new Mesh(geometry, material);
 }
 

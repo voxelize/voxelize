@@ -1,6 +1,6 @@
 import { AABB } from "@voxelize/aabb";
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 import TestImage from "./assets/cat.jpeg";
 import LolImage from "./assets/lol.jpeg";
@@ -219,21 +219,13 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   300
   // );
 
-  world.customizeMaterialShaders(
-    "Grass",
-    null,
-    VOXELIZE.customShaders.sway({
-      rooted: true,
-    }),
-  );
+  world.customizeMaterialShaders("Grass", null, {
+    sway: { speed: 1, amplitude: 1, scale: 1, isRooted: true, yScale: 1 },
+  });
 
-  world.customizeMaterialShaders(
-    "Oak Leaves",
-    null,
-    VOXELIZE.customShaders.sway({
-      yScale: 0,
-    }),
-  );
+  world.customizeMaterialShaders("Oak Leaves", null, {
+    sway: { speed: 1, amplitude: 1, scale: 1, isRooted: false, yScale: 0 },
+  });
 
   // world.setResolutionOf("Sand", "nx", 128);
   // await world.applyBlockGif("Sand", "nx", FunnyGif);

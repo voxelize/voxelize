@@ -6,7 +6,7 @@ import {
   Vector2,
   Vector3,
   Vector4,
-} from "three";
+} from "three/webgpu";
 
 import { CustomChunkShaderMaterial } from ".";
 

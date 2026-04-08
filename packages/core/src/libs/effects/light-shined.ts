@@ -1,12 +1,16 @@
-import { Color, Material, Mesh, Object3D, Vector3 } from "three";
+import { materialColor, uniform } from "three/tsl";
+import { Color, Material, Mesh, Object3D, Vector3 } from "three/webgpu";
+import type { NodeMaterial } from "three/webgpu";
 
 import { World } from "../../core";
-import { ChunkUtils, ThreeUtils } from "../../utils";
+import { ChunkUtils } from "../../utils";
 import { NameTag } from "../nametag";
 import { Shadow } from "../shadows";
 
 const position = new Vector3();
 const tempColor = new Color();
+
+type Object3DClass = abstract new (...args: never[]) => Object3D;
 
 export type LightShinedOptions = {
   /**
@@ -59,7 +63,7 @@ export class LightShined {
   /**
    * A list of types that are ignored by this effect.
    */
-  public ignored: Set<any> = new Set();
+  public ignored: Set<Object3DClass> = new Set();
 
   private positionOverrides = new Map<Object3D, Vector3>();
 
@@ -118,7 +122,7 @@ export class LightShined {
     this.positionOverrides.delete(obj);
   };
 
-  ignore = (...types: any[]) => {
+  ignore = (...types: Object3DClass[]) => {
     types.forEach((type) => {
       this.ignored.add(type);
     });
@@ -126,43 +130,15 @@ export class LightShined {
 
   private setupLightMaterials = (obj: Object3D) => {
     const setupMaterial = (material: Material) => {
-      if (
-        ThreeUtils.isShaderMaterial(material) ||
-        material.userData.lightEffectSetup
-      )
-        return;
+      if (material.userData.lightEffectSetup) return;
 
-      const lightUniform = { value: new Color(1, 1, 1) };
-      const oldOnBeforeCompile = material.onBeforeCompile;
-      material.onBeforeCompile = (shader, renderer) => {
-        if (oldOnBeforeCompile) {
-          oldOnBeforeCompile(shader, renderer);
-        }
+      const nodeMat = material as NodeMaterial;
+      if (!nodeMat.isNodeMaterial) return;
 
-        shader.uniforms.lightEffect = lightUniform;
-        shader.vertexShader = shader.vertexShader.replace(
-          "void main() {",
-          `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "void main() {",
-          `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "#include <color_fragment>",
-          `
-          #include <color_fragment>
-          diffuseColor.rgb *= lightEffect;
-          `,
-        );
-      };
-      material.needsUpdate = true;
+      const lightUniform = uniform(new Color(1, 1, 1));
+      const baseColor = nodeMat.colorNode ?? materialColor;
+      nodeMat.colorNode = baseColor.mul(lightUniform);
+
       if (!obj.userData.lightUniforms) {
         obj.userData.lightUniforms = [];
       }
@@ -170,8 +146,8 @@ export class LightShined {
       material.userData.lightEffectSetup = true;
     };
 
-    const isMesh = (object: any): object is Mesh => {
-      return object.isMesh;
+    const isMesh = (object: Object3D): object is Mesh => {
+      return "isMesh" in object;
     };
 
     const setupObjectAndChildren = (object: Object3D) => {
@@ -185,10 +161,8 @@ export class LightShined {
       object.children.forEach(setupObjectAndChildren);
     };
 
-    // Setup initial materials
     setupObjectAndChildren(obj);
 
-    // Setup proxies to detect changes
     const setupProxies = (object: Object3D) => {
       if (isMesh(object)) {
         object.material = new Proxy(object.material, {
@@ -226,16 +200,15 @@ export class LightShined {
     }
 
     if (obj.userData.lightUniforms) {
-      obj.userData.lightUniforms.forEach((uniform: { value: Color }) => {
+      obj.userData.lightUniforms.forEach((u: { value: Color }) => {
         if (obj.userData.justChanged) {
-          uniform.value.copy(color);
+          u.value.copy(color);
         } else {
-          uniform.value.lerp(color, this.options.lerpFactor);
+          u.value.lerp(color, this.options.lerpFactor);
         }
-        // Apply the brightness cap
-        uniform.value.r = Math.min(uniform.value.r, this.options.maxBrightness);
-        uniform.value.g = Math.min(uniform.value.g, this.options.maxBrightness);
-        uniform.value.b = Math.min(uniform.value.b, this.options.maxBrightness);
+        u.value.r = Math.min(u.value.r, this.options.maxBrightness);
+        u.value.g = Math.min(u.value.g, this.options.maxBrightness);
+        u.value.b = Math.min(u.value.b, this.options.maxBrightness);
       });
     }
     obj.userData.justChanged = false;

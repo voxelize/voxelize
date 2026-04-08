@@ -1,5 +1,5 @@
 import Stats from "stats.js";
-import { Group } from "three";
+import { Group } from "three/webgpu";
 
 import { DOMUtils } from "../utils";
 

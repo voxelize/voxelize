@@ -4,7 +4,7 @@ import {
   QuaternionKeyframeTrack,
   Vector3,
   VectorKeyframeTrack,
-} from "three";
+} from "three/webgpu";
 
 export class AnimationUtils {
   /**

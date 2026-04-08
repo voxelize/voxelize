@@ -1,4 +1,4 @@
-import { NearestFilter } from "three";
+import { NearestFilter } from "three/webgpu";
 
 import { SpriteText } from "./sprite-text";
 

@@ -1,4 +1,4 @@
-import { Camera, Mesh, Object3D, Vector3 } from "three";
+import { Camera, Mesh, Object3D, Vector3 } from "three/webgpu";
 
 const _worldPos = new Vector3();
 const _camPos = new Vector3();

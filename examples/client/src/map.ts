@@ -1,6 +1,6 @@
 import { ChunkUtils, Coords3, DOMUtils, World } from "@voxelize/core";
 import p5 from "p5";
-import { Vector3 } from "three";
+import { Vector3 } from "three/webgpu";
 
 // const COLOR_HINT = [
 //   [1, 1, "to request, within delete radius"],

@@ -1,19 +1,63 @@
-import * as THREE from "three";
+import { Fn, positionWorld, texture, uniform, vec3 } from "three/tsl";
+import * as THREE from "three/webgpu";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { Inputs } from "../core/inputs";
 import {
   createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
   EntityShadowUniforms,
   ShaderLightingUniforms,
   updateEntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
+import {
+  computeEntityShadowCoords,
+  getEntityShadow,
+} from "../core/world/tsl/entity-shadow";
 import { AnimationUtils } from "../utils";
 
 import { CanvasBox } from "./canvas-box";
 import { defaultArmsOptions } from "./character";
+
+function createHeldShadowNodes(u: EntityShadowUniforms) {
+  const placeholder = new THREE.Texture();
+  return {
+    shadowMap0: texture(u.uShadowMap0.value ?? placeholder),
+    shadowMap1: texture(u.uShadowMap1.value ?? placeholder),
+    shadowMap2: texture(u.uShadowMap2.value ?? placeholder),
+    shadowMatrix0: uniform(u.uShadowMatrix0.value),
+    shadowMatrix1: uniform(u.uShadowMatrix1.value),
+    shadowMatrix2: uniform(u.uShadowMatrix2.value),
+    cascadeSplit0: uniform(u.uCascadeSplit0.value),
+    cascadeSplit1: uniform(u.uCascadeSplit1.value),
+    cascadeSplit2: uniform(u.uCascadeSplit2.value),
+    shadowBias: uniform(u.uShadowBias.value),
+    shadowNormalBias: uniform(u.uShadowNormalBias.value),
+    shadowStrength: uniform(u.uShadowStrength.value),
+    sunlightIntensity: uniform(u.uSunlightIntensity.value),
+    sunDirection: uniform(u.uSunDirection.value),
+    worldOffset: uniform(u.uWorldOffset.value),
+    minOccluderDepth: uniform(u.uMinOccluderDepth.value),
+  };
+}
+
+type HeldShadowNodes = ReturnType<typeof createHeldShadowNodes>;
+
+function syncHeldShadowNodes(
+  u: EntityShadowUniforms,
+  n: HeldShadowNodes,
+): void {
+  if (u.uShadowMap0.value) n.shadowMap0.value = u.uShadowMap0.value;
+  if (u.uShadowMap1.value) n.shadowMap1.value = u.uShadowMap1.value;
+  if (u.uShadowMap2.value) n.shadowMap2.value = u.uShadowMap2.value;
+  n.cascadeSplit0.value = u.uCascadeSplit0.value;
+  n.cascadeSplit1.value = u.uCascadeSplit1.value;
+  n.cascadeSplit2.value = u.uCascadeSplit2.value;
+  n.shadowBias.value = u.uShadowBias.value;
+  n.shadowNormalBias.value = u.uShadowNormalBias.value;
+  n.shadowStrength.value = u.uShadowStrength.value;
+  n.sunlightIntensity.value = u.uSunlightIntensity.value;
+  n.minOccluderDepth.value = u.uMinOccluderDepth.value;
+}
 
 const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
@@ -131,8 +175,10 @@ export class Arm extends THREE.Group {
   private currentArmObject: THREE.Object3D | null = null;
 
   private heldObjectShadowUniforms: EntityShadowUniforms[] = [];
+  private heldObjectShadowNodes: HeldShadowNodes[] = [];
 
   public heldLightColor = new THREE.Color(1, 1, 1);
+  private heldLightColorNode = uniform(this.heldLightColor);
 
   emitSwingEvent: () => void;
 
@@ -200,17 +246,21 @@ export class Arm extends THREE.Group {
           if (playerWorldPosition) {
             child.shadowUniforms.uWorldOffset.value.copy(playerWorldPosition);
           }
+          child.syncShadowNodes();
         }
       });
     }
 
     if (receiveHeldObjectShadows) {
-      for (const uniforms of this.heldObjectShadowUniforms) {
+      for (let i = 0; i < this.heldObjectShadowUniforms.length; i++) {
+        const uniforms = this.heldObjectShadowUniforms[i];
         updateEntityShadowUniforms(uniforms, lightingUniforms);
         uniforms.uMinOccluderDepth.value = minDepth;
         if (playerWorldPosition) {
           uniforms.uWorldOffset.value.copy(playerWorldPosition);
         }
+        const nodes = this.heldObjectShadowNodes[i];
+        if (nodes) syncHeldShadowNodes(uniforms, nodes);
       }
     }
   }
@@ -284,6 +334,7 @@ export class Arm extends THREE.Group {
 
   private setArm = () => {
     this.heldObjectShadowUniforms = [];
+    this.heldObjectShadowNodes = [];
 
     const arm = new CanvasBox({
       width: 0.5,
@@ -332,6 +383,8 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
+    this.injectShadowShaders(object);
+
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -367,7 +420,10 @@ export class Arm extends THREE.Group {
 
   private injectShadowShaders(object: THREE.Object3D): void {
     this.heldObjectShadowUniforms = [];
+    this.heldObjectShadowNodes = [];
     if (!this.shouldReceiveHeldObjectShadows()) return;
+
+    const lightColor = this.heldLightColorNode;
 
     object.traverse((child) => {
       if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
@@ -376,52 +432,78 @@ export class Arm extends THREE.Group {
         ? mesh.material
         : [mesh.material];
 
-      for (const material of materials) {
+      for (let i = 0; i < materials.length; i++) {
+        const material = materials[i];
         if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
-
-        material.userData.lightEffectSetup = true;
+        const basicMat = material as THREE.MeshBasicMaterial;
 
         const shadowUniforms = createEntityShadowUniforms();
         this.heldObjectShadowUniforms.push(shadowUniforms);
 
-        const lightColorRef = this.heldLightColor;
-        material.onBeforeCompile = (shader) => {
-          Object.assign(shader.uniforms, shadowUniforms);
-          shader.uniforms.uLightColor = { value: lightColorRef };
+        const nodes = createHeldShadowNodes(shadowUniforms);
+        this.heldObjectShadowNodes.push(nodes);
 
-          shader.vertexShader = shader.vertexShader
-            .replace(
-              "#include <uv_pars_vertex>",
-              `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-`,
-            )
-            .replace(
-              "#include <worldpos_vertex>",
-              `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-`,
-            );
+        const nodeMat = new MeshBasicNodeMaterial();
+        nodeMat.color.copy(basicMat.color);
+        nodeMat.map = basicMat.map;
+        nodeMat.side = basicMat.side;
+        nodeMat.transparent = basicMat.transparent;
+        nodeMat.opacity = basicMat.opacity;
+        nodeMat.alphaTest = basicMat.alphaTest;
+        nodeMat.toneMapped = basicMat.toneMapped;
+        nodeMat.depthTest = basicMat.depthTest;
+        nodeMat.depthWrite = basicMat.depthWrite;
+        nodeMat.name = basicMat.name;
+        nodeMat.userData.lightEffectSetup = true;
 
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "#include <common>",
-              `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-uniform vec3 uLightColor;
-`,
-            )
-            .replace(
-              "#include <dithering_fragment>",
-              `#include <dithering_fragment>
-gl_FragColor.rgb *= uLightColor;
-`,
-            );
-        };
+        const mapNode = basicMat.map ? texture(basicMat.map) : null;
+        const colorUniform = uniform(basicMat.color.clone());
 
-        material.onBeforeCompile.toString = () => "held-object-shadow-shader";
-        material.needsUpdate = true;
+        nodeMat.colorNode = Fn(() => {
+          const base = mapNode ? mapNode.rgb.mul(colorUniform) : colorUniform;
+
+          const { shadowCoords, viewDepth } = computeEntityShadowCoords({
+            worldPosition: positionWorld,
+            shadowMatrices: [
+              nodes.shadowMatrix0,
+              nodes.shadowMatrix1,
+              nodes.shadowMatrix2,
+            ],
+            worldOffset: nodes.worldOffset,
+          });
+
+          const shadow = getEntityShadow({
+            worldNormal: vec3(0, 1, 0),
+            viewDepth,
+            shadowCoords,
+            shadowMaps: [nodes.shadowMap0, nodes.shadowMap1, nodes.shadowMap2],
+            cascadeSplits: [
+              nodes.cascadeSplit0,
+              nodes.cascadeSplit1,
+              nodes.cascadeSplit2,
+            ],
+            shadowBias: nodes.shadowBias,
+            shadowNormalBias: nodes.shadowNormalBias,
+            shadowStrength: nodes.shadowStrength,
+            sunlightIntensity: nodes.sunlightIntensity,
+            sunDirection: nodes.sunDirection,
+            minOccluderDepth: nodes.minOccluderDepth,
+          });
+
+          return base.mul(shadow).mul(lightColor);
+        })();
+
+        if (mapNode) {
+          nodeMat.opacityNode = mapNode.a;
+        }
+
+        if (Array.isArray(mesh.material)) {
+          (mesh.material as THREE.Material[])[i] = nodeMat;
+        } else {
+          mesh.material = nodeMat;
+        }
+
+        basicMat.dispose();
       }
     });
   }

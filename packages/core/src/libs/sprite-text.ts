@@ -1,4 +1,5 @@
-import { LinearFilter, Sprite, SpriteMaterial, Texture } from "three";
+import { LinearFilter, Sprite, Texture } from "three/webgpu";
+import { SpriteNodeMaterial } from "three/webgpu";
 
 import { ColorText } from "./color-text";
 
@@ -39,7 +40,7 @@ export class SpriteText extends Sprite {
    * @param textHeight The height of the text in pixels.
    */
   constructor(text = "", textHeight = 10) {
-    super(new SpriteMaterial());
+    super(new SpriteNodeMaterial());
 
     this._text = `${text}`;
     this._textHeight = textHeight;

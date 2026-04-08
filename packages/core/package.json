@@ -22,7 +22,6 @@
     "preinstall": "npx only-allow pnpm"
   },
   "peerDependencies": {
-    "postprocessing": "^6.35.0",
     "three": "^0.183.0"
   },
   "devDependencies": {

@@ -5,7 +5,7 @@ import {
   NearestFilter,
   SRGBColorSpace,
   Texture,
-} from "three";
+} from "three/webgpu";
 
 import { ThreeUtils } from "../../utils";
 

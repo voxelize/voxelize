@@ -3,7 +3,6 @@ import {
   AmbientLight,
   DirectionalLight,
   Mesh,
-  MeshBasicMaterial,
   NearestFilter,
   Object3D,
   OrthographicCamera,
@@ -12,8 +11,9 @@ import {
   SRGBColorSpace,
   Texture,
   Vector3,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
+import { WebGPURenderer } from "three/webgpu";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { CameraPerspective, noop } from "../common";
 import { Inputs } from "../core/inputs";
@@ -182,7 +182,7 @@ export class ItemSlot<T = number> {
       texture.colorSpace = SRGBColorSpace;
       texture.minFilter = NearestFilter;
       texture.magFilter = NearestFilter;
-      const material = new MeshBasicMaterial({
+      const material = new MeshBasicNodeMaterial({
         map: texture,
         transparent: true,
       });
@@ -290,6 +290,8 @@ export class ItemSlot<T = number> {
   };
 }
 
+type ItemSlotsRenderer = WebGPURenderer;
+
 export class ItemSlots<T = number> {
   public options: ItemSlotsOptions;
 
@@ -297,13 +299,15 @@ export class ItemSlots<T = number> {
 
   public canvas: HTMLCanvasElement;
 
-  public renderer: WebGLRenderer;
+  public renderer: ItemSlotsRenderer;
 
   public focusedRow = -1;
 
   public focusedCol = -1;
 
   public activated = false;
+
+  private isRendererReady = false;
 
   public slotTotalWidth: number;
   public slotTotalHeight: number;
@@ -638,7 +642,7 @@ export class ItemSlots<T = number> {
   render = () => {
     this.animationFrame = requestAnimationFrame(this.render);
 
-    if (!this.activated) return;
+    if (!this.activated || !this.isRendererReady) return;
 
     const { horizontalCount, verticalCount, slotMargin, slotPadding } =
       this.options;
@@ -799,12 +803,16 @@ export class ItemSlots<T = number> {
 
     this.wrapper.appendChild(this.canvas);
 
-    this.renderer = new WebGLRenderer({
+    this.renderer = new WebGPURenderer({
       canvas: this.canvas,
       antialias: false,
       alpha: true,
     });
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.setSize(width, height);
+
+    this.renderer.init().then(() => {
+      this.isRendererReady = true;
+    });
   };
 }

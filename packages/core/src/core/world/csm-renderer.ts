@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import {
   Camera,
   DepthTexture,
@@ -8,14 +8,19 @@ import {
   MeshDepthMaterial,
   Object3D,
   OrthographicCamera,
+  RenderTarget,
   RGBADepthPacking,
   Scene,
   Texture,
   UnsignedIntType,
   Vector3,
-  WebGLRenderTarget,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
+
+interface ShadowMapRenderer {
+  setRenderTarget(renderTarget: RenderTarget | null): void;
+  clear(): void;
+  render(scene: Object3D, camera: Camera): void;
+}
 
 export interface CSMConfig {
   cascades: number;
@@ -28,7 +33,7 @@ export interface CSMConfig {
 }
 
 interface Cascade {
-  renderTarget: WebGLRenderTarget;
+  renderTarget: RenderTarget;
   camera: OrthographicCamera;
   matrix: Matrix4;
   split: number;
@@ -99,7 +104,7 @@ export class CSMRenderer {
     for (let i = 0; i < cascades; i++) {
       const size = shadowMapSize;
 
-      const renderTarget = new WebGLRenderTarget(size, size, {
+      const renderTarget = new RenderTarget(size, size, {
         depthTexture: new DepthTexture(size, size),
       });
       renderTarget.depthTexture.type = UnsignedIntType;
@@ -322,12 +327,16 @@ export class CSMRenderer {
   }
 
   render(
-    renderer: WebGLRenderer,
+    renderer: ShadowMapRenderer,
     scene: Scene,
     entities?: Object3D[],
     maxEntityShadowDistance = 32,
     instancePools?: Group[],
   ) {
+    // TODO: MeshDepthMaterial override doesn't work with MeshBasicNodeMaterial under WebGPU.
+    // Need to port depth pass to NodeMaterial. Shadows disabled until then.
+    return;
+
     const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
     if (!anyNeedsRender) {
       return;

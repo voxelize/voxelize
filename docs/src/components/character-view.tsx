@@ -10,17 +10,18 @@ const CharacterView = () => {
     let cleanup: (() => void) | undefined;
 
     (async () => {
-      const THREE = await import("three");
+      const THREE = await import("three/webgpu");
       const VOXELIZE = await import("@voxelize/core");
 
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      const renderer = new THREE.WebGLRenderer({
+      const renderer = new THREE.WebGPURenderer({
         canvas,
         antialias: true,
         alpha: true,
       });
+      await renderer.init();
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(canvas.clientWidth, canvas.clientHeight);
       renderer.outputColorSpace = THREE.SRGBColorSpace;

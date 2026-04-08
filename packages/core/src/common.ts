@@ -1,4 +1,4 @@
-import { Mesh, Object3D, Vector3 } from "three";
+import { Mesh, Object3D, Vector3 } from "three/webgpu";
 
 export const TRANSPARENT_RENDER_ORDER = 100000;
 export const TRANSPARENT_FLUID_RENDER_ORDER = 100001;

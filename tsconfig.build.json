@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "module": "commonjs",
+    "module": "esnext",
     "target": "es2017",
+    "moduleResolution": "bundler",
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,

@@ -10,10 +10,9 @@ import {
   Object3D,
   Quaternion,
   Scene,
-  ShaderMaterial,
   Texture,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 export class ThreeUtils {
   static isTexture(object: any): object is Texture {
@@ -66,9 +65,5 @@ export class ThreeUtils {
 
   static isCanvasTexture(object: any): object is CanvasTexture {
     return object && object.isCanvasTexture;
-  }
-
-  static isShaderMaterial(object: any): object is ShaderMaterial {
-    return object && object.isShaderMaterial;
   }
 }

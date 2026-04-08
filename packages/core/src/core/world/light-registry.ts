@@ -1,4 +1,4 @@
-import { Color, Vector3 } from "three";
+import { Color, Vector3 } from "three/webgpu";
 
 export interface DynamicLight {
   id: string;

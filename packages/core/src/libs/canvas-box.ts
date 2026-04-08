@@ -1,3 +1,4 @@
+import { Fn, positionWorld, texture, uniform, vec3 } from "three/tsl";
 import {
   BoxGeometry,
   CanvasTexture,
@@ -6,21 +7,22 @@ import {
   Group,
   LinearMipMapLinearFilter,
   Mesh,
-  MeshBasicMaterial,
   NearestFilter,
   RepeatWrapping,
   SRGBColorSpace,
   Side,
   Texture,
-} from "three";
+} from "three/webgpu";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import {
   createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
   EntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
+import {
+  computeEntityShadowCoords,
+  getEntityShadow,
+} from "../core/world/tsl/entity-shadow";
 import { DOMUtils } from "../utils";
 
 /**
@@ -131,6 +133,30 @@ export const BOX_SIDES: BoxSides[] = [
   "right",
 ];
 
+function createShadowNodes(u: EntityShadowUniforms) {
+  const placeholder = new Texture();
+  return {
+    shadowMap0: texture(u.uShadowMap0.value ?? placeholder),
+    shadowMap1: texture(u.uShadowMap1.value ?? placeholder),
+    shadowMap2: texture(u.uShadowMap2.value ?? placeholder),
+    shadowMatrix0: uniform(u.uShadowMatrix0.value),
+    shadowMatrix1: uniform(u.uShadowMatrix1.value),
+    shadowMatrix2: uniform(u.uShadowMatrix2.value),
+    cascadeSplit0: uniform(u.uCascadeSplit0.value),
+    cascadeSplit1: uniform(u.uCascadeSplit1.value),
+    cascadeSplit2: uniform(u.uCascadeSplit2.value),
+    shadowBias: uniform(u.uShadowBias.value),
+    shadowNormalBias: uniform(u.uShadowNormalBias.value),
+    shadowStrength: uniform(u.uShadowStrength.value),
+    sunlightIntensity: uniform(u.uSunlightIntensity.value),
+    sunDirection: uniform(u.uSunDirection.value),
+    worldOffset: uniform(u.uWorldOffset.value),
+    minOccluderDepth: uniform(u.uMinOccluderDepth.value),
+  };
+}
+
+type ShadowNodes = ReturnType<typeof createShadowNodes>;
+
 /**
  * A layer of a canvas box. This is a group of six canvases that are rendered as a single mesh.
  *
@@ -140,12 +166,14 @@ export class BoxLayer extends Mesh {
   /**
    * The materials of the six faces of this box layer.
    */
-  public materials: Map<string, MeshBasicMaterial> = new Map();
+  public materials: Map<string, MeshBasicNodeMaterial> = new Map();
 
   /**
    * Shadow uniforms for this box layer (only set if receiveShadows is true).
    */
   public shadowUniforms: EntityShadowUniforms | null = null;
+
+  private _shadowNodes: ShadowNodes | null = null;
 
   /**
    * The width of the box layer.
@@ -230,6 +258,7 @@ export class BoxLayer extends Mesh {
 
     if (receiveShadows) {
       this.shadowUniforms = createEntityShadowUniforms();
+      this._shadowNodes = createShadowNodes(this.shadowUniforms);
       this.userData.receiveShadows = true;
     }
 
@@ -277,12 +306,10 @@ export class BoxLayer extends Mesh {
 
       const { width, height } = this.getDimensionFromSide(face);
 
-      const isTexture = (art: any): art is Texture => {
-        return art.isTexture;
-      };
-      const isColor = (art: any): art is Color => {
-        return art.isColor;
-      };
+      const isTexture = (a: ArtFunction | Color | Texture): a is Texture =>
+        typeof a === "object" && "isTexture" in a;
+      const isColor = (a: ArtFunction | Color | Texture): a is Color =>
+        typeof a === "object" && "isColor" in a;
 
       if (isTexture(art)) {
         context.drawImage(art.image as CanvasImageSource, 0, 0, width, height);
@@ -317,12 +344,12 @@ export class BoxLayer extends Mesh {
     canvas.width = width;
     canvas.height = height;
 
-    const texture = new CanvasTexture(canvas);
-    texture.colorSpace = SRGBColorSpace;
+    const canvasTexture = new CanvasTexture(canvas);
+    canvasTexture.colorSpace = SRGBColorSpace;
 
-    const material = new MeshBasicMaterial({
+    const material = new MeshBasicNodeMaterial({
       side: this.side,
-      map: texture,
+      map: canvasTexture,
       transparent: this.transparent,
       name: face,
     });
@@ -337,43 +364,43 @@ export class BoxLayer extends Mesh {
       material.map.needsUpdate = true;
     }
 
-    if (this.receiveShadows && this.shadowUniforms) {
-      const shadowUniforms = this.shadowUniforms;
-      material.onBeforeCompile = (shader) => {
-        Object.assign(shader.uniforms, shadowUniforms);
+    if (this.receiveShadows && this._shadowNodes) {
+      const nodes = this._shadowNodes;
+      const mapNode = texture(canvasTexture);
 
-        shader.vertexShader = shader.vertexShader
-          .replace(
-            "#include <uv_pars_vertex>",
-            `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-`,
-          )
-          .replace(
-            "#include <worldpos_vertex>",
-            `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-`,
-          );
+      material.colorNode = Fn(() => {
+        const { shadowCoords, viewDepth } = computeEntityShadowCoords({
+          worldPosition: positionWorld,
+          shadowMatrices: [
+            nodes.shadowMatrix0,
+            nodes.shadowMatrix1,
+            nodes.shadowMatrix2,
+          ],
+          worldOffset: nodes.worldOffset,
+        });
 
-        shader.fragmentShader = shader.fragmentShader
-          .replace(
-            "#include <common>",
-            `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-`,
-          )
-          .replace(
-            "#include <dithering_fragment>",
-            `#include <dithering_fragment>
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
-gl_FragColor.rgb *= shadow;
-`,
-          );
-      };
+        const shadow = getEntityShadow({
+          worldNormal: vec3(0, 1, 0),
+          viewDepth,
+          shadowCoords,
+          shadowMaps: [nodes.shadowMap0, nodes.shadowMap1, nodes.shadowMap2],
+          cascadeSplits: [
+            nodes.cascadeSplit0,
+            nodes.cascadeSplit1,
+            nodes.cascadeSplit2,
+          ],
+          shadowBias: nodes.shadowBias,
+          shadowNormalBias: nodes.shadowNormalBias,
+          shadowStrength: nodes.shadowStrength,
+          sunlightIntensity: nodes.sunlightIntensity,
+          sunDirection: nodes.sunDirection,
+          minOccluderDepth: nodes.minOccluderDepth,
+        });
 
-      material.onBeforeCompile.toString = () => "canvasbox-shadow-shader";
+        return mapNode.rgb.mul(shadow);
+      })();
+
+      material.opacityNode = mapNode.a;
     }
 
     return material;
@@ -400,6 +427,25 @@ gl_FragColor.rgb *= shadow;
         throw new Error("Cannot derive width/height from unknown side.");
       }
     }
+  };
+
+  syncShadowNodes = () => {
+    if (!this.shadowUniforms || !this._shadowNodes) return;
+    const u = this.shadowUniforms;
+    const n = this._shadowNodes;
+
+    if (u.uShadowMap0.value) n.shadowMap0.value = u.uShadowMap0.value;
+    if (u.uShadowMap1.value) n.shadowMap1.value = u.uShadowMap1.value;
+    if (u.uShadowMap2.value) n.shadowMap2.value = u.uShadowMap2.value;
+
+    n.cascadeSplit0.value = u.uCascadeSplit0.value;
+    n.cascadeSplit1.value = u.uCascadeSplit1.value;
+    n.cascadeSplit2.value = u.uCascadeSplit2.value;
+    n.shadowBias.value = u.uShadowBias.value;
+    n.shadowNormalBias.value = u.uShadowNormalBias.value;
+    n.shadowStrength.value = u.uShadowStrength.value;
+    n.sunlightIntensity.value = u.uSunlightIntensity.value;
+    n.minOccluderDepth.value = u.uMinOccluderDepth.value;
   };
 }
 
@@ -506,6 +552,12 @@ export class CanvasBox extends Group {
   get boxMaterials() {
     return this.boxLayers[0].materials;
   }
+
+  syncShadowNodes = () => {
+    for (const layer of this.boxLayers) {
+      layer.syncShadowNodes();
+    }
+  };
 
   private makeBoxes = () => {
     const {

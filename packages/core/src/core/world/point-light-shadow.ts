@@ -1,5 +1,6 @@
 import {
   CubeCamera,
+  CubeCameraRenderer,
   CubeTexture,
   HalfFloatType,
   MeshDepthMaterial,
@@ -10,8 +11,7 @@ import {
   Scene,
   Vector3,
   WebGLCubeRenderTarget,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 
 export interface PointLightShadowConfig {
   shadowMapSize: number;
@@ -91,7 +91,7 @@ export class PointLightShadowRenderer {
   }
 
   update(
-    renderer: WebGLRenderer,
+    renderer: CubeCameraRenderer,
     scene: Scene,
     skipObjects: Object3D[] = [],
   ): boolean {

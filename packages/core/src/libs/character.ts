@@ -11,7 +11,7 @@ import {
   Object3D,
   Quaternion,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 import {
   ShaderLightingUniforms,

@@ -6,8 +6,8 @@ import {
   Scene,
   Vector2,
   Vector3,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
+import { WebGPURenderer } from "three/webgpu";
 
 import { CameraPerspective } from "../common";
 
@@ -77,16 +77,21 @@ const defaultOptions: PortraitOptions = {
  * ```
  */
 export class Portrait {
-  private static _renderer: WebGLRenderer | null = null;
+  private static _renderer: WebGPURenderer | null = null;
+  private static _isReady = false;
 
-  public static get renderer(): WebGLRenderer {
-    if (!Portrait._renderer) {
-      Portrait._renderer = new WebGLRenderer({
-        antialias: false,
-        failIfMajorPerformanceCaveat: false,
-      });
-    }
+  public static get renderer(): WebGPURenderer | null {
     return Portrait._renderer;
+  }
+
+  private static ensureRenderer(): void {
+    if (Portrait._renderer) return;
+    const renderer = new WebGPURenderer({ antialias: false });
+    Portrait._renderer = renderer;
+    renderer.init().then(() => {
+      renderer.outputColorSpace = SRGBColorSpace;
+      Portrait._isReady = true;
+    });
   }
 
   /**
@@ -130,7 +135,7 @@ export class Portrait {
       throw new Error("A target object is required for portraits.");
     }
 
-    Portrait.renderer.outputColorSpace = SRGBColorSpace;
+    Portrait.ensureRenderer();
 
     const { width, height, zoom, perspective, lightRotationOffset } =
       (this.options = {
@@ -203,10 +208,11 @@ export class Portrait {
   private render = () => {
     this.animationFrameId = requestAnimationFrame(this.render);
 
-    const renderer = Portrait.renderer;
+    if (!Portrait._isReady || !Portrait._renderer) return;
+
+    const renderer = Portrait._renderer;
     const { renderOnce } = this.options;
 
-    // Get the renderer's sizes
     const { width, height } = renderer.getSize(new Vector2(0, 0));
 
     if (width !== this.canvas.width || height !== this.canvas.height) {

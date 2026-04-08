@@ -10,7 +10,7 @@ import {
   PerspectiveCamera,
   Quaternion,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 import { Arm, Character } from "../libs";
 import { Coords3 } from "../types";

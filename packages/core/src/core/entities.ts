@@ -1,5 +1,5 @@
 import { MessageProtocol } from "@voxelize/protocol";
-import { Group, Vector3 } from "three";
+import { Group, Vector3 } from "three/webgpu";
 
 import { NetIntercept } from "./network";
 

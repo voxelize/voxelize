@@ -1,15 +1,22 @@
 import {
+  Fn,
+  max,
+  mix,
+  normalize,
+  positionWorld,
+  pow,
+  uniform,
+} from "three/tsl";
+import {
   BackSide,
   Color,
   DodecahedronGeometry,
   Mesh,
-  ShaderMaterial,
   Vector3,
-} from "three";
+} from "three/webgpu";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
-import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
-import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
 export type SkyShadingCycleData = {
   start: number;
@@ -322,61 +329,37 @@ export class Sky extends CanvasBox {
     this.uVoidOffset.value = weightedVoidOffset;
   };
 
-  /**
-   * Create the dodecahedron sky gradient.
-   */
   private createSkyShading = () => {
-    const {
-      color: { top, middle, bottom },
-      skyOffset,
-      voidOffset,
-    } = {
-      color: {
-        top: "#222",
-        middle: "#222",
-        bottom: "#222",
-      },
-      skyOffset: 0,
-      voidOffset: 1200,
-    };
+    const topColor = uniform(new Color("#222"));
+    const middleColor = uniform(new Color("#222"));
+    const bottomColor = uniform(new Color("#222"));
+    const skyOffset = uniform(0);
+    const voidOffset = uniform(1200);
 
-    this.uTopColor = {
-      value: new Color(top),
-    };
-    this.uMiddleColor = {
-      value: new Color(middle),
-    };
-    this.uBottomColor = {
-      value: new Color(bottom),
-    };
-    this.uSkyOffset = {
-      value: skyOffset,
-    };
-    this.uVoidOffset = {
-      value: voidOffset,
-    };
+    this.uTopColor = topColor;
+    this.uMiddleColor = middleColor;
+    this.uBottomColor = bottomColor;
+    this.uSkyOffset = skyOffset;
+    this.uVoidOffset = voidOffset;
+
+    const colorNode = Fn(() => {
+      const h = normalize(positionWorld.add(skyOffset)).y;
+      const h2 = normalize(positionWorld.add(voidOffset)).y;
+      const color = mix(middleColor, topColor, max(pow(max(h, 0.0), 0.6), 0.0));
+      return mix(color, bottomColor, max(pow(max(h2.negate(), 0.0), 1.2), 0.0));
+    });
 
     const shadingGeometry = new DodecahedronGeometry(this.options.dimension, 2);
-    const shadingMaterial = new ShaderMaterial({
-      uniforms: {
-        uTopColor: this.uTopColor,
-        uMiddleColor: this.uMiddleColor,
-        uBottomColor: this.uBottomColor,
-        uSkyOffset: this.uSkyOffset,
-        uVoidOffset: this.uVoidOffset,
-        uExponent: { value: 0.6 },
-        uExponent2: { value: 1.2 },
-      },
-      vertexShader: SkyVertexShader,
-      fragmentShader: SkyFragmentShader,
-      depthWrite: false,
-      side: BackSide,
-    });
+    const shadingMaterial = new MeshBasicNodeMaterial();
+    shadingMaterial.colorNode = colorNode();
+    shadingMaterial.side = BackSide;
+    shadingMaterial.depthWrite = false;
+
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
     shadingMesh.renderOrder = -1;
     shadingMesh.frustumCulled = false;
 
-    // We use attach here so that the sky shading is not affected by the box's rotation.
+    // attach instead of add so the sky shading is unaffected by the box's rotation
     this.attach(shadingMesh);
   };
 }

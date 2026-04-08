@@ -1,5 +1,10 @@
 import { GifReader } from "omggif";
-import { AudioLoader, LoadingManager, Texture, TextureLoader } from "three";
+import {
+  AudioLoader,
+  LoadingManager,
+  Texture,
+  TextureLoader,
+} from "three/webgpu";
 
 /**
  * An asset loader that can load textures and audio files. This class is used internally by the world
