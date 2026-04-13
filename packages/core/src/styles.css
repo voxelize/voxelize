@@ -57,6 +57,17 @@
   transform: scale(1.1);
 }
 
+/* Above the WebGL canvas so the ring is visible; hollow (transparent fill) so items show through. */
+.item-slots-focus-ring {
+  position: absolute;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid #e6e1d7;
+  background: transparent;
+  z-index: 10;
+  display: none;
+}
+
 /* -------------------------------------------------------------------------- */
 /*                                    DEBUG                                   */
 /* -------------------------------------------------------------------------- */
