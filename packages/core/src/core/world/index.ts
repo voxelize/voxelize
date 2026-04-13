@@ -326,6 +326,8 @@ const VOXEL_NEIGHBORS = [
   [0, -1, 0],
 ];
 
+const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
+
 export type CustomChunkShaderMaterial = MeshBasicNodeMaterial & {
   map: Texture;
 };
@@ -2039,6 +2041,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.chunkRenderer.materials.get(
       this.makeChunkMaterialKey(block.id),
     );
+  }
+
+  private isSharedOpaqueMaterialBlock(block: Block) {
+    return block.isOpaque && !block.isFluid && !block.isSeeThrough;
   }
 
   getTextureInfo(): {
@@ -4041,7 +4047,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private setPlantMeshVisibility(meshes: Mesh[], showPlants: boolean) {
     for (const mesh of meshes) {
-      if (mesh && this._plantBlockIds.has(mesh.userData.voxel)) {
+      const voxelId = mesh?.userData.voxel;
+      if (typeof voxelId === "number" && this._plantBlockIds.has(voxelId)) {
         mesh.visible = showPlants;
       }
     }
@@ -4450,11 +4457,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       meshes = [];
-      for (const [, geoMats] of materialToGeometries) {
+      for (const [materialKey, geoMats] of materialToGeometries) {
         if (geoMats.length === 0) continue;
 
         const material = geoMats[0].material;
         const voxel = geoMats[0].voxel;
+        const isSingleVoxelMesh = geoMats.every(
+          ({ voxel: geometryVoxel }) => geometryVoxel === voxel,
+        );
 
         let finalGeometry: BufferGeometry;
         if (geoMats.length === 1) {
@@ -4487,7 +4497,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
-        mesh.userData = { isChunk: true, merged: true, voxel };
+        mesh.userData = {
+          isChunk: true,
+          merged: true,
+          materialBucket: materialKey,
+          voxel: isSingleVoxelMesh ? voxel : undefined,
+        };
         if (material.transparent) {
           const block = this.getBlockByIdSafe(voxel);
           mesh.renderOrder = block?.isFluid
@@ -4570,7 +4585,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
-        mesh.userData = { isChunk: true, voxel };
+        mesh.userData = {
+          isChunk: true,
+          voxel,
+          materialBucket: this.makeChunkMaterialKey(
+            voxel,
+            faceName,
+            at && at.length ? at : undefined,
+          ),
+        };
         if (material.transparent) {
           const block = this.getBlockByIdSafe(voxel);
           mesh.renderOrder = block?.isFluid
@@ -5988,17 +6011,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     const totalSlots = textureGroups.size + ungroupedFaces;
     const countPerSide = perSide(totalSlots);
     const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
+    const sharedOpaqueMaterial = make(false, atlas, false, true, false);
 
     this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
 
     blocks.forEach((block) => {
-      const mat = make(
-        block.isSeeThrough,
-        atlas,
-        block.isFluid,
-        block.lightReduce,
-        block.transparentStandalone,
-      );
+      const mat = this.isSharedOpaqueMaterialBlock(block)
+        ? sharedOpaqueMaterial
+        : make(
+            block.isSeeThrough,
+            atlas,
+            block.isFluid,
+            block.lightReduce,
+            block.transparentStandalone,
+          );
       const key = this.makeChunkMaterialKey(block.id);
       this.chunkRenderer.materials.set(key, mat);
 
@@ -6030,11 +6056,15 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private makeChunkMaterialKey(id: number, faceName?: string, voxel?: Coords3) {
+    const block = this.getBlockById(id);
+
     return voxel
       ? `${id}-${faceName}-${voxel.join("-")}`
       : faceName
         ? `${id}-${faceName}`
-        : `${id}`;
+        : this.isSharedOpaqueMaterialBlock(block)
+          ? SHARED_OPAQUE_MATERIAL_KEY
+          : `${id}`;
   }
 
   private trackChunkAt(vx: number, vy: number, vz: number) {
