@@ -524,6 +524,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       stepHeight: this.options.stepHeight,
     });
 
+    this._smoothedBodyHeight = bodyHeight;
     this.reset();
   }
 
@@ -841,8 +842,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.object.position.set(x, y, z);
 
     if (this.body) {
-      const { eyeHeight } = this.options;
-      const bodyY = y - this._smoothedBodyHeight * (eyeHeight - 0.5);
+      const { eyeHeight, bodyHeight } = this.options;
+      const effectiveHeight =
+        this._smoothedBodyHeight < 0 ? bodyHeight : this._smoothedBodyHeight;
+      const bodyY = y - effectiveHeight * (eyeHeight - 0.5);
       this.body.resting = [0, 0, 0];
       this.body.velocity = [0, 0, 0];
       this.body.forces = [0, 0, 0];
@@ -992,6 +995,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.body.aabb.maxY = this.body.aabb.minY + this.options.bodyHeight;
     this.body.aabb.maxZ = this.body.aabb.minZ + this.options.bodyDepth;
 
+    this._smoothedBodyHeight = this.options.bodyHeight;
     this._crouching = false;
     this.character = character;
   };
