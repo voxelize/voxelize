@@ -825,7 +825,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
   private static readonly nightColor = new Color(0.15, 0.18, 0.25);
-  private static readonly fogWarmTint = new Color(0.95, 0.88, 0.75);
+
   private static readonly dayAmbient = new Color(0.42, 0.42, 0.43);
   private static readonly nightAmbient = new Color(0.12, 0.15, 0.22);
   private lightJobsCompleteResolvers: (() => void)[] = [];
@@ -4174,13 +4174,23 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const fogColor = this.chunkRenderer.uniforms.fogColor.value;
     if (fogColor) {
-      const fogWarmLerp = 0.55 * sunlightIntensity;
-      fogColor.lerpColors(
-        this.sky.uMiddleColor.value,
-        World.fogWarmTint,
-        fogWarmLerp,
-      );
+      fogColor.copy(this.sky.uMiddleColor.value);
     }
+
+    this.chunkRenderer.uniforms.skyFogTopColor.value.copy(
+      this.sky.uTopColor.value,
+    );
+    this.chunkRenderer.uniforms.skyFogMiddleColor.value.copy(
+      this.sky.uMiddleColor.value,
+    );
+    this.chunkRenderer.uniforms.skyFogBottomColor.value.copy(
+      this.sky.uBottomColor.value,
+    );
+    this.chunkRenderer.uniforms.skyFogOffset.value = this.sky.uSkyOffset.value;
+    this.chunkRenderer.uniforms.skyFogVoidOffset.value =
+      this.sky.uVoidOffset.value;
+    this.chunkRenderer.uniforms.skyFogDimension.value =
+      this.sky.options.dimension;
 
     if (this.usesShaderLighting) {
       this.chunkRenderer.shaderLightingUniforms.skyTopColor.value.copy(
@@ -5987,6 +5997,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         uFogColor: chunksUniforms.fogColor,
         uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
         uFogHeightDensity: chunksUniforms.fogHeightDensity,
+        uSkyFogTopColor: chunksUniforms.skyFogTopColor,
+        uSkyFogMiddleColor: chunksUniforms.skyFogMiddleColor,
+        uSkyFogBottomColor: chunksUniforms.skyFogBottomColor,
+        uSkyFogOffset: chunksUniforms.skyFogOffset,
+        uSkyFogVoidOffset: chunksUniforms.skyFogVoidOffset,
+        uSkyFogExponent: chunksUniforms.skyFogExponent,
+        uSkyFogExponent2: chunksUniforms.skyFogExponent2,
+        uSkyFogDimension: chunksUniforms.skyFogDimension,
+        uSkyFogStrength: chunksUniforms.skyFogStrength,
         uWindDirection: chunksUniforms.windDirection,
         uWindSpeed: chunksUniforms.windSpeed,
         uTime: chunksUniforms.time,

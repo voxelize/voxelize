@@ -155,6 +155,15 @@ uniform float uFogNear;
 uniform float uFogFar;
 uniform float uFogHeightOrigin;
 uniform float uFogHeightDensity;
+uniform vec3 uSkyFogTopColor;
+uniform vec3 uSkyFogMiddleColor;
+uniform vec3 uSkyFogBottomColor;
+uniform float uSkyFogOffset;
+uniform float uSkyFogVoidOffset;
+uniform float uSkyFogExponent;
+uniform float uSkyFogExponent2;
+uniform float uSkyFogDimension;
+uniform float uSkyFogStrength;
 uniform float uSunlightIntensity;
 uniform float uMinLightLevel;
 uniform float uBaseAmbient;
@@ -261,7 +270,15 @@ outgoingLight *= aoFactor;
     float heightDistScale = smoothstep(uFogNear * 0.3, uFogFar * 0.6, depth);
     float fogFactor = max(distFog, heightFog * heightDistScale);
 
-    gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+    vec3 fogRay = normalize(vWorldPosition.xyz - cameraPosition);
+    vec3 skyDomePos = cameraPosition + fogRay * uSkyFogDimension;
+    float sfH = normalize(skyDomePos + uSkyFogOffset).y;
+    float sfH2 = normalize(skyDomePos + uSkyFogVoidOffset).y;
+    vec3 skyColor = mix(uSkyFogMiddleColor, uSkyFogTopColor, max(pow(max(sfH, 0.0), uSkyFogExponent), 0.0));
+    skyColor = mix(skyColor, uSkyFogBottomColor, max(pow(max(-sfH2, 0.0), uSkyFogExponent2), 0.0));
+
+    vec3 fogTint = mix(uFogColor, skyColor, uSkyFogStrength);
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, fogFactor);
     `,
     ),
 };
@@ -409,6 +426,15 @@ uniform float uFogNear;
 uniform float uFogFar;
 uniform float uFogHeightOrigin;
 uniform float uFogHeightDensity;
+uniform vec3 uSkyFogTopColor;
+uniform vec3 uSkyFogMiddleColor;
+uniform vec3 uSkyFogBottomColor;
+uniform float uSkyFogOffset;
+uniform float uSkyFogVoidOffset;
+uniform float uSkyFogExponent;
+uniform float uSkyFogExponent2;
+uniform float uSkyFogDimension;
+uniform float uSkyFogStrength;
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
@@ -797,7 +823,15 @@ float heightFog = 1.0 - exp(-uFogHeightDensity * max(0.0, uFogHeightOrigin - vWo
 float heightDistScale = smoothstep(uFogNear * 0.3, uFogFar * 0.6, depth);
 float fogFactor = max(distFog, heightFog * heightDistScale);
 
-gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+vec3 fogRay = normalize(vWorldPosition.xyz - cameraPosition);
+vec3 skyDomePos = cameraPosition + fogRay * uSkyFogDimension;
+float sfH = normalize(skyDomePos + uSkyFogOffset).y;
+float sfH2 = normalize(skyDomePos + uSkyFogVoidOffset).y;
+vec3 skyColor = mix(uSkyFogMiddleColor, uSkyFogTopColor, max(pow(max(sfH, 0.0), uSkyFogExponent), 0.0));
+skyColor = mix(skyColor, uSkyFogBottomColor, max(pow(max(-sfH2, 0.0), uSkyFogExponent2), 0.0));
+
+vec3 fogTint = mix(uFogColor, skyColor, uSkyFogStrength);
+gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, fogFactor);
 
 if (uShadowDebugMode > 0.5) {
   if (uShadowDebugMode < 1.5) {

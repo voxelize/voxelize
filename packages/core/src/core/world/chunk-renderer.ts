@@ -56,6 +56,15 @@ export class ChunkRenderer {
     fogHeightDensity: { value: number };
     windDirection: { value: Vector2 };
     windSpeed: { value: number };
+    skyFogTopColor: { value: Color };
+    skyFogMiddleColor: { value: Color };
+    skyFogBottomColor: { value: Color };
+    skyFogOffset: { value: number };
+    skyFogVoidOffset: { value: number };
+    skyFogExponent: { value: number };
+    skyFogExponent2: { value: number };
+    skyFogDimension: { value: number };
+    skyFogStrength: { value: number };
   } = {
     fogColor: { value: new Color("#B1CCFD") },
     fogNear: { value: 100 },
@@ -72,6 +81,15 @@ export class ChunkRenderer {
     lightIntensityAdjustment: { value: 0.8 },
     atlasSize: { value: 16 },
     showGreedyDebug: { value: 0 },
+    skyFogTopColor: { value: new Color(0.4, 0.6, 0.9) },
+    skyFogMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
+    skyFogBottomColor: { value: new Color(0.15, 0.18, 0.25) },
+    skyFogOffset: { value: 0 },
+    skyFogVoidOffset: { value: 1200 },
+    skyFogExponent: { value: 0.6 },
+    skyFogExponent2: { value: 1.2 },
+    skyFogDimension: { value: 2000 },
+    skyFogStrength: { value: 1.0 },
   };
 
   public shaderLightingUniforms: ShaderLightingUniforms = {
