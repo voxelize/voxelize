@@ -196,8 +196,12 @@ export class Creature extends Group {
 
   snapToTarget() {
     this.position.copy(this.newPosition);
-    this.headGroup.rotation.setFromQuaternion(this.newDirection);
     this.bodyGroup.quaternion.copy(this.newBodyDirection);
+    const headLocal = this.newBodyDirection
+      .clone()
+      .invert()
+      .multiply(this.newDirection);
+    this.headGroup.quaternion.copy(headLocal);
   }
 
   set(position: number[], direction: number[]) {
@@ -328,7 +332,7 @@ export class Creature extends Group {
     this.headGroup.add(this.head);
     this.head.position.y = headHeight / 2;
     this.headGroup.position.z = -(bodyDepth / 2 + neckGap + headDepth / 2);
-    this.headGroup.position.y = legHeight + bodyHeight / 2;
+    this.headGroup.position.y = bodyHeight / 2;
 
     const legHalfWidth = betweenLegsGap / 2;
     const legFrontZ = -(bodyDepth / 2 - legDepth);
@@ -365,7 +369,7 @@ export class Creature extends Group {
       this.backRightLegGroup,
     );
 
-    this.add(this.headGroup);
+    this.bodyGroup.add(this.headGroup);
     this.add(this.bodyGroup);
   };
 
@@ -394,15 +398,19 @@ export class Creature extends Group {
       const posLerp = 1 - Math.pow(1 - baseLerp, dtNormalized);
       this.position.lerp(this.newPosition, posLerp);
     }
-    if (this.newDirection.length() !== 0) {
-      this.headGroup.rotation.setFromQuaternion(this.newDirection);
-    }
     if (this.newBodyDirection.length() !== 0) {
       const baseRotLerp = this.options.rotationLerp ?? 0.2;
       const targetFps = 60;
       const dtNormalized = dt * targetFps;
       const rotLerp = 1 - Math.pow(1 - baseRotLerp, dtNormalized);
       this.bodyGroup.quaternion.slerp(this.newBodyDirection, rotLerp);
+    }
+    if (this.newDirection.length() !== 0) {
+      const headLocal = this.bodyGroup.quaternion
+        .clone()
+        .invert()
+        .multiply(this.newDirection);
+      this.headGroup.quaternion.copy(headLocal);
     }
   };
 
