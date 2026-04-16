@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.build.json",
+  "include": ["src/**/*", "bin/**/*"],
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "strict": true,
+    "types": ["node"]
+  }
+}

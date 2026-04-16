@@ -1,0 +1,46 @@
+{
+  "name": "@voxelize/agent",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Headless puppeteer-backed agent SDK for Voxelize worlds",
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "types": "./dist/src/index.d.ts"
+    },
+    "./bridge": {
+      "require": "./dist/bridge.js",
+      "import": "./dist/bridge.mjs",
+      "types": "./dist/src/bridge.d.ts"
+    }
+  },
+  "bin": {
+    "voxelize-agent": "./dist/bin/voxelize-agent.js"
+  },
+  "scripts": {
+    "watch": "cross-env NODE_ENV=development npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
+    "clean": "rimraf ./dist",
+    "compile": "vite build",
+    "build": "pnpm run clean && pnpm run compile && pnpm run types",
+    "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
+    "dev": "tsx bin/voxelize-agent.ts"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "puppeteer": "^23.11.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2"
+  }
+}
