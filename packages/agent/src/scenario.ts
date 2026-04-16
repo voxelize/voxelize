@@ -26,6 +26,10 @@ export type ArenaOptions = {
   scenarioId?: string;
 };
 
+export type SpawnOptions = {
+  waterSeekChance?: number;
+};
+
 const DEFAULT_AGENT_URL = "http://127.0.0.1:4099";
 const DEFAULT_ARENA_SIZE: Vec3Tuple = [16, 8, 16];
 const ARENA_FLOOR_Y = 64;
@@ -138,12 +142,20 @@ export class Arena {
     });
   }
 
-  async spawn(kind: string, rel: Vec3Tuple): Promise<EntityHandle> {
-    await this.call("test:spawn", {
+  async spawn(
+    kind: string,
+    rel: Vec3Tuple,
+    opts: SpawnOptions = {},
+  ): Promise<EntityHandle> {
+    const payload: Record<string, unknown> = {
       kind,
       position: this.worldPos(rel),
       scenarioId: this.scenarioId,
-    });
+    };
+    if (opts.waterSeekChance !== undefined) {
+      payload.waterSeekChance = opts.waterSeekChance;
+    }
+    await this.call("test:spawn", payload);
     return new EntityHandle(this, kind, rel);
   }
 
