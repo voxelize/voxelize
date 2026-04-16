@@ -20,6 +20,11 @@
       "require": "./dist/bridge.js",
       "import": "./dist/bridge.mjs",
       "types": "./dist/src/bridge.d.ts"
+    },
+    "./scenario": {
+      "require": "./dist/scenario.js",
+      "import": "./dist/scenario.mjs",
+      "types": "./dist/src/scenario.d.ts"
     }
   },
   "bin": {

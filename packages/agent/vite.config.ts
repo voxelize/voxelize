@@ -12,6 +12,7 @@ export default defineConfig({
       entry: {
         index: path.resolve(__dirname, "src/index.ts"),
         bridge: path.resolve(__dirname, "src/bridge.ts"),
+        scenario: path.resolve(__dirname, "src/scenario.ts"),
         "bin/voxelize-agent": path.resolve(__dirname, "bin/voxelize-agent.ts"),
       },
       formats: ["es", "cjs"],
