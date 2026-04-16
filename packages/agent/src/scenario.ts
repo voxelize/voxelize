@@ -151,6 +151,10 @@ export class Arena {
     await this.call("test:despawn", { scenarioId: this.scenarioId });
   }
 
+  async forceWaterSeek(): Promise<void> {
+    await this.call("test:force-water-seek", { scenarioId: this.scenarioId });
+  }
+
   async announce(
     name: string,
     event: "start" | "pass" | "fail",

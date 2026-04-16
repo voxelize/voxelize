@@ -6,6 +6,10 @@ import { NetIntercept } from "./network";
 export class Entity<T = any> extends Group {
   public entId: string;
 
+  public entType = "";
+
+  public metadata: T | null = null;
+
   constructor(id: string) {
     super();
 
@@ -93,17 +97,26 @@ export class Entities extends Group implements NetIntercept {
             }
 
             object = this.createEntityOfType(type, id);
-            object.onCreate?.(metadata);
+            if (object) {
+              object.metadata = metadata;
+              object.onCreate?.(metadata);
+            }
 
             break;
           }
           case "UPDATE": {
             if (!object) {
               object = this.createEntityOfType(type, id);
-              object.onCreate?.(metadata);
+              if (object) {
+                object.metadata = metadata;
+                object.onCreate?.(metadata);
+              }
             }
 
-            object.onUpdate?.(metadata);
+            if (object) {
+              object.metadata = metadata;
+              object.onUpdate?.(metadata);
+            }
 
             break;
           }
@@ -171,6 +184,9 @@ export class Entities extends Group implements NetIntercept {
       object = new (Entity as new (id: string) => Entity)(id);
     } else {
       object = (Entity as (id: string) => Entity)(id);
+    }
+    if (object) {
+      object.entType = type;
     }
     this.map.set(id, object);
     this.add(object);
