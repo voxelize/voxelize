@@ -169,6 +169,10 @@ export class AgentDaemon {
       },
     );
 
+    this.server.get("/players", async () => ({
+      players: await this.agent.peers(),
+    }));
+
     this.server.get<{ Querystring: { sinceId?: string; sinceMs?: string } }>(
       "/events",
       async (req) => {

@@ -22,6 +22,19 @@ export type EntitySnapshot = {
   distance: number;
 };
 
+export type PeerSnapshot = {
+  id: string;
+  username: string;
+  position: Vec3;
+  direction: Vec3;
+  yaw: number;
+  pitch: number;
+  bodyYaw: number;
+  distance: number;
+  isSelf: boolean;
+  isSpectator: boolean;
+};
+
 export type RaycastHit = {
   block: BlockInfo | null;
   entity: EntitySnapshot | null;
@@ -132,6 +145,7 @@ export interface AgentBridge {
   raycast(): RaycastHit | null;
   blockAt(pos: Vec3): BlockInfo | null;
   entitiesNear(radius: number): EntitySnapshot[];
+  peers(): PeerSnapshot[];
   chunks: ChunkBridge;
   snapshot(): Snapshot;
 

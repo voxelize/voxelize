@@ -11,6 +11,7 @@ import type {
   CommandResult,
   EntitySnapshot,
   FaceInput,
+  PeerSnapshot,
   RaycastHit,
   Snapshot,
   Vec3,
@@ -194,6 +195,10 @@ export class Agent {
 
   async entitiesNear(radius: number): Promise<EntitySnapshot[]> {
     return this.page.evaluate((r) => window.__agent__!.entitiesNear(r), radius);
+  }
+
+  async peers(): Promise<PeerSnapshot[]> {
+    return this.page.evaluate(() => window.__agent__!.peers());
   }
 
   async snapshot(): Promise<Snapshot> {
