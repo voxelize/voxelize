@@ -99,6 +99,10 @@ If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or
   <img src="https://api.star-history.com/svg?repos=voxelize/voxelize&type=Date" />
 </p>
 
+## Scratch (agent test A)
+
+Ephemeral README edit for multi-repo diff testing. Safe to drop.
+
 ## Assets Used
 
 - [Connection Serif Font (SIL Open Font)](https://fonts2u.com/connection-serif.font)
