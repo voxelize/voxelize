@@ -48,6 +48,7 @@ This is purely a passionate project. The v0 of this engine, [mc.js](https://gith
 - Periodic world data persistence
 - Robust event system for custom game events
 - For-dev debug panels that look nice
+- Scratch (agent test B): second README region for multi-repo diff testing
 
 ## Documentation
 
