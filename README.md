@@ -48,6 +48,7 @@ This is purely a passionate project. The v0 of this engine, [mc.js](https://gith
 - Periodic world data persistence
 - Robust event system for custom game events
 - For-dev debug panels that look nice
+- Scratch (agent test B): second README region for multi-repo diff testing
 
 ## Documentation
 
@@ -98,6 +99,10 @@ If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or
 <p align="center">
   <img src="https://api.star-history.com/svg?repos=voxelize/voxelize&type=Date" />
 </p>
+
+## Scratch (agent test A)
+
+Ephemeral README edit for multi-repo diff testing. Safe to drop.
 
 ## Assets Used
 
