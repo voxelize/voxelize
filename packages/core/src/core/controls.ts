@@ -21,6 +21,7 @@ import { NetIntercept } from "./network";
 import { World } from "./world";
 
 const PI_2 = Math.PI / 2;
+const FOOT_SURFACE_SNAP_EPSILON = 1e-4;
 const emptyQ = new Quaternion();
 
 function rotateY(a: number[], b: number[], c: number) {
@@ -851,6 +852,17 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.body.forces = [0, 0, 0];
       this.body.impulses = [0, 0, 0];
       this.body.setPosition([x, bodyY, z]);
+
+      const footY = this.body.aabb.minY;
+      const surfaceY = Math.round(footY);
+      const snapUp = surfaceY - footY;
+      if (snapUp > 0 && snapUp <= FOOT_SURFACE_SNAP_EPSILON) {
+        this.body.aabb.translate([0, snapUp, 0]);
+        const adjustedY =
+          this.body.getPosition()[1] + effectiveHeight * (eyeHeight - 0.5);
+        this.newPosition.set(x, adjustedY, z);
+        this.object.position.set(x, adjustedY, z);
+      }
     }
   };
 
