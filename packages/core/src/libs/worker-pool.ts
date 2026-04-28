@@ -106,6 +106,22 @@ export class WorkerPool {
     }
   };
 
+  dispose = () => {
+    const workingCount = this.workingCount;
+
+    for (const worker of this.workers) {
+      worker.terminate();
+    }
+
+    this.workers.length = 0;
+    this.available.length = 0;
+    this.queue.length = 0;
+    WorkerPool.WORKING_COUNT = Math.max(
+      0,
+      WorkerPool.WORKING_COUNT - workingCount,
+    );
+  };
+
   /**
    * Process the queue of jobs. This is called when a worker becomes available or
    * when a new job is added to the queue.

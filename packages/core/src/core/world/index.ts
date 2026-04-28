@@ -836,6 +836,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private voxelDeltas = new Map<string, VoxelDelta[]>();
   private deltaSequenceCounter = 0;
   private cleanupDeltasInterval: number | null = null;
+  private clearStatsSyncInterval: (() => void) | null = null;
 
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
@@ -876,7 +877,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.setupUniforms();
     this.startDeltaCleanup();
 
-    setWorkerInterval(() => {
+    this.clearStatsSyncInterval = setWorkerInterval(() => {
       this.packets.push({
         type: "METHOD",
         method: {
@@ -902,6 +903,24 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       });
     }, 1000) as unknown as number;
+  }
+
+  dispose() {
+    this.meshWorkerPool.dispose();
+    this.lightWorkerPool.dispose();
+    this.clouds.dispose();
+    this.clearStatsSyncInterval?.();
+    this.clearStatsSyncInterval = null;
+
+    if (this.cleanupDeltasInterval !== null) {
+      clearInterval(this.cleanupDeltasInterval);
+      this.cleanupDeltasInterval = null;
+    }
+
+    this.chunkPipeline.forEachLoaded((chunk) => {
+      this.remove(chunk.group);
+      chunk.dispose();
+    });
   }
 
   private async dispatchMeshWorker(
@@ -3483,11 +3502,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this._time = (this.time + delta) % this.options.timePerDay;
     }
 
-    const startOverall = performance.now();
-
-    const startMaintainChunks = performance.now();
     this.maintainChunks(center);
-    const maintainChunksDuration = performance.now() - startMaintainChunks;
 
     if (
       center[0] !== this._lastCenterChunk[0] ||
@@ -3497,44 +3512,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.updatePlantVisibility(center);
     }
 
-    const startRequestChunks = performance.now();
     this.requestChunks(center, direction);
-    const requestChunksDuration = performance.now() - startRequestChunks;
 
-    const startProcessChunks = performance.now();
     this.processChunks(center);
-    const processChunksDuration = performance.now() - startProcessChunks;
 
-    const startUpdatePhysics = performance.now();
     this.updatePhysics(delta);
-    const updatePhysicsDuration = performance.now() - startUpdatePhysics;
 
-    const startUpdateUniforms = performance.now();
     this.updateUniforms();
-    const updateUniformsDuration = performance.now() - startUpdateUniforms;
 
-    const startUpdateSkyAndClouds = performance.now();
     this.updateSkyAndClouds(position);
-    const updateSkyAndCloudsDuration =
-      performance.now() - startUpdateSkyAndClouds;
 
-    const startEmitServerUpdates = performance.now();
     this.emitServerUpdates();
-    const emitServerUpdatesDuration =
-      performance.now() - startEmitServerUpdates;
-
-    const overallDuration = performance.now() - startOverall;
-    if (overallDuration > 1000 / 60) {
-      const isDebug = false;
-      const log = isDebug ? console.log : () => {};
-      log("maintainChunks took", maintainChunksDuration, "ms");
-      log("requestChunks took", requestChunksDuration, "ms");
-      log("processChunks took", processChunksDuration, "ms");
-      log("updatePhysics took", updatePhysicsDuration, "ms");
-      log("updateUniforms took", updateUniformsDuration, "ms");
-      log("updateSkyAndClouds took", updateSkyAndCloudsDuration, "ms");
-      log("emitServerUpdates took", emitServerUpdatesDuration, "ms");
-    }
   }
 
   /**

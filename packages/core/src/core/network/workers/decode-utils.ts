@@ -92,15 +92,21 @@ function deepParseJSON(value: unknown): unknown {
   return deepParseJSON(parsed);
 }
 
+function prepareMessageBuffer(buffer: Uint8Array): Uint8Array {
+  if (isLz4Frame(buffer)) {
+    return lz4.decompress(buffer);
+  }
+  if (buffer[0] === ZLIB_MAGIC_0 && buffer[1] === ZLIB_MAGIC_1) {
+    return fflate.unzlibSync(buffer);
+  }
+  return buffer;
+}
+
 export function decodeMessage(
   buffer: Uint8Array,
   transferables: ArrayBuffer[],
 ): Record<string, unknown> {
-  if (isLz4Frame(buffer)) {
-    buffer = lz4.decompress(buffer);
-  } else if (buffer[0] === ZLIB_MAGIC_0 && buffer[1] === ZLIB_MAGIC_1) {
-    buffer = fflate.unzlibSync(buffer);
-  }
+  buffer = prepareMessageBuffer(buffer);
 
   const message = Message.toObject(Message.decode(buffer), {
     defaults: true,

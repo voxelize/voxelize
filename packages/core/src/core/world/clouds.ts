@@ -288,6 +288,14 @@ export class Clouds extends Group {
     await this.initialize();
   };
 
+  dispose = () => {
+    this.pool.dispose();
+    this.children.forEach((child: Mesh) => {
+      child.geometry?.dispose();
+    });
+    this.material.dispose();
+  };
+
   /**
    * Move the clouds to centering around the passed in position. If there aren't enough cloud
    * cells at any side, new clouds are generated.
