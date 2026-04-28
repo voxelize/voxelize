@@ -48,6 +48,8 @@ export class ChunkRenderer {
     minLightLevel: { value: number };
     baseAmbient: { value: number };
     sunlightIntensity: { value: number };
+    sunColor: { value: Color };
+    ambientColor: { value: Color };
     time: { value: number };
     lightIntensityAdjustment: { value: number };
     atlasSize: { value: number };
@@ -77,6 +79,8 @@ export class ChunkRenderer {
     minLightLevel: { value: 0 },
     baseAmbient: { value: 0.001 },
     sunlightIntensity: { value: 1 },
+    sunColor: { value: new Color(1.0, 0.95, 0.9) },
+    ambientColor: { value: new Color(0.42, 0.42, 0.43) },
     time: { value: performance.now() },
     lightIntensityAdjustment: { value: 0.8 },
     atlasSize: { value: 16 },

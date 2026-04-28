@@ -41,6 +41,7 @@ import {
   WebGLRenderer,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import type { WebGPURenderer } from "three/webgpu";
 
 import {
   TRANSPARENT_FLUID_RENDER_ORDER,
@@ -125,8 +126,17 @@ import {
   PY_ROTATION,
 } from "./block";
 import { Chunk } from "./chunk";
+import {
+  CHUNK_LIGHT_ATTRIBUTE_GPU_TYPE,
+  ChunkNodeMaterial,
+  ChunkShadowInputs,
+  createChunkNodeMaterial,
+  syncChunkSharedTslUniforms,
+  syncChunkShadowTslUniforms,
+} from "./chunk-material";
 import { ChunkRenderer } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
+import { CSMDepthPass } from "./csm-depth";
 import { CSMRenderer } from "./csm-renderer";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightSourceRegistry } from "./light-registry";
@@ -146,8 +156,10 @@ import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 export * from "./block";
 export * from "./chunk";
+export * from "./chunk-material";
 export * from "./chunk-renderer";
 export * from "./clouds";
+export * from "./csm-depth";
 export * from "./csm-renderer";
 export * from "./entity-shadow-uniforms";
 export * from "./items";
@@ -159,6 +171,7 @@ export * from "./registry";
 export * from "./shaders";
 export * from "./shadow-sampling";
 export * from "./sky";
+export * from "./sky-material";
 export * from "./textures";
 export * from "./uv";
 
@@ -330,15 +343,14 @@ const VOXEL_NEIGHBORS = [
 const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
 
 /**
- * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
- * if you want to change its map, you also have to change its `uniforms.map`.
+ * Custom shader material for chunks. On the WebGL path this is a `ShaderMaterial`
+ * with a `map` texture; on the WebGPU path it is a `MeshBasicNodeMaterial` with a
+ * thin `uniforms` shim. Keep in mind that if you want to change its map, you also
+ * have to change its `uniforms.map`.
  */
-export type CustomChunkShaderMaterial = ShaderMaterial & {
-  /**
-   * The texture that this map runs on.
-   */
-  map: Texture;
-};
+export type CustomChunkShaderMaterial =
+  | (ShaderMaterial & { map: Texture })
+  | ChunkNodeMaterial;
 
 /**
  * The client-side options to create a world. These are client-side only and can be customized to specific use.
@@ -693,6 +705,13 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Only available when `shaderBasedLighting` is enabled.
    */
   public csmRenderer: CSMRenderer | null = null;
+
+  /**
+   * Single-cascade WebGPU/TSL directional shadow depth pass. Renderer-agnostic,
+   * used on the non-shaderBasedLighting path (WebGPU). The first slice of the
+   * full CSM port; entity shadow parity is intentionally out of scope.
+   */
+  public csmDepth: CSMDepthPass | null = null;
 
   /**
    * The light volume for shader-based lighting.
@@ -1179,25 +1198,28 @@ export class World<T = any> extends Scene implements NetIntercept {
     const mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
     const isolatedMat = mat || this.makeShaderMaterial();
 
-    // Handle different types of source inputs
-    if (typeof source === "string") {
-      this.loader.loadImage(source).then((image) => {
-        if (isolatedMat.map) {
-          isolatedMat.map.dispose();
-        }
-        isolatedMat.map = new Texture(image);
-        isolatedMat.map.colorSpace = SRGBColorSpace;
-        isolatedMat.map.needsUpdate = true;
+    const assignImageToMap = (image: HTMLImageElement) => {
+      const existing = isolatedMat.map;
+      if (existing && !(existing instanceof AtlasTexture)) {
+        existing.image = image;
+        existing.colorSpace = SRGBColorSpace;
+        existing.needsUpdate = true;
         isolatedMat.needsUpdate = true;
-      });
-    } else if (source instanceof HTMLImageElement) {
-      if (isolatedMat.map) {
-        isolatedMat.map.dispose();
+        return;
       }
-      isolatedMat.map = new Texture(source);
+      isolatedMat.map = new Texture(image);
       isolatedMat.map.colorSpace = SRGBColorSpace;
       isolatedMat.map.needsUpdate = true;
       isolatedMat.needsUpdate = true;
+    };
+
+    // Handle different types of source inputs
+    if (typeof source === "string") {
+      this.loader.loadImage(source).then((image) => {
+        assignImageToMap(image);
+      });
+    } else if (source instanceof HTMLImageElement) {
+      assignImageToMap(source);
     } else if (ThreeUtils.isColor(source)) {
       if (isolatedMat.map) {
         if (isolatedMat.map instanceof AtlasTexture) {
@@ -3278,6 +3300,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
+    if (!("vertexShader" in mat)) {
+      return mat;
+    }
+
     mat.vertexShader = vertexShader;
     mat.fragmentShader = fragmentShader;
     mat.uniforms = {
@@ -3418,6 +3444,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.lightRegistry = new LightSourceRegistry();
     }
 
+    if (!this.usesShaderLighting && !this.csmDepth) {
+      this.csmDepth = new CSMDepthPass();
+    }
+
     await this.loadMaterials();
 
     const registryData = this.registry.serialize();
@@ -3439,6 +3469,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!this.isInitialized) {
       return;
     }
+
+    this.lastUpdatePosition.copy(position);
 
     this.timer.update();
     const delta = this.timer.getDelta();
@@ -4164,8 +4196,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
     // Update the clouds' colors based on the sky's colors.
-    const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
-    const cloudColorHSL = cloudColor.getHSL({});
+    const cloudColor = this.clouds.uniforms.uCloudColor.value;
+    const cloudColorHSL = cloudColor.getHSL({ h: 0, s: 0, l: 0 });
     cloudColor.setHSL(
       cloudColorHSL.h,
       cloudColorHSL.s,
@@ -4200,6 +4232,52 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.sky.uMiddleColor.value,
       );
     }
+
+    this.updateSunAmbientColors();
+  }
+
+  // Compute time-of-day sun and sky ambient colors. Runs every frame in both
+  // WebGL (shader-lighting) and WebGPU (TSL) modes so chunk and entity tints
+  // stay aligned with the sky.
+  private updateSunAmbientColors() {
+    const { timePerDay } = this.options;
+    const timeRatio = this.time / timePerDay;
+    const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
+    const sunY = Math.sin(sunAngle);
+    const sunlightIntensity = Math.max(0, sunY);
+
+    const targetSun = this.chunkRenderer.uniforms.sunColor.value;
+    const targetAmbient = this.chunkRenderer.uniforms.ambientColor.value;
+
+    if (sunlightIntensity > 0.5) {
+      targetSun.copy(World.warmColor);
+      targetAmbient.lerpColors(
+        World.dayAmbient,
+        World.warmColor,
+        (sunlightIntensity - 0.5) * 0.3,
+      );
+    } else if (sunlightIntensity > 0) {
+      targetSun.lerpColors(
+        World.coolColor,
+        World.warmColor,
+        sunlightIntensity * 2,
+      );
+      targetAmbient.lerpColors(
+        World.nightAmbient,
+        World.dayAmbient,
+        sunlightIntensity * 2,
+      );
+    } else {
+      targetSun.copy(World.nightColor);
+      targetAmbient.copy(World.nightAmbient);
+    }
+
+    if (this.usesShaderLighting) {
+      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(targetSun);
+      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.copy(
+        targetAmbient,
+      );
+    }
   }
 
   /**
@@ -4208,6 +4286,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   private updateUniforms = () => {
     const t = performance.now();
     this.chunkRenderer.uniforms.time.value = t;
+
+    if (!this.usesShaderLighting) {
+      syncChunkSharedTslUniforms(this.chunkRenderer);
+    }
 
     const windAngle = t * 0.00001 + Math.sin(t * 0.000003) * 0.5;
     this.chunkRenderer.uniforms.windDirection.value.set(
@@ -4271,35 +4353,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     sunDirection.value.normalize();
 
     const sunlightIntensity = Math.max(0, sunY);
-
-    if (sunlightIntensity > 0.5) {
-      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
-        World.warmColor,
-      );
-      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.lerpColors(
-        World.dayAmbient,
-        World.warmColor,
-        (sunlightIntensity - 0.5) * 0.3,
-      );
-    } else if (sunlightIntensity > 0) {
-      this.chunkRenderer.shaderLightingUniforms.sunColor.value.lerpColors(
-        World.coolColor,
-        World.warmColor,
-        sunlightIntensity * 2,
-      );
-      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.lerpColors(
-        World.nightAmbient,
-        World.dayAmbient,
-        sunlightIntensity * 2,
-      );
-    } else {
-      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
-        World.nightColor,
-      );
-      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.copy(
-        World.nightAmbient,
-      );
-    }
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = Math.max(
       0.05,
@@ -4365,21 +4418,115 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   renderShadowMaps(
-    renderer: WebGLRenderer,
+    renderer: WebGLRenderer | WebGPURenderer,
     entities?: Object3D[],
     instancePools?: Group[],
   ) {
-    if (!this.usesShaderLighting || !this.csmRenderer) return;
-
-    if (
-      (entities && entities.length > 0) ||
-      (instancePools && instancePools.length > 0)
-    ) {
-      this.csmRenderer.markCascadesForEntityRender();
+    if (this.usesShaderLighting && this.csmRenderer) {
+      if (!(renderer instanceof WebGLRenderer)) return;
+      if (
+        (entities && entities.length > 0) ||
+        (instancePools && instancePools.length > 0)
+      ) {
+        this.csmRenderer.markCascadesForEntityRender();
+      }
+      this.csmRenderer.render(renderer, this, entities, 32, instancePools);
+      return;
     }
 
-    this.csmRenderer.render(renderer, this, entities, 32, instancePools);
+    if (this.csmDepth) {
+      this.renderCsmDepthSlice(renderer, entities, instancePools);
+    }
   }
+
+  private renderCsmDepthSlice(
+    renderer: WebGLRenderer | WebGPURenderer,
+    entities?: Object3D[],
+    instancePools?: Group[],
+  ): void {
+    const pass = this.csmDepth;
+    if (!pass) return;
+
+    pass.setCoordinateSystem(renderer.coordinateSystem);
+
+    const { direction: sunDir, sunY } = this.computeShadowCasterDirection();
+    const focus = this.lastUpdatePosition;
+    pass.update(sunDir, focus);
+    const dynamicShadowStrength = pass.computeShadowStrength(sunY);
+
+    const basicRoots = new Set<Object3D>(this.collectChunkGroupCasters());
+    const customRoots = new Set<Object3D>();
+    if (entities) {
+      for (const e of entities) {
+        const root = this.findTopLevelAncestor(e);
+        if (root) basicRoots.add(root);
+      }
+    }
+    if (instancePools) {
+      for (const p of instancePools) {
+        const root = this.findTopLevelAncestor(p);
+        if (root) customRoots.add(root);
+      }
+    }
+    pass.render(renderer, this, [...basicRoots], [...customRoots]);
+
+    syncChunkShadowTslUniforms(this.chunkRenderer, {
+      shadowMap: pass.shadowMap,
+      shadowMatrix: pass.shadowMatrix,
+      shadowBias: pass.shadowBias,
+      shadowStrength: dynamicShadowStrength,
+      coordinateSystem: pass.coordinateSystem,
+    });
+  }
+
+  private findTopLevelAncestor(obj: Object3D): Object3D | null {
+    let cur: Object3D | null = obj;
+    while (cur && cur.parent && cur.parent !== this) {
+      cur = cur.parent;
+    }
+    return cur && cur.parent === this ? cur : null;
+  }
+
+  private csmSunDirection = new Vector3(0, 1, 0.3).normalize();
+
+  // Returns a unit vector pointing from the focus toward whichever celestial
+  // body is currently casting shadows. The CSM depth camera is placed at
+  // `focus + direction * offset`, so this must point UP-ish during the day
+  // (toward the sun) and UP-ish at night (toward the moon, on the opposite
+  // side of the sky). `sunY` is the raw sin(altitude) of the sun and is used
+  // by the caller to derive a matching shadow strength.
+  private computeShadowCasterDirection(): {
+    direction: Vector3;
+    sunY: number;
+  } {
+    const { timePerDay } = this.options;
+    const timeRatio = this.time / timePerDay;
+    const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
+    const sunY = Math.sin(sunAngle);
+    const sunX = Math.cos(sunAngle);
+
+    const isDay = sunY >= 0;
+    const casterX = isDay ? sunX : -sunX;
+    const casterY = isDay ? sunY : -sunY;
+
+    const minElevation = this.csmDepth?.minElevation ?? 0.2;
+    const elevatedY = Math.max(minElevation, casterY);
+
+    this.csmSunDirection.set(casterX, elevatedY, 0.3).normalize();
+    return { direction: this.csmSunDirection, sunY };
+  }
+
+  private collectChunkGroupCasters(): Object3D[] {
+    const casters: Object3D[] = [];
+    this.chunkPipeline.forEachLoaded((chunk) => {
+      if (chunk.group.parent === this) {
+        casters.push(chunk.group);
+      }
+    });
+    return casters;
+  }
+
+  private lastUpdatePosition = new Vector3();
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
@@ -4424,7 +4571,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
+        const lightAttribute = new BufferAttribute(lights, 1);
+        lightAttribute.gpuType = CHUNK_LIGHT_ATTRIBUTE_GPU_TYPE;
+        geometry.setAttribute("light", lightAttribute);
         geometry.setIndex(new BufferAttribute(indices, 1));
         if (geo.normals && geo.normals.length > 0) {
           geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
@@ -4543,7 +4692,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
+        const lightAttribute = new BufferAttribute(lights, 1);
+        lightAttribute.gpuType = CHUNK_LIGHT_ATTRIBUTE_GPU_TYPE;
+        geometry.setAttribute("light", lightAttribute);
         geometry.setIndex(new BufferAttribute(indices, 1));
         if (geo.normals && geo.normals.length > 0) {
           geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
@@ -4686,6 +4837,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         resolution: 1,
       });
       this.lightRegistry = new LightSourceRegistry();
+    } else {
+      this.csmDepth = new CSMDepthPass();
     }
 
     if (!cloudsOptions.uFogColor) {
@@ -5927,7 +6080,27 @@ export class World<T = any> extends Scene implements NetIntercept {
     fragmentShader?: string,
     vertexShader?: string,
     uniforms: Record<string, Uniform> = {},
-  ) => {
+  ): CustomChunkShaderMaterial => {
+    if (!this.usesShaderLighting) {
+      const initialMap = AtlasTexture.makeUnknownTexture(
+        this.options.textureUnitDimension,
+      );
+      const shadowInputs: ChunkShadowInputs | undefined = this.csmDepth
+        ? {
+            shadowMap: this.csmDepth.shadowMap,
+            shadowMatrix: this.csmDepth.shadowMatrix,
+            shadowBias: this.csmDepth.shadowBias,
+            shadowStrength: this.csmDepth.computeShadowStrength(1),
+            coordinateSystem: this.csmDepth.coordinateSystem,
+          }
+        : undefined;
+      return createChunkNodeMaterial(
+        initialMap,
+        this.chunkRenderer,
+        shadowInputs,
+      );
+    }
+
     const useShaderLighting = this.usesShaderLighting;
     const baseShaders = useShaderLighting
       ? SHADER_LIGHTING_CHUNK_SHADERS

@@ -60,6 +60,51 @@ export type Snapshot = {
   };
 };
 
+export type RendererKind = "webgl" | "webgpu";
+
+export type CsmKind = "depth" | "shader" | "none";
+
+export type CsmStatus = {
+  kind: CsmKind;
+  shaderBasedLighting: boolean;
+  renderCount: number;
+  shadowStrength: number;
+  shadowBias: number;
+  // Sum of |shadowMatrix[i]| for i in 0..15. A non-trivial (non-zero) value
+  // proves the depth pass camera matrix has been initialised by `update()`.
+  shadowMatrixMagnitude: number;
+};
+
+export type RendererStatus = {
+  kind: RendererKind;
+  frameCount: number;
+  csm: CsmStatus;
+};
+
+export type DiagnosticSeverity = "error" | "warning";
+
+export type DiagnosticSource =
+  | "console"
+  | "pageerror"
+  | "requestfailed"
+  | "response";
+
+export type DiagnosticEntry = {
+  id: number;
+  at: number;
+  source: DiagnosticSource;
+  severity: DiagnosticSeverity;
+  message: string;
+  url?: string;
+  status?: number;
+};
+
+export type DiagnosticsSnapshot = {
+  entries: DiagnosticEntry[];
+  errorCount: number;
+  warningCount: number;
+};
+
 export type ChatMsgIn = {
   type: string;
   sender: string;
@@ -94,6 +139,26 @@ export type ViewOptions = {
   from?: Vec3;
   face?: FaceInput;
   isEnsuringChunks?: boolean;
+};
+
+export type ParticleEffectKind =
+  | "firework"
+  | "block-break"
+  | "hit"
+  | "death-poof";
+
+export type ParticleEffectOptions = {
+  particleCount?: number;
+  colors?: string[];
+  volume?: number;
+  blockId?: number;
+  blockName?: string;
+};
+
+export type ParticleEffectSpec = {
+  kind: ParticleEffectKind;
+  position: Vec3;
+  options?: ParticleEffectOptions;
 };
 
 export type AgentEventMap = {
@@ -138,6 +203,7 @@ export interface AgentBridge {
   walkTo(target: Vec3, opts?: WalkToOptions): Promise<void>;
   view(opts: ViewOptions): Promise<void>;
   setFlying(isFlying: boolean): Promise<void>;
+  triggerParticles(spec: ParticleEffectSpec): Promise<void>;
   call(method: string, payload: unknown): Promise<unknown>;
 
   position(): Vec3;
@@ -148,6 +214,7 @@ export interface AgentBridge {
   peers(): PeerSnapshot[];
   chunks: ChunkBridge;
   snapshot(): Snapshot;
+  renderer(): RendererStatus;
 
   on<E extends AgentEventName>(
     event: E,

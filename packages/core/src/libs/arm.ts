@@ -2,10 +2,6 @@ import * as THREE from "three";
 
 import { Inputs } from "../core/inputs";
 import {
-  createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
   EntityShadowUniforms,
   ShaderLightingUniforms,
   updateEntityShadowUniforms,
@@ -354,7 +350,7 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(options.quaternion);
 
-    this.injectShadowShaders(object);
+    this.injectShadowShaders();
 
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.customSwingClips[type]);
@@ -365,65 +361,12 @@ export class Arm extends THREE.Group {
     this.currentArmObject = object;
   };
 
-  private injectShadowShaders(object: THREE.Object3D): void {
+  private injectShadowShaders(): void {
+    // The previous WebGL onBeforeCompile shadow + held-light tint injection
+    // does not apply to NodeMaterial / WebGPU. Held-object shadow parity is
+    // deferred to a follow-up TSL slice; keep the uniforms array empty so
+    // updateShadowUniforms remains a safe no-op for custom held objects.
     this.heldObjectShadowUniforms = [];
-    if (!this.shouldReceiveHeldObjectShadows()) return;
-
-    object.traverse((child) => {
-      if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
-      const mesh = child as THREE.Mesh;
-      const materials = Array.isArray(mesh.material)
-        ? mesh.material
-        : [mesh.material];
-
-      for (const material of materials) {
-        if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
-
-        material.userData.lightEffectSetup = true;
-
-        const shadowUniforms = createEntityShadowUniforms();
-        this.heldObjectShadowUniforms.push(shadowUniforms);
-
-        const lightColorRef = this.heldLightColor;
-        material.onBeforeCompile = (shader) => {
-          Object.assign(shader.uniforms, shadowUniforms);
-          shader.uniforms.uLightColor = { value: lightColorRef };
-
-          shader.vertexShader = shader.vertexShader
-            .replace(
-              "#include <uv_pars_vertex>",
-              `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-`,
-            )
-            .replace(
-              "#include <worldpos_vertex>",
-              `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-`,
-            );
-
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "#include <common>",
-              `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-uniform vec3 uLightColor;
-`,
-            )
-            .replace(
-              "#include <dithering_fragment>",
-              `#include <dithering_fragment>
-gl_FragColor.rgb *= uLightColor;
-`,
-            );
-        };
-
-        material.onBeforeCompile.toString = () => "held-object-shadow-shader";
-        material.needsUpdate = true;
-      }
-    });
   }
 
   private shouldReceiveArmShadows(): boolean {

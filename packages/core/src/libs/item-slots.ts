@@ -14,10 +14,13 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
+import { WebGPURenderer } from "three/webgpu";
 
-import { CameraPerspective, noop } from "../common";
+import { CameraPerspective, isWebGPUAvailable, noop } from "../common";
 import { Inputs } from "../core/inputs";
 import { DOMUtils, ThreeUtils } from "../utils";
+
+export type ItemSlotsRenderer = WebGLRenderer | WebGPURenderer;
 
 export type ItemSlotsOptions = {
   wrapperClass: string;
@@ -232,7 +235,6 @@ export class ItemSlot<T = number> {
 
   setZoom = (zoom: number) => {
     this.zoom = zoom;
-    this.camera.far = zoom * 3 + 1;
     this.updateCamera();
   };
 
@@ -273,11 +275,22 @@ export class ItemSlot<T = number> {
   };
 
   private updateCamera = () => {
-    this.camera.position.copy(
-      this.offset.clone().multiplyScalar((this.zoom || 1) * 3.5),
-    );
+    const zoom = this.zoom || 1;
+    this.camera.position.copy(this.offset.clone().multiplyScalar(zoom * 3.5));
 
     this.camera.lookAt(0, 0, 0);
+
+    // The orthographic camera's far plane must accommodate the worst-case
+    // geometry depth in view space. With the current `pxyz` setup the camera
+    // sits at distance `zoom * 3.5 * sqrt(3)`, and a unit cube extends up to
+    // `sqrt(3) / 2` past the origin along the view direction. WebGPURenderer
+    // calls `updateProjectionMatrix()` automatically when switching coordinate
+    // systems, so a stale near/far silently clips entire previews. Recompute
+    // far from the live camera position with a small buffer and refresh the
+    // projection matrix so both backends agree.
+    const cameraDistance = this.camera.position.length();
+    this.camera.far = cameraDistance + 4;
+    this.camera.updateProjectionMatrix();
 
     const lightPosition = this.camera.position.clone();
     // Rotate light position by y axis 45 degrees.
@@ -297,7 +310,9 @@ export class ItemSlots<T = number> {
 
   public canvas: HTMLCanvasElement;
 
-  public renderer: WebGLRenderer;
+  public renderer: ItemSlotsRenderer;
+
+  private isRendererReady = false;
 
   public focusedRow = -1;
 
@@ -639,6 +654,7 @@ export class ItemSlots<T = number> {
     this.animationFrame = requestAnimationFrame(this.render);
 
     if (!this.activated) return;
+    if (!this.isRendererReady) return;
 
     const { horizontalCount, verticalCount, slotMargin, slotPadding } =
       this.options;
@@ -655,6 +671,11 @@ export class ItemSlots<T = number> {
     this.renderer.setScissorTest(true);
 
     const canvasRect = this.renderer.domElement.getBoundingClientRect();
+    // The canvas can be larger than the visible wrapper (e.g. when the wrapper
+    // is height-clipped while showing a filtered subset of a long slot list).
+    // Clip against the wrapper so off-screen slots don't get re-rendered every
+    // frame; without this, a 200+ slot inventory eats the main thread.
+    const clipRect = this.wrapper.getBoundingClientRect();
 
     let hasRendered = false;
 
@@ -667,10 +688,10 @@ export class ItemSlots<T = number> {
         const rect = element.getBoundingClientRect();
 
         if (
-          rect.top + rect.height < canvasRect.top ||
-          rect.top > canvasRect.top + canvasRect.height ||
-          rect.left + rect.width < canvasRect.left ||
-          rect.left > canvasRect.left + canvasRect.width
+          rect.bottom <= clipRect.top ||
+          rect.top >= clipRect.bottom ||
+          rect.right <= clipRect.left ||
+          rect.left >= clipRect.right
         ) {
           continue;
         }
@@ -799,12 +820,29 @@ export class ItemSlots<T = number> {
 
     this.wrapper.appendChild(this.canvas);
 
-    this.renderer = new WebGLRenderer({
-      canvas: this.canvas,
-      antialias: false,
-      alpha: true,
-    });
-    this.renderer.outputColorSpace = SRGBColorSpace;
-    this.renderer.setSize(width, height);
+    if (isWebGPUAvailable()) {
+      const renderer = new WebGPURenderer({
+        canvas: this.canvas,
+        antialias: false,
+        alpha: true,
+        forceWebGL: false,
+      });
+      renderer.outputColorSpace = SRGBColorSpace;
+      this.renderer = renderer;
+      void renderer.init().then(() => {
+        renderer.setSize(width, height, false);
+        this.isRendererReady = true;
+      });
+    } else {
+      const renderer = new WebGLRenderer({
+        canvas: this.canvas,
+        antialias: false,
+        alpha: true,
+      });
+      renderer.outputColorSpace = SRGBColorSpace;
+      renderer.setSize(width, height);
+      this.renderer = renderer;
+      this.isRendererReady = true;
+    }
   };
 }

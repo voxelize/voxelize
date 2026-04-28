@@ -6,22 +6,21 @@ import {
   Group,
   LinearMipMapLinearFilter,
   Mesh,
-  MeshBasicMaterial,
   NearestFilter,
   RepeatWrapping,
   SRGBColorSpace,
   Side,
   Texture,
 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import {
   createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
   EntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
 import { DOMUtils } from "../utils";
+
+import { attachLightTintNodes } from "./effects/light-tint-node";
 
 /**
  * Parameters to create a canvas box.
@@ -140,7 +139,7 @@ export class BoxLayer extends Mesh {
   /**
    * The materials of the six faces of this box layer.
    */
-  public materials: Map<string, MeshBasicMaterial> = new Map();
+  public materials: Map<string, MeshBasicNodeMaterial> = new Map();
 
   /**
    * Shadow uniforms for this box layer (only set if receiveShadows is true).
@@ -320,7 +319,7 @@ export class BoxLayer extends Mesh {
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
 
-    const material = new MeshBasicMaterial({
+    const material = new MeshBasicNodeMaterial({
       side: this.side,
       map: texture,
       transparent: this.transparent,
@@ -337,44 +336,16 @@ export class BoxLayer extends Mesh {
       material.map.needsUpdate = true;
     }
 
-    if (this.receiveShadows && this.shadowUniforms) {
-      const shadowUniforms = this.shadowUniforms;
-      material.onBeforeCompile = (shader) => {
-        Object.assign(shader.uniforms, shadowUniforms);
+    // Wire up the light-tint TSL color graph eagerly so LightShined and
+    // hit-effect can drive the same uniforms without re-authoring the
+    // material's color flow at runtime.
+    attachLightTintNodes(material);
 
-        shader.vertexShader = shader.vertexShader
-          .replace(
-            "#include <uv_pars_vertex>",
-            `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-`,
-          )
-          .replace(
-            "#include <worldpos_vertex>",
-            `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-`,
-          );
-
-        shader.fragmentShader = shader.fragmentShader
-          .replace(
-            "#include <common>",
-            `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-`,
-          )
-          .replace(
-            "#include <dithering_fragment>",
-            `#include <dithering_fragment>
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
-gl_FragColor.rgb *= shadow;
-`,
-          );
-      };
-
-      material.onBeforeCompile.toString = () => "canvasbox-shadow-shader";
-    }
+    // Shadow injection used to be done here via onBeforeCompile. That path
+    // does not apply to NodeMaterial / WebGPU. Shadow parity for canvas-box
+    // is intentionally deferred to the next migration slice; uniforms are
+    // still allocated above so consumers (e.g. arm.updateShadowUniforms)
+    // keep their wiring intact for when a TSL shadow node lands.
 
     return material;
   };
