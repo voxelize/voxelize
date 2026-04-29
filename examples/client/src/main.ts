@@ -56,7 +56,6 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 /* -------------------------------------------------------------------------- */
 /*                             VISUAL IMPROVEMENTS                            */
 /* -------------------------------------------------------------------------- */
-const shadows = new VOXELIZE.Shadows(world);
 const lightShined = new VOXELIZE.LightShined(world);
 
 world.sky.setShadingPhases([
@@ -313,7 +312,6 @@ const createCharacter = () => {
   const character = new VOXELIZE.Character();
   world.add(character);
   lightShined.add(character);
-  shadows.add(character);
 
   world.loader.load().then(() => {
     character.head.paint("front", world.loader.getTexture(LolImage));
@@ -667,7 +665,6 @@ class Box extends VOXELIZE.Entity<{
       ),
     );
 
-    shadows.add(this);
     lightShined.add(this);
   }
 
@@ -737,7 +734,6 @@ class Bot extends VOXELIZE.Entity<BotData> {
     });
     this.character.username = "$#B4D4FF$Eric's Bot";
 
-    // shadows.add(this.character);
     // lightShined.add(this.character);
 
     this.character.head.paint("all", new THREE.Color(BOT_HEAD_COLOR));
@@ -942,7 +938,6 @@ const update = () => {
   voxelInteract.update();
   controls.update();
   lightShined.update();
-  shadows.update();
 
   const inWater =
     world.getBlockAt(...camera.getWorldPosition(new THREE.Vector3()).toArray())

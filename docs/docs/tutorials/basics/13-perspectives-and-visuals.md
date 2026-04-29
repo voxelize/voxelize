@@ -51,17 +51,15 @@ Now when you switch perspectives, you'll see your character:
 
 ![](../assets/main-character-2nd-perspective.png)
 
-## Add Shadows and Lighting
+## Add Lighting
 
 ```javascript title="main.js"
-const shadows = new VOXELIZE.Shadows(world);
 const lightShined = new VOXELIZE.LightShined(world);
 
 function createCharacter() {
   const character = new VOXELIZE.Character();
   world.add(character);
   lightShined.add(character);
-  shadows.add(character);
   return character;
 }
 
@@ -78,18 +76,14 @@ function animate() {
     voxelInteract.update();
     perspectives.update();
     lightShined.update();
-    shadows.update();
   }
 
   renderer.render(world, camera);
 }
 ```
 
-- `Shadows` - Adds a dark circle below objects that sticks to the ground
 - `LightShined` - Updates object brightness based on surrounding voxel lighting
 
-![](../assets/night-time-shadow-light-shined.png)
-
-The character dims at night and has a shadow below.
+The character dims at night.
 
 Without `LightShined`, everything would stay bright (Voxelize uses `MeshBasicMaterial` which ignores lighting by default).

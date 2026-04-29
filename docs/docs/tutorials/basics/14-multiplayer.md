@@ -61,7 +61,6 @@ function animate() {
     voxelInteract.update();
     perspectives.update();
     lightShined.update();
-    shadows.update();
     peers.update();
   }
 
@@ -137,14 +136,12 @@ world.add(voxelInteract);
 const perspectives = new VOXELIZE.Perspective(rigidControls, world);
 perspectives.connect(inputs);
 
-const shadows = new VOXELIZE.Shadows(world);
 const lightShined = new VOXELIZE.LightShined(world);
 
 function createCharacter() {
   const character = new VOXELIZE.Character();
   world.add(character);
   lightShined.add(character);
-  shadows.add(character);
   return character;
 }
 
@@ -195,7 +192,6 @@ function animate() {
     voxelInteract.update();
     perspectives.update();
     lightShined.update();
-    shadows.update();
     peers.update();
   }
 
