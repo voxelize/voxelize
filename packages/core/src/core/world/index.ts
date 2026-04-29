@@ -2385,11 +2385,37 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     };
 
-    const ignoreList = new Set(options.ignoreList || []);
+    const ignoreList =
+      options.ignoreList && options.ignoreList.length > 0
+        ? new Set(options.ignoreList)
+        : null;
+    const chunkSize = this.options.chunkSize;
+    let cachedChunkName = "";
+    let cachedChunk: Chunk | undefined;
+
+    const getLoadedChunkAt = (vx: number, vz: number) => {
+      const cx = Math.floor(vx / chunkSize);
+      const cz = Math.floor(vz / chunkSize);
+      const name = `${cx}|${cz}`;
+      if (name !== cachedChunkName) {
+        cachedChunkName = name;
+        cachedChunk = this.chunkPipeline.getLoadedChunk(name);
+      }
+      return cachedChunk;
+    };
 
     return raycast(
       (wx, wy, wz) => {
-        const block = this.getBlockAt(wx, wy, wz);
+        const vx = Math.floor(wx);
+        const vy = Math.floor(wy);
+        const vz = Math.floor(wz);
+        const chunk = getLoadedChunkAt(vx, vz);
+
+        if (!chunk) {
+          return [];
+        }
+
+        const block = this.getBlockByIdSafe(chunk.getVoxel(vx, vy, vz));
 
         if (!block) {
           return [];
@@ -2407,7 +2433,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           dynamicPatterns,
         } = block;
 
-        if (ignoreList.has(id)) {
+        if (ignoreList?.has(id)) {
           return [];
         }
 
@@ -2425,10 +2451,6 @@ export class World<T = any> extends Scene implements NetIntercept {
           return [];
         }
 
-        const vx = Math.floor(wx);
-        const vy = Math.floor(wy);
-        const vz = Math.floor(wz);
-
         if (this.aabbOverrides.size > 0) {
           const key = ChunkUtils.getVoxelName([vx, vy, vz]);
           const override = this.aabbOverrides.get(key);
@@ -2437,7 +2459,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
 
-        const rotation = this.getVoxelRotationAt(wx, wy, wz);
+        const rotation = chunk.getVoxelRotation(vx, vy, vz);
 
         if (dynamicPatterns && dynamicPatterns.length > 0) {
           const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
@@ -4549,6 +4571,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       shadowMaps: pass.shadowMaps,
       shadowMatrices: pass.shadowMatrices,
       cascadeSplits: pass.cascadeSplits,
+      shadowMapSizes: pass.shadowMapSizes,
       shadowBias: pass.shadowBias,
       shadowStrength: dynamicShadowStrength,
     });
@@ -6166,6 +6189,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             shadowMaps: this.webgpuCsmDepth.shadowMaps,
             shadowMatrices: this.webgpuCsmDepth.shadowMatrices,
             cascadeSplits: this.webgpuCsmDepth.cascadeSplits,
+            shadowMapSizes: this.webgpuCsmDepth.shadowMapSizes,
             shadowBias: this.webgpuCsmDepth.shadowBias,
             shadowStrength: this.webgpuCsmDepth.computeShadowStrength(1),
           }

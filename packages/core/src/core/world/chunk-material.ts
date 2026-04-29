@@ -4,23 +4,29 @@ import {
   add,
   attribute,
   bitAnd,
+  cameraPosition,
   clamp,
   div,
   dot,
+  exp,
   float,
   floor,
   fract,
   greaterThan,
   int,
   lessThan,
+  length,
   max,
   mix,
   mul,
   normalWorld,
+  normalize,
   positionView,
   positionWorld,
+  pow,
   select,
   shiftRight,
+  smoothstep,
   step,
   sub,
   texture,
@@ -38,11 +44,13 @@ import type { ChunkRenderer } from "./chunk-renderer";
 export type ChunkShadowTextureTuple = readonly [Texture, Texture, Texture];
 export type ChunkShadowMatrixTuple = readonly [Matrix4, Matrix4, Matrix4];
 export type ChunkShadowSplitTuple = readonly [number, number, number];
+export type ChunkShadowMapSizeTuple = readonly [number, number, number];
 
 export interface ChunkShadowInputs {
   shadowMaps: ChunkShadowTextureTuple;
   shadowMatrices: ChunkShadowMatrixTuple;
   cascadeSplits: ChunkShadowSplitTuple;
+  shadowMapSizes: ChunkShadowMapSizeTuple;
   shadowBias: number;
   shadowStrength: number;
 }
@@ -58,6 +66,11 @@ function buildShadowTslUniforms(inputs: ChunkShadowInputs) {
       uniform(inputs.cascadeSplits[0]),
       uniform(inputs.cascadeSplits[1]),
       uniform(inputs.cascadeSplits[2]),
+    ] as const,
+    mapSizes: [
+      uniform(inputs.shadowMapSizes[0]),
+      uniform(inputs.shadowMapSizes[1]),
+      uniform(inputs.shadowMapSizes[2]),
     ] as const,
     bias: uniform(inputs.shadowBias),
     strength: uniform(inputs.shadowStrength),
@@ -77,6 +90,20 @@ function buildSharedTslUniforms(renderer: ChunkRenderer) {
     lightIntensityAdjustment: uniform(u.lightIntensityAdjustment.value),
     sunColor: uniform(u.sunColor.value.clone()),
     ambientColor: uniform(u.ambientColor.value.clone()),
+    fogColor: uniform(u.fogColor.value.clone()),
+    fogNear: uniform(u.fogNear.value),
+    fogFar: uniform(u.fogFar.value),
+    fogHeightOrigin: uniform(u.fogHeightOrigin.value),
+    fogHeightDensity: uniform(u.fogHeightDensity.value),
+    skyFogTopColor: uniform(u.skyFogTopColor.value.clone()),
+    skyFogMiddleColor: uniform(u.skyFogMiddleColor.value.clone()),
+    skyFogBottomColor: uniform(u.skyFogBottomColor.value.clone()),
+    skyFogOffset: uniform(u.skyFogOffset.value),
+    skyFogVoidOffset: uniform(u.skyFogVoidOffset.value),
+    skyFogExponent: uniform(u.skyFogExponent.value),
+    skyFogExponent2: uniform(u.skyFogExponent2.value),
+    skyFogDimension: uniform(u.skyFogDimension.value),
+    skyFogStrength: uniform(u.skyFogStrength.value),
   };
 }
 
@@ -116,6 +143,20 @@ export function syncChunkSharedTslUniforms(renderer: ChunkRenderer): void {
     shared.lightIntensityAdjustment.value = u.lightIntensityAdjustment.value;
     shared.sunColor.value.copy(u.sunColor.value);
     shared.ambientColor.value.copy(u.ambientColor.value);
+    shared.fogColor.value.copy(u.fogColor.value);
+    shared.fogNear.value = u.fogNear.value;
+    shared.fogFar.value = u.fogFar.value;
+    shared.fogHeightOrigin.value = u.fogHeightOrigin.value;
+    shared.fogHeightDensity.value = u.fogHeightDensity.value;
+    shared.skyFogTopColor.value.copy(u.skyFogTopColor.value);
+    shared.skyFogMiddleColor.value.copy(u.skyFogMiddleColor.value);
+    shared.skyFogBottomColor.value.copy(u.skyFogBottomColor.value);
+    shared.skyFogOffset.value = u.skyFogOffset.value;
+    shared.skyFogVoidOffset.value = u.skyFogVoidOffset.value;
+    shared.skyFogExponent.value = u.skyFogExponent.value;
+    shared.skyFogExponent2.value = u.skyFogExponent2.value;
+    shared.skyFogDimension.value = u.skyFogDimension.value;
+    shared.skyFogStrength.value = u.skyFogStrength.value;
   }
 }
 
@@ -131,6 +172,9 @@ export function syncChunkShadowTslUniforms(
   shadow.splits[0].value = inputs.cascadeSplits[0];
   shadow.splits[1].value = inputs.cascadeSplits[1];
   shadow.splits[2].value = inputs.cascadeSplits[2];
+  shadow.mapSizes[0].value = inputs.shadowMapSizes[0];
+  shadow.mapSizes[1].value = inputs.shadowMapSizes[1];
+  shadow.mapSizes[2].value = inputs.shadowMapSizes[2];
   shadow.bias.value = inputs.shadowBias;
   shadow.strength.value = inputs.shadowStrength;
 }
@@ -292,8 +336,40 @@ export function createChunkNodeMaterial(
       mul(step(float(0), lightNdc0.z), step(lightNdc0.z, float(1))),
     );
     const slopeBias0 = baseSlopeBias;
+    const texel0 = div(float(1), shadow.mapSizes[0]);
     const shadowDepth0 = texture(shadowInputs.shadowMaps[0], shadowUv0).r;
-    const occluded0 = step(shadowDepth0, sub(lightNdc0.z, slopeBias0));
+    const shadowDepth0L = texture(
+      shadowInputs.shadowMaps[0],
+      add(shadowUv0, vec2(mul(texel0, -1), 0)),
+    ).r;
+    const shadowDepth0R = texture(
+      shadowInputs.shadowMaps[0],
+      add(shadowUv0, vec2(texel0, 0)),
+    ).r;
+    const shadowDepth0D = texture(
+      shadowInputs.shadowMaps[0],
+      add(shadowUv0, vec2(0, mul(texel0, -1))),
+    ).r;
+    const shadowDepth0U = texture(
+      shadowInputs.shadowMaps[0],
+      add(shadowUv0, vec2(0, texel0)),
+    ).r;
+    const occluded0 = div(
+      add(
+        add(
+          add(
+            add(
+              step(shadowDepth0, sub(lightNdc0.z, slopeBias0)),
+              step(shadowDepth0L, sub(lightNdc0.z, slopeBias0)),
+            ),
+            step(shadowDepth0R, sub(lightNdc0.z, slopeBias0)),
+          ),
+          step(shadowDepth0D, sub(lightNdc0.z, slopeBias0)),
+        ),
+        step(shadowDepth0U, sub(lightNdc0.z, slopeBias0)),
+      ),
+      5,
+    );
     const visibility0 = sub(float(1), mul(inside0, occluded0));
 
     const lightClip1 = mul(shadow.matrices[1], wpos4);
@@ -315,8 +391,40 @@ export function createChunkNodeMaterial(
       mul(step(float(0), lightNdc1.z), step(lightNdc1.z, float(1))),
     );
     const slopeBias1 = mul(baseSlopeBias, 1.5);
+    const texel1 = div(float(1), shadow.mapSizes[1]);
     const shadowDepth1 = texture(shadowInputs.shadowMaps[1], shadowUv1).r;
-    const occluded1 = step(shadowDepth1, sub(lightNdc1.z, slopeBias1));
+    const shadowDepth1L = texture(
+      shadowInputs.shadowMaps[1],
+      add(shadowUv1, vec2(mul(texel1, -1), 0)),
+    ).r;
+    const shadowDepth1R = texture(
+      shadowInputs.shadowMaps[1],
+      add(shadowUv1, vec2(texel1, 0)),
+    ).r;
+    const shadowDepth1D = texture(
+      shadowInputs.shadowMaps[1],
+      add(shadowUv1, vec2(0, mul(texel1, -1))),
+    ).r;
+    const shadowDepth1U = texture(
+      shadowInputs.shadowMaps[1],
+      add(shadowUv1, vec2(0, texel1)),
+    ).r;
+    const occluded1 = div(
+      add(
+        add(
+          add(
+            add(
+              step(shadowDepth1, sub(lightNdc1.z, slopeBias1)),
+              step(shadowDepth1L, sub(lightNdc1.z, slopeBias1)),
+            ),
+            step(shadowDepth1R, sub(lightNdc1.z, slopeBias1)),
+          ),
+          step(shadowDepth1D, sub(lightNdc1.z, slopeBias1)),
+        ),
+        step(shadowDepth1U, sub(lightNdc1.z, slopeBias1)),
+      ),
+      5,
+    );
     const visibility1 = sub(float(1), mul(inside1, occluded1));
 
     const lightClip2 = mul(shadow.matrices[2], wpos4);
@@ -338,8 +446,40 @@ export function createChunkNodeMaterial(
       mul(step(float(0), lightNdc2.z), step(lightNdc2.z, float(1))),
     );
     const slopeBias2 = mul(baseSlopeBias, 2);
+    const texel2 = div(float(1), shadow.mapSizes[2]);
     const shadowDepth2 = texture(shadowInputs.shadowMaps[2], shadowUv2).r;
-    const occluded2 = step(shadowDepth2, sub(lightNdc2.z, slopeBias2));
+    const shadowDepth2L = texture(
+      shadowInputs.shadowMaps[2],
+      add(shadowUv2, vec2(mul(texel2, -1), 0)),
+    ).r;
+    const shadowDepth2R = texture(
+      shadowInputs.shadowMaps[2],
+      add(shadowUv2, vec2(texel2, 0)),
+    ).r;
+    const shadowDepth2D = texture(
+      shadowInputs.shadowMaps[2],
+      add(shadowUv2, vec2(0, mul(texel2, -1))),
+    ).r;
+    const shadowDepth2U = texture(
+      shadowInputs.shadowMaps[2],
+      add(shadowUv2, vec2(0, texel2)),
+    ).r;
+    const occluded2 = div(
+      add(
+        add(
+          add(
+            add(
+              step(shadowDepth2, sub(lightNdc2.z, slopeBias2)),
+              step(shadowDepth2L, sub(lightNdc2.z, slopeBias2)),
+            ),
+            step(shadowDepth2R, sub(lightNdc2.z, slopeBias2)),
+          ),
+          step(shadowDepth2D, sub(lightNdc2.z, slopeBias2)),
+        ),
+        step(shadowDepth2U, sub(lightNdc2.z, slopeBias2)),
+      ),
+      5,
+    );
     const visibility2 = sub(float(1), mul(inside2, occluded2));
 
     const blendRegion = float(0.1);
@@ -385,7 +525,42 @@ export function createChunkNodeMaterial(
     litRgb = mul(baseLit, factor);
   }
 
-  material.colorNode = vec4(litRgb, sampled.a);
+  const horizontalOffset = sub(positionWorld.xz, cameraPosition.xz);
+  const depth = length(horizontalOffset);
+  const distFog = smoothstep(shared.fogNear, shared.fogFar, depth);
+  const heightFog = sub(
+    float(1),
+    exp(
+      mul(
+        mul(shared.fogHeightDensity, -1),
+        max(float(0), sub(shared.fogHeightOrigin, positionWorld.y)),
+      ),
+    ),
+  );
+  const heightDistScale = smoothstep(
+    mul(shared.fogNear, 0.3),
+    mul(shared.fogFar, 0.6),
+    depth,
+  );
+  const fogFactor = max(distFog, mul(heightFog, heightDistScale));
+  const fogRay = normalize(sub(positionWorld, cameraPosition));
+  const skyDomePos = add(cameraPosition, mul(fogRay, shared.skyFogDimension));
+  const sfH = normalize(add(skyDomePos, shared.skyFogOffset)).y;
+  const sfH2 = normalize(add(skyDomePos, shared.skyFogVoidOffset)).y;
+  const skyColor = mix(
+    shared.skyFogMiddleColor,
+    shared.skyFogTopColor,
+    max(pow(max(sfH, 0), shared.skyFogExponent), 0),
+  );
+  const skyBottomBlend = max(
+    pow(max(mul(sfH2, -1), 0), shared.skyFogExponent2),
+    0,
+  );
+  const skyFogColor = mix(skyColor, shared.skyFogBottomColor, skyBottomBlend);
+  const fogTint = mix(shared.fogColor, skyFogColor, shared.skyFogStrength);
+  const finalRgb = mix(litRgb, fogTint, fogFactor);
+
+  material.colorNode = vec4(finalRgb, sampled.a);
 
   const uniforms: ChunkNodeMaterialUniformShim = {
     map: { value: initialMap },

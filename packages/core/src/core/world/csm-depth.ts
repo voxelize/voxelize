@@ -520,6 +520,14 @@ export class WebGPUCSMDepthPass {
     ];
   }
 
+  get shadowMapSizes(): readonly [number, number, number] {
+    return [
+      this.getCascade(0).renderTarget.width,
+      this.getCascade(1).renderTarget.width,
+      this.getCascade(2).renderTarget.width,
+    ];
+  }
+
   get cascadeCount(): number {
     return this.cascades.length;
   }
