@@ -133,8 +133,8 @@ export function sortTransparentMesh(
   data: TransparentMeshData,
   camera: Camera,
 ): void {
-  mesh.getWorldPosition(_worldPos);
-  camera.getWorldPosition(_camWorldPos);
+  _worldPos.setFromMatrixPosition(mesh.matrixWorld);
+  _camWorldPos.setFromMatrixPosition(camera.matrixWorld);
   _camPos.copy(_camWorldPos).sub(_worldPos);
 
   const isFirstSort =

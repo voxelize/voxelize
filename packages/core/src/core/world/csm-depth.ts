@@ -1,4 +1,5 @@
 import {
+  Camera,
   CoordinateSystem,
   HalfFloatType,
   Material,
@@ -12,9 +13,7 @@ import {
   Sprite,
   Texture,
   Vector3,
-  WebGLCoordinateSystem,
   WebGLRenderTarget,
-  WebGLRenderer,
   WebGPUCoordinateSystem,
 } from "three";
 import {
@@ -31,8 +30,9 @@ import {
 } from "three/webgpu";
 
 export interface CSMDepthConfig {
+  cascades: number;
   shadowMapSize: number;
-  radius: number;
+  maxShadowDistance: number;
   lightMargin: number;
   shadowCasterDistance: number;
   shadowBias: number;
@@ -52,11 +52,12 @@ export interface CSMDepthConfig {
 }
 
 const defaultConfig: CSMDepthConfig = {
-  shadowMapSize: 2048,
-  radius: 48,
-  lightMargin: 24,
+  cascades: 3,
+  shadowMapSize: 4096,
+  maxShadowDistance: 128,
+  lightMargin: 32,
   shadowCasterDistance: 200,
-  shadowBias: 0.0003,
+  shadowBias: 0.0005,
   dayShadowStrength: 0.55,
   nightShadowStrength: 0.3,
   minElevation: 0.2,
@@ -64,14 +65,17 @@ const defaultConfig: CSMDepthConfig = {
   lowElevationFadeEnd: 0.05,
 };
 
-export type CSMRenderTarget = WebGLRenderer | WebGPURenderer;
+export type CSMRenderTarget = WebGPURenderer;
 
-// The packed depth value is `clip.z / clip.w`, which the rasterizer naturally
-// produces in different ranges depending on the renderer's clip-space
-// convention: [-1, 1] for WebGL, [0, 1] for WebGPU. HalfFloat handles both
-// signed and unsigned ranges; the chunk receiver computes the matching value
-// from the same shadow matrix, so we MUST store raw NDC z here (not a
-// remapped depth01) or skinned/basic casters will produce inverse shadows.
+interface Cascade {
+  renderTarget: WebGLRenderTarget;
+  camera: OrthographicCamera;
+  matrix: Matrix4;
+  split: number;
+}
+
+// The packed depth value is raw `clip.z / clip.w`, matching the TSL receiver's
+// comparison against the same shadow matrix.
 function createDepthPackingNodeMaterial(): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
   const viewPos = vec4(positionView.x, positionView.y, positionView.z, 1);
@@ -107,23 +111,29 @@ function shouldSkipBasicCaster(mesh: Mesh): boolean {
   return isShadowSkippedMaterial(mat);
 }
 
-export class CSMDepthPass {
+export class WebGPUCSMDepthPass {
   private config: CSMDepthConfig;
-  private camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
-  private renderTarget: WebGLRenderTarget;
+  private cascades: Cascade[] = [];
   private depthMaterial: Material;
-  private matrixValue = new Matrix4();
   private lightDirection = new Vector3(0, -1, 0).normalize();
+  private lastLightDirection = new Vector3(0, -1, 0).normalize();
+  private lastCameraPosition = new Vector3();
+  private frameCount = 0;
+  private cascadeDirty: boolean[] = [];
+  private cascadeNeedsRender: boolean[] = [];
+  private tempVec3 = new Vector3();
 
-  private up = new Vector3(0, 1, 0);
-  private lookTarget = new Vector3();
-  private snappedFocus = new Vector3();
+  private frustumCenter = new Vector3();
+  private frustumUp = new Vector3();
+  private lightViewMatrix = new Matrix4();
+  private lightViewMatrixInverse = new Matrix4();
+  private lightSpaceCenter = new Vector3();
+  private tempLookAtTarget = new Vector3();
+  private cornerPool: Vector3[] = Array(8)
+    .fill(null)
+    .map(() => new Vector3());
 
-  // The renderer's clip-space convention. Defaults to WebGL; the world syncs
-  // this to the active renderer before the first chunk material is built so
-  // the depth-pack camera matrix and the receiver's TSL graph agree on
-  // whether NDC z is in [-1, 1] (WebGL) or [0, 1] (WebGPU).
-  private _coordinateSystem: CoordinateSystem = WebGLCoordinateSystem;
+  private _coordinateSystem: CoordinateSystem = WebGPUCoordinateSystem;
 
   // Monotonic counter incremented every time the depth pass renders. Tests
   // and tooling read this to verify the WebGPU CSM path is actually running
@@ -133,17 +143,47 @@ export class CSMDepthPass {
 
   constructor(config: Partial<CSMDepthConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
-    const size = this.config.shadowMapSize;
-    this.renderTarget = new WebGLRenderTarget(size, size, {
-      depthBuffer: true,
-      stencilBuffer: false,
-      format: RGBAFormat,
-      type: HalfFloatType,
-      minFilter: NearestFilter,
-      magFilter: NearestFilter,
-    });
-    this.renderTarget.texture.name = "CSMDepthPass.depth";
+    if (this.config.cascades !== 3) {
+      throw new Error("WebGPUCSMDepthPass requires exactly 3 cascades");
+    }
     this.depthMaterial = createDepthPackingNodeMaterial();
+    this.initCascades();
+  }
+
+  private initCascades(): void {
+    const { cascades, shadowMapSize, maxShadowDistance } = this.config;
+    const lambda = 2.0;
+    const splits: number[] = [];
+
+    for (let i = 0; i <= cascades; i++) {
+      const p = i / cascades;
+      const log = Math.pow(p, lambda);
+      splits.push(log * maxShadowDistance);
+    }
+
+    for (let i = 0; i < cascades; i++) {
+      const renderTarget = new WebGLRenderTarget(shadowMapSize, shadowMapSize, {
+        depthBuffer: true,
+        stencilBuffer: false,
+        format: RGBAFormat,
+        type: HalfFloatType,
+        minFilter: NearestFilter,
+        magFilter: NearestFilter,
+      });
+      renderTarget.texture.name = `WebGPUCSMDepthPass.depth.${i}`;
+
+      const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+      camera.coordinateSystem = this._coordinateSystem;
+
+      this.cascades.push({
+        renderTarget,
+        camera,
+        matrix: new Matrix4(),
+        split: splits[i + 1],
+      });
+      this.cascadeDirty.push(true);
+      this.cascadeNeedsRender.push(true);
+    }
   }
 
   get coordinateSystem(): CoordinateSystem {
@@ -151,50 +191,152 @@ export class CSMDepthPass {
   }
 
   setCoordinateSystem(system: CoordinateSystem): void {
-    if (system !== WebGLCoordinateSystem && system !== WebGPUCoordinateSystem) {
+    if (system !== WebGPUCoordinateSystem) {
       return;
     }
     this._coordinateSystem = system;
-    this.camera.coordinateSystem = system;
+    for (const cascade of this.cascades) {
+      cascade.camera.coordinateSystem = system;
+    }
   }
 
-  update(sunDirection: Vector3, focus: Vector3): void {
-    this.lightDirection.copy(sunDirection).normalize();
-    const { radius, lightMargin, shadowCasterDistance } = this.config;
+  private markAllCascadesDirty(): void {
+    for (let i = 0; i < this.cascadeDirty.length; i++) {
+      this.cascadeDirty[i] = true;
+      this.cascadeNeedsRender[i] = true;
+    }
+  }
 
-    this.up.set(0, 1, 0);
-    if (Math.abs(this.lightDirection.dot(this.up)) > 0.999) {
-      this.up.set(0, 0, 1);
+  markAllCascadesForRender(): void {
+    for (let i = 0; i < this.cascadeNeedsRender.length; i++) {
+      this.cascadeNeedsRender[i] = true;
+    }
+  }
+
+  private shouldUpdateCascade(index: number, cameraMovement: number): boolean {
+    if (this.cascadeDirty[index]) return true;
+    if (index === 0) return true;
+    if (index === 1) return cameraMovement > 1.5 || this.frameCount % 5 === 0;
+    return cameraMovement > 3.0 || this.frameCount % 10 === 0;
+  }
+
+  update(mainCamera: Camera, sunDirection: Vector3, focus: Vector3): void {
+    this.frameCount++;
+    this.lightDirection.copy(sunDirection).normalize();
+
+    const lightDirChange = this.tempVec3
+      .copy(this.lightDirection)
+      .sub(this.lastLightDirection)
+      .length();
+    if (lightDirChange > 0.01) {
+      this.markAllCascadesDirty();
+      this.lastLightDirection.copy(this.lightDirection);
     }
 
-    const texelSize = (2 * radius) / this.config.shadowMapSize;
-    this.snappedFocus.set(
-      Math.floor(focus.x / texelSize) * texelSize,
-      Math.floor(focus.y / texelSize) * texelSize,
-      Math.floor(focus.z / texelSize) * texelSize,
+    const cameraMovement = this.tempVec3
+      .copy(focus)
+      .sub(this.lastCameraPosition)
+      .length();
+    this.lastCameraPosition.copy(focus);
+
+    mainCamera.updateMatrixWorld();
+
+    for (let i = 0; i < this.cascades.length; i++) {
+      const cascade = this.cascades[i];
+      if (!cascade) continue;
+
+      if (!this.shouldUpdateCascade(i, cameraMovement)) {
+        continue;
+      }
+
+      this.updateCascadeFrustum(i, mainCamera, focus, cascade.split);
+      this.cascadeDirty[i] = false;
+      this.cascadeNeedsRender[i] = true;
+    }
+  }
+
+  private updateCascadeFrustum(
+    index: number,
+    mainCamera: Camera,
+    focus: Vector3,
+    farSplit: number,
+  ): void {
+    const cascade = this.cascades[index];
+    if (!cascade) return;
+
+    const { lightMargin, shadowCasterDistance } = this.config;
+    this.frustumCenter.set(0, 0, 0);
+
+    const yScale = 0.3 + 0.7 * (index / Math.max(1, this.cascades.length - 1));
+
+    let cornerIndex = 0;
+    for (let x = -1; x <= 1; x += 2) {
+      for (let y = -1; y <= 1; y += 2) {
+        for (let z = -1; z <= 1; z += 2) {
+          const corner = this.cornerPool[cornerIndex++];
+          if (!corner) continue;
+          corner.copy(focus);
+          corner.x += x * farSplit;
+          corner.y += y * farSplit * yScale;
+          corner.z += z * farSplit;
+          this.frustumCenter.add(corner);
+        }
+      }
+    }
+
+    this.frustumCenter.divideScalar(8);
+
+    let radius = 0;
+    for (const corner of this.cornerPool) {
+      radius = Math.max(radius, corner.distanceTo(this.frustumCenter));
+    }
+    radius = Math.ceil(radius * 16) / 16;
+
+    this.frustumUp.set(0, 1, 0);
+    if (Math.abs(this.lightDirection.dot(this.frustumUp)) > 0.999) {
+      this.frustumUp.set(0, 0, 1);
+    }
+
+    const texelSize = (2 * radius) / cascade.renderTarget.width;
+    this.tempLookAtTarget.addVectors(this.frustumCenter, this.lightDirection);
+    this.lightViewMatrix.lookAt(
+      this.tempLookAtTarget,
+      this.frustumCenter,
+      this.frustumUp,
     );
+    this.lightSpaceCenter
+      .copy(this.frustumCenter)
+      .applyMatrix4(this.lightViewMatrix);
+    this.lightSpaceCenter.x =
+      Math.floor(this.lightSpaceCenter.x / texelSize) * texelSize;
+    this.lightSpaceCenter.y =
+      Math.floor(this.lightSpaceCenter.y / texelSize) * texelSize;
+    this.lightViewMatrixInverse.copy(this.lightViewMatrix).invert();
+    this.frustumCenter
+      .copy(this.lightSpaceCenter)
+      .applyMatrix4(this.lightViewMatrixInverse);
 
     const offset = radius + lightMargin;
-    this.camera.up.copy(this.up);
-    this.camera.position
-      .copy(this.snappedFocus)
+    const casterDepth = Math.max(offset, shadowCasterDistance);
+
+    cascade.camera.up.copy(this.frustumUp);
+    cascade.camera.position
+      .copy(this.frustumCenter)
       .addScaledVector(this.lightDirection, offset);
-    this.lookTarget.copy(this.snappedFocus);
-    this.camera.lookAt(this.lookTarget);
+    cascade.camera.lookAt(this.frustumCenter);
+    cascade.camera.left = -radius;
+    cascade.camera.right = radius;
+    cascade.camera.top = radius;
+    cascade.camera.bottom = -radius;
+    cascade.camera.near = 0.1;
+    cascade.camera.far = offset + casterDepth;
+    cascade.camera.coordinateSystem = this._coordinateSystem;
+    cascade.camera.updateProjectionMatrix();
+    cascade.camera.updateMatrixWorld();
 
-    this.camera.left = -radius;
-    this.camera.right = radius;
-    this.camera.top = radius;
-    this.camera.bottom = -radius;
-    this.camera.near = 0.1;
-    this.camera.far = offset + Math.max(offset, shadowCasterDistance);
-    this.camera.coordinateSystem = this._coordinateSystem;
-    this.camera.updateProjectionMatrix();
-    this.camera.updateMatrixWorld();
-
-    this.matrixValue
-      .copy(this.camera.projectionMatrix)
-      .multiply(this.camera.matrixWorldInverse);
+    cascade.matrix
+      .copy(cascade.camera.projectionMatrix)
+      .multiply(cascade.camera.matrixWorldInverse);
   }
 
   render(
@@ -202,7 +344,11 @@ export class CSMDepthPass {
     scene: Scene,
     casters: Object3D[],
     customDepthCasters: Object3D[] = [],
+    farCascadeHiddenCasters: Object3D[] = [],
   ): void {
+    const hasCascadeToRender = this.cascadeNeedsRender.some(Boolean);
+    if (!hasCascadeToRender) return;
+
     const allCasters = new Set<Object3D>([...casters, ...customDepthCasters]);
 
     const sceneHidden: { object: Object3D; visible: boolean }[] = [];
@@ -254,14 +400,35 @@ export class CSMDepthPass {
       });
     }
 
-    renderer.setRenderTarget(this.renderTarget);
-    renderer.clear();
-    renderer.render(scene, this.camera);
-    renderer.setRenderTarget(null);
+    for (let i = 0; i < this.cascades.length; i++) {
+      if (!this.cascadeNeedsRender[i]) continue;
+      const cascade = this.cascades[i];
+      if (!cascade) continue;
 
-    this.renderCount += 1;
-    this.lastRenderAt =
-      typeof performance !== "undefined" ? performance.now() : Date.now();
+      const hiddenFarCasters: { object: Object3D; visible: boolean }[] = [];
+      if (i >= 2) {
+        for (const object of farCascadeHiddenCasters) {
+          if (object.visible) {
+            hiddenFarCasters.push({ object, visible: true });
+            object.visible = false;
+          }
+        }
+      }
+
+      renderer.setRenderTarget(cascade.renderTarget);
+      renderer.clear();
+      renderer.render(scene, cascade.camera);
+
+      for (const entry of hiddenFarCasters) {
+        entry.object.visible = entry.visible;
+      }
+
+      this.cascadeNeedsRender[i] = false;
+      this.renderCount += 1;
+      this.lastRenderAt =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+    }
+    renderer.setRenderTarget(null);
 
     for (const swap of swaps) {
       swap.mesh.material = swap.original;
@@ -274,12 +441,32 @@ export class CSMDepthPass {
     }
   }
 
-  get shadowMap(): Texture {
-    return this.renderTarget.texture;
+  get shadowMaps(): readonly [Texture, Texture, Texture] {
+    return [
+      this.getCascade(0).renderTarget.texture,
+      this.getCascade(1).renderTarget.texture,
+      this.getCascade(2).renderTarget.texture,
+    ];
   }
 
-  get shadowMatrix(): Matrix4 {
-    return this.matrixValue;
+  get shadowMatrices(): readonly [Matrix4, Matrix4, Matrix4] {
+    return [
+      this.getCascade(0).matrix,
+      this.getCascade(1).matrix,
+      this.getCascade(2).matrix,
+    ];
+  }
+
+  get cascadeSplits(): readonly [number, number, number] {
+    return [
+      this.getCascade(0).split,
+      this.getCascade(1).split,
+      this.getCascade(2).split,
+    ];
+  }
+
+  get cascadeCount(): number {
+    return this.cascades.length;
   }
 
   get shadowBias(): number {
@@ -309,18 +496,23 @@ export class CSMDepthPass {
     return peak * smooth;
   }
 
-  // Back-compat: legacy callers read a static `shadowStrength`. Returns the
-  // peak day strength so existing wiring still produces a sensible value.
   get shadowStrength(): number {
     return this.config.dayShadowStrength;
   }
 
-  get shadowMapTexelSize(): number {
-    return 1 / this.config.shadowMapSize;
+  private getCascade(index: number): Cascade {
+    const cascade = this.cascades[index];
+    if (!cascade) {
+      throw new Error(`Missing CSM depth cascade ${index}`);
+    }
+    return cascade;
   }
 
   dispose(): void {
-    this.renderTarget.dispose();
+    for (const cascade of this.cascades) {
+      cascade.renderTarget.dispose();
+    }
     this.depthMaterial.dispose();
+    this.cascades = [];
   }
 }

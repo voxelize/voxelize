@@ -3,7 +3,6 @@ import {
   AmbientLight,
   DirectionalLight,
   Mesh,
-  MeshBasicMaterial,
   NearestFilter,
   Object3D,
   OrthographicCamera,
@@ -14,7 +13,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
-import { WebGPURenderer } from "three/webgpu";
+import { MeshBasicNodeMaterial, WebGPURenderer } from "three/webgpu";
 
 import { CameraPerspective, isWebGPUAvailable, noop } from "../common";
 import { Inputs } from "../core/inputs";
@@ -185,7 +184,7 @@ export class ItemSlot<T = number> {
       texture.colorSpace = SRGBColorSpace;
       texture.minFilter = NearestFilter;
       texture.magFilter = NearestFilter;
-      const material = new MeshBasicMaterial({
+      const material = new MeshBasicNodeMaterial({
         map: texture,
         transparent: true,
       });

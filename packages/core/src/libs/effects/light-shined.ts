@@ -265,7 +265,8 @@ export class LightShined {
       if (override) {
         position.copy(override);
       } else {
-        obj.getWorldPosition(position);
+        obj.updateWorldMatrix(true, false);
+        position.setFromMatrixPosition(obj.matrixWorld);
       }
 
       if (this.world.usesShaderLighting) {

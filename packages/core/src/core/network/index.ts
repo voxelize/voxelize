@@ -357,7 +357,6 @@ export class Network {
       0,
       Math.min(packetsToProcess, this.packetQueue.length),
     );
-
     packets.forEach((packet) => {
       this.decodeQueue.push({
         packet,
@@ -450,6 +449,22 @@ export class Network {
 
   get packetQueueLength() {
     return this.packetQueue.length;
+  }
+
+  get decodeQueueLength() {
+    return this.decodeQueue.length;
+  }
+
+  get isDecodingPacket() {
+    return this.isDecoding;
+  }
+
+  get hasPendingMessages() {
+    return (
+      this.packetQueue.length > 0 ||
+      this.decodeQueue.length > 0 ||
+      this.isDecoding
+    );
   }
 
   get rtcConnected() {

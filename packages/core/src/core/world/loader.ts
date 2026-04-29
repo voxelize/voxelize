@@ -68,11 +68,29 @@ class Loader {
     window.addEventListener("click", listenerCallback);
   }
 
+  private waitForImageDecode = async (
+    image: HTMLImageElement,
+  ): Promise<HTMLImageElement> => {
+    if (!image.complete) {
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = reject;
+      });
+    }
+
+    if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+      throw new Error("Image loaded without drawable dimensions.");
+    }
+
+    await image.decode().catch(() => undefined);
+    return image;
+  };
+
   loadGifImages = (
     source: string,
     onLoaded?: (images: HTMLImageElement[]) => void,
   ) => {
-    const promise = new Promise<HTMLImageElement[]>((resolve) => {
+    const promise = new Promise<HTMLImageElement[]>((resolve, reject) => {
       const run = async () => {
         const response = await fetch(source);
         const blob = await response.blob();
@@ -83,21 +101,25 @@ class Loader {
 
         const info = reader.frameInfo(0);
 
-        const images = new Array(reader.numFrames()).fill(0).map((_, k) => {
-          const image = new ImageData(info.width, info.height);
-          reader.decodeAndBlitFrameRGBA(k, image.data as any);
+        const images = await Promise.all(
+          new Array(reader.numFrames()).fill(0).map(async (_, k) => {
+            const image = new ImageData(info.width, info.height);
+            const frameData = new Uint8Array(image.data.buffer);
+            reader.decodeAndBlitFrameRGBA(k, frameData);
 
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          canvas.width = image.width;
-          canvas.height = image.height;
-          ctx.putImageData(image, 0, 0);
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.putImageData(image, 0, 0);
 
-          const actual = new Image();
-          actual.src = canvas.toDataURL();
+            const actual = new Image();
+            const decoded = this.waitForImageDecode(actual);
+            actual.src = canvas.toDataURL();
 
-          return actual;
-        });
+            return decoded;
+          }),
+        );
 
         this.images.set(source, images);
         this.assetPromises.delete(source);
@@ -107,7 +129,10 @@ class Loader {
         resolve(images);
       };
 
-      run();
+      run().catch((err) => {
+        this.assetPromises.delete(source);
+        reject(err);
+      });
     });
 
     this.assetPromises.set(source, promise);
@@ -153,10 +178,20 @@ class Loader {
     const promise = new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.crossOrigin = "anonymous";
-      image.src = source;
 
-      image.onerror = reject;
-      image.onload = () => {
+      image.onerror = (err) => {
+        this.assetPromises.delete(source);
+        reject(err);
+      };
+      image.onload = async () => {
+        try {
+          await this.waitForImageDecode(image);
+        } catch (err) {
+          this.assetPromises.delete(source);
+          reject(err);
+          return;
+        }
+
         this.images.set(source, image);
         this.assetPromises.delete(source);
 
@@ -164,6 +199,7 @@ class Loader {
 
         resolve(image);
       };
+      image.src = source;
     });
 
     this.assetPromises.set(source, promise);

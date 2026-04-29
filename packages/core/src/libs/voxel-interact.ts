@@ -5,10 +5,10 @@ import {
   Color,
   Group,
   Mesh,
-  MeshBasicMaterial,
   Object3D,
   Vector3,
 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { World } from "../core/world";
 import {
@@ -632,7 +632,7 @@ export class VoxelInteract extends Group {
     const { highlightType, highlightScale, highlightColor, highlightOpacity } =
       this.options;
 
-    const mat = new MeshBasicMaterial({
+    const mat = new MeshBasicNodeMaterial({
       color: new Color(highlightColor),
       opacity: highlightOpacity,
       transparent: true,

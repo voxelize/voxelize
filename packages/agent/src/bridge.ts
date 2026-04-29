@@ -62,7 +62,7 @@ export type Snapshot = {
 
 export type RendererKind = "webgl" | "webgpu";
 
-export type CsmKind = "depth" | "shader" | "none";
+export type CsmKind = "webgpu-csm" | "shader" | "none";
 
 export type CsmStatus = {
   kind: CsmKind;
@@ -70,8 +70,8 @@ export type CsmStatus = {
   renderCount: number;
   shadowStrength: number;
   shadowBias: number;
-  // Sum of |shadowMatrix[i]| for i in 0..15. A non-trivial (non-zero) value
-  // proves the depth pass camera matrix has been initialised by `update()`.
+  // Sum of |shadowMatrix[i]| for i in 0..15. A non-trivial value proves the
+  // WebGPU CSM camera matrix has been initialised by `update()`.
   shadowMatrixMagnitude: number;
 };
 

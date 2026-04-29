@@ -1,11 +1,5 @@
-import {
-  Material,
-  Mesh,
-  Object3D,
-  Sprite,
-  SpriteMaterial,
-  Vector3,
-} from "three";
+import { Material, Mesh, Object3D, Sprite, Vector3 } from "three";
+import { SpriteNodeMaterial } from "three/webgpu";
 
 import type { Behavior } from "./behavior";
 import { SpanLike, toSpan } from "./math";
@@ -170,7 +164,7 @@ export class Emitter {
   }
 
   private createDefaultSprite(): Sprite {
-    const material = new SpriteMaterial({
+    const material = new SpriteNodeMaterial({
       map: getDefaultSpriteTexture(),
       transparent: true,
       depthWrite: false,

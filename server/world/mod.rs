@@ -891,7 +891,14 @@ impl World {
             }
         }
 
-        self.send(sender, &init_message);
+        if !self.send(sender, &init_message) {
+            warn!(
+                "[WORLD] INIT delivery to client {} failed; rolling back add_client",
+                id
+            );
+            self.remove_client(id);
+            return;
+        }
 
         let join_message = Message::new(&MessageType::Join).text(id).build();
         self.broadcast(join_message, ClientFilter::All);
@@ -1099,9 +1106,20 @@ impl World {
         self.write_resource::<MessageQueues>().push((data, filter));
     }
 
-    /// Send a direct message to an endpoint
-    pub fn send(&self, sender: &WsSender, data: &Message) {
-        let _ = sender.send(encode_message(data));
+    /// Send a direct message to an endpoint. Returns `true` if the message was
+    /// queued, `false` if the receiver has been dropped.
+    pub fn send(&self, sender: &WsSender, data: &Message) -> bool {
+        if sender.send(encode_message(data)).is_err() {
+            warn!(
+                "[WORLD] Dropped message of type {:?} for world '{}': receiver closed",
+                MessageType::try_from(data.r#type)
+                    .map(|t| format!("{:?}", t))
+                    .unwrap_or_else(|_| data.r#type.to_string()),
+                self.name
+            );
+            return false;
+        }
+        true
     }
 
     /// Access to the world's config.

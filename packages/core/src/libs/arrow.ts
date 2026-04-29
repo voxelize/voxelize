@@ -1,10 +1,5 @@
-import {
-  ArrowHelper,
-  Color,
-  CylinderGeometry,
-  Mesh,
-  MeshBasicMaterial,
-} from "three";
+import { ArrowHelper, Color, CylinderGeometry, Mesh } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 /**
  * Parameters to create an arrow.
@@ -92,13 +87,13 @@ export class Arrow extends ArrowHelper {
     this.add(
       new Mesh(
         new CylinderGeometry(radius, radius, height),
-        new MeshBasicMaterial({ color }),
+        new MeshBasicNodeMaterial({ color }),
       ),
     );
 
     const cone = new Mesh(
       new CylinderGeometry(0, coneRadius, coneHeight),
-      new MeshBasicMaterial({ color }),
+      new MeshBasicNodeMaterial({ color }),
     );
     cone.position.y = (coneHeight + height) / 2;
 

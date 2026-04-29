@@ -1,11 +1,5 @@
-import {
-  CircleGeometry,
-  DoubleSide,
-  Mesh,
-  MeshBasicMaterial,
-  Object3D,
-  Vector3,
-} from "three";
+import { CircleGeometry, DoubleSide, Mesh, Object3D, Vector3 } from "three";
+import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { World } from "../core/world/index";
 
@@ -43,7 +37,7 @@ export class Shadow extends Mesh {
   /**
    * The shared material for all shadows.
    */
-  static readonly MATERIAL = new MeshBasicMaterial({
+  static readonly MATERIAL = new MeshBasicNodeMaterial({
     side: DoubleSide,
     color: "rgb(0,0,0)",
     opacity: 0.3,

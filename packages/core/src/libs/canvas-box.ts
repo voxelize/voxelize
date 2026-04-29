@@ -301,7 +301,6 @@ export class BoxLayer extends Mesh {
         }
       }
 
-      material.needsUpdate = true;
       material.map.needsUpdate = true;
     }
   };

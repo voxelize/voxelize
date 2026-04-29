@@ -24,8 +24,6 @@ import {
   FrontSide,
   Group,
   Mesh,
-  MeshBasicMaterial,
-  MeshStandardMaterial,
   Object3D,
   SRGBColorSpace,
   Scene,
@@ -41,6 +39,7 @@ import {
   WebGLRenderer,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from "three/webgpu";
 import type { WebGPURenderer } from "three/webgpu";
 
 import {
@@ -136,7 +135,7 @@ import {
 } from "./chunk-material";
 import { ChunkRenderer } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
-import { CSMDepthPass } from "./csm-depth";
+import { WebGPUCSMDepthPass, type CSMDepthConfig } from "./csm-depth";
 import { CSMRenderer } from "./csm-renderer";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightSourceRegistry } from "./light-registry";
@@ -153,6 +152,65 @@ import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
 import LightWorker from "./workers/light-worker.ts?worker&inline";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
+
+const TEXTURE_DISPOSE_FRAME_DELAY = 8;
+const WEBGPU_CSM_CONFIG: Partial<CSMDepthConfig> = {
+  cascades: 3,
+  shadowMapSize: 4096,
+  maxShadowDistance: 128,
+  shadowBias: 0.0005,
+  lightMargin: 32,
+};
+const deferredTextureDisposal = new WeakSet<Texture>();
+
+function isReadyImageElement(image: HTMLImageElement): boolean {
+  return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+}
+
+function getDrawableImageWidth(
+  image: HTMLCanvasElement | HTMLImageElement,
+): number {
+  if (image instanceof HTMLImageElement) {
+    return isReadyImageElement(image) ? image.naturalWidth : 0;
+  }
+
+  return image.width;
+}
+
+function deferTextureDispose(
+  texture: Texture | null | undefined,
+  replacement?: Texture,
+): void {
+  if (
+    !texture ||
+    texture === replacement ||
+    AtlasTexture.isSharedUnknownTexture(texture) ||
+    deferredTextureDisposal.has(texture)
+  ) {
+    return;
+  }
+
+  if (typeof window === "undefined") {
+    texture.dispose();
+    return;
+  }
+
+  deferredTextureDisposal.add(texture);
+  let framesRemaining = TEXTURE_DISPOSE_FRAME_DELAY;
+
+  const tick = () => {
+    framesRemaining -= 1;
+    if (framesRemaining <= 0) {
+      texture.dispose();
+      deferredTextureDisposal.delete(texture);
+      return;
+    }
+
+    window.requestAnimationFrame(tick);
+  };
+
+  window.requestAnimationFrame(tick);
+}
 
 export * from "./block";
 export * from "./chunk";
@@ -707,11 +765,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   public csmRenderer: CSMRenderer | null = null;
 
   /**
-   * Single-cascade WebGPU/TSL directional shadow depth pass. Renderer-agnostic,
-   * used on the non-shaderBasedLighting path (WebGPU). The first slice of the
-   * full CSM port; entity shadow parity is intentionally out of scope.
+   * Multi-cascade WebGPU/TSL directional shadow depth pass.
    */
-  public csmDepth: CSMDepthPass | null = null;
+  public webgpuCsmDepth: WebGPUCSMDepthPass | null = null;
 
   /**
    * The light volume for shader-based lighting.
@@ -921,6 +977,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.remove(chunk.group);
       chunk.dispose();
     });
+    this.webgpuCsmDepth?.dispose();
+    this.webgpuCsmDepth = null;
   }
 
   private async dispatchMeshWorker(
@@ -1128,6 +1186,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           mat.uniforms.map = { value: source };
           mat.needsUpdate = true;
         } else if (data instanceof HTMLImageElement) {
+          if (!isReadyImageElement(data)) return;
           mat.map.image = data;
           mat.map.needsUpdate = true;
           mat.needsUpdate = true;
@@ -1218,6 +1277,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const isolatedMat = mat || this.makeShaderMaterial();
 
     const assignImageToMap = (image: HTMLImageElement) => {
+      if (!isReadyImageElement(image)) return;
+
       const existing = isolatedMat.map;
       if (existing && !(existing instanceof AtlasTexture)) {
         existing.image = image;
@@ -1267,7 +1328,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     } else if (ThreeUtils.isTexture(source)) {
       if (isolatedMat.map) {
-        isolatedMat.map.dispose();
+        deferTextureDispose(isolatedMat.map, source);
       }
       isolatedMat.map = source;
       isolatedMat.map.needsUpdate = true;
@@ -1415,13 +1476,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       // If the block's material is not set up to an atlas texture, we need to set it up.
       if (!(mat.map instanceof AtlasTexture)) {
-        const image = mat.map.image as HTMLCanvasElement | HTMLImageElement;
+        const image = mat.map.image as
+          | HTMLCanvasElement
+          | HTMLImageElement
+          | undefined;
+        const width = image ? getDrawableImageWidth(image) : 0;
 
-        if (image && image.width) {
-          const atlas = new AtlasTexture(1, image.width);
+        if (image && width) {
+          const atlas = new AtlasTexture(1, width);
           atlas.drawImageToRange(face.range, image);
 
-          mat.map.dispose();
+          deferTextureDispose(mat.map, atlas);
           mat.map = atlas;
           mat.uniforms.map = { value: atlas };
           mat.needsUpdate = true;
@@ -3103,7 +3168,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         positions: number[];
         uvs: number[];
         indices: number[];
-        material: MeshStandardMaterial | MeshBasicMaterial;
+        material: MeshStandardNodeMaterial | MeshBasicNodeMaterial;
       }
     >();
 
@@ -3135,8 +3200,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const mat =
           material === "basic"
-            ? new MeshBasicMaterial(matOptions)
-            : new MeshStandardMaterial(matOptions);
+            ? new MeshBasicNodeMaterial(matOptions)
+            : new MeshStandardNodeMaterial(matOptions);
 
         geometry = {
           identifier,
@@ -3280,7 +3345,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       geo.computeVertexNormals();
       geo.computeBoundingSphere();
 
-      const mat = new MeshBasicMaterial({ map: chunkMat?.map });
+      const mat = new MeshBasicNodeMaterial({ map: chunkMat?.map });
       const mesh = new Mesh(geo, mat);
       const group = new Group();
       group.add(mesh);
@@ -3463,8 +3528,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.lightRegistry = new LightSourceRegistry();
     }
 
-    if (!this.usesShaderLighting && !this.csmDepth) {
-      this.csmDepth = new CSMDepthPass();
+    if (!this.usesShaderLighting && !this.webgpuCsmDepth) {
+      this.webgpuCsmDepth = new WebGPUCSMDepthPass(WEBGPU_CSM_CONFIG);
     }
 
     await this.loadMaterials();
@@ -3672,7 +3737,7 @@ export class World<T = any> extends Scene implements NetIntercept {
                 );
                 if (material) {
                   material.dispose();
-                  material.map?.dispose();
+                  deferTextureDispose(material.map);
                 }
                 this.chunkRenderer.materials.delete(
                   this.makeChunkMaterialKey(block.id, face.name, voxel),
@@ -4409,6 +4474,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     renderer: WebGLRenderer | WebGPURenderer,
     entities?: Object3D[],
     instancePools?: Group[],
+    camera?: Camera,
   ) {
     if (this.usesShaderLighting && this.csmRenderer) {
       if (!(renderer instanceof WebGLRenderer)) return;
@@ -4422,48 +4488,64 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    if (this.csmDepth) {
-      this.renderCsmDepthSlice(renderer, entities, instancePools);
+    if (this.webgpuCsmDepth) {
+      this.renderWebgpuCsm(renderer, entities, instancePools, camera);
     }
   }
 
-  private renderCsmDepthSlice(
+  private renderWebgpuCsm(
     renderer: WebGLRenderer | WebGPURenderer,
     entities?: Object3D[],
     instancePools?: Group[],
+    camera?: Camera,
   ): void {
-    const pass = this.csmDepth;
+    const pass = this.webgpuCsmDepth;
     if (!pass) return;
+    if (renderer instanceof WebGLRenderer) return;
+    if (!camera) return;
 
     pass.setCoordinateSystem(renderer.coordinateSystem);
 
     const { direction: sunDir, sunY } = this.computeShadowCasterDirection();
     const focus = this.lastUpdatePosition;
-    pass.update(sunDir, focus);
+    pass.update(camera, sunDir, focus);
     const dynamicShadowStrength = pass.computeShadowStrength(sunY);
 
     const basicRoots = new Set<Object3D>(this.collectChunkGroupCasters());
+    const farCascadeHiddenRoots = new Set<Object3D>();
     const customRoots = new Set<Object3D>();
     if (entities) {
       for (const e of entities) {
         const root = this.findTopLevelAncestor(e);
-        if (root) basicRoots.add(root);
+        if (root) {
+          basicRoots.add(root);
+          farCascadeHiddenRoots.add(root);
+        }
       }
     }
     if (instancePools) {
       for (const p of instancePools) {
         const root = this.findTopLevelAncestor(p);
-        if (root) customRoots.add(root);
+        if (root) {
+          customRoots.add(root);
+          farCascadeHiddenRoots.add(root);
+        }
       }
     }
-    pass.render(renderer, this, [...basicRoots], [...customRoots]);
+    pass.render(
+      renderer,
+      this,
+      [...basicRoots],
+      [...customRoots],
+      [...farCascadeHiddenRoots],
+    );
 
     syncChunkShadowTslUniforms(this.chunkRenderer, {
-      shadowMap: pass.shadowMap,
-      shadowMatrix: pass.shadowMatrix,
+      shadowMaps: pass.shadowMaps,
+      shadowMatrices: pass.shadowMatrices,
+      cascadeSplits: pass.cascadeSplits,
       shadowBias: pass.shadowBias,
       shadowStrength: dynamicShadowStrength,
-      coordinateSystem: pass.coordinateSystem,
     });
   }
 
@@ -4497,7 +4579,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const casterX = isDay ? sunX : -sunX;
     const casterY = isDay ? sunY : -sunY;
 
-    const minElevation = this.csmDepth?.minElevation ?? 0.2;
+    const minElevation = this.webgpuCsmDepth?.minElevation ?? 0.2;
     const elevatedY = Math.max(minElevation, casterY);
 
     this.csmSunDirection.set(casterX, elevatedY, 0.3).normalize();
@@ -4783,6 +4865,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     this.csmRenderer?.markAllCascadesForRender();
+    this.webgpuCsmDepth?.markAllCascadesForRender();
 
     this.emitChunkEvent("chunk-mesh-loaded", {
       chunk,
@@ -4826,7 +4909,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
       this.lightRegistry = new LightSourceRegistry();
     } else {
-      this.csmDepth = new CSMDepthPass();
+      this.webgpuCsmDepth = new WebGPUCSMDepthPass(WEBGPU_CSM_CONFIG);
     }
 
     if (!cloudsOptions.uFogColor) {
@@ -6073,13 +6156,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       const initialMap = AtlasTexture.makeUnknownTexture(
         this.options.textureUnitDimension,
       );
-      const shadowInputs: ChunkShadowInputs | undefined = this.csmDepth
+      const shadowInputs: ChunkShadowInputs | undefined = this.webgpuCsmDepth
         ? {
-            shadowMap: this.csmDepth.shadowMap,
-            shadowMatrix: this.csmDepth.shadowMatrix,
-            shadowBias: this.csmDepth.shadowBias,
-            shadowStrength: this.csmDepth.computeShadowStrength(1),
-            coordinateSystem: this.csmDepth.coordinateSystem,
+            shadowMaps: this.webgpuCsmDepth.shadowMaps,
+            shadowMatrices: this.webgpuCsmDepth.shadowMatrices,
+            cascadeSplits: this.webgpuCsmDepth.cascadeSplits,
+            shadowBias: this.webgpuCsmDepth.shadowBias,
+            shadowStrength: this.webgpuCsmDepth.computeShadowStrength(1),
           }
         : undefined;
       return createChunkNodeMaterial(

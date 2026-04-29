@@ -170,11 +170,32 @@ export class AtlasTexture extends CanvasTexture {
   ) {
     const { startU, endV } = range;
 
+    if (ThreeUtils.isColor(image)) {
+      const context = this.canvas.getContext("2d");
+      const canvasWidth = this.canvas.width;
+      const canvasHeight = this.canvas.height;
+
+      context.save();
+      context.globalAlpha = opacity;
+      if (opacity !== 1) context.globalCompositeOperation = "lighter";
+      context.fillStyle = `#${image.getHexString()}`;
+      context.fillRect(
+        (startU - this.atlasOffset) * canvasWidth,
+        (1 - endV - this.atlasOffset) * canvasHeight,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
+      );
+      context.restore();
+
+      this.needsUpdate = true;
+      return;
+    }
+
     const image2 = ThreeUtils.isTexture(image)
       ? (image.image as CanvasImageSource)
-      : (image as HTMLImageElement);
+      : (image as CanvasImageSource);
 
-    if (!image2) {
+    if (!image2 || !AtlasTexture.isDrawableImageSource(image2)) {
       return;
     }
 
@@ -196,22 +217,6 @@ export class AtlasTexture extends CanvasTexture {
         this.dimension * this.atlasRatio + 2 * this.atlasMargin,
         this.dimension * this.atlasRatio + 2 * this.atlasMargin,
       );
-    }
-
-    if ((image as any as Color).isColor) {
-      const originalColor = image as any as Color;
-      // Use getHexString() directly - it returns the sRGB hex that was originally passed in
-      // Do NOT use convertLinearToSRGB() as that would double-convert and wash out colors
-      // When Color is created from hex string like "#9be9a8", getHexString() returns "9be9a8"
-      context.fillStyle = `#${originalColor.getHexString()}`;
-      context.fillRect(
-        (startU - this.atlasOffset) * canvasWidth,
-        (1 - endV - this.atlasOffset) * canvasHeight,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-      );
-
-      return;
     }
 
     // Draw a background first.
@@ -382,6 +387,43 @@ export class AtlasTexture extends CanvasTexture {
 
     AtlasTexture.sharedUnknownTexture = newAtlas;
     return newAtlas;
+  }
+
+  static isSharedUnknownTexture(texture: Texture | null | undefined): boolean {
+    return texture === AtlasTexture.sharedUnknownTexture;
+  }
+
+  private static isDrawableImageSource(image: CanvasImageSource): boolean {
+    if (image instanceof HTMLImageElement) {
+      return (
+        image.complete && image.naturalWidth > 0 && image.naturalHeight > 0
+      );
+    }
+
+    if (image instanceof HTMLVideoElement) {
+      return image.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    }
+
+    if (image instanceof HTMLCanvasElement) {
+      return image.width > 0 && image.height > 0;
+    }
+
+    if (typeof ImageBitmap !== "undefined" && image instanceof ImageBitmap) {
+      return image.width > 0 && image.height > 0;
+    }
+
+    if (
+      typeof OffscreenCanvas !== "undefined" &&
+      image instanceof OffscreenCanvas
+    ) {
+      return image.width > 0 && image.height > 0;
+    }
+
+    if (typeof VideoFrame !== "undefined" && image instanceof VideoFrame) {
+      return image.codedWidth > 0 && image.codedHeight > 0;
+    }
+
+    return false;
   }
 }
 

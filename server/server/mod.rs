@@ -299,6 +299,16 @@ impl Server {
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
                 if let Some((sender, token)) = self.lost_sessions.remove(id) {
+                    if sender.is_closed() {
+                        warn!(
+                            "[JOIN] Refusing JOIN for {}: stored sender is closed",
+                            id
+                        );
+                        return Some(format!(
+                            "Client at {} reconnected; previous session is gone. Please reload.",
+                            id
+                        ));
+                    }
                     world.do_send(ClientJoinRequest {
                         id: id.to_owned(),
                         username: json.username,

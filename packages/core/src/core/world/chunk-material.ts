@@ -1,11 +1,4 @@
-import {
-  CoordinateSystem,
-  FrontSide,
-  IntType,
-  Matrix4,
-  Texture,
-  WebGPUCoordinateSystem,
-} from "three";
+import { FrontSide, IntType, Matrix4, Texture } from "three";
 import {
   abs,
   add,
@@ -19,10 +12,12 @@ import {
   fract,
   greaterThan,
   int,
+  lessThan,
   max,
   mix,
   mul,
   normalWorld,
+  positionView,
   positionWorld,
   select,
   shiftRight,
@@ -40,21 +35,30 @@ import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import type { ChunkRenderer } from "./chunk-renderer";
 
+export type ChunkShadowTextureTuple = readonly [Texture, Texture, Texture];
+export type ChunkShadowMatrixTuple = readonly [Matrix4, Matrix4, Matrix4];
+export type ChunkShadowSplitTuple = readonly [number, number, number];
+
 export interface ChunkShadowInputs {
-  shadowMap: Texture;
-  shadowMatrix: Matrix4;
+  shadowMaps: ChunkShadowTextureTuple;
+  shadowMatrices: ChunkShadowMatrixTuple;
+  cascadeSplits: ChunkShadowSplitTuple;
   shadowBias: number;
   shadowStrength: number;
-  // Renderer clip-space convention. WebGL produces NDC z in [-1, 1] and the
-  // texture sampler reads with v=0 at the bottom; WebGPU produces NDC z in
-  // [0, 1] and reads with v=0 at the top. We bake the matching conversion
-  // into the TSL graph at material build time.
-  coordinateSystem: CoordinateSystem;
 }
 
 function buildShadowTslUniforms(inputs: ChunkShadowInputs) {
   return {
-    matrix: uniform(inputs.shadowMatrix.clone()),
+    matrices: [
+      uniform(inputs.shadowMatrices[0].clone()),
+      uniform(inputs.shadowMatrices[1].clone()),
+      uniform(inputs.shadowMatrices[2].clone()),
+    ] as const,
+    splits: [
+      uniform(inputs.cascadeSplits[0]),
+      uniform(inputs.cascadeSplits[1]),
+      uniform(inputs.cascadeSplits[2]),
+    ] as const,
     bias: uniform(inputs.shadowBias),
     strength: uniform(inputs.shadowStrength),
   };
@@ -121,7 +125,12 @@ export function syncChunkShadowTslUniforms(
 ): void {
   const shadow = shadowByRenderer.get(renderer);
   if (!shadow) return;
-  shadow.matrix.value.copy(inputs.shadowMatrix);
+  shadow.matrices[0].value.copy(inputs.shadowMatrices[0]);
+  shadow.matrices[1].value.copy(inputs.shadowMatrices[1]);
+  shadow.matrices[2].value.copy(inputs.shadowMatrices[2]);
+  shadow.splits[0].value = inputs.cascadeSplits[0];
+  shadow.splits[1].value = inputs.cascadeSplits[1];
+  shadow.splits[2].value = inputs.cascadeSplits[2];
   shadow.bias.value = inputs.shadowBias;
   shadow.strength.value = inputs.shadowStrength;
 }
@@ -253,62 +262,125 @@ export function createChunkNodeMaterial(
 
   let litRgb = baseLit;
   if (shadow && shadowInputs) {
-    const isWebGpu = shadowInputs.coordinateSystem === WebGPUCoordinateSystem;
-
     const wpos4 = vec4(positionWorld.x, positionWorld.y, positionWorld.z, 1);
-    const lightClip = mul(shadow.matrix, wpos4);
-    const lightNdc = div(lightClip.xyz, lightClip.w);
+    const viewDepth = max(float(0), sub(float(0), positionView.z));
+    const ndotl = clamp(dot(normalWorld, vec3(0, 1, 0)), 0, 1);
+    const baseSlopeBias = add(shadow.bias, mul(sub(float(1), ndotl), 0.0015));
 
-    // UV mapping: NDC.x maps to UV.x identically in both backends. NDC.y has
-    // the same orientation in both (y-up clip space), but the framebuffer
-    // storage is y-down on WebGPU and y-up on WebGL, so we flip Y when
-    // sampling on WebGPU.
-    const shadowUvX = add(mul(lightNdc.x, 0.5), 0.5);
-    const shadowUvY = isWebGpu
-      ? add(mul(lightNdc.y, -0.5), 0.5)
-      : add(mul(lightNdc.y, 0.5), 0.5);
-    const shadowUv = vec2(shadowUvX, shadowUvY);
+    const lightClip0 = mul(shadow.matrices[0], wpos4);
+    const lightNdc0 = div(lightClip0.xyz, lightClip0.w);
+    const shadowUv0 = vec2(
+      add(mul(lightNdc0.x, 0.5), 0.5),
+      add(mul(lightNdc0.y, -0.5), 0.5),
+    );
+    const centeredX0 = sub(mul(shadowUv0.x, 2), 1);
+    const centeredY0 = sub(mul(shadowUv0.y, 2), 1);
+    const edgeFade0 = mul(
+      clamp(
+        sub(float(1), mul(max(abs(centeredX0), abs(centeredY0)), float(1.05))),
+        0,
+        1,
+      ),
+      clamp(
+        sub(float(1), mul(max(abs(centeredX0), abs(centeredY0)), float(1.05))),
+        0,
+        1,
+      ),
+    );
+    const inside0 = mul(
+      edgeFade0,
+      mul(step(float(0), lightNdc0.z), step(lightNdc0.z, float(1))),
+    );
+    const slopeBias0 = baseSlopeBias;
+    const shadowDepth0 = texture(shadowInputs.shadowMaps[0], shadowUv0).r;
+    const occluded0 = step(shadowDepth0, sub(lightNdc0.z, slopeBias0));
+    const visibility0 = sub(float(1), mul(inside0, occluded0));
 
-    // The depth pass stores raw `clip.z / clip.w` (NDC z), so the receiver
-    // uses NDC z directly. WebGL: [-1, 1]; WebGPU: [0, 1]. The `inside` mask
-    // below restricts comparisons to the valid range per backend.
-    const refDepth = lightNdc.z;
-    const zMin = isWebGpu ? float(0) : float(-1);
-    const zMax = float(1);
-
-    // Smooth radial fade in light-space: shadow strength tapers to zero as the
-    // sample approaches the ortho frustum border, removing the hard
-    // rectangular cutoff that made the focus snap visible. Depth-clip uses a
-    // hard step since out-of-range Z must never sample stale texels.
-    const centeredX = sub(mul(shadowUv.x, 2), 1);
-    const centeredY = sub(mul(shadowUv.y, 2), 1);
-    const radial = clamp(
-      sub(float(1), mul(max(abs(centeredX), abs(centeredY)), float(1.05))),
+    const lightClip1 = mul(shadow.matrices[1], wpos4);
+    const lightNdc1 = div(lightClip1.xyz, lightClip1.w);
+    const shadowUv1 = vec2(
+      add(mul(lightNdc1.x, 0.5), 0.5),
+      add(mul(lightNdc1.y, -0.5), 0.5),
+    );
+    const centeredX1 = sub(mul(shadowUv1.x, 2), 1);
+    const centeredY1 = sub(mul(shadowUv1.y, 2), 1);
+    const edgeBase1 = clamp(
+      sub(float(1), mul(max(abs(centeredX1), abs(centeredY1)), float(1.05))),
       0,
       1,
     );
-    const edgeFade = mul(radial, radial);
-    const insideZ = mul(step(zMin, refDepth), step(refDepth, zMax));
-    const inside = mul(edgeFade, insideZ);
-
-    const shadowSample = texture(shadowInputs.shadowMap, shadowUv);
-    const sampledDepth = shadowSample.r;
-
-    // Slope-scaled bias: faces nearly parallel to the light direction need a
-    // larger margin to avoid self-shadow acne, while faces facing the light
-    // can use a tight bias for crisp contact shadows. We scale the WebGL
-    // bias by 2 internally so the shipped `shadowBias` reads as "fraction of
-    // the [0, 1] depth range" regardless of backend.
-    const ndotl = clamp(dot(normalWorld, vec3(0, 1, 0)), 0, 1);
-    const biasScale = isWebGpu ? float(1) : float(2);
-    const slopeBias = mul(
-      add(shadow.bias, mul(sub(float(1), ndotl), 0.0015)),
-      biasScale,
+    const edgeFade1 = mul(edgeBase1, edgeBase1);
+    const inside1 = mul(
+      edgeFade1,
+      mul(step(float(0), lightNdc1.z), step(lightNdc1.z, float(1))),
     );
+    const slopeBias1 = mul(baseSlopeBias, 1.5);
+    const shadowDepth1 = texture(shadowInputs.shadowMaps[1], shadowUv1).r;
+    const occluded1 = step(shadowDepth1, sub(lightNdc1.z, slopeBias1));
+    const visibility1 = sub(float(1), mul(inside1, occluded1));
 
-    const occluded = step(sampledDepth, sub(refDepth, slopeBias));
-    const occlusion = mul(inside, occluded);
-    const factor = sub(float(1), mul(occlusion, shadow.strength));
+    const lightClip2 = mul(shadow.matrices[2], wpos4);
+    const lightNdc2 = div(lightClip2.xyz, lightClip2.w);
+    const shadowUv2 = vec2(
+      add(mul(lightNdc2.x, 0.5), 0.5),
+      add(mul(lightNdc2.y, -0.5), 0.5),
+    );
+    const centeredX2 = sub(mul(shadowUv2.x, 2), 1);
+    const centeredY2 = sub(mul(shadowUv2.y, 2), 1);
+    const edgeBase2 = clamp(
+      sub(float(1), mul(max(abs(centeredX2), abs(centeredY2)), float(1.05))),
+      0,
+      1,
+    );
+    const edgeFade2 = mul(edgeBase2, edgeBase2);
+    const inside2 = mul(
+      edgeFade2,
+      mul(step(float(0), lightNdc2.z), step(lightNdc2.z, float(1))),
+    );
+    const slopeBias2 = mul(baseSlopeBias, 2);
+    const shadowDepth2 = texture(shadowInputs.shadowMaps[2], shadowUv2).r;
+    const occluded2 = step(shadowDepth2, sub(lightNdc2.z, slopeBias2));
+    const visibility2 = sub(float(1), mul(inside2, occluded2));
+
+    const blendRegion = float(0.1);
+    const split0 = shadow.splits[0];
+    const split1 = shadow.splits[1];
+    const split2 = shadow.splits[2];
+
+    const blendStart0 = mul(split0, sub(float(1), blendRegion));
+    const blendT0 = clamp(
+      div(sub(viewDepth, blendStart0), sub(split0, blendStart0)),
+      0,
+      1,
+    );
+    const cascadeVisibility0 = mix(visibility0, visibility1, blendT0);
+
+    const blendStart1 = mul(split1, sub(float(1), blendRegion));
+    const blendT1 = clamp(
+      div(sub(viewDepth, blendStart1), sub(split1, blendStart1)),
+      0,
+      1,
+    );
+    const cascadeVisibility1 = mix(visibility1, visibility2, blendT1);
+
+    const fadeStart2 = mul(split2, sub(float(1), blendRegion));
+    const fadeT2 = clamp(
+      div(sub(viewDepth, fadeStart2), sub(split2, fadeStart2)),
+      0,
+      1,
+    );
+    const cascadeVisibility2 = mix(visibility2, float(1), fadeT2);
+
+    const rawVisibility = select(
+      lessThan(viewDepth, split0),
+      cascadeVisibility0,
+      select(
+        lessThan(viewDepth, split1),
+        cascadeVisibility1,
+        select(lessThan(viewDepth, split2), cascadeVisibility2, float(1)),
+      ),
+    );
+    const factor = mix(float(1), rawVisibility, shadow.strength);
 
     litRgb = mul(baseLit, factor);
   }
