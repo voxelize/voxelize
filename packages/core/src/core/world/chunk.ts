@@ -41,14 +41,6 @@ export class Chunk extends RawChunk {
 
         subMesh.geometry?.dispose();
 
-        if (subMesh.material) {
-          if (Array.isArray(subMesh.material)) {
-            subMesh.material.forEach((mat) => mat.dispose());
-          } else {
-            subMesh.material.dispose();
-          }
-        }
-
         if (subMesh.parent) {
           subMesh.parent.remove(subMesh);
         }

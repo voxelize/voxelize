@@ -451,44 +451,47 @@ export class WebGPUCSMDepthPass {
       });
     }
 
-    for (let i = 0; i < this.cascades.length; i++) {
-      if (!this.cascadeNeedsRender[i]) continue;
-      const cascade = this.cascades[i];
-      if (!cascade) continue;
+    try {
+      for (let i = 0; i < this.cascades.length; i++) {
+        if (!this.cascadeNeedsRender[i]) continue;
+        const cascade = this.cascades[i];
+        if (!cascade) continue;
 
-      const hiddenFarCasters: { object: Object3D; visible: boolean }[] = [];
-      if (i >= 2) {
-        for (const object of farCascadeHiddenCasters) {
-          if (object.visible) {
-            hiddenFarCasters.push({ object, visible: true });
-            object.visible = false;
+        const hiddenFarCasters: { object: Object3D; visible: boolean }[] = [];
+        if (i >= 2) {
+          for (const object of farCascadeHiddenCasters) {
+            if (object.visible) {
+              hiddenFarCasters.push({ object, visible: true });
+              object.visible = false;
+            }
           }
         }
+
+        renderer.setRenderTarget(cascade.renderTarget);
+        renderer.clear();
+        renderer.render(scene, cascade.camera);
+
+        for (const entry of hiddenFarCasters) {
+          entry.object.visible = entry.visible;
+        }
+
+        this.cascadeNeedsRender[i] = false;
+        this.renderCount += 1;
+        this.lastRenderAt =
+          typeof performance !== "undefined" ? performance.now() : Date.now();
       }
+    } finally {
+      renderer.setRenderTarget(null);
 
-      renderer.setRenderTarget(cascade.renderTarget);
-      renderer.clear();
-      renderer.render(scene, cascade.camera);
-
-      for (const entry of hiddenFarCasters) {
+      for (const swap of swaps) {
+        swap.mesh.material = swap.original;
+      }
+      for (const entry of casterHidden) {
+        entry.object.visible = entry.isVisible;
+      }
+      for (const entry of sceneHidden) {
         entry.object.visible = entry.visible;
       }
-
-      this.cascadeNeedsRender[i] = false;
-      this.renderCount += 1;
-      this.lastRenderAt =
-        typeof performance !== "undefined" ? performance.now() : Date.now();
-    }
-    renderer.setRenderTarget(null);
-
-    for (const swap of swaps) {
-      swap.mesh.material = swap.original;
-    }
-    for (const entry of casterHidden) {
-      entry.object.visible = entry.isVisible;
-    }
-    for (const entry of sceneHidden) {
-      entry.object.visible = entry.visible;
     }
   }
 

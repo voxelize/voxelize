@@ -165,7 +165,9 @@ export function syncChunkShadowTslUniforms(
   inputs: ChunkShadowInputs,
 ): void {
   const shadow = shadowByRenderer.get(renderer);
-  if (!shadow) return;
+  if (!shadow) {
+    return;
+  }
   shadow.matrices[0].value.copy(inputs.shadowMatrices[0]);
   shadow.matrices[1].value.copy(inputs.shadowMatrices[1]);
   shadow.matrices[2].value.copy(inputs.shadowMatrices[2]);

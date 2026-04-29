@@ -142,6 +142,7 @@ import { LightSourceRegistry } from "./light-registry";
 import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
+import type { SerializedRawChunk } from "./raw-chunk";
 import { Registry } from "./registry";
 import {
   DEFAULT_CHUNK_SHADERS,
@@ -402,6 +403,16 @@ const VOXEL_NEIGHBORS = [
 ];
 
 const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
+const DEFAULT_MAX_MESHES_PER_UPDATE = 8;
+const DEFAULT_MAX_MESH_WORKER_COUNT = 4;
+const DEFAULT_MAX_MESH_JOB_STARTS_PER_FRAME = DEFAULT_MAX_MESH_WORKER_COUNT;
+const DEFAULT_MIN_MESH_JOB_STARTS_PER_FRAME = 2;
+const TARGET_FRAME_MS = 1000 / 60;
+const MESH_JOB_START_FRAME_FRACTION = 0.25;
+const DEFAULT_MESH_JOB_START_BUDGET_MS =
+  TARGET_FRAME_MS * MESH_JOB_START_FRAME_FRACTION;
+const DEFAULT_MAX_MESH_RESULTS_APPLIED_PER_FRAME = 1;
+const DEFAULT_MESH_RESULT_APPLY_BUDGET_MS = TARGET_FRAME_MS * 0.35;
 
 /**
  * Custom shader material for chunks. On the WebGL path this is a `ShaderMaterial`
@@ -434,6 +445,19 @@ export type WorldClientOptions = {
   maxUpdatesPerUpdate: number;
 
   maxMeshesPerUpdate: number;
+
+  /**
+   * Maximum mesh worker jobs to start in one animation frame.
+   */
+  maxMeshJobStartsPerFrame: number;
+
+  minMeshJobStartsPerFrame: number;
+
+  meshJobStartBudgetMs: number;
+
+  maxMeshResultsAppliedPerFrame: number;
+
+  meshResultApplyBudgetMs: number;
 
   /**
    * Whether to use client-only meshing. When true, chunks are always meshed locally.
@@ -560,7 +584,12 @@ const defaultOptions: WorldClientOptions = {
   maxProcessesPerUpdate: 4,
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
-  maxMeshesPerUpdate: 8,
+  maxMeshesPerUpdate: DEFAULT_MAX_MESHES_PER_UPDATE,
+  maxMeshJobStartsPerFrame: DEFAULT_MAX_MESH_JOB_STARTS_PER_FRAME,
+  minMeshJobStartsPerFrame: DEFAULT_MIN_MESH_JOB_STARTS_PER_FRAME,
+  meshJobStartBudgetMs: DEFAULT_MESH_JOB_START_BUDGET_MS,
+  maxMeshResultsAppliedPerFrame: DEFAULT_MAX_MESH_RESULTS_APPLIED_PER_FRAME,
+  meshResultApplyBudgetMs: DEFAULT_MESH_RESULT_APPLY_BUDGET_MS,
   clientOnlyMeshing: false,
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
@@ -879,13 +908,18 @@ export class World<T = any> extends Scene implements NetIntercept {
   private _lastCenterChunk: Coords2 = [0, 0];
 
   private meshWorkerPool = new WorkerPool(MeshWorker, {
-    maxWorker: Math.min(navigator.hardwareConcurrency ?? 4, 4),
+    maxWorker: Math.min(
+      navigator.hardwareConcurrency ?? DEFAULT_MAX_MESH_WORKER_COUNT,
+      DEFAULT_MAX_MESH_WORKER_COUNT,
+    ),
     name: "mesh-worker",
   });
 
   private lightWorkerPool!: WorkerPool;
 
   private textureLoaderLastMap: Record<string, Date> = {};
+  private textureAtlas: AtlasTexture | null = null;
+  private meshResultApplyQueue: MeshJobResult[] = [];
 
   private isTrackingChunks = false;
 
@@ -980,6 +1014,21 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.remove(chunk.group);
       chunk.dispose();
     });
+
+    const disposedMaterials = new Set<CustomChunkShaderMaterial>();
+    const disposedTextures = new Set<Texture>();
+    this.chunkRenderer.materials.forEach((material) => {
+      if (disposedMaterials.has(material)) return;
+      disposedMaterials.add(material);
+      material.dispose();
+      if (!disposedTextures.has(material.map)) {
+        disposedTextures.add(material.map);
+        deferTextureDispose(material.map);
+      }
+    });
+    this.chunkRenderer.materials.clear();
+    this.textureAtlas = null;
+
     this.webgpuCsmDepth?.dispose();
     this.webgpuCsmDepth = null;
   }
@@ -1024,7 +1073,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const subChunkMin = [min[0], heightPerSubChunk * level, min[2]];
     const subChunkMax = [max[0], heightPerSubChunk * (level + 1), max[2]];
 
-    const chunksData: unknown[] = [];
+    const chunksData: (SerializedRawChunk | null)[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
 
     for (const chunk of chunks) {
@@ -1213,11 +1262,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       // Otherwise, we need to draw the image onto the texture atlas.
-      const atlas = mat.map as AtlasTexture;
+      const atlas = this.getTextureAtlas("apply block texture");
       atlas.drawImageToRange(face.range, data);
 
       // Update the texture with the new image
-      mat.map.needsUpdate = true;
+      atlas.needsUpdate = true;
     });
   }
 
@@ -1287,13 +1336,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         existing.image = image;
         existing.colorSpace = SRGBColorSpace;
         existing.needsUpdate = true;
-        isolatedMat.needsUpdate = true;
         return;
       }
       isolatedMat.map = new Texture(image);
       isolatedMat.map.colorSpace = SRGBColorSpace;
       isolatedMat.map.needsUpdate = true;
-      isolatedMat.needsUpdate = true;
     };
 
     // Handle different types of source inputs
@@ -1327,7 +1374,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         isolatedMat.map = new CanvasTexture(canvas);
         isolatedMat.map.colorSpace = SRGBColorSpace;
         isolatedMat.map.needsUpdate = true;
-        isolatedMat.needsUpdate = true;
       }
     } else if (ThreeUtils.isTexture(source)) {
       if (isolatedMat.map) {
@@ -1335,7 +1381,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       isolatedMat.map = source;
       isolatedMat.map.needsUpdate = true;
-      isolatedMat.needsUpdate = true;
     } else {
       throw new Error("Unsupported source type for texture.");
     }
@@ -1418,9 +1463,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    const atlas = mat.map as AtlasTexture;
+    const atlas = this.getTextureAtlas("apply texture group");
     atlas.drawImageToRange(firstEntry.face.range, source);
-    mat.map.needsUpdate = true;
+    atlas.needsUpdate = true;
   }
 
   async applyTextureGroups(
@@ -1476,6 +1521,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     blockFaces.forEach((face) => {
       const mat = this.getBlockFaceMaterial(block.id, face.name);
+
+      if (!face.independent) {
+        const atlas = this.getTextureAtlas("apply block animation");
+        atlas.registerAnimation(face.range, realKeyframes, fadeFrames);
+        return;
+      }
 
       // If the block's material is not set up to an atlas texture, we need to set it up.
       if (!(mat.map instanceof AtlasTexture)) {
@@ -2090,7 +2141,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const old = this.blockEntitiesMap.get(voxelName);
     if (!old) {
-      console.log("No entity found at:", px, py, pz);
       return;
     }
 
@@ -2158,6 +2208,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     return block.isOpaque && !block.isFluid && !block.isSeeThrough;
   }
 
+  private getSharedChunkMaterialKey(block: Block): string | null {
+    if (this.isSharedOpaqueMaterialBlock(block)) {
+      return SHARED_OPAQUE_MATERIAL_KEY;
+    }
+    if (!block.isSeeThrough) {
+      return null;
+    }
+    return [
+      "shared-transparent",
+      block.isFluid ? "fluid" : "solid",
+      block.lightReduce ? "light-reduce" : "no-light-reduce",
+      block.transparentStandalone ? "standalone" : "blended",
+    ].join("-");
+  }
+
   getTextureInfo(): {
     sharedAtlas: { canvas: HTMLCanvasElement; countPerSide: number } | null;
     textures: TextureInfo[];
@@ -2186,15 +2251,22 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const isAtlas = mat.map instanceof AtlasTexture;
 
-        if (!isIndependent && !isIsolated && isAtlas && !sharedAtlas) {
+        if (
+          !isIndependent &&
+          !isIsolated &&
+          this.textureAtlas &&
+          !sharedAtlas
+        ) {
           sharedAtlas = {
-            canvas: (mat.map as AtlasTexture).canvas,
-            countPerSide: (mat.map as AtlasTexture).countPerSide,
+            canvas: this.textureAtlas.canvas,
+            countPerSide: this.textureAtlas.countPerSide,
           };
         }
 
         let canvas: HTMLCanvasElement | null = null;
-        if (isAtlas) {
+        if (!isIndependent && !isIsolated && this.textureAtlas) {
+          canvas = this.textureAtlas.canvas;
+        } else if (isAtlas) {
           canvas = (mat.map as AtlasTexture).canvas;
         } else if (mat.map?.image instanceof HTMLCanvasElement) {
           canvas = mat.map.image;
@@ -2958,12 +3030,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.setTorchLightAt(vx, vy, vz, 0, color);
     }
 
-    let iterationCount = 0;
-    const startTime = performance.now();
-
     let head = 0;
     while (head < queue.length) {
-      iterationCount++;
       const node = queue[head++];
       const { voxel, level } = node;
 
@@ -3036,13 +3104,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
-
-    const endTime = performance.now();
-    console.log(
-      `removeLight executed in ${
-        endTime - startTime
-      }ms with ${iterationCount} iterations, color: ${color}`,
-    );
 
     this.floodLight(fill, color);
   }
@@ -3328,7 +3389,9 @@ export class World<T = any> extends Scene implements NetIntercept {
               this.options.textureUnitDimension,
             ),
           }
-        : this.getBlockFaceMaterial(block.id, name);
+        : face.independent
+          ? this.getBlockFaceMaterial(block.id, name)
+          : { map: this.getTextureAtlas("make block fragments") };
 
       const uRange = range.endU - range.startU;
       const vRange = range.endV - range.startV;
@@ -3440,6 +3503,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     block.dynamicFn = fn;
   };
+
+  private getTextureAtlas(action: string): AtlasTexture {
+    if (!this.textureAtlas) {
+      throw new Error(`Cannot ${action} before the texture atlas is loaded.`);
+    }
+
+    return this.textureAtlas;
+  }
 
   /**
    * Initialize the world with the data received from the server. This includes populating
@@ -3699,13 +3770,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (!metadata || !metadata.voxel) {
-        console.log(
-          "No metadata or voxel in block entity",
-          id,
-          type,
-          operation,
-          metadata,
-        );
         return;
       }
 
@@ -5607,46 +5671,78 @@ export class World<T = any> extends Scene implements NetIntercept {
     processUpdatesInIdleTime();
   };
 
-  private processDirtyChunks = async () => {
-    const dirtyKeys = this.meshPipeline.getDirtyKeys();
+  private processDirtyChunks = () => {
+    const dirtyKeys = this.getPrioritizedDirtyMeshKeys(
+      this.meshPipeline.getDirtyKeys(),
+    );
     if (dirtyKeys.length === 0) return;
 
-    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
-    const keysToProcess = dirtyKeys.slice(0, maxConcurrentMeshJobs);
+    const maxConcurrentMeshJobs = Math.max(
+      1,
+      Math.floor(
+        this.options.maxMeshesPerUpdate ?? DEFAULT_MAX_MESHES_PER_UPDATE,
+      ),
+    );
+    const maxJobStartsPerFrame = Math.max(
+      1,
+      Math.min(
+        maxConcurrentMeshJobs,
+        Math.floor(
+          this.options.maxMeshJobStartsPerFrame ??
+            DEFAULT_MAX_MESH_JOB_STARTS_PER_FRAME,
+        ),
+      ),
+    );
+    const minJobStartsPerFrame = Math.max(
+      1,
+      Math.min(
+        maxJobStartsPerFrame,
+        Math.floor(
+          this.options.minMeshJobStartsPerFrame ??
+            DEFAULT_MIN_MESH_JOB_STARTS_PER_FRAME,
+        ),
+      ),
+    );
+    const meshJobStartBudgetMs = Math.max(
+      0,
+      this.options.meshJobStartBudgetMs ?? DEFAULT_MESH_JOB_START_BUDGET_MS,
+    );
+    const openJobSlots = Math.max(
+      0,
+      maxConcurrentMeshJobs - this.meshPipeline.getInFlightJobCount(),
+    );
+    if (openJobSlots === 0) {
+      this.scheduleDirtyChunkProcessing();
+      return;
+    }
 
-    const workerPromises = keysToProcess.map((key) => {
+    const maxStarts = Math.min(maxJobStartsPerFrame, openJobSlots);
+    const startedAt = performance.now();
+    let startedJobs = 0;
+
+    for (const key of dirtyKeys) {
+      if (startedJobs >= maxStarts) break;
+      if (
+        startedJobs >= minJobStartsPerFrame &&
+        performance.now() - startedAt >= meshJobStartBudgetMs
+      ) {
+        break;
+      }
+
       const { cx, cz, level } = MeshPipeline.parseKey(key);
       const generation = this.meshPipeline.startJob(key);
+      startedJobs += 1;
 
-      return this.dispatchMeshWorker(cx, cz, level).then(
-        (geometries) =>
-          ({
-            cx,
-            cz,
-            level,
-            generation,
-            key,
-            geometries,
-          }) as const,
-      );
-    });
-
-    const results = await Promise.all(workerPromises);
-
-    for (const result of results) {
-      if (result.geometries) {
-        this.applyMeshResult(
-          result.cx,
-          result.cz,
-          result.level,
-          result.geometries,
-          result.generation,
-        );
-      }
-
-      if (this.meshPipeline.needsRemesh(result.key)) {
-        this.scheduleDirtyChunkProcessing();
-      }
+      void this.dispatchMeshWorker(cx, cz, level).then((geometries) => {
+        this.enqueueMeshResult({
+          cx,
+          cz,
+          level,
+          generation,
+          key,
+          geometries,
+        });
+      });
     }
 
     if (this.meshPipeline.hasDirtyChunks()) {
@@ -5654,14 +5750,157 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   };
 
-  private scheduleDirtyChunkProcessing = (() => {
-    let scheduled = false;
+  private enqueueMeshResult(result: MeshJobResult): void {
+    this.meshResultApplyQueue.push(result);
+    this.scheduleMeshResultApply();
+  }
+
+  private handleMeshResult(result: MeshJobResult): void {
+    if (result.geometries) {
+      this.applyMeshResult(
+        result.cx,
+        result.cz,
+        result.level,
+        result.geometries,
+        result.generation,
+      );
+    } else {
+      const chunkName = ChunkUtils.getChunkName([result.cx, result.cz]);
+      const chunk = this.getChunkByCoords(result.cx, result.cz);
+      const isChunkProcessing = this.chunkPipeline.isInStage(
+        chunkName,
+        "processing",
+      );
+      const shouldRetry = !!chunk?.isReady && !isChunkProcessing;
+      this.meshPipeline.abandonJob(result.key, result.generation, shouldRetry);
+    }
+
+    if (this.meshPipeline.needsRemesh(result.key)) {
+      this.scheduleDirtyChunkProcessing();
+    }
+  }
+
+  private flushMeshResultApplyQueue(): void {
+    if (this.meshResultApplyQueue.length === 0) return;
+
+    const maxResults = Math.max(
+      1,
+      Math.floor(
+        this.options.maxMeshResultsAppliedPerFrame ??
+          DEFAULT_MAX_MESH_RESULTS_APPLIED_PER_FRAME,
+      ),
+    );
+    const applyBudgetMs = Math.max(
+      0,
+      this.options.meshResultApplyBudgetMs ??
+        DEFAULT_MESH_RESULT_APPLY_BUDGET_MS,
+    );
+    const startedAt = performance.now();
+    let appliedResults = 0;
+
+    this.sortMeshResultApplyQueue();
+
+    while (
+      this.meshResultApplyQueue.length > 0 &&
+      appliedResults < maxResults
+    ) {
+      const result = this.meshResultApplyQueue.shift();
+      if (!result) break;
+
+      this.handleMeshResult(result);
+      appliedResults += 1;
+
+      if (
+        appliedResults > 0 &&
+        performance.now() - startedAt >= applyBudgetMs
+      ) {
+        break;
+      }
+    }
+
+    if (this.meshResultApplyQueue.length > 0) {
+      this.scheduleMeshResultApply();
+    }
+
+    if (this.meshPipeline.hasDirtyChunks()) {
+      this.scheduleDirtyChunkProcessing();
+    }
+  }
+
+  private sortMeshResultApplyQueue(): void {
+    if (this.meshResultApplyQueue.length <= 1) return;
+
+    const priority = new Map<string, number>();
+    this.getPrioritizedDirtyMeshKeys(
+      this.meshResultApplyQueue.map((result) => result.key),
+    ).forEach((key, index) => {
+      priority.set(key, index);
+    });
+
+    this.meshResultApplyQueue.sort((a, b) => {
+      return (priority.get(a.key) ?? 0) - (priority.get(b.key) ?? 0);
+    });
+  }
+
+  private getPrioritizedDirtyMeshKeys(dirtyKeys: string[]): string[] {
+    if (dirtyKeys.length <= 1) {
+      return dirtyKeys;
+    }
+
+    const center = ChunkUtils.mapVoxelToChunk(
+      this.lastUpdatePosition.toArray() as Coords3,
+      this.options.chunkSize,
+    );
+    const subChunkHeight = this.options.maxHeight / this.options.subChunks;
+    const centerLevel = ThreeMathUtils.clamp(
+      Math.floor(this.lastUpdatePosition.y / subChunkHeight),
+      0,
+      this.options.subChunks - 1,
+    );
+
+    return dirtyKeys.sort((a, b) => {
+      const aCoords = MeshPipeline.parseKey(a);
+      const bCoords = MeshPipeline.parseKey(b);
+      const aDistance =
+        (aCoords.cx - center[0]) ** 2 + (aCoords.cz - center[1]) ** 2;
+      const bDistance =
+        (bCoords.cx - center[0]) ** 2 + (bCoords.cz - center[1]) ** 2;
+
+      if (aDistance !== bDistance) {
+        return aDistance - bDistance;
+      }
+
+      const aLevelDistance = Math.abs(aCoords.level - centerLevel);
+      const bLevelDistance = Math.abs(bCoords.level - centerLevel);
+
+      if (aLevelDistance !== bLevelDistance) {
+        return aLevelDistance - bLevelDistance;
+      }
+
+      return aCoords.level - bCoords.level;
+    });
+  }
+
+  private scheduleMeshResultApply = (() => {
+    let isScheduled = false;
     return () => {
-      if (scheduled) return;
-      scheduled = true;
+      if (isScheduled) return;
+      isScheduled = true;
+      requestAnimationFrame(() => {
+        isScheduled = false;
+        this.flushMeshResultApplyQueue();
+      });
+    };
+  })();
+
+  private scheduleDirtyChunkProcessing = (() => {
+    let isScheduled = false;
+    return () => {
+      if (isScheduled) return;
+      isScheduled = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          scheduled = false;
+          isScheduled = false;
           this.processDirtyChunks();
         });
       });
@@ -5868,7 +6107,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     });
 
-    const chunksData: (object | null)[] = [];
+    const chunksData: (SerializedRawChunk | null)[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
 
     for (let cx = minChunkX; cx <= maxChunkX; cx++) {
@@ -6360,20 +6599,31 @@ export class World<T = any> extends Scene implements NetIntercept {
     const totalSlots = textureGroups.size + ungroupedFaces;
     const countPerSide = perSide(totalSlots);
     const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
+    this.textureAtlas = atlas;
     const sharedOpaqueMaterial = make(false, atlas, false, true, false);
+    const sharedMaterials = new Map<string, CustomChunkShaderMaterial>([
+      [SHARED_OPAQUE_MATERIAL_KEY, sharedOpaqueMaterial],
+    ]);
 
     this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
 
     blocks.forEach((block) => {
-      const mat = this.isSharedOpaqueMaterialBlock(block)
-        ? sharedOpaqueMaterial
-        : make(
-            block.isSeeThrough,
-            atlas,
-            block.isFluid,
-            block.lightReduce,
-            block.transparentStandalone,
-          );
+      const sharedMaterialKey = this.getSharedChunkMaterialKey(block);
+      let mat = sharedMaterialKey
+        ? sharedMaterials.get(sharedMaterialKey)
+        : undefined;
+      if (!mat) {
+        mat = make(
+          block.isSeeThrough,
+          atlas,
+          block.isFluid,
+          block.lightReduce,
+          block.transparentStandalone,
+        );
+        if (sharedMaterialKey) {
+          sharedMaterials.set(sharedMaterialKey, mat);
+        }
+      }
       const key = this.makeChunkMaterialKey(block.id);
       this.chunkRenderer.materials.set(key, mat);
 
@@ -6400,9 +6650,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ? `${id}-${faceName}-${voxel.join("-")}`
       : faceName
         ? `${id}-${faceName}`
-        : this.isSharedOpaqueMaterialBlock(block)
-          ? SHARED_OPAQUE_MATERIAL_KEY
-          : `${id}`;
+        : this.getSharedChunkMaterialKey(block) ?? `${id}`;
   }
 
   private trackChunkAt(vx: number, vy: number, vz: number) {

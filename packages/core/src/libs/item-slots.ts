@@ -658,9 +658,7 @@ export class ItemSlots<T = number> {
     };
   };
 
-  render = () => {
-    this.animationFrame = requestAnimationFrame(this.render);
-
+  private renderCurrentFrame = () => {
     if (!this.activated) return;
     if (!this.isRendererReady) return;
 
@@ -738,6 +736,28 @@ export class ItemSlots<T = number> {
     }
 
     this.isRenderDirty = false;
+  };
+
+  render = () => {
+    this.animationFrame = requestAnimationFrame(this.render);
+    this.renderCurrentFrame();
+  };
+
+  prewarm = async (timeoutMs = 1000): Promise<boolean> => {
+    const startedAt = performance.now();
+    while (!this.isRendererReady) {
+      if (performance.now() - startedAt >= timeoutMs) {
+        return false;
+      }
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    }
+
+    this.requestRender();
+    this.renderCurrentFrame();
+    return true;
   };
 
   get element() {

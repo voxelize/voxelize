@@ -227,6 +227,17 @@ export class MeshPipeline {
     return true;
   }
 
+  abandonJob(key: string, jobGeneration: number, shouldRetry = false): void {
+    const state = this.states.get(key);
+    if (!state) return;
+    if (state.inFlightGeneration !== jobGeneration) return;
+
+    state.inFlightGeneration = null;
+    if (shouldRetry && state.generation > state.displayedGeneration) {
+      this.dirty.add(key);
+    }
+  }
+
   needsRemesh(key: string): boolean {
     const state = this.states.get(key);
     if (!state) return false;
@@ -280,5 +291,15 @@ export class MeshPipeline {
       if (state.inFlightGeneration !== null) return true;
     }
     return false;
+  }
+
+  getInFlightJobCount(): number {
+    let count = 0;
+    for (const state of this.states.values()) {
+      if (state.inFlightGeneration !== null) {
+        count += 1;
+      }
+    }
+    return count;
   }
 }
