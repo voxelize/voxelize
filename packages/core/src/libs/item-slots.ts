@@ -47,6 +47,7 @@ export type ItemSlotsOptions = {
   zoom: number;
   perspective: CameraPerspective;
   scrollable?: boolean;
+  shouldRenderContinuously: boolean;
 };
 
 const defaultOptions: ItemSlotsOptions = {
@@ -75,6 +76,7 @@ const defaultOptions: ItemSlotsOptions = {
   zoom: 1,
   perspective: "pxyz",
   scrollable: true,
+  shouldRenderContinuously: false,
 };
 
 export class ItemSlot<T = number> {
@@ -225,6 +227,7 @@ export class ItemSlot<T = number> {
   };
 
   triggerChange = () => {
+    this.itemSlots.requestRender();
     if (
       this.row == this.itemSlots.focusedRow &&
       this.col == this.itemSlots.focusedCol
@@ -349,6 +352,7 @@ export class ItemSlots<T = number> {
   ) => void)[] = [];
 
   private animationFrame = -1;
+  private isRenderDirty = true;
 
   constructor(options: Partial<ItemSlotsOptions> = {}) {
     const {
@@ -377,6 +381,7 @@ export class ItemSlots<T = number> {
     if (this.activated) return;
 
     this.activated = true;
+    this.requestRender();
 
     DOMUtils.applyStyles(this.wrapper, {
       display: "flex",
@@ -408,6 +413,7 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[row][col];
     slot.setObject(object);
+    this.requestRender();
     this.onSlotUpdate?.(slot);
   };
 
@@ -418,6 +424,7 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[row][col];
     slot.setContent(content);
+    this.requestRender();
     this.onSlotUpdate?.(slot);
   };
 
@@ -428,6 +435,7 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[row][col];
     slot.setSubscript(subscript);
+    this.requestRender();
     this.onSlotUpdate?.(slot);
   };
 
@@ -456,6 +464,7 @@ export class ItemSlots<T = number> {
 
     slot.element.classList.add(this.options.slotFocusClass);
     this.onSlotClick(slot);
+    this.requestRender();
   };
 
   getObject = (row: number, col: number) => {
@@ -660,10 +669,15 @@ export class ItemSlots<T = number> {
 
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
+    const hasSizeChanged =
+      this.canvas.width !== width || this.canvas.height !== height;
 
-    if (this.canvas.width !== width || this.canvas.height !== height) {
+    if (hasSizeChanged) {
       this.renderer.setSize(width, height, false);
+      this.requestRender();
     }
+
+    if (!this.options.shouldRenderContinuously && !this.isRenderDirty) return;
 
     this.renderer.setScissorTest(false);
     this.renderer.clear();
@@ -722,6 +736,8 @@ export class ItemSlots<T = number> {
       this.renderer.setScissor(0, 0, width, height);
       this.renderer.render(this.slots[0][0].scene, this.slots[0][0].camera);
     }
+
+    this.isRenderDirty = false;
   };
 
   get element() {
@@ -843,5 +859,9 @@ export class ItemSlots<T = number> {
       this.renderer = renderer;
       this.isRendererReady = true;
     }
+  };
+
+  requestRender = () => {
+    this.isRenderDirty = true;
   };
 }

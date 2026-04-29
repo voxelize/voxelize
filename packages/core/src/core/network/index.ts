@@ -1,6 +1,8 @@
 import { MessageProtocol, protocol } from "@voxelize/protocol";
 import DOMUrl from "domurl";
 
+import { WorkerPool } from "../../libs/worker-pool";
+
 import { NetIntercept } from "./intercept";
 import { WebRTCConnection } from "./webrtc";
 import DecodeWorker from "./workers/decode-worker.ts?worker&inline";
@@ -9,10 +11,6 @@ export * from "./intercept";
 export { WebRTCConnection } from "./webrtc";
 
 const { Message } = protocol;
-type DecodeQueueItem = {
-  packet: ArrayBuffer;
-  sequence: number;
-};
 
 export type ProtocolWS = WebSocket & {
   sendEvent: (event: any) => void;
@@ -77,15 +75,16 @@ export class Network {
 
   private clearSyncInterval: () => void;
 
-  private decodeWorker = new DecodeWorker({
-    name: "decode-ordered",
+  private pool: WorkerPool = new WorkerPool(DecodeWorker, {
+    maxWorker: window.navigator.hardwareConcurrency || 4,
+    name: "decode-worker",
   });
 
-  private decodeQueue: DecodeQueueItem[] = [];
+  private decodeApplyChain: Promise<void> = Promise.resolve();
 
-  private isDecoding = false;
+  private pendingDecodeBatches = 0;
 
-  private decodeSequence = 0;
+  private decodeGeneration = 0;
 
   private reconnection: ReturnType<typeof setTimeout>;
 
@@ -169,8 +168,8 @@ export class Network {
       this.rtc = null;
     }
 
-    this.decodeQueue.length = 0;
-    this.isDecoding = false;
+    this.pendingDecodeBatches = 0;
+    this.decodeGeneration += 1;
 
     return new Promise<Network>((resolve) => {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
@@ -236,7 +235,7 @@ export class Network {
   dispose = () => {
     this.disconnect();
     this.clearSyncInterval();
-    this.decodeWorker.terminate();
+    this.pool.dispose();
   };
 
   join = async (world: string) => {
@@ -357,14 +356,44 @@ export class Network {
       0,
       Math.min(packetsToProcess, this.packetQueue.length),
     );
-    packets.forEach((packet) => {
-      this.decodeQueue.push({
-        packet,
-        sequence: this.decodeSequence,
+    const availableWorkers = Math.max(1, this.pool.availableCount);
+    const perWorker = Math.ceil(packets.length / availableWorkers);
+
+    const batches: ArrayBuffer[][] = [];
+    for (let i = 0; i < packets.length; i += perWorker) {
+      batches.push(packets.slice(i, i + perWorker));
+    }
+
+    this.pendingDecodeBatches += 1;
+    const generation = this.decodeGeneration;
+    const decodePromise = Promise.all(
+      batches.map((batch, index) =>
+        this.decode(batch).then((messages) => ({ index, messages })),
+      ),
+    );
+
+    this.decodeApplyChain = this.decodeApplyChain
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const results = await decodePromise;
+          if (generation !== this.decodeGeneration) return;
+          results.sort((a, b) => a.index - b.index);
+          for (const { messages } of results) {
+            this.handleDecodedMessages(messages);
+          }
+        } catch (error) {
+          this.handleDecodeError(
+            error instanceof Error ? error : String(error),
+            "Decode failed",
+          );
+        } finally {
+          this.pendingDecodeBatches = Math.max(
+            0,
+            this.pendingDecodeBatches - 1,
+          );
+        }
       });
-      this.decodeSequence += 1;
-    });
-    this.processDecodeQueue();
   };
 
   flush = () => {
@@ -415,8 +444,9 @@ export class Network {
 
     this.connected = false;
     this.onDisconnect?.();
-    this.decodeQueue.length = 0;
-    this.isDecoding = false;
+    this.pendingDecodeBatches = 0;
+    this.decodeGeneration += 1;
+    this.pool.queue.length = 0;
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
@@ -444,7 +474,7 @@ export class Network {
   };
 
   get concurrentWorkers() {
-    return 0;
+    return this.pool.workingCount;
   }
 
   get packetQueueLength() {
@@ -452,18 +482,19 @@ export class Network {
   }
 
   get decodeQueueLength() {
-    return this.decodeQueue.length;
+    return this.pool.queue.length + this.pendingDecodeBatches;
   }
 
   get isDecodingPacket() {
-    return this.isDecoding;
+    return this.pendingDecodeBatches > 0 || this.pool.workingCount > 0;
   }
 
   get hasPendingMessages() {
     return (
       this.packetQueue.length > 0 ||
-      this.decodeQueue.length > 0 ||
-      this.isDecoding
+      this.pool.queue.length > 0 ||
+      this.pendingDecodeBatches > 0 ||
+      this.pool.workingCount > 0
     );
   }
 
@@ -569,69 +600,14 @@ export class Network {
     }
   };
 
-  private processDecodeQueue = () => {
-    if (this.isDecoding || this.decodeQueue.length === 0) return;
-
-    const item = this.decodeQueue.shift();
-    if (!item) return;
-
-    this.isDecoding = true;
-    let isSettled = false;
-
-    const cleanup = () => {
-      window.clearTimeout(timeout);
-      this.decodeWorker.removeEventListener("message", handleMessage);
-      this.decodeWorker.removeEventListener("error", handleError);
-      this.decodeWorker.removeEventListener("messageerror", handleMessageError);
-    };
-
-    const finish = () => {
-      this.isDecoding = false;
-      this.processDecodeQueue();
-    };
-
-    const handleMessage = (event: MessageEvent<MessageProtocol[]>) => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodedMessages(event.data);
-      finish();
-    };
-
-    const handleError = (event: ErrorEvent) => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodeError(event, "Decode worker error");
-      finish();
-    };
-
-    const handleMessageError = () => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodeError(
-        new Error("Worker message error"),
-        "Decode failed",
-      );
-      finish();
-    };
-
-    const timeout = window.setTimeout(() => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodeError(
-        new Error(`Decode worker timed out for sequence ${item.sequence}`),
-        "Decode failed",
-      );
-      finish();
-    }, this.options.joinTimeoutMs);
-
-    this.decodeWorker.addEventListener("message", handleMessage);
-    this.decodeWorker.addEventListener("error", handleError);
-    this.decodeWorker.addEventListener("messageerror", handleMessageError);
-    this.decodeWorker.postMessage([item.packet]);
+  private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
+    return new Promise<MessageProtocol[]>((resolve) => {
+      this.pool.addJob({
+        message: data,
+        buffers: data,
+        resolve,
+      });
+    });
   };
 
   private handleDecodeError = (

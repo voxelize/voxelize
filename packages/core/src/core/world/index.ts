@@ -156,10 +156,13 @@ import MeshWorker from "./workers/mesh-worker.ts?worker";
 const TEXTURE_DISPOSE_FRAME_DELAY = 8;
 const WEBGPU_CSM_CONFIG: Partial<CSMDepthConfig> = {
   cascades: 3,
-  shadowMapSize: 4096,
+  shadowMapSize: 2048,
+  cascadeShadowMapSizes: [2048, 1024, 1024],
   maxShadowDistance: 128,
   shadowBias: 0.0005,
   lightMargin: 32,
+  middleCascadeFrameInterval: 16,
+  farCascadeFrameInterval: 64,
 };
 const deferredTextureDisposal = new WeakSet<Texture>();
 
@@ -4511,34 +4514,36 @@ export class World<T = any> extends Scene implements NetIntercept {
     pass.update(camera, sunDir, focus);
     const dynamicShadowStrength = pass.computeShadowStrength(sunY);
 
-    const basicRoots = new Set<Object3D>(this.collectChunkGroupCasters());
-    const farCascadeHiddenRoots = new Set<Object3D>();
-    const customRoots = new Set<Object3D>();
-    if (entities) {
-      for (const e of entities) {
-        const root = this.findTopLevelAncestor(e);
-        if (root) {
-          basicRoots.add(root);
-          farCascadeHiddenRoots.add(root);
+    if (pass.hasPendingRender) {
+      const basicRoots = new Set<Object3D>(this.collectChunkGroupCasters());
+      const farCascadeHiddenRoots = new Set<Object3D>();
+      const customRoots = new Set<Object3D>();
+      if (entities) {
+        for (const e of entities) {
+          const root = this.findTopLevelAncestor(e);
+          if (root) {
+            basicRoots.add(root);
+            farCascadeHiddenRoots.add(root);
+          }
         }
       }
-    }
-    if (instancePools) {
-      for (const p of instancePools) {
-        const root = this.findTopLevelAncestor(p);
-        if (root) {
-          customRoots.add(root);
-          farCascadeHiddenRoots.add(root);
+      if (instancePools) {
+        for (const p of instancePools) {
+          const root = this.findTopLevelAncestor(p);
+          if (root) {
+            customRoots.add(root);
+            farCascadeHiddenRoots.add(root);
+          }
         }
       }
+      pass.render(
+        renderer,
+        this,
+        [...basicRoots],
+        [...customRoots],
+        [...farCascadeHiddenRoots],
+      );
     }
-    pass.render(
-      renderer,
-      this,
-      [...basicRoots],
-      [...customRoots],
-      [...farCascadeHiddenRoots],
-    );
 
     syncChunkShadowTslUniforms(this.chunkRenderer, {
       shadowMaps: pass.shadowMaps,

@@ -32,10 +32,15 @@ import {
 export interface CSMDepthConfig {
   cascades: number;
   shadowMapSize: number;
+  cascadeShadowMapSizes?: readonly [number, number, number];
   maxShadowDistance: number;
   lightMargin: number;
   shadowCasterDistance: number;
   shadowBias: number;
+  middleCascadeMovementThreshold: number;
+  middleCascadeFrameInterval: number;
+  farCascadeMovementThreshold: number;
+  farCascadeFrameInterval: number;
   // Peak strength (1 = full occlusion) when the caster is high in the sky.
   dayShadowStrength: number;
   // Peak strength when the moon is the caster (sun below horizon, moon above).
@@ -53,11 +58,15 @@ export interface CSMDepthConfig {
 
 const defaultConfig: CSMDepthConfig = {
   cascades: 3,
-  shadowMapSize: 4096,
+  shadowMapSize: 2048,
   maxShadowDistance: 128,
   lightMargin: 32,
   shadowCasterDistance: 200,
   shadowBias: 0.0005,
+  middleCascadeMovementThreshold: 1.5,
+  middleCascadeFrameInterval: 8,
+  farCascadeMovementThreshold: 3,
+  farCascadeFrameInterval: 16,
   dayShadowStrength: 0.55,
   nightShadowStrength: 0.3,
   minElevation: 0.2,
@@ -167,7 +176,12 @@ export class WebGPUCSMDepthPass {
   }
 
   private initCascades(): void {
-    const { cascades, shadowMapSize, maxShadowDistance } = this.config;
+    const {
+      cascades,
+      shadowMapSize,
+      cascadeShadowMapSizes,
+      maxShadowDistance,
+    } = this.config;
     const lambda = 2.0;
     const splits: number[] = [];
 
@@ -178,14 +192,19 @@ export class WebGPUCSMDepthPass {
     }
 
     for (let i = 0; i < cascades; i++) {
-      const renderTarget = new WebGLRenderTarget(shadowMapSize, shadowMapSize, {
-        depthBuffer: true,
-        stencilBuffer: false,
-        format: RGBAFormat,
-        type: HalfFloatType,
-        minFilter: NearestFilter,
-        magFilter: NearestFilter,
-      });
+      const cascadeShadowMapSize = cascadeShadowMapSizes?.[i] ?? shadowMapSize;
+      const renderTarget = new WebGLRenderTarget(
+        cascadeShadowMapSize,
+        cascadeShadowMapSize,
+        {
+          depthBuffer: true,
+          stencilBuffer: false,
+          format: RGBAFormat,
+          type: HalfFloatType,
+          minFilter: NearestFilter,
+          magFilter: NearestFilter,
+        },
+      );
       renderTarget.texture.name = `WebGPUCSMDepthPass.depth.${i}`;
 
       const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
@@ -232,8 +251,16 @@ export class WebGPUCSMDepthPass {
   private shouldUpdateCascade(index: number, cameraMovement: number): boolean {
     if (this.cascadeDirty[index]) return true;
     if (index === 0) return true;
-    if (index === 1) return cameraMovement > 1.5 || this.frameCount % 5 === 0;
-    return cameraMovement > 3.0 || this.frameCount % 10 === 0;
+    if (index === 1) {
+      return (
+        cameraMovement > this.config.middleCascadeMovementThreshold ||
+        this.frameCount % this.config.middleCascadeFrameInterval === 0
+      );
+    }
+    return (
+      cameraMovement > this.config.farCascadeMovementThreshold ||
+      this.frameCount % this.config.farCascadeFrameInterval === 0
+    );
   }
 
   update(mainCamera: Camera, sunDirection: Vector3, focus: Vector3): void {
@@ -463,6 +490,10 @@ export class WebGPUCSMDepthPass {
     for (const entry of sceneHidden) {
       entry.object.visible = entry.visible;
     }
+  }
+
+  get hasPendingRender(): boolean {
+    return this.cascadeNeedsRender.some(Boolean);
   }
 
   get shadowMaps(): readonly [Texture, Texture, Texture] {
