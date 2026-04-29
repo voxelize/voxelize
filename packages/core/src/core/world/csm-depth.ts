@@ -97,12 +97,28 @@ function isShadowSkippedMaterial(material: Material): boolean {
   return false;
 }
 
+function getObjectMaterial(
+  object: Object3D,
+): Material | Material[] | undefined {
+  if (!("material" in object)) return undefined;
+  return (object as Object3D & { material?: Material | Material[] }).material;
+}
+
+function hasSkipShadowMaterial(material: Material | Material[]): boolean {
+  if (Array.isArray(material)) {
+    return material.some((entry) => entry.userData?.skipShadow === true);
+  }
+  return material.userData?.skipShadow === true;
+}
+
+function shouldSkipNonMeshCaster(object: Object3D): boolean {
+  if (object instanceof Mesh) return false;
+  if (object instanceof Sprite) return true;
+  const material = getObjectMaterial(object);
+  return material !== undefined && hasSkipShadowMaterial(material);
+}
+
 function shouldSkipBasicCaster(mesh: Mesh): boolean {
-  // Sprites (e.g. nametags) face the rendering camera, so during the depth
-  // pass they reorient to face the depth camera and project oriented quads
-  // into the shadow map. Always skip.
-  if (mesh instanceof Sprite) return true;
-  if (mesh.castShadow === false) return true;
   const mat = mesh.material;
   if (!mat) return false;
   if (Array.isArray(mat)) {
@@ -363,18 +379,20 @@ export class WebGPUCSMDepthPass {
       mesh: Mesh;
       original: Material | Material[];
     }[] = [];
-    const meshHidden: Mesh[] = [];
+    const casterHidden: { object: Object3D; isVisible: boolean }[] = [];
 
-    // Per-mesh swap (instead of `scene.overrideMaterial`) so we can filter out
-    // unsafe casters: sprites, transparent overlays/effects, fluids, and
-    // anything explicitly opted out via `castShadow = false` or
-    // `material.userData.skipShadow`.
     for (const root of casters) {
       root.traverse((obj) => {
-        if (!(obj instanceof Mesh) || !obj.visible) return;
+        if (!obj.visible) return;
+        if (shouldSkipNonMeshCaster(obj)) {
+          casterHidden.push({ object: obj, isVisible: obj.visible });
+          obj.visible = false;
+          return;
+        }
+        if (!(obj instanceof Mesh)) return;
         if (shouldSkipBasicCaster(obj)) {
           obj.visible = false;
-          meshHidden.push(obj);
+          casterHidden.push({ object: obj, isVisible: true });
           return;
         }
         swaps.push({ mesh: obj, original: obj.material });
@@ -389,13 +407,19 @@ export class WebGPUCSMDepthPass {
     // material, which can't reproduce skinning.
     for (const root of customDepthCasters) {
       root.traverse((obj) => {
-        if (!(obj instanceof Mesh) || !obj.visible) return;
+        if (!obj.visible) return;
+        if (shouldSkipNonMeshCaster(obj)) {
+          casterHidden.push({ object: obj, isVisible: obj.visible });
+          obj.visible = false;
+          return;
+        }
+        if (!(obj instanceof Mesh)) return;
         if (obj.customDepthMaterial instanceof NodeMaterial) {
           swaps.push({ mesh: obj, original: obj.material });
           obj.material = obj.customDepthMaterial;
         } else {
           obj.visible = false;
-          meshHidden.push(obj);
+          casterHidden.push({ object: obj, isVisible: true });
         }
       });
     }
@@ -433,8 +457,8 @@ export class WebGPUCSMDepthPass {
     for (const swap of swaps) {
       swap.mesh.material = swap.original;
     }
-    for (const m of meshHidden) {
-      m.visible = true;
+    for (const entry of casterHidden) {
+      entry.object.visible = entry.isVisible;
     }
     for (const entry of sceneHidden) {
       entry.object.visible = entry.visible;
