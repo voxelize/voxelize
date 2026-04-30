@@ -126,9 +126,11 @@ import {
 } from "./block";
 import { Chunk } from "./chunk";
 import {
+  applyChunkNodeMaterialSway,
   CHUNK_LIGHT_ATTRIBUTE_GPU_TYPE,
-  ChunkNodeMaterial,
-  ChunkShadowInputs,
+  type ChunkMaterialSwayOptions,
+  type ChunkNodeMaterial,
+  type ChunkShadowInputs,
   createChunkNodeMaterial,
   syncChunkSharedTslUniforms,
   syncChunkShadowTslUniforms,
@@ -2212,15 +2214,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (this.isSharedOpaqueMaterialBlock(block)) {
       return SHARED_OPAQUE_MATERIAL_KEY;
     }
-    if (!block.isSeeThrough) {
-      return null;
-    }
-    return [
-      "shared-transparent",
-      block.isFluid ? "fluid" : "solid",
-      block.lightReduce ? "light-reduce" : "no-light-reduce",
-      block.transparentStandalone ? "standalone" : "blended",
-    ].join("-");
+    return null;
   }
 
   getTextureInfo(): {
@@ -3447,9 +3441,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     idOrName: number | string,
     faceName: string | null = null,
     data: {
-      vertexShader: string;
-      fragmentShader: string;
+      vertexShader?: string;
+      fragmentShader?: string;
       uniforms?: { [key: string]: Uniform };
+      swayOptions?: ChunkMaterialSwayOptions;
     } = {
       vertexShader: DEFAULT_CHUNK_SHADERS.vertex,
       fragmentShader: DEFAULT_CHUNK_SHADERS.fragment,
@@ -3462,6 +3457,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
       fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
       uniforms = {},
+      swayOptions,
     } = data;
 
     const mat = this.getBlockFaceMaterial(idOrName, faceName);
@@ -3473,6 +3469,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     if (!("vertexShader" in mat)) {
+      if (swayOptions) {
+        applyChunkNodeMaterialSway(mat, this.chunkRenderer, swayOptions);
+      }
       return mat;
     }
 
@@ -4429,15 +4428,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     const t = performance.now();
     this.chunkRenderer.uniforms.time.value = t;
 
-    if (!this.usesShaderLighting) {
-      syncChunkSharedTslUniforms(this.chunkRenderer);
-    }
-
     const windAngle = t * 0.00001 + Math.sin(t * 0.000003) * 0.5;
     this.chunkRenderer.uniforms.windDirection.value.set(
       Math.cos(windAngle),
       Math.sin(windAngle),
     );
+
+    if (!this.usesShaderLighting) {
+      syncChunkSharedTslUniforms(this.chunkRenderer);
+    }
   };
 
   updateShaderLighting(camera: Camera, position: Vector3) {

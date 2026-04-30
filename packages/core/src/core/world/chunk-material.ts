@@ -16,11 +16,14 @@ import {
   int,
   lessThan,
   length,
+  mod,
   max,
   mix,
   mul,
+  mx_noise_float,
   normalWorld,
   normalize,
+  positionLocal,
   positionView,
   positionWorld,
   pow,
@@ -88,6 +91,9 @@ function buildSharedTslUniforms(renderer: ChunkRenderer) {
     minLightLevel: uniform(u.minLightLevel.value),
     baseAmbient: uniform(u.baseAmbient.value),
     lightIntensityAdjustment: uniform(u.lightIntensityAdjustment.value),
+    time: uniform(u.time.value),
+    windDirection: uniform(u.windDirection.value.clone()),
+    windSpeed: uniform(u.windSpeed.value),
     sunColor: uniform(u.sunColor.value.clone()),
     ambientColor: uniform(u.ambientColor.value.clone()),
     fogColor: uniform(u.fogColor.value.clone()),
@@ -141,6 +147,9 @@ export function syncChunkSharedTslUniforms(renderer: ChunkRenderer): void {
     shared.minLightLevel.value = u.minLightLevel.value;
     shared.baseAmbient.value = u.baseAmbient.value;
     shared.lightIntensityAdjustment.value = u.lightIntensityAdjustment.value;
+    shared.time.value = u.time.value;
+    shared.windDirection.value.copy(u.windDirection.value);
+    shared.windSpeed.value = u.windSpeed.value;
     shared.sunColor.value.copy(u.sunColor.value);
     shared.ambientColor.value.copy(u.ambientColor.value);
     shared.fogColor.value.copy(u.fogColor.value);
@@ -191,6 +200,59 @@ export type ChunkNodeMaterial = MeshBasicNodeMaterial & {
   map: Texture;
   uniforms: ChunkNodeMaterialUniformShim;
 };
+
+export interface ChunkMaterialSwayOptions {
+  speed: number;
+  amplitude: number;
+  scale: number;
+  rooted: boolean;
+  yScale: number;
+}
+
+export function applyChunkNodeMaterialSway(
+  material: ChunkNodeMaterial,
+  renderer: ChunkRenderer,
+  options: Partial<ChunkMaterialSwayOptions> = {},
+): ChunkNodeMaterial {
+  const { speed, amplitude, rooted, scale, yScale } = {
+    speed: 1,
+    amplitude: 0.1,
+    rooted: false,
+    scale: 1,
+    yScale: 1,
+    ...options,
+  };
+  const shared = getOrCreateShared(renderer);
+  const swayTimeBounded = mod(shared.time, 1.0e6);
+  const swayTime = mul(swayTimeBounded, 0.0002 * speed);
+  const windDrift = mul(
+    shared.windDirection,
+    mul(shared.windSpeed, mul(swayTimeBounded, 0.00005)),
+  );
+  const rootScale = rooted ? fract(positionLocal.y) : float(1);
+  const swayNoise = sub(
+    mul(
+      mx_noise_float(
+        vec3(
+          add(positionLocal.x, windDrift.x),
+          add(mul(positionLocal.y, yScale), swayTime),
+          add(positionLocal.z, windDrift.y),
+        ),
+      ),
+      2,
+    ),
+    1,
+  );
+  const swayX = mul(rootScale, mul(scale, mul(swayNoise, 2 * amplitude)));
+  const swayZ = mul(
+    rootScale,
+    mul(scale, mul(swayNoise, mul(amplitude * 0.5, shared.windSpeed))),
+  );
+
+  material.positionNode = add(positionLocal, vec3(swayX, 0, swayZ));
+  material.needsUpdate = true;
+  return material;
+}
 
 export function createChunkNodeMaterial(
   initialMap: Texture,
@@ -563,6 +625,8 @@ export function createChunkNodeMaterial(
   const finalRgb = mix(litRgb, fogTint, fogFactor);
 
   material.colorNode = vec4(finalRgb, sampled.a);
+  material.maskNode = greaterThan(sampled.a, 0.1);
+  material.opacityNode = sampled.a;
 
   const uniforms: ChunkNodeMaterialUniformShim = {
     map: { value: initialMap },
@@ -571,10 +635,6 @@ export function createChunkNodeMaterial(
   };
   const result = Object.assign(material, { uniforms }) as ChunkNodeMaterial;
 
-  // The colorNode samples through `mapNode`, which captures the initial atlas
-  // by reference. The world later replaces the chunk atlas via `mat.map = ...`
-  // (and again via `mat.uniforms.map.value = ...`); forward both writes into
-  // the TSL texture node so the rendered atlas tracks the current map.
   let currentMap: Texture = initialMap;
   Object.defineProperty(result, "map", {
     configurable: true,
