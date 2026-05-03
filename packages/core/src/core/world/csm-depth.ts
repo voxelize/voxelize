@@ -37,6 +37,7 @@ export interface CSMDepthConfig {
   lightMargin: number;
   shadowCasterDistance: number;
   shadowBias: number;
+  shadowNormalBias: number;
   middleCascadeMovementThreshold: number;
   middleCascadeFrameInterval: number;
   farCascadeMovementThreshold: number;
@@ -63,6 +64,7 @@ const defaultConfig: CSMDepthConfig = {
   lightMargin: 32,
   shadowCasterDistance: 200,
   shadowBias: 0.0005,
+  shadowNormalBias: 0.02,
   middleCascadeMovementThreshold: 1.5,
   middleCascadeFrameInterval: 8,
   farCascadeMovementThreshold: 3,
@@ -265,13 +267,11 @@ export class WebGPUCSMDepthPass {
 
   update(mainCamera: Camera, sunDirection: Vector3, focus: Vector3): void {
     this.frameCount++;
-    this.lightDirection.copy(sunDirection).normalize();
+    this.tempVec3.copy(sunDirection).normalize();
 
-    const lightDirChange = this.tempVec3
-      .copy(this.lightDirection)
-      .sub(this.lastLightDirection)
-      .length();
+    const lightDirChange = this.tempVec3.distanceTo(this.lastLightDirection);
     if (lightDirChange > 0.01) {
+      this.lightDirection.copy(this.tempVec3);
       this.markAllCascadesDirty();
       this.lastLightDirection.copy(this.lightDirection);
     }
@@ -537,6 +537,10 @@ export class WebGPUCSMDepthPass {
 
   get shadowBias(): number {
     return this.config.shadowBias;
+  }
+
+  get shadowNormalBias(): number {
+    return this.config.shadowNormalBias;
   }
 
   get minElevation(): number {

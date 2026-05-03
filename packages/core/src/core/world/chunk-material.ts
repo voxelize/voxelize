@@ -1,4 +1,4 @@
-import { FrontSide, IntType, Matrix4, Texture } from "three";
+import { FrontSide, IntType, Matrix4, Texture, Vector3 } from "three";
 import {
   abs,
   add,
@@ -54,7 +54,9 @@ export interface ChunkShadowInputs {
   shadowMatrices: ChunkShadowMatrixTuple;
   cascadeSplits: ChunkShadowSplitTuple;
   shadowMapSizes: ChunkShadowMapSizeTuple;
+  shadowDirection: Vector3;
   shadowBias: number;
+  shadowNormalBias: number;
   shadowStrength: number;
 }
 
@@ -75,7 +77,9 @@ function buildShadowTslUniforms(inputs: ChunkShadowInputs) {
       uniform(inputs.shadowMapSizes[1]),
       uniform(inputs.shadowMapSizes[2]),
     ] as const,
+    direction: uniform(inputs.shadowDirection.clone()),
     bias: uniform(inputs.shadowBias),
+    normalBias: uniform(inputs.shadowNormalBias),
     strength: uniform(inputs.shadowStrength),
   };
 }
@@ -208,7 +212,9 @@ export function syncChunkShadowTslUniforms(
   shadow.mapSizes[0].value = inputs.shadowMapSizes[0];
   shadow.mapSizes[1].value = inputs.shadowMapSizes[1];
   shadow.mapSizes[2].value = inputs.shadowMapSizes[2];
+  shadow.direction.value.copy(inputs.shadowDirection);
   shadow.bias.value = inputs.shadowBias;
+  shadow.normalBias.value = inputs.shadowNormalBias;
   shadow.strength.value = inputs.shadowStrength;
 }
 
@@ -429,10 +435,18 @@ export function createChunkNodeMaterial(
 
   let litRgb = baseLit;
   if (shadow && shadowInputs) {
-    const wpos4 = vec4(positionWorld.x, positionWorld.y, positionWorld.z, 1);
+    const shadowPosition = add(
+      positionWorld,
+      mul(normalWorld, shadow.normalBias),
+    );
+    const wpos4 = vec4(shadowPosition.x, shadowPosition.y, shadowPosition.z, 1);
     const viewDepth = max(float(0), sub(float(0), positionView.z));
-    const ndotl = clamp(dot(normalWorld, vec3(0, 1, 0)), 0, 1);
-    const baseSlopeBias = add(shadow.bias, mul(sub(float(1), ndotl), 0.0015));
+    const ndotl = dot(normalWorld, shadow.direction);
+    const ndotlClamped = clamp(ndotl, 0, 1);
+    const baseSlopeBias = add(
+      shadow.bias,
+      max(mul(sub(float(1), ndotlClamped), 0.005), 0.001),
+    );
 
     const lightClip0 = mul(shadow.matrices[0], wpos4);
     const lightNdc0 = div(lightClip0.xyz, lightClip0.w);
@@ -634,7 +648,7 @@ export function createChunkNodeMaterial(
     );
     const cascadeVisibility2 = mix(visibility2, float(1), fadeT2);
 
-    const rawVisibility = select(
+    const sampledVisibility = select(
       lessThan(viewDepth, split0),
       cascadeVisibility0,
       select(
@@ -643,7 +657,7 @@ export function createChunkNodeMaterial(
         select(lessThan(viewDepth, split2), cascadeVisibility2, float(1)),
       ),
     );
-    const factor = mix(float(1), rawVisibility, shadow.strength);
+    const factor = mix(float(1), sampledVisibility, shadow.strength);
 
     litRgb = mul(baseLit, factor);
   }

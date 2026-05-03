@@ -166,15 +166,23 @@ interface MeshJobResult {
   geometries: GeometryProtocol[] | null;
 }
 
+interface TimeOfDayShadowLighting {
+  direction: Vector3;
+  sunY: number;
+  sunlightIntensity: number;
+  shaderShadowStrength: number;
+}
+
 const WEBGPU_CSM_CONFIG: Partial<CSMDepthConfig> = {
   cascades: 3,
   shadowMapSize: 2048,
-  cascadeShadowMapSizes: [2048, 1024, 1024],
+  cascadeShadowMapSizes: [2048, 2048, 2048],
   maxShadowDistance: 128,
   shadowBias: 0.0005,
+  shadowNormalBias: 0.02,
   lightMargin: 32,
-  middleCascadeFrameInterval: 16,
-  farCascadeFrameInterval: 64,
+  middleCascadeFrameInterval: 5,
+  farCascadeFrameInterval: 10,
 };
 const deferredTextureDisposal = new WeakSet<Texture>();
 
@@ -4444,6 +4452,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
 
     if (!this.usesShaderLighting) {
+      const lighting = this.computeTimeOfDayShadowLighting(
+        this.webgpuCsmDepth?.minElevation ?? 0.2,
+      );
+      const shadowStrength =
+        this.webgpuCsmDepth?.computeShadowStrength(lighting.sunY) ??
+        lighting.shaderShadowStrength;
+      this.applyShaderLightingUniforms(lighting, shadowStrength);
       syncChunkSharedTslUniforms(this.chunkRenderer);
     }
   };
@@ -4451,65 +4466,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   updateShaderLighting(camera: Camera, position: Vector3) {
     if (!this.usesShaderLighting) return;
 
-    const { timePerDay } = this.options;
-    const timeRatio = this.time / timePerDay;
-    const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
-
-    const sunY = Math.sin(sunAngle);
-    const sunX = Math.cos(sunAngle);
-
-    const moonAngle = sunAngle + Math.PI;
-    const moonY = Math.sin(moonAngle);
-    const moonX = Math.cos(moonAngle);
-
+    const lighting = this.computeTimeOfDayShadowLighting(0.35);
+    this.applyShaderLightingUniforms(lighting, lighting.shaderShadowStrength);
     const sunDirection = this.chunkRenderer.shaderLightingUniforms.sunDirection;
-
-    const horizonThreshold = 0.15;
-    const minElevation = 0.35;
-    const shadowFadeThreshold = 0.4;
-
-    let lightX: number;
-    let lightY: number;
-    let shadowStrength: number;
-
-    if (sunY > horizonThreshold) {
-      lightX = sunX;
-      lightY = Math.max(sunY, minElevation);
-
-      if (sunY < shadowFadeThreshold) {
-        const fadeT =
-          (shadowFadeThreshold - sunY) /
-          (shadowFadeThreshold - horizonThreshold);
-        const smoothFadeT = fadeT * fadeT * (3 - 2 * fadeT);
-        shadowStrength = 1.0 - smoothFadeT * 0.7;
-      } else {
-        shadowStrength = 1.0;
-      }
-    } else if (sunY < -horizonThreshold) {
-      lightX = moonX;
-      lightY = Math.max(moonY, minElevation);
-      shadowStrength = 0.6;
-    } else {
-      const t = (horizonThreshold - sunY) / (2 * horizonThreshold);
-      const smoothT = t * t * (3 - 2 * t);
-
-      lightX = sunX * (1 - smoothT) + moonX * smoothT;
-      lightY = Math.max(minElevation, sunY * (1 - smoothT) + moonY * smoothT);
-      const dip = 1.0 - Math.sin(smoothT * Math.PI);
-      shadowStrength = (0.3 * (1 - smoothT) + 0.6 * smoothT) * dip;
-    }
-
-    sunDirection.value.set(lightX, lightY, 0.3);
-    sunDirection.value.normalize();
-
-    const sunlightIntensity = Math.max(0, sunY);
-
-    this.chunkRenderer.uniforms.sunlightIntensity.value = Math.max(
-      0.05,
-      sunlightIntensity,
-    );
-    this.chunkRenderer.shaderLightingUniforms.sunlightIntensity.value =
-      sunlightIntensity;
 
     if (this.csmRenderer) {
       this.csmRenderer.update(camera, sunDirection.value, position);
@@ -4549,7 +4508,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         csmUniforms.uShadowBias;
 
       this.chunkRenderer.shaderLightingUniforms.shadowStrength.value =
-        shadowStrength;
+        lighting.shaderShadowStrength;
     }
 
     if (this.lightVolume && this.lightRegistry) {
@@ -4603,10 +4562,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     pass.setCoordinateSystem(renderer.coordinateSystem);
 
-    const { direction: sunDir, sunY } = this.computeShadowCasterDirection();
+    const lighting = this.computeTimeOfDayShadowLighting(pass.minElevation);
+    const dynamicShadowStrength = pass.computeShadowStrength(lighting.sunY);
+    this.applyShaderLightingUniforms(lighting, dynamicShadowStrength);
     const focus = this.lastUpdatePosition;
-    pass.update(camera, sunDir, focus);
-    const dynamicShadowStrength = pass.computeShadowStrength(sunY);
+    pass.update(camera, lighting.direction, focus);
 
     if (pass.hasPendingRender) {
       const basicRoots = new Set<Object3D>(this.collectChunkGroupCasters());
@@ -4639,12 +4599,26 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
+    const shaderUniforms = this.chunkRenderer.shaderLightingUniforms;
+    shaderUniforms.shadowMap0.value = pass.shadowMaps[0];
+    shaderUniforms.shadowMap1.value = pass.shadowMaps[1];
+    shaderUniforms.shadowMap2.value = pass.shadowMaps[2];
+    shaderUniforms.shadowMatrix0.value.copy(pass.shadowMatrices[0]);
+    shaderUniforms.shadowMatrix1.value.copy(pass.shadowMatrices[1]);
+    shaderUniforms.shadowMatrix2.value.copy(pass.shadowMatrices[2]);
+    shaderUniforms.cascadeSplit0.value = pass.cascadeSplits[0];
+    shaderUniforms.cascadeSplit1.value = pass.cascadeSplits[1];
+    shaderUniforms.cascadeSplit2.value = pass.cascadeSplits[2];
+    shaderUniforms.shadowBias.value = pass.shadowBias;
+
     syncChunkShadowTslUniforms(this.chunkRenderer, {
       shadowMaps: pass.shadowMaps,
       shadowMatrices: pass.shadowMatrices,
       cascadeSplits: pass.cascadeSplits,
       shadowMapSizes: pass.shadowMapSizes,
+      shadowDirection: lighting.direction,
       shadowBias: pass.shadowBias,
+      shadowNormalBias: pass.shadowNormalBias,
       shadowStrength: dynamicShadowStrength,
     });
   }
@@ -4659,31 +4633,83 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private csmSunDirection = new Vector3(0, 1, 0.3).normalize();
 
-  // Returns a unit vector pointing from the focus toward whichever celestial
-  // body is currently casting shadows. The CSM depth camera is placed at
-  // `focus + direction * offset`, so this must point UP-ish during the day
-  // (toward the sun) and UP-ish at night (toward the moon, on the opposite
-  // side of the sky). `sunY` is the raw sin(altitude) of the sun and is used
-  // by the caller to derive a matching shadow strength.
-  private computeShadowCasterDirection(): {
-    direction: Vector3;
-    sunY: number;
-  } {
+  private computeTimeOfDayShadowLighting(
+    minElevation: number,
+  ): TimeOfDayShadowLighting {
     const { timePerDay } = this.options;
     const timeRatio = this.time / timePerDay;
     const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
     const sunY = Math.sin(sunAngle);
     const sunX = Math.cos(sunAngle);
 
-    const isDay = sunY >= 0;
-    const casterX = isDay ? sunX : -sunX;
-    const casterY = isDay ? sunY : -sunY;
+    const moonAngle = sunAngle + Math.PI;
+    const moonY = Math.sin(moonAngle);
+    const moonX = Math.cos(moonAngle);
 
-    const minElevation = this.webgpuCsmDepth?.minElevation ?? 0.2;
-    const elevatedY = Math.max(minElevation, casterY);
+    const horizonThreshold = 0.15;
+    const shadowFadeThreshold = 0.4;
 
-    this.csmSunDirection.set(casterX, elevatedY, 0.3).normalize();
-    return { direction: this.csmSunDirection, sunY };
+    let lightX: number;
+    let lightY: number;
+    let shaderShadowStrength: number;
+
+    if (sunY > horizonThreshold) {
+      lightX = sunX;
+      lightY = Math.max(sunY, minElevation);
+
+      if (sunY < shadowFadeThreshold) {
+        const fadeT =
+          (shadowFadeThreshold - sunY) /
+          (shadowFadeThreshold - horizonThreshold);
+        const smoothFadeT = fadeT * fadeT * (3 - 2 * fadeT);
+        shaderShadowStrength = 1.0 - smoothFadeT * 0.7;
+      } else {
+        shaderShadowStrength = 1.0;
+      }
+    } else if (sunY < -horizonThreshold) {
+      lightX = moonX;
+      lightY = Math.max(moonY, minElevation);
+      shaderShadowStrength = 0.6;
+    } else {
+      const t = (horizonThreshold - sunY) / (2 * horizonThreshold);
+      const smoothT = t * t * (3 - 2 * t);
+
+      lightX = sunX * (1 - smoothT) + moonX * smoothT;
+      lightY = Math.max(minElevation, sunY * (1 - smoothT) + moonY * smoothT);
+      const dip = 1.0 - Math.sin(smoothT * Math.PI);
+      shaderShadowStrength = (0.3 * (1 - smoothT) + 0.6 * smoothT) * dip;
+    }
+
+    this.csmSunDirection.set(lightX, lightY, 0.3).normalize();
+    return {
+      direction: this.csmSunDirection,
+      sunY,
+      sunlightIntensity: Math.max(0, sunY),
+      shaderShadowStrength,
+    };
+  }
+
+  private applyShaderLightingUniforms(
+    lighting: TimeOfDayShadowLighting,
+    shadowStrength: number,
+  ): void {
+    this.chunkRenderer.shaderLightingUniforms.sunDirection.value.copy(
+      lighting.direction,
+    );
+    this.chunkRenderer.uniforms.sunlightIntensity.value = Math.max(
+      0.05,
+      lighting.sunlightIntensity,
+    );
+    this.chunkRenderer.shaderLightingUniforms.sunlightIntensity.value =
+      lighting.sunlightIntensity;
+    this.chunkRenderer.shaderLightingUniforms.shadowStrength.value =
+      shadowStrength;
+    this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
+      this.chunkRenderer.uniforms.sunColor.value,
+    );
+    this.chunkRenderer.shaderLightingUniforms.ambientColor.value.copy(
+      this.chunkRenderer.uniforms.ambientColor.value,
+    );
   }
 
   private collectChunkGroupCasters(): Object3D[] {
@@ -6431,16 +6457,24 @@ export class World<T = any> extends Scene implements NetIntercept {
       const initialMap = AtlasTexture.makeUnknownTexture(
         this.options.textureUnitDimension,
       );
-      const shadowInputs: ChunkShadowInputs | undefined = this.webgpuCsmDepth
-        ? {
-            shadowMaps: this.webgpuCsmDepth.shadowMaps,
-            shadowMatrices: this.webgpuCsmDepth.shadowMatrices,
-            cascadeSplits: this.webgpuCsmDepth.cascadeSplits,
-            shadowMapSizes: this.webgpuCsmDepth.shadowMapSizes,
-            shadowBias: this.webgpuCsmDepth.shadowBias,
-            shadowStrength: this.webgpuCsmDepth.computeShadowStrength(1),
-          }
-        : undefined;
+      let shadowInputs: ChunkShadowInputs | undefined;
+      if (this.webgpuCsmDepth) {
+        const lighting = this.computeTimeOfDayShadowLighting(
+          this.webgpuCsmDepth.minElevation,
+        );
+        shadowInputs = {
+          shadowMaps: this.webgpuCsmDepth.shadowMaps,
+          shadowMatrices: this.webgpuCsmDepth.shadowMatrices,
+          cascadeSplits: this.webgpuCsmDepth.cascadeSplits,
+          shadowMapSizes: this.webgpuCsmDepth.shadowMapSizes,
+          shadowDirection: lighting.direction,
+          shadowBias: this.webgpuCsmDepth.shadowBias,
+          shadowNormalBias: this.webgpuCsmDepth.shadowNormalBias,
+          shadowStrength: this.webgpuCsmDepth.computeShadowStrength(
+            lighting.sunY,
+          ),
+        };
+      }
       return createChunkNodeMaterial(
         initialMap,
         this.chunkRenderer,
