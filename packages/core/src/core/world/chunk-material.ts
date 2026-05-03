@@ -110,6 +110,17 @@ function buildSharedTslUniforms(renderer: ChunkRenderer) {
     skyFogExponent2: uniform(u.skyFogExponent2.value),
     skyFogDimension: uniform(u.skyFogDimension.value),
     skyFogStrength: uniform(u.skyFogStrength.value),
+    sunDirection: uniform(
+      renderer.shaderLightingUniforms.sunDirection.value.clone(),
+    ),
+    shaderSunlightIntensity: uniform(
+      renderer.shaderLightingUniforms.sunlightIntensity.value,
+    ),
+    waterTint: uniform(renderer.shaderLightingUniforms.waterTint.value.clone()),
+    waterAbsorption: uniform(
+      renderer.shaderLightingUniforms.waterAbsorption.value,
+    ),
+    waterLevel: uniform(renderer.shaderLightingUniforms.waterLevel.value),
   };
 }
 
@@ -166,6 +177,17 @@ export function syncChunkSharedTslUniforms(renderer: ChunkRenderer): void {
     shared.skyFogExponent2.value = u.skyFogExponent2.value;
     shared.skyFogDimension.value = u.skyFogDimension.value;
     shared.skyFogStrength.value = u.skyFogStrength.value;
+    shared.sunDirection.value.copy(
+      renderer.shaderLightingUniforms.sunDirection.value,
+    );
+    shared.shaderSunlightIntensity.value =
+      renderer.shaderLightingUniforms.sunlightIntensity.value;
+    shared.waterTint.value.copy(
+      renderer.shaderLightingUniforms.waterTint.value,
+    );
+    shared.waterAbsorption.value =
+      renderer.shaderLightingUniforms.waterAbsorption.value;
+    shared.waterLevel.value = renderer.shaderLightingUniforms.waterLevel.value;
   }
 }
 
@@ -273,10 +295,46 @@ export function createChunkNodeMaterial(
   const aoIndex = bitAnd(shiftRight(lightInt, int(16)), int(0x3));
   const isFluidBit = bitAnd(shiftRight(lightInt, int(18)), int(0x1));
   const isGreedyBit = bitAnd(shiftRight(lightInt, int(19)), int(0x1));
+  const isWaveBit = bitAnd(shiftRight(lightInt, int(20)), int(0x1));
   const sunInt = bitAnd(shiftRight(lightInt, int(12)), int(0xf));
   const rInt = bitAnd(shiftRight(lightInt, int(8)), int(0xf));
   const gInt = bitAnd(shiftRight(lightInt, int(4)), int(0xf));
   const bInt = bitAnd(lightInt, int(0xf));
+
+  const wavePosition = positionWorld;
+  const waveTime = mul(shared.time, 0.0006);
+  const wave1 = mul(
+    mx_noise_float(
+      vec3(
+        add(mul(wavePosition.x, 0.15), mul(waveTime, 0.3)),
+        sub(mul(wavePosition.z, 0.15), mul(waveTime, 0.2)),
+        0,
+      ),
+    ),
+    0.08,
+  );
+  const wave2 = mul(
+    mx_noise_float(
+      vec3(
+        sub(mul(wavePosition.x, 0.4), mul(waveTime, 0.5)),
+        add(mul(wavePosition.z, 0.4), mul(waveTime, 0.4)),
+        10,
+      ),
+    ),
+    0.04,
+  );
+  const wave3 = mul(
+    mx_noise_float(
+      vec3(
+        add(mul(wavePosition.x, 0.8), mul(waveTime, 0.7)),
+        sub(mul(wavePosition.z, 0.8), mul(waveTime, 0.5)),
+        20,
+      ),
+    ),
+    0.02,
+  );
+  const waveOffset = mul(float(isWaveBit), add(add(wave1, wave2), wave3));
+  material.positionNode = add(positionLocal, vec3(0, waveOffset, 0));
 
   const ao = shared.aoTable;
   const aoSampled = select(
@@ -292,6 +350,7 @@ export function createChunkNodeMaterial(
   const vAO = varying(div(float(aoSampled), 255));
   const vIsFluid = varying(float(isFluidBit));
   const vIsGreedy = varying(float(isGreedyBit));
+  const vIsWave = varying(float(isWaveBit));
   const vSunNorm = varying(div(float(sunInt), 15));
   const vTorch = varying(div(vec3(float(rInt), float(gInt), float(bInt)), 15));
 
@@ -589,6 +648,158 @@ export function createChunkNodeMaterial(
     litRgb = mul(baseLit, factor);
   }
 
+  const waterTime = mul(shared.time, 0.0005);
+  const waterPosition = positionWorld;
+  const eps = float(0.08);
+  const roughNoise = mx_noise_float(
+    vec3(
+      sub(mul(waterPosition.x, 0.04), mul(waterTime, 0.08)),
+      add(mul(waterPosition.z, 0.04), mul(waterTime, 0.06)),
+      -10,
+    ),
+  );
+  const roughMul = add(0.3, mul(0.7, add(mul(roughNoise, 0.5), 0.5)));
+  const swellTiltX = mul(
+    mx_noise_float(
+      vec3(
+        add(mul(waterPosition.x, 0.05), mul(waterTime, 0.07)),
+        sub(mul(waterPosition.z, 0.05), mul(waterTime, 0.05)),
+        -5,
+      ),
+    ),
+    0.07,
+  );
+  const swellTiltZ = mul(
+    mx_noise_float(
+      vec3(
+        sub(mul(waterPosition.x, 0.05), mul(waterTime, 0.04)),
+        add(mul(waterPosition.z, 0.05), mul(waterTime, 0.07)),
+        -8,
+      ),
+    ),
+    0.07,
+  );
+  const lg1 = mx_noise_float(
+    vec3(
+      add(mul(waterPosition.x, 0.3), mul(waterTime, 0.25)),
+      sub(mul(waterPosition.z, 0.3), mul(waterTime, 0.2)),
+      0,
+    ),
+  );
+  const lg1x = mx_noise_float(
+    vec3(
+      add(mul(add(waterPosition.x, eps), 0.3), mul(waterTime, 0.25)),
+      sub(mul(waterPosition.z, 0.3), mul(waterTime, 0.2)),
+      0,
+    ),
+  );
+  const lg1z = mx_noise_float(
+    vec3(
+      add(mul(waterPosition.x, 0.3), mul(waterTime, 0.25)),
+      sub(mul(add(waterPosition.z, eps), 0.3), mul(waterTime, 0.2)),
+      0,
+    ),
+  );
+  const md1 = mx_noise_float(
+    vec3(
+      add(mul(waterPosition.x, 1.5), mul(waterTime, 0.4)),
+      sub(mul(waterPosition.z, 1.5), mul(waterTime, 0.35)),
+      5,
+    ),
+  );
+  const md1x = mx_noise_float(
+    vec3(
+      add(mul(add(waterPosition.x, eps), 1.5), mul(waterTime, 0.4)),
+      sub(mul(waterPosition.z, 1.5), mul(waterTime, 0.35)),
+      5,
+    ),
+  );
+  const md1z = mx_noise_float(
+    vec3(
+      add(mul(waterPosition.x, 1.5), mul(waterTime, 0.4)),
+      sub(mul(add(waterPosition.z, eps), 1.5), mul(waterTime, 0.35)),
+      5,
+    ),
+  );
+  const hLg0 = mul(lg1, 0.3);
+  const hLgX = mul(lg1x, 0.3);
+  const hLgZ = mul(lg1z, 0.3);
+  const hMed0 = mul(mul(md1, 0.6), roughMul);
+  const hMedX = mul(mul(md1x, 0.6), roughMul);
+  const hMedZ = mul(mul(md1z, 0.6), roughMul);
+  const generatedWaterNormal = normalize(
+    vec3(
+      add(
+        swellTiltX,
+        add(mul(sub(hLg0, hLgX), 0.8), mul(sub(hMed0, hMedX), 1.2)),
+      ),
+      1,
+      add(
+        swellTiltZ,
+        add(mul(sub(hLg0, hLgZ), 0.8), mul(sub(hMed0, hMedZ), 1.2)),
+      ),
+    ),
+  );
+  const waterNormal = select(
+    greaterThan(normalWorld.y, 0.5),
+    generatedWaterNormal,
+    normalWorld,
+  );
+  const viewDir = normalize(sub(cameraPosition, waterPosition));
+  const nDotV = max(dot(waterNormal, viewDir), 0);
+  const fresnel = clamp(add(0.02, mul(0.6, pow(sub(1, nDotV), 4))), 0.02, 0.55);
+  const reflectDir = sub(
+    mul(waterNormal, mul(dot(waterNormal, viewDir), 2)),
+    viewDir,
+  );
+  const skyBlend = clamp(add(mul(reflectDir.y, 0.5), 0.5), 0, 1);
+  const skyReflection = mix(
+    shared.skyFogMiddleColor,
+    shared.skyFogTopColor,
+    skyBlend,
+  );
+  const halfVec = normalize(add(shared.sunDirection, viewDir));
+  const specAngle = max(dot(waterNormal, halfVec), 0);
+  const spec32 = pow(specAngle, 32);
+  const specMed = mul(
+    pow(specAngle, 128),
+    mul(shared.shaderSunlightIntensity, 0.6),
+  );
+  const specSharp = mul(
+    pow(specMed, 4),
+    mul(shared.shaderSunlightIntensity, 1.5),
+  );
+  const specularColor = mul(
+    vec3(shared.sunColor),
+    add(
+      mul(spec32, mul(shared.shaderSunlightIntensity, 0.3)),
+      add(specMed, specSharp),
+    ),
+  );
+  const distToCamera = length(sub(cameraPosition, waterPosition));
+  const depthFactor = sub(1, exp(mul(distToCamera, -0.008)));
+  const waterColor = mul(
+    litRgb,
+    mix(vec3(1), shared.waterTint, add(0.08, mul(depthFactor, 0.12))),
+  );
+  const waterDepth = max(0, sub(shared.waterLevel, waterPosition.y));
+  const absorptionDepth = mul(waterDepth, shared.waterAbsorption);
+  const absorption = vec3(
+    exp(mul(absorptionDepth, -0.025)),
+    exp(mul(absorptionDepth, -0.012)),
+    exp(mul(absorptionDepth, -0.004)),
+  );
+  const waterRgb = mul(
+    add(mix(waterColor, skyReflection, fresnel), specularColor),
+    absorption,
+  );
+  const isWaterSurface = select(
+    greaterThan(normalWorld.y, 0.5),
+    vIsWave,
+    float(0),
+  );
+  litRgb = mix(litRgb, waterRgb, isWaterSurface);
+
   const horizontalOffset = sub(positionWorld.xz, cameraPosition.xz);
   const depth = length(horizontalOffset);
   const distFog = smoothstep(shared.fogNear, shared.fogFar, depth);
@@ -624,8 +835,8 @@ export function createChunkNodeMaterial(
   const fogTint = mix(shared.fogColor, skyFogColor, shared.skyFogStrength);
   const finalRgb = mix(litRgb, fogTint, fogFactor);
 
-  material.colorNode = vec4(finalRgb, sampled.a);
-  material.maskNode = greaterThan(sampled.a, 0.1);
+  material.colorNode = vec4(finalRgb, 1);
+  material.maskNode = greaterThan(sampled.a, 0.001);
   material.opacityNode = sampled.a;
 
   const uniforms: ChunkNodeMaterialUniformShim = {
