@@ -835,9 +835,8 @@ export function createChunkNodeMaterial(
   const fogTint = mix(shared.fogColor, skyFogColor, shared.skyFogStrength);
   const finalRgb = mix(litRgb, fogTint, fogFactor);
 
-  material.colorNode = vec4(finalRgb, 1);
-  material.maskNode = greaterThan(sampled.a, 0.001);
-  material.opacityNode = sampled.a;
+  material.colorNode = vec4(finalRgb, sampled.a);
+  material.maskNode = greaterThan(sampled.a, 0.1);
 
   const uniforms: ChunkNodeMaterialUniformShim = {
     map: { value: initialMap },

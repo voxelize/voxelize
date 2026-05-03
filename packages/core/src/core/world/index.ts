@@ -157,6 +157,15 @@ import LightWorker from "./workers/light-worker.ts?worker&inline";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 const TEXTURE_DISPOSE_FRAME_DELAY = 8;
+interface MeshJobResult {
+  cx: number;
+  cz: number;
+  level: number;
+  generation: number;
+  key: string;
+  geometries: GeometryProtocol[] | null;
+}
+
 const WEBGPU_CSM_CONFIG: Partial<CSMDepthConfig> = {
   cascades: 3,
   shadowMapSize: 2048,
@@ -6577,6 +6586,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       mat.map = map;
       mat.uniforms.map.value = map;
       mat.userData.skipShadow = isFluid || (transparent && !lightReduce);
+      mat.needsUpdate = true;
 
       return mat;
     };
