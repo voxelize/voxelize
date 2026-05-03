@@ -1,8 +1,9 @@
-import puppeteer, { Browser, Page } from "puppeteer";
+import puppeteer, { Browser, KeyInput, Page } from "puppeteer";
 
 import type {
   AgentEventMap,
   AgentEventName,
+  AgentInputNamespace,
   BlockInfo,
   ChatMsgIn,
   ChunkCoord,
@@ -235,6 +236,22 @@ export class Agent {
       method,
       payload,
     );
+  }
+
+  async setInputNamespace(namespace: AgentInputNamespace): Promise<void> {
+    await this.page.evaluate((ns) => {
+      const agent = window.__agent__;
+      if (!agent) throw new Error("Agent bridge is not ready");
+      agent.setInputNamespace(ns);
+    }, namespace);
+  }
+
+  async pressKey(key: string): Promise<void> {
+    await this.page.keyboard.press(key as KeyInput);
+  }
+
+  async typeText(text: string): Promise<void> {
+    await this.page.keyboard.type(text);
   }
 
   async position(): Promise<Vec3> {

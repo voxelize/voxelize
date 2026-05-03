@@ -2,18 +2,14 @@ import merge from "deepmerge";
 import {
   AmbientLight,
   DirectionalLight,
-  Mesh,
-  NearestFilter,
   Object3D,
   OrthographicCamera,
-  PlaneGeometry,
   Scene,
   SRGBColorSpace,
-  Texture,
   Vector3,
   WebGLRenderer,
 } from "three";
-import { MeshBasicNodeMaterial, WebGPURenderer } from "three/webgpu";
+import { WebGPURenderer } from "three/webgpu";
 
 import { CameraPerspective, isWebGPUAvailable, noop } from "../common";
 import { Inputs } from "../core/inputs";
@@ -89,6 +85,8 @@ export class ItemSlot<T = number> {
   public scene: Scene;
 
   public object: Object3D;
+
+  private imageElement?: HTMLImageElement;
 
   public light: DirectionalLight;
 
@@ -166,6 +164,11 @@ export class ItemSlot<T = number> {
   getObject = () => this.object;
 
   setObject = (object: Object3D | HTMLImageElement | undefined) => {
+    if (this.imageElement) {
+      this.imageElement.remove();
+      this.imageElement = undefined;
+    }
+
     if (this.object) {
       this.scene.remove(this.object);
     }
@@ -180,21 +183,27 @@ export class ItemSlot<T = number> {
       this.setPerspective(this.itemSlots.options.perspective);
       this.scene.add(object);
     } else {
-      const geometry = new PlaneGeometry(2, 2);
-      const texture = new Texture(object);
-      texture.needsUpdate = true;
-      texture.colorSpace = SRGBColorSpace;
-      texture.minFilter = NearestFilter;
-      texture.magFilter = NearestFilter;
-      const material = new MeshBasicNodeMaterial({
-        map: texture,
-        transparent: true,
+      if (!object.complete || object.naturalWidth === 0) {
+        object.onload = () => {
+          this.setObject(object);
+        };
+        this.object = undefined;
+        this.triggerChange();
+        return;
+      }
+      DOMUtils.applyStyles(object, {
+        position: "absolute",
+        inset: "2px",
+        width: "calc(100% - 4px)",
+        height: "calc(100% - 4px)",
+        objectFit: "contain",
+        imageRendering: "pixelated",
+        pointerEvents: "none",
+        zIndex: "1",
       });
-      material.needsUpdate = true;
-      const plane = new Mesh(geometry, material);
-      this.object = plane;
-      this.setPerspective("pz");
-      this.scene.add(plane);
+      this.imageElement = object;
+      this.element.appendChild(object);
+      this.object = undefined;
     }
 
     this.triggerChange();
@@ -665,8 +674,8 @@ export class ItemSlots<T = number> {
     const { horizontalCount, verticalCount, slotMargin, slotPadding } =
       this.options;
 
-    const width = this.canvas.clientWidth;
-    const height = this.canvas.clientHeight;
+    const width = this.wrapper.clientWidth;
+    const height = this.wrapper.clientHeight;
     const hasSizeChanged =
       this.canvas.width !== width || this.canvas.height !== height;
 
@@ -689,7 +698,6 @@ export class ItemSlots<T = number> {
     const clipRect = this.wrapper.getBoundingClientRect();
 
     let hasRendered = false;
-
     for (let i = 0; i < verticalCount; i++) {
       for (let j = 0; j < horizontalCount; j++) {
         const { scene, camera, element, object } = this.slots[i][j];
@@ -850,7 +858,7 @@ export class ItemSlots<T = number> {
       background: "transparent",
       top: "0",
       left: "0",
-      zIndex: "-1",
+      zIndex: "1",
     });
 
     this.wrapper.appendChild(this.canvas);

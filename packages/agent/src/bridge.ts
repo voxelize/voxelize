@@ -81,6 +81,11 @@ export type RendererStatus = {
   csm: CsmStatus;
 };
 
+export type WorldStats = {
+  time: number;
+  timePerDay: number;
+};
+
 export type DiagnosticSeverity = "error" | "warning";
 
 export type DiagnosticSource =
@@ -161,6 +166,8 @@ export type ParticleEffectSpec = {
   options?: ParticleEffectOptions;
 };
 
+export type AgentInputNamespace = "menu" | "in-game" | "chat" | "inventory";
+
 export type AgentEventMap = {
   chat: ChatMsgIn;
   "chunk-loaded": ChunkCoord;
@@ -205,6 +212,7 @@ export interface AgentBridge {
   setFlying(isFlying: boolean): Promise<void>;
   triggerParticles(spec: ParticleEffectSpec): Promise<void>;
   call(method: string, payload: unknown): Promise<unknown>;
+  setInputNamespace(namespace: AgentInputNamespace): void;
 
   position(): Vec3;
   facing(): YawPitch;
@@ -215,6 +223,7 @@ export interface AgentBridge {
   chunks: ChunkBridge;
   snapshot(): Snapshot;
   renderer(): RendererStatus;
+  worldStats(): WorldStats;
 
   on<E extends AgentEventName>(
     event: E,

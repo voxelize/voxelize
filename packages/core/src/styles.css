@@ -23,8 +23,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: -1;
-  background: #141414;
+  z-index: 2;
+  pointer-events: none;
+  background: transparent;
   border-style: solid;
   border-top-color: #353535;
   border-left-color: #353535;
