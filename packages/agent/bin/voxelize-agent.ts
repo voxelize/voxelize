@@ -11,7 +11,9 @@ async function main(): Promise<void> {
       world: { type: "string", short: "w" },
       port: { type: "string", short: "p" },
       name: { type: "string", short: "n" },
+      "chrome-path": { type: "string" },
       headed: { type: "boolean" },
+      "experimental-webgpu": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -26,9 +28,11 @@ async function main(): Promise<void> {
   const port = values.port ? Number(values.port) : 4099;
   const name = values.name ?? "agent";
   const isHeadless = !values.headed;
+  const isExperimentalWebGpuEnabled = values["experimental-webgpu"] === true;
+  const browserExecutablePath = values["chrome-path"];
 
   console.log(
-    `[voxelize-agent] launching agent world=${world} url=${url} port=${port} headless=${isHeadless}`,
+    `[voxelize-agent] launching agent world=${world} url=${url} port=${port} headless=${isHeadless} experimentalWebGPU=${isExperimentalWebGpuEnabled} chromePath=${browserExecutablePath ?? "auto"}`,
   );
 
   const agent = await Agent.launch({
@@ -36,6 +40,8 @@ async function main(): Promise<void> {
     world,
     name,
     isHeadless,
+    isExperimentalWebGpuEnabled,
+    browserExecutablePath,
   });
 
   console.log("[voxelize-agent] browser launched, awaiting ready...");
@@ -72,7 +78,11 @@ Options:
   -w, --world <name>   World to join (default: test)
   -p, --port <port>    HTTP daemon port (default: 4099)
   -n, --name <name>    Agent display name (default: agent)
+      --chrome-path <path>
+                       Browser executable path (defaults to Chrome Canary, then Chrome, in experimental WebGPU mode)
       --headed         Launch a visible browser window (default: headless)
+      --experimental-webgpu
+                       Enable Chrome's unsafe WebGPU flag and use native GPU path
   -h, --help           Show this help
 `);
 }

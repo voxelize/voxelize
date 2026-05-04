@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import puppeteer, { Browser, KeyInput, Page } from "puppeteer";
 
 import type {
@@ -33,12 +35,33 @@ export type AgentLaunchOptions = {
   world: string;
   name?: string;
   isHeadless?: boolean;
+  isExperimentalWebGpuEnabled?: boolean;
+  browserExecutablePath?: string;
   port?: number;
   agentSecret?: string;
   waitReadyTimeoutMs?: number;
 };
 
 const DIAGNOSTICS_BUFFER_LIMIT = 500;
+const MAC_CHROME_CANARY_PATH =
+  "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary";
+const MAC_CHROME_PATH =
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+function resolveBrowserExecutablePath(
+  requestedPath: string | undefined,
+  isExperimentalWebGpuEnabled: boolean,
+): string | undefined {
+  if (requestedPath) return requestedPath;
+  const envPath = process.env.AGENT_CHROME_PATH;
+  if (envPath) return envPath;
+  if (!isExperimentalWebGpuEnabled || process.platform !== "darwin") {
+    return undefined;
+  }
+  if (fs.existsSync(MAC_CHROME_CANARY_PATH)) return MAC_CHROME_CANARY_PATH;
+  if (fs.existsSync(MAC_CHROME_PATH)) return MAC_CHROME_PATH;
+  return undefined;
+}
 
 export class Agent {
   private browser: Browser;
@@ -66,20 +89,37 @@ export class Agent {
       world,
       name = "agent",
       isHeadless = true,
+      isExperimentalWebGpuEnabled = false,
+      browserExecutablePath,
       waitReadyTimeoutMs = 60_000,
     } = options;
+    const executablePath = resolveBrowserExecutablePath(
+      browserExecutablePath,
+      isExperimentalWebGpuEnabled,
+    );
+    const args = [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
+    ];
+
+    if (isExperimentalWebGpuEnabled) {
+      args.push(
+        "--enable-gpu",
+        "--enable-unsafe-webgpu",
+        "--enable-webgpu-developer-features",
+        "--disable-gpu-sandbox",
+      );
+    } else {
+      args.push("--use-gl=swiftshader", "--enable-unsafe-swiftshader");
+    }
 
     const browser = await puppeteer.launch({
       headless: isHeadless,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--enable-webgl",
-        "--use-gl=swiftshader",
-        "--enable-unsafe-swiftshader",
-        "--ignore-gpu-blocklist",
-      ],
+      executablePath,
+      args,
       defaultViewport: { width: 1280, height: 720 },
     });
 
