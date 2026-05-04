@@ -78,7 +78,27 @@ export type CsmStatus = {
 export type RendererStatus = {
   kind: RendererKind;
   frameCount: number;
+  frameTiming: FrameTimingStatus;
   csm: CsmStatus;
+};
+
+export type FrameTimingStatus = {
+  observedFrameCount: number;
+  lastCallbackMs: number;
+  lastRafGapMs: number;
+  maxCallbackMs: number;
+  maxRafGapMs: number;
+  over50Ms: number;
+  over100Ms: number;
+  over250Ms: number;
+  longFrames: FrameTimingLongFrame[];
+};
+
+export type FrameTimingLongFrame = {
+  frame: number;
+  atMs: number;
+  callbackMs: number;
+  rafGapMs: number;
 };
 
 export type WorldStats = {
