@@ -80,6 +80,32 @@ export type RendererStatus = {
   frameCount: number;
   frameTiming: FrameTimingStatus;
   csm: CsmStatus;
+  runtimeChunks?: RuntimeChunkTimingStatus;
+  renderPhases?: RenderPhaseTimingStatus;
+};
+
+export type RenderPhaseTimingStatus = {
+  updateLastMs: number;
+  updateMaxMs: number;
+  prewarmRevealLastMs: number;
+  prewarmRevealMaxMs: number;
+  shadowLastMs: number;
+  shadowMaxMs: number;
+  postFxPrepareLastMs: number;
+  postFxPrepareMaxMs: number;
+  sceneRenderLastMs: number;
+  sceneRenderMaxMs: number;
+  armOverlayLastMs: number;
+  armOverlayMaxMs: number;
+};
+
+export type RuntimeChunkTimingStatus = {
+  processChunksLastMs: number;
+  processChunksMaxMs: number;
+  meshResultApplyLastMs: number;
+  meshResultApplyMaxMs: number;
+  buildChunkMeshLastMs: number;
+  buildChunkMeshMaxMs: number;
 };
 
 export type FrameTimingStatus = {

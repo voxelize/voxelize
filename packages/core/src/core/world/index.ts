@@ -173,6 +173,15 @@ interface TimeOfDayShadowLighting {
   shaderShadowStrength: number;
 }
 
+export interface RuntimeChunkPerformanceStats {
+  processChunksLastMs: number;
+  processChunksMaxMs: number;
+  meshResultApplyLastMs: number;
+  meshResultApplyMaxMs: number;
+  buildChunkMeshLastMs: number;
+  buildChunkMeshMaxMs: number;
+}
+
 const WEBGPU_CSM_CONFIG: Partial<CSMDepthConfig> = {
   cascades: 3,
   shadowMapSize: 2048,
@@ -453,6 +462,11 @@ export type WorldClientOptions = {
   maxChunkRequestsPerUpdate: number;
 
   /**
+   * Whether chunk requests are filtered by camera direction. Defaults to `true`.
+   */
+  requestChunksInViewDirection: boolean;
+
+  /**
    * The maximum amount of chunks received from the server that can be processed per world update.
    * By process, it means to be turned into a `Chunk` instance. Defaults to `8` chunks.
    */
@@ -600,6 +614,7 @@ export type WorldClientOptions = {
 
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 12,
+  requestChunksInViewDirection: true,
   maxProcessesPerUpdate: 4,
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
@@ -793,6 +808,15 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Chunk rendering state (materials, uniforms).
    */
   public chunkRenderer: ChunkRenderer;
+
+  private runtimeChunkPerformanceStats: RuntimeChunkPerformanceStats = {
+    processChunksLastMs: 0,
+    processChunksMaxMs: 0,
+    meshResultApplyLastMs: 0,
+    meshResultApplyMaxMs: 0,
+    buildChunkMeshLastMs: 0,
+    buildChunkMeshMaxMs: 0,
+  };
 
   /**
    * The voxel physics engine using `@voxelize/physics-engine`.
@@ -1050,6 +1074,39 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.webgpuCsmDepth?.dispose();
     this.webgpuCsmDepth = null;
+  }
+
+  getRuntimeChunkPerformanceStats(): RuntimeChunkPerformanceStats {
+    return { ...this.runtimeChunkPerformanceStats };
+  }
+
+  private recordRuntimeChunkTiming(
+    name: "processChunks" | "meshResultApply" | "buildChunkMesh",
+    elapsedMs: number,
+  ): void {
+    if (name === "processChunks") {
+      this.runtimeChunkPerformanceStats.processChunksLastMs = elapsedMs;
+      this.runtimeChunkPerformanceStats.processChunksMaxMs = Math.max(
+        this.runtimeChunkPerformanceStats.processChunksMaxMs,
+        elapsedMs,
+      );
+      return;
+    }
+
+    if (name === "meshResultApply") {
+      this.runtimeChunkPerformanceStats.meshResultApplyLastMs = elapsedMs;
+      this.runtimeChunkPerformanceStats.meshResultApplyMaxMs = Math.max(
+        this.runtimeChunkPerformanceStats.meshResultApplyMaxMs,
+        elapsedMs,
+      );
+      return;
+    }
+
+    this.runtimeChunkPerformanceStats.buildChunkMeshLastMs = elapsedMs;
+    this.runtimeChunkPerformanceStats.buildChunkMeshMaxMs = Math.max(
+      this.runtimeChunkPerformanceStats.buildChunkMeshMaxMs,
+      elapsedMs,
+    );
   }
 
   private async dispatchMeshWorker(
@@ -3911,6 +3968,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         chunkRerequestInterval,
         chunkLoadExponent,
         maxChunkRequestsPerUpdate,
+        requestChunksInViewDirection,
       },
     } = this;
 
@@ -3942,6 +4000,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (
+          requestChunksInViewDirection &&
           hasDirection &&
           !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
         ) {
@@ -4018,6 +4077,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private processChunks(center: Coords2) {
     const processingSet = this.chunkPipeline.getInStage("processing");
     if (processingSet.size === 0) return;
+    const startedAt = performance.now();
 
     const toProcessArray: Array<{
       name: string;
@@ -4106,6 +4166,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
       }
     });
+
+    this.recordRuntimeChunkTiming(
+      "processChunks",
+      performance.now() - startedAt,
+    );
   }
 
   private isChunkReadyForEntityUpdates(
@@ -4727,6 +4792,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
     if (!chunk) return;
+    const startedAt = performance.now();
 
     const { maxHeight, subChunks, chunkSize, mergeChunkGeometries } =
       this.options;
@@ -4747,7 +4813,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     chunk.meshes.delete(level);
 
-    if (geometries.length === 0) return;
+    if (geometries.length === 0) {
+      this.recordRuntimeChunkTiming(
+        "buildChunkMesh",
+        performance.now() - startedAt,
+      );
+      return;
+    }
 
     let meshes: Mesh[];
 
@@ -5007,6 +5079,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         allMeshes: chunk.meshes,
       });
     }
+
+    this.recordRuntimeChunkTiming(
+      "buildChunkMesh",
+      performance.now() - startedAt,
+    );
   }
 
   private setupComponents() {
@@ -5859,6 +5936,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (this.meshPipeline.hasDirtyChunks()) {
       this.scheduleDirtyChunkProcessing();
     }
+
+    this.recordRuntimeChunkTiming(
+      "meshResultApply",
+      performance.now() - startedAt,
+    );
   }
 
   private sortMeshResultApplyQueue(): void {
