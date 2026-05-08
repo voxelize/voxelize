@@ -3,12 +3,12 @@ mod models;
 use std::time::{Duration, Instant};
 
 use actix::{
-    fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage,
-    MessageResult,
+    fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context, ContextFutureSpawner,
+    Handler, Message as ActixMessage, MessageResult, WrapFuture,
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{info, warn};
 use nanoid::nanoid;
@@ -206,6 +206,8 @@ pub struct Server {
 
     /// WebRTC senders for hybrid networking.
     rtc_senders: Option<RtcSenders>,
+
+    ticking_worlds: HashSet<String>,
 }
 
 impl Server {
@@ -300,10 +302,7 @@ impl Server {
             if let Some(world) = self.worlds.get_mut(&json.world) {
                 if let Some((sender, token)) = self.lost_sessions.remove(id) {
                     if sender.is_closed() {
-                        warn!(
-                            "[JOIN] Refusing JOIN for {}: stored sender is closed",
-                            id
-                        );
+                        warn!("[JOIN] Refusing JOIN for {}: stored sender is closed", id);
                         return Some(format!(
                             "Client at {} reconnected; previous session is gone. Please reload.",
                             id
@@ -329,8 +328,7 @@ impl Server {
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
                 if let Some((sender, _, token)) = self.connections.remove(id) {
-                    self.lost_sessions
-                        .insert(id.to_owned(), (sender, token));
+                    self.lost_sessions.insert(id.to_owned(), (sender, token));
 
                     world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
@@ -455,7 +453,7 @@ impl Server {
                     continue;
                 }
 
-                world.do_send(Tick);
+                let _ = world.try_send(Tick);
 
                 let at = (info.preload_progress * 100.0) as u64;
 
@@ -482,7 +480,7 @@ impl Server {
     /// Tick every world on this server.
     pub(crate) fn tick(&mut self) {
         for world in self.worlds.values_mut() {
-            world.do_send(Tick);
+            let _ = world.try_send(Tick);
         }
     }
 
@@ -593,9 +591,22 @@ impl Actor for Server {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         // Set up a recurring task to tick all worlds
-        ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
-            for world in act.worlds.values() {
-                world.do_send(Tick);
+        ctx.run_interval(Duration::from_millis(self.interval), |act, ctx| {
+            for (name, world) in act.worlds.clone() {
+                if !act.ticking_worlds.insert(name.clone()) {
+                    continue;
+                }
+
+                world
+                    .send(Tick)
+                    .into_actor(act)
+                    .map(move |result, act, _| {
+                        act.ticking_worlds.remove(&name);
+                        if let Err(error) = result {
+                            warn!("[SERVER] World tick failed for {}: {}", name, error);
+                        }
+                    })
+                    .spawn(ctx);
             }
         });
     }
@@ -672,10 +683,7 @@ impl Handler<Disconnect> for Server {
                     world.do_send(ClientLeaveRequest { id: msg.id.clone() });
                 }
             } else {
-                info!(
-                    "Ignoring stale disconnect for {} (token mismatch)",
-                    msg.id
-                );
+                info!("Ignoring stale disconnect for {} (token mismatch)", msg.id);
             }
         }
 
@@ -835,6 +843,7 @@ impl ServerBuilder {
             info_handle: default_info_handle,
             action_handles: HashMap::default(),
             rtc_senders: None,
+            ticking_worlds: HashSet::default(),
         }
     }
 }

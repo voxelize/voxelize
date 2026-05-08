@@ -94,7 +94,11 @@ impl ItemRegistry {
     }
 
     pub fn to_client_json(&self) -> Value {
-        let items: Vec<Value> = self.items_by_id.values().map(|def| def.to_client_json()).collect();
+        let items: Vec<Value> = self
+            .items_by_id
+            .values()
+            .map(|def| def.to_client_json())
+            .collect();
         serde_json::json!(items)
     }
 
