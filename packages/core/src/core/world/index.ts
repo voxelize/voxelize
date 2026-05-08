@@ -441,6 +441,8 @@ const DEFAULT_MESH_JOB_START_BUDGET_MS =
   TARGET_FRAME_MS * MESH_JOB_START_FRAME_FRACTION;
 const DEFAULT_MAX_MESH_RESULTS_APPLIED_PER_FRAME = 1;
 const DEFAULT_MESH_RESULT_APPLY_BUDGET_MS = TARGET_FRAME_MS * 0.35;
+const DEFAULT_CHUNK_PROCESS_BUDGET_MS = TARGET_FRAME_MS * 0.25;
+const DEFAULT_MAX_MERGED_CHUNK_MESH_VERTICES = 12_000;
 
 /**
  * Custom shader material for chunks. On the WebGL path this is a `ShaderMaterial`
@@ -471,6 +473,11 @@ export type WorldClientOptions = {
    * By process, it means to be turned into a `Chunk` instance. Defaults to `8` chunks.
    */
   maxProcessesPerUpdate: number;
+
+  /**
+   * Maximum main-thread time spent processing received chunks per world update.
+   */
+  maxChunkProcessBudgetMs: number;
 
   /**
    * The maximum voxel updates that can be sent to the server per world update. Defaults to `1000` updates.
@@ -595,6 +602,11 @@ export type WorldClientOptions = {
   mergeChunkGeometries: boolean;
 
   /**
+   * Maximum vertices per merged chunk mesh. Smaller batches smooth runtime reveal.
+   */
+  maxMergedChunkMeshVertices: number;
+
+  /**
    * Whether shader-based lighting is enabled for this world.
    * When enabled, lighting uses GPU shaders with cascaded shadow maps.
    * CPU light propagation still runs to provide sunlight exposure data.
@@ -616,6 +628,7 @@ const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 12,
   requestChunksInViewDirection: true,
   maxProcessesPerUpdate: 4,
+  maxChunkProcessBudgetMs: DEFAULT_CHUNK_PROCESS_BUDGET_MS,
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: DEFAULT_MAX_MESHES_PER_UPDATE,
@@ -643,6 +656,7 @@ const defaultOptions: WorldClientOptions = {
   lightJobRetryLimit: 3,
   deltaRetentionTime: 5000,
   mergeChunkGeometries: false,
+  maxMergedChunkMeshVertices: DEFAULT_MAX_MERGED_CHUNK_MESH_VERTICES,
   shaderBasedLighting: false,
   plantRenderRatio: 0.5,
 };
@@ -4108,7 +4122,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       subChunks,
       maxLightLevel,
       clientOnlyMeshing,
+      maxChunkProcessBudgetMs,
     } = this.options;
+    const processBudgetMs = Math.max(0, maxChunkProcessBudgetMs);
 
     const triggerInitListener = (chunk: Chunk) => {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
@@ -4121,7 +4137,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const toProcess = toProcessArray.slice(0, maxProcessesPerUpdate);
 
-    toProcess.forEach((item) => {
+    for (let i = 0; i < toProcess.length; i += 1) {
+      const item = toProcess[i];
       const { x, z, id } = item.data;
 
       let chunk = this.getChunkByCoords(x, z);
@@ -4165,7 +4182,13 @@ export class World<T = any> extends Scene implements NetIntercept {
           disposer();
         });
       }
-    });
+      if (
+        performance.now() - startedAt >= processBudgetMs &&
+        i < toProcess.length - 1
+      ) {
+        break;
+      }
+    }
 
     this.recordRuntimeChunkTiming(
       "processChunks",
@@ -4794,8 +4817,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!chunk) return;
     const startedAt = performance.now();
 
-    const { maxHeight, subChunks, chunkSize, mergeChunkGeometries } =
-      this.options;
+    const {
+      maxHeight,
+      subChunks,
+      chunkSize,
+      mergeChunkGeometries,
+      maxMergedChunkMeshVertices,
+    } = this.options;
     const { level, geometries } = data;
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
@@ -4881,8 +4909,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       meshes = [];
-      for (const [materialKey, geoMats] of materialToGeometries) {
-        if (geoMats.length === 0) continue;
+      const createMergedMesh = (
+        materialKey: string,
+        geoMats: {
+          geometry: BufferGeometry;
+          material: CustomChunkShaderMaterial;
+          voxel: number;
+        }[],
+      ): Mesh | null => {
+        if (geoMats.length === 0) return null;
 
         const material = geoMats[0].material;
         const voxel = geoMats[0].voxel;
@@ -4903,7 +4938,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             for (let i = 0; i < geos.length; i++) {
               geos[i].dispose();
             }
-            continue;
+            return null;
           }
           for (let i = 0; i < geos.length; i++) {
             geos[i].dispose();
@@ -4948,8 +4983,38 @@ export class World<T = any> extends Scene implements NetIntercept {
           this.csmRenderer?.addSkipShadowObject(mesh);
         }
 
-        chunk.group.add(mesh);
-        meshes.push(mesh);
+        return mesh;
+      };
+
+      for (const [materialKey, geoMats] of materialToGeometries) {
+        if (geoMats.length === 0) continue;
+
+        let batch: typeof geoMats = [];
+        let batchVertexCount = 0;
+        const flushBatch = () => {
+          const mesh = createMergedMesh(materialKey, batch);
+          if (mesh) {
+            chunk.group.add(mesh);
+            meshes.push(mesh);
+          }
+          batch = [];
+          batchVertexCount = 0;
+        };
+
+        for (const geoMat of geoMats) {
+          const vertexCount =
+            geoMat.geometry.getAttribute("position")?.count ?? 0;
+          if (
+            batch.length > 0 &&
+            batchVertexCount + vertexCount > maxMergedChunkMeshVertices
+          ) {
+            flushBatch();
+          }
+          batch.push(geoMat);
+          batchVertexCount += vertexCount;
+        }
+
+        flushBatch();
       }
     } else {
       meshes = [];
