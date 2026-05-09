@@ -3,6 +3,7 @@ import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 import { World } from "../../core";
 import { ChunkUtils, ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
+import { Shadow } from "../shadows";
 
 import { attachLightTintNodes, isNodeMaterial } from "./light-tint-node";
 
@@ -28,7 +29,7 @@ const defaultOptions: LightShinedOptions = {
 /**
  * A class that allows mesh to dynamically change brightness based on the voxel light level at their position.
  *
- * By default, `VOXELIZE.NameTag` is ignored by this effect.
+ * By default, `VOXELIZE.Shadow` and `VOXELIZE.NameTag` is ignored by this effect.
  *
  * # Example
  * ```ts
@@ -76,6 +77,7 @@ export class LightShined {
   ) {
     this.options = { ...defaultOptions, ...options };
 
+    this.ignore(Shadow);
     this.ignore(NameTag);
   }
 
@@ -263,8 +265,7 @@ export class LightShined {
       if (override) {
         position.copy(override);
       } else {
-        obj.updateWorldMatrix(true, false);
-        position.setFromMatrixPosition(obj.matrixWorld);
+        obj.getWorldPosition(position);
       }
 
       if (this.world.usesShaderLighting) {

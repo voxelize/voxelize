@@ -100,19 +100,23 @@ function raycast(
   let txMax = txDelta < Infinity ? txDelta * xDist : Infinity;
   let tyMax = tyDelta < Infinity ? tyDelta * yDist : Infinity;
   let tzMax = tzDelta < Infinity ? tzDelta * zDist : Infinity;
-  const normal = [dx, dy, dz];
 
   while (t <= maxDistance) {
     // exit check
     const aabbs = getVoxel(ix, iy, iz) || [];
 
-    let hit: { axis: number; distance: number } | null = null;
-    for (const aabb of aabbs) {
-      const result = raycastAABB(origin, normal, aabb, maxDistance);
+    let hit: any;
+    aabbs.forEach((aabb) => {
+      const result = raycastAABB(
+        origin,
+        [dx, dy, dz],
+        aabb.clone(),
+        maxDistance,
+      );
       if (result) {
         hit = result;
       }
-    }
+    });
 
     if (hit) {
       return {

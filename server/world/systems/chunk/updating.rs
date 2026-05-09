@@ -88,12 +88,15 @@ fn try_link_chest(
             Some(j) => j.0.clone(),
             None => continue,
         };
-        let neighbor_parsed: serde_json::Value = match serde_json::from_str(&neighbor_json_str) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
+        let neighbor_parsed: serde_json::Value =
+            match serde_json::from_str(&neighbor_json_str) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
 
-        if neighbor_parsed.get("partner").is_some() && !neighbor_parsed["partner"].is_null() {
+        if neighbor_parsed.get("partner").is_some()
+            && !neighbor_parsed["partner"].is_null()
+        {
             continue;
         }
 
@@ -110,8 +113,8 @@ fn try_link_chest(
             }
         }
 
-        let mut new_json: serde_json::Value =
-            serde_json::from_str(default_json).unwrap_or_else(|_| serde_json::json!({}));
+        let mut new_json: serde_json::Value = serde_json::from_str(default_json)
+            .unwrap_or_else(|_| serde_json::json!({}));
         new_json["partner"] = serde_json::json!([nx, ny, nz]);
         new_json["yRotation"] = serde_json::json!(y_rot);
 
@@ -128,8 +131,8 @@ fn try_link_chest(
             serde_json::json!([voxel.0, voxel.1, voxel.2]),
         );
         neighbor_obj.insert("yRotation".to_string(), serde_json::json!(y_rot));
-        let neighbor_new_str =
-            serde_json::to_string(&neighbor_obj).unwrap_or_else(|_| neighbor_json_str.clone());
+        let neighbor_new_str = serde_json::to_string(&neighbor_obj)
+            .unwrap_or_else(|_| neighbor_json_str.clone());
         if let Some(j) = json_storage.get_mut(neighbor_entity) {
             j.0 = neighbor_new_str;
         }
@@ -137,8 +140,8 @@ fn try_link_chest(
         return;
     }
 
-    let mut new_json: serde_json::Value =
-        serde_json::from_str(default_json).unwrap_or_else(|_| serde_json::json!({}));
+    let mut new_json: serde_json::Value = serde_json::from_str(default_json)
+        .unwrap_or_else(|_| serde_json::json!({}));
     new_json["yRotation"] = serde_json::json!(y_rot);
     let new_json_str =
         serde_json::to_string(&new_json).unwrap_or_else(|_| default_json.to_string());
@@ -188,8 +191,8 @@ fn try_unlink_partner(
     let mut partner_obj: serde_json::Map<String, serde_json::Value> =
         serde_json::from_str(&partner_json_str).unwrap_or_default();
     partner_obj.insert("partner".to_string(), serde_json::Value::Null);
-    let partner_new_str =
-        serde_json::to_string(&partner_obj).unwrap_or_else(|_| partner_json_str.clone());
+    let partner_new_str = serde_json::to_string(&partner_obj)
+        .unwrap_or_else(|_| partner_json_str.clone());
     if let Some(j) = json_storage.get_mut(partner_entity) {
         j.0 = partner_new_str;
     }

@@ -1,11 +1,8 @@
-import fs from "node:fs";
-
-import puppeteer, { Browser, KeyInput, Page } from "puppeteer";
+import puppeteer, { Browser, Page } from "puppeteer";
 
 import type {
   AgentEventMap,
   AgentEventName,
-  AgentInputNamespace,
   BlockInfo,
   ChatMsgIn,
   ChunkCoord,
@@ -35,33 +32,12 @@ export type AgentLaunchOptions = {
   world: string;
   name?: string;
   isHeadless?: boolean;
-  isExperimentalWebGpuEnabled?: boolean;
-  browserExecutablePath?: string;
   port?: number;
   agentSecret?: string;
   waitReadyTimeoutMs?: number;
 };
 
 const DIAGNOSTICS_BUFFER_LIMIT = 500;
-const MAC_CHROME_CANARY_PATH =
-  "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary";
-const MAC_CHROME_PATH =
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-
-function resolveBrowserExecutablePath(
-  requestedPath: string | undefined,
-  isExperimentalWebGpuEnabled: boolean,
-): string | undefined {
-  if (requestedPath) return requestedPath;
-  const envPath = process.env.AGENT_CHROME_PATH;
-  if (envPath) return envPath;
-  if (!isExperimentalWebGpuEnabled || process.platform !== "darwin") {
-    return undefined;
-  }
-  if (fs.existsSync(MAC_CHROME_CANARY_PATH)) return MAC_CHROME_CANARY_PATH;
-  if (fs.existsSync(MAC_CHROME_PATH)) return MAC_CHROME_PATH;
-  return undefined;
-}
 
 export class Agent {
   private browser: Browser;
@@ -89,37 +65,20 @@ export class Agent {
       world,
       name = "agent",
       isHeadless = true,
-      isExperimentalWebGpuEnabled = false,
-      browserExecutablePath,
       waitReadyTimeoutMs = 60_000,
     } = options;
-    const executablePath = resolveBrowserExecutablePath(
-      browserExecutablePath,
-      isExperimentalWebGpuEnabled,
-    );
-    const args = [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--enable-webgl",
-      "--ignore-gpu-blocklist",
-    ];
-
-    if (isExperimentalWebGpuEnabled) {
-      args.push(
-        "--enable-gpu",
-        "--enable-unsafe-webgpu",
-        "--enable-webgpu-developer-features",
-        "--disable-gpu-sandbox",
-      );
-    } else {
-      args.push("--use-gl=swiftshader", "--enable-unsafe-swiftshader");
-    }
 
     const browser = await puppeteer.launch({
       headless: isHeadless,
-      executablePath,
-      args,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--enable-webgl",
+        "--use-gl=swiftshader",
+        "--enable-unsafe-swiftshader",
+        "--ignore-gpu-blocklist",
+      ],
       defaultViewport: { width: 1280, height: 720 },
     });
 
@@ -276,22 +235,6 @@ export class Agent {
       method,
       payload,
     );
-  }
-
-  async setInputNamespace(namespace: AgentInputNamespace): Promise<void> {
-    await this.page.evaluate((ns) => {
-      const agent = window.__agent__;
-      if (!agent) throw new Error("Agent bridge is not ready");
-      agent.setInputNamespace(ns);
-    }, namespace);
-  }
-
-  async pressKey(key: string): Promise<void> {
-    await this.page.keyboard.press(key as KeyInput);
-  }
-
-  async typeText(text: string): Promise<void> {
-    await this.page.keyboard.type(text);
   }
 
   async position(): Promise<Vec3> {

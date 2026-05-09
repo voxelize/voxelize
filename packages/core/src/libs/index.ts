@@ -15,6 +15,7 @@ export * from "./perspective";
 export * from "./portrait";
 export * from "./requestWorkerAnimationFrame";
 export * from "./setWorkerInterval";
+export * from "./shadows";
 export * from "./sprite-text";
 export * from "./voxel-interact";
 export * from "./worker-pool";

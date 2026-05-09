@@ -252,7 +252,8 @@ pub fn sweep(
     }
 
     // More to go
-    if leftover[0] * leftover[0] + leftover[1] * leftover[1] + leftover[2] * leftover[2] != 0.0 {
+    if leftover[0] * leftover[0] + leftover[1] * leftover[1] + leftover[2] * leftover[2] != 0.0
+    {
         sweep(
             space,
             registry,

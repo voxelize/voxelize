@@ -130,22 +130,6 @@ export const BOX_SIDES: BoxSides[] = [
   "right",
 ];
 
-const resolveCanvasBoxOptions = (
-  options: Partial<CanvasBoxOptions>,
-): CanvasBoxOptions => ({
-  gap: options.gap ?? defaultOptions.gap,
-  layers: options.layers ?? defaultOptions.layers,
-  width: options.width ?? defaultOptions.width,
-  height: options.height,
-  depth: options.depth,
-  widthSegments: options.widthSegments ?? defaultOptions.widthSegments,
-  heightSegments: options.heightSegments,
-  depthSegments: options.depthSegments,
-  side: options.side ?? defaultOptions.side,
-  transparent: options.transparent ?? defaultOptions.transparent,
-  receiveShadows: options.receiveShadows ?? defaultOptions.receiveShadows,
-});
-
 /**
  * A layer of a canvas box. This is a group of six canvases that are rendered as a single mesh.
  *
@@ -317,6 +301,7 @@ export class BoxLayer extends Mesh {
         }
       }
 
+      material.needsUpdate = true;
       material.map.needsUpdate = true;
     }
   };
@@ -447,7 +432,10 @@ export class CanvasBox extends Group {
   constructor(options: Partial<CanvasBoxOptions> = {}) {
     super();
 
-    this.options = resolveCanvasBoxOptions(options);
+    this.options = {
+      ...defaultOptions,
+      ...options,
+    };
 
     if (this.options.receiveShadows) {
       this.userData.receiveShadows = true;

@@ -15,15 +15,6 @@ export type RawChunkOptions = {
   subChunks: number;
 };
 
-export type SerializedRawChunk = {
-  id: string;
-  x: number;
-  z: number;
-  voxels: ArrayBuffer;
-  lights: ArrayBuffer;
-  options: RawChunkOptions;
-};
-
 export class RawChunk {
   public options: RawChunkOptions;
 
@@ -50,8 +41,8 @@ export class RawChunk {
 
     const { size, maxHeight } = options;
 
-    this.voxels = ndarray(new Uint32Array(0), [size, maxHeight, size]);
-    this.lights = ndarray(new Uint32Array(0), [size, maxHeight, size]);
+    this.voxels = ndarray([] as any, [size, maxHeight, size]);
+    this.lights = ndarray([] as any, [size, maxHeight, size]);
 
     const [x, z] = coords;
 
@@ -59,24 +50,24 @@ export class RawChunk {
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
   }
 
-  serialize(): [SerializedRawChunk, ArrayBuffer[]] {
-    const voxels = new Uint32Array(this.voxels.data);
-    const lights = new Uint32Array(this.lights.data);
-
+  serialize(): [object, ArrayBuffer[]] {
     return [
       {
         id: this.id,
         x: this.coords[0],
         z: this.coords[1],
-        voxels: voxels.buffer,
-        lights: lights.buffer,
+        voxels: this.voxels.data.buffer,
+        lights: this.lights.data.buffer,
         options: this.options,
       },
-      [voxels.buffer, lights.buffer],
+      [
+        this.voxels.data.buffer.slice(0) as ArrayBuffer,
+        this.lights.data.buffer.slice(0) as ArrayBuffer,
+      ],
     ];
   }
 
-  static deserialize(data: SerializedRawChunk): RawChunk {
+  static deserialize(data: any): RawChunk {
     const { id, x, z, voxels, lights, options } = data;
 
     const chunk = new RawChunk(id, [x, z], options);

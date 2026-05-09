@@ -62,7 +62,7 @@ export type Snapshot = {
 
 export type RendererKind = "webgl" | "webgpu";
 
-export type CsmKind = "webgpu-csm" | "shader" | "none";
+export type CsmKind = "depth" | "shader" | "none";
 
 export type CsmStatus = {
   kind: CsmKind;
@@ -70,61 +70,15 @@ export type CsmStatus = {
   renderCount: number;
   shadowStrength: number;
   shadowBias: number;
-  // Sum of |shadowMatrix[i]| for i in 0..15. A non-trivial value proves the
-  // WebGPU CSM camera matrix has been initialised by `update()`.
+  // Sum of |shadowMatrix[i]| for i in 0..15. A non-trivial (non-zero) value
+  // proves the depth pass camera matrix has been initialised by `update()`.
   shadowMatrixMagnitude: number;
 };
 
 export type RendererStatus = {
   kind: RendererKind;
   frameCount: number;
-  frameTiming: FrameTimingStatus;
   csm: CsmStatus;
-  runtimeChunks?: RuntimeChunkTimingStatus;
-  renderPhases?: RenderPhaseTimingStatus;
-};
-
-export type RenderPhaseTimingStatus = {
-  updateLastMs: number;
-  updateMaxMs: number;
-  prewarmRevealLastMs: number;
-  prewarmRevealMaxMs: number;
-  shadowLastMs: number;
-  shadowMaxMs: number;
-  postFxPrepareLastMs: number;
-  postFxPrepareMaxMs: number;
-  sceneRenderLastMs: number;
-  sceneRenderMaxMs: number;
-  armOverlayLastMs: number;
-  armOverlayMaxMs: number;
-};
-
-export type RuntimeChunkTimingStatus = {
-  processChunksLastMs: number;
-  processChunksMaxMs: number;
-  meshResultApplyLastMs: number;
-  meshResultApplyMaxMs: number;
-  buildChunkMeshLastMs: number;
-  buildChunkMeshMaxMs: number;
-};
-
-export type FrameTimingStatus = {
-  observedFrameCount: number;
-  lastCallbackMs: number;
-  lastRafGapMs: number;
-  maxCallbackMs: number;
-  maxRafGapMs: number;
-  over50Ms: number;
-  over100Ms: number;
-  over250Ms: number;
-  longFrames: FrameTimingLongFrame[];
-};
-
-export type FrameTimingLongFrame = {
-  frame: number;
-  atMs: number;
-  callbackMs: number;
-  rafGapMs: number;
 };
 
 export type WorldStats = {
@@ -212,8 +166,6 @@ export type ParticleEffectSpec = {
   options?: ParticleEffectOptions;
 };
 
-export type AgentInputNamespace = "menu" | "in-game" | "chat" | "inventory";
-
 export type AgentEventMap = {
   chat: ChatMsgIn;
   "chunk-loaded": ChunkCoord;
@@ -258,7 +210,6 @@ export interface AgentBridge {
   setFlying(isFlying: boolean): Promise<void>;
   triggerParticles(spec: ParticleEffectSpec): Promise<void>;
   call(method: string, payload: unknown): Promise<unknown>;
-  setInputNamespace(namespace: AgentInputNamespace): void;
 
   position(): Vec3;
   facing(): YawPitch;

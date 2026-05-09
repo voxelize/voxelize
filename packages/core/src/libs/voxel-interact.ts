@@ -5,10 +5,10 @@ import {
   Color,
   Group,
   Mesh,
+  MeshBasicMaterial,
   Object3D,
   Vector3,
 } from "three";
-import { MeshBasicNodeMaterial } from "three/webgpu";
 
 import { World } from "../core/world";
 import {
@@ -216,18 +216,6 @@ export class VoxelInteract extends Group {
    */
   private newTargetPosition = new Vector3();
 
-  private objectPosition = new Vector3();
-
-  private objectDirection = new Vector3();
-
-  private raycastOrigin: Coords3 = [0, 0, 0];
-
-  private raycastDirection: Coords3 = [0, 0, 0];
-
-  private potentialArrowDirection = new Vector3();
-
-  private yRotationArrowDirection = new Vector3();
-
   private targetGroup = new Group();
 
   private potentialGroup = new Group();
@@ -314,8 +302,8 @@ export class VoxelInteract extends Group {
       this.options.highlightLerp,
     );
 
-    const objPos = this.objectPosition;
-    const objDir = this.objectDirection;
+    const objPos = new Vector3();
+    const objDir = new Vector3();
     this.object.getWorldPosition(objPos);
     this.object.getWorldDirection(objDir);
     objDir.normalize();
@@ -324,18 +312,9 @@ export class VoxelInteract extends Group {
       objDir.multiplyScalar(-1);
     }
 
-    const raycastOrigin = this.raycastOrigin;
-    const raycastDirection = this.raycastDirection;
-    raycastOrigin[0] = objPos.x;
-    raycastOrigin[1] = objPos.y;
-    raycastOrigin[2] = objPos.z;
-    raycastDirection[0] = objDir.x;
-    raycastDirection[1] = objDir.y;
-    raycastDirection[2] = objDir.z;
-
     const result = this.world.raycastVoxels(
-      raycastOrigin,
-      raycastDirection,
+      objPos.toArray(),
+      objDir.toArray(),
       reachDistance,
       {
         ignoreFluids: this.options.ignoreFluids,
@@ -448,10 +427,13 @@ export class VoxelInteract extends Group {
 
     const calculateYRotation = (segmentCount: 4 | 8 | 16) => {
       if (Math.abs(ny) !== 0) {
-        const { x: vx, z: vz } = objPos;
+        const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
 
-        const tx = targetVoxel[0] + 0.5;
-        const tz = targetVoxel[2] + 0.5;
+        const [tx, ty, tz] = [
+          targetVoxel[0] + 0.5,
+          targetVoxel[1] + 0.5,
+          targetVoxel[2] + 0.5,
+        ];
 
         let angle =
           ny > 0 ? Math.atan2(vx - tx, vz - tz) : Math.atan2(vz - tz, vx - tx);
@@ -481,16 +463,17 @@ export class VoxelInteract extends Group {
           ny < 0 ? Math.cos(closestA - Math.PI / 2) : Math.sin(closestA);
         const z =
           ny < 0 ? Math.sin(closestA - Math.PI / 2) : Math.cos(closestA);
-        this.yRotArrow.setDirection(
-          this.yRotationArrowDirection.set(x, 0, z).normalize(),
-        );
+        this.yRotArrow.setDirection(new Vector3(x, 0, z).normalize());
         return closest;
       }
 
-      const { x: vx, z: vz } = objPos;
+      const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
 
-      const tx = targetVoxel[0] + 0.5;
-      const tz = targetVoxel[2] + 0.5;
+      const [tx, ty, tz] = [
+        targetVoxel[0] + 0.5,
+        targetVoxel[1] + 0.5,
+        targetVoxel[2] + 0.5,
+      ];
 
       // use same case as ny > 0
       const angle = Math.atan2(vx - tx, vz - tz);
@@ -623,9 +606,7 @@ export class VoxelInteract extends Group {
         this.potential.voxel[1] + 0.5,
         this.potential.voxel[2] + 0.5,
       );
-      this.potentialArrow.setDirection(
-        this.potentialArrowDirection.set(nx, ny, nz),
-      );
+      this.potentialArrow.setDirection(new Vector3(nx, ny, nz));
     }
   };
 
@@ -651,7 +632,7 @@ export class VoxelInteract extends Group {
     const { highlightType, highlightScale, highlightColor, highlightOpacity } =
       this.options;
 
-    const mat = new MeshBasicNodeMaterial({
+    const mat = new MeshBasicMaterial({
       color: new Color(highlightColor),
       opacity: highlightOpacity,
       transparent: true,

@@ -2,7 +2,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { Agent } from "./agent";
-import type { AgentEventMap, AgentInputNamespace } from "./bridge";
+import type { AgentEventMap } from "./bridge";
 
 export type DaemonEvent = {
   id: number;
@@ -30,7 +30,6 @@ const faceInputSchema = z.union([
 ]);
 
 const walkDirectionSchema = z.enum(["forward", "back", "left", "right"]);
-const inputNamespaceSchema = z.enum(["menu", "in-game", "chat", "inventory"]);
 
 const actSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("chat"), text: z.string() }),
@@ -79,12 +78,6 @@ const actSchema = z.discriminatedUnion("type", [
     method: z.string(),
     payload: z.unknown(),
   }),
-  z.object({
-    type: z.literal("set-input-namespace"),
-    namespace: inputNamespaceSchema,
-  }),
-  z.object({ type: z.literal("key"), key: z.string().min(1) }),
-  z.object({ type: z.literal("type-text"), text: z.string() }),
   z.object({ type: z.literal("wait"), ms: z.number() }),
   z.object({
     type: z.literal("wait-for-chunks"),
@@ -294,17 +287,6 @@ export class AgentDaemon {
         return { triggered: true };
       case "call":
         return this.agent.call(action.method, action.payload);
-      case "set-input-namespace":
-        await this.agent.setInputNamespace(
-          action.namespace as AgentInputNamespace,
-        );
-        return { namespace: action.namespace };
-      case "key":
-        await this.agent.pressKey(action.key);
-        return { key: action.key };
-      case "type-text":
-        await this.agent.typeText(action.text);
-        return { typed: action.text.length };
       case "wait":
         await new Promise((r) => setTimeout(r, action.ms));
         return { waited: action.ms };

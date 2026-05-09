@@ -58,6 +58,8 @@ custom_edit_url: null
 - [Perspective](classes/Perspective.md)
 - [Portrait](classes/Portrait.md)
 - [Registry](classes/Registry.md)
+- [Shadow](classes/Shadow.md)
+- [Shadows](classes/Shadows.md)
 - [Sky](classes/Sky.md)
 - [SpriteText](classes/SpriteText.md)
 - [ThreeUtils](classes/ThreeUtils.md)
@@ -1216,6 +1218,21 @@ Parameters to initialize the Voxelize Controls.
 | `standingFriction` | `number`                        | Default standing friction of a client. Defaults to `4`.                                                    |
 | `stepHeight`       | `number`                        | How tall a client can step up. Defaults to `0.5`.                                                          |
 | `stepLerp`         | `number`                        | The interpolation factor when the client is auto-stepping. Defaults to `0.6`.                              |
+
+---
+
+### ShadowOptions
+
+Ƭ **ShadowOptions**: `Object`
+
+Parameters to create a shadow.
+
+#### Type declaration
+
+| Name          | Type     | Description                                                                                                                               |
+| :------------ | :------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxDistance` | `number` | The maximum distance from the object to the ground to cast a shadow. The shadow's scale scales inversely with distance. Defaults to `10`. |
+| `maxRadius`   | `number` | The maximum radius the shadow can have. That is, the radius of the shadow when the object is on the ground. Defaults to `0.5`.            |
 
 ---
 

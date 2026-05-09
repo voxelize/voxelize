@@ -1,7 +1,5 @@
 import { ShaderLib } from "three";
 
-import type { ChunkMaterialSwayOptions } from "./chunk-material";
-
 const SIMPLEX_NOISE_GLSL = `
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
 vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
@@ -286,27 +284,39 @@ outgoingLight *= aoFactor;
 };
 
 export const customShaders = {
-  sway(options: Partial<ChunkMaterialSwayOptions> = {}) {
+  sway(
+    options: Partial<{
+      speed: number;
+      amplitude: number;
+      scale: number;
+      rooted: boolean;
+      yScale: number;
+    }> = {},
+  ) {
     return createSwayShader(DEFAULT_CHUNK_SHADERS, options);
   },
 
-  swayNode(options: Partial<ChunkMaterialSwayOptions> = {}) {
-    const { speed, amplitude, rooted, scale, yScale } = {
-      speed: 1,
-      amplitude: 0.1,
-      rooted: false,
-      scale: 1,
-      yScale: 1,
-      ...options,
-    };
-    return { swayOptions: { speed, amplitude, scale, rooted, yScale } };
-  },
-
-  swayShaderBased(options: Partial<ChunkMaterialSwayOptions> = {}) {
+  swayShaderBased(
+    options: Partial<{
+      speed: number;
+      amplitude: number;
+      scale: number;
+      rooted: boolean;
+      yScale: number;
+    }> = {},
+  ) {
     return createSwayShader(SHADER_LIGHTING_CHUNK_SHADERS, options);
   },
 
-  swayCrossShaderBased(options: Partial<ChunkMaterialSwayOptions> = {}) {
+  swayCrossShaderBased(
+    options: Partial<{
+      speed: number;
+      amplitude: number;
+      scale: number;
+      rooted: boolean;
+      yScale: number;
+    }> = {},
+  ) {
     return createSwayShader(SHADER_LIGHTING_CROSS_CHUNK_SHADERS, options);
   },
 };
@@ -888,7 +898,13 @@ vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`,
 
 export function createSwayShader(
   baseShaders: { vertex: string; fragment: string },
-  options: Partial<ChunkMaterialSwayOptions> = {},
+  options: Partial<{
+    speed: number;
+    amplitude: number;
+    scale: number;
+    rooted: boolean;
+    yScale: number;
+  }> = {},
 ) {
   const { speed, amplitude, rooted, scale, yScale } = {
     speed: 1,

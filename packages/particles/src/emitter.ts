@@ -1,5 +1,11 @@
-import { Color, Material, Mesh, Object3D, Sprite, Vector3 } from "three";
-import { SpriteNodeMaterial } from "three/webgpu";
+import {
+  Material,
+  Mesh,
+  Object3D,
+  Sprite,
+  SpriteMaterial,
+  Vector3,
+} from "three";
 
 import type { Behavior } from "./behavior";
 import { SpanLike, toSpan } from "./math";
@@ -164,7 +170,7 @@ export class Emitter {
   }
 
   private createDefaultSprite(): Sprite {
-    const material = new SpriteNodeMaterial({
+    const material = new SpriteMaterial({
       map: getDefaultSpriteTexture(),
       transparent: true,
       depthWrite: false,
@@ -172,9 +178,6 @@ export class Emitter {
     return new Sprite(material);
   }
 }
-
-const baseParticleColors = new WeakMap<Material, Color>();
-const baseParticleOpacities = new WeakMap<Material, number>();
 
 function applyColorAndAlpha(object: Object3D, particle: Particle): void {
   if (object instanceof Sprite) {
@@ -189,40 +192,21 @@ function applyColorAndAlpha(object: Object3D, particle: Particle): void {
 }
 
 interface TintableMaterial extends Material {
-  color: Color;
+  color: { copy: (c: { r: number; g: number; b: number }) => unknown };
   opacity: number;
 }
 
 function isTintable(material: Material): material is TintableMaterial {
-  const tintable = material as Partial<TintableMaterial>;
   return (
-    tintable.color instanceof Color && typeof tintable.opacity === "number"
+    "color" in material &&
+    typeof (material as { opacity?: unknown }).opacity === "number"
   );
 }
 
 function tintMaterial(material: Material, particle: Particle): void {
   if (!isTintable(material)) return;
-  const baseColor = getBaseParticleColor(material);
-  material.color.copy(baseColor).multiply(particle.color);
-  material.opacity = getBaseParticleOpacity(material) * particle.alpha;
-}
-
-function getBaseParticleColor(material: TintableMaterial): Color {
-  let color = baseParticleColors.get(material);
-  if (!color) {
-    color = material.color.clone();
-    baseParticleColors.set(material, color);
-  }
-  return color;
-}
-
-function getBaseParticleOpacity(material: TintableMaterial): number {
-  let opacity = baseParticleOpacities.get(material);
-  if (opacity === undefined) {
-    opacity = material.opacity;
-    baseParticleOpacities.set(material, opacity);
-  }
-  return opacity;
+  material.color.copy(particle.color);
+  material.opacity = particle.alpha;
 }
 
 function forEachMaterial(

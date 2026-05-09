@@ -8,7 +8,7 @@ custom_edit_url: null
 
 A class that allows mesh to dynamically change brightness based on the voxel light level at their position.
 
-By default, `VOXELIZE.NameTag` is ignored by this effect.
+By default, `VOXELIZE.Shadow` and `VOXELIZE.NameTag` is ignored by this effect.
 
 # Example
 ```ts
@@ -110,6 +110,13 @@ Ignore a certain type of object from being affected by this effect.
 #### Returns
 
 `void`
+
+**`Example`**
+
+```ts
+// Ignore all shadows. (This is done by default)
+lightShined.ignore(VOXELIZE.Shadow);
+```
 
 ___
 

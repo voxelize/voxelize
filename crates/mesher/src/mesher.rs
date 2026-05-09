@@ -835,6 +835,13 @@ fn plant_position_jitter(vx: i32, vy: i32, vz: i32) -> (f32, f32) {
     (ox, oz)
 }
 
+fn has_cardinal_faces(block: &Block) -> bool {
+    block.faces.iter().any(|f| {
+        let d = f.dir;
+        (d[0].abs() + d[1].abs() + d[2].abs()) == 1
+    })
+}
+
 fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
     !block.is_fluid
         && !block.rotatable
@@ -842,7 +849,7 @@ fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
         && block.dynamic_patterns.is_none()
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
         && block.is_full_cube()
-        && !has_diagonal_faces(block)
+        && !(has_diagonal_faces(block) && has_cardinal_faces(block))
 }
 
 fn should_render_face<S: VoxelAccess>(
@@ -1647,11 +1654,10 @@ fn process_face<S: VoxelAccess>(
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
-    let hash_offset = if has_diagonals {
-        let (offset, _) = diagonal_face_offsets(vx, vy, vz);
-        offset
+    let (hash_ox, hash_oz) = if has_diagonals {
+        diagonal_face_offsets(vx, vy, vz)
     } else {
-        0.0
+        (0.0, 0.0)
     };
     let (diag_x_offset, diag_z_offset) = if is_diagonal && block.is_plant {
         plant_position_jitter(vx, vy, vz)
@@ -1661,7 +1667,7 @@ fn process_face<S: VoxelAccess>(
     let face_inset = if is_opaque {
         0.0
     } else if has_diagonals && !is_diagonal {
-        0.0001 + hash_offset
+        0.0001 + hash_ox
     } else {
         0.0001
     };

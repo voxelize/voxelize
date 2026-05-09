@@ -2,10 +2,15 @@ import merge from "deepmerge";
 import {
   AmbientLight,
   DirectionalLight,
+  Mesh,
+  MeshBasicMaterial,
+  NearestFilter,
   Object3D,
   OrthographicCamera,
+  PlaneGeometry,
   Scene,
   SRGBColorSpace,
+  Texture,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -43,7 +48,6 @@ export type ItemSlotsOptions = {
   zoom: number;
   perspective: CameraPerspective;
   scrollable?: boolean;
-  shouldRenderContinuously: boolean;
 };
 
 const defaultOptions: ItemSlotsOptions = {
@@ -72,7 +76,6 @@ const defaultOptions: ItemSlotsOptions = {
   zoom: 1,
   perspective: "pxyz",
   scrollable: true,
-  shouldRenderContinuously: false,
 };
 
 export class ItemSlot<T = number> {
@@ -85,8 +88,6 @@ export class ItemSlot<T = number> {
   public scene: Scene;
 
   public object: Object3D;
-
-  private imageElement?: HTMLImageElement;
 
   public light: DirectionalLight;
 
@@ -164,11 +165,6 @@ export class ItemSlot<T = number> {
   getObject = () => this.object;
 
   setObject = (object: Object3D | HTMLImageElement | undefined) => {
-    if (this.imageElement) {
-      this.imageElement.remove();
-      this.imageElement = undefined;
-    }
-
     if (this.object) {
       this.scene.remove(this.object);
     }
@@ -183,27 +179,21 @@ export class ItemSlot<T = number> {
       this.setPerspective(this.itemSlots.options.perspective);
       this.scene.add(object);
     } else {
-      if (!object.complete || object.naturalWidth === 0) {
-        object.onload = () => {
-          this.setObject(object);
-        };
-        this.object = undefined;
-        this.triggerChange();
-        return;
-      }
-      DOMUtils.applyStyles(object, {
-        position: "absolute",
-        inset: "2px",
-        width: "calc(100% - 4px)",
-        height: "calc(100% - 4px)",
-        objectFit: "contain",
-        imageRendering: "pixelated",
-        pointerEvents: "none",
-        zIndex: "1",
+      const geometry = new PlaneGeometry(2, 2);
+      const texture = new Texture(object);
+      texture.needsUpdate = true;
+      texture.colorSpace = SRGBColorSpace;
+      texture.minFilter = NearestFilter;
+      texture.magFilter = NearestFilter;
+      const material = new MeshBasicMaterial({
+        map: texture,
+        transparent: true,
       });
-      this.imageElement = object;
-      this.element.appendChild(object);
-      this.object = undefined;
+      material.needsUpdate = true;
+      const plane = new Mesh(geometry, material);
+      this.object = plane;
+      this.setPerspective("pz");
+      this.scene.add(plane);
     }
 
     this.triggerChange();
@@ -236,7 +226,6 @@ export class ItemSlot<T = number> {
   };
 
   triggerChange = () => {
-    this.itemSlots.requestRender();
     if (
       this.row == this.itemSlots.focusedRow &&
       this.col == this.itemSlots.focusedCol
@@ -361,7 +350,6 @@ export class ItemSlots<T = number> {
   ) => void)[] = [];
 
   private animationFrame = -1;
-  private isRenderDirty = true;
 
   constructor(options: Partial<ItemSlotsOptions> = {}) {
     const {
@@ -390,7 +378,6 @@ export class ItemSlots<T = number> {
     if (this.activated) return;
 
     this.activated = true;
-    this.requestRender();
 
     DOMUtils.applyStyles(this.wrapper, {
       display: "flex",
@@ -422,7 +409,6 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[row][col];
     slot.setObject(object);
-    this.requestRender();
     this.onSlotUpdate?.(slot);
   };
 
@@ -433,7 +419,6 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[row][col];
     slot.setContent(content);
-    this.requestRender();
     this.onSlotUpdate?.(slot);
   };
 
@@ -444,7 +429,6 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[row][col];
     slot.setSubscript(subscript);
-    this.requestRender();
     this.onSlotUpdate?.(slot);
   };
 
@@ -473,7 +457,6 @@ export class ItemSlots<T = number> {
 
     slot.element.classList.add(this.options.slotFocusClass);
     this.onSlotClick(slot);
-    this.requestRender();
   };
 
   getObject = (row: number, col: number) => {
@@ -667,24 +650,21 @@ export class ItemSlots<T = number> {
     };
   };
 
-  private renderCurrentFrame = () => {
+  render = () => {
+    this.animationFrame = requestAnimationFrame(this.render);
+
     if (!this.activated) return;
     if (!this.isRendererReady) return;
 
     const { horizontalCount, verticalCount, slotMargin, slotPadding } =
       this.options;
 
-    const width = this.wrapper.clientWidth;
-    const height = this.wrapper.clientHeight;
-    const hasSizeChanged =
-      this.canvas.width !== width || this.canvas.height !== height;
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
 
-    if (hasSizeChanged) {
+    if (this.canvas.width !== width || this.canvas.height !== height) {
       this.renderer.setSize(width, height, false);
-      this.requestRender();
     }
-
-    if (!this.options.shouldRenderContinuously && !this.isRenderDirty) return;
 
     this.renderer.setScissorTest(false);
     this.renderer.clear();
@@ -698,6 +678,7 @@ export class ItemSlots<T = number> {
     const clipRect = this.wrapper.getBoundingClientRect();
 
     let hasRendered = false;
+
     for (let i = 0; i < verticalCount; i++) {
       for (let j = 0; j < horizontalCount; j++) {
         const { scene, camera, element, object } = this.slots[i][j];
@@ -742,30 +723,6 @@ export class ItemSlots<T = number> {
       this.renderer.setScissor(0, 0, width, height);
       this.renderer.render(this.slots[0][0].scene, this.slots[0][0].camera);
     }
-
-    this.isRenderDirty = false;
-  };
-
-  render = () => {
-    this.animationFrame = requestAnimationFrame(this.render);
-    this.renderCurrentFrame();
-  };
-
-  prewarm = async (timeoutMs = 1000): Promise<boolean> => {
-    const startedAt = performance.now();
-    while (!this.isRendererReady) {
-      if (performance.now() - startedAt >= timeoutMs) {
-        return false;
-      }
-
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
-      });
-    }
-
-    this.requestRender();
-    this.renderCurrentFrame();
-    return true;
   };
 
   get element() {
@@ -858,7 +815,7 @@ export class ItemSlots<T = number> {
       background: "transparent",
       top: "0",
       left: "0",
-      zIndex: "1",
+      zIndex: "-1",
     });
 
     this.wrapper.appendChild(this.canvas);
@@ -887,9 +844,5 @@ export class ItemSlots<T = number> {
       this.renderer = renderer;
       this.isRendererReady = true;
     }
-  };
-
-  requestRender = () => {
-    this.isRenderDirty = true;
   };
 }

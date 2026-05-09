@@ -94,6 +94,7 @@ impl BackgroundChunkSaver {
         for (_, data) in pending.drain() {
             Self::save_chunk_to_disk(&data, folder);
         }
+        // #endregion
     }
 
     fn to_base_64(data: &[u32]) -> String {
