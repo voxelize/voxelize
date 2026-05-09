@@ -1,35 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type {
-  DiagnosticsSnapshot,
-  ParticleEffectKind,
-  ParticleEffectOptions,
-  RendererStatus,
-  WorldStats,
-} from "./bridge";
-
-export type TimeOfDayPreset =
-  | "midnight"
-  | "dawn"
-  | "morning"
-  | "noon"
-  | "afternoon"
-  | "sunset"
-  | "dusk"
-  | "night";
-
-const TIME_PRESET_FRACTIONS: Record<TimeOfDayPreset, number> = {
-  midnight: 0,
-  dawn: 0.22,
-  morning: 0.35,
-  noon: 0.5,
-  afternoon: 0.6,
-  sunset: 0.72,
-  dusk: 0.78,
-  night: 0.9,
-};
-
 export type Vec3Tuple = [number, number, number];
 
 export type EntitySnapshot = {
@@ -259,30 +230,6 @@ export class Arena {
     });
   }
 
-  async worldStats(): Promise<WorldStats> {
-    const res = await fetch(`${this.agentUrl}/world`);
-    if (!res.ok) {
-      throw new Error(`worldStats failed: ${res.status} ${await res.text()}`);
-    }
-    return (await res.json()) as WorldStats;
-  }
-
-  // Pin the world clock to a specific time of day. `time` is either a named
-  // preset (deterministic across worlds because it is converted from a
-  // [0, 1) day fraction) or a raw fraction in [0, 1) of `timePerDay`.
-  async setTimeOfDay(time: TimeOfDayPreset | number): Promise<void> {
-    const fraction =
-      typeof time === "number" ? time : TIME_PRESET_FRACTIONS[time];
-    if (!Number.isFinite(fraction) || fraction < 0 || fraction >= 1) {
-      throw new Error(
-        `setTimeOfDay: fraction must be in [0, 1), got ${fraction}`,
-      );
-    }
-    const stats = await this.worldStats();
-    const target = fraction * stats.timePerDay;
-    await this.call("vox-builtin:set-time", { time: target });
-  }
-
   async call(method: string, payload: unknown): Promise<void> {
     const res = await fetch(`${this.agentUrl}/act`, {
       method: "POST",
@@ -297,19 +244,6 @@ export class Arena {
   }
 }
 
-export type {
-  DiagnosticEntry,
-  DiagnosticSeverity,
-  DiagnosticSource,
-  DiagnosticsSnapshot,
-  ParticleEffectKind,
-  ParticleEffectOptions,
-  ParticleEffectSpec,
-  RendererKind,
-  RendererStatus,
-  WorldStats,
-} from "./bridge";
-
 export type AgentControls = {
   position(): Promise<Vec3Tuple>;
   teleport(
@@ -321,17 +255,6 @@ export type AgentControls = {
   chat(text: string): Promise<void>;
   entitiesNear(radius: number): Promise<EntitySnapshot[]>;
   screenshot(label: string): Promise<string>;
-  clearDiagnostics(): Promise<void>;
-  diagnostics(opts?: {
-    sinceMs?: number;
-    sinceId?: number;
-  }): Promise<DiagnosticsSnapshot>;
-  rendererStatus(): Promise<RendererStatus>;
-  triggerParticles(
-    kind: ParticleEffectKind,
-    position: Vec3Tuple,
-    options?: ParticleEffectOptions,
-  ): Promise<void>;
 };
 
 function createAgentControls(
@@ -381,51 +304,6 @@ function createAgentControls(
       const res = await fetch(`${agentUrl}/entities?radius=${radius}`);
       const body = await res.json();
       return body.entities ?? [];
-    },
-    async clearDiagnostics() {
-      const res = await fetch(`${agentUrl}/diagnostics/clear`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        throw new Error(
-          `clearDiagnostics failed: ${res.status} ${await res.text()}`,
-        );
-      }
-    },
-    async rendererStatus() {
-      const res = await fetch(`${agentUrl}/renderer`);
-      if (!res.ok) {
-        throw new Error(
-          `rendererStatus failed: ${res.status} ${await res.text()}`,
-        );
-      }
-      return (await res.json()) as RendererStatus;
-    },
-    async diagnostics(opts = {}) {
-      const params = new URLSearchParams();
-      if (opts.sinceMs !== undefined) {
-        params.set("sinceMs", String(opts.sinceMs));
-      }
-      if (opts.sinceId !== undefined) {
-        params.set("sinceId", String(opts.sinceId));
-      }
-      const qs = params.toString();
-      const res = await fetch(`${agentUrl}/diagnostics${qs ? `?${qs}` : ""}`);
-      if (!res.ok) {
-        throw new Error(
-          `diagnostics failed: ${res.status} ${await res.text()}`,
-        );
-      }
-      const body = (await res.json()) as DiagnosticsSnapshot;
-      return body;
-    },
-    async triggerParticles(kind, position, options) {
-      await post({
-        type: "particles",
-        kind,
-        position: { x: position[0], y: position[1], z: position[2] },
-        options,
-      });
     },
     async screenshot(label) {
       const safe = label.replace(/[^a-z0-9_-]/gi, "_");

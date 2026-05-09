@@ -7,7 +7,6 @@ import {
   FrontSide,
   Group,
   Int8BufferAttribute,
-  Material,
   Mesh,
   ShaderMaterial,
   Vector3,
@@ -19,10 +18,6 @@ import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
-import {
-  CloudsShadingUniforms,
-  createCloudsShadingMaterial,
-} from "./clouds-material";
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
 
 /**
@@ -122,13 +117,6 @@ export type CloudsOptions = {
   uFogColor?: {
     value: Color;
   };
-
-  /**
-   * When `true`, the cloud mesh uses a TSL `NodeMaterial` instead of the default
-   * GLSL `ShaderMaterial`. Intended for the WebGPU renderer path. Defaults to
-   * `false` to preserve the existing WebGL behavior.
-   */
-  useTsl: boolean;
 };
 
 const defaultOptions: CloudsOptions = {
@@ -146,7 +134,6 @@ const defaultOptions: CloudsOptions = {
   falloff: 0.9,
   seed: -1,
   cloudHeight: 256,
-  useTsl: false,
 };
 
 /**
@@ -173,18 +160,9 @@ export class Clouds extends Group {
   public isInitialized = false;
 
   /**
-   * The material used to render the clouds. This is a GLSL `ShaderMaterial` by
-   * default and a TSL `NodeMaterial` when `CloudsOptions.useTsl` is enabled.
+   * The shard shader material used to render the clouds.
    */
-  public material: Material;
-
-  /**
-   * Mutable uniform refs driving the cloud shader. The fog refs are typically
-   * shared with the chunk renderer so values can change externally per frame.
-   */
-  public uniforms: CloudsShadingUniforms;
-
-  private syncShadingUniforms?: (next: CloudsShadingUniforms) => void;
+  public material: ShaderMaterial;
 
   /**
    * A 2D array of cloud meshes. The first dimension is the x-axis, and the second dimension is the z-axis.
@@ -236,38 +214,31 @@ export class Clouds extends Group {
 
     this.options = { ...defaultOptions, ...options };
 
-    const { seed, color, alpha, uFogNear, uFogFar, uFogColor, useTsl } =
-      this.options;
+    const { seed, color, alpha, uFogNear, uFogFar, uFogColor } = this.options;
 
     if (seed === -1) {
       this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
-    this.uniforms = {
-      uFogNear: uFogNear || { value: 500 },
-      uFogFar: uFogFar || { value: 1000 },
-      uFogColor: uFogColor || { value: new Color("#fff") },
-      uCloudColor: { value: new Color(color) },
-      uCloudAlpha: { value: alpha },
-    };
+    this.material = new ShaderMaterial({
+      transparent: true,
+      vertexShader: CloudsVertexShader,
+      fragmentShader: CloudsFragmentShader,
+      side: FrontSide,
+      uniforms: {
+        uFogNear: uFogNear || { value: 500 },
+        uFogFar: uFogFar || { value: 1000 },
+        uFogColor: uFogColor || { value: new Color("#fff") },
+        uCloudColor: {
+          value: new Color(color),
+        },
+        uCloudAlpha: {
+          value: alpha,
+        },
+      },
+    });
 
-    if (useTsl) {
-      const { material, syncUniforms } = createCloudsShadingMaterial(
-        this.uniforms,
-      );
-      this.material = material;
-      this.syncShadingUniforms = syncUniforms;
-    } else {
-      const material = new ShaderMaterial({
-        transparent: true,
-        vertexShader: CloudsVertexShader,
-        fragmentShader: CloudsFragmentShader,
-        side: FrontSide,
-        uniforms: this.uniforms,
-      });
-      material.toneMapped = false;
-      this.material = material;
-    }
+    this.material.toneMapped = false;
 
     this.initialize();
   }
@@ -288,14 +259,6 @@ export class Clouds extends Group {
     await this.initialize();
   };
 
-  dispose = () => {
-    this.pool.dispose();
-    this.children.forEach((child: Mesh) => {
-      child.geometry?.dispose();
-    });
-    this.material.dispose();
-  };
-
   /**
    * Move the clouds to centering around the passed in position. If there aren't enough cloud
    * cells at any side, new clouds are generated.
@@ -305,8 +268,7 @@ export class Clouds extends Group {
   update = (position: Vector3) => {
     if (!this.isInitialized) return;
 
-    this.syncShadingUniforms?.(this.uniforms);
-
+    // Normalize the delta
     this.timer.update();
     const delta = Math.min(0.1, this.timer.getDelta());
 

@@ -15,7 +15,7 @@
     "vite-plugin-replace": "^0.1.1"
   },
   "dependencies": {
-    "@types/three": "^0.183.1",
+    "@types/three": "^0.182.0",
     "@voxelize/aabb": "^1.0.0",
     "@voxelize/core": "workspace:*",
     "lil-gui": "^0.17.0",

@@ -5,8 +5,6 @@ import { ChunkUtils, ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
 import { Shadow } from "../shadows";
 
-import { attachLightTintNodes, isNodeMaterial } from "./light-tint-node";
-
 const position = new Vector3();
 const tempColor = new Color();
 
@@ -133,16 +131,6 @@ export class LightShined {
         material.userData.lightEffectSetup
       )
         return;
-
-      if (isNodeMaterial(material)) {
-        const handles = attachLightTintNodes(material);
-        if (!obj.userData.lightUniforms) {
-          obj.userData.lightUniforms = [];
-        }
-        obj.userData.lightUniforms.push(handles.lightUniform);
-        material.userData.lightEffectSetup = true;
-        return;
-      }
 
       const lightUniform = { value: new Color(1, 1, 1) };
       const oldOnBeforeCompile = material.onBeforeCompile;
@@ -288,62 +276,26 @@ export class LightShined {
     if (!lightValues) return null;
 
     const { sunlight, red, green, blue } = lightValues;
-    const {
-      sunlightIntensity,
-      minLightLevel,
-      baseAmbient,
-      lightIntensityAdjustment,
-      sunColor,
-      ambientColor,
-    } = this.world.chunkRenderer.uniforms;
+    const { sunlightIntensity, minLightLevel, baseAmbient } =
+      this.world.chunkRenderer.uniforms;
     const maxLightLevel = this.world.options.maxLightLevel;
 
     const sunlightNorm = sunlight / maxLightLevel;
-    const sunWeight =
-      sunlightNorm *
-        sunlightNorm *
-        sunlightIntensity.value *
-        lightIntensityAdjustment.value +
-      minLightLevel.value * sunlightNorm;
-    const tunnelDarkening = sunlightNorm * sunlightNorm;
-
-    const globalFloorR = 0.04;
-    const globalFloorG = 0.045;
-    const globalFloorB = 0.06;
-
-    const sR = Math.min(
-      sunColor.value.r * sunWeight +
-        ambientColor.value.r * tunnelDarkening +
-        globalFloorR +
-        baseAmbient.value,
-      1,
-    );
-    const sG = Math.min(
-      sunColor.value.g * sunWeight +
-        ambientColor.value.g * tunnelDarkening +
-        globalFloorG +
-        baseAmbient.value,
-      1,
-    );
-    const sB = Math.min(
-      sunColor.value.b * sunWeight +
-        ambientColor.value.b * tunnelDarkening +
-        globalFloorB +
-        baseAmbient.value,
+    const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
+    const s = Math.min(
+      sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
       1,
     );
 
-    const torchScale = lightIntensityAdjustment.value;
-    const torchR = ((red / maxLightLevel) * torchScale) ** 2;
-    const torchG = ((green / maxLightLevel) * torchScale) ** 2;
-    const torchB = ((blue / maxLightLevel) * torchScale) ** 2;
-    const sLuma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
-    const torchAttenuation = 1.0 - sLuma * 0.8;
+    const torchR = (red / maxLightLevel) ** 2;
+    const torchG = (green / maxLightLevel) ** 2;
+    const torchB = (blue / maxLightLevel) ** 2;
+    const torchAttenuation = 1.0 - s * 0.8;
 
     return tempColor.setRGB(
-      sR + torchR * torchAttenuation,
-      sG + torchG * torchAttenuation,
-      sB + torchB * torchAttenuation,
+      s + torchR * torchAttenuation,
+      s + torchG * torchAttenuation,
+      s + torchB * torchAttenuation,
     );
   }
 

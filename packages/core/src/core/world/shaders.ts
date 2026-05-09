@@ -916,14 +916,13 @@ export function createSwayShader(
   };
 
   const swayCode = `
-float swayTimeBounded = mod(uTime, 1.0e6);
-float swayTime = swayTimeBounded * 0.0002 * ${speed.toFixed(2)};
-vec2 windDrift = uWindDirection * uWindSpeed * swayTimeBounded * 0.00005;
+float swayScale = uTime * 0.00002 * ${speed.toFixed(2)};
+vec2 windOffset = uWindDirection * uWindSpeed * uTime * 0.00005;
 float rootScale = ${rooted ? "(position.y - floor(position.y))" : "1.0"};
 float swayNoise = snoise(vec3(
-  position.x + windDrift.x,
-  position.y * ${yScale.toFixed(2)} + swayTime,
-  position.z + windDrift.y
+  position.x * swayScale + windOffset.x,
+  position.y * swayScale * ${yScale.toFixed(2)},
+  position.z * swayScale + windOffset.y
 ));
 transformed.x += rootScale * ${scale.toFixed(
     2,

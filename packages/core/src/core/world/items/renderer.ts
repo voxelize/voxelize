@@ -1,7 +1,12 @@
-import { BufferAttribute, BufferGeometry, Group, Mesh, Object3D } from "three";
-import { MeshBasicNodeMaterial } from "three/webgpu";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+} from "three";
 
-import { attachLightTintNodes } from "../../../libs/effects/light-tint-node";
 import type { World } from "../index";
 
 import { ItemDef } from "./item";
@@ -165,8 +170,7 @@ function createMeshFromData(data: ImageItemMeshData): Group {
   geometry.setIndex(new BufferAttribute(data.indices, 1));
   geometry.computeBoundingSphere();
 
-  const material = new MeshBasicNodeMaterial({ vertexColors: true });
-  attachLightTintNodes(material);
+  const material = new MeshBasicMaterial({ vertexColors: true });
   const mesh = new Mesh(geometry, material);
 
   mesh.position.set(1, -1.8, -2);
@@ -189,8 +193,7 @@ function createDropMeshFromData(data: ImageItemMeshData): Mesh {
   geometry.setIndex(new BufferAttribute(data.indices, 1));
   geometry.computeBoundingSphere();
 
-  const material = new MeshBasicNodeMaterial({ vertexColors: true });
-  attachLightTintNodes(material);
+  const material = new MeshBasicMaterial({ vertexColors: true });
   return new Mesh(geometry, material);
 }
 

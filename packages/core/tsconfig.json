@@ -8,8 +8,6 @@
     "baseUrl": "./src",
     "rootDir": "./src",
     "resolveJsonModule": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
     "types": ["vite-plugin-glsl/ext"]
   }
 }

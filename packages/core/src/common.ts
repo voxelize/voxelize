@@ -142,17 +142,6 @@ export const noop = () => {
   // Do nothing.
 };
 
-/**
- * Returns true when the runtime exposes the WebGPU API on `navigator.gpu`.
- *
- * @hidden
- */
-export function isWebGPUAvailable(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const nav = navigator as Navigator & { gpu?: object };
-  return typeof nav.gpu !== "undefined";
-}
-
 export type CameraPerspective =
   | "px"
   | "nx"

@@ -9,21 +9,16 @@ import type {
   ChunkSnapshot,
   ChunkState,
   CommandResult,
-  DiagnosticEntry,
-  DiagnosticsSnapshot,
   EntitySnapshot,
   FaceInput,
-  ParticleEffectSpec,
   PeerSnapshot,
   RaycastHit,
-  RendererStatus,
   Snapshot,
   Vec3,
   ViewOptions,
   WalkDirection,
   WalkOptions,
   WalkToOptions,
-  WorldStats,
   YawPitch,
 } from "./bridge";
 
@@ -37,16 +32,12 @@ export type AgentLaunchOptions = {
   waitReadyTimeoutMs?: number;
 };
 
-const DIAGNOSTICS_BUFFER_LIMIT = 500;
-
 export class Agent {
   private browser: Browser;
   private page: Page;
   private eventListeners: Map<AgentEventName, Set<(data: unknown) => void>> =
     new Map();
   private chatLog: ChatMsgIn[] = [];
-  private diagnostics: DiagnosticEntry[] = [];
-  private diagnosticCounter = 0;
   public readyPromise: Promise<void>;
 
   private constructor(
@@ -84,27 +75,11 @@ export class Agent {
 
     const page = await browser.newPage();
 
-    const agent = new Agent(browser, page, Promise.resolve());
-
     page.on("console", (msg) => {
       const type = msg.type();
       const text = msg.text();
-      if (type === "error") {
-        agent.recordDiagnostic({
-          source: "console",
-          severity: "error",
-          message: text,
-        });
-        console.error(`[agent-page] error:`, text);
-        return;
-      }
-      if (type === "warn") {
-        agent.recordDiagnostic({
-          source: "console",
-          severity: "warning",
-          message: text,
-        });
-        console.error(`[agent-page] warn:`, text);
+      if (type === "error" || type === "warn") {
+        console.error(`[agent-page] ${type}:`, text);
         return;
       }
       if (text.startsWith("[agent") || text.includes("GAMETEST")) {
@@ -113,38 +88,10 @@ export class Agent {
     });
 
     page.on("pageerror", (err) => {
-      agent.recordDiagnostic({
-        source: "pageerror",
-        severity: "error",
-        message: err.message,
-      });
       console.error("[agent-page-error]", err.message);
     });
 
-    page.on("requestfailed", (req) => {
-      const failure = req.failure();
-      const reason = failure?.errorText ?? "unknown";
-      agent.recordDiagnostic({
-        source: "requestfailed",
-        severity: "error",
-        message: `${req.method()} ${req.url()} ${reason}`,
-        url: req.url(),
-      });
-    });
-
-    page.on("response", (res) => {
-      const status = res.status();
-      if (status < 400) return;
-      const url = res.url();
-      if (url.startsWith("data:") || url.startsWith("blob:")) return;
-      agent.recordDiagnostic({
-        source: "response",
-        severity: status >= 500 ? "error" : "warning",
-        message: `${status} ${res.request().method()} ${url}`,
-        url,
-        status,
-      });
-    });
+    const agent = new Agent(browser, page, Promise.resolve());
     await agent.installChatCapture();
 
     const target = new URL(`${url.replace(/\/$/, "")}/${world}`);
@@ -222,13 +169,6 @@ export class Agent {
     await this.page.evaluate((f) => window.__agent__!.setFlying(f), isFlying);
   }
 
-  async triggerParticles(spec: ParticleEffectSpec): Promise<void> {
-    await this.page.evaluate(
-      (s) => window.__agent__!.triggerParticles(s),
-      spec,
-    );
-  }
-
   async call(method: string, payload: unknown): Promise<unknown> {
     return this.page.evaluate(
       (m, p) => window.__agent__!.call(m, p),
@@ -263,14 +203,6 @@ export class Agent {
 
   async snapshot(): Promise<Snapshot> {
     return this.page.evaluate(() => window.__agent__!.snapshot());
-  }
-
-  async rendererStatus(): Promise<RendererStatus> {
-    return this.page.evaluate(() => window.__agent__!.renderer());
-  }
-
-  async worldStats(): Promise<WorldStats> {
-    return this.page.evaluate(() => window.__agent__!.worldStats());
   }
 
   async chunkState(target: Vec3 | ChunkCoord): Promise<ChunkState> {
@@ -326,45 +258,6 @@ export class Agent {
     return () => {
       listeners?.delete(cb as (data: unknown) => void);
     };
-  }
-
-  recordDiagnostic(entry: Omit<DiagnosticEntry, "id" | "at">): void {
-    this.diagnosticCounter += 1;
-    this.diagnostics.push({
-      ...entry,
-      id: this.diagnosticCounter,
-      at: Date.now(),
-    });
-    if (this.diagnostics.length > DIAGNOSTICS_BUFFER_LIMIT) {
-      this.diagnostics.splice(
-        0,
-        this.diagnostics.length - DIAGNOSTICS_BUFFER_LIMIT,
-      );
-    }
-  }
-
-  diagnosticsSnapshot(
-    filter: {
-      sinceMs?: number;
-      sinceId?: number;
-    } = {},
-  ): DiagnosticsSnapshot {
-    const sinceMs = filter.sinceMs ?? 0;
-    const sinceId = filter.sinceId ?? 0;
-    const entries = this.diagnostics.filter(
-      (e) => e.at >= sinceMs && e.id > sinceId,
-    );
-    let errorCount = 0;
-    let warningCount = 0;
-    for (const e of entries) {
-      if (e.severity === "error") errorCount += 1;
-      else warningCount += 1;
-    }
-    return { entries, errorCount, warningCount };
-  }
-
-  clearDiagnostics(): void {
-    this.diagnostics = [];
   }
 
   chatHistory(sinceMs?: number): ChatMsgIn[] {

@@ -60,20 +60,6 @@ const actSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("set-flying"), isFlying: z.boolean() }),
   z.object({
-    type: z.literal("particles"),
-    kind: z.enum(["firework", "block-break", "hit", "death-poof"]),
-    position: vec3Schema,
-    options: z
-      .object({
-        particleCount: z.number().optional(),
-        colors: z.array(z.string()).optional(),
-        volume: z.number().optional(),
-        blockId: z.number().optional(),
-        blockName: z.string().optional(),
-      })
-      .optional(),
-  }),
-  z.object({
     type: z.literal("call"),
     method: z.string(),
     payload: z.unknown(),
@@ -152,10 +138,6 @@ export class AgentDaemon {
 
     this.server.get("/snapshot", async () => this.agent.snapshot());
 
-    this.server.get("/renderer", async () => this.agent.rendererStatus());
-
-    this.server.get("/world", async () => this.agent.worldStats());
-
     this.server.get("/screenshot", async (_req, reply) => {
       const buffer = await this.agent.screenshot();
       reply.header("content-type", "image/png");
@@ -222,20 +204,6 @@ export class AgentDaemon {
       }
     });
 
-    this.server.get<{ Querystring: { sinceId?: string; sinceMs?: string } }>(
-      "/diagnostics",
-      async (req) => {
-        const sinceId = req.query.sinceId ? Number(req.query.sinceId) : 0;
-        const sinceMs = req.query.sinceMs ? Number(req.query.sinceMs) : 0;
-        return this.agent.diagnosticsSnapshot({ sinceId, sinceMs });
-      },
-    );
-
-    this.server.post("/diagnostics/clear", async () => {
-      this.agent.clearDiagnostics();
-      return { cleared: true };
-    });
-
     this.server.post("/reset", async () => {
       throw new Error("Reset not yet implemented");
     });
@@ -278,13 +246,6 @@ export class AgentDaemon {
       case "set-flying":
         await this.agent.setFlying(action.isFlying);
         return { flying: action.isFlying };
-      case "particles":
-        await this.agent.triggerParticles({
-          kind: action.kind,
-          position: action.position,
-          options: action.options,
-        });
-        return { triggered: true };
       case "call":
         return this.agent.call(action.method, action.payload);
       case "wait":

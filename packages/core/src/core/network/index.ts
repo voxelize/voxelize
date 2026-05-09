@@ -1,6 +1,9 @@
 import { MessageProtocol, protocol } from "@voxelize/protocol";
 import DOMUrl from "domurl";
 
+import { setWorkerInterval } from "../../libs/setWorkerInterval";
+import { WorkerPool } from "../../libs/worker-pool";
+
 import { NetIntercept } from "./intercept";
 import { WebRTCConnection } from "./webrtc";
 import DecodeWorker from "./workers/decode-worker.ts?worker&inline";
@@ -9,10 +12,6 @@ export * from "./intercept";
 export { WebRTCConnection } from "./webrtc";
 
 const { Message } = protocol;
-type DecodeQueueItem = {
-  packet: ArrayBuffer;
-  sequence: number;
-};
 
 export type ProtocolWS = WebSocket & {
   sendEvent: (event: any) => void;
@@ -21,13 +20,11 @@ export type ProtocolWS = WebSocket & {
 export type NetworkOptions = {
   maxPacketsPerTick: number;
   maxBacklogFactor: number;
-  joinTimeoutMs: number;
 };
 
 const defaultOptions: NetworkOptions = {
   maxPacketsPerTick: 64,
   maxBacklogFactor: 16,
-  joinTimeoutMs: 10000,
 };
 
 export type NetworkConnectionOptions = {
@@ -75,17 +72,14 @@ export class Network {
 
   public disconnectReason = "";
 
-  private clearSyncInterval: () => void;
-
-  private decodeWorker = new DecodeWorker({
-    name: "decode-ordered",
+  private pool: WorkerPool = new WorkerPool(DecodeWorker, {
+    maxWorker: window.navigator.hardwareConcurrency || 4,
+    name: "decode-worker",
   });
 
-  private decodeQueue: DecodeQueueItem[] = [];
-
-  private isDecoding = false;
-
-  private decodeSequence = 0;
+  private priorityWorker: Worker = new DecodeWorker({
+    name: "decode-priority",
+  });
 
   private reconnection: ReturnType<typeof setTimeout>;
 
@@ -93,11 +87,13 @@ export class Network {
 
   private joinReject: ((reason: string) => void) | null = null;
 
-  private joinTimeout: ReturnType<typeof setTimeout> | null = null;
-
   private packetQueue: ArrayBuffer[] = [];
 
+  private joinStartTime = 0;
+
   private waitingForInit = false;
+
+  private initPacketReceived = false;
 
   private rtc: WebRTCConnection | null = null;
 
@@ -109,12 +105,11 @@ export class Network {
       ...options,
     };
 
-    const syncInterval = window.setInterval(() => {
+    setWorkerInterval(() => {
       if (!this.connected) return;
       this.flush();
       this.sync();
     }, 1000 / 60);
-    this.clearSyncInterval = () => window.clearInterval(syncInterval);
 
     const MAX = 10000;
     let index = Math.floor(Math.random() * MAX).toString();
@@ -169,9 +164,6 @@ export class Network {
       this.rtc = null;
     }
 
-    this.decodeQueue.length = 0;
-    this.isDecoding = false;
-
     return new Promise<Network>((resolve) => {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
@@ -207,10 +199,18 @@ export class Network {
       };
       ws.onmessage = ({ data }) => {
         const arrayBuffer = data as ArrayBuffer;
-        this.packetQueue.push(arrayBuffer);
+
         if (this.waitingForInit) {
-          this.sync();
+          if (!this.initPacketReceived) {
+            this.initPacketReceived = true;
+            this.decodePriority(arrayBuffer);
+          } else {
+            this.packetQueue.push(arrayBuffer);
+          }
+          return;
         }
+
+        this.packetQueue.push(arrayBuffer);
       };
       ws.onclose = (event) => {
         console.log(
@@ -233,12 +233,6 @@ export class Network {
     });
   };
 
-  dispose = () => {
-    this.disconnect();
-    this.clearSyncInterval();
-    this.decodeWorker.terminate();
-  };
-
   join = async (world: string) => {
     if (this.waitingForInit) {
       console.warn(
@@ -254,14 +248,15 @@ export class Network {
       });
     }
 
-    const wasJoined = this.joined;
-    if (wasJoined) {
+    if (this.joined) {
       this.leave();
     }
 
     this.joined = true;
     this.world = world;
     this.waitingForInit = true;
+    this.initPacketReceived = false;
+    this.joinStartTime = performance.now();
 
     this.send({
       type: "JOIN",
@@ -274,13 +269,6 @@ export class Network {
     return new Promise<Network>((resolve, reject) => {
       this.joinResolve = resolve;
       this.joinReject = reject;
-      this.joinTimeout = setTimeout(() => {
-        if (!this.waitingForInit) return;
-        const reason =
-          `Timed out waiting for INIT after ${this.options.joinTimeoutMs}ms ` +
-          `(queued packets: ${this.packetQueue.length}, connected: ${this.connected})`;
-        this.rejectJoin(reason);
-      }, this.options.joinTimeoutMs);
     });
   };
 
@@ -358,14 +346,26 @@ export class Network {
       Math.min(packetsToProcess, this.packetQueue.length),
     );
 
-    packets.forEach((packet) => {
-      this.decodeQueue.push({
-        packet,
-        sequence: this.decodeSequence,
-      });
-      this.decodeSequence += 1;
+    const availableWorkers = Math.max(1, this.pool.availableCount);
+    const perWorker = Math.ceil(packets.length / availableWorkers);
+
+    const batches: ArrayBuffer[][] = [];
+    for (let i = 0; i < packets.length; i += perWorker) {
+      batches.push(packets.slice(i, i + perWorker));
+    }
+
+    Promise.all(
+      batches.map((batch, idx) =>
+        this.decode(batch).then((msgs) => ({ idx, msgs })),
+      ),
+    ).then((results) => {
+      results.sort((a, b) => a.idx - b.idx);
+      for (const { msgs } of results) {
+        for (const message of msgs) {
+          this.onMessage(message);
+        }
+      }
     });
-    this.processDecodeQueue();
   };
 
   flush = () => {
@@ -402,10 +402,13 @@ export class Network {
   };
 
   disconnect = () => {
+    if (!this.connected) {
+      return;
+    }
+
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;
-      this.ws.onerror = null;
       this.ws.close();
     }
 
@@ -416,15 +419,9 @@ export class Network {
 
     this.connected = false;
     this.onDisconnect?.();
-    this.decodeQueue.length = 0;
-    this.isDecoding = false;
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
-    }
-    if (this.joinTimeout) {
-      clearTimeout(this.joinTimeout);
-      this.joinTimeout = null;
     }
   };
 
@@ -445,7 +442,7 @@ export class Network {
   };
 
   get concurrentWorkers() {
-    return 0;
+    return this.pool.workingCount;
   }
 
   get packetQueueLength() {
@@ -465,12 +462,6 @@ export class Network {
       this.disconnect();
       this.waitingForInit = false;
       this.joinReject?.(text);
-      this.joinResolve = null;
-      this.joinReject = null;
-      if (this.joinTimeout) {
-        clearTimeout(this.joinTimeout);
-        this.joinTimeout = null;
-      }
       return;
     }
 
@@ -499,12 +490,6 @@ export class Network {
 
       this.waitingForInit = false;
       this.joinResolve(this);
-      this.joinResolve = null;
-      this.joinReject = null;
-      if (this.joinTimeout) {
-        clearTimeout(this.joinTimeout);
-        this.joinTimeout = null;
-      }
       this.onJoin?.(this.world);
 
       if (this.useWebRTC && !this.rtc) {
@@ -533,107 +518,31 @@ export class Network {
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 
-  private rejectJoin = (reason: string) => {
-    this.disconnectReason = reason;
-    if (!this.waitingForInit) return;
+  private decodePriority = (buffer: ArrayBuffer) => {
+    const handler = (e: MessageEvent) => {
+      this.priorityWorker.removeEventListener("message", handler);
 
-    this.waitingForInit = false;
-    this.joinReject?.(reason);
-    this.joinResolve = null;
-    this.joinReject = null;
-    if (this.joinTimeout) {
-      clearTimeout(this.joinTimeout);
-      this.joinTimeout = null;
-    }
-    console.error("[NETWORK]", reason);
+      const messages = e.data as MessageProtocol[];
+      const decoded = messages[0];
+
+      if (decoded.type === "INIT" && this.waitingForInit) {
+        this.onMessage(decoded);
+      } else {
+        this.packetQueue.push(buffer);
+      }
+    };
+
+    this.priorityWorker.addEventListener("message", handler);
+    this.priorityWorker.postMessage([buffer]);
   };
 
-  private handleDecodedMessages = (messages: MessageProtocol[]) => {
-    for (const message of messages) {
-      this.onMessage(message);
-    }
-  };
-
-  private processDecodeQueue = () => {
-    if (this.isDecoding || this.decodeQueue.length === 0) return;
-
-    const item = this.decodeQueue.shift();
-    if (!item) return;
-
-    this.isDecoding = true;
-    let isSettled = false;
-
-    const cleanup = () => {
-      window.clearTimeout(timeout);
-      this.decodeWorker.removeEventListener("message", handleMessage);
-      this.decodeWorker.removeEventListener("error", handleError);
-      this.decodeWorker.removeEventListener("messageerror", handleMessageError);
-    };
-
-    const finish = () => {
-      this.isDecoding = false;
-      this.processDecodeQueue();
-    };
-
-    const handleMessage = (event: MessageEvent<MessageProtocol[]>) => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodedMessages(event.data);
-      finish();
-    };
-
-    const handleError = (event: ErrorEvent) => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodeError(event, "Decode worker error");
-      finish();
-    };
-
-    const handleMessageError = () => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodeError(
-        new Error("Worker message error"),
-        "Decode failed",
-      );
-      finish();
-    };
-
-    const timeout = window.setTimeout(() => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanup();
-      this.handleDecodeError(
-        new Error(`Decode worker timed out for sequence ${item.sequence}`),
-        "Decode failed",
-      );
-      finish();
-    }, this.options.joinTimeoutMs);
-
-    this.decodeWorker.addEventListener("message", handleMessage);
-    this.decodeWorker.addEventListener("error", handleError);
-    this.decodeWorker.addEventListener("messageerror", handleMessageError);
-    this.decodeWorker.postMessage([item.packet]);
-  };
-
-  private handleDecodeError = (
-    error: Error | ErrorEvent | string,
-    prefix: string,
-  ) => {
-    const errorMessage =
-      typeof error === "string"
-        ? error
-        : "message" in error
-          ? error.message
-          : String(error);
-    const reason = `${prefix}: ${errorMessage}`;
-    if (this.waitingForInit) {
-      this.rejectJoin(reason);
-    } else {
-      console.error("[NETWORK]", reason);
-    }
+  private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
+    return new Promise<MessageProtocol[]>((resolve) => {
+      this.pool.addJob({
+        message: data,
+        buffers: data,
+        resolve,
+      });
+    });
   };
 }

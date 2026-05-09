@@ -8,11 +8,8 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
-import { WebGPURenderer } from "three/webgpu";
 
-import { CameraPerspective, isWebGPUAvailable } from "../common";
-
-export type PortraitRenderer = WebGLRenderer | WebGPURenderer;
+import { CameraPerspective } from "../common";
 
 /**
  * Parameters to create a portrait with.
@@ -80,37 +77,16 @@ const defaultOptions: PortraitOptions = {
  * ```
  */
 export class Portrait {
-  private static _renderer: PortraitRenderer | null = null;
+  private static _renderer: WebGLRenderer | null = null;
 
-  private static _rendererReady = false;
-
-  public static get renderer(): PortraitRenderer {
+  public static get renderer(): WebGLRenderer {
     if (!Portrait._renderer) {
-      if (isWebGPUAvailable()) {
-        const renderer = new WebGPURenderer({
-          antialias: false,
-          forceWebGL: false,
-        });
-        renderer.outputColorSpace = SRGBColorSpace;
-        Portrait._renderer = renderer;
-        void renderer.init().then(() => {
-          Portrait._rendererReady = true;
-        });
-      } else {
-        const renderer = new WebGLRenderer({
-          antialias: false,
-          failIfMajorPerformanceCaveat: false,
-        });
-        renderer.outputColorSpace = SRGBColorSpace;
-        Portrait._renderer = renderer;
-        Portrait._rendererReady = true;
-      }
+      Portrait._renderer = new WebGLRenderer({
+        antialias: false,
+        failIfMajorPerformanceCaveat: false,
+      });
     }
     return Portrait._renderer;
-  }
-
-  public static get isRendererReady(): boolean {
-    return Portrait._rendererReady;
   }
 
   /**
@@ -154,7 +130,7 @@ export class Portrait {
       throw new Error("A target object is required for portraits.");
     }
 
-    void Portrait.renderer;
+    Portrait.renderer.outputColorSpace = SRGBColorSpace;
 
     const { width, height, zoom, perspective, lightRotationOffset } =
       (this.options = {
@@ -228,10 +204,9 @@ export class Portrait {
     this.animationFrameId = requestAnimationFrame(this.render);
 
     const renderer = Portrait.renderer;
-    if (!Portrait.isRendererReady) return;
-
     const { renderOnce } = this.options;
 
+    // Get the renderer's sizes
     const { width, height } = renderer.getSize(new Vector2(0, 0));
 
     if (width !== this.canvas.width || height !== this.canvas.height) {
