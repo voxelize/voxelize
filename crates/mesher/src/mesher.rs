@@ -835,13 +835,6 @@ fn plant_position_jitter(vx: i32, vy: i32, vz: i32) -> (f32, f32) {
     (ox, oz)
 }
 
-fn has_cardinal_faces(block: &Block) -> bool {
-    block.faces.iter().any(|f| {
-        let d = f.dir;
-        (d[0].abs() + d[1].abs() + d[2].abs()) == 1
-    })
-}
-
 fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
     !block.is_fluid
         && !block.rotatable
@@ -849,7 +842,7 @@ fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
         && block.dynamic_patterns.is_none()
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
         && block.is_full_cube()
-        && !(has_diagonal_faces(block) && has_cardinal_faces(block))
+        && !has_diagonal_faces(block)
 }
 
 fn should_render_face<S: VoxelAccess>(
@@ -1654,7 +1647,7 @@ fn process_face<S: VoxelAccess>(
 
     let is_diagonal = dir == [0, 0, 0];
     let has_diagonals = is_see_through && has_diagonal_faces(block);
-    let (hash_ox, hash_oz) = if has_diagonals {
+    let (hash_ox, _hash_oz) = if has_diagonals {
         diagonal_face_offsets(vx, vy, vz)
     } else {
         (0.0, 0.0)
@@ -2496,6 +2489,104 @@ pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry)
 mod tests {
     use super::*;
 
+    struct SingleVoxelSpace {
+        voxel_id: u32,
+    }
+
+    impl VoxelAccess for SingleVoxelSpace {
+        fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+            if vx == 0 && vy == 0 && vz == 0 {
+                self.voxel_id
+            } else {
+                0
+            }
+        }
+
+        fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+            self.get_voxel(vx, vy, vz)
+        }
+
+        fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+            BlockRotation::PY(0.0)
+        }
+
+        fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_sunlight(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_torch_light(&self, _vx: i32, _vy: i32, _vz: i32, _color: LightColor) -> u32 {
+            0
+        }
+
+        fn get_all_lights(&self, _vx: i32, _vy: i32, _vz: i32) -> (u32, u32, u32, u32) {
+            (0, 0, 0, 0)
+        }
+
+        fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+            1
+        }
+
+        fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+            vx == 0 && vy == 0 && vz == 0
+        }
+    }
+
+    fn full_block_diagonal_block() -> Block {
+        Block {
+            id: 1,
+            name: "full diagonal plant".to_string(),
+            name_lower: "full diagonal plant".to_string(),
+            rotatable: false,
+            y_rotatable: false,
+            is_empty: false,
+            is_fluid: false,
+            is_waterlogged: false,
+            is_opaque: false,
+            is_see_through: true,
+            is_transparent: [true; 6],
+            transparent_standalone: true,
+            occludes_fluid: false,
+            is_plant: true,
+            faces: vec![BlockFace::new(
+                "one".to_string(),
+                false,
+                false,
+                [0, 0, 0],
+                [
+                    CornerData {
+                        pos: [0.0, 1.0, 0.0],
+                        uv: [0.0, 1.0],
+                    },
+                    CornerData {
+                        pos: [0.0, 0.0, 0.0],
+                        uv: [0.0, 0.0],
+                    },
+                    CornerData {
+                        pos: [1.0, 1.0, 1.0],
+                        uv: [1.0, 1.0],
+                    },
+                    CornerData {
+                        pos: [1.0, 0.0, 1.0],
+                        uv: [1.0, 0.0],
+                    },
+                ],
+            )],
+            aabbs: vec![AABB {
+                min_x: 0.0,
+                min_y: 0.0,
+                min_z: 0.0,
+                max_x: 1.0,
+                max_y: 1.0,
+                max_z: 1.0,
+            }],
+            dynamic_patterns: None,
+        }
+    }
+
     fn stairs_aabbs() -> Vec<AABB> {
         vec![
             AABB {
@@ -2515,6 +2606,42 @@ mod tests {
                 max_z: 0.5,
             },
         ]
+    }
+
+    #[test]
+    fn diagonal_faces_are_not_greedy_meshable() {
+        let block = full_block_diagonal_block();
+
+        assert!(
+            !can_greedy_mesh_block(&block, &BlockRotation::PY(0.0)),
+            "Greedy meshing only emits cardinal faces, so diagonal faces must use the fallback path"
+        );
+    }
+
+    #[test]
+    fn greedy_meshing_emits_full_block_diagonal_faces() {
+        let mut registry = Registry::new(vec![(1, full_block_diagonal_block())]);
+        registry.build_cache();
+        let space = SingleVoxelSpace { voxel_id: 1 };
+        let min = [0, 0, 0];
+        let max = [1, 1, 1];
+
+        let greedy_geometries = mesh_space_greedy(&min, &max, &space, &registry);
+        let naive_geometries = mesh_space(&min, &max, &space, &registry);
+        let greedy_indices = greedy_geometries
+            .iter()
+            .map(|geometry| geometry.indices.len())
+            .sum::<usize>();
+        let naive_indices = naive_geometries
+            .iter()
+            .map(|geometry| geometry.indices.len())
+            .sum::<usize>();
+
+        assert_eq!(greedy_indices, naive_indices);
+        assert!(
+            greedy_indices > 0,
+            "Greedy meshing should emit diagonal plant geometry through the fallback path"
+        );
     }
 
     #[test]

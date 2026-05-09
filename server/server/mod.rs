@@ -319,8 +319,7 @@ impl Server {
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
                 if let Some((sender, _, token)) = self.connections.remove(id) {
-                    self.lost_sessions
-                        .insert(id.to_owned(), (sender, token));
+                    self.lost_sessions.insert(id.to_owned(), (sender, token));
 
                     world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
@@ -662,10 +661,7 @@ impl Handler<Disconnect> for Server {
                     world.do_send(ClientLeaveRequest { id: msg.id.clone() });
                 }
             } else {
-                info!(
-                    "Ignoring stale disconnect for {} (token mismatch)",
-                    msg.id
-                );
+                info!("Ignoring stale disconnect for {} (token mismatch)", msg.id);
             }
         }
 
