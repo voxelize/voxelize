@@ -689,9 +689,9 @@ vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
 float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
 vec3 torchLight = sampleLightVolume() + smoothTorch * 1.2;
 
-vec3 globalAmbient = vec3(0.04, 0.045, 0.06);
+vec3 globalAmbient = vec3(0.025, 0.03, 0.04);
 
-float ambientOcclusion = mix(0.85, 1.0, shadow);
+float ambientOcclusion = mix(0.65, 1.0, shadow);
 float tunnelDarkening = sunExposure * sunExposure;
 
 float hemisphereBlend = vWorldNormal.y * 0.5 + 0.5;
@@ -710,7 +710,7 @@ vec3 sunTotal = skyAmbient * ambientOcclusion * tunnelDarkening;
 vec3 reducedSun = sunContribution * mix(1.0, 0.7, isBrightTex);
 sunTotal += reducedSun;
 
-vec3 bounceLight = uAmbientColor * 0.15 * (1.0 - shadow) * sunExposure * uSunlightIntensity;
+vec3 bounceLight = uAmbientColor * 0.04 * (1.0 - shadow) * sunExposure * uSunlightIntensity;
 sunTotal += bounceLight;
 sunTotal += globalAmbient;
 
