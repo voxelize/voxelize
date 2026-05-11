@@ -1,4 +1,4 @@
-import { IUniform, Matrix4, Texture, Vector3 } from "three";
+import { Color, IUniform, Matrix4, Texture, Vector3 } from "three";
 
 import { ShaderLightingUniforms } from "./chunk-renderer";
 import {
@@ -23,6 +23,7 @@ export interface EntityShadowUniforms {
   uShadowStrength: IUniform<number>;
   uSunlightIntensity: IUniform<number>;
   uSunDirection: IUniform<Vector3>;
+  uSunColor: IUniform<Color>;
   uWorldOffset: IUniform<Vector3>;
   uMinOccluderDepth: IUniform<number>;
 }
@@ -43,6 +44,7 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
     uShadowStrength: { value: 1.0 },
     uSunlightIntensity: { value: 1.0 },
     uSunDirection: { value: new Vector3(0.5, 1.0, 0.3).normalize() },
+    uSunColor: { value: new Color(1, 1, 1) },
     uWorldOffset: { value: new Vector3(0, 0, 0) },
     uMinOccluderDepth: { value: 0.0 },
   };
@@ -65,6 +67,7 @@ export function updateEntityShadowUniforms(
   target.uShadowStrength.value = source.shadowStrength.value;
   target.uSunlightIntensity.value = source.sunlightIntensity.value;
   target.uSunDirection.value.copy(source.sunDirection.value);
+  target.uSunColor.value.copy(source.sunColor.value);
 }
 
 export const ENTITY_SHADOW_VERTEX_PARS = `
@@ -100,6 +103,7 @@ uniform float uShadowNormalBias;
 uniform float uShadowStrength;
 uniform float uSunlightIntensity;
 uniform vec3 uSunDirection;
+uniform vec3 uSunColor;
 uniform float uMinOccluderDepth;
 
 varying vec4 vShadowCoord0;
