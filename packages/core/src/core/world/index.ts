@@ -3813,8 +3813,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
 
       if (Array.isArray(listeners)) {
-        listeners.forEach((listener) => listener(chunk));
         this.chunkInitializeListeners.delete(chunk.name);
+        listeners.slice().forEach((listener) => listener(chunk));
       }
     };
 
