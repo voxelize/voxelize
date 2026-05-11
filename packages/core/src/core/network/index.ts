@@ -48,7 +48,7 @@ export class Network {
 
   public intercepts: NetIntercept[] = [];
 
-  public ws: ProtocolWS;
+  public ws: ProtocolWS | null = null;
 
   public url: DOMUrl<{
     [key: string]: any;
@@ -72,16 +72,15 @@ export class Network {
 
   public disconnectReason = "";
 
-  private pool: WorkerPool = new WorkerPool(DecodeWorker, {
-    maxWorker: window.navigator.hardwareConcurrency || 4,
-    name: "decode-worker",
-  });
+  private pool = this.createDecodeWorkerPool();
 
-  private priorityWorker: Worker = new DecodeWorker({
-    name: "decode-priority",
-  });
+  private priorityWorker: Worker = this.createPriorityDecodeWorker();
 
-  private reconnection: ReturnType<typeof setTimeout>;
+  private reconnection: ReturnType<typeof setTimeout> | null = null;
+
+  private stopSyncInterval: (() => void) | null = null;
+
+  private hasTerminatedDecodeWorkers = false;
 
   private joinResolve: ((value: Network) => void) | null = null;
 
@@ -105,11 +104,7 @@ export class Network {
       ...options,
     };
 
-    setWorkerInterval(() => {
-      if (!this.connected) return;
-      this.flush();
-      this.sync();
-    }, 1000 / 60);
+    this.startSyncInterval();
 
     const MAX = 10000;
     let index = Math.floor(Math.random() * MAX).toString();
@@ -133,6 +128,8 @@ export class Network {
 
     this.useWebRTC = options.useWebRTC ?? false;
     this.disconnectReason = "";
+    this.ensureDecodeWorkers();
+    this.startSyncInterval();
 
     this.url = new DOMUrl(serverURL);
     this.url.protocol = this.url.protocol.replace(/ws/, "http");
@@ -152,10 +149,12 @@ export class Network {
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;
+      this.ws.onerror = null;
       this.ws.close();
 
       if (this.reconnection) {
         clearTimeout(this.reconnection);
+        this.reconnection = null;
       }
     }
 
@@ -168,11 +167,11 @@ export class Network {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
       ws.sendEvent = async (event: any) => {
-        while (!this.connected) {
+        while (!this.connected && this.ws === ws) {
           console.log(`waiting for websocket connection...`);
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
-        if (ws.readyState === WebSocket.OPEN) {
+        if (this.ws === ws && ws.readyState === WebSocket.OPEN) {
           const encoded = Network.encodeSync(event);
           ws.send(encoded);
         }
@@ -359,6 +358,10 @@ export class Network {
         this.decode(batch).then((msgs) => ({ idx, msgs })),
       ),
     ).then((results) => {
+      if (!this.connected) {
+        return;
+      }
+
       results.sort((a, b) => a.idx - b.idx);
       for (const { msgs } of results) {
         for (const message of msgs) {
@@ -402,14 +405,14 @@ export class Network {
   };
 
   disconnect = () => {
-    if (!this.connected) {
-      return;
-    }
+    const wasConnected = this.connected;
 
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;
+      this.ws.onerror = null;
       this.ws.close();
+      this.ws = null;
     }
 
     if (this.rtc) {
@@ -418,15 +421,27 @@ export class Network {
     }
 
     this.connected = false;
-    this.onDisconnect?.();
+    this.joined = false;
+    this.waitingForInit = false;
+    this.initPacketReceived = false;
+    this.packetQueue = [];
+    this.joinResolve = null;
+    this.joinReject = null;
+    this.clearSyncInterval();
+    this.terminateDecodeWorkers();
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
+      this.reconnection = null;
+    }
+
+    if (wasConnected) {
+      this.onDisconnect?.();
     }
   };
 
   send = (event: any) => {
-    this.ws.sendEvent(event);
+    this.ws?.sendEvent(event);
   };
 
   setID = (id: string) => {
@@ -458,10 +473,10 @@ export class Network {
     if (type === "ERROR") {
       const { text } = message;
       console.error("[NETWORK] Received ERROR:", text);
+      const joinReject = this.joinReject;
       this.disconnectReason = text || "";
       this.disconnect();
-      this.waitingForInit = false;
-      this.joinReject?.(text);
+      joinReject?.(text);
       return;
     }
 
@@ -522,6 +537,10 @@ export class Network {
     const handler = (e: MessageEvent) => {
       this.priorityWorker.removeEventListener("message", handler);
 
+      if (!this.connected) {
+        return;
+      }
+
       const messages = e.data as MessageProtocol[];
       const decoded = messages[0];
 
@@ -544,5 +563,55 @@ export class Network {
         resolve,
       });
     });
+  };
+
+  private startSyncInterval = () => {
+    if (this.stopSyncInterval) {
+      return;
+    }
+
+    this.stopSyncInterval = setWorkerInterval(() => {
+      if (!this.connected) return;
+      this.flush();
+      this.sync();
+    }, 1000 / 60);
+  };
+
+  private clearSyncInterval = () => {
+    this.stopSyncInterval?.();
+    this.stopSyncInterval = null;
+  };
+
+  private createDecodeWorkerPool() {
+    return new WorkerPool(DecodeWorker, {
+      maxWorker: window.navigator.hardwareConcurrency || 4,
+      name: "decode-worker",
+    });
+  }
+
+  private createPriorityDecodeWorker() {
+    return new DecodeWorker({
+      name: "decode-priority",
+    });
+  }
+
+  private ensureDecodeWorkers = () => {
+    if (!this.hasTerminatedDecodeWorkers) {
+      return;
+    }
+
+    this.pool = this.createDecodeWorkerPool();
+    this.priorityWorker = this.createPriorityDecodeWorker();
+    this.hasTerminatedDecodeWorkers = false;
+  };
+
+  private terminateDecodeWorkers = () => {
+    if (this.hasTerminatedDecodeWorkers) {
+      return;
+    }
+
+    this.pool.terminate();
+    this.priorityWorker.terminate();
+    this.hasTerminatedDecodeWorkers = true;
   };
 }

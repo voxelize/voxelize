@@ -349,10 +349,15 @@ impl Server {
             }
 
             if let Some(world) = self.get_world_mut(&data.text) {
-                world.do_send(ClientRequest {
-                    client_id: id.to_owned(),
-                    data,
-                });
+                if world
+                    .try_send(ClientRequest {
+                        client_id: id.to_owned(),
+                        data,
+                    })
+                    .is_err()
+                {
+                    return Some("World is busy, please reconnect.".to_owned());
+                }
 
                 return None;
             } else {
@@ -374,10 +379,15 @@ impl Server {
         let (_, world_name, _) = connection.unwrap().to_owned();
 
         if let Some(world) = self.get_world_mut(&world_name) {
-            world.do_send(ClientRequest {
-                client_id: id.to_owned(),
-                data,
-            });
+            if world
+                .try_send(ClientRequest {
+                    client_id: id.to_owned(),
+                    data,
+                })
+                .is_err()
+            {
+                return Some("World is busy, please reconnect.".to_owned());
+            }
         }
 
         None
@@ -444,7 +454,7 @@ impl Server {
                     continue;
                 }
 
-                world.do_send(Tick);
+                let _ = world.try_send(Tick);
 
                 let at = (info.preload_progress * 100.0) as u64;
 
@@ -471,7 +481,7 @@ impl Server {
     /// Tick every world on this server.
     pub(crate) fn tick(&mut self) {
         for world in self.worlds.values_mut() {
-            world.do_send(Tick);
+            let _ = world.try_send(Tick);
         }
     }
 
@@ -584,7 +594,7 @@ impl Actor for Server {
         // Set up a recurring task to tick all worlds
         ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
             for world in act.worlds.values() {
-                world.do_send(Tick);
+                let _ = world.try_send(Tick);
             }
         });
     }

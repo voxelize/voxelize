@@ -10,7 +10,7 @@ export type WorkerPoolJob = {
   /**
    * Any array buffers (transferable) that are passed to the worker.
    */
-  buffers?: ArrayBufferLike[];
+  buffers?: Transferable[];
 
   /**
    * A callback that is called when the worker has finished executing the job.
@@ -100,10 +100,30 @@ export class WorkerPool {
     this.process();
   };
 
-  postMessage = (message: any, buffers?: ArrayBufferLike[]) => {
+  postMessage = (message: any, buffers?: Transferable[]) => {
     for (const worker of this.workers) {
-      worker.postMessage(message, buffers);
+      if (buffers) {
+        worker.postMessage(message, { transfer: buffers });
+      } else {
+        worker.postMessage(message);
+      }
     }
+  };
+
+  terminate = () => {
+    const activeWorkers = this.workingCount;
+
+    for (const worker of this.workers) {
+      worker.terminate();
+    }
+
+    WorkerPool.WORKING_COUNT = Math.max(
+      0,
+      WorkerPool.WORKING_COUNT - activeWorkers,
+    );
+    this.queue = [];
+    this.workers = [];
+    this.available = [];
   };
 
   /**
@@ -128,7 +148,11 @@ export class WorkerPool {
       };
 
       worker.addEventListener("message", workerCallback);
-      worker.postMessage(message, buffers);
+      if (buffers) {
+        worker.postMessage(message, { transfer: buffers });
+      } else {
+        worker.postMessage(message);
+      }
       WorkerPool.WORKING_COUNT++;
     }
   };

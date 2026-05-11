@@ -6,7 +6,7 @@ mod types;
 pub mod webrtc;
 mod world;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use actix::{Actor, Addr};
 use actix_cors::Cors;
@@ -34,6 +34,8 @@ pub use world::system_profiler::{
 pub use world::*;
 
 pub type RtcSenders = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
+
+const CLIENT_MESSAGE_RESPONSE_TIMEOUT: Duration = Duration::from_secs(1);
 
 pub fn create_rtc_senders() -> RtcSenders {
     Arc::new(Mutex::new(HashMap::new()))
@@ -152,11 +154,16 @@ async fn handle_ws_connection(
                             }
                         };
 
-                        match server.send(ClientMessage {
-                            id: session_id.clone(),
-                            data: message,
-                        }).await {
-                            Ok(Some(error_msg)) => {
+                        match tokio::time::timeout(
+                            CLIENT_MESSAGE_RESPONSE_TIMEOUT,
+                            server.send(ClientMessage {
+                                id: session_id.clone(),
+                                data: message,
+                            }),
+                        )
+                        .await
+                        {
+                            Ok(Ok(Some(error_msg))) => {
                                 warn!("[WS] ClientMessage error: {}", error_msg);
                                 let error_response = encode_message(
                                     &Message::new(&MessageType::Error).text(&error_msg).build(),
@@ -164,9 +171,13 @@ async fn handle_ws_connection(
                                 let _ = session.binary(error_response).await;
                                 break;
                             }
-                            Ok(None) => {}
-                            Err(e) => {
+                            Ok(Ok(None)) => {}
+                            Ok(Err(e)) => {
                                 warn!("[WS] Actor mailbox error: {:?}", e);
+                                break;
+                            }
+                            Err(_) => {
+                                warn!("[WS] ClientMessage timed out");
                                 break;
                             }
                         }
