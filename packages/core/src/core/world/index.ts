@@ -129,8 +129,6 @@ import { ChunkRenderer } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
 import { ItemDef, ItemRegistry } from "./items";
-import { LightSourceRegistry } from "./light-registry";
-import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
@@ -151,8 +149,6 @@ export * from "./clouds";
 export * from "./csm-renderer";
 export * from "./entity-shadow-uniforms";
 export * from "./items";
-export * from "./light-registry";
-export * from "./light-volume";
 export * from "./loader";
 export * from "./pipelines";
 export * from "./registry";
@@ -693,19 +689,6 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Only available when `shaderBasedLighting` is enabled.
    */
   public csmRenderer: CSMRenderer | null = null;
-
-  /**
-   * The light volume for shader-based lighting.
-   * Stores torch light data in a 3D texture for GPU sampling.
-   * Only available when `shaderBasedLighting` is enabled.
-   */
-  public lightVolume: LightVolume | null = null;
-
-  /**
-   * The light source registry for dynamic point lights.
-   * Only available when `shaderBasedLighting` is enabled.
-   */
-  public lightRegistry: LightSourceRegistry | null = null;
 
   private aabbOverrides = new Map<string, AABB[]>();
 
@@ -3411,11 +3394,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         shadowNormalBias: 0.02,
         lightMargin: 32,
       });
-      this.lightVolume = new LightVolume({
-        size: [128, 64, 128],
-        resolution: 1,
-      });
-      this.lightRegistry = new LightSourceRegistry();
     }
 
     await this.loadMaterials();
@@ -4348,20 +4326,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.chunkRenderer.shaderLightingUniforms.shadowStrength.value =
         shadowStrength;
     }
-
-    if (this.lightVolume && this.lightRegistry) {
-      this.lightVolume.updateCenter(position);
-      this.lightVolume.updateFromRegistry(this.lightRegistry);
-
-      this.chunkRenderer.shaderLightingUniforms.lightVolume.value =
-        this.lightVolume.getTexture();
-      this.chunkRenderer.shaderLightingUniforms.lightVolumeMin.value.copy(
-        this.lightVolume.getVolumeMin(),
-      );
-      this.chunkRenderer.shaderLightingUniforms.lightVolumeSize.value.copy(
-        this.lightVolume.getVolumeSize(),
-      );
-    }
   }
 
   renderShadowMaps(
@@ -4681,11 +4645,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         shadowNormalBias: 0.02,
         lightMargin: 32,
       });
-      this.lightVolume = new LightVolume({
-        size: [128, 64, 128],
-        resolution: 1,
-      });
-      this.lightRegistry = new LightSourceRegistry();
     }
 
     if (!cloudsOptions.uFogColor) {
@@ -5964,11 +5923,6 @@ export class World<T = any> extends Scene implements NetIntercept {
           uShadowBias: this.chunkRenderer.shaderLightingUniforms.shadowBias,
           uShadowStrength:
             this.chunkRenderer.shaderLightingUniforms.shadowStrength,
-          uLightVolume: this.chunkRenderer.shaderLightingUniforms.lightVolume,
-          uLightVolumeMin:
-            this.chunkRenderer.shaderLightingUniforms.lightVolumeMin,
-          uLightVolumeSize:
-            this.chunkRenderer.shaderLightingUniforms.lightVolumeSize,
           uWaterTint: this.chunkRenderer.shaderLightingUniforms.waterTint,
           uWaterAbsorption:
             this.chunkRenderer.shaderLightingUniforms.waterAbsorption,

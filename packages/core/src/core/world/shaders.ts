@@ -453,10 +453,6 @@ uniform float uCascadeSplit2;
 uniform float uShadowBias;
 uniform float uShadowStrength;
 
-uniform highp sampler3D uLightVolume;
-uniform vec3 uLightVolumeMin;
-uniform vec3 uLightVolumeSize;
-
 uniform vec3 uWaterTint;
 uniform float uWaterAbsorption;
 uniform float uWaterLevel;
@@ -600,16 +596,6 @@ float getShadow() {
   return mix(1.0, rawShadow, uShadowStrength);
 }
 
-vec3 sampleLightVolume() {
-  vec3 coord = (vWorldPosition.xyz - uLightVolumeMin) / uLightVolumeSize;
-  
-  if (any(lessThan(coord, vec3(0.0))) || any(greaterThan(coord, vec3(1.0)))) {
-    return vec3(0.0);
-  }
-  
-  return texture(uLightVolume, coord).rgb;
-}
-
 #include <common>
 `,
     )
@@ -687,7 +673,7 @@ vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity * sunExpo
 vec3 cpuTorchLight = vLight.rgb;
 vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
 float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
-vec3 torchLight = sampleLightVolume() + smoothTorch * 1.2;
+vec3 torchLight = smoothTorch * 1.2;
 
 vec3 globalAmbient = vec3(0.025, 0.03, 0.04);
 

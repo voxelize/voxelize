@@ -1,12 +1,4 @@
-import {
-  Color,
-  Data3DTexture,
-  Matrix4,
-  Texture,
-  Vector2,
-  Vector3,
-  Vector4,
-} from "three";
+import { Color, Matrix4, Texture, Vector2, Vector3, Vector4 } from "three";
 
 import { CustomChunkShaderMaterial } from ".";
 
@@ -26,9 +18,6 @@ export interface ShaderLightingUniforms {
   shadowBias: { value: number };
   shadowStrength: { value: number };
   sunlightIntensity: { value: number };
-  lightVolume: { value: Data3DTexture | null };
-  lightVolumeMin: { value: Vector3 };
-  lightVolumeSize: { value: Vector3 };
   waterTint: { value: Color };
   waterAbsorption: { value: number };
   waterLevel: { value: number };
@@ -108,9 +97,6 @@ export class ChunkRenderer {
     shadowBias: { value: 0.0005 },
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
-    lightVolume: { value: null },
-    lightVolumeMin: { value: new Vector3() },
-    lightVolumeSize: { value: new Vector3(128, 64, 128) },
     waterTint: { value: new Color(0.3, 0.5, 0.8) },
     waterAbsorption: { value: 0.5 },
     waterLevel: { value: 86 },

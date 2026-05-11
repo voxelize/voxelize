@@ -317,8 +317,6 @@ export class LightShined {
     const sunContrib =
       sunlightIntensity.value * avgNdotL * shadowFactor * sunExposure;
 
-    const torchLight = this.getTorchLightAtPosition(pos);
-
     let cpuTorchR = 0,
       cpuTorchG = 0,
       cpuTorchB = 0;
@@ -343,50 +341,23 @@ export class LightShined {
       globalAmbientR +
       skyAmbientR +
       sunColor.value.r * sunContrib +
-      (torchLight.r + cpuTorchR) * torchAttenuation;
+      cpuTorchR * torchAttenuation;
     const totalG =
       globalAmbientG +
       skyAmbientG +
       sunColor.value.g * sunContrib +
-      (torchLight.g + cpuTorchG) * torchAttenuation;
+      cpuTorchG * torchAttenuation;
     const totalB =
       globalAmbientB +
       skyAmbientB +
       sunColor.value.b * sunContrib +
-      (torchLight.b + cpuTorchB) * torchAttenuation;
+      cpuTorchB * torchAttenuation;
 
     return tempColor.setRGB(
       Math.min(totalR, this.options.maxBrightness),
       Math.min(totalG, this.options.maxBrightness),
       Math.min(totalB, this.options.maxBrightness),
     );
-  }
-
-  private getTorchLightAtPosition(pos: Vector3): Color {
-    const registry = this.world.lightRegistry;
-    if (!registry) return new Color(0, 0, 0);
-
-    const lights = registry.getLightsNearPoint(pos, 16);
-    let r = 0,
-      g = 0,
-      b = 0;
-
-    for (const light of lights) {
-      const dist = light.position.distanceTo(pos);
-      if (dist > light.radius) continue;
-
-      const attenuation = Math.pow(
-        Math.max(0, 1 - dist / light.radius),
-        light.falloffExponent,
-      );
-      const intensity = light.intensity * attenuation;
-
-      r += light.color.r * intensity;
-      g += light.color.g * intensity;
-      b += light.color.b * intensity;
-    }
-
-    return new Color(r, g, b);
   }
 
   private computeShadowFactor(pos: Vector3): number {
