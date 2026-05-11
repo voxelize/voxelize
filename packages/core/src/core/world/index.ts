@@ -786,6 +786,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
   private static readonly nightColor = new Color(0.15, 0.18, 0.25);
+  private static readonly MAX_SHADER_DELTA_SECONDS = 0.1;
+  private static readonly WIND_DIRECTION_TIME_SCALE = 0.01;
+  private static readonly WIND_DIRECTION_VARIATION_TIME_SCALE = 0.003;
+  private static readonly WIND_DIRECTION_VARIATION_AMOUNT = 0.5;
+  private static readonly WIND_OFFSET_UNITS_PER_SECOND = 0.05;
 
   private static readonly dayAmbient = new Color(0.42, 0.42, 0.43);
   private static readonly nightAmbient = new Color(0.12, 0.15, 0.22);
@@ -794,6 +799,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private accumulatedLightOps: LightOperations | null = null;
   private accumulatedStartSequenceId = 0;
+  private shaderTimeSeconds = 0;
 
   /**
    * Create a new Voxelize world.
@@ -3423,7 +3429,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const updatePhysicsDuration = performance.now() - startUpdatePhysics;
 
     const startUpdateUniforms = performance.now();
-    this.updateUniforms();
+    this.updateUniforms(delta);
     const updateUniformsDuration = performance.now() - startUpdateUniforms;
 
     const startUpdateSkyAndClouds = performance.now();
@@ -3558,6 +3564,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         const chunkName = ChunkUtils.getChunkName(chunkCoords);
         const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
+        const isChunkReady = this.isChunkReadyForEntityUpdates(chunk);
         const updateData: BlockEntityUpdateData<T> = {
           id,
           voxel: [vx, vy, vz],
@@ -3567,10 +3574,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           etype: type,
         };
 
-        if (
-          operation !== "DELETE" &&
-          !this.isChunkReadyForEntityUpdates(chunk)
-        ) {
+        if (operation !== "DELETE" && !isChunkReady) {
           this.deferBlockEntityUpdateUntilChunkReady(
             listener,
             chunkCoords,
@@ -4148,14 +4152,27 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Update the uniform values.
    */
-  private updateUniforms = () => {
-    const t = performance.now();
-    this.chunkRenderer.uniforms.time.value = t;
+  private updateUniforms = (delta: number) => {
+    const shaderDelta = Math.min(delta, World.MAX_SHADER_DELTA_SECONDS);
+    this.shaderTimeSeconds += shaderDelta;
 
-    const windAngle = t * 0.00001 + Math.sin(t * 0.000003) * 0.5;
+    const t = this.shaderTimeSeconds;
+    this.chunkRenderer.uniforms.time.value = t * 1000;
+
+    const windAngle =
+      t * World.WIND_DIRECTION_TIME_SCALE +
+      Math.sin(t * World.WIND_DIRECTION_VARIATION_TIME_SCALE) *
+        World.WIND_DIRECTION_VARIATION_AMOUNT;
     this.chunkRenderer.uniforms.windDirection.value.set(
       Math.cos(windAngle),
       Math.sin(windAngle),
+    );
+
+    this.chunkRenderer.uniforms.windOffset.value.addScaledVector(
+      this.chunkRenderer.uniforms.windDirection.value,
+      this.chunkRenderer.uniforms.windSpeed.value *
+        shaderDelta *
+        World.WIND_OFFSET_UNITS_PER_SECOND,
     );
   };
 
@@ -5909,6 +5926,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uSkyFogDimension: chunksUniforms.skyFogDimension,
         uSkyFogStrength: chunksUniforms.skyFogStrength,
         uWindDirection: chunksUniforms.windDirection,
+        uWindOffset: chunksUniforms.windOffset,
         uWindSpeed: chunksUniforms.windSpeed,
         uTime: chunksUniforms.time,
         uAtlasSize: chunksUniforms.atlasSize,

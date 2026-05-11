@@ -109,6 +109,7 @@ varying float vViewDepth;
 uniform vec4 uAOTable;
 uniform float uTime;
 uniform vec2 uWindDirection;
+uniform vec2 uWindOffset;
 uniform float uWindSpeed;
 uniform mat4 uShadowMatrix0;
 uniform mat4 uShadowMatrix1;
@@ -674,12 +675,11 @@ export function createSwayShader(
 
   const swayCode = `
 float swayScale = uTime * 0.00002 * ${speed.toFixed(2)};
-vec2 windOffset = uWindDirection * uWindSpeed * uTime * 0.00005;
 float rootScale = ${rooted ? "(position.y - floor(position.y))" : "1.0"};
 float swayNoise = snoise(vec3(
-  position.x * swayScale + windOffset.x,
+  position.x * swayScale + uWindOffset.x,
   position.y * swayScale * ${yScale.toFixed(2)},
-  position.z * swayScale + windOffset.y
+  position.z * swayScale + uWindOffset.y
 ));
 transformed.x += rootScale * ${scale.toFixed(
     2,

@@ -44,6 +44,7 @@ export class ChunkRenderer {
     fogHeightOrigin: { value: number };
     fogHeightDensity: { value: number };
     windDirection: { value: Vector2 };
+    windOffset: { value: Vector2 };
     windSpeed: { value: number };
     skyFogTopColor: { value: Color };
     skyFogMiddleColor: { value: Color };
@@ -61,12 +62,13 @@ export class ChunkRenderer {
     fogHeightOrigin: { value: 80 },
     fogHeightDensity: { value: 0.005 },
     windDirection: { value: new Vector2(0.7, 0.7) },
+    windOffset: { value: new Vector2(0, 0) },
     windSpeed: { value: 1.0 },
     ao: { value: new Vector4(60.0, 130.0, 200.0, 255.0) },
     minLightLevel: { value: 0 },
     baseAmbient: { value: 0.001 },
     sunlightIntensity: { value: 1 },
-    time: { value: performance.now() },
+    time: { value: 0 },
     lightIntensityAdjustment: { value: 0.8 },
     atlasSize: { value: 16 },
     showGreedyDebug: { value: 0 },

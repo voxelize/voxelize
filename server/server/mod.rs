@@ -3,12 +3,12 @@ mod models;
 use std::time::{Duration, Instant};
 
 use actix::{
-    fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage,
-    MessageResult,
+    fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler,
+    Message as ActixMessage, MessageResult,
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{info, warn};
 use nanoid::nanoid;
@@ -197,6 +197,9 @@ pub struct Server {
     /// What world each client ID is connected to, client ID <-> world ID.
     /// Value: (sender, world_name, connection_token)
     pub connections: HashMap<String, (WsSender, String, String)>,
+
+    /// Worlds with a tick already queued or running.
+    pending_world_ticks: HashSet<String>,
 
     /// The information sent to the client when requested.
     info_handle: ServerInfoHandle,
@@ -591,10 +594,29 @@ impl Actor for Server {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        // Set up a recurring task to tick all worlds
-        ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
-            for world in act.worlds.values() {
-                let _ = world.try_send(Tick);
+        ctx.run_interval(Duration::from_millis(self.interval), |act, ctx| {
+            let worlds_to_tick: Vec<_> = act
+                .worlds
+                .iter()
+                .filter_map(|(name, world)| {
+                    if act.pending_world_ticks.contains(name) {
+                        None
+                    } else {
+                        Some((name.clone(), world.clone()))
+                    }
+                })
+                .collect();
+
+            for (world_name, world) in worlds_to_tick {
+                act.pending_world_ticks.insert(world_name.clone());
+                ctx.spawn(
+                    wrap_future(world.send(Tick)).map(move |result, act: &mut Server, _| {
+                        act.pending_world_ticks.remove(&world_name);
+                        if let Err(error) = result {
+                            warn!("World tick failed for {}: {:?}", world_name, error);
+                        }
+                    }),
+                );
             }
         });
     }
@@ -827,6 +849,7 @@ impl ServerBuilder {
             connections: HashMap::default(),
             lost_sessions: HashMap::default(),
             transport_sessions: HashMap::default(),
+            pending_world_ticks: HashSet::default(),
             worlds: HashMap::default(),
             info_handle: default_info_handle,
             action_handles: HashMap::default(),
