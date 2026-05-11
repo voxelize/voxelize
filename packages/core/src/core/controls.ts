@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 
 import { AABB } from "@voxelize/aabb";
-import { RigidBody } from "@voxelize/physics-engine";
+import { Engine, RigidBody } from "@voxelize/physics-engine";
 import { MessageProtocol } from "@voxelize/protocol";
 import {
   Timer,
@@ -260,6 +260,8 @@ export type RigidControlsOptions = {
    * The height of the client's avatar when crouching. Defaults to `bodyHeight * 0.83`.
    */
   crouchBodyHeight: number;
+
+  restoreFootSnapEpsilon: number;
 };
 
 const defaultOptions: RigidControlsOptions = {
@@ -301,6 +303,7 @@ const defaultOptions: RigidControlsOptions = {
   stepHeight: 0.5,
 
   crouchBodyHeight: 1.29,
+  restoreFootSnapEpsilon: 1e-4,
 };
 
 /**
@@ -842,10 +845,33 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.object.position.set(x, y, z);
 
     if (this.body) {
-      const { eyeHeight, bodyHeight } = this.options;
+      const { eyeHeight, bodyHeight, restoreFootSnapEpsilon } = this.options;
       const effectiveHeight =
         this._smoothedBodyHeight < 0 ? bodyHeight : this._smoothedBodyHeight;
-      const bodyY = y - effectiveHeight * (eyeHeight - 0.5);
+      let bodyY = y - effectiveHeight * (eyeHeight - 0.5);
+      const footY = bodyY - effectiveHeight / 2;
+      const terrainX = Math.floor(x);
+      const terrainZ = Math.floor(z);
+      const terrainFloorY = Math.floor(footY - Engine.EPSILON);
+      const snappedFootY = Math.round(footY);
+      const isNearSnappedFoot =
+        Math.abs(snappedFootY - footY) <= restoreFootSnapEpsilon;
+      const supportAABBs = this.world.getBlockAABBsAt(
+        terrainX,
+        terrainFloorY,
+        terrainZ,
+      );
+      const hasSnappedFootSupport = supportAABBs.some(
+        (aabb) =>
+          Math.abs(terrainFloorY + aabb.maxY - snappedFootY) <=
+          restoreFootSnapEpsilon,
+      );
+      const isSnappingFoot =
+        isNearSnappedFoot && footY < snappedFootY && hasSnappedFootSupport;
+      if (isSnappingFoot) {
+        const snappedRestingFootY = snappedFootY + Engine.EPSILON;
+        bodyY += snappedRestingFootY - footY;
+      }
       this.body.resting = [0, 0, 0];
       this.body.velocity = [0, 0, 0];
       this.body.forces = [0, 0, 0];
