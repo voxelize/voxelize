@@ -132,10 +132,7 @@ import { ItemDef, ItemRegistry } from "./items";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
-import {
-  DEFAULT_CHUNK_SHADERS,
-  SHADER_LIGHTING_CHUNK_SHADERS,
-} from "./shaders";
+import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
@@ -461,14 +458,6 @@ export type WorldClientOptions = {
   mergeChunkGeometries: boolean;
 
   /**
-   * Whether shader-based lighting is enabled for this world.
-   * When enabled, lighting uses GPU shaders with cascaded shadow maps.
-   * CPU light propagation still runs to provide sunlight exposure data.
-   * Defaults to `false`.
-   */
-  shaderBasedLighting: boolean;
-
-  /**
    * Ratio of render radius beyond which plant meshes are hidden.
    * Plant meshes in chunks farther than `plantRenderRatio * renderRadius` chunks
    * from the player are set invisible to reduce draw calls.
@@ -503,7 +492,6 @@ const defaultOptions: WorldClientOptions = {
   lightJobRetryLimit: 3,
   deltaRetentionTime: 5000,
   mergeChunkGeometries: false,
-  shaderBasedLighting: false,
   plantRenderRatio: 0.5,
 };
 
@@ -631,15 +619,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   public options: WorldOptions;
 
   /**
-   * Whether shader-based lighting is enabled for this world.
-   * When true, lighting uses GPU shaders with cascaded shadow maps.
-   * CPU light propagation still runs to provide sunlight exposure data.
-   */
-  public get usesShaderLighting(): boolean {
-    return this.options.shaderBasedLighting === true;
-  }
-
-  /**
    * The block registry that holds all block data, such as texture and block properties.
    */
   public registry: Registry;
@@ -686,7 +665,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /**
    * The CSM (Cascaded Shadow Map) renderer for shader-based lighting.
-   * Only available when `shaderBasedLighting` is enabled.
    */
   public csmRenderer: CSMRenderer | null = null;
 
@@ -873,13 +851,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     cz: number,
     level: number,
   ): Promise<GeometryProtocol[] | null> {
-    if (
-      !this.options.shaderBasedLighting &&
-      (this.lightJobQueue.length > 0 || this.activeLightBatch !== null)
-    ) {
-      await this.waitForLightJobsComplete();
-    }
-
     const neighbors = [
       [-1, -1],
       [0, -1],
@@ -3240,16 +3211,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       fragmentShader: string;
       uniforms?: { [key: string]: Uniform };
     } = {
-      vertexShader: DEFAULT_CHUNK_SHADERS.vertex,
-      fragmentShader: DEFAULT_CHUNK_SHADERS.fragment,
+      vertexShader: SHADER_LIGHTING_CHUNK_SHADERS.vertex,
+      fragmentShader: SHADER_LIGHTING_CHUNK_SHADERS.fragment,
       uniforms: {},
     },
   ) => {
     this.checkIsInitialized("customize material shaders", false);
 
     const {
-      vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
-      fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
+      vertexShader = SHADER_LIGHTING_CHUNK_SHADERS.vertex,
+      fragmentShader = SHADER_LIGHTING_CHUNK_SHADERS.fragment,
       uniforms = {},
     } = data;
 
@@ -3374,18 +3345,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     // Loading the options
-    // Preserve client-side shaderBasedLighting (server may still send it for backwards compatibility)
-    const clientShaderBasedLighting = this.options.shaderBasedLighting;
     this.options = {
       ...this.options,
       ...options,
-      shaderBasedLighting: clientShaderBasedLighting,
     };
 
     this.physics.options = this.options;
 
-    // Initialize shader-based lighting components after server options are known
-    if (this.usesShaderLighting && !this.csmRenderer) {
+    if (!this.csmRenderer) {
       this.csmRenderer = new CSMRenderer({
         cascades: 3,
         shadowMapSize: 4096,
@@ -4170,14 +4137,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.skyFogDimension.value =
       this.sky.options.dimension;
 
-    if (this.usesShaderLighting) {
-      this.chunkRenderer.shaderLightingUniforms.skyTopColor.value.copy(
-        this.sky.uTopColor.value,
-      );
-      this.chunkRenderer.shaderLightingUniforms.skyMiddleColor.value.copy(
-        this.sky.uMiddleColor.value,
-      );
-    }
+    this.chunkRenderer.shaderLightingUniforms.skyTopColor.value.copy(
+      this.sky.uTopColor.value,
+    );
+    this.chunkRenderer.shaderLightingUniforms.skyMiddleColor.value.copy(
+      this.sky.uMiddleColor.value,
+    );
   }
 
   /**
@@ -4195,8 +4160,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   updateShaderLighting(camera: Camera, position: Vector3) {
-    if (!this.usesShaderLighting) return;
-
     const { timePerDay } = this.options;
     const timeRatio = this.time / timePerDay;
     const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
@@ -4333,7 +4296,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     entities?: Object3D[],
     instancePools?: Group[],
   ) {
-    if (!this.usesShaderLighting || !this.csmRenderer) return;
+    if (!this.csmRenderer) return;
 
     if (
       (entities && entities.length > 0) ||
@@ -4636,16 +4599,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.meshPipeline = new MeshPipeline();
     this.chunkRenderer = new ChunkRenderer();
 
-    if (this.usesShaderLighting) {
-      this.csmRenderer = new CSMRenderer({
-        cascades: 3,
-        shadowMapSize: 4096,
-        maxShadowDistance: 128,
-        shadowBias: 0.0005,
-        shadowNormalBias: 0.02,
-        lightMargin: 32,
-      });
-    }
+    this.csmRenderer = new CSMRenderer({
+      cascades: 3,
+      shadowMapSize: 4096,
+      maxShadowDistance: 128,
+      shadowBias: 0.0005,
+      shadowNormalBias: 0.02,
+      lightMargin: 32,
+    });
 
     if (!cloudsOptions.uFogColor) {
       cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
@@ -5887,53 +5848,40 @@ export class World<T = any> extends Scene implements NetIntercept {
     vertexShader?: string,
     uniforms: Record<string, Uniform> = {},
   ) => {
-    const useShaderLighting = this.usesShaderLighting;
-    const baseShaders = useShaderLighting
-      ? SHADER_LIGHTING_CHUNK_SHADERS
-      : DEFAULT_CHUNK_SHADERS;
-
-    const actualFragmentShader = fragmentShader ?? baseShaders.fragment;
-    const actualVertexShader = vertexShader ?? baseShaders.vertex;
+    const actualFragmentShader =
+      fragmentShader ?? SHADER_LIGHTING_CHUNK_SHADERS.fragment;
+    const actualVertexShader =
+      vertexShader ?? SHADER_LIGHTING_CHUNK_SHADERS.vertex;
 
     const chunksUniforms = {
       ...this.chunkRenderer.uniforms,
       ...this.options.chunkUniformsOverwrite,
     };
 
-    const shaderLightingUniforms = useShaderLighting
-      ? {
-          uSunDirection: this.chunkRenderer.shaderLightingUniforms.sunDirection,
-          uSunColor: this.chunkRenderer.shaderLightingUniforms.sunColor,
-          uAmbientColor: this.chunkRenderer.shaderLightingUniforms.ambientColor,
-          uShadowMap0: this.chunkRenderer.shaderLightingUniforms.shadowMap0,
-          uShadowMap1: this.chunkRenderer.shaderLightingUniforms.shadowMap1,
-          uShadowMap2: this.chunkRenderer.shaderLightingUniforms.shadowMap2,
-          uShadowMatrix0:
-            this.chunkRenderer.shaderLightingUniforms.shadowMatrix0,
-          uShadowMatrix1:
-            this.chunkRenderer.shaderLightingUniforms.shadowMatrix1,
-          uShadowMatrix2:
-            this.chunkRenderer.shaderLightingUniforms.shadowMatrix2,
-          uCascadeSplit0:
-            this.chunkRenderer.shaderLightingUniforms.cascadeSplit0,
-          uCascadeSplit1:
-            this.chunkRenderer.shaderLightingUniforms.cascadeSplit1,
-          uCascadeSplit2:
-            this.chunkRenderer.shaderLightingUniforms.cascadeSplit2,
-          uShadowBias: this.chunkRenderer.shaderLightingUniforms.shadowBias,
-          uShadowStrength:
-            this.chunkRenderer.shaderLightingUniforms.shadowStrength,
-          uWaterTint: this.chunkRenderer.shaderLightingUniforms.waterTint,
-          uWaterAbsorption:
-            this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
-          uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
-          uSkyTopColor: this.chunkRenderer.shaderLightingUniforms.skyTopColor,
-          uSkyMiddleColor:
-            this.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
-          uShadowDebugMode:
-            this.chunkRenderer.shaderLightingUniforms.shadowDebugMode,
-        }
-      : {};
+    const shaderLightingUniforms = {
+      uSunDirection: this.chunkRenderer.shaderLightingUniforms.sunDirection,
+      uSunColor: this.chunkRenderer.shaderLightingUniforms.sunColor,
+      uAmbientColor: this.chunkRenderer.shaderLightingUniforms.ambientColor,
+      uShadowMap0: this.chunkRenderer.shaderLightingUniforms.shadowMap0,
+      uShadowMap1: this.chunkRenderer.shaderLightingUniforms.shadowMap1,
+      uShadowMap2: this.chunkRenderer.shaderLightingUniforms.shadowMap2,
+      uShadowMatrix0: this.chunkRenderer.shaderLightingUniforms.shadowMatrix0,
+      uShadowMatrix1: this.chunkRenderer.shaderLightingUniforms.shadowMatrix1,
+      uShadowMatrix2: this.chunkRenderer.shaderLightingUniforms.shadowMatrix2,
+      uCascadeSplit0: this.chunkRenderer.shaderLightingUniforms.cascadeSplit0,
+      uCascadeSplit1: this.chunkRenderer.shaderLightingUniforms.cascadeSplit1,
+      uCascadeSplit2: this.chunkRenderer.shaderLightingUniforms.cascadeSplit2,
+      uShadowBias: this.chunkRenderer.shaderLightingUniforms.shadowBias,
+      uShadowStrength: this.chunkRenderer.shaderLightingUniforms.shadowStrength,
+      uWaterTint: this.chunkRenderer.shaderLightingUniforms.waterTint,
+      uWaterAbsorption:
+        this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
+      uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
+      uSkyTopColor: this.chunkRenderer.shaderLightingUniforms.skyTopColor,
+      uSkyMiddleColor: this.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
+      uShadowDebugMode:
+        this.chunkRenderer.shaderLightingUniforms.shadowDebugMode,
+    };
 
     const material = new ShaderMaterial({
       vertexColors: true,

@@ -3,10 +3,11 @@ import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 import { World } from "../../core";
 import { ChunkUtils, ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
-import { Shadow } from "../shadows";
 
 const position = new Vector3();
 const tempColor = new Color();
+
+type IgnoredType = abstract new (...args: never[]) => object;
 
 export type LightShinedOptions = {
   /**
@@ -27,7 +28,7 @@ const defaultOptions: LightShinedOptions = {
 /**
  * A class that allows mesh to dynamically change brightness based on the voxel light level at their position.
  *
- * By default, `VOXELIZE.Shadow` and `VOXELIZE.NameTag` is ignored by this effect.
+ * By default, `VOXELIZE.NameTag` is ignored by this effect.
  *
  * # Example
  * ```ts
@@ -59,7 +60,7 @@ export class LightShined {
   /**
    * A list of types that are ignored by this effect.
    */
-  public ignored: Set<any> = new Set();
+  public ignored: Set<IgnoredType> = new Set();
 
   private positionOverrides = new Map<Object3D, Vector3>();
 
@@ -75,7 +76,6 @@ export class LightShined {
   ) {
     this.options = { ...defaultOptions, ...options };
 
-    this.ignore(Shadow);
     this.ignore(NameTag);
   }
 
@@ -118,7 +118,7 @@ export class LightShined {
     this.positionOverrides.delete(obj);
   };
 
-  ignore = (...types: any[]) => {
+  ignore = (...types: IgnoredType[]) => {
     types.forEach((type) => {
       this.ignored.add(type);
     });
@@ -170,8 +170,8 @@ export class LightShined {
       material.userData.lightEffectSetup = true;
     };
 
-    const isMesh = (object: any): object is Mesh => {
-      return object.isMesh;
+    const isMesh = (object: Object3D): object is Mesh => {
+      return object instanceof Mesh;
     };
 
     const setupObjectAndChildren = (object: Object3D) => {
@@ -256,11 +256,7 @@ export class LightShined {
         obj.getWorldPosition(position);
       }
 
-      if (this.world.usesShaderLighting) {
-        color = this.computeShaderBasedLight(position);
-      } else {
-        color = this.computeCPUBasedLight(position);
-      }
+      color = this.computeShaderBasedLight(position);
 
       if (!color) return;
     }
@@ -269,35 +265,6 @@ export class LightShined {
       this.updateObject(child, color);
     });
   };
-
-  private computeCPUBasedLight(pos: Vector3): Color | null {
-    const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
-    const lightValues = this.world.getLightValuesAt(...voxel);
-    if (!lightValues) return null;
-
-    const { sunlight, red, green, blue } = lightValues;
-    const { sunlightIntensity, minLightLevel, baseAmbient } =
-      this.world.chunkRenderer.uniforms;
-    const maxLightLevel = this.world.options.maxLightLevel;
-
-    const sunlightNorm = sunlight / maxLightLevel;
-    const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
-    const s = Math.min(
-      sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
-      1,
-    );
-
-    const torchR = (red / maxLightLevel) ** 2;
-    const torchG = (green / maxLightLevel) ** 2;
-    const torchB = (blue / maxLightLevel) ** 2;
-    const torchAttenuation = 1.0 - s * 0.8;
-
-    return tempColor.setRGB(
-      s + torchR * torchAttenuation,
-      s + torchG * torchAttenuation,
-      s + torchB * torchAttenuation,
-    );
-  }
 
   private computeShaderBasedLight(pos: Vector3): Color {
     const { sunlightIntensity } = this.world.chunkRenderer.uniforms;
@@ -361,7 +328,7 @@ export class LightShined {
   }
 
   private computeShadowFactor(pos: Vector3): number {
-    if (!this.world.usesShaderLighting || !this.world.csmRenderer) return 1.0;
+    if (!this.world.csmRenderer) return 1.0;
 
     const { sunDirection, shadowStrength } =
       this.world.chunkRenderer.shaderLightingUniforms;
