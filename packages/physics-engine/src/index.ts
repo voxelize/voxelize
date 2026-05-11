@@ -185,8 +185,7 @@ export class Engine {
     this.tryCliffHanging(body, tmpBox, dx);
 
     if (body.stepHeight > 0) {
-      const autoStepBox = body.aabb.clone();
-      this.tryAutoStepping(body, autoStepBox, dx);
+      this.tryAutoStepping(body, tmpBox.clone(), dx);
     }
 
     // Collision impacts. b.resting shows which axes had collisions:
