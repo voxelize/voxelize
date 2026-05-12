@@ -2431,7 +2431,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       vy = 0,
       vz = 0;
 
-    const simulatedGetVoxelAt = () => blockId;
+    const simulatedGetVoxelAt = (x: number, y: number, z: number) =>
+      x === vx && y === vy && z === vz ? blockId : 0;
 
     const simulatedGetVoxelRotationAt = () => new BlockRotation();
     const simulatedGetVoxelStageAt = () => 0;
