@@ -375,87 +375,30 @@ function removeLightsBatch(
           space.setTorchLightAt(nvx, nvy, nvz, 0, color);
         }
       } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
-        const hasDynamicPatterns = Boolean(nBlock.dynamicPatterns?.length);
-        const refillLevel =
-          !isSunlight && hasDynamicPatterns ? dynamicTorchLightLevel : nl;
-        if (refillLevel < nl) {
-          queue.push({ voxel: [nvx, nvy, nvz], level: nl });
-          space.setTorchLightAt(nvx, nvy, nvz, 0, color);
-        }
-        if (refillLevel <= 0) continue;
-
-        fill.push({ voxel: [nvx, nvy, nvz], level: refillLevel });
-      }
-    }
-  }
-
-  return fill;
-}
-
-function rebuildTorchLightRegion(
-  space: VoxelAccess,
-  color: LightColor,
-  boundingBox: { min: Coords3; shape: Coords3 },
-  options: WorldOptions,
-): LightNode[] {
-  const { maxHeight, maxLightLevel } = options;
-  const [minX, sourceMinY, minZ] = boundingBox.min;
-  const [shapeX, shapeY, shapeZ] = boundingBox.shape;
-  const maxX = minX + shapeX;
-  const minY = Math.max(0, sourceMinY - maxLightLevel);
-  const maxY = Math.min(maxHeight, sourceMinY + shapeY + maxLightLevel);
-  const maxZ = minZ + shapeZ;
-  const seeds: LightNode[] = [];
-
-  for (let vx = minX; vx < maxX; vx++) {
-    for (let vy = minY; vy < maxY; vy++) {
-      for (let vz = minZ; vz < maxZ; vz++) {
-        const previousLevel = space.getTorchLightAt(vx, vy, vz, color);
-        const blockId = space.getVoxelAt(vx, vy, vz);
-        const block = registry.blocksById.get(blockId);
-        const voxel: Coords3 = [vx, vy, vz];
-        const emittedLevel = block
-          ? BlockUtils.getBlockTorchLightLevelAt(block, color, voxel, {
-              getVoxelAt: (x, y, z) => space.getVoxelAt(x, y, z),
-              getVoxelRotationAt: (x, y, z) =>
-                space.getVoxelRotationAt(x, y, z),
-              getVoxelStageAt: (x, y, z) => space.getVoxelStageAt(x, y, z),
-            })
-          : 0;
-        const isBoundary =
-          vx === minX ||
-          vx === maxX - 1 ||
-          vy === minY ||
-          vy === maxY - 1 ||
-          vz === minZ ||
-          vz === maxZ - 1;
-        const seedLevel =
-          emittedLevel > 0 ? emittedLevel : isBoundary ? previousLevel : 0;
-
-        space.setTorchLightAt(vx, vy, vz, 0, color);
-
-        if (seedLevel <= 0) {
+        if (isSunlight) {
+          fill.push({ voxel: [nvx, nvy, nvz], level: nl });
           continue;
         }
 
-        space.setTorchLightAt(vx, vy, vz, seedLevel, color);
-        seeds.push({ voxel, level: seedLevel });
+        const emissionLevel = dynamicTorchLightLevel;
+        if (typeof emissionLevel !== "number" || emissionLevel <= 0) {
+          queue.push({ voxel: [nvx, nvy, nvz], level: nl });
+          space.setTorchLightAt(nvx, nvy, nvz, 0, color);
+          continue;
+        }
+
+        if (nl === emissionLevel) {
+          fill.push({ voxel: [nvx, nvy, nvz], level: emissionLevel });
+          continue;
+        }
+
+        queue.push({ voxel: [nvx, nvy, nvz], level: nl });
+        space.setTorchLightAt(nvx, nvy, nvz, 0, color);
       }
     }
   }
 
-  if (seeds.length > 0) {
-    floodLight(
-      space,
-      seeds,
-      color,
-      [minX, minY, minZ],
-      [maxX, maxY, maxZ],
-      options,
-    );
-  }
-
-  return seeds;
+  return LightUtils.dedupeFillQueue(fill);
 }
 
 onmessage = function (e) {
@@ -537,9 +480,7 @@ onmessage = function (e) {
       min[2] + shape[2],
     ];
 
-    if (lightOps.removals.length > 0 && color !== "SUNLIGHT") {
-      rebuildTorchLightRegion(space, color, boundingBox, options);
-    } else if (lightOps.removals.length > 0) {
+    if (lightOps.removals.length > 0) {
       const fillQueue = removeLightsBatch(
         space,
         lightOps.removals,
@@ -547,6 +488,15 @@ onmessage = function (e) {
         options,
       );
       if (fillQueue.length > 0) {
+        for (const node of fillQueue) {
+          const [vx, vy, vz] = node.voxel;
+          if (color === "SUNLIGHT") {
+            space.setSunlightAt(vx, vy, vz, node.level);
+          } else {
+            space.setTorchLightAt(vx, vy, vz, node.level, color);
+          }
+        }
+
         floodLight(space, fillQueue, color, min, maxCoords, options);
       }
     }

@@ -111,11 +111,11 @@ export class BlockUtils {
   static getBlockTorchLightLevel = (block: Block, color: LightColor) => {
     switch (color) {
       case "RED":
-        return block.redLightLevel;
+        return block.redLightLevel ?? 0;
       case "GREEN":
-        return block.greenLightLevel;
+        return block.greenLightLevel ?? 0;
       case "BLUE":
-        return block.blueLightLevel;
+        return block.blueLightLevel ?? 0;
     }
 
     return 0;
@@ -146,17 +146,17 @@ export class BlockUtils {
 
           switch (color) {
             case "RED":
-              if (part.redLightLevel !== undefined) {
+              if (typeof part.redLightLevel === "number") {
                 return part.redLightLevel;
               }
               break;
             case "GREEN":
-              if (part.greenLightLevel !== undefined) {
+              if (typeof part.greenLightLevel === "number") {
                 return part.greenLightLevel;
               }
               break;
             case "BLUE":
-              if (part.blueLightLevel !== undefined) {
+              if (typeof part.blueLightLevel === "number") {
                 return part.blueLightLevel;
               }
               break;

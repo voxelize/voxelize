@@ -2956,34 +2956,49 @@ export class World<T = any> extends Scene implements NetIntercept {
             this.setTorchLightAt(nvx, nvy, nvz, 0, color);
           }
         } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
-          const hasDynamicPatterns = Boolean(nBlock.dynamicPatterns?.length);
-          const refillLevel =
-            !isSunlight && hasDynamicPatterns
-              ? BlockUtils.getBlockTorchLightLevelAt(
-                  nBlock,
-                  color,
-                  [nvx, nvy, nvz],
-                  {
-                    getVoxelAt: (x, y, z) => this.getVoxelAt(x, y, z),
-                    getVoxelRotationAt: (x, y, z) =>
-                      this.getVoxelRotationAt(x, y, z),
-                    getVoxelStageAt: (x, y, z) => this.getVoxelStageAt(x, y, z),
-                  },
-                )
-              : nl;
-          if (!isSunlight && refillLevel < nl) {
+          if (isSunlight) {
+            fill.push({ voxel: [nvx, nvy, nvz], level: nl });
+            continue;
+          }
+
+          const emissionLevel = BlockUtils.getBlockTorchLightLevelAt(
+            nBlock,
+            color,
+            [nvx, nvy, nvz],
+            {
+              getVoxelAt: (x, y, z) => this.getVoxelAt(x, y, z),
+              getVoxelRotationAt: (x, y, z) => this.getVoxelRotationAt(x, y, z),
+              getVoxelStageAt: (x, y, z) => this.getVoxelStageAt(x, y, z),
+            },
+          );
+          if (typeof emissionLevel !== "number" || emissionLevel <= 0) {
             queue.push({ voxel: [nvx, nvy, nvz], level: nl });
             this.setTorchLightAt(nvx, nvy, nvz, 0, color);
+            continue;
           }
-          if (refillLevel <= 0) continue;
 
-          fill.push({ voxel: [nvx, nvy, nvz], level: refillLevel });
+          if (nl === emissionLevel) {
+            fill.push({ voxel: [nvx, nvy, nvz], level: emissionLevel });
+            continue;
+          }
+
+          queue.push({ voxel: [nvx, nvy, nvz], level: nl });
+          this.setTorchLightAt(nvx, nvy, nvz, 0, color);
         }
       }
     }
 
-    // Re-flood remaining valid lights.
-    this.floodLight(fill, color);
+    const dedupedFill = LightUtils.dedupeFillQueue(fill);
+    for (const node of dedupedFill) {
+      const [vx, vy, vz] = node.voxel;
+      if (isSunlight) {
+        this.setSunlightAt(vx, vy, vz, node.level);
+      } else {
+        this.setTorchLightAt(vx, vy, vz, node.level, color);
+      }
+    }
+
+    this.floodLight(dedupedFill, color);
   }
 
   /**
@@ -4807,13 +4822,13 @@ export class World<T = any> extends Scene implements NetIntercept {
             );
 
             if (ruleMatched) {
-              if (part.redLightLevel !== undefined) {
+              if (typeof part.redLightLevel === "number") {
                 currentRedLevel = part.redLightLevel;
               }
-              if (part.greenLightLevel !== undefined) {
+              if (typeof part.greenLightLevel === "number") {
                 currentGreenLevel = part.greenLightLevel;
               }
-              if (part.blueLightLevel !== undefined) {
+              if (typeof part.blueLightLevel === "number") {
                 currentBlueLevel = part.blueLightLevel;
               }
               currentEmitsLight =
@@ -5040,11 +5055,11 @@ export class World<T = any> extends Scene implements NetIntercept {
               );
 
               if (ruleMatched) {
-                if (part.redLightLevel !== undefined)
+                if (typeof part.redLightLevel === "number")
                   redLevel = part.redLightLevel;
-                if (part.greenLightLevel !== undefined)
+                if (typeof part.greenLightLevel === "number")
                   greenLevel = part.greenLightLevel;
-                if (part.blueLightLevel !== undefined)
+                if (typeof part.blueLightLevel === "number")
                   blueLevel = part.blueLightLevel;
                 break;
               }
@@ -5471,8 +5486,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       minX -= maxLightLevel;
+      minY -= maxLightLevel;
       minZ -= maxLightLevel;
       maxX += maxLightLevel;
+      maxY += maxLightLevel;
       maxZ += maxLightLevel;
 
       minX = Math.max(minX, minChunk[0] * chunkSize);
@@ -5813,6 +5830,41 @@ export class World<T = any> extends Scene implements NetIntercept {
       const coords = ChunkUtils.parseChunkName(chunkName);
       this.markChunkForRemesh(coords as Coords2);
     });
+
+    if (lightOps.removals.length > 0) {
+      const { maxLightLevel, chunkSize, maxHeight, subChunks } = this.options;
+      let minY = maxHeight;
+      let maxY = 0;
+
+      for (const [vx, vy, vz] of lightOps.removals) {
+        minY = Math.min(minY, vy);
+        maxY = Math.max(maxY, vy);
+
+        for (let dx = -maxLightLevel; dx <= maxLightLevel; dx++) {
+          for (let dz = -maxLightLevel; dz <= maxLightLevel; dz++) {
+            const coords = ChunkUtils.mapVoxelToChunk(
+              [vx + dx, vy, vz + dz],
+              chunkSize,
+            );
+            affectedChunks.add(ChunkUtils.getChunkName(coords));
+          }
+        }
+      }
+
+      minY = Math.max(0, minY - maxLightLevel);
+      maxY = Math.min(maxHeight - 1, maxY + maxLightLevel);
+      const subChunkHeight = maxHeight / subChunks;
+      const minLevel = Math.floor(minY / subChunkHeight);
+      const maxLevel = Math.min(
+        subChunks - 1,
+        Math.floor(maxY / subChunkHeight),
+      );
+
+      affectedChunks.forEach((chunkName) => {
+        const coords = ChunkUtils.parseChunkName(chunkName);
+        this.markChunkForRemeshLevels(coords as Coords2, minLevel, maxLevel);
+      });
+    }
   }
 
   private executeLightOperationsSyncAll(lightOps: LightOperations) {

@@ -1,3 +1,5 @@
+import type { Coords3 } from "../types";
+
 /**
  * A utility class for extracting and inserting light data from and into numbers.
  *
@@ -209,6 +211,20 @@ export class LightUtils {
     // Going from NZ of source to PZ of target
     return snz && tpz;
   };
+
+  static dedupeFillQueue<T extends { voxel: Coords3; level: number }>(
+    nodes: T[],
+  ): T[] {
+    const byKey = new Map<string, T>();
+    for (const node of nodes) {
+      const key = `${node.voxel[0]},${node.voxel[1]},${node.voxel[2]}`;
+      const existing = byKey.get(key);
+      if (!existing || node.level > existing.level) {
+        byKey.set(key, node);
+      }
+    }
+    return Array.from(byKey.values());
+  }
 
   private constructor() {
     // NOTHING

@@ -236,28 +236,39 @@ impl Lights {
                 } else {
                     nl >= level
                 } {
-                    let refill_level = if !is_sunlight && n_block.dynamic_patterns.is_some() {
-                        n_block.get_torch_light_level_at(&n_voxel_pos, space, color)
-                    } else {
-                        nl
-                    };
-
-                    if refill_level == 0 {
+                    if is_sunlight {
+                        fill.push_back(LightNode {
+                            voxel: n_voxel,
+                            level: nl,
+                        });
                         continue;
                     }
 
-                    if !is_sunlight && refill_level < nl {
+                    let emission_level =
+                        n_block.get_torch_light_level_at(&n_voxel_pos, space, color);
+
+                    if emission_level == 0 {
                         queue.push_back(LightNode {
                             voxel: n_voxel,
                             level: nl,
                         });
                         space.set_torch_light(nvx, nvy, nvz, 0, color);
+                        continue;
                     }
 
-                    fill.push_back(LightNode {
+                    if nl == emission_level {
+                        fill.push_back(LightNode {
+                            voxel: n_voxel,
+                            level: emission_level,
+                        });
+                        continue;
+                    }
+
+                    queue.push_back(LightNode {
                         voxel: n_voxel,
-                        level: refill_level,
-                    })
+                        level: nl,
+                    });
+                    space.set_torch_light(nvx, nvy, nvz, 0, color);
                 }
             }
         }
@@ -581,28 +592,39 @@ impl Lights {
                 } else {
                     nl >= level
                 } {
-                    let refill_level = if !is_sunlight && n_block.dynamic_patterns.is_some() {
-                        n_block.get_torch_light_level_at(&n_voxel_pos, space, color)
-                    } else {
-                        nl
-                    };
-
-                    if refill_level == 0 {
+                    if is_sunlight {
+                        fill.push_back(LightNode {
+                            voxel: [nvx, nvy, nvz],
+                            level: nl,
+                        });
                         continue;
                     }
 
-                    if !is_sunlight && refill_level < nl {
+                    let emission_level =
+                        n_block.get_torch_light_level_at(&n_voxel_pos, space, color);
+
+                    if emission_level == 0 {
                         queue.push_back(LightNode {
                             voxel: [nvx, nvy, nvz],
                             level: nl,
                         });
                         space.set_torch_light(nvx, nvy, nvz, 0, color);
+                        continue;
                     }
 
-                    fill.push_back(LightNode {
+                    if nl == emission_level {
+                        fill.push_back(LightNode {
+                            voxel: [nvx, nvy, nvz],
+                            level: emission_level,
+                        });
+                        continue;
+                    }
+
+                    queue.push_back(LightNode {
                         voxel: [nvx, nvy, nvz],
-                        level: refill_level,
+                        level: nl,
                     });
+                    space.set_torch_light(nvx, nvy, nvz, 0, color);
                 }
             }
         }
