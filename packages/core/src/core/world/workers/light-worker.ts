@@ -42,6 +42,45 @@ interface VoxelAccess {
   markChunkModified(cx: number, cz: number): void;
 }
 
+function getBlockTorchLightLevelAt(
+  block: Block,
+  color: LightColor,
+  voxel: Coords3,
+  space: VoxelAccess,
+) {
+  if (!block.dynamicPatterns?.length) {
+    return BlockUtils.getBlockTorchLightLevel(block, color);
+  }
+
+  for (const pattern of block.dynamicPatterns) {
+    for (const part of pattern.parts) {
+      const isMatch = BlockUtils.evaluateBlockRule(part.rule, voxel, {
+        getVoxelAt: (x, y, z) => space.getVoxelAt(x, y, z),
+        getVoxelRotationAt: (x, y, z) => space.getVoxelRotationAt(x, y, z),
+        getVoxelStageAt: (x, y, z) => space.getVoxelStageAt(x, y, z),
+      });
+
+      if (!isMatch) {
+        continue;
+      }
+
+      switch (color) {
+        case "RED":
+          if (part.redLightLevel !== undefined) return part.redLightLevel;
+          break;
+        case "GREEN":
+          if (part.greenLightLevel !== undefined) return part.greenLightLevel;
+          break;
+        case "BLUE":
+          if (part.blueLightLevel !== undefined) return part.blueLightLevel;
+          break;
+      }
+    }
+  }
+
+  return 0;
+}
+
 class BoundedSpace implements VoxelAccess {
   private chunkCache = new Map<number, RawChunk | null>();
   private modifiedChunks = new Set<RawChunk>();
@@ -216,7 +255,8 @@ function floodLight(
     const sourceBlock = getCachedBlock(vx, vy, vz);
     const sourceRotation = getCachedRotation(vx, vy, vz);
     const sourceTransparency =
-      !isSunlight && BlockUtils.getBlockTorchLightLevel(sourceBlock, color) > 0
+      !isSunlight &&
+      getBlockTorchLightLevelAt(sourceBlock, color, voxel, space) > 0
         ? ALL_TRANSPARENT
         : BlockUtils.getBlockRotatedTransparency(sourceBlock, sourceRotation);
 
@@ -237,8 +277,8 @@ function floodLight(
         ncx > endCX ||
         ncz < startCZ ||
         ncz > endCZ ||
-        (min && (nvx < min[0] || nvz < min[2])) ||
-        (max && (nvx >= max[0] || nvz >= max[2]))
+        (min && (nvx < min[0] || nvy < min[1] || nvz < min[2])) ||
+        (max && (nvx >= max[0] || nvy >= max[1] || nvz >= max[2]))
       ) {
         continue;
       }
@@ -332,19 +372,24 @@ function removeLightsBatch(
         nBlock,
         rotation,
       );
+      const nVoxel: Coords3 = [nvx, nvy, nvz];
+      const dynamicTorchLightLevel = getBlockTorchLightLevelAt(
+        nBlock,
+        color,
+        nVoxel,
+        space,
+      );
+      const nl = isSunlight
+        ? space.getSunlightAt(nvx, nvy, nvz)
+        : space.getTorchLightAt(nvx, nvy, nvz, color);
 
       if (
-        (isSunlight
-          ? true
-          : BlockUtils.getBlockTorchLightLevel(nBlock, color) === 0) &&
+        (isSunlight ? true : dynamicTorchLightLevel === 0) &&
         !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
       ) {
         continue;
       }
 
-      const nl = isSunlight
-        ? space.getSunlightAt(nvx, nvy, nvz)
-        : space.getTorchLightAt(nvx, nvy, nvz, color);
       if (nl === 0) continue;
 
       if (
@@ -361,12 +406,82 @@ function removeLightsBatch(
           space.setTorchLightAt(nvx, nvy, nvz, 0, color);
         }
       } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
-        fill.push({ voxel: [nvx, nvy, nvz], level: nl });
+        const hasDynamicPatterns = Boolean(nBlock.dynamicPatterns?.length);
+        const refillLevel =
+          !isSunlight && hasDynamicPatterns ? dynamicTorchLightLevel : nl;
+        if (refillLevel < nl) {
+          queue.push({ voxel: [nvx, nvy, nvz], level: nl });
+          space.setTorchLightAt(nvx, nvy, nvz, 0, color);
+        }
+        if (refillLevel <= 0) continue;
+
+        fill.push({ voxel: [nvx, nvy, nvz], level: refillLevel });
       }
     }
   }
 
   return fill;
+}
+
+function rebuildTorchLightRegion(
+  space: VoxelAccess,
+  color: LightColor,
+  boundingBox: { min: Coords3; shape: Coords3 },
+  options: WorldOptions,
+): LightNode[] {
+  const { maxHeight, maxLightLevel } = options;
+  const [minX, sourceMinY, minZ] = boundingBox.min;
+  const [shapeX, shapeY, shapeZ] = boundingBox.shape;
+  const maxX = minX + shapeX;
+  const minY = Math.max(0, sourceMinY - maxLightLevel);
+  const maxY = Math.min(maxHeight, sourceMinY + shapeY + maxLightLevel);
+  const maxZ = minZ + shapeZ;
+  const seeds: LightNode[] = [];
+
+  for (let vx = minX; vx < maxX; vx++) {
+    for (let vy = minY; vy < maxY; vy++) {
+      for (let vz = minZ; vz < maxZ; vz++) {
+        const previousLevel = space.getTorchLightAt(vx, vy, vz, color);
+        const blockId = space.getVoxelAt(vx, vy, vz);
+        const block = registry.blocksById.get(blockId);
+        const voxel: Coords3 = [vx, vy, vz];
+        const emittedLevel = block
+          ? getBlockTorchLightLevelAt(block, color, voxel, space)
+          : 0;
+        const isBoundary =
+          vx === minX ||
+          vx === maxX - 1 ||
+          vy === minY ||
+          vy === maxY - 1 ||
+          vz === minZ ||
+          vz === maxZ - 1;
+        const seedLevel =
+          emittedLevel > 0 ? emittedLevel : isBoundary ? previousLevel : 0;
+
+        space.setTorchLightAt(vx, vy, vz, 0, color);
+
+        if (seedLevel <= 0) {
+          continue;
+        }
+
+        space.setTorchLightAt(vx, vy, vz, seedLevel, color);
+        seeds.push({ voxel, level: seedLevel });
+      }
+    }
+  }
+
+  if (seeds.length > 0) {
+    floodLight(
+      space,
+      seeds,
+      color,
+      [minX, minY, minZ],
+      [maxX, maxY, maxZ],
+      options,
+    );
+  }
+
+  return seeds;
 }
 
 onmessage = function (e) {
@@ -448,7 +563,9 @@ onmessage = function (e) {
       min[2] + shape[2],
     ];
 
-    if (lightOps.removals.length > 0) {
+    if (lightOps.removals.length > 0 && color !== "SUNLIGHT") {
+      rebuildTorchLightRegion(space, color, boundingBox, options);
+    } else if (lightOps.removals.length > 0) {
       const fillQueue = removeLightsBatch(
         space,
         lightOps.removals,

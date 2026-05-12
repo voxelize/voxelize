@@ -136,7 +136,7 @@ import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
-import LightWorker from "./workers/light-worker.ts?worker&inline";
+import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 export * from "./block";
