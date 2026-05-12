@@ -236,9 +236,27 @@ impl Lights {
                 } else {
                     nl >= level
                 } {
+                    let refill_level = if !is_sunlight && n_block.dynamic_patterns.is_some() {
+                        n_block.get_torch_light_level_at(&n_voxel_pos, space, color)
+                    } else {
+                        nl
+                    };
+
+                    if refill_level == 0 {
+                        continue;
+                    }
+
+                    if !is_sunlight && refill_level < nl {
+                        queue.push_back(LightNode {
+                            voxel: n_voxel,
+                            level: nl,
+                        });
+                        space.set_torch_light(nvx, nvy, nvz, 0, color);
+                    }
+
                     fill.push_back(LightNode {
                         voxel: n_voxel,
-                        level: nl,
+                        level: refill_level,
                     })
                 }
             }
@@ -563,9 +581,27 @@ impl Lights {
                 } else {
                     nl >= level
                 } {
+                    let refill_level = if !is_sunlight && n_block.dynamic_patterns.is_some() {
+                        n_block.get_torch_light_level_at(&n_voxel_pos, space, color)
+                    } else {
+                        nl
+                    };
+
+                    if refill_level == 0 {
+                        continue;
+                    }
+
+                    if !is_sunlight && refill_level < nl {
+                        queue.push_back(LightNode {
+                            voxel: [nvx, nvy, nvz],
+                            level: nl,
+                        });
+                        space.set_torch_light(nvx, nvy, nvz, 0, color);
+                    }
+
                     fill.push_back(LightNode {
                         voxel: [nvx, nvy, nvz],
-                        level: nl,
+                        level: refill_level,
                     });
                 }
             }

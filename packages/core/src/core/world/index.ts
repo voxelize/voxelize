@@ -2927,7 +2927,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (
           !isSunlight &&
-          BlockUtils.getBlockTorchLightLevel(nBlock, color) === 0 &&
+          BlockUtils.getBlockTorchLightLevelAt(nBlock, color, [nvx, nvy, nvz], {
+            getVoxelAt: (x, y, z) => this.getVoxelAt(x, y, z),
+            getVoxelRotationAt: (x, y, z) => this.getVoxelRotationAt(x, y, z),
+            getVoxelStageAt: (x, y, z) => this.getVoxelStageAt(x, y, z),
+          }) === 0 &&
           !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
         ) {
           continue;
@@ -2952,7 +2956,28 @@ export class World<T = any> extends Scene implements NetIntercept {
             this.setTorchLightAt(nvx, nvy, nvz, 0, color);
           }
         } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
-          fill.push({ voxel: [nvx, nvy, nvz], level: nl });
+          const hasDynamicPatterns = Boolean(nBlock.dynamicPatterns?.length);
+          const refillLevel =
+            !isSunlight && hasDynamicPatterns
+              ? BlockUtils.getBlockTorchLightLevelAt(
+                  nBlock,
+                  color,
+                  [nvx, nvy, nvz],
+                  {
+                    getVoxelAt: (x, y, z) => this.getVoxelAt(x, y, z),
+                    getVoxelRotationAt: (x, y, z) =>
+                      this.getVoxelRotationAt(x, y, z),
+                    getVoxelStageAt: (x, y, z) => this.getVoxelStageAt(x, y, z),
+                  },
+                )
+              : nl;
+          if (!isSunlight && refillLevel < nl) {
+            queue.push({ voxel: [nvx, nvy, nvz], level: nl });
+            this.setTorchLightAt(nvx, nvy, nvz, 0, color);
+          }
+          if (refillLevel <= 0) continue;
+
+          fill.push({ voxel: [nvx, nvy, nvz], level: refillLevel });
         }
       }
     }
@@ -4759,11 +4784,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       let currentBlueLevel = oldBlock.blueLightLevel;
 
       if (oldBlock.dynamicPatterns) {
-        currentEmitsLight = false;
-        currentRedLevel = 0;
-        currentGreenLevel = 0;
-        currentBlueLevel = 0;
-
         for (const pattern of oldBlock.dynamicPatterns) {
           for (const part of pattern.parts) {
             const ruleMatched = BlockUtils.evaluateBlockRule(
@@ -4787,12 +4807,15 @@ export class World<T = any> extends Scene implements NetIntercept {
             );
 
             if (ruleMatched) {
-              if (part.redLightLevel !== undefined)
+              if (part.redLightLevel !== undefined) {
                 currentRedLevel = part.redLightLevel;
-              if (part.greenLightLevel !== undefined)
+              }
+              if (part.greenLightLevel !== undefined) {
                 currentGreenLevel = part.greenLightLevel;
-              if (part.blueLightLevel !== undefined)
+              }
+              if (part.blueLightLevel !== undefined) {
                 currentBlueLevel = part.blueLightLevel;
+              }
               currentEmitsLight =
                 currentRedLevel > 0 ||
                 currentGreenLevel > 0 ||

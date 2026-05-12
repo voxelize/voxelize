@@ -121,6 +121,53 @@ export class BlockUtils {
     return 0;
   };
 
+  static getBlockTorchLightLevelAt = (
+    block: Block,
+    color: LightColor,
+    voxel: Coords3,
+    functions: {
+      getVoxelAt: (x: number, y: number, z: number) => number;
+      getVoxelRotationAt: (x: number, y: number, z: number) => BlockRotation;
+      getVoxelStageAt: (x: number, y: number, z: number) => number;
+    },
+  ) => {
+    if (block.dynamicPatterns?.length) {
+      for (const pattern of block.dynamicPatterns) {
+        for (const part of pattern.parts) {
+          const isMatch = BlockUtils.evaluateBlockRule(
+            part.rule,
+            voxel,
+            functions,
+          );
+
+          if (!isMatch) {
+            continue;
+          }
+
+          switch (color) {
+            case "RED":
+              if (part.redLightLevel !== undefined) {
+                return part.redLightLevel;
+              }
+              break;
+            case "GREEN":
+              if (part.greenLightLevel !== undefined) {
+                return part.greenLightLevel;
+              }
+              break;
+            case "BLUE":
+              if (part.blueLightLevel !== undefined) {
+                return part.blueLightLevel;
+              }
+              break;
+          }
+        }
+      }
+    }
+
+    return BlockUtils.getBlockTorchLightLevel(block, color);
+  };
+
   static getBlockRotatedTransparency(block: Block, rotation: BlockRotation) {
     return rotation.rotateTransparency(block.isTransparent);
   }
