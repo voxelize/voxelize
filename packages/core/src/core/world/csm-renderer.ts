@@ -23,6 +23,10 @@ export interface CSMConfig {
   maxShadowDistance: number;
   shadowBias: number;
   shadowNormalBias: number;
+  shadowSlopeBiasScale: number;
+  shadowSlopeBiasMin: number;
+  shadowTopFaceBiasScale: number;
+  shadowSideFaceBiasScale: number;
   lightMargin: number;
   shadowCasterDistance: number;
 }
@@ -38,8 +42,12 @@ const defaultConfig: CSMConfig = {
   cascades: 3,
   shadowMapSize: 2048,
   maxShadowDistance: 128,
-  shadowBias: 0.002,
-  shadowNormalBias: 0.02,
+  shadowBias: 0.00018,
+  shadowNormalBias: 0.0015,
+  shadowSlopeBiasScale: 0.0012,
+  shadowSlopeBiasMin: 0.00012,
+  shadowTopFaceBiasScale: 0.2,
+  shadowSideFaceBiasScale: 0.35,
   lightMargin: 32,
   shadowCasterDistance: 200,
 };
@@ -490,6 +498,11 @@ export class CSMRenderer {
     uShadowMatrices: Matrix4[];
     uCascadeSplits: number[];
     uShadowBias: number;
+    uShadowNormalBias: number;
+    uShadowSlopeBiasScale: number;
+    uShadowSlopeBiasMin: number;
+    uShadowTopFaceBiasScale: number;
+    uShadowSideFaceBiasScale: number;
     uNumCascades: number;
   } {
     return {
@@ -497,6 +510,11 @@ export class CSMRenderer {
       uShadowMatrices: this.cascades.map((c) => c.matrix),
       uCascadeSplits: this.cascades.map((c) => c.split),
       uShadowBias: this.config.shadowBias,
+      uShadowNormalBias: this.config.shadowNormalBias,
+      uShadowSlopeBiasScale: this.config.shadowSlopeBiasScale,
+      uShadowSlopeBiasMin: this.config.shadowSlopeBiasMin,
+      uShadowTopFaceBiasScale: this.config.shadowTopFaceBiasScale,
+      uShadowSideFaceBiasScale: this.config.shadowSideFaceBiasScale,
       uNumCascades: this.cascades.length,
     };
   }

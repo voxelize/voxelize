@@ -114,6 +114,7 @@ uniform float uWindSpeed;
 uniform mat4 uShadowMatrix0;
 uniform mat4 uShadowMatrix1;
 uniform mat4 uShadowMatrix2;
+uniform float uShadowNormalBias;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
@@ -180,7 +181,7 @@ vWorldNormal = normalize(mat3(modelMatrix) * normal);
 vec4 viewPos = viewMatrix * worldPosition;
 vViewDepth = -viewPos.z;
 
-float normalOffsetScale = 0.02;
+float normalOffsetScale = uShadowNormalBias;
 vec3 normalOffset = vWorldNormal * normalOffsetScale;
 vec4 offsetPosition = worldPosition + vec4(normalOffset, 0.0);
 
@@ -223,11 +224,18 @@ uniform float uCascadeSplit0;
 uniform float uCascadeSplit1;
 uniform float uCascadeSplit2;
 uniform float uShadowBias;
+uniform float uShadowSlopeBiasScale;
+uniform float uShadowSlopeBiasMin;
+uniform float uShadowTopFaceBiasScale;
+uniform float uShadowSideFaceBiasScale;
 uniform float uShadowStrength;
 
 uniform vec3 uWaterTint;
 uniform float uWaterAbsorption;
 uniform float uWaterLevel;
+uniform float uWaterEdgeStrength;
+uniform float uWaterStreakStrength;
+uniform float uWaterFresnelStrength;
 
 uniform vec3 uSkyTopColor;
 uniform vec3 uSkyMiddleColor;
@@ -254,7 +262,7 @@ float shadowMapEdgeFade(vec3 coord) {
 }
 
 
-float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
+float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias, float receiverBiasScale) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
 
@@ -262,7 +270,7 @@ float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias
     return 1.0;
   }
 
-  float bias = uShadowBias + slopeBias;
+  float bias = (uShadowBias + slopeBias) * receiverBiasScale;
   vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));
 
   float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
@@ -286,7 +294,7 @@ const vec2 POISSON_DISK[8] = vec2[8](
   vec2(0.44323325, -0.97511554)
 );
 
-float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
+float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias, float receiverBiasScale) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
 
@@ -294,7 +302,7 @@ float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
     return 1.0;
   }
 
-  float bias = uShadowBias + slopeBias;
+  float bias = (uShadowBias + slopeBias) * receiverBiasScale;
   vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));
 
   float shadow = 0.0;
@@ -328,32 +336,36 @@ float getShadow() {
     return mix(1.0, 0.0, uShadowStrength);
   }
 
-  float slopeBias = max(0.005 * (1.0 - NdotL), 0.001);
+  float slopeBias = max(uShadowSlopeBiasScale * (1.0 - NdotL), uShadowSlopeBiasMin);
+  float topFaceReceiver = smoothstep(0.5, 0.95, vWorldNormal.y);
+  float sideFaceReceiver = smoothstep(0.5, 0.95, max(abs(vWorldNormal.x), abs(vWorldNormal.z)));
+  float receiverBiasScale = mix(1.0, uShadowSideFaceBiasScale, sideFaceReceiver);
+  receiverBiasScale = mix(receiverBiasScale, uShadowTopFaceBiasScale, topFaceReceiver);
   float blendRegion = 0.1;
 
   float rawShadow;
   if (vViewDepth < uCascadeSplit0) {
-    float shadow0 = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias);
+    float shadow0 = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);
     float blendStart = uCascadeSplit0 * (1.0 - blendRegion);
     if (vViewDepth > blendStart) {
-      float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5);
+      float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5, receiverBiasScale);
       float t = (vViewDepth - blendStart) / (uCascadeSplit0 - blendStart);
       rawShadow = mix(shadow0, shadow1, t);
     } else {
       rawShadow = shadow0;
     }
   } else if (vViewDepth < uCascadeSplit1) {
-    float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5);
+    float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5, receiverBiasScale);
     float blendStart = uCascadeSplit1 * (1.0 - blendRegion);
     if (vViewDepth > blendStart) {
-      float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
+      float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, slopeBias * 2.0, receiverBiasScale);
       float t = (vViewDepth - blendStart) / (uCascadeSplit1 - blendStart);
       rawShadow = mix(shadow1, shadow2, t);
     } else {
       rawShadow = shadow1;
     }
   } else if (vViewDepth < uCascadeSplit2) {
-    float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
+    float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, slopeBias * 2.0, receiverBiasScale);
     float fadeStart = uCascadeSplit2 * (1.0 - blendRegion);
     if (vViewDepth > fadeStart) {
       float t = (vViewDepth - fadeStart) / (uCascadeSplit2 - fadeStart);
@@ -461,7 +473,7 @@ float isBrightTex = smoothstep(0.75, 0.95, texLuma);
 
 float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
 float torchDominance = torchBrightness / (torchBrightness + dot(sunContribution, vec3(0.33)) + 0.01);
-float torchAOReduction = torchDominance * 0.08;
+float torchAOReduction = torchDominance * 0.03;
 float enhancedAO = mix(aoFactor, 1.0, torchAOReduction);
 
 vec3 sunTotal = skyAmbient * ambientOcclusion * tunnelDarkening;
@@ -501,6 +513,9 @@ outgoingLight.rgb *= totalLight;
 if (vIsFluid > 0.5) {
   float waveTime = uTime * 0.0005;
   vec3 wPos = vWorldPosition.xyz;
+  vec3 absWaterNormal = abs(vWorldNormal);
+  float topWaterFace = smoothstep(0.45, 0.9, vWorldNormal.y);
+  float sideWaterFace = smoothstep(0.45, 0.9, max(absWaterNormal.x, absWaterNormal.z));
 
   float eps = 0.08;
 
@@ -538,8 +553,8 @@ if (vIsFluid > 0.5) {
 
   vec3 viewDir = normalize(cameraPosition - wPos);
   float NdotV = max(dot(waterNormal, viewDir), 0.0);
-  float fresnel = 0.02 + 0.6 * pow(1.0 - NdotV, 4.0);
-  fresnel = clamp(fresnel, 0.02, 0.55);
+  float fresnel = 0.015 + uWaterFresnelStrength * pow(1.0 - NdotV, 4.5);
+  fresnel = clamp(fresnel, 0.015, 0.65);
 
   vec3 reflectDir = reflect(-viewDir, waterNormal);
   float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -559,8 +574,25 @@ if (vIsFluid > 0.5) {
   vec3 baseWater = outgoingLight.rgb;
 
   float distToCamera = length(cameraPosition - wPos);
-  float depthFactor = 1.0 - exp(-distToCamera * 0.008);
-  vec3 waterColor = baseWater * mix(vec3(1.0), uWaterTint, 0.08 + depthFactor * 0.12);
+  float depthFactor = 1.0 - exp(-distToCamera * 0.012);
+  float verticalDepthFactor = 1.0 - exp(-max(0.0, uWaterLevel - wPos.y) * 0.18);
+  vec3 shallowWater = mix(baseWater, uWaterTint, 0.16);
+  vec3 deepWater = mix(baseWater, uWaterTint, 0.44);
+  vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor));
+
+  float sideSelector = step(absWaterNormal.x, absWaterNormal.z);
+  float sideCoord = mix(wPos.z, wPos.x, sideSelector);
+  float streakNoise = snoise(vec3(sideCoord * 1.4, wPos.y * 0.32 - waveTime * 0.75, 17.0));
+  float fineStreakNoise = snoise(vec3(sideCoord * 5.0, wPos.y * 0.9 - waveTime * 1.4, 27.0));
+  float streak = smoothstep(0.15, 0.9, streakNoise * 0.65 + fineStreakNoise * 0.35);
+  vec3 streakColor = mix(waterColor * 0.82, waterColor + uWaterTint * 0.12, streak);
+  waterColor = mix(waterColor, streakColor, sideWaterFace * uWaterStreakStrength);
+
+  vec2 topCell = abs(fract(wPos.xz) - 0.5);
+  float topEdge = smoothstep(0.42, 0.5, max(topCell.x, topCell.y));
+  float sideEdge = smoothstep(0.42, 0.5, max(abs(fract(sideCoord) - 0.5), abs(fract(wPos.y) - 0.5)));
+  float edgeDarkening = max(topEdge * topWaterFace, sideEdge * sideWaterFace) * uWaterEdgeStrength;
+  waterColor *= 1.0 - edgeDarkening;
 
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;

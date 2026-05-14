@@ -3404,8 +3404,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         cascades: 3,
         shadowMapSize: 4096,
         maxShadowDistance: 128,
-        shadowBias: 0.0005,
-        shadowNormalBias: 0.02,
+        shadowBias: 0.00018,
+        shadowNormalBias: 0.0015,
+        shadowSlopeBiasScale: 0.0012,
+        shadowSlopeBiasMin: 0.00012,
+        shadowTopFaceBiasScale: 0.2,
+        shadowSideFaceBiasScale: 0.35,
         lightMargin: 32,
       });
     }
@@ -4343,6 +4347,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         csmUniforms.uCascadeSplits[2];
       this.chunkRenderer.shaderLightingUniforms.shadowBias.value =
         csmUniforms.uShadowBias;
+      this.chunkRenderer.shaderLightingUniforms.shadowNormalBias.value =
+        csmUniforms.uShadowNormalBias;
+      this.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasScale.value =
+        csmUniforms.uShadowSlopeBiasScale;
+      this.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasMin.value =
+        csmUniforms.uShadowSlopeBiasMin;
+      this.chunkRenderer.shaderLightingUniforms.shadowTopFaceBiasScale.value =
+        csmUniforms.uShadowTopFaceBiasScale;
+      this.chunkRenderer.shaderLightingUniforms.shadowSideFaceBiasScale.value =
+        csmUniforms.uShadowSideFaceBiasScale;
 
       this.chunkRenderer.shaderLightingUniforms.shadowStrength.value =
         shadowStrength;
@@ -4661,8 +4675,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       cascades: 3,
       shadowMapSize: 4096,
       maxShadowDistance: 128,
-      shadowBias: 0.0005,
-      shadowNormalBias: 0.02,
+      shadowBias: 0.00018,
+      shadowNormalBias: 0.0015,
+      shadowSlopeBiasScale: 0.0012,
+      shadowSlopeBiasMin: 0.00012,
+      shadowTopFaceBiasScale: 0.2,
+      shadowSideFaceBiasScale: 0.35,
       lightMargin: 32,
     });
 
@@ -5965,11 +5983,27 @@ export class World<T = any> extends Scene implements NetIntercept {
       uCascadeSplit1: this.chunkRenderer.shaderLightingUniforms.cascadeSplit1,
       uCascadeSplit2: this.chunkRenderer.shaderLightingUniforms.cascadeSplit2,
       uShadowBias: this.chunkRenderer.shaderLightingUniforms.shadowBias,
+      uShadowNormalBias:
+        this.chunkRenderer.shaderLightingUniforms.shadowNormalBias,
+      uShadowSlopeBiasScale:
+        this.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasScale,
+      uShadowSlopeBiasMin:
+        this.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasMin,
+      uShadowTopFaceBiasScale:
+        this.chunkRenderer.shaderLightingUniforms.shadowTopFaceBiasScale,
+      uShadowSideFaceBiasScale:
+        this.chunkRenderer.shaderLightingUniforms.shadowSideFaceBiasScale,
       uShadowStrength: this.chunkRenderer.shaderLightingUniforms.shadowStrength,
       uWaterTint: this.chunkRenderer.shaderLightingUniforms.waterTint,
       uWaterAbsorption:
         this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
       uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
+      uWaterEdgeStrength:
+        this.chunkRenderer.shaderLightingUniforms.waterEdgeStrength,
+      uWaterStreakStrength:
+        this.chunkRenderer.shaderLightingUniforms.waterStreakStrength,
+      uWaterFresnelStrength:
+        this.chunkRenderer.shaderLightingUniforms.waterFresnelStrength,
       uSkyTopColor: this.chunkRenderer.shaderLightingUniforms.skyTopColor,
       uSkyMiddleColor: this.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
       uShadowDebugMode:

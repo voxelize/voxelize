@@ -3,11 +3,24 @@
   "version": "1.0.0",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "src/styles.css"
   ],
+  "style": "src/styles.css",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.mjs"
+    },
+    "./styles.css": "./src/styles.css",
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "compile": "vite build",

@@ -16,11 +16,19 @@ export interface ShaderLightingUniforms {
   cascadeSplit1: { value: number };
   cascadeSplit2: { value: number };
   shadowBias: { value: number };
+  shadowNormalBias: { value: number };
+  shadowSlopeBiasScale: { value: number };
+  shadowSlopeBiasMin: { value: number };
+  shadowTopFaceBiasScale: { value: number };
+  shadowSideFaceBiasScale: { value: number };
   shadowStrength: { value: number };
   sunlightIntensity: { value: number };
   waterTint: { value: Color };
   waterAbsorption: { value: number };
   waterLevel: { value: number };
+  waterEdgeStrength: { value: number };
+  waterStreakStrength: { value: number };
+  waterFresnelStrength: { value: number };
   skyTopColor: { value: Color };
   skyMiddleColor: { value: Color };
   shadowDebugMode: { value: number };
@@ -64,7 +72,7 @@ export class ChunkRenderer {
     windDirection: { value: new Vector2(0.7, 0.7) },
     windOffset: { value: new Vector2(0, 0) },
     windSpeed: { value: 1.0 },
-    ao: { value: new Vector4(60.0, 130.0, 200.0, 255.0) },
+    ao: { value: new Vector4(45.0, 105.0, 180.0, 255.0) },
     minLightLevel: { value: 0 },
     baseAmbient: { value: 0.001 },
     sunlightIntensity: { value: 1 },
@@ -96,12 +104,20 @@ export class ChunkRenderer {
     cascadeSplit0: { value: 16 },
     cascadeSplit1: { value: 48 },
     cascadeSplit2: { value: 128 },
-    shadowBias: { value: 0.0005 },
+    shadowBias: { value: 0.00018 },
+    shadowNormalBias: { value: 0.0015 },
+    shadowSlopeBiasScale: { value: 0.0012 },
+    shadowSlopeBiasMin: { value: 0.00012 },
+    shadowTopFaceBiasScale: { value: 0.2 },
+    shadowSideFaceBiasScale: { value: 0.35 },
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
     waterTint: { value: new Color(0.3, 0.5, 0.8) },
     waterAbsorption: { value: 0.5 },
     waterLevel: { value: 86 },
+    waterEdgeStrength: { value: 0.18 },
+    waterStreakStrength: { value: 0.16 },
+    waterFresnelStrength: { value: 0.75 },
     skyTopColor: { value: new Color(0.4, 0.6, 0.9) },
     skyMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
     shadowDebugMode: { value: 0 },
