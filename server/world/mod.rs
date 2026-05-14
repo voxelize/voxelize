@@ -184,7 +184,7 @@ pub struct World {
     /// but we only access it from the SyncWorld actor's single thread.
     built_dispatcher: Arc<Mutex<Option<UnsafeSendSync<specs::Dispatcher<'static, 'static>>>>>,
 
-    /// The modifier of any new client.
+    /// The modifier for each new client.
     client_modifier: Option<Arc<dyn Fn(&mut World, Entity) + Send + Sync>>,
 
     /// Called before a client entity is removed from the world.
@@ -1089,7 +1089,7 @@ impl World {
                 }
             }
             _ => {
-                info!("Received message of unknown type: {:?}", msg_type);
+                info!("Received message with unrecognized type: {:?}", msg_type);
             }
         }
     }
@@ -1262,7 +1262,7 @@ impl World {
     /// Spawn an entity of type at a location.
     pub fn spawn_entity_at(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
         if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
-            warn!("Tried to spawn unknown entity type: {}", etype);
+            warn!("Tried to spawn unrecognized entity type: {}", etype);
             return None;
         }
 
@@ -1288,7 +1288,7 @@ impl World {
         metadata: MetadataComp,
     ) -> Option<Entity> {
         if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
-            warn!("Tried to spawn unknown entity type: {}", etype);
+            warn!("Tried to spawn unrecognized entity type: {}", etype);
             return None;
         }
 
@@ -1335,7 +1335,7 @@ impl World {
         }
 
         if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
-            warn!("Tried to revive unknown entity type: {}", etype);
+            warn!("Tried to revive unrecognized entity type: {}", etype);
             return None;
         }
 
@@ -1345,7 +1345,7 @@ impl World {
             .unwrap()
             .to_owned();
 
-        // Wrap entity creation in panic handler to catch any errors
+        // Wrap entity creation in panic handler to catch loader errors
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             loader(self, metadata.to_owned()).build()
         })) {
@@ -1744,7 +1744,16 @@ impl World {
                         .map(|c| c.coords.clone())
                 });
 
-                let mut event_builder = Event::new(&event.name).payload(event.payload);
+                let mut event_builder = if event.name == VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT {
+                    let Ok(payload) = serde_json::from_str::<SoundEffectEvent>(&event.payload)
+                    else {
+                        return;
+                    };
+                    Event::sound_effect(payload.source_client_id(client_id))
+                        .filter(ClientFilter::Exclude(vec![client_id.to_owned()]))
+                } else {
+                    Event::new(&event.name).payload(event.payload)
+                };
                 if let Some(loc) = location {
                     event_builder = event_builder.location(loc);
                 }

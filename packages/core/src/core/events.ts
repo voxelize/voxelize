@@ -2,6 +2,28 @@ import { MessageProtocol } from "@voxelize/protocol";
 
 import { NetIntercept } from "./network";
 
+export const VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT =
+  "vox-builtin:sound-effect" as const;
+
+type JsonPrimitive = string | number | boolean | null;
+export type EventPayload =
+  | JsonPrimitive
+  | { [key: string]: EventPayload | undefined }
+  | EventPayload[];
+
+export type SoundEffectEventPayload = {
+  id: string;
+  position?: [number, number, number];
+  volume?: number;
+  pitch?: number;
+  radius?: number;
+  sourceClientId?: string;
+};
+
+export type SoundEffectEventHandler = (
+  payload: SoundEffectEventPayload,
+) => void;
+
 /**
  * A Voxelize event from the server.
  */
@@ -14,17 +36,25 @@ export type Event = {
   /**
    * Additional information of the event.
    */
-  payload?: any;
+  payload?: EventPayload;
 };
 
 /**
  * The handler for an event sent from the Voxelize server.
  */
-export type EventHandler = (payload: any | null) => void;
+export type EventHandler<TPayload = EventPayload> = (payload: TPayload) => void;
+
+type EventMessage = MessageProtocol<
+  EventPayload,
+  EventPayload,
+  EventPayload,
+  EventPayload,
+  EventPayload
+>;
 
 /**
- * A manager for any events interacting with the Voxelize server. This is useful
- * for any defined game events that are sent from or needs to be broadcasted to
+ * A manager for events interacting with the Voxelize server. This is useful
+ * for defined game events that are sent from or need to be broadcasted to
  * the server.
  *
  * # Example
@@ -52,7 +82,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    *
    * @hidden
    */
-  public packets: MessageProtocol<any, any, any, any>[] = [];
+  public packets: EventMessage[] = [];
 
   /**
    * The network intercept implementation for events.
@@ -67,8 +97,8 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
       case "EVENT": {
         const { events } = message;
 
-        events.forEach((e: any) => {
-          this.handle(e.name, e.payload);
+        events?.forEach((event) => {
+          this.handle(event.name, event.payload);
         });
 
         return;
@@ -83,7 +113,10 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param name The name of the event to listen on. Case sensitive.
    * @param handler What to do when this event is received?
    */
-  addEventListener = (name: string, handler: EventHandler) => {
+  addEventListener = <TPayload = EventPayload>(
+    name: string,
+    handler: EventHandler<TPayload>,
+  ) => {
     this.on(name, handler);
   };
 
@@ -94,7 +127,10 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param name The name of the event to listen on. Case sensitive.
    * @param handler What to do when this event is received?
    */
-  on = (name: string, handler: EventHandler) => {
+  on = <TPayload = EventPayload>(
+    name: string,
+    handler: EventHandler<TPayload>,
+  ) => {
     if (this.has(name)) {
       console.warn(
         `Registering handler for ${name} canceled: handler already exists.`,
@@ -102,7 +138,20 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
       return;
     }
 
-    this.set(name, handler);
+    this.set(name, handler as EventHandler);
+  };
+
+  onSoundEffect = (handler: SoundEffectEventHandler) => {
+    this.on<SoundEffectEventPayload>(
+      VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT,
+      (payload) => {
+        handler(payload);
+      },
+    );
+  };
+
+  emitSoundEffect = (payload: SoundEffectEventPayload) => {
+    this.emit(VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT, payload);
   };
 
   /**
@@ -111,7 +160,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param name The name of the event to emit.
    * @param payload The payload to send with the event.
    */
-  emit = (name: string, payload: any = {}) => {
+  emit = (name: string, payload: EventPayload = {}) => {
     this.packets.push({
       type: "EVENT",
       events: [
@@ -128,7 +177,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    *
    * @hidden
    */
-  handle = (name: string, payload: any) => {
+  handle = (name: string, payload: EventPayload = {}) => {
     const handler = this.get(name);
 
     if (!handler) {
