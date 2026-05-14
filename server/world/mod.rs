@@ -79,6 +79,35 @@ pub use voxels::*;
 
 pub type Transports = HashMap<String, WsSender>;
 
+const CLIENT_BODY_WIDTH: f32 = 0.8;
+const CLIENT_BODY_HEIGHT: f32 = 1.8;
+const CLIENT_BODY_DEPTH: f32 = 0.8;
+
+fn apply_client_ghost_state(body: &mut RigidBodyComp, is_ghost: bool) {
+    let position = body.0.get_position();
+    let aabb = &mut body.0.aabb;
+
+    if is_ghost {
+        let avg_x = (aabb.min_x + aabb.max_x) / 2.0;
+        let avg_y = (aabb.min_y + aabb.max_y) / 2.0;
+        let avg_z = (aabb.min_z + aabb.max_z) / 2.0;
+        aabb.min_x = avg_x + 1.0;
+        aabb.max_x = avg_x - 1.0;
+        aabb.min_y = avg_y + 1.0;
+        aabb.max_y = avg_y - 1.0;
+        aabb.min_z = avg_z + 1.0;
+        aabb.max_z = avg_z - 1.0;
+        body.0.gravity_multiplier = 0.0;
+    } else if aabb.width() <= 0.0 {
+        aabb.min_x = position.0 - CLIENT_BODY_WIDTH / 2.0;
+        aabb.min_y = position.1 - CLIENT_BODY_HEIGHT / 2.0;
+        aabb.min_z = position.2 - CLIENT_BODY_DEPTH / 2.0;
+        aabb.max_x = aabb.min_x + CLIENT_BODY_WIDTH;
+        aabb.max_y = aabb.min_y + CLIENT_BODY_HEIGHT;
+        aabb.max_z = aabb.min_z + CLIENT_BODY_DEPTH;
+    }
+}
+
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
 pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Entity) {
     let metadata: PeerUpdate = match serde_json::from_str(metadata) {
@@ -129,6 +158,16 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
             }
         }
     }
+
+    if metadata.is_ghost.is_some() || metadata.is_flying.is_some() {
+        let mut bodies = world.write_component::<RigidBodyComp>();
+        if let Some(b) = bodies.get_mut(client_ent) {
+            let is_ghost = metadata.is_ghost.unwrap_or_else(|| b.0.aabb.width() <= 0.0);
+            let is_flying = metadata.is_flying.unwrap_or(false);
+            apply_client_ghost_state(b, is_ghost);
+            b.0.gravity_multiplier = if is_ghost || is_flying { 0.0 } else { 1.0 };
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,6 +176,8 @@ pub struct PeerUpdate {
     position: Option<Vec3<f32>>,
     direction: Option<Vec3<f32>>,
     is_crouching: Option<bool>,
+    is_flying: Option<bool>,
+    is_ghost: Option<bool>,
 }
 
 /// Wrapper to make a non-Send/Sync type safely usable in contexts that require it.
@@ -814,7 +855,7 @@ impl World {
 
     /// Add a transport sender to this world.
     pub(crate) fn add_transport(&mut self, id: &str, sender: &WsSender) {
-        let (init_message, _) = self.generate_init_message(id, None, None);
+        let (init_message, _) = self.generate_init_message(id, None, None, None, None);
         self.send(sender, &init_message);
         self.write_resource::<Transports>()
             .insert(id.to_owned(), sender.clone());
@@ -865,8 +906,23 @@ impl World {
             .map(|d| [d.0 .0, d.0 .1, d.0 .2])
             .filter(|d| d[0] != 0.0 || d[1] != 0.0 || d[2] != 0.0);
 
-        let (init_message, init_entity_ids) =
-            self.generate_init_message(id, saved_position, saved_direction);
+        let saved_is_flying = self
+            .read_component::<RigidBodyComp>()
+            .get(ent)
+            .map(|body| body.0.gravity_multiplier == 0.0 && body.0.aabb.width() > 0.0);
+
+        let saved_is_ghost = self
+            .read_component::<RigidBodyComp>()
+            .get(ent)
+            .map(|body| body.0.aabb.width() <= 0.0);
+
+        let (init_message, init_entity_ids) = self.generate_init_message(
+            id,
+            saved_position,
+            saved_direction,
+            saved_is_flying,
+            saved_is_ghost,
+        );
 
         self.clients_mut().insert(
             id.to_owned(),
@@ -1879,6 +1935,8 @@ impl World {
         id: &str,
         saved_position: Option<[f32; 3]>,
         saved_direction: Option<[f32; 3]>,
+        saved_is_flying: Option<bool>,
+        saved_is_ghost: Option<bool>,
     ) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
         let mut json = HashMap::new();
@@ -1896,6 +1954,12 @@ impl World {
         }
         if let Some(dir) = saved_direction {
             json.insert("savedDirection".to_owned(), json!(dir));
+        }
+        if let Some(is_flying) = saved_is_flying {
+            json.insert("savedIsFlying".to_owned(), json!(is_flying));
+        }
+        if let Some(is_ghost) = saved_is_ghost {
+            json.insert("savedIsGhost".to_owned(), json!(is_ghost));
         }
 
         if let Some(items) = &self.items {
