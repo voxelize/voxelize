@@ -553,7 +553,7 @@ if (vIsFluid > 0.5) {
   vec3 viewDir = normalize(cameraPosition - wPos);
   float NdotV = max(dot(waterNormal, viewDir), 0.0);
   float fresnel = 0.02 + uWaterFresnelStrength * pow(1.0 - NdotV, 5.0);
-  fresnel = clamp(fresnel, 0.02, 0.32);
+  fresnel = clamp(fresnel, 0.02, 0.4);
 
   vec3 reflectDir = reflect(-viewDir, waterNormal);
   float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -574,16 +574,16 @@ if (vIsFluid > 0.5) {
   float distToCamera = length(cameraPosition - wPos);
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
   float verticalDepthFactor = 1.0 - exp(-max(0.0, uWaterLevel - wPos.y) * 0.11);
-  vec3 shallowWater = mix(baseWater, uWaterTint, 0.1);
-  vec3 deepWater = mix(baseWater, uWaterTint, 0.3);
-  vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.85);
+  vec3 shallowWater = mix(baseWater, uWaterTint, 0.14);
+  vec3 deepWater = mix(baseWater, uWaterTint, 0.38);
+  vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.92);
 
   float sideSelector = step(absWaterNormal.x, absWaterNormal.z);
   float sideCoord = mix(wPos.z, wPos.x, sideSelector);
   float streakNoise = snoise(vec3(sideCoord * 1.4, wPos.y * 0.32 - waveTime * 0.75, 17.0));
   float fineStreakNoise = snoise(vec3(sideCoord * 5.0, wPos.y * 0.9 - waveTime * 1.4, 27.0));
   float streak = smoothstep(0.35, 0.95, streakNoise * 0.7 + fineStreakNoise * 0.3);
-  vec3 streakColor = mix(waterColor * 0.92, waterColor + uWaterTint * 0.05, streak);
+  vec3 streakColor = mix(waterColor * 0.96, waterColor + uWaterTint * 0.08, streak);
   waterColor = mix(waterColor, streakColor, sideWaterFace * uWaterStreakStrength);
 
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
