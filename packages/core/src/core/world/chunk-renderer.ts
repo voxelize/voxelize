@@ -26,7 +26,6 @@ export interface ShaderLightingUniforms {
   waterTint: { value: Color };
   waterAbsorption: { value: number };
   waterLevel: { value: number };
-  waterEdgeStrength: { value: number };
   waterStreakStrength: { value: number };
   waterFresnelStrength: { value: number };
   skyTopColor: { value: Color };
@@ -112,12 +111,11 @@ export class ChunkRenderer {
     shadowSideFaceBiasScale: { value: 0.35 },
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
-    waterTint: { value: new Color(0.3, 0.5, 0.8) },
-    waterAbsorption: { value: 0.5 },
+    waterTint: { value: new Color(0.26, 0.44, 0.68) },
+    waterAbsorption: { value: 0.36 },
     waterLevel: { value: 86 },
-    waterEdgeStrength: { value: 0.18 },
-    waterStreakStrength: { value: 0.16 },
-    waterFresnelStrength: { value: 0.75 },
+    waterStreakStrength: { value: 0.08 },
+    waterFresnelStrength: { value: 0.32 },
     skyTopColor: { value: new Color(0.4, 0.6, 0.9) },
     skyMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
     shadowDebugMode: { value: 0 },
