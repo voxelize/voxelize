@@ -53,7 +53,17 @@ import {
   sortTransparentMesh,
 } from "../../core/transparent-sorter";
 import { WorkerPool } from "../../libs";
+import {
+  getMeshTransferStatus,
+  MeshTransferBenchmarkOptions,
+  runMeshTransferBenchmark,
+} from "../../libs/mesh-transfer-benchmark";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
+import {
+  MeshTransferBenchmarkResult,
+  WorkerTransfer,
+  WorkerTransferMode,
+} from "../../libs/worker-transfer";
 import { Coords2, Coords3 } from "../../types";
 import {
   BLUE_LIGHT,
@@ -644,6 +654,25 @@ export class World<T = any> extends Scene implements NetIntercept {
   public meshPipeline: MeshPipeline;
 
   /**
+   * Configure and inspect mesh worker buffer transfer (transfer vs SharedArrayBuffer).
+   */
+  public readonly meshTransfer = {
+    configure: (config: { mode?: WorkerTransferMode }) =>
+      WorkerTransfer.configure(config),
+    getMode: () => WorkerTransfer.getMode(),
+    getStrategy: () => WorkerTransfer.getStrategy(),
+    setStrategy: (strategy: "transfer" | "shared") =>
+      WorkerTransfer.setStrategy(strategy),
+    isSharedArrayBufferAvailable: () =>
+      WorkerTransfer.isSharedArrayBufferAvailable(),
+    getStatus: () => getMeshTransferStatus(),
+    getStats: () => WorkerTransfer.getStats(),
+    resetStats: () => WorkerTransfer.resetStats(),
+    benchmark: (options: MeshTransferBenchmarkOptions) =>
+      this.benchmarkMeshTransfer(options),
+  };
+
+  /**
    * Chunk rendering state (materials, uniforms).
    */
   public chunkRenderer: ChunkRenderer;
@@ -857,6 +886,27 @@ export class World<T = any> extends Scene implements NetIntercept {
     cz: number,
     level: number,
   ): Promise<GeometryProtocol[] | null> {
+    const result = await this.dispatchMeshWorkerMeasured(cx, cz, level, {
+      isRecordingStats: true,
+    });
+    return result?.geometries ?? null;
+  }
+
+  private async dispatchMeshWorkerMeasured(
+    cx: number,
+    cz: number,
+    level: number,
+    options: { isRecordingStats: boolean },
+  ): Promise<{
+    geometries: GeometryProtocol[];
+    serializeMs: number;
+    workerMs: number;
+    inputBytes: number;
+    outputBytes: number;
+  } | null> {
+    const strategy = WorkerTransfer.getStrategy();
+    const serializeStart = performance.now();
+
     const neighbors = [
       [-1, -1],
       [0, -1],
@@ -887,6 +937,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const chunksData: unknown[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
+    let inputBytes = 0;
 
     for (const chunk of chunks) {
       if (!chunk || !chunk.isReady) {
@@ -898,7 +949,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       chunksData.push(chunkData);
       arrayBuffers.push(...chunkArrayBuffers);
+      inputBytes += chunk.voxels.data.byteLength + chunk.lights.data.byteLength;
     }
+
+    const serializeMs = performance.now() - serializeStart;
 
     const data = {
       chunksData,
@@ -912,6 +966,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       return null;
     }
 
+    const workerStart = performance.now();
     const { geometries } = await new Promise<{
       geometries: GeometryProtocol[];
     }>((resolve) => {
@@ -921,12 +976,73 @@ export class World<T = any> extends Scene implements NetIntercept {
         resolve,
       });
     });
+    const workerMs = performance.now() - workerStart;
+    const outputBytes = this.estimateGeometryProtocolBytes(geometries);
+
+    if (options.isRecordingStats) {
+      WorkerTransfer.recordSample({
+        strategy,
+        serializeMs,
+        workerMs,
+        totalMs: serializeMs + workerMs,
+        inputBytes,
+        outputBytes,
+        at: Date.now(),
+      });
+    }
 
     if (this.chunkPipeline.isInStage(name, "processing")) {
       return null;
     }
 
-    return geometries;
+    return {
+      geometries,
+      serializeMs,
+      workerMs,
+      inputBytes,
+      outputBytes,
+    };
+  }
+
+  private estimateGeometryProtocolBytes(
+    geometries: GeometryProtocol[],
+  ): number {
+    let bytes = 0;
+    for (const geometry of geometries) {
+      const record = geometry as GeometryProtocol & {
+        positions?: ArrayBufferView;
+        indices?: ArrayBufferView;
+        uvs?: ArrayBufferView;
+        lights?: ArrayBufferView;
+        normals?: ArrayBufferView;
+      };
+      for (const key of [
+        "positions",
+        "indices",
+        "uvs",
+        "lights",
+        "normals",
+      ] as const) {
+        const view = record[key];
+        if (view?.buffer) {
+          bytes += view.byteLength;
+        }
+      }
+    }
+    return bytes;
+  }
+
+  async benchmarkMeshTransfer(
+    options: MeshTransferBenchmarkOptions,
+  ): Promise<MeshTransferBenchmarkResult> {
+    return runMeshTransferBenchmark(
+      (cx, cz, level) =>
+        this.dispatchMeshWorkerMeasured(cx, cz, level, {
+          isRecordingStats: false,
+        }),
+      (cx, cz) => this.getChunkByCoords(cx, cz),
+      options,
+    );
   }
 
   private applyMeshResult(

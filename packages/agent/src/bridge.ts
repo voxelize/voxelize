@@ -96,6 +96,59 @@ export type ViewOptions = {
   isEnsuringChunks?: boolean;
 };
 
+export type MeshTransferBenchmarkIteration = {
+  serializeMs: number;
+  workerMs: number;
+  totalMs: number;
+  inputBytes: number;
+  outputBytes: number;
+};
+
+export type MeshTransferBenchmarkModeResult = {
+  strategy: "transfer" | "shared";
+  isSharedArrayBufferAvailable: boolean;
+  warmupIterations: number;
+  measuredIterations: number;
+  avgSerializeMs: number;
+  avgWorkerMs: number;
+  avgTotalMs: number;
+  p50TotalMs: number;
+  p95TotalMs: number;
+  totalInputBytes: number;
+  totalOutputBytes: number;
+};
+
+export type MeshTransferBenchmarkResult = {
+  cx: number;
+  cz: number;
+  level: number;
+  transfer: MeshTransferBenchmarkModeResult;
+  shared: MeshTransferBenchmarkModeResult;
+  speedup: number;
+  serializeSpeedup: number;
+};
+
+export type MeshTransferBenchmarkRequest = {
+  cx?: number;
+  cz?: number;
+  level?: number;
+  warmupIterations?: number;
+  measuredIterations?: number;
+};
+
+export type MeshTransferStatus = {
+  mode: string;
+  strategy: string;
+  isSharedArrayBufferAvailable: boolean;
+  isCrossOriginIsolated: boolean;
+  pool: {
+    isActive: boolean;
+    maxSlots: number;
+    usedSlots: number;
+    bytesAllocated: number;
+  };
+};
+
 export type AgentEventMap = {
   chat: ChatMsgIn;
   "chunk-loaded": ChunkCoord;
@@ -139,6 +192,14 @@ export interface AgentBridge {
   view(opts: ViewOptions): Promise<void>;
   setFlying(isFlying: boolean): Promise<void>;
   call(method: string, payload: unknown): Promise<unknown>;
+
+  meshTransferStatus(): Promise<MeshTransferStatus>;
+  meshTransferConfigure(
+    mode: "auto" | "transfer" | "shared",
+  ): Promise<MeshTransferStatus>;
+  meshTransferBenchmark(
+    opts?: MeshTransferBenchmarkRequest,
+  ): Promise<MeshTransferBenchmarkResult>;
 
   position(): Vec3;
   facing(): YawPitch;

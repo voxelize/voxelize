@@ -11,6 +11,9 @@ import type {
   CommandResult,
   EntitySnapshot,
   FaceInput,
+  MeshTransferBenchmarkRequest,
+  MeshTransferBenchmarkResult,
+  MeshTransferStatus,
   PeerSnapshot,
   RaycastHit,
   Snapshot,
@@ -100,22 +103,48 @@ export class Agent {
 
     await page.goto(target.toString(), { waitUntil: "domcontentloaded" });
 
-    const ready = page
-      .waitForFunction(() => Boolean(window.__agent__), {
-        timeout: waitReadyTimeoutMs,
-      })
-      .then(() =>
-        page.evaluate(() =>
-          window
-            .__agent__!.ready.then(() => undefined)
-            .catch((e: unknown) => {
-              throw e instanceof Error ? e : new Error(String(e));
-            }),
-        ),
-      );
+    const ready = Agent.waitForBridge(page, waitReadyTimeoutMs);
 
     agent.readyPromise = ready;
     return agent;
+  }
+
+  private static async waitForBridge(
+    page: Page,
+    waitReadyTimeoutMs: number,
+  ): Promise<void> {
+    try {
+      await page.waitForFunction(() => Boolean(window.__agent__), {
+        timeout: waitReadyTimeoutMs,
+      });
+      await page.evaluate(() =>
+        window
+          .__agent__!.ready.then(() => undefined)
+          .catch((e: unknown) => {
+            throw e instanceof Error ? e : new Error(String(e));
+          }),
+      );
+    } catch (error) {
+      const snapshot = await page.evaluate(() => ({
+        url: window.location.href,
+        hasAgent: Boolean(window.__agent__),
+        canvasCount: document.querySelectorAll("canvas").length,
+        crossOriginIsolated:
+          typeof crossOriginIsolated !== "undefined" && crossOriginIsolated,
+      }));
+
+      const hint =
+        snapshot.url.includes("127.0.0.1") && !snapshot.hasAgent
+          ? " In dev, use --url http://localhost:3000 (127.0.0.1 is blocked by CORS unless the server was restarted with 127.0.0.1 origins)."
+          : "";
+
+      throw new Error(
+        `Timed out after ${waitReadyTimeoutMs}ms waiting for window.__agent__ ` +
+          `(hasAgent=${snapshot.hasAgent}, canvasCount=${snapshot.canvasCount}, ` +
+          `url=${snapshot.url}).${hint}`,
+        { cause: error },
+      );
+    }
   }
 
   async ready(): Promise<void> {
@@ -174,6 +203,28 @@ export class Agent {
       (m, p) => window.__agent__!.call(m, p),
       method,
       payload,
+    );
+  }
+
+  async meshTransferStatus(): Promise<MeshTransferStatus> {
+    return this.page.evaluate(() => window.__agent__!.meshTransferStatus());
+  }
+
+  async meshTransferConfigure(
+    mode: "auto" | "transfer" | "shared",
+  ): Promise<MeshTransferStatus> {
+    return this.page.evaluate(
+      (m) => window.__agent__!.meshTransferConfigure(m),
+      mode,
+    );
+  }
+
+  async meshTransferBenchmark(
+    opts: MeshTransferBenchmarkRequest = {},
+  ): Promise<MeshTransferBenchmarkResult> {
+    return this.page.evaluate(
+      (o) => window.__agent__!.meshTransferBenchmark(o),
+      opts,
     );
   }
 

@@ -1,12 +1,28 @@
 import { ChunkProtocol } from "@voxelize/protocol";
 import ndarray, { NdArray } from "ndarray";
 
+import { ChunkSharedPool } from "../../libs/chunk-shared-pool";
+import { WorkerTransfer } from "../../libs/worker-transfer";
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils } from "../../utils/block-utils";
 import { ChunkUtils } from "../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../utils/light-utils";
 
 import { BlockRotation } from "./block";
+
+export type SerializedChunkPayload = {
+  id: string;
+  x: number;
+  z: number;
+  voxels: ArrayBufferLike;
+  lights: ArrayBufferLike;
+  voxelsByteOffset?: number;
+  voxelsLength?: number;
+  lightsByteOffset?: number;
+  lightsLength?: number;
+  transferMode: "transfer" | "shared";
+  options: RawChunkOptions;
+};
 
 export type RawChunkOptions = {
   size: number;
@@ -50,20 +66,68 @@ export class RawChunk {
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
   }
 
-  serialize(): [object, ArrayBuffer[]] {
+  private static copyToTransferableArrayBuffer(
+    source: ArrayBufferLike,
+    byteOffset: number,
+    byteLength: number,
+  ): ArrayBuffer {
+    const view = new Uint8Array(source, byteOffset, byteLength);
+    const copy = new ArrayBuffer(byteLength);
+    new Uint8Array(copy).set(view);
+    return copy;
+  }
+
+  serialize(): [SerializedChunkPayload, ArrayBuffer[]] {
+    const strategy = WorkerTransfer.getStrategy();
+    if (strategy === "shared") {
+      ChunkSharedPool.getInstance().ensureChunk(this);
+    }
+
+    const isSharedBacked =
+      strategy === "shared" &&
+      this.voxels.data.buffer instanceof SharedArrayBuffer;
+
+    if (isSharedBacked) {
+      return [
+        {
+          id: this.id,
+          x: this.coords[0],
+          z: this.coords[1],
+          voxels: this.voxels.data.buffer,
+          voxelsByteOffset: this.voxels.data.byteOffset,
+          voxelsLength: this.voxels.data.length,
+          lights: this.lights.data.buffer,
+          lightsByteOffset: this.lights.data.byteOffset,
+          lightsLength: this.lights.data.length,
+          transferMode: "shared",
+          options: this.options,
+        },
+        [],
+      ];
+    }
+
+    const voxelsCopy = RawChunk.copyToTransferableArrayBuffer(
+      this.voxels.data.buffer,
+      this.voxels.data.byteOffset,
+      this.voxels.data.byteLength,
+    );
+    const lightsCopy = RawChunk.copyToTransferableArrayBuffer(
+      this.lights.data.buffer,
+      this.lights.data.byteOffset,
+      this.lights.data.byteLength,
+    );
+
     return [
       {
         id: this.id,
         x: this.coords[0],
         z: this.coords[1],
-        voxels: this.voxels.data.buffer,
-        lights: this.lights.data.buffer,
+        voxels: voxelsCopy,
+        lights: lightsCopy,
+        transferMode: "transfer",
         options: this.options,
       },
-      [
-        this.voxels.data.buffer.slice(0) as ArrayBuffer,
-        this.lights.data.buffer.slice(0) as ArrayBuffer,
-      ],
+      [voxelsCopy, lightsCopy],
     ];
   }
 

@@ -2462,27 +2462,43 @@ pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
     MeshOutput { geometries }
 }
 
-pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry) -> MeshOutput {
-    let center_chunk = input.chunks.get(4).and_then(|c| c.as_ref());
+pub fn mesh_chunk_with_registry_chunks(
+    chunks: &[Option<ChunkData>],
+    min: [i32; 3],
+    max: [i32; 3],
+    config: MeshConfig,
+    registry: &Registry,
+) -> MeshOutput {
+    let center_chunk = chunks.get(4).and_then(|c| c.as_ref());
     if center_chunk.is_none() {
         return MeshOutput { geometries: vec![] };
     }
 
     let center_chunk = center_chunk.unwrap();
     let center_coords = [
-        center_chunk.min[0] / input.config.chunk_size,
-        center_chunk.min[2] / input.config.chunk_size,
+        center_chunk.min[0] / config.chunk_size,
+        center_chunk.min[2] / config.chunk_size,
     ];
 
-    let space = VoxelSpace::new(&input.chunks, input.config.chunk_size, center_coords);
+    let space = VoxelSpace::new(chunks, config.chunk_size, center_coords);
 
-    let geometries = if input.config.greedy_meshing {
-        mesh_space_greedy(&input.min, &input.max, &space, registry)
+    let geometries = if config.greedy_meshing {
+        mesh_space_greedy(&min, &max, &space, registry)
     } else {
-        mesh_space(&input.min, &input.max, &space, registry)
+        mesh_space(&min, &max, &space, registry)
     };
 
     MeshOutput { geometries }
+}
+
+pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry) -> MeshOutput {
+    mesh_chunk_with_registry_chunks(
+        &input.chunks,
+        input.min,
+        input.max,
+        input.config,
+        registry,
+    )
 }
 
 #[cfg(test)]

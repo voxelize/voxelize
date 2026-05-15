@@ -204,6 +204,38 @@ export class AgentDaemon {
       }
     });
 
+    this.server.get("/mesh-transfer/status", async () =>
+      this.agent.meshTransferStatus(),
+    );
+
+    this.server.post<{ Body: { mode?: "auto" | "transfer" | "shared" } }>(
+      "/mesh-transfer/configure",
+      async (req) => {
+        const mode = req.body?.mode ?? "auto";
+        return this.agent.meshTransferConfigure(mode);
+      },
+    );
+
+    this.server.get<{
+      Querystring: {
+        cx?: string;
+        cz?: string;
+        level?: string;
+        warmup?: string;
+        iterations?: string;
+      };
+    }>("/mesh-transfer/benchmark", async (req) => {
+      const { cx, cz, level, warmup, iterations } = req.query;
+      return this.agent.meshTransferBenchmark({
+        cx: cx !== undefined ? Number(cx) : undefined,
+        cz: cz !== undefined ? Number(cz) : undefined,
+        level: level !== undefined ? Number(level) : undefined,
+        warmupIterations: warmup !== undefined ? Number(warmup) : undefined,
+        measuredIterations:
+          iterations !== undefined ? Number(iterations) : undefined,
+      });
+    });
+
     this.server.post("/reset", async () => {
       throw new Error("Reset not yet implemented");
     });

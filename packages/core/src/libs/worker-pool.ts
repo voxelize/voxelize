@@ -148,8 +148,13 @@ export class WorkerPool {
       };
 
       worker.addEventListener("message", workerCallback);
-      if (buffers) {
-        worker.postMessage(message, { transfer: buffers });
+      const transferBuffers = buffers?.filter(
+        (buffer): buffer is ArrayBuffer =>
+          buffer instanceof ArrayBuffer &&
+          !(buffer instanceof SharedArrayBuffer),
+      );
+      if (transferBuffers && transferBuffers.length > 0) {
+        worker.postMessage(message, { transfer: transferBuffers });
       } else {
         worker.postMessage(message);
       }

@@ -1,6 +1,7 @@
 import { ChunkProtocol } from "@voxelize/protocol";
 import { Group, Mesh } from "three";
 
+import { ChunkSharedPool } from "../../libs/chunk-shared-pool";
 import { Coords2 } from "../../types";
 
 import { RawChunk, RawChunkOptions } from "./raw-chunk";
@@ -55,7 +56,7 @@ export class Chunk extends RawChunk {
       });
     });
     this.meshes.clear();
-    // Release large typed arrays for GC
+    ChunkSharedPool.getInstance().releaseChunk(this.name);
     this.voxels.data = new Uint32Array(0);
     this.lights.data = new Uint32Array(0);
   }

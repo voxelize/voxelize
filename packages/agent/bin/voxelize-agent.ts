@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const url = values.url ?? "http://127.0.0.1:3000";
+  const url = values.url ?? "http://localhost:3000";
   const world = values.world ?? "test";
   const port = values.port ? Number(values.port) : 4099;
   const name = values.name ?? "agent";
@@ -68,7 +68,7 @@ Usage:
   voxelize-agent [options]
 
 Options:
-  -u, --url <url>      Client base URL (default: http://127.0.0.1:3000)
+  -u, --url <url>      Client base URL (default: http://localhost:3000)
   -w, --world <name>   World to join (default: test)
   -p, --port <port>    HTTP daemon port (default: 4099)
   -n, --name <name>    Agent display name (default: agent)

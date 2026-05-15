@@ -2,6 +2,7 @@ import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
 
 import { Coords3 } from "../../../types";
 import { type WorldOptions } from "../index";
+import { type SerializedChunkPayload } from "../raw-chunk";
 
 type ChunkData = {
   voxels: Uint32Array | number[];
@@ -159,6 +160,20 @@ const minArray = new Int32Array(3);
 const maxArray = new Int32Array(3);
 const emptyUint32Array = new Uint32Array(0);
 
+function toUint32View(
+  buffer: ArrayBufferLike,
+  byteOffset?: number,
+  length?: number,
+): Uint32Array {
+  if (!buffer || buffer.byteLength === 0) {
+    return emptyUint32Array;
+  }
+  if (byteOffset !== undefined && length !== undefined) {
+    return new Uint32Array(buffer, byteOffset, length);
+  }
+  return new Uint32Array(buffer);
+}
+
 onmessage = async function (e) {
   const { type } = e.data;
 
@@ -184,30 +199,23 @@ onmessage = async function (e) {
   const { chunkSize, greedyMeshing = true } = e.data.options as WorldOptions;
 
   const chunks = chunksData.map(
-    (
-      chunkData: {
-        id: string;
-        x: number;
-        z: number;
-        voxels: ArrayBuffer;
-        lights: ArrayBuffer;
-        options: { size: number; maxHeight: number };
-      } | null,
-    ): ChunkData | null => {
+    (chunkData: SerializedChunkPayload | null): ChunkData | null => {
       if (!chunkData) return null;
 
       const { x, z, voxels, lights, options } = chunkData;
       const { size, maxHeight } = options;
 
       return {
-        voxels:
-          voxels && voxels.byteLength
-            ? new Uint32Array(voxels)
-            : emptyUint32Array,
-        lights:
-          lights && lights.byteLength
-            ? new Uint32Array(lights)
-            : emptyUint32Array,
+        voxels: toUint32View(
+          voxels,
+          chunkData.voxelsByteOffset,
+          chunkData.voxelsLength,
+        ),
+        lights: toUint32View(
+          lights,
+          chunkData.lightsByteOffset,
+          chunkData.lightsLength,
+        ),
         shape: [size, maxHeight, size] as [number, number, number],
         min: [x * size, 0, z * size] as [number, number, number],
       };
