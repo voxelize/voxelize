@@ -95,6 +95,12 @@ export type Block = {
   fluidFlowForce: number;
 
   /**
+   * Multiplier applied to entity ground friction while standing on this block.
+   * 1 is normal grip; lower values are slipperier.
+   */
+  groundFrictionMultiplier: number;
+
+  /**
    * Whether or not is the block waterlogged (exists inside water).
    */
   isWaterlogged: boolean;

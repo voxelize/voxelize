@@ -1340,6 +1340,11 @@ pub struct Block {
     /// The force applied to entities in this fluid, pushing them in the flow direction.
     pub fluid_flow_force: f32,
 
+    /// Multiplier applied to entity ground friction while standing on this block.
+    /// 1.0 is normal grip; lower values are slipperier.
+    #[serde(default = "default_ground_friction_multiplier")]
+    pub ground_friction_multiplier: f32,
+
     /// Is this block waterlogged (exists inside water)?
     pub is_waterlogged: bool,
 
@@ -1666,6 +1671,10 @@ impl Default for YRotatableSegments {
     }
 }
 
+fn default_ground_friction_multiplier() -> f32 {
+    1.0
+}
+
 #[derive(Default)]
 pub struct BlockBuilder {
     id: u32,
@@ -1676,6 +1685,7 @@ pub struct BlockBuilder {
     is_empty: bool,
     is_fluid: bool,
     fluid_flow_force: f32,
+    ground_friction_multiplier: f32,
     is_waterlogged: bool,
     is_passable: bool,
     is_climbable: bool,
@@ -1719,6 +1729,7 @@ impl BlockBuilder {
             name: name.to_owned(),
             faces: BlockFaces::six_faces().build().to_vec(),
             aabbs: vec![AABB::new().build()],
+            ground_friction_multiplier: 1.0,
             ..Default::default()
         }
     }
@@ -1765,6 +1776,11 @@ impl BlockBuilder {
     /// Configure the flow force for this fluid block. Default is 0.0.
     pub fn fluid_flow_force(mut self, fluid_flow_force: f32) -> Self {
         self.fluid_flow_force = fluid_flow_force;
+        self
+    }
+
+    pub fn ground_friction_multiplier(mut self, ground_friction_multiplier: f32) -> Self {
+        self.ground_friction_multiplier = ground_friction_multiplier;
         self
     }
 
@@ -1984,6 +2000,7 @@ impl BlockBuilder {
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
             fluid_flow_force: self.fluid_flow_force,
+            ground_friction_multiplier: self.ground_friction_multiplier,
             is_waterlogged: self.is_waterlogged,
             is_light: self.red_light_level > 0
                 || self.green_light_level > 0

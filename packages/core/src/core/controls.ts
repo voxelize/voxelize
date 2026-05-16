@@ -1167,6 +1167,26 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.body.isCliffHanging = state.crouching;
   };
 
+  private getGroundFrictionMultiplier = (): number => {
+    if (this.body.atRestY >= 0) {
+      return 1;
+    }
+
+    const { aabb } = this.body;
+    const vx = Math.floor(aabb.minX + aabb.width / 2);
+    const vz = Math.floor(aabb.minZ + aabb.depth / 2);
+    const vy = Math.floor(aabb.minY - 0.001);
+
+    const block = this.world.getBlockAt(vx, vy, vz);
+    if (!block) {
+      return 1;
+    }
+
+    return block.groundFrictionMultiplier > 0
+      ? block.groundFrictionMultiplier
+      : 1;
+  };
+
   /**
    * Update the rigid body by the physics engine.
    */
@@ -1224,6 +1244,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
       // jumping
       const onGround = this.body.atRestY < 0;
+      const groundFrictionMult = onGround
+        ? this.getGroundFrictionMultiplier()
+        : 1;
       const canjump = onGround || this.state.jumpCount < airJumps;
       if (onGround) {
         this.state.isJumping = false;
@@ -1310,10 +1333,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         // idea from Sonic: http://info.sonicretro.org/SPG:Running
         // reduce friction when in fluid to allow water current to push
         const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
-        this.body.friction = runningFriction * fluidFrictionMult;
+        this.body.friction =
+          runningFriction * fluidFrictionMult * groundFrictionMult;
       } else {
         const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
-        this.body.friction = standingFriction * fluidFrictionMult;
+        this.body.friction =
+          standingFriction * fluidFrictionMult * groundFrictionMult;
       }
     } else {
       this.body.velocity[0] -= this.body.velocity[0] * flyInertia * dt;
