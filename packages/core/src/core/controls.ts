@@ -137,6 +137,49 @@ export type RigidControlsOptions = {
   fluidPushForce: number;
 
   /**
+   * Target speed while swimming. Defaults to `4.5`.
+   */
+  swimSpeed: number;
+
+  /**
+   * Force applied while swimming. Defaults to `28`.
+   */
+  swimForce: number;
+
+  /**
+   * Friction while swimming and moving. Defaults to `0.05`.
+   */
+  swimFriction: number;
+
+  /**
+   * Minimum ratio of the body submerged before swimming mechanics activate.
+   * Defaults to `0.95`.
+   */
+  swimSubmersionRatio: number;
+
+  /**
+   * Collision height while swimming. Defaults to `0.4`.
+   */
+  swimBodyHeight: number;
+
+  /**
+   * Lerp factor for the swim hitbox height transition. Defaults to `0.08`.
+   */
+  swimAABBLerp: number;
+
+  /**
+   * Time without swim movement input before returning to an upright pose.
+   * Defaults to `3000`.
+   */
+  swimIdleStandDelay: number;
+
+  /**
+   * Frames to keep the swim AABB after restoring a saved swimming session.
+   * Defaults to `2`.
+   */
+  swimRestoreGraceFrames: number;
+
+  /**
    * The interpolation factor of the client's position. Defaults to `1.0`.
    */
   positionLerp: number;
@@ -295,6 +338,14 @@ const defaultOptions: RigidControlsOptions = {
   alwaysSprint: false,
   airMoveMult: 0.7,
   fluidPushForce: 0.3,
+  swimSpeed: 4.5,
+  swimForce: 28,
+  swimFriction: 0.05,
+  swimSubmersionRatio: 0.95,
+  swimBodyHeight: 0.4,
+  swimAABBLerp: 0.08,
+  swimIdleStandDelay: 3000,
+  swimRestoreGraceFrames: 2,
   jumpImpulse: 8,
   jumpForce: 1,
   jumpTime: 50,
@@ -431,6 +482,18 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   private vector = new Vector3();
 
+  private _lookDirection = new Vector3();
+
+  private _rightDirection = new Vector3();
+
+  private _swimMoveScratch = new Vector3();
+
+  private _wasSwimming = false;
+
+  private _swimIdleStartedAt = -1;
+
+  private _swimAABBBlend = 0;
+
   /**
    * The new position of the controls. This is used to lerp the position of the controls.
    */
@@ -445,6 +508,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private _crouching = false;
 
   private _smoothedBodyHeight = -1;
+
+  private _swimRestoreGraceFrames = 0;
 
   /**
    * An internal clock instance for calculating delta time.
@@ -609,6 +674,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
       const cameraPosition = this.object.position.toArray();
 
+      this.character.setSwimming(this.isSwimPoseActive());
       this.character.set(cameraPosition, [dx, dy, dz]);
       this.character.setCrouching(this._crouching);
       this.character.update();
@@ -1065,6 +1131,32 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     return this.body.gravityMultiplier === 0 && !this.ghostMode;
   }
 
+  get isSwimming() {
+    return this.isSwimmingActive();
+  }
+
+  get isSwimmingIdleStanding() {
+    if (!this.isSwimmingActive()) return false;
+    if (this._swimIdleStartedAt < 0) return false;
+
+    return (
+      performance.now() - this._swimIdleStartedAt >=
+      this.options.swimIdleStandDelay
+    );
+  }
+
+  private isSwimPoseActive = (): boolean => {
+    return this.isSwimmingActive() && !this.isSwimmingIdleStanding;
+  };
+
+  restoreSwimming = () => {
+    if (this.ghostMode || this.flyMode) return;
+
+    this._swimRestoreGraceFrames = this.options.swimRestoreGraceFrames;
+    this.body.isSwimming = true;
+    this.updateSwimAABB();
+  };
+
   get isCrouching() {
     return this._crouching;
   }
@@ -1187,6 +1279,165 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       : 1;
   };
 
+  private isSwimmingActive = (): boolean => {
+    return (
+      this.body.gravityMultiplier > 0 &&
+      (this._swimRestoreGraceFrames > 0 ||
+        (this.body.inFluid &&
+          this.body.ratioInFluid >= this.options.swimSubmersionRatio)) &&
+      !this.body.onClimbable
+    );
+  };
+
+  private updateSwimIdleState = (isSwimming: boolean) => {
+    if (!isSwimming) {
+      this._swimIdleStartedAt = -1;
+      return;
+    }
+
+    const { front, back, left, right, up, down } = this.movements;
+    const hasMovementInput =
+      front || back || left || right || up || down || this.state.jumping;
+    if (hasMovementInput || this.state.running) {
+      this._swimIdleStartedAt = -1;
+      return;
+    }
+
+    if (this._swimIdleStartedAt < 0) {
+      this._swimIdleStartedAt = performance.now();
+    }
+  };
+
+  private restoreAxisAlignedAABB = (preserveMinY = false) => {
+    const [cx, cy, cz] = this.body.getPosition();
+    const { bodyWidth, bodyDepth } = this.options;
+    const height = this._crouching
+      ? this.options.crouchBodyHeight
+      : this.options.bodyHeight;
+    const { aabb } = this.body;
+    const minY = preserveMinY ? aabb.minY : cy - height / 2;
+
+    aabb.minX = cx - bodyWidth / 2;
+    aabb.minY = minY;
+    aabb.minZ = cz - bodyDepth / 2;
+    aabb.maxX = cx + bodyWidth / 2;
+    aabb.maxY = minY + height;
+    aabb.maxZ = cz + bodyDepth / 2;
+  };
+
+  private updateSwimAABB = () => {
+    const swimAABBTarget = this.isSwimPoseActive() ? 1 : 0;
+    this._swimAABBBlend +=
+      (swimAABBTarget - this._swimAABBBlend) * this.options.swimAABBLerp;
+
+    if (this._swimAABBBlend < 0.001) {
+      this._swimAABBBlend = 0;
+    } else if (this._swimAABBBlend > 0.999) {
+      this._swimAABBBlend = 1;
+    }
+
+    if (this._swimAABBBlend === 0) {
+      if (this._wasSwimming) {
+        this.restoreAxisAlignedAABB(true);
+      }
+      this._wasSwimming = false;
+      return;
+    }
+
+    this._wasSwimming = true;
+
+    const { bodyWidth, bodyDepth, bodyHeight, swimBodyHeight } = this.options;
+    const [cx, , cz] = this.body.getPosition();
+    const { aabb } = this.body;
+    const height =
+      bodyHeight + (swimBodyHeight - bodyHeight) * this._swimAABBBlend;
+    const minY = aabb.minY;
+
+    aabb.minX = cx - bodyWidth / 2;
+    aabb.minY = minY;
+    aabb.minZ = cz - bodyDepth / 2;
+    aabb.maxX = cx + bodyWidth / 2;
+    aabb.maxY = minY + height;
+    aabb.maxZ = cz + bodyDepth / 2;
+
+    if (this._swimRestoreGraceFrames > 0) {
+      this._swimRestoreGraceFrames -= 1;
+    }
+  };
+
+  private applySwimmingMovement = () => {
+    const {
+      swimSpeed,
+      swimForce,
+      responsiveness,
+      sprintFactor,
+      crouchFactor,
+      swimFriction,
+      fluidPushForce,
+    } = this.options;
+
+    this._lookDirection.set(0, 0, -1);
+    this._lookDirection.applyQuaternion(this.object.quaternion).normalize();
+
+    this._rightDirection.set(1, 0, 0);
+    this._rightDirection.applyQuaternion(this.object.quaternion).normalize();
+
+    const { front, back, left, right } = this.movements;
+    const fb = front ? (back ? 0 : 1) : back ? -1 : 0;
+    const rl = left ? (right ? 0 : 1) : right ? -1 : 0;
+
+    if (this.state.jumping) {
+      this.body.applyImpulse([
+        this._lookDirection.x * fluidPushForce,
+        this._lookDirection.y * fluidPushForce,
+        this._lookDirection.z * fluidPushForce,
+      ]);
+    }
+    this.state.isJumping = false;
+
+    if (this.state.running && (fb !== 0 || rl !== 0)) {
+      let speed = swimSpeed;
+      if (this.state.sprinting) speed *= sprintFactor;
+      if (this.state.crouching) speed *= crouchFactor;
+
+      this._swimMoveScratch
+        .copy(this._lookDirection)
+        .multiplyScalar(fb)
+        .addScaledVector(this._rightDirection, rl);
+
+      if (this._swimMoveScratch.lengthSq() > 0) {
+        this._swimMoveScratch.normalize().multiplyScalar(speed);
+
+        const push = [
+          this._swimMoveScratch.x - this.body.velocity[0],
+          this._swimMoveScratch.y - this.body.velocity[1],
+          this._swimMoveScratch.z - this.body.velocity[2],
+        ];
+        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
+
+        if (pushLen > 0) {
+          push[0] /= pushLen;
+          push[1] /= pushLen;
+          push[2] /= pushLen;
+
+          let canPush = swimForce;
+          const pushAmt = responsiveness * pushLen;
+          if (canPush > pushAmt) canPush = pushAmt;
+
+          this.body.applyForce([
+            push[0] * canPush,
+            push[1] * canPush,
+            push[2] * canPush,
+          ]);
+        }
+      }
+
+      this.body.friction = swimFriction;
+    } else {
+      this.body.friction = swimFriction * 2;
+    }
+  };
+
   /**
    * Update the rigid body by the physics engine.
    */
@@ -1212,6 +1463,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     } = this.options;
 
     if (this.body.gravityMultiplier) {
+      this.body.isSwimming = this.isSwimmingActive();
+
       // ladder climbing
       if (this.body.onClimbable) {
         const climbSpeed = 4.5;
@@ -1242,105 +1495,117 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         }
       }
 
-      // jumping
-      const onGround = this.body.atRestY < 0;
-      const groundFrictionMult = onGround
-        ? this.getGroundFrictionMultiplier()
-        : 1;
-      const canjump = onGround || this.state.jumpCount < airJumps;
-      if (onGround) {
-        this.state.isJumping = false;
-        this.state.jumpCount = 0;
-      }
+      const isSwimming = this.isSwimmingActive();
+      this.updateSwimIdleState(isSwimming);
+      const isSwimPoseActive = this.isSwimPoseActive();
 
-      // process jump input (skip if on climbable - handled above)
-      if (this.state.jumping && !this.body.onClimbable) {
-        if (this.state.isJumping) {
-          // continue previous jump
-          if (this.state.currentJumpTime > 0) {
-            let jf = jumpForce;
-            if (this.state.currentJumpTime < dt)
-              jf *= this.state.currentJumpTime / dt;
-            this.body.applyForce([0, jf, 0]);
-            this.state.currentJumpTime -= dt;
-          }
-        } else if (canjump) {
-          // start new jump
-          this.state.isJumping = true;
-          if (!onGround) this.state.jumpCount++;
-          this.state.currentJumpTime = jumpTime;
-          this.body.applyImpulse([0, jumpImpulse, 0]);
-          // clear downward velocity on airjump
-          if (!onGround && this.body.velocity[1] < 0) this.body.velocity[1] = 0;
-        } else if (this.body.ratioInFluid > 0) {
-          // apply impulse to swim
-          this.body.applyImpulse([0, fluidPushForce, 0]);
-        }
-      } else if (!this.body.onClimbable) {
-        this.state.isJumping = false;
-      }
-
-      // apply movement forces if entity is moving, otherwise just friction
-      let m = [0, 0, 0];
-      let push = [0, 0, 0];
-      if (this.state.running) {
-        let speed = maxSpeed;
-        // todo: add crouch/sprint modifiers if needed
-        if (this.state.sprinting) speed *= sprintFactor;
-        if (this.state.crouching && this.body.resting[1] === -1)
-          speed *= crouchFactor;
-        m[2] = speed;
-
-        // rotate move vector to entity's heading
-
-        m = rotateY(m, [0, 0, 0], this.state.heading);
-
-        // push vector to achieve desired speed & dir
-        // following code to adjust 2D velocity to desired amount is patterned on Quake:
-        // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
-        push = [
-          m[0] - this.body.velocity[0],
-          m[1] - this.body.velocity[1],
-          m[2] - this.body.velocity[2],
-        ];
-        push[1] = 0;
-        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
-
-        // Guard against a zero-length vector which would result in NaN / Infinity
-        if (pushLen > 0) {
-          push[0] /= pushLen;
-          push[1] /= pushLen;
-          push[2] /= pushLen;
-
-          // No need to normalise the Y-component – it is always zero for planar movement
-
-          // pushing force vector
-          let canPush = moveForce;
-          if (!onGround) canPush *= airMoveMult;
-
-          // apply final force
-          const pushAmt = responsiveness * pushLen;
-          if (canPush > pushAmt) canPush = pushAmt;
-
-          push[0] *= canPush;
-          push[1] *= canPush;
-          push[2] *= canPush;
-
-          this.body.applyForce(push);
-        }
-
-        // different friction when not moving
-        // idea from Sonic: http://info.sonicretro.org/SPG:Running
-        // reduce friction when in fluid to allow water current to push
-        const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
-        this.body.friction =
-          runningFriction * fluidFrictionMult * groundFrictionMult;
+      if (isSwimPoseActive) {
+        this.applySwimmingMovement();
+      } else if (isSwimming) {
+        this.body.friction = standingFriction * 0.1;
       } else {
-        const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
-        this.body.friction =
-          standingFriction * fluidFrictionMult * groundFrictionMult;
+        // jumping
+        const onGround = this.body.atRestY < 0;
+        const groundFrictionMult = onGround
+          ? this.getGroundFrictionMultiplier()
+          : 1;
+        const canjump = onGround || this.state.jumpCount < airJumps;
+        if (onGround) {
+          this.state.isJumping = false;
+          this.state.jumpCount = 0;
+        }
+
+        // process jump input (skip if on climbable - handled above)
+        if (this.state.jumping && !this.body.onClimbable) {
+          if (this.state.isJumping) {
+            // continue previous jump
+            if (this.state.currentJumpTime > 0) {
+              let jf = jumpForce;
+              if (this.state.currentJumpTime < dt)
+                jf *= this.state.currentJumpTime / dt;
+              this.body.applyForce([0, jf, 0]);
+              this.state.currentJumpTime -= dt;
+            }
+          } else if (canjump) {
+            // start new jump
+            this.state.isJumping = true;
+            if (!onGround) this.state.jumpCount++;
+            this.state.currentJumpTime = jumpTime;
+            this.body.applyImpulse([0, jumpImpulse, 0]);
+            // clear downward velocity on airjump
+            if (!onGround && this.body.velocity[1] < 0)
+              this.body.velocity[1] = 0;
+          } else if (this.body.ratioInFluid > 0) {
+            // apply impulse to swim
+            this.body.applyImpulse([0, fluidPushForce, 0]);
+          }
+        } else if (!this.body.onClimbable) {
+          this.state.isJumping = false;
+        }
+
+        // apply movement forces if entity is moving, otherwise just friction
+        let m = [0, 0, 0];
+        let push = [0, 0, 0];
+        if (this.state.running) {
+          let speed = maxSpeed;
+          // todo: add crouch/sprint modifiers if needed
+          if (this.state.sprinting) speed *= sprintFactor;
+          if (this.state.crouching && this.body.resting[1] === -1)
+            speed *= crouchFactor;
+          m[2] = speed;
+
+          // rotate move vector to entity's heading
+
+          m = rotateY(m, [0, 0, 0], this.state.heading);
+
+          // push vector to achieve desired speed & dir
+          // following code to adjust 2D velocity to desired amount is patterned on Quake:
+          // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
+          push = [
+            m[0] - this.body.velocity[0],
+            m[1] - this.body.velocity[1],
+            m[2] - this.body.velocity[2],
+          ];
+          push[1] = 0;
+          const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
+
+          // Guard against a zero-length vector which would result in NaN / Infinity
+          if (pushLen > 0) {
+            push[0] /= pushLen;
+            push[1] /= pushLen;
+            push[2] /= pushLen;
+
+            // No need to normalise the Y-component – it is always zero for planar movement
+
+            // pushing force vector
+            let canPush = moveForce;
+            if (!onGround) canPush *= airMoveMult;
+
+            // apply final force
+            const pushAmt = responsiveness * pushLen;
+            if (canPush > pushAmt) canPush = pushAmt;
+
+            push[0] *= canPush;
+            push[1] *= canPush;
+            push[2] *= canPush;
+
+            this.body.applyForce(push);
+          }
+
+          // different friction when not moving
+          // idea from Sonic: http://info.sonicretro.org/SPG:Running
+          // reduce friction when in fluid to allow water current to push
+          const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
+          this.body.friction =
+            runningFriction * fluidFrictionMult * groundFrictionMult;
+        } else {
+          const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
+          this.body.friction =
+            standingFriction * fluidFrictionMult * groundFrictionMult;
+        }
       }
     } else {
+      this.body.isSwimming = false;
       this.body.velocity[0] -= this.body.velocity[0] * flyInertia * dt;
       this.body.velocity[1] -= this.body.velocity[1] * flyInertia * dt;
       this.body.velocity[2] -= this.body.velocity[2] * flyInertia * dt;
@@ -1409,6 +1674,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     }
 
     this.updateCrouchAABB();
+    this.updateSwimAABB();
 
     const [x, y, z] = this.body.getPosition();
     const targetHeight = this._crouching

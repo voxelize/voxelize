@@ -15,6 +15,11 @@ export type PerspectiveOptions = {
   maxDistance: number;
 
   /**
+   * Extra camera distance while swimming in second/third person. Defaults to `3`.
+   */
+  swimDistanceBonus: number;
+
+  /**
    * The margin between the camera and any block that the camera is colliding with.
    * This prevents the camera from clipping into blocks. Defaults to `0.3`.
    */
@@ -38,6 +43,7 @@ export type PerspectiveOptions = {
 
 const defaultOptions: PerspectiveOptions = {
   maxDistance: 5,
+  swimDistanceBonus: 3,
   blockMargin: 0.3,
   lerpFactor: 0.5,
   ignoreSeeThrough: true,
@@ -247,11 +253,14 @@ export class Perspective {
       object.getWorldPosition(pos);
 
       pos.add(dir.clone().multiplyScalar(this.options.blockMargin));
+      const maxDistance =
+        this.options.maxDistance +
+        (this.controls.isSwimming ? this.options.swimDistanceBonus : 0);
 
       const result = this.world.raycastVoxels(
         pos.toArray(),
         dir.toArray(),
-        this.options.maxDistance,
+        maxDistance,
         {
           ignoreFluids: this.options.ignoreFluids,
           ignoreSeeThrough: this.options.ignoreSeeThrough,
@@ -259,7 +268,7 @@ export class Perspective {
       );
 
       if (!result) {
-        return this.options.maxDistance;
+        return maxDistance;
       }
 
       return pos.distanceTo(new Vector3(...result.point));

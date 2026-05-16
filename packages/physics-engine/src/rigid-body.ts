@@ -17,6 +17,8 @@ class RigidBody {
   public sleepFrameCount = 10 | 0;
   public isCliffHanging = false;
 
+  public isSwimming = false;
+
   constructor(
     public aabb: AABB,
     public mass: number,

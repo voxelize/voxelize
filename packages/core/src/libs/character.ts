@@ -24,6 +24,8 @@ import { NameTag, NameTagOptions } from "./nametag";
 
 const CHARACTER_SCALE = 0.9;
 
+const identityQuaternion = new Quaternion();
+
 const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
 
 const SWING_QUATERNIONS = [
@@ -174,6 +176,11 @@ export type CharacterOptions = {
   walkingSpeed?: number;
 
   /**
+   * The speed at which the arms stroke when the character is swimming. Defaults to `1.8`.
+   */
+  swimmingSpeed?: number;
+
+  /**
    * The speed at which the arms swing when the character is idle. Defaults to `0.06`.
    */
   idleArmSwing?: number;
@@ -187,6 +194,21 @@ export type CharacterOptions = {
    * The lerp factor of the character's rotation change. Defaults to `0.2`.
    */
   rotationLerp?: number;
+
+  /**
+   * How much the head pitches relative to the swim body tilt. Defaults to `1`.
+   */
+  swimHeadPitchFactor?: number;
+
+  /**
+   * Lerp factor when entering the swimming pose. Defaults to `0.12`.
+   */
+  swimEnterLerp?: number;
+
+  /**
+   * Lerp factor when exiting the swimming pose. Defaults to `0.05`.
+   */
+  swimExitLerp?: number;
 
   nameTagOptions?: Partial<NameTagOptions>;
 
@@ -219,8 +241,12 @@ export type CharacterOptions = {
 export const defaultCharacterOptions: CharacterOptions = {
   swingLerp: 0.8,
   walkingSpeed: 1.4,
+  swimmingSpeed: 1.8,
   positionLerp: 0.7,
   rotationLerp: 0.2,
+  swimHeadPitchFactor: 1,
+  swimEnterLerp: 0.12,
+  swimExitLerp: 0.05,
   idleArmSwing: 0.06,
 };
 
@@ -407,6 +433,18 @@ export class Character extends Group {
 
   private _isCrouching = false;
 
+  private _isSwimming = false;
+
+  private _swimBlend = 0;
+
+  private _swimCycle = 0;
+
+  private _swimHeadLocalQuat = new Quaternion();
+
+  private _swimLookDirection = new Vector3();
+
+  private _swimHeadAxis = new Vector3(1, 0, 0);
+
   /**
    * A listener called when a character starts moving.
    */
@@ -513,15 +551,38 @@ export class Character extends Group {
 
     this.mixer.update(delta);
     this.calculateDelta();
-    this.playArmsWalkingAnimation();
-    this.playLegsWalkingAnimation();
+
+    const swimTarget = this._isSwimming ? 1 : 0;
+    const swimBlendLerp = this._isSwimming
+      ? this.options.swimEnterLerp ?? 0.12
+      : this.options.swimExitLerp ?? 0.05;
+    this._swimBlend += (swimTarget - this._swimBlend) * swimBlendLerp;
+    if (this._isSwimming) {
+      this._swimCycle += 0.04;
+    }
+
+    if (this._swimBlend > 0.001) {
+      this.playSwimmingAnimation();
+    } else {
+      this.playArmsWalkingAnimation();
+      this.playLegsWalkingAnimation();
+    }
+
     this.lerpAll();
   }
 
   snapToTarget() {
     this.position.copy(this.newPosition);
-    this.headGroup.rotation.setFromQuaternion(this.newDirection);
-    this.bodyGroup.quaternion.copy(this.newBodyDirection);
+    if (this._isSwimming) {
+      this.quaternion.copy(this.newBodyDirection);
+      this.computeSwimHeadLocalQuat();
+      this.headGroup.quaternion.copy(this._swimHeadLocalQuat);
+      this.bodyGroup.quaternion.copy(identityQuaternion);
+    } else {
+      this.quaternion.copy(identityQuaternion);
+      this.headGroup.rotation.setFromQuaternion(this.newDirection);
+      this.bodyGroup.quaternion.copy(this.newBodyDirection);
+    }
   }
 
   /**
@@ -537,6 +598,7 @@ export class Character extends Group {
     if (!position || !direction) return;
 
     this.newPosition.set(position[0], position[1], position[2]);
+    this._swimLookDirection.set(direction[0], direction[1], direction[2]);
 
     this.newDirection.copy(
       VoxMathUtils.directionToQuaternion(
@@ -545,9 +607,20 @@ export class Character extends Group {
         direction[2],
       ),
     );
-    this.newBodyDirection.copy(
-      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2]),
-    );
+
+    if (this._isSwimming) {
+      this.newBodyDirection.copy(
+        VoxMathUtils.swimDirectionToQuaternion(
+          direction[0],
+          direction[1],
+          direction[2],
+        ),
+      );
+    } else {
+      this.newBodyDirection.copy(
+        VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2]),
+      );
+    }
   }
 
   /**
@@ -696,6 +769,14 @@ export class Character extends Group {
     this._isCrouching = crouching;
   }
 
+  setSwimming(swimming: boolean) {
+    this._isSwimming = swimming;
+  }
+
+  get isSwimming() {
+    return this._isSwimming;
+  }
+
   /**
    * Create the character's model programmatically.
    */
@@ -832,15 +913,27 @@ export class Character extends Group {
   private calculateDelta = () => {
     const p1 = this.position.clone();
     const p2 = this.newPosition.clone();
-    p1.y = p2.y = 0;
+    if (!this._isSwimming) {
+      p1.y = p2.y = 0;
+    }
     const dist = p1.distanceTo(p2);
     if (dist > 0.00001) {
       if (this.speed === 0) this.onMove?.();
-      this.speed = this.options.walkingSpeed;
+      this.speed = this._isSwimming
+        ? this.options.swimmingSpeed ?? this.options.walkingSpeed
+        : this.options.walkingSpeed;
     } else {
       if (this.speed > 0) this.onIdle?.();
       this.speed = 0;
     }
+  };
+
+  private computeSwimHeadLocalQuat = () => {
+    const { x: dx, y: dy, z: dz } = this._swimLookDirection;
+    const horiz = Math.sqrt(dx * dx + dz * dz);
+    const lookPitch = Math.atan2(dy, horiz);
+    const headPitch = -lookPitch * (this.options.swimHeadPitchFactor ?? 1);
+    this._swimHeadLocalQuat.setFromAxisAngle(this._swimHeadAxis, headPitch);
   };
 
   /**
@@ -854,16 +947,32 @@ export class Character extends Group {
       this.position.lerp(this.newPosition, this.options.positionLerp);
     }
 
-    // Head rotates immediately.
-    if (this.newDirection.length() !== 0) {
-      this.headGroup.rotation.setFromQuaternion(this.newDirection);
-    }
-
-    if (this.newBodyDirection.length() !== 0) {
-      this.bodyGroup.quaternion.slerp(
-        this.newBodyDirection,
-        this.options.rotationLerp,
+    if (this._swimBlend > 0.001) {
+      const swimRotationLerp = Math.min(
+        1,
+        this.options.rotationLerp * Math.max(this._swimBlend, 0.35),
       );
+      this.quaternion.slerp(this.newBodyDirection, swimRotationLerp);
+      this.computeSwimHeadLocalQuat();
+      this.headGroup.quaternion.slerp(
+        this._swimHeadLocalQuat,
+        swimRotationLerp,
+      );
+      this.bodyGroup.quaternion.slerp(identityQuaternion, swimRotationLerp);
+    } else {
+      this.quaternion.slerp(identityQuaternion, this.options.rotationLerp);
+      this.headGroup.quaternion.set(0, 0, 0, 1);
+
+      if (this.newDirection.length() !== 0) {
+        this.headGroup.rotation.setFromQuaternion(this.newDirection);
+      }
+
+      if (this.newBodyDirection.length() !== 0) {
+        this.bodyGroup.quaternion.slerp(
+          this.newBodyDirection,
+          this.options.rotationLerp,
+        );
+      }
     }
   };
 
@@ -920,6 +1029,76 @@ export class Character extends Group {
     this.rightLegGroup.rotation.x = MathUtils.lerp(
       this.rightLegGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale) * amplitude,
+      this.options.swingLerp,
+    );
+  };
+
+  private playSwimmingAnimation = () => {
+    if (this._isSitting) return;
+
+    const sw = this._swimBlend;
+    const speed = Math.max(this.speed, this.options.idleArmSwing);
+    const strokePhase = this._swimCycle * 2;
+    const cycleProgress = (((strokePhase / (Math.PI * 2)) % 1) + 1) % 1;
+    const pullStart = 0.18;
+    const pullEnd = 0.48;
+    const recoveryEnd = 0.84;
+    const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+    const easeInOutSine = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
+    let strokeProgress = 0;
+
+    if (cycleProgress < pullStart) {
+      strokeProgress = 0;
+    } else if (cycleProgress < pullEnd) {
+      strokeProgress =
+        easeOutCubic((cycleProgress - pullStart) / (pullEnd - pullStart)) * 0.5;
+    } else if (cycleProgress < recoveryEnd) {
+      strokeProgress =
+        0.5 +
+        easeInOutSine((cycleProgress - pullEnd) / (recoveryEnd - pullEnd)) *
+          0.5;
+    } else {
+      strokeProgress = 1;
+    }
+
+    const shapedStrokePhase = strokeProgress * Math.PI * 2;
+    const reachAngle = -Math.PI / 2.55;
+    const strokeRadiusX = 0.82;
+    const strokeRadiusZ = 0.62;
+    const armX =
+      (reachAngle - Math.cos(shapedStrokePhase) * strokeRadiusX) * sw;
+    const armZ = Math.sin(shapedStrokePhase) * strokeRadiusZ * sw;
+    const kick = Math.sin(this._swimCycle * 3) * 0.12 * speed;
+
+    this.leftArmGroup.rotation.x = MathUtils.lerp(
+      this.leftArmGroup.rotation.x,
+      armX,
+      this.options.swingLerp,
+    );
+    this.rightArmGroup.rotation.x = MathUtils.lerp(
+      this.rightArmGroup.rotation.x,
+      armX,
+      this.options.swingLerp,
+    );
+    this.leftArmGroup.rotation.z = MathUtils.lerp(
+      this.leftArmGroup.rotation.z,
+      armZ,
+      this.options.swingLerp,
+    );
+    this.rightArmGroup.rotation.z = MathUtils.lerp(
+      this.rightArmGroup.rotation.z,
+      -armZ,
+      this.options.swingLerp,
+    );
+
+    this.leftLegGroup.rotation.x = MathUtils.lerp(
+      this.leftLegGroup.rotation.x,
+      (0.45 + kick) * sw,
+      this.options.swingLerp,
+    );
+    this.rightLegGroup.rotation.x = MathUtils.lerp(
+      this.rightLegGroup.rotation.x,
+      (0.45 - kick) * sw,
       this.options.swingLerp,
     );
   };

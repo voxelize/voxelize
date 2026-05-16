@@ -2,6 +2,13 @@ import { Matrix4, Quaternion, Vector3 } from "three";
 
 const TWO_PI = Math.PI * 2;
 
+const swimScratchForward = new Vector3();
+const SWIM_PRONE_OFFSET = new Quaternion().setFromAxisAngle(
+  swimScratchForward.set(1, 0, 0),
+  -Math.PI / 2,
+);
+const swimScratchQuaternion = new Quaternion();
+
 /**
  * A utility class for doing math operations.
  *
@@ -52,6 +59,12 @@ export class MathUtils {
     })();
 
     return toQuaternion();
+  };
+
+  static swimDirectionToQuaternion = (dx: number, dy: number, dz: number) => {
+    return swimScratchQuaternion
+      .copy(MathUtils.directionToQuaternion(dx, dy, dz))
+      .multiply(SWIM_PRONE_OFFSET);
   };
 
   private constructor() {

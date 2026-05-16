@@ -449,19 +449,31 @@ export class Engine {
       if (ratioInFluid < 0) ratioInFluid = 0;
     }
 
-    const vol =
-      (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
-    const displaced = vol * ratioInFluid;
-    const scale = -this.options.fluidDensity * displaced;
-    const f = [
-      this.options.gravity[0] * scale,
-      this.options.gravity[1] * scale,
-      this.options.gravity[2] * scale,
-    ];
-    body.applyForce(f);
-
     body.inFluid = true;
     body.ratioInFluid = ratioInFluid;
+
+    if (body.isSwimming) {
+      const effectiveGravityMult = body.onClimbable
+        ? 0
+        : body.gravityMultiplier;
+      const neutralBuoyancyY =
+        -body.mass *
+        this.options.gravity[1] *
+        effectiveGravityMult *
+        ratioInFluid;
+      body.applyForce([0, neutralBuoyancyY, 0]);
+    } else {
+      const vol =
+        (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
+      const displaced = vol * ratioInFluid;
+      const scale = -this.options.fluidDensity * displaced;
+      const f = [
+        this.options.gravity[0] * scale,
+        this.options.gravity[1] * scale,
+        this.options.gravity[2] * scale,
+      ];
+      body.applyForce(f);
+    }
 
     const fluidFlowForce = this.getFluidFlowForce(cx, y0, cz);
     if (fluidFlowForce > 0) {

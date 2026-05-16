@@ -164,10 +164,19 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
     if peer_update.is_ghost.is_some() || peer_update.is_flying.is_some() {
         let mut bodies = world.write_component::<RigidBodyComp>();
         if let Some(b) = bodies.get_mut(client_ent) {
-            let is_ghost = peer_update.is_ghost.unwrap_or_else(|| b.0.aabb.width() <= 0.0);
+            let is_ghost = peer_update
+                .is_ghost
+                .unwrap_or_else(|| b.0.aabb.width() <= 0.0);
             let is_flying = peer_update.is_flying.unwrap_or(false);
             apply_client_ghost_state(b, is_ghost);
             b.0.gravity_multiplier = if is_ghost || is_flying { 0.0 } else { 1.0 };
+        }
+    }
+
+    if let Some(is_swimming) = peer_update.is_swimming {
+        let mut bodies = world.write_component::<RigidBodyComp>();
+        if let Some(b) = bodies.get_mut(client_ent) {
+            b.0.is_swimming = is_swimming;
         }
     }
 
@@ -197,6 +206,7 @@ pub struct PeerUpdate {
     is_crouching: Option<bool>,
     is_flying: Option<bool>,
     is_ghost: Option<bool>,
+    is_swimming: Option<bool>,
 }
 
 /// Wrapper to make a non-Send/Sync type safely usable in contexts that require it.
@@ -439,12 +449,10 @@ impl Handler<ClientJoinRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientJoinRequest, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().add_client(
-            &msg.id,
-            &msg.username,
-            &msg.sender,
-            msg.preferences,
-        );
+        self.0
+            .write()
+            .unwrap()
+            .add_client(&msg.id, &msg.username, &msg.sender, msg.preferences);
     }
 }
 
@@ -878,7 +886,7 @@ impl World {
 
     /// Add a transport sender to this world.
     pub(crate) fn add_transport(&mut self, id: &str, sender: &WsSender) {
-        let (init_message, _) = self.generate_init_message(id, None, None, None, None);
+        let (init_message, _) = self.generate_init_message(id, None, None, None, None, None);
         self.send(sender, &init_message);
         self.write_resource::<Transports>()
             .insert(id.to_owned(), sender.clone());
@@ -947,6 +955,10 @@ impl World {
             .read_component::<RigidBodyComp>()
             .get(ent)
             .map(|body| body.0.aabb.width() <= 0.0);
+        let saved_is_swimming = self
+            .read_component::<RigidBodyComp>()
+            .get(ent)
+            .map(|body| body.0.is_swimming);
 
         let (init_message, init_entity_ids) = self.generate_init_message(
             id,
@@ -954,6 +966,7 @@ impl World {
             saved_direction,
             saved_is_flying,
             saved_is_ghost,
+            saved_is_swimming,
         );
 
         self.clients_mut().insert(
@@ -1969,6 +1982,7 @@ impl World {
         saved_direction: Option<[f32; 3]>,
         saved_is_flying: Option<bool>,
         saved_is_ghost: Option<bool>,
+        saved_is_swimming: Option<bool>,
     ) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
         let mut json = HashMap::new();
@@ -1992,6 +2006,9 @@ impl World {
         }
         if let Some(is_ghost) = saved_is_ghost {
             json.insert("savedIsGhost".to_owned(), json!(is_ghost));
+        }
+        if let Some(is_swimming) = saved_is_swimming {
+            json.insert("savedIsSwimming".to_owned(), json!(is_swimming));
         }
 
         if let Some(items) = &self.items {

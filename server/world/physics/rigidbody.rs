@@ -53,6 +53,9 @@ pub struct RigidBody {
     /// Gravity Multiplier of this rigid body. Set to 0 to fly.
     pub gravity_multiplier: f32,
 
+    /// Whether this rigid body was last reported as swimming.
+    pub is_swimming: bool,
+
     /// Whether or not this rigid body auto-steps up blocks.
     pub auto_step: bool,
 }
@@ -222,6 +225,7 @@ impl RigidBodyBuilder {
             friction: self.friction,
             restitution: self.restitution,
             gravity_multiplier: self.gravity_multiplier,
+            is_swimming: false,
             auto_step: self.auto_step,
         }
     }
