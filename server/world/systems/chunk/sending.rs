@@ -1,10 +1,11 @@
 use hashbrown::HashMap;
-use specs::{ReadExpect, System, WriteExpect};
+use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 use std::collections::VecDeque;
 
 use crate::{
-    ChunkInterests, ChunkProtocol, Chunks, ClientFilter, Message, MessageQueues, MessageType,
-    WorldConfig, WorldTimingContext,
+    client_wants_server_meshes, ChunkInterests, ChunkProtocol, Chunks, ClientFilter,
+    ClientPreferencesComp, Clients, Message, MessageQueues, MessageType, WorldConfig,
+    WorldTimingContext,
 };
 
 #[derive(Default)]
@@ -20,13 +21,15 @@ impl<'a> System<'a> for ChunkSendingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, ChunkInterests>,
+        ReadExpect<'a, Clients>,
+        ReadStorage<'a, ClientPreferencesComp>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, MessageQueues>,
         ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, interests, mut chunks, mut queue, timing) = data;
+        let (config, interests, clients, preferences, mut chunks, mut queue, timing) = data;
         let _t = timing.timer("chunk-sending");
 
         if chunks.to_send.is_empty() {
@@ -61,10 +64,12 @@ impl<'a> System<'a> for ChunkSendingSystem {
                 let data_model = chunk.to_model(false, true, 0..(config.sub_chunks as u32));
 
                 for client_id in &interested_clients {
-                    client_load_mesh
-                        .entry(client_id.clone())
-                        .or_default()
-                        .push(mesh_model.clone());
+                    if client_wants_server_meshes(&clients, client_id, &preferences) {
+                        client_load_mesh
+                            .entry(client_id.clone())
+                            .or_default()
+                            .push(mesh_model.clone());
+                    }
                     client_load_data
                         .entry(client_id.clone())
                         .or_default()
@@ -79,10 +84,12 @@ impl<'a> System<'a> for ChunkSendingSystem {
                     let mesh_model = chunk.to_model(true, false, min_level..(max_level + 1));
 
                     for client_id in &interested_clients {
-                        client_update_mesh
-                            .entry(client_id.clone())
-                            .or_default()
-                            .push(mesh_model.clone());
+                        if client_wants_server_meshes(&clients, client_id, &preferences) {
+                            client_update_mesh
+                                .entry(client_id.clone())
+                                .or_default()
+                                .push(mesh_model.clone());
+                        }
                     }
                 }
 

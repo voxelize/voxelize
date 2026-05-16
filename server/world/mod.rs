@@ -1,4 +1,5 @@
 mod bookkeeping;
+mod client_preferences;
 mod clients;
 mod components;
 mod config;
@@ -57,6 +58,7 @@ use crate::{
 use super::common::ClientFilter;
 
 pub use bookkeeping::*;
+pub use client_preferences::*;
 pub use clients::*;
 pub use components::*;
 pub use config::*;
@@ -110,7 +112,7 @@ fn apply_client_ghost_state(body: &mut RigidBodyComp, is_ghost: bool) {
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
 pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Entity) {
-    let metadata: PeerUpdate = match serde_json::from_str(metadata) {
+    let peer_update: PeerUpdate = match serde_json::from_str(metadata) {
         Ok(metadata) => metadata,
         Err(e) => {
             warn!("Could not parse peer update: {}", metadata);
@@ -118,7 +120,7 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
         }
     };
 
-    if let Some(position) = metadata.position {
+    if let Some(position) = peer_update.position {
         {
             let mut positions = world.write_component::<PositionComp>();
             if let Some(p) = positions.get_mut(client_ent) {
@@ -134,14 +136,14 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
         }
     }
 
-    if let Some(direction) = metadata.direction {
+    if let Some(direction) = peer_update.direction {
         let mut directions = world.write_component::<DirectionComp>();
         if let Some(d) = directions.get_mut(client_ent) {
             d.0.set(direction.0, direction.1, direction.2);
         }
     }
 
-    if let Some(crouching) = metadata.is_crouching {
+    if let Some(crouching) = peer_update.is_crouching {
         let mut bodies = world.write_component::<RigidBodyComp>();
         if let Some(b) = bodies.get_mut(client_ent) {
             let standing_height = 1.8_f32;
@@ -159,14 +161,31 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
         }
     }
 
-    if metadata.is_ghost.is_some() || metadata.is_flying.is_some() {
+    if peer_update.is_ghost.is_some() || peer_update.is_flying.is_some() {
         let mut bodies = world.write_component::<RigidBodyComp>();
         if let Some(b) = bodies.get_mut(client_ent) {
-            let is_ghost = metadata.is_ghost.unwrap_or_else(|| b.0.aabb.width() <= 0.0);
-            let is_flying = metadata.is_flying.unwrap_or(false);
+            let is_ghost = peer_update.is_ghost.unwrap_or_else(|| b.0.aabb.width() <= 0.0);
+            let is_flying = peer_update.is_flying.unwrap_or(false);
             apply_client_ghost_state(b, is_ghost);
             b.0.gravity_multiplier = if is_ghost || is_flying { 0.0 } else { 1.0 };
         }
+    }
+
+    apply_client_preferences_patch(world, client_ent, &parse_preferences_patch(metadata));
+}
+
+pub fn apply_client_preferences_patch(
+    world: &mut World,
+    client_ent: Entity,
+    patch: &ClientPreferencesPatch,
+) {
+    if patch.is_empty() {
+        return;
+    }
+
+    let mut storage = world.write_component::<ClientPreferencesComp>();
+    if let Some(comp) = storage.get_mut(client_ent) {
+        comp.0.apply_patch_mut(*patch);
     }
 }
 
@@ -321,6 +340,7 @@ pub(crate) struct ClientJoinRequest {
     pub id: String,
     pub username: String,
     pub sender: WsSender,
+    pub preferences: ClientPreferencesPatch,
 }
 
 #[derive(ActixMessage)]
@@ -419,10 +439,12 @@ impl Handler<ClientJoinRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientJoinRequest, _: &mut SyncContext<Self>) {
-        self.0
-            .write()
-            .unwrap()
-            .add_client(&msg.id, &msg.username, &msg.sender);
+        self.0.write().unwrap().add_client(
+            &msg.id,
+            &msg.username,
+            &msg.sender,
+            msg.preferences,
+        );
     }
 }
 
@@ -555,6 +577,7 @@ impl World {
         ecs.register::<BrainComp>();
         ecs.register::<ChunkRequestsComp>();
         ecs.register::<ClientFlag>();
+        ecs.register::<ClientPreferencesComp>();
         ecs.register::<CollisionsComp>();
         ecs.register::<CurrentChunkComp>();
         ecs.register::<DirectionComp>();
@@ -867,7 +890,13 @@ impl World {
     }
 
     /// Add a client to the world by an ID and a WebSocket sender.
-    pub(crate) fn add_client(&mut self, id: &str, username: &str, sender: &WsSender) {
+    pub(crate) fn add_client(
+        &mut self,
+        id: &str,
+        username: &str,
+        sender: &WsSender,
+        preferences: ClientPreferencesPatch,
+    ) {
         let body =
             RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
 
@@ -877,6 +906,9 @@ impl World {
             .ecs
             .create_entity()
             .with(ClientFlag::default())
+            .with(ClientPreferencesComp(
+                ClientPreferences::default().apply_patch(preferences),
+            ))
             .with(IDComp::new(id))
             .with(NameComp::new(username))
             .with(AddrComp::new(sender))

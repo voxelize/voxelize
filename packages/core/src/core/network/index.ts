@@ -262,6 +262,11 @@ export class Network {
       json: {
         world,
         username: this.clientInfo.username,
+        preferences:
+          this.clientInfo.metadata?.preferences &&
+          typeof this.clientInfo.metadata.preferences === "object"
+            ? this.clientInfo.metadata.preferences
+            : {},
       },
     });
 

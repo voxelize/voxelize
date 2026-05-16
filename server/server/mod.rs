@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     errors::AddWorldError,
-    world::{Registry, World, WorldConfig},
+    world::{ClientPreferencesPatch, Registry, World, WorldConfig},
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
     GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
     TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
@@ -30,9 +30,14 @@ pub use models::*;
 pub type WsSender = mpsc::UnboundedSender<Vec<u8>>;
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OnJoinRequest {
     world: String,
     username: String,
+    #[serde(default, flatten)]
+    flat_preferences: ClientPreferencesPatch,
+    #[serde(default)]
+    preferences: Option<ClientPreferencesPatch>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -306,6 +311,9 @@ impl Server {
                         id: id.to_owned(),
                         username: json.username,
                         sender: sender.clone(),
+                        preferences: json
+                            .flat_preferences
+                            .merge(json.preferences.unwrap_or_default()),
                     });
                     self.connections
                         .insert(id.to_owned(), (sender, json.world, token));
