@@ -20,6 +20,7 @@ import {
 import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
+import { drawCharacterFace } from "./character-face";
 import { NameTag, NameTagOptions } from "./nametag";
 
 const CHARACTER_SCALE = 0.9;
@@ -729,7 +730,7 @@ export class Character extends Group {
   }
 
   set faceColor(color: string | Color) {
-    this.head.paint("front", new Color(color));
+    this.head.paint("front", (context) => drawCharacterFace(context, color));
     this.options.head.faceColor = color;
   }
 
@@ -876,7 +877,9 @@ export class Character extends Group {
     }
 
     head.paint("all", new Color(this.options.head.color));
-    head.paint("front", new Color(this.options.head.faceColor));
+    head.paint("front", (context) =>
+      drawCharacterFace(context, this.options.head.faceColor),
+    );
     body.paint("all", new Color(this.options.body.color));
     leftArm.paint("all", new Color(this.options.arms.color));
     rightArm.paint("all", new Color(this.options.arms.color));
