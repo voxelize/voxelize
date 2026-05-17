@@ -84,6 +84,9 @@ pub type Transports = HashMap<String, WsSender>;
 const CLIENT_BODY_WIDTH: f32 = 0.8;
 const CLIENT_BODY_HEIGHT: f32 = 1.8;
 const CLIENT_BODY_DEPTH: f32 = 0.8;
+const CLIENT_CROUCH_BODY_HEIGHT_RATIO: f32 = 0.83;
+const CLIENT_SWIM_BODY_HEIGHT: f32 = 0.4;
+const CLIENT_AABB_HEIGHT_EPSILON: f32 = 0.01;
 
 fn apply_client_ghost_state(body: &mut RigidBodyComp, is_ghost: bool) {
     let position = body.0.get_position();
@@ -108,6 +111,40 @@ fn apply_client_ghost_state(body: &mut RigidBodyComp, is_ghost: bool) {
         aabb.max_y = aabb.min_y + CLIENT_BODY_HEIGHT;
         aabb.max_z = aabb.min_z + CLIENT_BODY_DEPTH;
     }
+}
+
+fn client_body_height(is_swim_pose_active: bool, is_crouching: bool) -> f32 {
+    if is_swim_pose_active {
+        CLIENT_SWIM_BODY_HEIGHT
+    } else if is_crouching {
+        CLIENT_BODY_HEIGHT * CLIENT_CROUCH_BODY_HEIGHT_RATIO
+    } else {
+        CLIENT_BODY_HEIGHT
+    }
+}
+
+fn set_client_body_height(body: &mut RigidBodyComp, target_height: f32) {
+    if body.0.aabb.width() <= 0.0 {
+        return;
+    }
+
+    let current_height = body.0.aabb.height();
+    if (current_height - target_height).abs() <= CLIENT_AABB_HEIGHT_EPSILON {
+        return;
+    }
+
+    let min_y = body.0.aabb.min_y;
+    body.0.aabb.max_y = min_y + target_height;
+}
+
+pub fn apply_client_swim_pose_state(
+    body: &mut RigidBodyComp,
+    is_swim_pose_active: bool,
+    is_crouching: bool,
+) {
+    body.0.is_swim_pose_active = is_swim_pose_active;
+    let target_height = client_body_height(is_swim_pose_active, is_crouching);
+    set_client_body_height(body, target_height);
 }
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
@@ -146,18 +183,10 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
     if let Some(crouching) = peer_update.is_crouching {
         let mut bodies = world.write_component::<RigidBodyComp>();
         if let Some(b) = bodies.get_mut(client_ent) {
-            let standing_height = 1.8_f32;
-            let crouch_height = standing_height * 0.83;
-            let target_height = if crouching {
-                crouch_height
-            } else {
-                standing_height
-            };
-            let current_height = b.0.aabb.height();
-            if (current_height - target_height).abs() > 0.01 {
-                let min_y = b.0.aabb.min_y;
-                b.0.aabb.max_y = min_y + target_height;
-            }
+            let is_swim_pose_active = peer_update
+                .is_swim_pose_active
+                .unwrap_or(b.0.is_swim_pose_active);
+            apply_client_swim_pose_state(b, is_swim_pose_active, crouching);
         }
     }
 
@@ -173,10 +202,14 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
         }
     }
 
-    if let Some(is_swimming) = peer_update.is_swimming {
+    if peer_update.is_swimming.is_some() || peer_update.is_swim_pose_active.is_some() {
         let mut bodies = world.write_component::<RigidBodyComp>();
         if let Some(b) = bodies.get_mut(client_ent) {
+            let is_swimming = peer_update.is_swimming.unwrap_or(b.0.is_swimming);
+            let is_swim_pose_active = peer_update.is_swim_pose_active.unwrap_or(is_swimming);
             b.0.is_swimming = is_swimming;
+            let is_crouching = peer_update.is_crouching.unwrap_or(false);
+            apply_client_swim_pose_state(b, is_swim_pose_active, is_crouching);
         }
     }
 
@@ -207,6 +240,7 @@ pub struct PeerUpdate {
     is_flying: Option<bool>,
     is_ghost: Option<bool>,
     is_swimming: Option<bool>,
+    is_swim_pose_active: Option<bool>,
 }
 
 /// Wrapper to make a non-Send/Sync type safely usable in contexts that require it.

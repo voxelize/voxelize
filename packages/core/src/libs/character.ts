@@ -25,6 +25,7 @@ import { NameTag, NameTagOptions } from "./nametag";
 const CHARACTER_SCALE = 0.9;
 
 const identityQuaternion = new Quaternion();
+const headBodyInverse = new Quaternion();
 
 const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
 
@@ -196,11 +197,6 @@ export type CharacterOptions = {
   rotationLerp?: number;
 
   /**
-   * How much the head pitches relative to the swim body tilt. Defaults to `1`.
-   */
-  swimHeadPitchFactor?: number;
-
-  /**
    * Lerp factor when entering the swimming pose. Defaults to `0.12`.
    */
   swimEnterLerp?: number;
@@ -244,7 +240,6 @@ export const defaultCharacterOptions: CharacterOptions = {
   swimmingSpeed: 1.8,
   positionLerp: 0.7,
   rotationLerp: 0.2,
-  swimHeadPitchFactor: 1,
   swimEnterLerp: 0.12,
   swimExitLerp: 0.05,
   idleArmSwing: 0.06,
@@ -419,6 +414,8 @@ export class Character extends Group {
    */
   public newBodyDirection = new Quaternion();
 
+  private _swimBodyDirection = new Quaternion();
+
   /**
    * The new head direction of the character. This is used to lerp the character's head rotation.
    */
@@ -439,11 +436,9 @@ export class Character extends Group {
 
   private _swimCycle = 0;
 
-  private _swimHeadLocalQuat = new Quaternion();
+  private _headLocalQuat = new Quaternion();
 
   private _swimLookDirection = new Vector3();
-
-  private _swimHeadAxis = new Vector3(1, 0, 0);
 
   /**
    * A listener called when a character starts moving.
@@ -574,9 +569,9 @@ export class Character extends Group {
   snapToTarget() {
     this.position.copy(this.newPosition);
     if (this._isSwimming) {
-      this.quaternion.copy(this.newBodyDirection);
-      this.computeSwimHeadLocalQuat();
-      this.headGroup.quaternion.copy(this._swimHeadLocalQuat);
+      this.quaternion.copy(this._swimBodyDirection);
+      this.computeHeadLocalQuat();
+      this.headGroup.quaternion.copy(this._headLocalQuat);
       this.bodyGroup.quaternion.copy(identityQuaternion);
     } else {
       this.quaternion.copy(identityQuaternion);
@@ -608,18 +603,18 @@ export class Character extends Group {
       ),
     );
 
-    if (this._isSwimming) {
-      this.newBodyDirection.copy(
-        VoxMathUtils.swimDirectionToQuaternion(
-          direction[0],
-          direction[1],
-          direction[2],
-        ),
-      );
-    } else {
-      this.newBodyDirection.copy(
-        VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2]),
-      );
+    this.updateBodyDirection(direction[0], direction[1], direction[2]);
+  }
+
+  private updateBodyDirection(dx: number, dy: number, dz: number) {
+    if (dx === 0 && dy === 0 && dz === 0) return;
+
+    this._swimBodyDirection.copy(
+      VoxMathUtils.swimDirectionToQuaternion(dx, dy, dz),
+    );
+
+    if (dx !== 0 || dz !== 0) {
+      this.newBodyDirection.copy(VoxMathUtils.directionToQuaternion(dx, 0, dz));
     }
   }
 
@@ -771,6 +766,11 @@ export class Character extends Group {
 
   setSwimming(swimming: boolean) {
     this._isSwimming = swimming;
+    this.updateBodyDirection(
+      this._swimLookDirection.x,
+      this._swimLookDirection.y,
+      this._swimLookDirection.z,
+    );
   }
 
   get isSwimming() {
@@ -928,12 +928,10 @@ export class Character extends Group {
     }
   };
 
-  private computeSwimHeadLocalQuat = () => {
-    const { x: dx, y: dy, z: dz } = this._swimLookDirection;
-    const horiz = Math.sqrt(dx * dx + dz * dz);
-    const lookPitch = Math.atan2(dy, horiz);
-    const headPitch = -lookPitch * (this.options.swimHeadPitchFactor ?? 1);
-    this._swimHeadLocalQuat.setFromAxisAngle(this._swimHeadAxis, headPitch);
+  private computeHeadLocalQuat = () => {
+    this._headLocalQuat
+      .copy(headBodyInverse.copy(this.quaternion).invert())
+      .multiply(this.newDirection);
   };
 
   /**
@@ -947,24 +945,33 @@ export class Character extends Group {
       this.position.lerp(this.newPosition, this.options.positionLerp);
     }
 
-    if (this._swimBlend > 0.001) {
+    const isSwimTransitionActive = this._swimBlend > 0.001;
+
+    if (isSwimTransitionActive) {
       const swimRotationLerp = Math.min(
         1,
         this.options.rotationLerp * Math.max(this._swimBlend, 0.35),
       );
-      this.quaternion.slerp(this.newBodyDirection, swimRotationLerp);
-      this.computeSwimHeadLocalQuat();
-      this.headGroup.quaternion.slerp(
-        this._swimHeadLocalQuat,
-        swimRotationLerp,
-      );
-      this.bodyGroup.quaternion.slerp(identityQuaternion, swimRotationLerp);
+      const rootTarget = this._isSwimming
+        ? this._swimBodyDirection
+        : identityQuaternion;
+      const bodyTarget = this._isSwimming
+        ? identityQuaternion
+        : this.newBodyDirection;
+
+      this.quaternion.slerp(rootTarget, swimRotationLerp);
+      this.computeHeadLocalQuat();
+      this.headGroup.quaternion.slerp(this._headLocalQuat, swimRotationLerp);
+      this.bodyGroup.quaternion.slerp(bodyTarget, swimRotationLerp);
     } else {
       this.quaternion.slerp(identityQuaternion, this.options.rotationLerp);
-      this.headGroup.quaternion.set(0, 0, 0, 1);
 
       if (this.newDirection.length() !== 0) {
-        this.headGroup.rotation.setFromQuaternion(this.newDirection);
+        this.computeHeadLocalQuat();
+        this.headGroup.quaternion.slerp(
+          this._headLocalQuat,
+          this.options.rotationLerp,
+        );
       }
 
       if (this.newBodyDirection.length() !== 0) {

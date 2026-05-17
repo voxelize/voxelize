@@ -674,7 +674,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
       const cameraPosition = this.object.position.toArray();
 
-      this.character.setSwimming(this.isSwimPoseActive());
+      this.character.setSwimming(this.isSwimPoseActive);
       this.character.set(cameraPosition, [dx, dy, dz]);
       this.character.setCrouching(this._crouching);
       this.character.update();
@@ -1145,9 +1145,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     );
   }
 
-  private isSwimPoseActive = (): boolean => {
+  get isSwimPoseActive() {
     return this.isSwimmingActive() && !this.isSwimmingIdleStanding;
-  };
+  }
 
   restoreSwimming = () => {
     if (this.ghostMode || this.flyMode) return;
@@ -1326,7 +1326,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   private updateSwimAABB = () => {
-    const swimAABBTarget = this.isSwimPoseActive() ? 1 : 0;
+    const swimAABBTarget = this.isSwimPoseActive ? 1 : 0;
     this._swimAABBBlend +=
       (swimAABBTarget - this._swimAABBBlend) * this.options.swimAABBLerp;
 
@@ -1384,7 +1384,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     const { front, back, left, right } = this.movements;
     const fb = front ? (back ? 0 : 1) : back ? -1 : 0;
-    const rl = left ? (right ? 0 : 1) : right ? -1 : 0;
+    const side = right ? (left ? 0 : 1) : left ? -1 : 0;
 
     if (this.state.jumping) {
       this.body.applyImpulse([
@@ -1395,7 +1395,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     }
     this.state.isJumping = false;
 
-    if (this.state.running && (fb !== 0 || rl !== 0)) {
+    if (this.state.running && (fb !== 0 || side !== 0)) {
       let speed = swimSpeed;
       if (this.state.sprinting) speed *= sprintFactor;
       if (this.state.crouching) speed *= crouchFactor;
@@ -1403,7 +1403,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this._swimMoveScratch
         .copy(this._lookDirection)
         .multiplyScalar(fb)
-        .addScaledVector(this._rightDirection, rl);
+        .addScaledVector(this._rightDirection, side);
 
       if (this._swimMoveScratch.lengthSq() > 0) {
         this._swimMoveScratch.normalize().multiplyScalar(speed);
@@ -1497,7 +1497,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
       const isSwimming = this.isSwimmingActive();
       this.updateSwimIdleState(isSwimming);
-      const isSwimPoseActive = this.isSwimPoseActive();
+      const isSwimPoseActive = this.isSwimPoseActive;
 
       if (isSwimPoseActive) {
         this.applySwimmingMovement();

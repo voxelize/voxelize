@@ -53,7 +53,9 @@ pub fn parse_preferences_patch(json: &str) -> ClientPreferencesPatch {
     }
 
     let envelope: Envelope = serde_json::from_str(json).unwrap_or_default();
-    envelope.flat.merge(envelope.preferences.unwrap_or_default())
+    envelope
+        .flat
+        .merge(envelope.preferences.unwrap_or_default())
 }
 
 #[derive(Default, Clone, Copy)]

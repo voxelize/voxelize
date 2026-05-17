@@ -56,6 +56,8 @@ pub struct RigidBody {
     /// Whether this rigid body was last reported as swimming.
     pub is_swimming: bool,
 
+    pub is_swim_pose_active: bool,
+
     /// Whether or not this rigid body auto-steps up blocks.
     pub auto_step: bool,
 }
@@ -226,6 +228,7 @@ impl RigidBodyBuilder {
             restitution: self.restitution,
             gravity_multiplier: self.gravity_multiplier,
             is_swimming: false,
+            is_swim_pose_active: false,
             auto_step: self.auto_step,
         }
     }

@@ -84,11 +84,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 .into_iter()
                 .filter_map(|coords| {
                     chunks.get(&coords).map(|chunk| {
-                        chunk.to_model(
-                            include_meshes,
-                            true,
-                            0..config.sub_chunks as u32,
-                        )
+                        chunk.to_model(include_meshes, true, 0..config.sub_chunks as u32)
                     })
                 })
                 .collect();
