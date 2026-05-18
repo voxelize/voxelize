@@ -128,7 +128,8 @@ export class LightShined {
     const setupMaterial = (material: Material) => {
       if (
         ThreeUtils.isShaderMaterial(material) ||
-        material.userData.lightEffectSetup
+        material.userData.lightEffectSetup ||
+        material.userData.heldObjectLighting === true
       )
         return;
 

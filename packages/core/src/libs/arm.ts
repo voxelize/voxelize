@@ -332,6 +332,8 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
+    this.injectHeldObjectLighting(object);
+
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -354,7 +356,11 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(options.quaternion);
 
-    this.injectShadowShaders(object);
+    if (this.shouldReceiveHeldObjectShadows()) {
+      this.injectShadowShaders(object);
+    } else {
+      this.injectHeldObjectLighting(object);
+    }
 
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.customSwingClips[type]);
@@ -364,6 +370,53 @@ export class Arm extends THREE.Group {
     this.add(object);
     this.currentArmObject = object;
   };
+
+  private injectHeldObjectLighting(object: THREE.Object3D): void {
+    this.heldObjectShadowUniforms = [];
+
+    object.traverse((child) => {
+      if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
+      const mesh = child as THREE.Mesh;
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+
+      for (const material of materials) {
+        if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
+        if (material.userData.heldObjectLighting === true) continue;
+
+        material.userData.heldObjectLighting = true;
+        material.userData.lightEffectSetup = true;
+
+        const lightColorRef = this.heldLightColor;
+        const oldOnBeforeCompile = material.onBeforeCompile;
+        material.onBeforeCompile = (shader, renderer) => {
+          if (oldOnBeforeCompile) {
+            oldOnBeforeCompile(shader, renderer);
+          }
+
+          shader.uniforms.uLightColor = { value: lightColorRef };
+
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              "#include <common>",
+              `#include <common>
+uniform vec3 uLightColor;
+`,
+            )
+            .replace(
+              "#include <dithering_fragment>",
+              `#include <dithering_fragment>
+gl_FragColor.rgb *= uLightColor;
+`,
+            );
+        };
+
+        material.onBeforeCompile.toString = () => "held-object-lighting-shader";
+        material.needsUpdate = true;
+      }
+    });
+  }
 
   private injectShadowShaders(object: THREE.Object3D): void {
     this.heldObjectShadowUniforms = [];
@@ -379,13 +432,19 @@ export class Arm extends THREE.Group {
       for (const material of materials) {
         if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
 
+        material.userData.heldObjectLighting = true;
         material.userData.lightEffectSetup = true;
 
         const shadowUniforms = createEntityShadowUniforms();
         this.heldObjectShadowUniforms.push(shadowUniforms);
 
         const lightColorRef = this.heldLightColor;
-        material.onBeforeCompile = (shader) => {
+        const oldOnBeforeCompile = material.onBeforeCompile;
+        material.onBeforeCompile = (shader, renderer) => {
+          if (oldOnBeforeCompile) {
+            oldOnBeforeCompile(shader, renderer);
+          }
+
           Object.assign(shader.uniforms, shadowUniforms);
           shader.uniforms.uLightColor = { value: lightColorRef };
 
@@ -415,7 +474,8 @@ uniform vec3 uLightColor;
             .replace(
               "#include <dithering_fragment>",
               `#include <dithering_fragment>
-gl_FragColor.rgb *= uLightColor;
+float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
+gl_FragColor.rgb *= shadow * uLightColor;
 `,
             );
         };
