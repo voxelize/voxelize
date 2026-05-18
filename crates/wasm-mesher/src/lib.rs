@@ -69,7 +69,6 @@ pub fn mesh_chunk_fast(
     min: &[i32],
     max: &[i32],
     chunk_size: i32,
-    greedy_meshing: bool,
 ) -> JsValue {
     let chunk_count = chunks_data.length() as usize;
 
@@ -133,7 +132,6 @@ pub fn mesh_chunk_fast(
                 [max[0], max[1], max[2]],
                 MeshConfig {
                     chunk_size,
-                    greedy_meshing,
                 },
                 registry,
             )

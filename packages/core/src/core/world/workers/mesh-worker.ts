@@ -79,6 +79,59 @@ type WasmRegistry = {
   blocksById: [number, WasmBlock][];
 };
 
+type RawWasmFace = {
+  name: string;
+  independent: boolean;
+  isolated: boolean;
+  textureGroup?: string | null;
+  dir: [number, number, number];
+  corners: { pos: [number, number, number]; uv: [number, number] }[];
+  range?: {
+    startU?: number;
+    endU?: number;
+    startV?: number;
+    endV?: number;
+  };
+};
+
+type RawWasmAabb = {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+};
+
+type RawWasmDynamicPattern = {
+  parts: {
+    rule: object;
+    faces: RawWasmFace[];
+    aabbs: RawWasmAabb[];
+    isTransparent?: [boolean, boolean, boolean, boolean, boolean, boolean];
+    worldSpace?: boolean;
+  }[];
+};
+
+type RawWasmBlock = {
+  id: number;
+  name: string;
+  rotatable: boolean;
+  yRotatable: boolean;
+  isEmpty: boolean;
+  isFluid: boolean;
+  isWaterlogged: boolean;
+  isOpaque: boolean;
+  isSeeThrough: boolean;
+  isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
+  transparentStandalone: boolean;
+  occludesFluid?: boolean;
+  isPlant?: boolean;
+  faces: RawWasmFace[];
+  aabbs: RawWasmAabb[];
+  dynamicPatterns?: RawWasmDynamicPattern[] | null;
+};
+
 type GeometryProtocol = {
   voxel: number;
   at: Coords3 | null;
@@ -196,7 +249,7 @@ onmessage = async function (e) {
   }
 
   const { chunksData, min, max } = e.data;
-  const { chunkSize, greedyMeshing = true } = e.data.options as WorldOptions;
+  const { chunkSize } = e.data.options as WorldOptions;
 
   const chunks = chunksData.map(
     (chunkData: SerializedChunkPayload | null): ChunkData | null => {
@@ -204,18 +257,20 @@ onmessage = async function (e) {
 
       const { x, z, voxels, lights, options } = chunkData;
       const { size, maxHeight } = options;
+      const voxelView = toUint32View(
+        voxels,
+        chunkData.voxelsByteOffset,
+        chunkData.voxelsLength,
+      );
+      const lightView = toUint32View(
+        lights,
+        chunkData.lightsByteOffset,
+        chunkData.lightsLength,
+      );
 
       return {
-        voxels: toUint32View(
-          voxels,
-          chunkData.voxelsByteOffset,
-          chunkData.voxelsLength,
-        ),
-        lights: toUint32View(
-          lights,
-          chunkData.lightsByteOffset,
-          chunkData.lightsLength,
-        ),
+        voxels: voxelView,
+        lights: lightView,
         shape: [size, maxHeight, size] as [number, number, number],
         min: [x * size, 0, z * size] as [number, number, number],
       };
@@ -229,13 +284,9 @@ onmessage = async function (e) {
   maxArray[1] = max[1];
   maxArray[2] = max[2];
 
-  const result = mesh_chunk_fast(
-    chunks,
-    minArray,
-    maxArray,
-    chunkSize,
-    greedyMeshing,
-  ) as { geometries: GeometryProtocol[] };
+  const result = mesh_chunk_fast(chunks, minArray, maxArray, chunkSize) as {
+    geometries: GeometryProtocol[];
+  };
   const geometries = result.geometries;
 
   const arrayBuffers: ArrayBuffer[] = [];
@@ -278,38 +329,29 @@ onmessage = async function (e) {
 };
 
 function convertRegistryToWasm(rawRegistry: {
-  blocksById: [number, object][];
-  blocksByName: [string, object][];
+  blocksById: [number, RawWasmBlock][];
+  blocksByName: [string, RawWasmBlock][];
 }): WasmRegistry {
   const blocksById: [number, WasmBlock][] = rawRegistry.blocksById.map(
-    ([id, block]: [number, Record<string, unknown>]) => {
+    ([id, block]) => {
       const wasmBlock: WasmBlock = {
-        id: block.id as number,
-        name: block.name as string,
-        rotatable: block.rotatable as boolean,
-        yRotatable: block.yRotatable as boolean,
-        isEmpty: block.isEmpty as boolean,
-        isFluid: block.isFluid as boolean,
-        isWaterlogged: block.isWaterlogged as boolean,
-        isOpaque: block.isOpaque as boolean,
-        isSeeThrough: block.isSeeThrough as boolean,
-        isTransparent: block.isTransparent as [
-          boolean,
-          boolean,
-          boolean,
-          boolean,
-          boolean,
-          boolean,
-        ],
+        id: block.id,
+        name: block.name,
+        rotatable: block.rotatable,
+        yRotatable: block.yRotatable,
+        isEmpty: block.isEmpty,
+        isFluid: block.isFluid,
+        isWaterlogged: block.isWaterlogged,
+        isOpaque: block.isOpaque,
+        isSeeThrough: block.isSeeThrough,
+        isTransparent: block.isTransparent,
         transparentStandalone: block.transparentStandalone as boolean,
-        occludesFluid: (block.occludesFluid as boolean) ?? false,
-        isPlant: (block.isPlant as boolean) ?? false,
-        faces: convertFaces(block.faces as Record<string, unknown>[]),
-        aabbs: convertAabbs(block.aabbs as Record<string, unknown>[]),
+        occludesFluid: block.occludesFluid ?? false,
+        isPlant: block.isPlant ?? false,
+        faces: convertFaces(block.faces),
+        aabbs: convertAabbs(block.aabbs),
         dynamicPatterns: block.dynamicPatterns
-          ? convertDynamicPatterns(
-              block.dynamicPatterns as Record<string, unknown>[],
-            )
+          ? convertDynamicPatterns(block.dynamicPatterns)
           : null,
       };
       return [id, wasmBlock];
@@ -319,57 +361,57 @@ function convertRegistryToWasm(rawRegistry: {
   return { blocksById };
 }
 
-function convertFaces(faces: Record<string, unknown>[]): WasmBlock["faces"] {
+function convertFaces(faces: RawWasmFace[] | undefined): WasmBlock["faces"] {
   if (!faces) return [];
   return faces.map((face) => ({
-    name: face.name as string,
-    independent: face.independent as boolean,
-    isolated: face.isolated as boolean,
-    textureGroup: (face.textureGroup as string) ?? null,
-    dir: face.dir as [number, number, number],
-    corners: (face.corners as Record<string, unknown>[]).map((corner) => ({
-      pos: corner.pos as [number, number, number],
-      uv: corner.uv as [number, number],
+    name: face.name,
+    independent: face.independent,
+    isolated: face.isolated,
+    textureGroup: face.textureGroup ?? null,
+    dir: face.dir,
+    corners: face.corners.map((corner) => ({
+      pos: corner.pos,
+      uv: corner.uv,
     })),
     range: {
-      startU: (face.range as Record<string, number>)?.startU ?? 0,
-      endU: (face.range as Record<string, number>)?.endU ?? 1,
-      startV: (face.range as Record<string, number>)?.startV ?? 0,
-      endV: (face.range as Record<string, number>)?.endV ?? 1,
+      startU: face.range?.startU ?? 0,
+      endU: face.range?.endU ?? 1,
+      startV: face.range?.startV ?? 0,
+      endV: face.range?.endV ?? 1,
     },
   }));
 }
 
-function convertAabbs(aabbs: Record<string, unknown>[]): WasmBlock["aabbs"] {
+function convertAabbs(aabbs: RawWasmAabb[] | undefined): WasmBlock["aabbs"] {
   if (!aabbs) return [];
   return aabbs.map((aabb) => ({
-    minX: aabb.minX as number,
-    minY: aabb.minY as number,
-    minZ: aabb.minZ as number,
-    maxX: aabb.maxX as number,
-    maxY: aabb.maxY as number,
-    maxZ: aabb.maxZ as number,
+    minX: aabb.minX,
+    minY: aabb.minY,
+    minZ: aabb.minZ,
+    maxX: aabb.maxX,
+    maxY: aabb.maxY,
+    maxZ: aabb.maxZ,
   }));
 }
 
 function convertDynamicPatterns(
-  patterns: Record<string, unknown>[],
+  patterns: RawWasmDynamicPattern[],
 ): WasmBlock["dynamicPatterns"] {
   if (!patterns) return null;
   return patterns.map((pattern) => ({
-    parts: (pattern.parts as Record<string, unknown>[]).map((part) => ({
-      rule: part.rule as object,
-      faces: convertFaces(part.faces as Record<string, unknown>[]),
-      aabbs: convertAabbs(part.aabbs as Record<string, unknown>[]),
-      isTransparent: (part.isTransparent as [
-        boolean,
-        boolean,
-        boolean,
-        boolean,
-        boolean,
-        boolean,
-      ]) ?? [false, false, false, false, false, false],
-      worldSpace: (part.worldSpace as boolean) ?? false,
+    parts: pattern.parts.map((part) => ({
+      rule: part.rule,
+      faces: convertFaces(part.faces),
+      aabbs: convertAabbs(part.aabbs),
+      isTransparent: part.isTransparent ?? [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+      ],
+      worldSpace: part.worldSpace ?? false,
     })),
   }));
 }

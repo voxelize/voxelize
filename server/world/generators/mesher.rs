@@ -193,21 +193,12 @@ impl Mesher {
                             let min_arr = [min.0, min.1, min.2];
                             let max_arr = [max.0, max.1, max.2];
 
-                            let mesher_geometries = if config.greedy_meshing {
-                                voxelize_mesher::mesh_space_greedy(
-                                    &min_arr,
-                                    &max_arr,
-                                    &space,
-                                    &mesher_registry,
-                                )
-                            } else {
-                                voxelize_mesher::mesh_space(
-                                    &min_arr,
-                                    &max_arr,
-                                    &space,
-                                    &mesher_registry,
-                                )
-                            };
+                            let mesher_geometries = voxelize_mesher::mesh_space_greedy(
+                                &min_arr,
+                                &max_arr,
+                                &space,
+                                &mesher_registry,
+                            );
 
                             let geometries: Vec<GeometryProtocol> = mesher_geometries
                                 .into_iter()

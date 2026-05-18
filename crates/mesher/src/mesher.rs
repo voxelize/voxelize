@@ -71,7 +71,7 @@ impl Block {
 pub struct Registry {
     pub blocks_by_id: Vec<(u32, Block)>,
     #[serde(skip)]
-    lookup_cache: Option<HashMap<u32, usize>>,
+    lookup_cache: Option<Vec<usize>>,
 }
 
 impl Registry {
@@ -83,9 +83,15 @@ impl Registry {
     }
 
     pub fn build_cache(&mut self) {
-        let mut cache = HashMap::with_capacity(self.blocks_by_id.len());
+        let max_id = self
+            .blocks_by_id
+            .iter()
+            .map(|(id, _)| *id as usize)
+            .max()
+            .unwrap_or(0);
+        let mut cache = vec![usize::MAX; max_id + 1];
         for (idx, (id, block)) in self.blocks_by_id.iter_mut().enumerate() {
-            cache.insert(*id, idx);
+            cache[*id as usize] = idx;
             block.compute_name_lower();
         }
         self.lookup_cache = Some(cache);
@@ -93,7 +99,11 @@ impl Registry {
 
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {
         if let Some(cache) = &self.lookup_cache {
-            cache.get(&id).map(|&idx| &self.blocks_by_id[idx].1)
+            cache
+                .get(id as usize)
+                .copied()
+                .filter(|idx| *idx != usize::MAX)
+                .map(|idx| &self.blocks_by_id[idx].1)
         } else {
             self.blocks_by_id
                 .iter()
@@ -104,7 +114,10 @@ impl Registry {
 
     pub fn has_type(&self, id: u32) -> bool {
         if let Some(cache) = &self.lookup_cache {
-            cache.contains_key(&id)
+            cache
+                .get(id as usize)
+                .copied()
+                .is_some_and(|idx| idx != usize::MAX)
         } else {
             self.blocks_by_id
                 .iter()
@@ -129,14 +142,12 @@ pub struct GeometryProtocol {
 #[serde(rename_all = "camelCase")]
 pub struct MeshConfig {
     pub chunk_size: i32,
-    pub greedy_meshing: bool,
 }
 
 impl Default for MeshConfig {
     fn default() -> Self {
         Self {
             chunk_size: 16,
-            greedy_meshing: true,
         }
     }
 }
@@ -447,8 +458,112 @@ impl<'a> VoxelAccess for VoxelSpace<'a> {
     }
 }
 
+fn chunk_range_has_non_empty_voxel(
+    chunk: &ChunkData,
+    min: &[i32; 3],
+    max: &[i32; 3],
+    registry: &Registry,
+) -> bool {
+    let chunk_min = chunk.min;
+    let chunk_max = [
+        chunk_min[0] + chunk.shape[0] as i32,
+        chunk_min[1] + chunk.shape[1] as i32,
+        chunk_min[2] + chunk.shape[2] as i32,
+    ];
+    let start = [
+        min[0].max(chunk_min[0]),
+        min[1].max(chunk_min[1]),
+        min[2].max(chunk_min[2]),
+    ];
+    let end = [
+        max[0].min(chunk_max[0]),
+        max[1].min(chunk_max[1]),
+        max[2].min(chunk_max[2]),
+    ];
+
+    if start[0] >= end[0] || start[1] >= end[1] || start[2] >= end[2] {
+        return false;
+    }
+
+    for vx in start[0]..end[0] {
+        let lx = (vx - chunk_min[0]) as usize;
+        for vy in start[1]..end[1] {
+            let ly = (vy - chunk_min[1]) as usize;
+            for vz in start[2]..end[2] {
+                let lz = (vz - chunk_min[2]) as usize;
+                let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+                let voxel_id = extract_id(chunk.voxels[index]);
+                if registry
+                    .get_block_by_id(voxel_id)
+                    .map(|block| !block.is_empty)
+                    .unwrap_or(false)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
+
 fn extract_id(voxel: u32) -> u32 {
     voxel & 0xFFFF
+}
+
+enum ScanBounds {
+    Empty,
+    Sparse { min: [i32; 3], max: [i32; 3] },
+    Dense,
+}
+
+fn find_sparse_non_empty_bounds<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> ScanBounds {
+    let [min_x, min_y, min_z] = *min;
+    let [max_x, max_y, max_z] = *max;
+    let mut scan_min = [i32::MAX; 3];
+    let mut scan_max = [i32::MIN; 3];
+    let volume = ((max_x - min_x) * (max_y - min_y) * (max_z - min_z)).max(1) as usize;
+    let dense_threshold = (volume / 8).max(1);
+    let mut non_empty_count = 0usize;
+
+    for vx in min_x..max_x {
+        for vz in min_z..max_z {
+            for vy in min_y..max_y {
+                let voxel_id = space.get_voxel(vx, vy, vz);
+                let is_non_empty = registry
+                    .get_block_by_id(voxel_id)
+                    .map(|block| !block.is_empty)
+                    .unwrap_or(false);
+
+                if is_non_empty {
+                    non_empty_count += 1;
+                    if non_empty_count > dense_threshold {
+                        return ScanBounds::Dense;
+                    }
+                    scan_min[0] = scan_min[0].min(vx);
+                    scan_min[1] = scan_min[1].min(vy);
+                    scan_min[2] = scan_min[2].min(vz);
+                    scan_max[0] = scan_max[0].max(vx + 1);
+                    scan_max[1] = scan_max[1].max(vy + 1);
+                    scan_max[2] = scan_max[2].max(vz + 1);
+                }
+            }
+        }
+    }
+
+    if scan_min[0] == i32::MAX {
+        ScanBounds::Empty
+    } else {
+        ScanBounds::Sparse {
+            min: scan_min,
+            max: scan_max,
+        }
+    }
 }
 
 fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
@@ -842,6 +957,7 @@ fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
         && block.dynamic_patterns.is_none()
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
         && block.is_full_cube()
+        && block.faces.iter().all(|face| !face.isolated)
         && !has_diagonal_faces(block)
 }
 
@@ -1012,10 +1128,11 @@ fn compute_face_ao_and_light(
         {
             neighbors.get_all_lights(0, 0, 0)
         } else {
-            let mut sum_sunlights = Vec::with_capacity(8);
-            let mut sum_red_lights = Vec::with_capacity(8);
-            let mut sum_green_lights = Vec::with_capacity(8);
-            let mut sum_blue_lights = Vec::with_capacity(8);
+            let mut sum_sunlight = 0;
+            let mut sum_red_light = 0;
+            let mut sum_green_light = 0;
+            let mut sum_blue_light = 0;
+            let mut light_count = 0;
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -1119,22 +1236,22 @@ fn compute_face_ao_and_light(
                             }
                         }
 
-                        sum_sunlights.push(local_sunlight);
-                        sum_red_lights.push(local_red_light);
-                        sum_green_lights.push(local_green_light);
-                        sum_blue_lights.push(local_blue_light);
+                        sum_sunlight += local_sunlight;
+                        sum_red_light += local_red_light;
+                        sum_green_light += local_green_light;
+                        sum_blue_light += local_blue_light;
+                        light_count += 1;
                     }
                 }
             }
 
-            let len = sum_sunlights.len();
-            if len > 0 {
-                let len_f32 = len as f32;
+            if light_count > 0 {
+                let light_count_f32 = light_count as f32;
                 (
-                    (sum_sunlights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_red_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_green_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
-                    (sum_blue_lights.iter().sum::<u32>() as f32 / len_f32) as u32,
+                    (sum_sunlight as f32 / light_count_f32) as u32,
+                    (sum_red_light as f32 / light_count_f32) as u32,
+                    (sum_green_light as f32 / light_count_f32) as u32,
+                    (sum_blue_light as f32 / light_count_f32) as u32,
                 )
             } else {
                 (0, 0, 0, 0)
@@ -1624,12 +1741,10 @@ fn process_face<S: VoxelAccess>(
     } = uv_map.get(&face.name).cloned().unwrap_or_default();
 
     let ndx = (positions.len() / 3) as i32;
-    let mut face_aos = Vec::with_capacity(4);
-
-    let mut four_sunlights = Vec::with_capacity(4);
-    let mut four_red_lights = Vec::with_capacity(4);
-    let mut four_green_lights = Vec::with_capacity(4);
-    let mut four_blue_lights = Vec::with_capacity(4);
+    let mut face_aos = [0; 4];
+    let mut four_red_lights = [0; 4];
+    let mut four_green_lights = [0; 4];
+    let mut four_blue_lights = [0; 4];
 
     let block_aabb = AABB::union_all(&block.aabbs);
 
@@ -1665,7 +1780,7 @@ fn process_face<S: VoxelAccess>(
         0.0001
     };
 
-    for corner in face.corners.iter() {
+    for (corner_idx, corner) in face.corners.iter().enumerate() {
         let mut pos = corner.pos;
 
         if (rotatable || y_rotatable) && !world_space {
@@ -1757,10 +1872,11 @@ fn process_face<S: VoxelAccess>(
             green_light = g;
             blue_light = b;
         } else {
-            let mut sum_sunlights = Vec::with_capacity(8);
-            let mut sum_red_lights = Vec::with_capacity(8);
-            let mut sum_green_lights = Vec::with_capacity(8);
-            let mut sum_blue_lights = Vec::with_capacity(8);
+            let mut sum_sunlight = 0;
+            let mut sum_red_light = 0;
+            let mut sum_green_light = 0;
+            let mut sum_blue_light = 0;
+            let mut light_count = 0;
 
             for x in 0..=1 {
                 for y in 0..=1 {
@@ -1864,21 +1980,21 @@ fn process_face<S: VoxelAccess>(
                             }
                         }
 
-                        sum_sunlights.push(local_sunlight);
-                        sum_red_lights.push(local_red_light);
-                        sum_green_lights.push(local_green_light);
-                        sum_blue_lights.push(local_blue_light);
+                        sum_sunlight += local_sunlight;
+                        sum_red_light += local_red_light;
+                        sum_green_light += local_green_light;
+                        sum_blue_light += local_blue_light;
+                        light_count += 1;
                     }
                 }
             }
 
-            let len = sum_sunlights.len();
-            if len > 0 {
-                let len_f32 = len as f32;
-                sunlight = (sum_sunlights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                red_light = (sum_red_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                green_light = (sum_green_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
-                blue_light = (sum_blue_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
+            if light_count > 0 {
+                let light_count_f32 = light_count as f32;
+                sunlight = (sum_sunlight as f32 / light_count_f32) as u32;
+                red_light = (sum_red_light as f32 / light_count_f32) as u32;
+                green_light = (sum_green_light as f32 / light_count_f32) as u32;
+                blue_light = (sum_blue_light as f32 / light_count_f32) as u32;
             } else {
                 sunlight = 0;
                 red_light = 0;
@@ -1901,11 +2017,10 @@ fn process_face<S: VoxelAccess>(
         };
         lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
 
-        four_sunlights.push(sunlight);
-        four_red_lights.push(red_light);
-        four_green_lights.push(green_light);
-        four_blue_lights.push(blue_light);
-        face_aos.push(ao);
+        four_red_lights[corner_idx] = red_light;
+        four_green_lights[corner_idx] = green_light;
+        four_blue_lights[corner_idx] = blue_light;
+        face_aos[corner_idx] = ao;
     }
 
     let a_rt = four_red_lights[0];
@@ -1978,6 +2093,13 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
+    let (scan_min, scan_max) = match find_sparse_non_empty_bounds(min, max, space, registry) {
+        ScanBounds::Empty => return Vec::new(),
+        ScanBounds::Sparse { min, max } => (min, max),
+        ScanBounds::Dense => (*min, *max),
+    };
+    let [scan_min_x, scan_min_y, scan_min_z] = scan_min;
+    let [scan_max_x, scan_max_y, scan_max_z] = scan_max;
 
     let directions: [(i32, i32, i32); 6] = [
         (1, 0, 0),
@@ -2017,21 +2139,21 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         };
 
         let slice_range = match axis {
-            0 => min_x..max_x,
-            1 => min_y..max_y,
-            _ => min_z..max_z,
+            0 => scan_min_x..scan_max_x,
+            1 => scan_min_y..scan_max_y,
+            _ => scan_min_z..scan_max_z,
         };
 
         let u_range = match u_axis {
-            0 => (min_x, max_x),
-            1 => (min_y, max_y),
-            _ => (min_z, max_z),
+            0 => (scan_min_x, scan_max_x),
+            1 => (scan_min_y, scan_max_y),
+            _ => (scan_min_z, scan_max_z),
         };
 
         let v_range = match v_axis {
-            0 => (min_x, max_x),
-            1 => (min_y, max_y),
-            _ => (min_z, max_z),
+            0 => (scan_min_x, scan_max_x),
+            1 => (scan_min_y, scan_max_y),
+            _ => (scan_min_z, scan_max_z),
         };
 
         for slice in slice_range {
@@ -2077,103 +2199,31 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
-
-                    let faces: Vec<(BlockFace, bool)> =
-                        if is_fluid && has_standard_six_faces(&block.faces) {
-                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                                .into_iter()
-                                .map(|f| (f, false))
-                                .collect()
-                        } else if block.dynamic_patterns.is_some() {
-                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                        } else {
-                            block.faces.iter().cloned().map(|f| (f, false)).collect()
-                        };
-
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
-                    if is_non_greedy_block {
-                        if processed_non_greedy.contains(&(vx, vy, vz)) {
+                    if !is_non_greedy_block {
+                        let Some(face) = block.faces.iter().find(|face| face.dir == dir) else {
+                            continue;
+                        };
+
+                        let should_render = should_render_face(
+                            vx,
+                            vy,
+                            vz,
+                            voxel_id,
+                            dir,
+                            block,
+                            space,
+                            registry,
+                            is_see_through,
+                            is_fluid,
+                        );
+
+                        if !should_render {
                             continue;
                         }
-                        processed_non_greedy.insert((vx, vy, vz));
 
-                        for (face, world_space) in faces.iter() {
-                            let uv_range = face.range.clone();
-                            non_greedy_faces.push((
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                rotation.clone(),
-                                block.clone(),
-                                face.clone(),
-                                uv_range,
-                                is_see_through,
-                                is_fluid,
-                                *world_space,
-                            ));
-                        }
-                        continue;
-                    }
-
-                    let matching_faces: Vec<_> = faces
-                        .iter()
-                        .filter(|(f, world_space)| {
-                            let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
-                            if (block.rotatable || block.y_rotatable) && !*world_space {
-                                rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
-                            }
-                            let effective_dir = [
-                                face_dir[0].round() as i32,
-                                face_dir[1].round() as i32,
-                                face_dir[2].round() as i32,
-                            ];
-                            effective_dir == dir
-                        })
-                        .collect();
-
-                    if matching_faces.is_empty() {
-                        continue;
-                    }
-
-                    let should_render = should_render_face(
-                        vx,
-                        vy,
-                        vz,
-                        voxel_id,
-                        dir,
-                        block,
-                        space,
-                        registry,
-                        is_see_through,
-                        is_fluid,
-                    );
-
-                    if !should_render {
-                        continue;
-                    }
-
-                    for (face, world_space) in matching_faces {
                         let uv_range = face.range.clone();
-
-                        if face.isolated {
-                            non_greedy_faces.push((
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                rotation.clone(),
-                                block.clone(),
-                                face.clone(),
-                                uv_range,
-                                is_see_through,
-                                is_fluid,
-                                *world_space,
-                            ));
-                            continue;
-                        }
-
                         let neighbors = NeighborCache::populate(vx, vy, vz, space);
                         let (aos, lights) =
                             compute_face_ao_and_light(dir, block, &neighbors, registry);
@@ -2190,15 +2240,53 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             uv_end_v: (uv_range.end_v * 1000000.0) as u32,
                         };
 
-                        let data = FaceData {
-                            key,
+                        greedy_mask.insert(
+                            (u, v),
+                            FaceData {
+                                key,
+                                uv_range,
+                                is_see_through,
+                                is_fluid,
+                            },
+                        );
+                        continue;
+                    }
+
+                    let faces: Vec<(BlockFace, bool)> = if is_fluid
+                        && has_standard_six_faces(&block.faces)
+                    {
+                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                                .into_iter()
+                                .map(|f| (f, false))
+                                .collect()
+                    } else if block.dynamic_patterns.is_some() {
+                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                    } else {
+                        block.faces.iter().cloned().map(|f| (f, false)).collect()
+                    };
+
+                    if processed_non_greedy.contains(&(vx, vy, vz)) {
+                        continue;
+                    }
+                    processed_non_greedy.insert((vx, vy, vz));
+
+                    for (face, world_space) in faces.iter() {
+                        let uv_range = face.range.clone();
+                        non_greedy_faces.push((
+                            vx,
+                            vy,
+                            vz,
+                            voxel_id,
+                            rotation.clone(),
+                            block.clone(),
+                            face.clone(),
                             uv_range,
                             is_see_through,
                             is_fluid,
-                        };
-
-                        greedy_mask.insert((u, v), data);
+                            *world_space,
+                        ));
                     }
+                    continue;
                 }
             }
 
@@ -2302,136 +2390,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         }
     }
 
-    map.into_iter()
-        .map(|(_, geometry)| geometry)
-        .filter(|geometry| !geometry.indices.is_empty())
-        .collect()
-}
-
-pub fn mesh_space<S: VoxelAccess>(
-    min: &[i32; 3],
-    max: &[i32; 3],
-    space: &S,
-    registry: &Registry,
-) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
-
-    let [min_x, min_y, min_z] = *min;
-    let [max_x, max_y, max_z] = *max;
-
-    for vx in min_x..max_x {
-        for vz in min_z..max_z {
-            for vy in min_y..max_y {
-                let voxel_id = space.get_voxel(vx, vy, vz);
-
-                if !registry.has_type(voxel_id) {
-                    continue;
-                }
-
-                let rotation = space.get_voxel_rotation(vx, vy, vz);
-                let block = match registry.get_block_by_id(voxel_id) {
-                    Some(b) => b,
-                    None => continue,
-                };
-
-                let is_see_through = block.is_see_through;
-                let is_empty = block.is_empty;
-                let is_opaque = block.is_opaque;
-                let is_fluid = block.is_fluid;
-
-                if is_empty {
-                    continue;
-                }
-
-                if is_opaque {
-                    let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                        let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                        registry
-                            .get_block_by_id(id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false)
-                    });
-                    if all_neighbors_opaque {
-                        continue;
-                    }
-                }
-
-                let faces: Vec<(BlockFace, bool)> =
-                    if is_fluid && has_standard_six_faces(&block.faces) {
-                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                            .into_iter()
-                            .map(|f| (f, false))
-                            .collect()
-                    } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                    } else {
-                        block.faces.iter().cloned().map(|f| (f, false)).collect()
-                    };
-
-                let mut uv_map = HashMap::new();
-                for (face, _) in &faces {
-                    uv_map.insert(face.name.clone(), face.range.clone());
-                }
-
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
-
-                for (face, world_space) in faces.iter() {
-                    let key = if face.isolated {
-                        format!(
-                            "{}::{}::{}-{}-{}",
-                            block.get_name_lower(),
-                            face.get_name_lower(),
-                            vx,
-                            vy,
-                            vz
-                        )
-                    } else if face.independent {
-                        format!("{}::{}", block.get_name_lower(), face.get_name_lower())
-                    } else {
-                        block.get_name_lower().to_string()
-                    };
-
-                    let mut geometry = map.remove(&key).unwrap_or_default();
-
-                    geometry.voxel = block.id;
-
-                    if face.independent || face.isolated {
-                        geometry.face_name = Some(face.name.clone());
-                    }
-
-                    if face.isolated {
-                        geometry.at = Some([vx, vy, vz]);
-                    }
-
-                    process_face(
-                        vx,
-                        vy,
-                        vz,
-                        voxel_id,
-                        &rotation,
-                        face,
-                        block,
-                        &uv_map,
-                        registry,
-                        space,
-                        &neighbors,
-                        is_see_through,
-                        is_fluid,
-                        &mut geometry.positions,
-                        &mut geometry.indices,
-                        &mut geometry.uvs,
-                        &mut geometry.lights,
-                        min,
-                        *world_space,
-                    );
-
-                    map.insert(key, geometry);
-                }
-            }
-        }
-    }
-
-    map.into_iter()
+    map
+        .into_iter()
         .map(|(_, geometry)| geometry)
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
@@ -2451,13 +2411,13 @@ pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
 
     input.registry.build_cache();
 
+    if !chunk_range_has_non_empty_voxel(center_chunk, &input.min, &input.max, &input.registry) {
+        return MeshOutput { geometries: vec![] };
+    }
+
     let space = VoxelSpace::new(&input.chunks, input.config.chunk_size, center_coords);
 
-    let geometries = if input.config.greedy_meshing {
-        mesh_space_greedy(&input.min, &input.max, &space, &input.registry)
-    } else {
-        mesh_space(&input.min, &input.max, &space, &input.registry)
-    };
+    let geometries = mesh_space_greedy(&input.min, &input.max, &space, &input.registry);
 
     MeshOutput { geometries }
 }
@@ -2480,13 +2440,13 @@ pub fn mesh_chunk_with_registry_chunks(
         center_chunk.min[2] / config.chunk_size,
     ];
 
+    if !chunk_range_has_non_empty_voxel(center_chunk, &min, &max, registry) {
+        return MeshOutput { geometries: vec![] };
+    }
+
     let space = VoxelSpace::new(chunks, config.chunk_size, center_coords);
 
-    let geometries = if config.greedy_meshing {
-        mesh_space_greedy(&min, &max, &space, registry)
-    } else {
-        mesh_space(&min, &max, &space, registry)
-    };
+    let geometries = mesh_space_greedy(&min, &max, &space, registry);
 
     MeshOutput { geometries }
 }
@@ -2636,20 +2596,14 @@ mod tests {
         let min = [0, 0, 0];
         let max = [1, 1, 1];
 
-        let greedy_geometries = mesh_space_greedy(&min, &max, &space, &registry);
-        let naive_geometries = mesh_space(&min, &max, &space, &registry);
-        let greedy_indices = greedy_geometries
-            .iter()
-            .map(|geometry| geometry.indices.len())
-            .sum::<usize>();
-        let naive_indices = naive_geometries
+        let geometries = mesh_space_greedy(&min, &max, &space, &registry);
+        let indices = geometries
             .iter()
             .map(|geometry| geometry.indices.len())
             .sum::<usize>();
 
-        assert_eq!(greedy_indices, naive_indices);
         assert!(
-            greedy_indices > 0,
+            indices > 0,
             "Greedy meshing should emit diagonal plant geometry through the fallback path"
         );
     }

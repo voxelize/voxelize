@@ -365,6 +365,11 @@ export type WorldClientOptions = {
   maxMeshesPerUpdate: number;
 
   /**
+   * Dedicated mesh workers reserved for client-originated voxel edits.
+   */
+  maxUrgentMeshWorkers: number;
+
+  /**
    * Whether to use client-only meshing. When true, chunks are always meshed locally.
    * When false, server-provided meshes are used for initial chunk load.
    * Defaults to `true`.
@@ -482,6 +487,7 @@ const defaultOptions: WorldClientOptions = {
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
+  maxUrgentMeshWorkers: 1,
   clientOnlyMeshing: true,
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
@@ -569,11 +575,6 @@ export type WorldServerOptions = {
    * The time per day in seconds.
    */
   timePerDay: number;
-
-  /**
-   * Whether greedy meshing is enabled for this world.
-   */
-  greedyMeshing: boolean;
 };
 
 /**
@@ -847,16 +848,15 @@ export class World<T = any> extends Scene implements NetIntercept {
   private _plantBlockIds = new Set<number>();
   private _lastCenterChunk: Coords2 = [0, 0];
 
-  private meshWorkerPool = new WorkerPool(MeshWorker, {
-    maxWorker: Math.min(navigator.hardwareConcurrency ?? 4, 4),
-    name: "mesh-worker",
-  });
+  private meshWorkerPool!: WorkerPool;
+  private urgentMeshWorkerPool!: WorkerPool;
 
   private lightWorkerPool!: WorkerPool;
 
   private textureLoaderLastMap: Record<string, Date> = {};
 
   private isTrackingChunks = false;
+  private activeBlockUpdateSource: "client" | "server" | null = null;
 
   private blockUpdatesQueue: BlockUpdateWithSource[] = [];
   private blockUpdatesToEmit: BlockUpdate[] = [];
@@ -901,6 +901,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     });
 
+    this.meshWorkerPool = new WorkerPool(MeshWorker, {
+      maxWorker: Math.min(navigator.hardwareConcurrency ?? 4, 4),
+      name: "mesh-worker",
+    });
+
+    this.urgentMeshWorkerPool = new WorkerPool(MeshWorker, {
+      maxWorker: this.options.maxUrgentMeshWorkers,
+      name: "mesh-worker-urgent",
+    });
+
     this.lightWorkerPool = new WorkerPool(LightWorker, {
       maxWorker: this.options.maxLightWorkers,
       name: "light-worker",
@@ -942,9 +952,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     cx: number,
     cz: number,
     level: number,
+    isPriority = false,
   ): Promise<GeometryProtocol[] | null> {
     const result = await this.dispatchMeshWorkerMeasured(cx, cz, level, {
       isRecordingStats: true,
+      isPriority,
     });
     return result?.geometries ?? null;
   }
@@ -953,7 +965,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     cx: number,
     cz: number,
     level: number,
-    options: { isRecordingStats: boolean },
+    options: { isRecordingStats: boolean; isPriority?: boolean },
   ): Promise<{
     geometries: GeometryProtocol[];
     serializeMs: number;
@@ -1024,10 +1036,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const workerStart = performance.now();
+    const meshWorkerPool = options.isPriority
+      ? this.urgentMeshWorkerPool
+      : this.meshWorkerPool;
     const { geometries } = await new Promise<{
       geometries: GeometryProtocol[];
     }>((resolve) => {
-      this.meshWorkerPool.addJob({
+      meshWorkerPool.addJob({
         message: data,
         buffers: arrayBuffers,
         resolve,
@@ -1149,8 +1164,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     cz: number,
     level: number,
     generation?: number,
+    isPriority = false,
   ) {
-    const geometries = await this.dispatchMeshWorker(cx, cz, level);
+    const geometries = await this.dispatchMeshWorker(cx, cz, level, isPriority);
     if (!geometries) return;
     this.applyMeshResult(cx, cz, level, geometries, generation);
   }
@@ -3591,6 +3607,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const registryData = this.registry.serialize();
     this.meshWorkerPool.postMessage({ type: "init", registryData });
+    this.urgentMeshWorkerPool.postMessage({ type: "init", registryData });
     this.lightWorkerPool.postMessage({ type: "init", registryData });
 
     this.isInitialized = true;
@@ -5419,6 +5436,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const {
+        source,
         update: { type, vx, vy, vz, rotation, yRotation, stage },
       } = update;
 
@@ -5438,11 +5456,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
       this.attemptBlockCache(vx, vy, vz, newValue);
 
-      this.setVoxelAt(vx, vy, vz, type);
-      this.setVoxelStageAt(vx, vy, vz, stage);
+      this.activeBlockUpdateSource = source;
+      try {
+        this.setVoxelAt(vx, vy, vz, type);
+        this.setVoxelStageAt(vx, vy, vz, stage);
 
-      if (newBlock.rotatable || newBlock.yRotatable) {
-        this.setVoxelRotationAt(vx, vy, vz, newRotation);
+        if (newBlock.rotatable || newBlock.yRotatable) {
+          this.setVoxelRotationAt(vx, vy, vz, newRotation);
+        }
+      } finally {
+        this.activeBlockUpdateSource = null;
       }
 
       processedUpdates.push({
@@ -5533,9 +5556,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const workerPromises = keysToProcess.map((key) => {
       const { cx, cz, level } = MeshPipeline.parseKey(key);
+      const isPriority = this.meshPipeline.isUrgent(key);
       const generation = this.meshPipeline.startJob(key);
 
-      return this.dispatchMeshWorker(cx, cz, level).then(
+      return this.dispatchMeshWorker(cx, cz, level, isPriority).then(
         (geometries) =>
           ({
             cx,
@@ -6373,9 +6397,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     levels.push(level);
 
+    const isUrgent =
+      this.options.clientOnlyMeshing &&
+      this.activeBlockUpdateSource === "client";
+
     for (const [chunkX, chunkZ] of chunkCoordsList) {
       for (const lvl of levels) {
-        this.meshPipeline.onVoxelChange(chunkX, chunkZ, lvl);
+        this.meshPipeline.onVoxelChange(chunkX, chunkZ, lvl, isUrgent);
       }
     }
   }

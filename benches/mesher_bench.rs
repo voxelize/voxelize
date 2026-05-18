@@ -54,7 +54,7 @@ fn create_test_chunks(config: &WorldConfig) -> Chunks {
     chunks
 }
 
-fn bench_mesh_space(c: &mut Criterion) {
+fn bench_mesh_space_greedy(c: &mut Criterion) {
     let config = WorldConfig {
         chunk_size: 16,
         max_height: 256,
@@ -80,9 +80,9 @@ fn bench_mesh_space(c: &mut Criterion) {
     let min_arr = [min.0, min.1, min.2];
     let max_arr = [max.0, max.1, max.2];
 
-    c.bench_function("mesh_space_16x32x16", |b| {
+    c.bench_function("mesh_space_greedy_16x32x16", |b| {
         b.iter(|| {
-            voxelize_mesher::mesh_space(
+            voxelize_mesher::mesh_space_greedy(
                 black_box(&min_arr),
                 black_box(&max_arr),
                 black_box(&space),
@@ -92,8 +92,8 @@ fn bench_mesh_space(c: &mut Criterion) {
     });
 }
 
-fn bench_mesh_space_sizes(c: &mut Criterion) {
-    let mut group = c.benchmark_group("mesh_space_varying_sizes");
+fn bench_mesh_space_greedy_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mesh_space_greedy_varying_sizes");
 
     let config = WorldConfig {
         chunk_size: 16,
@@ -123,7 +123,7 @@ fn bench_mesh_space_sizes(c: &mut Criterion) {
             height,
             |b, _| {
                 b.iter(|| {
-                    voxelize_mesher::mesh_space(
+                    voxelize_mesher::mesh_space_greedy(
                         black_box(&min_arr),
                         black_box(&max_arr),
                         black_box(&space),
@@ -137,5 +137,9 @@ fn bench_mesh_space_sizes(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_mesh_space, bench_mesh_space_sizes);
+criterion_group!(
+    benches,
+    bench_mesh_space_greedy,
+    bench_mesh_space_greedy_sizes
+);
 criterion_main!(benches);

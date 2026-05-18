@@ -159,20 +159,21 @@ export class ChunkPipeline {
 
 interface MeshState {
   generation: number;
-  inFlightGeneration: number | null;
+  inFlightGenerations: Set<number>;
   displayedGeneration: number;
 }
 
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
+  private urgentDirty = new Set<string>();
 
   private getOrCreate(key: string): MeshState {
     let state = this.states.get(key);
     if (!state) {
       state = {
         generation: 0,
-        inFlightGeneration: null,
+        inFlightGenerations: new Set(),
         displayedGeneration: 0,
       };
       this.states.set(key, state);
@@ -190,26 +191,30 @@ export class MeshPipeline {
     return { cx, cz, level: parseInt(levelStr) };
   }
 
-  onVoxelChange(cx: number, cz: number, level: number): void {
+  onVoxelChange(cx: number, cz: number, level: number, isUrgent = false): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
     const state = this.getOrCreate(key);
     state.generation++;
     this.dirty.add(key);
+    if (isUrgent) {
+      this.urgentDirty.add(key);
+    }
   }
 
   shouldStartJob(key: string): boolean {
     const state = this.states.get(key);
     if (!state) return false;
-    if (state.inFlightGeneration !== null) return false;
     if (state.generation === state.displayedGeneration) return false;
+    if (state.inFlightGenerations.has(state.generation)) return false;
     return true;
   }
 
   startJob(key: string): number {
     const state = this.states.get(key);
     if (!state) return 0;
-    state.inFlightGeneration = state.generation;
+    state.inFlightGenerations.add(state.generation);
     this.dirty.delete(key);
+    this.urgentDirty.delete(key);
     return state.generation;
   }
 
@@ -217,9 +222,12 @@ export class MeshPipeline {
     const state = this.states.get(key);
     if (!state) return false;
 
-    state.inFlightGeneration = null;
+    state.inFlightGenerations.delete(jobGeneration);
 
-    if (jobGeneration < state.displayedGeneration) {
+    if (
+      jobGeneration < state.displayedGeneration ||
+      jobGeneration < state.generation
+    ) {
       return false;
     }
 
@@ -239,21 +247,31 @@ export class MeshPipeline {
     if (!state) {
       state = {
         generation: 0,
-        inFlightGeneration: null,
+        inFlightGenerations: new Set(),
         displayedGeneration: 0,
       };
       this.states.set(key, state);
     }
     state.displayedGeneration = state.generation;
-    state.inFlightGeneration = null;
+    state.inFlightGenerations.clear();
     this.dirty.delete(key);
+    this.urgentDirty.delete(key);
   }
 
   getDirtyKeys(): string[] {
-    return [...this.dirty].filter((key) => this.shouldStartJob(key));
+    const urgentKeys = [...this.urgentDirty].filter((key) =>
+      this.shouldStartJob(key),
+    );
+    const regularKeys = [...this.dirty].filter(
+      (key) => !this.urgentDirty.has(key) && this.shouldStartJob(key),
+    );
+    return [...urgentKeys, ...regularKeys];
   }
 
   hasDirtyChunks(): boolean {
+    for (const key of this.urgentDirty) {
+      if (this.shouldStartJob(key)) return true;
+    }
     for (const key of this.dirty) {
       if (this.shouldStartJob(key)) return true;
     }
@@ -266,19 +284,24 @@ export class MeshPipeline {
       if (key.startsWith(prefix)) {
         this.states.delete(key);
         this.dirty.delete(key);
+        this.urgentDirty.delete(key);
       }
     }
   }
 
   hasInFlightJob(key: string): boolean {
     const state = this.states.get(key);
-    return state?.inFlightGeneration !== null;
+    return (state?.inFlightGenerations.size ?? 0) > 0;
   }
 
   hasAnyInFlightJobs(): boolean {
     for (const state of this.states.values()) {
-      if (state.inFlightGeneration !== null) return true;
+      if (state.inFlightGenerations.size > 0) return true;
     }
     return false;
+  }
+
+  isUrgent(key: string): boolean {
+    return this.urgentDirty.has(key);
   }
 }

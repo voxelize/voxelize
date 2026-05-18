@@ -3,13 +3,12 @@ use voxelize::{
 };
 use voxelize_core::VoxelAccess as MesherVoxelAccess;
 
-fn create_test_config_with_greedy(greedy: bool) -> WorldConfig {
+fn create_test_config() -> WorldConfig {
     WorldConfig {
         chunk_size: 16,
         max_height: 256,
         max_light_level: 15,
         sub_chunks: 8,
-        greedy_meshing: greedy,
         ..Default::default()
     }
 }
@@ -23,20 +22,6 @@ fn create_test_registry() -> Registry {
 }
 
 fn mesh_space_for_test<S: VoxelAccess + MesherVoxelAccess>(
-    min: &Vec3<i32>,
-    max: &Vec3<i32>,
-    space: &S,
-    registry: &Registry,
-) -> Vec<voxelize_mesher::GeometryProtocol> {
-    let min_arr = [min.0, min.1, min.2];
-    let max_arr = [max.0, max.1, max.2];
-    let mut mesher_registry = registry.to_mesher_registry();
-    mesher_registry.build_cache();
-
-    voxelize_mesher::mesh_space(&min_arr, &max_arr, space, &mesher_registry)
-}
-
-fn mesh_space_greedy_for_test<S: VoxelAccess + MesherVoxelAccess>(
     min: &Vec3<i32>,
     max: &Vec3<i32>,
     space: &S,
@@ -315,7 +300,7 @@ fn test_mesh_produces_valid_geometry() {
 
 #[test]
 fn test_greedy_meshing_layer() {
-    let config = create_test_config_with_greedy(true);
+    let config = create_test_config();
 
     let registry = create_test_registry();
     let mut chunks = Chunks::new(&config);
@@ -341,32 +326,27 @@ fn test_greedy_meshing_layer() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let greedy_geometries = mesh_space_greedy_for_test(&min, &max, &space, &registry);
-    let naive_geometries = mesh_space_for_test(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     assert!(
-        !greedy_geometries.is_empty(),
+        !geometries.is_empty(),
         "Greedy meshing should produce geometry"
     );
 
-    let greedy_total_vertices: usize = greedy_geometries
+    let total_faces = geometries
         .iter()
-        .map(|g| g.positions.len() / 3)
-        .sum();
-
-    let naive_total_vertices: usize = naive_geometries.iter().map(|g| g.positions.len() / 3).sum();
+        .map(|g| g.indices.len() / 6)
+        .sum::<usize>();
 
     assert!(
-        greedy_total_vertices <= naive_total_vertices,
-        "Greedy meshing should produce fewer or equal vertices ({} greedy vs {} naive)",
-        greedy_total_vertices,
-        naive_total_vertices
+        total_faces <= 6,
+        "Greedy meshing should merge the layer into a small number of faces, got {total_faces}"
     );
 }
 
 #[test]
 fn test_greedy_meshing_valid_geometry() {
-    let config = create_test_config_with_greedy(true);
+    let config = create_test_config();
 
     let registry = create_test_registry();
     let mut chunks = Chunks::new(&config);
@@ -392,7 +372,7 @@ fn test_greedy_meshing_valid_geometry() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = mesh_space_greedy_for_test(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     for geometry in geometries {
         assert_eq!(
@@ -420,8 +400,8 @@ fn test_greedy_meshing_valid_geometry() {
 }
 
 #[test]
-fn test_greedy_meshing_disabled() {
-    let config = create_test_config_with_greedy(false);
+fn test_sparse_bounds_preserve_chunk_origin() {
+    let config = create_test_config();
 
     let registry = create_test_registry();
     let mut chunks = Chunks::new(&config);
@@ -433,12 +413,7 @@ fn test_greedy_meshing_disabled() {
         sub_chunks: config.sub_chunks,
     };
     let mut chunk = Chunk::new("test", coords.0, coords.1, &chunk_opts);
-
-    for x in 0..4 {
-        for z in 0..4 {
-            chunk.set_voxel(x, 0, z, 1);
-        }
-    }
+    chunk.set_voxel(15, 15, 15, 1);
 
     chunks.add(chunk);
 
@@ -448,9 +423,13 @@ fn test_greedy_meshing_disabled() {
     let max = Vec3(16, 16, 16);
 
     let geometries = mesh_space_for_test(&min, &max, &space, &registry);
+    let max_position = geometries
+        .iter()
+        .flat_map(|geometry| geometry.positions.iter().copied())
+        .fold(f32::MIN, f32::max);
 
     assert!(
-        !geometries.is_empty(),
-        "Non-greedy meshing should produce geometry"
+        max_position > 14.0,
+        "Sparse bounds must not rebase geometry to the non-empty bounds"
     );
 }
