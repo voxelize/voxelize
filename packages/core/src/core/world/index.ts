@@ -212,6 +212,11 @@ export type WorldChunkEvents = {
   "chunk-updated": (data: ChunkUpdateEventData) => void;
 };
 
+export type WorldFogRange = {
+  near: number;
+  far: number;
+};
+
 export type LightNode = {
   voxel: Coords3;
   level: number;
@@ -412,6 +417,16 @@ export type WorldClientOptions = {
   defaultRenderRadius: number;
 
   /**
+   * Fraction of render distance where horizon fog starts. Defaults to `0.45`.
+   */
+  fogNearRenderRatio: number;
+
+  /**
+   * Fraction of render distance where horizon fog fully hides terrain. Defaults to `0.78`.
+   */
+  fogFarRenderRatio: number;
+
+  /**
    * The default dimension to a single unit of a block face texture. If any texture loaded is greater, it will be downscaled to this resolution.
    * Defaults to `8` pixels.
    */
@@ -496,6 +511,8 @@ const defaultOptions: WorldClientOptions = {
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
   defaultRenderRadius: 6,
+  fogNearRenderRatio: 0.45,
+  fogFarRenderRatio: 0.78,
   textureUnitDimension: 8,
   chunkLoadExponent: 8,
   skyOptions: {},
@@ -3892,10 +3909,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     this._renderRadius = radius;
     this._deleteRadius = radius * 1.1;
 
-    const { chunkSize } = this.options;
+    const fogRange = this.getBaseFogRange();
 
-    this.chunkRenderer.uniforms.fogNear.value = radius * 0.7 * chunkSize;
-    this.chunkRenderer.uniforms.fogFar.value = radius * chunkSize;
+    this.chunkRenderer.uniforms.fogNear.value = fogRange.near;
+    this.chunkRenderer.uniforms.fogFar.value = fogRange.far;
+  }
+
+  getBaseFogRange(): WorldFogRange {
+    const { chunkSize, fogNearRenderRatio, fogFarRenderRatio } = this.options;
+    const renderDistance = this._renderRadius * chunkSize;
+
+    return {
+      near: renderDistance * fogNearRenderRatio,
+      far: renderDistance * fogFarRenderRatio,
+    };
   }
 
   get deleteRadius() {
