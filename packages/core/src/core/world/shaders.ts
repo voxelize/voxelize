@@ -1,5 +1,7 @@
 import { ShaderLib } from "three";
 
+import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+
 const SIMPLEX_NOISE_GLSL = `
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
 vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
@@ -194,27 +196,11 @@ vShadowCoord2 = uShadowMatrix2 * offsetPosition;
     .replace(
       "#include <common>",
       `
-uniform vec3 uFogColor;
-uniform float uFogNear;
-uniform float uFogFar;
-uniform float uFogHeightOrigin;
-uniform float uFogHeightDensity;
-uniform vec3 uSkyFogTopColor;
-uniform vec3 uSkyFogMiddleColor;
-uniform vec3 uSkyFogBottomColor;
-uniform float uSkyFogOffset;
-uniform float uSkyFogVoidOffset;
-uniform float uSkyFogExponent;
-uniform float uSkyFogExponent2;
-uniform float uSkyFogDimension;
-uniform float uSkyFogStrength;
+${SKY_FOG_UNIFORM_DECLARATIONS}
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
 
-uniform vec3 uSunDirection;
-uniform vec3 uSunColor;
-uniform float uSunlightIntensity;
 uniform vec3 uAmbientColor;
 
 uniform sampler2D uShadowMap0;
@@ -235,6 +221,10 @@ uniform float uWaterAbsorption;
 uniform float uWaterLevel;
 uniform float uWaterStreakStrength;
 uniform float uWaterFresnelStrength;
+uniform sampler2D uSceneColor;
+uniform vec2 uSceneTextureSize;
+uniform float uWaterRefractionReady;
+uniform float uWaterRefractionStrength;
 
 uniform vec3 uSkyTopColor;
 uniform vec3 uSkyMiddleColor;
@@ -492,19 +482,6 @@ totalLight *= temperatureShift;
 
 totalLight *= enhancedAO;
 
-if (vWorldPosition.y < uWaterLevel && vIsFluid < 0.5) {
-  float causticsTime = uTime * 0.0003;
-  float waterDepth = uWaterLevel - vWorldPosition.y;
-  float depthFade = exp(-waterDepth * 0.15);
-
-  float c1 = snoise(vec3(vWorldPosition.xz * 0.3 + causticsTime * 0.4, causticsTime));
-  float c2 = snoise(vec3(vWorldPosition.xz * 0.5 - causticsTime * 0.3, causticsTime * 1.3 + 5.0));
-  float caustic = (c1 * c1 + c2 * c2) * 0.5;
-
-  float causticStrength = depthFade * shadow * uSunlightIntensity * 0.25;
-  totalLight += vec3(caustic * causticStrength);
-}
-
 totalLight = (totalLight * (2.51 * totalLight + 0.03))
            / (totalLight * (2.43 * totalLight + 0.59) + 0.14);
 outgoingLight.rgb *= totalLight;
@@ -552,8 +529,10 @@ if (vIsFluid > 0.5) {
 
   vec3 viewDir = normalize(cameraPosition - wPos);
   float NdotV = max(dot(waterNormal, viewDir), 0.0);
-  float fresnel = 0.02 + uWaterFresnelStrength * pow(1.0 - NdotV, 5.0);
-  fresnel = clamp(fresnel, 0.02, 0.4);
+  float fresnelBase = mix(0.01, 0.04, topWaterFace);
+  float fresnelMax = mix(0.22, 0.56, topWaterFace);
+  float fresnel = fresnelBase + uWaterFresnelStrength * pow(1.0 - NdotV, 5.0);
+  fresnel = clamp(fresnel, 0.01, fresnelMax);
 
   vec3 reflectDir = reflect(-viewDir, waterNormal);
   float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -566,17 +545,17 @@ if (vIsFluid > 0.5) {
   spec32 *= spec32;
   spec32 *= spec32;
   spec32 *= spec32;
-  float specMed = spec32 * spec32 * spec32 * uSunlightIntensity * 0.18;
-  vec3 specularColor = uSunColor * (spec32 * uSunlightIntensity * 0.08 + specMed);
+  float specMed = spec32 * spec32 * spec32 * uSunlightIntensity * 0.24;
+  vec3 specularColor = uSunColor * (spec32 * uSunlightIntensity * (0.08 + topWaterFace * 0.14) + specMed);
 
   vec3 baseWater = outgoingLight.rgb;
 
   float distToCamera = length(cameraPosition - wPos);
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
   float verticalDepthFactor = 1.0 - exp(-max(0.0, uWaterLevel - wPos.y) * 0.11);
-  vec3 shallowWater = mix(baseWater, uWaterTint, 0.14);
-  vec3 deepWater = mix(baseWater, uWaterTint, 0.38);
-  vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.92);
+  vec3 shallowWater = mix(baseWater, uWaterTint, 0.1);
+  vec3 deepWater = mix(baseWater, uWaterTint, 0.28);
+  vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.72);
 
   float sideSelector = step(absWaterNormal.x, absWaterNormal.z);
   float sideCoord = mix(wPos.z, wPos.x, sideSelector);
@@ -585,6 +564,30 @@ if (vIsFluid > 0.5) {
   float streak = smoothstep(0.35, 0.95, streakNoise * 0.7 + fineStreakNoise * 0.3);
   vec3 streakColor = mix(waterColor * 0.96, waterColor + uWaterTint * 0.08, streak);
   waterColor = mix(waterColor, streakColor, sideWaterFace * uWaterStreakStrength);
+
+  float rippleNoise = snoise(vec3(wPos.xz * 1.8 + vec2(waveTime * 0.9, -waveTime * 0.65), 31.0));
+  float fineRippleNoise = snoise(vec3(wPos.xz * 4.8 + vec2(-waveTime * 1.2, waveTime * 0.8), 43.0));
+  float surfaceRipple = smoothstep(0.42, 0.92, rippleNoise * 0.65 + fineRippleNoise * 0.35);
+  vec3 surfaceHighlight = mix(waterColor, skyReflection, 0.34);
+  waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
+
+  float refractionFace = max(topWaterFace, sideWaterFace * 0.55);
+  if (uWaterRefractionReady > 0.5 && refractionFace > 0.01) {
+    vec2 screenUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
+    float refractionTime = uTime * 0.001;
+    vec2 broadRipple = vec2(
+      sin(wPos.x * 0.7 + refractionTime * 1.6) + sin((wPos.x + wPos.z) * 0.42 - refractionTime * 1.1),
+      cos(wPos.z * 0.72 - refractionTime * 1.4) + sin((wPos.z - wPos.x) * 0.38 + refractionTime * 0.9)
+    ) * 0.5;
+    vec2 sideRipple = vec2(rippleNoise, fineRippleNoise) * 0.45;
+    vec2 refractionVector = normalize(broadRipple + sideRipple * 0.35 + waterNormal.xz * 0.6);
+    vec2 refractionOffset = refractionVector * uWaterRefractionStrength * refractionFace;
+    vec2 refractedUv = clamp(screenUv + refractionOffset, vec2(0.001), vec2(0.999));
+    vec3 refractedScene = texture2D(uSceneColor, refractedUv).rgb;
+    float tintAmount = 0.12 + fresnel * 0.28 + surfaceRipple * 0.08;
+    waterColor = mix(refractedScene, waterColor, tintAmount);
+    diffuseColor.a = max(diffuseColor.a, 0.5 * refractionFace);
+  }
 
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;
@@ -598,26 +601,7 @@ if (vIsFluid > 0.5) {
     .replace(
       "#include <fog_fragment>",
       `
-vec2 fogDiff = vWorldPosition.xz - cameraPosition.xz;
-float depth = sqrt(dot(fogDiff, fogDiff));
-float distFog = smoothstep(uFogNear, uFogFar, depth);
-float heightFog = 1.0 - exp(-uFogHeightDensity * max(0.0, uFogHeightOrigin - vWorldPosition.y));
-float heightDistScale = smoothstep(uFogNear * 0.3, uFogFar * 0.6, depth);
-float fogFactor = max(distFog, heightFog * heightDistScale);
-
-vec3 fogRay = normalize(vWorldPosition.xyz - cameraPosition);
-vec3 skyDomePos = cameraPosition + fogRay * uSkyFogDimension;
-float sfH = normalize(skyDomePos + uSkyFogOffset).y;
-float sfH2 = normalize(skyDomePos + uSkyFogVoidOffset).y;
-vec3 skyColor = mix(uSkyFogMiddleColor, uSkyFogTopColor, max(pow(max(sfH, 0.0), uSkyFogExponent), 0.0));
-skyColor = mix(skyColor, uSkyFogBottomColor, max(pow(max(-sfH2, 0.0), uSkyFogExponent2), 0.0));
-
-vec3 fogTint = mix(uFogColor, skyColor, uSkyFogStrength);
-
-float sunAlignment = pow(max(0.0, dot(fogRay, uSunDirection)), 6.0);
-fogTint += uSunColor * sunAlignment * uSunlightIntensity * uSkyFogStrength * 0.35;
-
-gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, fogFactor);
+${SKY_FOG_FRAGMENT}
 
 if (uShadowDebugMode > 0.5) {
   if (uShadowDebugMode < 1.5) {

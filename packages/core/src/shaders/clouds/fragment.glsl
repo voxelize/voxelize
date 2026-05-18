@@ -1,18 +1,21 @@
-uniform vec3 uFogColor;
+#include <sky_fog_pars_fragment>
+
 uniform vec3 uCloudColor;
-uniform float uFogNear;
-uniform float uFogFar;
 uniform float uCloudAlpha;
+uniform float uCloudFogDistanceScale;
+uniform float uCloudEndFadeNear;
+uniform float uCloudEndFadeFar;
 
 varying vec4 vWorldPosition;
 
 void main() {
   gl_FragColor = vec4(uCloudColor, uCloudAlpha);
 
-  // fog
-  vec3 fogOrigin = cameraPosition;
-  float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0)) / 8.0;
+  #include <sky_fog_fragment>
 
-  float fogFactor = smoothstep(uFogNear, uFogFar, depth);
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+  float cloudEndDistance = sqrt(dot(vWorldPosition.xz - cameraPosition.xz, vWorldPosition.xz - cameraPosition.xz));
+  float cloudEndDepth = cloudEndDistance / max(uCloudFogDistanceScale, 0.001);
+  float cloudEndFade = smoothstep(uCloudEndFadeNear, uCloudEndFadeFar, cloudEndDepth);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, cloudEndFade);
+  gl_FragColor.a *= 1.0 - cloudEndFade;
 }

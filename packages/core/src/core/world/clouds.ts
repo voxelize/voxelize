@@ -18,7 +18,12 @@ import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
+import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
+
+type ShaderUniform<T> = {
+  value: T;
+};
 
 /**
  * Parameters used to create a new {@link Clouds} instance.
@@ -100,23 +105,55 @@ export type CloudsOptions = {
   /**
    * An object that is used as the uniform for the clouds fog near shader.
    */
-  uFogNear?: {
-    value: number;
-  };
+  uFogNear?: ShaderUniform<number>;
 
   /**
    * An object that is used as the uniform for the clouds fog far shader.
    */
-  uFogFar?: {
-    value: number;
-  };
+  uFogFar?: ShaderUniform<number>;
 
   /**
    * An object that is used as the uniform for the clouds fog color shader.
    */
-  uFogColor?: {
-    value: Color;
-  };
+  uFogColor?: ShaderUniform<Color>;
+
+  uFogHeightOrigin?: ShaderUniform<number>;
+
+  uFogHeightDensity?: ShaderUniform<number>;
+
+  uSkyFogTopColor?: ShaderUniform<Color>;
+
+  uSkyFogMiddleColor?: ShaderUniform<Color>;
+
+  uSkyFogBottomColor?: ShaderUniform<Color>;
+
+  uSkyFogOffset?: ShaderUniform<number>;
+
+  uSkyFogVoidOffset?: ShaderUniform<number>;
+
+  uSkyFogExponent?: ShaderUniform<number>;
+
+  uSkyFogExponent2?: ShaderUniform<number>;
+
+  uSkyFogDimension?: ShaderUniform<number>;
+
+  uSkyFogStrength?: ShaderUniform<number>;
+
+  uSunDirection?: ShaderUniform<Vector3>;
+
+  uSunColor?: ShaderUniform<Color>;
+
+  uSunlightIntensity?: ShaderUniform<number>;
+
+  uCloudFogDistanceScale?: ShaderUniform<number>;
+
+  uCloudEndFadeNear?: ShaderUniform<number>;
+
+  uCloudEndFadeFar?: ShaderUniform<number>;
+
+  endFadeNearRatio: number;
+
+  endFadeFarRatio: number;
 };
 
 const defaultOptions: CloudsOptions = {
@@ -134,6 +171,8 @@ const defaultOptions: CloudsOptions = {
   falloff: 0.9,
   seed: -1,
   cloudHeight: 256,
+  endFadeNearRatio: 0.62,
+  endFadeFarRatio: 0.94,
 };
 
 /**
@@ -214,7 +253,37 @@ export class Clouds extends Group {
 
     this.options = { ...defaultOptions, ...options };
 
-    const { seed, color, alpha, uFogNear, uFogFar, uFogColor } = this.options;
+    const {
+      seed,
+      color,
+      alpha,
+      uFogNear,
+      uFogFar,
+      uFogColor,
+      uFogHeightOrigin,
+      uFogHeightDensity,
+      uSkyFogTopColor,
+      uSkyFogMiddleColor,
+      uSkyFogBottomColor,
+      uSkyFogOffset,
+      uSkyFogVoidOffset,
+      uSkyFogExponent,
+      uSkyFogExponent2,
+      uSkyFogDimension,
+      uSkyFogStrength,
+      uSunDirection,
+      uSunColor,
+      uSunlightIntensity,
+      uCloudFogDistanceScale,
+      uCloudEndFadeNear,
+      uCloudEndFadeFar,
+    } = this.options;
+
+    const cloudRadius =
+      (this.options.width *
+        this.options.count *
+        Math.max(this.options.dimensions[0], this.options.dimensions[2])) /
+      2;
 
     if (seed === -1) {
       this.options.seed = Math.floor(Math.random() * 10230123);
@@ -223,12 +292,49 @@ export class Clouds extends Group {
     this.material = new ShaderMaterial({
       transparent: true,
       vertexShader: CloudsVertexShader,
-      fragmentShader: CloudsFragmentShader,
+      fragmentShader: CloudsFragmentShader.replace(
+        "#include <sky_fog_pars_fragment>",
+        SKY_FOG_UNIFORM_DECLARATIONS,
+      ).replace(
+        "#include <sky_fog_fragment>",
+        createSkyFogFragment(
+          "sqrt(dot(fogDiff, fogDiff)) / max(uCloudFogDistanceScale, 0.001)",
+        ),
+      ),
       side: FrontSide,
       uniforms: {
         uFogNear: uFogNear || { value: 500 },
         uFogFar: uFogFar || { value: 1000 },
-        uFogColor: uFogColor || { value: new Color("#fff") },
+        uFogColor: uFogColor || { value: new Color("#B1CCFD") },
+        uFogHeightOrigin: uFogHeightOrigin || { value: 80 },
+        uFogHeightDensity: uFogHeightDensity || { value: 0.005 },
+        uSkyFogTopColor: uSkyFogTopColor || {
+          value: new Color(0.4, 0.6, 0.9),
+        },
+        uSkyFogMiddleColor: uSkyFogMiddleColor || {
+          value: new Color(0.7, 0.8, 0.95),
+        },
+        uSkyFogBottomColor: uSkyFogBottomColor || {
+          value: new Color(0.15, 0.18, 0.25),
+        },
+        uSkyFogOffset: uSkyFogOffset || { value: 0 },
+        uSkyFogVoidOffset: uSkyFogVoidOffset || { value: 1200 },
+        uSkyFogExponent: uSkyFogExponent || { value: 0.6 },
+        uSkyFogExponent2: uSkyFogExponent2 || { value: 1.2 },
+        uSkyFogDimension: uSkyFogDimension || { value: 2000 },
+        uSkyFogStrength: uSkyFogStrength || { value: 1.0 },
+        uSunDirection: uSunDirection || {
+          value: new Vector3(0.5, 1.0, 0.3).normalize(),
+        },
+        uSunColor: uSunColor || { value: new Color(1.0, 0.98, 0.9) },
+        uSunlightIntensity: uSunlightIntensity || { value: 1.0 },
+        uCloudFogDistanceScale: uCloudFogDistanceScale || { value: 8 },
+        uCloudEndFadeNear: uCloudEndFadeNear || {
+          value: cloudRadius * this.options.endFadeNearRatio,
+        },
+        uCloudEndFadeFar: uCloudEndFadeFar || {
+          value: cloudRadius * this.options.endFadeFarRatio,
+        },
         uCloudColor: {
           value: new Color(color),
         },
@@ -435,7 +541,7 @@ export class Clouds extends Group {
     const min = [x * count - 1, 0, z * count - 1];
     const max = [(x + 1) * count + 1, height, (z + 1) * count + 1];
 
-    const data = await new Promise<any>((resolve) =>
+    const data = await new Promise<Uint8Array>((resolve) =>
       this.pool.addJob({
         message: {
           data: array.data,

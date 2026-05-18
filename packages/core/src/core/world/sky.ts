@@ -3,6 +3,7 @@ import {
   Color,
   DodecahedronGeometry,
   Mesh,
+  MeshBasicMaterial,
   ShaderMaterial,
   Vector3,
 } from "three";
@@ -36,12 +37,24 @@ export type SkyOptions = {
   lerpFactor: number;
 
   transitionSpan: number;
+
+  /**
+   * The luminance at which painted sky textures begin to feed bloom. Defaults to `0.72`.
+   */
+  textureBloomThreshold: number;
+
+  /**
+   * The emissive boost applied to painted sky texels above `textureBloomThreshold`. Defaults to `2.0`.
+   */
+  textureBloomIntensity: number;
 };
 
 const defaultOptions: SkyOptions = {
   dimension: 2000,
   lerpFactor: 0.1,
   transitionSpan: 0.05,
+  textureBloomThreshold: 0.72,
+  textureBloomIntensity: 2,
 };
 
 /**
@@ -100,7 +113,17 @@ export class Sky extends CanvasBox {
     value: number;
   };
 
+  public uTextureBloomThreshold: {
+    value: number;
+  };
+
+  public uTextureBloomIntensity: {
+    value: number;
+  };
+
   public shadingData: SkyShadingCycleData[] = [];
+
+  private textureBloomMaterials = new WeakSet<MeshBasicMaterial>();
 
   /**
    * Create a new sky instance.
@@ -126,6 +149,13 @@ export class Sky extends CanvasBox {
       ...options,
     };
 
+    this.uTextureBloomThreshold = {
+      value: this.options.textureBloomThreshold,
+    };
+    this.uTextureBloomIntensity = {
+      value: this.options.textureBloomIntensity,
+    };
+
     this.boxMaterials.forEach((m) => (m.depthWrite = false));
     this.frustumCulled = false;
     this.renderOrder = -1;
@@ -135,6 +165,13 @@ export class Sky extends CanvasBox {
       layer.frustumCulled = false;
     });
 
+    const paintSkyTexture = this.paint.bind(this);
+    this.paint = (side, art, layer = 0) => {
+      this.applyTextureBloomToMaterials();
+      paintSkyTexture(side, art, layer);
+    };
+
+    this.applyTextureBloomToMaterials();
     this.createSkyShading();
   }
 
@@ -197,6 +234,8 @@ export class Sky extends CanvasBox {
    * @param position The new position to center the sky at.
    */
   update = (position: Vector3, time: number, timePerDay: number) => {
+    this.applyTextureBloomToMaterials();
+
     this.rotation.z = Math.PI * 2 * (time / timePerDay);
 
     ["top", "right", "left", "front", "back"].forEach((face) => {
@@ -378,5 +417,50 @@ export class Sky extends CanvasBox {
 
     // We use attach here so that the sky shading is not affected by the box's rotation.
     this.attach(shadingMesh);
+  };
+
+  private applyTextureBloomToMaterials = () => {
+    this.boxLayers.forEach((layer) => {
+      layer.renderOrder = -1;
+      layer.frustumCulled = false;
+
+      layer.materials.forEach((material) => {
+        material.depthWrite = false;
+
+        if (this.textureBloomMaterials.has(material)) {
+          return;
+        }
+
+        const originalOnBeforeCompile = material.onBeforeCompile;
+        material.onBeforeCompile = (shader, renderer) => {
+          originalOnBeforeCompile(shader, renderer);
+          shader.uniforms.uSkyTextureBloomThreshold =
+            this.uTextureBloomThreshold;
+          shader.uniforms.uSkyTextureBloomIntensity =
+            this.uTextureBloomIntensity;
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              "#include <common>",
+              `
+#include <common>
+uniform float uSkyTextureBloomThreshold;
+uniform float uSkyTextureBloomIntensity;
+`,
+            )
+            .replace(
+              "#include <map_fragment>",
+              `
+#include <map_fragment>
+float skyTextureBloomLuminance = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+float skyTextureBloomMask = smoothstep(uSkyTextureBloomThreshold, 1.0, skyTextureBloomLuminance) * diffuseColor.a;
+diffuseColor.rgb *= 1.0 + skyTextureBloomMask * uSkyTextureBloomIntensity;
+`,
+            );
+        };
+        material.onBeforeCompile.toString = () => "sky-texture-bloom-shader";
+        material.needsUpdate = true;
+        this.textureBloomMaterials.add(material);
+      });
+    });
   };
 }

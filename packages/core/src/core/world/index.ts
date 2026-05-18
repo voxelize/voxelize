@@ -48,7 +48,6 @@ import {
 } from "../../common";
 import { NetIntercept } from "../../core/network";
 import {
-  TransparentMeshData,
   prepareTransparentMesh,
   sortTransparentMesh,
 } from "../../core/transparent-sorter";
@@ -698,6 +697,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   public csmRenderer: CSMRenderer | null = null;
 
   private aabbOverrides = new Map<string, AABB[]>();
+  private waterRefractionFrame = -1;
 
   setAABBOverride = (voxel: Coords3, aabbs: AABB[]) => {
     this.aabbOverrides.set(ChunkUtils.getVoxelName(voxel), aabbs);
@@ -710,6 +710,63 @@ export class World<T = any> extends Scene implements NetIntercept {
   getAABBOverride = (voxel: Coords3): AABB[] | undefined => {
     return this.aabbOverrides.get(ChunkUtils.getVoxelName(voxel));
   };
+
+  private captureWaterRefraction(renderer: WebGLRenderer) {
+    const { sceneColor, sceneTextureSize, waterRefractionReady } =
+      this.chunkRenderer.uniforms;
+    const size = renderer.getDrawingBufferSize(sceneTextureSize.value);
+    const width = Math.max(1, Math.floor(size.x));
+    const height = Math.max(1, Math.floor(size.y));
+    const image = sceneColor.value.image;
+
+    if (image.width !== width || image.height !== height) {
+      image.width = width;
+      image.height = height;
+      sceneColor.value.needsUpdate = true;
+      sceneTextureSize.value.set(width, height);
+    }
+
+    const frame = renderer.info.render.frame;
+    if (this.waterRefractionFrame === frame) {
+      return;
+    }
+
+    renderer.copyFramebufferToTexture(sceneColor.value);
+    waterRefractionReady.value = 1;
+    this.waterRefractionFrame = frame;
+  }
+
+  private configureTransparentChunkMesh(
+    mesh: Mesh,
+    voxel: number,
+    material: CustomChunkShaderMaterial,
+  ) {
+    const block = this.getBlockByIdSafe(voxel);
+    const isFluid = block?.isFluid ?? false;
+    const sortData = !material.depthWrite ? prepareTransparentMesh(mesh) : null;
+
+    mesh.renderOrder = isFluid
+      ? TRANSPARENT_FLUID_RENDER_ORDER
+      : TRANSPARENT_RENDER_ORDER;
+
+    if (sortData) {
+      mesh.userData.transparentSortData = sortData;
+    }
+
+    if (sortData || isFluid) {
+      mesh.onBeforeRender = (renderer, _scene, camera) => {
+        if (sortData) {
+          sortTransparentMesh(mesh, sortData, camera);
+        }
+
+        if (isFluid) {
+          this.captureWaterRefraction(renderer);
+        }
+      };
+    }
+
+    this.csmRenderer?.addSkipShadowObject(mesh);
+  }
 
   /**
    * Whether or not this world is connected to the server and initialized with data from the server.
@@ -4626,24 +4683,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           voxel: isSingleVoxelMesh ? voxel : undefined,
         };
         if (material.transparent) {
-          const block = this.getBlockByIdSafe(voxel);
-          mesh.renderOrder = block?.isFluid
-            ? TRANSPARENT_FLUID_RENDER_ORDER
-            : TRANSPARENT_RENDER_ORDER;
-          if (!material.depthWrite) {
-            const sortData = prepareTransparentMesh(mesh);
-            if (sortData) {
-              mesh.userData.transparentSortData = sortData;
-              mesh.onBeforeRender = (_renderer, _scene, camera) => {
-                sortTransparentMesh(
-                  mesh,
-                  mesh.userData.transparentSortData as TransparentMeshData,
-                  camera,
-                );
-              };
-            }
-          }
-          this.csmRenderer?.addSkipShadowObject(mesh);
+          this.configureTransparentChunkMesh(mesh, voxel, material);
         }
 
         chunk.group.add(mesh);
@@ -4717,24 +4757,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           ),
         };
         if (material.transparent) {
-          const block = this.getBlockByIdSafe(voxel);
-          mesh.renderOrder = block?.isFluid
-            ? TRANSPARENT_FLUID_RENDER_ORDER
-            : TRANSPARENT_RENDER_ORDER;
-          if (!material.depthWrite) {
-            const sortData = prepareTransparentMesh(mesh);
-            if (sortData) {
-              mesh.userData.transparentSortData = sortData;
-              mesh.onBeforeRender = (_renderer, _scene, camera) => {
-                sortTransparentMesh(
-                  mesh,
-                  mesh.userData.transparentSortData as TransparentMeshData,
-                  camera,
-                );
-              };
-            }
-          }
-          this.csmRenderer?.addSkipShadowObject(mesh);
+          this.configureTransparentChunkMesh(mesh, voxel, material);
         }
 
         chunk.group.add(mesh);
@@ -4800,12 +4823,48 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightMargin: 32,
     });
 
-    if (!cloudsOptions.uFogColor) {
-      cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
-    }
+    const chunkUniforms = {
+      ...this.chunkRenderer.uniforms,
+      ...this.options.chunkUniformsOverwrite,
+    };
 
     this.sky = new Sky(skyOptions);
-    this.clouds = new Clouds(cloudsOptions);
+    this.clouds = new Clouds({
+      ...cloudsOptions,
+      uFogColor: cloudsOptions.uFogColor ?? chunkUniforms.fogColor,
+      uFogHeightOrigin:
+        cloudsOptions.uFogHeightOrigin ?? chunkUniforms.fogHeightOrigin,
+      uFogHeightDensity:
+        cloudsOptions.uFogHeightDensity ?? chunkUniforms.fogHeightDensity,
+      uSkyFogTopColor:
+        cloudsOptions.uSkyFogTopColor ?? chunkUniforms.skyFogTopColor,
+      uSkyFogMiddleColor:
+        cloudsOptions.uSkyFogMiddleColor ?? chunkUniforms.skyFogMiddleColor,
+      uSkyFogBottomColor:
+        cloudsOptions.uSkyFogBottomColor ?? chunkUniforms.skyFogBottomColor,
+      uSkyFogOffset: cloudsOptions.uSkyFogOffset ?? chunkUniforms.skyFogOffset,
+      uSkyFogVoidOffset:
+        cloudsOptions.uSkyFogVoidOffset ?? chunkUniforms.skyFogVoidOffset,
+      uSkyFogExponent:
+        cloudsOptions.uSkyFogExponent ?? chunkUniforms.skyFogExponent,
+      uSkyFogExponent2:
+        cloudsOptions.uSkyFogExponent2 ?? chunkUniforms.skyFogExponent2,
+      uSkyFogDimension:
+        cloudsOptions.uSkyFogDimension ?? chunkUniforms.skyFogDimension,
+      uSkyFogStrength:
+        cloudsOptions.uSkyFogStrength ?? chunkUniforms.skyFogStrength,
+      uCloudEndFadeNear:
+        cloudsOptions.uCloudEndFadeNear ?? chunkUniforms.fogNear,
+      uCloudEndFadeFar: cloudsOptions.uCloudEndFadeFar ?? chunkUniforms.fogFar,
+      uSunDirection:
+        cloudsOptions.uSunDirection ??
+        this.chunkRenderer.shaderLightingUniforms.sunDirection,
+      uSunColor:
+        cloudsOptions.uSunColor ??
+        this.chunkRenderer.shaderLightingUniforms.sunColor,
+      uSunlightIntensity:
+        cloudsOptions.uSunlightIntensity ?? chunkUniforms.sunlightIntensity,
+    });
 
     this.add(this.sky, this.clouds);
 
@@ -6149,6 +6208,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         uSkyFogExponent2: chunksUniforms.skyFogExponent2,
         uSkyFogDimension: chunksUniforms.skyFogDimension,
         uSkyFogStrength: chunksUniforms.skyFogStrength,
+        uSceneColor: chunksUniforms.sceneColor,
+        uSceneTextureSize: chunksUniforms.sceneTextureSize,
+        uWaterRefractionReady: chunksUniforms.waterRefractionReady,
+        uWaterRefractionStrength: chunksUniforms.waterRefractionStrength,
         uWindDirection: chunksUniforms.windDirection,
         uWindOffset: chunksUniforms.windOffset,
         uWindSpeed: chunksUniforms.windSpeed,

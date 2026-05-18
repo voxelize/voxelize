@@ -23,6 +23,8 @@ import { World } from "./world";
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
 
+type SwimState = "upright" | "swimming" | "idleStanding";
+
 function rotateY(a: number[], b: number[], c: number) {
   const bx = b[0];
   const bz = b[2];
@@ -489,6 +491,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private _swimMoveScratch = new Vector3();
 
   private _wasSwimming = false;
+
+  private _swimState: SwimState = "upright";
 
   private _swimIdleStartedAt = -1;
 
@@ -1132,26 +1136,21 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   }
 
   get isSwimming() {
-    return this.isSwimmingActive();
+    return this._swimState === "swimming";
   }
 
   get isSwimmingIdleStanding() {
-    if (!this.isSwimmingActive()) return false;
-    if (this._swimIdleStartedAt < 0) return false;
-
-    return (
-      performance.now() - this._swimIdleStartedAt >=
-      this.options.swimIdleStandDelay
-    );
+    return this._swimState === "idleStanding";
   }
 
   get isSwimPoseActive() {
-    return this.isSwimmingActive() && !this.isSwimmingIdleStanding;
+    return this._swimState === "swimming";
   }
 
   restoreSwimming = () => {
     if (this.ghostMode || this.flyMode) return;
 
+    this._swimState = "swimming";
     this._swimRestoreGraceFrames = this.options.swimRestoreGraceFrames;
     this.body.isSwimming = true;
     this.updateSwimAABB();
@@ -1279,7 +1278,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       : 1;
   };
 
-  private isSwimmingActive = (): boolean => {
+  private isSubmergedForSwimming = (): boolean => {
     return (
       this.body.gravityMultiplier > 0 &&
       (this._swimRestoreGraceFrames > 0 ||
@@ -1289,23 +1288,53 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     );
   };
 
-  private updateSwimIdleState = (isSwimming: boolean) => {
-    if (!isSwimming) {
+  private hasSwimMovementInput = (): boolean => {
+    const { front, back, left, right, up, down } = this.movements;
+    return front || back || left || right || up || down || this.state.jumping;
+  };
+
+  private updateSwimState = (): SwimState => {
+    if (!this.isSubmergedForSwimming() || this.state.crouching) {
+      this._swimState = "upright";
       this._swimIdleStartedAt = -1;
-      return;
+      return this._swimState;
     }
 
-    const { front, back, left, right, up, down } = this.movements;
-    const hasMovementInput =
-      front || back || left || right || up || down || this.state.jumping;
-    if (hasMovementInput || this.state.running) {
+    if (this.state.sprinting) {
+      this._swimState = "swimming";
       this._swimIdleStartedAt = -1;
-      return;
+      return this._swimState;
+    }
+
+    const hasSwimMovementInput =
+      this.hasSwimMovementInput() || this.state.running;
+
+    if (this._swimState !== "swimming") {
+      if (this._swimState === "idleStanding" && hasSwimMovementInput) {
+        this._swimState = "upright";
+      }
+
+      this._swimIdleStartedAt = -1;
+      return this._swimState;
+    }
+
+    if (hasSwimMovementInput) {
+      this._swimIdleStartedAt = -1;
+      return this._swimState;
     }
 
     if (this._swimIdleStartedAt < 0) {
       this._swimIdleStartedAt = performance.now();
+      return this._swimState;
     }
+
+    const swimIdleDuration = performance.now() - this._swimIdleStartedAt;
+    if (swimIdleDuration >= this.options.swimIdleStandDelay) {
+      this._swimState = "idleStanding";
+      this._swimIdleStartedAt = -1;
+    }
+
+    return this._swimState;
   };
 
   private restoreAxisAlignedAABB = (preserveMinY = false) => {
@@ -1387,11 +1416,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const side = right ? (left ? 0 : 1) : left ? -1 : 0;
 
     if (this.state.jumping) {
-      this.body.applyImpulse([
-        this._lookDirection.x * fluidPushForce,
-        this._lookDirection.y * fluidPushForce,
-        this._lookDirection.z * fluidPushForce,
-      ]);
+      this.body.applyImpulse([0, fluidPushForce, 0]);
     }
     this.state.isJumping = false;
 
@@ -1463,7 +1488,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     } = this.options;
 
     if (this.body.gravityMultiplier) {
-      this.body.isSwimming = this.isSwimmingActive();
+      const isSwimming = this.updateSwimState() === "swimming";
+      this.body.isSwimming = isSwimming;
 
       // ladder climbing
       if (this.body.onClimbable) {
@@ -1495,14 +1521,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         }
       }
 
-      const isSwimming = this.isSwimmingActive();
-      this.updateSwimIdleState(isSwimming);
-      const isSwimPoseActive = this.isSwimPoseActive;
-
-      if (isSwimPoseActive) {
+      if (isSwimming) {
         this.applySwimmingMovement();
-      } else if (isSwimming) {
-        this.body.friction = standingFriction * 0.1;
       } else {
         // jumping
         const onGround = this.body.atRestY < 0;
@@ -1605,6 +1625,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         }
       }
     } else {
+      this._swimState = "upright";
+      this._swimIdleStartedAt = -1;
       this.body.isSwimming = false;
       this.body.velocity[0] -= this.body.velocity[0] * flyInertia * dt;
       this.body.velocity[1] -= this.body.velocity[1] * flyInertia * dt;

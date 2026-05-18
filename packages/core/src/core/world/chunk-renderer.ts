@@ -1,6 +1,22 @@
-import { Color, Matrix4, Texture, Vector2, Vector3, Vector4 } from "three";
+import {
+  Color,
+  FramebufferTexture,
+  LinearFilter,
+  Matrix4,
+  Texture,
+  Vector2,
+  Vector3,
+  Vector4,
+} from "three";
 
 import { CustomChunkShaderMaterial } from ".";
+
+function makeSceneColorTexture() {
+  const texture = new FramebufferTexture(1, 1);
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  return texture;
+}
 
 export interface ShaderLightingUniforms {
   sunDirection: { value: Vector3 };
@@ -62,6 +78,10 @@ export class ChunkRenderer {
     skyFogExponent2: { value: number };
     skyFogDimension: { value: number };
     skyFogStrength: { value: number };
+    sceneColor: { value: FramebufferTexture };
+    sceneTextureSize: { value: Vector2 };
+    waterRefractionReady: { value: number };
+    waterRefractionStrength: { value: number };
   } = {
     fogColor: { value: new Color("#B1CCFD") },
     fogNear: { value: 100 },
@@ -88,6 +108,10 @@ export class ChunkRenderer {
     skyFogExponent2: { value: 1.2 },
     skyFogDimension: { value: 2000 },
     skyFogStrength: { value: 1.0 },
+    sceneColor: { value: makeSceneColorTexture() },
+    sceneTextureSize: { value: new Vector2(1, 1) },
+    waterRefractionReady: { value: 0 },
+    waterRefractionStrength: { value: 0.08 },
   };
 
   public shaderLightingUniforms: ShaderLightingUniforms = {
@@ -111,11 +135,11 @@ export class ChunkRenderer {
     shadowSideFaceBiasScale: { value: 0.35 },
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
-    waterTint: { value: new Color(0.2, 0.52, 0.78) },
-    waterAbsorption: { value: 0.36 },
+    waterTint: { value: new Color("#1F8BD8") },
+    waterAbsorption: { value: 0.16 },
     waterLevel: { value: 86 },
-    waterStreakStrength: { value: 0.08 },
-    waterFresnelStrength: { value: 0.38 },
+    waterStreakStrength: { value: 0.1 },
+    waterFresnelStrength: { value: 0.5 },
     skyTopColor: { value: new Color(0.4, 0.6, 0.9) },
     skyMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
     shadowDebugMode: { value: 0 },
