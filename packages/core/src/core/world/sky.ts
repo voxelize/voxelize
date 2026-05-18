@@ -440,11 +440,12 @@ export class Sky extends CanvasBox {
             this.uTextureBloomIntensity;
           shader.fragmentShader = shader.fragmentShader
             .replace(
-              "#include <common>",
+              "void main() {",
               `
-#include <common>
 uniform float uSkyTextureBloomThreshold;
 uniform float uSkyTextureBloomIntensity;
+
+void main() {
 `,
             )
             .replace(
