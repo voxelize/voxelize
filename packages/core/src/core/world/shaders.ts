@@ -202,6 +202,8 @@ uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
 
 uniform vec3 uAmbientColor;
+uniform float uMinLightLevel;
+uniform float uBaseAmbient;
 
 uniform sampler2D uShadowMap0;
 uniform sampler2D uShadowMap1;
@@ -250,10 +252,27 @@ float shadowMapEdgeFade(vec3 coord) {
   return fx * fy;
 }
 
+const float SHADOW_RECEIVER_PLANE_EPSILON = 0.000001;
+
+vec2 shadowReceiverPlaneDepthBias(vec3 coord) {
+  vec3 dx = dFdx(coord);
+  vec3 dy = dFdy(coord);
+  float determinant = dx.x * dy.y - dx.y * dy.x;
+  if (abs(determinant) < SHADOW_RECEIVER_PLANE_EPSILON) {
+    return vec2(0.0);
+  }
+
+  return vec2(
+    (dy.y * dx.z - dx.y * dy.z) / determinant,
+    (dx.x * dy.z - dy.x * dx.z) / determinant
+  );
+}
+
 
 float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias, float receiverBiasScale) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
+  vec2 receiverPlaneBias = shadowReceiverPlaneDepthBias(coord);
 
   if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {
     return 1.0;
@@ -262,11 +281,21 @@ float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias
   float bias = (uShadowBias + slopeBias) * receiverBiasScale;
   vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));
 
-  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
-  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, -1.0)).r) ? 0.0 : 1.0;
-  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, -1.0)).r) ? 0.0 : 1.0;
-  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, 1.0)).r) ? 0.0 : 1.0;
-  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, 1.0)).r) ? 0.0 : 1.0;
+  vec2 offset = vec2(0.0);
+  float receiverDepth = coord.z + dot(receiverPlaneBias, offset);
+  float shadow = (receiverDepth - bias > texture(shadowMap, coord.xy + offset).r) ? 0.0 : 1.0;
+  offset = texelSize * vec2(-1.0, -1.0);
+  receiverDepth = coord.z + dot(receiverPlaneBias, offset);
+  shadow += (receiverDepth - bias > texture(shadowMap, coord.xy + offset).r) ? 0.0 : 1.0;
+  offset = texelSize * vec2(1.0, -1.0);
+  receiverDepth = coord.z + dot(receiverPlaneBias, offset);
+  shadow += (receiverDepth - bias > texture(shadowMap, coord.xy + offset).r) ? 0.0 : 1.0;
+  offset = texelSize * vec2(-1.0, 1.0);
+  receiverDepth = coord.z + dot(receiverPlaneBias, offset);
+  shadow += (receiverDepth - bias > texture(shadowMap, coord.xy + offset).r) ? 0.0 : 1.0;
+  offset = texelSize * vec2(1.0, 1.0);
+  receiverDepth = coord.z + dot(receiverPlaneBias, offset);
+  shadow += (receiverDepth - bias > texture(shadowMap, coord.xy + offset).r) ? 0.0 : 1.0;
 
   shadow /= 5.0;
   return mix(1.0, shadow, shadowMapEdgeFade(coord));
@@ -286,6 +315,7 @@ const vec2 POISSON_DISK[8] = vec2[8](
 float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias, float receiverBiasScale) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
+  vec2 receiverPlaneBias = shadowReceiverPlaneDepthBias(coord);
 
   if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {
     return 1.0;
@@ -301,7 +331,8 @@ float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias, fl
       float weight = (3.0 - abs(float(x))) * (3.0 - abs(float(y)));
       vec2 offset = vec2(float(x), float(y)) * texelSize;
       float depth = texture(shadowMap, coord.xy + offset).r;
-      shadow += weight * ((coord.z - bias > depth) ? 0.0 : 1.0);
+      float receiverDepth = coord.z + dot(receiverPlaneBias, offset);
+      shadow += weight * ((receiverDepth - bias > depth) ? 0.0 : 1.0);
       totalWeight += weight;
     }
   }
@@ -448,10 +479,12 @@ vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
 float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
 vec3 torchLight = smoothTorch * 1.2;
 
-vec3 globalAmbient = vec3(0.025, 0.03, 0.04);
+float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
+float sunVisibility = smoothstep(0.0, 1.0, sunExposure);
+vec3 globalAmbient = vec3(0.025, 0.03, 0.04) + uAmbientColor * ambientFloor;
 
-float ambientOcclusion = mix(0.65, 1.0, shadow);
-float tunnelDarkening = sunExposure * sunExposure;
+float ambientOcclusion = mix(0.72, 1.0, shadow);
+float tunnelDarkening = mix(ambientFloor, 1.0, sunVisibility);
 
 float hemisphereBlend = vWorldNormal.y * 0.5 + 0.5;
 vec3 groundColor = uAmbientColor * 0.4;
@@ -484,6 +517,9 @@ totalLight *= enhancedAO;
 
 totalLight = (totalLight * (2.51 * totalLight + 0.03))
            / (totalLight * (2.43 * totalLight + 0.59) + 0.14);
+vec3 darknessFloor = vec3(ambientFloor) *
+  mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility);
+totalLight = max(totalLight, darknessFloor);
 outgoingLight.rgb *= totalLight;
 
 if (vIsFluid > 0.5) {

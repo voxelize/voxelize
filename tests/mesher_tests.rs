@@ -1,6 +1,7 @@
 use voxelize::{
     Block, Chunk, ChunkOptions, Chunks, Mesher, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
+use voxelize_core::VoxelAccess as MesherVoxelAccess;
 
 fn create_test_config_with_greedy(greedy: bool) -> WorldConfig {
     WorldConfig {
@@ -19,6 +20,34 @@ fn create_test_registry() -> Registry {
     registry.register_block(&Block::new("stone").id(1).build());
 
     registry
+}
+
+fn mesh_space_for_test<S: VoxelAccess + MesherVoxelAccess>(
+    min: &Vec3<i32>,
+    max: &Vec3<i32>,
+    space: &S,
+    registry: &Registry,
+) -> Vec<voxelize_mesher::GeometryProtocol> {
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mut mesher_registry = registry.to_mesher_registry();
+    mesher_registry.build_cache();
+
+    voxelize_mesher::mesh_space(&min_arr, &max_arr, space, &mesher_registry)
+}
+
+fn mesh_space_greedy_for_test<S: VoxelAccess + MesherVoxelAccess>(
+    min: &Vec3<i32>,
+    max: &Vec3<i32>,
+    space: &S,
+    registry: &Registry,
+) -> Vec<voxelize_mesher::GeometryProtocol> {
+    let min_arr = [min.0, min.1, min.2];
+    let max_arr = [max.0, max.1, max.2];
+    let mut mesher_registry = registry.to_mesher_registry();
+    mesher_registry.build_cache();
+
+    voxelize_mesher::mesh_space_greedy(&min_arr, &max_arr, space, &mesher_registry)
 }
 
 #[test]
@@ -40,7 +69,7 @@ fn test_mesh_empty_space() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     assert!(
         geometries.is_empty(),
@@ -76,7 +105,7 @@ fn test_mesh_single_block() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     assert!(
         !geometries.is_empty(),
@@ -130,7 +159,7 @@ fn test_mesh_surrounded_block() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     if geometries.is_empty() {
         return;
@@ -181,7 +210,7 @@ fn test_mesh_layer() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     assert!(!geometries.is_empty(), "Layer should produce geometry");
 
@@ -257,7 +286,7 @@ fn test_mesh_produces_valid_geometry() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     for geometry in geometries {
         assert_eq!(
@@ -312,8 +341,8 @@ fn test_greedy_meshing_layer() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let greedy_geometries = Mesher::mesh_space_greedy(&min, &max, &space, &registry);
-    let naive_geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let greedy_geometries = mesh_space_greedy_for_test(&min, &max, &space, &registry);
+    let naive_geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     assert!(
         !greedy_geometries.is_empty(),
@@ -363,7 +392,7 @@ fn test_greedy_meshing_valid_geometry() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = Mesher::mesh_space_greedy(&min, &max, &space, &registry);
+    let geometries = mesh_space_greedy_for_test(&min, &max, &space, &registry);
 
     for geometry in geometries {
         assert_eq!(
@@ -418,7 +447,7 @@ fn test_greedy_meshing_disabled() {
     let min = Vec3(0, 0, 0);
     let max = Vec3(16, 16, 16);
 
-    let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
+    let geometries = mesh_space_for_test(&min, &max, &space, &registry);
 
     assert!(
         !geometries.is_empty(),

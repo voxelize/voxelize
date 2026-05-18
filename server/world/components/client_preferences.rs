@@ -18,10 +18,6 @@ impl ClientPreferences {
             self.client_only_meshing = client_only_meshing;
         }
     }
-
-    pub fn wants_server_meshes(&self) -> bool {
-        !self.client_only_meshing
-    }
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]

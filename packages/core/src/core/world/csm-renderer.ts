@@ -27,6 +27,9 @@ export interface CSMConfig {
   shadowSlopeBiasMin: number;
   shadowTopFaceBiasScale: number;
   shadowSideFaceBiasScale: number;
+  isDepthPolygonOffsetEnabled: boolean;
+  depthPolygonOffsetFactor: number;
+  depthPolygonOffsetUnits: number;
   lightMargin: number;
   shadowCasterDistance: number;
 }
@@ -48,6 +51,9 @@ const defaultConfig: CSMConfig = {
   shadowSlopeBiasMin: 0.00012,
   shadowTopFaceBiasScale: 0.2,
   shadowSideFaceBiasScale: 0.35,
+  isDepthPolygonOffsetEnabled: true,
+  depthPolygonOffsetFactor: 1.0,
+  depthPolygonOffsetUnits: 4.0,
   lightMargin: 32,
   shadowCasterDistance: 200,
 };
@@ -70,7 +76,7 @@ export class CSMRenderer {
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
-  private entityBatchGroup = new Group();
+  private entityBatchScene = new Scene();
 
   private frustumCenter = new Vector3();
   private frustumCameraDir = new Vector3();
@@ -88,6 +94,9 @@ export class CSMRenderer {
 
     this.depthMaterial = new MeshDepthMaterial({
       depthPacking: RGBADepthPacking,
+      polygonOffset: this.config.isDepthPolygonOffsetEnabled,
+      polygonOffsetFactor: this.config.depthPolygonOffsetFactor,
+      polygonOffsetUnits: this.config.depthPolygonOffsetUnits,
     });
     this.initCascades();
   }
@@ -432,7 +441,7 @@ export class CSMRenderer {
       ) {
         scene.overrideMaterial = null;
         for (const pool of instancePools) {
-          renderer.render(pool as unknown as Scene, cascade.camera);
+          renderer.render(pool, cascade.camera);
         }
         scene.overrideMaterial = this.depthMaterial;
       }
@@ -448,21 +457,20 @@ export class CSMRenderer {
           if (distSq >= maxDistSq) continue;
           if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
           originalParents.set(entity, entity.parent);
-          this.entityBatchGroup.add(entity);
+          this.entityBatchScene.add(entity);
         }
-        if (this.entityBatchGroup.children.length > 0) {
-          const batchAsScene = this.entityBatchGroup as unknown as Scene;
-          batchAsScene.overrideMaterial = this.depthMaterial;
-          renderer.render(batchAsScene, cascade.camera);
-          batchAsScene.overrideMaterial = null;
+        if (this.entityBatchScene.children.length > 0) {
+          this.entityBatchScene.overrideMaterial = this.depthMaterial;
+          renderer.render(this.entityBatchScene, cascade.camera);
+          this.entityBatchScene.overrideMaterial = null;
           for (const [entity, originalParent] of originalParents) {
             if (originalParent) {
               originalParent.add(entity);
             } else {
-              this.entityBatchGroup.remove(entity);
+              this.entityBatchScene.remove(entity);
             }
           }
-          this.entityBatchGroup.children.length = 0;
+          this.entityBatchScene.children.length = 0;
         }
       }
 

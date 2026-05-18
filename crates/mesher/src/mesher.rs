@@ -2492,13 +2492,7 @@ pub fn mesh_chunk_with_registry_chunks(
 }
 
 pub fn mesh_chunk_with_registry(input: MeshInputNoRegistry, registry: &Registry) -> MeshOutput {
-    mesh_chunk_with_registry_chunks(
-        &input.chunks,
-        input.min,
-        input.max,
-        input.config,
-        registry,
-    )
+    mesh_chunk_with_registry_chunks(&input.chunks, input.min, input.max, input.config, registry)
 }
 
 #[cfg(test)]

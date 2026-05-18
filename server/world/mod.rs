@@ -1,5 +1,4 @@
 mod bookkeeping;
-mod client_preferences;
 mod clients;
 mod components;
 mod config;
@@ -58,7 +57,6 @@ use crate::{
 use super::common::ClientFilter;
 
 pub use bookkeeping::*;
-pub use client_preferences::*;
 pub use clients::*;
 pub use components::*;
 pub use config::*;

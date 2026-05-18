@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::collections::VecDeque;
 use voxelize::{
     Block, Chunk, ChunkOptions, Chunks, LightColor, LightNode, Lights, Registry, Vec2, Vec3,
     WorldConfig,
@@ -101,10 +102,10 @@ fn bench_flood_light(c: &mut Criterion) {
             let min = Vec3(0, 0, 0);
             let shape = Vec3(16, 64, 16);
 
-            let mut queue = Vec::new();
+            let mut queue = VecDeque::new();
             for x in 0..16 {
                 for z in 0..16 {
-                    queue.push(LightNode {
+                    queue.push_back(LightNode {
                         voxel: [x, 32, z],
                         level: 15,
                     });

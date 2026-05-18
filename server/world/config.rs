@@ -101,6 +101,9 @@ pub struct WorldConfig {
     /// Whether to use greedy meshing for chunk generation. Default is true.
     pub greedy_meshing: bool,
 
+    /// Whether chunk geometry should only be built by clients. Default is true.
+    pub client_only_meshing: bool,
+
     /// Whether to use shader-based lighting instead of CPU light propagation. Default is false.
     pub shader_based_lighting: bool,
 
@@ -154,6 +157,7 @@ const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
 const DEFAULT_GREEDY_MESHING: bool = true;
+const DEFAULT_CLIENT_ONLY_MESHING: bool = true;
 const DEFAULT_SHADER_BASED_LIGHTING: bool = false;
 
 /// Builder for a world configuration.
@@ -190,6 +194,7 @@ pub struct WorldConfigBuilder {
     command_symbol: String,
     save_entities: bool,
     greedy_meshing: bool,
+    client_only_meshing: bool,
     shader_based_lighting: bool,
     entity_visible_radius: f32,
 }
@@ -230,6 +235,7 @@ impl WorldConfigBuilder {
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
             save_entities: true,
             greedy_meshing: DEFAULT_GREEDY_MESHING,
+            client_only_meshing: DEFAULT_CLIENT_ONLY_MESHING,
             shader_based_lighting: DEFAULT_SHADER_BASED_LIGHTING,
             entity_visible_radius: 0.0,
         }
@@ -404,6 +410,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure whether chunk geometry should only be built by clients. Default is true.
+    pub fn client_only_meshing(mut self, client_only_meshing: bool) -> Self {
+        self.client_only_meshing = client_only_meshing;
+        self
+    }
+
     /// Configure whether to use shader-based lighting instead of CPU light propagation. Default is false.
     pub fn shader_based_lighting(mut self, shader_based_lighting: bool) -> Self {
         self.shader_based_lighting = shader_based_lighting;
@@ -463,6 +475,7 @@ impl WorldConfigBuilder {
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
             greedy_meshing: self.greedy_meshing,
+            client_only_meshing: self.client_only_meshing,
             shader_based_lighting: self.shader_based_lighting,
             entity_visible_radius: if self.entity_visible_radius > 0.0 {
                 self.entity_visible_radius

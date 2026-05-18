@@ -2,9 +2,8 @@ use hashbrown::{HashMap, HashSet};
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    client_wants_server_meshes, ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus,
-    Chunks, ClientFilter, ClientPreferencesComp, Clients, IDComp, Mesher, Message, MessageQueues,
-    MessageType, Pipeline, Vec2, WorldConfig, WorldTimingContext,
+    ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
+    Mesher, Message, MessageQueues, MessageType, Pipeline, Vec2, WorldConfig, WorldTimingContext,
 };
 
 pub struct ChunkRequestsSystem;
@@ -13,8 +12,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     type SystemData = (
         ReadExpect<'a, Chunks>,
         ReadExpect<'a, WorldConfig>,
-        ReadExpect<'a, Clients>,
-        ReadStorage<'a, ClientPreferencesComp>,
         WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
@@ -28,8 +25,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let (
             chunks,
             config,
-            clients,
-            preferences,
             mut interests,
             mut pipeline,
             mut mesher,
@@ -79,7 +74,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         }
 
         for (id, coords) in to_send {
-            let include_meshes = client_wants_server_meshes(&clients, &id, &preferences);
+            let include_meshes = !config.client_only_meshing;
             let chunks: Vec<ChunkProtocol> = coords
                 .into_iter()
                 .filter_map(|coords| {

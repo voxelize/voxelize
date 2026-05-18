@@ -104,6 +104,7 @@ impl Mesher {
 
         let sender = Arc::clone(&self.sender);
         let r#type = r#type.clone();
+        let is_load = r#type == MessageType::Load;
         let registry = Arc::new(registry.clone());
         let config = Arc::new(config.clone());
 
@@ -129,7 +130,7 @@ impl Mesher {
                     let blocks_per_sub_chunk =
                         (space.options.max_height / space.options.sub_chunks) as i32;
 
-                    if chunk.meshes.is_none() {
+                    if is_load {
                         let mut light_queues = vec![VecDeque::new(); 4];
 
                         for dx in -1..=1 {
@@ -176,51 +177,56 @@ impl Mesher {
                             Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
 
-                    let mut mesher_registry = registry.to_mesher_registry();
-                    mesher_registry.build_cache();
+                    if config.client_only_meshing {
+                        chunk.meshes = None;
+                    } else {
+                        let mut mesher_registry = registry.to_mesher_registry();
+                        mesher_registry.build_cache();
 
-                    for level in sub_chunks {
-                        let level = level as i32;
+                        for level in sub_chunks {
+                            let level = level as i32;
 
-                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                            let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                            let max =
+                                Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                        let min_arr = [min.0, min.1, min.2];
-                        let max_arr = [max.0, max.1, max.2];
+                            let min_arr = [min.0, min.1, min.2];
+                            let max_arr = [max.0, max.1, max.2];
 
-                        let mesher_geometries = if config.greedy_meshing {
-                            voxelize_mesher::mesh_space_greedy(
-                                &min_arr,
-                                &max_arr,
-                                &space,
-                                &mesher_registry,
-                            )
-                        } else {
-                            voxelize_mesher::mesh_space(
-                                &min_arr,
-                                &max_arr,
-                                &space,
-                                &mesher_registry,
-                            )
-                        };
+                            let mesher_geometries = if config.greedy_meshing {
+                                voxelize_mesher::mesh_space_greedy(
+                                    &min_arr,
+                                    &max_arr,
+                                    &space,
+                                    &mesher_registry,
+                                )
+                            } else {
+                                voxelize_mesher::mesh_space(
+                                    &min_arr,
+                                    &max_arr,
+                                    &space,
+                                    &mesher_registry,
+                                )
+                            };
 
-                        let geometries: Vec<GeometryProtocol> = mesher_geometries
-                            .into_iter()
-                            .map(|g| GeometryProtocol {
-                                voxel: g.voxel,
-                                at: g.at.map(|[x, y, z]| vec![x, y, z]).unwrap_or_default(),
-                                face_name: g.face_name,
-                                positions: g.positions,
-                                indices: g.indices,
-                                uvs: g.uvs,
-                                lights: g.lights,
-                            })
-                            .collect();
+                            let geometries: Vec<GeometryProtocol> = mesher_geometries
+                                .into_iter()
+                                .map(|g| GeometryProtocol {
+                                    voxel: g.voxel,
+                                    at: g.at.map(|[x, y, z]| vec![x, y, z]).unwrap_or_default(),
+                                    face_name: g.face_name,
+                                    positions: g.positions,
+                                    indices: g.indices,
+                                    uvs: g.uvs,
+                                    lights: g.lights,
+                                })
+                                .collect();
 
-                        chunk
-                            .meshes
-                            .get_or_insert_with(HashMap::new)
-                            .insert(level as u32, MeshProtocol { level, geometries });
+                            chunk
+                                .meshes
+                                .get_or_insert_with(HashMap::new)
+                                .insert(level as u32, MeshProtocol { level, geometries });
+                        }
                     }
 
                     sender.send((chunk, r#type.clone())).unwrap();

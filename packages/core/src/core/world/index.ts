@@ -482,7 +482,7 @@ const defaultOptions: WorldClientOptions = {
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
-  clientOnlyMeshing: false,
+  clientOnlyMeshing: true,
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
   defaultRenderRadius: 6,
