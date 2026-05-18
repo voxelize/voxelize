@@ -360,7 +360,7 @@ impl Pipeline {
                             changes.append(&mut chunk.extra_changes.drain(..).collect());
                         }
 
-                        sender.send((chunk, changes)).unwrap();
+                        let _ = sender.send((chunk, changes));
                     });
                 });
         });

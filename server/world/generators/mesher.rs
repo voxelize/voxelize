@@ -220,7 +220,7 @@ impl Mesher {
                         }
                     }
 
-                    sender.send((chunk, r#type.clone())).unwrap();
+                    let _ = sender.send((chunk, r#type.clone()));
                 });
         });
     }
