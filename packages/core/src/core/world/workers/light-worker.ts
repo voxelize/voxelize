@@ -39,12 +39,17 @@ interface VoxelAccess {
     level: number,
     color: LightColor,
   ): void;
-  markChunkModified(cx: number, cz: number): void;
 }
+
+type ModifiedChunk = {
+  chunk: RawChunk;
+  minY: number;
+  maxY: number;
+};
 
 class BoundedSpace implements VoxelAccess {
   private chunkCache = new Map<number, RawChunk | null>();
-  private modifiedChunks = new Set<RawChunk>();
+  private modifiedChunks = new Map<number, ModifiedChunk>();
 
   constructor(
     private chunkGrid: (RawChunk | null)[][],
@@ -83,6 +88,23 @@ class BoundedSpace implements VoxelAccess {
       this.chunkCache.set(key, chunk);
     }
     return chunk;
+  }
+
+  private recordModifiedChunk(cx: number, cz: number, vy: number): void {
+    const chunk = this.getCachedChunk(cx, cz);
+    if (!chunk) {
+      return;
+    }
+
+    const key = this.hashChunkCoords(cx, cz);
+    const existing = this.modifiedChunks.get(key);
+    if (!existing) {
+      this.modifiedChunks.set(key, { chunk, minY: vy, maxY: vy });
+      return;
+    }
+
+    existing.minY = Math.min(existing.minY, vy);
+    existing.maxY = Math.max(existing.maxY, vy);
   }
 
   getVoxelAt(vx: number, vy: number, vz: number): number {
@@ -125,7 +147,7 @@ class BoundedSpace implements VoxelAccess {
     const chunk = this.getCachedChunk(cx, cz);
     if (chunk) {
       chunk.setSunlight(vx, vy, vz, level);
-      this.modifiedChunks.add(chunk);
+      this.recordModifiedChunk(cx, cz, vy);
     }
   }
 
@@ -140,19 +162,12 @@ class BoundedSpace implements VoxelAccess {
     const chunk = this.getCachedChunk(cx, cz);
     if (chunk) {
       chunk.setTorchLight(vx, vy, vz, level, color);
-      this.modifiedChunks.add(chunk);
+      this.recordModifiedChunk(cx, cz, vy);
     }
   }
 
-  markChunkModified(cx: number, cz: number): void {
-    const chunk = this.getCachedChunk(cx, cz);
-    if (chunk) {
-      this.modifiedChunks.add(chunk);
-    }
-  }
-
-  getModifiedChunks(): RawChunk[] {
-    return Array.from(this.modifiedChunks);
+  getModifiedChunks(): ModifiedChunk[] {
+    return Array.from(this.modifiedChunks.values());
   }
 }
 
@@ -242,8 +257,8 @@ function floodLight(
         ncx > endCX ||
         ncz < startCZ ||
         ncz > endCZ ||
-        (min && (nvx < min[0] || nvy < min[1] || nvz < min[2])) ||
-        (max && (nvx >= max[0] || nvy >= max[1] || nvz >= max[2]))
+        (min && (nvx < min[0] || nvz < min[2])) ||
+        (max && (nvx >= max[0] || nvz >= max[2]))
       ) {
         continue;
       }
@@ -520,13 +535,15 @@ onmessage = function (e) {
       {
         jobId,
         modifiedChunks: modifiedChunks.map((chunk) => ({
-          coords: chunk.coords,
-          lights: chunk.lights.data,
+          coords: chunk.chunk.coords,
+          lights: chunk.chunk.lights.data,
+          minY: chunk.minY,
+          maxY: chunk.maxY,
         })),
         appliedDeltas: { lastSequenceId },
       },
       {
-        transfer: modifiedChunks.map((c) => c.lights.data.buffer),
+        transfer: modifiedChunks.map((chunk) => chunk.chunk.lights.data.buffer),
       },
     );
   }

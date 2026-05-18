@@ -268,7 +268,7 @@ export type LightJob = {
 
 export type LightBatchResult = {
   color: LightColor;
-  modifiedChunks: { coords: Coords2; lights: Uint32Array }[];
+  modifiedChunks: LightWorkerModifiedChunk[];
   boundingBox: BoundingBox;
 };
 
@@ -311,13 +311,17 @@ export type ProcessedUpdate = {
 
 export type LightWorkerResult = {
   jobId: string;
-  modifiedChunks: {
-    coords: Coords2;
-    lights: Uint32Array;
-  }[];
+  modifiedChunks: LightWorkerModifiedChunk[];
   appliedDeltas: {
     lastSequenceId: number;
   };
+};
+
+export type LightWorkerModifiedChunk = {
+  coords: Coords2;
+  lights: Uint32Array;
+  minY: number;
+  maxY: number;
 };
 
 const VOXEL_NEIGHBORS = [
@@ -5881,28 +5885,15 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private applyBatchResults(batch: LightBatch) {
-    const { maxHeight, subChunks, maxLightLevel } = this.options;
+    const { maxHeight, subChunks } = this.options;
     const subChunkHeight = maxHeight / subChunks;
 
     const chunkResultsByColor = new Map<string, Map<LightColor, Uint32Array>>();
     const allChunkCoords = new Map<string, Coords2>();
-
-    let globalMinY = maxHeight;
-    let globalMaxY = 0;
+    const modifiedYRanges = new Map<string, { minY: number; maxY: number }>();
 
     for (const result of batch.results) {
-      const minY = Math.max(0, result.boundingBox.min[1] - maxLightLevel);
-      const maxY = Math.min(
-        maxHeight - 1,
-        result.boundingBox.min[1] +
-          result.boundingBox.shape[1] -
-          1 +
-          maxLightLevel,
-      );
-      globalMinY = Math.min(globalMinY, minY);
-      globalMaxY = Math.max(globalMaxY, maxY);
-
-      for (const { coords, lights } of result.modifiedChunks) {
+      for (const { coords, lights, minY, maxY } of result.modifiedChunks) {
         const key = `${coords[0]},${coords[1]}`;
         allChunkCoords.set(key, coords);
 
@@ -5912,20 +5903,24 @@ export class World<T = any> extends Scene implements NetIntercept {
           chunkResultsByColor.set(key, colorMap);
         }
         colorMap.set(result.color, lights);
+
+        const existing = modifiedYRanges.get(key);
+        if (!existing) {
+          modifiedYRanges.set(key, { minY, maxY });
+        } else {
+          existing.minY = Math.min(existing.minY, minY);
+          existing.maxY = Math.max(existing.maxY, maxY);
+        }
       }
     }
-
-    const minLevel = Math.floor(globalMinY / subChunkHeight);
-    const maxLevel = Math.min(
-      subChunks - 1,
-      Math.floor(globalMaxY / subChunkHeight),
-    );
 
     for (const [key, colorMap] of chunkResultsByColor) {
       const coords = allChunkCoords.get(key);
       if (!coords) continue;
       const chunk = this.getChunkByCoords(coords[0], coords[1]);
       if (!chunk) continue;
+      const modifiedYRange = modifiedYRanges.get(key);
+      if (!modifiedYRange) continue;
 
       if (colorMap.size === 1) {
         const [color, lights] = colorMap.entries().next().value;
@@ -5935,6 +5930,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       chunk.isDirty = true;
+      const minLevel = Math.max(
+        0,
+        Math.floor(modifiedYRange.minY / subChunkHeight),
+      );
+      const maxLevel = Math.min(
+        subChunks - 1,
+        Math.floor(modifiedYRange.maxY / subChunkHeight),
+      );
       this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
     }
   }
