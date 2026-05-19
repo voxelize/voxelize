@@ -2,6 +2,7 @@ import merge from "deepmerge";
 import {
   AmbientLight,
   DirectionalLight,
+  Material,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
@@ -18,6 +19,29 @@ import {
 import { CameraPerspective, noop } from "../common";
 import { Inputs } from "../core/inputs";
 import { DOMUtils, ThreeUtils } from "../utils";
+
+function disposeMaterial(material: Material) {
+  if (material instanceof MeshBasicMaterial && material.map) {
+    material.map.dispose();
+  }
+  material.dispose();
+}
+
+function disposeObjectResources(object: Object3D | undefined) {
+  if (!object) return;
+
+  object.traverse((child) => {
+    if (!(child instanceof Mesh)) return;
+
+    child.geometry.dispose();
+    if (Array.isArray(child.material)) {
+      child.material.forEach(disposeMaterial);
+      return;
+    }
+
+    disposeMaterial(child.material);
+  });
+}
 
 export type ItemSlotsOptions = {
   wrapperClass: string;
@@ -85,6 +109,8 @@ export class ItemSlot<T = number> {
   public scene: Scene;
 
   public object: Object3D;
+
+  private ownsObjectResources = false;
 
   public light: DirectionalLight;
 
@@ -164,6 +190,10 @@ export class ItemSlot<T = number> {
   setObject = (object: Object3D | HTMLImageElement | undefined) => {
     if (this.object) {
       this.scene.remove(this.object);
+      if (this.ownsObjectResources) {
+        disposeObjectResources(this.object);
+      }
+      this.ownsObjectResources = false;
     }
 
     if (object === undefined) {
@@ -189,11 +219,21 @@ export class ItemSlot<T = number> {
       material.needsUpdate = true;
       const plane = new Mesh(geometry, material);
       this.object = plane;
+      this.ownsObjectResources = true;
       this.setPerspective("pz");
       this.scene.add(plane);
     }
 
     this.triggerChange();
+  };
+
+  disposeObject = () => {
+    if (this.ownsObjectResources) {
+      disposeObjectResources(this.object);
+    }
+    this.object = undefined;
+    this.ownsObjectResources = false;
+    this.scene.clear();
   };
 
   getContent = () => this.content;
@@ -381,6 +421,22 @@ export class ItemSlots<T = number> {
     });
 
     cancelAnimationFrame(this.animationFrame);
+  };
+
+  dispose = () => {
+    this.deactivate();
+
+    for (const row of this.slots) {
+      for (const slot of row) {
+        slot.disposeObject();
+      }
+    }
+
+    this.focusChangeCallbacks = [];
+    this.renderer.dispose();
+    this.renderer.forceContextLoss();
+    this.canvas.remove();
+    this.wrapper.remove();
   };
 
   setObject = (

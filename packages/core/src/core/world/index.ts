@@ -3619,7 +3619,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         shadowSlopeBiasScale: 0.0012,
         shadowSlopeBiasMin: 0.00012,
         shadowTopFaceBiasScale: 1.0,
-        shadowSideFaceBiasScale: 0.35,
+        shadowSideFaceBiasScale: 1.0,
         lightMargin: 32,
       });
     }
@@ -4867,7 +4867,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       shadowSlopeBiasScale: 0.0012,
       shadowSlopeBiasMin: 0.00012,
       shadowTopFaceBiasScale: 1.0,
-      shadowSideFaceBiasScale: 0.35,
+      shadowSideFaceBiasScale: 1.0,
       lightMargin: 32,
     });
 

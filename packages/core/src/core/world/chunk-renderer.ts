@@ -132,7 +132,7 @@ export class ChunkRenderer {
     shadowSlopeBiasScale: { value: 0.0012 },
     shadowSlopeBiasMin: { value: 0.00012 },
     shadowTopFaceBiasScale: { value: 1.0 },
-    shadowSideFaceBiasScale: { value: 0.35 },
+    shadowSideFaceBiasScale: { value: 1.0 },
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
     waterTint: { value: new Color("#1F8BD8") },
