@@ -578,6 +578,27 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     }
 }
 
+fn should_skip_opaque_light_sample(dir: [i32; 3], ddx: i32, ddy: i32, ddz: i32, is_opaque: bool) -> bool {
+    if !is_opaque {
+        return false;
+    }
+    let outward = dir[0] * ddx + dir[1] * ddy + dir[2] * ddz;
+    outward <= 0
+}
+
+fn fallback_face_light(neighbors: &NeighborCache, dir: [i32; 3]) -> (u32, u32, u32, u32) {
+    neighbors.get_all_lights(dir[0], dir[1], dir[2])
+}
+
+fn uses_center_voxel_light(block: &Block) -> bool {
+    let is_all_transparent = block.is_transparent.iter().all(|&face| face);
+    block.is_see_through || (is_all_transparent && block.aabbs.len() <= 1)
+}
+
+fn should_apply_stair_self_ao(face_dir: [i32; 3], corner_pos: [f32; 3]) -> bool {
+    !(face_dir[1] == 1 && corner_pos[1] > 0.75)
+}
+
 fn self_ao_probe(local_pos: [f32; 3], ox: f32, oy: f32, oz: f32, aabbs: &[AABB]) -> bool {
     let eps: f32 = 0.05;
     let margin: f32 = 0.001;
@@ -1124,8 +1145,7 @@ fn compute_face_ao_and_light(
             vertex_ao(b011, b101, b111)
         };
 
-        let (sunlight, red_light, green_light, blue_light) = if is_see_through || is_all_transparent
-        {
+        let (sunlight, red_light, green_light, blue_light) = if uses_center_voxel_light(block) {
             neighbors.get_all_lights(0, 0, 0)
         } else {
             let mut sum_sunlight = 0;
@@ -1158,7 +1178,7 @@ fn compute_face_ao_and_light(
                             .map(|b| b.is_opaque)
                             .unwrap_or(false);
 
-                        if diagonal4_opaque {
+                        if should_skip_opaque_light_sample(dir, ddx, ddy, ddz, diagonal4_opaque) {
                             continue;
                         }
 
@@ -1254,7 +1274,7 @@ fn compute_face_ao_and_light(
                     (sum_blue_light as f32 / light_count_f32) as u32,
                 )
             } else {
-                (0, 0, 0, 0)
+                fallback_face_light(neighbors, dir)
             }
         };
 
@@ -1657,16 +1677,8 @@ fn process_face<S: VoxelAccess>(
     let is_see_through = block.is_see_through;
     let rotatable = block.rotatable;
     let y_rotatable = block.y_rotatable;
-    let is_transparent = block.is_transparent;
 
     let mut dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
-    let is_all_transparent = is_transparent[0]
-        && is_transparent[1]
-        && is_transparent[2]
-        && is_transparent[3]
-        && is_transparent[4]
-        && is_transparent[5];
-
     if (rotatable || y_rotatable) && !world_space {
         rotation.rotate_node(&mut dir, y_rotatable, false);
     }
@@ -1818,13 +1830,7 @@ fn process_face<S: VoxelAccess>(
             let id = neighbors.get_voxel(ox, oy, oz);
             registry
                 .get_block_by_id(id)
-                .map(|b| {
-                    if has_multi_aabb {
-                        b.is_opaque || (!b.is_empty && !b.is_see_through && !b.is_fluid)
-                    } else {
-                        b.is_opaque
-                    }
-                })
+                .map(|b| b.is_opaque)
                 .unwrap_or(false)
         };
 
@@ -1833,7 +1839,10 @@ fn process_face<S: VoxelAccess>(
         let mut b110 = !get_block_occluder(dx, dy, 0);
         let mut b111 = !get_block_occluder(dx, dy, dz);
 
-        if has_multi_aabb && !is_see_through {
+        if has_multi_aabb
+            && !is_see_through
+            && should_apply_stair_self_ao(face.dir, corner.pos)
+        {
             let (s011, s101, s110, s111) =
                 compute_self_ao(corner.pos, face.dir, face_bbox_min, &block.aabbs);
             if s011 {
@@ -1850,7 +1859,7 @@ fn process_face<S: VoxelAccess>(
             }
         }
 
-        let ao = if is_see_through {
+        let mut ao = if is_see_through {
             3
         } else if dir[0].abs() == 1 {
             vertex_ao(b110, b101, b111)
@@ -1860,12 +1869,16 @@ fn process_face<S: VoxelAccess>(
             vertex_ao(b011, b101, b111)
         };
 
+        if has_multi_aabb && !is_see_through && ao < 2 {
+            ao = 2;
+        }
+
         let sunlight;
         let red_light;
         let green_light;
         let blue_light;
 
-        if is_see_through || is_all_transparent {
+        if uses_center_voxel_light(block) {
             let (s, r, g, b) = neighbors.get_all_lights(0, 0, 0);
             sunlight = s;
             red_light = r;
@@ -1902,7 +1915,7 @@ fn process_face<S: VoxelAccess>(
                             .map(|b| b.is_opaque)
                             .unwrap_or(false);
 
-                        if diagonal4_opaque {
+                        if should_skip_opaque_light_sample(dir, ddx, ddy, ddz, diagonal4_opaque) {
                             continue;
                         }
 
@@ -1996,10 +2009,11 @@ fn process_face<S: VoxelAccess>(
                 green_light = (sum_green_light as f32 / light_count_f32) as u32;
                 blue_light = (sum_blue_light as f32 / light_count_f32) as u32;
             } else {
-                sunlight = 0;
-                red_light = 0;
-                green_light = 0;
-                blue_light = 0;
+                let fallback = fallback_face_light(neighbors, dir);
+                sunlight = fallback.0;
+                red_light = fallback.1;
+                green_light = fallback.2;
+                blue_light = fallback.3;
             }
         }
 
@@ -2658,6 +2672,34 @@ mod tests {
     }
 
     #[test]
+    fn should_apply_stair_self_ao_only_below_upper_tread_top() {
+        assert!(!should_apply_stair_self_ao([0, 1, 0], [0.5, 1.0, 0.5]));
+        assert!(should_apply_stair_self_ao([0, 1, 0], [0.5, 0.5, 0.5]));
+    }
+
+    #[test]
+    fn self_ao_stair_upper_tread_top_corners_have_no_self_occlusion() {
+        let aabbs = stairs_aabbs();
+        let face_dir = [0, 1, 0];
+        let face_bbox_min = [0.0, 1.0, 0.0];
+
+        for pos in [
+            [0.0_f32, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.5],
+            [1.0, 1.0, 0.5],
+        ] {
+            let (s011, s101, s110, s111) =
+                compute_self_ao(pos, face_dir, face_bbox_min, &aabbs);
+            assert!(
+                !s011 && !s101 && !s110 && !s111,
+                "upper tread top corner at {pos:?} should have no self-occlusion, \
+                 got s011={s011} s101={s101} s110={s110} s111={s111}",
+            );
+        }
+    }
+
+    #[test]
     fn self_ao_stair_step_face_top_no_occlusion() {
         let aabbs = stairs_aabbs();
         let face_dir = [0, 0, 1];
@@ -2703,6 +2745,147 @@ mod tests {
         let ao_far = vertex_ao(b110f, b011f, b111f);
 
         assert_eq!(ao_far, 3, "far corner should have ao=3, got ao={ao_far}");
+    }
+
+    #[test]
+    fn upward_stair_face_samples_light_from_opaque_block_above() {
+        struct StairUnderStoneSpace {
+            stair_id: u32,
+            stone_id: u32,
+        }
+
+        impl VoxelAccess for StairUnderStoneSpace {
+            fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+                match (vx, vy, vz) {
+                    (0, 0, 0) => self.stair_id,
+                    (0, 1, 0) => self.stone_id,
+                    _ => 0,
+                }
+            }
+
+            fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+                self.get_voxel(vx, vy, vz)
+            }
+
+            fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+                BlockRotation::PY(0.0)
+            }
+
+            fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+                0
+            }
+
+            fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+                self.get_all_lights(vx, vy, vz).0
+            }
+
+            fn get_torch_light(
+                &self,
+                vx: i32,
+                vy: i32,
+                vz: i32,
+                color: LightColor,
+            ) -> u32 {
+                let (_, red, green, blue) = self.get_all_lights(vx, vy, vz);
+                match color {
+                    LightColor::Red => red,
+                    LightColor::Green => green,
+                    LightColor::Blue => blue,
+                    LightColor::Sunlight => self.get_sunlight(vx, vy, vz),
+                }
+            }
+
+            fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
+                match (vx, vy, vz) {
+                    (0, 1, 0) => (15, 0, 0, 0),
+                    (0, 0, 0) => (0, 0, 0, 0),
+                    _ => (15, 0, 0, 0),
+                }
+            }
+
+            fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+                2
+            }
+
+            fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+                vy >= 0 && vy <= 1 && vx.abs() <= 1 && vz.abs() <= 1
+            }
+        }
+
+        let stair_block = Block {
+            id: 1,
+            name: "Stairs".to_string(),
+            name_lower: "stairs".to_string(),
+            rotatable: true,
+            y_rotatable: true,
+            is_empty: false,
+            is_fluid: false,
+            is_waterlogged: false,
+            is_opaque: false,
+            is_see_through: false,
+            is_transparent: [true; 6],
+            transparent_standalone: false,
+            occludes_fluid: false,
+            is_plant: false,
+            faces: vec![],
+            aabbs: stairs_aabbs(),
+            dynamic_patterns: None,
+        };
+
+        let stone_block = Block {
+            id: 2,
+            name: "Stone".to_string(),
+            name_lower: "stone".to_string(),
+            rotatable: false,
+            y_rotatable: false,
+            is_empty: false,
+            is_fluid: false,
+            is_waterlogged: false,
+            is_opaque: true,
+            is_see_through: false,
+            is_transparent: [false; 6],
+            transparent_standalone: false,
+            occludes_fluid: false,
+            is_plant: false,
+            faces: vec![],
+            aabbs: vec![AABB {
+                min_x: 0.0,
+                min_y: 0.0,
+                min_z: 0.0,
+                max_x: 1.0,
+                max_y: 1.0,
+                max_z: 1.0,
+            }],
+            dynamic_patterns: None,
+        };
+
+        let mut registry = Registry::new(vec![(1, stair_block), (2, stone_block)]);
+        registry.build_cache();
+
+        let space = StairUnderStoneSpace {
+            stair_id: 1,
+            stone_id: 2,
+        };
+        let neighbors = NeighborCache::populate(0, 0, 0, &space);
+        let (_aos, lights) =
+            compute_face_ao_and_light([0, 1, 0], registry.get_block_by_id(1).unwrap(), &neighbors, &registry);
+
+        let mut max_sunlight = 0;
+        for packed in lights {
+            let (sun, _, _, _) = LightUtils::extract_all(packed as u32);
+            max_sunlight = max_sunlight.max(sun);
+        }
+
+        assert!(
+            max_sunlight > 0,
+            "upward stair tread should bake non-zero sunlight from opaque block above, got max_sunlight={max_sunlight}",
+        );
+    }
+
+    #[test]
+    fn should_skip_opaque_light_sample_only_for_inward_samples() {
+        assert!(!should_skip_opaque_light_sample([0, 1, 0], 0, 1, 0, true));
+        assert!(should_skip_opaque_light_sample([0, 1, 0], 0, 0, 0, true));
     }
 
     #[test]

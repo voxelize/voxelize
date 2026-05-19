@@ -49,7 +49,7 @@ const defaultConfig: CSMConfig = {
   shadowNormalBias: 0.0015,
   shadowSlopeBiasScale: 0.0012,
   shadowSlopeBiasMin: 0.00012,
-  shadowTopFaceBiasScale: 0.2,
+  shadowTopFaceBiasScale: 1.0,
   shadowSideFaceBiasScale: 0.35,
   isDepthPolygonOffsetEnabled: true,
   depthPolygonOffsetFactor: 1.0,

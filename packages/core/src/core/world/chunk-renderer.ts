@@ -131,7 +131,7 @@ export class ChunkRenderer {
     shadowNormalBias: { value: 0.0015 },
     shadowSlopeBiasScale: { value: 0.0012 },
     shadowSlopeBiasMin: { value: 0.00012 },
-    shadowTopFaceBiasScale: { value: 0.2 },
+    shadowTopFaceBiasScale: { value: 1.0 },
     shadowSideFaceBiasScale: { value: 0.35 },
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
