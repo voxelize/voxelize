@@ -5915,7 +5915,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { maxHeight, subChunks } = this.options;
     const subChunkHeight = maxHeight / subChunks;
 
-    const chunkResultsByColor = new Map<string, Map<LightColor, Uint32Array>>();
+    const chunkResultsByColor = new Map<
+      string,
+      Map<LightColor, { lights: Uint32Array; boundingBox: BoundingBox }>
+    >();
     const allChunkCoords = new Map<string, Coords2>();
     const modifiedYRanges = new Map<string, { minY: number; maxY: number }>();
 
@@ -5929,7 +5932,10 @@ export class World<T = any> extends Scene implements NetIntercept {
           colorMap = new Map();
           chunkResultsByColor.set(key, colorMap);
         }
-        colorMap.set(result.color, lights);
+        colorMap.set(result.color, {
+          lights,
+          boundingBox: result.boundingBox,
+        });
 
         const existing = modifiedYRanges.get(key);
         if (!existing) {
@@ -5949,11 +5955,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       const modifiedYRange = modifiedYRanges.get(key);
       if (!modifiedYRange) continue;
 
-      if (colorMap.size === 1) {
-        const [color, lights] = colorMap.entries().next().value;
-        this.mergeSingleColorResult(chunk, lights, color);
-      } else {
-        this.mergeMultiColorResults(chunk, colorMap);
+      for (const [color, result] of colorMap) {
+        this.mergeSingleColorResult(
+          chunk,
+          result.lights,
+          color,
+          result.boundingBox,
+        );
       }
 
       chunk.isDirty = true;
@@ -5973,55 +5981,33 @@ export class World<T = any> extends Scene implements NetIntercept {
     chunk: Chunk,
     lights: Uint32Array,
     color: LightColor,
+    boundingBox: BoundingBox,
   ) {
     const currentLights = chunk.lights.data;
     const mask = this.getLightColorMask(color);
     const inverseMask = ~mask >>> 0;
+    const [minX, , minZ] = boundingBox.min;
+    const [shapeX, , shapeZ] = boundingBox.shape;
+    const maxX = minX + shapeX;
+    const maxZ = minZ + shapeZ;
+    const [chunkMinX, , chunkMinZ] = chunk.min;
+    const { size, maxHeight } = chunk.options;
 
-    for (let i = 0; i < currentLights.length; i++) {
-      currentLights[i] = (currentLights[i] & inverseMask) | (lights[i] & mask);
-    }
-  }
+    const startX = Math.max(minX, chunkMinX);
+    const endX = Math.min(maxX, chunkMinX + size);
+    const startZ = Math.max(minZ, chunkMinZ);
+    const endZ = Math.min(maxZ, chunkMinZ + size);
 
-  private mergeMultiColorResults(
-    chunk: Chunk,
-    colorMap: Map<LightColor, Uint32Array>,
-  ) {
-    const currentLights = chunk.lights.data;
-    const anyResult = colorMap.values().next().value;
-
-    for (let i = 0; i < currentLights.length; i++) {
-      let value = 0;
-
-      const sunlightSource = colorMap.get("SUNLIGHT");
-      if (sunlightSource) {
-        value |= sunlightSource[i] & 0xf000;
-      } else {
-        value |= anyResult[i] & 0xf000;
+    for (let vx = startX; vx < endX; vx++) {
+      const lx = vx - chunkMinX;
+      for (let vy = 0; vy < maxHeight; vy++) {
+        for (let vz = startZ; vz < endZ; vz++) {
+          const lz = vz - chunkMinZ;
+          const index = lx * maxHeight * size + vy * size + lz;
+          currentLights[index] =
+            (currentLights[index] & inverseMask) | (lights[index] & mask);
+        }
       }
-
-      const redSource = colorMap.get("RED");
-      if (redSource) {
-        value |= redSource[i] & 0x0f00;
-      } else {
-        value |= anyResult[i] & 0x0f00;
-      }
-
-      const greenSource = colorMap.get("GREEN");
-      if (greenSource) {
-        value |= greenSource[i] & 0x00f0;
-      } else {
-        value |= anyResult[i] & 0x00f0;
-      }
-
-      const blueSource = colorMap.get("BLUE");
-      if (blueSource) {
-        value |= blueSource[i] & 0x000f;
-      } else {
-        value |= anyResult[i] & 0x000f;
-      }
-
-      currentLights[i] = value;
     }
   }
 

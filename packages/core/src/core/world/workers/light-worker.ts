@@ -531,6 +531,10 @@ onmessage = function (e) {
 
     const modifiedChunks = space.getModifiedChunks();
 
+    const transferBuffers = modifiedChunks
+      .map((chunk) => chunk.chunk.lights.data.buffer)
+      .filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
+
     postMessage(
       {
         jobId,
@@ -543,7 +547,7 @@ onmessage = function (e) {
         appliedDeltas: { lastSequenceId },
       },
       {
-        transfer: modifiedChunks.map((chunk) => chunk.chunk.lights.data.buffer),
+        transfer: transferBuffers,
       },
     );
   }

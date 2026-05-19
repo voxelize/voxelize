@@ -57,8 +57,8 @@ export class RawChunk {
 
     const { size, maxHeight } = options;
 
-    this.voxels = ndarray([] as any, [size, maxHeight, size]);
-    this.lights = ndarray([] as any, [size, maxHeight, size]);
+    this.voxels = ndarray(new Uint32Array(0), [size, maxHeight, size]);
+    this.lights = ndarray(new Uint32Array(0), [size, maxHeight, size]);
 
     const [x, z] = coords;
 
@@ -131,16 +131,60 @@ export class RawChunk {
     ];
   }
 
-  static deserialize(data: any): RawChunk {
-    const { id, x, z, voxels, lights, options } = data;
+  private static makeUint32View(
+    buffer: ArrayBufferLike,
+    byteOffset?: number,
+    length?: number,
+  ): Uint32Array {
+    const resolvedByteOffset = byteOffset ?? 0;
+    const resolvedLength =
+      length ??
+      (buffer.byteLength - resolvedByteOffset) / Uint32Array.BYTES_PER_ELEMENT;
+    return new Uint32Array(buffer, resolvedByteOffset, resolvedLength);
+  }
+
+  private static makeWorkerArray(
+    buffer: ArrayBufferLike,
+    shouldCopy: boolean,
+    byteOffset?: number,
+    length?: number,
+  ): Uint32Array {
+    const view = RawChunk.makeUint32View(buffer, byteOffset, length);
+    return shouldCopy ? new Uint32Array(view) : view;
+  }
+
+  static deserialize(data: SerializedChunkPayload): RawChunk {
+    const {
+      id,
+      x,
+      z,
+      voxels,
+      lights,
+      options,
+      voxelsByteOffset,
+      voxelsLength,
+      lightsByteOffset,
+      lightsLength,
+      transferMode,
+    } = data;
 
     const chunk = new RawChunk(id, [x, z], options);
+    const shouldCopySharedData = transferMode === "shared";
 
-    // creating typed array here ain't bad since deserialize is only used worker-side
     if (lights && lights.byteLength)
-      chunk.lights.data = new Uint32Array(lights);
+      chunk.lights.data = RawChunk.makeWorkerArray(
+        lights,
+        shouldCopySharedData,
+        lightsByteOffset,
+        lightsLength,
+      );
     if (voxels && voxels.byteLength)
-      chunk.voxels.data = new Uint32Array(voxels);
+      chunk.voxels.data = RawChunk.makeWorkerArray(
+        voxels,
+        shouldCopySharedData,
+        voxelsByteOffset,
+        voxelsLength,
+      );
 
     return chunk;
   }
