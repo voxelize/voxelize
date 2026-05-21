@@ -99,6 +99,8 @@ const defaultOptions: ItemSlotsOptions = {
   scrollable: true,
 };
 
+const ITEM_SLOT_LIGHT_AXIS = new Vector3(0, 1, 0);
+
 export class ItemSlot<T = number> {
   public itemSlots: ItemSlots<T>;
 
@@ -140,6 +142,8 @@ export class ItemSlot<T = number> {
   public lightRotationOffset = -Math.PI / 8;
 
   public offset: Vector3 = new Vector3();
+  private cameraPosition = new Vector3();
+  private lightPosition = new Vector3();
 
   constructor(itemSlots: ItemSlots<T>, row: number, col: number) {
     this.itemSlots = itemSlots;
@@ -254,12 +258,14 @@ export class ItemSlot<T = number> {
   setDurability = (pct: number | null) => {
     if (pct === null) {
       this.durabilityElement.style.display = "none";
+      this.triggerChange();
       return;
     }
     this.durabilityElement.style.display = "block";
     this.durabilityBarElement.style.width = `${
       Math.max(0, Math.min(1, pct)) * 100
     }%`;
+    this.triggerChange();
   };
 
   triggerChange = () => {
@@ -268,6 +274,7 @@ export class ItemSlot<T = number> {
       this.col == this.itemSlots.focusedCol
     )
       this.itemSlots.triggerFocusChange(null, this);
+    this.itemSlots.requestRender();
   };
 
   setZoom = (zoom: number) => {
@@ -314,19 +321,18 @@ export class ItemSlot<T = number> {
 
   private updateCamera = () => {
     this.camera.position.copy(
-      this.offset.clone().multiplyScalar((this.zoom || 1) * 3.5),
+      this.cameraPosition
+        .copy(this.offset)
+        .multiplyScalar((this.zoom || 1) * 3.5),
     );
 
     this.camera.lookAt(0, 0, 0);
 
-    const lightPosition = this.camera.position.clone();
-    // Rotate light position by y axis 45 degrees.
-    lightPosition.applyAxisAngle(
-      new Vector3(0, 1, 0),
-      this.lightRotationOffset,
-    );
+    this.lightPosition
+      .copy(this.camera.position)
+      .applyAxisAngle(ITEM_SLOT_LIGHT_AXIS, this.lightRotationOffset);
 
-    this.light.position.copy(lightPosition);
+    this.light.position.copy(this.lightPosition);
   };
 }
 
@@ -375,6 +381,7 @@ export class ItemSlots<T = number> {
   ) => void)[] = [];
 
   private animationFrame = -1;
+  private isRenderQueued = false;
 
   constructor(options: Partial<ItemSlotsOptions> = {}) {
     const {
@@ -408,7 +415,7 @@ export class ItemSlots<T = number> {
       display: "flex",
     });
 
-    this.render();
+    this.requestRender();
   };
 
   deactivate = () => {
@@ -421,6 +428,8 @@ export class ItemSlots<T = number> {
     });
 
     cancelAnimationFrame(this.animationFrame);
+    this.animationFrame = -1;
+    this.isRenderQueued = false;
   };
 
   dispose = () => {
@@ -498,6 +507,7 @@ export class ItemSlots<T = number> {
 
     slot.element.classList.add(this.options.slotFocusClass);
     this.onSlotClick(slot);
+    this.requestRender();
   };
 
   getObject = (row: number, col: number) => {
@@ -691,8 +701,15 @@ export class ItemSlots<T = number> {
     };
   };
 
-  render = () => {
+  requestRender = () => {
+    if (!this.activated || this.isRenderQueued) return;
+    this.isRenderQueued = true;
     this.animationFrame = requestAnimationFrame(this.render);
+  };
+
+  render = () => {
+    this.isRenderQueued = false;
+    this.animationFrame = -1;
 
     if (!this.activated) return;
 

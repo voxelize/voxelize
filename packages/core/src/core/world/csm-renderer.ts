@@ -32,6 +32,7 @@ export interface CSMConfig {
   depthPolygonOffsetUnits: number;
   lightMargin: number;
   shadowCasterDistance: number;
+  entityShadowFrameInterval: number;
 }
 
 interface Cascade {
@@ -56,6 +57,12 @@ const defaultConfig: CSMConfig = {
   depthPolygonOffsetUnits: 4.0,
   lightMargin: 32,
   shadowCasterDistance: 200,
+  entityShadowFrameInterval: 3,
+};
+
+type VisibilitySnapshot = {
+  object: Object3D;
+  visible: boolean;
 };
 
 export class CSMRenderer {
@@ -77,6 +84,13 @@ export class CSMRenderer {
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
   private entityBatchScene = new Scene();
+  private hiddenObjects: VisibilitySnapshot[] = [];
+  private hiddenEntities: VisibilitySnapshot[] = [];
+  private poolOriginalMaterials = new Map<
+    Object3D,
+    THREE.Material | THREE.Material[]
+  >();
+  private originalEntityParents = new Map<Object3D, Object3D | null>();
 
   private frustumCenter = new Vector3();
   private frustumCameraDir = new Vector3();
@@ -352,7 +366,8 @@ export class CSMRenderer {
 
     const originalOverrideMaterial = scene.overrideMaterial;
 
-    const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
+    const hiddenObjects = this.hiddenObjects;
+    hiddenObjects.length = 0;
     for (const object of this.skipShadowObjectsCache) {
       if (object.visible) {
         hiddenObjects.push({ object, visible: true });
@@ -377,10 +392,8 @@ export class CSMRenderer {
       }
     }
 
-    const poolOriginalMaterials: Map<
-      Object3D,
-      THREE.Material | THREE.Material[]
-    > = new Map();
+    const poolOriginalMaterials = this.poolOriginalMaterials;
+    poolOriginalMaterials.clear();
     if (this.shouldRenderEntityShadows && instancePools) {
       for (const pool of instancePools) {
         pool.traverse((child) => {
@@ -409,7 +422,8 @@ export class CSMRenderer {
       renderer.setRenderTarget(cascade.renderTarget);
       renderer.clear();
 
-      const hiddenEntities: { object: Object3D; visible: boolean }[] = [];
+      const hiddenEntities = this.hiddenEntities;
+      hiddenEntities.length = 0;
       if (i >= 2 && entities) {
         for (const entity of entities) {
           if (entity.visible) {
@@ -448,7 +462,8 @@ export class CSMRenderer {
 
       if (this.shouldRenderEntityShadows && entities && i < 2) {
         const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
-        const originalParents: Map<Object3D, Object3D | null> = new Map();
+        const originalParents = this.originalEntityParents;
+        originalParents.clear();
         for (const entity of entities) {
           if (entity.userData.castsShadow === false) continue;
           const distSq = entity.position.distanceToSquared(
@@ -471,6 +486,7 @@ export class CSMRenderer {
             }
           }
           this.entityBatchScene.children.length = 0;
+          originalParents.clear();
         }
       }
 
@@ -494,7 +510,9 @@ export class CSMRenderer {
 
   markCascadesForEntityRender() {
     this.entityShadowFrameCounter++;
-    this.shouldRenderEntityShadows = this.entityShadowFrameCounter % 1 === 0;
+    const frameInterval = Math.max(1, this.config.entityShadowFrameInterval);
+    this.shouldRenderEntityShadows =
+      this.entityShadowFrameCounter % frameInterval === 0;
     if (!this.shouldRenderEntityShadows) {
       return;
     }
