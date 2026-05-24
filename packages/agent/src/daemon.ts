@@ -144,6 +144,21 @@ export class AgentDaemon {
       return buffer;
     });
 
+    this.server.get<{
+      Querystring: { durationMs?: string; warmupMs?: string };
+    }>("/frame-rate", async (req) =>
+      this.agent.measureFrameRate({
+        durationMs:
+          req.query.durationMs !== undefined
+            ? Number(req.query.durationMs)
+            : undefined,
+        warmupMs:
+          req.query.warmupMs !== undefined
+            ? Number(req.query.warmupMs)
+            : undefined,
+      }),
+    );
+
     this.server.get<{ Querystring: { x: string; y: string; z: string } }>(
       "/block",
       async (req) => {
@@ -181,8 +196,8 @@ export class AgentDaemon {
         const filtered = this.events.filter(
           (e) => e.id > sinceId && e.at >= sinceMs,
         );
-        const lastId =
-          this.events.length > 0 ? this.events[this.events.length - 1]!.id : 0;
+        const lastEvent = this.events[this.events.length - 1];
+        const lastId = lastEvent ? lastEvent.id : 0;
         return { events: filtered, lastId };
       },
     );

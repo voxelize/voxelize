@@ -11,6 +11,8 @@ import type {
   CommandResult,
   EntitySnapshot,
   FaceInput,
+  FrameRateMeasurement,
+  FrameRateMeasurementOptions,
   MeshTransferBenchmarkRequest,
   MeshTransferBenchmarkResult,
   MeshTransferStatus,
@@ -69,8 +71,6 @@ export class Agent {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--enable-webgl",
-        "--use-gl=swiftshader",
-        "--enable-unsafe-swiftshader",
         "--ignore-gpu-blocklist",
       ],
       defaultViewport: { width: 1280, height: 720 },
@@ -117,13 +117,19 @@ export class Agent {
       await page.waitForFunction(() => Boolean(window.__agent__), {
         timeout: waitReadyTimeoutMs,
       });
-      await page.evaluate(() =>
-        window
-          .__agent__!.ready.then(() => undefined)
+      await page.evaluate(() => {
+        window.__agentRequired__ = () => {
+          const agent = window.__agent__;
+          if (!agent) throw new Error("Agent bridge is not installed");
+          return agent;
+        };
+        return window
+          .__agentRequired__()
+          .ready.then(() => undefined)
           .catch((e: unknown) => {
             throw e instanceof Error ? e : new Error(String(e));
-          }),
-      );
+          });
+      });
     } catch (error) {
       const snapshot = await page.evaluate(() => ({
         url: window.location.href,
@@ -156,7 +162,7 @@ export class Agent {
   }
 
   async chat(text: string): Promise<CommandResult> {
-    return this.page.evaluate((t) => window.__agent__!.chat(t), text);
+    return this.page.evaluate((t) => window.__agentRequired__().chat(t), text);
   }
 
   async teleport(
@@ -164,19 +170,19 @@ export class Agent {
     opts?: { isEnsuringChunks?: boolean },
   ): Promise<void> {
     await this.page.evaluate(
-      (p, o) => window.__agent__!.teleport(p, o),
+      (p, o) => window.__agentRequired__().teleport(p, o),
       pos,
       opts ?? {},
     );
   }
 
   async face(input: FaceInput): Promise<void> {
-    await this.page.evaluate((i) => window.__agent__!.face(i), input);
+    await this.page.evaluate((i) => window.__agentRequired__().face(i), input);
   }
 
   async walk(direction: WalkDirection, opts?: WalkOptions): Promise<void> {
     await this.page.evaluate(
-      (d, o) => window.__agent__!.walk(d, o),
+      (d, o) => window.__agentRequired__().walk(d, o),
       direction,
       opts ?? {},
     );
@@ -184,37 +190,42 @@ export class Agent {
 
   async walkTo(target: Vec3, opts?: WalkToOptions): Promise<void> {
     await this.page.evaluate(
-      (t, o) => window.__agent__!.walkTo(t, o),
+      (t, o) => window.__agentRequired__().walkTo(t, o),
       target,
       opts ?? {},
     );
   }
 
   async view(opts: ViewOptions): Promise<void> {
-    await this.page.evaluate((o) => window.__agent__!.view(o), opts);
+    await this.page.evaluate((o) => window.__agentRequired__().view(o), opts);
   }
 
   async setFlying(isFlying: boolean): Promise<void> {
-    await this.page.evaluate((f) => window.__agent__!.setFlying(f), isFlying);
+    await this.page.evaluate(
+      (f) => window.__agentRequired__().setFlying(f),
+      isFlying,
+    );
   }
 
   async call(method: string, payload: unknown): Promise<unknown> {
     return this.page.evaluate(
-      (m, p) => window.__agent__!.call(m, p),
+      (m, p) => window.__agentRequired__().call(m, p),
       method,
       payload,
     );
   }
 
   async meshTransferStatus(): Promise<MeshTransferStatus> {
-    return this.page.evaluate(() => window.__agent__!.meshTransferStatus());
+    return this.page.evaluate(() =>
+      window.__agentRequired__().meshTransferStatus(),
+    );
   }
 
   async meshTransferConfigure(
     mode: "auto" | "transfer" | "shared",
   ): Promise<MeshTransferStatus> {
     return this.page.evaluate(
-      (m) => window.__agent__!.meshTransferConfigure(m),
+      (m) => window.__agentRequired__().meshTransferConfigure(m),
       mode,
     );
   }
@@ -223,42 +234,48 @@ export class Agent {
     opts: MeshTransferBenchmarkRequest = {},
   ): Promise<MeshTransferBenchmarkResult> {
     return this.page.evaluate(
-      (o) => window.__agent__!.meshTransferBenchmark(o),
+      (o) => window.__agentRequired__().meshTransferBenchmark(o),
       opts,
     );
   }
 
   async position(): Promise<Vec3> {
-    return this.page.evaluate(() => window.__agent__!.position());
+    return this.page.evaluate(() => window.__agentRequired__().position());
   }
 
   async facing(): Promise<YawPitch> {
-    return this.page.evaluate(() => window.__agent__!.facing());
+    return this.page.evaluate(() => window.__agentRequired__().facing());
   }
 
   async raycast(): Promise<RaycastHit | null> {
-    return this.page.evaluate(() => window.__agent__!.raycast());
+    return this.page.evaluate(() => window.__agentRequired__().raycast());
   }
 
   async blockAt(pos: Vec3): Promise<BlockInfo | null> {
-    return this.page.evaluate((p) => window.__agent__!.blockAt(p), pos);
+    return this.page.evaluate(
+      (p) => window.__agentRequired__().blockAt(p),
+      pos,
+    );
   }
 
   async entitiesNear(radius: number): Promise<EntitySnapshot[]> {
-    return this.page.evaluate((r) => window.__agent__!.entitiesNear(r), radius);
+    return this.page.evaluate(
+      (r) => window.__agentRequired__().entitiesNear(r),
+      radius,
+    );
   }
 
   async peers(): Promise<PeerSnapshot[]> {
-    return this.page.evaluate(() => window.__agent__!.peers());
+    return this.page.evaluate(() => window.__agentRequired__().peers());
   }
 
   async snapshot(): Promise<Snapshot> {
-    return this.page.evaluate(() => window.__agent__!.snapshot());
+    return this.page.evaluate(() => window.__agentRequired__().snapshot());
   }
 
   async chunkState(target: Vec3 | ChunkCoord): Promise<ChunkState> {
     return this.page.evaluate(
-      (t) => window.__agent__!.chunks.state(t),
+      (t) => window.__agentRequired__().chunks.state(t),
       target as Vec3 | ChunkCoord,
     );
   }
@@ -269,7 +286,7 @@ export class Agent {
     timeoutMs = 10_000,
   ): Promise<void> {
     await this.page.evaluate(
-      (p, r, t) => window.__agent__!.chunks.waitFor(p, r, t),
+      (p, r, t) => window.__agentRequired__().chunks.waitFor(p, r, t),
       pos,
       radius,
       timeoutMs,
@@ -277,15 +294,17 @@ export class Agent {
   }
 
   async loadedChunks(): Promise<ChunkCoord[]> {
-    return this.page.evaluate(() => window.__agent__!.chunks.loaded());
+    return this.page.evaluate(() => window.__agentRequired__().chunks.loaded());
   }
 
   async pendingChunks(): Promise<ChunkCoord[]> {
-    return this.page.evaluate(() => window.__agent__!.chunks.pending());
+    return this.page.evaluate(() =>
+      window.__agentRequired__().chunks.pending(),
+    );
   }
 
   async chunkList(): Promise<ChunkSnapshot[]> {
-    return this.page.evaluate(() => window.__agent__!.chunks.list());
+    return this.page.evaluate(() => window.__agentRequired__().chunks.list());
   }
 
   async screenshot(): Promise<Buffer> {
@@ -294,6 +313,86 @@ export class Agent {
       fullPage: false,
     });
     return Buffer.from(result);
+  }
+
+  async measureFrameRate(
+    opts: FrameRateMeasurementOptions = {},
+  ): Promise<FrameRateMeasurement> {
+    const durationMs = opts.durationMs ?? 10_000;
+    const warmupMs = opts.warmupMs ?? 1_000;
+
+    return this.page.evaluate(
+      ({ durationMs: measuredDurationMs, warmupMs: measuredWarmupMs }) =>
+        new Promise<FrameRateMeasurement>((resolve) => {
+          const frameTimes: number[] = [];
+          let warmupStartedAt = 0;
+          let measurementStartedAt = 0;
+          let lastFrameAt = 0;
+
+          const percentile = (sorted: number[], value: number): number => {
+            if (sorted.length === 0) return 0;
+            const index = Math.min(
+              sorted.length - 1,
+              Math.max(0, Math.floor((sorted.length - 1) * value)),
+            );
+            return sorted[index] ?? 0;
+          };
+
+          const tick = (now: number): void => {
+            if (warmupStartedAt === 0) {
+              warmupStartedAt = now;
+              requestAnimationFrame(tick);
+              return;
+            }
+
+            if (now - warmupStartedAt < measuredWarmupMs) {
+              requestAnimationFrame(tick);
+              return;
+            }
+
+            if (measurementStartedAt === 0) {
+              measurementStartedAt = now;
+              lastFrameAt = now;
+              requestAnimationFrame(tick);
+              return;
+            }
+
+            frameTimes.push(now - lastFrameAt);
+            lastFrameAt = now;
+
+            if (now - measurementStartedAt < measuredDurationMs) {
+              requestAnimationFrame(tick);
+              return;
+            }
+
+            const elapsedMs = lastFrameAt - measurementStartedAt;
+            const frameCount = frameTimes.length;
+            const totalFrameMs = frameTimes.reduce((sum, ms) => sum + ms, 0);
+            const avgFrameMs = frameCount > 0 ? totalFrameMs / frameCount : 0;
+            const sorted = [...frameTimes].sort((a, b) => a - b);
+            const p50FrameMs = percentile(sorted, 0.5);
+            const p95FrameMs = percentile(sorted, 0.95);
+            const maxFrameMs = sorted[sorted.length - 1] ?? 0;
+
+            resolve({
+              durationMs: measuredDurationMs,
+              warmupMs: measuredWarmupMs,
+              elapsedMs,
+              frameCount,
+              avgFps: elapsedMs > 0 ? (frameCount * 1000) / elapsedMs : 0,
+              p50Fps: p50FrameMs > 0 ? 1000 / p50FrameMs : 0,
+              lowFps: p95FrameMs > 0 ? 1000 / p95FrameMs : 0,
+              avgFrameMs,
+              p50FrameMs,
+              p95FrameMs,
+              maxFrameMs,
+            });
+          };
+
+          requestAnimationFrame(tick);
+        }),
+      { durationMs, warmupMs },
+    );
   }
 
   on<E extends AgentEventName>(
@@ -357,8 +456,9 @@ export class Agent {
           __agentPushEvent__?: (name: string, payload: unknown) => void;
         };
 
-        if (w.__agentPushChat__) {
-          w.__agent__.on("chat", (msg) => w.__agentPushChat__!(msg));
+        const pushChat = w.__agentPushChat__;
+        if (pushChat) {
+          w.__agent__.on("chat", (msg) => pushChat(msg));
         }
 
         const forwardedEvents = [
@@ -370,9 +470,10 @@ export class Agent {
           "test-start",
           "tick",
         ];
-        if (w.__agentPushEvent__) {
+        const pushEvent = w.__agentPushEvent__;
+        if (pushEvent) {
           for (const name of forwardedEvents) {
-            w.__agent__.on(name, (data) => w.__agentPushEvent__!(name, data));
+            w.__agent__.on(name, (data) => pushEvent(name, data));
           }
         }
       });

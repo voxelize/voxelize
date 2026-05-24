@@ -149,6 +149,25 @@ export type MeshTransferStatus = {
   };
 };
 
+export type FrameRateMeasurementOptions = {
+  durationMs?: number;
+  warmupMs?: number;
+};
+
+export type FrameRateMeasurement = {
+  durationMs: number;
+  warmupMs: number;
+  elapsedMs: number;
+  frameCount: number;
+  avgFps: number;
+  p50Fps: number;
+  lowFps: number;
+  avgFrameMs: number;
+  p50FrameMs: number;
+  p95FrameMs: number;
+  maxFrameMs: number;
+};
+
 export type AgentEventMap = {
   chat: ChatMsgIn;
   "chunk-loaded": ChunkCoord;
@@ -219,5 +238,6 @@ export interface AgentBridge {
 declare global {
   interface Window {
     __agent__?: AgentBridge;
+    __agentRequired__: () => AgentBridge;
   }
 }

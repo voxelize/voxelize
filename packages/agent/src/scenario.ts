@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import type {
+  FrameRateMeasurement,
+  FrameRateMeasurementOptions,
+} from "./bridge";
+
 export type Vec3Tuple = [number, number, number];
 
 export type EntitySnapshot = {
@@ -27,6 +32,7 @@ export type ArenaOptions = {
 };
 
 export type SpawnOptions = {
+  metadata?: Record<string, boolean | number | string | null>;
   waterSeekChance?: number;
 };
 
@@ -152,6 +158,9 @@ export class Arena {
       position: this.worldPos(rel),
       scenarioId: this.scenarioId,
     };
+    if (opts.metadata) {
+      payload.metadata = opts.metadata;
+    }
     if (opts.waterSeekChance !== undefined) {
       payload.waterSeekChance = opts.waterSeekChance;
     }
@@ -254,6 +263,9 @@ export type AgentControls = {
   setFlying(isFlying: boolean): Promise<void>;
   chat(text: string): Promise<void>;
   entitiesNear(radius: number): Promise<EntitySnapshot[]>;
+  measureFrameRate(
+    opts?: FrameRateMeasurementOptions,
+  ): Promise<FrameRateMeasurement>;
   screenshot(label: string): Promise<string>;
 };
 
@@ -304,6 +316,21 @@ function createAgentControls(
       const res = await fetch(`${agentUrl}/entities?radius=${radius}`);
       const body = await res.json();
       return body.entities ?? [];
+    },
+    async measureFrameRate(opts = {}) {
+      const params = new URLSearchParams();
+      if (opts.durationMs !== undefined) {
+        params.set("durationMs", String(opts.durationMs));
+      }
+      if (opts.warmupMs !== undefined) {
+        params.set("warmupMs", String(opts.warmupMs));
+      }
+      const query = params.size > 0 ? `?${params}` : "";
+      const res = await fetch(`${agentUrl}/frame-rate${query}`);
+      if (!res.ok) {
+        throw new Error(`frame-rate failed: ${res.status} ${await res.text()}`);
+      }
+      return (await res.json()) as FrameRateMeasurement;
     },
     async screenshot(label) {
       const safe = label.replace(/[^a-z0-9_-]/gi, "_");
