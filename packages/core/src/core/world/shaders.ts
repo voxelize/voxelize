@@ -608,7 +608,12 @@ if (vIsFluid > 0.5) {
   waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
 
   float refractionFace = max(topWaterFace, sideWaterFace * 0.55);
-  if (uWaterRefractionReady > 0.5 && refractionFace > 0.01) {
+  if (refractionFace > 0.01) {
+    diffuseColor.a = max(diffuseColor.a, 0.5 * refractionFace);
+  }
+
+  float isCameraUnderwater = step(cameraPosition.y, uWaterLevel);
+  if (uWaterRefractionReady > 0.5 && refractionFace > 0.01 && isCameraUnderwater < 0.5) {
     vec2 screenUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
     float refractionTime = uTime * 0.001;
     vec2 broadRipple = vec2(
@@ -622,7 +627,6 @@ if (vIsFluid > 0.5) {
     vec3 refractedScene = texture2D(uSceneColor, refractedUv).rgb;
     float tintAmount = 0.12 + fresnel * 0.28 + surfaceRipple * 0.08;
     waterColor = mix(refractedScene, waterColor, tintAmount);
-    diffuseColor.a = max(diffuseColor.a, 0.5 * refractionFace);
   }
 
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
