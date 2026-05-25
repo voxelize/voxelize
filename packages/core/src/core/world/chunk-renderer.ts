@@ -11,8 +11,8 @@ import {
 
 import { CustomChunkShaderMaterial } from ".";
 
-function makeSceneColorTexture() {
-  const texture = new FramebufferTexture(1, 1);
+export function makeSceneColorTexture(width = 1, height = 1) {
+  const texture = new FramebufferTexture(width, height);
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
   return texture;

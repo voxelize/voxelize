@@ -323,6 +323,7 @@ export class Clouds extends Group {
         uSkyFogExponent2: uSkyFogExponent2 || { value: 1.2 },
         uSkyFogDimension: uSkyFogDimension || { value: 2000 },
         uSkyFogStrength: uSkyFogStrength || { value: 1.0 },
+        uChunkReveal: { value: 1 },
         uSunDirection: uSunDirection || {
           value: new Vector3(0.5, 1.0, 0.3).normalize(),
         },

@@ -13,6 +13,7 @@ uniform float uSkyFogExponent;
 uniform float uSkyFogExponent2;
 uniform float uSkyFogDimension;
 uniform float uSkyFogStrength;
+uniform float uChunkReveal;
 uniform vec3 uSunDirection;
 uniform vec3 uSunColor;
 uniform float uSunlightIntensity;
@@ -40,7 +41,8 @@ vec3 fogTint = mix(uFogColor, skyColor, uSkyFogStrength);
 float sunAlignment = pow(max(0.0, dot(fogRay, uSunDirection)), 6.0);
 fogTint += uSunColor * sunAlignment * uSunlightIntensity * uSkyFogStrength * 0.35;
 
-gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, fogFactor);
+float effectiveFogFactor = mix(1.0, fogFactor, uChunkReveal);
+gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, effectiveFogFactor);
 `;
 
 export const SKY_FOG_FRAGMENT = createSkyFogFragment();

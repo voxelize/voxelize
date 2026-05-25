@@ -134,7 +134,7 @@ import {
   PY_ROTATION,
 } from "./block";
 import { Chunk } from "./chunk";
-import { ChunkRenderer } from "./chunk-renderer";
+import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
 import { ItemDef, ItemRegistry } from "./items";
@@ -733,6 +733,31 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.aabbOverrides.get(ChunkUtils.getVoxelName(voxel));
   };
 
+  private syncSceneColorTexture(texture: Texture) {
+    this.chunkRenderer.materials.forEach((material) => {
+      const sceneColorUniform = material.uniforms.uSceneColor;
+      if (sceneColorUniform) {
+        sceneColorUniform.value = texture;
+      }
+    });
+
+    this.chunkPipeline.forEachLoaded((chunk) => {
+      chunk.group.traverse((object) => {
+        if (!(object instanceof Mesh)) {
+          return;
+        }
+
+        const material = object.material;
+        if (
+          material instanceof ShaderMaterial &&
+          material.uniforms.uSceneColor
+        ) {
+          material.uniforms.uSceneColor.value = texture;
+        }
+      });
+    });
+  }
+
   private captureWaterRefraction(renderer: WebGLRenderer) {
     const { sceneColor, sceneTextureSize, waterRefractionReady } =
       this.chunkRenderer.uniforms;
@@ -742,10 +767,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     const image = sceneColor.value.image;
 
     if (image.width !== width || image.height !== height) {
-      image.width = width;
-      image.height = height;
-      sceneColor.value.needsUpdate = true;
+      sceneColor.value.dispose();
+      const resized = makeSceneColorTexture(width, height);
+      sceneColor.value = resized;
       sceneTextureSize.value.set(width, height);
+      waterRefractionReady.value = 0;
+      this.waterRefractionFrame = -1;
+      this.syncSceneColorTexture(resized);
+      return;
     }
 
     const frame = renderer.info.render.frame;
@@ -6258,6 +6287,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uTime: chunksUniforms.time,
         uAtlasSize: chunksUniforms.atlasSize,
         uShowGreedyDebug: chunksUniforms.showGreedyDebug,
+        uChunkReveal: { value: 1 },
         ...shaderLightingUniforms,
         ...uniforms,
       },
