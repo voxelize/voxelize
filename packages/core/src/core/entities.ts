@@ -3,6 +3,15 @@ import { Group, Vector3 } from "three";
 
 import { NetIntercept } from "./network";
 
+export type EntityRigidBodyMetadata = {
+  isInFluid: boolean;
+  fluidRatio: number;
+};
+
+export type EntityMetadata = {
+  rigidBody?: EntityRigidBodyMetadata;
+};
+
 export class Entity<T = any> extends Group {
   public entId: string;
 

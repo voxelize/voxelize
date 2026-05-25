@@ -515,7 +515,7 @@ impl Handler<TransportLeaveRequest> for SyncWorld {
 fn dispatcher() -> DispatcherBuilder<'static, 'static> {
     DispatcherBuilder::new()
         .with(UpdateStatsSystem, "update-stats", &[])
-        .with(EntitiesMetaSystem, "entities-meta", &[])
+        .with(EntitiesMetaSystem, "entities-meta", &["physics"])
         .with(PeersMetaSystem, "peers-meta", &[])
         .with(CurrentChunkSystem, "current-chunk", &[])
         .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.build.json",
+  "include": ["src/**/*"],
+  "exclude": ["dist"],
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "./src",
+    "rootDir": "./src",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "lib": ["dom", "dom.iterable", "es2022"]
+  }
+}

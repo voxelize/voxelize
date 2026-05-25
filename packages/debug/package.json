@@ -1,0 +1,39 @@
+{
+  "name": "@voxelize/debug",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "src/styles.css"
+  ],
+  "style": "src/styles.css",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.mjs"
+    },
+    "./styles.css": "./src/styles.css",
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
+    "compile": "vite build",
+    "build": "pnpm run clean && pnpm run compile && pnpm run types && pnpm run copy",
+    "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
+    "watch": "cross-env NODE_ENV=development npm-run-all --parallel watch:*",
+    "watch:build": "pnpm types --watch --preserveWatchOutput",
+    "watch:compile": "pnpm compile --watch",
+    "copy": "cp ./src/styles.css ./dist",
+    "prepublishOnly": "pnpm run build",
+    "preinstall": "npx only-allow pnpm"
+  },
+  "devDependencies": {
+    "vite": "^5.4.14"
+  }
+}
