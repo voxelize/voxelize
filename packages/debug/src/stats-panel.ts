@@ -37,7 +37,7 @@ export class StatsPanel {
   private sections = new Map<string, Section>();
   private fpsMeter: FpsMeter;
   private fpsMounted = false;
-  private currentSection: Section;
+  private currentSection: Section | null = null;
 
   constructor() {
     this.element = createElement("div", {
@@ -45,8 +45,6 @@ export class StatsPanel {
     });
 
     this.fpsMeter = new FpsMeter();
-
-    this.currentSection = this.createSection("__default__", null);
   }
 
   section(title: string): this {
@@ -63,7 +61,7 @@ export class StatsPanel {
       return this;
     }
 
-    const section = this.currentSection;
+    const section = this.ensureSection();
     const existing = section.rows.get(label);
     if (existing) return this;
 
@@ -160,7 +158,14 @@ export class StatsPanel {
 
   private mountFps(): void {
     if (this.fpsMounted) return;
-    this.currentSection.rowsElement.appendChild(this.fpsMeter.element);
+    const section = this.ensureSection();
+    section.rowsElement.appendChild(this.fpsMeter.element);
     this.fpsMounted = true;
+  }
+
+  private ensureSection(): Section {
+    if (this.currentSection) return this.currentSection;
+    this.currentSection = this.createSection("__default__", null);
+    return this.currentSection;
   }
 }
