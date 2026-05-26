@@ -82,7 +82,6 @@ export abstract class Controller<T> {
 
   protected initialize(): void {
     this.applyToDom();
-    this.fire(this.value);
   }
 
   protected equals(a: T, b: T): boolean {
@@ -96,6 +95,6 @@ export abstract class Controller<T> {
     const path = `${this.options.storage.basePath}.${this.options.key}`;
     const stored = this.options.storage.storage.get(path);
     if (stored === undefined) return this.options.default;
-    return stored as unknown as T;
+    return stored as T;
   }
 }

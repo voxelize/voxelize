@@ -13,12 +13,12 @@ export type SelectControllerOptions<T extends string> = ControllerOptions<T> & {
 
 export class SelectController<T extends string> extends Controller<T> {
   private select: HTMLSelectElement;
-  private options: SelectOption<T>[];
+  private selectOptions: SelectOption<T>[];
 
   constructor(options: SelectControllerOptions<T>) {
     super(options);
 
-    this.options = options.options.map((entry) =>
+    this.selectOptions = options.options.map((entry) =>
       typeof entry === "string" ? { value: entry } : entry,
     );
 
@@ -32,7 +32,7 @@ export class SelectController<T extends string> extends Controller<T> {
       parent: wrapper,
     });
 
-    for (const option of this.options) {
+    for (const option of this.selectOptions) {
       const opt = createElement("option", {
         text: option.label ?? option.value,
         parent: this.select,

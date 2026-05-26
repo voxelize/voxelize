@@ -8,7 +8,8 @@ export const applyStyles = (
   for (const key of Object.keys(styles) as (keyof CSSStyleDeclaration)[]) {
     const value = styles[key];
     if (value === undefined) continue;
-    (element.style as Record<string, unknown>)[key as string] = value;
+    const style = element.style as unknown as Record<string, unknown>;
+    style[key as string] = value;
   }
 };
 
