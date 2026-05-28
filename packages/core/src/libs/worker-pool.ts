@@ -151,7 +151,8 @@ export class WorkerPool {
       const transferBuffers = buffers?.filter(
         (buffer): buffer is ArrayBuffer =>
           buffer instanceof ArrayBuffer &&
-          !(buffer instanceof SharedArrayBuffer),
+          (typeof SharedArrayBuffer === "undefined" ||
+            !(buffer instanceof SharedArrayBuffer)),
       );
       if (transferBuffers && transferBuffers.length > 0) {
         worker.postMessage(message, { transfer: transferBuffers });

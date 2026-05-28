@@ -85,6 +85,7 @@ export class RawChunk {
 
     const isSharedBacked =
       strategy === "shared" &&
+      typeof SharedArrayBuffer !== "undefined" &&
       this.voxels.data.buffer instanceof SharedArrayBuffer;
 
     if (isSharedBacked) {
