@@ -506,7 +506,7 @@ const defaultOptions: WorldClientOptions = {
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
-  maxUrgentMeshWorkers: 1,
+  maxUrgentMeshWorkers: 4,
   clientOnlyMeshing: true,
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
@@ -951,13 +951,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     });
 
+    const maxMeshWorkers = Math.min(navigator.hardwareConcurrency ?? 4, 4);
+
     this.meshWorkerPool = new WorkerPool(MeshWorker, {
-      maxWorker: Math.min(navigator.hardwareConcurrency ?? 4, 4),
+      maxWorker: maxMeshWorkers,
       name: "mesh-worker",
     });
 
     this.urgentMeshWorkerPool = new WorkerPool(MeshWorker, {
-      maxWorker: this.options.maxUrgentMeshWorkers,
+      maxWorker: Math.max(
+        1,
+        Math.min(this.options.maxUrgentMeshWorkers, maxMeshWorkers),
+      ),
       name: "mesh-worker-urgent",
     });
 
@@ -1858,9 +1863,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (oldVoxel !== voxel) {
       this.recordVoxelDelta(px, py, pz, { oldVoxel, newVoxel: voxel });
+      this.trackChunkAt(px, py, pz);
     }
-
-    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -1904,9 +1908,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       oldRotation.yRotation !== rotation.yRotation
     ) {
       this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
+      this.trackChunkAt(px, py, pz);
     }
-
-    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -1934,9 +1937,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (oldStage !== stage) {
       this.recordVoxelDelta(px, py, pz, { oldStage, newStage: stage });
+      this.trackChunkAt(px, py, pz);
     }
-
-    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -5601,6 +5603,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.flushAccumulatedLightOps();
       this.isTrackingChunks = false;
+      if (
+        this.options.useLightWorkers &&
+        (this.lightJobQueue.length > 0 || this.activeLightBatch !== null)
+      ) {
+        return;
+      }
       this.processDirtyChunks();
     };
 
@@ -5611,8 +5619,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     const dirtyKeys = this.meshPipeline.getDirtyKeys();
     if (dirtyKeys.length === 0) return;
 
+    const urgentKeys = dirtyKeys.filter((key) =>
+      this.meshPipeline.isUrgent(key),
+    );
+    if (
+      urgentKeys.length === 0 &&
+      (this.urgentMeshWorkerPool.workingCount > 0 ||
+        this.urgentMeshWorkerPool.queue.length > 0)
+    ) {
+      this.scheduleDirtyChunkProcessing();
+      return;
+    }
+
     const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
-    const keysToProcess = dirtyKeys.slice(0, maxConcurrentMeshJobs);
+    const candidateKeys = urgentKeys.length > 0 ? urgentKeys : dirtyKeys;
+    const keysToProcess = candidateKeys.slice(0, maxConcurrentMeshJobs);
 
     const workerPromises = keysToProcess.map((key) => {
       const { cx, cz, level } = MeshPipeline.parseKey(key);
