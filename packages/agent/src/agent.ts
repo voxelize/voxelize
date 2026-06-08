@@ -26,6 +26,12 @@ import type {
   WalkToOptions,
   YawPitch,
 } from "./bridge";
+import {
+  agentPidFile,
+  clearAgentPidFile,
+  reapStaleAgentBrowser,
+  recordAgentBrowser,
+} from "./browser-lifecycle";
 
 export type AgentLaunchOptions = {
   url: string;
@@ -37,9 +43,13 @@ export type AgentLaunchOptions = {
   waitReadyTimeoutMs?: number;
 };
 
+const DEFAULT_DAEMON_PORT = 4099;
+const BROWSER_CLOSE_TIMEOUT_MS = 1500;
+
 export class Agent {
   private browser: Browser;
   private page: Page;
+  private readonly pidFile: string;
   private eventListeners: Map<AgentEventName, Set<(data: unknown) => void>> =
     new Map();
   private chatLog: ChatMsgIn[] = [];
@@ -49,10 +59,12 @@ export class Agent {
     browser: Browser,
     page: Page,
     readyPromise: Promise<void>,
+    pidFile: string,
   ) {
     this.browser = browser;
     this.page = page;
     this.readyPromise = readyPromise;
+    this.pidFile = pidFile;
   }
 
   static async launch(options: AgentLaunchOptions): Promise<Agent> {
@@ -62,7 +74,11 @@ export class Agent {
       name = "agent",
       isHeadless = true,
       waitReadyTimeoutMs = 60_000,
+      port = DEFAULT_DAEMON_PORT,
     } = options;
+
+    const pidFile = agentPidFile(port);
+    reapStaleAgentBrowser(pidFile);
 
     const browser = await puppeteer.launch({
       headless: isHeadless,
@@ -75,6 +91,7 @@ export class Agent {
       ],
       defaultViewport: { width: 1280, height: 720 },
     });
+    recordAgentBrowser(pidFile, browser.process()?.pid);
 
     const page = await browser.newPage();
 
@@ -94,7 +111,7 @@ export class Agent {
       console.error("[agent-page-error]", err.message);
     });
 
-    const agent = new Agent(browser, page, Promise.resolve());
+    const agent = new Agent(browser, page, Promise.resolve(), pidFile);
     await agent.installChatCapture();
 
     const target = new URL(`${url.replace(/\/$/, "")}/${world}`);
@@ -158,7 +175,39 @@ export class Agent {
   }
 
   async close(): Promise<void> {
-    await this.browser.close();
+    const proc = this.browser.process();
+    try {
+      await Promise.race([
+        this.browser.close(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("browser close timed out")),
+            BROWSER_CLOSE_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+    } catch {
+      try {
+        proc?.kill("SIGKILL");
+      } catch {
+        // already gone
+      }
+    } finally {
+      clearAgentPidFile(this.pidFile);
+    }
+  }
+
+  browserPid(): number | undefined {
+    return this.browser.process()?.pid ?? undefined;
+  }
+
+  killBrowserSync(): void {
+    try {
+      this.browser.process()?.kill("SIGKILL");
+    } catch {
+      // already gone
+    }
+    clearAgentPidFile(this.pidFile);
   }
 
   async chat(text: string): Promise<CommandResult> {

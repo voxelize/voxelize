@@ -36,6 +36,11 @@ async function main(): Promise<void> {
     world,
     name,
     isHeadless,
+    port,
+  });
+
+  process.on("exit", () => {
+    agent.killBrowserSync();
   });
 
   console.log("[voxelize-agent] browser launched, awaiting ready...");
@@ -46,19 +51,35 @@ async function main(): Promise<void> {
   await daemon.start(port);
   console.log(`[voxelize-agent] daemon listening on http://127.0.0.1:${port}`);
 
-  const shutdown = async () => {
-    console.log("[voxelize-agent] shutting down...");
+  let isShuttingDown = false;
+  const shutdown = async (reason: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[voxelize-agent] shutting down (${reason})...`);
     try {
       await daemon.stop();
     } catch (e) {
       console.error(e);
     }
-    await agent.close();
+    try {
+      await agent.close();
+    } catch (e) {
+      console.error(e);
+    }
     process.exit(0);
   };
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.on(signal, () => void shutdown(signal));
+  }
+  process.on("uncaughtException", (err) => {
+    console.error("[voxelize-agent] uncaught exception:", err);
+    void shutdown("uncaughtException");
+  });
+  process.on("unhandledRejection", (reason) => {
+    console.error("[voxelize-agent] unhandled rejection:", reason);
+    void shutdown("unhandledRejection");
+  });
 }
 
 function printHelp(): void {
