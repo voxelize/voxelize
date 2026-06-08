@@ -109,7 +109,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 physics.unregister(body_handle, collider_handle);
             }
 
-            deleted_entities.push((id.clone(), etype.clone(), metadata.to_string()));
+            deleted_entities.push((id.clone(), etype.clone(), metadata.clone()));
         }
 
         physics.entity_to_handlers = new_entity_handlers;
@@ -142,11 +142,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
             let persisted = do_not_persist.is_none();
 
-            new_bookkeeping_records.insert(
-                id.0.to_owned(),
-                (etype.0.to_owned(), ent, metadata.to_owned(), persisted),
-            );
-
             let pos = position
                 .map(|p| p.0.clone())
                 .or_else(|| voxel.map(|v| Vec3(v.0 .0 as f32, v.0 .1 as f32, v.0 .2 as f32)))
@@ -157,8 +152,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             let (json_str, updated) = metadata.to_cached_str();
 
             if is_new || updated {
-                entity_metadata_map.insert(id.0.clone(), (etype.0.clone(), json_str, is_new));
+                entity_metadata_map
+                    .insert(id.0.clone(), (etype.0.clone(), json_str.clone(), is_new));
             }
+
+            new_bookkeeping_records.insert(
+                id.0.to_owned(),
+                (etype.0.to_owned(), ent, json_str, persisted),
+            );
         }
 
         let all_client_ids: Vec<String> = clients.keys().cloned().collect();
@@ -280,7 +281,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 operation: EntityOperation::Delete,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
-                                metadata: Some(metadata.to_string()),
+                                metadata: Some(metadata.clone()),
                             });
                     }
                     known_entities.remove(&entity_id);

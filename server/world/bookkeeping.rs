@@ -1,12 +1,12 @@
 use hashbrown::{HashMap, HashSet};
 use specs::Entity;
 
-use crate::{MetadataComp, Vec3};
+use crate::Vec3;
 
 #[derive(Default)]
 pub struct Bookkeeping {
-    // id -> (etype, entity, metadata, persisted)
-    pub(crate) entities: HashMap<String, (String, Entity, MetadataComp, bool)>,
+    // id -> (etype, entity, serialized_metadata, persisted)
+    pub(crate) entities: HashMap<String, (String, Entity, String, bool)>,
     // Track entity positions for distance-based visibility
     // entity_id -> position
     pub(crate) entity_positions: HashMap<String, Vec3<f32>>,

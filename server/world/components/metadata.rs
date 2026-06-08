@@ -1,5 +1,3 @@
-use bincode;
-use blake3::Hash;
 use hashbrown::HashMap;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -11,13 +9,10 @@ use specs::{Component, VecStorage};
 pub struct MetadataComp {
     pub map: HashMap<String, Value>,
 
+    /// The last JSON snapshot emitted by `to_cached_str`, used to detect changes.
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
-    cache_hash: Option<Hash>,
-
-    #[serde(skip_serializing)]
-    #[serde(skip_deserializing)]
-    cached_json: Option<String>,
+    last_emitted_json: Option<String>,
 }
 
 impl MetadataComp {
@@ -29,14 +24,12 @@ impl MetadataComp {
     pub fn from_map(map: HashMap<String, Value>) -> Self {
         Self {
             map,
-            cache_hash: None,
-            cached_json: None,
+            last_emitted_json: None,
         }
     }
 
     pub fn set_value(&mut self, component: &str, value: Value) {
         self.map.insert(component.to_owned(), value);
-        self.cached_json = None;
     }
 
     /// Set a component's metadata (dynamic - sent every update)
@@ -48,9 +41,7 @@ impl MetadataComp {
     /// Set static metadata only if it doesn't already exist (sent on CREATE, not every UPDATE)
     pub fn set_once<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         if !self.map.contains_key(component) {
-            let value = json!(data);
-            self.map.insert(component.to_owned(), value);
-            self.cached_json = None;
+            self.map.insert(component.to_owned(), json!(data));
         }
     }
 
@@ -63,40 +54,14 @@ impl MetadataComp {
         None
     }
 
-    /// Calculate hash of the current metadata map
-    fn calculate_hash(&self) -> Hash {
-        // Serialize to binary format which is more efficient than JSON string
-        let bytes = bincode::serialize(&self.map).unwrap_or_default();
-        blake3::hash(&bytes)
-    }
-
-    /// Convert metadata to JSON string, also caches is current state using hash.
+    /// Serialize to JSON, returning whether it changed since the last call.
     pub fn to_cached_str(&mut self) -> (String, bool) {
-        let current_hash = self.calculate_hash();
-
-        let mut updated = false;
-        if let Some(cache_hash) = self.cache_hash {
-            if cache_hash != current_hash {
-                updated = true;
-                self.cache_hash = Some(current_hash);
-                // Invalidate JSON cache when hash changes
-                self.cached_json = None;
-            }
-        } else {
-            updated = true;
-            self.cache_hash = Some(current_hash);
-            // Invalidate JSON cache for first update
-            self.cached_json = None;
-        }
-
-        // Use cached JSON if available and not updated
-        if !updated && self.cached_json.is_some() {
-            return (self.cached_json.clone().unwrap(), updated);
-        }
-
-        // Generate and cache the JSON string
         let json_str = self.to_string();
-        self.cached_json = Some(json_str.clone());
+        let updated = self.last_emitted_json.as_deref() != Some(json_str.as_str());
+
+        if updated {
+            self.last_emitted_json = Some(json_str.clone());
+        }
 
         (json_str, updated)
     }
