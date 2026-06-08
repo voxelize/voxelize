@@ -266,6 +266,9 @@ pub fn find_path(
 
             successors
         },
-        &|p| p.distance(&PathNode(goal.0, goal.1, goal.2)) / 3,
+        // Manhattan distance is admissible and tight for this move set (every
+        // move costs at least 1 per voxel of progress), so it keeps paths
+        // optimal while exploring far fewer nodes than a scaled-down estimate.
+        &|p| p.distance(&PathNode(goal.0, goal.1, goal.2)),
     )
 }
