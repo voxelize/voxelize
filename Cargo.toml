@@ -89,6 +89,10 @@ harness = false
 name = "lights_bench"
 harness = false
 
+[[bench]]
+name = "pathfinding_bench"
+harness = false
+
 [profile.release]
 opt-level = 3
 debug = 2
