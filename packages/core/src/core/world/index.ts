@@ -226,6 +226,7 @@ export type BlockUpdateListener = (args: {
   oldValue: number;
   newValue: number;
   voxel: Coords3;
+  source: "client" | "server";
 }) => void;
 
 export type BlockEntityUpdateData<T> = {
@@ -4320,12 +4321,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     vz: number,
     oldValue: number,
     newValue: number,
+    source: "client" | "server",
   ) {
     this.blockUpdateListeners.forEach((listener) =>
       listener({
         voxel: [vx, vy, vz],
         oldValue,
         newValue,
+        source,
       }),
     );
   }
@@ -4335,6 +4338,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     vy: number,
     vz: number,
     newVal: number,
+    source: "client" | "server",
   ) {
     const chunk = this.getChunkByPosition(vx, vy, vz);
     if (!chunk) return;
@@ -4346,7 +4350,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const arr = this.oldBlocks.get(name) || [];
       arr.push(oldVal);
       this.oldBlocks.set(name, arr);
-      this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal);
+      this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal, source);
     }
   }
 
@@ -5516,7 +5520,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
         stage,
       );
-      this.attemptBlockCache(vx, vy, vz, newValue);
+      this.attemptBlockCache(vx, vy, vz, newValue, source);
 
       this.activeBlockUpdateSource = source;
       try {
