@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use crate::{
     ChunkInterests, ChunkProtocol, Chunks, ClientFilter, Message, MessageQueues, MessageType,
-    WorldConfig, WorldTimingContext,
+    WorldConfig,
 };
 
 #[derive(Default)]
@@ -22,12 +22,10 @@ impl<'a> System<'a> for ChunkSendingSystem {
         ReadExpect<'a, ChunkInterests>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, MessageQueues>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, interests, mut chunks, mut queue, timing) = data;
-        let _t = timing.timer("chunk-sending");
+        let (config, interests, mut chunks, mut queue) = data;
 
         if chunks.to_send.is_empty() {
             return;

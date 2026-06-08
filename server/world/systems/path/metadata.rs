@@ -1,21 +1,16 @@
-use crate::{MetadataComp, PathComp, WorldTimingContext};
-use specs::{ReadExpect, ReadStorage, System, WriteStorage};
+use crate::{MetadataComp, PathComp};
+use specs::{ReadStorage, System, WriteStorage};
 
 pub struct PathMetadataSystem;
 
 impl<'a> System<'a> for PathMetadataSystem {
-    type SystemData = (
-        ReadStorage<'a, PathComp>,
-        WriteStorage<'a, MetadataComp>,
-        ReadExpect<'a, WorldTimingContext>,
-    );
+    type SystemData = (ReadStorage<'a, PathComp>, WriteStorage<'a, MetadataComp>);
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (paths, mut metadatas, timing) = data;
-        let _t = timing.timer("path-metadata");
+        let (paths, mut metadatas) = data;
 
         (&paths, &mut metadatas)
             .par_join()

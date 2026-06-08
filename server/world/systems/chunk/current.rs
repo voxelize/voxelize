@@ -1,6 +1,6 @@
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{ChunkUtils, CurrentChunkComp, PositionComp, Vec3, WorldConfig, WorldTimingContext};
+use crate::{ChunkUtils, CurrentChunkComp, PositionComp, Vec3, WorldConfig};
 
 pub struct CurrentChunkSystem;
 
@@ -9,15 +9,13 @@ impl<'a> System<'a> for CurrentChunkSystem {
         ReadExpect<'a, WorldConfig>,
         ReadStorage<'a, PositionComp>,
         WriteStorage<'a, CurrentChunkComp>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (config, positions, mut curr_chunks, timing) = data;
-        let _t = timing.timer("current-chunk");
+        let (config, positions, mut curr_chunks) = data;
 
         let chunk_size = config.chunk_size;
 

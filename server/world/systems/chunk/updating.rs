@@ -798,7 +798,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         WriteExpect<'a, Mesher>,
         ReadExpect<'a, LazyUpdate>,
         Entities<'a>,
-        ReadExpect<'a, crate::WorldTimingContext>,
         WriteStorage<'a, JsonComp>,
     );
 
@@ -812,10 +811,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             mut mesher,
             lazy,
             entities,
-            timing,
             mut json_storage,
         ) = data;
-        let _t = timing.timer("chunk-updating");
 
         let current_tick = stats.tick as u64;
         let max_updates_per_tick = config.max_updates_per_tick;

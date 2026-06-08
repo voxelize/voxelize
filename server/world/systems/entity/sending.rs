@@ -4,10 +4,10 @@ use specs::{
 };
 
 use crate::{
-    world::system_profiler::WorldTimingContext, BackgroundEntitiesSaver, Bookkeeping, ClientFilter,
-    Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol,
-    IDComp, InteractorComp, KdTree, Message, MessageQueues, MessageType, MetadataComp, Physics,
-    PositionComp, Vec3, VoxelComp, WorldConfig,
+    BackgroundEntitiesSaver, Bookkeeping, ClientFilter, Clients, DoNotPersistComp, ETypeComp,
+    EntityFlag, EntityIDs, EntityOperation, EntityProtocol, IDComp, InteractorComp, KdTree,
+    Message, MessageQueues, MessageType, MetadataComp, Physics, PositionComp, Vec3, VoxelComp,
+    WorldConfig,
 };
 
 #[derive(Default)]
@@ -36,7 +36,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadStorage<'a, PositionComp>,
         ReadStorage<'a, VoxelComp>,
         WriteStorage<'a, MetadataComp>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -58,9 +57,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             positions,
             voxels,
             mut metadatas,
-            timing,
         ) = data;
-        let _t = timing.timer("entities-sending");
 
         self.updated_entities_buffer.clear();
         self.entity_updates_buffer.clear();

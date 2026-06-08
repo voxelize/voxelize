@@ -2,7 +2,6 @@ use specs::{Join, ReadExpect, ReadStorage, System, WriteStorage};
 
 use crate::{
     BackgroundEntitiesSaver, DoNotPersistComp, ETypeComp, IDComp, MetadataComp, Stats, WorldConfig,
-    WorldTimingContext,
 };
 
 pub struct DataSavingSystem;
@@ -16,12 +15,10 @@ impl<'a> System<'a> for DataSavingSystem {
         ReadStorage<'a, ETypeComp>,
         ReadStorage<'a, DoNotPersistComp>,
         WriteStorage<'a, MetadataComp>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (stats, config, bg_saver, ids, etypes, do_not_persist, mut metadatas, timing) = data;
-        let _t = timing.timer("data-saving");
+        let (stats, config, bg_saver, ids, etypes, do_not_persist, mut metadatas) = data;
 
         if !config.saving {
             return;

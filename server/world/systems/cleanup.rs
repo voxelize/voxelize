@@ -1,18 +1,13 @@
-use specs::{Join, ReadExpect, System, WriteStorage};
+use specs::{Join, System, WriteStorage};
 
-use crate::{CollisionsComp, WorldTimingContext};
+use crate::CollisionsComp;
 
 pub struct CleanupSystem;
 
 impl<'a> System<'a> for CleanupSystem {
-    type SystemData = (
-        WriteStorage<'a, CollisionsComp>,
-        ReadExpect<'a, WorldTimingContext>,
-    );
+    type SystemData = WriteStorage<'a, CollisionsComp>;
 
-    fn run(&mut self, data: Self::SystemData) {
-        let (mut collisions, timing) = data;
-        let _t = timing.timer("cleanup");
+    fn run(&mut self, mut collisions: Self::SystemData) {
         (&mut collisions).join().for_each(|col| col.0.clear());
     }
 }

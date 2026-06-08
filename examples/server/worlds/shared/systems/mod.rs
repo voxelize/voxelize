@@ -2,13 +2,12 @@ mod extra_peer_meta;
 mod text_metadata;
 mod void_kill;
 
-use specs::DispatcherBuilder;
 use voxelize::{
     BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
     ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
     EntitiesMetaSystem, EntitiesSendingSystem, EntityObserveSystem, EntityTreeSystem, EventsSystem,
     PathFindingSystem, PathMetadataSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem,
-    TargetMetadataSystem, UpdateStatsSystem, WalkTowardsSystem, World,
+    TargetMetadataSystem, TimedDispatcherBuilder, UpdateStatsSystem, WalkTowardsSystem, World,
 };
 
 use self::{
@@ -18,7 +17,7 @@ use self::{
 
 pub fn setup_dispatcher(world: &mut World) {
     world.set_dispatcher(|| {
-        DispatcherBuilder::new()
+        TimedDispatcherBuilder::new()
             .with(VoidKillSystem, "void-kill", &[])
             .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntityObserveSystem, "entity-observe", &[])

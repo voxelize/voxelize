@@ -5,7 +5,7 @@ use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 use crate::{
     encode_message, world::metadata::WorldMetadata, ChunkInterests, ChunkRequestsComp,
     ClientFilter, Clients, Event, EventProtocol, Events, IDComp, Message, MessageType, Transports,
-    Vec2, WorldTimingContext,
+    Vec2,
 };
 
 pub struct EventsSystem;
@@ -19,13 +19,10 @@ impl<'a> System<'a> for EventsSystem {
         WriteExpect<'a, Events>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ChunkRequestsComp>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, interests, world_metadata, mut events, ids, requests, timing) =
-            data;
-        let _t = timing.timer("events");
+        let (transports, clients, interests, world_metadata, mut events, ids, requests) = data;
 
         if events.queue.is_empty() {
             return;

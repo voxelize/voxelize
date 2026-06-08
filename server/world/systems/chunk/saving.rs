@@ -1,6 +1,6 @@
 use specs::{ReadExpect, System, WriteExpect};
 
-use crate::{BackgroundChunkSaver, Chunks, WorldConfig, WorldTimingContext};
+use crate::{BackgroundChunkSaver, Chunks, WorldConfig};
 
 pub struct ChunkSavingSystem;
 
@@ -9,12 +9,10 @@ impl<'a> System<'a> for ChunkSavingSystem {
         ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, Chunks>,
         ReadExpect<'a, BackgroundChunkSaver>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, mut chunks, bg_saver, timing) = data;
-        let _t = timing.timer("chunk-saving");
+        let (config, mut chunks, bg_saver) = data;
 
         if !config.saving {
             return;

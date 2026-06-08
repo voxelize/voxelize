@@ -1,11 +1,8 @@
 use serde_json::json;
-use specs::{ReadExpect, ReadStorage, System, WriteStorage};
+use specs::{ReadStorage, System, WriteStorage};
 
-use crate::world::{
-    components::{
-        DirectionComp, EntityFlag, JsonComp, MetadataComp, PositionComp, RigidBodyComp, VoxelComp,
-    },
-    system_profiler::WorldTimingContext,
+use crate::world::components::{
+    DirectionComp, EntityFlag, JsonComp, MetadataComp, PositionComp, RigidBodyComp, VoxelComp,
 };
 
 pub struct EntitiesMetaSystem;
@@ -19,16 +16,13 @@ impl<'a> System<'a> for EntitiesMetaSystem {
         ReadStorage<'a, VoxelComp>,
         ReadStorage<'a, JsonComp>,
         WriteStorage<'a, MetadataComp>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (flag, positions, directions, rigid_bodies, voxels, jsons, mut metadatas, timing) =
-            data;
-        let _t = timing.timer("entities-meta");
+        let (flag, positions, directions, rigid_bodies, voxels, jsons, mut metadatas) = data;
 
         (&positions, &mut metadatas, &flag)
             .par_join()

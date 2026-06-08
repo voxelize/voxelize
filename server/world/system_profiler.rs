@@ -1,6 +1,7 @@
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use serde::Serialize;
+use specs::{DispatcherBuilder, ReadExpect, System, SystemData, World};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
@@ -165,5 +166,73 @@ pub fn clear_timing_data_for_world(world_name: &str) {
         if let Some(timings) = world_timings.get_mut(world_name) {
             timings.clear();
         }
+    }
+}
+
+/// Wraps a system so its `run` duration is recorded under `name` every tick.
+///
+/// Applied automatically by [`TimedDispatcherBuilder`], so individual systems
+/// never need to fetch [`WorldTimingContext`] or start their own timer.
+pub struct TimedSystem<T> {
+    inner: T,
+    name: &'static str,
+}
+
+impl<T> TimedSystem<T> {
+    pub fn new(inner: T, name: &'static str) -> Self {
+        Self { inner, name }
+    }
+}
+
+impl<'a, T> System<'a> for TimedSystem<T>
+where
+    T: System<'a>,
+    T::SystemData: SystemData<'a>,
+{
+    type SystemData = (ReadExpect<'a, WorldTimingContext>, T::SystemData);
+
+    fn run(&mut self, (timing, data): Self::SystemData) {
+        let _timer = timing.timer(self.name);
+        self.inner.run(data);
+    }
+
+    fn setup(&mut self, world: &mut World) {
+        self.inner.setup(world);
+    }
+}
+
+/// Drop-in replacement for specs' [`DispatcherBuilder`] that times every system.
+///
+/// Registration only happens through [`with`](Self::with), which wraps the
+/// system in a [`TimedSystem`]. There is no path to register an unwrapped
+/// system, so no system can be left out of the profiler.
+pub struct TimedDispatcherBuilder<'a, 'b> {
+    inner: DispatcherBuilder<'a, 'b>,
+}
+
+impl<'a, 'b> Default for TimedDispatcherBuilder<'a, 'b> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a, 'b> TimedDispatcherBuilder<'a, 'b> {
+    pub fn new() -> Self {
+        Self {
+            inner: DispatcherBuilder::new(),
+        }
+    }
+
+    pub fn with<T>(mut self, system: T, name: &'static str, dep: &[&str]) -> Self
+    where
+        T: for<'c> System<'c> + Send + 'a,
+        for<'c> <T as System<'c>>::SystemData: SystemData<'c>,
+    {
+        self.inner = self.inner.with(TimedSystem::new(system, name), name, dep);
+        self
+    }
+
+    pub fn into_inner(self) -> DispatcherBuilder<'a, 'b> {
+        self.inner
     }
 }

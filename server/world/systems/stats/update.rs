@@ -2,20 +2,15 @@ use std::time::SystemTime;
 
 use specs::{ReadExpect, System, WriteExpect};
 
-use crate::{world::stats::Stats, WorldConfig, WorldTimingContext};
+use crate::{world::stats::Stats, WorldConfig};
 
 pub struct UpdateStatsSystem;
 
 impl<'a> System<'a> for UpdateStatsSystem {
-    type SystemData = (
-        ReadExpect<'a, WorldConfig>,
-        WriteExpect<'a, Stats>,
-        ReadExpect<'a, WorldTimingContext>,
-    );
+    type SystemData = (ReadExpect<'a, WorldConfig>, WriteExpect<'a, Stats>);
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, mut stats, timing) = data;
-        let _t = timing.timer("update-stats");
+        let (config, mut stats) = data;
 
         let now = SystemTime::now();
 

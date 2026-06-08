@@ -29,7 +29,7 @@ pub use webrtc::signaling::{rtc_candidate, rtc_offer, WebRTCPeers};
 pub use webrtc::{create_webrtc_api, datachannel::fragment_message};
 pub use world::system_profiler::{
     clear_timing_data_for_world, get_all_world_names, get_timing_summary_for_world, SystemTimer,
-    WorldTimingContext,
+    TimedDispatcherBuilder, TimedSystem, WorldTimingContext,
 };
 pub use world::*;
 

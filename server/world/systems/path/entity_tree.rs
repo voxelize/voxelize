@@ -1,6 +1,6 @@
-use crate::{ClientFlag, EntityFlag, KdTree, PositionComp, WorldTimingContext};
+use crate::{ClientFlag, EntityFlag, KdTree, PositionComp};
 use hashbrown::HashSet;
-use specs::{Entities, ReadExpect, ReadStorage, System, Write};
+use specs::{Entities, ReadStorage, System, Write};
 
 const POSITION_THRESHOLD_SQ: f32 = 0.01;
 
@@ -13,14 +13,12 @@ impl<'a> System<'a> for EntityTreeSystem {
         ReadStorage<'a, EntityFlag>,
         ReadStorage<'a, ClientFlag>,
         ReadStorage<'a, PositionComp>,
-        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (entities, mut tree, entity_flags, client_flags, positions, timing) = data;
-        let _t = timing.timer("entity-tree");
+        let (entities, mut tree, entity_flags, client_flags, positions) = data;
 
         let mut current_ids: HashSet<u32> = HashSet::new();
 

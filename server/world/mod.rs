@@ -45,7 +45,7 @@ use std::{
     fs::{self, File},
     time::Duration,
 };
-use system_profiler::{record_timing, SystemTimer, WorldTimingContext};
+use system_profiler::{record_timing, SystemTimer, TimedDispatcherBuilder, WorldTimingContext};
 
 use crate::{
     encode_message,
@@ -512,8 +512,8 @@ impl Handler<TransportLeaveRequest> for SyncWorld {
     }
 }
 
-fn dispatcher() -> DispatcherBuilder<'static, 'static> {
-    DispatcherBuilder::new()
+fn dispatcher() -> TimedDispatcherBuilder<'static, 'static> {
+    TimedDispatcherBuilder::new()
         .with(UpdateStatsSystem, "update-stats", &[])
         .with(EntitiesMetaSystem, "entities-meta", &["physics"])
         .with(PeersMetaSystem, "peers-meta", &[])
@@ -679,7 +679,7 @@ impl World {
 
             ecs,
 
-            dispatcher: Arc::new(dispatcher),
+            dispatcher: Arc::new(|| dispatcher().into_inner()),
             built_dispatcher: Arc::new(Mutex::new(None)),
             method_handles: HashMap::default(),
             event_handles: HashMap::default(),
@@ -1112,12 +1112,12 @@ impl World {
     }
 
     pub fn set_dispatcher<
-        F: Fn() -> DispatcherBuilder<'static, 'static> + Send + Sync + 'static,
+        F: Fn() -> TimedDispatcherBuilder<'static, 'static> + Send + Sync + 'static,
     >(
         &mut self,
         dispatch: F,
     ) {
-        self.dispatcher = Arc::new(dispatch);
+        self.dispatcher = Arc::new(move || dispatch().into_inner());
     }
 
     pub fn set_client_modifier<F: Fn(&mut World, Entity) + Send + Sync + 'static>(

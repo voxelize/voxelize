@@ -105,7 +105,6 @@ impl<'a> System<'a> for BroadcastSystem {
             _profiler,
             rtc_senders_opt,
         ) = data;
-        let _t = timing.timer("broadcast");
         let world_name = &*timing.world_name;
 
         let messages_with_world_name: Vec<(Message, ClientFilter)> = queues
