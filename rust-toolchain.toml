@@ -1,0 +1,4 @@
+# The dependency graph requires Rust >= 1.85 (edition 2024 crates), and
+# stable >= 1.90 links with the fast bundled rust-lld on x86_64 Linux.
+[toolchain]
+channel = "stable"

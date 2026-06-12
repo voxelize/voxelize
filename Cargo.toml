@@ -97,5 +97,14 @@ harness = false
 opt-level = 3
 debug = 2
 
+# Local iteration profile: same opt-level (and therefore the same runtime
+# performance) as `release`, but rebuilds are incremental and only line-table
+# debug info is emitted, which cuts edit-rebuild times dramatically.
+# Use with `cargo run --profile release-dev --example demo` (what `pnpm demo:rs` does).
+[profile.release-dev]
+inherits = "release"
+incremental = true
+debug = "line-tables-only"
+
 [profile.bench]
 inherits = "release"

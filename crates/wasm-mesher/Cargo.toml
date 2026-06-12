@@ -18,3 +18,9 @@ serde-wasm-bindgen = "0.6"
 [profile.release]
 opt-level = 3
 lto = true
+
+# `wasm-pack build --dev` (the watch loop) compiles this profile. opt-level 1
+# keeps rebuilds fast and incremental while making the meshing hot loops
+# usable in the browser, unlike the default opt-level 0.
+[profile.dev]
+opt-level = 1
