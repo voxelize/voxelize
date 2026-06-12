@@ -1,0 +1,17 @@
+# Shared cargo configuration. Keep all rustflags here rather than in
+# per-command RUSTFLAGS environment variables: cargo fingerprints builds by
+# their flags, so two invocations with different RUSTFLAGS silently invalidate
+# each other's cache and force full rebuilds.
+
+[build]
+# Opt-in: shared compilation cache across checkouts (e.g. this repo and a
+# parent project consuming it as a submodule). Requires `cargo install sccache`.
+# rustc-wrapper = "sccache"
+
+# Faster linking: Rust >= 1.90 already links with the bundled rust-lld on
+# x86_64-unknown-linux-gnu. On other platforms, install lld (apt install lld /
+# brew install llvm) and opt in below.
+# [target.aarch64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+# [target.aarch64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]

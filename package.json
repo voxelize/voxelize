@@ -12,7 +12,7 @@
     "build:wasm:release": "cd crates/wasm-mesher && wasm-pack build --target web --release",
     "build": "pnpm build:wasm && cd packages && pnpm -r --workspace-concurrency=1 --filter \"@voxelize/*\" --filter \"!@voxelize/core\" build && cd core && pnpm build",
     "demo:ts": "cd examples/client && pnpm demo",
-    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
+    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --profile release-dev --example demo\"",
     "test-dev": "vitest",
     "test": "vitest --run",
     "test:rust": "cargo test --test mesher_tests --test lights_tests",

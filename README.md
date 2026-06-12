@@ -85,6 +85,12 @@ pnpm run demo
 
 visit http://localhost:3000
 
+### Faster local builds
+
+- The server watch loop (`pnpm demo:rs`) builds with the `release-dev` profile: the same `opt-level = 3` runtime performance as `release`, but with incremental compilation and minimal debug info for much faster edit-rebuild cycles. Use it manually with `cargo run --profile release-dev --example demo`. Published/production builds should keep using `--release`.
+- If you consume Voxelize as a submodule of a parent cargo workspace, cargo takes profiles from the parent's root `Cargo.toml` — copy the `[profile.release-dev]` block there to get the same fast iteration.
+- Rust >= 1.90 links with the fast bundled `rust-lld` on x86_64 Linux out of the box; see `.cargo/config.toml` for opt-in lld linking on other platforms and an opt-in `sccache` shared cache.
+
 ## Supporting
 
 If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or PayPal. Thanks a lot!
