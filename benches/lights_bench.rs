@@ -51,6 +51,7 @@ fn bench_light_propagation(c: &mut Criterion) {
                 .make_space(&coords, 1)
                 .needs_voxels()
                 .needs_lights()
+                .needs_height_maps()
                 .build();
 
             let min = Vec3(0, 0, 0);
