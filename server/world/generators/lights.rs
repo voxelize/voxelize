@@ -299,7 +299,31 @@ impl Lights {
 
         let mut mask = vec![max_light_level; (shape.0 * shape.2) as usize];
 
-        for y in (0..max_height as i32).rev() {
+        let max_y = max_height as i32 - 1;
+
+        // Everything strictly above the tallest column in the footprint is guaranteed
+        // open-sky air, so it always resolves to `max_light_level`. Find that ceiling
+        // from the height map and bulk-fill the sky instead of scanning every empty row.
+        let mut region_top = 0;
+        for x in 0..shape.0 {
+            for z in 0..shape.2 {
+                let height = space.get_max_height(x + start_x, z + start_z) as i32;
+                if height > region_top {
+                    region_top = height;
+                }
+            }
+        }
+        region_top = region_top.min(max_y);
+
+        for y in (region_top + 1)..=max_y {
+            for x in 0..shape.0 {
+                for z in 0..shape.2 {
+                    space.set_sunlight(x + start_x, y, z + start_z, max_light_level);
+                }
+            }
+        }
+
+        for y in (0..=region_top).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
                     let id = space.get_voxel(x + start_x, y, z + start_z);
