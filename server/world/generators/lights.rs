@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::{Block, ChunkUtils, LightColor, Registry, Vec2, Vec3, VoxelAccess, WorldConfig};
+use hashbrown::HashSet;
+
+use crate::{Block, ChunkUtils, LightColor, Registry, Space, Vec2, Vec3, VoxelAccess, WorldConfig};
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [1, 0, 0],
@@ -440,6 +442,134 @@ impl Lights {
             green_light_queue,
             blue_light_queue,
         ]
+    }
+
+    /// Light a single chunk by seeding and flooding its full light-traversable
+    /// neighborhood within its own space, mirroring the historical mesher load
+    /// path. The center tile is seeded with a one-block margin so its border
+    /// columns observe their true horizontal neighbors. After this returns, the
+    /// chunk's lights live in `space` and can be read via `get_lights`.
+    ///
+    /// `min`/`shape` bound the flood to the chunk's space (centered ± the light
+    /// margin), and must be the space's own `min`/`shape`.
+    pub fn light_chunk(
+        space: &mut dyn VoxelAccess,
+        coords: &Vec2<i32>,
+        min: &Vec3<i32>,
+        shape: &Vec3<usize>,
+        registry: &Registry,
+        config: &WorldConfig,
+    ) {
+        let chunk_size = config.chunk_size as i32;
+        let max_height = config.max_height;
+        let colors = [SUNLIGHT, RED, GREEN, BLUE];
+
+        let mut light_queues = vec![VecDeque::new(); 4];
+
+        for dx in -1..=1 {
+            for dz in -1..=1 {
+                let is_center = dx == 0 && dz == 0;
+                let tile_margin = if is_center { 1 } else { 0 };
+
+                let tile_min = Vec3(
+                    (coords.0 + dx) * chunk_size - tile_margin,
+                    0,
+                    (coords.1 + dz) * chunk_size - tile_margin,
+                );
+                let tile_shape = Vec3(
+                    (chunk_size + 2 * tile_margin) as usize,
+                    max_height,
+                    (chunk_size + 2 * tile_margin) as usize,
+                );
+
+                let subqueues = Lights::propagate(space, &tile_min, &tile_shape, registry, config);
+
+                for (queue, subqueue) in light_queues.iter_mut().zip(subqueues.into_iter()) {
+                    queue.extend(subqueue);
+                }
+            }
+        }
+
+        for (queue, color) in light_queues.into_iter().zip(colors.iter()) {
+            if !queue.is_empty() {
+                Lights::flood_light(
+                    space,
+                    queue,
+                    color,
+                    registry,
+                    config,
+                    Some(min),
+                    Some(shape),
+                );
+            }
+        }
+    }
+
+    /// Light a whole region of chunks in a single pass and leave the result in
+    /// `space` for every loaded chunk. Each `committed` chunk is seeded as a
+    /// center tile (with a one-block margin) exactly as [`Lights::light_chunk`]
+    /// would; every other loaded chunk (the border ring that only feeds light
+    /// into committed chunks) is seeded as a plain neighbor tile. A single flood
+    /// per color then spreads all seeds across the region.
+    ///
+    /// Because light travels at most `max_light_level` blocks, the light of any
+    /// committed chunk depends solely on the seeds within its own
+    /// light-traversable neighborhood. When that neighborhood is fully contained
+    /// in `space` and `extended == 1` (so the per-chunk path's hard-coded 3x3
+    /// equals the true neighborhood), each committed chunk's lights are
+    /// bit-for-bit identical to lighting it in isolation, while shared
+    /// neighborhoods are computed once instead of once per chunk.
+    ///
+    /// `min`/`shape` bound the flood to the union of all committed chunks'
+    /// spaces.
+    pub fn light_region(
+        space: &mut Space,
+        committed: &HashSet<Vec2<i32>>,
+        min: &Vec3<i32>,
+        shape: &Vec3<usize>,
+        registry: &Registry,
+        config: &WorldConfig,
+    ) {
+        let chunk_size = config.chunk_size as i32;
+        let max_height = config.max_height;
+        let colors = [SUNLIGHT, RED, GREEN, BLUE];
+
+        let mut light_queues = vec![VecDeque::new(); 4];
+
+        for coords in space.loaded_coords() {
+            let tile_margin = if committed.contains(&coords) { 1 } else { 0 };
+
+            let tile_min = Vec3(
+                coords.0 * chunk_size - tile_margin,
+                0,
+                coords.1 * chunk_size - tile_margin,
+            );
+            let tile_shape = Vec3(
+                (chunk_size + 2 * tile_margin) as usize,
+                max_height,
+                (chunk_size + 2 * tile_margin) as usize,
+            );
+
+            let subqueues = Lights::propagate(space, &tile_min, &tile_shape, registry, config);
+
+            for (queue, subqueue) in light_queues.iter_mut().zip(subqueues.into_iter()) {
+                queue.extend(subqueue);
+            }
+        }
+
+        for (queue, color) in light_queues.into_iter().zip(colors.iter()) {
+            if !queue.is_empty() {
+                Lights::flood_light(
+                    space,
+                    queue,
+                    color,
+                    registry,
+                    config,
+                    Some(min),
+                    Some(shape),
+                );
+            }
+        }
     }
 
     /// Check to see if light can go "into" one block, disregarding the source.
