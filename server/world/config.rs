@@ -101,8 +101,6 @@ pub struct WorldConfig {
     /// Whether chunk geometry should only be built by clients. Default is true.
     pub client_only_meshing: bool,
 
-    /// Whether to use shader-based lighting instead of CPU light propagation. Default is false.
-    pub shader_based_lighting: bool,
 
     pub entity_visible_radius: f32,
 }
@@ -154,7 +152,6 @@ const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
 const DEFAULT_CLIENT_ONLY_MESHING: bool = true;
-const DEFAULT_SHADER_BASED_LIGHTING: bool = false;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -190,7 +187,6 @@ pub struct WorldConfigBuilder {
     command_symbol: String,
     save_entities: bool,
     client_only_meshing: bool,
-    shader_based_lighting: bool,
     entity_visible_radius: f32,
 }
 
@@ -230,7 +226,6 @@ impl WorldConfigBuilder {
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
             save_entities: true,
             client_only_meshing: DEFAULT_CLIENT_ONLY_MESHING,
-            shader_based_lighting: DEFAULT_SHADER_BASED_LIGHTING,
             entity_visible_radius: 0.0,
         }
     }
@@ -404,12 +399,6 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure whether to use shader-based lighting instead of CPU light propagation. Default is false.
-    pub fn shader_based_lighting(mut self, shader_based_lighting: bool) -> Self {
-        self.shader_based_lighting = shader_based_lighting;
-        self
-    }
-
     pub fn entity_visible_radius(mut self, entity_visible_radius: f32) -> Self {
         self.entity_visible_radius = entity_visible_radius;
         self
@@ -463,7 +452,6 @@ impl WorldConfigBuilder {
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
             client_only_meshing: self.client_only_meshing,
-            shader_based_lighting: self.shader_based_lighting,
             entity_visible_radius: if self.entity_visible_radius > 0.0 {
                 self.entity_visible_radius
             } else {
