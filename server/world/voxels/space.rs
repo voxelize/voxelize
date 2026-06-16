@@ -75,13 +75,21 @@ pub struct Space {
 
 impl Space {
     /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
+    ///
+    /// `map_voxel_to_chunk_local` would recompute the chunk coordinate internally,
+    /// so derive the local coordinate from the chunk coordinate directly to avoid
+    /// resolving the (float) chunk mapping twice on every voxel access.
     fn to_local(&self, vx: i32, vy: i32, vz: i32) -> (Vec2<i32>, Vec3<usize>) {
-        let SpaceOptions { chunk_size, .. } = self.options;
+        let chunk_size = self.options.chunk_size as i32;
 
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-        let local = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
+        let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, self.options.chunk_size);
+        let local = Vec3(
+            (vx - cx * chunk_size) as usize,
+            vy as usize,
+            (vz - cz * chunk_size) as usize,
+        );
 
-        (coords, local)
+        (Vec2(cx, cz), local)
     }
 }
 
@@ -274,6 +282,18 @@ impl VoxelAccess for Space {
         }
 
         BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    /// Get the voxel id and rotation in a single lookup. Equivalent to calling
+    /// `get_voxel` and `get_voxel_rotation`, but resolves the chunk coordinate and
+    /// reads the raw voxel word once instead of twice.
+    fn get_voxel_and_rotation(&self, vx: i32, vy: i32, vz: i32) -> (u32, BlockRotation) {
+        if !self.contains(vx, vy, vz) {
+            return (0, BlockRotation::encode(PY_ROTATION, 0));
+        }
+
+        let raw = self.get_raw_voxel(vx, vy, vz);
+        (BlockUtils::extract_id(raw), BlockUtils::extract_rotation(raw))
     }
 
     /// Get the voxel stage at the voxel position. Zero is returned if chunk doesn't exist.
