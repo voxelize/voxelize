@@ -3,7 +3,7 @@ use std::sync::Arc;
 use hashbrown::{HashMap, HashSet};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{ndarray, BlockUtils, ChunkUtils, LightUtils, Ndarray, Vec2, Vec3};
+use crate::{ndarray, BlockUtils, ChunkUtils, LightColor, LightUtils, Ndarray, Vec2, Vec3};
 
 use super::{
     access::VoxelAccess,
@@ -82,6 +82,39 @@ impl Space {
         let local = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
 
         (coords, local)
+    }
+
+    /// Copy a single light channel from `source` into this space, leaving the other
+    /// channels untouched. `source` must share this space's chunk layout (it is meant
+    /// to be a clone of `self` that has had one channel flooded). This is the merge
+    /// step of the parallel per-channel flood.
+    pub fn overlay_light_channel(&mut self, source: &Space, color: &LightColor) {
+        let coords: Vec<Vec2<i32>> = self.lights.keys().cloned().collect();
+
+        for c in coords {
+            let source_data = match source.lights.get(&c) {
+                Some(lights) => &lights.data,
+                None => continue,
+            };
+
+            let dst = self.lights.get_mut(&c).unwrap();
+
+            for (word, &source_word) in dst.data.iter_mut().zip(source_data.iter()) {
+                let level = match color {
+                    LightColor::Sunlight => LightUtils::extract_sunlight(source_word),
+                    LightColor::Red => LightUtils::extract_red_light(source_word),
+                    LightColor::Green => LightUtils::extract_green_light(source_word),
+                    LightColor::Blue => LightUtils::extract_blue_light(source_word),
+                };
+
+                *word = match color {
+                    LightColor::Sunlight => LightUtils::insert_sunlight(*word, level),
+                    LightColor::Red => LightUtils::insert_red_light(*word, level),
+                    LightColor::Green => LightUtils::insert_green_light(*word, level),
+                    LightColor::Blue => LightUtils::insert_blue_light(*word, level),
+                };
+            }
+        }
     }
 }
 
