@@ -293,6 +293,10 @@ impl Pipeline {
         self.queue.pop_front()
     }
 
+    pub fn is_idle(&self) -> bool {
+        self.queue.is_empty() && self.chunks.is_empty() && self.pending_regenerate.is_empty()
+    }
+
     /// Add a stage to the chunking pipeline.
     pub fn add_stage<T>(&mut self, stage: T)
     where

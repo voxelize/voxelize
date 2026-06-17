@@ -31,6 +31,10 @@ impl MessageQueues {
         (self.critical.len(), self.normal.len(), self.bulk.len())
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.critical.is_empty() && self.normal.is_empty() && self.bulk.is_empty()
+    }
+
     pub fn push(&mut self, item: (Message, ClientFilter)) {
         let (message, filter) = item;
         match MessageType::try_from(message.r#type) {
@@ -81,6 +85,10 @@ impl EncodedMessageQueue {
 
     pub fn queue_stats(&self) -> (usize, usize) {
         (self.pending.len(), self.processed.len())
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.pending.is_empty() && self.processed.is_empty() && self.receiver.is_empty()
     }
 
     pub fn append(&mut self, mut list: Vec<(Message, ClientFilter)>) {
