@@ -454,6 +454,14 @@ impl Chunks {
         }
     }
 
+    pub fn is_idle(&self) -> bool {
+        self.updates.is_empty()
+            && self.updates_staging.is_empty()
+            && self.to_send.is_empty()
+            && self.to_save.is_empty()
+            && self.active_voxel_heap.is_empty()
+    }
+
     pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {
         if self.active_voxel_set.contains_key(voxel) {
             return;

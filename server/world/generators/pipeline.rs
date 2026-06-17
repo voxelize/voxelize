@@ -3,7 +3,6 @@ use std::{collections::VecDeque, sync::Arc};
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
     Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, VoxelUpdate,
@@ -226,9 +225,6 @@ pub struct Pipeline {
 
     /// Receiver to receive processed chunks from other threads to main thread.
     receiver: Arc<Receiver<(Chunk, Vec<VoxelUpdate>)>>,
-
-    /// Pipeline's thread pool to process chunks.
-    pool: ThreadPool,
 }
 
 impl Pipeline {
@@ -239,10 +235,6 @@ impl Pipeline {
         Self {
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
-            pool: ThreadPoolBuilder::new()
-                .thread_name(|index| format!("voxelize-chunking-{index}"))
-                .build()
-                .unwrap(),
             chunks: HashSet::new(),
             leftovers: HashMap::new(),
             pending_regenerate: HashSet::new(),
@@ -291,6 +283,10 @@ impl Pipeline {
     /// Pop the first chunk coordinate in the queue.
     pub fn get(&mut self) -> Option<Vec2<i32>> {
         self.queue.pop_front()
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.queue.is_empty() && self.chunks.is_empty() && self.pending_regenerate.is_empty()
     }
 
     /// Add a stage to the chunking pipeline.

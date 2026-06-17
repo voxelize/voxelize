@@ -206,6 +206,10 @@ pub struct Server {
     /// Worlds with a tick already queued or running.
     pending_world_ticks: HashSet<String>,
 
+    /// Worlds whose actor has stopped responding; these are no longer ticked
+    /// to avoid spamming mailbox errors and burning a core on a dead world.
+    dead_worlds: HashSet<String>,
+
     /// The information sent to the client when requested.
     info_handle: ServerInfoHandle,
 
@@ -607,7 +611,7 @@ impl Actor for Server {
                 .worlds
                 .iter()
                 .filter_map(|(name, world)| {
-                    if act.pending_world_ticks.contains(name) {
+                    if act.pending_world_ticks.contains(name) || act.dead_worlds.contains(name) {
                         None
                     } else {
                         Some((name.clone(), world.clone()))
@@ -621,7 +625,15 @@ impl Actor for Server {
                     wrap_future(world.send(Tick)).map(move |result, act: &mut Server, _| {
                         act.pending_world_ticks.remove(&world_name);
                         if let Err(error) = result {
-                            warn!("World tick failed for {}: {:?}", world_name, error);
+                            // The world actor's mailbox is closed (stopped or
+                            // panicked). Stop ticking it so we don't spam mailbox
+                            // errors and waste a core re-sending to a dead world.
+                            if act.dead_worlds.insert(world_name.clone()) {
+                                warn!(
+                                    "World tick failed for {}: {:?}. No longer ticking this world.",
+                                    world_name, error
+                                );
+                            }
                         }
                     }),
                 );
@@ -858,6 +870,7 @@ impl ServerBuilder {
             lost_sessions: HashMap::default(),
             transport_sessions: HashMap::default(),
             pending_world_ticks: HashSet::default(),
+            dead_worlds: HashSet::default(),
             worlds: HashMap::default(),
             info_handle: default_info_handle,
             action_handles: HashMap::default(),

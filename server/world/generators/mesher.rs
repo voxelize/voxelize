@@ -69,6 +69,10 @@ impl Mesher {
         self.queue.pop_front()
     }
 
+    pub fn is_idle(&self) -> bool {
+        self.queue.is_empty() && self.map.is_empty() && self.pending_remesh.is_empty()
+    }
+
     pub fn mark_for_remesh(&mut self, coords: &Vec2<i32>) {
         if self.map.contains(coords) {
             self.pending_remesh.insert(coords.to_owned());

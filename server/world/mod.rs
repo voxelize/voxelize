@@ -1604,6 +1604,48 @@ impl World {
         self.preloading = true;
     }
 
+    fn is_idle(&self) -> bool {
+        if self.preloading {
+            return false;
+        }
+
+        if !self.clients().is_empty() {
+            return false;
+        }
+
+        if !self.read_resource::<Transports>().is_empty() {
+            return false;
+        }
+
+        if !self.pipeline().is_idle() {
+            return false;
+        }
+
+        if !self.mesher().is_idle() {
+            return false;
+        }
+
+        if !self.chunks().is_idle() {
+            return false;
+        }
+
+        if !self.events().queue.is_empty() {
+            return false;
+        }
+
+        if !self.read_resource::<MessageQueues>().is_empty() {
+            return false;
+        }
+
+        if !self.read_resource::<EncodedMessageQueue>().is_idle() {
+            return false;
+        }
+
+        // Any live entity (player body, mob, item, block entity, ...) needs the
+        // per-tick simulation and metadata systems to keep running.
+        self.ecs.entities().join().count() == 0
+    }
+
     /// Tick of the world, run every 16ms.
     pub(crate) fn tick(&mut self) {
         if !self.started {
@@ -1651,25 +1693,31 @@ impl World {
 
         let tick_timer = SystemTimer::new("tick-total");
 
-        let dispatch_time = {
-            let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
-            if dispatcher_guard.is_none() {
-                let build_timer = SystemTimer::new("dispatcher-build");
-                let dispatcher = (self.dispatcher)().build();
-                *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
-                record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
-            }
+        let dispatch_time = if self.is_idle() {
+            0.0
+        } else {
+            let dispatch_time = {
+                let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
+                if dispatcher_guard.is_none() {
+                    let build_timer = SystemTimer::new("dispatcher-build");
+                    let dispatcher = (self.dispatcher)().build();
+                    *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
+                    record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
+                }
 
-            let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
-            dispatcher_guard
-                .as_mut()
-                .unwrap()
-                .get_mut()
-                .dispatch(&self.ecs);
-            dispatch_timer.elapsed_ms()
+                let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
+                dispatcher_guard
+                    .as_mut()
+                    .unwrap()
+                    .get_mut()
+                    .dispatch(&self.ecs);
+                dispatch_timer.elapsed_ms()
+            };
+
+            self.write_resource::<Profiler>().summarize();
+
+            dispatch_time
         };
-
-        self.write_resource::<Profiler>().summarize();
 
         let maintain_time = {
             let maintain_timer = SystemTimer::new("ecs-maintain");
@@ -2104,5 +2152,95 @@ impl World {
                 .build(),
             entity_ids,
         )
+    }
+}
+
+#[cfg(test)]
+mod idle_gate_tests {
+    use super::*;
+    use crate::ClientFilter;
+
+    fn idle_world() -> World {
+        World::new("idle-gate-test", &WorldConfig::new().saving(false).build())
+    }
+
+    #[test]
+    fn fresh_world_with_no_work_is_idle() {
+        let world = idle_world();
+        assert!(
+            world.is_idle(),
+            "a fresh world with no clients or queued work should be idle"
+        );
+    }
+
+    #[test]
+    fn queued_pipeline_chunk_breaks_idle() {
+        let mut world = idle_world();
+        assert!(world.is_idle());
+        world.pipeline_mut().add_chunk(&Vec2(0, 0), false);
+        assert!(
+            !world.is_idle(),
+            "a queued pipeline chunk must keep the world busy"
+        );
+    }
+
+    #[test]
+    fn queued_mesher_chunk_breaks_idle() {
+        let mut world = idle_world();
+        world.mesher_mut().add_chunk(&Vec2(1, 2), false);
+        assert!(
+            !world.is_idle(),
+            "a queued mesher chunk must keep the world busy"
+        );
+    }
+
+    #[test]
+    fn staged_voxel_update_breaks_idle() {
+        let mut world = idle_world();
+        world.chunks_mut().update_voxel(&Vec3(3, 4, 5), 1);
+        assert!(
+            !world.is_idle(),
+            "a pending voxel update must keep the world busy"
+        );
+    }
+
+    #[test]
+    fn active_voxel_breaks_idle() {
+        let mut world = idle_world();
+        world.chunks_mut().mark_voxel_active(&Vec3(0, 1, 0), 10);
+        assert!(
+            !world.is_idle(),
+            "a scheduled active voxel must keep the world busy"
+        );
+    }
+
+    #[test]
+    fn pending_event_breaks_idle() {
+        let mut world = idle_world();
+        world.events_mut().dispatch(Event::new("test").build());
+        assert!(
+            !world.is_idle(),
+            "a queued event must keep the world busy"
+        );
+    }
+
+    #[test]
+    fn queued_broadcast_breaks_idle() {
+        let mut world = idle_world();
+        world.broadcast(Message::new(&MessageType::Chat).build(), ClientFilter::All);
+        assert!(
+            !world.is_idle(),
+            "a queued broadcast must keep the world busy"
+        );
+    }
+
+    #[test]
+    fn spawned_entity_breaks_idle() {
+        let mut world = idle_world();
+        world.create_entity("mob-1", "test").build();
+        assert!(
+            !world.is_idle(),
+            "a live entity must keep the world busy"
+        );
     }
 }
