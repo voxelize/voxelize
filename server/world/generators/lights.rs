@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{Block, ChunkUtils, LightColor, Registry, Vec2, Vec3, VoxelAccess, WorldConfig};
+use crate::{Block, BlockUtils, LightColor, Registry, Vec3, VoxelAccess, WorldConfig};
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [1, 0, 0],
@@ -53,6 +53,8 @@ impl Lights {
         let [end_cx, end_cz] = *max_chunk;
 
         let max_height = *max_height as i32;
+        let max_light_level = *max_light_level;
+        let chunk_size = config.chunk_size as i32;
         let is_sunlight = *color == LightColor::Sunlight;
 
         while let Some(LightNode { voxel, level }) = queue.pop_front() {
@@ -61,14 +63,23 @@ impl Lights {
             }
 
             let [vx, vy, vz] = voxel;
-            let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
+
+            // Resolve the source voxel once: `get_voxel` and `get_voxel_rotation`
+            // would otherwise each locate the chunk and index into it separately.
+            let source_raw = if space.contains(vx, vy, vz) {
+                space.get_raw_voxel(vx, vy, vz)
+            } else {
+                0
+            };
+            let source_block = registry.get_block_by_id(BlockUtils::extract_id(source_raw));
             let voxel_pos = Vec3(vx, vy, vz);
             let source_transparency = if !is_sunlight
                 && source_block.get_torch_light_level_at(&voxel_pos, space, color) > 0
             {
                 ALL_TRANSPARENT
             } else {
-                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+                source_block
+                    .get_rotated_transparency(&BlockUtils::extract_rotation(source_raw))
             };
 
             for [ox, oy, oz] in &VOXEL_NEIGHBORS {
@@ -81,8 +92,8 @@ impl Lights {
                 let nvx = vx + ox;
                 let nvz = vz + oz;
 
-                let Vec2(ncx, ncz) =
-                    ChunkUtils::map_voxel_to_chunk(nvx, nvy, nvz, config.chunk_size);
+                let ncx = nvx.div_euclid(chunk_size);
+                let ncz = nvz.div_euclid(chunk_size);
 
                 // If neighbor is out of this chunk, or if voxel is out of the specified range, continue to next neighbor.
                 if ncx < start_cx
@@ -104,14 +115,21 @@ impl Lights {
                     continue;
                 }
 
-                let next_voxel = [nvx, nvy, nvz];
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
+                // Resolve the neighbor voxel once, matching `get_voxel` /
+                // `get_voxel_rotation` semantics (air + default rotation when the
+                // chunk is absent) without locating the chunk three times.
+                let n_raw = if space.contains(nvx, nvy, nvz) {
+                    space.get_raw_voxel(nvx, nvy, nvz)
+                } else {
+                    0
+                };
+                let n_block = registry.get_block_by_id(BlockUtils::extract_id(n_raw));
+                let n_transparency =
+                    n_block.get_rotated_transparency(&BlockUtils::extract_rotation(n_raw));
                 let reduce = if is_sunlight
                     && !n_block.light_reduce
                     && *oy == -1
-                    && level == *max_light_level
+                    && level == max_light_level
                 {
                     0
                 } else {
@@ -139,7 +157,7 @@ impl Lights {
                 }
 
                 queue.push_back(LightNode {
-                    voxel: next_voxel,
+                    voxel: [nvx, nvy, nvz],
                     level: next_level,
                 });
             }
@@ -326,8 +344,14 @@ impl Lights {
         for y in (0..=region_top).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
-                    let id = space.get_voxel(x + start_x, y, z + start_z);
-                    let block = registry.get_block_by_id(id);
+                    // Resolve the voxel once and reuse it for both the block id
+                    // and the rotation, instead of locating the chunk twice.
+                    let raw = if space.contains(x + start_x, y, z + start_z) {
+                        space.get_raw_voxel(x + start_x, y, z + start_z)
+                    } else {
+                        0
+                    };
+                    let block = registry.get_block_by_id(BlockUtils::extract_id(raw));
                     let voxel_pos = Vec3(x + start_x, y, z + start_z);
 
                     let &Block {
@@ -376,9 +400,8 @@ impl Lights {
 
                     let index = (x + z * shape.0) as usize;
 
-                    let [px, py, pz, nx, ny, nz] = space
-                        .get_voxel_rotation(x + start_x, y, z + start_z)
-                        .rotate_transparency(is_transparent);
+                    let [px, py, pz, nx, ny, nz] =
+                        BlockUtils::extract_rotation(raw).rotate_transparency(is_transparent);
 
                     if is_opaque {
                         mask[index] = 0;
