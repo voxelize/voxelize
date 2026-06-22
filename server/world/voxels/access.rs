@@ -42,6 +42,17 @@ pub trait VoxelAccess {
         self.set_raw_voxel(vx, vy, vz, value)
     }
 
+    /// Fetch the voxel id and rotation together. Both are encoded in the same raw
+    /// voxel word, so implementations backed by a single lookup can resolve the
+    /// coordinate once instead of paying for two independent accesses in the
+    /// lighting hot loops. The default mirrors calling the two getters separately.
+    fn get_voxel_and_rotation(&self, vx: i32, vy: i32, vz: i32) -> (u32, BlockRotation) {
+        (
+            self.get_voxel(vx, vy, vz),
+            self.get_voxel_rotation(vx, vy, vz),
+        )
+    }
+
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         BlockUtils::extract_stage(self.get_raw_voxel(vx, vy, vz))
     }

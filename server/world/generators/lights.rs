@@ -61,14 +61,18 @@ impl Lights {
             }
 
             let [vx, vy, vz] = voxel;
-            let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
-            let voxel_pos = Vec3(vx, vy, vz);
-            let source_transparency = if !is_sunlight
-                && source_block.get_torch_light_level_at(&voxel_pos, space, color) > 0
-            {
+            let (source_id, source_rotation) = space.get_voxel_and_rotation(vx, vy, vz);
+            let source_block = registry.get_block_by_id(source_id);
+            // The torch-emission override only applies to emitters; skipping the
+            // per-voxel dynamic light lookup for the common non-emitting source is
+            // equivalent because such blocks always report a torch level of zero.
+            let is_source_emitting = !is_sunlight
+                && (source_block.is_light || source_block.dynamic_patterns.is_some())
+                && source_block.get_torch_light_level_at(&Vec3(vx, vy, vz), space, color) > 0;
+            let source_transparency = if is_source_emitting {
                 ALL_TRANSPARENT
             } else {
-                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+                source_block.get_rotated_transparency(&source_rotation)
             };
 
             for [ox, oy, oz] in &VOXEL_NEIGHBORS {
@@ -105,9 +109,9 @@ impl Lights {
                 }
 
                 let next_voxel = [nvx, nvy, nvz];
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
+                let (n_id, n_rotation) = space.get_voxel_and_rotation(nvx, nvy, nvz);
+                let n_block = registry.get_block_by_id(n_id);
+                let n_transparency = n_block.get_rotated_transparency(&n_rotation);
                 let reduce = if is_sunlight
                     && !n_block.light_reduce
                     && *oy == -1
@@ -326,9 +330,8 @@ impl Lights {
         for y in (0..=region_top).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
-                    let id = space.get_voxel(x + start_x, y, z + start_z);
+                    let (id, rotation) = space.get_voxel_and_rotation(x + start_x, y, z + start_z);
                     let block = registry.get_block_by_id(id);
-                    let voxel_pos = Vec3(x + start_x, y, z + start_z);
 
                     let &Block {
                         is_transparent,
@@ -338,13 +341,29 @@ impl Lights {
                         ..
                     } = block;
 
-                    // Get dynamic light levels
-                    let red_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
-                    let green_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
-                    let blue_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue);
+                    // Torch levels only vary per-voxel for dynamic blocks; for the
+                    // common static block the registry fields already hold the exact
+                    // values `get_torch_light_level_at` would return, so read them
+                    // directly and skip three dynamic-pattern lookups per voxel.
+                    let (red_light_level, green_light_level, blue_light_level) =
+                        if block.dynamic_patterns.is_some() {
+                            let voxel_pos = Vec3(x + start_x, y, z + start_z);
+                            (
+                                block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red),
+                                block.get_torch_light_level_at(
+                                    &voxel_pos,
+                                    space,
+                                    &LightColor::Green,
+                                ),
+                                block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue),
+                            )
+                        } else {
+                            (
+                                block.red_light_level,
+                                block.green_light_level,
+                                block.blue_light_level,
+                            )
+                        };
 
                     if is_light
                         || red_light_level > 0
@@ -376,9 +395,7 @@ impl Lights {
 
                     let index = (x + z * shape.0) as usize;
 
-                    let [px, py, pz, nx, ny, nz] = space
-                        .get_voxel_rotation(x + start_x, y, z + start_z)
-                        .rotate_transparency(is_transparent);
+                    let [px, py, pz, nx, ny, nz] = rotation.rotate_transparency(is_transparent);
 
                     if is_opaque {
                         mask[index] = 0;
