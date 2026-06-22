@@ -74,6 +74,28 @@ pub struct Space {
 }
 
 impl Space {
+    /// The chunk coordinates whose voxel data is loaded into this space.
+    pub fn loaded_coords(&self) -> Vec<Vec2<i32>> {
+        self.voxels.keys().cloned().collect()
+    }
+
+    /// Merge several spaces sharing the same options into one space holding the
+    /// union of their voxel, light, and height-map data. This lets a batch of
+    /// chunks be lit in a single pass over their combined neighborhood instead
+    /// of recomputing each chunk's neighborhood independently.
+    pub fn merge(spaces: Vec<Space>) -> Space {
+        let mut iter = spaces.into_iter();
+        let mut combined = iter.next().expect("Cannot merge zero spaces.");
+
+        for space in iter {
+            combined.voxels.extend(space.voxels);
+            combined.lights.extend(space.lights);
+            combined.height_maps.extend(space.height_maps);
+        }
+
+        combined
+    }
+
     /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
     fn to_local(&self, vx: i32, vy: i32, vz: i32) -> (Vec2<i32>, Vec3<usize>) {
         let SpaceOptions { chunk_size, .. } = self.options;
