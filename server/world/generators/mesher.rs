@@ -1,12 +1,12 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    Chunk, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry, Space, Vec2, Vec3,
-    VoxelAccess, WorldConfig,
+    Chunk, GeometryProtocol, MeshProtocol, MessageType, Registry, Space, Vec2, Vec3, VoxelAccess,
+    WorldConfig,
 };
 
 use super::lights::Lights;
@@ -112,17 +112,7 @@ impl Mesher {
             processes
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
-                    let chunk_size = config.chunk_size as i32;
                     let coords = space.coords.to_owned();
-                    let min = space.min.to_owned();
-                    let shape = space.shape.to_owned();
-
-                    let light_colors = [
-                        LightColor::Sunlight,
-                        LightColor::Red,
-                        LightColor::Green,
-                        LightColor::Blue,
-                    ];
 
                     let sub_chunks = chunk.updated_levels.clone();
                     let Vec3(min_x, min_y, min_z) = chunk.min;
@@ -131,47 +121,7 @@ impl Mesher {
                         (space.options.max_height / space.options.sub_chunks) as i32;
 
                     if is_load {
-                        let mut light_queues = vec![VecDeque::new(); 4];
-
-                        for dx in -1..=1 {
-                            for dz in -1..=1 {
-                                let min = Vec3(
-                                    (coords.0 + dx) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
-                                    0,
-                                    (coords.1 + dz) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
-                                );
-                                let shape = Vec3(
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
-                                    space.options.max_height as usize,
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
-                                );
-
-                                let light_subqueues =
-                                    Lights::propagate(&mut space, &min, &shape, &registry, &config);
-
-                                for (queue, subqueue) in
-                                    light_queues.iter_mut().zip(light_subqueues.into_iter())
-                                {
-                                    queue.extend(subqueue);
-                                }
-                            }
-                        }
-
-                        for (queue, color) in light_queues.into_iter().zip(light_colors.iter()) {
-                            if !queue.is_empty() {
-                                Lights::flood_light(
-                                    &mut space,
-                                    queue,
-                                    color,
-                                    &registry,
-                                    &config,
-                                    Some(&min),
-                                    Some(&shape),
-                                );
-                            }
-                        }
+                        Lights::light_chunk(&mut space, &registry, &config);
 
                         chunk.lights =
                             Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());

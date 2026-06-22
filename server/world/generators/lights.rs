@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::{Block, ChunkUtils, LightColor, Registry, Vec2, Vec3, VoxelAccess, WorldConfig};
+use rayon::prelude::*;
+
+use crate::{Block, ChunkUtils, LightColor, Registry, Space, Vec2, Vec3, VoxelAccess, WorldConfig};
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [1, 0, 0],
@@ -440,6 +442,127 @@ impl Lights {
             green_light_queue,
             blue_light_queue,
         ]
+    }
+
+    /// Light the center chunk of `space` along the load path: seed every chunk in the
+    /// 3x3 neighborhood with `propagate`, then flood the resulting queues.
+    ///
+    /// Sunlight and the red/green/blue torch channels live in disjoint bit-fields of
+    /// each light word and never read one another during a flood, so the four floods
+    /// are independent. They are run concurrently on private copies of the space and
+    /// the per-channel results overlaid back, which is bit-for-bit identical to
+    /// flooding the channels sequentially regardless of how the work is scheduled.
+    pub fn light_chunk(space: &mut Space, registry: &Registry, config: &WorldConfig) {
+        let coords = space.coords.to_owned();
+        let chunk_size = config.chunk_size as i32;
+        let max_height = space.options.max_height;
+        let bounds_min = space.min.to_owned();
+        let bounds_shape = space.shape.to_owned();
+
+        let mut light_queues = [
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+            VecDeque::new(),
+        ];
+
+        for dx in -1..=1 {
+            for dz in -1..=1 {
+                let is_center = dx == 0 && dz == 0;
+
+                let min = Vec3(
+                    (coords.0 + dx) * chunk_size - if is_center { 1 } else { 0 },
+                    0,
+                    (coords.1 + dz) * chunk_size - if is_center { 1 } else { 0 },
+                );
+                let shape = Vec3(
+                    chunk_size as usize + if is_center { 2 } else { 0 },
+                    max_height,
+                    chunk_size as usize + if is_center { 2 } else { 0 },
+                );
+
+                let subqueues = Lights::propagate(space, &min, &shape, registry, config);
+
+                for (queue, subqueue) in light_queues.iter_mut().zip(subqueues) {
+                    queue.extend(subqueue);
+                }
+            }
+        }
+
+        Lights::flood_channels(
+            space,
+            light_queues,
+            registry,
+            config,
+            &bounds_min,
+            &bounds_shape,
+        );
+    }
+
+    /// Flood the light channels that have seeds. When more than one channel is active
+    /// they are flooded concurrently, each on its own copy of the space, and the
+    /// per-channel results are overlaid back onto `space`. The channels write disjoint
+    /// bit-fields and never read one another, so the overlaid result is identical to
+    /// flooding them sequentially. A single active channel (the common sunlight-only
+    /// case) is flooded in place, avoiding any copy.
+    fn flood_channels(
+        space: &mut Space,
+        mut queues: [VecDeque<LightNode>; 4],
+        registry: &Registry,
+        config: &WorldConfig,
+        min: &Vec3<i32>,
+        shape: &Vec3<usize>,
+    ) {
+        const COLORS: [LightColor; 4] = [SUNLIGHT, RED, GREEN, BLUE];
+
+        let active: Vec<usize> = (0..4).filter(|&index| !queues[index].is_empty()).collect();
+
+        if active.len() <= 1 {
+            for index in active {
+                Lights::flood_light(
+                    space,
+                    std::mem::take(&mut queues[index]),
+                    &COLORS[index],
+                    registry,
+                    config,
+                    Some(min),
+                    Some(shape),
+                );
+            }
+            return;
+        }
+
+        let space_ref: &Space = space;
+
+        let channels: Vec<Option<Space>> = queues
+            .into_iter()
+            .enumerate()
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|(index, queue)| {
+                if queue.is_empty() {
+                    return None;
+                }
+
+                let mut channel = space_ref.clone();
+                Lights::flood_light(
+                    &mut channel,
+                    queue,
+                    &COLORS[index],
+                    registry,
+                    config,
+                    Some(min),
+                    Some(shape),
+                );
+                Some(channel)
+            })
+            .collect();
+
+        for (index, channel) in channels.into_iter().enumerate() {
+            if let Some(channel) = channel {
+                space.overlay_light_channel(&channel, &COLORS[index]);
+            }
+        }
     }
 
     /// Check to see if light can go "into" one block, disregarding the source.
