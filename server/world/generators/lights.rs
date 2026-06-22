@@ -30,6 +30,33 @@ pub struct Lights;
 // TODO: RIGHT NOW, A TOP SLAB WILL STILL LET LIGHT TRAVEL INTO A BOTTOM SLAB...
 
 impl Lights {
+    /// Resolve a block's rotated face transparency, skipping the voxel-rotation
+    /// lookup (and the allocations inside `rotate_transparency`) when the block's
+    /// transparency is uniform across all six faces. `rotate_transparency` only
+    /// permutes faces, so a uniform input is rotation-invariant - this returns the
+    /// exact same `[bool; 6]` the unconditional path would, but avoids the work for
+    /// the common case (air, stone, glass, ...; only slabs/stairs need the lookup).
+    #[inline]
+    fn rotated_transparency(
+        block: &Block,
+        space: &dyn VoxelAccess,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+    ) -> [bool; 6] {
+        let t = block.is_transparent;
+        if t[0] == t[1]
+            && t[1] == t[2]
+            && t[2] == t[3]
+            && t[3] == t[4]
+            && t[4] == t[5]
+        {
+            return [t[0]; 6];
+        }
+
+        block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+    }
+
     /// Propagate a specific queue of `LightNode`s in a breadth-first-search fashion. If the propagation
     /// is for sunlight, light value does not decrease going downwards to simulate sunshine.
     pub fn flood_light(
@@ -68,7 +95,7 @@ impl Lights {
             {
                 ALL_TRANSPARENT
             } else {
-                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+                Lights::rotated_transparency(source_block, space, vx, vy, vz)
             };
 
             for [ox, oy, oz] in &VOXEL_NEIGHBORS {
@@ -106,8 +133,7 @@ impl Lights {
 
                 let next_voxel = [nvx, nvy, nvz];
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
+                let n_transparency = Lights::rotated_transparency(n_block, space, nvx, nvy, nvz);
                 let reduce = if is_sunlight
                     && !n_block.light_reduce
                     && *oy == -1
@@ -304,16 +330,23 @@ impl Lights {
         // Everything strictly above the tallest column in the footprint is guaranteed
         // open-sky air, so it always resolves to `max_light_level`. Find that ceiling
         // from the height map and bulk-fill the sky instead of scanning every empty row.
+        // Keep each column's own height too: within the per-column scan below, any cell
+        // above its column height is likewise guaranteed air (`check_height` counts every
+        // non-air id), letting us reuse the cached air block instead of a voxel lookup.
         let mut region_top = 0;
+        let mut col_heights = vec![0i32; (shape.0 * shape.2) as usize];
         for x in 0..shape.0 {
             for z in 0..shape.2 {
                 let height = space.get_max_height(x + start_x, z + start_z) as i32;
+                col_heights[(x + z * shape.0) as usize] = height;
                 if height > region_top {
                     region_top = height;
                 }
             }
         }
         region_top = region_top.min(max_y);
+
+        let air_block = registry.get_block_by_id(0);
 
         for y in (region_top + 1)..=max_y {
             for x in 0..shape.0 {
@@ -326,31 +359,43 @@ impl Lights {
         for y in (0..=region_top).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
-                    let id = space.get_voxel(x + start_x, y, z + start_z);
-                    let block = registry.get_block_by_id(id);
-                    let voxel_pos = Vec3(x + start_x, y, z + start_z);
+                    let index = (x + z * shape.0) as usize;
+
+                    // Above the column's own height it can only be air; reuse the cached
+                    // air block (`get_voxel` would return id 0 here anyway) and skip the
+                    // hashmap-backed voxel lookup for the deep open-sky region.
+                    let block = if y > col_heights[index] {
+                        air_block
+                    } else {
+                        registry.get_block_by_id(space.get_voxel(x + start_x, y, z + start_z))
+                    };
 
                     let &Block {
-                        is_transparent,
                         is_opaque,
-                        is_light,
                         light_reduce,
                         ..
                     } = block;
 
-                    // Get dynamic light levels
-                    let red_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
-                    let green_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
-                    let blue_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue);
-
-                    if is_light
-                        || red_light_level > 0
-                        || green_light_level > 0
-                        || blue_light_level > 0
+                    // A block can only seed torch light if it statically emits or
+                    // has dynamic patterns that might. For the overwhelmingly common
+                    // non-emitter (air, stone, ...), `get_torch_light_level_at` would
+                    // return 0 for all three colors, so skip the three per-voxel calls
+                    // entirely. This is output-identical: the original only sets/queues
+                    // when a level is > 0.
+                    if block.dynamic_patterns.is_some()
+                        || block.red_light_level > 0
+                        || block.green_light_level > 0
+                        || block.blue_light_level > 0
                     {
+                        let voxel_pos = Vec3(x + start_x, y, z + start_z);
+
+                        let red_light_level =
+                            block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
+                        let green_light_level =
+                            block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
+                        let blue_light_level =
+                            block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue);
+
                         if red_light_level > 0 {
                             space.set_red_light(x + start_x, y, z + start_z, red_light_level);
                             red_light_queue.push_back(LightNode {
@@ -374,59 +419,54 @@ impl Lights {
                         }
                     }
 
-                    let index = (x + z * shape.0) as usize;
-
-                    let [px, py, pz, nx, ny, nz] = space
-                        .get_voxel_rotation(x + start_x, y, z + start_z)
-                        .rotate_transparency(is_transparent);
-
+                    // Opaque blocks block all sunlight; their per-face transparency is
+                    // never read, so skip the rotation lookup outright.
                     if is_opaque {
                         mask[index] = 0;
-                    } else {
-                        if !py || !ny {
+                        continue;
+                    }
+
+                    let [px, py, pz, nx, ny, nz] =
+                        Lights::rotated_transparency(block, space, x + start_x, y, z + start_z);
+
+                    if !py || !ny {
+                        mask[index] = 0;
+
+                        continue;
+                    }
+
+                    // Let sunlight pass through if it can.
+                    if light_reduce {
+                        if mask[index] != 0 {
+                            space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
+
+                            sunlight_queue.push_back(LightNode {
+                                level: mask[index] - 1,
+                                voxel: [start_x + x, y, start_z + z],
+                            });
+
                             mask[index] = 0;
-
-                            continue;
                         }
+                    }
+                    // If the voxel is transparent, then it can pass sunlight through.
+                    else {
+                        space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
 
-                        // Let sunlight pass through if it can.
-                        if light_reduce {
-                            if mask[index] != 0 {
-                                space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
-
+                        if mask[index] == max_light_level {
+                            if (x < shape.0 - 1
+                                && mask[(x + 1 + z * shape.0) as usize] == 0
+                                && px)
+                                || (x > 0 && mask[(x - 1 + z * shape.0) as usize] == 0 && nx)
+                                || (z < shape.2 - 1
+                                    && mask[(x + (z + 1) * shape.0) as usize] == 0
+                                    && pz)
+                                || (z > 0 && mask[(x + (z - 1) * shape.0) as usize] == 0 && nz)
+                            {
+                                space.set_sunlight(x + start_x, y, z + start_z, max_light_level);
                                 sunlight_queue.push_back(LightNode {
-                                    level: mask[index] - 1,
+                                    level: max_light_level,
                                     voxel: [start_x + x, y, start_z + z],
                                 });
-
-                                mask[index] = 0;
-                            }
-                        }
-                        // If the voxel is transparent, then it can pass sunlight through.
-                        else {
-                            space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
-
-                            if mask[index] == max_light_level {
-                                if (x < shape.0 - 1
-                                    && mask[(x + 1 + z * shape.0) as usize] == 0
-                                    && px)
-                                    || (x > 0 && mask[(x - 1 + z * shape.0) as usize] == 0 && nx)
-                                    || (z < shape.2 - 1
-                                        && mask[(x + (z + 1) * shape.0) as usize] == 0
-                                        && pz)
-                                    || (z > 0 && mask[(x + (z - 1) * shape.0) as usize] == 0 && nz)
-                                {
-                                    space.set_sunlight(
-                                        x + start_x,
-                                        y,
-                                        z + start_z,
-                                        max_light_level,
-                                    );
-                                    sunlight_queue.push_back(LightNode {
-                                        level: max_light_level,
-                                        voxel: [start_x + x, y, start_z + z],
-                                    });
-                                }
                             }
                         }
                     }
