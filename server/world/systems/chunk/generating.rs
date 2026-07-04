@@ -157,8 +157,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             if chunk.is_none() {
                 let can_load = chunks.test_load(&coords);
                 if can_load {
+                    // Load first; only queue meshing after a successful renew below.
+                    // Queuing mesher here left ghost entries when the save was corrupt.
                     pipeline.remove_chunk(&coords);
-                    mesher.add_chunk(&coords, false);
                     to_load.push(coords);
                     continue;
                 }
@@ -260,7 +261,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         for (coords, loaded_chunk) in loaded_chunks.into_iter() {
             if let Some(chunk) = loaded_chunk {
                 chunks.renew(chunk, false);
+                mesher.add_chunk(&coords, false);
             } else {
+                // Corrupt/empty save was removed by try_load; regenerate via pipeline.
                 pipeline.add_chunk(&coords, false);
             }
         }

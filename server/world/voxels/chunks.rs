@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
-use log::info;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::sync::Arc;
@@ -114,41 +114,107 @@ impl Chunks {
 
     pub fn test_load(&self, coords: &Vec2<i32>) -> bool {
         let path = self.get_chunk_file_path(&ChunkUtils::get_chunk_name(coords.0, coords.1));
-        File::open(&path).is_ok()
+        let meta = match fs::metadata(&path) {
+            Ok(meta) => meta,
+            Err(_) => return false,
+        };
+        // Empty/truncated saves must not count as loadable — otherwise generation
+        // loops forever (test_load true -> try_load None -> re-queue) and never
+        // regenerates terrain.
+        meta.is_file() && meta.len() > 0
+    }
+
+    fn remove_corrupt_chunk_file(&self, path: &PathBuf, reason: &str) {
+        warn!(
+            "Removing corrupt chunk save at {}: {}",
+            path.display(),
+            reason
+        );
+        if let Err(err) = fs::remove_file(path) {
+            warn!(
+                "Failed to remove corrupt chunk save at {}: {}",
+                path.display(),
+                err
+            );
+        }
     }
 
     // Try to load the data of a chunk, returns whether successful or not.
+    // On corrupt/empty/invalid saves, removes the file so the chunk can regenerate.
     pub fn try_load(&self, coords: &Vec2<i32>, registry: &Registry) -> Option<Chunk> {
         if !self.config.saving {
             return None;
         }
 
         let path = self.get_chunk_file_path(&ChunkUtils::get_chunk_name(coords.0, coords.1));
-        let file = File::open(&path).ok()?;
+        let meta = match fs::metadata(&path) {
+            Ok(meta) if meta.is_file() && meta.len() > 0 => meta,
+            Ok(_) => {
+                self.remove_corrupt_chunk_file(&path, "empty or non-file");
+                return None;
+            }
+            Err(_) => return None,
+        };
+        let _ = meta;
+
+        let file = match File::open(&path) {
+            Ok(file) => file,
+            Err(_) => return None,
+        };
         let chunk_data = BufReader::new(file);
 
-        let data: ChunkFileData = serde_json::from_reader(chunk_data).ok()?;
+        let data: ChunkFileData = match serde_json::from_reader(chunk_data) {
+            Ok(data) => data,
+            Err(err) => {
+                self.remove_corrupt_chunk_file(&path, &format!("invalid JSON ({err})"));
+                return None;
+            }
+        };
 
-        let decode_base64 = |base: &str| -> Vec<u32> {
+        let decode_base64 = |base: &str| -> Result<Vec<u32>, String> {
             if base.is_empty() {
-                return vec![];
+                return Ok(vec![]);
             }
 
-            let decoded = STANDARD.decode(base).expect("Failed to decode base64");
-            let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
+            let decoded = STANDARD
+                .decode(base)
+                .map_err(|err| format!("base64 decode failed: {err}"))?;
+            let mut decoder = Decoder::new(&decoded[..])
+                .map_err(|err| format!("zlib decoder failed: {err}"))?;
             let mut buf = Vec::new();
             decoder
                 .read_to_end(&mut buf)
-                .expect("Failed to decode data");
+                .map_err(|err| format!("zlib decompress failed: {err}"))?;
+            if buf.len() % 4 != 0 {
+                return Err(format!(
+                    "decoded byte length {} is not a multiple of 4",
+                    buf.len()
+                ));
+            }
             let mut data = vec![0; buf.len() / 4];
             LittleEndian::read_u32_into(&buf, &mut data);
-            data
+            Ok(data)
         };
 
-        let (voxels, height_map) = rayon::join(
+        let (voxels_result, height_map_result) = rayon::join(
             || decode_base64(&data.voxels),
             || decode_base64(&data.height_map),
         );
+
+        let voxels = match voxels_result {
+            Ok(voxels) => voxels,
+            Err(err) => {
+                self.remove_corrupt_chunk_file(&path, &format!("voxels: {err}"));
+                return None;
+            }
+        };
+        let height_map = match height_map_result {
+            Ok(height_map) => height_map,
+            Err(err) => {
+                self.remove_corrupt_chunk_file(&path, &format!("height_map: {err}"));
+                return None;
+            }
+        };
 
         let mut chunk = Chunk::new(
             &data.id,
