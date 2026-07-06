@@ -96,6 +96,20 @@ export type ViewOptions = {
   isEnsuringChunks?: boolean;
 };
 
+export type FollowTarget = { id: string } | { kind: string };
+
+export type FollowOptions = {
+  distance?: number;
+  heightOffset?: number;
+  relativeBearing?: number;
+};
+
+export type FollowStatus = {
+  entityId: string;
+  kind: string;
+  startedAt: number;
+};
+
 export type MeshTransferBenchmarkIteration = {
   serializeMs: number;
   workerMs: number;
@@ -209,6 +223,9 @@ export interface AgentBridge {
   walk(direction: WalkDirection, opts?: WalkOptions): Promise<void>;
   walkTo(target: Vec3, opts?: WalkToOptions): Promise<void>;
   view(opts: ViewOptions): Promise<void>;
+  follow(target: FollowTarget, opts?: FollowOptions): Promise<FollowStatus>;
+  unfollow(): Promise<void>;
+  following(): FollowStatus | null;
   setFlying(isFlying: boolean): Promise<void>;
   call(method: string, payload: unknown): Promise<unknown>;
 

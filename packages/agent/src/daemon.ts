@@ -58,6 +58,17 @@ const actSchema = z.discriminatedUnion("type", [
     face: faceInputSchema.optional(),
     isEnsuringChunks: z.boolean().optional(),
   }),
+  z.object({
+    type: z.literal("follow"),
+    target: z.union([
+      z.object({ id: z.string() }),
+      z.object({ kind: z.string() }),
+    ]),
+    distance: z.number().optional(),
+    heightOffset: z.number().optional(),
+    relativeBearing: z.number().optional(),
+  }),
+  z.object({ type: z.literal("unfollow") }),
   z.object({ type: z.literal("set-flying"), isFlying: z.boolean() }),
   z.object({
     type: z.literal("call"),
@@ -290,6 +301,15 @@ export class AgentDaemon {
           isEnsuringChunks: action.isEnsuringChunks,
         });
         return { viewed: true };
+      case "follow":
+        return this.agent.follow(action.target, {
+          distance: action.distance,
+          heightOffset: action.heightOffset,
+          relativeBearing: action.relativeBearing,
+        });
+      case "unfollow":
+        await this.agent.unfollow();
+        return { unfollowed: true };
       case "set-flying":
         await this.agent.setFlying(action.isFlying);
         return { flying: action.isFlying };

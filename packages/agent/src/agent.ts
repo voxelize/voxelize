@@ -11,6 +11,9 @@ import type {
   CommandResult,
   EntitySnapshot,
   FaceInput,
+  FollowOptions,
+  FollowStatus,
+  FollowTarget,
   FrameRateMeasurement,
   FrameRateMeasurementOptions,
   MeshTransferBenchmarkRequest,
@@ -247,6 +250,25 @@ export class Agent {
 
   async view(opts: ViewOptions): Promise<void> {
     await this.page.evaluate((o) => window.__agentRequired__().view(o), opts);
+  }
+
+  async follow(
+    target: FollowTarget,
+    opts?: FollowOptions,
+  ): Promise<FollowStatus> {
+    return this.page.evaluate(
+      (t, o) => window.__agentRequired__().follow(t, o),
+      target,
+      opts ?? {},
+    );
+  }
+
+  async unfollow(): Promise<void> {
+    await this.page.evaluate(() => window.__agentRequired__().unfollow());
+  }
+
+  async following(): Promise<FollowStatus | null> {
+    return this.page.evaluate(() => window.__agentRequired__().following());
   }
 
   async setFlying(isFlying: boolean): Promise<void> {
