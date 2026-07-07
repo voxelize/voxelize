@@ -568,10 +568,9 @@ impl Physics {
         old_aabb: &mut AABB,
         dx: &Vec3<f32>,
     ) {
-        // in the air
-        if body.resting[1] >= 0 && !body.in_fluid {
-            return;
-        }
+        // No grounded/in-fluid requirement: auto-stepping bodies may catch a
+        // ledge mid-flight, e.g. a swimmer hopping out of water onto a bank
+        // one block above the surface.
 
         // direction movement was blocked before trying a step
         let x_blocked = body.resting[0] != 0;
@@ -594,11 +593,14 @@ impl Physics {
             old_aabb.min_z + dx.2,
         ];
 
+        // All trial sweeps run on `old_aabb` (a scratch copy); `body.aabb`
+        // stays at its post-collision position unless the step commits.
+
         // move towards the target until the first x/z collision
         sweep(
             space,
             registry,
-            &mut body.aabb,
+            old_aabb,
             dx,
             &mut |_, axis, _, vec| {
                 if axis == 1 {
@@ -611,26 +613,27 @@ impl Physics {
             10,
         );
 
-        let y = body.aabb.min_y;
-        // TODO: AUTO_STEPPING HAPPENS HERE
-        let y_dist = (y + 1.001).floor() - y;
+        let y = old_aabb.min_y;
+        // The epsilon lifts the body a hair over the step's top plane so the
+        // slide-over below does not graze it as a collision.
+        let y_dist = (y + 1.001).floor() - y + 1e-3;
         let up_vec = Vec3(0.0, y_dist, 0.0);
-        let mut collided = false;
+        let mut is_blocked_above = false;
 
         sweep(
             space,
             registry,
-            &mut body.aabb,
+            old_aabb,
             &up_vec,
             &mut |_, _, _, _| {
-                collided = true;
+                is_blocked_above = true;
                 true
             },
             true,
             10,
         );
 
-        if collided {
+        if is_blocked_above {
             return;
         }
 
@@ -642,23 +645,22 @@ impl Physics {
         );
         leftover[1] = 0.0;
         let mut tmp_resting = Vec3::default();
-        Physics::process_collisions(space, registry, &mut body.aabb, &leftover, &mut tmp_resting);
+        Physics::process_collisions(space, registry, old_aabb, &leftover, &mut tmp_resting);
 
-        // bail if no movement happened in the originally blocked direction
-        // if x_blocked && !approx_equals(old_aabb.min_x, target_pos[0]) {
-        //     return;
-        // }
-        // if z_blocked && !approx_equals(old_aabb.min_z, target_pos[2]) {
-        //     return;
-        // }
-
-        // if the new position is below the old position, then the new position is invalid
-        // since we're trying to step upwards
-        if old_aabb.min_y > body.aabb.min_y {
+        // bail unless the step made it past the obstruction on a blocked axis,
+        // so a failed trial cannot lift the body straight up against a wall
+        let is_x_moved = x_blocked && !approx_equals(old_aabb.min_x, body.aabb.min_x);
+        let is_z_moved = z_blocked && !approx_equals(old_aabb.min_z, body.aabb.min_z);
+        if !is_x_moved && !is_z_moved {
             return;
         }
 
-        // done, old_box is now at the target auto-stepped position
+        // stepping must end at or above the current position
+        if old_aabb.min_y < body.aabb.min_y {
+            return;
+        }
+
+        // done, old_aabb is now at the target auto-stepped position
         body.aabb.copy(old_aabb);
         body.resting[0] = tmp_resting[0];
         body.resting[2] = tmp_resting[2];
