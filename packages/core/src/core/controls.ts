@@ -257,6 +257,26 @@ export type RigidControlsOptions = {
   flyInertia: number;
 
   /**
+   * How much the camera pitch steers fly movement, from `0` (movement stays
+   * horizontal) to `1` (movement follows the full look vector, elytra-style).
+   * Defaults to `0`.
+   */
+  flyPitchSteering: number;
+
+  /**
+   * Extra speed multiplier granted at a straight-down dive when pitch
+   * steering is active. `1.2` means a vertical dive flies at `2.2x` the base
+   * fly speed. Scales quadratically with dive steepness. Defaults to `0`.
+   */
+  flyDiveSpeedBoost: number;
+
+  /**
+   * Fraction of fly speed lost at a straight-up climb when pitch steering is
+   * active, trading speed for altitude. Defaults to `0`.
+   */
+  flyClimbSpeedPenalty: number;
+
+  /**
    * The factor to the movement speed when sprint is applied. Defaults to `1.4`.
    */
   sprintFactor: number;
@@ -334,6 +354,9 @@ const defaultOptions: RigidControlsOptions = {
   flyForce: 80,
   flyImpulse: 2.5,
   flyInertia: 6,
+  flyPitchSteering: 0,
+  flyDiveSpeedBoost: 0,
+  flyClimbSpeedPenalty: 0,
 
   sprintFactor: 1.4,
   crouchFactor: 0.45,
@@ -1484,6 +1507,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       flyImpulse,
       flyForce,
       flySpeed,
+      flyPitchSteering,
+      flyDiveSpeedBoost,
+      flyClimbSpeedPenalty,
       fluidPushForce,
     } = this.options;
 
@@ -1648,7 +1674,40 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
         if (this.state.crouching) speed *= crouchFactor;
-        m[2] = speed;
+
+        // Pitch steering tilts the movement target along the camera pitch,
+        // weighted by how much of the input points forward, so a look-down
+        // dive trades altitude for speed and a climb bleeds it (elytra-like).
+        // Backward input mirrors the tilt, keeping the target on the input
+        // direction's side of the horizon.
+        let tiltSin = 0;
+        if (flyPitchSteering > 0) {
+          const { front, back, left, right } = this.movements;
+          const fb = front ? (back ? 0 : 1) : back ? -1 : 0;
+          const rl = left ? (right ? 0 : 1) : right ? -1 : 0;
+          const forwardWeight = fb === 0 ? 0 : fb / Math.hypot(fb, rl);
+
+          if (forwardWeight !== 0) {
+            this._lookDirection.set(0, 0, -1);
+            this._lookDirection.applyQuaternion(this.object.quaternion);
+            const pitch = Math.asin(
+              Math.max(-1, Math.min(1, this._lookDirection.y)),
+            );
+            tiltSin = Math.sin(pitch * flyPitchSteering * forwardWeight);
+
+            const diveness = Math.max(0, -tiltSin);
+            const climbness = Math.max(0, tiltSin);
+            speed *= Math.max(
+              0,
+              1 +
+                flyDiveSpeedBoost * diveness * diveness -
+                flyClimbSpeedPenalty * climbness,
+            );
+          }
+        }
+
+        m[1] = speed * tiltSin;
+        m[2] = speed * Math.sqrt(1 - tiltSin * tiltSin);
 
         // rotate move vector to entity's heading
         m = rotateY(m, [0, 0, 0], this.state.heading);
@@ -1662,12 +1721,16 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           m[2] - this.body.velocity[2],
         ];
 
-        push[1] = 0;
-        const pushLen = Math.sqrt(push[0] ** 2 + push[2] ** 2);
+        // Vertical steering engages with the tilt: level flight keeps the
+        // vertical axis fully on the jump/crouch impulses, steep pitches
+        // pull the velocity onto the look vector.
+        push[1] *= Math.abs(tiltSin);
+        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
 
         // Guard against a zero-length vector which would result in NaN / Infinity
         if (pushLen > 0) {
           push[0] /= pushLen;
+          push[1] /= pushLen;
           push[2] /= pushLen;
 
           // pushing force vector
