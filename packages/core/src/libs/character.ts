@@ -26,6 +26,15 @@ const CHARACTER_SCALE = 0.9;
 
 const identityQuaternion = new Quaternion();
 const headBodyInverse = new Quaternion();
+const ridePivotScratch = new Vector3();
+// Ride attitude pushes arrive once per mount render frame; tolerating a
+// few frames without one keeps update-order differences from flickering
+// the lean while still decaying promptly after a dismount.
+const RIDE_ATTITUDE_FRESH_FRAMES = 3;
+// cos(half-angle) at which the root counts as upright again after ride
+// attitude pushes stop (~0.5 degrees), so settled characters skip the
+// seat-pivot math entirely.
+const RIDE_SETTLED_W = 0.99999;
 
 const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
 
@@ -440,6 +449,22 @@ export class Character extends Group {
 
   private _swimLookDirection = new Vector3();
 
+  private _isRideAttitudeActive = false;
+
+  private _rideAttitude = new Quaternion();
+
+  private _rideAttitudeFreshFrames = 0;
+
+  private _ridePivotDrop = 0;
+
+  /**
+   * The render-only translation produced by hinging the ride attitude at
+   * the seat. It is baked into `position` while riding, so consumers that
+   * derive anchors from `position` (e.g. mount attachment) should subtract
+   * it to recover the raw tracked position.
+   */
+  public readonly rideOffset = new Vector3();
+
   /**
    * A listener called when a character starts moving.
    */
@@ -547,7 +572,9 @@ export class Character extends Group {
     this.mixer.update(delta);
     this.calculateDelta();
 
-    const swimTarget = this._isSwimming ? 1 : 0;
+    // A mounted rider stays seated even when the water would put their own
+    // body into the prone swim pose; the mount owns the attitude.
+    const swimTarget = this._isSwimming && !this._isRideAttitudeActive ? 1 : 0;
     const swimBlendLerp = this._isSwimming
       ? this.options.swimEnterLerp ?? 0.12
       : this.options.swimExitLerp ?? 0.05;
@@ -568,6 +595,7 @@ export class Character extends Group {
 
   snapToTarget() {
     this.position.copy(this.newPosition);
+    this.rideOffset.set(0, 0, 0);
     if (this._isSwimming) {
       this.quaternion.copy(this._swimBodyDirection);
       this.computeHeadLocalQuat();
@@ -756,6 +784,27 @@ export class Character extends Group {
     }
   }
 
+  /**
+   * Drive the character's whole-body lean from the mount it is riding, so
+   * the rider stays perpendicular to the mount's back instead of bolt
+   * upright. The rotation hinges at the seat, `pivotDrop` below the
+   * character's origin, keeping the rider planted while the torso pitches
+   * and rolls. The head keeps tracking the look direction in world space.
+   *
+   * Push this every frame while riding; the body eases back upright once
+   * pushes stop.
+   *
+   * @param attitude The world-space tilt of the mount (yaw-conjugated, i.e.
+   *   without the mount's heading baked in).
+   * @param pivotDrop Distance from the character's origin down to the seat.
+   */
+  setRideAttitude(attitude: Quaternion, pivotDrop: number) {
+    this._rideAttitude.copy(attitude);
+    this._ridePivotDrop = pivotDrop;
+    this._rideAttitudeFreshFrames = RIDE_ATTITUDE_FRESH_FRAMES;
+    this._isRideAttitudeActive = true;
+  }
+
   get isCrouching() {
     return this._isCrouching;
   }
@@ -941,11 +990,18 @@ export class Character extends Group {
     // POSITION FIRST!!!!
     // or else network latency will result in a weird
     // animation defect where body glitches out.
+    // The ride offset is render-only: strip it so the lerp tracks the raw
+    // streamed position, then re-apply this frame's offset after the
+    // rotations settle.
+    this.position.sub(this.rideOffset);
+    this.rideOffset.set(0, 0, 0);
+
     if (this.newPosition.length() !== 0) {
       this.position.lerp(this.newPosition, this.options.positionLerp);
     }
 
-    const isSwimTransitionActive = this._swimBlend > 0.001;
+    const isSwimTransitionActive =
+      this._swimBlend > 0.001 && !this._isRideAttitudeActive;
 
     if (isSwimTransitionActive) {
       const swimRotationLerp = Math.min(
@@ -964,7 +1020,11 @@ export class Character extends Group {
       this.headGroup.quaternion.slerp(this._headLocalQuat, swimRotationLerp);
       this.bodyGroup.quaternion.slerp(bodyTarget, swimRotationLerp);
     } else {
-      this.quaternion.slerp(identityQuaternion, this.options.rotationLerp);
+      const rootTarget =
+        this._rideAttitudeFreshFrames > 0
+          ? this._rideAttitude
+          : identityQuaternion;
+      this.quaternion.slerp(rootTarget, this.options.rotationLerp);
 
       if (this.newDirection.length() !== 0) {
         this.computeHeadLocalQuat();
@@ -981,6 +1041,32 @@ export class Character extends Group {
         );
       }
     }
+
+    this.applyRideAttitudePivot();
+  };
+
+  /**
+   * Hinge the root rotation at the seat instead of the character origin:
+   * shifting by `R * p - p` (with `p` the pivot below the origin) keeps the
+   * seat contact planted while the torso leans away from it.
+   */
+  private applyRideAttitudePivot = () => {
+    if (!this._isRideAttitudeActive) return;
+
+    if (this._rideAttitudeFreshFrames > 0) {
+      this._rideAttitudeFreshFrames -= 1;
+    } else if (Math.abs(this.quaternion.w) > RIDE_SETTLED_W) {
+      this.quaternion.copy(identityQuaternion);
+      this._isRideAttitudeActive = false;
+      return;
+    }
+
+    ridePivotScratch.set(0, -this._ridePivotDrop, 0);
+    this.rideOffset
+      .copy(ridePivotScratch)
+      .applyQuaternion(this.quaternion)
+      .sub(ridePivotScratch);
+    this.position.add(this.rideOffset);
   };
 
   /**
