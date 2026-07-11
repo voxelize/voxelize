@@ -101,6 +101,11 @@ pub struct WorldConfig {
     /// Whether chunk geometry should only be built by clients. Default is true.
     pub client_only_meshing: bool,
 
+    /// When false (default), inbound client `UPDATE` / bulk voxel writes are
+    /// ignored in `World::on_update`. Games that need client-authored terrain
+    /// (e.g. creative sandboxes) can opt in; server-authoritative games keep
+    /// this off and write voxels only from method/event handlers.
+    pub allow_client_voxel_writes: bool,
 
     pub entity_visible_radius: f32,
 }
@@ -152,6 +157,7 @@ const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
 const DEFAULT_CLIENT_ONLY_MESHING: bool = true;
+const DEFAULT_ALLOW_CLIENT_VOXEL_WRITES: bool = false;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -187,6 +193,7 @@ pub struct WorldConfigBuilder {
     command_symbol: String,
     save_entities: bool,
     client_only_meshing: bool,
+    allow_client_voxel_writes: bool,
     entity_visible_radius: f32,
 }
 
@@ -226,6 +233,7 @@ impl WorldConfigBuilder {
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
             save_entities: true,
             client_only_meshing: DEFAULT_CLIENT_ONLY_MESHING,
+            allow_client_voxel_writes: DEFAULT_ALLOW_CLIENT_VOXEL_WRITES,
             entity_visible_radius: 0.0,
         }
     }
@@ -399,6 +407,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// When false (default), inbound client voxel UPDATEs are ignored.
+    pub fn allow_client_voxel_writes(mut self, allow_client_voxel_writes: bool) -> Self {
+        self.allow_client_voxel_writes = allow_client_voxel_writes;
+        self
+    }
+
     pub fn entity_visible_radius(mut self, entity_visible_radius: f32) -> Self {
         self.entity_visible_radius = entity_visible_radius;
         self
@@ -452,6 +466,7 @@ impl WorldConfigBuilder {
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
             client_only_meshing: self.client_only_meshing,
+            allow_client_voxel_writes: self.allow_client_voxel_writes,
             entity_visible_radius: if self.entity_visible_radius > 0.0 {
                 self.entity_visible_radius
             } else {
