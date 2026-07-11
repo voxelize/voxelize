@@ -57,6 +57,9 @@ type EventMessage = MessageProtocol<
  * for defined game events that are sent from or need to be broadcasted to
  * the server.
  *
+ * Multiple listeners may register for the same event name; each is called
+ * when that event arrives. Use {@link off} to remove a specific listener.
+ *
  * # Example
  * ```ts
  * const events = new VOXELIZE.Events();
@@ -77,6 +80,12 @@ type EventMessage = MessageProtocol<
  * @noInheritDoc
  */
 export class Events extends Map<string, EventHandler> implements NetIntercept {
+  /**
+   * Per-name listener lists. The Map superclass holds one dispatcher per
+   * name that fans out to every entry in the matching bucket.
+   */
+  private buckets = new Map<string, EventHandler[]>();
+
   /**
    * A list of packets that will be sent to the server.
    *
@@ -124,6 +133,9 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * Synonym for {@link addEventListener}, adds a listener to a Voxelize server event.
    * If the payload cannot be parsed by JSON, `null` is set.
    *
+   * Multiple handlers may share the same event name; later registrations are
+   * no longer canceled.
+   *
    * @param name The name of the event to listen on. Case sensitive.
    * @param handler What to do when this event is received?
    */
@@ -131,14 +143,49 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
     name: string,
     handler: EventHandler<TPayload>,
   ) => {
-    if (this.has(name)) {
-      console.warn(
-        `Registering handler for ${name} canceled: handler already exists.`,
-      );
-      return;
+    let list = this.buckets.get(name);
+    if (!list) {
+      list = [];
+      this.buckets.set(name, list);
+      // Single Map entry dispatches to every registered listener.
+      super.set(name, ((payload: EventPayload) => {
+        const handlers = this.buckets.get(name);
+        if (!handlers) return;
+        for (const h of handlers.slice()) {
+          h(payload);
+        }
+      }) as EventHandler);
     }
+    list.push(handler as EventHandler);
+  };
 
-    this.set(name, handler as EventHandler);
+  /**
+   * Remove a previously registered listener. No-op if the handler was not
+   * registered for this name.
+   */
+  off = <TPayload = EventPayload>(
+    name: string,
+    handler: EventHandler<TPayload>,
+  ) => {
+    const list = this.buckets.get(name);
+    if (!list) return;
+    const idx = list.indexOf(handler as EventHandler);
+    if (idx < 0) return;
+    list.splice(idx, 1);
+    if (list.length === 0) {
+      this.buckets.delete(name);
+      super.delete(name);
+    }
+  };
+
+  /**
+   * Synonym for {@link off}.
+   */
+  removeEventListener = <TPayload = EventPayload>(
+    name: string,
+    handler: EventHandler<TPayload>,
+  ) => {
+    this.off(name, handler);
   };
 
   onSoundEffect = (handler: SoundEffectEventHandler) => {
