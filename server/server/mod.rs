@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use actix::{
     fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler,
-    Message as ActixMessage, MessageResult,
+    Message as ActixMessage, MessageResult, ResponseActFuture,
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
@@ -206,6 +206,19 @@ pub struct Server {
     /// Worlds with a tick already queued or running.
     pending_world_ticks: HashSet<String>,
 
+    /// When the most recent world tick completed successfully.
+    /// Used by `/health` to detect a wedged-but-bound server.
+    last_tick_at: Option<Instant>,
+
+    /// When the server actor started its tick interval.
+    actor_started_at: Option<Instant>,
+
+    /// When true, the tick interval skips dispatching world ticks (test/debug).
+    debug_pause_ticks: bool,
+
+    /// Optional delay after actor start before ticks are paused (test/debug).
+    debug_pause_ticks_after: Option<Duration>,
+
     /// The information sent to the client when requested.
     info_handle: ServerInfoHandle,
 
@@ -214,6 +227,69 @@ pub struct Server {
 
     /// WebRTC senders for hybrid networking.
     rtc_senders: Option<RtcSenders>,
+}
+
+/// Default max age of the last completed world tick before `/health` is unhealthy.
+pub const DEFAULT_TICK_STALL_THRESHOLD_MS: u64 = 5_000;
+
+fn tick_stall_threshold_ms() -> u64 {
+    std::env::var("VOXELIZE_TICK_STALL_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_TICK_STALL_THRESHOLD_MS)
+}
+
+fn debug_pause_ticks_from_env() -> bool {
+    matches!(
+        std::env::var("VOXELIZE_DEBUG_PAUSE_TICKS").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE")
+    )
+}
+
+fn debug_pause_ticks_after_from_env() -> Option<Duration> {
+    std::env::var("VOXELIZE_DEBUG_PAUSE_TICKS_AFTER_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_millis)
+}
+
+/// Build a `/health` JSON payload from live server + world preload state.
+pub fn build_health_value(
+    started: bool,
+    last_tick_age_ms: Option<u64>,
+    worlds: &[(String, bool, f32)],
+    stall_threshold_ms: u64,
+) -> Value {
+    let preloading = worlds.iter().any(|(_, preloading, _)| *preloading);
+    let preload_progress = if worlds.is_empty() {
+        0.0
+    } else {
+        worlds
+            .iter()
+            .map(|(_, _, progress)| *progress)
+            .sum::<f32>()
+            / worlds.len() as f32
+    };
+    let tick_ok = match last_tick_age_ms {
+        Some(age) => age <= stall_threshold_ms,
+        None => false,
+    };
+    let ready = started && !preloading && tick_ok;
+    let ok = ready;
+    json!({
+        "ok": ok,
+        "ready": ready,
+        "started": started,
+        "preloading": preloading,
+        "preloadProgress": preload_progress,
+        "lastTickAgeMs": last_tick_age_ms,
+        "tickStallThresholdMs": stall_threshold_ms,
+        "worlds": worlds.iter().map(|(name, preloading, progress)| json!({
+            "name": name,
+            "preloading": preloading,
+            "preloadProgress": progress,
+        })).collect::<Vec<_>>(),
+    })
 }
 
 impl Server {
@@ -602,7 +678,26 @@ impl Actor for Server {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        self.actor_started_at = Some(Instant::now());
+        if debug_pause_ticks_from_env() {
+            self.debug_pause_ticks = true;
+        }
+        if let Some(after) = debug_pause_ticks_after_from_env() {
+            self.debug_pause_ticks_after = Some(after);
+        }
+
         ctx.run_interval(Duration::from_millis(self.interval), |act, ctx| {
+            if let Some(after) = act.debug_pause_ticks_after {
+                if let Some(started_at) = act.actor_started_at {
+                    if started_at.elapsed() >= after {
+                        act.debug_pause_ticks = true;
+                    }
+                }
+            }
+            if act.debug_pause_ticks {
+                return;
+            }
+
             let worlds_to_tick: Vec<_> = act
                 .worlds
                 .iter()
@@ -620,8 +715,13 @@ impl Actor for Server {
                 ctx.spawn(
                     wrap_future(world.send(Tick)).map(move |result, act: &mut Server, _| {
                         act.pending_world_ticks.remove(&world_name);
-                        if let Err(error) = result {
-                            warn!("World tick failed for {}: {:?}", world_name, error);
+                        match result {
+                            Ok(()) => {
+                                act.last_tick_at = Some(Instant::now());
+                            }
+                            Err(error) => {
+                                warn!("World tick failed for {}: {:?}", world_name, error);
+                            }
                         }
                     }),
                 );
@@ -728,6 +828,39 @@ impl Handler<Info> for Server {
 
     fn handle(&mut self, _: Info, _: &mut Context<Self>) -> Self::Result {
         MessageResult(self.get_info())
+    }
+}
+
+/// Deep health probe: tick liveness + preload state (wedged-but-bound detection).
+#[derive(ActixMessage)]
+#[rtype(result = "Value")]
+pub struct Health;
+
+impl Handler<Health> for Server {
+    type Result = ResponseActFuture<Self, Value>;
+
+    fn handle(&mut self, _: Health, _: &mut Context<Self>) -> Self::Result {
+        let started = self.started;
+        let last_tick_age_ms = self
+            .last_tick_at
+            .map(|at| at.elapsed().as_millis() as u64);
+        let stall_threshold_ms = tick_stall_threshold_ms();
+        let world_addrs: Vec<(String, Addr<SyncWorld>)> = self
+            .worlds
+            .iter()
+            .map(|(name, addr)| (name.clone(), addr.clone()))
+            .collect();
+
+        Box::pin(wrap_future(async move {
+            let mut worlds = Vec::with_capacity(world_addrs.len());
+            for (name, addr) in world_addrs {
+                match addr.send(GetInfo).await {
+                    Ok(info) => worlds.push((name, info.preloading, info.preload_progress)),
+                    Err(_) => worlds.push((name, false, 0.0)),
+                }
+            }
+            build_health_value(started, last_tick_age_ms, &worlds, stall_threshold_ms)
+        }))
     }
 }
 
@@ -858,10 +991,58 @@ impl ServerBuilder {
             lost_sessions: HashMap::default(),
             transport_sessions: HashMap::default(),
             pending_world_ticks: HashSet::default(),
+            last_tick_at: None,
+            actor_started_at: None,
+            debug_pause_ticks: false,
+            debug_pause_ticks_after: None,
             worlds: HashMap::default(),
             info_handle: default_info_handle,
             action_handles: HashMap::default(),
             rtc_senders: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::*;
+
+    #[test]
+    fn health_reports_stall_when_tick_age_exceeds_threshold() {
+        let value = build_health_value(
+            true,
+            Some(12_000),
+            &[("spireash".into(), false, 1.0)],
+            5_000,
+        );
+        assert_eq!(value["ok"], json!(false));
+        assert_eq!(value["ready"], json!(false));
+        assert_eq!(value["preloading"], json!(false));
+        assert_eq!(value["lastTickAgeMs"], json!(12_000));
+    }
+
+    #[test]
+    fn health_ok_when_recent_tick_and_not_preloading() {
+        let value = build_health_value(
+            true,
+            Some(40),
+            &[("spireash".into(), false, 1.0)],
+            5_000,
+        );
+        assert_eq!(value["ok"], json!(true));
+        assert_eq!(value["ready"], json!(true));
+    }
+
+    #[test]
+    fn health_not_ready_while_preloading() {
+        let value = build_health_value(
+            true,
+            Some(10),
+            &[("spireash".into(), true, 0.4)],
+            5_000,
+        );
+        assert_eq!(value["ok"], json!(false));
+        assert_eq!(value["ready"], json!(false));
+        assert_eq!(value["preloading"], json!(true));
     }
 }

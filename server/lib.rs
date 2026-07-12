@@ -220,6 +220,19 @@ async fn info(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(info))
 }
 
+async fn health(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
+    let body = server.send(Health).await.unwrap();
+    let ok = body
+        .get("ok")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if ok {
+        Ok(HttpResponse::Ok().json(body))
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(body))
+    }
+}
+
 pub struct Voxelize;
 
 impl Voxelize {
@@ -232,6 +245,20 @@ impl Voxelize {
         let port = server.port.to_owned();
         let serve = server.serve.to_owned();
         let secret = server.secret.to_owned();
+
+        // Optional bind delay for probes that must observe "unbound" boot
+        // (VOXELIZE_DELAY_BIND_MS). Production leaves this unset.
+        if let Ok(ms) = std::env::var("VOXELIZE_DELAY_BIND_MS") {
+            if let Ok(delay_ms) = ms.parse::<u64>() {
+                if delay_ms > 0 {
+                    warn!(
+                        "Delaying HTTP bind by {}ms (VOXELIZE_DELAY_BIND_MS)",
+                        delay_ms
+                    );
+                    actix_web::rt::time::sleep(Duration::from_millis(delay_ms)).await;
+                }
+            }
+        }
 
         let server_addr = server.start();
 
@@ -253,7 +280,8 @@ impl Voxelize {
                 }))
                 .route("/", web::get().to(index))
                 .route("/ws/", web::get().to(ws_route))
-                .route("/info", web::get().to(info));
+                .route("/info", web::get().to(info))
+                .route("/health", web::get().to(health));
 
             if serve.is_empty() {
                 app
