@@ -161,7 +161,7 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
         // Max plausible movement per peer packet (dash/knockback/lag margin).
         // Far beyond this is treated as a cheat teleport and clamped.
         const MAX_PEER_POS_DELTA: f32 = 24.0;
-        let mut clamped = position;
+        let mut clamped = [position.0, position.1, position.2];
         {
             let positions = world.read_component::<PositionComp>();
             if let Some(p) = positions.get(client_ent) {
@@ -171,9 +171,9 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
                 let dist = (dx * dx + dy * dy + dz * dz).sqrt();
                 if dist > MAX_PEER_POS_DELTA {
                     let scale = MAX_PEER_POS_DELTA / dist;
-                    clamped.0 = p.0 .0 + dx * scale;
-                    clamped.1 = p.0 .1 + dy * scale;
-                    clamped.2 = p.0 .2 + dz * scale;
+                    clamped[0] = p.0 .0 + dx * scale;
+                    clamped[1] = p.0 .1 + dy * scale;
+                    clamped[2] = p.0 .2 + dz * scale;
                     warn!(
                         "Clamped peer position delta {:.1} -> {:.1} for entity {:?}",
                         dist, MAX_PEER_POS_DELTA, client_ent
@@ -184,14 +184,14 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
         {
             let mut positions = world.write_component::<PositionComp>();
             if let Some(p) = positions.get_mut(client_ent) {
-                p.0.set(clamped.0, clamped.1, clamped.2);
+                p.0.set(clamped[0], clamped[1], clamped[2]);
             }
         }
 
         {
             let mut bodies = world.write_component::<RigidBodyComp>();
             if let Some(b) = bodies.get_mut(client_ent) {
-                b.0.set_position(clamped.0, clamped.1, clamped.2);
+                b.0.set_position(clamped[0], clamped[1], clamped[2]);
             }
         }
     }
