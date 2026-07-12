@@ -262,10 +262,6 @@ impl Voxelize {
 
         let server_addr = server.start();
 
-        if serve.is_empty() {
-            info!("Attempting to serve static folder: {}", serve);
-        }
-
         let srv = HttpServer::new(move || {
             let serve = serve.to_owned();
             let secret = secret.to_owned();
@@ -284,9 +280,25 @@ impl Voxelize {
                 .route("/health", web::get().to(health));
 
             if serve.is_empty() {
+                info!("No static client folder configured (WS/API only)");
                 app
             } else {
-                app.service(Files::new("/", serve).show_files_listing())
+                info!("Serving static client from {}", serve);
+                // Never let the SPA Files service shadow API routes — otherwise
+                // GET /health is handled as a missing static file (404) in prod.
+                app.service(
+                    Files::new("/", serve)
+                        .index_file("index.html")
+                        .path_filter(|path, _| {
+                            let name = path
+                                .file_name()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("");
+                            // Exclude API route leaf names; nested assets keep matching.
+                            !matches!(name, "health" | "info" | "ws")
+                                && !path.starts_with("ws/")
+                        }),
+                )
             }
         })
         .bind((addr.to_owned(), port.to_owned()))?;
