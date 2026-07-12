@@ -94,7 +94,6 @@ impl BackgroundChunkSaver {
         for (_, data) in pending.drain() {
             Self::save_chunk_to_disk(&data, folder);
         }
-        // #endregion
     }
 
     fn to_base_64(data: &[u32]) -> String {
@@ -108,6 +107,15 @@ impl BackgroundChunkSaver {
     }
 
     fn save_chunk_to_disk(data: &ChunkSaveData, folder: &PathBuf) {
+        if let Err(e) = fs::create_dir_all(folder) {
+            warn!(
+                "Failed to create chunks directory {}: {}",
+                folder.display(),
+                e
+            );
+            return;
+        }
+
         let file_data = ChunkFileData {
             id: data.chunk_id.clone(),
             voxels: Self::to_base_64(&data.voxels),
@@ -129,7 +137,11 @@ impl BackgroundChunkSaver {
         let mut file = match File::create(&tmp_path) {
             Ok(f) => f,
             Err(e) => {
-                warn!("Failed to create chunk temp file: {}", e);
+                warn!(
+                    "Failed to create chunk temp file {}: {}",
+                    tmp_path.display(),
+                    e
+                );
                 return;
             }
         };

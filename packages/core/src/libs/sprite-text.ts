@@ -59,6 +59,7 @@ export class SpriteText extends Sprite {
    * Set the text to display. This will regenerate the sprite.
    */
   set text(text) {
+    if (this._text === text) return;
     this._text = text;
     this.generate();
   }
@@ -74,6 +75,7 @@ export class SpriteText extends Sprite {
    * Set the text height to display. This will regenerate the sprite.
    */
   set textHeight(textHeight) {
+    if (this._textHeight === textHeight) return;
     this._textHeight = textHeight;
     this.generate();
   }
@@ -89,6 +91,7 @@ export class SpriteText extends Sprite {
    * Set the background color of the sprite text. This will regenerate the sprite.
    */
   set backgroundColor(color) {
+    if (this._backgroundColor === color) return;
     this._backgroundColor = color;
     this.generate();
   }
@@ -106,6 +109,7 @@ export class SpriteText extends Sprite {
    * the border. This will regenerate the sprite.
    */
   set padding(padding) {
+    if (this._padding === padding) return;
     this._padding = padding;
     this.generate();
   }
@@ -121,6 +125,7 @@ export class SpriteText extends Sprite {
    * Set the border width of the sprite text. This will regenerate the sprite.
    */
   set borderWidth(borderWidth) {
+    if (this._borderWidth === borderWidth) return;
     this._borderWidth = borderWidth;
     this.generate();
   }
@@ -136,6 +141,7 @@ export class SpriteText extends Sprite {
    * Set the border radius of the sprite text. This will regenerate the sprite.
    */
   set borderRadius(borderRadius) {
+    if (this._borderRadius === borderRadius) return;
     this._borderRadius = borderRadius;
     this.generate();
   }
@@ -151,6 +157,7 @@ export class SpriteText extends Sprite {
    * Set the border color of the sprite text. This will regenerate the sprite.
    */
   set borderColor(borderColor) {
+    if (this._borderColor === borderColor) return;
     this._borderColor = borderColor;
     this.generate();
   }
@@ -166,6 +173,7 @@ export class SpriteText extends Sprite {
    * Set the font face of the sprite text. This will regenerate the sprite.
    */
   set fontFace(fontFace) {
+    if (this._fontFace === fontFace) return;
     this._fontFace = fontFace;
     this.generate();
   }
@@ -181,6 +189,7 @@ export class SpriteText extends Sprite {
    * Set the font size of the sprite text. This will regenerate the sprite.
    */
   set fontSize(fontSize) {
+    if (this._fontSize === fontSize) return;
     this._fontSize = fontSize;
     this.generate();
   }
@@ -196,6 +205,7 @@ export class SpriteText extends Sprite {
    * Set the font weight of the sprite text. This will regenerate the sprite.
    */
   set fontWeight(fontWeight) {
+    if (this._fontWeight === fontWeight) return;
     this._fontWeight = fontWeight;
     this.generate();
   }
@@ -211,6 +221,7 @@ export class SpriteText extends Sprite {
    * Set the stroke width of the sprite text. This will regenerate the sprite.
    */
   set strokeWidth(strokeWidth) {
+    if (this._strokeWidth === strokeWidth) return;
     this._strokeWidth = strokeWidth;
     this.generate();
   }
@@ -228,6 +239,7 @@ export class SpriteText extends Sprite {
    * text. This will regenerate the sprite.
    */
   set strokeColor(strokeColor) {
+    if (this._strokeColor === strokeColor) return;
     this._strokeColor = strokeColor;
     this.generate();
   }

@@ -92,10 +92,19 @@ pub struct Chunks {
 }
 
 impl Chunks {
+    pub fn folder(&self) -> Option<&PathBuf> {
+        self.folder.as_ref()
+    }
+
     /// Create a new instance of a chunk manager.
     pub fn new(config: &WorldConfig) -> Self {
         let folder = if config.saving {
             let mut folder = PathBuf::from(&config.save_dir);
+            if folder.is_relative() {
+                if let Ok(cwd) = std::env::current_dir() {
+                    folder = cwd.join(folder);
+                }
+            }
             folder.push("chunks");
 
             fs::create_dir_all(&folder).expect("Unable to create chunks directory...");

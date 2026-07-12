@@ -642,12 +642,9 @@ impl World {
 
         ecs.insert(Chunks::new(config));
         ecs.insert(BackgroundEntitiesSaver::new(&config));
-        let chunk_folder = if config.saving {
-            let mut folder = PathBuf::from(&config.save_dir);
-            folder.push("chunks");
-            Some(folder)
-        } else {
-            None
+        let chunk_folder = {
+            let chunks = ecs.read_resource::<Chunks>();
+            chunks.folder().cloned()
         };
         ecs.insert(BackgroundChunkSaver::new(chunk_folder));
         ecs.insert(Stats::new(
