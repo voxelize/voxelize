@@ -35,6 +35,9 @@ const RIDE_ATTITUDE_FRESH_FRAMES = 3;
 // attitude pushes stop (~0.5 degrees), so settled characters skip the
 // seat-pivot math entirely.
 const RIDE_SETTLED_W = 0.99999;
+// Squared seat-displacement length (~1mm) below which the decayed offset
+// counts as gone, letting the ride attitude fully deactivate.
+const RIDE_SETTLED_OFFSET_SQ = 1e-6;
 
 const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
 
@@ -457,6 +460,8 @@ export class Character extends Group {
 
   private _ridePivotDrop = 0;
 
+  private _rideSeatDisplacement = new Vector3();
+
   /**
    * The render-only translation produced by hinging the ride attitude at
    * the seat. It is baked into `position` while riding, so consumers that
@@ -596,6 +601,7 @@ export class Character extends Group {
   snapToTarget() {
     this.position.copy(this.newPosition);
     this.rideOffset.set(0, 0, 0);
+    this._rideSeatDisplacement.set(0, 0, 0);
     if (this._isSwimming) {
       this.quaternion.copy(this._swimBodyDirection);
       this.computeHeadLocalQuat();
@@ -797,10 +803,23 @@ export class Character extends Group {
    * @param attitude The world-space tilt of the mount (yaw-conjugated, i.e.
    *   without the mount's heading baked in).
    * @param pivotDrop Distance from the character's origin down to the seat.
+   * @param seatDisplacement World-space offset from the physics-derived seat
+   *   to the mount's rendered seat (rotation of the saddle about the mount's
+   *   center, render-only bobbing, etc.), so the rider stays glued to the
+   *   rendered mesh rather than floating at the raw seat point.
    */
-  setRideAttitude(attitude: Quaternion, pivotDrop: number) {
+  setRideAttitude(
+    attitude: Quaternion,
+    pivotDrop: number,
+    seatDisplacement?: Vector3,
+  ) {
     this._rideAttitude.copy(attitude);
     this._ridePivotDrop = pivotDrop;
+    if (seatDisplacement) {
+      this._rideSeatDisplacement.copy(seatDisplacement);
+    } else {
+      this._rideSeatDisplacement.set(0, 0, 0);
+    }
     this._rideAttitudeFreshFrames = RIDE_ATTITUDE_FRESH_FRAMES;
     this._isRideAttitudeActive = true;
   }
@@ -1047,25 +1066,40 @@ export class Character extends Group {
 
   /**
    * Hinge the root rotation at the seat instead of the character origin:
-   * shifting by `R * p - p` (with `p` the pivot below the origin) keeps the
-   * seat contact planted while the torso leans away from it.
+   * the root rotates the mesh about the origin (the eye), which would swing
+   * the seat by `R * p - p` (with `p` the local seat below the origin), so
+   * shifting by the opposite, `p - R * p`, keeps the seat contact planted
+   * while the head leans away from it. The mount's seat displacement rides
+   * on top so the character follows the rendered saddle exactly.
    */
   private applyRideAttitudePivot = () => {
     if (!this._isRideAttitudeActive) return;
 
     if (this._rideAttitudeFreshFrames > 0) {
       this._rideAttitudeFreshFrames -= 1;
-    } else if (Math.abs(this.quaternion.w) > RIDE_SETTLED_W) {
-      this.quaternion.copy(identityQuaternion);
-      this._isRideAttitudeActive = false;
-      return;
+    } else {
+      // Pushes stopped (dismount): ease the seat displacement out at the
+      // same rate the root slerps back upright, then deactivate once both
+      // are visually settled.
+      this._rideSeatDisplacement.multiplyScalar(1 - this.options.rotationLerp);
+      if (
+        Math.abs(this.quaternion.w) > RIDE_SETTLED_W &&
+        this._rideSeatDisplacement.lengthSq() < RIDE_SETTLED_OFFSET_SQ
+      ) {
+        this.quaternion.copy(identityQuaternion);
+        this._rideSeatDisplacement.set(0, 0, 0);
+        this._isRideAttitudeActive = false;
+        return;
+      }
     }
 
     ridePivotScratch.set(0, -this._ridePivotDrop, 0);
     this.rideOffset
       .copy(ridePivotScratch)
       .applyQuaternion(this.quaternion)
-      .sub(ridePivotScratch);
+      .sub(ridePivotScratch)
+      .negate()
+      .add(this._rideSeatDisplacement);
     this.position.add(this.rideOffset);
   };
 
