@@ -487,8 +487,16 @@ impl Server {
         }
     }
 
-    /// Preload all the worlds.
+    /// Preload all the worlds (blocking until complete).
+    ///
+    /// Prefer sending [`RunPreload`] after the server actor has started so HTTP
+    /// can serve `/health` during preload (`Voxelize::run` does this).
     pub async fn preload(&mut self) {
+        Self::preload_worlds(&self.worlds).await;
+    }
+
+    /// Drive world preload via world actor addresses (used by [`RunPreload`]).
+    async fn preload_worlds(worlds: &HashMap<String, Addr<SyncWorld>>) {
         let m = MultiProgress::new();
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] [{bar:40.cyan/blue}] {msg} {spinner:.green} {percent:>7}%",
@@ -496,14 +504,19 @@ impl Server {
         .unwrap()
         .progress_chars("#>-");
 
-        let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
+        let world_list: Vec<(String, Addr<SyncWorld>)> = worlds
+            .iter()
+            .map(|(name, addr)| (name.clone(), addr.clone()))
+            .collect();
+
+        let infos: Vec<_> = join_all(world_list.iter().map(|(_, world)| world.send(GetInfo)))
             .await
             .into_iter()
             .map(|r| r.unwrap())
             .collect();
 
         let mut bars = vec![];
-        for (world, info) in self.worlds.values().zip(infos.iter()) {
+        for ((_, world), info) in world_list.iter().zip(infos.iter()) {
             if !info.config.preload {
                 bars.push(None);
                 continue;
@@ -521,7 +534,7 @@ impl Server {
         let start = Instant::now();
 
         loop {
-            let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
+            let infos: Vec<_> = join_all(world_list.iter().map(|(_, world)| world.send(GetInfo)))
                 .await
                 .into_iter()
                 .map(|r| r.unwrap())
@@ -529,7 +542,7 @@ impl Server {
 
             let mut done = true;
 
-            for (i, (world, info)) in self.worlds.values().zip(infos.iter()).enumerate() {
+            for (i, ((_, world), info)) in world_list.iter().zip(infos.iter()).enumerate() {
                 if bars[i].is_none() || !info.config.preload {
                     continue;
                 }
@@ -655,6 +668,14 @@ pub struct Disconnect {
 #[derive(ActixMessage)]
 #[rtype(result = "Value")]
 pub struct Info;
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct RunPreload;
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct SetStarted(pub bool);
 
 #[derive(ActixMessage)]
 #[rtype(result = "Vec<WorldStatsResponse>")]
@@ -828,6 +849,27 @@ impl Handler<Info> for Server {
 
     fn handle(&mut self, _: Info, _: &mut Context<Self>) -> Self::Result {
         MessageResult(self.get_info())
+    }
+}
+
+/// Drive world preload after the HTTP server is already bound.
+impl Handler<RunPreload> for Server {
+    type Result = ResponseActFuture<Self, ()>;
+
+    fn handle(&mut self, _: RunPreload, _: &mut Context<Self>) -> Self::Result {
+        let worlds = self.worlds.clone();
+        Box::pin(wrap_future(async move {
+            Server::preload_worlds(&worlds).await;
+        }))
+    }
+}
+
+/// Mark the server as started (called after boot preload completes).
+impl Handler<SetStarted> for Server {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetStarted, _: &mut Context<Self>) -> Self::Result {
+        self.started = msg.0;
     }
 }
 
@@ -1044,5 +1086,20 @@ mod health_tests {
         assert_eq!(value["ok"], json!(false));
         assert_eq!(value["ready"], json!(false));
         assert_eq!(value["preloading"], json!(true));
+    }
+
+    #[test]
+    fn health_not_ready_before_started_even_with_ticks() {
+        // Bind-before-preload leaves started=false until RunPreload finishes.
+        let value = build_health_value(
+            false,
+            Some(5),
+            &[("spireash".into(), true, 0.1)],
+            5_000,
+        );
+        assert_eq!(value["ok"], json!(false));
+        assert_eq!(value["started"], json!(false));
+        assert_eq!(value["preloading"], json!(true));
+        assert!((value["preloadProgress"].as_f64().unwrap() - 0.1).abs() < 1e-6);
     }
 }

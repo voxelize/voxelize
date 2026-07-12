@@ -236,10 +236,16 @@ async fn health(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
 pub struct Voxelize;
 
 impl Voxelize {
+    /// Boot the Voxelize HTTP/WebSocket server.
+    ///
+    /// **Bind-before-preload:** `HttpServer` binds and accepts *before* (and
+    /// concurrently with) world preload. Previously `preload().await` ran to
+    /// completion *before* `.bind()`, so a large `preload_radius` on a small
+    /// box left the port unbound and starved health checks. During preload,
+    /// `GET /health` reports `preloading` / `preloadProgress` with `ready=false`
+    /// (503) until preload finishes and ticks flow.
     pub async fn run(mut server: Server) -> std::io::Result<()> {
         server.prepare().await;
-        server.preload().await;
-        server.started = true;
 
         let addr = server.addr.to_owned();
         let port = server.port.to_owned();
@@ -260,9 +266,13 @@ impl Voxelize {
             }
         }
 
+        // Start the Server actor first so /info and /health can reach it.
+        // Leave `started=false` until RunPreload completes (SetStarted).
         let server_addr = server.start();
+        let server_addr_http = server_addr.clone();
+        let server_addr_preload = server_addr;
 
-        let srv = HttpServer::new(move || {
+        let http = HttpServer::new(move || {
             let serve = serve.to_owned();
             let secret = secret.to_owned();
             let cors = Cors::permissive();
@@ -270,7 +280,7 @@ impl Voxelize {
             let app = App::new()
                 .wrap(cors)
                 .app_data(web::Data::new(secret))
-                .app_data(web::Data::new(server_addr.clone()))
+                .app_data(web::Data::new(server_addr_http.clone()))
                 .app_data(web::Data::new(Config {
                     serve: serve.to_owned(),
                 }))
@@ -303,8 +313,21 @@ impl Voxelize {
         })
         .bind((addr.to_owned(), port.to_owned()))?;
 
-        info!("Voxelize backend running on http://{}:{}", addr, port);
+        info!(
+            "Voxelize backend listening on http://{}:{} (preload may still be running)",
+            addr, port
+        );
 
-        srv.run().await
+        // Preload concurrently with the accept loop so probes see a bound port
+        // and live preloadProgress on /health while chunks generate.
+        actix_web::rt::spawn(async move {
+            if let Err(err) = server_addr_preload.send(RunPreload).await {
+                warn!("RunPreload delivery failed: {:?}", err);
+            }
+            server_addr_preload.do_send(SetStarted(true));
+            info!("Boot preload finished; server marked started");
+        });
+
+        http.run().await
     }
 }

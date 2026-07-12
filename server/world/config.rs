@@ -27,6 +27,13 @@ pub struct WorldConfig {
     /// The radius at which the world should preload.
     pub preload_radius: usize,
 
+    /// Optional hard cap on [`Self::preload_radius`]. When set, larger radii are
+    /// clamped at build time (with a warning). Use this so a mis-set radius on a
+    /// small box cannot schedule hundreds of chunks before the process is ready.
+    /// `None` (default) means no clamp — games that intentionally preload large
+    /// radii on big hosts leave this unset.
+    pub max_preload_radius: Option<usize>,
+
     /// Max height of the world. Default is 256 blocks high.
     pub max_height: usize,
 
@@ -162,6 +169,7 @@ pub struct WorldConfigBuilder {
     max_chunk: [i32; 2],
     preload: bool,
     preload_radius: usize,
+    max_preload_radius: Option<usize>,
     max_height: usize,
     max_light_level: u32,
     max_chunks_per_tick: usize,
@@ -203,6 +211,7 @@ impl WorldConfigBuilder {
             default_time: DEFAULT_TIME,
             preload: DEFAULT_PRELOAD,
             preload_radius: DEFAULT_PRELOAD_RADIUS,
+            max_preload_radius: None,
             max_height: DEFAULT_MAX_HEIGHT,
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
             max_chunks_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
@@ -270,9 +279,16 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the preload radius of the world. Default is 12 chunks.
+    /// Configure the preload radius of the world. Default is 8 chunks.
     pub fn preload_radius(mut self, preload_radius: usize) -> Self {
         self.preload_radius = preload_radius;
+        self
+    }
+
+    /// Optional hard cap on preload radius. Larger values are clamped at build
+    /// time. Default is `None` (no clamp).
+    pub fn max_preload_radius(mut self, max_preload_radius: Option<usize>) -> Self {
+        self.max_preload_radius = max_preload_radius;
         self
     }
 
@@ -436,7 +452,22 @@ impl WorldConfigBuilder {
             max_chunk: self.max_chunk,
             default_time: self.default_time.max(0.0).min(self.time_per_day as f32),
             preload: self.preload,
-            preload_radius: self.preload_radius,
+            preload_radius: {
+                let mut radius = self.preload_radius;
+                if let Some(max) = self.max_preload_radius {
+                    if radius > max {
+                        log::warn!(
+                            "Clamping preload_radius {} → {} (max_preload_radius); \
+                             large preloads before/while HTTP is accepting can wedge \
+                             small hosts — prefer bind-before-preload + a bounded radius",
+                            radius, max
+                        );
+                        radius = max;
+                    }
+                }
+                radius
+            },
+            max_preload_radius: self.max_preload_radius,
             air_drag: self.air_drag,
             fluid_drag: self.fluid_drag,
             fluid_density: self.fluid_density,
@@ -458,5 +489,32 @@ impl WorldConfigBuilder {
                 24.0 * self.chunk_size as f32
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod preload_budget_tests {
+    use super::*;
+
+    #[test]
+    fn max_preload_radius_clamps_configured_radius() {
+        let config = WorldConfig::new()
+            .preload(true)
+            .preload_radius(8)
+            .max_preload_radius(Some(2))
+            .build();
+        assert_eq!(config.preload_radius, 2);
+        assert_eq!(config.max_preload_radius, Some(2));
+    }
+
+    #[test]
+    fn max_preload_radius_none_keeps_large_radius() {
+        let config = WorldConfig::new()
+            .preload(true)
+            .preload_radius(8)
+            .max_preload_radius(None)
+            .build();
+        assert_eq!(config.preload_radius, 8);
+        assert_eq!(config.max_preload_radius, None);
     }
 }
