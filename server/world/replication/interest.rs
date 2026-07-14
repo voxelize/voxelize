@@ -1,4 +1,27 @@
+//! Interest management for the state replication layer: per-client relevance
+//! filtering so a client only receives replicated state (entities, peers) it
+//! can actually observe, instead of the whole world.
+//!
+//! Entities use a tracked interest set with enter/leave hysteresis because
+//! their client-side lifecycle is driven by reliable CREATE / OUT_OF_RANGE
+//! events. Peers have a reliable JOIN/LEAVE lifecycle of their own, so their
+//! relevance check ([`is_peer_relevant`]) is a stateless radius test applied
+//! at staging time.
+
 use hashbrown::HashMap;
+
+/// Whether a peer's state should replicate to a client, given the squared
+/// distance between them. `None` (the default) replicates every peer to every
+/// client — there is no wire-level "peer left your view" signal, so games must
+/// opt into radius culling via `WorldConfig::peer_visible_radius`, knowingly
+/// accepting that out-of-range players freeze at their last known position on
+/// the client.
+pub fn is_peer_relevant(distance_sq: f32, peer_visible_radius: Option<f32>) -> bool {
+    match peer_visible_radius {
+        Some(radius) => distance_sq <= radius * radius,
+        None => true,
+    }
+}
 
 /// How an entity's distance to a client should change that client's tracked
 /// set, given the hysteresis band between the visible and release radii.
@@ -137,6 +160,20 @@ mod tests {
             let distance = if step % 2 == 0 { 101.0 } else { 111.0 };
             assert_eq!(classify(is_tracked, distance), InterestTransition::Keep);
         }
+    }
+
+    #[test]
+    fn peer_relevance_defaults_to_unlimited() {
+        assert!(is_peer_relevant(f32::MAX, None));
+        assert!(is_peer_relevant(0.0, None));
+    }
+
+    #[test]
+    fn peer_relevance_respects_configured_radius() {
+        let radius = Some(50.0);
+        assert!(is_peer_relevant(49.0 * 49.0, radius));
+        assert!(is_peer_relevant(50.0 * 50.0, radius));
+        assert!(!is_peer_relevant(50.1 * 50.1, radius));
     }
 
     #[test]

@@ -126,6 +126,14 @@ pub struct WorldConfig {
     /// Ticks between keep-alive updates for tracked entities whose metadata has
     /// not changed, letting clients treat prolonged silence as a lost entity.
     pub entity_keep_alive_interval: u64,
+
+    /// Radius in blocks within which another player's (peer's) state
+    /// replicates to a client. `None` (default) replicates every peer to every
+    /// client, matching historical behavior. Unlike entities, peers have no
+    /// wire-level out-of-range signal — an out-of-range player simply stops
+    /// receiving updates and freezes at the last known position client-side —
+    /// so games opt into this knowingly.
+    pub peer_visible_radius: Option<f32>,
 }
 
 impl Default for WorldConfig {
@@ -219,6 +227,7 @@ pub struct WorldConfigBuilder {
     entity_visible_radius: f32,
     entity_release_radius: f32,
     entity_keep_alive_interval: u64,
+    peer_visible_radius: Option<f32>,
 }
 
 impl WorldConfigBuilder {
@@ -262,6 +271,7 @@ impl WorldConfigBuilder {
             entity_visible_radius: 0.0,
             entity_release_radius: 0.0,
             entity_keep_alive_interval: DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL,
+            peer_visible_radius: None,
         }
     }
 
@@ -462,6 +472,13 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Optional radius (in blocks) limiting which peers replicate to a client.
+    /// `None` (default) replicates all peers to all clients.
+    pub fn peer_visible_radius(mut self, peer_visible_radius: Option<f32>) -> Self {
+        self.peer_visible_radius = peer_visible_radius;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -490,6 +507,12 @@ impl WorldConfigBuilder {
 
         if entity_release_radius <= entity_visible_radius {
             panic!("Entity release radius must exceed the entity visible radius.");
+        }
+
+        if let Some(peer_visible_radius) = self.peer_visible_radius {
+            if peer_visible_radius <= 0.0 {
+                panic!("Peer visible radius must be positive (or None for unlimited).");
+            }
         }
 
         WorldConfig {
@@ -544,6 +567,7 @@ impl WorldConfigBuilder {
             entity_visible_radius,
             entity_release_radius,
             entity_keep_alive_interval: self.entity_keep_alive_interval,
+            peer_visible_radius: self.peer_visible_radius,
         }
     }
 }

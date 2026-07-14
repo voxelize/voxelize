@@ -104,6 +104,12 @@ message Message {
   string json = 2;
   string text = 3;
 
+  // Server tick at which this message's payload was captured. Stamped on
+  // high-frequency state replication messages (ENTITY updates, PEER updates)
+  // so clients can order/interpolate snapshots even when packets are
+  // coalesced or arrive irregularly. Zero when not applicable.
+  uint64 tick = 12;
+
   Method method = 4;
   ChatMessage chat = 5;
 

@@ -23,7 +23,7 @@ use tokio::sync::mpsc;
 use crate::{
     errors::AddWorldError,
     perf,
-    world::{ClientPreferencesPatch, Registry, World, WorldConfig},
+    world::{ClientPreferencesPatch, InboundStateBuffer, Registry, World, WorldConfig},
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
     GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
     TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
@@ -34,41 +34,36 @@ pub use models::*;
 #[derive(Clone)]
 pub struct WsSender {
     sender: mpsc::UnboundedSender<Vec<u8>>,
-    depth: Option<Arc<AtomicUsize>>,
+    /// Messages pushed but not yet written to the socket. Always tracked (one
+    /// relaxed atomic per message): the state replication layer gates its
+    /// per-client flush on this depth so a slow client coalesces instead of
+    /// accumulating stale positional frames. See `world::replication`.
+    depth: Arc<AtomicUsize>,
 }
 
 impl WsSender {
     pub fn new(sender: mpsc::UnboundedSender<Vec<u8>>) -> Self {
         Self {
             sender,
-            depth: perf::is_enabled().then(|| Arc::new(AtomicUsize::new(0))),
+            depth: Arc::new(AtomicUsize::new(0)),
         }
     }
 
     pub fn send(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
-        if let Some(depth) = &self.depth {
-            depth.fetch_add(1, Ordering::Relaxed);
-        }
+        self.depth.fetch_add(1, Ordering::Relaxed);
         if let Err(error) = self.sender.send(data) {
-            if let Some(depth) = &self.depth {
-                depth.fetch_sub(1, Ordering::Relaxed);
-            }
+            self.depth.fetch_sub(1, Ordering::Relaxed);
             return Err(error);
         }
         Ok(())
     }
 
     pub fn mark_received(&self) {
-        if let Some(depth) = &self.depth {
-            depth.fetch_sub(1, Ordering::Relaxed);
-        }
+        self.depth.fetch_sub(1, Ordering::Relaxed);
     }
 
     pub fn len(&self) -> usize {
-        self.depth
-            .as_ref()
-            .map(|depth| depth.load(Ordering::Relaxed))
-            .unwrap_or_default()
+        self.depth.load(Ordering::Relaxed)
     }
 }
 
@@ -232,6 +227,12 @@ pub struct Server {
     /// A map of all the worlds.
     pub worlds: HashMap<String, Addr<SyncWorld>>,
 
+    /// Per-world inbound state buffers. Peer position packets are pushed here
+    /// directly instead of through the world's actor mailbox, so the world can
+    /// apply them at the start of its next tick — before the system dispatch —
+    /// regardless of how Tick and request messages interleave in mailboxes.
+    world_inbound_state: HashMap<String, Arc<InboundStateBuffer>>,
+
     /// Registry of the server.
     pub registry: Registry,
 
@@ -363,6 +364,9 @@ impl Server {
         if let Some(rtc_senders) = &self.rtc_senders {
             world.ecs_mut().insert(rtc_senders.clone());
         }
+
+        self.world_inbound_state
+            .insert(name.clone(), world.inbound_state_handle());
 
         let addr = world.start();
 
@@ -537,6 +541,19 @@ impl Server {
         }
 
         let (_, world_name, _) = connection.unwrap().to_owned();
+
+        // Peer packets are latest-wins STATE, not events: stage them in the
+        // world's inbound state buffer instead of its actor mailbox. The world
+        // drains the buffer at the start of its next tick, before the system
+        // dispatch, so a Tick message can never overtake a position packet
+        // that arrived before it (which is what made AI systems read a
+        // player's previous position).
+        if data.r#type == MessageType::Peer as i32 {
+            if let Some(inbound) = self.world_inbound_state.get(&world_name) {
+                inbound.push(id, data);
+                return None;
+            }
+        }
 
         if let Some(world) = self.get_world_mut(&world_name) {
             if data.r#type == MessageType::Chat as i32 {
@@ -1146,6 +1163,7 @@ impl ServerBuilder {
             debug_pause_ticks: false,
             debug_pause_ticks_after: None,
             worlds: HashMap::default(),
+            world_inbound_state: HashMap::default(),
             info_handle: default_info_handle,
             action_handles: HashMap::default(),
             rtc_senders: None,

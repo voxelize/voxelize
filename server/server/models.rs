@@ -168,6 +168,7 @@ pub struct MessageBuilder {
     json: Option<String>,
     text: Option<String>,
     world_name: Option<String>,
+    tick: Option<u64>,
 
     chat: Option<ChatMessageProtocol>,
     method: Option<MethodProtocol>,
@@ -195,6 +196,14 @@ impl MessageBuilder {
     /// Configure the world name of the protocol.
     pub fn world_name(mut self, world_name: &str) -> Self {
         self.world_name = Some(world_name.to_owned());
+        self
+    }
+
+    /// Stamp the server tick this message's payload was captured at. Used by
+    /// the state replication layer so clients can order and interpolate
+    /// snapshots (see `world::replication`).
+    pub fn tick(mut self, tick: u64) -> Self {
+        self.tick = Some(tick);
         self
     }
 
@@ -250,6 +259,7 @@ impl MessageBuilder {
         message.json = self.json.unwrap_or_default();
         message.text = self.text.unwrap_or_default();
         message.world_name = self.world_name.unwrap_or_default();
+        message.tick = self.tick.unwrap_or_default();
 
         if let Some(peers) = self.peers {
             message.peers = peers

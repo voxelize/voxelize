@@ -7,8 +7,8 @@ use crate::{
     classify_interest, perf, world::system_profiler::WorldTimingContext, BackgroundEntitiesSaver,
     Bookkeeping, ClientFilter, Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs,
     EntityOperation, EntityProtocol, IDComp, InteractorComp, InterestTransition, KdTree, Message,
-    MessageQueues, MessageType, MetadataComp, Physics, PositionComp, Stats, Vec3, VoxelComp,
-    WorldConfig,
+    MessageQueues, MessageType, MetadataComp, Physics, PositionComp, ReplicatedStateBuffer, Stats,
+    Vec3, VoxelComp, WorldConfig,
 };
 
 const BLOCK_ENTITY_PREFIX: &str = "block::";
@@ -29,6 +29,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadExpect<'a, WorldTimingContext>,
         ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueues>,
+        WriteExpect<'a, ReplicatedStateBuffer>,
         WriteExpect<'a, Bookkeeping>,
         WriteExpect<'a, Physics>,
         WriteExpect<'a, EntityIDs>,
@@ -52,6 +53,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             timing,
             stats,
             mut queue,
+            mut replicated_state,
             mut bookkeeping,
             mut physics,
             mut entity_ids,
@@ -334,31 +336,78 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         bookkeeping.entities = new_bookkeeping_records;
         bookkeeping.entity_positions = entity_positions;
 
+        // Channel routing (see `world::replication`): lifecycle transitions
+        // (CREATE / DELETE / OUT_OF_RANGE) are reliable EVENTS a client must
+        // never miss — they go through the FIFO message queue. UPDATEs are
+        // latest-wins STATE — they go into the per-client, per-entity slot
+        // buffer, where a newer value overwrites an undelivered older one so
+        // a backed-up client can never receive a replay of stale positions.
         for (client_id, updates) in client_updates {
-            if !updates.is_empty() {
-                let mut message = Message::new(&MessageType::Entity).entities(&updates);
+            if updates.is_empty() {
+                continue;
+            }
+
+            let (lifecycle, state_updates): (Vec<_>, Vec<_>) = updates
+                .into_iter()
+                .partition(|update| update.operation != EntityOperation::Update);
+
+            if !lifecycle.is_empty() {
+                for update in &lifecycle {
+                    // A pending state slot staged before this transition must
+                    // never be flushed after it (it would resurrect an entity
+                    // the client just released or deleted).
+                    replicated_state.clear_entity(&client_id, &update.id);
+                }
+
+                let mut message = Message::new(&MessageType::Entity).entities(&lifecycle);
                 if perf::is_enabled() {
-                    let trace_id = perf::next_trace_id("entity");
-                    let metadata_bytes = updates
-                        .iter()
-                        .map(|update| update.metadata.as_ref().map_or(0, String::len))
-                        .sum::<usize>();
+                    let trace_id =
+                        log_entity_batch_queue(&timing.world_name, tick, &client_id, &lifecycle);
                     message = message
                         .json(&serde_json::json!({ "townPerfTraceId": trace_id }).to_string());
-                    perf::log(
-                        "entity_batch_queue",
-                        &timing.world_name,
-                        serde_json::json!({
-                            "traceId": trace_id,
-                            "tick": tick,
-                            "clientId": client_id,
-                            "itemCount": updates.len(),
-                            "metadataBytes": metadata_bytes,
-                        }),
-                    );
                 }
-                queue.push((message.build(), ClientFilter::Direct(client_id)));
+                queue.push((message.build(), ClientFilter::Direct(client_id.clone())));
+            }
+
+            if !state_updates.is_empty() {
+                if perf::is_enabled() {
+                    let trace_id = log_entity_batch_queue(
+                        &timing.world_name,
+                        tick,
+                        &client_id,
+                        &state_updates,
+                    );
+                    replicated_state.note_trace_id(&client_id, trace_id);
+                }
+                for update in state_updates {
+                    replicated_state.stage_entity_update(&client_id, update);
+                }
             }
         }
     }
+}
+
+fn log_entity_batch_queue(
+    world_name: &str,
+    tick: u64,
+    client_id: &str,
+    updates: &[EntityProtocol],
+) -> String {
+    let trace_id = perf::next_trace_id("entity");
+    let metadata_bytes = updates
+        .iter()
+        .map(|update| update.metadata.as_ref().map_or(0, String::len))
+        .sum::<usize>();
+    perf::log(
+        "entity_batch_queue",
+        world_name,
+        serde_json::json!({
+            "traceId": trace_id,
+            "tick": tick,
+            "clientId": client_id,
+            "itemCount": updates.len(),
+            "metadataBytes": metadata_bytes,
+        }),
+    );
+    trace_id
 }

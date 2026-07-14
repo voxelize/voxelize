@@ -15,6 +15,18 @@ pub struct EncodedMessage {
     pub perf: Option<perf::OutboundPerf>,
 }
 
+/// The RELIABLE ORDERED EVENTS channel of the state replication split (see
+/// `world::replication` for the full taxonomy).
+///
+/// Everything staged here is a fact the client must receive exactly once and
+/// in order: chat, voxel/chunk updates, entity CREATE / DELETE / OUT_OF_RANGE
+/// transitions, join/leave, methods, events. Messages are drained FIFO every
+/// tick by the broadcast system and are never dropped.
+///
+/// Do NOT push high-frequency positional/metadata UPDATE state through this
+/// queue — that is what [`crate::ReplicatedStateBuffer`] (latest-wins slots)
+/// is for. A FIFO of positions replays the past and makes entities and
+/// players rubber-band.
 pub struct MessageQueues {
     critical: Vec<(Message, ClientFilter)>,
     normal: Vec<(Message, ClientFilter)>,

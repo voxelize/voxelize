@@ -5,7 +5,6 @@ mod config;
 pub mod cpu_profiler;
 mod entities;
 mod entity_ids;
-mod entity_interests;
 mod events;
 mod generators;
 mod interests;
@@ -15,6 +14,7 @@ mod metadata;
 mod physics;
 mod profiler;
 mod registry;
+mod replication;
 mod stats;
 pub mod system_profiler;
 mod systems;
@@ -66,7 +66,6 @@ pub use config::*;
 pub use cpu_profiler::*;
 pub use entities::*;
 pub use entity_ids::*;
-pub use entity_interests::*;
 pub use events::*;
 pub use generators::*;
 pub use interests::*;
@@ -74,6 +73,7 @@ pub use items::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
+pub use replication::*;
 pub use stats::*;
 pub use system_profiler::*;
 pub use systems::*;
@@ -350,6 +350,12 @@ pub struct World {
     addr: Option<Addr<SyncWorld>>,
 
     server_addr: Option<Addr<Server>>,
+
+    /// Inbound half of the state replication channel: peer position packets
+    /// staged by the network layer and applied at the start of every tick,
+    /// before the system dispatch, so systems read current-tick positions.
+    /// Shared with the [`Server`] actor, which pushes into it directly.
+    inbound_state: Arc<InboundStateBuffer>,
 }
 
 // Define messages for the World actor
@@ -707,6 +713,7 @@ impl World {
         ecs.insert(Bookkeeping::new());
         ecs.insert(KdTree::new());
         ecs.insert(EncodedMessageQueue::new());
+        ecs.insert(ReplicatedStateBuffer::new());
         ecs.insert(Profiler::new(Duration::from_secs_f64(0.001)));
         ecs.insert(EntityIDs::new());
         ecs.insert(WorldPerfMetrics::new());
@@ -734,6 +741,7 @@ impl World {
             items: None,
             addr: None,
             server_addr: None,
+            inbound_state: Arc::new(InboundStateBuffer::new()),
         };
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
@@ -1077,6 +1085,16 @@ impl World {
         self.entity_ids_mut().remove(id);
         self.chunk_interest_mut().remove_client(id);
         self.bookkeeping_mut().remove_client(id);
+        self.inbound_state.remove_client(id);
+        {
+            // Drop the client's pending outbound state and purge its peer
+            // snapshots everywhere: the reliable LEAVE event below is what
+            // removes the peer client-side, and state staged before it must
+            // not be delivered after it.
+            let mut state = self.write_resource::<ReplicatedStateBuffer>();
+            state.remove_client(id);
+            state.remove_peer(id);
+        }
 
         if let Some(client) = removed {
             if let Some(handler) = self.client_leave_modifier.to_owned() {
@@ -1235,8 +1253,34 @@ impl World {
             .insert(etype.to_lowercase(), Arc::new(loader));
     }
 
+    /// Handle to the inbound state buffer, cloned by the [`Server`] when this
+    /// world is registered so peer position packets can bypass the world's
+    /// actor mailbox and be applied at tick start instead.
+    pub(crate) fn inbound_state_handle(&self) -> Arc<InboundStateBuffer> {
+        self.inbound_state.clone()
+    }
+
+    /// Apply every staged inbound peer/state packet to the ECS. Runs at the
+    /// start of each tick (before the system dispatch) and before any other
+    /// client request, which preserves the per-client guarantee that a
+    /// command sent after a position packet observes that position.
+    fn apply_inbound_state(&mut self) {
+        if self.inbound_state.is_empty() {
+            return;
+        }
+        for (client_id, messages) in self.inbound_state.drain() {
+            for message in messages {
+                self.on_peer(&client_id, message);
+            }
+        }
+    }
+
     /// Handler for protobuf requests from clients.
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
+        // State-before-command: any position packets staged ahead of this
+        // request must be visible to its handler.
+        self.apply_inbound_state();
+
         if perf::is_enabled() {
             self.write_resource::<WorldPerfMetrics>().record_message();
             if data.r#type == MessageType::Chat as i32 {
@@ -1736,6 +1780,13 @@ impl World {
             self.started = true;
         }
 
+        // Inbound state replication: apply every peer position packet that
+        // arrived before this tick began, so every system in the dispatch
+        // below (entity observe, pathfinding, walking) reads current-tick
+        // player positions instead of positions from a packet still queued
+        // in an actor mailbox.
+        self.apply_inbound_state();
+
         if self.preloading {
             let light_padding = (self.config().max_light_level as f32
                 / self.config().chunk_size as f32)
@@ -1833,6 +1884,14 @@ impl World {
                     + bulk
                     + encoded_pending
                     + encoded_processed;
+                let (state_slot_depth, state_dropped, state_gated_clients) = {
+                    let state = self.read_resource::<ReplicatedStateBuffer>();
+                    (
+                        state.total_pending(),
+                        state.dropped_updates(),
+                        state.gated_clients(),
+                    )
+                };
                 perf::log(
                     "core_tick",
                     &self.name,
@@ -1841,6 +1900,12 @@ impl World {
                         "tickDurationMs": total_time,
                         "inboundQueueDepth": perf::inbound_depth(&self.name),
                         "outboundQueueDepth": outbound_queue_depth,
+                        // Latest-wins state channel: pending coalesced slots,
+                        // cumulative cap drops, clients gated on socket backlog.
+                        "stateSlotDepth": state_slot_depth,
+                        "stateDroppedUpdates": state_dropped,
+                        "stateGatedClients": state_gated_clients,
+                        "inboundStateDropped": self.inbound_state.dropped_total(),
                         "messagesProcessedThisTick": messages_this_tick,
                         "messagesProcessedSinceSample": messages_since_sample,
                         "connectedClients": connected_clients,

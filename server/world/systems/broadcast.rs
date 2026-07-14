@@ -1,6 +1,7 @@
 use hashbrown::HashMap;
 use serde_json::{json, Map, Value};
 use specs::{ReadExpect, System, WriteExpect};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     common::ClientFilter,
@@ -8,9 +9,11 @@ use crate::{
     perf::{self, OutboundPerfKind},
     server::Message,
     world::{
-        profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues, Stats,
+        profiler::Profiler, system_profiler::WorldTimingContext, Client, Clients, MessageQueues,
+        Stats,
     },
-    EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, RtcSenders, Transports,
+    EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, ReplicatedStateBuffer,
+    RtcSenders, Transports, STATE_FLUSH_MAX_SOCKET_BACKLOG,
 };
 
 pub struct BroadcastSystem;
@@ -154,6 +157,20 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
     result
 }
 
+/// Send encoded bytes to a client over its WebRTC data channel when one is
+/// available, otherwise over its WebSocket channel.
+fn send_to_client(client: &Client, rtc_sender: Option<&UnboundedSender<Vec<u8>>>, data: &[u8]) {
+    if let Some(rtc_sender) = rtc_sender {
+        for fragment in fragment_message(data) {
+            if rtc_sender.send(fragment).is_err() {
+                break;
+            }
+        }
+        return;
+    }
+    let _ = client.sender.send(data.to_vec());
+}
+
 impl<'a> System<'a> for BroadcastSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
@@ -162,6 +179,7 @@ impl<'a> System<'a> for BroadcastSystem {
         ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, EncodedMessageQueue>,
+        WriteExpect<'a, ReplicatedStateBuffer>,
         WriteExpect<'a, Profiler>,
         Option<ReadExpect<'a, RtcSenders>>,
     );
@@ -174,6 +192,7 @@ impl<'a> System<'a> for BroadcastSystem {
             stats,
             mut queues,
             mut encoded_queue,
+            mut replicated_state,
             _profiler,
             rtc_senders_opt,
         ) = data;
@@ -216,11 +235,9 @@ impl<'a> System<'a> for BroadcastSystem {
         let mut done_messages = immediate_encoded;
         done_messages.extend(async_messages);
 
-        if done_messages.is_empty() {
-            return;
-        }
-
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
+
+        // ---- Reliable ordered events (must-deliver, FIFO) -----------------
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
@@ -286,6 +303,91 @@ impl<'a> System<'a> for BroadcastSystem {
             let queue_depths = connection_queue_depths(&clients, &filter);
             log_outbound_perf(&encoded, world_name, stats.tick, queue_depths);
         }
+
+        // ---- Latest-wins state flush (drop-old-ok) ------------------------
+        //
+        // Ships each client's coalesced state snapshot (entity updates + peer
+        // updates) staged this tick — or accumulated across gated ticks —
+        // AFTER the reliable sends above, so a same-tick entity CREATE always
+        // reaches the client before the first UPDATE for that entity.
+        //
+        // A client whose socket is backed up is skipped ("gated"): its slots
+        // stay in the buffer and keep being overwritten by newer values, so
+        // when the socket drains it receives one current snapshot instead of
+        // a replay of stale positions. This is what keeps the outbound path
+        // bounded — see `world::replication` before changing it.
+        let tick = stats.tick;
+        let mut gated_clients = 0;
+
+        for (client_id, client) in clients.iter() {
+            let rtc_sender = rtc_map.as_ref().and_then(|rtc_map| rtc_map.get(client_id));
+
+            if rtc_sender.is_none() && client.sender.len() > STATE_FLUSH_MAX_SOCKET_BACKLOG {
+                if replicated_state.has_pending(client_id) {
+                    gated_clients += 1;
+                }
+                continue;
+            }
+
+            let Some(flush) = replicated_state.drain_client(client_id) else {
+                continue;
+            };
+
+            if !flush.entities.is_empty() {
+                let mut message = Message::new(&MessageType::Entity)
+                    .entities(&flush.entities)
+                    .tick(tick);
+                if let Some(trace_id) = flush.trace_ids.last() {
+                    message = message
+                        .json(&json!({ "townPerfTraceId": trace_id }).to_string());
+                }
+                let data = encode_message(&message.build());
+                send_to_client(client, rtc_sender, &data);
+
+                if perf::is_enabled() {
+                    let mut depths = Map::new();
+                    depths.insert(client_id.clone(), json!(client.sender.len()));
+                    perf::log(
+                        "entity_batch_send",
+                        world_name,
+                        json!({
+                            "traceId": flush.trace_ids.last(),
+                            "coalescedTraceIds": flush.trace_ids,
+                            "tick": tick,
+                            "itemCount": flush.entities.len(),
+                            "byteSize": data.len(),
+                            "outboundQueueDepth": client.sender.len(),
+                            "connectionOutboundQueueDepths": depths,
+                        }),
+                    );
+                }
+            }
+
+            if !flush.peers.is_empty() {
+                let message = Message::new(&MessageType::Peer)
+                    .peers(&flush.peers)
+                    .tick(tick)
+                    .build();
+                let data = encode_message(&message);
+                send_to_client(client, rtc_sender, &data);
+
+                if perf::is_enabled() {
+                    perf::log(
+                        "peer_batch_send",
+                        world_name,
+                        json!({
+                            "tick": tick,
+                            "clientId": client_id,
+                            "itemCount": flush.peers.len(),
+                            "byteSize": data.len(),
+                            "outboundQueueDepth": client.sender.len(),
+                        }),
+                    );
+                }
+            }
+        }
+
+        replicated_state.set_gated_clients(gated_clients);
     }
 }
 
