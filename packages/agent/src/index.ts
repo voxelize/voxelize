@@ -12,6 +12,8 @@ export type {
   CaptureViewport,
   RequestedCaptureViewport,
 } from "./capture-viewport";
+export { evaluateAgentHealth } from "./health";
+export type { AgentHealth, AgentHealthInput, AgentWorldHealth } from "./health";
 export { AgentDaemon } from "./daemon";
 export type { DaemonEvent, DaemonOptions } from "./daemon";
 export * from "./bridge";

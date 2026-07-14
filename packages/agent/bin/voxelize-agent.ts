@@ -45,16 +45,10 @@ async function main(): Promise<void> {
     agent.killBrowserSync();
   });
 
-  console.log("[voxelize-agent] browser launched, awaiting ready...");
-  await agent.ready();
-  console.log("[voxelize-agent] agent ready");
-
   const daemon = new AgentDaemon({ agent, port });
-  await daemon.start(port);
-  console.log(`[voxelize-agent] daemon listening on http://127.0.0.1:${port}`);
 
   let isShuttingDown = false;
-  const shutdown = async (reason: string) => {
+  const shutdown = async (reason: string, exitCode: number) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log(`[voxelize-agent] shutting down (${reason})...`);
@@ -68,20 +62,32 @@ async function main(): Promise<void> {
     } catch (e) {
       console.error(e);
     }
-    process.exit(0);
+    process.exit(exitCode);
   };
 
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
-    process.on(signal, () => void shutdown(signal));
+    process.on(signal, () => void shutdown(signal, 0));
   }
   process.on("uncaughtException", (err) => {
     console.error("[voxelize-agent] uncaught exception:", err);
-    void shutdown("uncaughtException");
+    void shutdown("uncaughtException", 1);
   });
   process.on("unhandledRejection", (reason) => {
     console.error("[voxelize-agent] unhandled rejection:", reason);
-    void shutdown("unhandledRejection");
+    void shutdown("unhandledRejection", 1);
   });
+
+  // A browser that dies underneath us leaves the HTTP listener alive but
+  // useless; exit nonzero so PM2/systemd restart the whole wrapper. Graceful
+  // close() suppresses this, so signal-driven shutdowns still exit 0.
+  agent.onUnexpectedDisconnect((reason) => void shutdown(reason, 1));
+
+  console.log("[voxelize-agent] browser launched, awaiting ready...");
+  await agent.ready();
+  console.log("[voxelize-agent] agent ready");
+
+  await daemon.start(port);
+  console.log(`[voxelize-agent] daemon listening on http://127.0.0.1:${port}`);
 }
 
 function printHelp(): void {
