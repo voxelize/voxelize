@@ -355,6 +355,13 @@ export class Agent {
     );
   }
 
+  async setRenderRadius(radius: number): Promise<number> {
+    return this.page.evaluate(
+      (r) => window.__agentRequired__().setRenderRadius(r),
+      radius,
+    );
+  }
+
   async call(method: string, payload: unknown): Promise<unknown> {
     return this.page.evaluate(
       (m, p) => window.__agentRequired__().call(m, p),

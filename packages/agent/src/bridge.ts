@@ -21,6 +21,7 @@ export type EntitySnapshot = {
   kind: string;
   position: Vec3;
   metadata: Record<string, unknown>;
+  animDebug?: Record<string, number>;
   distance: number;
 };
 
@@ -233,6 +234,7 @@ export interface AgentBridge {
   unfollow(): Promise<void>;
   following(): FollowStatus | null;
   setFlying(isFlying: boolean): Promise<void>;
+  setRenderRadius(radius: number): Promise<number>;
   call(method: string, payload: unknown): Promise<unknown>;
   captureFrame(opts?: CaptureFrameOptions): Promise<string | null>;
 
