@@ -1464,9 +1464,82 @@ impl World {
         let ent = loader(self, MetadataComp::default()).build();
         self.populate_entity(ent, &nanoid!(), etype, MetadataComp::default());
 
+        let position = self.lift_spawn_clear_of_solids(ent, position);
         set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
 
         Some(ent)
+    }
+
+    fn lift_spawn_clear_of_solids(&self, ent: Entity, position: &Vec3<f32>) -> Vec3<f32> {
+        // Swept-AABB physics only detects a body entering a block face from
+        // outside, so a body placed overlapping solid terrain falls straight
+        // through the overlapped layer and rests buried inside it: only its
+        // back pokes above the surface, and its center samples the solid
+        // voxel's zero light, rendering it near-black. Placement therefore
+        // lifts the requested center just enough that the body's box clears
+        // every solid volume it would overlap.
+        let aabb = {
+            let bodies = self.ecs().read_storage::<RigidBodyComp>();
+            match bodies.get(ent) {
+                Some(body) => body.0.aabb.clone(),
+                None => return position.clone(),
+            }
+        };
+
+        let half_w = aabb.width() / 2.0;
+        let half_h = aabb.height() / 2.0;
+        let half_d = aabb.depth() / 2.0;
+        let mut test = aabb;
+        test.set_position(
+            position.0 - half_w,
+            position.1 - half_h,
+            position.2 - half_d,
+        );
+
+        let chunks = self.chunks();
+        let registry = self.registry();
+        // The same seam epsilon the sweep leaves between a resting body and
+        // the face it rests on.
+        let seam = 1e-4_f32;
+        // Each pass lifts past at least one solid volume, so the world
+        // height bounds the number of passes for any burial depth.
+        let max_passes = self.config().max_height as usize;
+
+        for _ in 0..max_passes {
+            let mut highest_solid_top: Option<f32> = None;
+
+            for vx in (test.min_x.floor() as i32)..=(test.max_x.floor() as i32) {
+                for vz in (test.min_z.floor() as i32)..=(test.max_z.floor() as i32) {
+                    for vy in (test.min_y.floor() as i32)..=(test.max_y.floor() as i32) {
+                        let id = chunks.get_voxel(vx, vy, vz);
+                        let block = registry.get_block_by_id(id);
+                        if block.is_fluid || block.is_empty || block.is_passable {
+                            continue;
+                        }
+
+                        let rotation = chunks.get_voxel_rotation(vx, vy, vz);
+                        for block_aabb in block.get_aabbs(&Vec3(vx, vy, vz), &*chunks, &registry) {
+                            let mut solid = rotation.rotate_aabb(&block_aabb, true, true);
+                            solid.translate(vx as f32, vy as f32, vz as f32);
+                            if solid.intersects(&test)
+                                && highest_solid_top.map_or(true, |top| solid.max_y > top)
+                            {
+                                highest_solid_top = Some(solid.max_y);
+                            }
+                        }
+                    }
+                }
+            }
+
+            match highest_solid_top {
+                None => break,
+                Some(top) => {
+                    test.translate(0.0, top + seam - test.min_y, 0.0);
+                }
+            }
+        }
+
+        Vec3(position.0, test.min_y + half_h, position.2)
     }
 
     /// Spawn an entity of type with metadata at a location.
@@ -1490,6 +1563,7 @@ impl World {
         let ent = loader(self, metadata.clone()).build();
         self.populate_entity(ent, &nanoid!(), etype, metadata);
 
+        let position = self.lift_spawn_clear_of_solids(ent, position);
         set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
 
         Some(ent)
@@ -1542,7 +1616,8 @@ impl World {
                 self.populate_entity(ent, id, etype, metadata.clone());
 
                 if let Some(pos) = metadata.get::<PositionComp>("position") {
-                    set_position(self.ecs_mut(), ent, pos.0 .0, pos.0 .1, pos.0 .2);
+                    let pos = self.lift_spawn_clear_of_solids(ent, &pos.0);
+                    set_position(self.ecs_mut(), ent, pos.0, pos.1, pos.2);
                 }
 
                 Some(ent)

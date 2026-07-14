@@ -13,6 +13,7 @@ export type EntitySnapshot = {
   kind?: string;
   position?: { x: number; y: number; z: number };
   metadata?: Record<string, unknown>;
+  animDebug?: Record<string, number>;
   distance?: number;
 };
 

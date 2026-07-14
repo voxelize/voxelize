@@ -75,6 +75,7 @@ const actSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("unfollow") }),
   z.object({ type: z.literal("set-flying"), isFlying: z.boolean() }),
+  z.object({ type: z.literal("set-render-radius"), radius: z.number() }),
   z.object({
     type: z.literal("call"),
     method: z.string(),
@@ -349,6 +350,8 @@ export class AgentDaemon {
       case "set-flying":
         await this.agent.setFlying(action.isFlying);
         return { flying: action.isFlying };
+      case "set-render-radius":
+        return { renderRadius: await this.agent.setRenderRadius(action.radius) };
       case "call":
         return this.agent.call(action.method, action.payload);
       case "wait":
