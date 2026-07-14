@@ -1,6 +1,7 @@
 import { MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
+import { EntityLivenessTracker } from "./entity-liveness";
 import { NetIntercept } from "./network";
 
 export type EntityRigidBodyMetadata = {
@@ -34,7 +35,29 @@ export class Entity<T = any> extends Group {
   update?: () => void;
 
   setHidden?: (hidden: boolean) => void;
+
+  snapToTarget?: () => void;
 }
+
+export type EntitiesOptions = {
+  /**
+   * Seconds an entity may go without any server message before it is
+   * considered lost and released. Covers dropped out-of-range and delete
+   * notifications so no entity can stay frozen forever.
+   */
+  stalenessTimeoutSeconds: number;
+
+  /**
+   * Seconds of total message silence after which staleness releases are
+   * suspended, so reconnects and tab suspensions do not purge live entities.
+   */
+  streamSilenceGraceSeconds: number;
+};
+
+const defaultOptions: EntitiesOptions = {
+  stalenessTimeoutSeconds: 10,
+  streamSilenceGraceSeconds: 3,
+};
 
 /**
  * A network interceptor that can be used to handle `ENTITY` messages. This is useful
@@ -70,6 +93,19 @@ export class Entities extends Group implements NetIntercept {
     (new (id: string) => Entity) | ((id: string) => Entity)
   > = new Map();
 
+  public options: EntitiesOptions;
+
+  private liveness: EntityLivenessTracker;
+
+  private unregisteredTypes = new Set<string>();
+
+  constructor(options: Partial<EntitiesOptions> = {}) {
+    super();
+
+    this.options = { ...defaultOptions, ...options };
+    this.liveness = new EntityLivenessTracker(this.options);
+  }
+
   setClass = (
     type: string,
     entity: (new (id: string) => Entity) | ((id: string) => Entity),
@@ -86,6 +122,17 @@ export class Entities extends Group implements NetIntercept {
    * @param message The message to intercept.
    */
   onMessage = (message: MessageProtocol) => {
+    const nowSeconds = performance.now() / 1000;
+    this.liveness.touchStream(nowSeconds);
+
+    // An INIT marks a fresh server session (first join or a rejoin after the
+    // connection dropped). Whatever we tracked belongs to the previous
+    // session: release it all and let the new session's interest set stream
+    // fresh snapshots, so no stale ghost can outlive a reconnect.
+    if (message.type === "INIT") {
+      this.releaseAllEntities();
+    }
+
     const { entities } = message;
 
     if (entities && entities.length) {
@@ -102,6 +149,12 @@ export class Entities extends Group implements NetIntercept {
         switch (operation) {
           case "CREATE": {
             if (object) {
+              // The server streams a fresh snapshot for an entity it believes
+              // is new to us, so resync our stale copy to it.
+              object.metadata = metadata;
+              object.onUpdate?.(metadata);
+              object.snapToTarget?.();
+              this.liveness.touchEntity(id, nowSeconds);
               return;
             }
 
@@ -109,11 +162,21 @@ export class Entities extends Group implements NetIntercept {
             if (object) {
               object.metadata = metadata;
               object.onCreate?.(metadata);
+              this.liveness.touchEntity(id, nowSeconds);
             }
 
             break;
           }
           case "UPDATE": {
+            // A metadata-less update is a keep-alive: the entity is unchanged
+            // but still streaming.
+            if (!metadata) {
+              if (object) {
+                this.liveness.touchEntity(id, nowSeconds);
+              }
+              return;
+            }
+
             if (!object) {
               object = this.createEntityOfType(type, id);
               if (object) {
@@ -125,20 +188,18 @@ export class Entities extends Group implements NetIntercept {
             if (object) {
               object.metadata = metadata;
               object.onUpdate?.(metadata);
+              this.liveness.touchEntity(id, nowSeconds);
             }
 
             break;
           }
-          case "DELETE": {
+          case "DELETE":
+          case "OUT_OF_RANGE": {
             if (!object) {
-              console.warn(`Entity ${id} does not exist.`);
               return;
             }
 
-            this.map.delete(id);
-
-            object.parent?.remove(object);
-            object.onDelete?.(metadata);
+            this.releaseEntity(object, metadata ?? object.metadata);
 
             break;
           }
@@ -156,15 +217,30 @@ export class Entities extends Group implements NetIntercept {
   getEntityById = (id: string) => this.map.get(id);
 
   update = (cameraPos?: Vector3, renderDistance?: number) => {
+    const nowSeconds = performance.now() / 1000;
+    for (const id of this.liveness.collectStale(nowSeconds)) {
+      const object = this.map.get(id);
+      if (object) {
+        this.releaseEntity(object, object.metadata);
+      } else {
+        this.liveness.forget(id);
+      }
+    }
+
     const renderDistSq =
       cameraPos && renderDistance ? renderDistance * renderDistance : 0;
 
     this.map.forEach((entity) => {
       if (renderDistSq > 0 && cameraPos && entity.setHidden) {
-        const tooFar =
+        const isTooFar =
           entity.position.distanceToSquared(cameraPos) > renderDistSq;
-        entity.setHidden(tooFar);
-        if (tooFar) return;
+        entity.setHidden(isTooFar);
+        if (isTooFar) {
+          // Keep tracking the server position while invisible so the entity
+          // reappears exactly where the server says it is.
+          entity.snapToTarget?.();
+          return;
+        }
       }
 
       entity.update?.();
@@ -173,13 +249,32 @@ export class Entities extends Group implements NetIntercept {
 
   snapAllToTarget = () => {
     this.map.forEach((entity) => {
-      (entity as Entity & { snapToTarget?: () => void }).snapToTarget?.();
+      entity.snapToTarget?.();
     });
+  };
+
+  private releaseEntity = (object: Entity, metadata: Entity["metadata"]) => {
+    this.map.delete(object.entId);
+    this.liveness.forget(object.entId);
+
+    object.parent?.remove(object);
+    object.onDelete?.(metadata);
+  };
+
+  private releaseAllEntities = () => {
+    for (const object of [...this.map.values()]) {
+      this.releaseEntity(object, object.metadata);
+    }
   };
 
   private createEntityOfType = (type: string, id: string) => {
     if (!this.types.has(type)) {
-      console.warn(`Entity type ${type} is not registered.`);
+      // Streaming entities re-send continuously; one warning per unregistered
+      // type is diagnostic enough without flooding the console.
+      if (!this.unregisteredTypes.has(type)) {
+        this.unregisteredTypes.add(type);
+        console.warn(`Entity type ${type} is not registered.`);
+      }
       return;
     }
 

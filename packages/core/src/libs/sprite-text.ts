@@ -3,11 +3,23 @@ import { LinearFilter, Sprite, SpriteMaterial, Texture } from "three";
 import { ColorText } from "./color-text";
 
 /**
+ * The dedicated render layer that all in-world overlay objects (sprite texts,
+ * nametags, and other HUD-like scene decorations) live on. Cameras that should
+ * display overlays must call `camera.layers.enable(SCENE_OVERLAY_LAYER)`;
+ * disabling the layer on a camera renders a clean frame with no overlays,
+ * which is how pure screenshots are captured.
+ */
+export const SCENE_OVERLAY_LAYER = 30;
+
+/**
  * A sprite that can be used to display text. This is highly inspired by the
  * [THREE.SpriteText](https://github.com/vasturiano/three-spritetext) library.
  *
  * Sprite text uses {@link ColorText} internally to generate the texture that supports
  * multiple colors in the same text.
+ *
+ * Sprite texts live exclusively on {@link SCENE_OVERLAY_LAYER}, so they only
+ * render through cameras that have that layer enabled.
  *
  * ![Sprite text](/img/docs/sprite-text.png)
  *
@@ -44,6 +56,8 @@ export class SpriteText extends Sprite {
     this._text = `${text}`;
     this._textHeight = textHeight;
     this._backgroundColor = false;
+
+    this.layers.set(SCENE_OVERLAY_LAYER);
 
     this.generate();
   }

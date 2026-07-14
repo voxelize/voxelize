@@ -40,6 +40,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   5000,
 );
+camera.layers.enable(VOXELIZE.SCENE_OVERLAY_LAYER);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,

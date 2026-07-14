@@ -20,18 +20,40 @@ export type ProtocolWS = WebSocket & {
 export type NetworkOptions = {
   maxPacketsPerTick: number;
   maxBacklogFactor: number;
+
+  /**
+   * Upper bound on buffered inbound packets. Beyond it the oldest packets are
+   * dropped: the interest/keep-alive protocol re-converges on fresh state, so
+   * bounded loss beats unbounded memory growth when processing stalls.
+   */
+  maxQueuedPackets: number;
+
+  /**
+   * Milliseconds a (re)join handshake may await its INIT before the join
+   * request is sent again.
+   */
+  joinRetryTimeout: number;
 };
 
 const defaultOptions: NetworkOptions = {
   maxPacketsPerTick: 64,
   maxBacklogFactor: 16,
+  maxQueuedPackets: 4096,
+  joinRetryTimeout: 10000,
 };
 
 export type NetworkConnectionOptions = {
+  /**
+   * Milliseconds between reconnection attempts after the socket drops.
+   * Defaults to {@link DEFAULT_RECONNECT_TIMEOUT_MS}; pass 0 to disable
+   * automatic reconnection.
+   */
   reconnectTimeout?: number;
   secret?: string;
   useWebRTC?: boolean;
 };
+
+const DEFAULT_RECONNECT_TIMEOUT_MS = 3000;
 
 export class Network {
   public options: NetworkOptions;
@@ -76,7 +98,11 @@ export class Network {
 
   private priorityWorker: Worker = this.createPriorityDecodeWorker();
 
-  private reconnection: ReturnType<typeof setTimeout> | null = null;
+  private serverURL: string | null = null;
+
+  private connectionOptions: NetworkConnectionOptions | null = null;
+
+  private lastConnectAttemptAt = Number.NEGATIVE_INFINITY;
 
   private stopSyncInterval: (() => void) | null = null;
 
@@ -126,8 +152,12 @@ export class Network {
       throw new Error("Server URL must be a string.");
     }
 
+    this.serverURL = serverURL;
+    this.connectionOptions = options;
+    this.lastConnectAttemptAt = performance.now();
     this.useWebRTC = options.useWebRTC ?? false;
     this.disconnectReason = "";
+    console.log(`[NETWORK] Connecting to ${serverURL}`);
     this.ensureDecodeWorkers();
     this.startSyncInterval();
 
@@ -151,11 +181,6 @@ export class Network {
       this.ws.onmessage = null;
       this.ws.onerror = null;
       this.ws.close();
-
-      if (this.reconnection) {
-        clearTimeout(this.reconnection);
-        this.reconnection = null;
-      }
     }
 
     if (this.rtc) {
@@ -167,8 +192,11 @@ export class Network {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
       ws.sendEvent = async (event: any) => {
-        while (!this.connected && this.ws === ws) {
-          console.log(`waiting for websocket connection...`);
+        // Only wait out the socket's own connecting window. Sends attempted
+        // while disconnected are dropped: session state is rebuilt by the
+        // rejoin handshake after reconnecting, and unbounded waiters would
+        // pile up for the whole outage otherwise.
+        while (ws.readyState === WebSocket.CONNECTING && this.ws === ws) {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
         if (this.ws === ws && ws.readyState === WebSocket.OPEN) {
@@ -181,7 +209,16 @@ export class Network {
         this.connected = true;
         this.onConnect?.();
 
-        clearTimeout(this.reconnection);
+        // A reconnect of a session that had already joined a world: the new
+        // server process knows nothing about this client, so re-send the join
+        // handshake to rebuild the server-side session (entity interests,
+        // chunk interests, peer state) and receive a fresh INIT.
+        if (this.joined && this.world) {
+          console.log(
+            `[NETWORK] Rejoining world ${this.world} after reconnect`,
+          );
+          this.sendJoinRequest();
+        }
 
         resolve(this);
       };
@@ -204,12 +241,12 @@ export class Network {
             this.initPacketReceived = true;
             this.decodePriority(arrayBuffer);
           } else {
-            this.packetQueue.push(arrayBuffer);
+            this.enqueuePacket(arrayBuffer);
           }
           return;
         }
 
-        this.packetQueue.push(arrayBuffer);
+        this.enqueuePacket(arrayBuffer);
       };
       ws.onclose = (event) => {
         console.log(
@@ -220,16 +257,45 @@ export class Network {
 
         this.connected = false;
         this.onDisconnect?.();
-
-        if (options.reconnectTimeout) {
-          this.reconnection = setTimeout(() => {
-            this.connect(serverURL, options);
-          }, options.reconnectTimeout);
-        }
       };
 
       this.ws = ws;
     });
+  };
+
+  private enqueuePacket = (buffer: ArrayBuffer) => {
+    this.packetQueue.push(buffer);
+
+    const excess = this.packetQueue.length - this.options.maxQueuedPackets;
+    if (excess > 0) {
+      this.packetQueue.splice(0, excess);
+    }
+  };
+
+  private maybeReconnect = () => {
+    // Reconnection is driven by the worker-backed sync interval instead of a
+    // timer chain hanging off socket close events, so a single missed event
+    // or a throttled timer can never leave the session permanently offline.
+    if (!this.serverURL || !this.connectionOptions) {
+      return;
+    }
+
+    const reconnectTimeout =
+      this.connectionOptions.reconnectTimeout ?? DEFAULT_RECONNECT_TIMEOUT_MS;
+    if (reconnectTimeout <= 0) {
+      return;
+    }
+
+    if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+
+    if (performance.now() - this.lastConnectAttemptAt < reconnectTimeout) {
+      return;
+    }
+
+    console.log("[NETWORK] Attempting to reconnect...");
+    void this.connect(this.serverURL, this.connectionOptions);
   };
 
   join = async (world: string) => {
@@ -253,6 +319,15 @@ export class Network {
 
     this.joined = true;
     this.world = world;
+    this.sendJoinRequest();
+
+    return new Promise<Network>((resolve, reject) => {
+      this.joinResolve = resolve;
+      this.joinReject = reject;
+    });
+  };
+
+  private sendJoinRequest = () => {
     this.waitingForInit = true;
     this.initPacketReceived = false;
     this.joinStartTime = performance.now();
@@ -260,7 +335,7 @@ export class Network {
     this.send({
       type: "JOIN",
       json: {
-        world,
+        world: this.world,
         username: this.clientInfo.username,
         preferences:
           this.clientInfo.metadata?.preferences &&
@@ -268,11 +343,6 @@ export class Network {
             ? this.clientInfo.metadata.preferences
             : {},
       },
-    });
-
-    return new Promise<Network>((resolve, reject) => {
-      this.joinResolve = resolve;
-      this.joinReject = reject;
     });
   };
 
@@ -335,6 +405,13 @@ export class Network {
 
   sync = () => {
     if (!this.connected || !this.packetQueue.length) {
+      return;
+    }
+
+    // Queued packets must not overtake a pending INIT: everything that
+    // arrives during a (re)join is processed only after the INIT handshake
+    // resets session state.
+    if (this.waitingForInit) {
       return;
     }
 
@@ -432,13 +509,10 @@ export class Network {
     this.packetQueue = [];
     this.joinResolve = null;
     this.joinReject = null;
+    this.serverURL = null;
+    this.connectionOptions = null;
     this.clearSyncInterval();
     this.terminateDecodeWorkers();
-
-    if (this.reconnection) {
-      clearTimeout(this.reconnection);
-      this.reconnection = null;
-    }
 
     if (wasConnected) {
       this.onDisconnect?.();
@@ -504,12 +578,17 @@ export class Network {
     });
 
     if (type === "INIT") {
-      if (!this.joinResolve) {
-        throw new Error("Something went wrong with joining worlds...");
+      this.waitingForInit = false;
+
+      // Rejoin INITs (after a reconnect) have no pending join promise; the
+      // handshake side effects below run for both first joins and rejoins.
+      if (this.joinResolve) {
+        const resolve = this.joinResolve;
+        this.joinResolve = null;
+        this.joinReject = null;
+        resolve(this);
       }
 
-      this.waitingForInit = false;
-      this.joinResolve(this);
       this.onJoin?.(this.world);
 
       if (this.useWebRTC && !this.rtc) {
@@ -543,16 +622,23 @@ export class Network {
       this.priorityWorker.removeEventListener("message", handler);
 
       if (!this.connected) {
+        // Never discard a possible INIT: the join handshake would wedge with
+        // `waitingForInit` stuck. Re-queue it; a real teardown clears the
+        // queue anyway.
+        this.enqueuePacket(buffer);
         return;
       }
 
       const messages = e.data as MessageProtocol[];
       const decoded = messages[0];
 
-      if (decoded.type === "INIT" && this.waitingForInit) {
+      if (
+        (decoded.type === "INIT" || decoded.type === "ERROR") &&
+        this.waitingForInit
+      ) {
         this.onMessage(decoded);
       } else {
-        this.packetQueue.push(buffer);
+        this.enqueuePacket(buffer);
       }
     };
 
@@ -576,10 +662,33 @@ export class Network {
     }
 
     this.stopSyncInterval = setWorkerInterval(() => {
-      if (!this.connected) return;
+      if (!this.connected) {
+        this.maybeReconnect();
+        return;
+      }
+      if (this.waitingForInit) {
+        this.maybeRetryJoin();
+        return;
+      }
       this.flush();
       this.sync();
     }, 1000 / 60);
+  };
+
+  private maybeRetryJoin = () => {
+    if (!this.joined || !this.world) {
+      return;
+    }
+
+    if (
+      performance.now() - this.joinStartTime <
+      this.options.joinRetryTimeout
+    ) {
+      return;
+    }
+
+    console.log(`[NETWORK] Join for ${this.world} unanswered, retrying...`);
+    this.sendJoinRequest();
   };
 
   private clearSyncInterval = () => {

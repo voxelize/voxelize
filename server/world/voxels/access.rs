@@ -64,6 +64,25 @@ pub trait VoxelAccess {
         )
     }
 
+    fn fill_sunlight_column(
+        &mut self,
+        vx: i32,
+        vz: i32,
+        y_from: i32,
+        y_to: i32,
+        level: u32,
+    ) -> bool {
+        // Sets the sunlight level for a vertical run of voxels in one
+        // column, inclusive on both ends. Semantically identical to calling
+        // `set_sunlight` per voxel; implementations may override this with a
+        // bulk write (used by the open-sky fill in light propagation).
+        let mut is_all_set = true;
+        for vy in y_from..=y_to {
+            is_all_set &= self.set_sunlight(vx, vy, vz, level);
+        }
+        is_all_set
+    }
+
     fn get_red_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         LightUtils::extract_red_light(self.get_raw_light(vx, vy, vz))
     }

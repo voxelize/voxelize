@@ -151,6 +151,12 @@ export type CloudsOptions = {
 
   uCloudEndFadeFar?: ShaderUniform<number>;
 
+  uCameraSubmersion?: ShaderUniform<number>;
+
+  uCameraWaterPlaneY?: ShaderUniform<number>;
+
+  uUnderwaterAmbient?: ShaderUniform<Color>;
+
   endFadeNearRatio: number;
 
   endFadeFarRatio: number;
@@ -277,6 +283,9 @@ export class Clouds extends Group {
       uCloudFogDistanceScale,
       uCloudEndFadeNear,
       uCloudEndFadeFar,
+      uCameraSubmersion,
+      uCameraWaterPlaneY,
+      uUnderwaterAmbient,
     } = this.options;
 
     const cloudRadius =
@@ -335,6 +344,11 @@ export class Clouds extends Group {
         },
         uCloudEndFadeFar: uCloudEndFadeFar || {
           value: cloudRadius * this.options.endFadeFarRatio,
+        },
+        uCameraSubmersion: uCameraSubmersion || { value: 0 },
+        uCameraWaterPlaneY: uCameraWaterPlaneY || { value: 0 },
+        uUnderwaterAmbient: uUnderwaterAmbient || {
+          value: new Color(0, 0, 0),
         },
         uCloudColor: {
           value: new Color(color),

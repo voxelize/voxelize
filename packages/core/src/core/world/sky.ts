@@ -121,6 +121,18 @@ export class Sky extends CanvasBox {
     value: number;
   };
 
+  /**
+   * The ambient water color the sky gradient fades toward while the camera
+   * is submerged.
+   */
+  public uUnderwaterAmbient = { value: new Color(0, 0, 0) };
+
+  /**
+   * How much of the sky gradient is replaced by the underwater ambient,
+   * driven by camera depth.
+   */
+  public uUnderwaterFade = { value: 0 };
+
   public shadingData: SkyShadingCycleData[] = [];
 
   private textureBloomMaterials = new WeakSet<MeshBasicMaterial>();
@@ -405,6 +417,8 @@ export class Sky extends CanvasBox {
         uVoidOffset: this.uVoidOffset,
         uExponent: { value: 0.6 },
         uExponent2: { value: 1.2 },
+        uUnderwaterAmbient: this.uUnderwaterAmbient,
+        uUnderwaterFade: this.uUnderwaterFade,
       },
       vertexShader: SkyVertexShader,
       fragmentShader: SkyFragmentShader,

@@ -138,6 +138,7 @@ import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
 import { ItemDef, ItemRegistry } from "./items";
+import { LightCones } from "./light-cones";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
@@ -145,6 +146,7 @@ import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
+import { WaterOptics } from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
 
@@ -155,14 +157,20 @@ export * from "./clouds";
 export * from "./csm-renderer";
 export * from "./entity-shadow-uniforms";
 export * from "./items";
+export * from "./light-cones";
 export * from "./loader";
 export * from "./pipelines";
 export * from "./registry";
 export * from "./shaders";
 export * from "./shadow-sampling";
 export * from "./sky";
+export * from "./sky-fog";
 export * from "./textures";
 export * from "./uv";
+export * from "./water-optics";
+
+const warnedUnknownBlockIds = new Set<number>();
+const warnedUnloadedUpdateChunks = new Set<string>();
 
 export type TextureInfo = {
   blockId: number;
@@ -587,6 +595,11 @@ export type WorldServerOptions = {
    * The time per day in seconds.
    */
   timePerDay: number;
+
+  /**
+   * The nominal water level of this world, in blocks.
+   */
+  waterLevel: number;
 };
 
 /**
@@ -705,6 +718,19 @@ export class World<T = any> extends Scene implements NetIntercept {
   public clouds: Clouds;
 
   /**
+   * The camera-driven underwater optics state, updated via
+   * {@link World.updateWaterOptics}.
+   */
+  public waterOptics = new WaterOptics();
+
+  /**
+   * Shared dynamic spot-cone lighting (flashlights, vehicle headlights).
+   * The game rebuilds the cone list every frame; chunk materials bind these
+   * uniforms at creation.
+   */
+  public lightCones = new LightCones();
+
+  /**
    * The CSM (Cascaded Shadow Map) renderer for shader-based lighting.
    */
   public csmRenderer: CSMRenderer | null = null;
@@ -750,21 +776,51 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private captureWaterRefraction(renderer: WebGLRenderer) {
-    const { sceneColor, sceneTextureSize, waterRefractionReady } =
-      this.chunkRenderer.uniforms;
-    const size = renderer.getDrawingBufferSize(sceneTextureSize.value);
-    const width = Math.max(1, Math.floor(size.x));
-    const height = Math.max(1, Math.floor(size.y));
-    const image = sceneColor.value.image;
+    const {
+      cameraSubmersion,
+      sceneColor,
+      sceneTextureSize,
+      waterRefractionReady,
+    } = this.chunkRenderer.uniforms;
 
-    if (image.width !== width || image.height !== height) {
-      sceneColor.value.dispose();
-      const resized = makeSceneColorTexture(width, height);
-      sceneColor.value = resized;
+    // The refraction shader path is disabled while submerged, so skip the
+    // framebuffer copy entirely; the threshold mirrors the shader's gate.
+    if (cameraSubmersion.value >= 0.5) {
+      return;
+    }
+
+    const renderTarget = renderer.getRenderTarget();
+    const isSRGBSource =
+      renderTarget !== null &&
+      renderTarget.texture.colorSpace === SRGBColorSpace;
+
+    let width: number;
+    let height: number;
+    if (renderTarget !== null) {
+      width = Math.max(1, Math.floor(renderTarget.width));
+      height = Math.max(1, Math.floor(renderTarget.height));
+      sceneTextureSize.value.set(width, height);
+    } else {
+      const size = renderer.getDrawingBufferSize(sceneTextureSize.value);
+      width = Math.max(1, Math.floor(size.x));
+      height = Math.max(1, Math.floor(size.y));
+    }
+
+    const capture = sceneColor.value;
+    const isCaptureSRGB = capture.colorSpace === SRGBColorSpace;
+
+    if (
+      capture.image.width !== width ||
+      capture.image.height !== height ||
+      isCaptureSRGB !== isSRGBSource
+    ) {
+      capture.dispose();
+      const recreated = makeSceneColorTexture(width, height, isSRGBSource);
+      sceneColor.value = recreated;
       sceneTextureSize.value.set(width, height);
       waterRefractionReady.value = 0;
       this.waterRefractionFrame = -1;
-      this.syncSceneColorTexture(resized);
+      this.syncSceneColorTexture(recreated);
       return;
     }
 
@@ -868,6 +924,10 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private initialData: any = null;
   private initialEntities: any = null;
+
+  // Loaded chunks whose server-side interest must be re-established after a
+  // rejoin, drained through the paced chunk-request flow.
+  private chunkRefreshQueue = new Set<string>();
 
   public extraInitData: Record<string, unknown> = {};
 
@@ -2065,7 +2125,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (let vy = this.options.maxHeight - 1; vy >= 0; vy--) {
       const block = this.getBlockAt(vx, vy, vz);
 
-      if (!block.isEmpty) {
+      if (block && !block.isEmpty) {
         return vy;
       }
     }
@@ -2097,19 +2157,35 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
-   * Get the block type data by a block id.
+   * Get the block type data by a block id. Unknown ids resolve to air
+   * (logged once per id) so a server/client registry gap can never take
+   * down meshing, lighting, or the agent bridge.
    *
    * @param id The block id.
-   * @returns The block data for the given id, or null if it does not exist.
+   * @returns The block data for the given id, or air if it is unknown.
    */
   getBlockById(id: number) {
     const block = this.registry.blocksById.get(id);
 
-    if (!block) {
-      throw new Error(`Block with id ${id} does not exist`);
+    if (block) {
+      return block;
     }
 
-    return block;
+    if (!warnedUnknownBlockIds.has(id)) {
+      warnedUnknownBlockIds.add(id);
+      console.warn(
+        `[world] Unknown block id ${id}; treating as air. The client registry is likely out of sync with the server.`,
+      );
+    }
+
+    const air = this.registry.blocksById.get(0);
+    if (!air) {
+      throw new Error(
+        "Block registry has no air block; world was never initialized.",
+      );
+    }
+
+    return air;
   }
 
   getBlockByIdSafe(id: number) {
@@ -2770,7 +2846,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const currRot = this.getVoxelRotationAt(vx, vy, vz);
         const currStage = this.getVoxelStageAt(vx, vy, vz);
 
-        if (!this.getBlockById(type)) {
+        if (!this.getBlockByIdSafe(type)) {
           console.warn(`Block ID ${type} does not exist.`);
           return false;
         }
@@ -2812,6 +2888,23 @@ export class World<T = any> extends Scene implements NetIntercept {
       const { vx, vy, vz, voxel } = update;
 
       if (vy < 0 || vy >= this.options.maxHeight) continue;
+
+      // Server updates are broadcast world-wide, including for chunks this
+      // client has not loaded. There is nothing to write into yet (the chunk
+      // snapshot will arrive with the update baked in), and running light
+      // analysis against missing chunks would dereference null blocks.
+      if (this.getChunkByPosition(vx, vy, vz) === undefined) {
+        const chunkName = ChunkUtils.getChunkName(
+          ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.options.chunkSize),
+        );
+        if (!warnedUnloadedUpdateChunks.has(chunkName)) {
+          warnedUnloadedUpdateChunks.add(chunkName);
+          console.warn(
+            `[world] Skipping server block update at (${vx}, ${vy}, ${vz}): chunk ${chunkName} is not loaded.`,
+          );
+        }
+        continue;
+      }
 
       const type = BlockUtils.extractID(voxel);
       const rotation = BlockUtils.extractRotation(voxel);
@@ -2883,13 +2976,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const isSunlight = color === "SUNLIGHT";
 
-    const blockCache = new Map<string, Block>();
+    const blockCache = new Map<string, Block | null>();
     const rotationCache = new Map<string, BlockRotation>();
 
-    const getCachedBlock = (vx: number, vy: number, vz: number): Block => {
+    const getCachedBlock = (
+      vx: number,
+      vy: number,
+      vz: number,
+    ): Block | null => {
       const key = `${vx},${vy},${vz}`;
       let block = blockCache.get(key);
-      if (!block) {
+      if (block === undefined) {
         block = this.getBlockAt(vx, vy, vz);
         blockCache.set(key, block);
       }
@@ -2921,6 +3018,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const [vx, vy, vz] = voxel;
       const sourceBlock = getCachedBlock(vx, vy, vz);
+      if (!sourceBlock) {
+        continue;
+      }
       const sourceRotation = getCachedRotation(vx, vy, vz);
       const sourceTransparency =
         !isSunlight &&
@@ -2956,24 +3056,25 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const nextVoxel = [nvx, nvy, nvz] as Coords3;
         const nBlock = getCachedBlock(nvx, nvy, nvz);
+        if (!nBlock) {
+          continue;
+        }
         const nRotation = getCachedRotation(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
           nRotation,
         );
-        const reduce =
-          isSunlight &&
-          !nBlock.lightReduce &&
-          oy === -1 &&
-          level === maxLightLevel
-            ? 0
-            : 1;
+        const nextLevel = LightUtils.floodLightNextLevel(
+          isSunlight,
+          nBlock.lightAttenuation,
+          oy,
+          level,
+          maxLightLevel,
+        );
 
-        if (level <= reduce) {
+        if (nextLevel <= 0) {
           continue;
         }
-
-        const nextLevel = level - reduce;
 
         if (
           !LightUtils.canEnter(sourceTransparency, nTransparency, ox, oy, oz) ||
@@ -3052,6 +3153,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         const nBlock = this.getBlockAt(nvx, nvy, nvz);
+        if (!nBlock) {
+          continue;
+        }
         const rotation = this.getVoxelRotationAt(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
@@ -3148,6 +3252,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         const nvz = vz + oz;
 
         const nBlock = this.getBlockAt(nvx, nvy, nvz);
+        if (!nBlock) {
+          continue;
+        }
         const rotation = this.getVoxelRotationAt(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
@@ -3217,7 +3324,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    const dedupedFill = LightUtils.dedupeFillQueue(fill);
+    const liveFill = LightUtils.retainLiveFillNodes(fill, (vx, vy, vz) =>
+      isSunlight
+        ? this.getSunlightAt(vx, vy, vz)
+        : this.getTorchLightAt(vx, vy, vz, color),
+    );
+    const dedupedFill = LightUtils.dedupeFillQueue(liveFill);
     for (const node of dedupedFill) {
       const [vx, vy, vz] = node.voxel;
       if (isSunlight) {
@@ -3571,6 +3683,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       block.independentFaces = new Set();
       block.isolatedFaces = new Set();
+      if (typeof block.lightAttenuation !== "number") {
+        block.lightAttenuation = 0;
+      }
 
       block.faces.forEach((face) => {
         if (face.independent) {
@@ -3614,6 +3729,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...this.options,
       ...options,
     };
+
+    if (typeof this.options.waterLevel === "number") {
+      this.chunkRenderer.shaderLightingUniforms.waterLevel.value =
+        this.options.waterLevel;
+    }
 
     this.physics.options = this.options;
 
@@ -3737,6 +3857,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (entities) {
           this.initialEntities = entities;
+        }
+
+        // An INIT on an already-initialized world is a rejoin after a
+        // reconnect. The server process behind it may be brand new, holding
+        // none of the chunks this client renders, so ask for all of them
+        // again: chunk interests get re-registered (entities inside resume
+        // simulating) and any terrain that changed re-streams.
+        if (this.isInitialized) {
+          this.requestLoadedChunksRefresh();
         }
 
         break;
@@ -3929,6 +4058,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this._deleteRadius;
   }
 
+  private requestLoadedChunksRefresh() {
+    this.chunkRefreshQueue.clear();
+    this.chunkPipeline.forEachLoaded((_, name) => {
+      this.chunkRefreshQueue.add(name);
+    });
+  }
+
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
@@ -4022,7 +4158,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     // > 6 chunks: 2
 
     const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
-    if (toRequest.length) {
+
+    // Drain rejoin refreshes with the same per-update budget. These chunks
+    // stay loaded and renderable; the request only re-registers server-side
+    // interest and pulls fresh data for them.
+    const refreshBatch: number[][] = [];
+    let refreshBudget = maxChunkRequestsPerUpdate - toRequest.length;
+    for (const name of this.chunkRefreshQueue) {
+      if (refreshBudget <= 0) break;
+      this.chunkRefreshQueue.delete(name);
+      if (!this.chunkPipeline.getLoadedChunk(name)) continue;
+      refreshBatch.push(ChunkUtils.parseChunkName(name) as number[]);
+      refreshBudget -= 1;
+    }
+
+    if (toRequest.length || refreshBatch.length) {
       this.packets.push({
         type: "LOAD",
         json: {
@@ -4030,7 +4180,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           direction: new Vector2(direction.x, direction.z)
             .normalize()
             .toArray(),
-          chunks: toRequest,
+          chunks: [...toRequest, ...refreshBatch],
         },
       });
 
@@ -4560,6 +4710,30 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  updateWaterOptics(cameraPosition: Vector3, deltaSeconds: number) {
+    if (!this.isInitialized) return;
+
+    this.waterOptics.update({
+      isFluidAt: (vx, vy, vz) => {
+        const block = this.getBlockAt(vx, vy, vz);
+        return !!block && (block.isFluid || block.isWaterlogged);
+      },
+      cameraX: cameraPosition.x,
+      cameraY: cameraPosition.y,
+      cameraZ: cameraPosition.z,
+      sunStrength: this.chunkRenderer.uniforms.sunlightIntensity.value,
+      deltaSeconds,
+    });
+
+    const { uniforms } = this.chunkRenderer;
+    uniforms.cameraSubmersion.value = this.waterOptics.submersion;
+    uniforms.cameraWaterPlaneY.value = this.waterOptics.waterPlaneY;
+    uniforms.underwaterAmbient.value.copy(this.waterOptics.ambientColor);
+
+    this.sky.uUnderwaterAmbient.value.copy(this.waterOptics.ambientColor);
+    this.sky.uUnderwaterFade.value = this.waterOptics.skyFade;
+  }
+
   renderShadowMaps(
     renderer: WebGLRenderer,
     entities?: Object3D[],
@@ -4636,7 +4810,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!material) {
           const block = this.getBlockById(voxel);
           const face = block.faces.find((face) => face.name === faceName);
-          if (!face.isolated || !at) continue;
+          if (!face?.isolated || !at) continue;
           try {
             material = this.getOrCreateIsolatedBlockMaterial(
               voxel,
@@ -4747,7 +4921,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           const block = this.getBlockById(voxel);
           const face = block.faces.find((face) => face.name === faceName);
 
-          if (!face.isolated || !at) {
+          if (!face?.isolated || !at) {
             console.warn("Unlikely situation happened...");
             continue;
           }
@@ -4882,6 +5056,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkRenderer.shaderLightingUniforms.sunColor,
       uSunlightIntensity:
         cloudsOptions.uSunlightIntensity ?? chunkUniforms.sunlightIntensity,
+      uCameraSubmersion:
+        cloudsOptions.uCameraSubmersion ?? chunkUniforms.cameraSubmersion,
+      uCameraWaterPlaneY:
+        cloudsOptions.uCameraWaterPlaneY ?? chunkUniforms.cameraWaterPlaneY,
+      uUnderwaterAmbient:
+        cloudsOptions.uUnderwaterAmbient ?? chunkUniforms.underwaterAmbient,
     });
 
     this.add(this.sky, this.clouds);
@@ -5137,7 +5317,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         newRotation,
       );
 
-      if (newBlock.isOpaque || newBlock.lightReduce) {
+      if (newBlock.isOpaque || newBlock.lightAttenuation > 0) {
         if (this.getSunlightAt(vx, vy, vz) > 0) {
           sunlightRemoval.push(voxel);
         }
@@ -5170,6 +5350,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           const nvz = vz + oz;
 
           const nBlock = this.getBlockAt(nvx, nvy, nvz);
+          if (!nBlock) {
+            continue;
+          }
           const nRotation = this.getVoxelRotationAt(nvx, nvy, nvz);
           const nTransparency = BlockUtils.getBlockRotatedTransparency(
             nBlock,
@@ -5328,6 +5511,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           const nvz = vz + oz;
 
           const nBlock = this.getBlockAt(nvx, nvy, nvz);
+          if (!nBlock) {
+            continue;
+          }
           const nRotation = this.getVoxelRotationAt(nvx, nvy, nvz);
           const nTransparency = BlockUtils.getBlockRotatedTransparency(
             nBlock,
@@ -5344,9 +5530,10 @@ export class World<T = any> extends Scene implements NetIntercept {
             ) &&
             LightUtils.canEnter(updatedTransparency, nTransparency, ox, oy, oz)
           ) {
-            const level =
-              this.getSunlightAt(nvx, nvy, nvz) -
-              (newBlock.lightReduce ? 1 : 0);
+            const level = LightUtils.beerLambertTransmit(
+              this.getSunlightAt(nvx, nvy, nvz),
+              newBlock.lightAttenuation,
+            );
             if (level > 0) {
               sunFlood.push({
                 voxel: [nvx, nvy, nvz],
@@ -5355,9 +5542,10 @@ export class World<T = any> extends Scene implements NetIntercept {
             }
 
             if (!isRemovedLightSource) {
-              const redLevel =
-                this.getTorchLightAt(nvx, nvy, nvz, "RED") -
-                (newBlock.lightReduce ? 1 : 0);
+              const redLevel = LightUtils.beerLambertTransmit(
+                this.getTorchLightAt(nvx, nvy, nvz, "RED"),
+                newBlock.lightAttenuation,
+              );
               if (redLevel > 0) {
                 redFlood.push({
                   voxel: [nvx, nvy, nvz],
@@ -5365,9 +5553,10 @@ export class World<T = any> extends Scene implements NetIntercept {
                 });
               }
 
-              const greenLevel =
-                this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
-                (newBlock.lightReduce ? 1 : 0);
+              const greenLevel = LightUtils.beerLambertTransmit(
+                this.getTorchLightAt(nvx, nvy, nvz, "GREEN"),
+                newBlock.lightAttenuation,
+              );
               if (greenLevel > 0) {
                 greenFlood.push({
                   voxel: [nvx, nvy, nvz],
@@ -5375,9 +5564,10 @@ export class World<T = any> extends Scene implements NetIntercept {
                 });
               }
 
-              const blueLevel =
-                this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
-                (newBlock.lightReduce ? 1 : 0);
+              const blueLevel = LightUtils.beerLambertTransmit(
+                this.getTorchLightAt(nvx, nvy, nvz, "BLUE"),
+                newBlock.lightAttenuation,
+              );
               if (blueLevel > 0) {
                 blueFlood.push({
                   voxel: [nvx, nvy, nvz],
@@ -6241,6 +6431,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         uSceneTextureSize: chunksUniforms.sceneTextureSize,
         uWaterRefractionReady: chunksUniforms.waterRefractionReady,
         uWaterRefractionStrength: chunksUniforms.waterRefractionStrength,
+        uCameraSubmersion: chunksUniforms.cameraSubmersion,
+        uCameraWaterPlaneY: chunksUniforms.cameraWaterPlaneY,
+        uUnderwaterAmbient: chunksUniforms.underwaterAmbient,
         uWindDirection: chunksUniforms.windDirection,
         uWindOffset: chunksUniforms.windOffset,
         uWindSpeed: chunksUniforms.windSpeed,
@@ -6248,6 +6441,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uAtlasSize: chunksUniforms.atlasSize,
         uShowGreedyDebug: chunksUniforms.showGreedyDebug,
         uChunkReveal: { value: 1 },
+        ...this.lightCones.uniformBindings,
         ...shaderLightingUniforms,
         ...uniforms,
       },
@@ -6288,7 +6482,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       transparent: boolean,
       map: Texture,
       isFluid: boolean,
-      lightReduce: boolean,
+      lightAttenuation: number,
       transparentStandalone: boolean,
     ) => {
       const mat = this.makeShaderMaterial();
@@ -6302,7 +6496,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       mat.map = map;
       mat.uniforms.map.value = map;
-      mat.userData.skipShadow = isFluid || (transparent && !lightReduce);
+      mat.userData.skipShadow =
+        isFluid || (transparent && lightAttenuation === 0);
 
       return mat;
     };
@@ -6324,7 +6519,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const totalSlots = textureGroups.size + ungroupedFaces;
     const countPerSide = perSide(totalSlots);
     const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
-    const sharedOpaqueMaterial = make(false, atlas, false, true, false);
+    const sharedOpaqueMaterial = make(false, atlas, false, 1, false);
 
     this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
 
@@ -6335,7 +6530,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             block.isSeeThrough,
             atlas,
             block.isFluid,
-            block.lightReduce,
+            block.lightAttenuation,
             block.transparentStandalone,
           );
       const key = this.makeChunkMaterialKey(block.id);
@@ -6348,7 +6543,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           block.isSeeThrough,
           AtlasTexture.makeUnknownTexture(textureUnitDimension),
           block.isFluid,
-          block.lightReduce,
+          block.lightAttenuation,
           block.transparentStandalone,
         );
         const independentKey = this.makeChunkMaterialKey(block.id, face.name);

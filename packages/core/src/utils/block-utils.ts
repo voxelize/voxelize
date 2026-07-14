@@ -168,9 +168,27 @@ export class BlockUtils {
     return BlockUtils.getBlockTorchLightLevel(block, color);
   };
 
-  static getBlockRotatedTransparency(block: Block, rotation: BlockRotation) {
+  static getBlockRotatedTransparency(
+    block: Block | null | undefined,
+    rotation: BlockRotation,
+  ) {
+    // Backstop for callers that resolved a block from an unloaded chunk or an
+    // unknown id: treat it as fully opaque (light neither enters nor leaves)
+    // instead of throwing, so lighting can never take down the page.
+    if (!block) {
+      if (!BlockUtils.hasWarnedMissingTransparencyBlock) {
+        BlockUtils.hasWarnedMissingTransparencyBlock = true;
+        console.warn(
+          "[BlockUtils] getBlockRotatedTransparency received a missing block; treating as opaque.",
+        );
+      }
+      return [false, false, false, false, false, false];
+    }
+
     return rotation.rotateTransparency(block.isTransparent);
   }
+
+  private static hasWarnedMissingTransparencyBlock = false;
 
   static evaluateBlockRule = (
     rule: BlockRule,

@@ -4,16 +4,17 @@ use specs::{
 };
 
 use crate::{
-    BackgroundEntitiesSaver, Bookkeeping, ClientFilter, Clients, DoNotPersistComp, ETypeComp,
-    EntityFlag, EntityIDs, EntityOperation, EntityProtocol, IDComp, InteractorComp, KdTree,
-    Message, MessageQueues, MessageType, MetadataComp, Physics, PositionComp, Vec3, VoxelComp,
-    WorldConfig,
+    classify_interest, BackgroundEntitiesSaver, Bookkeeping, ClientFilter, Clients,
+    DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol, IDComp,
+    InteractorComp, InterestTransition, KdTree, Message, MessageQueues, MessageType, MetadataComp,
+    Physics, PositionComp, Stats, Vec3, VoxelComp, WorldConfig,
 };
+
+const BLOCK_ENTITY_PREFIX: &str = "block::";
 
 #[derive(Default)]
 pub struct EntitiesSendingSystem {
     updated_entities_buffer: Vec<(String, Entity)>,
-    entity_updates_buffer: Vec<EntityProtocol>,
     new_entity_ids_buffer: HashSet<String>,
 }
 
@@ -24,6 +25,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadExpect<'a, KdTree>,
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldConfig>,
+        ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, Bookkeeping>,
         WriteExpect<'a, Physics>,
@@ -45,6 +47,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             kdtree,
             clients,
             config,
+            stats,
             mut queue,
             mut bookkeeping,
             mut physics,
@@ -60,10 +63,12 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ) = data;
 
         self.updated_entities_buffer.clear();
-        self.entity_updates_buffer.clear();
         self.new_entity_ids_buffer.clear();
 
-        let entity_visible_radius = config.entity_visible_radius;
+        let visible_radius = config.entity_visible_radius;
+        let release_radius = config.entity_release_radius;
+        let keep_alive_interval = config.entity_keep_alive_interval;
+        let tick = stats.tick;
 
         let mut new_entity_handlers = HashMap::new();
 
@@ -86,7 +91,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let old_entities = std::mem::take(&mut bookkeeping.entities);
         let old_ids: HashSet<&String> = old_entities.keys().collect();
-        let _old_entity_positions = std::mem::take(&mut bookkeeping.entity_positions);
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
@@ -119,7 +123,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut new_bookkeeping_records = HashMap::new();
         let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::new();
-        let mut entity_metadata_map: HashMap<String, (String, String, bool)> = HashMap::new();
+        let mut changed_metadata_ids: HashSet<String> = HashSet::new();
 
         for (ent, id, metadata, etype, _, do_not_persist, position, voxel) in (
             &entities,
@@ -149,8 +153,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             let (json_str, updated) = metadata.to_cached_str();
 
             if is_new || updated {
-                entity_metadata_map
-                    .insert(id.0.clone(), (etype.0.clone(), json_str.clone(), is_new));
+                changed_metadata_ids.insert(id.0.clone());
             }
 
             new_bookkeeping_records.insert(
@@ -159,82 +162,20 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             );
         }
 
-        let all_client_ids: Vec<String> = clients.keys().cloned().collect();
-
-        let entity_to_client_id: HashMap<Entity, String> = clients
-            .iter()
-            .map(|(client_id, client)| (client.entity, client_id.clone()))
-            .collect();
-
         let mut client_updates: HashMap<String, Vec<EntityProtocol>> = HashMap::new();
 
-        for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
-            let pos = entity_positions
-                .get(entity_id)
-                .cloned()
-                .unwrap_or(Vec3(0.0, 0.0, 0.0));
-            let nearby_players = kdtree.players_within_radius(&pos, entity_visible_radius);
-
-            for player_entity in nearby_players {
-                let client_id = match entity_to_client_id.get(player_entity) {
-                    Some(id) => id,
-                    None => continue,
-                };
-
-                let client_known = bookkeeping
-                    .client_known_entities
-                    .get(client_id)
-                    .map(|set| set.contains(entity_id))
-                    .unwrap_or(false);
-
-                let operation = if !client_known {
-                    EntityOperation::Create
-                } else if *is_new {
-                    EntityOperation::Create
-                } else {
-                    EntityOperation::Update
-                };
-
-                client_updates
-                    .entry(client_id.clone())
-                    .or_default()
-                    .push(EntityProtocol {
-                        operation,
-                        id: entity_id.clone(),
-                        r#type: etype.clone(),
-                        metadata: Some(metadata_str.clone()),
-                    });
-
-                bookkeeping
-                    .client_known_entities
-                    .entry(client_id.clone())
-                    .or_default()
-                    .insert(entity_id.clone());
-            }
-        }
-
-        for (entity_id, etype, metadata_str) in &deleted_entities {
-            for client_id in &all_client_ids {
-                let client_knew = bookkeeping
-                    .client_known_entities
-                    .get(client_id)
-                    .map(|set| set.contains(entity_id))
-                    .unwrap_or(false);
-
-                if client_knew {
+        for (id, etype, metadata) in &deleted_entities {
+            for client_id in clients.keys() {
+                if bookkeeping.interests.untrack(client_id, id) {
                     client_updates
                         .entry(client_id.clone())
                         .or_default()
                         .push(EntityProtocol {
                             operation: EntityOperation::Delete,
-                            id: entity_id.clone(),
+                            id: id.clone(),
                             r#type: etype.clone(),
-                            metadata: Some(metadata_str.clone()),
+                            metadata: Some(metadata.clone()),
                         });
-
-                    if let Some(known) = bookkeeping.client_known_entities.get_mut(client_id) {
-                        known.remove(entity_id);
-                    }
                 }
             }
         }
@@ -245,44 +186,145 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 None => continue,
             };
 
-            if let Some(known_entities) = bookkeeping.client_known_entities.get_mut(client_id) {
-                let entities_to_delete: Vec<String> = known_entities
-                    .iter()
-                    .filter(|entity_id| {
-                        if let Some((etype, ..)) = new_bookkeeping_records.get(*entity_id) {
-                            if etype.starts_with("block::") {
-                                return false;
-                            }
+            let updates = client_updates.entry(client_id.clone()).or_default();
+
+            if let Some(tracked) = bookkeeping.interests.tracked_mut(client_id) {
+                tracked.retain(|entity_id, last_sent_tick| {
+                    let Some((etype, _, json_str, _)) = new_bookkeeping_records.get(entity_id)
+                    else {
+                        // Despawned ids were already untracked and notified, so
+                        // a missing record means the entity has no streamable
+                        // state left; release it on the client as well.
+                        let old_etype = old_entities
+                            .get(entity_id)
+                            .map(|(etype, ..)| etype.clone())
+                            .unwrap_or_default();
+                        updates.push(EntityProtocol {
+                            operation: EntityOperation::OutOfRange,
+                            id: entity_id.clone(),
+                            r#type: old_etype,
+                            metadata: None,
+                        });
+                        return false;
+                    };
+
+                    // Block entities are chunk-bound: every client keeps them
+                    // for as long as they exist, with change-driven updates.
+                    if etype.starts_with(BLOCK_ENTITY_PREFIX) {
+                        if changed_metadata_ids.contains(entity_id) {
+                            updates.push(EntityProtocol {
+                                operation: EntityOperation::Update,
+                                id: entity_id.clone(),
+                                r#type: etype.clone(),
+                                metadata: Some(json_str.clone()),
+                            });
+                            *last_sent_tick = tick;
                         }
-                        if let Some(entity_pos) = entity_positions.get(*entity_id) {
+                        return true;
+                    }
+
+                    let distance_sq = entity_positions
+                        .get(entity_id)
+                        .map(|entity_pos| {
                             let dx = entity_pos.0 - client_pos.0;
                             let dy = entity_pos.1 - client_pos.1;
                             let dz = entity_pos.2 - client_pos.2;
-                            let dist_sq = dx * dx + dy * dy + dz * dz;
-                            dist_sq > entity_visible_radius * entity_visible_radius
-                        } else {
-                            true
-                        }
-                    })
-                    .cloned()
-                    .collect();
+                            dx * dx + dy * dy + dz * dz
+                        })
+                        .unwrap_or(f32::INFINITY);
 
-                for entity_id in entities_to_delete {
-                    if let Some((etype, _ent, metadata, _persisted)) =
-                        new_bookkeeping_records.get(&entity_id)
-                    {
-                        client_updates
-                            .entry(client_id.clone())
-                            .or_default()
-                            .push(EntityProtocol {
-                                operation: EntityOperation::Delete,
+                    match classify_interest(true, distance_sq, visible_radius, release_radius) {
+                        InterestTransition::Leave => {
+                            updates.push(EntityProtocol {
+                                operation: EntityOperation::OutOfRange,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
-                                metadata: Some(metadata.clone()),
+                                metadata: None,
                             });
+                            false
+                        }
+                        _ => {
+                            if changed_metadata_ids.contains(entity_id) {
+                                updates.push(EntityProtocol {
+                                    operation: EntityOperation::Update,
+                                    id: entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: Some(json_str.clone()),
+                                });
+                                *last_sent_tick = tick;
+                            } else if tick.saturating_sub(*last_sent_tick) >= keep_alive_interval {
+                                updates.push(EntityProtocol {
+                                    operation: EntityOperation::Update,
+                                    id: entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: None,
+                                });
+                                *last_sent_tick = tick;
+                            }
+                            true
+                        }
                     }
-                    known_entities.remove(&entity_id);
+                });
+            }
+
+            for (_, ent) in kdtree.entities_within_radius(&client_pos, visible_radius) {
+                let Some(id) = ids.get(*ent) else {
+                    continue;
+                };
+
+                if bookkeeping.interests.is_tracked(client_id, &id.0) {
+                    continue;
                 }
+
+                let Some((etype, _, json_str, _)) = new_bookkeeping_records.get(&id.0) else {
+                    continue;
+                };
+
+                if etype.starts_with(BLOCK_ENTITY_PREFIX) {
+                    continue;
+                }
+
+                client_updates
+                    .entry(client_id.clone())
+                    .or_default()
+                    .push(EntityProtocol {
+                        operation: EntityOperation::Create,
+                        id: id.0.clone(),
+                        r#type: etype.clone(),
+                        metadata: Some(json_str.clone()),
+                    });
+
+                bookkeeping.interests.track(client_id, &id.0, tick);
+            }
+        }
+
+        // Block entities created after a client joined stream to everyone the
+        // moment they first produce metadata.
+        for entity_id in &changed_metadata_ids {
+            let Some((etype, _, json_str, _)) = new_bookkeeping_records.get(entity_id) else {
+                continue;
+            };
+
+            if !etype.starts_with(BLOCK_ENTITY_PREFIX) {
+                continue;
+            }
+
+            for client_id in clients.keys() {
+                if bookkeeping.interests.is_tracked(client_id, entity_id) {
+                    continue;
+                }
+
+                client_updates
+                    .entry(client_id.clone())
+                    .or_default()
+                    .push(EntityProtocol {
+                        operation: EntityOperation::Create,
+                        id: entity_id.clone(),
+                        r#type: etype.clone(),
+                        metadata: Some(json_str.clone()),
+                    });
+
+                bookkeeping.interests.track(client_id, entity_id, tick);
             }
         }
 

@@ -188,8 +188,8 @@ impl Chunks {
             let decoded = STANDARD
                 .decode(base)
                 .map_err(|err| format!("base64 decode failed: {err}"))?;
-            let mut decoder = Decoder::new(&decoded[..])
-                .map_err(|err| format!("zlib decoder failed: {err}"))?;
+            let mut decoder =
+                Decoder::new(&decoded[..]).map_err(|err| format!("zlib decoder failed: {err}"))?;
             let mut buf = Vec::new();
             decoder
                 .read_to_end(&mut buf)
@@ -237,6 +237,8 @@ impl Chunks {
         );
 
         Arc::make_mut(&mut chunk.voxels).data = voxels;
+        // Bulk-assigned voxel data invalidates the fill watermark.
+        chunk.top_filled_y = None;
 
         if height_map.len() > 0 {
             Arc::make_mut(&mut chunk.height_map).data = height_map;

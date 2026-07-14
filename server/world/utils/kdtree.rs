@@ -271,4 +271,15 @@ impl KdTree {
             .filter_map(|(_, ent_id)| self.entity_map.get(&ent_id))
             .collect()
     }
+
+    pub fn entities_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<(f32, &Entity)> {
+        let radius_squared = radius * radius;
+        let results = self
+            .entities
+            .within(&[point.0, point.1, point.2], radius_squared);
+        results
+            .into_iter()
+            .filter_map(|(dist_sq, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist_sq, e)))
+            .collect()
+    }
 }

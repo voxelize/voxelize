@@ -1,6 +1,17 @@
 import { ShaderLib } from "three";
 
+import {
+  LIGHT_CONES_FUNCTIONS,
+  LIGHT_CONES_SCATTER_FRAGMENT,
+  LIGHT_CONES_UNIFORM_DECLARATIONS,
+} from "./light-cones";
 import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+import {
+  VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK,
+  WATER_DOWNWELLING_EXTINCTION_GLSL,
+  WATER_OPTICS,
+  WATER_SURFACE_SCATTER_GLSL,
+} from "./water-optics";
 
 const SIMPLEX_NOISE_GLSL = `
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
@@ -197,6 +208,7 @@ vShadowCoord2 = uShadowMatrix2 * offsetPosition;
       "#include <common>",
       `
 ${SKY_FOG_UNIFORM_DECLARATIONS}
+${LIGHT_CONES_UNIFORM_DECLARATIONS}
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
@@ -244,6 +256,8 @@ varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
 
 ${SIMPLEX_NOISE_GLSL}
+
+${LIGHT_CONES_FUNCTIONS}
 
 float shadowMapEdgeFade(vec3 coord) {
   float fadeWidth = 0.08;
@@ -480,8 +494,35 @@ float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
 vec3 torchLight = smoothTorch * 1.2;
 
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
-float sunVisibility = smoothstep(0.0, 1.0, sunExposure);
-vec3 globalAmbient = vec3(0.025, 0.03, 0.04) + uAmbientColor * ambientFloor;
+float sunVisibility = clamp(sunExposure, 0.0, 1.0);
+float fragmentWaterDepth = max(0.0, uWaterLevel - vWorldPosition.y);
+float isFragmentUnderwater = step(vWorldPosition.y, uWaterLevel);
+
+// A water column attenuates voxel sunlight per block, so a fragment clearly
+// brighter than a column of that depth allows is dry ground below the
+// nominal water level (valleys, flatlands) and must not be shaded as
+// submerged.
+float expectedUnderwaterSun = exp(-${VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK.toFixed(5)} * fragmentWaterDepth);
+isFragmentUnderwater *= 1.0 - smoothstep(
+  expectedUnderwaterSun + 0.04,
+  expectedUnderwaterSun + 0.18,
+  sunExposure
+);
+
+// Beer-Lambert downwelling transmittance for this fragment's depth below the
+// water level. Sunlight and sky ambient are filtered through it so submerged
+// terrain shifts teal, then blue, then black with depth.
+vec3 downTransmit = mix(
+  vec3(1.0),
+  exp(-${WATER_DOWNWELLING_EXTINCTION_GLSL} * fragmentWaterDepth),
+  isFragmentUnderwater
+);
+
+vec3 underwaterFill = ${WATER_SURFACE_SCATTER_GLSL}
+  * (${WATER_OPTICS.scatterFillSunStrength.toFixed(4)} * uSunlightIntensity + ${WATER_OPTICS.scatterFillBase.toFixed(4)})
+  * downTransmit * isFragmentUnderwater;
+vec3 globalAmbient =
+  (vec3(0.025, 0.03, 0.04) * sunVisibility + uAmbientColor * ambientFloor) * downTransmit;
 
 float ambientOcclusion = mix(0.72, 1.0, shadow);
 float tunnelDarkening = mix(ambientFloor, 1.0, sunVisibility);
@@ -498,15 +539,24 @@ float torchDominance = torchBrightness / (torchBrightness + dot(sunContribution,
 float torchAOReduction = torchDominance * 0.03;
 float enhancedAO = mix(aoFactor, 1.0, torchAOReduction);
 
-vec3 sunTotal = skyAmbient * ambientOcclusion * tunnelDarkening;
+vec3 sunTotal = skyAmbient * ambientOcclusion * tunnelDarkening * downTransmit;
 vec3 reducedSun = sunContribution * mix(1.0, 0.7, isBrightTex);
+reducedSun *= downTransmit;
 sunTotal += reducedSun;
 
 vec3 bounceLight = uAmbientColor * 0.04 * (1.0 - shadow) * sunExposure * uSunlightIntensity;
+bounceLight *= downTransmit;
 sunTotal += bounceLight;
 sunTotal += globalAmbient;
+sunTotal += underwaterFill;
 
 vec3 totalLight = 1.0 - (1.0 - sunTotal) * (1.0 - torchLight);
+
+// Dynamic cones (flashlight, headlights) screen-blend in like torch light,
+// piercing the water's ambient attenuation with their own Beer-Lambert
+// falloff handled inside lightConeSurface.
+vec3 coneLight = lightConeSurface(vWorldPosition.xyz, vWorldNormal);
+totalLight = 1.0 - (1.0 - totalLight) * (1.0 - coneLight);
 
 vec3 warmTint = vec3(1.05, 0.92, 0.75);
 vec3 coolTint = vec3(0.92, 0.95, 1.05);
@@ -518,7 +568,7 @@ totalLight *= enhancedAO;
 totalLight = (totalLight * (2.51 * totalLight + 0.03))
            / (totalLight * (2.43 * totalLight + 0.59) + 0.14);
 vec3 darknessFloor = vec3(ambientFloor) *
-  mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility);
+  mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit;
 totalLight = max(totalLight, darknessFloor);
 outgoingLight.rgb *= totalLight;
 
@@ -574,6 +624,12 @@ if (vIsFluid > 0.5) {
   float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
   vec3 skyReflection = mix(uSkyMiddleColor, uSkyTopColor, skyBlend);
 
+  // Seen from below, the surface only transmits sky within the Snell window
+  // overhead; grazing angles reflect the dark water body instead.
+  float snellWindow = smoothstep(0.55, 0.78, abs(dot(waterNormal, viewDir)));
+  vec3 belowSurfaceSky = mix(uUnderwaterAmbient, skyReflection, snellWindow);
+  skyReflection = mix(skyReflection, belowSurfaceSky, uCameraSubmersion);
+
   vec3 halfVec = normalize(uSunDirection + viewDir);
   float specAngle = max(dot(waterNormal, halfVec), 0.0);
   float spec32 = specAngle * specAngle;
@@ -588,7 +644,7 @@ if (vIsFluid > 0.5) {
 
   float distToCamera = length(cameraPosition - wPos);
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
-  float verticalDepthFactor = 1.0 - exp(-max(0.0, uWaterLevel - wPos.y) * 0.11);
+  float verticalDepthFactor = 1.0 - exp(-max(0.0, uWaterLevel - wPos.y) * ${WATER_OPTICS.downwellingExtinction.green.toFixed(5)});
   vec3 shallowWater = mix(baseWater, uWaterTint, 0.1);
   vec3 deepWater = mix(baseWater, uWaterTint, 0.28);
   vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.72);
@@ -612,8 +668,7 @@ if (vIsFluid > 0.5) {
     diffuseColor.a = max(diffuseColor.a, 0.5 * refractionFace);
   }
 
-  float isCameraUnderwater = step(cameraPosition.y, uWaterLevel);
-  if (uWaterRefractionReady > 0.5 && refractionFace > 0.01 && isCameraUnderwater < 0.5) {
+  if (uWaterRefractionReady > 0.5 && refractionFace > 0.01 && uCameraSubmersion < 0.5) {
     vec2 screenUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
     float refractionTime = uTime * 0.001;
     vec2 broadRipple = vec2(
@@ -621,8 +676,22 @@ if (vIsFluid > 0.5) {
       cos(wPos.z * 0.72 - refractionTime * 1.4) + sin((wPos.z - wPos.x) * 0.38 + refractionTime * 0.9)
     ) * 0.5;
     vec2 sideRipple = vec2(rippleNoise, fineRippleNoise) * 0.45;
-    vec2 refractionVector = normalize(broadRipple + sideRipple * 0.35 + waterNormal.xz * 0.6);
-    vec2 refractionOffset = refractionVector * uWaterRefractionStrength * refractionFace;
+    // Displacement follows the animated slope field directly; normalizing it
+    // pinned every sample onto a fixed-radius orbit that flashed between
+    // unrelated dark and bright pixels each frame.
+    vec2 refractionSlope = broadRipple + sideRipple * 0.35 + waterNormal.xz * 0.6;
+    // Displaced sampling only holds up where the sample lands on geometry
+    // behind the surface: up-facing water viewed from above. Vertical faces
+    // sample undistorted (each crossed face would stamp its own ghost copy)
+    // and grazing views fade out, on the static geometric normal so ripple
+    // animation cannot pump the fade.
+    float refractionIncidence = smoothstep(
+      ${WATER_OPTICS.refractionGrazingCutoffCos.toFixed(4)},
+      ${WATER_OPTICS.refractionFullStrengthCos.toFixed(4)},
+      clamp(dot(vWorldNormal, viewDir), 0.0, 1.0)
+    );
+    vec2 refractionOffset =
+      refractionSlope * uWaterRefractionStrength * topWaterFace * refractionIncidence;
     vec2 refractedUv = clamp(screenUv + refractionOffset, vec2(0.001), vec2(0.999));
     vec3 refractedScene = texture2D(uSceneColor, refractedUv).rgb;
     float tintAmount = 0.12 + fresnel * 0.28 + surfaceRipple * 0.08;
@@ -633,8 +702,9 @@ if (vIsFluid > 0.5) {
   outgoingLight.rgb += specularColor;
 
   float waterDepth = max(0.0, uWaterLevel - vWorldPosition.y);
-  vec3 absorption = vec3(0.025, 0.012, 0.004);
-  outgoingLight.rgb *= exp(-absorption * waterDepth * uWaterAbsorption);
+  vec3 fluidMu = ${WATER_DOWNWELLING_EXTINCTION_GLSL}
+    * (uWaterAbsorption * ${WATER_OPTICS.surfaceAbsorptionScale.toFixed(4)});
+  outgoingLight.rgb *= exp(-fluidMu * waterDepth);
 }
 `,
     )
@@ -642,6 +712,8 @@ if (vIsFluid > 0.5) {
       "#include <fog_fragment>",
       `
 ${SKY_FOG_FRAGMENT}
+
+${LIGHT_CONES_SCATTER_FRAGMENT}
 
 if (uShadowDebugMode > 0.5) {
   if (uShadowDebugMode < 1.5) {

@@ -157,9 +157,10 @@ export type Block = {
   aabbs: AABB[];
 
   /**
-   * Whether or not should light reduce by 1 going through this block.
+   * Optical density for Beer-Lambert light transmission through this block.
+   * `0` keeps normal air rules. `1` is leaves-scale. `2` is water-scale.
    */
-  lightReduce: boolean;
+  lightAttenuation: number;
 
   /**
    * Whether or not does the block generate dynamic faces or AABB's. If this is true, the block will use

@@ -101,8 +101,18 @@ pub struct WorldConfig {
     /// Whether chunk geometry should only be built by clients. Default is true.
     pub client_only_meshing: bool,
 
-
+    /// Radius in blocks within which an entity enters a client's interest set
+    /// and starts streaming to that client. Default is 24 chunks worth of blocks.
     pub entity_visible_radius: f32,
+
+    /// Radius in blocks beyond which a tracked entity leaves a client's interest
+    /// set. Kept larger than `entity_visible_radius` so entities hovering at the
+    /// boundary do not churn between entering and leaving.
+    pub entity_release_radius: f32,
+
+    /// Ticks between keep-alive updates for tracked entities whose metadata has
+    /// not changed, letting clients treat prolonged silence as a lost entity.
+    pub entity_keep_alive_interval: u64,
 }
 
 impl Default for WorldConfig {
@@ -152,6 +162,9 @@ const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
 const DEFAULT_CLIENT_ONLY_MESHING: bool = true;
+const DEFAULT_ENTITY_VISIBLE_RADIUS_CHUNKS: f32 = 24.0;
+const DEFAULT_ENTITY_RELEASE_RADIUS_RATIO: f32 = 1.125;
+const DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL: u64 = 60;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -188,6 +201,8 @@ pub struct WorldConfigBuilder {
     save_entities: bool,
     client_only_meshing: bool,
     entity_visible_radius: f32,
+    entity_release_radius: f32,
+    entity_keep_alive_interval: u64,
 }
 
 impl WorldConfigBuilder {
@@ -227,6 +242,8 @@ impl WorldConfigBuilder {
             save_entities: true,
             client_only_meshing: DEFAULT_CLIENT_ONLY_MESHING,
             entity_visible_radius: 0.0,
+            entity_release_radius: 0.0,
+            entity_keep_alive_interval: DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL,
         }
     }
 
@@ -404,6 +421,16 @@ impl WorldConfigBuilder {
         self
     }
 
+    pub fn entity_release_radius(mut self, entity_release_radius: f32) -> Self {
+        self.entity_release_radius = entity_release_radius;
+        self
+    }
+
+    pub fn entity_keep_alive_interval(mut self, entity_keep_alive_interval: u64) -> Self {
+        self.entity_keep_alive_interval = entity_keep_alive_interval;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -417,6 +444,21 @@ impl WorldConfigBuilder {
 
         if !self.saving && !self.save_dir.is_empty() {
             panic!("Save directory shouldn't be used unless `config.save` is set to true!");
+        }
+
+        let entity_visible_radius = if self.entity_visible_radius > 0.0 {
+            self.entity_visible_radius
+        } else {
+            DEFAULT_ENTITY_VISIBLE_RADIUS_CHUNKS * self.chunk_size as f32
+        };
+        let entity_release_radius = if self.entity_release_radius > 0.0 {
+            self.entity_release_radius
+        } else {
+            entity_visible_radius * DEFAULT_ENTITY_RELEASE_RADIUS_RATIO
+        };
+
+        if entity_release_radius <= entity_visible_radius {
+            panic!("Entity release radius must exceed the entity visible radius.");
         }
 
         WorldConfig {
@@ -452,11 +494,9 @@ impl WorldConfigBuilder {
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
             client_only_meshing: self.client_only_meshing,
-            entity_visible_radius: if self.entity_visible_radius > 0.0 {
-                self.entity_visible_radius
-            } else {
-                24.0 * self.chunk_size as f32
-            },
+            entity_visible_radius,
+            entity_release_radius,
+            entity_keep_alive_interval: self.entity_keep_alive_interval,
         }
     }
 }

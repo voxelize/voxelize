@@ -1,18 +1,16 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use specs::Entity;
 
-use crate::Vec3;
+use crate::{EntityInterests, Vec3};
 
 #[derive(Default)]
 pub struct Bookkeeping {
     // id -> (etype, entity, serialized_metadata, persisted)
     pub(crate) entities: HashMap<String, (String, Entity, String, bool)>,
-    // Track entity positions for distance-based visibility
-    // entity_id -> position
+    // entity_id -> position, refreshed by the entities-sending system each tick
     pub(crate) entity_positions: HashMap<String, Vec3<f32>>,
-    // Track which entities each client knows about
-    // client_id -> set of entity_ids
-    pub(crate) client_known_entities: HashMap<String, HashSet<String>>,
+    // per-client sets of entity ids currently streaming to that client
+    pub(crate) interests: EntityInterests,
 }
 
 impl Bookkeeping {
@@ -21,6 +19,6 @@ impl Bookkeeping {
     }
 
     pub fn remove_client(&mut self, client_id: &str) {
-        self.client_known_entities.remove(client_id);
+        self.interests.remove_client(client_id);
     }
 }

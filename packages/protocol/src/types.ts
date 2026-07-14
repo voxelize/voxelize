@@ -31,7 +31,7 @@ export type PeerProtocol<T> = {
   metadata: T;
 };
 
-export type EntityOperation = "CREATE" | "UPDATE" | "DELETE";
+export type EntityOperation = "CREATE" | "UPDATE" | "DELETE" | "OUT_OF_RANGE";
 
 export type EntityProtocol<T> = {
   operation: EntityOperation;

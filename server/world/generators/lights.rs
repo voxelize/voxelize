@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::{Block, ChunkUtils, LightColor, Registry, Vec2, Vec3, VoxelAccess, WorldConfig};
+use crate::{
+    ChunkUtils, LightColor, LightPassInfo, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
+};
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [1, 0, 0],
@@ -26,6 +28,54 @@ const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
 
 /// A set of utility functions to simulate global illumination in a Voxelize world.
 pub struct Lights;
+
+/// Per optical-density unit transmittance ≈ e^(-0.143) ≈ 0.867.
+/// Matches Beer-Lambert I' = I * e^(-μd) with μ≈0.143 per density unit per block.
+const BEER_LAMBERT_TRANSMITTANCE_NUM: u32 = 222;
+const BEER_LAMBERT_TRANSMITTANCE_DEN: u32 = 256;
+
+/// Apply Beer-Lambert transmission through a medium with the given optical density.
+/// `optical_density` is block `light_attenuation` (leaves=1, water=2).
+pub fn beer_lambert_transmit(level: u32, optical_density: u8) -> u32 {
+    if level == 0 || optical_density == 0 {
+        return level;
+    }
+
+    let mut next = level;
+    for _ in 0..optical_density {
+        next = (next * BEER_LAMBERT_TRANSMITTANCE_NUM) / BEER_LAMBERT_TRANSMITTANCE_DEN;
+    }
+
+    // Integer rounding can stall at 1; force progress so light eventually dies out.
+    if next >= level {
+        level.saturating_sub(1)
+    } else {
+        next
+    }
+}
+
+fn flood_light_next_level(
+    is_sunlight: bool,
+    light_attenuation: u8,
+    oy: i32,
+    level: u32,
+    max_light_level: u32,
+) -> u32 {
+    if level == 0 {
+        return 0;
+    }
+
+    // Open-air sunlight column does not attenuate downward at full strength.
+    if is_sunlight && light_attenuation == 0 && oy == -1 && level == max_light_level {
+        return level;
+    }
+
+    if light_attenuation > 0 {
+        beer_lambert_transmit(level, light_attenuation)
+    } else {
+        level.saturating_sub(1)
+    }
+}
 
 // TODO: RIGHT NOW, A TOP SLAB WILL STILL LET LIGHT TRAVEL INTO A BOTTOM SLAB...
 
@@ -61,14 +111,28 @@ impl Lights {
             }
 
             let [vx, vy, vz] = voxel;
-            let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
-            let voxel_pos = Vec3(vx, vy, vz);
+            let source_id = space.get_voxel(vx, vy, vz);
+            let source_info = registry.light_pass_info(source_id);
             let source_transparency = if !is_sunlight
-                && source_block.get_torch_light_level_at(&voxel_pos, space, color) > 0
+                && source_info.emits_torch_light
+                && Lights::torch_level_of(
+                    registry,
+                    source_id,
+                    &source_info,
+                    vx,
+                    vy,
+                    vz,
+                    space,
+                    color,
+                ) > 0
             {
                 ALL_TRANSPARENT
+            } else if source_info.is_rotation_dependent {
+                registry
+                    .get_block_by_id(source_id)
+                    .get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
             } else {
-                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+                source_info.is_transparent
             };
 
             for [ox, oy, oz] in &VOXEL_NEIGHBORS {
@@ -105,19 +169,26 @@ impl Lights {
                 }
 
                 let next_voxel = [nvx, nvy, nvz];
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
-                let reduce = if is_sunlight
-                    && !n_block.light_reduce
-                    && *oy == -1
-                    && level == *max_light_level
-                {
-                    0
+                let n_id = space.get_voxel(nvx, nvy, nvz);
+                let n_info = registry.light_pass_info(n_id);
+                let n_transparency = if n_info.is_rotation_dependent {
+                    registry
+                        .get_block_by_id(n_id)
+                        .get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz))
                 } else {
-                    1
+                    n_info.is_transparent
                 };
-                let next_level = level.saturating_sub(reduce);
+                let next_level = flood_light_next_level(
+                    is_sunlight,
+                    n_info.light_attenuation,
+                    *oy,
+                    level,
+                    *max_light_level,
+                );
+
+                if next_level == 0 {
+                    continue;
+                }
 
                 // To not continue:
                 // (1) Light cannot be flooded from source block to neighbor.
@@ -273,7 +344,31 @@ impl Lights {
             }
         }
 
+        let fill = Lights::retain_live_fill_nodes(space, fill, color);
         Lights::flood_light(space, fill, color, registry, config, None, None);
+    }
+
+    fn retain_live_fill_nodes(
+        space: &dyn VoxelAccess,
+        fill: VecDeque<LightNode>,
+        color: &LightColor,
+    ) -> VecDeque<LightNode> {
+        // A node is collected as fill the moment the removal front sees it,
+        // but a later, stronger front can still zero it; flooding from that
+        // dead snapshot would resurrect light the removal just proved stale.
+        let is_sunlight = *color == LightColor::Sunlight;
+
+        fill.into_iter()
+            .filter(|node| {
+                let [vx, vy, vz] = node.voxel;
+                let current = if is_sunlight {
+                    space.get_sunlight(vx, vy, vz)
+                } else {
+                    space.get_torch_light(vx, vy, vz, color)
+                };
+                current == node.level
+            })
+            .collect()
     }
 
     pub fn propagate(
@@ -315,10 +410,16 @@ impl Lights {
         }
         region_top = region_top.min(max_y);
 
-        for y in (region_top + 1)..=max_y {
+        if region_top < max_y {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
-                    space.set_sunlight(x + start_x, y, z + start_z, max_light_level);
+                    space.fill_sunlight_column(
+                        x + start_x,
+                        z + start_z,
+                        region_top + 1,
+                        max_y,
+                        max_light_level,
+                    );
                 }
             }
         }
@@ -327,77 +428,55 @@ impl Lights {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
                     let id = space.get_voxel(x + start_x, y, z + start_z);
-                    let block = registry.get_block_by_id(id);
-                    let voxel_pos = Vec3(x + start_x, y, z + start_z);
+                    let info = registry.light_pass_info(id);
 
-                    let &Block {
-                        is_transparent,
-                        is_opaque,
-                        is_light,
-                        light_reduce,
-                        ..
-                    } = block;
-
-                    // Get dynamic light levels
-                    let red_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
-                    let green_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
-                    let blue_light_level =
-                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue);
-
-                    if is_light
-                        || red_light_level > 0
-                        || green_light_level > 0
-                        || blue_light_level > 0
-                    {
-                        if red_light_level > 0 {
-                            space.set_red_light(x + start_x, y, z + start_z, red_light_level);
-                            red_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: red_light_level,
-                            });
-                        }
-                        if green_light_level > 0 {
-                            space.set_green_light(x + start_x, y, z + start_z, green_light_level);
-                            green_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: green_light_level,
-                            });
-                        }
-                        if blue_light_level > 0 {
-                            space.set_blue_light(x + start_x, y, z + start_z, blue_light_level);
-                            blue_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: blue_light_level,
-                            });
-                        }
+                    if info.emits_torch_light {
+                        Lights::seed_torch_queues(
+                            space,
+                            registry,
+                            id,
+                            &info,
+                            x + start_x,
+                            y,
+                            z + start_z,
+                            &mut red_light_queue,
+                            &mut green_light_queue,
+                            &mut blue_light_queue,
+                        );
                     }
 
                     let index = (x + z * shape.0) as usize;
 
-                    let [px, py, pz, nx, ny, nz] = space
-                        .get_voxel_rotation(x + start_x, y, z + start_z)
-                        .rotate_transparency(is_transparent);
-
-                    if is_opaque {
+                    if info.is_opaque {
                         mask[index] = 0;
                     } else {
+                        let [px, py, pz, nx, ny, nz] = if info.is_rotation_dependent {
+                            registry.get_block_by_id(id).get_rotated_transparency(
+                                &space.get_voxel_rotation(x + start_x, y, z + start_z),
+                            )
+                        } else {
+                            info.is_transparent
+                        };
+
                         if !py || !ny {
                             mask[index] = 0;
 
                             continue;
                         }
 
-                        // Let sunlight pass through if it can.
-                        if light_reduce {
+                        // Beer-Lambert attenuation through light-filtering blocks (water, leaves).
+                        if info.light_attenuation > 0 {
                             if mask[index] != 0 {
-                                space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
+                                let next_level =
+                                    beer_lambert_transmit(mask[index], info.light_attenuation);
+                                space.set_sunlight(x + start_x, y, z + start_z, next_level);
 
-                                sunlight_queue.push_back(LightNode {
-                                    level: mask[index] - 1,
-                                    voxel: [start_x + x, y, start_z + z],
-                                });
+                                if next_level > 0 {
+                                    sunlight_queue.push_back(LightNode {
+                                        level: next_level,
+                                        voxel: [start_x + x, y, start_z + z],
+                                    });
+                                }
 
                                 mask[index] = 0;
                             }
@@ -440,6 +519,88 @@ impl Lights {
             green_light_queue,
             blue_light_queue,
         ]
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn seed_torch_queues(
+        space: &mut dyn VoxelAccess,
+        registry: &Registry,
+        id: u32,
+        info: &LightPassInfo,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        red_queue: &mut VecDeque<LightNode>,
+        green_queue: &mut VecDeque<LightNode>,
+        blue_queue: &mut VecDeque<LightNode>,
+    ) {
+        // Emitters are rare, so this only runs for a handful of voxels per
+        // chunk. Static-level blocks read straight from the LUT; dynamic
+        // pattern blocks take the original slow path.
+        let (red, green, blue) = if info.has_dynamic_light {
+            let block = registry.get_block_by_id(id);
+            let pos = Vec3(vx, vy, vz);
+            (
+                block.get_torch_light_level_at(&pos, space, &RED),
+                block.get_torch_light_level_at(&pos, space, &GREEN),
+                block.get_torch_light_level_at(&pos, space, &BLUE),
+            )
+        } else {
+            (
+                info.red_light_level,
+                info.green_light_level,
+                info.blue_light_level,
+            )
+        };
+
+        if red > 0 {
+            space.set_red_light(vx, vy, vz, red);
+            red_queue.push_back(LightNode {
+                voxel: [vx, vy, vz],
+                level: red,
+            });
+        }
+        if green > 0 {
+            space.set_green_light(vx, vy, vz, green);
+            green_queue.push_back(LightNode {
+                voxel: [vx, vy, vz],
+                level: green,
+            });
+        }
+        if blue > 0 {
+            space.set_blue_light(vx, vy, vz, blue);
+            blue_queue.push_back(LightNode {
+                voxel: [vx, vy, vz],
+                level: blue,
+            });
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn torch_level_of(
+        registry: &Registry,
+        id: u32,
+        info: &LightPassInfo,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        space: &dyn VoxelAccess,
+        color: &LightColor,
+    ) -> u32 {
+        if info.has_dynamic_light {
+            return registry.get_block_by_id(id).get_torch_light_level_at(
+                &Vec3(vx, vy, vz),
+                space,
+                color,
+            );
+        }
+
+        match *color {
+            LightColor::Red => info.red_light_level,
+            LightColor::Green => info.green_light_level,
+            LightColor::Blue => info.blue_light_level,
+            LightColor::Sunlight => 0,
+        }
     }
 
     /// Check to see if light can go "into" one block, disregarding the source.
@@ -653,6 +814,7 @@ impl Lights {
             }
         }
 
+        let fill = Lights::retain_live_fill_nodes(space, fill, color);
         Lights::flood_light(space, fill, color, registry, config, None, None);
     }
 }

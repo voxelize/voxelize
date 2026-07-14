@@ -133,6 +133,7 @@ impl Mesher {
                     if is_load {
                         let mut light_queues = vec![VecDeque::new(); 4];
 
+                        let started = std::time::Instant::now();
                         for dx in -1..=1 {
                             for dz in -1..=1 {
                                 let min = Vec3(
@@ -158,7 +159,9 @@ impl Mesher {
                                 }
                             }
                         }
+                        super::gen_profiler::record("lights: propagate scan", started.elapsed());
 
+                        let started = std::time::Instant::now();
                         for (queue, color) in light_queues.into_iter().zip(light_colors.iter()) {
                             if !queue.is_empty() {
                                 Lights::flood_light(
@@ -172,11 +175,13 @@ impl Mesher {
                                 );
                             }
                         }
+                        super::gen_profiler::record("lights: flood", started.elapsed());
 
                         chunk.lights =
                             Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
 
+                    let started = std::time::Instant::now();
                     if config.client_only_meshing {
                         chunk.meshes = None;
                     } else {
@@ -219,6 +224,7 @@ impl Mesher {
                                 .insert(level as u32, MeshProtocol { level, geometries });
                         }
                     }
+                    super::gen_profiler::record("mesh: greedy", started.elapsed());
 
                     let _ = sender.send((chunk, r#type.clone()));
                 });

@@ -36,6 +36,7 @@ message Entity {
     CREATE = 0;
     DELETE = 1;
     UPDATE = 2;
+    OUT_OF_RANGE = 3;
   }
 
   Operation operation = 1;

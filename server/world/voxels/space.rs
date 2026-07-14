@@ -337,6 +337,53 @@ impl VoxelAccess for Space {
         false
     }
 
+    fn fill_sunlight_column(
+        &mut self,
+        vx: i32,
+        vz: i32,
+        y_from: i32,
+        y_to: i32,
+        level: u32,
+    ) -> bool {
+        // Bulk sunlight write for one column: resolves the chunk and base
+        // index once, then strides down the light array. Identical writes to
+        // the per-voxel default, minus the per-voxel chunk lookups.
+        if self.lights.is_empty() {
+            panic!("Space does not contain light data.");
+        }
+
+        let max_height = self.options.max_height as i32;
+        let y_from = y_from.max(0);
+        let y_to = y_to.min(max_height - 1);
+        if y_from > y_to {
+            return true;
+        }
+
+        if !self.contains(vx, y_from, vz) {
+            return false;
+        }
+
+        let (coords, Vec3(lx, _, lz)) = self.to_local(vx, 0, vz);
+
+        let Some(lights) = self.lights.get_mut(&coords) else {
+            return false;
+        };
+
+        let base = lights.index(&[lx, y_from as usize, lz]);
+        let stride_y = lights.stride[1];
+        for step in 0..=(y_to - y_from) as usize {
+            let value = &mut lights.data[base + step * stride_y];
+            *value = LightUtils::insert_sunlight(*value, level);
+        }
+
+        let blocks_per_level = (self.options.max_height / self.options.sub_chunks) as i32;
+        for chunk_level in (y_from / blocks_per_level)..=(y_to / blocks_per_level) {
+            self.updated_levels.insert(chunk_level as u32);
+        }
+
+        true
+    }
+
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if !self.contains(vx, vy, vz) {

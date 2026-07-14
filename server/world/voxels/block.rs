@@ -1390,8 +1390,11 @@ pub struct Block {
     /// The order is: px, py, pz, nx, ny, nz.
     pub is_transparent: [bool; 6],
 
-    /// Does light reduce when passing through this block?
-    pub light_reduce: bool,
+    /// Optical density for Beer-Lambert light transmission through this block.
+    /// `0` keeps normal air rules. `1` is leaves-scale. `2` is water-scale.
+    /// Transmission per unit is ≈ e^(-0.143) (222/256).
+    #[serde(default)]
+    pub light_attenuation: u8,
 
     pub is_entity: bool,
 
@@ -1706,7 +1709,7 @@ pub struct BlockBuilder {
     is_nz_transparent: bool,
     is_entity: bool,
     default_entity_json: Option<String>,
-    light_reduce: bool,
+    light_attenuation: u8,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     dynamic_fn: Option<
         Arc<
@@ -1931,9 +1934,16 @@ impl BlockBuilder {
         self
     }
 
-    /// Configure whether light reduces through this block. Default is false.
+    /// Optical density for Beer-Lambert transmission. Default is `0`.
+    /// Use `1` for leaves-scale filtering, `2` for water.
+    pub fn light_attenuation(mut self, light_attenuation: u8) -> Self {
+        self.light_attenuation = light_attenuation;
+        self
+    }
+
+    /// Configure whether light filters through this block (density 1). Default is false.
     pub fn light_reduce(mut self, light_reduce: bool) -> Self {
-        self.light_reduce = light_reduce;
+        self.light_attenuation = if light_reduce { 1 } else { 0 };
         self
     }
 
@@ -2030,7 +2040,7 @@ impl BlockBuilder {
                 self.is_ny_transparent,
                 self.is_nz_transparent,
             ],
-            light_reduce: self.light_reduce,
+            light_attenuation: self.light_attenuation,
             is_dynamic: self.dynamic_fn.is_some() || self.dynamic_patterns.is_some(),
             dynamic_patterns: self.dynamic_patterns,
             dynamic_fn: self.dynamic_fn,

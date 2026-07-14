@@ -1,4 +1,14 @@
-export const SKY_FOG_UNIFORM_DECLARATIONS = `
+import {
+  UNDERWATER_FOG_FRAGMENT,
+  UNDERWATER_FOG_UNIFORM_DECLARATIONS,
+} from "./water-optics";
+
+/**
+ * Sky-fog uniforms minus the sun trio, for shaders whose lighting chunk
+ * already declares `uSunDirection`, `uSunColor`, and `uSunlightIntensity`
+ * (e.g. entity materials composing this alongside their shadow chunk).
+ */
+export const SKY_FOG_COMMON_UNIFORM_DECLARATIONS = `
 uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
@@ -14,9 +24,18 @@ uniform float uSkyFogExponent2;
 uniform float uSkyFogDimension;
 uniform float uSkyFogStrength;
 uniform float uChunkReveal;
+${UNDERWATER_FOG_UNIFORM_DECLARATIONS}
+`;
+
+export const SKY_FOG_SUN_UNIFORM_DECLARATIONS = `
 uniform vec3 uSunDirection;
 uniform vec3 uSunColor;
 uniform float uSunlightIntensity;
+`;
+
+export const SKY_FOG_UNIFORM_DECLARATIONS = `
+${SKY_FOG_COMMON_UNIFORM_DECLARATIONS}
+${SKY_FOG_SUN_UNIFORM_DECLARATIONS}
 `;
 
 export const createSkyFogFragment = (
@@ -41,8 +60,9 @@ vec3 fogTint = mix(uFogColor, skyColor, uSkyFogStrength);
 float sunAlignment = pow(max(0.0, dot(fogRay, uSunDirection)), 6.0);
 fogTint += uSunColor * sunAlignment * uSunlightIntensity * uSkyFogStrength * 0.35;
 
-float effectiveFogFactor = mix(1.0, fogFactor, uChunkReveal);
+float effectiveFogFactor = mix(1.0, fogFactor * (1.0 - uCameraSubmersion), uChunkReveal);
 gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, effectiveFogFactor);
+${UNDERWATER_FOG_FRAGMENT}
 `;
 
 export const SKY_FOG_FRAGMENT = createSkyFogFragment();

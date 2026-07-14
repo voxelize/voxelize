@@ -1,11 +1,18 @@
 import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
+import {
+  getDownwellingTransmittance,
+  measureWaterColumn,
+  WATER_OPTICS,
+  WATER_SURFACE_SCATTER_COLOR,
+} from "../../core/world/water-optics";
 import { ChunkUtils, ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
 
 const position = new Vector3();
 const tempColor = new Color();
+const waterTransmittance = new Color();
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
@@ -63,6 +70,11 @@ export class LightShined {
   public ignored: Set<IgnoredType> = new Set();
 
   private positionOverrides = new Map<Object3D, Vector3>();
+
+  private isFluidAt = (vx: number, vy: number, vz: number): boolean => {
+    const block = this.world.getBlockAt(vx, vy, vz);
+    return !!block && (block.isFluid || block.isWaterlogged);
+  };
 
   /**
    * Construct a light shined effect manager.
@@ -279,7 +291,26 @@ export class LightShined {
     const lightValues = this.world.getLightValuesAt(...voxel);
 
     const sunExposure = lightValues ? lightValues.sunlight / maxLightLevel : 0;
-    const tunnelDarkening = sunExposure * sunExposure;
+    const sunVisibility = Math.min(Math.max(sunExposure, 0), 1);
+    const ambientFloor = Math.max(
+      this.world.chunkRenderer.uniforms.minLightLevel.value +
+        this.world.chunkRenderer.uniforms.baseAmbient.value,
+      0,
+    );
+    const tunnelDarkening = ambientFloor + (1 - ambientFloor) * sunVisibility;
+
+    const column = measureWaterColumn(this.isFluidAt, pos.x, pos.y, pos.z);
+    getDownwellingTransmittance(column?.depth ?? 0, waterTransmittance);
+    const spectralR = waterTransmittance.r;
+    const spectralG = waterTransmittance.g;
+    const spectralB = waterTransmittance.b;
+    const fillStrength = column
+      ? WATER_OPTICS.scatterFillSunStrength * sunlightIntensity.value +
+        WATER_OPTICS.scatterFillBase
+      : 0;
+    const fillR = WATER_SURFACE_SCATTER_COLOR.r * fillStrength * spectralR;
+    const fillG = WATER_SURFACE_SCATTER_COLOR.g * fillStrength * spectralG;
+    const fillB = WATER_SURFACE_SCATTER_COLOR.b * fillStrength * spectralB;
 
     const avgNdotL = 0.5;
     const sunContrib =
@@ -294,13 +325,16 @@ export class LightShined {
       cpuTorchB = (lightValues.blue / maxLightLevel) ** 2;
     }
 
-    const globalAmbientR = 0.04;
-    const globalAmbientG = 0.045;
-    const globalAmbientB = 0.06;
+    const globalAmbientR =
+      (0.025 * sunVisibility + ambientColor.value.r * ambientFloor) * spectralR;
+    const globalAmbientG =
+      (0.03 * sunVisibility + ambientColor.value.g * ambientFloor) * spectralG;
+    const globalAmbientB =
+      (0.04 * sunVisibility + ambientColor.value.b * ambientFloor) * spectralB;
 
-    const skyAmbientR = ambientColor.value.r * tunnelDarkening;
-    const skyAmbientG = ambientColor.value.g * tunnelDarkening;
-    const skyAmbientB = ambientColor.value.b * tunnelDarkening;
+    const skyAmbientR = ambientColor.value.r * tunnelDarkening * spectralR;
+    const skyAmbientG = ambientColor.value.g * tunnelDarkening * spectralG;
+    const skyAmbientB = ambientColor.value.b * tunnelDarkening * spectralB;
 
     const sunBasedLight = skyAmbientR + sunColor.value.r * sunContrib;
     const torchAttenuation = 1.0 - Math.min(sunBasedLight, 1.0) * 0.8;
@@ -308,17 +342,20 @@ export class LightShined {
     const totalR =
       globalAmbientR +
       skyAmbientR +
-      sunColor.value.r * sunContrib +
+      sunColor.value.r * sunContrib * spectralR +
+      fillR +
       cpuTorchR * torchAttenuation;
     const totalG =
       globalAmbientG +
       skyAmbientG +
-      sunColor.value.g * sunContrib +
+      sunColor.value.g * sunContrib * spectralG +
+      fillG +
       cpuTorchG * torchAttenuation;
     const totalB =
       globalAmbientB +
       skyAmbientB +
-      sunColor.value.b * sunContrib +
+      sunColor.value.b * sunContrib * spectralB +
+      fillB +
       cpuTorchB * torchAttenuation;
 
     return tempColor.setRGB(

@@ -9,6 +9,23 @@ import { Registry } from "../registry";
 
 let registry: Registry;
 
+const warnedUnknownBlockIds = new Set<number>();
+
+function resolveBlockOrAir(id: number): Block | null {
+  // Unknown ids resolve to air so a registry gap degrades to a lighting
+  // artifact instead of killing the worker. Mirrors the air fallback of the
+  // server's registry (registry.rs get_block_by_id / light_pass_info).
+  const block = registry.blocksById.get(id);
+  if (block) {
+    return block;
+  }
+  if (!warnedUnknownBlockIds.has(id)) {
+    warnedUnknownBlockIds.add(id);
+    console.warn(`[light-worker] Unknown block id ${id}; treating as air.`);
+  }
+  return registry.blocksById.get(0) ?? null;
+}
+
 const VOXEL_NEIGHBORS = [
   [1, 0, 0],
   [-1, 0, 0],
@@ -186,21 +203,19 @@ function floodLight(
 
   const isSunlight = color === "SUNLIGHT";
 
-  const blockCache = new Map<number, Block>();
+  const blockCache = new Map<number, Block | null>();
   const rotationCache = new Map<number, BlockRotation>();
 
   const hashCoords = (vx: number, vy: number, vz: number): number => {
     return ((vx * 73856093) ^ (vy * 19349663) ^ (vz * 83492791)) >>> 0;
   };
 
-  const getCachedBlock = (vx: number, vy: number, vz: number): Block => {
+  const getCachedBlock = (vx: number, vy: number, vz: number): Block | null => {
     const key = hashCoords(vx, vy, vz);
     let block = blockCache.get(key);
-    if (!block) {
+    if (block === undefined) {
       const id = space.getVoxelAt(vx, vy, vz);
-      const b = registry.blocksById.get(id);
-      if (!b) throw new Error(`Unknown block id: ${id}`);
-      block = b;
+      block = resolveBlockOrAir(id);
       blockCache.set(key, block);
     }
     return block;
@@ -229,6 +244,9 @@ function floodLight(
 
     const [vx, vy, vz] = voxel;
     const sourceBlock = getCachedBlock(vx, vy, vz);
+    if (!sourceBlock) {
+      continue;
+    }
     const sourceRotation = getCachedRotation(vx, vy, vz);
     const sourceTransparency =
       !isSunlight &&
@@ -265,24 +283,25 @@ function floodLight(
 
       const nextVoxel: Coords3 = [nvx, nvy, nvz];
       const nBlock = getCachedBlock(nvx, nvy, nvz);
+      if (!nBlock) {
+        continue;
+      }
       const nRotation = getCachedRotation(nvx, nvy, nvz);
       const nTransparency = BlockUtils.getBlockRotatedTransparency(
         nBlock,
         nRotation,
       );
-      const reduce =
-        isSunlight &&
-        !nBlock.lightReduce &&
-        oy === -1 &&
-        level === maxLightLevel
-          ? 0
-          : 1;
+      const nextLevel = LightUtils.floodLightNextLevel(
+        isSunlight,
+        nBlock.lightAttenuation,
+        oy,
+        level,
+        maxLightLevel,
+      );
 
-      if (level <= reduce) {
+      if (nextLevel <= 0) {
         continue;
       }
-
-      const nextLevel = level - reduce;
 
       if (
         !LightUtils.canEnter(sourceTransparency, nTransparency, ox, oy, oz) ||
@@ -345,7 +364,7 @@ function removeLightsBatch(
       const nvz = vz + oz;
 
       const nBlockId = space.getVoxelAt(nvx, nvy, nvz);
-      const nBlock = registry.blocksById.get(nBlockId);
+      const nBlock = resolveBlockOrAir(nBlockId);
       if (!nBlock) continue;
       const rotation = space.getVoxelRotationAt(nvx, nvy, nvz);
       const nTransparency = BlockUtils.getBlockRotatedTransparency(
@@ -413,7 +432,13 @@ function removeLightsBatch(
     }
   }
 
-  return LightUtils.dedupeFillQueue(fill);
+  const liveFill = LightUtils.retainLiveFillNodes(fill, (vx, vy, vz) =>
+    isSunlight
+      ? space.getSunlightAt(vx, vy, vz)
+      : space.getTorchLightAt(vx, vy, vz, color),
+  );
+
+  return LightUtils.dedupeFillQueue(liveFill);
 }
 
 onmessage = function (e) {

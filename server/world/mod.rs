@@ -5,6 +5,7 @@ mod config;
 pub mod cpu_profiler;
 mod entities;
 mod entity_ids;
+mod entity_interests;
 mod events;
 mod generators;
 mod interests;
@@ -63,6 +64,7 @@ pub use config::*;
 pub use cpu_profiler::*;
 pub use entities::*;
 pub use entity_ids::*;
+pub use entity_interests::*;
 pub use events::*;
 pub use generators::*;
 pub use interests::*;
@@ -915,7 +917,7 @@ impl World {
 
     /// Add a transport sender to this world.
     pub(crate) fn add_transport(&mut self, id: &str, sender: &WsSender) {
-        let (init_message, _) = self.generate_init_message(id, None, None, None, None, None);
+        let (init_message, _) = self.generate_init_message(id, None, None, None, None, None, true);
         self.send(sender, &init_message);
         self.write_resource::<Transports>()
             .insert(id.to_owned(), sender.clone());
@@ -996,6 +998,7 @@ impl World {
             saved_is_flying,
             saved_is_ghost,
             saved_is_swimming,
+            false,
         );
 
         self.clients_mut().insert(
@@ -1011,13 +1014,10 @@ impl World {
         self.entity_ids_mut().insert(id.to_owned(), ent.id());
 
         {
+            let tick = self.read_resource::<Stats>().tick;
             let mut bookkeeping = self.write_resource::<Bookkeeping>();
-            let known = bookkeeping
-                .client_known_entities
-                .entry(id.to_owned())
-                .or_default();
             for entity_id in init_entity_ids {
-                known.insert(entity_id);
+                bookkeeping.interests.track(id, &entity_id, tick);
             }
         }
 
@@ -1858,7 +1858,24 @@ impl World {
 
             let handle = self.method_handles.get(&method.name).unwrap().to_owned();
 
-            handle(self, client_id, &method.payload);
+            // Method payloads are client-supplied input. A panicking handler
+            // (e.g. an unknown block name lookup) must not unwind through the
+            // actor and take the whole world down with it.
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                handle(self, client_id, &method.payload);
+            }));
+
+            if let Err(panic) = result {
+                let reason = panic
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic.downcast_ref::<&str>().copied())
+                    .unwrap_or("unknown panic");
+                warn!(
+                    "Method handler '{}' panicked in world '{}': {}. Continuing.",
+                    method.name, self.name, reason
+                );
+            }
         }
     }
 
@@ -1994,11 +2011,23 @@ impl World {
 
             if !loaded_entities.is_empty() {
                 let name = self.name.to_owned();
+                let mut census: HashMap<String, usize> = HashMap::new();
+                for (etype, ..) in loaded_entities.values() {
+                    *census.entry(etype.to_lowercase()).or_insert(0) += 1;
+                }
+                let mut census: Vec<_> = census.into_iter().collect();
+                census.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+                let census = census
+                    .iter()
+                    .map(|(etype, count)| format!("{} {}", etype, count))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 let mut bookkeeping = self.write_resource::<Bookkeeping>();
                 info!(
-                    "World {:?} loaded {} entities from disk.",
+                    "World {:?} loaded {} entities from disk ({}).",
                     name,
-                    loaded_entities.len()
+                    loaded_entities.len(),
+                    census
                 );
                 bookkeeping.entities = loaded_entities;
             }
@@ -2013,6 +2042,7 @@ impl World {
         saved_is_flying: Option<bool>,
         saved_is_ghost: Option<bool>,
         saved_is_swimming: Option<bool>,
+        is_for_transport: bool,
     ) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
         let mut json = HashMap::new();
@@ -2065,7 +2095,10 @@ impl World {
             })
         }
 
-        /* -------------------------- Loading all entities -------------------------- */
+        /* -------------------------- Loading entities -------------------------- */
+        // Clients only receive block entities up front; positioned entities
+        // stream in through the per-client interest sets in the entities-sending
+        // system. Transports observe the whole world, so they get everything.
         let etypes = self.read_component::<ETypeComp>();
         let metadatas = self.read_component::<MetadataComp>();
 
@@ -2073,7 +2106,9 @@ impl World {
         let mut entity_ids = vec![];
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
-            if !etype.0.starts_with("block::") && metadata.is_empty() {
+            let is_block_entity = etype.0.starts_with("block::");
+
+            if !is_block_entity && (!is_for_transport || metadata.is_empty()) {
                 continue;
             }
 

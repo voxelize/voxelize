@@ -1,13 +1,14 @@
 use std::{cmp::Reverse, collections::VecDeque};
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect, WriteStorage};
 
 use crate::{
-    BlockUtils, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp,
-    JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
-    MetadataComp, Registry, Stats, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, WorldConfig,
+    beer_lambert_transmit, BlockUtils, ChunkInterests, ChunkUtils, Chunks, ClientFilter,
+    CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode, Lights,
+    Mesher, Message, MessageQueues, MessageType, MetadataComp, Registry, Stats, UpdateProtocol,
+    Vec2, Vec3, VoxelAccess, VoxelComp, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -404,6 +405,14 @@ fn process_pending_updates(
         }
     }
 
+    // Removals across the whole batch are collected first and executed as one
+    // BFS per color. Removing per voxel re-floods each removal from neighbors
+    // whose light is stale (they are later updates in the same batch), which
+    // leaks pre-update sunlight back into bulk-placed attenuating blocks such
+    // as water. Batching zeroes every removal seed up front, so the re-flood
+    // only draws from genuinely lit fringe voxels — matching the client's
+    // light worker and the generation-time behavior.
+    let mut sunlight_removals = Vec::new();
     let mut red_removals = Vec::new();
     let mut green_removals = Vec::new();
     let mut blue_removals = Vec::new();
@@ -426,19 +435,11 @@ fn process_pending_updates(
 
         let Vec3(vx, vy, vz) = voxel;
         if light_block.is_opaque && chunks.get_sunlight(*vx, *vy, *vz) != 0 {
-            Lights::remove_light(&mut *chunks, voxel, &SUNLIGHT, config, registry);
+            sunlight_removals.push(voxel.clone());
         }
     }
 
-    if !red_removals.is_empty() {
-        Lights::remove_lights(&mut *chunks, &red_removals, &RED, config, registry);
-    }
-    if !green_removals.is_empty() {
-        Lights::remove_lights(&mut *chunks, &green_removals, &GREEN, config, registry);
-    }
-    if !blue_removals.is_empty() {
-        Lights::remove_lights(&mut *chunks, &blue_removals, &BLUE, config, registry);
-    }
+    let mut torch_emissions: Vec<(Vec3<i32>, u32, LightColor)> = Vec::new();
 
     let mut red_flood = VecDeque::new();
     let mut green_flood = VecDeque::new();
@@ -468,18 +469,18 @@ fn process_pending_updates(
             updated_type.is_transparent
         };
 
-        if updated_type.is_opaque || updated_type.light_reduce {
+        if updated_type.is_opaque || updated_type.light_attenuation > 0 {
             if chunks.get_sunlight(vx, vy, vz) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, config, registry);
+                sunlight_removals.push(voxel.clone());
             }
             if chunks.get_torch_light(vx, vy, vz, &RED) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &RED, config, registry);
+                red_removals.push(voxel.clone());
             }
             if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &GREEN, config, registry);
+                green_removals.push(voxel.clone());
             }
             if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
-                Lights::remove_light(&mut *chunks, &voxel, &BLUE, config, registry);
+                blue_removals.push(voxel.clone());
             }
         } else {
             let mut remove_counts = 0;
@@ -526,29 +527,28 @@ fn process_pending_updates(
                             && source_level == max_light_level)
                     {
                         remove_counts += 1;
-                        Lights::remove_light(
-                            &mut *chunks,
-                            &Vec3(nvx, nvy, nvz),
-                            color,
-                            config,
-                            registry,
-                        );
+                        match color {
+                            LightColor::Sunlight => sunlight_removals.push(Vec3(nvx, nvy, nvz)),
+                            LightColor::Red => red_removals.push(Vec3(nvx, nvy, nvz)),
+                            LightColor::Green => green_removals.push(Vec3(nvx, nvy, nvz)),
+                            LightColor::Blue => blue_removals.push(Vec3(nvx, nvy, nvz)),
+                        }
                     }
                 });
             });
 
             if remove_counts == 0 {
                 if chunks.get_sunlight(vx, vy, vz) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, config, registry);
+                    sunlight_removals.push(voxel.clone());
                 }
                 if chunks.get_torch_light(vx, vy, vz, &RED) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &RED, config, registry);
+                    red_removals.push(voxel.clone());
                 }
                 if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &GREEN, config, registry);
+                    green_removals.push(voxel.clone());
                 }
                 if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &BLUE, config, registry);
+                    blue_removals.push(voxel.clone());
                 }
             }
         }
@@ -560,6 +560,7 @@ fn process_pending_updates(
 
             if red_level > 0 {
                 chunks.set_torch_light(vx, vy, vz, red_level, &RED);
+                torch_emissions.push((voxel.clone(), red_level, RED));
                 red_flood.push_back(LightNode {
                     voxel: [voxel.0, voxel.1, voxel.2],
                     level: red_level,
@@ -567,6 +568,7 @@ fn process_pending_updates(
             }
             if green_level > 0 {
                 chunks.set_torch_light(vx, vy, vz, green_level, &GREEN);
+                torch_emissions.push((voxel.clone(), green_level, GREEN));
                 green_flood.push_back(LightNode {
                     voxel: [voxel.0, voxel.1, voxel.2],
                     level: green_level,
@@ -574,6 +576,7 @@ fn process_pending_updates(
             }
             if blue_level > 0 {
                 chunks.set_torch_light(vx, vy, vz, blue_level, &BLUE);
+                torch_emissions.push((voxel.clone(), blue_level, BLUE));
                 blue_flood.push_back(LightNode {
                     voxel: [voxel.0, voxel.1, voxel.2],
                     level: blue_level,
@@ -609,37 +612,43 @@ fn process_pending_updates(
                 if !Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
                     && Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz)
                 {
-                    let reduce = if updated_type.light_reduce { 1 } else { 0 };
                     let sun_val = chunks.get_sunlight(nvx, nvy, nvz);
-                    if sun_val > reduce {
+                    let sun_level = beer_lambert_transmit(sun_val, updated_type.light_attenuation);
+                    if sun_level > 0 {
                         sun_flood.push_back(LightNode {
                             voxel: n_voxel,
-                            level: sun_val - reduce,
+                            level: sun_level,
                         })
                     }
 
                     if !is_removed_light_source {
                         let red_val = chunks.get_torch_light(nvx, nvy, nvz, &RED);
-                        if red_val > reduce {
+                        let red_level =
+                            beer_lambert_transmit(red_val, updated_type.light_attenuation);
+                        if red_level > 0 {
                             red_flood.push_back(LightNode {
                                 voxel: n_voxel,
-                                level: red_val - reduce,
+                                level: red_level,
                             })
                         }
 
                         let green_val = chunks.get_torch_light(nvx, nvy, nvz, &GREEN);
-                        if green_val > reduce {
+                        let green_level =
+                            beer_lambert_transmit(green_val, updated_type.light_attenuation);
+                        if green_level > 0 {
                             green_flood.push_back(LightNode {
                                 voxel: n_voxel,
-                                level: green_val - reduce,
+                                level: green_level,
                             })
                         }
 
                         let blue_val = chunks.get_torch_light(nvx, nvy, nvz, &BLUE);
-                        if blue_val > reduce {
+                        let blue_level =
+                            beer_lambert_transmit(blue_val, updated_type.light_attenuation);
+                        if blue_level > 0 {
                             blue_flood.push_back(LightNode {
                                 voxel: n_voxel,
-                                level: blue_val - reduce,
+                                level: blue_level,
                             })
                         }
                     }
@@ -694,6 +703,34 @@ fn process_pending_updates(
 
         Some((Vec3(min_x, min_y, min_z), Vec3(shape_x, shape_y, shape_z)))
     };
+
+    if !sunlight_removals.is_empty() {
+        Lights::remove_lights(
+            &mut *chunks,
+            &sunlight_removals,
+            &SUNLIGHT,
+            config,
+            registry,
+        );
+    }
+    if !red_removals.is_empty() {
+        Lights::remove_lights(&mut *chunks, &red_removals, &RED, config, registry);
+    }
+    if !green_removals.is_empty() {
+        Lights::remove_lights(&mut *chunks, &green_removals, &GREEN, config, registry);
+    }
+    if !blue_removals.is_empty() {
+        Lights::remove_lights(&mut *chunks, &blue_removals, &BLUE, config, registry);
+    }
+
+    // A removal can zero a torch level that a newly placed light source set
+    // during this batch, so re-assert emissions before flooding from them.
+    for (voxel, level, color) in &torch_emissions {
+        let Vec3(vx, vy, vz) = *voxel;
+        if chunks.get_torch_light(vx, vy, vz, color) < *level {
+            chunks.set_torch_light(vx, vy, vz, *level, color);
+        }
+    }
 
     if !red_flood.is_empty() {
         let bounds = compute_bounds(&red_flood);
@@ -793,6 +830,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Registry>,
         ReadExpect<'a, Stats>,
+        ReadExpect<'a, ChunkInterests>,
         WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, Mesher>,
@@ -806,6 +844,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             config,
             registry,
             stats,
+            interests,
             mut message_queue,
             mut chunks,
             mut mesher,
@@ -880,10 +919,44 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         all_results.extend(results);
 
         if !all_results.is_empty() {
-            let new_message = Message::new(&MessageType::Update)
-                .updates(&all_results)
-                .build();
-            message_queue.push((new_message, ClientFilter::All));
+            // Route each update only to clients whose chunk interest covers a
+            // chunk the update can affect: the updated chunk itself or any
+            // chunk within the light-spill ring, since an edge update can
+            // change light and ambient occlusion in neighbor-chunk meshes.
+            // Everyone else receives the state baked into the chunk snapshot
+            // they request when they approach or rejoin.
+            let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<UpdateProtocol>> = HashMap::new();
+            for update in all_results {
+                let coords = ChunkUtils::map_voxel_to_chunk(
+                    update.vx,
+                    update.vy,
+                    update.vz,
+                    config.chunk_size,
+                );
+                updates_by_chunk.entry(coords).or_default().push(update);
+            }
+
+            let mut updates_by_client: HashMap<String, Vec<UpdateProtocol>> = HashMap::new();
+            for (coords, chunk_updates) in updates_by_chunk {
+                let mut recipients: HashSet<String> = HashSet::new();
+                for spill_coords in chunks.light_traversed_chunks(&coords) {
+                    if let Some(interested) = interests.get_interests(&spill_coords) {
+                        recipients.extend(interested.iter().cloned());
+                    }
+                }
+
+                for client_id in recipients {
+                    updates_by_client
+                        .entry(client_id)
+                        .or_default()
+                        .extend(chunk_updates.iter().cloned());
+                }
+            }
+
+            for (client_id, updates) in updates_by_client {
+                let new_message = Message::new(&MessageType::Update).updates(&updates).build();
+                message_queue.push((new_message, ClientFilter::Direct(client_id)));
+            }
         }
     }
 }

@@ -3,6 +3,8 @@ import {
   FramebufferTexture,
   LinearFilter,
   Matrix4,
+  RGBFormat,
+  SRGBColorSpace,
   Texture,
   Vector2,
   Vector3,
@@ -11,8 +13,21 @@ import {
 
 import { CustomChunkShaderMaterial } from ".";
 
-export function makeSceneColorTexture(width = 1, height = 1) {
+export function makeSceneColorTexture(width = 1, height = 1, isSRGB = false) {
   const texture = new FramebufferTexture(width, height);
+  // glCopyTexSubImage2D requires the destination texture to match the source
+  // framebuffer's format. An sRGB render target (e.g. a postprocessing
+  // composer buffer with UnsignedByteType under an sRGB output color space)
+  // stores SRGB8_ALPHA8, so the capture must be SRGB8_ALPHA8 as well. The
+  // default drawing buffer is linear and, with `alpha: false`, has no alpha
+  // channel, so the capture must be RGB8 — valid against both RGB and RGBA
+  // drawing buffers. The refraction shader only samples `.rgb`.
+  if (isSRGB) {
+    texture.colorSpace = SRGBColorSpace;
+  } else {
+    texture.format = RGBFormat;
+    texture.internalFormat = "RGB8";
+  }
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
   return texture;
@@ -82,6 +97,9 @@ export class ChunkRenderer {
     sceneTextureSize: { value: Vector2 };
     waterRefractionReady: { value: number };
     waterRefractionStrength: { value: number };
+    cameraSubmersion: { value: number };
+    cameraWaterPlaneY: { value: number };
+    underwaterAmbient: { value: Color };
   } = {
     fogColor: { value: new Color("#B1CCFD") },
     fogNear: { value: 100 },
@@ -112,6 +130,9 @@ export class ChunkRenderer {
     sceneTextureSize: { value: new Vector2(1, 1) },
     waterRefractionReady: { value: 0 },
     waterRefractionStrength: { value: 0.08 },
+    cameraSubmersion: { value: 0 },
+    cameraWaterPlaneY: { value: 0 },
+    underwaterAmbient: { value: new Color(0, 0, 0) },
   };
 
   public shaderLightingUniforms: ShaderLightingUniforms = {
@@ -136,7 +157,7 @@ export class ChunkRenderer {
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
     waterTint: { value: new Color("#1F8BD8") },
-    waterAbsorption: { value: 0.16 },
+    waterAbsorption: { value: 1 },
     waterLevel: { value: 86 },
     waterStreakStrength: { value: 0.1 },
     waterFresnelStrength: { value: 0.5 },

@@ -266,7 +266,7 @@ export type AgentControls = {
   measureFrameRate(
     opts?: FrameRateMeasurementOptions,
   ): Promise<FrameRateMeasurement>;
-  screenshot(label: string): Promise<string>;
+  screenshot(label: string, opts?: { isPure?: boolean }): Promise<string>;
 };
 
 function createAgentControls(
@@ -332,12 +332,13 @@ function createAgentControls(
       }
       return (await res.json()) as FrameRateMeasurement;
     },
-    async screenshot(label) {
+    async screenshot(label, opts) {
       const safe = label.replace(/[^a-z0-9_-]/gi, "_");
       const stamp = Date.now().toString();
       const filename = `${stamp}_${safe}.png`;
       const filePath = path.join(screenshotDir, filename);
-      const res = await fetch(`${agentUrl}/screenshot`);
+      const query = opts?.isPure ? "?pure=true" : "";
+      const res = await fetch(`${agentUrl}/screenshot${query}`);
       if (!res.ok) {
         throw new Error(`screenshot failed: ${res.status}`);
       }

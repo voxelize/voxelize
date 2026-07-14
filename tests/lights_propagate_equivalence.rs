@@ -14,7 +14,7 @@ const CHUNK_SIZE: usize = 16;
 const MAX_HEIGHT: usize = 256;
 const PILLAR_TOP: i32 = 200;
 
-const EXPECTED_HASH: u64 = 15060725151583092294;
+const EXPECTED_HASH: u64 = 18324012094261871268;
 
 fn create_registry() -> Registry {
     let mut registry = Registry::new();
@@ -70,7 +70,11 @@ fn build_terrain(chunk: &mut Chunk) {
     chunk.set_voxel(12, 70, 12, TORCH);
 }
 
-fn hash_state(space: &dyn VoxelAccess, queues: &[std::collections::VecDeque<voxelize::LightNode>], hasher: &mut DefaultHasher) {
+fn hash_state(
+    space: &dyn VoxelAccess,
+    queues: &[std::collections::VecDeque<voxelize::LightNode>],
+    hasher: &mut DefaultHasher,
+) {
     for vx in 0..CHUNK_SIZE as i32 {
         for vz in 0..CHUNK_SIZE as i32 {
             for vy in 0..MAX_HEIGHT as i32 {

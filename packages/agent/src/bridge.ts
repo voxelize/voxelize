@@ -12,6 +12,8 @@ export type BlockInfo = {
   isEmpty: boolean;
   isFluid: boolean;
   isPassable: boolean;
+  sunlight: number;
+  torchLight: number;
 };
 
 export type EntitySnapshot = {
@@ -70,6 +72,10 @@ export type ChatMsgIn = {
 export type CommandResult = {
   ok: boolean;
   message?: string;
+};
+
+export type CaptureFrameOptions = {
+  isPure?: boolean;
 };
 
 export type FaceInput =
@@ -228,6 +234,7 @@ export interface AgentBridge {
   following(): FollowStatus | null;
   setFlying(isFlying: boolean): Promise<void>;
   call(method: string, payload: unknown): Promise<unknown>;
+  captureFrame(opts?: CaptureFrameOptions): Promise<string | null>;
 
   meshTransferStatus(): Promise<MeshTransferStatus>;
   meshTransferConfigure(

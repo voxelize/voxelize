@@ -2,6 +2,7 @@ export * from "./chat";
 export * from "./controls";
 export * from "./mobile-controls";
 export * from "./entities";
+export * from "./entity-liveness";
 export * from "./events";
 export * from "./inputs";
 export * from "./method";

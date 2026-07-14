@@ -50,6 +50,11 @@ pub struct Chunk {
 
     pub extra_changes: Vec<VoxelUpdate>,
     pub updated_levels: HashSet<u32>,
+
+    /// Highest y that may hold a nonzero voxel, maintained by `set_raw_voxel`
+    /// so height-map recalculation can skip the guaranteed-empty sky rows.
+    /// `None` means unknown (e.g. bulk-assigned voxel data): scan everything.
+    pub top_filled_y: Option<i32>,
 }
 
 impl Chunk {
@@ -85,6 +90,7 @@ impl Chunk {
 
             options: options.to_owned(),
             updated_levels: (0..sub_chunks as u32).collect(),
+            top_filled_y: Some(-1),
 
             ..Default::default()
         }
@@ -97,9 +103,17 @@ impl Chunk {
 
         let max_height = self.options.max_height as i32;
 
+        // Rows above the fill watermark hold only air, so start the scan at
+        // the watermark instead of the world ceiling. Identical output: the
+        // skipped rows can never satisfy `check_height`.
+        let scan_top = match self.top_filled_y {
+            Some(top) => top.clamp(0, max_height - 1),
+            None => max_height - 1,
+        };
+
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                for vy in (0..max_height).rev() {
+                for vy in (0..=scan_top).rev() {
                     let id = self.get_voxel(vx, vy, vz);
 
                     if vy == 0 || registry.check_height(id) {
@@ -194,6 +208,13 @@ impl VoxelAccess for Chunk {
         }
 
         self.add_updated_level(vy);
+
+        if val != 0 {
+            self.top_filled_y = match self.top_filled_y {
+                Some(top) => Some(top.max(vy)),
+                None => None,
+            };
+        }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         Arc::make_mut(&mut self.voxels)[&[lx, ly, lz]] = val;

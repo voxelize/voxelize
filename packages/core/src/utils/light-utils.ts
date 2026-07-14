@@ -226,6 +226,75 @@ export class LightUtils {
     return Array.from(byKey.values());
   }
 
+  static retainLiveFillNodes<T extends { voxel: Coords3; level: number }>(
+    nodes: T[],
+    getLevelAt: (vx: number, vy: number, vz: number) => number,
+  ): T[] {
+    // A node is collected as fill the moment the removal front sees it, but a
+    // later, stronger front can still zero it; flooding from that dead
+    // snapshot would resurrect light the removal just proved stale.
+    return nodes.filter(
+      (node) =>
+        getLevelAt(node.voxel[0], node.voxel[1], node.voxel[2]) === node.level,
+    );
+  }
+
+  /**
+   * Beer-Lambert transmission: I' = I * e^(-μd).
+   * Each optical-density unit multiplies by 222/256 ≈ e^(-0.143).
+   */
+  static beerLambertTransmit(level: number, opticalDensity: number): number {
+    if (level <= 0 || opticalDensity <= 0) {
+      return level;
+    }
+
+    let next = level;
+    for (let i = 0; i < opticalDensity; i += 1) {
+      next = Math.floor(
+        (next * LightUtils.BEER_LAMBERT_TRANSMITTANCE_NUM) /
+          LightUtils.BEER_LAMBERT_TRANSMITTANCE_DEN,
+      );
+    }
+
+    if (next >= level) {
+      return Math.max(level - 1, 0);
+    }
+    return next;
+  }
+
+  /**
+   * Next light level when flooding into a neighbor voxel.
+   */
+  static floodLightNextLevel(
+    isSunlight: boolean,
+    lightAttenuation: number,
+    oy: number,
+    level: number,
+    maxLightLevel: number,
+  ): number {
+    if (level <= 0) {
+      return 0;
+    }
+
+    if (
+      isSunlight &&
+      lightAttenuation === 0 &&
+      oy === -1 &&
+      level === maxLightLevel
+    ) {
+      return level;
+    }
+
+    if (lightAttenuation > 0) {
+      return LightUtils.beerLambertTransmit(level, lightAttenuation);
+    }
+
+    return Math.max(level - 1, 0);
+  }
+
+  static readonly BEER_LAMBERT_TRANSMITTANCE_NUM = 222;
+  static readonly BEER_LAMBERT_TRANSMITTANCE_DEN = 256;
+
   private constructor() {
     // NOTHING
   }

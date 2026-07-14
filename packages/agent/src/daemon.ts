@@ -149,11 +149,15 @@ export class AgentDaemon {
 
     this.server.get("/snapshot", async () => this.agent.snapshot());
 
-    this.server.get("/screenshot", async (_req, reply) => {
-      const buffer = await this.agent.screenshot();
-      reply.header("content-type", "image/png");
-      return buffer;
-    });
+    this.server.get<{ Querystring: { pure?: string } }>(
+      "/screenshot",
+      async (req, reply) => {
+        const isPure = req.query.pure === "true" || req.query.pure === "1";
+        const buffer = await this.agent.screenshot({ isPure });
+        reply.header("content-type", "image/png");
+        return buffer;
+      },
+    );
 
     this.server.get<{
       Querystring: { durationMs?: string; warmupMs?: string };
@@ -263,7 +267,8 @@ export class AgentDaemon {
     });
 
     this.server.post("/reset", async () => {
-      throw new Error("Reset not yet implemented");
+      await this.agent.reset();
+      return { ok: true };
     });
   }
 

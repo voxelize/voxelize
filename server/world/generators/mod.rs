@@ -1,3 +1,4 @@
+mod gen_profiler;
 mod lights;
 mod lsystem;
 mod mesher;
@@ -9,7 +10,7 @@ mod terrain;
 mod trees;
 
 pub use self::noise::*;
-pub use lights::{LightNode, Lights};
+pub use lights::{beer_lambert_transmit, LightNode, Lights};
 pub use lsystem::*;
 pub use mesher::Mesher;
 pub use pathfinding::*;

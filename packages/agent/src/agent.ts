@@ -44,6 +44,21 @@ export type AgentLaunchOptions = {
   port?: number;
   agentSecret?: string;
   waitReadyTimeoutMs?: number;
+  /**
+   * Visited before joining the world so the response can set session
+   * cookies (e.g. a dev-login endpoint), letting the agent run as an
+   * authenticated user with admin-only commands available.
+   */
+  authUrl?: string;
+};
+
+export type ScreenshotOptions = {
+  /**
+   * When true, the client hides all HUD overlays (nametags, sprite texts,
+   * health bars, block highlight), renders one frame, and returns only the
+   * WebGL canvas instead of the full page.
+   */
+  isPure?: boolean;
 };
 
 const DEFAULT_DAEMON_PORT = 4099;
@@ -52,6 +67,7 @@ const BROWSER_CLOSE_TIMEOUT_MS = 1500;
 export class Agent {
   private browser: Browser;
   private page: Page;
+  private targetUrl = "";
   private readonly pidFile: string;
   private eventListeners: Map<AgentEventName, Set<(data: unknown) => void>> =
     new Map();
@@ -78,6 +94,7 @@ export class Agent {
       isHeadless = true,
       waitReadyTimeoutMs = 60_000,
       port = DEFAULT_DAEMON_PORT,
+      authUrl,
     } = options;
 
     const pidFile = agentPidFile(port);
@@ -98,28 +115,29 @@ export class Agent {
 
     const page = await browser.newPage();
 
-    page.on("console", (msg) => {
-      const type = msg.type();
-      const text = msg.text();
-      if (type === "error" || type === "warn") {
-        console.error(`[agent-page] ${type}:`, text);
-        return;
-      }
-      if (text.startsWith("[agent") || text.includes("GAMETEST")) {
-        console.log(`[agent-page]`, text);
-      }
-    });
-
-    page.on("pageerror", (err) => {
-      console.error("[agent-page-error]", err.message);
-    });
-
     const agent = new Agent(browser, page, Promise.resolve(), pidFile);
+    agent.attachPageLogging(page);
     await agent.installChatCapture();
+
+    // Registered on every navigation (dev-server reloads included), so the
+    // control surface survives hot reloads without a daemon restart.
+    await page.evaluateOnNewDocument(() => {
+      window.__agentRequired__ = () => {
+        const bridge = window.__agent__;
+        if (!bridge) throw new Error("Agent bridge is not installed");
+        return bridge;
+      };
+    });
+
+    if (authUrl) {
+      await page.goto(authUrl, { waitUntil: "domcontentloaded" });
+      console.log(`[voxelize-agent] visited auth url: ${authUrl}`);
+    }
 
     const target = new URL(`${url.replace(/\/$/, "")}/${world}`);
     target.searchParams.set("agent", "true");
     target.searchParams.set("agentName", name);
+    agent.targetUrl = target.toString();
 
     await page.goto(target.toString(), { waitUntil: "domcontentloaded" });
 
@@ -175,6 +193,65 @@ export class Agent {
 
   async ready(): Promise<void> {
     return this.readyPromise;
+  }
+
+  /**
+   * Reload the page and wait for the bridge to reinstall. Recovers from
+   * dropped websockets (server rebuilds) and wedged pages without cycling
+   * the daemon process or its port. If the renderer itself died (detached
+   * main frame), a brand-new page is opened at the same URL instead.
+   */
+  async reset(waitReadyTimeoutMs = 60_000): Promise<void> {
+    try {
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+    } catch (error) {
+      console.error(
+        "[voxelize-agent] reload failed, replacing page:",
+        error instanceof Error ? error.message : error,
+      );
+      const stale = this.page;
+      const page = await this.browser.newPage();
+      this.attachPageLogging(page);
+      this.page = page;
+      await this.installChatCapture();
+      await page.evaluateOnNewDocument(() => {
+        window.__agentRequired__ = () => {
+          const bridge = window.__agent__;
+          if (!bridge) throw new Error("Agent bridge is not installed");
+          return bridge;
+        };
+      });
+      await page.goto(this.targetUrl, { waitUntil: "domcontentloaded" });
+      try {
+        await stale.close();
+      } catch {
+        // renderer already gone
+      }
+    }
+    const ready = Agent.waitForBridge(this.page, waitReadyTimeoutMs);
+    this.readyPromise = ready;
+    await ready;
+  }
+
+  private attachPageLogging(page: Page): void {
+    page.on("console", (msg) => {
+      const type = msg.type();
+      const text = msg.text();
+      if (type === "error" || type === "warn") {
+        console.error(`[agent-page] ${type}:`, text);
+        return;
+      }
+      if (
+        text.startsWith("[agent") ||
+        text.startsWith("[NETWORK]") ||
+        text.includes("GAMETEST")
+      ) {
+        console.log(`[agent-page]`, text);
+      }
+    });
+    page.on("pageerror", (err) => {
+      console.error("[agent-page-error]", err.message);
+    });
   }
 
   async close(): Promise<void> {
@@ -378,7 +455,20 @@ export class Agent {
     return this.page.evaluate(() => window.__agentRequired__().chunks.list());
   }
 
-  async screenshot(): Promise<Buffer> {
+  async screenshot(opts: ScreenshotOptions = {}): Promise<Buffer> {
+    if (opts.isPure) {
+      const dataUrl = await this.page.evaluate(
+        (o) => window.__agentRequired__().captureFrame(o),
+        { isPure: true },
+      );
+      if (!dataUrl) {
+        throw new Error(
+          "pure screenshot failed: captureFrame returned null (renderer not ready)",
+        );
+      }
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      return Buffer.from(base64, "base64");
+    }
     const result = await this.page.screenshot({
       type: "png",
       fullPage: false,

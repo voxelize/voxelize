@@ -11,6 +11,7 @@ async function main(): Promise<void> {
       world: { type: "string", short: "w" },
       port: { type: "string", short: "p" },
       name: { type: "string", short: "n" },
+      authUrl: { type: "string" },
       headed: { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
     name,
     isHeadless,
     port,
+    authUrl: values.authUrl,
   });
 
   process.on("exit", () => {
@@ -93,6 +95,7 @@ Options:
   -w, --world <name>   World to join (default: test)
   -p, --port <port>    HTTP daemon port (default: 4099)
   -n, --name <name>    Agent display name (default: agent)
+      --authUrl <url>  Visit this URL first to pick up session cookies
       --headed         Launch a visible browser window (default: headless)
   -h, --help           Show this help
 `);

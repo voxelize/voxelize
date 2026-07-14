@@ -37,9 +37,19 @@ impl ChunkStage for MetaStage {
     }
 
     fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
-        for stage in &self.stages {
+        for (index, stage) in self.stages.iter().enumerate() {
+            let started = std::time::Instant::now();
             chunk = stage.process(chunk, resources.clone(), None);
-            chunk.calculate_max_height(&resources.registry);
+            super::gen_profiler::record(&stage.name(), started.elapsed());
+
+            // Later stages read the height map, so refresh it between inner
+            // stages. The final refresh is skipped: the pipeline recalculates
+            // right after this meta stage returns.
+            if index + 1 < self.stages.len() {
+                let started = std::time::Instant::now();
+                chunk.calculate_max_height(&resources.registry);
+                super::gen_profiler::record("max-height (per stage)", started.elapsed());
+            }
         }
 
         chunk
@@ -344,6 +354,7 @@ impl Pipeline {
                     rayon::spawn_fifo(move || {
                         let mut changes = vec![];
 
+                        let started = std::time::Instant::now();
                         let mut chunk = stage.process(
                             chunk,
                             Resources {
@@ -352,9 +363,12 @@ impl Pipeline {
                             },
                             space,
                         );
+                        super::gen_profiler::record("pipeline stage total", started.elapsed());
 
                         // Calculate the max height after processing each chunk.
+                        let started = std::time::Instant::now();
                         chunk.calculate_max_height(&registry);
+                        super::gen_profiler::record("max-height (final)", started.elapsed());
 
                         if !chunk.extra_changes.is_empty() {
                             changes.append(&mut chunk.extra_changes.drain(..).collect());

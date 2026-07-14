@@ -6,7 +6,7 @@ use crate::{
     encode_message, fragment_message,
     server::Message,
     world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues},
-    EncodedMessage, EncodedMessageQueue, MessageType, RtcSenders, Transports,
+    EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, RtcSenders, Transports,
 };
 
 pub struct BroadcastSystem;
@@ -38,11 +38,18 @@ fn can_batch(msg_type: i32) -> bool {
     )
 }
 
-fn is_immediate(msg_type: i32) -> bool {
-    matches!(
-        MessageType::try_from(msg_type),
-        Ok(MessageType::Chat) | Ok(MessageType::Method)
-    )
+fn is_immediate(message: &Message) -> bool {
+    match MessageType::try_from(message.r#type) {
+        Ok(MessageType::Chat) | Ok(MessageType::Method) => true,
+        // Messages carrying an entity CREATE encode synchronously so a
+        // freshly spawned entity reaches nearby clients on the tick it first
+        // streams, instead of losing a tick to the async encode round-trip.
+        Ok(MessageType::Entity) => message
+            .entities
+            .iter()
+            .any(|e| EntityOperation::try_from(e.operation) == Ok(EntityOperation::Create)),
+        _ => false,
+    }
 }
 
 fn should_send_to_transport(msg_type: i32) -> bool {
@@ -118,7 +125,7 @@ impl<'a> System<'a> for BroadcastSystem {
 
         let (immediate_messages, deferred_messages): (Vec<_>, Vec<_>) = messages_with_world_name
             .into_iter()
-            .partition(|(msg, _)| is_immediate(msg.r#type));
+            .partition(|(msg, _)| is_immediate(msg));
 
         let immediate_encoded: Vec<(EncodedMessage, ClientFilter)> = immediate_messages
             .into_iter()

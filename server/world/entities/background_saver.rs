@@ -20,8 +20,15 @@ pub struct EntitySaveData {
     pub metadata: MetadataComp,
 }
 
+/// Save and remove requests flow through one queue so a removal can never be
+/// overtaken by an earlier queued save re-creating the file on disk.
+enum EntitySaveOp {
+    Save(EntitySaveData),
+    Remove(String),
+}
+
 pub struct BackgroundEntitiesSaver {
-    sender: Sender<EntitySaveData>,
+    sender: Sender<EntitySaveOp>,
     folder: PathBuf,
     saving: bool,
     shutdown: Arc<AtomicBool>,
@@ -38,7 +45,7 @@ impl BackgroundEntitiesSaver {
         }
 
         let saving = config.saving && config.save_entities;
-        let (sender, receiver) = bounded::<EntitySaveData>(10000);
+        let (sender, receiver) = bounded::<EntitySaveOp>(10000);
         let shutdown = Arc::new(AtomicBool::new(false));
 
         let handle = if saving {
@@ -61,7 +68,7 @@ impl BackgroundEntitiesSaver {
     }
 
     fn background_save_loop(
-        receiver: Receiver<EntitySaveData>,
+        receiver: Receiver<EntitySaveOp>,
         folder: PathBuf,
         shutdown: Arc<AtomicBool>,
     ) {
@@ -71,8 +78,12 @@ impl BackgroundEntitiesSaver {
 
         loop {
             match receiver.try_recv() {
-                Ok(data) => {
+                Ok(EntitySaveOp::Save(data)) => {
                     pending.insert(data.id.clone(), data);
+                }
+                Ok(EntitySaveOp::Remove(id)) => {
+                    pending.remove(&id);
+                    Self::remove_entity_from_disk(&id, &folder);
                 }
                 Err(TryRecvError::Empty) => {
                     if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
@@ -153,7 +164,7 @@ impl BackgroundEntitiesSaver {
             metadata: metadata.clone(),
         };
 
-        if let Err(e) = self.sender.try_send(data) {
+        if let Err(e) = self.sender.try_send(EntitySaveOp::Save(data)) {
             warn!("Failed to queue entity save: {}", e);
         }
     }
@@ -163,7 +174,13 @@ impl BackgroundEntitiesSaver {
             return;
         }
 
-        if let Ok(entries) = fs::read_dir(&self.folder) {
+        if let Err(e) = self.sender.try_send(EntitySaveOp::Remove(id.to_string())) {
+            warn!("Failed to queue entity removal: {}", e);
+        }
+    }
+
+    fn remove_entity_from_disk(id: &str, folder: &PathBuf) {
+        if let Ok(entries) = fs::read_dir(folder) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
                 if let Some(filename) = entry_path.file_name().and_then(|n| n.to_str()) {
@@ -171,18 +188,13 @@ impl BackgroundEntitiesSaver {
                         || filename == format!("{}.json", id)
                     {
                         if let Err(e) = fs::remove_file(&entry_path) {
-                            warn!(
-                                "Failed to remove entity file: {}. Entity could still be saving?",
-                                e
-                            );
+                            warn!("Failed to remove entity file: {}", e);
                         }
                         return;
                     }
                 }
             }
         }
-
-        warn!("Could not find entity file to remove for id: {}", id);
     }
 
     pub fn folder(&self) -> &PathBuf {
