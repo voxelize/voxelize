@@ -1,11 +1,15 @@
 use hashbrown::HashMap;
+use serde_json::{json, Map, Value};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
     encode_message, fragment_message,
+    perf::{self, OutboundPerfKind},
     server::Message,
-    world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues},
+    world::{
+        profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues, Stats,
+    },
     EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, RtcSenders, Transports,
 };
 
@@ -59,6 +63,65 @@ fn should_send_to_transport(msg_type: i32) -> bool {
     )
 }
 
+fn is_recipient(id: &str, filter: &ClientFilter) -> bool {
+    match filter {
+        ClientFilter::All => true,
+        ClientFilter::Direct(direct_id) => direct_id == id,
+        ClientFilter::Include(ids) => ids.iter().any(|included_id| included_id == id),
+        ClientFilter::Exclude(ids) => !ids.iter().any(|excluded_id| excluded_id == id),
+    }
+}
+
+fn connection_queue_depths(clients: &Clients, filter: &ClientFilter) -> Map<String, Value> {
+    clients
+        .iter()
+        .filter(|(id, _)| is_recipient(id, filter))
+        .map(|(id, client)| (id.clone(), json!(client.sender.len())))
+        .collect()
+}
+
+fn log_outbound_perf(
+    encoded: &EncodedMessage,
+    world: &str,
+    tick: u64,
+    queue_depths: Map<String, Value>,
+) {
+    let Some(outbound) = encoded.perf.as_ref() else {
+        return;
+    };
+    let outbound_queue_depth = queue_depths.values().filter_map(Value::as_u64).sum::<u64>();
+    match &outbound.kind {
+        OutboundPerfKind::Chat {
+            body_preview,
+            t_send_ms,
+        } => perf::log(
+            "chat_core_broadcast",
+            world,
+            json!({
+                "traceId": outbound.trace_id,
+                "tSendMs": t_send_ms,
+                "bodyPreview": body_preview,
+                "tick": tick,
+                "byteSize": encoded.data.len(),
+                "outboundQueueDepth": outbound_queue_depth,
+                "connectionOutboundQueueDepths": queue_depths,
+            }),
+        ),
+        OutboundPerfKind::Entity { item_count } => perf::log(
+            "entity_batch_send",
+            world,
+            json!({
+                "traceId": outbound.trace_id,
+                "tick": tick,
+                "itemCount": item_count,
+                "byteSize": encoded.data.len(),
+                "outboundQueueDepth": outbound_queue_depth,
+                "connectionOutboundQueueDepths": queue_depths,
+            }),
+        ),
+    }
+}
+
 fn merge_messages(base: &mut Message, other: Message) {
     base.peers.extend(other.peers);
     base.entities.extend(other.entities);
@@ -96,6 +159,7 @@ impl<'a> System<'a> for BroadcastSystem {
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldTimingContext>,
+        ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, Profiler>,
@@ -107,6 +171,7 @@ impl<'a> System<'a> for BroadcastSystem {
             transports,
             clients,
             timing,
+            stats,
             mut queues,
             mut encoded_queue,
             _profiler,
@@ -131,10 +196,12 @@ impl<'a> System<'a> for BroadcastSystem {
             .into_iter()
             .map(|(message, filter)| {
                 let msg_type = message.r#type;
+                let outbound_perf = perf::outbound(&message);
                 let encoded = EncodedMessage {
                     data: encode_message(&message),
                     msg_type,
                     is_rtc_eligible: false,
+                    perf: outbound_perf,
                 };
                 (encoded, filter)
             })
@@ -174,6 +241,8 @@ impl<'a> System<'a> for BroadcastSystem {
                     }
                     let _ = client.sender.send(encoded.data.clone());
                 }
+                let queue_depths = connection_queue_depths(&clients, &filter);
+                log_outbound_perf(&encoded, world_name, stats.tick, queue_depths);
                 continue;
             }
 
@@ -214,6 +283,8 @@ impl<'a> System<'a> for BroadcastSystem {
                     let _ = sender.send(encoded.data.clone());
                 });
             }
+            let queue_depths = connection_queue_depths(&clients, &filter);
+            log_outbound_perf(&encoded, world_name, stats.tick, queue_depths);
         }
     }
 }

@@ -71,6 +71,8 @@ export type ChatProtocol = {
   sender?: string;
   body: string;
   metadata?: string;
+  traceId?: string;
+  tSendMs?: number;
 };
 
 export type MessageProtocol<
@@ -108,4 +110,6 @@ export type MessageProtocol<
   events?: EventProtocol<Event>[];
   updates?: UpdateProtocol[];
   bulkUpdate?: BulkUpdateProtocol;
+  perfByteSize?: number;
+  perfTraceId?: string;
 };

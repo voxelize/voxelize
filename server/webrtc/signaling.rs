@@ -120,10 +120,7 @@ pub async fn rtc_offer(
                     if let Some(complete) = asm.process(&msg.data) {
                         if let Ok(message) = decode_message(&complete) {
                             let _ = server
-                                .send(ClientMessage {
-                                    id: client_id,
-                                    data: message,
-                                })
+                                .send(ClientMessage::new(client_id, message, complete.len()))
                                 .await;
                         }
                     }

@@ -144,6 +144,8 @@ pub struct ChatMessageProtocol {
     pub sender: String,
     pub body: String,
     pub metadata: String,
+    pub trace_id: String,
+    pub t_send_ms: f64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -342,6 +344,8 @@ impl MessageBuilder {
                 sender: chat.sender,
                 r#type: chat.r#type,
                 metadata: chat.metadata,
+                trace_id: chat.trace_id,
+                t_send_ms: chat.t_send_ms,
             });
         }
 

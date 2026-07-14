@@ -3,6 +3,11 @@ import { z } from "zod";
 
 import { Agent } from "./agent";
 import type { AgentEventMap } from "./bridge";
+import {
+  createAgentPerfTraceId,
+  isAgentPerfLogging,
+  logAgentPerf,
+} from "./perf";
 
 export type DaemonEvent = {
   id: number;
@@ -195,7 +200,33 @@ export class AgentDaemon {
       "/entities",
       async (req) => {
         const radius = req.query.radius ? Number(req.query.radius) : 16;
-        return { entities: await this.agent.entitiesNear(radius), radius };
+        const isLogging = isAgentPerfLogging();
+        const traceId = isLogging ? createAgentPerfTraceId() : "";
+        if (isLogging) {
+          logAgentPerf("entity_http_request", this.agent.worldName, {
+            traceId,
+            radius,
+          });
+        }
+        try {
+          const entities = await this.agent.entitiesNear(radius, traceId);
+          if (isLogging) {
+            logAgentPerf("entity_http_result", this.agent.worldName, {
+              traceId,
+              itemCount: entities.length,
+              byteSize: JSON.stringify(entities).length,
+            });
+          }
+          return { entities, radius };
+        } catch (error) {
+          if (isLogging) {
+            logAgentPerf("entity_http_error", this.agent.worldName, {
+              traceId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          throw error;
+        }
       },
     );
 

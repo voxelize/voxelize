@@ -1,6 +1,7 @@
 mod common;
 mod errors;
 mod libs;
+mod perf;
 mod server;
 mod types;
 pub mod webrtc;
@@ -109,7 +110,8 @@ async fn handle_ws_connection(
     mut stream: impl StreamExt<Item = Result<AggregatedMessage, actix_ws::ProtocolError>> + Unpin,
     server: Addr<Server>,
 ) {
-    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (raw_tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let tx = WsSender::new(raw_tx);
 
     let (session_id, connection_token) = match server
         .send(Connect {
@@ -134,6 +136,7 @@ async fn handle_ws_connection(
     loop {
         tokio::select! {
             Some(msg) = rx.recv() => {
+                tx.mark_received();
                 if session.binary(msg).await.is_err() {
                     break;
                 }
@@ -141,6 +144,7 @@ async fn handle_ws_connection(
             msg = stream.next() => {
                 match msg {
                     Some(Ok(AggregatedMessage::Binary(bytes))) => {
+                        let wire_bytes = bytes.len();
                         let size_kb = bytes.len() as f64 / 1024.0;
                         if size_kb > 50.0 {
                             info!("[WS] Received large binary message: {:.2}KB", size_kb);
@@ -156,10 +160,11 @@ async fn handle_ws_connection(
 
                         match tokio::time::timeout(
                             CLIENT_MESSAGE_RESPONSE_TIMEOUT,
-                            server.send(ClientMessage {
-                                id: session_id.clone(),
-                                data: message,
-                            }),
+                            server.send(ClientMessage::new(
+                                session_id.clone(),
+                                message,
+                                wire_bytes,
+                            )),
                         )
                         .await
                         {

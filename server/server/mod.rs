@@ -14,11 +14,15 @@ use log::{info, warn};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use tokio::sync::mpsc;
 
 use crate::{
     errors::AddWorldError,
+    perf,
     world::{ClientPreferencesPatch, Registry, World, WorldConfig},
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
     GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
@@ -27,7 +31,46 @@ use crate::{
 
 pub use models::*;
 
-pub type WsSender = mpsc::UnboundedSender<Vec<u8>>;
+#[derive(Clone)]
+pub struct WsSender {
+    sender: mpsc::UnboundedSender<Vec<u8>>,
+    depth: Option<Arc<AtomicUsize>>,
+}
+
+impl WsSender {
+    pub fn new(sender: mpsc::UnboundedSender<Vec<u8>>) -> Self {
+        Self {
+            sender,
+            depth: perf::is_enabled().then(|| Arc::new(AtomicUsize::new(0))),
+        }
+    }
+
+    pub fn send(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
+        if let Some(depth) = &self.depth {
+            depth.fetch_add(1, Ordering::Relaxed);
+        }
+        if let Err(error) = self.sender.send(data) {
+            if let Some(depth) = &self.depth {
+                depth.fetch_sub(1, Ordering::Relaxed);
+            }
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    pub fn mark_received(&self) {
+        if let Some(depth) = &self.depth {
+            depth.fetch_sub(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.depth
+            .as_ref()
+            .map(|depth| depth.load(Ordering::Relaxed))
+            .unwrap_or_default()
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -369,7 +412,20 @@ impl Server {
     }
 
     /// Handler for client's message.
-    pub(crate) fn on_request(&mut self, id: &str, data: Message) -> Option<String> {
+    pub(crate) fn on_request(
+        &mut self,
+        id: &str,
+        mut data: Message,
+        received_monotonic_ms: Option<f64>,
+        wire_bytes: usize,
+    ) -> Option<String> {
+        if perf::is_enabled() && data.r#type == MessageType::Chat as i32 {
+            if let Some(chat) = data.chat.as_mut() {
+                if chat.trace_id.is_empty() {
+                    chat.trace_id = perf::next_trace_id("chat");
+                }
+            }
+        }
         if data.r#type == MessageType::Join as i32 {
             let json: OnJoinRequest = serde_json::from_str(&data.json)
                 .expect("`on_join` error. Could not read JSON string.");
@@ -436,6 +492,22 @@ impl Server {
             }
 
             if let Some(world) = self.get_world_mut(&data.text) {
+                let world_name = data.text.clone();
+                if data.r#type == MessageType::Chat as i32 {
+                    if let Some(mut fields) = perf::chat_fields(&data) {
+                        if let Value::Object(ref mut values) = fields {
+                            values.insert("clientId".to_owned(), json!(id));
+                            values.insert("wireBytes".to_owned(), json!(wire_bytes));
+                        }
+                        perf::log_at(
+                            "chat_core_recv",
+                            &world_name,
+                            received_monotonic_ms.unwrap_or_else(perf::monotonic_ms),
+                            fields,
+                        );
+                    }
+                }
+                perf::increment_inbound(&world_name);
                 if world
                     .try_send(ClientRequest {
                         client_id: id.to_owned(),
@@ -443,6 +515,7 @@ impl Server {
                     })
                     .is_err()
                 {
+                    perf::decrement_inbound(&world_name);
                     return Some("World is busy, please reconnect.".to_owned());
                 }
 
@@ -466,6 +539,21 @@ impl Server {
         let (_, world_name, _) = connection.unwrap().to_owned();
 
         if let Some(world) = self.get_world_mut(&world_name) {
+            if data.r#type == MessageType::Chat as i32 {
+                if let Some(mut fields) = perf::chat_fields(&data) {
+                    if let Value::Object(ref mut values) = fields {
+                        values.insert("clientId".to_owned(), json!(id));
+                        values.insert("wireBytes".to_owned(), json!(wire_bytes));
+                    }
+                    perf::log_at(
+                        "chat_core_recv",
+                        &world_name,
+                        received_monotonic_ms.unwrap_or_else(perf::monotonic_ms),
+                        fields,
+                    );
+                }
+            }
+            perf::increment_inbound(&world_name);
             if world
                 .try_send(ClientRequest {
                     client_id: id.to_owned(),
@@ -473,6 +561,7 @@ impl Server {
                 })
                 .is_err()
             {
+                perf::decrement_inbound(&world_name);
                 return Some("World is busy, please reconnect.".to_owned());
             }
         }
@@ -690,6 +779,20 @@ pub struct ClientMessage {
 
     /// Protobuf message
     pub data: Message,
+
+    pub received_monotonic_ms: Option<f64>,
+    pub wire_bytes: usize,
+}
+
+impl ClientMessage {
+    pub fn new(id: String, data: Message, wire_bytes: usize) -> Self {
+        Self {
+            id,
+            data,
+            received_monotonic_ms: perf::is_enabled().then(perf::monotonic_ms),
+            wire_bytes,
+        }
+    }
 }
 
 /// Make actor from `ChatServer`
@@ -930,7 +1033,12 @@ impl Handler<ClientMessage> for Server {
     type Result = Option<String>;
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) -> Self::Result {
-        self.on_request(&msg.id, msg.data)
+        self.on_request(
+            &msg.id,
+            msg.data,
+            msg.received_monotonic_ms,
+            msg.wire_bytes,
+        )
     }
 }
 

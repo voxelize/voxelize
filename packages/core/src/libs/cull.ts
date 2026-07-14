@@ -19,10 +19,18 @@ export type CullOptionsType = {
   dimensions: Coords3;
 };
 
-const cullPool = new WorkerPool(CullWorker, {
-  maxWorker: 2,
-  name: "cull-worker",
-});
+let cullPool: WorkerPool | null = null;
+
+function getCullPool() {
+  if (!cullPool) {
+    cullPool = new WorkerPool(CullWorker, {
+      maxWorker: 2,
+      name: "cull-worker",
+    });
+  }
+
+  return cullPool;
+}
 
 export async function cull(
   array: NdArray,
@@ -32,7 +40,7 @@ export async function cull(
   const { dimensions, min, max, realMin, realMax } = options;
 
   return new Promise<MeshResultType>((resolve) => {
-    cullPool.addJob({
+    getCullPool().addJob({
       message: {
         data,
         configs: {

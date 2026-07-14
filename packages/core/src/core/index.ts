@@ -7,6 +7,7 @@ export * from "./events";
 export * from "./inputs";
 export * from "./method";
 export * from "./network";
+export * from "./perf";
 export * from "./peers";
 export * from "./transparent-sorter";
 export * from "./world";

@@ -3,6 +3,7 @@ import { Group, Vector3 } from "three";
 
 import { EntityLivenessTracker } from "./entity-liveness";
 import { NetIntercept } from "./network";
+import { isPerfLogging, logPerf } from "./perf";
 
 export type EntityRigidBodyMetadata = {
   isInFluid: boolean;
@@ -136,75 +137,96 @@ export class Entities extends Group implements NetIntercept {
     const { entities } = message;
 
     if (entities && entities.length) {
-      entities.forEach((entity) => {
-        const { id, type, metadata, operation } = entity;
+      const isLogging = isPerfLogging();
+      const applyStartMs = isLogging ? performance.now() : 0;
+      try {
+        entities.forEach((entity) => {
+          const { id, type, metadata, operation } = entity;
 
-        // ignore all block entities as they are handled by world
-        if (type.startsWith("block::")) {
-          return;
-        }
-
-        let object = this.map.get(id);
-
-        switch (operation) {
-          case "CREATE": {
-            if (object) {
-              // The server streams a fresh snapshot for an entity it believes
-              // is new to us, so resync our stale copy to it.
-              object.metadata = metadata;
-              object.onUpdate?.(metadata);
-              object.snapToTarget?.();
-              this.liveness.touchEntity(id, nowSeconds);
-              return;
-            }
-
-            object = this.createEntityOfType(type, id);
-            if (object) {
-              object.metadata = metadata;
-              object.onCreate?.(metadata);
-              this.liveness.touchEntity(id, nowSeconds);
-            }
-
-            break;
+          // ignore all block entities as they are handled by world
+          if (type.startsWith("block::")) {
+            return;
           }
-          case "UPDATE": {
-            // A metadata-less update is a keep-alive: the entity is unchanged
-            // but still streaming.
-            if (!metadata) {
-              if (object) {
-                this.liveness.touchEntity(id, nowSeconds);
-              }
-              return;
-            }
 
-            if (!object) {
+          let object = this.map.get(id);
+
+          switch (operation) {
+            case "CREATE": {
+              if (object) {
+                // The server streams a fresh snapshot for an entity it believes
+                // is new to us, so resync our stale copy to it.
+                object.metadata = metadata;
+                object.onUpdate?.(metadata);
+                object.snapToTarget?.();
+                this.liveness.touchEntity(id, nowSeconds);
+                return;
+              }
+
               object = this.createEntityOfType(type, id);
               if (object) {
                 object.metadata = metadata;
                 object.onCreate?.(metadata);
+                this.liveness.touchEntity(id, nowSeconds);
               }
-            }
 
-            if (object) {
-              object.metadata = metadata;
-              object.onUpdate?.(metadata);
-              this.liveness.touchEntity(id, nowSeconds);
+              break;
             }
+            case "UPDATE": {
+              // A metadata-less update is a keep-alive: the entity is unchanged
+              // but still streaming.
+              if (!metadata) {
+                if (object) {
+                  this.liveness.touchEntity(id, nowSeconds);
+                }
+                return;
+              }
 
-            break;
+              if (!object) {
+                object = this.createEntityOfType(type, id);
+                if (object) {
+                  object.metadata = metadata;
+                  object.onCreate?.(metadata);
+                }
+              }
+
+              if (object) {
+                object.metadata = metadata;
+                object.onUpdate?.(metadata);
+                this.liveness.touchEntity(id, nowSeconds);
+              }
+
+              break;
+            }
+            case "DELETE":
+            case "OUT_OF_RANGE": {
+              if (!object) {
+                return;
+              }
+
+              this.releaseEntity(object, metadata ?? object.metadata);
+
+              break;
+            }
           }
-          case "DELETE":
-          case "OUT_OF_RANGE": {
-            if (!object) {
-              return;
-            }
-
-            this.releaseEntity(object, metadata ?? object.metadata);
-
-            break;
-          }
+        });
+      } catch (error) {
+        if (isLogging) {
+          logPerf("entity_apply_error", {
+            traceId: message.perfTraceId ?? "",
+            itemCount: entities.length,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      });
+        throw error;
+      }
+      if (isLogging) {
+        logPerf("entity_apply", {
+          traceId: message.perfTraceId ?? "",
+          itemCount: entities.length,
+          byteSize: message.perfByteSize ?? 0,
+          durationMs: performance.now() - applyStartMs,
+        });
+      }
     }
   };
 

@@ -3,6 +3,13 @@ import DOMUrl from "domurl";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { WorkerPool } from "../../libs/worker-pool";
+import {
+  annotateIncomingMessages,
+  isPerfLogging,
+  logChatWireSend,
+  logIncomingMessage,
+  setPerfWorld,
+} from "../perf";
 
 import { NetIntercept } from "./intercept";
 import { WebRTCConnection } from "./webrtc";
@@ -94,9 +101,9 @@ export class Network {
 
   public disconnectReason = "";
 
-  private pool = this.createDecodeWorkerPool();
+  private pool: WorkerPool | null = null;
 
-  private priorityWorker: Worker = this.createPriorityDecodeWorker();
+  private priorityWorker: Worker | null = null;
 
   private serverURL: string | null = null;
 
@@ -130,7 +137,10 @@ export class Network {
       ...options,
     };
 
-    this.startSyncInterval();
+    if (typeof window !== "undefined") {
+      this.ensureDecodeWorkers();
+      this.startSyncInterval();
+    }
 
     const MAX = 10000;
     let index = Math.floor(Math.random() * MAX).toString();
@@ -201,6 +211,7 @@ export class Network {
         }
         if (this.ws === ws && ws.readyState === WebSocket.OPEN) {
           const encoded = Network.encodeSync(event);
+          logChatWireSend(event, encoded.byteLength);
           ws.send(encoded);
         }
       };
@@ -319,6 +330,7 @@ export class Network {
 
     this.joined = true;
     this.world = world;
+    setPerfWorld(world);
     this.sendJoinRequest();
 
     return new Promise<Network>((resolve, reject) => {
@@ -427,7 +439,9 @@ export class Network {
       Math.min(packetsToProcess, this.packetQueue.length),
     );
 
-    const availableWorkers = Math.max(1, this.pool.availableCount);
+    const pool = this.pool;
+    if (!pool) return;
+    const availableWorkers = Math.max(1, pool.availableCount);
     const perWorker = Math.ceil(packets.length / availableWorkers);
 
     const batches: ArrayBuffer[][] = [];
@@ -536,7 +550,7 @@ export class Network {
   };
 
   get concurrentWorkers() {
-    return this.pool.workingCount;
+    return this.pool?.workingCount ?? 0;
   }
 
   get packetQueueLength() {
@@ -549,6 +563,7 @@ export class Network {
 
   private onMessage = (message: MessageProtocol) => {
     const { type } = message;
+    logIncomingMessage(message);
     if (type === "ERROR") {
       const { text } = message;
       console.error("[NETWORK] Received ERROR:", text);
@@ -618,8 +633,13 @@ export class Network {
   }
 
   private decodePriority = (buffer: ArrayBuffer) => {
+    const priorityWorker = this.priorityWorker;
+    if (!priorityWorker) {
+      this.enqueuePacket(buffer);
+      return;
+    }
     const handler = (e: MessageEvent) => {
-      this.priorityWorker.removeEventListener("message", handler);
+      priorityWorker.removeEventListener("message", handler);
 
       if (!this.connected) {
         // Never discard a possible INIT: the join handshake would wedge with
@@ -642,22 +662,35 @@ export class Network {
       }
     };
 
-    this.priorityWorker.addEventListener("message", handler);
-    this.priorityWorker.postMessage([buffer]);
+    priorityWorker.addEventListener("message", handler);
+    priorityWorker.postMessage([buffer]);
   };
 
   private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
     return new Promise<MessageProtocol[]>((resolve) => {
-      this.pool.addJob({
+      const pool = this.pool;
+      if (!pool) {
+        resolve([]);
+        return;
+      }
+      const byteSizes = isPerfLogging()
+        ? data.map((buffer) => buffer.byteLength)
+        : null;
+      pool.addJob({
         message: data,
         buffers: data,
-        resolve,
+        resolve: (messages) => {
+          if (byteSizes) {
+            annotateIncomingMessages(messages, byteSizes);
+          }
+          resolve(messages);
+        },
       });
     });
   };
 
   private startSyncInterval = () => {
-    if (this.stopSyncInterval) {
+    if (this.stopSyncInterval || typeof window === "undefined") {
       return;
     }
 
@@ -710,7 +743,7 @@ export class Network {
   }
 
   private ensureDecodeWorkers = () => {
-    if (!this.hasTerminatedDecodeWorkers) {
+    if (this.pool && this.priorityWorker && !this.hasTerminatedDecodeWorkers) {
       return;
     }
 
@@ -720,12 +753,14 @@ export class Network {
   };
 
   private terminateDecodeWorkers = () => {
-    if (this.hasTerminatedDecodeWorkers) {
+    if (this.hasTerminatedDecodeWorkers || !this.pool || !this.priorityWorker) {
       return;
     }
 
     this.pool.terminate();
     this.priorityWorker.terminate();
+    this.pool = null;
+    this.priorityWorker = null;
     this.hasTerminatedDecodeWorkers = true;
   };
 }

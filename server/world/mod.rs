@@ -51,6 +51,7 @@ use system_profiler::{record_timing, SystemTimer, TimedDispatcherBuilder, WorldT
 
 use crate::{
     encode_message,
+    perf::{self, WorldPerfMetrics},
     protocols::Peer,
     server::{Message, MessageType, WsSender},
     EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Server, Vec2, Vec3,
@@ -504,6 +505,8 @@ impl Handler<ClientRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientRequest, _: &mut SyncContext<Self>) {
+        let world_name = self.0.read().unwrap().name.clone();
+        perf::decrement_inbound(&world_name);
         // Avoid poisoning the world RwLock if a handler panics.
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.0.write().unwrap().on_request(&msg.client_id, msg.data)
@@ -706,6 +709,7 @@ impl World {
         ecs.insert(EncodedMessageQueue::new());
         ecs.insert(Profiler::new(Duration::from_secs_f64(0.001)));
         ecs.insert(EntityIDs::new());
+        ecs.insert(WorldPerfMetrics::new());
 
         let mut world = Self {
             id,
@@ -1233,6 +1237,18 @@ impl World {
 
     /// Handler for protobuf requests from clients.
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
+        if perf::is_enabled() {
+            self.write_resource::<WorldPerfMetrics>().record_message();
+            if data.r#type == MessageType::Chat as i32 {
+                if let Some(mut fields) = perf::chat_fields(&data) {
+                    if let Value::Object(ref mut values) = fields {
+                        values.insert("clientId".to_owned(), json!(client_id));
+                        values.insert("tick".to_owned(), json!(self.stats().tick));
+                    }
+                    perf::log("chat_core_process", &self.name, fields);
+                }
+            }
+        }
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
 
         match msg_type {
@@ -1717,6 +1733,46 @@ impl World {
         record_timing(&self.name, "tick-total", total_time);
         record_timing(&self.name, "dispatcher-dispatch", dispatch_time);
         record_timing(&self.name, "ecs-maintain", maintain_time);
+
+        if perf::is_enabled() {
+            let (messages_this_tick, messages_since_sample) =
+                self.write_resource::<WorldPerfMetrics>().finish_tick();
+            if let Some(messages_since_sample) = messages_since_sample {
+                let tick = self.stats().tick;
+                let (connected_clients, client_queue_depth) = {
+                    let clients = self.clients();
+                    (
+                        clients.len(),
+                        clients
+                            .values()
+                            .map(|client| client.sender.len())
+                            .sum::<usize>(),
+                    )
+                };
+                let (critical, normal, bulk) = self.read_resource::<MessageQueues>().queue_stats();
+                let (encoded_pending, encoded_processed) =
+                    self.read_resource::<EncodedMessageQueue>().queue_stats();
+                let outbound_queue_depth = client_queue_depth
+                    + critical
+                    + normal
+                    + bulk
+                    + encoded_pending
+                    + encoded_processed;
+                perf::log(
+                    "core_tick",
+                    &self.name,
+                    json!({
+                        "tick": tick,
+                        "tickDurationMs": total_time,
+                        "inboundQueueDepth": perf::inbound_depth(&self.name),
+                        "outboundQueueDepth": outbound_queue_depth,
+                        "messagesProcessedThisTick": messages_this_tick,
+                        "messagesProcessedSinceSample": messages_since_sample,
+                        "connectedClients": connected_clients,
+                    }),
+                );
+            }
+        }
     }
 
     /// Handler for `Peer` type messages.

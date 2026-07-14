@@ -3,13 +3,16 @@ use std::sync::Arc;
 use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{common::ClientFilter, encode_message, server::Message, EntityOperation, MessageType};
+use crate::{
+    common::ClientFilter, encode_message, perf, server::Message, EntityOperation, MessageType,
+};
 
 #[derive(Clone)]
 pub struct EncodedMessage {
     pub data: Vec<u8>,
     pub msg_type: i32,
     pub is_rtc_eligible: bool,
+    pub perf: Option<perf::OutboundPerf>,
 }
 
 pub struct MessageQueues {
@@ -100,10 +103,12 @@ impl EncodedMessageQueue {
                 .map(|(message, filter)| {
                     let msg_type = message.r#type;
                     let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
+                    let outbound_perf = perf::outbound(&message);
                     let encoded = EncodedMessage {
                         data: encode_message(&message),
                         msg_type,
                         is_rtc_eligible,
+                        perf: outbound_perf,
                     };
                     (encoded, filter)
                 })

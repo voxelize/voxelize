@@ -248,7 +248,7 @@ export interface AgentBridge {
   facing(): YawPitch;
   raycast(): RaycastHit | null;
   blockAt(pos: Vec3): BlockInfo | null;
-  entitiesNear(radius: number): EntitySnapshot[];
+  entitiesNear(radius: number, traceId?: string): EntitySnapshot[];
   peers(): PeerSnapshot[];
   chunks: ChunkBridge;
   snapshot(): Snapshot;

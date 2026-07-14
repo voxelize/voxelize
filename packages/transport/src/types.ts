@@ -65,6 +65,8 @@ export type ChatProtocol = {
   sender?: string;
   body: string;
   metadata?: string;
+  traceId?: string;
+  tSendMs?: number;
 };
 
 export type MessageProtocol<

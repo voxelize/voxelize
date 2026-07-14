@@ -4,10 +4,11 @@ use specs::{
 };
 
 use crate::{
-    classify_interest, BackgroundEntitiesSaver, Bookkeeping, ClientFilter, Clients,
-    DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol, IDComp,
-    InteractorComp, InterestTransition, KdTree, Message, MessageQueues, MessageType, MetadataComp,
-    Physics, PositionComp, Stats, Vec3, VoxelComp, WorldConfig,
+    classify_interest, perf, world::system_profiler::WorldTimingContext, BackgroundEntitiesSaver,
+    Bookkeeping, ClientFilter, Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs,
+    EntityOperation, EntityProtocol, IDComp, InteractorComp, InterestTransition, KdTree, Message,
+    MessageQueues, MessageType, MetadataComp, Physics, PositionComp, Stats, Vec3, VoxelComp,
+    WorldConfig,
 };
 
 const BLOCK_ENTITY_PREFIX: &str = "block::";
@@ -25,6 +26,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadExpect<'a, KdTree>,
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldConfig>,
+        ReadExpect<'a, WorldTimingContext>,
         ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, Bookkeeping>,
@@ -47,6 +49,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             kdtree,
             clients,
             config,
+            timing,
             stats,
             mut queue,
             mut bookkeeping,
@@ -333,12 +336,28 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         for (client_id, updates) in client_updates {
             if !updates.is_empty() {
-                queue.push((
-                    Message::new(&MessageType::Entity)
-                        .entities(&updates)
-                        .build(),
-                    ClientFilter::Direct(client_id),
-                ));
+                let mut message = Message::new(&MessageType::Entity).entities(&updates);
+                if perf::is_enabled() {
+                    let trace_id = perf::next_trace_id("entity");
+                    let metadata_bytes = updates
+                        .iter()
+                        .map(|update| update.metadata.as_ref().map_or(0, String::len))
+                        .sum::<usize>();
+                    message = message
+                        .json(&serde_json::json!({ "townPerfTraceId": trace_id }).to_string());
+                    perf::log(
+                        "entity_batch_queue",
+                        &timing.world_name,
+                        serde_json::json!({
+                            "traceId": trace_id,
+                            "tick": tick,
+                            "clientId": client_id,
+                            "itemCount": updates.len(),
+                            "metadataBytes": metadata_bytes,
+                        }),
+                    );
+                }
+                queue.push((message.build(), ClientFilter::Direct(client_id)));
             }
         }
     }

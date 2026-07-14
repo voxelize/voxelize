@@ -4,6 +4,7 @@ import { z, ZodError, ZodObject, ZodOptional, ZodTypeAny } from "zod";
 import { DOMUtils } from "../utils/dom-utils";
 
 import { NetIntercept } from "./network";
+import { stampChatPerf } from "./perf";
 
 /**
  * Options for adding a command.
@@ -169,6 +170,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
     }
 
+    stampChatPerf(chat);
     this.packets.push({
       type: "CHAT",
       chat,

@@ -35,6 +35,12 @@ import {
   reapStaleAgentBrowser,
   recordAgentBrowser,
 } from "./browser-lifecycle";
+import {
+  createAgentPerfTraceId,
+  isAgentPerfLogging,
+  logAgentPerf,
+  writeClientPerfLine,
+} from "./perf";
 
 export type AgentLaunchOptions = {
   url: string;
@@ -63,6 +69,7 @@ export type ScreenshotOptions = {
 
 const DEFAULT_DAEMON_PORT = 4099;
 const BROWSER_CLOSE_TIMEOUT_MS = 1500;
+const ENTITY_ACCESS_TIMEOUT_MS = 5000;
 
 export class Agent {
   private browser: Browser;
@@ -79,6 +86,7 @@ export class Agent {
     page: Page,
     readyPromise: Promise<void>,
     pidFile: string,
+    public readonly worldName: string,
   ) {
     this.browser = browser;
     this.page = page;
@@ -115,7 +123,7 @@ export class Agent {
 
     const page = await browser.newPage();
 
-    const agent = new Agent(browser, page, Promise.resolve(), pidFile);
+    const agent = new Agent(browser, page, Promise.resolve(), pidFile, world);
     agent.attachPageLogging(page);
     await agent.installChatCapture();
 
@@ -237,6 +245,11 @@ export class Agent {
     page.on("console", (msg) => {
       const type = msg.type();
       const text = msg.text();
+      if (text.startsWith("[PERF] ")) {
+        writeClientPerfLine(text);
+        console.log(text);
+        return;
+      }
       if (type === "error" || type === "warn") {
         console.error(`[agent-page] ${type}:`, text);
         return;
@@ -406,11 +419,59 @@ export class Agent {
     );
   }
 
-  async entitiesNear(radius: number): Promise<EntitySnapshot[]> {
-    return this.page.evaluate(
-      (r) => window.__agentRequired__().entitiesNear(r),
-      radius,
-    );
+  async entitiesNear(
+    radius: number,
+    requestedTraceId?: string,
+  ): Promise<EntitySnapshot[]> {
+    const isLogging = isAgentPerfLogging();
+    const traceId =
+      requestedTraceId ?? (isLogging ? createAgentPerfTraceId() : "");
+    if (isLogging) {
+      logAgentPerf("entity_bridge_request", this.worldName, {
+        traceId,
+        radius,
+      });
+    }
+
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      const entities = await Promise.race([
+        this.page.evaluate(
+          (r, t) => window.__agentRequired__().entitiesNear(r, t),
+          radius,
+          traceId,
+        ),
+        new Promise<EntitySnapshot[]>((_, reject) => {
+          timeout = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Entity cache access timed out after ${ENTITY_ACCESS_TIMEOUT_MS}ms`,
+                ),
+              ),
+            ENTITY_ACCESS_TIMEOUT_MS,
+          );
+        }),
+      ]);
+      if (isLogging) {
+        logAgentPerf("entity_bridge_result", this.worldName, {
+          traceId,
+          itemCount: entities.length,
+          byteSize: JSON.stringify(entities).length,
+        });
+      }
+      return entities;
+    } catch (error) {
+      if (isLogging) {
+        logAgentPerf("entity_bridge_error", this.worldName, {
+          traceId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   async peers(): Promise<PeerSnapshot[]> {

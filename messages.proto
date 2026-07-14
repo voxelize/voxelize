@@ -77,6 +77,8 @@ message ChatMessage {
   string sender = 2;
   string body = 3;
   string metadata = 4;
+  string trace_id = 5;
+  double t_send_ms = 6;
 }
 
 message Message {
