@@ -38,6 +38,38 @@ pub type RtcSenders = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>
 
 const CLIENT_MESSAGE_RESPONSE_TIMEOUT: Duration = Duration::from_secs(1);
 
+/// How often the server pings each WebSocket connection.
+const DEFAULT_WS_HEARTBEAT_INTERVAL_MS: u64 = 10_000;
+
+/// How long a connection may stay silent (no frames of any kind, including
+/// pongs) before it is treated as dead and reaped. Abrupt closures (killed
+/// processes, dropped networks) never send a close frame — without this
+/// timeout their sessions and world memberships would linger indefinitely.
+const DEFAULT_WS_CLIENT_TIMEOUT_MS: u64 = 45_000;
+
+/// Upper bound on a single socket write. A peer that stopped reading (dead
+/// but not closed) eventually stalls writes; bounding them keeps the
+/// forwarding loop responsive so the idle timeout above can fire.
+const WS_WRITE_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn ws_heartbeat_interval() -> Duration {
+    Duration::from_millis(
+        std::env::var("VOXELIZE_WS_HEARTBEAT_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_WS_HEARTBEAT_INTERVAL_MS),
+    )
+}
+
+fn ws_client_timeout() -> Duration {
+    Duration::from_millis(
+        std::env::var("VOXELIZE_WS_CLIENT_TIMEOUT_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_WS_CLIENT_TIMEOUT_MS),
+    )
+}
+
 pub fn create_rtc_senders() -> RtcSenders {
     Arc::new(Mutex::new(HashMap::new()))
 }
@@ -133,15 +165,39 @@ async fn handle_ws_connection(
         }
     };
 
+    let heartbeat_interval = ws_heartbeat_interval();
+    let client_timeout = ws_client_timeout();
+    let mut heartbeat = tokio::time::interval(heartbeat_interval);
+    let mut last_seen = std::time::Instant::now();
+
     loop {
         tokio::select! {
             Some(msg) = rx.recv() => {
                 tx.mark_received();
-                if session.binary(msg).await.is_err() {
+                match tokio::time::timeout(WS_WRITE_TIMEOUT, session.binary(msg)).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(_)) => break,
+                    Err(_) => {
+                        warn!("[WS] Write stalled for {}; dropping connection", session_id);
+                        break;
+                    }
+                }
+            }
+            _ = heartbeat.tick() => {
+                if last_seen.elapsed() > client_timeout {
+                    warn!(
+                        "[WS] Connection {} silent for {:?}; reaping dead session",
+                        session_id, client_timeout
+                    );
                     break;
+                }
+                match tokio::time::timeout(WS_WRITE_TIMEOUT, session.ping(b"")).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(_)) | Err(_) => break,
                 }
             }
             msg = stream.next() => {
+                last_seen = std::time::Instant::now();
                 match msg {
                     Some(Ok(AggregatedMessage::Binary(bytes))) => {
                         let wire_bytes = bytes.len();
@@ -164,6 +220,7 @@ async fn handle_ws_connection(
                                 session_id.clone(),
                                 message,
                                 wire_bytes,
+                                Some(connection_token.clone()),
                             )),
                         )
                         .await

@@ -15,6 +15,13 @@
 //! through [`crate::MessageQueues`] / [`crate::EncodedMessageQueue`] and are
 //! drained FIFO by the broadcast system. They are never dropped.
 //!
+//! Session control-plane traffic (JOIN, its INIT acknowledgement, LEAVE,
+//! disconnect cleanup) is the most reliable-ordered of all: it is never
+//! gated, never coalesced, and — because acks can be delayed or lost and
+//! clients retry — JOIN handling is IDEMPOTENT end to end (`Server::on_join`
+//! replays into `World::add_client`, which refreshes the live session instead
+//! of creating a duplicate entity).
+//!
 //! ## 2. Unreliable latest-wins state (drop-old-ok)
 //!
 //! Entity positions/metadata deltas and peer (player) positions/metadata are

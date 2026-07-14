@@ -981,6 +981,13 @@ impl World {
     }
 
     /// Add a client to the world by an ID and a WebSocket sender.
+    ///
+    /// IDEMPOTENT by design: JOIN is reliable control-plane (see
+    /// `world::replication`) and its acknowledgement (the INIT message) can be
+    /// delayed or lost, so clients retry. A join for an id that already has a
+    /// live entity refreshes the session (sender, username, preferences) and
+    /// replays the INIT ack against that entity — it never creates a
+    /// duplicate entity or a second session.
     pub(crate) fn add_client(
         &mut self,
         id: &str,
@@ -988,34 +995,57 @@ impl World {
         sender: &WsSender,
         preferences: ClientPreferencesPatch,
     ) {
-        let body =
-            RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
+        let existing_ent = self.clients().get(id).map(|client| client.entity);
+        let is_rejoin = existing_ent.is_some();
 
-        let interactor = self.physics_mut().register(&body);
+        let ent = if let Some(ent) = existing_ent {
+            {
+                let mut names = self.write_component::<NameComp>();
+                if let Some(name) = names.get_mut(ent) {
+                    name.0 = username.to_owned();
+                }
+            }
+            {
+                let mut addrs = self.write_component::<AddrComp>();
+                if let Some(addr) = addrs.get_mut(ent) {
+                    *addr = AddrComp::new(sender);
+                }
+            }
+            apply_client_preferences_patch(self, ent, &preferences);
+            ent
+        } else {
+            let body =
+                RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build())
+                    .build();
 
-        let ent = self
-            .ecs
-            .create_entity()
-            .with(ClientFlag::default())
-            .with(ClientPreferencesComp(
-                ClientPreferences::default().apply_patch(preferences),
-            ))
-            .with(IDComp::new(id))
-            .with(NameComp::new(username))
-            .with(AddrComp::new(sender))
-            .with(ChunkRequestsComp::default())
-            .with(CurrentChunkComp::default())
-            .with(MetadataComp::default())
-            .with(PositionComp::default())
-            .with(DirectionComp::default())
-            .with(RigidBodyComp::new(&body))
-            .with(InteractorComp::new(&interactor))
-            .with(CollisionsComp::new())
-            .build();
+            let interactor = self.physics_mut().register(&body);
 
-        if let Some(modifier) = self.client_modifier.to_owned() {
-            modifier(self, ent);
-        }
+            let ent = self
+                .ecs
+                .create_entity()
+                .with(ClientFlag::default())
+                .with(ClientPreferencesComp(
+                    ClientPreferences::default().apply_patch(preferences),
+                ))
+                .with(IDComp::new(id))
+                .with(NameComp::new(username))
+                .with(AddrComp::new(sender))
+                .with(ChunkRequestsComp::default())
+                .with(CurrentChunkComp::default())
+                .with(MetadataComp::default())
+                .with(PositionComp::default())
+                .with(DirectionComp::default())
+                .with(RigidBodyComp::new(&body))
+                .with(InteractorComp::new(&interactor))
+                .with(CollisionsComp::new())
+                .build();
+
+            if let Some(modifier) = self.client_modifier.to_owned() {
+                modifier(self, ent);
+            }
+
+            ent
+        };
 
         let saved_position = self
             .read_component::<PositionComp>()
@@ -1053,17 +1083,24 @@ impl World {
             false,
         );
 
-        self.clients_mut().insert(
-            id.to_owned(),
-            Client {
-                id: id.to_owned(),
-                entity: ent,
-                username: username.to_owned(),
-                sender: sender.clone(),
-            },
-        );
+        if is_rejoin {
+            if let Some(client) = self.clients_mut().get_mut(id) {
+                client.username = username.to_owned();
+                client.sender = sender.clone();
+            }
+        } else {
+            self.clients_mut().insert(
+                id.to_owned(),
+                Client {
+                    id: id.to_owned(),
+                    entity: ent,
+                    username: username.to_owned(),
+                    sender: sender.clone(),
+                },
+            );
 
-        self.entity_ids_mut().insert(id.to_owned(), ent.id());
+            self.entity_ids_mut().insert(id.to_owned(), ent.id());
+        }
 
         {
             let tick = self.read_resource::<Stats>().tick;
@@ -1073,12 +1110,35 @@ impl World {
             }
         }
 
+        // The INIT message is the JOIN acknowledgement: reliable control-plane
+        // sent directly on the session's ordered channel, replayed on retries.
         self.send(sender, &init_message);
 
-        let join_message = Message::new(&MessageType::Join).text(id).build();
-        self.broadcast(join_message, ClientFilter::All);
+        if !is_rejoin {
+            let join_message = Message::new(&MessageType::Join).text(id).build();
+            self.broadcast(join_message, ClientFilter::All);
+        }
 
-        info!("Client at {} joined the server to world: {}", id, self.name);
+        perf::log(
+            "client_join",
+            &self.name,
+            json!({
+                "clientId": id,
+                "outcome": if is_rejoin { "replayed" } else { "created" },
+                "connectedClients": self.clients().len(),
+            }),
+        );
+
+        info!(
+            "Client at {} {} world: {}",
+            id,
+            if is_rejoin {
+                "replayed join for"
+            } else {
+                "joined the server to"
+            },
+            self.name
+        );
     }
 
     /// Remove a client from the world by endpoint.
@@ -1166,6 +1226,14 @@ impl World {
 
             let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
             self.broadcast(leave_message, ClientFilter::All);
+            perf::log(
+                "client_leave",
+                &self.name,
+                json!({
+                    "clientId": id,
+                    "connectedClients": self.clients().len(),
+                }),
+            );
             info!("Client at {} left the world: {}", id, self.name);
         }
     }
