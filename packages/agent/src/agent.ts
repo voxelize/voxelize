@@ -132,6 +132,14 @@ export class Agent {
 
     const page = await browser.newPage();
 
+    // Agent browsers run in ephemeral profiles, but a stale Chrome process can
+    // still race a new daemon and reuse the same generated client ID. Seed a
+    // deterministic per-daemon identity before any app script executes so two
+    // agent ports can join the same world safely (monitor + marketing camera).
+    await page.evaluateOnNewDocument((agentPort) => {
+      localStorage.setItem("VOXELIZE-playerId", `agent-${agentPort}`);
+    }, port);
+
     const agent = new Agent(browser, page, Promise.resolve(), pidFile, world);
     agent.attachPageLogging(page);
     await agent.installChatCapture();
