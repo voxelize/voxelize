@@ -147,7 +147,17 @@ export class AgentDaemon {
   }
 
   private registerRoutes(): void {
-    this.server.get("/healthz", async () => ({ ok: true }));
+    // Liveness must reflect the real browser/page/bridge chain: a killed
+    // browser under a still-listening daemon previously kept returning
+    // {ok:true} forever, so PM2 never restarted the wrapper even though the
+    // agent was disconnected from the world.
+    this.server.get("/healthz", async (_req, reply) => {
+      const health = await this.agent.health();
+      if (!health.isHealthy) {
+        reply.code(503);
+      }
+      return { ok: health.isHealthy, ...health };
+    });
 
     this.server.get("/me", async () => {
       const [position, facing] = await Promise.all([
@@ -372,7 +382,9 @@ export class AgentDaemon {
         await this.agent.setFlying(action.isFlying);
         return { flying: action.isFlying };
       case "set-render-radius":
-        return { renderRadius: await this.agent.setRenderRadius(action.radius) };
+        return {
+          renderRadius: await this.agent.setRenderRadius(action.radius),
+        };
       case "call":
         return this.agent.call(action.method, action.payload);
       case "wait":

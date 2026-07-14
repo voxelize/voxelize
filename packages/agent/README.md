@@ -14,6 +14,31 @@ See `voxelize-agent --help` for all flags. The daemon listens on
 `http://127.0.0.1:<port>` and exposes routes such as `/healthz`, `/me`,
 `/snapshot`, `/screenshot`, `/act`, `/entities`, and `/events`.
 
+## Health
+
+`GET /healthz` reflects the real liveness of the whole chain, not just the
+HTTP listener. It returns `200` with `{"ok": true, ...}` only when all of the
+following hold:
+
+- the browser process is alive and the DevTools connection is up,
+- the page is open,
+- the in-page agent bridge is installed and ready,
+- the world snapshot (queried with a 3s timeout) reports ready.
+
+Otherwise it returns `503` with `ok: false` and a `reasons` array naming each
+failure (for example `"browser process is dead (pid 1234)"`), plus the raw
+`browser`/`page`/`bridge`/`world` state. This exists because a killed browser
+under a still-listening daemon used to keep answering `{ok:true}` forever, so
+supervisors like PM2 never restarted the wrapper even though the agent had
+been disconnected from the world.
+
+The `voxelize-agent` wrapper also exits with code 1 when the browser
+disconnects unexpectedly (process death, DevTools connection loss), so
+PM2/systemd restart it instead of keeping a stale listener. Graceful
+shutdowns (SIGINT/SIGTERM/SIGHUP, `agent.close()`) still exit 0. The same
+signals are available programmatically via `agent.health()` and
+`agent.onUnexpectedDisconnect(cb)`.
+
 ## Screenshots
 
 `GET /screenshot` returns a PNG of the page. Query parameters:

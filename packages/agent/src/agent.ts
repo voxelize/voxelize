@@ -40,6 +40,7 @@ import {
   expectedBackingSize,
   resolveCaptureViewport,
 } from "./capture-viewport";
+import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
@@ -93,6 +94,7 @@ const DEFAULT_DAEMON_PORT = 4099;
 const BROWSER_CLOSE_TIMEOUT_MS = 1500;
 const ENTITY_ACCESS_TIMEOUT_MS = 5000;
 const CAPTURE_RESIZE_PAINT_TIMEOUT_MS = 15_000;
+const HEALTH_SNAPSHOT_TIMEOUT_MS = 3_000;
 
 function positiveEnvNumber(name: string, fallback: number): number {
   const value = Number(process.env[name]);
@@ -107,6 +109,11 @@ export class Agent {
   private eventListeners: Map<AgentEventName, Set<(data: unknown) => void>> =
     new Map();
   private chatLog: ChatMsgIn[] = [];
+  private isClosing = false;
+  private isBridgeReady = false;
+  private bridgeError: string | null = null;
+  private unexpectedDisconnectReason: string | null = null;
+  private disconnectListeners = new Set<(reason: string) => void>();
   public readyPromise: Promise<void>;
 
   private constructor(
@@ -164,6 +171,7 @@ export class Agent {
     }, port);
 
     const agent = new Agent(browser, page, Promise.resolve(), pidFile, world);
+    browser.on("disconnected", () => agent.handleBrowserDisconnected());
     agent.attachPageLogging(page);
     await agent.installChatCapture();
 
@@ -194,8 +202,47 @@ export class Agent {
 
     const ready = Agent.waitForBridge(page, waitReadyTimeoutMs);
 
-    agent.readyPromise = ready;
+    agent.trackReadyPromise(ready);
     return agent;
+  }
+
+  private trackReadyPromise(ready: Promise<void>): void {
+    this.readyPromise = ready;
+    this.isBridgeReady = false;
+    this.bridgeError = null;
+    ready.then(
+      () => {
+        if (this.readyPromise === ready) this.isBridgeReady = true;
+      },
+      (error: Error) => {
+        if (this.readyPromise === ready) this.bridgeError = error.message;
+      },
+    );
+  }
+
+  private handleBrowserDisconnected(): void {
+    // Expected during close()/killBrowserSync(); anything else means the
+    // browser process died or the DevTools connection dropped underneath a
+    // still-running daemon, which supervisors must be able to observe.
+    if (this.isClosing) return;
+    const reason =
+      "browser disconnected unexpectedly (process died or connection lost)";
+    this.unexpectedDisconnectReason = reason;
+    console.error(`[voxelize-agent] ${reason}`);
+    for (const cb of this.disconnectListeners) {
+      try {
+        cb(reason);
+      } catch (e) {
+        console.error("[voxelize-agent] disconnect listener error:", e);
+      }
+    }
+  }
+
+  onUnexpectedDisconnect(cb: (reason: string) => void): () => void {
+    this.disconnectListeners.add(cb);
+    return () => {
+      this.disconnectListeners.delete(cb);
+    };
   }
 
   private static async waitForBridge(
@@ -280,7 +327,7 @@ export class Agent {
       }
     }
     const ready = Agent.waitForBridge(this.page, waitReadyTimeoutMs);
-    this.readyPromise = ready;
+    this.trackReadyPromise(ready);
     await ready;
   }
 
@@ -311,6 +358,7 @@ export class Agent {
   }
 
   async close(): Promise<void> {
+    this.isClosing = true;
     const proc = this.browser.process();
     try {
       await Promise.race([
@@ -338,6 +386,7 @@ export class Agent {
   }
 
   killBrowserSync(): void {
+    this.isClosing = true;
     try {
       this.browser.process()?.kill("SIGKILL");
     } catch {
@@ -530,6 +579,70 @@ export class Agent {
 
   async snapshot(): Promise<Snapshot> {
     return this.page.evaluate(() => window.__agentRequired__().snapshot());
+  }
+
+  async health(): Promise<AgentHealth> {
+    const proc = this.browser.process();
+    const isBrowserProcessAlive =
+      proc === null ? null : proc.exitCode === null && proc.signalCode === null;
+    const isBrowserConnected = this.browser.connected;
+    const isPageOpen = !this.page.isClosed();
+
+    // Only query the page when the whole transport chain is alive; evaluating
+    // against a dead browser would hang or throw instead of reporting.
+    let world: AgentWorldHealth = {
+      name: this.worldName,
+      isReady: null,
+      error: null,
+    };
+    if (
+      isBrowserConnected &&
+      isPageOpen &&
+      this.isBridgeReady &&
+      isBrowserProcessAlive !== false
+    ) {
+      let timeout: NodeJS.Timeout | undefined;
+      try {
+        const snapshot = await Promise.race([
+          this.snapshot(),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    `snapshot timed out after ${HEALTH_SNAPSHOT_TIMEOUT_MS}ms`,
+                  ),
+                ),
+              HEALTH_SNAPSHOT_TIMEOUT_MS,
+            );
+          }),
+        ]);
+        world = {
+          name: snapshot.world || this.worldName,
+          isReady: snapshot.isReady,
+          error: null,
+        };
+      } catch (error) {
+        world = {
+          name: this.worldName,
+          isReady: null,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+    }
+
+    return evaluateAgentHealth({
+      isBrowserConnected,
+      isBrowserProcessAlive,
+      browserPid: proc?.pid ?? null,
+      isPageOpen,
+      isBridgeReady: this.isBridgeReady,
+      bridgeError: this.bridgeError,
+      unexpectedDisconnectReason: this.unexpectedDisconnectReason,
+      world,
+    });
   }
 
   async chunkState(target: Vec3 | ChunkCoord): Promise<ChunkState> {
