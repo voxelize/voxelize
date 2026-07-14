@@ -27,7 +27,7 @@ use actix::{
 };
 use actix::{Addr, SyncArbiter};
 use hashbrown::HashMap;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use metadata::WorldMetadata;
 use nanoid::nanoid;
 use profiler::Profiler;
@@ -40,6 +40,7 @@ use specs::{
 };
 use std::f64::consts::E;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, RwLock};
 use std::{env, sync::Arc};
 use std::{
@@ -87,6 +88,9 @@ const CLIENT_BODY_DEPTH: f32 = 0.8;
 const CLIENT_CROUCH_BODY_HEIGHT_RATIO: f32 = 0.83;
 const CLIENT_SWIM_BODY_HEIGHT: f32 = 0.4;
 const CLIENT_AABB_HEIGHT_EPSILON: f32 = 0.01;
+
+/// Count of inbound client voxel UPDATEs dropped while `allow_client_voxel_writes` is false.
+static CLIENT_VOXEL_UPDATE_REJECTED: AtomicU64 = AtomicU64::new(0);
 
 fn apply_client_ghost_state(body: &mut RigidBodyComp, is_ghost: bool) {
     let position = body.0.get_position();
@@ -1811,6 +1815,7 @@ impl World {
     /// Handler for `Update` type messages.
     fn on_update(&mut self, _: &str, data: Message) {
         let chunk_size = self.config().chunk_size;
+        let allow_client_writes = self.config().allow_client_voxel_writes;
         let mut chunks = self.chunks_mut();
 
         if let Some(bulk) = data.bulk_update {
@@ -1826,6 +1831,14 @@ impl World {
                     continue;
                 }
 
+                if !allow_client_writes {
+                    let n = CLIENT_VOXEL_UPDATE_REJECTED.fetch_add(1, Ordering::Relaxed) + 1;
+                    debug!(
+                        "rejected client bulk voxel write #{n} at ({vx},{vy},{vz}) -> {voxel} (allow_client_voxel_writes=false)"
+                    );
+                    continue;
+                }
+
                 chunks.update_voxel(&Vec3(vx, vy, vz), voxel);
             }
         } else {
@@ -1834,6 +1847,15 @@ impl World {
                     ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
 
                 if !chunks.is_within_world(&coords) {
+                    return;
+                }
+
+                if !allow_client_writes {
+                    let n = CLIENT_VOXEL_UPDATE_REJECTED.fetch_add(1, Ordering::Relaxed) + 1;
+                    debug!(
+                        "rejected client voxel write #{n} at ({},{},{}) -> {} (allow_client_voxel_writes=false)",
+                        update.vx, update.vy, update.vz, update.voxel
+                    );
                     return;
                 }
 
