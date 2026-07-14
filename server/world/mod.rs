@@ -152,6 +152,8 @@ pub fn apply_client_swim_pose_state(
 }
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
+/// Position updates are clamped to a maximum per-message delta so clients cannot
+/// teleport past server reach checks (mine/place/stations).
 pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Entity) {
     let peer_update: PeerUpdate = match serde_json::from_str(metadata) {
         Ok(metadata) => metadata,
@@ -162,17 +164,40 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
     };
 
     if let Some(position) = peer_update.position {
+        // Max plausible movement per peer packet (dash/knockback/lag margin).
+        // Far beyond this is treated as a cheat teleport and clamped.
+        const MAX_PEER_POS_DELTA: f32 = 24.0;
+        let mut clamped = [position.0, position.1, position.2];
+        {
+            let positions = world.read_component::<PositionComp>();
+            if let Some(p) = positions.get(client_ent) {
+                let dx = position.0 - p.0 .0;
+                let dy = position.1 - p.0 .1;
+                let dz = position.2 - p.0 .2;
+                let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+                if dist > MAX_PEER_POS_DELTA {
+                    let scale = MAX_PEER_POS_DELTA / dist;
+                    clamped[0] = p.0 .0 + dx * scale;
+                    clamped[1] = p.0 .1 + dy * scale;
+                    clamped[2] = p.0 .2 + dz * scale;
+                    warn!(
+                        "Clamped peer position delta {:.1} -> {:.1} for entity {:?}",
+                        dist, MAX_PEER_POS_DELTA, client_ent
+                    );
+                }
+            }
+        }
         {
             let mut positions = world.write_component::<PositionComp>();
             if let Some(p) = positions.get_mut(client_ent) {
-                p.0.set(position.0, position.1, position.2);
+                p.0.set(clamped[0], clamped[1], clamped[2]);
             }
         }
 
         {
             let mut bodies = world.write_component::<RigidBodyComp>();
             if let Some(b) = bodies.get_mut(client_ent) {
-                b.0.set_position(position.0, position.1, position.2);
+                b.0.set_position(clamped[0], clamped[1], clamped[2]);
             }
         }
     }
@@ -479,7 +504,16 @@ impl Handler<ClientRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientRequest, _: &mut SyncContext<Self>) {
-        self.0.write().unwrap().on_request(&msg.client_id, msg.data);
+        // Avoid poisoning the world RwLock if a handler panics.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.0.write().unwrap().on_request(&msg.client_id, msg.data)
+        }));
+        if let Err(err) = result {
+            error!(
+                "ClientRequest handler panicked (world lock recovered): {:?}",
+                err
+            );
+        }
     }
 }
 
