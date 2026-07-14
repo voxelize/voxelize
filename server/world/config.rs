@@ -126,24 +126,6 @@ pub struct WorldConfig {
     /// Ticks between keep-alive updates for tracked entities whose metadata has
     /// not changed, letting clients treat prolonged silence as a lost entity.
     pub entity_keep_alive_interval: u64,
-
-    /// Radius in blocks within which changed entities are eligible to stream
-    /// every tick. Changed entities outside this radius are rate-limited.
-    pub entity_full_rate_radius: f32,
-
-    /// Minimum ticks between updates for changed entities outside the full-rate
-    /// radius.
-    pub entity_far_update_interval: u64,
-
-    /// Ticks between per-client entity streaming batches.
-    pub entity_stream_interval: u64,
-
-    /// Maximum changed entity snapshots queued for one client during one tick.
-    pub max_entity_updates_per_tick: usize,
-
-    /// Stop queueing changed entity snapshots while this many entity messages
-    /// are waiting on a client's WebSocket writer.
-    pub entity_outbound_queue_threshold: usize,
 }
 
 impl Default for WorldConfig {
@@ -197,11 +179,6 @@ const DEFAULT_ALLOW_CLIENT_VOXEL_WRITES: bool = false;
 const DEFAULT_ENTITY_VISIBLE_RADIUS_CHUNKS: f32 = 24.0;
 const DEFAULT_ENTITY_RELEASE_RADIUS_RATIO: f32 = 1.125;
 const DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL: u64 = 60;
-const DEFAULT_ENTITY_FULL_RATE_RADIUS_CHUNKS: f32 = 2.0;
-const DEFAULT_ENTITY_FAR_UPDATE_INTERVAL: u64 = 4;
-const DEFAULT_ENTITY_STREAM_INTERVAL: u64 = 2;
-const DEFAULT_MAX_ENTITY_UPDATES_PER_TICK: usize = 8;
-const DEFAULT_ENTITY_OUTBOUND_QUEUE_THRESHOLD: usize = 4;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -242,11 +219,6 @@ pub struct WorldConfigBuilder {
     entity_visible_radius: f32,
     entity_release_radius: f32,
     entity_keep_alive_interval: u64,
-    entity_full_rate_radius: f32,
-    entity_far_update_interval: u64,
-    entity_stream_interval: u64,
-    max_entity_updates_per_tick: usize,
-    entity_outbound_queue_threshold: usize,
 }
 
 impl WorldConfigBuilder {
@@ -290,11 +262,6 @@ impl WorldConfigBuilder {
             entity_visible_radius: 0.0,
             entity_release_radius: 0.0,
             entity_keep_alive_interval: DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL,
-            entity_full_rate_radius: 0.0,
-            entity_far_update_interval: DEFAULT_ENTITY_FAR_UPDATE_INTERVAL,
-            entity_stream_interval: DEFAULT_ENTITY_STREAM_INTERVAL,
-            max_entity_updates_per_tick: DEFAULT_MAX_ENTITY_UPDATES_PER_TICK,
-            entity_outbound_queue_threshold: DEFAULT_ENTITY_OUTBOUND_QUEUE_THRESHOLD,
         }
     }
 
@@ -495,34 +462,6 @@ impl WorldConfigBuilder {
         self
     }
 
-    pub fn entity_full_rate_radius(mut self, entity_full_rate_radius: f32) -> Self {
-        self.entity_full_rate_radius = entity_full_rate_radius;
-        self
-    }
-
-    pub fn entity_far_update_interval(mut self, entity_far_update_interval: u64) -> Self {
-        self.entity_far_update_interval = entity_far_update_interval;
-        self
-    }
-
-    pub fn entity_stream_interval(mut self, entity_stream_interval: u64) -> Self {
-        self.entity_stream_interval = entity_stream_interval;
-        self
-    }
-
-    pub fn max_entity_updates_per_tick(mut self, max_entity_updates_per_tick: usize) -> Self {
-        self.max_entity_updates_per_tick = max_entity_updates_per_tick;
-        self
-    }
-
-    pub fn entity_outbound_queue_threshold(
-        mut self,
-        entity_outbound_queue_threshold: usize,
-    ) -> Self {
-        self.entity_outbound_queue_threshold = entity_outbound_queue_threshold;
-        self
-    }
-
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -548,30 +487,9 @@ impl WorldConfigBuilder {
         } else {
             entity_visible_radius * DEFAULT_ENTITY_RELEASE_RADIUS_RATIO
         };
-        let entity_full_rate_radius = if self.entity_full_rate_radius > 0.0 {
-            self.entity_full_rate_radius
-        } else {
-            (DEFAULT_ENTITY_FULL_RATE_RADIUS_CHUNKS * self.chunk_size as f32)
-                .min(entity_visible_radius)
-        };
 
         if entity_release_radius <= entity_visible_radius {
             panic!("Entity release radius must exceed the entity visible radius.");
-        }
-        if entity_full_rate_radius > entity_visible_radius {
-            panic!("Entity full-rate radius must not exceed the entity visible radius.");
-        }
-        if self.entity_far_update_interval == 0 {
-            panic!("Entity far update interval must be greater than zero.");
-        }
-        if self.entity_stream_interval == 0 {
-            panic!("Entity stream interval must be greater than zero.");
-        }
-        if self.max_entity_updates_per_tick == 0 {
-            panic!("Maximum entity updates per tick must be greater than zero.");
-        }
-        if self.entity_outbound_queue_threshold == 0 {
-            panic!("Entity outbound queue threshold must be greater than zero.");
         }
 
         WorldConfig {
@@ -626,11 +544,6 @@ impl WorldConfigBuilder {
             entity_visible_radius,
             entity_release_radius,
             entity_keep_alive_interval: self.entity_keep_alive_interval,
-            entity_full_rate_radius,
-            entity_far_update_interval: self.entity_far_update_interval,
-            entity_stream_interval: self.entity_stream_interval,
-            max_entity_updates_per_tick: self.max_entity_updates_per_tick,
-            entity_outbound_queue_threshold: self.entity_outbound_queue_threshold,
         }
     }
 }

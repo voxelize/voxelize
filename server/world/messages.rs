@@ -12,7 +12,6 @@ pub struct EncodedMessage {
     pub data: Vec<u8>,
     pub msg_type: i32,
     pub is_rtc_eligible: bool,
-    pub is_entity_update: bool,
     pub perf: Option<perf::OutboundPerf>,
 }
 
@@ -104,13 +103,11 @@ impl EncodedMessageQueue {
                 .map(|(message, filter)| {
                     let msg_type = message.r#type;
                     let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
-                    let is_entity_update = Self::is_entity_update(&message);
                     let outbound_perf = perf::outbound(&message);
                     let encoded = EncodedMessage {
                         data: encode_message(&message),
                         msg_type,
                         is_rtc_eligible,
-                        is_entity_update,
                         perf: outbound_perf,
                     };
                     (encoded, filter)
@@ -130,17 +127,14 @@ impl EncodedMessageQueue {
 
     fn compute_rtc_eligibility(message: &Message) -> bool {
         match MessageType::try_from(message.r#type) {
-            Ok(MessageType::Entity) => Self::is_entity_update(message),
+            Ok(MessageType::Entity) => {
+                !message.entities.is_empty()
+                    && message.entities.iter().all(|e| {
+                        EntityOperation::try_from(e.operation) == Ok(EntityOperation::Update)
+                    })
+            }
             Ok(MessageType::Peer) => true,
             _ => false,
         }
-    }
-
-    fn is_entity_update(message: &Message) -> bool {
-        MessageType::try_from(message.r#type) == Ok(MessageType::Entity)
-            && !message.entities.is_empty()
-            && message.entities.iter().all(|entity| {
-                EntityOperation::try_from(entity.operation) == Ok(EntityOperation::Update)
-            })
     }
 }

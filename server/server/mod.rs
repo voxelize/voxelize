@@ -33,59 +33,42 @@ pub use models::*;
 
 #[derive(Clone)]
 pub struct WsSender {
-    critical_sender: mpsc::UnboundedSender<Vec<u8>>,
-    entity_sender: mpsc::UnboundedSender<Vec<u8>>,
-    critical_depth: Arc<AtomicUsize>,
-    entity_depth: Arc<AtomicUsize>,
+    sender: mpsc::UnboundedSender<Vec<u8>>,
+    depth: Option<Arc<AtomicUsize>>,
 }
 
 impl WsSender {
-    pub fn new(
-        critical_sender: mpsc::UnboundedSender<Vec<u8>>,
-        entity_sender: mpsc::UnboundedSender<Vec<u8>>,
-    ) -> Self {
+    pub fn new(sender: mpsc::UnboundedSender<Vec<u8>>) -> Self {
         Self {
-            critical_sender,
-            entity_sender,
-            critical_depth: Arc::new(AtomicUsize::new(0)),
-            entity_depth: Arc::new(AtomicUsize::new(0)),
+            sender,
+            depth: perf::is_enabled().then(|| Arc::new(AtomicUsize::new(0))),
         }
     }
 
     pub fn send(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
-        self.critical_depth.fetch_add(1, Ordering::Relaxed);
-        if let Err(error) = self.critical_sender.send(data) {
-            self.critical_depth.fetch_sub(1, Ordering::Relaxed);
-            Err(error)
-        } else {
-            Ok(())
+        if let Some(depth) = &self.depth {
+            depth.fetch_add(1, Ordering::Relaxed);
         }
-    }
-
-    pub fn send_entity(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
-        self.entity_depth.fetch_add(1, Ordering::Relaxed);
-        if let Err(error) = self.entity_sender.send(data) {
-            self.entity_depth.fetch_sub(1, Ordering::Relaxed);
-            Err(error)
-        } else {
-            Ok(())
+        if let Err(error) = self.sender.send(data) {
+            if let Some(depth) = &self.depth {
+                depth.fetch_sub(1, Ordering::Relaxed);
+            }
+            return Err(error);
         }
+        Ok(())
     }
 
-    pub fn mark_critical_received(&self) {
-        self.critical_depth.fetch_sub(1, Ordering::Relaxed);
-    }
-
-    pub fn mark_entity_received(&self) {
-        self.entity_depth.fetch_sub(1, Ordering::Relaxed);
+    pub fn mark_received(&self) {
+        if let Some(depth) = &self.depth {
+            depth.fetch_sub(1, Ordering::Relaxed);
+        }
     }
 
     pub fn len(&self) -> usize {
-        self.critical_depth.load(Ordering::Relaxed) + self.entity_depth.load(Ordering::Relaxed)
-    }
-
-    pub fn entity_len(&self) -> usize {
-        self.entity_depth.load(Ordering::Relaxed)
+        self.depth
+            .as_ref()
+            .map(|depth| depth.load(Ordering::Relaxed))
+            .unwrap_or_default()
     }
 }
 

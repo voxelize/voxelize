@@ -34,16 +34,11 @@ pub fn classify_interest(
 }
 
 /// Per-client sets of entity ids currently streaming to that client. Each entry
-/// remembers the last tick and metadata revision sent to that client.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EntityInterest {
-    pub last_sent_tick: u64,
-    pub last_sent_revision: u64,
-}
-
+/// remembers the tick of the last message sent for the entity so unchanged
+/// entities can receive periodic keep-alive updates.
 #[derive(Default)]
 pub struct EntityInterests {
-    clients: HashMap<String, HashMap<String, EntityInterest>>,
+    clients: HashMap<String, HashMap<String, u64>>,
 }
 
 impl EntityInterests {
@@ -54,17 +49,11 @@ impl EntityInterests {
             .unwrap_or(false)
     }
 
-    pub fn track(&mut self, client_id: &str, entity_id: &str, tick: u64, revision: u64) {
+    pub fn track(&mut self, client_id: &str, entity_id: &str, tick: u64) {
         self.clients
             .entry(client_id.to_owned())
             .or_default()
-            .insert(
-                entity_id.to_owned(),
-                EntityInterest {
-                    last_sent_tick: tick,
-                    last_sent_revision: revision,
-                },
-            );
+            .insert(entity_id.to_owned(), tick);
     }
 
     pub fn untrack(&mut self, client_id: &str, entity_id: &str) -> bool {
@@ -74,7 +63,7 @@ impl EntityInterests {
             .unwrap_or(false)
     }
 
-    pub fn tracked_mut(&mut self, client_id: &str) -> Option<&mut HashMap<String, EntityInterest>> {
+    pub fn tracked_mut(&mut self, client_id: &str) -> Option<&mut HashMap<String, u64>> {
         self.clients.get_mut(client_id)
     }
 
@@ -154,11 +143,11 @@ mod tests {
     fn rejoining_client_starts_with_a_fresh_interest_set() {
         let mut interests = EntityInterests::default();
 
-        interests.track("client", "fish", 5, 2);
-        interests.track("client", "crab", 6, 3);
+        interests.track("client", "fish", 5);
+        interests.track("client", "crab", 6);
         interests.remove_client("client");
 
-        interests.track("client", "block::sign", 9, 4);
+        interests.track("client", "block::sign", 9);
 
         assert!(!interests.is_tracked("client", "fish"));
         assert!(!interests.is_tracked("client", "crab"));
@@ -170,21 +159,18 @@ mod tests {
         let mut interests = EntityInterests::default();
 
         assert!(!interests.is_tracked("client", "fish"));
-        interests.track("client", "fish", 7, 3);
+        interests.track("client", "fish", 7);
         assert!(interests.is_tracked("client", "fish"));
         assert_eq!(
             interests.tracked_mut("client").unwrap().get("fish"),
-            Some(&EntityInterest {
-                last_sent_tick: 7,
-                last_sent_revision: 3,
-            })
+            Some(&7)
         );
 
         assert!(interests.untrack("client", "fish"));
         assert!(!interests.is_tracked("client", "fish"));
         assert!(!interests.untrack("client", "fish"));
 
-        interests.track("client", "fish", 9, 4);
+        interests.track("client", "fish", 9);
         interests.remove_client("client");
         assert!(!interests.is_tracked("client", "fish"));
     }
