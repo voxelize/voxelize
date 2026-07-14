@@ -562,9 +562,10 @@ impl Handler<TransportLeaveRequest> for SyncWorld {
 }
 
 fn dispatcher() -> TimedDispatcherBuilder<'static, 'static> {
+    // Note: shred requires a system's dependencies to be registered before
+    // the system that names them, so "physics" must precede "entities-meta".
     TimedDispatcherBuilder::new()
         .with(UpdateStatsSystem, "update-stats", &[])
-        .with(EntitiesMetaSystem, "entities-meta", &["physics"])
         .with(PeersMetaSystem, "peers-meta", &[])
         .with(CurrentChunkSystem, "current-chunk", &[])
         .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
@@ -581,6 +582,7 @@ fn dispatcher() -> TimedDispatcherBuilder<'static, 'static> {
             "physics",
             &["current-chunk", "update-stats", "chunk-updating"],
         )
+        .with(EntitiesMetaSystem, "entities-meta", &["physics"])
         .with(DataSavingSystem, "entities-saving", &["entities-meta"])
         .with(
             EntitiesSendingSystem::default(),

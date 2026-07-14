@@ -359,7 +359,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     replicated_state.clear_entity(&client_id, &update.id);
                 }
 
-                let mut message = Message::new(&MessageType::Entity).entities(&lifecycle);
+                let mut message = Message::new(&MessageType::Entity)
+                    .entities(&lifecycle)
+                    .tick(tick);
                 if perf::is_enabled() {
                     let trace_id =
                         log_entity_batch_queue(&timing.world_name, tick, &client_id, &lifecycle);
