@@ -6,7 +6,7 @@ use crate::{
     common::ClientFilter,
     encode_message, fragment_message,
     perf::{self, OutboundPerfKind},
-    server::Message,
+    server::{Message, WsSender},
     world::{
         profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues, Stats,
     },
@@ -61,6 +61,14 @@ fn should_send_to_transport(msg_type: i32) -> bool {
         MessageType::try_from(msg_type),
         Ok(MessageType::Entity) | Ok(MessageType::Peer)
     )
+}
+
+fn send_encoded(sender: &WsSender, encoded: &EncodedMessage) {
+    if encoded.is_entity_update {
+        let _ = sender.send_entity(encoded.data.clone());
+    } else {
+        let _ = sender.send(encoded.data.clone());
+    }
 }
 
 fn is_recipient(id: &str, filter: &ClientFilter) -> bool {
@@ -201,6 +209,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     data: encode_message(&message),
                     msg_type,
                     is_rtc_eligible: false,
+                    is_entity_update: false,
                     perf: outbound_perf,
                 };
                 (encoded, filter)
@@ -239,7 +248,7 @@ impl<'a> System<'a> for BroadcastSystem {
                             }
                         }
                     }
-                    let _ = client.sender.send(encoded.data.clone());
+                    send_encoded(&client.sender, &encoded);
                 }
                 let queue_depths = connection_queue_depths(&clients, &filter);
                 log_outbound_perf(&encoded, world_name, stats.tick, queue_depths);
@@ -275,12 +284,12 @@ impl<'a> System<'a> for BroadcastSystem {
                     }
                 }
 
-                let _ = client.sender.send(encoded.data.clone());
+                send_encoded(&client.sender, &encoded);
             });
 
             if !transports.is_empty() && should_send_to_transport(encoded.msg_type) {
                 transports.values().for_each(|sender| {
-                    let _ = sender.send(encoded.data.clone());
+                    send_encoded(sender, &encoded);
                 });
             }
             let queue_depths = connection_queue_depths(&clients, &filter);

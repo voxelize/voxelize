@@ -110,8 +110,9 @@ async fn handle_ws_connection(
     mut stream: impl StreamExt<Item = Result<AggregatedMessage, actix_ws::ProtocolError>> + Unpin,
     server: Addr<Server>,
 ) {
-    let (raw_tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
-    let tx = WsSender::new(raw_tx);
+    let (critical_tx, mut critical_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (entity_tx, mut entity_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let tx = WsSender::new(critical_tx, entity_tx);
 
     let (session_id, connection_token) = match server
         .send(Connect {
@@ -135,8 +136,15 @@ async fn handle_ws_connection(
 
     loop {
         tokio::select! {
-            Some(msg) = rx.recv() => {
-                tx.mark_received();
+            biased;
+            Some(msg) = critical_rx.recv() => {
+                tx.mark_critical_received();
+                if session.binary(msg).await.is_err() {
+                    break;
+                }
+            }
+            Some(msg) = entity_rx.recv() => {
+                tx.mark_entity_received();
                 if session.binary(msg).await.is_err() {
                     break;
                 }

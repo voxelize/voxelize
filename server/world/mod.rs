@@ -1059,7 +1059,12 @@ impl World {
             let tick = self.read_resource::<Stats>().tick;
             let mut bookkeeping = self.write_resource::<Bookkeeping>();
             for entity_id in init_entity_ids {
-                bookkeeping.interests.track(id, &entity_id, tick);
+                let revision = bookkeeping
+                    .entity_revisions
+                    .get(&entity_id)
+                    .copied()
+                    .unwrap_or_default();
+                bookkeeping.interests.track(id, &entity_id, tick, revision);
             }
         }
 
