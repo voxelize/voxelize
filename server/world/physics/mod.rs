@@ -310,6 +310,37 @@ impl Physics {
         }
     }
 
+    /// Instantaneously displace a rigid body by `delta`, stopping at the first
+    /// voxel AABB collision (full body sweep via [`sweep`]). Updates
+    /// `body.resting` and zeroes velocity on collided axes.
+    ///
+    /// Use this for AI lunges / dashes / forced moves that must not teleport
+    /// through walls. Prefer it over `RigidBody::set_position` for any gameplay
+    /// translation that should respect voxel collision. Normal locomotion still
+    /// goes through [`Physics::iterate_body`] (forces / impulses / gravity).
+    ///
+    /// Returns the actual world-space displacement applied (may be shorter than
+    /// `delta` when a wall was hit).
+    pub fn displace_body(
+        body: &mut RigidBody,
+        delta: &Vec3<f32>,
+        space: &dyn VoxelAccess,
+        registry: &Registry,
+    ) -> Vec3<f32> {
+        let before = body.get_position();
+        let mut resting = Vec3::default();
+        Physics::process_collisions(space, registry, &mut body.aabb, delta, &mut resting);
+        body.resting = resting;
+        for i in 0..3 {
+            if body.resting[i] != 0 {
+                body.velocity[i] = 0.0;
+            }
+        }
+        body.mark_active();
+        let after = body.get_position();
+        Vec3(after.0 - before.0, after.1 - before.1, after.2 - before.2)
+    }
+
     pub fn is_body_asleep(
         space: &dyn VoxelAccess,
         registry: &Registry,
@@ -665,5 +696,75 @@ impl Physics {
         body.resting[0] = tmp_resting[0];
         body.resting[2] = tmp_resting[2];
         body.stepped = true;
+    }
+}
+
+#[cfg(test)]
+mod displace_body_tests {
+    use super::*;
+    use crate::{Block, Chunk, ChunkOptions, Registry};
+
+    fn solid_floor_chunk(floor_y: i32) -> (Chunk, Registry) {
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Stone").id(5).build());
+        let opts = ChunkOptions {
+            size: 16,
+            max_height: 64,
+            sub_chunks: 4,
+        };
+        let mut chunk = Chunk::new("displace", 0, 0, &opts);
+        for x in 0..16 {
+            for z in 0..16 {
+                chunk.set_voxel(x, floor_y, z, 5);
+            }
+        }
+        // Vertical wall at x=12, y=floor+1..floor+3
+        for y in (floor_y + 1)..=(floor_y + 3) {
+            for z in 0..16 {
+                chunk.set_voxel(12, y, z, 5);
+            }
+        }
+        (chunk, registry)
+    }
+
+    #[test]
+    fn displace_body_stops_before_voxel_wall() {
+        let floor_y = 10;
+        let (chunk, registry) = solid_floor_chunk(floor_y);
+        let aabb = AABB::new().scale_x(0.7).scale_y(1.0).scale_z(0.7).build();
+        let mut body = RigidBody::new(&aabb).build();
+        // Hover clear of the floor slab so only the vertical wall can stop us.
+        // Wall occupies voxel x=12 → solid AABB [12,13); half-width 0.35 →
+        // center must stay < 12.0 - 0.35 = 11.65.
+        body.set_position(8.5, floor_y as f32 + 2.5, 8.5);
+
+        let moved = Physics::displace_body(&mut body, &Vec3(6.0, 0.0, 0.0), &chunk, &registry);
+        let pos = body.get_position();
+        assert!(moved.0 > 1.0, "should move toward the wall, moved={moved:?}");
+        assert!(
+            moved.0 < 6.0 - 0.01,
+            "must not complete full 6u teleport through wall, moved={moved:?}"
+        );
+        assert!(
+            pos.0 < 12.0 - 0.3,
+            "body center must stay west of wall face, pos={pos:?}"
+        );
+        assert_eq!(body.resting[0], 1, "should rest against +X wall");
+    }
+
+    #[test]
+    fn displace_body_open_air_applies_full_delta() {
+        let floor_y = 10;
+        let (chunk, registry) = solid_floor_chunk(floor_y);
+        let aabb = AABB::new().scale_x(0.5).scale_y(0.8).scale_z(0.5).build();
+        let mut body = RigidBody::new(&aabb).build();
+        body.set_position(4.0, floor_y as f32 + 2.5, 4.0);
+
+        let moved = Physics::displace_body(&mut body, &Vec3(1.5, 0.0, 0.0), &chunk, &registry);
+        assert!(
+            (moved.0 - 1.5).abs() < 0.02,
+            "open path should apply full delta, moved={moved:?}"
+        );
+        assert_eq!(body.resting[0], 0);
     }
 }
