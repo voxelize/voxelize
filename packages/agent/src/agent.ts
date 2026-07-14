@@ -36,6 +36,11 @@ import {
   recordAgentBrowser,
 } from "./browser-lifecycle";
 import {
+  CaptureViewport,
+  expectedBackingSize,
+  resolveCaptureViewport,
+} from "./capture-viewport";
+import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
   logAgentPerf,
@@ -65,11 +70,29 @@ export type ScreenshotOptions = {
    * WebGL canvas instead of the full page.
    */
   isPure?: boolean;
+  /**
+   * Optional capture-only viewport width in CSS pixels. When any of width,
+   * height, or deviceScaleFactor is set, the page is temporarily resized for
+   * this one capture and restored afterwards. This keeps join/load running at
+   * the lightweight default viewport: heavy worlds under software WebGL stall
+   * (and can drop the websocket) when the whole session renders at 4K, so
+   * high resolution is paid for only during the capture itself.
+   */
+  width?: number;
+  /** Optional capture-only viewport height in CSS pixels. */
+  height?: number;
+  /**
+   * Optional capture-only device scale factor. The canvas backing store ends
+   * up at width*deviceScaleFactor x height*deviceScaleFactor, e.g.
+   * 2560x1440 at 1.5 yields a 3840x2160 (4K) capture.
+   */
+  deviceScaleFactor?: number;
 };
 
 const DEFAULT_DAEMON_PORT = 4099;
 const BROWSER_CLOSE_TIMEOUT_MS = 1500;
 const ENTITY_ACCESS_TIMEOUT_MS = 5000;
+const CAPTURE_RESIZE_PAINT_TIMEOUT_MS = 15_000;
 
 function positiveEnvNumber(name: string, fallback: number): number {
   const value = Number(process.env[name]);
@@ -544,7 +567,36 @@ export class Agent {
   }
 
   async screenshot(opts: ScreenshotOptions = {}): Promise<Buffer> {
-    if (opts.isPure) {
+    const current = this.page.viewport();
+    const currentViewport: CaptureViewport = {
+      width: current?.width ?? 1280,
+      height: current?.height ?? 720,
+      deviceScaleFactor: current?.deviceScaleFactor || 1,
+    };
+    // Throws CaptureViewportError for out-of-range requests; the daemon maps
+    // that to an HTTP 400 before the page is touched at all.
+    const captureViewport = resolveCaptureViewport(opts, currentViewport);
+    if (!captureViewport) {
+      return this.captureBuffer(opts.isPure === true);
+    }
+
+    // Resize only for the duration of this capture. Joining/loading at 4K
+    // under software WebGL makes every frame so expensive that heavy worlds
+    // (e.g. large town hubs) starve the network/chunk pipeline and the agent
+    // stalls or disconnects. Loading at the lightweight default viewport and
+    // paying for high resolution only inside this window avoids that.
+    await this.setViewportAndAwaitPaint(captureViewport);
+    try {
+      return await this.captureBuffer(opts.isPure === true);
+    } finally {
+      // Restore even when the capture throws, and wait for the restoration
+      // paint too, so the session never keeps running at capture resolution.
+      await this.setViewportAndAwaitPaint(currentViewport);
+    }
+  }
+
+  private async captureBuffer(isPure: boolean): Promise<Buffer> {
+    if (isPure) {
       const dataUrl = await this.page.evaluate(
         (o) => window.__agentRequired__().captureFrame(o),
         { isPure: true },
@@ -562,6 +614,48 @@ export class Agent {
       fullPage: false,
     });
     return Buffer.from(result);
+  }
+
+  private async setViewportAndAwaitPaint(
+    viewport: CaptureViewport,
+  ): Promise<void> {
+    await this.page.setViewport(viewport);
+
+    // Wait until the app has reacted to the resize and the WebGL canvas
+    // backing store reaches the expected size. A 1px tolerance absorbs
+    // floor/round differences between renderers. Timing out is downgraded to
+    // a warning: a renderer that clamps its pixel ratio would otherwise make
+    // captures fail forever, and a slightly-off frame beats no frame.
+    const expected = expectedBackingSize(viewport);
+    try {
+      await this.page.waitForFunction(
+        (w, h) => {
+          const canvases = Array.from(document.querySelectorAll("canvas"));
+          return canvases.some(
+            (canvas) =>
+              Math.abs(canvas.width - w) <= 1 &&
+              Math.abs(canvas.height - h) <= 1,
+          );
+        },
+        { timeout: CAPTURE_RESIZE_PAINT_TIMEOUT_MS, polling: "raf" },
+        expected.width,
+        expected.height,
+      );
+    } catch {
+      console.warn(
+        `[voxelize-agent] canvas did not reach ${expected.width}x${expected.height} ` +
+          `within ${CAPTURE_RESIZE_PAINT_TIMEOUT_MS}ms after viewport resize; capturing anyway`,
+      );
+    }
+
+    // Double requestAnimationFrame guarantees at least one full frame has
+    // been rendered and presented at the new backing size before capture.
+    await this.page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
   }
 
   async measureFrameRate(

@@ -36,6 +36,7 @@
     "compile": "vite build",
     "build": "pnpm run clean && pnpm run compile && pnpm run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
+    "test": "vitest --run",
     "dev": "tsx bin/voxelize-agent.ts"
   },
   "dependencies": {
