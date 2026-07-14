@@ -4,6 +4,10 @@ import { z } from "zod";
 import { Agent } from "./agent";
 import type { AgentEventMap } from "./bridge";
 import {
+  CaptureViewportError,
+  parseCaptureViewportQuery,
+} from "./capture-viewport";
+import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
   logAgentPerf,
@@ -155,15 +159,32 @@ export class AgentDaemon {
 
     this.server.get("/snapshot", async () => this.agent.snapshot());
 
-    this.server.get<{ Querystring: { pure?: string } }>(
-      "/screenshot",
-      async (req, reply) => {
-        const isPure = req.query.pure === "true" || req.query.pure === "1";
-        const buffer = await this.agent.screenshot({ isPure });
+    // Optional width/height (CSS px) and scale (device scale factor) resize
+    // the page for this one capture only and restore it afterwards. Example:
+    // /screenshot?pure=true&width=2560&height=1440&scale=1.5 renders a
+    // 3840x2160 (4K) backing canvas without the session ever loading at 4K.
+    this.server.get<{
+      Querystring: {
+        pure?: string;
+        width?: string;
+        height?: string;
+        scale?: string;
+      };
+    }>("/screenshot", async (req, reply) => {
+      const isPure = req.query.pure === "true" || req.query.pure === "1";
+      try {
+        const requested = parseCaptureViewportQuery(req.query);
+        const buffer = await this.agent.screenshot({ isPure, ...requested });
         reply.header("content-type", "image/png");
         return buffer;
-      },
-    );
+      } catch (e) {
+        if (e instanceof CaptureViewportError) {
+          reply.code(400);
+          return { ok: false, error: e.message };
+        }
+        throw e;
+      }
+    });
 
     this.server.get<{
       Querystring: { durationMs?: string; warmupMs?: string };
