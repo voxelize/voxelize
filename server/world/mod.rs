@@ -1845,18 +1845,14 @@ impl World {
     /// Handler for `Method` type messages.
     fn on_method(&mut self, client_id: &str, data: Message) {
         if let Some(method) = data.method {
-            if !self
-                .method_handles
-                .contains_key(&method.name.to_lowercase())
-            {
+            let key = method.name.to_lowercase();
+            let Some(handle) = self.method_handles.get(&key).map(|h| h.to_owned()) else {
                 warn!(
                     "`Method` type messages received of name {}, but no method handler set.",
                     method.name
                 );
                 return;
-            }
-
-            let handle = self.method_handles.get(&method.name).unwrap().to_owned();
+            };
 
             // Method payloads are client-supplied input. A panicking handler
             // (e.g. an unknown block name lookup) must not unwind through the
