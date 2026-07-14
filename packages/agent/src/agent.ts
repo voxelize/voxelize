@@ -71,6 +71,11 @@ const DEFAULT_DAEMON_PORT = 4099;
 const BROWSER_CLOSE_TIMEOUT_MS = 1500;
 const ENTITY_ACCESS_TIMEOUT_MS = 5000;
 
+function positiveEnvNumber(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 export class Agent {
   private browser: Browser;
   private page: Page;
@@ -117,7 +122,11 @@ export class Agent {
         "--enable-webgl",
         "--ignore-gpu-blocklist",
       ],
-      defaultViewport: { width: 1280, height: 720 },
+      defaultViewport: {
+        width: positiveEnvNumber("AGENT_VIEWPORT_WIDTH", 1280),
+        height: positiveEnvNumber("AGENT_VIEWPORT_HEIGHT", 720),
+        deviceScaleFactor: positiveEnvNumber("AGENT_VIEWPORT_SCALE", 1),
+      },
     });
     recordAgentBrowser(pidFile, browser.process()?.pid);
 
@@ -145,6 +154,9 @@ export class Agent {
     const target = new URL(`${url.replace(/\/$/, "")}/${world}`);
     target.searchParams.set("agent", "true");
     target.searchParams.set("agentName", name);
+    if (process.env.AGENT_CAPTURE_MODE === "true") {
+      target.searchParams.set("capture", "true");
+    }
     agent.targetUrl = target.toString();
 
     await page.goto(target.toString(), { waitUntil: "domcontentloaded" });
