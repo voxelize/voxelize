@@ -220,6 +220,19 @@ async fn info(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(info))
 }
 
+async fn health(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
+    let body = server.send(Health).await.unwrap();
+    let ok = body
+        .get("ok")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if ok {
+        Ok(HttpResponse::Ok().json(body))
+    } else {
+        Ok(HttpResponse::ServiceUnavailable().json(body))
+    }
+}
+
 pub struct Voxelize;
 
 impl Voxelize {
@@ -233,11 +246,21 @@ impl Voxelize {
         let serve = server.serve.to_owned();
         let secret = server.secret.to_owned();
 
-        let server_addr = server.start();
-
-        if serve.is_empty() {
-            info!("Attempting to serve static folder: {}", serve);
+        // Optional bind delay for probes that must observe "unbound" boot
+        // (VOXELIZE_DELAY_BIND_MS). Production leaves this unset.
+        if let Ok(ms) = std::env::var("VOXELIZE_DELAY_BIND_MS") {
+            if let Ok(delay_ms) = ms.parse::<u64>() {
+                if delay_ms > 0 {
+                    warn!(
+                        "Delaying HTTP bind by {}ms (VOXELIZE_DELAY_BIND_MS)",
+                        delay_ms
+                    );
+                    actix_web::rt::time::sleep(Duration::from_millis(delay_ms)).await;
+                }
+            }
         }
+
+        let server_addr = server.start();
 
         let srv = HttpServer::new(move || {
             let serve = serve.to_owned();
@@ -253,12 +276,29 @@ impl Voxelize {
                 }))
                 .route("/", web::get().to(index))
                 .route("/ws/", web::get().to(ws_route))
-                .route("/info", web::get().to(info));
+                .route("/info", web::get().to(info))
+                .route("/health", web::get().to(health));
 
             if serve.is_empty() {
+                info!("No static client folder configured (WS/API only)");
                 app
             } else {
-                app.service(Files::new("/", serve).show_files_listing())
+                info!("Serving static client from {}", serve);
+                // Never let the SPA Files service shadow API routes — otherwise
+                // GET /health is handled as a missing static file (404) in prod.
+                app.service(
+                    Files::new("/", serve)
+                        .index_file("index.html")
+                        .path_filter(|path, _| {
+                            let name = path
+                                .file_name()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("");
+                            // Exclude API route leaf names; nested assets keep matching.
+                            !matches!(name, "health" | "info" | "ws")
+                                && !path.starts_with("ws/")
+                        }),
+                )
             }
         })
         .bind((addr.to_owned(), port.to_owned()))?;
