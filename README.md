@@ -78,6 +78,10 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 </p>
 
 <p align="center">
+  <img src="assets/town-hub2-dragon-den-4k.webp" width="70%" alt="Dragon in a Town hub2 den" />
+</p>
+
+<p align="center">
   <img src="assets/voxelize-terrain-debug.webp" width="70%" alt="Voxelize terrain generation and debug tooling" />
 </p>
 
