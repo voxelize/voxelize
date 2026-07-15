@@ -1073,6 +1073,22 @@ impl World {
             .get(ent)
             .map(|body| body.0.is_swimming);
 
+        // Deterministic peer re-sync on membership change: force every
+        // client's peer metadata dirty so the next peers-sending run stages a
+        // full snapshot of everyone to everyone. Bidirectional visibility
+        // must NOT depend on the one-tick metadata dirty flag happening to
+        // fire after this join — an idle existing player would otherwise
+        // never be re-announced to the newcomer, and (worse) the newcomer's
+        // single dirty tick is the only tick existing clients would ever hear
+        // about it on.
+        {
+            let flags = self.ecs.read_storage::<ClientFlag>();
+            let mut metadatas = self.ecs.write_storage::<MetadataComp>();
+            for (metadata, _) in (&mut metadatas, &flags).join() {
+                metadata.mark_dirty();
+            }
+        }
+
         let (init_message, init_entity_ids) = self.generate_init_message(
             id,
             saved_position,

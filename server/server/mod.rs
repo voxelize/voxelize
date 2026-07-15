@@ -31,39 +31,81 @@ use crate::{
 
 pub use models::*;
 
+/// A per-connection sender with two priority lanes.
+///
+/// - The CONTROL lane carries session control-plane and small ordered traffic
+///   (INIT, JOIN/LEAVE, errors, chat, methods, events, entity lifecycle, and
+///   coalesced state snapshots). It is drained *first* by the connection's
+///   write loop, so lifecycle and live state can never be starved behind
+///   megabytes of queued chunk data.
+/// - The BULK lane carries world-data-plane traffic (chunk loads/unloads and
+///   voxel updates, which must stay ordered relative to each other).
+///
+/// Depths count messages pushed but not yet *written to the socket* (one
+/// relaxed atomic per message). The state replication layer gates its
+/// per-client flush on the control-lane depth: a truly dead socket stalls
+/// writes, the control depth climbs, and state coalesces in its slots instead
+/// of piling up as stale frames. See `world::replication`.
 #[derive(Clone)]
 pub struct WsSender {
-    sender: mpsc::UnboundedSender<Vec<u8>>,
-    /// Messages pushed but not yet written to the socket. Always tracked (one
-    /// relaxed atomic per message): the state replication layer gates its
-    /// per-client flush on this depth so a slow client coalesces instead of
-    /// accumulating stale positional frames. See `world::replication`.
-    depth: Arc<AtomicUsize>,
+    control: mpsc::UnboundedSender<Vec<u8>>,
+    bulk: mpsc::UnboundedSender<Vec<u8>>,
+    control_depth: Arc<AtomicUsize>,
+    bulk_depth: Arc<AtomicUsize>,
 }
 
 impl WsSender {
-    pub fn new(sender: mpsc::UnboundedSender<Vec<u8>>) -> Self {
+    pub fn new(
+        control: mpsc::UnboundedSender<Vec<u8>>,
+        bulk: mpsc::UnboundedSender<Vec<u8>>,
+    ) -> Self {
         Self {
-            sender,
-            depth: Arc::new(AtomicUsize::new(0)),
+            control,
+            bulk,
+            control_depth: Arc::new(AtomicUsize::new(0)),
+            bulk_depth: Arc::new(AtomicUsize::new(0)),
         }
     }
 
+    /// Send on the control lane (default). Reliable-ordered within the lane.
     pub fn send(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
-        self.depth.fetch_add(1, Ordering::Relaxed);
-        if let Err(error) = self.sender.send(data) {
-            self.depth.fetch_sub(1, Ordering::Relaxed);
+        self.control_depth.fetch_add(1, Ordering::Relaxed);
+        if let Err(error) = self.control.send(data) {
+            self.control_depth.fetch_sub(1, Ordering::Relaxed);
             return Err(error);
         }
         Ok(())
     }
 
-    pub fn mark_received(&self) {
-        self.depth.fetch_sub(1, Ordering::Relaxed);
+    /// Send on the bulk lane (chunk data, voxel updates). Reliable-ordered
+    /// within the lane, but drained only when the control lane is empty.
+    pub fn send_bulk(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
+        self.bulk_depth.fetch_add(1, Ordering::Relaxed);
+        if let Err(error) = self.bulk.send(data) {
+            self.bulk_depth.fetch_sub(1, Ordering::Relaxed);
+            return Err(error);
+        }
+        Ok(())
     }
 
+    pub fn mark_control_written(&self) {
+        self.control_depth.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    pub fn mark_bulk_written(&self) {
+        self.bulk_depth.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    /// Control-lane backlog only: the signal the state-flush gate uses. Bulk
+    /// chunk streaming must not block live state — that starvation is exactly
+    /// what made peer visibility asymmetric for clients loading chunks.
+    pub fn control_len(&self) -> usize {
+        self.control_depth.load(Ordering::Relaxed)
+    }
+
+    /// Total unwritten messages across both lanes (observability).
     pub fn len(&self) -> usize {
-        self.depth.load(Ordering::Relaxed)
+        self.control_depth.load(Ordering::Relaxed) + self.bulk_depth.load(Ordering::Relaxed)
     }
 }
 
@@ -1352,9 +1394,14 @@ mod lifecycle_tests {
             .build()
     }
 
+    /// Fake connection: returns the sender and its control-lane receiver.
+    /// Session lifecycle traffic (INIT, ERROR, JOIN/LEAVE) rides the control
+    /// lane; these tests never exercise the bulk lane, so its receiver is
+    /// dropped and bulk sends would error harmlessly.
     fn fake_socket() -> (WsSender, mpsc::UnboundedReceiver<Vec<u8>>) {
-        let (tx, rx) = mpsc::unbounded_channel();
-        (WsSender::new(tx), rx)
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
+        let (bulk_tx, _) = mpsc::unbounded_channel();
+        (WsSender::new(control_tx, bulk_tx), control_rx)
     }
 
     /// Await the world's mailbox draining (SyncArbiter processes messages
@@ -1371,14 +1418,37 @@ mod lifecycle_tests {
             .client_count
     }
 
-    fn drain_message_types(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<i32> {
-        let mut types = vec![];
+    /// Drain everything on a fake socket's control lane, marking each message
+    /// written so the sender's depth (the state-flush gate signal) reflects a
+    /// live socket. Undecodable payloads (test filler) are skipped.
+    fn drain_messages(sender: &WsSender, rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<Message> {
+        let mut messages = vec![];
         while let Ok(bytes) = rx.try_recv() {
+            sender.mark_control_written();
             if let Ok(message) = decode_message(&bytes) {
-                types.push(message.r#type);
+                messages.push(message);
             }
         }
-        types
+        messages
+    }
+
+    fn drain_message_types(
+        sender: &WsSender,
+        rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    ) -> Vec<i32> {
+        drain_messages(sender, rx)
+            .into_iter()
+            .map(|message| message.r#type)
+            .collect()
+    }
+
+    /// All peer ids mentioned across PEER messages in a drained batch.
+    fn peer_ids_in(messages: &[Message]) -> Vec<String> {
+        messages
+            .iter()
+            .filter(|m| m.r#type == MessageType::Peer as i32)
+            .flat_map(|m| m.peers.iter().map(|p| p.id.clone()))
+            .collect()
     }
 
     fn build_server_with_world() -> Server {
@@ -1399,7 +1469,7 @@ mod lifecycle_tests {
         actix::System::new().block_on(async {
             let mut server = build_server_with_world();
             let (sender, mut rx) = fake_socket();
-            let (id, token) = server.register_session(Some("bot".into()), false, sender);
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
 
             // First JOIN, then a retry as if the INIT ack was lost in flight.
             assert_eq!(on_request(&mut server, &id, &token, join_message(WORLD)), None);
@@ -1411,7 +1481,7 @@ mod lifecycle_tests {
 
             assert_eq!(world_client_count(&server).await, 1, "no duplicate entity");
 
-            let types = drain_message_types(&mut rx);
+            let types = drain_message_types(&sender, &mut rx);
             let inits = types
                 .iter()
                 .filter(|t| **t == MessageType::Init as i32)
@@ -1426,14 +1496,14 @@ mod lifecycle_tests {
             let mut server = build_server_with_world();
 
             let (old_sender, _old_rx) = fake_socket();
-            let (id, old_token) = server.register_session(Some("bot".into()), false, old_sender);
+            let (id, old_token) = server.register_session(Some("bot".into()), false, old_sender.clone());
             assert_eq!(on_request(&mut server, &id, &old_token, join_message(WORLD)), None);
             assert_eq!(world_client_count(&server).await, 1);
 
             // Abrupt closure: no Leave, no Disconnect — the process died. A
             // fresh connection with the same id must replace the membership.
             let (new_sender, mut new_rx) = fake_socket();
-            let (_, new_token) = server.register_session(Some("bot".into()), false, new_sender);
+            let (_, new_token) = server.register_session(Some("bot".into()), false, new_sender.clone());
             assert_eq!(
                 on_request(&mut server, &id, &new_token, join_message(WORLD)),
                 None,
@@ -1441,7 +1511,7 @@ mod lifecycle_tests {
             );
 
             assert_eq!(world_client_count(&server).await, 1, "exactly one live entity");
-            let types = drain_message_types(&mut new_rx);
+            let types = drain_message_types(&new_sender, &mut new_rx);
             assert!(
                 types.contains(&(MessageType::Init as i32)),
                 "new session receives the INIT ack"
@@ -1461,15 +1531,15 @@ mod lifecycle_tests {
             let mut server = build_server_with_world();
 
             let (old_sender, mut old_rx) = fake_socket();
-            let (id, old_token) = server.register_session(Some("bot".into()), false, old_sender);
+            let (id, old_token) = server.register_session(Some("bot".into()), false, old_sender.clone());
             assert_eq!(on_request(&mut server, &id, &old_token, join_message(WORLD)), None);
 
             // New socket connects while the old one is still open.
             let (new_sender, _new_rx) = fake_socket();
-            let (_, new_token) = server.register_session(Some("bot".into()), false, new_sender);
+            let (_, new_token) = server.register_session(Some("bot".into()), false, new_sender.clone());
 
             // Old socket was kicked with a reliable ERROR message.
-            let old_types = drain_message_types(&mut old_rx);
+            let old_types = drain_message_types(&old_sender, &mut old_rx);
             assert!(old_types.contains(&(MessageType::Error as i32)));
 
             // The old socket's JOIN retry races the new socket's JOIN: it
@@ -1488,7 +1558,7 @@ mod lifecycle_tests {
             let mut server = build_server_with_world();
 
             let (sender, _rx) = fake_socket();
-            let (id, token) = server.register_session(Some("bot".into()), false, sender);
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
             assert_eq!(on_request(&mut server, &id, &token, join_message(WORLD)), None);
             assert_eq!(world_client_count(&server).await, 1);
 
@@ -1499,10 +1569,10 @@ mod lifecycle_tests {
 
             // A later reconnect with the same id starts a clean session.
             let (sender, mut rx) = fake_socket();
-            let (_, token) = server.register_session(Some("bot".into()), false, sender);
+            let (_, token) = server.register_session(Some("bot".into()), false, sender.clone());
             assert_eq!(on_request(&mut server, &id, &token, join_message(WORLD)), None);
             assert_eq!(world_client_count(&server).await, 1);
-            assert!(drain_message_types(&mut rx).contains(&(MessageType::Init as i32)));
+            assert!(drain_message_types(&sender, &mut rx).contains(&(MessageType::Init as i32)));
         });
     }
 
@@ -1512,7 +1582,7 @@ mod lifecycle_tests {
             let mut server = build_server_with_world();
 
             let (sender, _rx) = fake_socket();
-            let (id, token) = server.register_session(Some("bot".into()), false, sender);
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
 
             let error = on_request(&mut server, &id, &token, join_message("nowhere"));
             assert!(error.is_some());
@@ -1524,12 +1594,138 @@ mod lifecycle_tests {
     }
 
     #[test]
+    fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
+        actix::System::new().block_on(async {
+            let mut server = build_server_with_world();
+            let world_addr = server.worlds.get(WORLD).unwrap().clone();
+            let tick = |n: usize| {
+                let world_addr = world_addr.clone();
+                async move {
+                    for _ in 0..n {
+                        world_addr.send(crate::Tick).await.unwrap();
+                    }
+                }
+            };
+
+            // A joins first and settles (its metadata dirty flag is long
+            // consumed by the time B joins).
+            let (sender_a, mut rx_a) = fake_socket();
+            let (id_a, token_a) =
+                server.register_session(Some("visA".into()), false, sender_a.clone());
+            assert_eq!(on_request(&mut server, &id_a, &token_a, join_message(WORLD)), None);
+            tick(4).await;
+            drain_messages(&sender_a, &mut rx_a);
+
+            // B joins later.
+            let (sender_b, mut rx_b) = fake_socket();
+            let (id_b, token_b) =
+                server.register_session(Some("visB".into()), false, sender_b.clone());
+            assert_eq!(on_request(&mut server, &id_b, &token_b, join_message(WORLD)), None);
+            tick(4).await;
+
+            // A must learn about B: reliable JOIN exactly once + peer state.
+            let a_messages = drain_messages(&sender_a, &mut rx_a);
+            let joins_for_b = a_messages
+                .iter()
+                .filter(|m| m.r#type == MessageType::Join as i32 && m.text == id_b)
+                .count();
+            assert_eq!(joins_for_b, 1, "existing client gets exactly one JOIN for newcomer");
+            let a_peer_ids = peer_ids_in(&a_messages);
+            assert!(
+                a_peer_ids.contains(&id_b),
+                "existing client receives newcomer's peer state"
+            );
+            assert!(!a_peer_ids.contains(&id_a), "no self peer echo");
+
+            // B must learn about A: INIT peers + full state re-sync.
+            let b_messages = drain_messages(&sender_b, &mut rx_b);
+            let init = b_messages
+                .iter()
+                .find(|m| m.r#type == MessageType::Init as i32)
+                .expect("newcomer receives INIT");
+            assert!(
+                init.peers.iter().any(|p| p.id == id_a),
+                "newcomer INIT lists existing peers"
+            );
+            assert!(
+                peer_ids_in(&b_messages).contains(&id_a),
+                "newcomer receives existing peers' state"
+            );
+
+            // B moves; A converges to B's latest position.
+            let move_b = Message::new(&MessageType::Peer)
+                .peers(&[crate::PeerProtocol {
+                    id: String::new(),
+                    username: "visB".into(),
+                    metadata: json!({ "position": [5.0, 0.0, 0.0] }).to_string(),
+                }])
+                .build();
+            assert_eq!(server.on_request(&id_b, move_b, None, 0, Some(&token_b)), None);
+            tick(4).await;
+            let a_messages = drain_messages(&sender_a, &mut rx_a);
+            let b_position = a_messages
+                .iter()
+                .filter(|m| m.r#type == MessageType::Peer as i32)
+                .flat_map(|m| m.peers.iter())
+                .filter(|p| p.id == id_b)
+                .filter_map(|p| {
+                    serde_json::from_str::<Value>(&p.metadata)
+                        .ok()?
+                        .get("position")?
+                        .get(0)?
+                        .as_f64()
+                })
+                .last();
+            assert_eq!(b_position, Some(5.0), "A receives B's latest position");
+
+            // Backlog A's socket (undrained control lane past the gate), then
+            // have B move and leave. Reliable lifecycle must not be starved:
+            // the LEAVE arrives even though state flushing is gated, and no
+            // stale state for B is delivered after it.
+            for _ in 0..(crate::STATE_FLUSH_MAX_SOCKET_BACKLOG * 2) {
+                let _ = sender_a.send(vec![0]);
+            }
+            let move_b = Message::new(&MessageType::Peer)
+                .peers(&[crate::PeerProtocol {
+                    id: String::new(),
+                    username: "visB".into(),
+                    metadata: json!({ "position": [8.0, 0.0, 0.0] }).to_string(),
+                }])
+                .build();
+            assert_eq!(server.on_request(&id_b, move_b, None, 0, Some(&token_b)), None);
+            tick(2).await;
+            let leave_b = Message::new(&MessageType::Leave).text(WORLD).build();
+            assert_eq!(server.on_request(&id_b, leave_b, None, 0, Some(&token_b)), None);
+            tick(4).await;
+
+            let a_messages = drain_messages(&sender_a, &mut rx_a);
+            let leave_index = a_messages
+                .iter()
+                .position(|m| m.r#type == MessageType::Leave as i32 && m.text == id_b);
+            assert!(
+                leave_index.is_some(),
+                "backlogged client still receives the reliable LEAVE"
+            );
+            let peers_after_leave = a_messages[leave_index.unwrap()..]
+                .iter()
+                .filter(|m| m.r#type == MessageType::Peer as i32)
+                .flat_map(|m| m.peers.iter())
+                .any(|p| p.id == id_b);
+            assert!(
+                !peers_after_leave,
+                "no stale peer state is delivered after the LEAVE"
+            );
+            assert_eq!(world_client_count(&server).await, 1, "B removed from world");
+        });
+    }
+
+    #[test]
     fn malformed_join_payload_is_a_typed_error_not_a_panic() {
         actix::System::new().block_on(async {
             let mut server = build_server_with_world();
 
             let (sender, _rx) = fake_socket();
-            let (id, token) = server.register_session(Some("bot".into()), false, sender);
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
 
             let message = Message::new(&MessageType::Join).json("{not json").build();
             let error = on_request(&mut server, &id, &token, message);

@@ -71,6 +71,13 @@ impl MetadataComp {
         serde_json::to_string(&self.map).unwrap()
     }
 
+    /// Force the next `to_cached_str` to report a change, so this metadata is
+    /// re-emitted to consumers even if its content did not change. Used to
+    /// deterministically re-sync peer state when world membership changes.
+    pub fn mark_dirty(&mut self) {
+        self.last_emitted_json = None;
+    }
+
     /// Is the metadata empty?
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
