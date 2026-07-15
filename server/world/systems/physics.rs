@@ -108,6 +108,21 @@ impl<'a> System<'a> for PhysicsSystem {
                     return;
                 }
 
+                // First tick against ready terrain: lift the body clear of
+                // any solids it was revived or spawned overlapping (saves
+                // written under older body dimensions bake in centers the
+                // current box may overlap the floor with).
+                if !body.0.is_placement_validated {
+                    Physics::validate_placement(
+                        &mut body.0,
+                        chunks.deref(),
+                        &registry,
+                        &config,
+                    );
+                    let lifted_pos = body.0.get_position();
+                    position.0.set(lifted_pos.0, lifted_pos.1, lifted_pos.2);
+                }
+
                 Physics::iterate_body(&mut body.0, stats.delta, chunks.deref(), &registry, &config);
 
                 let body_pos = body.0.get_position();

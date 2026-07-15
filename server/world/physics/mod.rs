@@ -161,6 +161,75 @@ impl Physics {
         body.reset_torques(false);
     }
 
+    /// Lift a body's box clear of any solid volumes it overlaps, once, on
+    /// its first physics tick against ready terrain. Swept-AABB collision
+    /// only stops a body entering a face from outside, so a body that starts
+    /// overlapping a solid tunnels through it and rests buried one layer
+    /// down. Spawn-time placement already lifts against loaded terrain, but
+    /// revived entities are placed while their chunks are still generating —
+    /// and a save written under older, smaller body dimensions can bake in a
+    /// center that the current taller box overlaps the floor with. Running
+    /// the same lift on the first ready tick makes dimension changes
+    /// revive-safe.
+    pub fn validate_placement(
+        body: &mut RigidBody,
+        space: &dyn VoxelAccess,
+        registry: &Registry,
+        config: &WorldConfig,
+    ) {
+        body.is_placement_validated = true;
+
+        let mut test = body.aabb.clone();
+        // The same seam epsilon the sweep leaves between a resting body and
+        // the face it rests on.
+        let seam = 1e-4_f32;
+        let mut lifted = false;
+        // Each pass lifts past at least one solid volume, so the world
+        // height bounds the number of passes for any burial depth.
+        let max_passes = config.max_height as usize;
+
+        for _ in 0..max_passes {
+            let mut highest_solid_top: Option<f32> = None;
+
+            for vx in (test.min_x.floor() as i32)..=(test.max_x.floor() as i32) {
+                for vz in (test.min_z.floor() as i32)..=(test.max_z.floor() as i32) {
+                    for vy in (test.min_y.floor() as i32)..=(test.max_y.floor() as i32) {
+                        let id = space.get_voxel(vx, vy, vz);
+                        let block = registry.get_block_by_id(id);
+                        if block.is_fluid || block.is_empty || block.is_passable {
+                            continue;
+                        }
+
+                        let rotation = space.get_voxel_rotation(vx, vy, vz);
+                        for block_aabb in block.get_aabbs(&Vec3(vx, vy, vz), space, registry) {
+                            let mut solid = rotation.rotate_aabb(&block_aabb, true, true);
+                            solid.translate(vx as f32, vy as f32, vz as f32);
+                            if solid.intersects(&test)
+                                && highest_solid_top.map_or(true, |top| solid.max_y > top)
+                            {
+                                highest_solid_top = Some(solid.max_y);
+                            }
+                        }
+                    }
+                }
+            }
+
+            match highest_solid_top {
+                None => break,
+                Some(top) => {
+                    test.translate(0.0, top + seam - test.min_y, 0.0);
+                    lifted = true;
+                }
+            }
+        }
+
+        if lifted {
+            body.aabb = test;
+            body.velocity.set(0.0, 0.0, 0.0);
+            body.mark_active();
+        }
+    }
+
     pub fn iterate_body(
         body: &mut RigidBody,
         dt: f32,

@@ -60,6 +60,12 @@ pub struct RigidBody {
 
     /// Whether or not this rigid body auto-steps up blocks.
     pub auto_step: bool,
+
+    /// Whether this body's placement has been checked against loaded terrain
+    /// (see `Physics::validate_placement`). False on every fresh body:
+    /// revived entities are placed before their chunks generate, so overlap
+    /// with solids can only be resolved on the first ready physics tick.
+    pub is_placement_validated: bool,
 }
 
 impl RigidBody {
@@ -230,6 +236,7 @@ impl RigidBodyBuilder {
             is_swimming: false,
             is_swim_pose_active: false,
             auto_step: self.auto_step,
+            is_placement_validated: false,
         }
     }
 }
