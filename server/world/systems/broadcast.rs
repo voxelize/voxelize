@@ -47,7 +47,13 @@ fn can_batch(msg_type: i32) -> bool {
 
 fn is_immediate(message: &Message) -> bool {
     match MessageType::try_from(message.r#type) {
-        Ok(MessageType::Chat) | Ok(MessageType::Method) => true,
+        // Session control-plane (JOIN/LEAVE peer lifecycle) and interactive
+        // messages encode synchronously and go out the same tick — they must
+        // never lose a tick to the async encode round-trip.
+        Ok(MessageType::Chat)
+        | Ok(MessageType::Method)
+        | Ok(MessageType::Join)
+        | Ok(MessageType::Leave) => true,
         // Messages carrying an entity CREATE encode synchronously so a
         // freshly spawned entity reaches nearby clients on the tick it first
         // streams, instead of losing a tick to the async encode round-trip.
@@ -56,6 +62,26 @@ fn is_immediate(message: &Message) -> bool {
             .iter()
             .any(|e| EntityOperation::try_from(e.operation) == Ok(EntityOperation::Create)),
         _ => false,
+    }
+}
+
+/// World-data-plane messages ride the connection's BULK lane: they can be
+/// megabytes deep while a client streams chunks, and must never delay
+/// control-plane traffic (lifecycle, chat, live state). Load -> Update
+/// ordering is preserved within the lane, which is what keeps late voxel
+/// edits correct relative to the chunk snapshots they modify.
+fn is_bulk(msg_type: i32) -> bool {
+    matches!(
+        MessageType::try_from(msg_type),
+        Ok(MessageType::Load) | Ok(MessageType::Unload) | Ok(MessageType::Update)
+    )
+}
+
+fn send_lane_routed(client: &Client, msg_type: i32, data: Vec<u8>) {
+    if is_bulk(msg_type) {
+        let _ = client.sender.send_bulk(data);
+    } else {
+        let _ = client.sender.send(data);
     }
 }
 
@@ -256,7 +282,7 @@ impl<'a> System<'a> for BroadcastSystem {
                             }
                         }
                     }
-                    let _ = client.sender.send(encoded.data.clone());
+                    send_lane_routed(client, encoded.msg_type, encoded.data.clone());
                 }
                 let queue_depths = connection_queue_depths(&clients, &filter);
                 log_outbound_perf(&encoded, world_name, stats.tick, queue_depths);
@@ -292,7 +318,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     }
                 }
 
-                let _ = client.sender.send(encoded.data.clone());
+                send_lane_routed(client, encoded.msg_type, encoded.data.clone());
             });
 
             if !transports.is_empty() && should_send_to_transport(encoded.msg_type) {
@@ -322,7 +348,11 @@ impl<'a> System<'a> for BroadcastSystem {
         for (client_id, client) in clients.iter() {
             let rtc_sender = rtc_map.as_ref().and_then(|rtc_map| rtc_map.get(client_id));
 
-            if rtc_sender.is_none() && client.sender.len() > STATE_FLUSH_MAX_SOCKET_BACKLOG {
+            // Gate on the CONTROL lane only: bulk chunk streaming must never
+            // stall live state — that starvation is what made a newcomer
+            // invisible to an existing client while it loaded chunks.
+            if rtc_sender.is_none() && client.sender.control_len() > STATE_FLUSH_MAX_SOCKET_BACKLOG
+            {
                 if replicated_state.has_pending(client_id) {
                     gated_clients += 1;
                 }

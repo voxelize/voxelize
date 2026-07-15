@@ -142,8 +142,13 @@ async fn handle_ws_connection(
     mut stream: impl StreamExt<Item = Result<AggregatedMessage, actix_ws::ProtocolError>> + Unpin,
     server: Addr<Server>,
 ) {
-    let (raw_tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
-    let tx = WsSender::new(raw_tx);
+    // Two outbound lanes per connection (see `WsSender`): control traffic
+    // (session lifecycle, chat, entity/peer state) is written before bulk
+    // world data (chunks, voxel updates), so a client streaming megabytes of
+    // chunks still receives JOIN/LEAVE and live state promptly.
+    let (control_tx, mut control_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (bulk_tx, mut bulk_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let tx = WsSender::new(control_tx, bulk_tx);
 
     let (session_id, connection_token) = match server
         .send(Connect {
@@ -171,11 +176,18 @@ async fn handle_ws_connection(
     let mut last_seen = std::time::Instant::now();
 
     loop {
+        // `biased` gives the control lane strict priority over the bulk lane:
+        // whenever both have pending messages, session lifecycle / state
+        // snapshots are written first and can never be starved behind queued
+        // chunk data. Depths are decremented only after the socket write
+        // completes: the state-flush gate uses control-lane depth as a
+        // liveness signal, and a stalled write (peer stopped reading) must
+        // keep counting as backlog.
         tokio::select! {
-            Some(msg) = rx.recv() => {
-                tx.mark_received();
+            biased;
+            Some(msg) = control_rx.recv() => {
                 match tokio::time::timeout(WS_WRITE_TIMEOUT, session.binary(msg)).await {
-                    Ok(Ok(())) => {}
+                    Ok(Ok(())) => tx.mark_control_written(),
                     Ok(Err(_)) => break,
                     Err(_) => {
                         warn!("[WS] Write stalled for {}; dropping connection", session_id);
@@ -256,6 +268,16 @@ async fn handle_ws_connection(
                         break;
                     }
                     None => break,
+                }
+            }
+            Some(msg) = bulk_rx.recv() => {
+                match tokio::time::timeout(WS_WRITE_TIMEOUT, session.binary(msg)).await {
+                    Ok(Ok(())) => tx.mark_bulk_written(),
+                    Ok(Err(_)) => break,
+                    Err(_) => {
+                        warn!("[WS] Bulk write stalled for {}; dropping connection", session_id);
+                        break;
+                    }
                 }
             }
         }

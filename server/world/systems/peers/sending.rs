@@ -75,6 +75,13 @@ impl<'a> System<'a> for PeersSendingSystem {
             let client_pos = positions.get(client.entity).map(|p| [p.0 .0, p.0 .1, p.0 .2]);
 
             for (peer, peer_pos) in &changed {
+                // A client is authoritative over its own pose; echoing it back
+                // is wasted bandwidth and lets a buggy client create a
+                // self-peer.
+                if peer.id == *client_id {
+                    continue;
+                }
+
                 let relevant = match (config.peer_visible_radius, client_pos, peer_pos) {
                     (Some(_), Some(client_pos), Some(peer_pos)) => {
                         let dx = peer_pos[0] - client_pos[0];
