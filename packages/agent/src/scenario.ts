@@ -262,6 +262,7 @@ export type AgentControls = {
   ): Promise<void>;
   face(target: Vec3Tuple): Promise<void>;
   setFlying(isFlying: boolean): Promise<void>;
+  setRenderRadius(radius: number): Promise<void>;
   chat(text: string): Promise<void>;
   entitiesNear(radius: number): Promise<EntitySnapshot[]>;
   measureFrameRate(
@@ -309,6 +310,9 @@ function createAgentControls(
     },
     async setFlying(isFlying) {
       await post({ type: "set-flying", isFlying });
+    },
+    async setRenderRadius(radius) {
+      await post({ type: "set-render-radius", radius });
     },
     async chat(text) {
       await post({ type: "chat", text });
@@ -499,6 +503,10 @@ export async function runScenario(
   );
   await teardown();
   await agent.setFlying(true);
+  // Agent tabs join at a small render radius; the chunk circle also lags a
+  // teleport by a couple of chunks until the client re-centers. A radius of
+  // 6 keeps the teleport waiter's +-2 chunk box covered through that lag.
+  await agent.setRenderRadius(6);
   await agent.teleport(arena.observerWorld(), { isEnsuringChunks: true });
 
   const bodyPromise = (async () => {
