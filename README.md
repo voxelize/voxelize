@@ -73,10 +73,16 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 [**Town**](https://create.town) is a live, persistent multiplayer building world built on Voxelize — the engine's full stack (authoritative Rust server, Three.js client, WASM meshing, headless agents for smoke testing) running as a real production application.
 
 <p align="center">
-  <img src="assets/town-zoo-pig-meadow-4k.webp" alt="Custom pig entities in a persistent Town zoo exhibit" />
+  <img src="assets/town-hub2-massif-4k.webp" width="48%" alt="Town hub2 mountain terrain" />
+  <img src="assets/town-zoo-pig-meadow-4k.webp" width="48%" alt="Custom pig entities in a Town zoo exhibit" />
 </p>
 
-<p align="center"><i>Custom entity variants moving through a persistent, server-authored zoo exhibit.</i></p>
+<p align="center">
+  <img src="assets/voxelize-terrain-debug.webp" width="70%" alt="Voxelize terrain generation and debug tooling" />
+</p>
+
+<p align="center"><i>Production worlds, custom entities, and engine tooling — more gallery frames landing as they pass capture gates.</i></p>
+
 
 ## Quick Start
 
