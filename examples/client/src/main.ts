@@ -21,6 +21,10 @@ import {
 import { Map } from "./map";
 import { setupWorld } from "./world";
 
+VOXELIZE.configurePerfLogging(
+  new URLSearchParams(window.location.search).has("perf"),
+);
+
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 /* -------------------------------------------------------------------------- */

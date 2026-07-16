@@ -49,8 +49,10 @@ pub fn setup_methods(world: &mut World) {
 
     // The replication stress scenario: `count` deterministic wanderers
     // orbiting around the given position, moving smoothly every tick with
-    // zero physics cost. Non-persistent by design so stress runs are
-    // repeatable.
+    // zero physics cost. Each carries ~700 bytes of static text metadata to
+    // mirror the incident shape (Town fauna carry heavy game JSON that the
+    // whole-map staging used to resend on every position change).
+    // Non-persistent by design so stress runs are repeatable.
     world.set_method_handle("spawn-fauna", |world, _, payload| {
         let data: SpawnFaunaPayload = serde_json::from_str(&payload).unwrap();
         let count = data.count.clamp(1, 1000);
@@ -72,11 +74,17 @@ pub fn setup_methods(world: &mut World) {
                 bob_amplitude: 0.4,
                 phase: golden_angle,
             };
+            let dressing = format!(
+                "fauna-{:03} {}",
+                i,
+                "lorem-metadata-weight ".repeat(32)
+            );
             world
                 .create_entity(&nanoid!(), "fauna")
                 .with(PositionComp::new(center.0, center.1, center.2))
                 .with(DirectionComp::default())
                 .with(DoNotPersistComp)
+                .with(TextComp::new(&dressing))
                 .with(fauna)
                 .build();
         }
