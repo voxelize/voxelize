@@ -187,6 +187,39 @@ wait for a client upgrade; the bandwidth fix does.
   reliability is why latest-wins coalescing + gating matters. Transport
   swaps do not remove the need for a scheduler.
 
+## Lifecycle delivery: the survival-loop gate
+
+Reliable lifecycle (CREATE / DELETE / OUT_OF_RANGE) is the engine's causal
+feedback channel — break → drop CREATE → pickup DELETE is unplayable if it
+lags. Three properties guarantee it:
+
+1. **Never queued behind state.** Lifecycle rides the reliable event queue
+   (critical bucket) and is written to the control lane BEFORE the tick's
+   state flush; CREATE-carrying messages encode synchronously (no async
+   encode round-trip). It is never budgeted, never gated, never coalesced.
+2. **Preempts the state budget.** Lifecycle bytes written to a client's
+   control lane in a tick are subtracted from that tick's state budget, so a
+   lifecycle burst is never chased down the socket by a full budget of
+   motion (`BroadcastSystem`).
+3. **Bounded control lane.** The root cause of the historical ~90 s drop
+   CREATE delays was not lifecycle scheduling: on the pre-#111 pin, the
+   UNBOUNDED state flood (~120 KB per tick per client) saturated marginal
+   links, and the reliable CREATE sat in TCP behind seconds-to-minutes of
+   queued state on the same ordered lane. Bounding state volume (the dynamic
+   budget + gating) is what protects lifecycle latency on real networks;
+   preemption covers the last tick's worth.
+
+The acceptance gate is executable: `scripts/e2e-lifecycle-gate.mjs` runs two
+raw protocol-level clients (an actor and a passive observer — no rendering,
+no client-side masking) against a live server, spawns 150 heavy-metadata
+movers, and measures exact wall times for break → voxel echo, break → drop
+CREATE, place → echo and pickup → DELETE at both clients, with causality and
+ghost checks. Gate: ≤ 2 s each; measured p95s are tens of milliseconds.
+The `entity_batch_queue` (kind=lifecycle, per-op counts, trace id) and
+client `entity_lifecycle_apply` perf events form a cross-process lifecycle
+ledger — both stamp wall-clock `epochMs`, so server-queue → client-apply
+latency is directly measurable on a shared clock.
+
 ## Behavior under pathological clients
 
 - Socket backlog 1–8: budget clamps proportionally; overdue motion still
