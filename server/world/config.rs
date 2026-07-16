@@ -127,6 +127,25 @@ pub struct WorldConfig {
     /// not changed, letting clients treat prolonged silence as a lost entity.
     pub entity_keep_alive_interval: u64,
 
+    /// Wall-clock bound (milliseconds) on how stale a pending MOTION update
+    /// for a visible entity may get before it is flushed regardless of the
+    /// byte budget. This is the perceptual freshness guarantee: every moving
+    /// entity a client tracks refreshes within this window (nearer entities
+    /// within half of it — see `replication::motion_max_age_for`), no matter
+    /// how many entities changed and no matter how far the tick rate sags.
+    pub entity_motion_max_age_ms: u64,
+
+    /// Base per-tick entity-state payload budget per client, in approximate
+    /// payload bytes (id + type + metadata + motion payload, not the encoded
+    /// protobuf frame size). The live budget is derived from it dynamically:
+    /// it expands (up to 4x) while the client's socket is drained, clamps
+    /// proportionally as the socket backlog grows, and scales with the
+    /// wall-clock tick duration — see `replication::state_flush_budget`.
+    /// Overdue motion (past `entity_motion_max_age_ms`) always ships outside
+    /// this budget. Measure actual frame sizes with the
+    /// `entity_batch_send.byteSize` perf field.
+    pub entity_flush_base_bytes_per_tick: usize,
+
     /// Radius in blocks within which another player's (peer's) state
     /// replicates to a client. `None` (default) replicates every peer to every
     /// client, matching historical behavior. Unlike entities, peers have no
@@ -187,6 +206,8 @@ const DEFAULT_ALLOW_CLIENT_VOXEL_WRITES: bool = false;
 const DEFAULT_ENTITY_VISIBLE_RADIUS_CHUNKS: f32 = 24.0;
 const DEFAULT_ENTITY_RELEASE_RADIUS_RATIO: f32 = 1.125;
 const DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL: u64 = 60;
+const DEFAULT_ENTITY_MOTION_MAX_AGE_MS: u64 = 100;
+const DEFAULT_ENTITY_FLUSH_BASE_BYTES_PER_TICK: usize = 24 * 1024;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -227,6 +248,8 @@ pub struct WorldConfigBuilder {
     entity_visible_radius: f32,
     entity_release_radius: f32,
     entity_keep_alive_interval: u64,
+    entity_motion_max_age_ms: u64,
+    entity_flush_base_bytes_per_tick: usize,
     peer_visible_radius: Option<f32>,
 }
 
@@ -271,6 +294,8 @@ impl WorldConfigBuilder {
             entity_visible_radius: 0.0,
             entity_release_radius: 0.0,
             entity_keep_alive_interval: DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL,
+            entity_motion_max_age_ms: DEFAULT_ENTITY_MOTION_MAX_AGE_MS,
+            entity_flush_base_bytes_per_tick: DEFAULT_ENTITY_FLUSH_BASE_BYTES_PER_TICK,
             peer_visible_radius: None,
         }
     }
@@ -472,6 +497,23 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Wall-clock freshness bound (ms) for pending entity motion. Must be
+    /// positive.
+    pub fn entity_motion_max_age_ms(mut self, entity_motion_max_age_ms: u64) -> Self {
+        self.entity_motion_max_age_ms = entity_motion_max_age_ms;
+        self
+    }
+
+    /// Base per-tick entity-state payload budget per client (approximate
+    /// payload bytes, dynamically scaled at flush time). Must be positive.
+    pub fn entity_flush_base_bytes_per_tick(
+        mut self,
+        entity_flush_base_bytes_per_tick: usize,
+    ) -> Self {
+        self.entity_flush_base_bytes_per_tick = entity_flush_base_bytes_per_tick;
+        self
+    }
+
     /// Optional radius (in blocks) limiting which peers replicate to a client.
     /// `None` (default) replicates all peers to all clients.
     pub fn peer_visible_radius(mut self, peer_visible_radius: Option<f32>) -> Self {
@@ -513,6 +555,14 @@ impl WorldConfigBuilder {
             if peer_visible_radius <= 0.0 {
                 panic!("Peer visible radius must be positive (or None for unlimited).");
             }
+        }
+
+        if self.entity_motion_max_age_ms == 0 {
+            panic!("Entity motion max age must be positive.");
+        }
+
+        if self.entity_flush_base_bytes_per_tick == 0 {
+            panic!("Entity flush base bytes per tick must be positive.");
         }
 
         WorldConfig {
@@ -567,6 +617,8 @@ impl WorldConfigBuilder {
             entity_visible_radius,
             entity_release_radius,
             entity_keep_alive_interval: self.entity_keep_alive_interval,
+            entity_motion_max_age_ms: self.entity_motion_max_age_ms,
+            entity_flush_base_bytes_per_tick: self.entity_flush_base_bytes_per_tick,
             peer_visible_radius: self.peer_visible_radius,
         }
     }

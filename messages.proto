@@ -44,6 +44,13 @@ message Entity {
   string id = 2;
   string type = 3;
   string metadata = 4;
+
+  // Versioned compact motion payload (see server/world/replication/motion.rs
+  // for the layout). Sent instead of JSON motion metadata to clients that
+  // advertised the matching "motion.v<N>" capability in their JOIN request;
+  // absent for legacy clients and for lifecycle operations, whose metadata
+  // string carries the complete snapshot.
+  optional bytes motion = 5;
 }
 
 message Event {

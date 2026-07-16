@@ -23,7 +23,7 @@ use tokio::sync::mpsc;
 use crate::{
     errors::AddWorldError,
     perf,
-    world::{ClientPreferencesPatch, InboundStateBuffer, Registry, World, WorldConfig},
+    world::{ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry, World, WorldConfig},
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
     GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
     TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
@@ -118,6 +118,11 @@ pub struct OnJoinRequest {
     flat_preferences: ClientPreferencesPatch,
     #[serde(default)]
     preferences: Option<ClientPreferencesPatch>,
+    /// Optional protocol capabilities this client supports (e.g.
+    /// "motion.v1" for the compact entity motion path). Absent for pinned
+    /// legacy clients, which keeps them on the JSON wire shape.
+    #[serde(default)]
+    capabilities: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -648,6 +653,7 @@ impl Server {
         let preferences = json
             .flat_preferences
             .merge(json.preferences.unwrap_or_default());
+        let motion_protocol = MotionProtocol::negotiate(&json.capabilities);
 
         if !self.worlds.contains_key(&json.world) {
             return Some(format!(
@@ -674,6 +680,7 @@ impl Server {
                     username: json.username,
                     sender,
                     preferences,
+                    motion_protocol,
                 });
                 return None;
             }
@@ -700,6 +707,7 @@ impl Server {
                 username: json.username,
                 sender: sender.clone(),
                 preferences,
+                motion_protocol,
             });
             self.connections
                 .insert(id.to_owned(), (sender, json.world, token));

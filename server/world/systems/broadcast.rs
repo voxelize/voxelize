@@ -8,13 +8,18 @@ use crate::{
     encode_message, fragment_message,
     perf::{self, OutboundPerfKind},
     server::Message,
+    state_flush_budget,
     world::{
         profiler::Profiler, system_profiler::WorldTimingContext, Client, Clients, MessageQueues,
-        Stats,
+        Stats, WorldConfig,
     },
     EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, ReplicatedStateBuffer,
-    RtcSenders, Transports, STATE_FLUSH_MAX_SOCKET_BACKLOG,
+    RtcSenders, Transports,
 };
+
+/// How often (wall-clock ms) each client's motion-gap distribution is
+/// aggregated into an `entity_motion_gap` perf event.
+const MOTION_GAP_REPORT_INTERVAL_MS: u64 = 5000;
 
 pub struct BroadcastSystem;
 
@@ -203,6 +208,7 @@ impl<'a> System<'a> for BroadcastSystem {
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldTimingContext>,
         ReadExpect<'a, Stats>,
+        ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, ReplicatedStateBuffer>,
@@ -216,6 +222,7 @@ impl<'a> System<'a> for BroadcastSystem {
             clients,
             timing,
             stats,
+            config,
             mut queues,
             mut encoded_queue,
             mut replicated_state,
@@ -332,17 +339,25 @@ impl<'a> System<'a> for BroadcastSystem {
 
         // ---- Latest-wins state flush (drop-old-ok) ------------------------
         //
-        // Ships each client's coalesced state snapshot (entity updates + peer
-        // updates) staged this tick — or accumulated across gated ticks —
-        // AFTER the reliable sends above, so a same-tick entity CREATE always
-        // reaches the client before the first UPDATE for that entity.
+        // Ships each client's coalesced state snapshot (entity motion +
+        // metadata + peer updates) staged this tick — or accumulated across
+        // gated ticks — AFTER the reliable sends above, so a same-tick
+        // entity CREATE always reaches the client before the first UPDATE
+        // for that entity.
         //
-        // A client whose socket is backed up is skipped ("gated"): its slots
-        // stay in the buffer and keep being overwritten by newer values, so
-        // when the socket drains it receives one current snapshot instead of
-        // a replay of stale positions. This is what keeps the outbound path
-        // bounded — see `world::replication` before changing it.
+        // Each flush is scheduled earliest-deadline-first under a DYNAMIC
+        // byte budget derived from the socket's live backlog and the
+        // wall-clock tick duration: overdue slots (past their lane's max
+        // age) always ship, the rest fill the budget in deadline order. A
+        // client whose socket is genuinely backed up is skipped ("gated"):
+        // its slots stay in the buffer and keep being overwritten by newer
+        // values, so when the socket drains it receives one current snapshot
+        // instead of a replay of stale positions.
+        // This is what keeps the outbound path bounded AND fresh — see
+        // `world::replication` before changing it.
         let tick = stats.tick;
+        let now_ms = stats.elapsed().as_millis() as u64;
+        let tick_ms = (stats.delta as f64 * 1000.0).max(1.0);
         let mut gated_clients = 0;
 
         for (client_id, client) in clients.iter() {
@@ -350,16 +365,25 @@ impl<'a> System<'a> for BroadcastSystem {
 
             // Gate on the CONTROL lane only: bulk chunk streaming must never
             // stall live state — that starvation is what made a newcomer
-            // invisible to an existing client while it loaded chunks.
-            if rtc_sender.is_none() && client.sender.control_len() > STATE_FLUSH_MAX_SOCKET_BACKLOG
-            {
+            // invisible to an existing client while it loaded chunks. RTC
+            // channels are unreliable/unordered and expose no backlog, so
+            // they are never gated.
+            let backlog = if rtc_sender.is_none() {
+                client.sender.control_len()
+            } else {
+                0
+            };
+            let Some(budget_bytes) =
+                state_flush_budget(config.entity_flush_base_bytes_per_tick, tick_ms, backlog)
+            else {
                 if replicated_state.has_pending(client_id) {
                     gated_clients += 1;
                 }
                 continue;
-            }
+            };
 
-            let Some(flush) = replicated_state.drain_client(client_id) else {
+            let Some(flush) = replicated_state.drain_client(client_id, now_ms, budget_bytes)
+            else {
                 continue;
             };
 
@@ -385,9 +409,35 @@ impl<'a> System<'a> for BroadcastSystem {
                             "coalescedTraceIds": flush.trace_ids,
                             "tick": tick,
                             "itemCount": flush.entities.len(),
+                            "motionCount": flush.motion_count,
+                            "forcedCount": flush.forced_count,
+                            "budgetBytes": budget_bytes,
                             "byteSize": data.len(),
+                            "pendingAfterFlush": replicated_state.pending_entities(client_id),
                             "outboundQueueDepth": client.sender.len(),
                             "connectionOutboundQueueDepths": depths,
+                        }),
+                    );
+                }
+            }
+
+            if perf::is_enabled() {
+                if let Some(report) = replicated_state.take_motion_gap_report(
+                    client_id,
+                    now_ms,
+                    MOTION_GAP_REPORT_INTERVAL_MS,
+                ) {
+                    perf::log(
+                        "entity_motion_gap",
+                        world_name,
+                        json!({
+                            "tick": tick,
+                            "clientId": client_id,
+                            "count": report.count,
+                            "p50Ms": report.p50_ms,
+                            "p95Ms": report.p95_ms,
+                            "p99Ms": report.p99_ms,
+                            "maxMs": report.max_ms,
                         }),
                     );
                 }
