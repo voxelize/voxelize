@@ -668,7 +668,9 @@ const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
 
 const currentWorldName =
-  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
+  new URLSearchParams(window.location.search).get("world") ??
+  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ??
+  "terrain";
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
   BACKEND_SERVER_INSTANCE.port = "4000";
