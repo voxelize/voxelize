@@ -789,7 +789,7 @@ class Drop extends VOXELIZE.Entity<{
 
     this.add(
       new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.3),
+        new THREE.OctahedronGeometry(0.4),
         new THREE.MeshBasicMaterial({ color: 0xffcc33 }),
       ),
     );

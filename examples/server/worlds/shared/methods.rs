@@ -106,11 +106,13 @@ pub fn setup_methods(world: &mut World) {
 
         world.chunks_mut().update_voxel(&data.voxel, 0);
 
+        // Hover the drop above the broken voxel so it is visible from any
+        // camera angle instead of being occluded by the hole's walls.
         world
             .create_entity(&nanoid!(), "drop")
             .with(PositionComp::new(
                 vx as f32 + 0.5,
-                vy as f32 + 0.5,
+                vy as f32 + 1.4,
                 vz as f32 + 0.5,
             ))
             .with(DoNotPersistComp)
