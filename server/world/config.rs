@@ -129,16 +129,21 @@ pub struct WorldConfig {
 
     /// Maximum entity UPDATEs flushed to one client per tick. Pending updates
     /// beyond the budget stay staged (coalescing to their newest value) and
-    /// flush on subsequent ticks, oldest-staged first and nearest first within
-    /// the same age. Keep `budget x client staleness window` comfortably above
-    /// the interest set size so a slow rotation can never starve an entity
-    /// past the client's staleness timeout.
+    /// flush on subsequent ticks, oldest-staged first and nearest first
+    /// within the same age — so the rotation is starvation-free, but the
+    /// revisit latency depends on both this cap and the payload-byte cap
+    /// relative to actual payload sizes. Size the two budgets so a full
+    /// rotation of the expected interest set completes comfortably inside
+    /// the client's staleness timeout.
     pub max_entity_updates_per_tick: usize,
 
-    /// Maximum metadata bytes of entity UPDATEs flushed to one client per
-    /// tick. Bounds outbound bandwidth per client when many tracked entities
+    /// Approximate per-tick entity-state payload budget per client: the
+    /// summed id + type + metadata string bytes of UPDATEs in one flush, not
+    /// the encoded protobuf frame size (protobuf/frame overhead can exceed
+    /// it). Bounds outbound bandwidth per client when many tracked entities
     /// change at once; at least one update is always flushed so the rotation
-    /// makes progress even when a single update exceeds the budget.
+    /// makes progress even when a single update exceeds the budget. Measure
+    /// actual frame sizes with the `entity_batch_send.byteSize` perf field.
     pub max_entity_update_bytes_per_tick: usize,
 
     /// Radius in blocks within which another player's (peer's) state
@@ -498,8 +503,9 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Maximum metadata bytes of entity UPDATEs flushed to one client per
-    /// tick. Must be positive.
+    /// Approximate entity-state payload budget (id + type + metadata string
+    /// bytes, not encoded frame bytes) flushed to one client per tick. Must
+    /// be positive.
     pub fn max_entity_update_bytes_per_tick(
         mut self,
         max_entity_update_bytes_per_tick: usize,

@@ -343,9 +343,10 @@ impl<'a> System<'a> for BroadcastSystem {
         // stay in the buffer and keep being overwritten by newer values, so
         // when the socket drains it receives one current snapshot instead of
         // a replay of stale positions. Each flush is additionally budgeted
-        // (items and bytes per tick, oldest-staged first, nearest first
-        // within the same age), so a scene where every tracked entity changes
-        // each tick can never put an unbounded frame on one client's socket.
+        // (items and approximate payload bytes per tick, oldest-staged first,
+        // nearest first within the same age), so a scene where every tracked
+        // entity changes each tick can never put an unbounded frame on one
+        // client's socket.
         // This is what keeps the outbound path bounded — see
         // `world::replication` before changing it.
         let tick = stats.tick;

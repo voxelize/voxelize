@@ -38,7 +38,8 @@
 //!   when more entity slots are pending than the budget allows, the oldest
 //!   staged slots flush first (nearest first within the same age) and the
 //!   rest stay pending — still coalescing — for subsequent ticks. This bounds
-//!   the bytes a single tick can put on one client's socket, no matter how
+//!   the entity-state *payload* a single tick can put on one client's socket
+//!   (approximately — see [`EntityFlushBudget::max_bytes`]), no matter how
 //!   many tracked entities changed at once;
 //! - when a client's socket is backed up, flushing is **skipped** for that
 //!   client while its slots keep coalescing, so the moment the socket drains
@@ -95,7 +96,12 @@ const MAX_PENDING_TRACE_IDS: usize = 8;
 pub struct EntityFlushBudget {
     /// Maximum entity UPDATEs in one flush.
     pub max_updates: usize,
-    /// Maximum summed wire cost (id + type + metadata bytes) in one flush.
+    /// Approximate payload budget: the maximum summed [`EntitySlot::wire_cost`]
+    /// (id + type + metadata string bytes) in one flush. This is NOT the
+    /// encoded protobuf frame size — protobuf field/frame overhead can push
+    /// the frame above it, and a single update whose payload alone exceeds it
+    /// still ships (forced progress). Measure actual frame sizes with the
+    /// `entity_batch_send.byteSize` perf field, not this budget.
     pub max_bytes: usize,
 }
 
@@ -284,9 +290,14 @@ impl ReplicatedStateBuffer {
     /// updates/bytes. Entity slots beyond the budget stay pending (and keep
     /// coalescing); selection is deterministic — oldest staged tick first,
     /// nearest first within the same tick, entity id as the final tiebreak —
-    /// so every pending slot flushes within `pending / max_updates` ticks and
-    /// no entity can be starved. Peer snapshots are few and latency-critical,
-    /// so they always flush in full. Returns `None` when nothing is pending.
+    /// so no entity can be starved: the oldest pending slot is always flushed
+    /// next. How many ticks a pending slot waits depends on BOTH limits (the
+    /// item cap and the payload-byte cap relative to actual payload sizes),
+    /// so there is no universal `pending / max_updates` latency bound — size
+    /// the budget against the expected interest set and payloads (the 150 x
+    /// ~800 B scene test observes a <= 6 tick revisit gap under the
+    /// defaults). Peer snapshots are few and latency-critical, so they
+    /// always flush in full. Returns `None` when nothing is pending.
     pub fn drain_client(
         &mut self,
         client_id: &str,
@@ -678,7 +689,9 @@ mod tests {
         // metadata (~800 bytes each) changes every tick used to flush as one
         // ~120 KB frame per tick. Under the default-sized budget every flush
         // stays bounded, the pending set never exceeds the interest set, and
-        // every entity still replicates within a few ticks.
+        // — for THIS scene's payload sizes under the default budget — every
+        // entity is revisited within a few ticks (observed <= 6 below; the
+        // revisit latency is scene-dependent, not a universal bound).
         const ENTITIES: usize = 150;
         const TICKS: u64 = 120;
         let budget = EntityFlushBudget {
@@ -719,8 +732,10 @@ mod tests {
             }
         }
 
-        // Every entity was flushed, and the aged rotation revisits each one
-        // within ceil(150 / 30-per-flush) = 5 ticks (plus one tick of slack).
+        // Every entity was flushed. For this scene the byte cap is the
+        // binding limit (~30 updates of ~810 B payload per flush), so the
+        // aged rotation revisits each entity within ceil(150 / 30) = 5 ticks
+        // (plus one tick of slack).
         assert_eq!(last_flushed.len(), ENTITIES);
         assert!(max_gap <= 6, "rotation gap too large: {}", max_gap);
 
