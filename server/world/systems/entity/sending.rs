@@ -19,15 +19,6 @@ pub struct EntitiesSendingSystem {
     new_entity_ids_buffer: HashSet<String>,
 }
 
-/// Per-client output of one tick: lifecycle transitions (reliable events) and
-/// state UPDATEs paired with the squared client-to-entity distance the
-/// budgeted state flush orders by.
-#[derive(Default)]
-struct ClientUpdates {
-    lifecycle: Vec<EntityProtocol>,
-    state: Vec<(EntityProtocol, f32)>,
-}
-
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
@@ -176,7 +167,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             );
         }
 
-        let mut client_updates: HashMap<String, ClientUpdates> = HashMap::new();
+        let mut client_updates: HashMap<String, Vec<EntityProtocol>> = HashMap::new();
 
         for (id, etype, metadata) in &deleted_entities {
             for client_id in clients.keys() {
@@ -184,7 +175,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     client_updates
                         .entry(client_id.clone())
                         .or_default()
-                        .lifecycle
                         .push(EntityProtocol {
                             operation: EntityOperation::Delete,
                             id: id.clone(),
@@ -214,7 +204,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                             .get(entity_id)
                             .map(|(etype, ..)| etype.clone())
                             .unwrap_or_default();
-                        updates.lifecycle.push(EntityProtocol {
+                        updates.push(EntityProtocol {
                             operation: EntityOperation::OutOfRange,
                             id: entity_id.clone(),
                             r#type: old_etype,
@@ -225,18 +215,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
                     // Block entities are chunk-bound: every client keeps them
                     // for as long as they exist, with change-driven updates.
-                    // Distance zero gives their rare updates flush priority.
                     if etype.starts_with(BLOCK_ENTITY_PREFIX) {
                         if changed_metadata_ids.contains(entity_id) {
-                            updates.state.push((
-                                EntityProtocol {
-                                    operation: EntityOperation::Update,
-                                    id: entity_id.clone(),
-                                    r#type: etype.clone(),
-                                    metadata: Some(json_str.clone()),
-                                },
-                                0.0,
-                            ));
+                            updates.push(EntityProtocol {
+                                operation: EntityOperation::Update,
+                                id: entity_id.clone(),
+                                r#type: etype.clone(),
+                                metadata: Some(json_str.clone()),
+                            });
                             *last_sent_tick = tick;
                         }
                         return true;
@@ -254,7 +240,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
                     match classify_interest(true, distance_sq, visible_radius, release_radius) {
                         InterestTransition::Leave => {
-                            updates.lifecycle.push(EntityProtocol {
+                            updates.push(EntityProtocol {
                                 operation: EntityOperation::OutOfRange,
                                 id: entity_id.clone(),
                                 r#type: etype.clone(),
@@ -264,26 +250,20 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         }
                         _ => {
                             if changed_metadata_ids.contains(entity_id) {
-                                updates.state.push((
-                                    EntityProtocol {
-                                        operation: EntityOperation::Update,
-                                        id: entity_id.clone(),
-                                        r#type: etype.clone(),
-                                        metadata: Some(json_str.clone()),
-                                    },
-                                    distance_sq,
-                                ));
+                                updates.push(EntityProtocol {
+                                    operation: EntityOperation::Update,
+                                    id: entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: Some(json_str.clone()),
+                                });
                                 *last_sent_tick = tick;
                             } else if tick.saturating_sub(*last_sent_tick) >= keep_alive_interval {
-                                updates.state.push((
-                                    EntityProtocol {
-                                        operation: EntityOperation::Update,
-                                        id: entity_id.clone(),
-                                        r#type: etype.clone(),
-                                        metadata: None,
-                                    },
-                                    distance_sq,
-                                ));
+                                updates.push(EntityProtocol {
+                                    operation: EntityOperation::Update,
+                                    id: entity_id.clone(),
+                                    r#type: etype.clone(),
+                                    metadata: None,
+                                });
                                 *last_sent_tick = tick;
                             }
                             true
@@ -312,7 +292,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 client_updates
                     .entry(client_id.clone())
                     .or_default()
-                    .lifecycle
                     .push(EntityProtocol {
                         operation: EntityOperation::Create,
                         id: id.0.clone(),
@@ -343,7 +322,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 client_updates
                     .entry(client_id.clone())
                     .or_default()
-                    .lifecycle
                     .push(EntityProtocol {
                         operation: EntityOperation::Create,
                         id: entity_id.clone(),
@@ -363,10 +341,15 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         // never miss — they go through the FIFO message queue. UPDATEs are
         // latest-wins STATE — they go into the per-client, per-entity slot
         // buffer, where a newer value overwrites an undelivered older one so
-        // a backed-up client can never receive a replay of stale positions,
-        // and the broadcast system flushes them under a per-tick budget.
+        // a backed-up client can never receive a replay of stale positions.
         for (client_id, updates) in client_updates {
-            let ClientUpdates { lifecycle, state } = updates;
+            if updates.is_empty() {
+                continue;
+            }
+
+            let (lifecycle, state_updates): (Vec<_>, Vec<_>) = updates
+                .into_iter()
+                .partition(|update| update.operation != EntityOperation::Update);
 
             if !lifecycle.is_empty() {
                 for update in &lifecycle {
@@ -380,297 +363,43 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     .entities(&lifecycle)
                     .tick(tick);
                 if perf::is_enabled() {
-                    let trace_id = log_entity_batch_queue(
-                        &timing.world_name,
-                        tick,
-                        &client_id,
-                        lifecycle.iter(),
-                    );
+                    let trace_id =
+                        log_entity_batch_queue(&timing.world_name, tick, &client_id, &lifecycle);
                     message = message
                         .json(&serde_json::json!({ "townPerfTraceId": trace_id }).to_string());
                 }
                 queue.push((message.build(), ClientFilter::Direct(client_id.clone())));
             }
 
-            if !state.is_empty() {
+            if !state_updates.is_empty() {
                 if perf::is_enabled() {
                     let trace_id = log_entity_batch_queue(
                         &timing.world_name,
                         tick,
                         &client_id,
-                        state.iter().map(|(update, _)| update),
+                        &state_updates,
                     );
                     replicated_state.note_trace_id(&client_id, trace_id);
                 }
-                for (update, distance_sq) in state {
-                    replicated_state.stage_entity_update(&client_id, update, distance_sq, tick);
+                for update in state_updates {
+                    replicated_state.stage_entity_update(&client_id, update);
                 }
             }
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{Client, WorldConfig, WsSender};
-    use serde_json::json;
-    use specs::{Builder, RunNow, World, WorldExt};
-
-    const CLIENT_ID: &str = "client";
-
-    fn make_world(entity_count: usize) -> World {
-        let mut world = World::new();
-
-        world.register::<EntityFlag>();
-        world.register::<IDComp>();
-        world.register::<ETypeComp>();
-        world.register::<InteractorComp>();
-        world.register::<DoNotPersistComp>();
-        world.register::<PositionComp>();
-        world.register::<VoxelComp>();
-        world.register::<MetadataComp>();
-
-        let config = WorldConfig::new().build();
-        world.insert(BackgroundEntitiesSaver::new(&config));
-        world.insert(WorldTimingContext::new("test"));
-        world.insert(Stats::new(false, "", 0.0));
-        world.insert(MessageQueues::new());
-        world.insert(ReplicatedStateBuffer::new());
-        world.insert(Bookkeeping::new());
-        world.insert(Physics::new());
-        world.insert(EntityIDs::new());
-        world.insert(config);
-
-        let client_entity = world
-            .create_entity()
-            .with(PositionComp::new(0.0, 0.0, 0.0))
-            .build();
-
-        let (control, _control_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (bulk, _bulk_rx) = tokio::sync::mpsc::unbounded_channel();
-        let mut clients = Clients::new();
-        clients.insert(
-            CLIENT_ID.to_owned(),
-            Client {
-                id: CLIENT_ID.to_owned(),
-                username: CLIENT_ID.to_owned(),
-                entity: client_entity,
-                sender: WsSender::new(control, bulk),
-            },
-        );
-        world.insert(clients);
-
-        let mut kdtree = KdTree::new();
-        for i in 0..entity_count {
-            let position = Vec3(i as f32 + 1.0, 0.0, 0.0);
-            let mut metadata = MetadataComp::new();
-            metadata.set_value("position", json!([position.0, position.1, position.2]));
-
-            let entity = world
-                .create_entity()
-                .with(EntityFlag)
-                .with(IDComp::new(&format!("bot-{}", i)))
-                .with(ETypeComp::new("bot", false))
-                .with(PositionComp::new(position.0, position.1, position.2))
-                .with(metadata)
-                .build();
-            kdtree.add_entity(entity, position);
-        }
-        world.insert(kdtree);
-        world.maintain();
-
-        world
-    }
-
-    fn run_tick(world: &mut World, tick: u64) {
-        world.write_resource::<Stats>().tick = tick;
-        EntitiesSendingSystem::default().run_now(world);
-    }
-
-    fn drain_queued_entity_ops(world: &World) -> Vec<EntityProtocol> {
-        let mut queues = world.write_resource::<MessageQueues>();
-        queues
-            .drain_prioritized()
-            .into_iter()
-            .flat_map(|(message, _)| message.entities)
-            .map(|entity| EntityProtocol {
-                operation: EntityOperation::try_from(entity.operation).unwrap(),
-                id: entity.id,
-                r#type: entity.r#type,
-                metadata: if entity.metadata.is_empty() {
-                    None
-                } else {
-                    Some(entity.metadata)
-                },
-            })
-            .collect()
-    }
-
-    #[test]
-    fn unchanged_entities_do_not_resend_every_tick() {
-        let mut world = make_world(150);
-
-        // Tick 1: all 150 entities enter the client's interest set as
-        // reliable CREATEs carrying their full snapshot — the client's
-        // complete initial state.
-        run_tick(&mut world, 1);
-        let created = drain_queued_entity_ops(&world);
-        assert_eq!(created.len(), 150);
-        assert!(created
-            .iter()
-            .all(|op| op.operation == EntityOperation::Create && op.metadata.is_some()));
-        assert_eq!(
-            world
-                .read_resource::<ReplicatedStateBuffer>()
-                .total_pending(),
-            0
-        );
-
-        // Ticks 2-10: no metadata changed, so nothing is queued and nothing
-        // is staged — unchanged entities are silent until their keep-alive.
-        for tick in 2..=10 {
-            run_tick(&mut world, tick);
-            assert!(drain_queued_entity_ops(&world).is_empty());
-            assert_eq!(
-                world
-                    .read_resource::<ReplicatedStateBuffer>()
-                    .total_pending(),
-                0,
-                "unchanged entities were re-staged on tick {}",
-                tick
-            );
-        }
-    }
-
-    #[test]
-    fn only_the_changed_entity_is_staged() {
-        let mut world = make_world(150);
-        run_tick(&mut world, 1);
-        drain_queued_entity_ops(&world);
-
-        {
-            let ids = world.read_storage::<IDComp>();
-            let mut metadatas = world.write_storage::<MetadataComp>();
-            use specs::Join;
-            for (id, metadata) in (&ids, &mut metadatas).join() {
-                if id.0 == "bot-7" {
-                    metadata.set_value("position", json!([99.0, 0.0, 0.0]));
-                }
-            }
-        }
-
-        run_tick(&mut world, 2);
-        assert!(drain_queued_entity_ops(&world).is_empty());
-
-        let mut buffer = world.write_resource::<ReplicatedStateBuffer>();
-        let flush = buffer
-            .drain_client(CLIENT_ID, crate::EntityFlushBudget::UNLIMITED)
-            .unwrap();
-        assert_eq!(flush.entities.len(), 1);
-        assert_eq!(flush.entities[0].id, "bot-7");
-        assert_eq!(flush.entities[0].operation, EntityOperation::Update);
-    }
-
-    #[test]
-    fn a_changing_150_entity_scene_flushes_bounded_bytes_per_tick() {
-        // Reproduces the observed incident shape: ~150 tracked entities whose
-        // metadata (~800 bytes each) changes every tick. Draining without a
-        // budget shows the old per-tick frame (~120 KB); draining with the
-        // default budget bounds every flush.
-        let mut world = make_world(150);
-
-        fn mutate_all(world: &mut World, tick: u64) {
-            use specs::Join;
-            let mut metadatas = world.write_storage::<MetadataComp>();
-            let flags = world.read_storage::<EntityFlag>();
-            for (metadata, _) in (&mut metadatas, &flags).join() {
-                metadata.set_value("position", json!([tick as f32, 0.0, 0.0]));
-                metadata.set_value("blob", json!("p".repeat(760)));
-            }
-        }
-
-        fn wire_bytes(updates: &[EntityProtocol]) -> usize {
-            updates
-                .iter()
-                .map(|u| u.id.len() + u.r#type.len() + u.metadata.as_ref().map_or(0, String::len))
-                .sum()
-        }
-
-        run_tick(&mut world, 1);
-        assert_eq!(drain_queued_entity_ops(&world).len(), 150);
-
-        // Before: one unbudgeted drain carries the whole changed scene.
-        mutate_all(&mut world, 2);
-        run_tick(&mut world, 2);
-        let before = {
-            let mut buffer = world.write_resource::<ReplicatedStateBuffer>();
-            let flush = buffer
-                .drain_client(CLIENT_ID, crate::EntityFlushBudget::UNLIMITED)
-                .unwrap();
-            wire_bytes(&flush.entities)
-        };
-        assert!(
-            before > 100_000,
-            "expected the unbudgeted scene to exceed 100 KB, got {} bytes",
-            before
-        );
-
-        // After: the default budget bounds every tick's flush.
-        let budget = {
-            let config = world.read_resource::<WorldConfig>();
-            crate::EntityFlushBudget {
-                max_updates: config.max_entity_updates_per_tick,
-                max_bytes: config.max_entity_update_bytes_per_tick,
-            }
-        };
-        for tick in 3..=12 {
-            mutate_all(&mut world, tick);
-            run_tick(&mut world, tick);
-            let mut buffer = world.write_resource::<ReplicatedStateBuffer>();
-            let flush = buffer.drain_client(CLIENT_ID, budget).unwrap();
-            assert!(flush.entities.len() <= budget.max_updates);
-            assert!(
-                wire_bytes(&flush.entities) <= budget.max_bytes,
-                "budgeted flush exceeded the byte budget on tick {}",
-                tick
-            );
-        }
-    }
-
-    #[test]
-    fn unchanged_entities_keep_alive_without_metadata() {
-        let mut world = make_world(3);
-        let keep_alive_interval = world
-            .read_resource::<WorldConfig>()
-            .entity_keep_alive_interval;
-
-        run_tick(&mut world, 1);
-        drain_queued_entity_ops(&world);
-
-        run_tick(&mut world, 1 + keep_alive_interval);
-        let mut buffer = world.write_resource::<ReplicatedStateBuffer>();
-        let flush = buffer
-            .drain_client(CLIENT_ID, crate::EntityFlushBudget::UNLIMITED)
-            .unwrap();
-        assert_eq!(flush.entities.len(), 3);
-        assert!(flush.entities.iter().all(|op| op.metadata.is_none()));
-    }
-}
-
-fn log_entity_batch_queue<'a>(
+fn log_entity_batch_queue(
     world_name: &str,
     tick: u64,
     client_id: &str,
-    updates: impl Iterator<Item = &'a EntityProtocol>,
+    updates: &[EntityProtocol],
 ) -> String {
     let trace_id = perf::next_trace_id("entity");
-    let mut item_count = 0;
-    let mut metadata_bytes = 0;
-    for update in updates {
-        item_count += 1;
-        metadata_bytes += update.metadata.as_ref().map_or(0, String::len);
-    }
+    let metadata_bytes = updates
+        .iter()
+        .map(|update| update.metadata.as_ref().map_or(0, String::len))
+        .sum::<usize>();
     perf::log(
         "entity_batch_queue",
         world_name,
@@ -678,7 +407,7 @@ fn log_entity_batch_queue<'a>(
             "traceId": trace_id,
             "tick": tick,
             "clientId": client_id,
-            "itemCount": item_count,
+            "itemCount": updates.len(),
             "metadataBytes": metadata_bytes,
         }),
     );
