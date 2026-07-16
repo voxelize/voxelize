@@ -56,7 +56,10 @@ if (!serverPath) {
   process.exit(1);
 }
 
-const events = parseJsonLines(readFileSync(serverPath, "utf8"));
+const serverText = readFileSync(serverPath, "utf8");
+const events = serverText.includes("[PERF] ")
+  ? parseJsonLines(serverText, "[PERF] ")
+  : parseJsonLines(serverText);
 
 const batchSends = events.filter((e) => e.event === "entity_batch_send");
 const motionGaps = events.filter((e) => e.event === "entity_motion_gap");

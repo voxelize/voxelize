@@ -501,16 +501,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     .entities(&lifecycle)
                     .tick(tick);
                 if perf::is_enabled() {
-                    let trace_id = log_entity_batch_queue(
-                        &timing.world_name,
-                        tick,
-                        &client_id,
-                        lifecycle.len(),
-                        lifecycle
-                            .iter()
-                            .map(|update| update.metadata.as_ref().map_or(0, String::len))
-                            .sum(),
-                    );
+                    let trace_id =
+                        log_lifecycle_batch_queue(&timing.world_name, tick, &client_id, &lifecycle);
                     message = message
                         .json(&serde_json::json!({ "townPerfTraceId": trace_id }).to_string());
                 }
@@ -518,7 +510,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
 
             if staged_count > 0 && perf::is_enabled() {
-                let trace_id = log_entity_batch_queue(
+                let trace_id = log_state_batch_queue(
                     &timing.world_name,
                     tick,
                     &client_id,
@@ -531,7 +523,46 @@ impl<'a> System<'a> for EntitiesSendingSystem {
     }
 }
 
-fn log_entity_batch_queue(
+/// The server half of the lifecycle ledger: one event per reliable entity
+/// lifecycle batch queued for a client, with per-operation counts and the
+/// first affected entity id, correlatable with the client's
+/// `entity_lifecycle_apply` events through the trace id.
+fn log_lifecycle_batch_queue(
+    world_name: &str,
+    tick: u64,
+    client_id: &str,
+    lifecycle: &[EntityProtocol],
+) -> String {
+    let trace_id = perf::next_trace_id("entity");
+    let count_of = |operation: EntityOperation| {
+        lifecycle
+            .iter()
+            .filter(|update| update.operation == operation)
+            .count()
+    };
+    perf::log(
+        "entity_batch_queue",
+        world_name,
+        serde_json::json!({
+            "traceId": trace_id,
+            "kind": "lifecycle",
+            "tick": tick,
+            "clientId": client_id,
+            "itemCount": lifecycle.len(),
+            "createCount": count_of(EntityOperation::Create),
+            "deleteCount": count_of(EntityOperation::Delete),
+            "outOfRangeCount": count_of(EntityOperation::OutOfRange),
+            "firstEntityId": lifecycle.first().map(|update| update.id.as_str()),
+            "metadataBytes": lifecycle
+                .iter()
+                .map(|update| update.metadata.as_ref().map_or(0, String::len))
+                .sum::<usize>(),
+        }),
+    );
+    trace_id
+}
+
+fn log_state_batch_queue(
     world_name: &str,
     tick: u64,
     client_id: &str,
@@ -544,6 +575,7 @@ fn log_entity_batch_queue(
         world_name,
         serde_json::json!({
             "traceId": trace_id,
+            "kind": "state",
             "tick": tick,
             "clientId": client_id,
             "itemCount": item_count,
@@ -891,6 +923,101 @@ mod tests {
                 tick
             );
         }
+    }
+
+    #[test]
+    fn a_new_entity_creates_reliably_while_the_state_lane_is_saturated() {
+        // The survival-loop regression shape: a drop spawns mid-fight while
+        // 150 movers churn the state lane every tick. Its CREATE must queue
+        // as a reliable event on the tick it first streams — never staged
+        // behind (or budgeted with) the saturated latest-wins lane.
+        let mut world = make_world(150);
+        run_tick(&mut world, 1);
+        assert_eq!(drain_queued_entity_ops(&world).len(), 150);
+
+        for i in 0..150 {
+            move_entity(&mut world, &format!("bot-{}", i), [i as f32, 5.0, 5.0]);
+        }
+
+        let drop_position = Vec3(1.0, 0.0, 1.0);
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("position", json!([1.0, 0.0, 1.0]));
+        let drop_entity = world
+            .create_entity()
+            .with(EntityFlag)
+            .with(IDComp::new("drop-1"))
+            .with(ETypeComp::new("drop", false))
+            .with(PositionComp::new(1.0, 0.0, 1.0))
+            .with(metadata)
+            .build();
+        world
+            .write_resource::<KdTree>()
+            .add_entity(drop_entity, drop_position);
+        world.maintain();
+
+        run_tick(&mut world, 2);
+
+        let reliable = drain_queued_entity_ops(&world);
+        assert_eq!(reliable.len(), 1, "only the CREATE rides the event queue");
+        assert_eq!(reliable[0].operation, EntityOperation::Create);
+        assert_eq!(reliable[0].id, "drop-1");
+        assert!(
+            reliable[0].metadata.is_some(),
+            "CREATE carries the snapshot"
+        );
+
+        // The 150 movers went to the state lane, not the reliable queue.
+        assert_eq!(
+            world
+                .read_resource::<ReplicatedStateBuffer>()
+                .pending_entities(CLIENT_ID),
+            150
+        );
+    }
+
+    #[test]
+    fn a_despawn_deletes_reliably_and_clears_pending_state() {
+        let mut world = make_world(3);
+        run_tick(&mut world, 1);
+        drain_queued_entity_ops(&world);
+
+        // Stage undelivered motion for the entity, then despawn it before
+        // the state ever flushes.
+        move_entity(&mut world, "bot-1", [40.0, 0.0, 0.0]);
+        run_tick(&mut world, 2);
+        assert_eq!(
+            world
+                .read_resource::<ReplicatedStateBuffer>()
+                .pending_entities(CLIENT_ID),
+            1
+        );
+
+        {
+            let target = {
+                let entities = world.entities();
+                let ids = world.read_storage::<IDComp>();
+                (&entities, &ids)
+                    .join()
+                    .find(|(_, id)| id.0 == "bot-1")
+                    .map(|(entity, _)| entity)
+                    .unwrap()
+            };
+            world.delete_entity(target).unwrap();
+        }
+        world.maintain();
+
+        run_tick(&mut world, 3);
+
+        let reliable = drain_queued_entity_ops(&world);
+        assert_eq!(reliable.len(), 1);
+        assert_eq!(reliable[0].operation, EntityOperation::Delete);
+        assert_eq!(reliable[0].id, "bot-1");
+
+        // The undelivered motion staged before the despawn can never flush
+        // after it — no resurrection.
+        assert!(drain_state(&world)
+            .iter()
+            .all(|update| update.id != "bot-1"));
     }
 
     #[test]

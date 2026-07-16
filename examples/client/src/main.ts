@@ -402,6 +402,37 @@ inputs.bind(
   "in-game",
 );
 
+inputs.bind(
+  "KeyB",
+  () => {
+    if (!voxelInteract.target) return;
+    method.call("break-with-drop", { voxel: voxelInteract.target });
+  },
+  "in-game",
+);
+
+inputs.bind(
+  "KeyL",
+  () => {
+    let nearestId: string | null = null;
+    let nearestDistanceSq = Infinity;
+    entities.map.forEach((entity) => {
+      if (entity.entType !== "drop") return;
+      const distanceSq = entity.position.distanceToSquared(
+        controls.object.position,
+      );
+      if (distanceSq < nearestDistanceSq) {
+        nearestDistanceSq = distanceSq;
+        nearestId = entity.entId;
+      }
+    });
+    if (nearestId) {
+      method.call("pickup-drop", { id: nearestId });
+    }
+  },
+  "in-game",
+);
+
 inputs.bind("KeyN", () => {
   events.emit("test", {
     test: "Hello World",
@@ -750,6 +781,33 @@ class Fauna extends VOXELIZE.Entity<{
   };
 }
 
+class Drop extends VOXELIZE.Entity<{
+  position: VOXELIZE.Coords3;
+}> {
+  constructor(id: string) {
+    super(id);
+
+    this.add(
+      new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.3),
+        new THREE.MeshBasicMaterial({ color: 0xffcc33 }),
+      ),
+    );
+  }
+
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+
+  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+
+  update = () => {
+    this.rotation.y += 0.05;
+  };
+}
+
 inputs.on("namespace", (namespace) => {
   console.log("namespace changed", namespace);
 });
@@ -887,6 +945,7 @@ class Bot extends VOXELIZE.Entity<BotData> {
 entities.setClass("bot", Bot);
 entities.setClass("box", Box);
 entities.setClass("fauna", Fauna);
+entities.setClass("drop", Drop);
 
 world.add(entities);
 

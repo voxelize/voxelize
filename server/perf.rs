@@ -107,6 +107,16 @@ pub fn log_at(event: &str, world: &str, timestamp_ms: f64, fields: Value) {
     payload.insert("component".to_owned(), json!("core"));
     payload.insert("event".to_owned(), json!(event));
     payload.insert("monotonicMs".to_owned(), json!(timestamp_ms));
+    // Wall-clock epoch ms, so events can be correlated across processes on
+    // one machine (e.g. server dispatch -> browser client apply) when
+    // measuring end-to-end lifecycle latency.
+    payload.insert(
+        "epochMs".to_owned(),
+        json!(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0)),
+    );
     payload.insert("world".to_owned(), json!(world));
     payload.insert(
         "seq".to_owned(),

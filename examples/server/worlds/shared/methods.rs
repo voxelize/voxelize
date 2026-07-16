@@ -35,6 +35,16 @@ struct SpawnFaunaPayload {
     count: usize,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct BreakWithDropPayload {
+    voxel: Vec3<i32>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct PickupDropPayload {
+    id: String,
+}
+
 pub fn setup_methods(world: &mut World) {
     world.set_method_handle("time", |world, _, payload| {
         let time_per_day = world.config().time_per_day as f32;
@@ -74,11 +84,7 @@ pub fn setup_methods(world: &mut World) {
                 bob_amplitude: 0.4,
                 phase: golden_angle,
             };
-            let dressing = format!(
-                "fauna-{:03} {}",
-                i,
-                "lorem-metadata-weight ".repeat(32)
-            );
+            let dressing = format!("fauna-{:03} {}", i, "lorem-metadata-weight ".repeat(32));
             world
                 .create_entity(&nanoid!(), "fauna")
                 .with(PositionComp::new(center.0, center.1, center.2))
@@ -87,6 +93,51 @@ pub fn setup_methods(world: &mut World) {
                 .with(TextComp::new(&dressing))
                 .with(fauna)
                 .build();
+        }
+    });
+
+    // The survival-loop acceptance path: an authoritative break that clears
+    // the voxel AND spawns a reliable "drop" entity at it, echoed to every
+    // interested client. Models break -> drop CREATE -> pickup causality
+    // without any client-local granting.
+    world.set_method_handle("break-with-drop", |world, _, payload| {
+        let data: BreakWithDropPayload = serde_json::from_str(&payload).unwrap();
+        let Vec3(vx, vy, vz) = data.voxel;
+
+        world.chunks_mut().update_voxel(&data.voxel, 0);
+
+        world
+            .create_entity(&nanoid!(), "drop")
+            .with(PositionComp::new(
+                vx as f32 + 0.5,
+                vy as f32 + 0.5,
+                vz as f32 + 0.5,
+            ))
+            .with(DoNotPersistComp)
+            .build();
+    });
+
+    // Authoritative pickup: deleting the drop emits its reliable DELETE
+    // lifecycle to every client that streams it.
+    world.set_method_handle("pickup-drop", |world, _, payload| {
+        let data: PickupDropPayload = serde_json::from_str(&payload).unwrap();
+        let entities = world.ecs().entities();
+        let ids = world.ecs().read_storage::<IDComp>();
+
+        let mut to_delete = None;
+        for (entity, id_comp) in (&entities, &ids).join() {
+            if id_comp.0 == data.id {
+                to_delete = Some(entity);
+                break;
+            }
+        }
+        drop((entities, ids));
+
+        if let Some(entity) = to_delete {
+            world
+                .ecs_mut()
+                .delete_entity(entity)
+                .expect("Failed to delete drop entity");
         }
     });
 

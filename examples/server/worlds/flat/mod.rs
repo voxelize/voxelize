@@ -48,6 +48,9 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         .save_dir("data/worlds/flat")
         .time_per_day(24000)
         .default_time(12000.0)
+        // The flat world doubles as the replication acceptance harness:
+        // client voxel writes make two-client place/break echo real.
+        .allow_client_voxel_writes(true)
         .build();
 
     let mut world = World::new("flat", &config);

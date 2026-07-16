@@ -271,9 +271,17 @@ impl<'a> System<'a> for BroadcastSystem {
         let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
 
         // ---- Reliable ordered events (must-deliver, FIFO) -----------------
+        //
+        // Entity lifecycle bytes sent here PREEMPT the same tick's state
+        // budget below: a burst of CREATEs/DELETEs must reach the client
+        // ahead of (not interleaved with a full budget of) motion traffic on
+        // the shared control lane.
+        let mut lifecycle_bytes_by_client: HashMap<String, usize> = HashMap::new();
 
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
+            let is_entity_lifecycle =
+                MessageType::try_from(encoded.msg_type) == Ok(MessageType::Entity);
 
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
@@ -290,6 +298,10 @@ impl<'a> System<'a> for BroadcastSystem {
                         }
                     }
                     send_lane_routed(client, encoded.msg_type, encoded.data.clone());
+                    if is_entity_lifecycle {
+                        *lifecycle_bytes_by_client.entry(id.clone()).or_default() +=
+                            encoded.data.len();
+                    }
                 }
                 let queue_depths = connection_queue_depths(&clients, &filter);
                 log_outbound_perf(&encoded, world_name, stats.tick, queue_depths);
@@ -326,6 +338,9 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
 
                 send_lane_routed(client, encoded.msg_type, encoded.data.clone());
+                if is_entity_lifecycle {
+                    *lifecycle_bytes_by_client.entry(id.clone()).or_default() += encoded.data.len();
+                }
             });
 
             if !transports.is_empty() && should_send_to_transport(encoded.msg_type) {
@@ -381,6 +396,20 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
                 continue;
             };
+
+            // Lifecycle preempts state: bytes of entity CREATE/DELETE/
+            // OUT_OF_RANGE traffic already written to this client's control
+            // lane this tick come out of the state budget, so a lifecycle
+            // burst is never chased down the socket by a full budget of
+            // motion. Overdue (SLA-forced) slots still ship; the guarantee
+            // trade is deliberate — a few tiny quantized updates never
+            // meaningfully delay lifecycle, while a starved CREATE is
+            // player-visible.
+            let lifecycle_bytes = lifecycle_bytes_by_client
+                .get(client_id)
+                .copied()
+                .unwrap_or(0);
+            let budget_bytes = budget_bytes.saturating_sub(lifecycle_bytes);
 
             let Some(flush) = replicated_state.drain_client(client_id, now_ms, budget_bytes) else {
                 continue;

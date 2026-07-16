@@ -207,6 +207,19 @@ export class Entities extends Group implements NetIntercept {
 
           let object = this.map.get(id);
 
+          // The client half of the lifecycle ledger: every lifecycle
+          // operation that reaches this client is logged with the server's
+          // batch trace id, so end-to-end delivery (server queue -> client
+          // apply) is measurable per entity.
+          if (isLogging && operation !== "UPDATE") {
+            logPerf("entity_lifecycle_apply", {
+              traceId: message.perfTraceId ?? "",
+              operation,
+              entityId: id,
+              entityType: type,
+            });
+          }
+
           switch (operation) {
             case "CREATE": {
               if (this.isStaleFrame(id, messageTick)) {
