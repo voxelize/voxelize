@@ -382,6 +382,7 @@ export class ItemSlots<T = number> {
 
   private animationFrame = -1;
   private isRenderQueued = false;
+  private visibilityObserver: ResizeObserver | undefined;
 
   constructor(options: Partial<ItemSlotsOptions> = {}) {
     const {
@@ -433,6 +434,8 @@ export class ItemSlots<T = number> {
   };
 
   dispose = () => {
+    this.visibilityObserver?.disconnect();
+    this.visibilityObserver = undefined;
     this.deactivate();
 
     for (const row of this.slots) {
@@ -719,6 +722,11 @@ export class ItemSlots<T = number> {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
 
+    // Hidden (e.g. the wrapper is display:none while a menu covers the HUD).
+    // Skip the pass instead of collapsing the drawing buffer to 0x0; the
+    // visibility observer repaints once layout comes back.
+    if (width === 0 || height === 0) return;
+
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.renderer.setSize(width, height, false);
     }
@@ -879,5 +887,15 @@ export class ItemSlots<T = number> {
     });
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.setSize(width, height);
+
+    // Renders are skipped while the canvas has no layout (hidden wrapper),
+    // so the last painted frame can be stale by the time the slots are shown
+    // again. Repaint whenever the canvas regains a nonzero layout size.
+    this.visibilityObserver = new ResizeObserver(() => {
+      if (this.canvas.clientWidth > 0 && this.canvas.clientHeight > 0) {
+        this.requestRender();
+      }
+    });
+    this.visibilityObserver.observe(this.canvas);
   };
 }
