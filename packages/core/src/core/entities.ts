@@ -24,6 +24,36 @@ type JsonValue =
 
 type MutableMetadata = { [key: string]: JsonValue };
 
+function isJsonObject(
+  value: JsonValue | undefined,
+): value is { [key: string]: JsonValue } {
+  return (
+    typeof value === "object" && value !== null && !Array.isArray(value)
+  );
+}
+
+/**
+ * Merge an incoming (possibly partial) metadata update over the accumulated
+ * map. `target` straddles the two replication lanes — identity
+ * (`targetType`, `id`) rides the metadata lane while its `position` rides
+ * the motion lane — so it merges key-wise: a metadata-lane target that
+ * carries no `position` of its own must never clobber the motion-maintained
+ * one. An explicit incoming `position` (legacy full snapshots, or null)
+ * still wins.
+ */
+function mergeMetadataUpdate(
+  previous: MutableMetadata | null | undefined,
+  incoming: MutableMetadata | null | undefined,
+): MutableMetadata {
+  const merged: MutableMetadata = { ...(previous ?? {}), ...(incoming ?? {}) };
+  const previousTarget = previous?.target;
+  const incomingTarget = incoming?.target;
+  if (isJsonObject(previousTarget) && isJsonObject(incomingTarget)) {
+    merged.target = { ...previousTarget, ...incomingTarget };
+  }
+  return merged;
+}
+
 /**
  * Fold a decoded compact motion payload back into the metadata shape entity
  * classes have always consumed (`metadata.position`, `.direction`,
@@ -222,10 +252,12 @@ export class Entities extends Group implements NetIntercept {
 
           switch (operation) {
             case "CREATE": {
-              if (this.isStaleFrame(id, messageTick)) {
-                return;
-              }
-
+              // CREATE always applies, no staleness check: it is the
+              // reliable, ordered, complete snapshot. A partial UPDATE that
+              // raced ahead on an unordered transport may have stamped a
+              // newer tick, but skipping the CREATE would leave the entity
+              // permanently incomplete; the watermark is monotonic, so
+              // applying the snapshot never lowers out-of-order protection.
               if (object) {
                 // The server streams a fresh snapshot for an entity it believes
                 // is new to us, so resync our stale copy to it.
@@ -284,10 +316,10 @@ export class Entities extends Group implements NetIntercept {
                 // motion and non-motion state independently, and metadata
                 // keys are never removed server-side, so the accumulated map
                 // always presents the full legacy shape to game code.
-                const merged: MutableMetadata = {
-                  ...(object.metadata ?? {}),
-                  ...(metadata ?? {}),
-                };
+                const merged = mergeMetadataUpdate(
+                  object.metadata as MutableMetadata | null,
+                  metadata as MutableMetadata | null,
+                );
                 if (motion) {
                   applyMotionToMetadata(merged, motion);
                 }
@@ -413,7 +445,15 @@ export class Entities extends Group implements NetIntercept {
   };
 
   private noteAppliedTick = (id: string, messageTick: number) => {
-    if (messageTick > 0) {
+    if (messageTick <= 0) {
+      return;
+    }
+    // Monotonic max-only: a lifecycle event captured at an older tick than
+    // already-applied state (possible when reliable and unordered lanes
+    // interleave) must never LOWER the watermark — that would reopen the
+    // window for an in-between stale UPDATE to resurrect or rewind.
+    const lastTick = this.lastAppliedTick.get(id);
+    if (lastTick === undefined || messageTick > lastTick) {
       this.lastAppliedTick.set(id, messageTick);
     }
   };
