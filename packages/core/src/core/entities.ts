@@ -1,4 +1,4 @@
-import { MessageProtocol } from "@voxelize/protocol";
+import { EntityMotionProtocol, MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
 import { EntityLivenessTracker } from "./entity-liveness";
@@ -13,6 +13,46 @@ export type EntityRigidBodyMetadata = {
 export type EntityMetadata = {
   rigidBody?: EntityRigidBodyMetadata;
 };
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+type MutableMetadata = { [key: string]: JsonValue };
+
+/**
+ * Fold a decoded compact motion payload back into the metadata shape entity
+ * classes have always consumed (`metadata.position`, `.direction`,
+ * `.rigidBody`, `.target.position`), so game code is agnostic to which wire
+ * encoding the server negotiated.
+ */
+function applyMotionToMetadata(
+  metadata: MutableMetadata,
+  motion: EntityMotionProtocol,
+) {
+  metadata.position = motion.position;
+  if (motion.direction) {
+    metadata.direction = motion.direction;
+  }
+  if (motion.rigidBody) {
+    metadata.rigidBody = motion.rigidBody;
+  }
+  const target = metadata.target;
+  if (target && typeof target === "object" && !Array.isArray(target)) {
+    // Mirrors the legacy JSON shape: a tracked target's position goes null
+    // when the server loses it, it does not freeze at the last value.
+    metadata.target = {
+      ...target,
+      position: motion.targetPosition ?? null,
+    };
+  } else if (motion.targetPosition) {
+    metadata.target = { position: motion.targetPosition };
+  }
+}
 
 export class Entity<T = any> extends Group {
   public entId: string;
@@ -100,6 +140,22 @@ export class Entities extends Group implements NetIntercept {
 
   private unregisteredTypes = new Set<string>();
 
+  /**
+   * Per-entity server tick of the last applied state, so out-of-order frames
+   * on unordered transports (WebRTC) can never rewind an entity.
+   */
+  private lastAppliedTick: Map<string, number> = new Map();
+
+  /**
+   * Wall-clock ms of the last motion-bearing apply per entity, plus the gap
+   * samples of the current reporting window (perf logging only).
+   */
+  private lastMotionApplyMs: Map<string, number> = new Map();
+
+  private motionGapSamples: number[] = [];
+
+  private motionGapWindowStartMs = 0;
+
   constructor(options: Partial<EntitiesOptions> = {}) {
     super();
 
@@ -135,13 +191,14 @@ export class Entities extends Group implements NetIntercept {
     }
 
     const { entities } = message;
+    const messageTick = typeof message.tick === "number" ? message.tick : 0;
 
     if (entities && entities.length) {
       const isLogging = isPerfLogging();
       const applyStartMs = isLogging ? performance.now() : 0;
       try {
         entities.forEach((entity) => {
-          const { id, type, metadata, operation } = entity;
+          const { id, type, metadata, operation, motion } = entity;
 
           // ignore all block entities as they are handled by world
           if (type.startsWith("block::")) {
@@ -152,12 +209,17 @@ export class Entities extends Group implements NetIntercept {
 
           switch (operation) {
             case "CREATE": {
+              if (this.isStaleFrame(id, messageTick)) {
+                return;
+              }
+
               if (object) {
                 // The server streams a fresh snapshot for an entity it believes
                 // is new to us, so resync our stale copy to it.
                 object.metadata = metadata;
                 object.onUpdate?.(metadata);
                 object.snapToTarget?.();
+                this.noteAppliedTick(id, messageTick);
                 this.liveness.touchEntity(id, nowSeconds);
                 return;
               }
@@ -166,22 +228,37 @@ export class Entities extends Group implements NetIntercept {
               if (object) {
                 object.metadata = metadata;
                 object.onCreate?.(metadata);
+                this.noteAppliedTick(id, messageTick);
                 this.liveness.touchEntity(id, nowSeconds);
               }
 
               break;
             }
             case "UPDATE": {
-              // A metadata-less update is a keep-alive: the entity is unchanged
+              // A payload-less update is a keep-alive: the entity is unchanged
               // but still streaming.
-              if (!metadata) {
+              if (!metadata && !motion) {
                 if (object) {
                   this.liveness.touchEntity(id, nowSeconds);
                 }
                 return;
               }
 
+              // Out-of-order state (possible on unordered transports) must
+              // never rewind an entity — and must never resurrect one that a
+              // later lifecycle event already released.
+              if (this.isStaleFrame(id, messageTick)) {
+                return;
+              }
+
               if (!object) {
+                // Only a metadata-bearing update carries enough state to
+                // construct an entity (a full legacy snapshot, or healing
+                // against a server that predates the compact motion path). A
+                // motion-only update waits for its reliable CREATE.
+                if (!metadata) {
+                  return;
+                }
                 object = this.createEntityOfType(type, id);
                 if (object) {
                   object.metadata = metadata;
@@ -190,15 +267,35 @@ export class Entities extends Group implements NetIntercept {
               }
 
               if (object) {
-                object.metadata = metadata;
-                object.onUpdate?.(metadata);
+                // Merge instead of replace: compact-protocol servers send
+                // motion and non-motion state independently, and metadata
+                // keys are never removed server-side, so the accumulated map
+                // always presents the full legacy shape to game code.
+                const merged: MutableMetadata = {
+                  ...(object.metadata ?? {}),
+                  ...(metadata ?? {}),
+                };
+                if (motion) {
+                  applyMotionToMetadata(merged, motion);
+                }
+                object.metadata = merged;
+                object.onUpdate?.(merged);
+                this.noteAppliedTick(id, messageTick);
                 this.liveness.touchEntity(id, nowSeconds);
+                if (
+                  isLogging &&
+                  (motion || (metadata && metadata.position !== undefined))
+                ) {
+                  this.recordMotionApplyGap(id);
+                }
               }
 
               break;
             }
             case "DELETE":
             case "OUT_OF_RANGE": {
+              this.noteAppliedTick(id, messageTick);
+
               if (!object) {
                 return;
               }
@@ -278,6 +375,10 @@ export class Entities extends Group implements NetIntercept {
   private releaseEntity = (object: Entity, metadata: Entity["metadata"]) => {
     this.map.delete(object.entId);
     this.liveness.forget(object.entId);
+    this.lastMotionApplyMs.delete(object.entId);
+    // lastAppliedTick is intentionally kept: it is what blocks an
+    // out-of-order state frame from resurrecting the released entity. It is
+    // cleared wholesale on INIT (a fresh server session).
 
     object.parent?.remove(object);
     object.onDelete?.(metadata);
@@ -287,6 +388,54 @@ export class Entities extends Group implements NetIntercept {
     for (const object of [...this.map.values()]) {
       this.releaseEntity(object, object.metadata);
     }
+    this.lastAppliedTick.clear();
+  };
+
+  private isStaleFrame = (id: string, messageTick: number) => {
+    if (messageTick <= 0) {
+      return false;
+    }
+    const lastTick = this.lastAppliedTick.get(id);
+    return lastTick !== undefined && messageTick <= lastTick;
+  };
+
+  private noteAppliedTick = (id: string, messageTick: number) => {
+    if (messageTick > 0) {
+      this.lastAppliedTick.set(id, messageTick);
+    }
+  };
+
+  private recordMotionApplyGap = (id: string) => {
+    const nowMs = performance.now();
+    const previousMs = this.lastMotionApplyMs.get(id);
+    this.lastMotionApplyMs.set(id, nowMs);
+    if (previousMs !== undefined) {
+      this.motionGapSamples.push(nowMs - previousMs);
+    }
+
+    if (this.motionGapWindowStartMs === 0) {
+      this.motionGapWindowStartMs = nowMs;
+      return;
+    }
+    if (
+      nowMs - this.motionGapWindowStartMs < 5000 ||
+      this.motionGapSamples.length === 0
+    ) {
+      return;
+    }
+
+    const sorted = [...this.motionGapSamples].sort((a, b) => a - b);
+    const quantile = (q: number) =>
+      sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
+    logPerf("entity_motion_apply_gap", {
+      count: sorted.length,
+      p50Ms: quantile(0.5),
+      p95Ms: quantile(0.95),
+      p99Ms: quantile(0.99),
+      maxMs: sorted[sorted.length - 1],
+    });
+    this.motionGapSamples = [];
+    this.motionGapWindowStartMs = nowMs;
   };
 
   private createEntityOfType = (type: string, id: string) => {

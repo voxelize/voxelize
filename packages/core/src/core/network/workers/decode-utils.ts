@@ -92,6 +92,82 @@ function deepParseJSON(value: unknown): unknown {
   return deepParseJSON(parsed);
 }
 
+const MOTION_PROTOCOL_V1 = 1;
+const MOTION_POSITION_SCALE = 512;
+const MOTION_DIRECTION_SCALE = 512;
+const MOTION_FLAG_IN_FLUID = 1 << 0;
+const MOTION_FLAG_HAS_DIRECTION = 1 << 1;
+const MOTION_FLAG_HAS_RIGID_BODY = 1 << 2;
+const MOTION_FLAG_HAS_TARGET = 1 << 3;
+
+type DecodedMotion = {
+  position: [number, number, number];
+  direction?: [number, number, number];
+  rigidBody?: { isInFluid: boolean; fluidRatio: number };
+  targetPosition?: [number, number, number];
+};
+
+/**
+ * Decode a versioned compact motion payload (kept in byte-for-byte sync with
+ * `server/world/replication/motion.rs`). Returns undefined for unknown
+ * versions or truncated payloads, in which case the update degrades to a
+ * keep-alive instead of corrupting entity state.
+ */
+export function decodeMotion(payload: Uint8Array): DecodedMotion | undefined {
+  if (payload.length < 14 || payload[0] !== MOTION_PROTOCOL_V1) {
+    return undefined;
+  }
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength,
+  );
+  const flags = payload[1];
+  let offset = 2;
+
+  const readPosition = (): [number, number, number] | undefined => {
+    if (offset + 12 > payload.length) return undefined;
+    const result: [number, number, number] = [
+      view.getInt32(offset, true) / MOTION_POSITION_SCALE,
+      view.getInt32(offset + 4, true) / MOTION_POSITION_SCALE,
+      view.getInt32(offset + 8, true) / MOTION_POSITION_SCALE,
+    ];
+    offset += 12;
+    return result;
+  };
+
+  const position = readPosition();
+  if (!position) return undefined;
+  const motion: DecodedMotion = { position };
+
+  if (flags & MOTION_FLAG_HAS_DIRECTION) {
+    if (offset + 6 > payload.length) return undefined;
+    motion.direction = [
+      view.getInt16(offset, true) / MOTION_DIRECTION_SCALE,
+      view.getInt16(offset + 2, true) / MOTION_DIRECTION_SCALE,
+      view.getInt16(offset + 4, true) / MOTION_DIRECTION_SCALE,
+    ];
+    offset += 6;
+  }
+
+  if (flags & MOTION_FLAG_HAS_RIGID_BODY) {
+    if (offset + 1 > payload.length) return undefined;
+    motion.rigidBody = {
+      isInFluid: (flags & MOTION_FLAG_IN_FLUID) !== 0,
+      fluidRatio: payload[offset] / 255,
+    };
+    offset += 1;
+  }
+
+  if (flags & MOTION_FLAG_HAS_TARGET) {
+    const targetPosition = readPosition();
+    if (!targetPosition) return undefined;
+    motion.targetPosition = targetPosition;
+  }
+
+  return motion;
+}
+
 export function decodeMessage(
   buffer: Uint8Array,
   transferables: ArrayBuffer[],
@@ -104,6 +180,7 @@ export function decodeMessage(
 
   const message = Message.toObject(Message.decode(buffer), {
     defaults: true,
+    longs: Number,
   }) as Record<string, unknown>;
   message.type = Message.Type[message.type as number];
 
@@ -126,6 +203,11 @@ export function decodeMessage(
         if (parsed && typeof parsed === "object" && parsed.json) {
           parsed.json = deepParseJSON(parsed.json);
         }
+      }
+      if (entity.motion instanceof Uint8Array && entity.motion.length > 0) {
+        entity.motion = decodeMotion(entity.motion);
+      } else {
+        delete entity.motion;
       }
       entity.operation = Entity.Operation[entity.operation as number];
     }

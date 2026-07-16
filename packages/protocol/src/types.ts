@@ -33,11 +33,27 @@ export type PeerProtocol<T> = {
 
 export type EntityOperation = "CREATE" | "UPDATE" | "DELETE" | "OUT_OF_RANGE";
 
+/**
+ * The decoded compact motion payload of an entity UPDATE (the versioned
+ * `motion.v1` wire format negotiated through the JOIN capabilities). Servers
+ * send it in place of JSON motion metadata to clients that advertised
+ * support; the client merges it back into the entity's metadata so consumer
+ * code keeps reading `metadata.position` / `metadata.direction` /
+ * `metadata.rigidBody` / `metadata.target.position` unchanged.
+ */
+export type EntityMotionProtocol = {
+  position: [number, number, number];
+  direction?: [number, number, number];
+  rigidBody?: { isInFluid: boolean; fluidRatio: number };
+  targetPosition?: [number, number, number];
+};
+
 export type EntityProtocol<T> = {
   operation: EntityOperation;
   id: string;
   type: string;
   metadata: T;
+  motion?: EntityMotionProtocol;
 };
 
 export type EventProtocol<T> = {
@@ -100,6 +116,13 @@ export type MessageProtocol<
     | "STATS";
   json?: T;
   text?: string;
+
+  /**
+   * Server tick at which this message's payload was captured. Stamped on
+   * high-frequency state messages (ENTITY, PEER) so receivers can drop
+   * out-of-order state on unordered transports (WebRTC).
+   */
+  tick?: number;
 
   chat?: ChatProtocol;
   method?: MethodProtocol<Method>;
