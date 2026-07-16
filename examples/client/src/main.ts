@@ -384,7 +384,7 @@ inputs.bind(
 );
 
 inputs.bind(
-  "KeyG",
+  "KeyO",
   () => {
     method.call("spawn-fauna", {
       position: controls.object.position.toArray(),
@@ -395,7 +395,7 @@ inputs.bind(
 );
 
 inputs.bind(
-  "KeyH",
+  "KeyU",
   () => {
     method.call("clear-fauna", {});
   },
