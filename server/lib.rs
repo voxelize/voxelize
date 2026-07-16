@@ -36,7 +36,16 @@ pub use world::*;
 
 pub type RtcSenders = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
 
-const CLIENT_MESSAGE_RESPONSE_TIMEOUT: Duration = Duration::from_secs(1);
+/// How long to wait for the server actor to ack a client message before
+/// logging that the ack is slow. A slow ack (e.g. the actor is busy ticking
+/// or preloading) is not fatal: the session keeps waiting, which naturally
+/// backpressures further reads from this socket.
+const CLIENT_MESSAGE_SLOW_ACK_WARN_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Hard upper bound on waiting for a client message ack. Only a server actor
+/// that is truly wedged should ever hit this; the session is then dropped so
+/// its resources can be reclaimed.
+const CLIENT_MESSAGE_ACK_HARD_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How often the server pings each WebSocket connection.
 const DEFAULT_WS_HEARTBEAT_INTERVAL_MS: u64 = 10_000;
@@ -226,18 +235,42 @@ async fn handle_ws_connection(
                             }
                         };
 
-                        match tokio::time::timeout(
-                            CLIENT_MESSAGE_RESPONSE_TIMEOUT,
-                            server.send(ClientMessage::new(
-                                session_id.clone(),
-                                message,
-                                wire_bytes,
-                                Some(connection_token.clone()),
-                            )),
-                        )
-                        .await
-                        {
-                            Ok(Ok(Some(error_msg))) => {
+                        // Await the ack to the same in-flight send: a slow ack
+                        // must not drop the session, and no further frames are
+                        // read from this socket while waiting, which preserves
+                        // ordering and backpressure without busy-looping.
+                        let send_future = server.send(ClientMessage::new(
+                            session_id.clone(),
+                            message,
+                            wire_bytes,
+                            Some(connection_token.clone()),
+                        ));
+                        tokio::pin!(send_future);
+
+                        let started_waiting = std::time::Instant::now();
+                        let ack = loop {
+                            match tokio::time::timeout(
+                                CLIENT_MESSAGE_SLOW_ACK_WARN_INTERVAL,
+                                &mut send_future,
+                            )
+                            .await
+                            {
+                                Ok(result) => break Some(result),
+                                Err(_) => {
+                                    let waited = started_waiting.elapsed();
+                                    if waited >= CLIENT_MESSAGE_ACK_HARD_TIMEOUT {
+                                        break None;
+                                    }
+                                    warn!(
+                                        "[WS] ClientMessage ack slow ({:?}) for {}; still waiting",
+                                        waited, session_id
+                                    );
+                                }
+                            }
+                        };
+
+                        match ack {
+                            Some(Ok(Some(error_msg))) => {
                                 warn!("[WS] ClientMessage error: {}", error_msg);
                                 let error_response = encode_message(
                                     &Message::new(&MessageType::Error).text(&error_msg).build(),
@@ -245,13 +278,16 @@ async fn handle_ws_connection(
                                 let _ = session.binary(error_response).await;
                                 break;
                             }
-                            Ok(Ok(None)) => {}
-                            Ok(Err(e)) => {
+                            Some(Ok(None)) => {}
+                            Some(Err(e)) => {
                                 warn!("[WS] Actor mailbox error: {:?}", e);
                                 break;
                             }
-                            Err(_) => {
-                                warn!("[WS] ClientMessage timed out");
+                            None => {
+                                warn!(
+                                    "[WS] ClientMessage ack exceeded {:?} for {}; dropping connection",
+                                    CLIENT_MESSAGE_ACK_HARD_TIMEOUT, session_id
+                                );
                                 break;
                             }
                         }

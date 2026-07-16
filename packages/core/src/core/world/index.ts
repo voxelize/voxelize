@@ -135,6 +135,10 @@ import {
 } from "./block";
 import { Chunk } from "./chunk";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
+import {
+  ChunkRequestCandidate,
+  compareChunkRequestPriority,
+} from "./chunk-requests";
 import { Clouds, CloudsOptions } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
 import { ItemDef, ItemRegistry } from "./items";
@@ -153,6 +157,7 @@ import MeshWorker from "./workers/mesh-worker.ts?worker";
 export * from "./block";
 export * from "./chunk";
 export * from "./chunk-renderer";
+export * from "./chunk-requests";
 export * from "./clouds";
 export * from "./csm-renderer";
 export * from "./entity-shadow-uniforms";
@@ -509,7 +514,7 @@ const defaultOptions: WorldClientOptions = {
   maxUrgentMeshWorkers: 4,
   clientOnlyMeshing: true,
   minLightLevel: 0.04,
-  chunkRerequestInterval: 10000,
+  chunkRerequestInterval: 300,
   defaultRenderRadius: 6,
   fogNearRenderRatio: 0.45,
   fogFarRenderRatio: 0.78,
@@ -925,8 +930,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   private initialData: any = null;
   private initialEntities: any = null;
 
-  // Loaded chunks whose server-side interest must be re-established after a
-  // rejoin, drained through the paced chunk-request flow.
+  // Chunks with local data (processing or loaded) whose server-side interest
+  // must be re-established after a rejoin, drained through the paced
+  // chunk-request flow.
   private chunkRefreshQueue = new Set<string>();
 
   public extraInitData: Record<string, unknown> = {};
@@ -3861,11 +3867,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         // An INIT on an already-initialized world is a rejoin after a
         // reconnect. The server process behind it may be brand new, holding
-        // none of the chunks this client renders, so ask for all of them
-        // again: chunk interests get re-registered (entities inside resume
-        // simulating) and any terrain that changed re-streams.
+        // none of the chunks this client renders, so resync every chunk
+        // stage: loaded/processing chunks re-register interest (entities
+        // inside resume simulating) and in-flight requests are reissued
+        // immediately instead of idling until the rerequest interval.
         if (this.isInitialized) {
-          this.requestLoadedChunksRefresh();
+          this.resyncChunkStagesAfterRejoin();
         }
 
         break;
@@ -4058,11 +4065,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this._deleteRadius;
   }
 
-  private requestLoadedChunksRefresh() {
+  private resyncChunkStagesAfterRejoin() {
     this.chunkRefreshQueue.clear();
-    this.chunkPipeline.forEachLoaded((_, name) => {
+    for (const name of this.chunkPipeline.resyncForRejoin()) {
       this.chunkRefreshQueue.add(name);
-    });
+    }
   }
 
   private requestChunks(center: Coords2, direction: Vector3) {
@@ -4087,13 +4094,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         : Math.max(ratio ** chunkLoadExponent, 0.1);
 
     const [centerX, centerZ] = center;
-    const toRequestSet = new Set<string>();
+    const candidates: ChunkRequestCandidate[] = [];
 
     const renderRadiusSquared = renderRadius * renderRadius;
 
     for (let ox = -renderRadius; ox <= renderRadius; ox++) {
       for (let oz = -renderRadius; oz <= renderRadius; oz++) {
-        if (ox * ox + oz * oz > renderRadiusSquared) continue;
+        const distanceSquared = ox * ox + oz * oz;
+        if (distanceSquared > renderRadiusSquared) continue;
 
         const cx = centerX + ox;
         const cz = centerZ + oz;
@@ -4102,72 +4110,51 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
 
-        if (
-          hasDirection &&
-          !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
-        ) {
-          continue;
-        }
-
         const chunkName = ChunkUtils.getChunkName([cx, cz]);
 
         const stage = this.chunkPipeline.getStage(chunkName);
 
-        if (stage === "loaded") {
+        if (stage === "loaded" || stage === "processing") {
           continue;
         }
 
         if (stage === "requested") {
           const retryCount = this.chunkPipeline.incrementRetry(chunkName);
 
-          if (retryCount > chunkRerequestInterval) {
-            this.chunkPipeline.remove(chunkName);
-            toRequestSet.add(`${cx},${cz}`);
+          if (retryCount <= chunkRerequestInterval) {
+            continue;
           }
 
-          continue;
+          // The request is considered lost; drop the stage so the chunk is
+          // reissued below.
+          this.chunkPipeline.remove(chunkName);
         }
 
-        if (stage === "processing") {
-          continue;
-        }
+        // The view cone is a priority, not a filter: in-view chunks stream
+        // first, but out-of-view chunks still consume any leftover budget.
+        const isInView =
+          !hasDirection ||
+          this.isChunkInView(center, [cx, cz], direction, angleThreshold);
 
-        toRequestSet.add(`${cx},${cz}`);
+        candidates.push({ cx, cz, distanceSquared, isInView });
       }
     }
 
-    // i guess we still want to update the direction/center?
-    // if (toRequestSet.size === 0) {
-    //   return;
-    // }
+    candidates.sort(compareChunkRequestPriority);
 
-    const toRequestArray = Array.from(toRequestSet).map((coords) =>
-      coords.split(",").map(Number),
-    );
-
-    // Sort the chunks by distance from the center, closest first.
-    toRequestArray.sort((a, b) => {
-      const ad = (a[0] - center[0]) ** 2 + (a[1] - center[1]) ** 2;
-      const bd = (b[0] - center[0]) ** 2 + (b[1] - center[1]) ** 2;
-      return ad - bd;
-    });
-
-    // LOD:
-    // < 4 chunks: 0
-    // > 4 < 6 chunks: 1
-    // > 6 chunks: 2
-
-    const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
+    const toRequest = candidates
+      .slice(0, maxChunkRequestsPerUpdate)
+      .map(({ cx, cz }) => [cx, cz]);
 
     // Drain rejoin refreshes with the same per-update budget. These chunks
-    // stay loaded and renderable; the request only re-registers server-side
+    // keep their local data; the request only re-registers server-side
     // interest and pulls fresh data for them.
     const refreshBatch: number[][] = [];
     let refreshBudget = maxChunkRequestsPerUpdate - toRequest.length;
     for (const name of this.chunkRefreshQueue) {
       if (refreshBudget <= 0) break;
       this.chunkRefreshQueue.delete(name);
-      if (!this.chunkPipeline.getLoadedChunk(name)) continue;
+      if (!this.chunkPipeline.getStage(name)) continue;
       refreshBatch.push(ChunkUtils.parseChunkName(name) as number[]);
       refreshBudget -= 1;
     }

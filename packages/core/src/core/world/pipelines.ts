@@ -129,6 +129,18 @@ export class ChunkPipeline {
     return chunk;
   }
 
+  resyncForRejoin(): string[] {
+    // Requested chunks have no local data and the new server process holds
+    // no interest for them: drop them so they are reissued as fresh requests.
+    for (const name of [...this.indices.requested]) {
+      this.removeStage(name);
+    }
+
+    // Processing and loaded chunks keep their local data; the caller
+    // re-requests them to re-register server-side interest.
+    return [...this.indices.processing, ...this.indices.loaded];
+  }
+
   forEach(stage: StageType, callback: (name: string) => void): void {
     this.indices[stage].forEach(callback);
   }
