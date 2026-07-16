@@ -156,7 +156,19 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         // Metadata lane: entity id -> non-motion JSON, present when it changed.
         let mut changed_non_motion: HashMap<String, String> = HashMap::new();
 
-        for (ent, id, metadata, etype, _, do_not_persist, position, direction, rigid_body, target, voxel) in (
+        for (
+            ent,
+            id,
+            metadata,
+            etype,
+            _,
+            do_not_persist,
+            position,
+            direction,
+            rigid_body,
+            target,
+            voxel,
+        ) in (
             &entities,
             &ids,
             &mut metadatas,
@@ -192,9 +204,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         position: [position.0 .0, position.0 .1, position.0 .2],
                         direction: direction.map(|d| [d.0 .0, d.0 .1, d.0 .2]),
                         rigid_body: rigid_body.map(|r| (r.0.in_fluid, r.0.ratio_in_fluid)),
-                        target: target.and_then(|t| {
-                            t.position.as_ref().map(|p| [p.0, p.1, p.2])
-                        }),
+                        target: target.and_then(|t| t.position.as_ref().map(|p| [p.0, p.1, p.2])),
                     };
                     let quantized = QuantizedMotion::from_sample(&sample);
                     let is_motion_changed = old_motion.get(&id.0) != Some(&quantized);
@@ -351,8 +361,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                     updates.staged_bytes += non_motion.len();
                                     is_staged = true;
                                 }
-                            } else if is_motion_fresh
-                                || changed_non_motion.contains_key(entity_id)
+                            } else if is_motion_fresh || changed_non_motion.contains_key(entity_id)
                             {
                                 // Legacy clients receive the full metadata
                                 // map exactly as before the compact path
@@ -380,10 +389,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
                             if is_staged {
                                 *last_sent_tick = tick;
-                            } else if tick.saturating_sub(*last_sent_tick) >= keep_alive_interval
-                            {
+                            } else if tick.saturating_sub(*last_sent_tick) >= keep_alive_interval {
                                 replicated_state.stage_keep_alive(
-                                    client_id, entity_id, etype, distance_sq, now_ms,
+                                    client_id,
+                                    entity_id,
+                                    etype,
+                                    distance_sq,
+                                    now_ms,
                                 );
                                 updates.staged_count += 1;
                                 *last_sent_tick = tick;

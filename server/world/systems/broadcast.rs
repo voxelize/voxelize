@@ -382,8 +382,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 continue;
             };
 
-            let Some(flush) = replicated_state.drain_client(client_id, now_ms, budget_bytes)
-            else {
+            let Some(flush) = replicated_state.drain_client(client_id, now_ms, budget_bytes) else {
                 continue;
             };
 

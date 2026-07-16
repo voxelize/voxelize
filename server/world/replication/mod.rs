@@ -156,7 +156,11 @@ pub fn motion_max_age_for(base_max_age_ms: u64, distance_sq: f32, visible_radius
 /// `tick_ms` scales the budget by the wall-clock the flush covers, so a
 /// sagging tick rate does not silently shrink the byte RATE exactly when
 /// freshness pressure is highest (capped at [`MAX_BUDGET_TICK_SCALE`]).
-pub fn state_flush_budget(base_bytes_per_tick: usize, tick_ms: f64, backlog: usize) -> Option<usize> {
+pub fn state_flush_budget(
+    base_bytes_per_tick: usize,
+    tick_ms: f64,
+    backlog: usize,
+) -> Option<usize> {
     if backlog > STATE_FLUSH_MAX_SOCKET_BACKLOG {
         return None;
     }
@@ -721,7 +725,15 @@ mod tests {
         payload: &[u8],
         now_ms: u64,
     ) {
-        buffer.stage_motion(client, entity, "bot", payload.to_vec(), 0.0, now_ms, MOTION_SLA);
+        buffer.stage_motion(
+            client,
+            entity,
+            "bot",
+            payload.to_vec(),
+            0.0,
+            now_ms,
+            MOTION_SLA,
+        );
     }
 
     fn stage_metadata(
@@ -864,9 +876,7 @@ mod tests {
         }
 
         // Well past every slot's deadline, a one-byte budget still ships all.
-        let flush = buffer
-            .drain_client("client", MOTION_SLA + 1, 1)
-            .unwrap();
+        let flush = buffer.drain_client("client", MOTION_SLA + 1, 1).unwrap();
         assert_eq!(flush.entities.len(), 50);
         assert_eq!(flush.forced_count, 50);
         assert_eq!(buffer.pending_entities("client"), 0);
@@ -879,7 +889,13 @@ mod tests {
         // only if its lane bound expires sooner; here all are motion, staged
         // at increasing times.
         for i in 0..10u64 {
-            stage_motion(&mut buffer, "client", &format!("bot-{}", i), &[0; 20], i * 10);
+            stage_motion(
+                &mut buffer,
+                "client",
+                &format!("bot-{}", i),
+                &[0; 20],
+                i * 10,
+            );
         }
 
         // Nothing overdue yet; budget fits roughly four slots (cost = id(5) +
@@ -933,7 +949,11 @@ mod tests {
         assert_eq!(state_flush_budget(base, 16.0, 1), Some(base * 2));
         assert_eq!(state_flush_budget(base, 16.0, 3), Some(base));
         let degraded = state_flush_budget(base, 16.0, 8).unwrap();
-        assert!(degraded < base / 2, "expected a hard clamp, got {}", degraded);
+        assert!(
+            degraded < base / 2,
+            "expected a hard clamp, got {}",
+            degraded
+        );
         assert_eq!(state_flush_budget(base, 16.0, 9), None);
     }
 
@@ -1052,9 +1072,7 @@ mod tests {
     #[test]
     fn motion_gap_report_aggregates_send_gaps() {
         let mut buffer = ReplicatedStateBuffer::new();
-        assert!(buffer
-            .take_motion_gap_report("client", 0, 5000)
-            .is_none());
+        assert!(buffer.take_motion_gap_report("client", 0, 5000).is_none());
 
         stage_motion(&mut buffer, "client", "bot", &[1], 0);
         // First report call opens the window.
@@ -1066,15 +1084,15 @@ mod tests {
             buffer.drain_client("client", step * 16 + 16, usize::MAX);
         }
 
-        let report = buffer
-            .take_motion_gap_report("client", 6000, 5000)
-            .unwrap();
+        let report = buffer.take_motion_gap_report("client", 6000, 5000).unwrap();
         assert_eq!(report.count, 10);
         assert!(report.p50_ms <= 17);
         assert!(report.max_ms <= 17);
 
         // The window resets after a report.
-        assert!(buffer.take_motion_gap_report("client", 6001, 5000).is_none());
+        assert!(buffer
+            .take_motion_gap_report("client", 6001, 5000)
+            .is_none());
     }
 
     #[test]

@@ -23,7 +23,9 @@ use tokio::sync::mpsc;
 use crate::{
     errors::AddWorldError,
     perf,
-    world::{ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry, World, WorldConfig},
+    world::{
+        ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry, World, WorldConfig,
+    },
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
     GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
     TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
