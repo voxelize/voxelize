@@ -2,9 +2,11 @@
 //! bind-before-preload boot lifecycle, `/health` semantics, actor-failure
 //! handling, WS slow-ack session policy, and Actix app composability.
 
+use std::io::{Read, Write};
+use std::net::SocketAddr;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 use std::time::{Duration, Instant};
 
@@ -97,9 +99,14 @@ async fn health_serves_during_delayed_preload_then_flips_ready() {
     let bound = Voxelize::bind(server).await.expect("bind should succeed");
     let addr = bound.addr();
     assert_ne!(addr.port(), 0, "ephemeral port resolved at bind time");
-    actix_web::rt::spawn(bound.run());
+    actix_web::rt::spawn(bound.wait_until_stopped());
 
-    let client = awc::Client::default();
+    // A short per-request timeout keeps retries cycling when the machine is
+    // saturated (all suite binaries start their servers at once); the outer
+    // poll budget is what bounds the test.
+    let client = awc::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .finish();
     let url = format!("http://127.0.0.1:{}/health", addr.port());
 
     // The socket is reachable while preload is gated shut: the very first
@@ -107,7 +114,7 @@ async fn health_serves_during_delayed_preload_then_flips_ready() {
     let (status, body) = poll_until(
         &client,
         &url,
-        Duration::from_secs(15),
+        Duration::from_secs(60),
         "first /health response",
         |_, _| true,
     )
@@ -121,7 +128,7 @@ async fn health_serves_during_delayed_preload_then_flips_ready() {
     let (status, body) = poll_until(
         &client,
         &url,
-        Duration::from_secs(15),
+        Duration::from_secs(60),
         "preloading=true on /health",
         |_, body| body["preloading"] == json!(true),
     )
@@ -156,6 +163,109 @@ async fn health_serves_during_delayed_preload_then_flips_ready() {
         .expect("ready health reports tick liveness");
     let threshold = body["tickStallThresholdMs"].as_u64().unwrap();
     assert!(tick_age <= threshold, "ready implies ticks flow");
+}
+
+/// A chunk stage whose only job is to probe `/health` over a raw blocking
+/// TCP connection the moment it first runs. Chunk stages are the first
+/// preload work that executes game code, so a successful HTTP response
+/// captured *from inside* that side effect proves the accept loop was
+/// serving before preload ran — with no scheduler assumption in the test.
+struct HealthProbeStage {
+    target: Arc<Mutex<Option<SocketAddr>>>,
+    response: Arc<Mutex<Option<String>>>,
+}
+
+impl HealthProbeStage {
+    fn probe(&self, addr: SocketAddr) -> String {
+        let probe = || -> std::io::Result<String> {
+            let mut stream = std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(10))?;
+            stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+            stream.write_all(
+                b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+            )?;
+            let mut response = String::new();
+            stream.read_to_string(&mut response)?;
+            Ok(response)
+        };
+        probe().unwrap_or_else(|error| format!("probe error: {}", error))
+    }
+}
+
+impl ChunkStage for HealthProbeStage {
+    fn name(&self) -> String {
+        "HealthProbe".to_owned()
+    }
+
+    fn process(&self, chunk: Chunk, _: Resources, _: Option<Space>) -> Chunk {
+        if self.response.lock().unwrap().is_some() {
+            return chunk;
+        }
+        // The bound address is only known after bind_with returns; block
+        // (on this rayon thread) until the test publishes it rather than
+        // assuming who got scheduled first.
+        let addr = loop {
+            if let Some(addr) = *self.target.lock().unwrap() {
+                break addr;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        };
+        let response = self.probe(addr);
+        *self.response.lock().unwrap() = Some(response);
+        chunk
+    }
+}
+
+/// Strict serve-before-preload by construction: the very first preload side
+/// effect (the first chunk stage invocation) synchronously performs an HTTP
+/// request against the bound address and must receive a well-formed
+/// not-ready `/health` response — proving the accept loop was established
+/// before preload work ran, not merely that `/health` answered eventually.
+#[actix_web::test]
+async fn first_preload_side_effect_observes_serving_health_endpoint() {
+    let target: Arc<Mutex<Option<SocketAddr>>> = Arc::new(Mutex::new(None));
+    let response: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+
+    let mut server = Server::new().debug(false).port(0).build();
+    let config = WorldConfig::new()
+        .min_chunk([0, 0])
+        .max_chunk([0, 0])
+        .preload(true)
+        .preload_radius(1)
+        .build();
+    let mut world = World::new("probed", &config);
+    world.pipeline_mut().add_stage(HealthProbeStage {
+        target: target.clone(),
+        response: response.clone(),
+    });
+    server.add_world(world).expect("world should register");
+
+    let bound = Voxelize::bind(server).await.expect("bind should succeed");
+    let port = bound.addr().port();
+    *target.lock().unwrap() = Some(SocketAddr::from(([127, 0, 0, 1], port)));
+    actix_web::rt::spawn(bound.wait_until_stopped());
+
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let probed = loop {
+        if let Some(probed) = response.lock().unwrap().take() {
+            break probed;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "preload never reached its first chunk stage"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    };
+
+    assert!(
+        probed.starts_with("HTTP/1.1 503"),
+        "the first preload side effect must observe a serving, not-ready /health; got: {}",
+        probed
+    );
+    assert!(
+        probed.contains("\"ready\":false"),
+        "structured not-ready body expected; got: {}",
+        probed
+    );
 }
 
 /// Start a `Server` actor on a dedicated arbiter (its own thread) so tests

@@ -27,7 +27,7 @@ use actix_web::{
     App, Error, HttpRequest, HttpResponse, HttpServer, Result,
 };
 use actix_ws::AggregatedMessage;
-use futures_util::StreamExt;
+use futures_util::{future::poll_immediate, StreamExt};
 use hashbrown::HashMap;
 use log::{info, warn};
 use serde_json::json;
@@ -543,16 +543,20 @@ pub async fn run_ws_session(
     let _ = session.close(None).await;
 }
 
-/// A Voxelize server whose TCP socket is already bound.
+/// A Voxelize server whose TCP socket is bound and whose HTTP accept loop is
+/// already running.
 ///
 /// Returned by [`Voxelize::bind`] / [`Voxelize::bind_with`] *after* the bind
-/// succeeded and the preload driver has been spawned, so the canonical
-/// ordering (bind first, then preload) is guaranteed by construction. Await
-/// [`BoundVoxelize::run`] to serve requests.
+/// succeeded, the accept loop and workers started, and the preload driver was
+/// spawned — in that order, so the canonical lifecycle (bind, then serve,
+/// then preload) is guaranteed by construction. The server answers requests
+/// (e.g. `GET /health`) from the moment this value exists; awaiting
+/// [`BoundVoxelize::wait_until_stopped`] does not start anything, it only
+/// waits for termination.
 pub struct BoundVoxelize {
     handle: VoxelizeHandle,
     addrs: Vec<SocketAddr>,
-    http: actix_web::dev::Server,
+    serving: actix_web::dev::Server,
 }
 
 impl BoundVoxelize {
@@ -572,9 +576,11 @@ impl BoundVoxelize {
         self.addrs[0]
     }
 
-    /// Serve requests until the server stops.
-    pub async fn run(self) -> std::io::Result<()> {
-        self.http.await
+    /// Await termination of the already-running server (graceful stop or
+    /// fatal error). The accept loop was started by
+    /// [`Voxelize::bind_with`]; this never starts a dormant server.
+    pub async fn wait_until_stopped(self) -> std::io::Result<()> {
+        self.serving.await
     }
 }
 
@@ -590,7 +596,7 @@ impl Voxelize {
     /// reports `preloading` / `preloadProgress` with `ready=false` (503)
     /// until preload finishes and ticks flow.
     pub async fn run(server: Server) -> std::io::Result<()> {
-        Self::bind(server).await?.run().await
+        Self::bind(server).await?.wait_until_stopped().await
     }
 
     /// Boot with a custom Actix app built around the engine. See
@@ -633,10 +639,14 @@ impl Voxelize {
             > + 'static,
         B: MessageBody + 'static,
     {
-        Self::bind_with(server, app_factory).await?.run().await
+        Self::bind_with(server, app_factory)
+            .await?
+            .wait_until_stopped()
+            .await
     }
 
-    /// Bind the default app without serving yet. See [`Voxelize::bind_with`].
+    /// Bind and start serving the default app. See [`Voxelize::bind_with`]
+    /// for the guaranteed ordering; the returned server is already accepting.
     pub async fn bind(server: Server) -> std::io::Result<BoundVoxelize> {
         Self::bind_with(server, |voxelize| {
             App::new()
@@ -654,11 +664,14 @@ impl Voxelize {
     ///    with `started=false`.
     /// 3. The TCP socket is bound. A bind failure returns before any preload
     ///    work is scheduled.
-    /// 4. Only after a successful bind, the preload driver is spawned; it
-    ///    runs concurrently with the accept loop so `GET /health` serves
+    /// 4. The HTTP accept loop and workers are started (the returned server
+    ///    is live, not a dormant handle). A startup failure returns before
+    ///    any preload work is scheduled.
+    /// 5. Only after the accept loop is up, the preload driver is spawned;
+    ///    it runs concurrently with request serving so `GET /health` serves
     ///    live per-world `preloadProgress` (503, `ready=false`) while chunks
     ///    generate.
-    /// 5. When preload completes the server is marked started; `/health`
+    /// 6. When preload completes the server is marked started; `/health`
     ///    flips to 200 once world ticks flow.
     pub async fn bind_with<F, T, B>(
         mut server: Server,
@@ -709,14 +722,27 @@ impl Voxelize {
             HttpServer::new(move || app_factory(&factory_handle)).bind((addr.to_owned(), port))?;
         let addrs = http.addrs();
 
+        // Start the accept loop and workers NOW, before any preload work is
+        // scheduled. `HttpServer::run` alone returns a lazy future whose
+        // first poll is what actually spawns the accept thread and workers;
+        // polling it once here makes "serving before preload" true by
+        // construction instead of by scheduler timing. The single poll either
+        // leaves the server running (pending) or surfaces a startup failure.
+        let mut serving = http.run();
+        if let Some(startup) = poll_immediate(&mut serving).await {
+            return Err(startup
+                .err()
+                .unwrap_or_else(|| std::io::Error::other("HTTP server stopped during startup")));
+        }
+
         info!(
-            "Voxelize backend listening on http://{}:{} (preload may still be running)",
+            "Voxelize backend serving on http://{}:{} (preload may still be running)",
             addr, port
         );
 
-        // Preload concurrently with the accept loop so probes see a bound port
-        // and live preloadProgress on /health while chunks generate. Spawned
-        // strictly after a successful bind: bind-before-preload by construction.
+        // Preload concurrently with request serving, so probes see live
+        // preloadProgress on /health while chunks generate. Spawned strictly
+        // after the accept loop is up: serve-before-preload by construction.
         actix_web::rt::spawn(async move {
             if let Err(err) = server_addr.send(RunPreload).await {
                 warn!("RunPreload delivery failed: {:?}", err);
@@ -728,7 +754,7 @@ impl Voxelize {
         Ok(BoundVoxelize {
             handle,
             addrs,
-            http: http.run(),
+            serving,
         })
     }
 }
