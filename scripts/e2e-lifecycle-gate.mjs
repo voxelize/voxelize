@@ -20,11 +20,17 @@ const require = createRequire(
   new URL("../packages/core/package.json", import.meta.url),
 );
 const lz4 = require("lz4js");
-const { protocol } = await import(
-  new URL("../packages/protocol/src/protocol.js", import.meta.url).href
+const requireProtocol = createRequire(
+  new URL("../packages/protocol/package.json", import.meta.url),
 );
+const protobuf = requireProtocol("protobufjs");
 
-const { Message, Entity } = protocol;
+const root = await protobuf.load(
+  new URL("../messages.proto", import.meta.url).pathname,
+);
+const Message = root.lookupType("protocol.Message");
+const MessageTypeEnum = root.lookupEnum("protocol.Message.Type");
+const EntityOperationEnum = root.lookupEnum("protocol.Entity.Operation");
 
 const SERVER = process.argv[2] ?? "ws://localhost:4000";
 const ROUNDS = Number(process.argv[3] ?? 15);
@@ -80,7 +86,7 @@ class RawClient {
       }),
     });
     const init = await initReceived;
-    const initJson = JSON.parse(init.json);
+    const initJson = JSON.parse(init.message.json);
     this.id = initJson.id;
     this.blocks = initJson.blocks;
 
@@ -109,12 +115,12 @@ class RawClient {
     } catch {
       return;
     }
-    message.type = Message.Type[message.type];
+    message.type = MessageTypeEnum.valuesById[message.type];
     const atMs = Date.now();
 
     if (Array.isArray(message.entities)) {
       for (const entity of message.entities) {
-        entity.operation = Entity.Operation[entity.operation];
+        entity.operation = EntityOperationEnum.valuesById[entity.operation];
         this.entityLog.push({
           atMs,
           operation: entity.operation,
@@ -181,7 +187,7 @@ class RawClient {
 
   send(fields) {
     if (typeof fields.type === "string") {
-      fields = { ...fields, type: Message.Type[fields.type] };
+      fields = { ...fields, type: MessageTypeEnum.values[fields.type] };
     }
     this.ws.send(Message.encode(Message.create(fields)).finish());
   }
@@ -228,6 +234,10 @@ async function main() {
     throw new Error("stone block not found in registry");
   }
 
+  // Idempotent start: clear any fauna/drops left by a previous aborted run.
+  actor.callMethod("clear-fauna", {});
+  await sleep(500);
+
   // Load: 150 fauna moving every tick at both clients.
   const faunaSeen = observer.waitForEntity(
     (entity) => entity.type === "fauna" && entity.operation === "CREATE",
@@ -245,6 +255,36 @@ async function main() {
   ).size;
   console.log(`fauna load active: observer tracked ${faunaTracked} movers\n`);
 
+  // Raw per-entity motion freshness at the observer: wall-clock gaps between
+  // consecutive UPDATE arrivals per fauna over a 15s window. Works against
+  // any server version (it measures arrivals, not protocol internals), so it
+  // is the honest before/after comparison metric.
+  console.log("sampling per-entity motion update gaps for 15s...");
+  const lastArrivalMs = new Map();
+  const motionGaps = [];
+  const gapListener = (message, atMs) => {
+    if (!Array.isArray(message.entities)) return;
+    for (const entity of message.entities) {
+      if (entity.type !== "fauna" || entity.operation !== "UPDATE") continue;
+      if (!entity.metadata && !(entity.motion && entity.motion.length))
+        continue;
+      const previous = lastArrivalMs.get(entity.id);
+      lastArrivalMs.set(entity.id, atMs);
+      if (previous !== undefined) motionGaps.push(atMs - previous);
+    }
+  };
+  observer.listeners.add(gapListener);
+  await sleep(15000);
+  observer.listeners.delete(gapListener);
+  {
+    const sorted = [...motionGaps].sort((a, b) => a - b);
+    const at = (q) =>
+      sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
+    console.log(
+      `observer fauna motion gaps: n=${sorted.length} p50=${at(0.5)}ms p95=${at(0.95)}ms p99=${at(0.99)}ms max=${sorted[sorted.length - 1]}ms\n`,
+    );
+  }
+
   const breakEchoActor = [];
   const breakEchoObserver = [];
   const dropCreateActor = [];
@@ -253,10 +293,16 @@ async function main() {
   const pickupDeleteActor = [];
   const pickupDeleteObserver = [];
   let isCausalityClean = true;
+  const roundDropIds = new Set();
+
+  // Fresh voxel cells per run (the flat world persists edits), spread over
+  // the 14x14 interior of chunk [0,0].
+  const cellSalt = Math.floor(Math.random() * 196);
 
   for (let round = 0; round < ROUNDS; round++) {
-    const vx = 2 + (round % 8);
-    const vz = 2 + Math.floor(round / 8);
+    const cell = (cellSalt + round) % 196;
+    const vx = 1 + (cell % 14);
+    const vz = 1 + Math.floor(cell / 14);
 
     // --- break -> voxel echo + drop CREATE --------------------------------
     const dropIsNew = (entity) =>
@@ -287,6 +333,7 @@ async function main() {
     const dropId = aCreate.message.entities.find(
       (entity) => entity.type === "drop" && entity.operation === "CREATE",
     ).id;
+    roundDropIds.add(dropId);
     if (aCreate.atMs < breakAtMs && !actorSawDropBefore) {
       isCausalityClean = false;
       console.error("  CAUSALITY VIOLATION: CREATE observed before break");
@@ -328,19 +375,15 @@ async function main() {
     await sleep(400);
   }
 
-  // Ghost check: after all pickups, no drop entity may still be tracked.
+  // Ghost check: every drop this run created must be deleted at the
+  // observer; none may linger.
   await sleep(1000);
-  const createdDrops = new Set(
-    observer.entityLog
-      .filter((e) => e.type === "drop" && e.operation === "CREATE")
-      .map((e) => e.id),
-  );
   const deletedDrops = new Set(
     observer.entityLog
       .filter((e) => e.type === "drop" && e.operation === "DELETE")
       .map((e) => e.id),
   );
-  const ghosts = [...createdDrops].filter((id) => !deletedDrops.has(id));
+  const ghosts = [...roundDropIds].filter((id) => !deletedDrops.has(id));
 
   console.log(`results over ${ROUNDS} rounds with ${FAUNA_COUNT} movers:`);
   const gates = [
