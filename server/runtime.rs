@@ -81,6 +81,21 @@ fn ws_client_timeout() -> Duration {
     )
 }
 
+/// A [`WsSessionPolicy`] that cannot drive a session: some duration is zero
+/// (which would spin or panic timers) or the timings contradict each other.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidWsSessionPolicy {
+    reason: &'static str,
+}
+
+impl std::fmt::Display for InvalidWsSessionPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid WebSocket session policy: {}", self.reason)
+    }
+}
+
+impl std::error::Error for InvalidWsSessionPolicy {}
+
 /// Timing policy for a canonical WebSocket session.
 ///
 /// The defaults are the production policy: 1s slow-ack warnings, 30s hard
@@ -88,6 +103,15 @@ fn ws_client_timeout() -> Duration {
 /// idle timings honor `VOXELIZE_WS_HEARTBEAT_MS` / `VOXELIZE_WS_CLIENT_TIMEOUT_MS`).
 /// Tests and adapters can shorten the durations without duplicating the
 /// session loop itself.
+///
+/// All durations must be non-zero and `client_timeout` must be at least
+/// `heartbeat_interval` (idle silence is only checked on heartbeat ticks, so
+/// a smaller timeout could not be honored); [`WsSessionPolicy::validate`]
+/// checks this, and policy-accepting APIs reject invalid policies with
+/// [`InvalidWsSessionPolicy`] instead of spinning or panicking. The warn
+/// interval and hard timeout are otherwise independent: the hard deadline is
+/// exact even when the warn interval is longer than, or not a divisor of,
+/// the hard timeout.
 #[derive(Clone, Copy, Debug)]
 pub struct WsSessionPolicy {
     /// How long an in-flight `ClientMessage` ack may be pending before a
@@ -120,6 +144,37 @@ impl Default for WsSessionPolicy {
     }
 }
 
+impl WsSessionPolicy {
+    /// Check that this policy can drive a session: every duration is
+    /// non-zero, and the idle `client_timeout` is at least
+    /// `heartbeat_interval` (silence is only checked on heartbeat ticks).
+    pub fn validate(&self) -> Result<(), InvalidWsSessionPolicy> {
+        let invalid = |reason| Err(InvalidWsSessionPolicy { reason });
+        if self.slow_ack_warn_interval.is_zero() {
+            return invalid("slow_ack_warn_interval must be non-zero");
+        }
+        if self.ack_hard_timeout.is_zero() {
+            return invalid("ack_hard_timeout must be non-zero");
+        }
+        if self.heartbeat_interval.is_zero() {
+            return invalid("heartbeat_interval must be non-zero");
+        }
+        if self.client_timeout.is_zero() {
+            return invalid("client_timeout must be non-zero");
+        }
+        if self.write_timeout.is_zero() {
+            return invalid("write_timeout must be non-zero");
+        }
+        if self.client_timeout < self.heartbeat_interval {
+            return invalid(
+                "client_timeout must be at least heartbeat_interval \
+                 (idle silence is only checked on heartbeat ticks)",
+            );
+        }
+        Ok(())
+    }
+}
+
 /// Outcome of waiting for a `ClientMessage` ack under a [`WsSessionPolicy`].
 enum AckOutcome<T> {
     Acked(T),
@@ -131,8 +186,11 @@ enum AckOutcome<T> {
 /// The same future is polled throughout — the send is never cancelled or
 /// retried, and the caller reads nothing else from its socket while waiting,
 /// which preserves per-session ordering and backpressure. `on_slow` is
-/// invoked once per elapsed warn interval until either the ack resolves or
-/// the hard timeout is reached.
+/// invoked once per *fully elapsed* warn interval; the session is dropped at
+/// exactly `started + ack_hard_timeout`, even when the warn interval is
+/// longer than, or not a divisor of, the hard timeout, and a warn boundary
+/// coinciding with (or past) the hard deadline never produces a spurious
+/// warning.
 async fn await_client_message_ack<F, W>(
     ack: F,
     policy: &WsSessionPolicy,
@@ -144,15 +202,20 @@ where
 {
     tokio::pin!(ack);
     let started_waiting = tokio::time::Instant::now();
+    let hard_deadline = started_waiting + policy.ack_hard_timeout;
+    let mut warned: u32 = 0;
     loop {
-        match tokio::time::timeout(policy.slow_ack_warn_interval, &mut ack).await {
+        let next_warn_at = started_waiting + policy.slow_ack_warn_interval * (warned + 1);
+        let wake_at = next_warn_at.min(hard_deadline);
+        match tokio::time::timeout_at(wake_at, &mut ack).await {
             Ok(result) => return AckOutcome::Acked(result),
             Err(_) => {
-                let waited = started_waiting.elapsed();
-                if waited >= policy.ack_hard_timeout {
+                if next_warn_at < hard_deadline {
+                    warned += 1;
+                    on_slow(started_waiting.elapsed());
+                } else {
                     return AckOutcome::TimedOut;
                 }
-                on_slow(waited);
             }
         }
     }
@@ -196,10 +259,15 @@ impl VoxelizeHandle {
         self
     }
 
-    /// Override the WebSocket session timing policy.
-    pub fn with_session_policy(mut self, policy: WsSessionPolicy) -> Self {
+    /// Override the WebSocket session timing policy. Rejects a policy that
+    /// could not drive a session (see [`WsSessionPolicy::validate`]).
+    pub fn with_session_policy(
+        mut self,
+        policy: WsSessionPolicy,
+    ) -> Result<Self, InvalidWsSessionPolicy> {
+        policy.validate()?;
         self.session_policy = policy;
-        self
+        Ok(self)
     }
 
     /// The server actor address, for custom routes (e.g. profiling endpoints
@@ -375,6 +443,12 @@ pub async fn ws_route(
 ///   ordering and backpressure), a warning is logged every
 ///   `slow_ack_warn_interval`, and only an ack pending past
 ///   `ack_hard_timeout` — a truly wedged server actor — drops the session.
+///
+/// The policy must be valid (see [`WsSessionPolicy::validate`]); an invalid
+/// policy closes the connection immediately with an error log instead of
+/// spinning or panicking. Policies from [`VoxelizeHandle`] are validated at
+/// [`VoxelizeHandle::with_session_policy`], so this only rejects direct
+/// callers passing an unchecked policy.
 pub async fn run_ws_session(
     initial_id: String,
     is_transport: bool,
@@ -383,6 +457,11 @@ pub async fn run_ws_session(
     server: Addr<Server>,
     policy: WsSessionPolicy,
 ) {
+    if let Err(error) = policy.validate() {
+        log::error!("[WS] Refusing session with invalid policy: {}", error);
+        let _ = session.close(None).await;
+        return;
+    }
     // Two outbound lanes per connection (see `WsSender`): control traffic
     // (session lifecycle, chat, entity/peer state) is written before bulk
     // world data (chunks, voxel updates), so a client streaming megabytes of
@@ -816,5 +895,117 @@ mod ack_policy_tests {
             "hard drop lands at the 30s bound, elapsed {:?}",
             elapsed
         );
+    }
+
+    /// A warn interval longer than the hard timeout must still drop at the
+    /// exact hard deadline — and never emit a warning for an interval that
+    /// did not fully elapse.
+    #[tokio::test(start_paused = true)]
+    async fn warn_interval_longer_than_hard_timeout_drops_at_exact_deadline() {
+        let policy = policy(10_000, 1_000);
+        let started = tokio::time::Instant::now();
+
+        let mut warnings = 0;
+        let outcome =
+            await_client_message_ack(std::future::pending::<()>(), &policy, |_| warnings += 1)
+                .await;
+
+        assert!(matches!(outcome, AckOutcome::TimedOut));
+        assert_eq!(warnings, 0, "no warn interval fully elapsed");
+        assert_eq!(
+            started.elapsed(),
+            Duration::from_secs(1),
+            "hard drop lands exactly at the hard deadline"
+        );
+    }
+
+    /// A hard timeout that is not a multiple of the warn interval warns only
+    /// on the fully elapsed intervals and drops exactly at the hard deadline
+    /// — not rounded up to the next warn boundary.
+    #[tokio::test(start_paused = true)]
+    async fn non_divisible_hard_timeout_warns_per_full_interval_and_drops_exactly() {
+        let policy = policy(1_000, 2_500);
+        let started = tokio::time::Instant::now();
+
+        let mut warnings: Vec<Duration> = vec![];
+        let outcome = await_client_message_ack(std::future::pending::<()>(), &policy, |waited| {
+            warnings.push(waited)
+        })
+        .await;
+
+        assert!(matches!(outcome, AckOutcome::TimedOut));
+        assert_eq!(
+            warnings,
+            vec![Duration::from_secs(1), Duration::from_secs(2)],
+            "one warning per fully elapsed interval, none at the hard deadline"
+        );
+        assert_eq!(
+            started.elapsed(),
+            Duration::from_millis(2_500),
+            "hard drop lands exactly at the hard deadline"
+        );
+    }
+
+    #[test]
+    fn zero_and_contradictory_policies_are_rejected() {
+        assert!(WsSessionPolicy::default().validate().is_ok());
+
+        let cases: Vec<(&str, WsSessionPolicy)> = vec![
+            (
+                "slow_ack_warn_interval",
+                WsSessionPolicy {
+                    slow_ack_warn_interval: Duration::ZERO,
+                    ..WsSessionPolicy::default()
+                },
+            ),
+            (
+                "ack_hard_timeout",
+                WsSessionPolicy {
+                    ack_hard_timeout: Duration::ZERO,
+                    ..WsSessionPolicy::default()
+                },
+            ),
+            (
+                "heartbeat_interval",
+                WsSessionPolicy {
+                    heartbeat_interval: Duration::ZERO,
+                    ..WsSessionPolicy::default()
+                },
+            ),
+            (
+                "client_timeout",
+                WsSessionPolicy {
+                    client_timeout: Duration::ZERO,
+                    ..WsSessionPolicy::default()
+                },
+            ),
+            (
+                "write_timeout",
+                WsSessionPolicy {
+                    write_timeout: Duration::ZERO,
+                    ..WsSessionPolicy::default()
+                },
+            ),
+            (
+                "client_timeout",
+                WsSessionPolicy {
+                    heartbeat_interval: Duration::from_secs(10),
+                    client_timeout: Duration::from_secs(5),
+                    ..WsSessionPolicy::default()
+                },
+            ),
+        ];
+
+        for (field, policy) in cases {
+            let error = policy
+                .validate()
+                .expect_err("invalid policy must be rejected");
+            assert!(
+                error.to_string().contains(field),
+                "error should name the offending field {}: {}",
+                field,
+                error
+            );
+        }
     }
 }

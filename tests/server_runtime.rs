@@ -329,6 +329,17 @@ async fn engine_routes_compose_with_custom_middleware_and_routes() {
     let server = Server::new().debug(false).build();
     let handle = VoxelizeHandle::new(server.start());
 
+    // An unusable session policy is rejected at the public API, not at
+    // session time.
+    let invalid = WsSessionPolicy {
+        slow_ack_warn_interval: Duration::ZERO,
+        ..WsSessionPolicy::default()
+    };
+    assert!(
+        handle.clone().with_session_policy(invalid).is_err(),
+        "zero warn interval must be rejected"
+    );
+
     let app = test::init_service(
         App::new()
             .wrap(middleware::DefaultHeaders::new().add(("x-town-middleware", "on")))
@@ -412,11 +423,13 @@ async fn ws_slow_ack_preserves_ordering_and_hard_timeout_drops_wedged_session() 
 
     let warn_interval = Duration::from_millis(100);
     let hard_timeout = Duration::from_millis(600);
-    let handle = VoxelizeHandle::new(addr).with_session_policy(WsSessionPolicy {
-        slow_ack_warn_interval: warn_interval,
-        ack_hard_timeout: hard_timeout,
-        ..WsSessionPolicy::default()
-    });
+    let handle = VoxelizeHandle::new(addr)
+        .with_session_policy(WsSessionPolicy {
+            slow_ack_warn_interval: warn_interval,
+            ack_hard_timeout: hard_timeout,
+            ..WsSessionPolicy::default()
+        })
+        .expect("test policy is valid");
 
     let app_handle = handle.clone();
     let http = actix_web::HttpServer::new(move || App::new().configure(app_handle.configure()))
