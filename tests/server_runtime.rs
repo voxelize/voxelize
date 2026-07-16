@@ -381,6 +381,93 @@ async fn engine_routes_compose_with_custom_middleware_and_routes() {
     assert_eq!(body["started"], json!(false));
 }
 
+/// The routing surface every composed app must answer: engine route, adapter
+/// route, static asset, SPA index, and an unmatched path falling through to
+/// the static fallback — all through custom middleware.
+const COMPOSED_SURFACE: [(&str, u16, Option<&str>); 5] = [
+    ("/town/profile", 200, Some("profiling")),
+    ("/health", 503, Some("\"ready\":false")),
+    ("/assets/app.js", 200, Some("console.log")),
+    ("/", 200, Some("town spa")),
+    // Unmatched non-file paths fall through to the static fallback and 404
+    // (the SPA entry is served at "/"; no history-API fallback).
+    ("/no/such/route", 404, None),
+];
+
+/// With a real static folder configured, the static tree is a fallback
+/// (default service), so it can never shadow engine or adapter routes — in
+/// either documented registration order — while static assets and the SPA
+/// index keep working through custom middleware. No route allowlist exists.
+#[actix_web::test]
+async fn static_fallback_never_shadows_engine_or_adapter_routes() {
+    let dir = std::env::temp_dir().join(format!(
+        "voxelize-static-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::create_dir_all(dir.join("assets")).expect("temp static dir");
+    std::fs::write(dir.join("index.html"), "<html>town spa</html>").unwrap();
+    std::fs::write(dir.join("assets").join("app.js"), "console.log(\"town\");").unwrap();
+
+    let server = Server::new().debug(false).build();
+    let handle =
+        VoxelizeHandle::new(server.start()).with_serve(dir.to_str().expect("utf-8 temp path"));
+
+    let town_profile = || async { HttpResponse::Ok().json(json!({ "profiling": true })) };
+
+    // Documented order: adapter route registered AFTER configure — the exact
+    // arrangement a root-mounted static service would have shadowed. Then
+    // the opposite order: the contract holds both ways.
+    let route_after = test::init_service(
+        App::new()
+            .wrap(middleware::DefaultHeaders::new().add(("x-town-middleware", "on")))
+            .configure(handle.configure())
+            .route("/town/profile", web::get().to(town_profile)),
+    )
+    .await;
+    let route_before = test::init_service(
+        App::new()
+            .wrap(middleware::DefaultHeaders::new().add(("x-town-middleware", "on")))
+            .route("/town/profile", web::get().to(town_profile))
+            .configure(handle.configure()),
+    )
+    .await;
+
+    for (order, app) in [("after", &route_after), ("before", &route_before)] {
+        for (uri, expected_status, expected_body) in COMPOSED_SURFACE {
+            let request = test::TestRequest::get().uri(uri).to_request();
+            let response = test::call_service(app, request).await;
+            assert_eq!(
+                response.status().as_u16(),
+                expected_status,
+                "unexpected status for {} (route registered {} configure)",
+                uri,
+                order
+            );
+            assert_eq!(
+                response.headers().get("x-town-middleware").unwrap(),
+                "on",
+                "custom middleware must wrap {} (route registered {} configure)",
+                uri,
+                order
+            );
+            if let Some(needle) = expected_body {
+                let body = test::read_body(response).await;
+                let body = String::from_utf8_lossy(&body);
+                assert!(
+                    body.contains(needle),
+                    "body of {} should contain {:?}; got: {}",
+                    uri,
+                    needle,
+                    body
+                );
+            }
+        }
+    }
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 fn action_message(action: &str, data: Value) -> Vec<u8> {
     encode_message(
         &Message::new(&MessageType::Action)

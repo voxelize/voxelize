@@ -287,13 +287,22 @@ impl VoxelizeHandle {
     /// - `GET /ws/` — canonical WebSocket session ([`ws_route`])
     /// - `GET /info` — server info snapshot ([`info_route`])
     /// - `GET /health` — readiness/liveness probe ([`health_route`])
-    /// - static files under `/` (when a serve folder is set), which never
-    ///   shadow the API routes
+    /// - static files (when a serve folder is set), installed as the app's
+    ///   *default service*: they only handle requests no route matched, so
+    ///   they can never shadow engine or adapter routes
     ///
     /// Also registers this handle and the raw `Addr<Server>` as app data, so
     /// custom routes and the WebRTC signaling handlers can extract them.
     ///
     /// Usage: `App::new().wrap(middleware).configure(handle.configure())`.
+    ///
+    /// **Ordering contract:** adapter routes may be registered before *or*
+    /// after this call — routes always win over the static fallback, in
+    /// either order. Unmatched paths that do not correspond to a file under
+    /// the serve folder return 404 (`GET /` serves the SPA index; there is
+    /// no history-API fallback). When a serve folder is set, the engine owns
+    /// the app's default service; adapters that need their own catch-all
+    /// should leave the serve folder empty and serve static files themselves.
     pub fn configure(&self) -> impl FnOnce(&mut web::ServiceConfig) {
         let handle = self.clone();
         move |cfg| {
@@ -308,17 +317,13 @@ impl VoxelizeHandle {
                 info!("No static client folder configured (WS/API only)");
             } else {
                 info!("Serving static client from {}", handle.serve);
-                // Never let the SPA Files service shadow API routes — otherwise
-                // GET /health is handled as a missing static file (404) in prod.
-                cfg.service(
-                    Files::new("/", &handle.serve)
-                        .index_file("index.html")
-                        .path_filter(|path, _| {
-                            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                            // Exclude API route leaf names; nested assets keep matching.
-                            !matches!(name, "health" | "info" | "ws") && !path.starts_with("ws/")
-                        }),
-                );
+                // The static tree is a FALLBACK, not a mounted root service:
+                // a root-mounted Files service would consume every path that
+                // prefix-matches "/" — including adapter routes registered
+                // after configure — and no hardcoded exclusion list can know
+                // downstream route names. As the default service it runs only
+                // when routing found no match, so routes win in any order.
+                cfg.default_service(Files::new("/", &handle.serve).index_file("index.html"));
             }
         }
     }
