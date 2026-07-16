@@ -318,6 +318,13 @@ pub struct Server {
 /// Default max age of the last completed world tick before `/health` is unhealthy.
 pub const DEFAULT_TICK_STALL_THRESHOLD_MS: u64 = 5_000;
 
+/// Delay between preload progress polls. Each poll also ticks the preloading
+/// worlds (and the server actor's own tick interval keeps ticking them during
+/// boot preload), so polling hotter than the tick cadence makes preload no
+/// faster — it only burns CPU and starves the arbiter that concurrently
+/// serves `/health` while chunks generate.
+const PRELOAD_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
 fn tick_stall_threshold_ms() -> u64 {
     std::env::var("VOXELIZE_TICK_STALL_MS")
         .ok()
@@ -874,6 +881,8 @@ impl Server {
                 m.clear().unwrap();
                 break;
             }
+
+            tokio::time::sleep(PRELOAD_POLL_INTERVAL).await;
         }
 
         let preload_len = infos.iter().filter(|info| info.config.preload).count();
