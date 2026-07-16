@@ -3,7 +3,7 @@ use std::f64;
 use hashbrown::HashMap;
 use nalgebra::{Rotation3, Vector3};
 
-use crate::{LSystem, NoiseOptions, SeededNoise, Vec3, VoxelUpdate};
+use crate::{LSystem, NoiseOptions, SeededNoise, TreeRng, Vec3, VoxelUpdate};
 
 /// There are a set of L-system symbols for the tree generator.
 /// The symbols are:
@@ -27,8 +27,53 @@ struct TreeState {
     pub leaf_scale: f64,
 }
 
+/// Per-individual variation ranges for a tree species. Every draw comes
+/// from the tree's position-seeded stream, so the same world seed always
+/// grows the same forest. The neutral defaults are bit-exact no-ops:
+/// species that configure nothing generate exactly as before.
+#[derive(Debug, Clone, Copy)]
+pub struct TreeVariance {
+    /// Whole-tree scale multiplier on branch lengths, drawn per tree.
+    pub size_range: (f64, f64),
+
+    /// Starting leaf-cluster scale multiplier, drawn per tree.
+    pub leaf_scale_range: (f64, f64),
+
+    /// Initial trunk tilt from vertical in radians, drawn per tree. The
+    /// tilt heading follows the spin draw.
+    pub lean_range: (f64, f64),
+
+    /// Whole-tree heading rotation in radians, drawn per tree in
+    /// [0, spin). Use TAU so asymmetric species face any direction.
+    pub spin: f64,
+
+    /// Random +/- jitter in radians applied to every `+`/`-` turn.
+    pub drot_jitter: f64,
+
+    /// Random +/- jitter in radians applied to every `#`/`$` pitch.
+    pub dy_jitter: f64,
+
+    /// Random +/- fraction applied to every `F` segment's length.
+    pub length_jitter: f64,
+}
+
+impl Default for TreeVariance {
+    fn default() -> Self {
+        Self {
+            size_range: (1.0, 1.0),
+            leaf_scale_range: (1.0, 1.0),
+            lean_range: (0.0, 0.0),
+            spin: 0.0,
+            drot_jitter: 0.0,
+            dy_jitter: 0.0,
+            length_jitter: 0.0,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Trees {
+    seed: u32,
     threshold: f64,
     noise: SeededNoise,
     trees: HashMap<String, Tree>,
@@ -37,6 +82,7 @@ pub struct Trees {
 impl Trees {
     pub fn new(seed: u32, options: &NoiseOptions) -> Trees {
         Trees {
+            seed,
             threshold: 0.5,
             noise: SeededNoise::new(seed + options.seed, options),
             trees: HashMap::new(),
@@ -73,16 +119,36 @@ impl Trees {
             branch_length_factor,
             branch_drot_angle,
             branch_dy_angle,
+            variance,
             ..
         } = tree;
 
-        let mut base = at.clone();
-        let mut length = branch_initial_length as f64;
-        let mut radius = branch_initial_radius as f64;
-        let mut leaf_scale = 1.0;
+        // One stream per individual, keyed by world seed and plant
+        // position: neighboring trees of one species diverge, replants at
+        // the same spot regrow identically.
+        let mut rng = TreeRng::new(TreeRng::scramble(
+            TreeRng::scramble(((self.seed as u64) << 32) | at.1 as u32 as u64)
+                ^ (((at.0 as u32 as u64) << 32) | at.2 as u32 as u64),
+        ));
 
-        let mut y_angle = 0.0;
-        let mut rot_angle = 0.0;
+        let size = rng.range(variance.size_range.0, variance.size_range.1);
+        let mut leaf_scale = rng.range(variance.leaf_scale_range.0, variance.leaf_scale_range.1);
+        let mut y_angle = rng.range(variance.lean_range.0, variance.lean_range.1);
+        let mut rot_angle = rng.range(0.0, variance.spin);
+
+        // Stochastic species re-roll their production per individual;
+        // deterministic species reuse the string baked at build time.
+        let expanded;
+        let symbols = if tree.system.is_stochastic() {
+            expanded = tree.system.generate_seeded(&mut rng);
+            expanded.as_str()
+        } else {
+            tree.system_result.as_str()
+        };
+
+        let mut base = at.clone();
+        let mut length = branch_initial_length as f64 * size;
+        let mut radius = branch_initial_radius as f64;
 
         let mut updates = HashMap::new();
         let mut leaves_updates = HashMap::new();
@@ -95,10 +161,11 @@ impl Trees {
 
         let mut stack = vec![];
 
-        for symbol in tree.system_result.chars() {
+        for symbol in symbols.chars() {
             // Grow the tree from base.
             if symbol == 'F' {
-                let delta_pos = Trees::angle_dist_cast(y_angle, rot_angle, length.ceil() as i32);
+                let step = length * (1.0 + rng.signed() * variance.length_jitter);
+                let delta_pos = Trees::angle_dist_cast(y_angle, rot_angle, step.ceil() as i32);
                 let next_pos = Vec3(
                     delta_pos.0 + base.0,
                     delta_pos.1 + base.1,
@@ -115,13 +182,13 @@ impl Trees {
 
                 base = next_pos;
             } else if symbol == '+' {
-                rot_angle += branch_drot_angle;
+                rot_angle += branch_drot_angle + rng.signed() * variance.drot_jitter;
             } else if symbol == '-' {
-                rot_angle -= branch_drot_angle;
+                rot_angle -= branch_drot_angle + rng.signed() * variance.drot_jitter;
             } else if symbol == '#' {
-                y_angle += branch_dy_angle;
+                y_angle += branch_dy_angle + rng.signed() * variance.dy_jitter;
             } else if symbol == '$' {
-                y_angle -= branch_dy_angle;
+                y_angle -= branch_dy_angle + rng.signed() * variance.dy_jitter;
             } else if symbol == '@' {
                 length *= branch_length_factor;
                 length = length.max(branch_min_length as f64);
@@ -322,10 +389,14 @@ pub struct Tree {
     /// The id of the trunk block.
     pub trunk_id: u32,
 
-    /// The L-system production rules.
-    pub rules: HashMap<char, String>,
+    /// Per-individual variation ranges.
+    pub variance: TreeVariance,
 
-    /// The L-system output to use.
+    /// The L-system, with builder rules merged in.
+    pub system: LSystem,
+
+    /// The L-system output baked at build time. Empty for stochastic
+    /// systems, which expand per individual instead.
     pub system_result: String,
 }
 
@@ -349,7 +420,9 @@ pub struct TreeBuilder {
     branch_drot_angle: f64,
     leaf_id: u32,
     trunk_id: u32,
+    variance: TreeVariance,
     rules: HashMap<char, String>,
+    stochastic_rules: HashMap<char, Vec<(String, f64)>>,
     system: LSystem,
 }
 
@@ -372,7 +445,9 @@ impl TreeBuilder {
             leaf_id,
             trunk_id,
 
+            variance: TreeVariance::default(),
             rules: HashMap::new(),
+            stochastic_rules: HashMap::new(),
             system: LSystem::default(),
         }
     }
@@ -432,6 +507,48 @@ impl TreeBuilder {
         self
     }
 
+    /// Per-tree whole-plant scale range.
+    pub fn size_range(mut self, min: f64, max: f64) -> TreeBuilder {
+        self.variance.size_range = (min, max);
+        self
+    }
+
+    /// Per-tree starting leaf-cluster scale range.
+    pub fn leaf_scale_range(mut self, min: f64, max: f64) -> TreeBuilder {
+        self.variance.leaf_scale_range = (min, max);
+        self
+    }
+
+    /// Per-tree trunk tilt range from vertical, radians.
+    pub fn lean_range(mut self, min: f64, max: f64) -> TreeBuilder {
+        self.variance.lean_range = (min, max);
+        self
+    }
+
+    /// Per-tree heading rotation span, radians. TAU for any direction.
+    pub fn spin(mut self, spin: f64) -> TreeBuilder {
+        self.variance.spin = spin;
+        self
+    }
+
+    /// Per-turn +/- jitter on `+`/`-` rotations, radians.
+    pub fn drot_jitter(mut self, drot_jitter: f64) -> TreeBuilder {
+        self.variance.drot_jitter = drot_jitter;
+        self
+    }
+
+    /// Per-turn +/- jitter on `#`/`$` pitches, radians.
+    pub fn dy_jitter(mut self, dy_jitter: f64) -> TreeBuilder {
+        self.variance.dy_jitter = dy_jitter;
+        self
+    }
+
+    /// Per-segment +/- fractional jitter on `F` lengths.
+    pub fn length_jitter(mut self, length_jitter: f64) -> TreeBuilder {
+        self.variance.length_jitter = length_jitter;
+        self
+    }
+
     pub fn system(mut self, system: LSystem) -> TreeBuilder {
         self.system = system;
         self
@@ -457,12 +574,34 @@ impl TreeBuilder {
         self
     }
 
+    /// Weighted production alternatives for one symbol, re-rolled per
+    /// individual at generation time.
+    pub fn stochastic_rule(mut self, key: char, alternatives: &[(&str, f64)]) -> TreeBuilder {
+        self.stochastic_rules.insert(
+            key,
+            alternatives
+                .iter()
+                .map(|&(production, weight)| (production.to_owned(), weight))
+                .collect(),
+        );
+        self
+    }
+
     pub fn build(self) -> Tree {
         // Apply rules to the L-system
         let mut system = self.system;
         for (key, value) in &self.rules {
             system.rules.insert(*key, value.clone());
         }
+        for (key, alternatives) in &self.stochastic_rules {
+            system.stochastic_rules.insert(*key, alternatives.clone());
+        }
+
+        let system_result = if system.is_stochastic() {
+            String::new()
+        } else {
+            system.generate()
+        };
 
         Tree {
             leaf_radius: self.leaf_radius,
@@ -478,8 +617,151 @@ impl TreeBuilder {
             branch_drot_angle: self.branch_drot_angle,
             leaf_id: self.leaf_id,
             trunk_id: self.trunk_id,
-            rules: self.rules,
-            system_result: system.generate(),
+            variance: self.variance,
+            system,
+            system_result,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::f64::consts::{PI, TAU};
+
+    fn make_plain_oak() -> Tree {
+        Tree::new(1, 2)
+            .leaf_height(2)
+            .leaf_radius(2)
+            .branch_initial_radius(1)
+            .branch_initial_length(3)
+            .system(LSystem::new().axiom("F%").iterations(0).build())
+            .build()
+    }
+
+    fn sorted(mut updates: Vec<VoxelUpdate>) -> Vec<VoxelUpdate> {
+        updates.sort_by_key(|(pos, id)| (pos.0, pos.1, pos.2, *id));
+        updates
+    }
+
+    /// A species with neutral variance must generate the exact voxels the
+    /// pre-variance engine produced, independent of position.
+    #[test]
+    fn neutral_variance_is_bit_exact() {
+        let mut trees = Trees::new(42, &NoiseOptions::new().build());
+        trees.register("Oak", make_plain_oak());
+
+        for at in [Vec3(0, 0, 0), Vec3(-171, 83, 964), Vec3(7231, 71, -992)] {
+            let updates = trees.generate("Oak", &at);
+            // Trunk: one segment of length 3, radius 1 -> a 1-wide column.
+            let trunk: Vec<_> = updates.iter().filter(|(_, id)| *id == 2).collect();
+            assert_eq!(trunk.len(), 3, "trunk voxels at {at:?}");
+            for (pos, _) in &trunk {
+                assert_eq!((pos.0, pos.2), (at.0, at.2));
+            }
+            // Deterministic across replants.
+            assert_eq!(
+                sorted(trees.generate("Oak", &at)),
+                sorted(trees.generate("Oak", &at))
+            );
+        }
+    }
+
+    /// The same species must differ between positions once variance is
+    /// configured, and regenerate identically at one position.
+    #[test]
+    fn variance_diverges_by_position_and_stays_deterministic() {
+        let mut trees = Trees::new(42, &NoiseOptions::new().build());
+        trees.register(
+            "WildOak",
+            Tree::new(1, 2)
+                .leaf_height(2)
+                .leaf_radius(2)
+                .branch_initial_radius(1)
+                .branch_initial_length(4)
+                .size_range(0.75, 1.4)
+                .leaf_scale_range(0.8, 1.2)
+                .lean_range(0.05, 0.3)
+                .spin(TAU)
+                .system(LSystem::new().axiom("F%").iterations(0).build())
+                .build(),
+        );
+
+        let a = sorted(trees.generate("WildOak", &Vec3(10, 80, 10)));
+        let b = sorted(trees.generate("WildOak", &Vec3(15, 80, 10)));
+        let c = sorted(trees.generate("WildOak", &Vec3(10, 80, 15)));
+        assert!(a != b || b != c, "wild oaks should not be clones");
+        assert_eq!(a, sorted(trees.generate("WildOak", &Vec3(10, 80, 10))));
+    }
+
+    /// Stochastic productions must pick different topologies across
+    /// individuals while every alternative stays reachable.
+    #[test]
+    fn stochastic_rules_vary_topology() {
+        let mut trees = Trees::new(7, &NoiseOptions::new().build());
+        trees.register(
+            "Forked",
+            Tree::new(1, 2)
+                .leaf_height(1)
+                .leaf_radius(1)
+                .branch_initial_radius(1)
+                .branch_initial_length(2)
+                .branch_dy_angle(PI / 4.0)
+                .branch_drot_angle(PI / 2.0)
+                .system(
+                    LSystem::new()
+                        .axiom("FT")
+                        .stochastic_rule(
+                            'T',
+                            &[("F%", 1.0), ("[+#F%][-#F%]", 1.0), ("FF%", 1.0)],
+                        )
+                        .iterations(1)
+                        .build(),
+                )
+                .build(),
+        );
+
+        let mut sizes = std::collections::HashSet::new();
+        for i in 0..48 {
+            sizes.insert(trees.generate("Forked", &Vec3(i * 13, 64, i * 29)).len());
+        }
+        assert!(
+            sizes.len() >= 2,
+            "expected topological variety, got sizes {sizes:?}"
+        );
+    }
+
+    /// Weighted picks must respect weights: a heavily weighted
+    /// alternative should dominate.
+    #[test]
+    fn stochastic_weights_are_respected() {
+        let system = LSystem::new()
+            .axiom("T")
+            .stochastic_rule('T', &[("A", 99.0), ("B", 1.0)])
+            .iterations(1)
+            .build();
+
+        let mut a_count = 0;
+        for i in 0..200u64 {
+            let mut rng = TreeRng::new(TreeRng::scramble(i.wrapping_mul(0x9e3779b97f4a7c15)));
+            if system.generate_seeded(&mut rng) == "A" {
+                a_count += 1;
+            }
+        }
+        assert!(a_count > 180, "expected A to dominate, got {a_count}/200");
+    }
+
+    /// Deterministic rules still apply during seeded generation for
+    /// symbols without alternatives.
+    #[test]
+    fn seeded_generation_mixes_deterministic_rules() {
+        let system = LSystem::new()
+            .axiom("FX")
+            .rule('F', "FF")
+            .stochastic_rule('X', &[("F%", 1.0)])
+            .iterations(1)
+            .build();
+        let mut rng = TreeRng::new(1);
+        assert_eq!(system.generate_seeded(&mut rng), "FFF%");
     }
 }
