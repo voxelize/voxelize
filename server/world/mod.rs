@@ -1877,15 +1877,25 @@ impl World {
             let light_padding = (self.config().max_light_level as f32
                 / self.config().chunk_size as f32)
                 .ceil() as usize;
-            let check_radius = (self.config().preload_radius - light_padding) as i32;
+            let check_radius = self.config().preload_radius.saturating_sub(light_padding) as i32;
 
+            // Only in-bounds chunks are scheduled by `preload`, so only they
+            // can ever become ready: counting out-of-bounds cells toward the
+            // expected total would leave `preloading` true forever on bounded
+            // worlds whose preload radius exceeds the world bounds.
             let mut total = 0;
-            let supposed = (check_radius * 2).pow(2);
+            let mut supposed = 0;
 
             for x in -check_radius..=check_radius {
                 for z in -check_radius..=check_radius {
                     let chunks = self.chunks();
                     let coords = Vec2(x, z);
+
+                    if !chunks.is_within_world(&coords) {
+                        continue;
+                    }
+
+                    supposed += 1;
 
                     if chunks.is_chunk_ready(&coords) {
                         total += 1;
@@ -1903,7 +1913,11 @@ impl World {
                 }
             }
 
-            self.preload_progress = (total as f32 / supposed as f32).min(1.0);
+            self.preload_progress = if supposed == 0 {
+                1.0
+            } else {
+                (total as f32 / supposed as f32).min(1.0)
+            };
 
             if total >= supposed {
                 self.preloading = false;
