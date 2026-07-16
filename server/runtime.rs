@@ -63,29 +63,12 @@ const DEFAULT_WS_CLIENT_TIMEOUT_MS: u64 = 45_000;
 /// forwarding loop responsive so the idle timeout above can fire.
 const WS_WRITE_TIMEOUT: Duration = Duration::from_secs(15);
 
-fn ws_heartbeat_interval() -> Duration {
-    Duration::from_millis(
-        std::env::var("VOXELIZE_WS_HEARTBEAT_MS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_WS_HEARTBEAT_INTERVAL_MS),
-    )
-}
-
-fn ws_client_timeout() -> Duration {
-    Duration::from_millis(
-        std::env::var("VOXELIZE_WS_CLIENT_TIMEOUT_MS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_WS_CLIENT_TIMEOUT_MS),
-    )
-}
-
 /// A [`WsSessionPolicy`] that cannot drive a session: some duration is zero
 /// (which would spin or panic timers) or the timings contradict each other.
+/// The message names the offending field and observed value(s).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidWsSessionPolicy {
-    reason: &'static str,
+    reason: String,
 }
 
 impl std::fmt::Display for InvalidWsSessionPolicy {
@@ -133,43 +116,72 @@ pub struct WsSessionPolicy {
 }
 
 impl Default for WsSessionPolicy {
+    /// The production policy, with heartbeat and idle timings taken from
+    /// `VOXELIZE_WS_HEARTBEAT_MS` / `VOXELIZE_WS_CLIENT_TIMEOUT_MS` when set.
+    /// Environment values are not validated here — [`Voxelize::bind_with`]
+    /// validates the final policy and fails fast before binding, so a broken
+    /// environment cannot produce a healthy server whose WS sessions are all
+    /// doomed.
     fn default() -> Self {
-        Self {
-            slow_ack_warn_interval: CLIENT_MESSAGE_SLOW_ACK_WARN_INTERVAL,
-            ack_hard_timeout: CLIENT_MESSAGE_ACK_HARD_TIMEOUT,
-            heartbeat_interval: ws_heartbeat_interval(),
-            client_timeout: ws_client_timeout(),
-            write_timeout: WS_WRITE_TIMEOUT,
-        }
+        Self::from_env_lookup(|name| std::env::var(name).ok())
     }
 }
 
 impl WsSessionPolicy {
+    /// Build the default policy, resolving environment overrides through
+    /// `lookup`. This is the seam [`WsSessionPolicy::default`] goes through,
+    /// so tests can exercise env-derived policies deterministically without
+    /// mutating process-global environment state.
+    fn from_env_lookup(lookup: impl Fn(&str) -> Option<String>) -> Self {
+        let env_ms = |name: &str, default_ms: u64| {
+            Duration::from_millis(
+                lookup(name)
+                    .and_then(|value| value.parse().ok())
+                    .unwrap_or(default_ms),
+            )
+        };
+        Self {
+            slow_ack_warn_interval: CLIENT_MESSAGE_SLOW_ACK_WARN_INTERVAL,
+            ack_hard_timeout: CLIENT_MESSAGE_ACK_HARD_TIMEOUT,
+            heartbeat_interval: env_ms(
+                "VOXELIZE_WS_HEARTBEAT_MS",
+                DEFAULT_WS_HEARTBEAT_INTERVAL_MS,
+            ),
+            client_timeout: env_ms(
+                "VOXELIZE_WS_CLIENT_TIMEOUT_MS",
+                DEFAULT_WS_CLIENT_TIMEOUT_MS,
+            ),
+            write_timeout: WS_WRITE_TIMEOUT,
+        }
+    }
+
     /// Check that this policy can drive a session: every duration is
     /// non-zero, and the idle `client_timeout` is at least
     /// `heartbeat_interval` (silence is only checked on heartbeat ticks).
+    /// The error names the offending field and value(s).
     pub fn validate(&self) -> Result<(), InvalidWsSessionPolicy> {
-        let invalid = |reason| Err(InvalidWsSessionPolicy { reason });
-        if self.slow_ack_warn_interval.is_zero() {
-            return invalid("slow_ack_warn_interval must be non-zero");
-        }
-        if self.ack_hard_timeout.is_zero() {
-            return invalid("ack_hard_timeout must be non-zero");
-        }
-        if self.heartbeat_interval.is_zero() {
-            return invalid("heartbeat_interval must be non-zero");
-        }
-        if self.client_timeout.is_zero() {
-            return invalid("client_timeout must be non-zero");
-        }
-        if self.write_timeout.is_zero() {
-            return invalid("write_timeout must be non-zero");
+        let non_zero = [
+            ("slow_ack_warn_interval", self.slow_ack_warn_interval),
+            ("ack_hard_timeout", self.ack_hard_timeout),
+            ("heartbeat_interval", self.heartbeat_interval),
+            ("client_timeout", self.client_timeout),
+            ("write_timeout", self.write_timeout),
+        ];
+        for (field, value) in non_zero {
+            if value.is_zero() {
+                return Err(InvalidWsSessionPolicy {
+                    reason: format!("{} must be non-zero (got {:?})", field, value),
+                });
+            }
         }
         if self.client_timeout < self.heartbeat_interval {
-            return invalid(
-                "client_timeout must be at least heartbeat_interval \
-                 (idle silence is only checked on heartbeat ticks)",
-            );
+            return Err(InvalidWsSessionPolicy {
+                reason: format!(
+                    "client_timeout ({:?}) must be at least heartbeat_interval ({:?}) \
+                     because idle silence is only checked on heartbeat ticks",
+                    self.client_timeout, self.heartbeat_interval
+                ),
+            });
         }
         Ok(())
     }
@@ -772,6 +784,16 @@ impl Voxelize {
             > + 'static,
         B: MessageBody + 'static,
     {
+        // Fail fast on an unusable env-derived session policy BEFORE any
+        // boot work (worlds, actor, socket, preload): a server that binds
+        // and turns healthy while every WebSocket session is doomed (e.g.
+        // VOXELIZE_WS_HEARTBEAT_MS=0) is worse than one that refuses to boot
+        // with an error naming the offending field and value.
+        let session_policy = WsSessionPolicy::default();
+        session_policy
+            .validate()
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))?;
+
         server.prepare().await;
 
         let addr = server.addr.to_owned();
@@ -797,9 +819,10 @@ impl Voxelize {
         // Leave `started=false` until RunPreload completes (SetStarted).
         let server_addr = server.start();
 
-        let handle = VoxelizeHandle::new(server_addr.clone())
+        let mut handle = VoxelizeHandle::new(server_addr.clone())
             .with_secret(secret)
             .with_serve(&serve);
+        handle.session_policy = session_policy;
         let factory_handle = handle.clone();
 
         let http =
@@ -843,6 +866,20 @@ impl Voxelize {
     }
 }
 
+/// A fixed, valid policy with the production values, hardcoded so tests
+/// never read process-global environment state (see `env_policy_tests` for
+/// the env-derived paths).
+#[cfg(test)]
+fn base_test_policy() -> WsSessionPolicy {
+    WsSessionPolicy {
+        slow_ack_warn_interval: Duration::from_secs(1),
+        ack_hard_timeout: Duration::from_secs(30),
+        heartbeat_interval: Duration::from_secs(10),
+        client_timeout: Duration::from_secs(45),
+        write_timeout: Duration::from_secs(15),
+    }
+}
+
 #[cfg(test)]
 mod ack_policy_tests {
     use super::*;
@@ -851,7 +888,7 @@ mod ack_policy_tests {
         WsSessionPolicy {
             slow_ack_warn_interval: Duration::from_millis(warn_ms),
             ack_hard_timeout: Duration::from_millis(hard_ms),
-            ..WsSessionPolicy::default()
+            ..base_test_policy()
         }
     }
 
@@ -953,42 +990,42 @@ mod ack_policy_tests {
 
     #[test]
     fn zero_and_contradictory_policies_are_rejected() {
-        assert!(WsSessionPolicy::default().validate().is_ok());
+        assert!(base_test_policy().validate().is_ok());
 
         let cases: Vec<(&str, WsSessionPolicy)> = vec![
             (
                 "slow_ack_warn_interval",
                 WsSessionPolicy {
                     slow_ack_warn_interval: Duration::ZERO,
-                    ..WsSessionPolicy::default()
+                    ..base_test_policy()
                 },
             ),
             (
                 "ack_hard_timeout",
                 WsSessionPolicy {
                     ack_hard_timeout: Duration::ZERO,
-                    ..WsSessionPolicy::default()
+                    ..base_test_policy()
                 },
             ),
             (
                 "heartbeat_interval",
                 WsSessionPolicy {
                     heartbeat_interval: Duration::ZERO,
-                    ..WsSessionPolicy::default()
+                    ..base_test_policy()
                 },
             ),
             (
                 "client_timeout",
                 WsSessionPolicy {
                     client_timeout: Duration::ZERO,
-                    ..WsSessionPolicy::default()
+                    ..base_test_policy()
                 },
             ),
             (
                 "write_timeout",
                 WsSessionPolicy {
                     write_timeout: Duration::ZERO,
-                    ..WsSessionPolicy::default()
+                    ..base_test_policy()
                 },
             ),
             (
@@ -996,7 +1033,7 @@ mod ack_policy_tests {
                 WsSessionPolicy {
                     heartbeat_interval: Duration::from_secs(10),
                     client_timeout: Duration::from_secs(5),
-                    ..WsSessionPolicy::default()
+                    ..base_test_policy()
                 },
             ),
         ];
@@ -1012,5 +1049,158 @@ mod ack_policy_tests {
                 error
             );
         }
+    }
+}
+
+/// Env-derived default policy behavior. The mapping itself is tested through
+/// the `from_env_lookup` seam with injected lookups (no process-global env
+/// mutation, so no races with parallel tests); only the one end-to-end
+/// fail-fast test touches the real environment, serialized by `ENV_LOCK`.
+#[cfg(test)]
+mod env_policy_tests {
+    use super::*;
+
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn lookup_from(
+        pairs: &'static [(&'static str, &'static str)],
+    ) -> impl Fn(&str) -> Option<String> {
+        move |name| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
+        }
+    }
+
+    #[test]
+    fn no_overrides_yield_valid_production_defaults() {
+        let policy = WsSessionPolicy::from_env_lookup(|_| None);
+        assert_eq!(
+            policy.heartbeat_interval,
+            Duration::from_millis(DEFAULT_WS_HEARTBEAT_INTERVAL_MS)
+        );
+        assert_eq!(
+            policy.client_timeout,
+            Duration::from_millis(DEFAULT_WS_CLIENT_TIMEOUT_MS)
+        );
+        assert_eq!(policy.slow_ack_warn_interval, Duration::from_secs(1));
+        assert_eq!(policy.ack_hard_timeout, Duration::from_secs(30));
+        assert!(policy.validate().is_ok());
+    }
+
+    #[test]
+    fn valid_overrides_map_through_and_stay_valid() {
+        let policy = WsSessionPolicy::from_env_lookup(lookup_from(&[
+            ("VOXELIZE_WS_HEARTBEAT_MS", "2000"),
+            ("VOXELIZE_WS_CLIENT_TIMEOUT_MS", "9000"),
+        ]));
+        assert_eq!(policy.heartbeat_interval, Duration::from_millis(2_000));
+        assert_eq!(policy.client_timeout, Duration::from_millis(9_000));
+        assert!(policy.validate().is_ok());
+    }
+
+    #[test]
+    fn unparseable_overrides_fall_back_to_defaults() {
+        let policy = WsSessionPolicy::from_env_lookup(lookup_from(&[
+            ("VOXELIZE_WS_HEARTBEAT_MS", "not-a-number"),
+            ("VOXELIZE_WS_CLIENT_TIMEOUT_MS", ""),
+        ]));
+        assert_eq!(
+            policy.heartbeat_interval,
+            Duration::from_millis(DEFAULT_WS_HEARTBEAT_INTERVAL_MS)
+        );
+        assert_eq!(
+            policy.client_timeout,
+            Duration::from_millis(DEFAULT_WS_CLIENT_TIMEOUT_MS)
+        );
+        assert!(policy.validate().is_ok());
+    }
+
+    #[test]
+    fn zero_heartbeat_override_is_invalid_naming_field_and_value() {
+        let error =
+            WsSessionPolicy::from_env_lookup(lookup_from(&[("VOXELIZE_WS_HEARTBEAT_MS", "0")]))
+                .validate()
+                .expect_err("zero heartbeat must be rejected");
+        let message = error.to_string();
+        assert!(message.contains("heartbeat_interval"), "{}", message);
+        assert!(message.contains('0'), "{}", message);
+    }
+
+    #[test]
+    fn zero_client_timeout_override_is_invalid_naming_field_and_value() {
+        let error = WsSessionPolicy::from_env_lookup(lookup_from(&[(
+            "VOXELIZE_WS_CLIENT_TIMEOUT_MS",
+            "0",
+        )]))
+        .validate()
+        .expect_err("zero client timeout must be rejected");
+        let message = error.to_string();
+        assert!(message.contains("client_timeout"), "{}", message);
+        assert!(message.contains('0'), "{}", message);
+    }
+
+    #[test]
+    fn client_timeout_below_heartbeat_is_invalid_naming_both_values() {
+        let error = WsSessionPolicy::from_env_lookup(lookup_from(&[
+            ("VOXELIZE_WS_HEARTBEAT_MS", "10000"),
+            ("VOXELIZE_WS_CLIENT_TIMEOUT_MS", "5000"),
+        ]))
+        .validate()
+        .expect_err("client timeout below heartbeat must be rejected");
+        let message = error.to_string();
+        assert!(message.contains("client_timeout"), "{}", message);
+        assert!(message.contains("heartbeat_interval"), "{}", message);
+        assert!(message.contains("5s"), "{}", message);
+        assert!(message.contains("10s"), "{}", message);
+    }
+
+    /// Restores an env var to its prior state on drop, so a failing
+    /// assertion cannot leak a broken value into other tests.
+    struct EnvVarGuard {
+        name: &'static str,
+        prior: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(name: &'static str, value: &str) -> Self {
+            let prior = std::env::var(name).ok();
+            std::env::set_var(name, value);
+            Self { name, prior }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.prior {
+                Some(value) => std::env::set_var(self.name, value),
+                None => std::env::remove_var(self.name),
+            }
+        }
+    }
+
+    /// End-to-end fail-fast: with a broken env-derived policy, `bind_with`
+    /// must return `InvalidInput` naming the offending field BEFORE binding
+    /// a socket, starting the actor, or scheduling preload — a server must
+    /// never turn healthy while every WS session is doomed.
+    #[tokio::test]
+    async fn broken_env_policy_fails_bind_fast_with_invalid_input() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _env = EnvVarGuard::set("VOXELIZE_WS_HEARTBEAT_MS", "0");
+
+        let server = Server::new().debug(false).build();
+        let result = Voxelize::bind_with(server, |voxelize| {
+            App::new().configure(voxelize.configure())
+        })
+        .await;
+
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("bind must fail fast on a doomed WS policy"),
+        };
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+        let message = error.to_string();
+        assert!(message.contains("heartbeat_interval"), "{}", message);
     }
 }
