@@ -10,10 +10,10 @@ use crate::{
     server::Message,
     world::{
         profiler::Profiler, system_profiler::WorldTimingContext, Client, Clients, MessageQueues,
-        Stats,
+        Stats, WorldConfig,
     },
-    EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, ReplicatedStateBuffer,
-    RtcSenders, Transports, STATE_FLUSH_MAX_SOCKET_BACKLOG,
+    EncodedMessage, EncodedMessageQueue, EntityFlushBudget, EntityOperation, MessageType,
+    ReplicatedStateBuffer, RtcSenders, Transports, STATE_FLUSH_MAX_SOCKET_BACKLOG,
 };
 
 pub struct BroadcastSystem;
@@ -203,6 +203,7 @@ impl<'a> System<'a> for BroadcastSystem {
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldTimingContext>,
         ReadExpect<'a, Stats>,
+        ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, ReplicatedStateBuffer>,
@@ -216,6 +217,7 @@ impl<'a> System<'a> for BroadcastSystem {
             clients,
             timing,
             stats,
+            config,
             mut queues,
             mut encoded_queue,
             mut replicated_state,
@@ -340,10 +342,18 @@ impl<'a> System<'a> for BroadcastSystem {
         // A client whose socket is backed up is skipped ("gated"): its slots
         // stay in the buffer and keep being overwritten by newer values, so
         // when the socket drains it receives one current snapshot instead of
-        // a replay of stale positions. This is what keeps the outbound path
-        // bounded — see `world::replication` before changing it.
+        // a replay of stale positions. Each flush is additionally budgeted
+        // (items and bytes per tick, oldest-staged first, nearest first
+        // within the same age), so a scene where every tracked entity changes
+        // each tick can never put an unbounded frame on one client's socket.
+        // This is what keeps the outbound path bounded — see
+        // `world::replication` before changing it.
         let tick = stats.tick;
         let mut gated_clients = 0;
+        let flush_budget = EntityFlushBudget {
+            max_updates: config.max_entity_updates_per_tick,
+            max_bytes: config.max_entity_update_bytes_per_tick,
+        };
 
         for (client_id, client) in clients.iter() {
             let rtc_sender = rtc_map.as_ref().and_then(|rtc_map| rtc_map.get(client_id));
@@ -359,7 +369,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 continue;
             }
 
-            let Some(flush) = replicated_state.drain_client(client_id) else {
+            let Some(flush) = replicated_state.drain_client(client_id, flush_budget) else {
                 continue;
             };
 
@@ -386,6 +396,7 @@ impl<'a> System<'a> for BroadcastSystem {
                             "tick": tick,
                             "itemCount": flush.entities.len(),
                             "byteSize": data.len(),
+                            "pendingAfterFlush": replicated_state.pending_entities(client_id),
                             "outboundQueueDepth": client.sender.len(),
                             "connectionOutboundQueueDepths": depths,
                         }),

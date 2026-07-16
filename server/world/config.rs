@@ -127,6 +127,20 @@ pub struct WorldConfig {
     /// not changed, letting clients treat prolonged silence as a lost entity.
     pub entity_keep_alive_interval: u64,
 
+    /// Maximum entity UPDATEs flushed to one client per tick. Pending updates
+    /// beyond the budget stay staged (coalescing to their newest value) and
+    /// flush on subsequent ticks, oldest-staged first and nearest first within
+    /// the same age. Keep `budget x client staleness window` comfortably above
+    /// the interest set size so a slow rotation can never starve an entity
+    /// past the client's staleness timeout.
+    pub max_entity_updates_per_tick: usize,
+
+    /// Maximum metadata bytes of entity UPDATEs flushed to one client per
+    /// tick. Bounds outbound bandwidth per client when many tracked entities
+    /// change at once; at least one update is always flushed so the rotation
+    /// makes progress even when a single update exceeds the budget.
+    pub max_entity_update_bytes_per_tick: usize,
+
     /// Radius in blocks within which another player's (peer's) state
     /// replicates to a client. `None` (default) replicates every peer to every
     /// client, matching historical behavior. Unlike entities, peers have no
@@ -187,6 +201,8 @@ const DEFAULT_ALLOW_CLIENT_VOXEL_WRITES: bool = false;
 const DEFAULT_ENTITY_VISIBLE_RADIUS_CHUNKS: f32 = 24.0;
 const DEFAULT_ENTITY_RELEASE_RADIUS_RATIO: f32 = 1.125;
 const DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL: u64 = 60;
+const DEFAULT_MAX_ENTITY_UPDATES_PER_TICK: usize = 64;
+const DEFAULT_MAX_ENTITY_UPDATE_BYTES_PER_TICK: usize = 24 * 1024;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -227,6 +243,8 @@ pub struct WorldConfigBuilder {
     entity_visible_radius: f32,
     entity_release_radius: f32,
     entity_keep_alive_interval: u64,
+    max_entity_updates_per_tick: usize,
+    max_entity_update_bytes_per_tick: usize,
     peer_visible_radius: Option<f32>,
 }
 
@@ -271,6 +289,8 @@ impl WorldConfigBuilder {
             entity_visible_radius: 0.0,
             entity_release_radius: 0.0,
             entity_keep_alive_interval: DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL,
+            max_entity_updates_per_tick: DEFAULT_MAX_ENTITY_UPDATES_PER_TICK,
+            max_entity_update_bytes_per_tick: DEFAULT_MAX_ENTITY_UPDATE_BYTES_PER_TICK,
             peer_visible_radius: None,
         }
     }
@@ -472,6 +492,22 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Maximum entity UPDATEs flushed to one client per tick. Must be positive.
+    pub fn max_entity_updates_per_tick(mut self, max_entity_updates_per_tick: usize) -> Self {
+        self.max_entity_updates_per_tick = max_entity_updates_per_tick;
+        self
+    }
+
+    /// Maximum metadata bytes of entity UPDATEs flushed to one client per
+    /// tick. Must be positive.
+    pub fn max_entity_update_bytes_per_tick(
+        mut self,
+        max_entity_update_bytes_per_tick: usize,
+    ) -> Self {
+        self.max_entity_update_bytes_per_tick = max_entity_update_bytes_per_tick;
+        self
+    }
+
     /// Optional radius (in blocks) limiting which peers replicate to a client.
     /// `None` (default) replicates all peers to all clients.
     pub fn peer_visible_radius(mut self, peer_visible_radius: Option<f32>) -> Self {
@@ -513,6 +549,14 @@ impl WorldConfigBuilder {
             if peer_visible_radius <= 0.0 {
                 panic!("Peer visible radius must be positive (or None for unlimited).");
             }
+        }
+
+        if self.max_entity_updates_per_tick == 0 {
+            panic!("Max entity updates per tick must be positive.");
+        }
+
+        if self.max_entity_update_bytes_per_tick == 0 {
+            panic!("Max entity update bytes per tick must be positive.");
         }
 
         WorldConfig {
@@ -567,6 +611,8 @@ impl WorldConfigBuilder {
             entity_visible_radius,
             entity_release_radius,
             entity_keep_alive_interval: self.entity_keep_alive_interval,
+            max_entity_updates_per_tick: self.max_entity_updates_per_tick,
+            max_entity_update_bytes_per_tick: self.max_entity_update_bytes_per_tick,
             peer_visible_radius: self.peer_visible_radius,
         }
     }

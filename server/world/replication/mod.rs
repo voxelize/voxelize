@@ -34,7 +34,12 @@
 //! - staging a newer value **overwrites** the pending one — never appends;
 //! - the structure is **bounded** by (clients x items in interest), and a hard
 //!   per-client cap backstops that bound;
-//! - flushing ships the current snapshot and leaves nothing behind;
+//! - flushing is **budgeted** per client per tick ([`EntityFlushBudget`]):
+//!   when more entity slots are pending than the budget allows, the oldest
+//!   staged slots flush first (nearest first within the same age) and the
+//!   rest stay pending — still coalescing — for subsequent ticks. This bounds
+//!   the bytes a single tick can put on one client's socket, no matter how
+//!   many tracked entities changed at once;
 //! - when a client's socket is backed up, flushing is **skipped** for that
 //!   client while its slots keep coalescing, so the moment the socket drains
 //!   it receives one current snapshot instead of a replay of stale frames.
@@ -83,12 +88,52 @@ pub const MAX_PENDING_INBOUND_PER_CLIENT: usize = 64;
 /// How many perf trace ids a client's slot set remembers between flushes.
 const MAX_PENDING_TRACE_IDS: usize = 8;
 
+/// Per-tick, per-client flush budget for entity state. Both limits bound one
+/// flush; at least one update is always shipped so the rotation makes
+/// progress even when a single update exceeds `max_bytes`.
+#[derive(Debug, Clone, Copy)]
+pub struct EntityFlushBudget {
+    /// Maximum entity UPDATEs in one flush.
+    pub max_updates: usize,
+    /// Maximum summed wire cost (id + type + metadata bytes) in one flush.
+    pub max_bytes: usize,
+}
+
+impl EntityFlushBudget {
+    /// A budget that never bites: every pending slot drains each flush.
+    pub const UNLIMITED: Self = Self {
+        max_updates: usize::MAX,
+        max_bytes: usize::MAX,
+    };
+}
+
+/// One pending entity UPDATE for one client, with the ordering facts the
+/// budgeted flush needs: how long the slot has been waiting and how close the
+/// entity is to the client.
+struct EntitySlot {
+    update: EntityProtocol,
+    /// Squared distance from the client at the newest staging.
+    distance_sq: f32,
+    /// Tick at which this slot became pending (preserved across overwrites,
+    /// reset on flush), so a slot that keeps coalescing still ages and can
+    /// never be starved by newer, nearer traffic.
+    staged_tick: u64,
+}
+
+impl EntitySlot {
+    fn wire_cost(&self) -> usize {
+        self.update.id.len()
+            + self.update.r#type.len()
+            + self.update.metadata.as_ref().map_or(0, String::len)
+    }
+}
+
 /// Latest-wins slots for one client. One slot per replicated item; staging a
 /// newer value overwrites the pending one in place.
 #[derive(Default)]
 struct ClientStateSlots {
     /// entity id -> newest pending entity UPDATE for this client.
-    entities: HashMap<String, EntityProtocol>,
+    entities: HashMap<String, EntitySlot>,
     /// peer id -> newest pending peer snapshot for this client.
     peers: HashMap<String, PeerProtocol>,
     /// Perf trace ids of the staging batches coalesced into these slots.
@@ -141,21 +186,41 @@ impl ReplicatedStateBuffer {
     /// events, not state: route them through [`crate::MessageQueues`] and call
     /// [`Self::clear_entity`] so a stale pending update cannot be flushed
     /// after the transition and resurrect a released entity.
-    pub fn stage_entity_update(&mut self, client_id: &str, update: EntityProtocol) {
+    ///
+    /// `distance_sq` is the squared client-to-entity distance and `tick` is
+    /// the staging tick; together they order the budgeted flush (oldest slot
+    /// first, nearest first within the same age). An overwrite refreshes the
+    /// distance but keeps the slot's original staging tick, so coalescing
+    /// never resets a slot's place in the rotation.
+    pub fn stage_entity_update(
+        &mut self,
+        client_id: &str,
+        update: EntityProtocol,
+        distance_sq: f32,
+        tick: u64,
+    ) {
         let slots = self.clients.entry(client_id.to_owned()).or_default();
         match slots.entities.get_mut(&update.id) {
             Some(pending) => {
-                if update.metadata.is_none() && pending.metadata.is_some() {
+                if update.metadata.is_none() && pending.update.metadata.is_some() {
                     return;
                 }
-                *pending = update;
+                pending.update = update;
+                pending.distance_sq = distance_sq;
             }
             None => {
                 if slots.len() >= MAX_STATE_SLOTS_PER_CLIENT {
                     self.dropped_updates += 1;
                     return;
                 }
-                slots.entities.insert(update.id.clone(), update);
+                slots.entities.insert(
+                    update.id.clone(),
+                    EntitySlot {
+                        update,
+                        distance_sq,
+                        staged_tick: tick,
+                    },
+                );
             }
         }
     }
@@ -215,18 +280,83 @@ impl ReplicatedStateBuffer {
             .unwrap_or(false)
     }
 
-    /// Take the client's current snapshot for sending, leaving its slots
-    /// empty. Returns `None` when there is nothing pending.
-    pub fn drain_client(&mut self, client_id: &str) -> Option<ClientStateFlush> {
+    /// Take the client's pending state for sending, up to `budget` entity
+    /// updates/bytes. Entity slots beyond the budget stay pending (and keep
+    /// coalescing); selection is deterministic — oldest staged tick first,
+    /// nearest first within the same tick, entity id as the final tiebreak —
+    /// so every pending slot flushes within `pending / max_updates` ticks and
+    /// no entity can be starved. Peer snapshots are few and latency-critical,
+    /// so they always flush in full. Returns `None` when nothing is pending.
+    pub fn drain_client(
+        &mut self,
+        client_id: &str,
+        budget: EntityFlushBudget,
+    ) -> Option<ClientStateFlush> {
         let slots = self.clients.get_mut(client_id)?;
         if slots.is_empty() {
             return None;
         }
+
+        let within_budget = slots.entities.len() <= budget.max_updates
+            && slots
+                .entities
+                .values()
+                .map(EntitySlot::wire_cost)
+                .sum::<usize>()
+                <= budget.max_bytes;
+
+        let entities: Vec<EntityProtocol> = if within_budget {
+            slots
+                .entities
+                .drain()
+                .map(|(_, slot)| slot.update)
+                .collect()
+        } else {
+            let mut order: Vec<(u64, f32, &String)> = slots
+                .entities
+                .iter()
+                .map(|(id, slot)| (slot.staged_tick, slot.distance_sq, id))
+                .collect();
+            order.sort_unstable_by(|left, right| {
+                left.0
+                    .cmp(&right.0)
+                    .then_with(|| left.1.total_cmp(&right.1))
+                    .then_with(|| left.2.cmp(right.2))
+            });
+
+            let mut selected: Vec<String> = Vec::new();
+            let mut bytes = 0;
+            for (_, _, id) in order {
+                if selected.len() >= budget.max_updates {
+                    break;
+                }
+                let cost = slots.entities[id].wire_cost();
+                if !selected.is_empty() && bytes + cost > budget.max_bytes {
+                    break;
+                }
+                bytes += cost;
+                selected.push(id.clone());
+            }
+
+            selected
+                .into_iter()
+                .filter_map(|id| slots.entities.remove(&id).map(|slot| slot.update))
+                .collect()
+        };
+
         Some(ClientStateFlush {
-            entities: slots.entities.drain().map(|(_, update)| update).collect(),
+            entities,
             peers: slots.peers.drain().map(|(_, peer)| peer).collect(),
             trace_ids: std::mem::take(&mut slots.trace_ids),
         })
+    }
+
+    /// Entity slots still pending for a client after a (budgeted) flush.
+    pub fn pending_entities(&self, client_id: &str) -> usize {
+        self.clients
+            .get(client_id)
+            .map(|slots| slots.entities.len())
+            .unwrap_or(0)
     }
 
     /// Total pending latest-value slots across all clients. Bounded by
@@ -343,34 +473,42 @@ mod tests {
         }
     }
 
+    fn stage(buffer: &mut ReplicatedStateBuffer, client_id: &str, update: EntityProtocol) {
+        buffer.stage_entity_update(client_id, update, 0.0, 0);
+    }
+
+    fn drain_all(buffer: &mut ReplicatedStateBuffer, client_id: &str) -> Option<ClientStateFlush> {
+        buffer.drain_client(client_id, EntityFlushBudget::UNLIMITED)
+    }
+
     #[test]
     fn newer_entity_state_overwrites_pending_state() {
         let mut buffer = ReplicatedStateBuffer::new();
-        buffer.stage_entity_update("client", update("bot", Some("old")));
-        buffer.stage_entity_update("client", update("bot", Some("new")));
+        stage(&mut buffer, "client", update("bot", Some("old")));
+        stage(&mut buffer, "client", update("bot", Some("new")));
 
-        let flush = buffer.drain_client("client").unwrap();
+        let flush = drain_all(&mut buffer, "client").unwrap();
         assert_eq!(flush.entities.len(), 1);
         assert_eq!(flush.entities[0].metadata.as_deref(), Some("new"));
-        assert!(buffer.drain_client("client").is_none());
+        assert!(drain_all(&mut buffer, "client").is_none());
     }
 
     #[test]
     fn keep_alive_never_clobbers_pending_metadata() {
         let mut buffer = ReplicatedStateBuffer::new();
-        buffer.stage_entity_update("client", update("bot", Some("pos")));
-        buffer.stage_entity_update("client", update("bot", None));
+        stage(&mut buffer, "client", update("bot", Some("pos")));
+        stage(&mut buffer, "client", update("bot", None));
 
-        let flush = buffer.drain_client("client").unwrap();
+        let flush = drain_all(&mut buffer, "client").unwrap();
         assert_eq!(flush.entities[0].metadata.as_deref(), Some("pos"));
     }
 
     #[test]
     fn keep_alive_fills_an_empty_slot() {
         let mut buffer = ReplicatedStateBuffer::new();
-        buffer.stage_entity_update("client", update("bot", None));
+        stage(&mut buffer, "client", update("bot", None));
 
-        let flush = buffer.drain_client("client").unwrap();
+        let flush = drain_all(&mut buffer, "client").unwrap();
         assert_eq!(flush.entities.len(), 1);
         assert!(flush.entities[0].metadata.is_none());
     }
@@ -378,10 +516,10 @@ mod tests {
     #[test]
     fn lifecycle_clear_prevents_stale_state_after_release() {
         let mut buffer = ReplicatedStateBuffer::new();
-        buffer.stage_entity_update("client", update("bot", Some("stale")));
+        stage(&mut buffer, "client", update("bot", Some("stale")));
         buffer.clear_entity("client", "bot");
 
-        assert!(buffer.drain_client("client").is_none());
+        assert!(drain_all(&mut buffer, "client").is_none());
     }
 
     #[test]
@@ -390,7 +528,7 @@ mod tests {
         buffer.stage_peer_update("client", peer("friend", "old"));
         buffer.stage_peer_update("client", peer("friend", "new"));
 
-        let flush = buffer.drain_client("client").unwrap();
+        let flush = drain_all(&mut buffer, "client").unwrap();
         assert_eq!(flush.peers.len(), 1);
         assert_eq!(flush.peers[0].metadata, "new");
     }
@@ -402,23 +540,27 @@ mod tests {
         buffer.stage_peer_update("b", peer("gone", "pos"));
         buffer.remove_peer("gone");
 
-        assert!(buffer.drain_client("a").is_none());
-        assert!(buffer.drain_client("b").is_none());
+        assert!(drain_all(&mut buffer, "a").is_none());
+        assert!(drain_all(&mut buffer, "b").is_none());
     }
 
     #[test]
     fn slot_cap_bounds_the_buffer_and_counts_drops() {
         let mut buffer = ReplicatedStateBuffer::new();
         for i in 0..MAX_STATE_SLOTS_PER_CLIENT {
-            buffer.stage_entity_update("client", update(&format!("bot-{}", i), Some("m")));
+            stage(
+                &mut buffer,
+                "client",
+                update(&format!("bot-{}", i), Some("m")),
+            );
         }
-        buffer.stage_entity_update("client", update("one-too-many", Some("m")));
+        stage(&mut buffer, "client", update("one-too-many", Some("m")));
 
         assert_eq!(buffer.total_pending(), MAX_STATE_SLOTS_PER_CLIENT);
         assert_eq!(buffer.dropped_updates(), 1);
 
         // Overwriting an existing slot is always allowed at the cap.
-        buffer.stage_entity_update("client", update("bot-0", Some("newer")));
+        stage(&mut buffer, "client", update("bot-0", Some("newer")));
         assert_eq!(buffer.total_pending(), MAX_STATE_SLOTS_PER_CLIENT);
         assert_eq!(buffer.dropped_updates(), 1);
     }
@@ -428,14 +570,165 @@ mod tests {
         // A gated client's slots persist and keep coalescing; the next
         // successful flush carries the newest snapshot only.
         let mut buffer = ReplicatedStateBuffer::new();
-        buffer.stage_entity_update("client", update("bot", Some("tick-1")));
+        stage(&mut buffer, "client", update("bot", Some("tick-1")));
         // Flush gated: nothing drained. Newer state arrives.
-        buffer.stage_entity_update("client", update("bot", Some("tick-2")));
-        buffer.stage_entity_update("client", update("bot", Some("tick-3")));
+        stage(&mut buffer, "client", update("bot", Some("tick-2")));
+        stage(&mut buffer, "client", update("bot", Some("tick-3")));
 
-        let flush = buffer.drain_client("client").unwrap();
+        let flush = drain_all(&mut buffer, "client").unwrap();
         assert_eq!(flush.entities.len(), 1);
         assert_eq!(flush.entities[0].metadata.as_deref(), Some("tick-3"));
+    }
+
+    #[test]
+    fn budget_caps_updates_per_flush_and_keeps_the_rest_pending() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        for i in 0..10 {
+            buffer.stage_entity_update("client", update(&format!("bot-{}", i), Some("m")), 0.0, 1);
+        }
+
+        let budget = EntityFlushBudget {
+            max_updates: 4,
+            max_bytes: usize::MAX,
+        };
+        let flush = buffer.drain_client("client", budget).unwrap();
+        assert_eq!(flush.entities.len(), 4);
+        assert_eq!(buffer.pending_entities("client"), 6);
+
+        // The remainder drains over subsequent ticks; nothing is lost.
+        let mut remaining: Vec<String> = Vec::new();
+        while let Some(flush) = buffer.drain_client("client", budget) {
+            assert!(flush.entities.len() <= 4);
+            remaining.extend(flush.entities.into_iter().map(|update| update.id));
+        }
+        assert_eq!(remaining.len(), 6);
+        assert_eq!(buffer.pending_entities("client"), 0);
+    }
+
+    #[test]
+    fn byte_budget_bounds_a_flush_but_always_makes_progress() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        let heavy = "x".repeat(1000);
+        for i in 0..5 {
+            buffer.stage_entity_update(
+                "client",
+                update(&format!("bot-{}", i), Some(&heavy)),
+                0.0,
+                1,
+            );
+        }
+
+        // A budget below a single update's cost still flushes one update.
+        let starved = EntityFlushBudget {
+            max_updates: usize::MAX,
+            max_bytes: 100,
+        };
+        let flush = buffer.drain_client("client", starved).unwrap();
+        assert_eq!(flush.entities.len(), 1);
+
+        // A budget worth roughly two updates flushes two.
+        let two_wide = EntityFlushBudget {
+            max_updates: usize::MAX,
+            max_bytes: 2100,
+        };
+        let flush = buffer.drain_client("client", two_wide).unwrap();
+        assert_eq!(flush.entities.len(), 2);
+        assert_eq!(buffer.pending_entities("client"), 2);
+    }
+
+    #[test]
+    fn budgeted_flush_is_oldest_first_then_nearest() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        buffer.stage_entity_update("client", update("late-near", Some("m")), 1.0, 2);
+        buffer.stage_entity_update("client", update("early-far", Some("m")), 900.0, 1);
+        buffer.stage_entity_update("client", update("early-near", Some("m")), 1.0, 1);
+
+        let budget = EntityFlushBudget {
+            max_updates: 2,
+            max_bytes: usize::MAX,
+        };
+        let flush = buffer.drain_client("client", budget).unwrap();
+        let mut ids: Vec<&str> = flush.entities.iter().map(|u| u.id.as_str()).collect();
+        ids.sort_unstable();
+        assert_eq!(ids, vec!["early-far", "early-near"]);
+        assert_eq!(buffer.pending_entities("client"), 1);
+    }
+
+    #[test]
+    fn coalescing_does_not_reset_a_slots_age() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        buffer.stage_entity_update("client", update("old-timer", Some("v1")), 500.0, 1);
+        buffer.stage_entity_update("client", update("newcomer", Some("v1")), 1.0, 2);
+        // The old slot coalesces on a later tick, but keeps its tick-1 age
+        // and must still flush before the tick-2 newcomer.
+        buffer.stage_entity_update("client", update("old-timer", Some("v2")), 500.0, 2);
+
+        let budget = EntityFlushBudget {
+            max_updates: 1,
+            max_bytes: usize::MAX,
+        };
+        let flush = buffer.drain_client("client", budget).unwrap();
+        assert_eq!(flush.entities[0].id, "old-timer");
+        assert_eq!(flush.entities[0].metadata.as_deref(), Some("v2"));
+    }
+
+    #[test]
+    fn a_representative_150_entity_scene_stays_bounded_and_starvation_free() {
+        // Mirrors the observed staging incident: ~150 tracked entities whose
+        // metadata (~800 bytes each) changes every tick used to flush as one
+        // ~120 KB frame per tick. Under the default-sized budget every flush
+        // stays bounded, the pending set never exceeds the interest set, and
+        // every entity still replicates within a few ticks.
+        const ENTITIES: usize = 150;
+        const TICKS: u64 = 120;
+        let budget = EntityFlushBudget {
+            max_updates: 64,
+            max_bytes: 24 * 1024,
+        };
+        let metadata = "m".repeat(800);
+
+        let mut buffer = ReplicatedStateBuffer::new();
+        let mut last_flushed: HashMap<String, u64> = HashMap::new();
+        let mut max_gap = 0;
+
+        for tick in 1..=TICKS {
+            for i in 0..ENTITIES {
+                buffer.stage_entity_update(
+                    "client",
+                    update(&format!("bot-{:03}", i), Some(&metadata)),
+                    (i * i) as f32,
+                    tick,
+                );
+            }
+            assert!(buffer.total_pending() <= ENTITIES);
+
+            let flush = buffer.drain_client("client", budget).unwrap();
+            assert!(flush.entities.len() <= budget.max_updates);
+            let bytes: usize = flush
+                .entities
+                .iter()
+                .map(|u| u.id.len() + u.r#type.len() + u.metadata.as_ref().map_or(0, String::len))
+                .sum();
+            assert!(bytes <= budget.max_bytes);
+
+            for update in &flush.entities {
+                let last = last_flushed.insert(update.id.clone(), tick).unwrap_or(0);
+                if tick > 10 {
+                    max_gap = max_gap.max(tick - last);
+                }
+            }
+        }
+
+        // Every entity was flushed, and the aged rotation revisits each one
+        // within ceil(150 / 30-per-flush) = 5 ticks (plus one tick of slack).
+        assert_eq!(last_flushed.len(), ENTITIES);
+        assert!(max_gap <= 6, "rotation gap too large: {}", max_gap);
+
+        // An entity that stops changing is not re-staged and never resends:
+        // drain the backlog dry, stage nothing, and the buffer stays silent.
+        while buffer.drain_client("client", budget).is_some() {}
+        assert!(buffer.drain_client("client", budget).is_none());
+        assert_eq!(buffer.pending_entities("client"), 0);
     }
 
     #[test]
