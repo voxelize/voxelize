@@ -88,3 +88,51 @@ impl MetadataComp {
         self.map.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unchanged_metadata_reports_no_update() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("position", json!([1.0, 2.0, 3.0]));
+
+        let (first, updated) = metadata.to_cached_str();
+        assert!(updated);
+
+        // Rewriting the same value every tick (as the metadata systems do)
+        // must not report a change.
+        for _ in 0..10 {
+            metadata.set_value("position", json!([1.0, 2.0, 3.0]));
+            let (json_str, updated) = metadata.to_cached_str();
+            assert!(!updated);
+            assert_eq!(json_str, first);
+        }
+    }
+
+    #[test]
+    fn changed_metadata_reports_an_update_once() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("position", json!([1.0, 2.0, 3.0]));
+        metadata.to_cached_str();
+
+        metadata.set_value("position", json!([4.0, 5.0, 6.0]));
+        let (_, updated) = metadata.to_cached_str();
+        assert!(updated);
+
+        let (_, updated) = metadata.to_cached_str();
+        assert!(!updated);
+    }
+
+    #[test]
+    fn mark_dirty_forces_a_reemit() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("position", json!([1.0, 2.0, 3.0]));
+        metadata.to_cached_str();
+
+        metadata.mark_dirty();
+        let (_, updated) = metadata.to_cached_str();
+        assert!(updated);
+    }
+}
