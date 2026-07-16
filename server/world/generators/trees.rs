@@ -711,10 +711,7 @@ mod tests {
                 .system(
                     LSystem::new()
                         .axiom("FT")
-                        .stochastic_rule(
-                            'T',
-                            &[("F%", 1.0), ("[+#F%][-#F%]", 1.0), ("FF%", 1.0)],
-                        )
+                        .stochastic_rule('T', &[("F%", 1.0), ("[+#F%][-#F%]", 1.0), ("FF%", 1.0)])
                         .iterations(1)
                         .build(),
                 )

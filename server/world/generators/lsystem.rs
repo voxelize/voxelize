@@ -172,11 +172,7 @@ impl LSystemBuilder {
         self
     }
 
-    pub fn stochastic_rule(
-        mut self,
-        key: char,
-        alternatives: &[(&str, f64)],
-    ) -> LSystemBuilder {
+    pub fn stochastic_rule(mut self, key: char, alternatives: &[(&str, f64)]) -> LSystemBuilder {
         self.stochastic_rules.insert(
             key,
             alternatives
