@@ -509,7 +509,7 @@ const defaultOptions: WorldClientOptions = {
   maxUrgentMeshWorkers: 4,
   clientOnlyMeshing: true,
   minLightLevel: 0.04,
-  chunkRerequestInterval: 10000,
+  chunkRerequestInterval: 300,
   defaultRenderRadius: 6,
   fogNearRenderRatio: 0.45,
   fogFarRenderRatio: 0.78,
