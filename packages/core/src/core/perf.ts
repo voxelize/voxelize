@@ -43,6 +43,9 @@ export function logPerf(
         component: "client",
         event,
         monotonicMs: performance.now(),
+        // Wall-clock epoch ms, correlatable with the server's perf stream
+        // (which stamps the same field) on a shared clock.
+        epochMs: Date.now(),
         world: perfWorld,
         seq: perfSequence,
         ...fields,

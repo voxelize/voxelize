@@ -349,6 +349,9 @@ export class Network {
       json: {
         world: this.world,
         username: this.clientInfo.username,
+        // Protocol capabilities this client supports; servers only use a
+        // path a client advertised, so older servers simply ignore this.
+        capabilities: ["motion.v1"],
         preferences:
           this.clientInfo.metadata?.preferences &&
           typeof this.clientInfo.metadata.preferences === "object"

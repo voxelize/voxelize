@@ -421,6 +421,7 @@ pub(crate) struct ClientJoinRequest {
     pub username: String,
     pub sender: WsSender,
     pub preferences: ClientPreferencesPatch,
+    pub motion_protocol: MotionProtocol,
 }
 
 #[derive(ActixMessage)]
@@ -530,10 +531,13 @@ impl Handler<ClientJoinRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientJoinRequest, _: &mut SyncContext<Self>) {
-        self.0
-            .write()
-            .unwrap()
-            .add_client(&msg.id, &msg.username, &msg.sender, msg.preferences);
+        self.0.write().unwrap().add_client(
+            &msg.id,
+            &msg.username,
+            &msg.sender,
+            msg.preferences,
+            msg.motion_protocol,
+        );
     }
 }
 
@@ -994,6 +998,7 @@ impl World {
         username: &str,
         sender: &WsSender,
         preferences: ClientPreferencesPatch,
+        motion_protocol: MotionProtocol,
     ) {
         let existing_ent = self.clients().get(id).map(|client| client.entity);
         let is_rejoin = existing_ent.is_some();
@@ -1089,6 +1094,17 @@ impl World {
             }
         }
 
+        // The INIT ack below makes the client release every entity it was
+        // tracking (a join or rejoin starts a fresh interest session).
+        // Mirror that server-side: drop the client's tracked entity
+        // interests and its pending outbound state, so the next
+        // entities-sending tick re-CREATEs everything in range with a full
+        // reliable snapshot and no state staged for the previous session can
+        // leak in after the INIT.
+        self.bookkeeping_mut().remove_client(id);
+        self.write_resource::<ReplicatedStateBuffer>()
+            .remove_client(id);
+
         let (init_message, init_entity_ids) = self.generate_init_message(
             id,
             saved_position,
@@ -1103,6 +1119,7 @@ impl World {
             if let Some(client) = self.clients_mut().get_mut(id) {
                 client.username = username.to_owned();
                 client.sender = sender.clone();
+                client.motion_protocol = motion_protocol;
             }
         } else {
             self.clients_mut().insert(
@@ -1112,6 +1129,7 @@ impl World {
                     entity: ent,
                     username: username.to_owned(),
                     sender: sender.clone(),
+                    motion_protocol,
                 },
             );
 
@@ -2468,6 +2486,7 @@ impl World {
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
                 metadata: Some(j_str),
+                motion: None,
             });
         }
 

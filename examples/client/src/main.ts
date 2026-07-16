@@ -21,6 +21,10 @@ import {
 import { Map } from "./map";
 import { setupWorld } from "./world";
 
+VOXELIZE.configurePerfLogging(
+  new URLSearchParams(window.location.search).has("perf"),
+);
+
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 /* -------------------------------------------------------------------------- */
@@ -379,6 +383,56 @@ inputs.bind(
   "in-game",
 );
 
+inputs.bind(
+  "KeyO",
+  () => {
+    method.call("spawn-fauna", {
+      position: controls.object.position.toArray(),
+      count: 150,
+    });
+  },
+  "in-game",
+);
+
+inputs.bind(
+  "KeyU",
+  () => {
+    method.call("clear-fauna", {});
+  },
+  "in-game",
+);
+
+inputs.bind(
+  "KeyB",
+  () => {
+    if (!voxelInteract.target) return;
+    method.call("break-with-drop", { voxel: voxelInteract.target });
+  },
+  "in-game",
+);
+
+inputs.bind(
+  "KeyL",
+  () => {
+    let nearestId: string | null = null;
+    let nearestDistanceSq = Infinity;
+    entities.map.forEach((entity) => {
+      if (entity.entType !== "drop") return;
+      const distanceSq = entity.position.distanceToSquared(
+        controls.object.position,
+      );
+      if (distanceSq < nearestDistanceSq) {
+        nearestDistanceSq = distanceSq;
+        nearestId = entity.entId;
+      }
+    });
+    if (nearestId) {
+      method.call("pickup-drop", { id: nearestId });
+    }
+  },
+  "in-game",
+);
+
 inputs.bind("KeyN", () => {
   events.emit("test", {
     test: "Hello World",
@@ -645,7 +699,9 @@ const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
 
 const currentWorldName =
-  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
+  new URLSearchParams(window.location.search).get("world") ??
+  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ??
+  "terrain";
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
   BACKEND_SERVER_INSTANCE.port = "4000";
@@ -675,6 +731,80 @@ class Box extends VOXELIZE.Entity<{
 
   onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
     this.position.set(...data.position);
+  };
+}
+
+class Fauna extends VOXELIZE.Entity<{
+  position: VOXELIZE.Coords3;
+  direction?: number[];
+}> {
+  private targetPosition = new THREE.Vector3();
+
+  constructor(id: string) {
+    super(id);
+
+    // A stable per-entity hue so individual movers are distinguishable in
+    // the 150+ entity stress scene.
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) | 0;
+    }
+    const color = new THREE.Color().setHSL(
+      (Math.abs(hash) % 360) / 360,
+      0.8,
+      0.6,
+    );
+
+    this.add(
+      new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.6, 0.6),
+        new THREE.MeshBasicMaterial({ color }),
+      ),
+    );
+  }
+
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+    this.targetPosition.set(...data.position);
+  };
+
+  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.targetPosition.set(...data.position);
+  };
+
+  update = () => {
+    this.position.lerp(this.targetPosition, 0.25);
+  };
+
+  snapToTarget = () => {
+    this.position.copy(this.targetPosition);
+  };
+}
+
+class Drop extends VOXELIZE.Entity<{
+  position: VOXELIZE.Coords3;
+}> {
+  constructor(id: string) {
+    super(id);
+
+    this.add(
+      new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.4),
+        new THREE.MeshBasicMaterial({ color: 0xffcc33 }),
+      ),
+    );
+  }
+
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+
+  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+
+  update = () => {
+    this.rotation.y += 0.05;
   };
 }
 
@@ -814,6 +944,8 @@ class Bot extends VOXELIZE.Entity<BotData> {
 
 entities.setClass("bot", Bot);
 entities.setClass("box", Box);
+entities.setClass("fauna", Fauna);
+entities.setClass("drop", Drop);
 
 world.add(entities);
 

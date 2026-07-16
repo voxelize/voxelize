@@ -1,4 +1,4 @@
-import { MessageProtocol } from "@voxelize/protocol";
+import { EntityMotionProtocol, MessageProtocol } from "@voxelize/protocol";
 import { Group, Vector3 } from "three";
 
 import { EntityLivenessTracker } from "./entity-liveness";
@@ -13,6 +13,76 @@ export type EntityRigidBodyMetadata = {
 export type EntityMetadata = {
   rigidBody?: EntityRigidBodyMetadata;
 };
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+type MutableMetadata = { [key: string]: JsonValue };
+
+function isJsonObject(
+  value: JsonValue | undefined,
+): value is { [key: string]: JsonValue } {
+  return (
+    typeof value === "object" && value !== null && !Array.isArray(value)
+  );
+}
+
+/**
+ * Merge an incoming (possibly partial) metadata update over the accumulated
+ * map. `target` straddles the two replication lanes — identity
+ * (`targetType`, `id`) rides the metadata lane while its `position` rides
+ * the motion lane — so it merges key-wise: a metadata-lane target that
+ * carries no `position` of its own must never clobber the motion-maintained
+ * one. An explicit incoming `position` (legacy full snapshots, or null)
+ * still wins.
+ */
+function mergeMetadataUpdate(
+  previous: MutableMetadata | null | undefined,
+  incoming: MutableMetadata | null | undefined,
+): MutableMetadata {
+  const merged: MutableMetadata = { ...(previous ?? {}), ...(incoming ?? {}) };
+  const previousTarget = previous?.target;
+  const incomingTarget = incoming?.target;
+  if (isJsonObject(previousTarget) && isJsonObject(incomingTarget)) {
+    merged.target = { ...previousTarget, ...incomingTarget };
+  }
+  return merged;
+}
+
+/**
+ * Fold a decoded compact motion payload back into the metadata shape entity
+ * classes have always consumed (`metadata.position`, `.direction`,
+ * `.rigidBody`, `.target.position`), so game code is agnostic to which wire
+ * encoding the server negotiated.
+ */
+function applyMotionToMetadata(
+  metadata: MutableMetadata,
+  motion: EntityMotionProtocol,
+) {
+  metadata.position = motion.position;
+  if (motion.direction) {
+    metadata.direction = motion.direction;
+  }
+  if (motion.rigidBody) {
+    metadata.rigidBody = motion.rigidBody;
+  }
+  const target = metadata.target;
+  if (target && typeof target === "object" && !Array.isArray(target)) {
+    // Mirrors the legacy JSON shape: a tracked target's position goes null
+    // when the server loses it, it does not freeze at the last value.
+    metadata.target = {
+      ...target,
+      position: motion.targetPosition ?? null,
+    };
+  } else if (motion.targetPosition) {
+    metadata.target = { position: motion.targetPosition };
+  }
+}
 
 export class Entity<T = any> extends Group {
   public entId: string;
@@ -100,6 +170,22 @@ export class Entities extends Group implements NetIntercept {
 
   private unregisteredTypes = new Set<string>();
 
+  /**
+   * Per-entity server tick of the last applied state, so out-of-order frames
+   * on unordered transports (WebRTC) can never rewind an entity.
+   */
+  private lastAppliedTick: Map<string, number> = new Map();
+
+  /**
+   * Wall-clock ms of the last motion-bearing apply per entity, plus the gap
+   * samples of the current reporting window (perf logging only).
+   */
+  private lastMotionApplyMs: Map<string, number> = new Map();
+
+  private motionGapSamples: number[] = [];
+
+  private motionGapWindowStartMs = 0;
+
   constructor(options: Partial<EntitiesOptions> = {}) {
     super();
 
@@ -135,13 +221,14 @@ export class Entities extends Group implements NetIntercept {
     }
 
     const { entities } = message;
+    const messageTick = typeof message.tick === "number" ? message.tick : 0;
 
     if (entities && entities.length) {
       const isLogging = isPerfLogging();
       const applyStartMs = isLogging ? performance.now() : 0;
       try {
         entities.forEach((entity) => {
-          const { id, type, metadata, operation } = entity;
+          const { id, type, metadata, operation, motion } = entity;
 
           // ignore all block entities as they are handled by world
           if (type.startsWith("block::")) {
@@ -150,14 +237,34 @@ export class Entities extends Group implements NetIntercept {
 
           let object = this.map.get(id);
 
+          // The client half of the lifecycle ledger: every lifecycle
+          // operation that reaches this client is logged with the server's
+          // batch trace id, so end-to-end delivery (server queue -> client
+          // apply) is measurable per entity.
+          if (isLogging && operation !== "UPDATE") {
+            logPerf("entity_lifecycle_apply", {
+              traceId: message.perfTraceId ?? "",
+              operation,
+              entityId: id,
+              entityType: type,
+            });
+          }
+
           switch (operation) {
             case "CREATE": {
+              // CREATE always applies, no staleness check: it is the
+              // reliable, ordered, complete snapshot. A partial UPDATE that
+              // raced ahead on an unordered transport may have stamped a
+              // newer tick, but skipping the CREATE would leave the entity
+              // permanently incomplete; the watermark is monotonic, so
+              // applying the snapshot never lowers out-of-order protection.
               if (object) {
                 // The server streams a fresh snapshot for an entity it believes
                 // is new to us, so resync our stale copy to it.
                 object.metadata = metadata;
                 object.onUpdate?.(metadata);
                 object.snapToTarget?.();
+                this.noteAppliedTick(id, messageTick);
                 this.liveness.touchEntity(id, nowSeconds);
                 return;
               }
@@ -166,22 +273,37 @@ export class Entities extends Group implements NetIntercept {
               if (object) {
                 object.metadata = metadata;
                 object.onCreate?.(metadata);
+                this.noteAppliedTick(id, messageTick);
                 this.liveness.touchEntity(id, nowSeconds);
               }
 
               break;
             }
             case "UPDATE": {
-              // A metadata-less update is a keep-alive: the entity is unchanged
+              // A payload-less update is a keep-alive: the entity is unchanged
               // but still streaming.
-              if (!metadata) {
+              if (!metadata && !motion) {
                 if (object) {
                   this.liveness.touchEntity(id, nowSeconds);
                 }
                 return;
               }
 
+              // Out-of-order state (possible on unordered transports) must
+              // never rewind an entity — and must never resurrect one that a
+              // later lifecycle event already released.
+              if (this.isStaleFrame(id, messageTick)) {
+                return;
+              }
+
               if (!object) {
+                // Only a metadata-bearing update carries enough state to
+                // construct an entity (a full legacy snapshot, or healing
+                // against a server that predates the compact motion path). A
+                // motion-only update waits for its reliable CREATE.
+                if (!metadata) {
+                  return;
+                }
                 object = this.createEntityOfType(type, id);
                 if (object) {
                   object.metadata = metadata;
@@ -190,15 +312,35 @@ export class Entities extends Group implements NetIntercept {
               }
 
               if (object) {
-                object.metadata = metadata;
-                object.onUpdate?.(metadata);
+                // Merge instead of replace: compact-protocol servers send
+                // motion and non-motion state independently, and metadata
+                // keys are never removed server-side, so the accumulated map
+                // always presents the full legacy shape to game code.
+                const merged = mergeMetadataUpdate(
+                  object.metadata as MutableMetadata | null,
+                  metadata as MutableMetadata | null,
+                );
+                if (motion) {
+                  applyMotionToMetadata(merged, motion);
+                }
+                object.metadata = merged;
+                object.onUpdate?.(merged);
+                this.noteAppliedTick(id, messageTick);
                 this.liveness.touchEntity(id, nowSeconds);
+                if (
+                  isLogging &&
+                  (motion || (metadata && metadata.position !== undefined))
+                ) {
+                  this.recordMotionApplyGap(id);
+                }
               }
 
               break;
             }
             case "DELETE":
             case "OUT_OF_RANGE": {
+              this.noteAppliedTick(id, messageTick);
+
               if (!object) {
                 return;
               }
@@ -278,6 +420,10 @@ export class Entities extends Group implements NetIntercept {
   private releaseEntity = (object: Entity, metadata: Entity["metadata"]) => {
     this.map.delete(object.entId);
     this.liveness.forget(object.entId);
+    this.lastMotionApplyMs.delete(object.entId);
+    // lastAppliedTick is intentionally kept: it is what blocks an
+    // out-of-order state frame from resurrecting the released entity. It is
+    // cleared wholesale on INIT (a fresh server session).
 
     object.parent?.remove(object);
     object.onDelete?.(metadata);
@@ -287,6 +433,62 @@ export class Entities extends Group implements NetIntercept {
     for (const object of [...this.map.values()]) {
       this.releaseEntity(object, object.metadata);
     }
+    this.lastAppliedTick.clear();
+  };
+
+  private isStaleFrame = (id: string, messageTick: number) => {
+    if (messageTick <= 0) {
+      return false;
+    }
+    const lastTick = this.lastAppliedTick.get(id);
+    return lastTick !== undefined && messageTick <= lastTick;
+  };
+
+  private noteAppliedTick = (id: string, messageTick: number) => {
+    if (messageTick <= 0) {
+      return;
+    }
+    // Monotonic max-only: a lifecycle event captured at an older tick than
+    // already-applied state (possible when reliable and unordered lanes
+    // interleave) must never LOWER the watermark — that would reopen the
+    // window for an in-between stale UPDATE to resurrect or rewind.
+    const lastTick = this.lastAppliedTick.get(id);
+    if (lastTick === undefined || messageTick > lastTick) {
+      this.lastAppliedTick.set(id, messageTick);
+    }
+  };
+
+  private recordMotionApplyGap = (id: string) => {
+    const nowMs = performance.now();
+    const previousMs = this.lastMotionApplyMs.get(id);
+    this.lastMotionApplyMs.set(id, nowMs);
+    if (previousMs !== undefined) {
+      this.motionGapSamples.push(nowMs - previousMs);
+    }
+
+    if (this.motionGapWindowStartMs === 0) {
+      this.motionGapWindowStartMs = nowMs;
+      return;
+    }
+    if (
+      nowMs - this.motionGapWindowStartMs < 5000 ||
+      this.motionGapSamples.length === 0
+    ) {
+      return;
+    }
+
+    const sorted = [...this.motionGapSamples].sort((a, b) => a - b);
+    const quantile = (q: number) =>
+      sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
+    logPerf("entity_motion_apply_gap", {
+      count: sorted.length,
+      p50Ms: quantile(0.5),
+      p95Ms: quantile(0.95),
+      p99Ms: quantile(0.99),
+      maxMs: sorted[sorted.length - 1],
+    });
+    this.motionGapSamples = [];
+    this.motionGapWindowStartMs = nowMs;
   };
 
   private createEntityOfType = (type: string, id: string) => {

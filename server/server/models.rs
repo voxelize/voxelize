@@ -136,6 +136,9 @@ pub struct EntityProtocol {
     pub id: String,
     pub r#type: String,
     pub metadata: Option<String>,
+    /// Versioned compact motion payload (see `world::replication::motion`),
+    /// present only on UPDATEs to clients that negotiated the compact path.
+    pub motion: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -280,6 +283,7 @@ impl MessageBuilder {
                     id: entity.id,
                     r#type: entity.r#type,
                     metadata: entity.metadata.unwrap_or_default(),
+                    motion: entity.motion,
                 })
                 .collect();
         }

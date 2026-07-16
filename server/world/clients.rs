@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 
 use specs::Entity;
 
-use crate::server::WsSender;
+use crate::{server::WsSender, MotionProtocol};
 
 /// A client of the server.
 #[derive(Clone)]
@@ -18,6 +18,10 @@ pub struct Client {
 
     /// WebSocket sender to the client.
     pub sender: WsSender,
+
+    /// How this client receives entity motion, negotiated from the JOIN
+    /// request's capabilities (see `world::replication::motion`).
+    pub motion_protocol: MotionProtocol,
 }
 
 pub type Clients = HashMap<String, Client>;
