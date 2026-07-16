@@ -19,13 +19,26 @@ use voxelize::{
     Space, Voxelize, VoxelizeHandle, World, WorldConfig, WsSessionPolicy,
 };
 
+/// Serializes the tests that spawn real HTTP servers (each brings its own
+/// worker pool and, for the WS test, wall-clock timing assertions): running
+/// them concurrently on a saturated machine starves response deadlines
+/// without testing anything extra. Lock poisoning is ignored — a failed
+/// test must not cascade.
+static REAL_SERVER_TESTS: Mutex<()> = Mutex::new(());
+
+fn real_server_lock() -> std::sync::MutexGuard<'static, ()> {
+    REAL_SERVER_TESTS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// A chunk stage that blocks until the test opens its gate, holding world
 /// preload deliberately incomplete without faking any progress numbers.
 ///
-/// Stages run on the global rayon pool, so the gated world is kept to a
-/// single chunk: the gate then pins exactly one rayon thread, leaving the
-/// rest of the pool free for the world's ECS dispatch (a clogged global pool
-/// would wedge world ticks themselves).
+/// Stages run on the global rayon pool, so gated worlds are kept to a single
+/// chunk: the gate then pins exactly one rayon thread, leaving the rest of
+/// the pool free (a clogged global pool would wedge unrelated work and
+/// starve the suite under load).
 struct GatedStage {
     gate: Arc<AtomicBool>,
 }
@@ -43,16 +56,30 @@ impl ChunkStage for GatedStage {
     }
 }
 
-async fn get_json(client: &awc::Client, url: &str) -> Option<(u16, Value)> {
-    let mut response = client.get(url).send().await.ok()?;
-    let body = response.json::<Value>().await.ok()?;
-    Some((response.status().as_u16(), body))
+/// One GET with a fresh client per attempt: connection pooling must never
+/// couple an attempt's outcome to a previous attempt, and a saturated
+/// machine (parallel suite binaries under artificial load) must only slow
+/// an attempt down, not poison the next one.
+async fn get_json(url: &str) -> Result<(u16, Value), String> {
+    let client = awc::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .finish();
+    let mut response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| format!("send: {}", error))?;
+    let status = response.status().as_u16();
+    let body = response
+        .json::<Value>()
+        .await
+        .map_err(|error| format!("body: {}", error))?;
+    Ok((status, body))
 }
 
 /// Poll `url` until `accept` returns true for a response, panicking with
 /// `context` on timeout. Returns the accepted (status, body).
 async fn poll_until(
-    client: &awc::Client,
     url: &str,
     timeout: Duration,
     context: &str,
@@ -61,13 +88,16 @@ async fn poll_until(
     let deadline = Instant::now() + timeout;
     let mut last = None;
     while Instant::now() < deadline {
-        if let Some((status, body)) = get_json(client, url).await {
-            if accept(status, &body) {
-                return (status, body);
+        match get_json(url).await {
+            Ok((status, body)) => {
+                if accept(status, &body) {
+                    return (status, body);
+                }
+                last = Some(format!("{} {}", status, body));
             }
-            last = Some((status, body));
+            Err(error) => last = Some(error),
         }
-        tokio::time::sleep(Duration::from_millis(25)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
     panic!(
         "timed out waiting for {}; last response: {:?}",
@@ -81,6 +111,7 @@ async fn poll_until(
 /// only after preload finishes and world ticks flow.
 #[actix_web::test]
 async fn health_serves_during_delayed_preload_then_flips_ready() {
+    let _serial = real_server_lock();
     let gate = Arc::new(AtomicBool::new(false));
 
     let mut server = Server::new().debug(false).port(0).build();
@@ -101,18 +132,11 @@ async fn health_serves_during_delayed_preload_then_flips_ready() {
     assert_ne!(addr.port(), 0, "ephemeral port resolved at bind time");
     actix_web::rt::spawn(bound.wait_until_stopped());
 
-    // A short per-request timeout keeps retries cycling when the machine is
-    // saturated (all suite binaries start their servers at once); the outer
-    // poll budget is what bounds the test.
-    let client = awc::Client::builder()
-        .timeout(Duration::from_secs(3))
-        .finish();
     let url = format!("http://127.0.0.1:{}/health", addr.port());
 
     // The socket is reachable while preload is gated shut: the very first
     // response must be a structured 503, never a connection refusal or panic.
     let (status, body) = poll_until(
-        &client,
         &url,
         Duration::from_secs(60),
         "first /health response",
@@ -126,7 +150,6 @@ async fn health_serves_during_delayed_preload_then_flips_ready() {
     // Preload is underway but gated: health reports preloading with real
     // (zero) per-world progress, still 503.
     let (status, body) = poll_until(
-        &client,
         &url,
         Duration::from_secs(60),
         "preloading=true on /health",
@@ -146,7 +169,6 @@ async fn health_serves_during_delayed_preload_then_flips_ready() {
     // flow, and health flips to 200/ready.
     gate.store(true, Ordering::Relaxed);
     let (status, body) = poll_until(
-        &client,
         &url,
         Duration::from_secs(120),
         "/health to flip ready",
@@ -176,8 +198,12 @@ struct HealthProbeStage {
 }
 
 impl HealthProbeStage {
+    /// One blocking HTTP round trip. Retried within a deadline: on a
+    /// saturated machine a single attempt can hit a socket timeout, and a
+    /// retry does not weaken the invariant under test — preload's first side
+    /// effect stays blocked in this stage until /health actually answers.
     fn probe(&self, addr: SocketAddr) -> String {
-        let probe = || -> std::io::Result<String> {
+        let attempt = || -> std::io::Result<String> {
             let mut stream = std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(10))?;
             stream.set_read_timeout(Some(Duration::from_secs(10)))?;
             stream.write_all(
@@ -187,7 +213,18 @@ impl HealthProbeStage {
             stream.read_to_string(&mut response)?;
             Ok(response)
         };
-        probe().unwrap_or_else(|error| format!("probe error: {}", error))
+        let deadline = Instant::now() + Duration::from_secs(45);
+        loop {
+            match attempt() {
+                Ok(response) => return response,
+                Err(error) => {
+                    if Instant::now() >= deadline {
+                        return format!("probe error: {}", error);
+                    }
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            }
+        }
     }
 }
 
@@ -222,6 +259,7 @@ impl ChunkStage for HealthProbeStage {
 /// before preload work ran, not merely that `/health` answered eventually.
 #[actix_web::test]
 async fn first_preload_side_effect_observes_serving_health_endpoint() {
+    let _serial = real_server_lock();
     let target: Arc<Mutex<Option<SocketAddr>>> = Arc::new(Mutex::new(None));
     let response: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 
@@ -495,6 +533,7 @@ fn join_message(world: &str) -> Vec<u8> {
 ///   before the wedge clears.
 #[actix_web::test]
 async fn ws_slow_ack_preserves_ordering_and_hard_timeout_drops_wedged_session() {
+    let _serial = real_server_lock();
     let arbiter = Arbiter::new();
     let addr = start_server_on_arbiter(&arbiter, || {
         let mut server = Server::new().debug(false).build();
