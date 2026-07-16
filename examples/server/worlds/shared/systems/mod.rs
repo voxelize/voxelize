@@ -1,4 +1,5 @@
 mod extra_peer_meta;
+mod fauna_wander;
 mod text_metadata;
 mod void_kill;
 
@@ -9,6 +10,8 @@ use voxelize::{
     PathFindingSystem, PathMetadataSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem,
     TargetMetadataSystem, TimedDispatcherBuilder, UpdateStatsSystem, WalkTowardsSystem, World,
 };
+
+pub use self::fauna_wander::FaunaWanderSystem;
 
 use self::{
     extra_peer_meta::ExtraPeerMetaSystem, text_metadata::TextMetadataSystem,
@@ -27,6 +30,7 @@ pub fn setup_dispatcher(world: &mut World) {
             .with(PathMetadataSystem, "path-meta", &[])
             .with(EntityTreeSystem, "entity-tree", &[])
             .with(WalkTowardsSystem, "walk-towards", &["path-finding"])
+            .with(FaunaWanderSystem, "fauna-wander", &["update-stats"])
             .with(
                 EntitiesMetaSystem,
                 "entities-meta",
@@ -37,6 +41,7 @@ pub fn setup_dispatcher(world: &mut World) {
                     "entity-observe",
                     "entity-tree",
                     "walk-towards",
+                    "fauna-wander",
                 ],
             )
             .with(PeersMetaSystem, "peers-meta", &[])

@@ -2,11 +2,11 @@ use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use specs::{Builder, Join, WorldExt};
 use voxelize::{
-    CollisionsComp, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, MetadataComp, PositionComp,
-    Vec3, World,
+    CollisionsComp, CurrentChunkComp, DirectionComp, DoNotPersistComp, ETypeComp, EntityFlag,
+    IDComp, MetadataComp, PositionComp, Vec3, World,
 };
 
-use super::components::{BotFlag, TextComp};
+use super::components::{BotFlag, FaunaComp, TextComp};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TimeMethodPayload {
@@ -29,6 +29,12 @@ struct SpawnMethodPayload {
     position: Vec3<f32>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct SpawnFaunaPayload {
+    position: Vec3<f32>,
+    count: usize,
+}
+
 pub fn setup_methods(world: &mut World) {
     world.set_method_handle("time", |world, _, payload| {
         let time_per_day = world.config().time_per_day as f32;
@@ -39,6 +45,59 @@ pub fn setup_methods(world: &mut World) {
     world.set_method_handle("spawn-bot", |world, _, payload| {
         let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
         world.spawn_entity_at("bot", &data.position);
+    });
+
+    // The replication stress scenario: `count` deterministic wanderers
+    // orbiting around the given position, moving smoothly every tick with
+    // zero physics cost. Non-persistent by design so stress runs are
+    // repeatable.
+    world.set_method_handle("spawn-fauna", |world, _, payload| {
+        let data: SpawnFaunaPayload = serde_json::from_str(&payload).unwrap();
+        let count = data.count.clamp(1, 1000);
+
+        for i in 0..count {
+            let golden_angle = i as f32 * 2.399963;
+            let ring_radius = 6.0 + (i % 40) as f32 * 0.9;
+            let center = Vec3(
+                data.position.0 + ring_radius * golden_angle.cos(),
+                data.position.1 + 1.5 + (i % 5) as f32 * 0.8,
+                data.position.2 + ring_radius * golden_angle.sin(),
+            );
+            let fauna = FaunaComp {
+                center: center.clone(),
+                radius_x: 2.0 + (i % 7) as f32 * 0.8,
+                radius_z: 2.0 + (i % 5) as f32 * 1.0,
+                angular_speed_x: 0.6 + (i % 9) as f32 * 0.15,
+                angular_speed_z: 0.5 + (i % 11) as f32 * 0.12,
+                bob_amplitude: 0.4,
+                phase: golden_angle,
+            };
+            world
+                .create_entity(&nanoid!(), "fauna")
+                .with(PositionComp::new(center.0, center.1, center.2))
+                .with(DirectionComp::default())
+                .with(DoNotPersistComp)
+                .with(fauna)
+                .build();
+        }
+    });
+
+    world.set_method_handle("clear-fauna", |world, _, _| {
+        let entities = world.ecs().entities();
+        let faunas = world.ecs().read_storage::<FaunaComp>();
+
+        let mut to_delete = vec![];
+        for (entity, _) in (&entities, &faunas).join() {
+            to_delete.push(entity);
+        }
+        drop((entities, faunas));
+
+        for entity in to_delete {
+            world
+                .ecs_mut()
+                .delete_entity(entity)
+                .expect("Failed to delete fauna entity");
+        }
     });
 
     world.set_method_handle("kill-all-bots", |world, _, _| {

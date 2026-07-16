@@ -379,6 +379,25 @@ inputs.bind(
   "in-game",
 );
 
+inputs.bind(
+  "KeyG",
+  () => {
+    method.call("spawn-fauna", {
+      position: controls.object.position.toArray(),
+      count: 150,
+    });
+  },
+  "in-game",
+);
+
+inputs.bind(
+  "KeyH",
+  () => {
+    method.call("clear-fauna", {});
+  },
+  "in-game",
+);
+
 inputs.bind("KeyN", () => {
   events.emit("test", {
     test: "Hello World",
@@ -678,6 +697,53 @@ class Box extends VOXELIZE.Entity<{
   };
 }
 
+class Fauna extends VOXELIZE.Entity<{
+  position: VOXELIZE.Coords3;
+  direction?: number[];
+}> {
+  private targetPosition = new THREE.Vector3();
+
+  constructor(id: string) {
+    super(id);
+
+    // A stable per-entity hue so individual movers are distinguishable in
+    // the 150+ entity stress scene.
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) | 0;
+    }
+    const color = new THREE.Color().setHSL(
+      (Math.abs(hash) % 360) / 360,
+      0.8,
+      0.6,
+    );
+
+    this.add(
+      new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.6, 0.6),
+        new THREE.MeshBasicMaterial({ color }),
+      ),
+    );
+  }
+
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+    this.targetPosition.set(...data.position);
+  };
+
+  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.targetPosition.set(...data.position);
+  };
+
+  update = () => {
+    this.position.lerp(this.targetPosition, 0.25);
+  };
+
+  snapToTarget = () => {
+    this.position.copy(this.targetPosition);
+  };
+}
+
 inputs.on("namespace", (namespace) => {
   console.log("namespace changed", namespace);
 });
@@ -814,6 +880,7 @@ class Bot extends VOXELIZE.Entity<BotData> {
 
 entities.setClass("bot", Bot);
 entities.setClass("box", Box);
+entities.setClass("fauna", Fauna);
 
 world.add(entities);
 
