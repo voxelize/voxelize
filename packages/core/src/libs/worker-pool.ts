@@ -137,17 +137,34 @@ export class WorkerPool {
 
       const { message, buffers, resolve } = this.queue.shift() as WorkerPoolJob;
 
-      const workerCallback = ({ data }: any) => {
+      const cleanup = () => {
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
+        worker.removeEventListener("error", workerError);
+        worker.removeEventListener("messageerror", workerError);
         this.available.unshift(index);
-        resolve(data);
         if (this.queue.length > 0) {
           queueMicrotask(this.process);
         }
       };
 
+      const workerCallback = ({ data }: any) => {
+        cleanup();
+        resolve(data);
+      };
+
+      // Without an error path, a failed light/mesh worker permanently
+      // occupies the slot and never resolves the job — which previously
+      // also blocked remesh when callers waited on light completion.
+      const workerError = (event: ErrorEvent | MessageEvent) => {
+        console.error("[worker-pool] worker job failed", event);
+        cleanup();
+        resolve(null);
+      };
+
       worker.addEventListener("message", workerCallback);
+      worker.addEventListener("error", workerError);
+      worker.addEventListener("messageerror", workerError);
       const transferBuffers = buffers?.filter(
         (buffer): buffer is ArrayBuffer =>
           buffer instanceof ArrayBuffer &&

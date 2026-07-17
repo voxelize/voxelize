@@ -2955,13 +2955,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.flushAccumulatedLightOps();
     this.isTrackingChunks = false;
 
-    if (this.options.useLightWorkers) {
-      if (this.lightJobQueue.length === 0 && this.activeLightBatch === null) {
-        this.processDirtyChunks();
-      }
-    } else {
-      this.processDirtyChunks();
-    }
+    // Remesh immediately from the applied voxel data. Waiting on light
+    // workers left broken blocks as ghost meshes whenever a light job
+    // stalled or was still in flight — the voxel was already air (drops
+    // spawned) but the chunk mesh never updated. Light completion still
+    // remeshes again with corrected lighting via applyBatchResults.
+    this.processDirtyChunks();
   }
 
   floodLight(
@@ -5719,12 +5718,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.flushAccumulatedLightOps();
       this.isTrackingChunks = false;
-      if (
-        this.options.useLightWorkers &&
-        (this.lightJobQueue.length > 0 || this.activeLightBatch !== null)
-      ) {
-        return;
-      }
+      // Same as applyServerUpdatesImmediately: voxel apply must remesh even
+      // while light workers are still running, otherwise optimistic breaks
+      // (and any light-worker stall) leave a solid ghost mesh over air.
       this.processDirtyChunks();
     };
 
@@ -6046,7 +6042,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   }
 
-  private handleLightJobResult(job: LightJob, result: LightWorkerResult) {
+  private handleLightJobResult(job: LightJob, result: LightWorkerResult | null) {
     if (
       !this.activeLightBatch ||
       this.activeLightBatch.batchId !== job.batchId
@@ -6055,11 +6051,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const batch = this.activeLightBatch;
-    batch.results.push({
-      color: job.color,
-      modifiedChunks: result.modifiedChunks,
-      boundingBox: job.boundingBox,
-    });
+    // A null result means the worker failed; still advance the batch so
+    // lighting never wedges, and keep remesh free via processDirtyChunks.
+    if (result?.modifiedChunks) {
+      batch.results.push({
+        color: job.color,
+        modifiedChunks: result.modifiedChunks,
+        boundingBox: job.boundingBox,
+      });
+    }
     batch.completedJobs++;
 
     if (batch.completedJobs < batch.totalJobs) {

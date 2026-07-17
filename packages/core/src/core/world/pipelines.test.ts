@@ -5,7 +5,7 @@ import { Coords2 } from "../../types";
 import { ChunkUtils } from "../../utils";
 
 import { Chunk } from "./chunk";
-import { ChunkPipeline } from "./pipelines";
+import { ChunkPipeline, MeshPipeline } from "./pipelines";
 
 const options = {
   size: 2,
@@ -70,5 +70,37 @@ describe("ChunkPipeline.resyncForRejoin", () => {
     expect(pipeline.getLoadedChunk(ChunkUtils.getChunkName([2, 0]))).toBe(
       loaded,
     );
+  });
+});
+
+describe("MeshPipeline voxel-change remesh", () => {
+  it("marks dirty immediately so remesh can run before light workers finish", () => {
+    const pipeline = new MeshPipeline();
+
+    pipeline.onVoxelChange(3, 4, 2, true);
+
+    expect(pipeline.getDirtyKeys()).toEqual(["3,4:2"]);
+    expect(pipeline.isUrgent("3,4:2")).toBe(true);
+    expect(pipeline.hasDirtyChunks()).toBe(true);
+
+    const generation = pipeline.startJob("3,4:2");
+    expect(generation).toBe(1);
+    expect(pipeline.getDirtyKeys()).toEqual([]);
+
+    // A concurrent light-driven remesh request must stay pending until the
+    // in-flight mesh job completes, then remesh again.
+    pipeline.onVoxelChange(3, 4, 2);
+    expect(pipeline.needsRemesh("3,4:2")).toBe(true);
+  });
+
+  it("keeps needsRemesh true when voxels change while a mesh job is in flight", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(1, 1, 0);
+    const generation = pipeline.startJob("1,1:0");
+
+    pipeline.onVoxelChange(1, 1, 0);
+    expect(pipeline.needsRemesh("1,1:0")).toBe(true);
+    expect(pipeline.onJobComplete("1,1:0", generation)).toBe(false);
+    expect(pipeline.getDirtyKeys()).toEqual(["1,1:0"]);
   });
 });
