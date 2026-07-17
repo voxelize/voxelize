@@ -49,7 +49,9 @@ function entityMessage(
   return {
     type: "ENTITY",
     tick: options.tick,
-    entities: [{ operation, id, type: "probe", metadata, motion: options.motion }],
+    entities: [
+      { operation, id, type: "probe", metadata, motion: options.motion },
+    ],
   } as MessageProtocol;
 }
 
@@ -237,6 +239,158 @@ describe("Entities compact motion path", () => {
     );
 
     expect(entities.getEntityById("ghost")).toBeUndefined();
+  });
+});
+
+describe("Entities resilience with Town-like consumers", () => {
+  // Town-style entity classes destructure/iterate metadata fields directly
+  // (`const [x, y, z] = data.position`), so handing them metadata missing
+  // those keys throws "x is not iterable" — the live staging breakage.
+  class DestructuringEntity extends Entity<ProbeData> {
+    public applied: [number, number, number][] = [];
+
+    onCreate = (data: ProbeData) => {
+      const [x, y, z] = data.position;
+      this.applied.push([x, y, z]);
+    };
+
+    onUpdate = (data: ProbeData) => {
+      const [x, y, z] = data.position;
+      this.applied.push([x, y, z]);
+    };
+  }
+
+  class ThrowingEntity extends Entity<ProbeData> {
+    onCreate = () => {
+      // A game-code bug: always throws on apply.
+      throw new Error("boom");
+    };
+
+    onUpdate = () => {
+      throw new Error("boom");
+    };
+  }
+
+  function makeTownEntities(): Entities {
+    const entities = new Entities();
+    entities.setClass("probe", ProbeEntity);
+    entities.setClass("town", DestructuringEntity);
+    entities.setClass("buggy", ThrowingEntity);
+    return entities;
+  }
+
+  it("never constructs an entity from a partial metadata-lane update", () => {
+    const entities = makeTownEntities();
+
+    // A compact metadata-lane payload (position stripped server-side)
+    // arrives for an entity whose CREATE this client never processed.
+    expect(() =>
+      entities.onMessage({
+        type: "ENTITY",
+        entities: [
+          {
+            operation: "UPDATE",
+            id: "ghost",
+            type: "town",
+            metadata: { name: "partial-only" },
+          },
+        ],
+      } as MessageProtocol),
+    ).not.toThrow();
+
+    expect(entities.getEntityById("ghost")).toBeUndefined();
+
+    // A full snapshot (carries position) still heals against old servers.
+    entities.onMessage({
+      type: "ENTITY",
+      entities: [
+        {
+          operation: "UPDATE",
+          id: "ghost",
+          type: "town",
+          metadata: { position: [1, 2, 3] },
+        },
+      ],
+    } as MessageProtocol);
+    const healed = entities.getEntityById("ghost") as DestructuringEntity;
+    expect(healed).toBeDefined();
+    expect(healed.applied).toContainEqual([1, 2, 3]);
+  });
+
+  it("isolates a throwing entity so the rest of the batch still applies", () => {
+    const entities = makeTownEntities();
+    entities.onMessage(
+      entityMessage("CREATE", "healthy", { position: [0, 0, 0] }),
+    );
+
+    // One message carrying a poisoned entity first, then a healthy update:
+    // the poison must not abort the batch (or escape the interceptor and
+    // stall everything queued behind the message).
+    expect(() =>
+      entities.onMessage({
+        type: "ENTITY",
+        entities: [
+          {
+            operation: "CREATE",
+            id: "bad",
+            type: "buggy",
+            metadata: { position: [1, 1, 1] },
+          },
+          {
+            operation: "UPDATE",
+            id: "healthy",
+            type: "probe",
+            metadata: { position: [9, 9, 9] },
+          },
+        ],
+      } as MessageProtocol),
+    ).not.toThrow();
+
+    const healthy = entities.getEntityById("healthy") as ProbeEntity;
+    expect(healthy.updateCount).toBe(1);
+    expect(healthy.metadata!.position).toEqual([9, 9, 9]);
+  });
+
+  it("keeps iterable metadata fields iterable through merges and motion", () => {
+    const entities = makeTownEntities();
+    entities.onMessage({
+      type: "ENTITY",
+      entities: [
+        {
+          operation: "CREATE",
+          id: "a",
+          type: "town",
+          metadata: {
+            position: [1, 2, 3],
+            path: {
+              nodes: [
+                [1, 1, 1],
+                [2, 2, 2],
+              ],
+            },
+          },
+        },
+      ],
+    } as MessageProtocol);
+
+    // Partial metadata update, then a motion-only update.
+    entities.onMessage(entityMessage("UPDATE", "a", { name: "renamed" }));
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { motion: { position: [4, 5, 6] } }),
+    );
+
+    const town = entities.getEntityById("a") as DestructuringEntity;
+    const metadata = town.metadata as unknown as {
+      position: number[];
+      path: { nodes: number[][] };
+    };
+    expect(Array.isArray(metadata.position)).toBe(true);
+    expect(metadata.position).toEqual([4, 5, 6]);
+    expect(metadata.path.nodes).toEqual([
+      [1, 1, 1],
+      [2, 2, 2],
+    ]);
+    expect(town.applied).toContainEqual([4, 5, 6]);
   });
 });
 
