@@ -44,13 +44,23 @@ function entityMessage(
   operation: "CREATE" | "UPDATE" | "DELETE" | "OUT_OF_RANGE",
   id: string,
   metadata: Partial<ProbeData> | null = { position: [0, 0, 0] },
-  options: { motion?: EntityMotionProtocol; tick?: number } = {},
+  options: {
+    motion?: EntityMotionProtocol;
+    tick?: number;
+    type?: string;
+  } = {},
 ): MessageProtocol {
   return {
     type: "ENTITY",
     tick: options.tick,
     entities: [
-      { operation, id, type: "probe", metadata, motion: options.motion },
+      {
+        operation,
+        id,
+        type: options.type ?? "probe",
+        metadata,
+        motion: options.motion,
+      },
     ],
   } as MessageProtocol;
 }
@@ -349,6 +359,40 @@ describe("Entities resilience with Town-like consumers", () => {
     const healthy = entities.getEntityById("healthy") as ProbeEntity;
     expect(healthy.updateCount).toBe(1);
     expect(healthy.metadata!.position).toEqual([9, 9, 9]);
+  });
+
+  it("degrades an update whose motion failed to decode without ever losing position", () => {
+    const entities = makeTownEntities();
+    entities.onMessage(
+      entityMessage(
+        "CREATE",
+        "a",
+        { position: [1, 2, 3], name: "keeper" },
+        { type: "town" },
+      ),
+    );
+    const town = entities.getEntityById("a") as DestructuringEntity;
+
+    // The decode worker strips undecodable motion, so the update arrives
+    // with neither metadata nor motion: a keep-alive. Nothing applies.
+    expect(() =>
+      entities.onMessage(entityMessage("UPDATE", "a", null, { type: "town" })),
+    ).not.toThrow();
+    expect(town.applied).toEqual([[1, 2, 3]]);
+
+    // Same stripping with partial metadata attached: the merge keeps the
+    // accumulated position; the consumer never sees an undefined position.
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { name: "renamed" }, { type: "town" }),
+    );
+    expect(town.applied).toEqual([
+      [1, 2, 3],
+      [1, 2, 3],
+    ]);
+    expect(town.metadata).toMatchObject({
+      position: [1, 2, 3],
+      name: "renamed",
+    });
   });
 
   it("keeps iterable metadata fields iterable through merges and motion", () => {
