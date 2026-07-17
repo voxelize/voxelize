@@ -107,6 +107,55 @@ type DecodedMotion = {
   targetPosition?: [number, number, number];
 };
 
+type MotionBytesLike =
+  | Uint8Array
+  | ArrayBufferView
+  | ArrayBuffer
+  | number[]
+  | null
+  | undefined;
+
+/**
+ * Coerce whatever byte container the protobuf runtime hands us into a
+ * Uint8Array. Depending on the environment (worker realms, Node Buffers,
+ * JSON round-trips) the `motion` field may arrive as a different
+ * ArrayBufferView, a raw ArrayBuffer, or a plain byte array — an
+ * `instanceof Uint8Array` check silently drops all of those, which would
+ * leave a compact-protocol client without any position stream.
+ */
+export function coerceMotionBytes(value: MotionBytesLike): Uint8Array | null {
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value);
+  }
+  if (Array.isArray(value)) {
+    return Uint8Array.from(value);
+  }
+  return null;
+}
+
+/**
+ * Normalize an entity's wire `motion` field in place: coerce the byte
+ * container, decode it, and FAIL SAFE — when the payload is absent, empty,
+ * or undecodable, the field is removed entirely so the update degrades to
+ * its metadata (or a keep-alive), never to an apply with a half-decoded or
+ * missing position.
+ */
+export function normalizeEntityMotion(entity: Record<string, unknown>): void {
+  const bytes = coerceMotionBytes(entity.motion as MotionBytesLike);
+  const decoded = bytes && bytes.length > 0 ? decodeMotion(bytes) : undefined;
+  if (decoded) {
+    entity.motion = decoded;
+  } else {
+    delete entity.motion;
+  }
+}
+
 /**
  * Decode a versioned compact motion payload (kept in byte-for-byte sync with
  * `server/world/replication/motion.rs`). Returns undefined for unknown
@@ -204,11 +253,7 @@ export function decodeMessage(
           parsed.json = deepParseJSON(parsed.json);
         }
       }
-      if (entity.motion instanceof Uint8Array && entity.motion.length > 0) {
-        entity.motion = decodeMotion(entity.motion);
-      } else {
-        delete entity.motion;
-      }
+      normalizeEntityMotion(entity);
       entity.operation = Entity.Operation[entity.operation as number];
     }
   }
