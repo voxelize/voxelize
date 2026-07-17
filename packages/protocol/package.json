@@ -18,7 +18,7 @@
     "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "test": "pnpm vitest",
     "compile": "vite build",
-    "build": "pnpm run clean && pnpm run compile && pnpm run types && pnpm run copyproto",
+    "build": "pnpm run proto && pnpm run clean && pnpm run compile && pnpm run types && pnpm run copyproto",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
     "copyproto": "cp ./src/protocol.* ./dist",
     "prepublishOnly": "pnpm run build",
