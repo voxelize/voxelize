@@ -85,6 +85,10 @@ const actSchema = z.discriminatedUnion("type", [
     method: z.string(),
     payload: z.unknown(),
   }),
+  z.object({
+    type: z.literal("break-voxel"),
+    pos: vec3Schema,
+  }),
   z.object({ type: z.literal("wait"), ms: z.number() }),
   z.object({
     type: z.literal("wait-for-chunks"),
@@ -387,6 +391,8 @@ export class AgentDaemon {
         };
       case "call":
         return this.agent.call(action.method, action.payload);
+      case "break-voxel":
+        return this.agent.breakVoxel(action.pos);
       case "wait":
         await new Promise((r) => setTimeout(r, action.ms));
         return { waited: action.ms };

@@ -247,6 +247,18 @@ export class MeshPipeline {
     return true;
   }
 
+  /**
+   * Release an in-flight generation that produced no mesh (worker bail-out).
+   * Re-queues the key so remesh can retry instead of leaving a permanent
+   * ghost mesh when voxel data already changed but geometry never applied.
+   */
+  failJob(key: string, jobGeneration: number): void {
+    const state = this.states.get(key);
+    if (!state) return;
+    state.inFlightGenerations.delete(jobGeneration);
+    this.dirty.add(key);
+  }
+
   needsRemesh(key: string): boolean {
     const state = this.states.get(key);
     if (!state) return false;

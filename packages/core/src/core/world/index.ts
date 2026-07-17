@@ -5776,6 +5776,13 @@ export class World<T = any> extends Scene implements NetIntercept {
           result.geometries,
           result.generation,
         );
+      } else {
+        // dispatchMeshWorker returns null when the chunk is mid-load/update
+        // or neighbors are missing. startJob already reserved this generation
+        // in inFlightGenerations; without releasing it, shouldStartJob stays
+        // false forever and the client keeps the pre-break ghost mesh even
+        // though getVoxelAt is already air (server echo is a no-op then).
+        this.meshPipeline.failJob(result.key, result.generation);
       }
 
       if (this.meshPipeline.needsRemesh(result.key)) {

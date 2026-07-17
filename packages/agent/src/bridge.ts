@@ -236,6 +236,15 @@ export interface AgentBridge {
   setFlying(isFlying: boolean): Promise<void>;
   setRenderRadius(radius: number): Promise<number>;
   call(method: string, payload: unknown): Promise<unknown>;
+  /**
+   * Optimistic client voxel clear + authoritative `break-block` method.
+   * Used by staging smoke to assert mesh/raycast catch up with inventory.
+   */
+  breakVoxel(pos: Vec3): Promise<{
+    beforeId: number;
+    afterId: number;
+    queued: boolean;
+  }>;
   captureFrame(opts?: CaptureFrameOptions): Promise<string | null>;
 
   meshTransferStatus(): Promise<MeshTransferStatus>;

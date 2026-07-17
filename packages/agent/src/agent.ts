@@ -475,6 +475,17 @@ export class Agent {
     );
   }
 
+  async breakVoxel(pos: Vec3): Promise<{
+    beforeId: number;
+    afterId: number;
+    queued: boolean;
+  }> {
+    return this.page.evaluate(
+      (p) => window.__agentRequired__().breakVoxel(p),
+      pos,
+    );
+  }
+
   async meshTransferStatus(): Promise<MeshTransferStatus> {
     return this.page.evaluate(() =>
       window.__agentRequired__().meshTransferStatus(),
