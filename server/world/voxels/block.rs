@@ -1477,6 +1477,13 @@ pub struct Block {
         Option<Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>>,
 
     pub is_active: bool,
+
+    /// When true, the Minecraft-style subchunk random-tick sampler may invoke
+    /// this block's `active_updater` (scheduled via `mark_voxel_active` at the
+    /// current tick). Default false -- copper/fluids stay neighbor/scheduled
+    /// only; plant growth opts in explicitly.
+    #[serde(default)]
+    pub is_random_tickable: bool,
 }
 
 impl Block {
@@ -1751,6 +1758,7 @@ pub struct BlockBuilder {
     is_see_through: bool,
     occludes_fluid: bool,
     is_plant: bool,
+    is_random_tickable: bool,
     requires_support: SupportRequirement,
     is_px_transparent: bool,
     is_py_transparent: bool,
@@ -1852,6 +1860,14 @@ impl BlockBuilder {
 
     pub fn is_plant(mut self, is_plant: bool) -> Self {
         self.is_plant = is_plant;
+        self
+    }
+
+    /// Opt this block into the subchunk random-tick sampler (Minecraft-style
+    /// plant growth). Requires `active_fn` so `is_active` is true; the sampler
+    /// marks matching voxels active at the current tick for the updater to run.
+    pub fn is_random_tickable(mut self, is_random_tickable: bool) -> Self {
+        self.is_random_tickable = is_random_tickable;
         self
     }
 
@@ -2124,6 +2140,7 @@ impl BlockBuilder {
             is_active: self.active_updater.is_some() && self.active_ticker.is_some(),
             active_ticker: self.active_ticker,
             active_updater: self.active_updater,
+            is_random_tickable: self.is_random_tickable,
             is_entity: self.is_entity,
             default_entity_json: self.default_entity_json,
         }

@@ -531,8 +531,26 @@ impl Chunks {
         }
     }
 
+    /// Schedule `voxel` to become active at absolute tick `active_at`.
+    ///
+    /// Earliest-deadline upsert:
+    /// - if the voxel is not queued, insert it
+    /// - if already queued and `active_at` is **earlier** than the stored
+    ///   deadline, reschedule to the earlier tick (stale later heap entries
+    ///   are lazily discarded when popped -- see ChunkUpdatingSystem)
+    /// - if already queued and `active_at` is later-or-equal, this is a no-op
     pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {
-        if self.active_voxel_set.contains_key(voxel) {
+        if let Some(&existing) = self.active_voxel_set.get(voxel) {
+            if active_at >= existing {
+                return;
+            }
+            // Earlier deadline wins. Leave the stale later heap entry; the
+            // pop path only fires when the heap tick matches the set.
+            self.active_voxel_set.insert(voxel.clone(), active_at);
+            self.active_voxel_heap.push(Reverse(ActiveVoxel {
+                tick: active_at,
+                voxel: voxel.clone(),
+            }));
             return;
         }
         self.active_voxel_set.insert(voxel.clone(), active_at);
@@ -540,6 +558,11 @@ impl Chunks {
             tick: active_at,
             voxel: voxel.clone(),
         }));
+    }
+
+    /// Absolute tick currently scheduled for `voxel`, if any.
+    pub fn active_voxel_deadline(&self, voxel: &Vec3<i32>) -> Option<u64> {
+        self.active_voxel_set.get(voxel).copied()
     }
 
     /// Add a chunk to be saved.
@@ -683,5 +706,78 @@ impl VoxelAccess for Chunks {
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         self.raw_chunk_by_voxel(vx, vy, vz).is_some()
+    }
+}
+
+
+#[cfg(test)]
+mod active_voxel_upsert_tests {
+    use super::*;
+    use crate::WorldConfig;
+
+    fn empty_chunks() -> Chunks {
+        Chunks::new(&WorldConfig::new().build())
+    }
+
+    #[test]
+    fn mark_voxel_active_earlier_deadline_wins() {
+        let mut chunks = empty_chunks();
+        let voxel = Vec3(1, 2, 3);
+        chunks.mark_voxel_active(&voxel, 100);
+        assert_eq!(chunks.active_voxel_deadline(&voxel), Some(100));
+
+        chunks.mark_voxel_active(&voxel, 10);
+        assert_eq!(chunks.active_voxel_deadline(&voxel), Some(10));
+
+        // Later-or-equal is a no-op.
+        chunks.mark_voxel_active(&voxel, 10);
+        assert_eq!(chunks.active_voxel_deadline(&voxel), Some(10));
+        chunks.mark_voxel_active(&voxel, 50);
+        assert_eq!(chunks.active_voxel_deadline(&voxel), Some(10));
+    }
+
+    #[test]
+    fn mark_voxel_active_lazy_discards_stale_later_heap_entry() {
+        let mut chunks = empty_chunks();
+        let voxel = Vec3(4, 5, 6);
+        chunks.mark_voxel_active(&voxel, 100);
+        chunks.mark_voxel_active(&voxel, 10);
+
+        // Simulate the ChunkUpdatingSystem pop loop at tick 10.
+        let current_tick = 10u64;
+        let mut due = Vec::new();
+        while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
+            if active.tick > current_tick {
+                break;
+            }
+            let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
+            match chunks.active_voxel_set.get(&active.voxel).copied() {
+                Some(scheduled) if scheduled == active.tick => {
+                    chunks.active_voxel_set.remove(&active.voxel);
+                    due.push(active.voxel);
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(due, vec![voxel.clone()]);
+        assert!(chunks.active_voxel_deadline(&voxel).is_none());
+
+        // Stale T+100 entry must not fire later.
+        let current_tick = 100u64;
+        let mut due2 = Vec::new();
+        while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
+            if active.tick > current_tick {
+                break;
+            }
+            let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
+            match chunks.active_voxel_set.get(&active.voxel).copied() {
+                Some(scheduled) if scheduled == active.tick => {
+                    chunks.active_voxel_set.remove(&active.voxel);
+                    due2.push(active.voxel);
+                }
+                _ => {}
+            }
+        }
+        assert!(due2.is_empty());
     }
 }
