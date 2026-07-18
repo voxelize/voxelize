@@ -5,10 +5,10 @@ use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect, WriteStorage};
 
 use crate::{
-    beer_lambert_transmit, BlockUtils, ChunkInterests, ChunkUtils, Chunks, ClientFilter,
-    CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode, Lights,
-    Mesher, Message, MessageQueues, MessageType, MetadataComp, Registry, Stats, UpdateProtocol,
-    Vec2, Vec3, VoxelAccess, VoxelComp, WorldConfig,
+    beer_lambert_transmit, sample_random_ticks, BlockUtils, ChunkInterests, ChunkUtils, Chunks,
+    ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode,
+    Lights, Mesher, Message, MessageQueues, MessageType, MetadataComp, Registry, Stats,
+    UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -858,15 +858,24 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         chunks.clear_cache();
 
-        // Collect all due active voxels
+        // Collect all due active voxels.
+        // Lazy discard: after an earliest-deadline upsert the heap may hold a
+        // stale later entry for the same voxel. Only fire when the heap tick
+        // still matches the deadline stored in active_voxel_set.
         let mut due_voxels = Vec::new();
         while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
             if active.tick > current_tick {
                 break;
             }
             let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
-            if chunks.active_voxel_set.remove(&active.voxel).is_some() {
-                due_voxels.push(active.voxel);
+            match chunks.active_voxel_set.get(&active.voxel).copied() {
+                Some(scheduled) if scheduled == active.tick => {
+                    chunks.active_voxel_set.remove(&active.voxel);
+                    due_voxels.push(active.voxel);
+                }
+                _ => {
+                    // Stale entry (rescheduled earlier, or already processed).
+                }
             }
         }
 
@@ -917,6 +926,57 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             max_updates_per_tick,
         );
         all_results.extend(results);
+
+        // Minecraft-style subchunk random ticks (plants). Runs AFTER the
+        // scheduled active queue so copper/neighbor wakes are never starved.
+        // Newly marked voxels are popped immediately below so growth can
+        // advance on the same world tick when budget allows.
+        let _random_samples = sample_random_ticks(
+            &mut chunks,
+            &registry,
+            &interests,
+            &config,
+            current_tick,
+        );
+
+        let mut random_due = Vec::new();
+        while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
+            if active.tick > current_tick {
+                break;
+            }
+            let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
+            match chunks.active_voxel_set.get(&active.voxel).copied() {
+                Some(scheduled) if scheduled == active.tick => {
+                    chunks.active_voxel_set.remove(&active.voxel);
+                    random_due.push(active.voxel);
+                }
+                _ => {}
+            }
+        }
+        random_due.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+        for voxel in random_due.iter() {
+            let Vec3(vx, vy, vz) = *voxel;
+            let id = chunks.get_voxel(vx, vy, vz);
+            let block = registry.get_block_by_id(id);
+            if let Some(updater) = &block.active_updater {
+                let updates = updater(Vec3(vx, vy, vz), &*chunks, &registry);
+                for (pos, val) in updates {
+                    chunks.update_voxel(&pos, val);
+                }
+            }
+            let results = process_pending_updates(
+                &mut chunks,
+                &mut mesher,
+                &lazy,
+                &entities,
+                &mut json_storage,
+                &config,
+                &registry,
+                current_tick,
+                max_updates_per_tick,
+            );
+            all_results.extend(results);
+        }
 
         if !all_results.is_empty() {
             // Route each update only to clients whose chunk interest covers a

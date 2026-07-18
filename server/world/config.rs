@@ -46,6 +46,20 @@ pub struct WorldConfig {
     /// Maximum voxel updates to be processed per tick. Default is 1000 voxels.
     pub max_updates_per_tick: usize,
 
+    /// Minecraft-style random tick speed: each loaded/interested 16x16x(section)
+    /// subchunk samples this many random positions per world tick and, if the
+    /// block is `is_random_tickable`, schedules its `active_updater` at the
+    /// current tick. Default is 3 (Minecraft's `randomTickSpeed` default).
+    /// Set to 0 to disable the sampler entirely.
+    pub random_tick_speed: usize,
+
+    /// Hard cap on how many random-tick samples may be taken across all
+    /// interested subchunks in a single world tick. Keeps the sampler from
+    /// starving the neighbor/scheduled active queue (copper). Default 2048.
+    /// Priority: scheduled `active_voxel_heap` work always runs first in
+    /// `ChunkUpdatingSystem`; the sampler only *queues* work for later pops.
+    pub max_random_ticks_per_tick: usize,
+
     /// Maximum responses to send to client per tick to prevent bottle-necking. Default is 4 chunks.
     pub max_response_per_tick: usize,
 
@@ -183,6 +197,9 @@ const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 4;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 50000;
+/// Minecraft default `gamerule randomTickSpeed` = 3 samples per 16^3 section.
+const DEFAULT_RANDOM_TICK_SPEED: usize = 3;
+const DEFAULT_MAX_RANDOM_TICKS_PER_TICK: usize = 2048;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
 const DEFAULT_TICKS_PER_DAY: u64 = 24000;
@@ -223,6 +240,8 @@ pub struct WorldConfigBuilder {
     max_light_level: u32,
     max_chunks_per_tick: usize,
     max_updates_per_tick: usize,
+    random_tick_speed: usize,
+    max_random_ticks_per_tick: usize,
     max_response_per_tick: usize,
     max_saves_per_tick: usize,
     time_per_day: u64,
@@ -271,6 +290,8 @@ impl WorldConfigBuilder {
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
             max_chunks_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
             max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
+            random_tick_speed: DEFAULT_RANDOM_TICK_SPEED,
+            max_random_ticks_per_tick: DEFAULT_MAX_RANDOM_TICKS_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
             time_per_day: DEFAULT_TICKS_PER_DAY,
@@ -375,6 +396,21 @@ impl WorldConfigBuilder {
     /// Configure the maximum amount of voxel updates to be processed per tick. Default is 1000 voxel updates.
     pub fn max_updates_per_tick(mut self, max_updates_per_tick: usize) -> Self {
         self.max_updates_per_tick = max_updates_per_tick;
+        self
+    }
+
+    /// Minecraft-style random tick speed (samples per loaded subchunk section
+    /// per world tick). Default 3. Set 0 to disable.
+    pub fn random_tick_speed(mut self, random_tick_speed: usize) -> Self {
+        self.random_tick_speed = random_tick_speed;
+        self
+    }
+
+    /// Cap on total random-tick samples across all interested subchunks per
+    /// world tick. Default 2048. Scheduled active-queue work is not counted
+    /// against this budget and always runs first.
+    pub fn max_random_ticks_per_tick(mut self, max_random_ticks_per_tick: usize) -> Self {
+        self.max_random_ticks_per_tick = max_random_ticks_per_tick;
         self
     }
 
@@ -573,6 +609,8 @@ impl WorldConfigBuilder {
             max_light_level: self.max_light_level,
             max_chunks_per_tick: self.max_chunks_per_tick,
             max_updates_per_tick: self.max_updates_per_tick,
+            random_tick_speed: self.random_tick_speed,
+            max_random_ticks_per_tick: self.max_random_ticks_per_tick,
             max_response_per_tick: self.max_response_per_tick,
             max_saves_per_tick: self.max_saves_per_tick,
             time_per_day: self.time_per_day,
