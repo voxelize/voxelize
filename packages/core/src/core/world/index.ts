@@ -141,6 +141,7 @@ import {
 } from "./chunk-requests";
 import { Clouds, CloudsOptions } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
+import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
 import { Loader } from "./loader";
@@ -919,8 +920,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       data: T | null;
     }
   > = new Map();
-  // TODO: fix a bug where if the chunk is not loaded, the block entity will not be updated and will just go stray
   private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
+  private deferredBlockEntityUpdates = new DeferredBlockEntityUpdateController();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
@@ -4280,21 +4281,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     chunkCoords: Coords2,
     updateData: BlockEntityUpdateData<T>,
   ) {
-    let isResolved = false;
-    let unbind = () => {};
-    const fallbackTimeout = window.setTimeout(() => {
-      if (isResolved) return;
-      isResolved = true;
-      unbind();
-      listener(updateData);
-    }, 3000);
+    const chunkName = ChunkUtils.getChunkName(chunkCoords);
 
-    unbind = this.addChunkInitListener(chunkCoords, () => {
-      if (isResolved) return;
-      isResolved = true;
-      window.clearTimeout(fallbackTimeout);
-      listener(updateData);
-      unbind();
+    this.deferredBlockEntityUpdates.defer({
+      chunkName,
+      timeoutMs: 3000,
+      shouldApplyOnTimeout: () => {
+        const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
+        return this.isChunkReadyForEntityUpdates(chunk);
+      },
+      onApply: () => listener(updateData),
+      bindChunkInit: (onChunkReady) =>
+        this.addChunkInitListener(chunkCoords, () => onChunkReady()),
     });
   }
 
@@ -4380,6 +4378,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     deleted.forEach((coords) => {
       const name = ChunkUtils.getChunkName(coords);
       this.chunkInitializeListeners.delete(name);
+      this.deferredBlockEntityUpdates.cancelChunk(name);
     });
 
     if (deleted.length) {
