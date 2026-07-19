@@ -10,6 +10,7 @@ mod fixed_step;
 mod generators;
 mod interests;
 pub mod items;
+mod lag_comp;
 mod messages;
 mod metadata;
 mod physics;
@@ -73,6 +74,7 @@ pub use events::*;
 pub use generators::*;
 pub use interests::*;
 pub use items::*;
+pub use lag_comp::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
@@ -737,6 +739,7 @@ impl World {
         ecs.register::<NameComp>();
         ecs.register::<PathComp>();
         ecs.register::<PositionComp>();
+        ecs.register::<RewindEligibleComp>();
         ecs.register::<RigidBodyComp>();
         ecs.register::<TargetComp>();
         ecs.register::<VoxelComp>();
@@ -781,6 +784,19 @@ impl World {
         // place. Non-deterministic worlds never insert it and pay nothing.
         if let Some(fixed_timestep) = config.fixed_timestep {
             ecs.insert(FixedStepState::new(fixed_timestep));
+        }
+
+        // Opt-in lag-compensation carries its position-history ring and the
+        // server-measured RTT trackers as a resource. It requires the fixed
+        // step (validated at config build), so `fixed_timestep` is always set
+        // here when `lag_comp` is. Worlds without it never insert the resource
+        // and pay nothing.
+        if let (Some(lag_comp), Some(fixed_timestep)) = (config.lag_comp, config.fixed_timestep) {
+            ecs.insert(LagComp::new(
+                lag_comp,
+                fixed_timestep.hz,
+                DEFAULT_RTT_EWMA_ALPHA,
+            ));
         }
 
         let mut world = Self {
@@ -1519,6 +1535,73 @@ impl World {
         })
     }
 
+    /// Whether this world has server-side lag-compensation enabled (an opt-in
+    /// position-history ring + rewound queries).
+    pub fn has_lag_comp(&self) -> bool {
+        self.config().lag_comp.is_some()
+    }
+
+    /// Read-only access to this world's lag-compensation resource (history ring
+    /// + RTT trackers), or `None` when lag-comp is disabled. Game code resolves
+    /// rewound queries and reads rewind depths through this; write access (to
+    /// fold RTT samples or record custom poses) is via
+    /// [`Self::write_resource::<LagComp>`].
+    pub fn lag_comp(&self) -> Option<Fetch<LagComp>> {
+        if self.has_lag_comp() {
+            Some(self.read_resource::<LagComp>())
+        } else {
+            None
+        }
+    }
+
+    /// The rewound pose of an entity at a historical tick, or `None` when
+    /// lag-comp is disabled, the tick has been evicted, or the entity was not
+    /// recorded there. This is the engine's "where was entity E at tick T?"
+    /// answer.
+    pub fn rewound_pose(&self, entity: u64, tick: u64) -> Option<Pose> {
+        self.lag_comp()?.history().pose_at(entity, tick)
+    }
+
+    /// Record the poses of all rewind-eligible entities into the history ring
+    /// for `tick`. Called at the start of each fixed sim step, before the
+    /// dispatch mutates positions. A no-op when lag-comp is disabled.
+    fn record_rewind_poses(&mut self, tick: u64) {
+        if !self.has_lag_comp() {
+            return;
+        }
+
+        // Snapshot the marked entities' poses first (immutable storage borrows),
+        // then commit them into the resource (mutable borrow) — the two borrows
+        // never overlap.
+        let poses: Vec<(u64, Pose)> = {
+            let entities = self.ecs.entities();
+            let positions = self.ecs.read_storage::<PositionComp>();
+            let directions = self.ecs.read_storage::<DirectionComp>();
+            let eligible = self.ecs.read_storage::<RewindEligibleComp>();
+
+            (&entities, &positions, &eligible)
+                .join()
+                .map(|(entity, position, _)| {
+                    let direction = directions
+                        .get(entity)
+                        .map_or([0.0, 0.0, 0.0], |dir| [dir.0 .0, dir.0 .1, dir.0 .2]);
+                    (
+                        entity.id() as u64,
+                        Pose {
+                            position: [position.0 .0, position.0 .1, position.0 .2],
+                            direction,
+                        },
+                    )
+                })
+                .collect()
+        };
+
+        let mut lag = self.write_resource::<LagComp>();
+        for (entity, pose) in poses {
+            lag.history_mut().record(entity, tick, pose);
+        }
+    }
+
     /// Access all clients in the ECS world.
     pub fn clients(&self) -> Fetch<Clients> {
         self.read_resource::<Clients>()
@@ -2079,7 +2162,12 @@ impl World {
         for _ in 0..plan.steps {
             // Commit the step (advancing the sole time source) *before* the
             // dispatch, so systems read the correct per-step sim time.
-            self.write_resource::<FixedStepState>().clock.commit_step();
+            let tick = self.write_resource::<FixedStepState>().clock.commit_step();
+            // Record rewind-eligible poses at the *start* of the step, before
+            // the dispatch mutates positions — the newest ring frame is thus the
+            // pose a client would most recently have rendered. Records at the
+            // full sim rate, independent of the coarser snapshot cadence.
+            self.record_rewind_poses(tick);
             let (dispatch, maintain) = self.run_dispatch();
             dispatch_time += dispatch;
             maintain_time += maintain;
@@ -2697,5 +2785,132 @@ impl World {
                 .build(),
             entity_ids,
         )
+    }
+}
+
+#[cfg(test)]
+mod lag_comp_wiring_tests {
+    use super::*;
+    use crate::world::fixed_step::FixedStepConfig;
+
+    fn fixed() -> FixedStepConfig {
+        FixedStepConfig {
+            hz: 60,
+            max_catchup_steps: 5,
+            seed: 1,
+        }
+    }
+
+    fn lag() -> LagCompConfig {
+        LagCompConfig {
+            window_ms: 300,
+            max_ticks: 18,
+            dly_floor_ms: 0,
+            dly_ceil_ms: 250,
+        }
+    }
+
+    // §8.1 through the real world tick path: `record_rewind_poses` historizes
+    // only rewind-eligible entities, capturing their pose keyed by tick.
+    #[test]
+    fn records_only_eligible_poses_at_tick() {
+        actix::System::new().block_on(async {
+            let config = WorldConfig::new()
+                .fixed_timestep(Some(fixed()))
+                .lag_comp(Some(lag()))
+                .build();
+            let mut world = World::new("lagcomp", &config);
+
+            let eligible = world
+                .ecs_mut()
+                .create_entity()
+                .with(PositionComp::new(1.0, 2.0, 3.0))
+                .with(DirectionComp::new(0.0, 0.0, 1.0))
+                .with(RewindEligibleComp)
+                .build();
+            let ineligible = world
+                .ecs_mut()
+                .create_entity()
+                .with(PositionComp::new(9.0, 9.0, 9.0))
+                .build();
+
+            world.record_rewind_poses(1);
+
+            let pose = world
+                .rewound_pose(eligible.id() as u64, 1)
+                .expect("eligible entity historized");
+            assert_eq!(pose.position, [1.0, 2.0, 3.0]);
+            assert_eq!(pose.direction, [0.0, 0.0, 1.0]);
+            assert!(
+                world.rewound_pose(ineligible.id() as u64, 1).is_none(),
+                "unmarked entity must not be historized"
+            );
+        });
+    }
+
+    // §8.1 eviction through the world: the ring keeps exactly its capacity of
+    // most-recent frames; older frames evict.
+    #[test]
+    fn ring_evicts_oldest_beyond_capacity() {
+        actix::System::new().block_on(async {
+            let config = WorldConfig::new()
+                .fixed_timestep(Some(fixed()))
+                .lag_comp(Some(lag()))
+                .build();
+            let mut world = World::new("lagcomp", &config);
+            let entity = world
+                .ecs_mut()
+                .create_entity()
+                .with(PositionComp::new(0.0, 0.0, 0.0))
+                .with(RewindEligibleComp)
+                .build();
+
+            let capacity = world.lag_comp().unwrap().history().capacity() as u64;
+            for tick in 1..=(capacity + 5) {
+                world
+                    .ecs_mut()
+                    .write_storage::<PositionComp>()
+                    .get_mut(entity)
+                    .unwrap()
+                    .0 = Vec3(tick as f32, 0.0, 0.0);
+                world.record_rewind_poses(tick);
+            }
+
+            let newest = capacity + 5;
+            let id = entity.id() as u64;
+            assert_eq!(
+                world.rewound_pose(id, newest).unwrap().position[0],
+                newest as f32,
+                "newest frame is the last recorded pose"
+            );
+            assert!(
+                world.rewound_pose(id, newest - capacity + 1).is_some(),
+                "oldest in-window frame retained"
+            );
+            assert!(
+                world.rewound_pose(id, newest - capacity).is_none(),
+                "frame past the window evicted"
+            );
+        });
+    }
+
+    // Opt-out default: a world without lag_comp keeps no ring and the recorder
+    // is an inert no-op — existing worlds pay nothing.
+    #[test]
+    fn disabled_world_records_nothing() {
+        actix::System::new().block_on(async {
+            let config = WorldConfig::new().build();
+            let mut world = World::new("plain", &config);
+            let entity = world
+                .ecs_mut()
+                .create_entity()
+                .with(PositionComp::new(1.0, 2.0, 3.0))
+                .with(RewindEligibleComp)
+                .build();
+
+            assert!(!world.has_lag_comp());
+            world.record_rewind_poses(1);
+            assert!(world.rewound_pose(entity.id() as u64, 1).is_none());
+        });
     }
 }

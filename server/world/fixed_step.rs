@@ -25,16 +25,88 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The single source of truth for the wire protocol version, shared verbatim
+/// with the TypeScript client. `@voxelize/protocol` imports the *same* JSON file
+/// to derive its `PROTOCOL_VERSION`, so the Rust const and the TS const are two
+/// derivations of one number and cannot silently drift — the exact failure shape
+/// the deterministic join assert exists to prevent (two sides that must agree
+/// with no enforced single source).
+const PROTOCOL_VERSION_JSON: &str =
+    include_str!("../../packages/protocol/src/protocol-version.json");
+
 /// Wire protocol version. Snapshot + delta replication and the deterministic
-/// join handshake are pinned to this. Bump it in lockstep on client + server
-/// whenever the wire shape or the deterministic sim contract changes; a
+/// join handshake are pinned to this. Bump it once in `protocol-version.json`;
+/// both the Rust server and the TS client pick the new value up automatically. A
 /// deterministic world rejects any client that does not match exactly.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = parse_json_u32(PROTOCOL_VERSION_JSON, "\"version\"");
 
 /// WebSocket close code sent when a client is refused for a protocol mismatch.
 /// In the 4000–4999 application range. The client treats it as terminal
 /// (`client_outdated`): it never retries and never burns reconnect grace.
-pub const PROTOCOL_MISMATCH_CLOSE_CODE: u16 = 4001;
+/// Derived from the same shared `protocol-version.json`.
+pub const PROTOCOL_MISMATCH_CLOSE_CODE: u16 =
+    parse_json_u32(PROTOCOL_VERSION_JSON, "\"mismatchCloseCode\"") as u16;
+
+/// Extract the unsigned integer value of a JSON `key` (passed quoted, e.g.
+/// `"\"version\""`) from a small, well-formed JSON document at compile time.
+/// This is deliberately a `const fn` so the shared version file is baked into
+/// the binary with zero runtime cost and any malformed/missing key is a *build*
+/// failure, not a silent `0`.
+const fn parse_json_u32(src: &str, quoted_key: &str) -> u32 {
+    let bytes = src.as_bytes();
+    let key = quoted_key.as_bytes();
+    let n = bytes.len();
+    let k = key.len();
+
+    let mut i = 0;
+    while i + k <= n {
+        // Match the quoted key at position `i`.
+        let mut j = 0;
+        let mut matched = true;
+        while j < k {
+            if bytes[i + j] != key[j] {
+                matched = false;
+                break;
+            }
+            j += 1;
+        }
+
+        if matched {
+            let mut p = i + k;
+            // Advance to the ':' that separates key and value.
+            while p < n && bytes[p] != b':' {
+                p += 1;
+            }
+            if p < n {
+                p += 1;
+            }
+            // Skip whitespace before the number.
+            while p < n
+                && (bytes[p] == b' '
+                    || bytes[p] == b'\t'
+                    || bytes[p] == b'\n'
+                    || bytes[p] == b'\r')
+            {
+                p += 1;
+            }
+            // Parse the base-10 integer value.
+            let mut value: u32 = 0;
+            let mut found = false;
+            while p < n && bytes[p] >= b'0' && bytes[p] <= b'9' {
+                value = value * 10 + (bytes[p] - b'0') as u32;
+                found = true;
+                p += 1;
+            }
+            if found {
+                return value;
+            }
+        }
+
+        i += 1;
+    }
+
+    panic!("protocol-version.json is missing an integer value for the requested key");
+}
 
 /// Machine-readable reason attached to the terminal reject so the client can
 /// distinguish an outdated build from a transient error.
@@ -539,6 +611,19 @@ mod protocol_tests {
                 client: PROTOCOL_VERSION + 1
             })
         );
+    }
+
+    #[test]
+    fn protocol_consts_derive_from_shared_json() {
+        // The consts are parsed at compile time from the shared
+        // `protocol-version.json` — the same file the TS client imports — so the
+        // two languages cannot silently drift. Prove the parser extracted real
+        // values (a broken parser would yield 0) without hard-coding the version
+        // here (which would itself be a second source of truth to drift).
+        assert!(PROTOCOL_VERSION >= 1, "parser must extract a real version");
+        assert!((4000..=4999).contains(&PROTOCOL_MISMATCH_CLOSE_CODE));
+        assert!(PROTOCOL_VERSION_JSON.contains("\"version\""));
+        assert!(PROTOCOL_VERSION_JSON.contains("\"mismatchCloseCode\""));
     }
 
     #[test]

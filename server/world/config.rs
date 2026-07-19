@@ -2,6 +2,7 @@ use serde::Serialize;
 
 use super::fixed_step::FixedStepConfig;
 use super::generators::NoiseOptions;
+use super::lag_comp::LagCompConfig;
 
 /// World configuration, storing information of how a world is constructed.
 #[derive(Clone, Serialize)]
@@ -179,6 +180,15 @@ pub struct WorldConfig {
     /// and the determinism rules (see [`FixedStepConfig`]), making it eligible
     /// for golden desync tests. Only the opted-in world pays for determinism.
     pub fixed_timestep: Option<FixedStepConfig>,
+
+    /// Opt-in server-side lag-compensation. `None` (default) keeps no
+    /// position-history ring and no rewound hit queries — existing worlds pay
+    /// nothing. `Some(..)` records rewind-eligible entities' poses at each tick
+    /// start and answers rewound spatial queries (see [`LagCompConfig`]).
+    /// Requires [`Self::fixed_timestep`] to be set, since rewind is
+    /// tick-anchored; a `Some` here without a fixed step is rejected at build
+    /// time.
+    pub lag_comp: Option<LagCompConfig>,
 }
 
 impl Default for WorldConfig {
@@ -284,6 +294,7 @@ pub struct WorldConfigBuilder {
     entity_flush_base_bytes_per_tick: usize,
     peer_visible_radius: Option<f32>,
     fixed_timestep: Option<FixedStepConfig>,
+    lag_comp: Option<LagCompConfig>,
 }
 
 impl WorldConfigBuilder {
@@ -333,6 +344,7 @@ impl WorldConfigBuilder {
             entity_flush_base_bytes_per_tick: DEFAULT_ENTITY_FLUSH_BASE_BYTES_PER_TICK,
             peer_visible_radius: None,
             fixed_timestep: None,
+            lag_comp: None,
         }
     }
 
@@ -581,6 +593,14 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Opt into (or out of) server-side lag-compensation. `None` (default)
+    /// keeps no history ring; `Some(..)` records poses and answers rewound
+    /// queries. Requires [`Self::fixed_timestep`]; validated at [`Self::build`].
+    pub fn lag_comp(mut self, lag_comp: Option<LagCompConfig>) -> Self {
+        self.lag_comp = lag_comp;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -628,6 +648,20 @@ impl WorldConfigBuilder {
         if let Some(fixed_timestep) = &self.fixed_timestep {
             if let Err(error) = fixed_timestep.validate() {
                 panic!("Invalid fixed_timestep config: {}", error);
+            }
+        }
+
+        if let Some(lag_comp) = &self.lag_comp {
+            if let Err(error) = lag_comp.validate() {
+                panic!("Invalid lag_comp config: {}", error);
+            }
+            // Rewind is tick-anchored: without the deterministic fixed step the
+            // ring's tick stamps are meaningless and "tick T" is ambiguous
+            // across record and query. Reject the combination loudly.
+            if self.fixed_timestep.is_none() {
+                panic!(
+                    "lag_comp requires fixed_timestep to be set (rewind is tick-anchored)"
+                );
             }
         }
 
@@ -689,6 +723,7 @@ impl WorldConfigBuilder {
             entity_flush_base_bytes_per_tick: self.entity_flush_base_bytes_per_tick,
             peer_visible_radius: self.peer_visible_radius,
             fixed_timestep: self.fixed_timestep,
+            lag_comp: self.lag_comp,
         }
     }
 }
@@ -717,5 +752,64 @@ mod preload_budget_tests {
             .build();
         assert_eq!(config.preload_radius, 8);
         assert_eq!(config.max_preload_radius, None);
+    }
+}
+
+#[cfg(test)]
+mod lag_comp_config_tests {
+    use super::{FixedStepConfig, LagCompConfig, WorldConfig};
+
+    fn fixed() -> FixedStepConfig {
+        FixedStepConfig {
+            hz: 60,
+            max_catchup_steps: 5,
+            seed: 1,
+        }
+    }
+
+    fn lag() -> LagCompConfig {
+        LagCompConfig {
+            window_ms: 300,
+            max_ticks: 18,
+            dly_floor_ms: 0,
+            dly_ceil_ms: 250,
+        }
+    }
+
+    // Opt-in: None (default) is today's behavior — no ring.
+    #[test]
+    fn default_is_none_no_ring() {
+        let config = WorldConfig::new().build();
+        assert!(config.lag_comp.is_none());
+    }
+
+    // lag_comp requires the fixed step (tick-anchored rewind).
+    #[test]
+    #[should_panic(expected = "lag_comp requires fixed_timestep")]
+    fn lag_comp_without_fixed_timestep_is_rejected() {
+        WorldConfig::new().lag_comp(Some(lag())).build();
+    }
+
+    #[test]
+    fn lag_comp_with_fixed_timestep_builds() {
+        let config = WorldConfig::new()
+            .fixed_timestep(Some(fixed()))
+            .lag_comp(Some(lag()))
+            .build();
+        assert_eq!(config.lag_comp, Some(lag()));
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid lag_comp config")]
+    fn invalid_lag_comp_is_rejected() {
+        WorldConfig::new()
+            .fixed_timestep(Some(fixed()))
+            .lag_comp(Some(LagCompConfig {
+                window_ms: 0,
+                max_ticks: 18,
+                dly_floor_ms: 0,
+                dly_ceil_ms: 250,
+            }))
+            .build();
     }
 }

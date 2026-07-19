@@ -1,17 +1,25 @@
+import protocolVersion from "./protocol-version.json";
+
 /**
  * Wire protocol version. Must match the server's `PROTOCOL_VERSION` constant
  * (Rust). The client sends this on JOIN; a deterministic (fixed-step) world
  * asserts strict equality and refuses a mismatch. Client + server deploy in
  * lockstep on every bump.
+ *
+ * SINGLE SOURCE OF TRUTH: this value is derived from `protocol-version.json`,
+ * the same file the Rust server compiles its `PROTOCOL_VERSION` from
+ * (`include_str!` + const parse). There is exactly one number; the two sides
+ * cannot silently drift.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = protocolVersion.version;
 
 /**
  * Application WebSocket close code sent when the server refuses a client for a
  * protocol-version mismatch. The client treats it as terminal
  * (`client_outdated`): it never retries and never burns reconnect grace.
+ * Derived from the shared `protocol-version.json` (see above).
  */
-export const PROTOCOL_MISMATCH_CLOSE_CODE = 4001;
+export const PROTOCOL_MISMATCH_CLOSE_CODE = protocolVersion.mismatchCloseCode;
 
 export type GeometryProtocol = {
   voxel: number;
