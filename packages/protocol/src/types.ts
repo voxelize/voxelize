@@ -1,3 +1,18 @@
+/**
+ * Wire protocol version. Must match the server's `PROTOCOL_VERSION` constant
+ * (Rust). The client sends this on JOIN; a deterministic (fixed-step) world
+ * asserts strict equality and refuses a mismatch. Client + server deploy in
+ * lockstep on every bump.
+ */
+export const PROTOCOL_VERSION = 1;
+
+/**
+ * Application WebSocket close code sent when the server refuses a client for a
+ * protocol-version mismatch. The client treats it as terminal
+ * (`client_outdated`): it never retries and never burns reconnect grace.
+ */
+export const PROTOCOL_MISMATCH_CLOSE_CODE = 4001;
+
 export type GeometryProtocol = {
   voxel: number;
   at?: [number, number, number];

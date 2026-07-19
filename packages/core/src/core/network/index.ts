@@ -1,4 +1,9 @@
-import { MessageProtocol, protocol } from "@voxelize/protocol";
+import {
+  MessageProtocol,
+  PROTOCOL_MISMATCH_CLOSE_CODE,
+  PROTOCOL_VERSION,
+  protocol,
+} from "@voxelize/protocol";
 import DOMUrl from "domurl";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
@@ -111,6 +116,14 @@ export class Network {
 
   private lastConnectAttemptAt = Number.NEGATIVE_INFINITY;
 
+  /**
+   * Set when the server closes the socket terminally (a protocol-version
+   * mismatch, {@link PROTOCOL_MISMATCH_CLOSE_CODE}). Reconnecting would hit the
+   * same rejection, so the client stops retrying and surfaces `client_outdated`
+   * instead of burning reconnect grace.
+   */
+  private isClientOutdated = false;
+
   private stopSyncInterval: (() => void) | null = null;
 
   private hasTerminatedDecodeWorkers = false;
@@ -167,6 +180,9 @@ export class Network {
     this.lastConnectAttemptAt = performance.now();
     this.useWebRTC = options.useWebRTC ?? false;
     this.disconnectReason = "";
+    // A deliberate (re)connect attempt clears any prior terminal state so a
+    // freshly-loaded build can try again.
+    this.isClientOutdated = false;
     console.log(`[NETWORK] Connecting to ${serverURL}`);
     this.ensureDecodeWorkers();
     this.startSyncInterval();
@@ -266,6 +282,16 @@ export class Network {
           }`,
         );
 
+        if (event.code === PROTOCOL_MISMATCH_CLOSE_CODE) {
+          // Terminal: the client build is out of date. Do not reconnect.
+          this.isClientOutdated = true;
+          this.disconnectReason = "client_outdated";
+          console.error(
+            `[NETWORK] Protocol mismatch (client is v${PROTOCOL_VERSION}); ` +
+              "server refused the connection. Not reconnecting.",
+          );
+        }
+
         this.connected = false;
         this.onDisconnect?.();
       };
@@ -288,6 +314,12 @@ export class Network {
     // timer chain hanging off socket close events, so a single missed event
     // or a throttled timer can never leave the session permanently offline.
     if (!this.serverURL || !this.connectionOptions) {
+      return;
+    }
+
+    // A terminal protocol reject is not retryable: reconnecting would hit the
+    // same close(4001). Stay down until the page reloads a fresh build.
+    if (this.isClientOutdated) {
       return;
     }
 
@@ -352,6 +384,10 @@ export class Network {
         // Protocol capabilities this client supports; servers only use a
         // path a client advertised, so older servers simply ignore this.
         capabilities: ["motion.v1"],
+        // Wire protocol version. Deterministic (fixed-step) worlds assert
+        // strict equality and refuse a mismatch; non-deterministic worlds
+        // ignore it, so this is always safe to send.
+        protocol: PROTOCOL_VERSION,
         preferences:
           this.clientInfo.metadata?.preferences &&
           typeof this.clientInfo.metadata.preferences === "object"

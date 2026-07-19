@@ -35,7 +35,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     decode_message, encode_message, ClientMessage, Connect, Disconnect, Health, Info, Message,
-    MessageType, RunPreload, Server, SetStarted, WsSender,
+    MessageType, RunPreload, Server, SetStarted, WsSender, PROTOCOL_MISMATCH_REASON,
 };
 
 /// How long to wait for the server actor to ack a client message before
@@ -636,7 +636,15 @@ pub async fn run_ws_session(
         id: session_id,
         token: connection_token,
     });
-    let _ = session.close(None).await;
+
+    // If the server requested a terminal close (e.g. a protocol-version
+    // mismatch), close with that application code so the client can treat it as
+    // non-retryable instead of reconnecting into the same rejection.
+    let close_reason = tx.requested_close().map(|code| actix_ws::CloseReason {
+        code: actix_ws::CloseCode::Other(code),
+        description: Some(PROTOCOL_MISMATCH_REASON.to_owned()),
+    });
+    let _ = session.close(close_reason).await;
 }
 
 /// A Voxelize server whose TCP socket is bound and whose HTTP accept loop is

@@ -6,6 +6,7 @@ pub mod cpu_profiler;
 mod entities;
 mod entity_ids;
 mod events;
+mod fixed_step;
 mod generators;
 mod interests;
 pub mod items;
@@ -46,7 +47,7 @@ use std::sync::{Mutex, RwLock};
 use std::{env, sync::Arc};
 use std::{
     fs::{self, File},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use system_profiler::{record_timing, SystemTimer, TimedDispatcherBuilder, WorldTimingContext};
 
@@ -67,6 +68,7 @@ pub use config::*;
 pub use cpu_profiler::*;
 pub use entities::*;
 pub use entity_ids::*;
+pub use fixed_step::*;
 pub use events::*;
 pub use generators::*;
 pub use interests::*;
@@ -357,6 +359,13 @@ pub struct World {
     /// before the system dispatch, so systems read current-tick positions.
     /// Shared with the [`Server`] actor, which pushes into it directly.
     inbound_state: Arc<InboundStateBuffer>,
+
+    /// Wall-clock instant of the previous delivered tick, used *only* by the
+    /// fixed-step accumulator to measure real elapsed time between deliveries.
+    /// This is the tick-delivery boundary (how many fixed steps to run), never
+    /// a sim-state input: the sim's time is `step_count * DT`. `None` until the
+    /// first tick, and unused entirely when `fixed_timestep` is `None`.
+    last_fixed_tick_at: Option<Instant>,
 }
 
 // Define messages for the World actor
@@ -767,6 +776,13 @@ impl World {
         ecs.insert(EntityIDs::new());
         ecs.insert(WorldPerfMetrics::new());
 
+        // Deterministic worlds carry their fixed-step clock + seeded PRNG as a
+        // resource so every sim system reads sim time and randomness from one
+        // place. Non-deterministic worlds never insert it and pay nothing.
+        if let Some(fixed_timestep) = config.fixed_timestep {
+            ecs.insert(FixedStepState::new(fixed_timestep));
+        }
+
         let mut world = Self {
             id,
             name: name.to_owned(),
@@ -791,6 +807,7 @@ impl World {
             addr: None,
             server_addr: None,
             inbound_state: Arc::new(InboundStateBuffer::new()),
+            last_fixed_tick_at: None,
         };
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
@@ -1484,6 +1501,24 @@ impl World {
         self.read_resource::<WorldConfig>()
     }
 
+    /// A snapshot of this world's deterministic clock for replication /
+    /// observation: step count, sim time, and the render-interpolation `alpha`.
+    /// `None` on a non-deterministic world. This is the surface a snapshot
+    /// publisher samples (design §6); `alpha` is a render input only and is
+    /// never read back into the sim.
+    pub fn fixed_step_sample(&self) -> Option<FixedStepSample> {
+        if self.config().fixed_timestep.is_none() {
+            return None;
+        }
+        let state = self.read_resource::<FixedStepState>();
+        Some(FixedStepSample {
+            step_count: state.clock.step_count(),
+            sim_time_secs: state.clock.sim_time_secs(),
+            alpha: state.clock.alpha(),
+            dt_secs: state.clock.dt_secs(),
+        })
+    }
+
     /// Access all clients in the ECS world.
     pub fn clients(&self) -> Fetch<Clients> {
         self.read_resource::<Clients>()
@@ -1984,6 +2019,75 @@ impl World {
     }
 
     /// Tick of the world, run every 16ms.
+    /// Run exactly one ECS dispatch (the sim step), summarize the profiler, and
+    /// maintain the ECS. Returns `(dispatch_ms, maintain_ms)`. This is the unit
+    /// of simulation advancement: called once per delivered tick for a
+    /// wall-clock world, or once per fixed step for a deterministic world.
+    fn run_dispatch(&mut self) -> (f64, f64) {
+        let dispatch_time = {
+            let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
+            if dispatcher_guard.is_none() {
+                let build_timer = SystemTimer::new("dispatcher-build");
+                let dispatcher = (self.dispatcher)().build();
+                *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
+                record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
+            }
+
+            let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
+            dispatcher_guard
+                .as_mut()
+                .unwrap()
+                .get_mut()
+                .dispatch(&self.ecs);
+            dispatch_timer.elapsed_ms()
+        };
+
+        self.write_resource::<Profiler>().summarize();
+
+        let maintain_time = {
+            let maintain_timer = SystemTimer::new("ecs-maintain");
+            self.ecs.maintain();
+            maintain_timer.elapsed_ms()
+        };
+
+        (dispatch_time, maintain_time)
+    }
+
+    /// Drive the deterministic fixed-step accumulator for one delivered tick.
+    ///
+    /// Measures real wall-clock elapsed since the previous delivery (the only
+    /// place the wall clock is read — to decide *how many* fixed steps to run,
+    /// never as a sim input), intakes it into the clock, then runs that many
+    /// `DT`-sized dispatches. `max_catchup_steps` bounds the batch so a stall
+    /// can never trigger the spiral of death. Returns the summed
+    /// `(dispatch_ms, maintain_ms)` across the steps executed this tick.
+    fn tick_fixed_step(&mut self) -> (f64, f64) {
+        let now = Instant::now();
+        let elapsed = self
+            .last_fixed_tick_at
+            .map(|prev| now.saturating_duration_since(prev))
+            .unwrap_or(Duration::ZERO);
+        self.last_fixed_tick_at = Some(now);
+
+        let plan = self
+            .write_resource::<FixedStepState>()
+            .clock
+            .intake(elapsed.as_secs_f64());
+
+        let mut dispatch_time = 0.0;
+        let mut maintain_time = 0.0;
+        for _ in 0..plan.steps {
+            // Commit the step (advancing the sole time source) *before* the
+            // dispatch, so systems read the correct per-step sim time.
+            self.write_resource::<FixedStepState>().clock.commit_step();
+            let (dispatch, maintain) = self.run_dispatch();
+            dispatch_time += dispatch;
+            maintain_time += maintain;
+        }
+
+        (dispatch_time, maintain_time)
+    }
+
     pub(crate) fn tick(&mut self) {
         if !self.started {
             self.started = true;
@@ -2051,30 +2155,15 @@ impl World {
 
         let tick_timer = SystemTimer::new("tick-total");
 
-        let dispatch_time = {
-            let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
-            if dispatcher_guard.is_none() {
-                let build_timer = SystemTimer::new("dispatcher-build");
-                let dispatcher = (self.dispatcher)().build();
-                *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
-                record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
-            }
-
-            let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
-            dispatcher_guard
-                .as_mut()
-                .unwrap()
-                .get_mut()
-                .dispatch(&self.ecs);
-            dispatch_timer.elapsed_ms()
-        };
-
-        self.write_resource::<Profiler>().summarize();
-
-        let maintain_time = {
-            let maintain_timer = SystemTimer::new("ecs-maintain");
-            self.ecs.maintain();
-            maintain_timer.elapsed_ms()
+        // A non-deterministic world (the default) runs exactly one dispatch per
+        // delivered tick — identical to before this feature existed. An
+        // opted-in deterministic world instead drives dispatches through the
+        // fixed-step accumulator, batching them to match real elapsed time
+        // while each step advances the sim by exactly `DT`.
+        let (dispatch_time, maintain_time) = if self.config().fixed_timestep.is_some() {
+            self.tick_fixed_step()
+        } else {
+            self.run_dispatch()
         };
 
         let total_time = tick_timer.elapsed_ms();

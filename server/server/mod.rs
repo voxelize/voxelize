@@ -16,7 +16,7 @@ use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicU16, AtomicUsize, Ordering},
     Arc,
 };
 use tokio::sync::mpsc;
@@ -25,7 +25,9 @@ use crate::{
     errors::AddWorldError,
     perf,
     world::{
-        ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry, World, WorldConfig,
+        check_protocol, ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry,
+        World, WorldConfig, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_MISMATCH_REASON,
+        PROTOCOL_VERSION,
     },
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
     GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
@@ -58,6 +60,11 @@ pub struct WsSender {
     bulk: mpsc::UnboundedSender<Vec<u8>>,
     control_depth: Arc<AtomicUsize>,
     bulk_depth: Arc<AtomicUsize>,
+    /// Requested WebSocket close code, or `0` for a normal close. Set when the
+    /// server refuses a session terminally (e.g. a protocol-version mismatch,
+    /// [`PROTOCOL_MISMATCH_CLOSE_CODE`]) so the transport can close with a code
+    /// the client treats as non-retryable.
+    close_code: Arc<AtomicU16>,
 }
 
 impl WsSender {
@@ -70,7 +77,21 @@ impl WsSender {
             bulk,
             control_depth: Arc::new(AtomicUsize::new(0)),
             bulk_depth: Arc::new(AtomicUsize::new(0)),
+            close_code: Arc::new(AtomicU16::new(0)),
         }
+    }
+
+    /// Request the transport close this session with a specific WebSocket close
+    /// code. Used by the server to fail a join closed (terminal for the client)
+    /// instead of leaving it to silently desync.
+    pub fn request_close(&self, code: u16) {
+        self.close_code.store(code, Ordering::Relaxed);
+    }
+
+    /// The requested terminal close code, if any (`0` means normal close).
+    pub fn requested_close(&self) -> Option<u16> {
+        let code = self.close_code.load(Ordering::Relaxed);
+        (code != 0).then_some(code)
     }
 
     /// Send on the control lane (default). Reliable-ordered within the lane.
@@ -129,6 +150,12 @@ pub struct OnJoinRequest {
     /// legacy clients, which keeps them on the JSON wire shape.
     #[serde(default)]
     capabilities: Vec<String>,
+    /// Wire protocol version the client was built against. Only enforced when
+    /// joining a deterministic (fixed-step) world, where it is asserted with
+    /// strict equality (no `0`/missing bypass). Non-deterministic worlds ignore
+    /// it, so existing clients are unaffected.
+    #[serde(default)]
+    protocol: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -668,6 +695,16 @@ impl Server {
         None
     }
 
+    /// The control-lane sender for a session, whether it is already in a world
+    /// (`connections`) or still pre-join (`lost_sessions`). Used to signal a
+    /// terminal close code before rejecting a join.
+    fn session_sender(&self, id: &str) -> Option<WsSender> {
+        self.connections
+            .get(id)
+            .map(|(sender, _, _)| sender.clone())
+            .or_else(|| self.lost_sessions.get(id).map(|(sender, _)| sender.clone()))
+    }
+
     /// Handle a JOIN request. JOIN is reliable control-plane (see
     /// `world::replication`) and must be IDEMPOTENT: the acknowledgement (the
     /// INIT message) can be delayed or lost, and clients retry. A retry from
@@ -686,6 +723,30 @@ impl Server {
                 "ID {} is attempting to connect to a non-existent world!",
                 id
             ));
+        }
+
+        // Fail-closed protocol assert for deterministic worlds. A silently
+        // accepted stale/absent field desyncs every downstream step of a
+        // deterministic sim, so the join is refused with strict equality (no
+        // `0`/missing bypass) and closed terminally (`client_outdated`). Non-
+        // deterministic worlds skip this entirely — existing clients unchanged.
+        if self.world_is_deterministic(&json.world) {
+            if let Err(reject) = check_protocol(json.protocol) {
+                if let Some(sender) = self.session_sender(id) {
+                    sender.request_close(PROTOCOL_MISMATCH_CLOSE_CODE);
+                }
+                perf::log(
+                    "client_join_rejected",
+                    &json.world,
+                    json!({
+                        "clientId": id,
+                        "reason": "protocol",
+                        "clientProtocol": json.protocol,
+                        "serverProtocol": PROTOCOL_VERSION,
+                    }),
+                );
+                return Some(reject.message());
+            }
         }
 
         // Per-world join cap. An idempotent replay of an existing membership is
@@ -1544,6 +1605,133 @@ mod lifecycle_tests {
 
     fn on_request(server: &mut Server, id: &str, token: &str, data: Message) -> Option<String> {
         server.on_request(id, data, None, 0, Some(token))
+    }
+
+    const DET_WORLD: &str = "detworld";
+
+    fn join_message_with_protocol(world: &str, protocol: Option<u32>) -> Message {
+        let mut body = json!({ "world": world, "username": "tester" });
+        if let Some(protocol) = protocol {
+            body["protocol"] = json!(protocol);
+        }
+        Message::new(&MessageType::Join)
+            .json(&body.to_string())
+            .build()
+    }
+
+    fn build_server_with_deterministic_world() -> Server {
+        let mut server = Server::new().debug(false).build();
+        let config = WorldConfig::new()
+            .fixed_timestep(Some(crate::FixedStepConfig {
+                hz: 60,
+                max_catchup_steps: 5,
+                seed: 42,
+            }))
+            .build();
+        server
+            .add_world(World::new(DET_WORLD, &config))
+            .expect("deterministic world should register");
+        server
+    }
+
+    #[test]
+    fn deterministic_world_rejects_missing_protocol_and_closes_terminal() {
+        actix::System::new().block_on(async {
+            let mut server = build_server_with_deterministic_world();
+            let (sender, _rx) = fake_socket();
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
+
+            // No protocol field: strict-equality reject, no missing bypass.
+            let rejected = on_request(
+                &mut server,
+                &id,
+                &token,
+                join_message_with_protocol(DET_WORLD, None),
+            );
+            assert!(rejected.is_some(), "missing protocol must be rejected");
+            assert!(rejected.unwrap().starts_with(PROTOCOL_MISMATCH_REASON));
+            assert_eq!(
+                sender.requested_close(),
+                Some(PROTOCOL_MISMATCH_CLOSE_CODE),
+                "reject must request the terminal close code"
+            );
+            assert_eq!(world_client_count_of(&server, DET_WORLD).await, 0);
+        });
+    }
+
+    #[test]
+    fn deterministic_world_rejects_wrong_protocol() {
+        actix::System::new().block_on(async {
+            let mut server = build_server_with_deterministic_world();
+            let (sender, _rx) = fake_socket();
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
+
+            let rejected = on_request(
+                &mut server,
+                &id,
+                &token,
+                join_message_with_protocol(DET_WORLD, Some(PROTOCOL_VERSION + 1)),
+            );
+            assert!(rejected.is_some(), "wrong protocol must be rejected");
+            assert_eq!(sender.requested_close(), Some(PROTOCOL_MISMATCH_CLOSE_CODE));
+        });
+    }
+
+    #[test]
+    fn deterministic_world_accepts_exact_protocol() {
+        actix::System::new().block_on(async {
+            let mut server = build_server_with_deterministic_world();
+            let (sender, _rx) = fake_socket();
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
+
+            assert_eq!(
+                on_request(
+                    &mut server,
+                    &id,
+                    &token,
+                    join_message_with_protocol(DET_WORLD, Some(PROTOCOL_VERSION)),
+                ),
+                None,
+                "an exactly-matching protocol must join"
+            );
+            assert_eq!(sender.requested_close(), None);
+            assert_eq!(world_client_count_of(&server, DET_WORLD).await, 1);
+        });
+    }
+
+    #[test]
+    fn non_deterministic_world_ignores_protocol() {
+        // Existing Town clients send no protocol field; a non-deterministic
+        // world must accept them exactly as before (opt-in only).
+        actix::System::new().block_on(async {
+            let mut server = build_server_with_world();
+            let (sender, _rx) = fake_socket();
+            let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
+
+            assert_eq!(
+                on_request(
+                    &mut server,
+                    &id,
+                    &token,
+                    join_message_with_protocol(WORLD, None),
+                ),
+                None,
+                "a normal world must not enforce the protocol assert"
+            );
+            assert_eq!(sender.requested_close(), None);
+            assert_eq!(world_client_count(&server).await, 1);
+        });
+    }
+
+    async fn world_client_count_of(server: &Server, world: &str) -> usize {
+        server
+            .worlds
+            .get(world)
+            .unwrap()
+            .send(GetWorldStats)
+            .await
+            .unwrap()
+            .client_count
     }
 
     #[test]

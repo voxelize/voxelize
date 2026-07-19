@@ -138,6 +138,10 @@ pub(crate) struct WorldEntry {
     /// Armed GC timer, if this world is empty and awaiting reap.
     pub(crate) gc_handle: Option<SpawnHandle>,
     pub(crate) config_fingerprint: ConfigFingerprint,
+    /// Whether this world runs the deterministic fixed-step tick. Cached from
+    /// `config.fixed_timestep.is_some()` so join resolution can decide whether
+    /// to enforce the strict protocol assert without an actor round-trip.
+    pub(crate) is_deterministic: bool,
 }
 
 impl WorldEntry {
@@ -150,6 +154,7 @@ impl WorldEntry {
             peak_players: 0,
             gc_handle: None,
             config_fingerprint: ConfigFingerprint::of(config),
+            is_deterministic: config.fixed_timestep.is_some(),
         }
     }
 }
@@ -356,6 +361,15 @@ impl Server {
             .unwrap_or(usize::MAX)
     }
 
+    /// Whether a world runs the deterministic fixed-step tick. Used by join
+    /// resolution to decide whether the strict protocol assert applies.
+    pub(crate) fn world_is_deterministic(&self, name: &str) -> bool {
+        self.world_entries
+            .get(name)
+            .map(|entry| entry.is_deterministic)
+            .unwrap_or(false)
+    }
+
     /// Build a query-time snapshot of a live world.
     fn world_handle(&self, name: &str) -> Option<WorldHandle> {
         let addr = self.worlds.get(name)?.clone();
@@ -407,6 +421,7 @@ impl Server {
 
         let fingerprint = ConfigFingerprint::of(&config);
         let max_clients = config.max_clients;
+        let is_deterministic = config.fixed_timestep.is_some();
 
         let (addr, inbound_state, reused) = match self.take_pooled_slot(&fingerprint, &name) {
             Some((addr, inbound_state)) => (addr, inbound_state, true),
@@ -435,6 +450,7 @@ impl Server {
                 peak_players: 0,
                 gc_handle: None,
                 config_fingerprint: fingerprint,
+                is_deterministic,
             },
         );
 

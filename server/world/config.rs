@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+use super::fixed_step::FixedStepConfig;
 use super::generators::NoiseOptions;
 
 /// World configuration, storing information of how a world is constructed.
@@ -170,6 +171,14 @@ pub struct WorldConfig {
     /// receiving updates and freezes at the last known position client-side —
     /// so games opt into this knowingly.
     pub peer_visible_radius: Option<f32>,
+
+    /// Opt-in deterministic fixed-step simulation. `None` (default) keeps the
+    /// world on today's exact wall-clock cadence — the `Server` run_interval
+    /// delivers ticks and each drives one dispatch, unchanged. `Some(..)` runs
+    /// the world's tick under a fixed-timestep accumulator with a seeded PRNG
+    /// and the determinism rules (see [`FixedStepConfig`]), making it eligible
+    /// for golden desync tests. Only the opted-in world pays for determinism.
+    pub fixed_timestep: Option<FixedStepConfig>,
 }
 
 impl Default for WorldConfig {
@@ -274,6 +283,7 @@ pub struct WorldConfigBuilder {
     entity_motion_max_age_ms: u64,
     entity_flush_base_bytes_per_tick: usize,
     peer_visible_radius: Option<f32>,
+    fixed_timestep: Option<FixedStepConfig>,
 }
 
 impl WorldConfigBuilder {
@@ -322,6 +332,7 @@ impl WorldConfigBuilder {
             entity_motion_max_age_ms: DEFAULT_ENTITY_MOTION_MAX_AGE_MS,
             entity_flush_base_bytes_per_tick: DEFAULT_ENTITY_FLUSH_BASE_BYTES_PER_TICK,
             peer_visible_radius: None,
+            fixed_timestep: None,
         }
     }
 
@@ -562,6 +573,14 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Opt into (or out of) the deterministic fixed-step tick. `None` (default)
+    /// leaves the world on today's wall-clock cadence; `Some(..)` runs the
+    /// accumulator + determinism rules. Validated at [`Self::build`].
+    pub fn fixed_timestep(mut self, fixed_timestep: Option<FixedStepConfig>) -> Self {
+        self.fixed_timestep = fixed_timestep;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -604,6 +623,12 @@ impl WorldConfigBuilder {
 
         if self.entity_flush_base_bytes_per_tick == 0 {
             panic!("Entity flush base bytes per tick must be positive.");
+        }
+
+        if let Some(fixed_timestep) = &self.fixed_timestep {
+            if let Err(error) = fixed_timestep.validate() {
+                panic!("Invalid fixed_timestep config: {}", error);
+            }
         }
 
         WorldConfig {
@@ -663,6 +688,7 @@ impl WorldConfigBuilder {
             entity_motion_max_age_ms: self.entity_motion_max_age_ms,
             entity_flush_base_bytes_per_tick: self.entity_flush_base_bytes_per_tick,
             peer_visible_radius: self.peer_visible_radius,
+            fixed_timestep: self.fixed_timestep,
         }
     }
 }
