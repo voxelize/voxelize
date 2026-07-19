@@ -168,7 +168,7 @@ wait for a client upgrade; the bandwidth fix does.
   approach, Quake-style). Rejected for now: it requires a per-client ack
   feedback channel, per-entity baseline tracking on both sides, and careful
   loss handling — significant complexity for a payload that quantization
-  already shrinks to ~30 bytes. The `motion.v1` version byte leaves room for
+  already shrinks to ~30 bytes. The `motion.v1` version byte leaves space for
   a delta-encoded `motion.v2` if profiling ever shows the id-string overhead
   (~21 bytes of nanoid per update) dominating; per-client entity index
   tables would then also be on the table.

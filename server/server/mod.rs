@@ -1,3 +1,4 @@
+mod lifecycle;
 mod models;
 
 use std::time::{Duration, Instant};
@@ -31,7 +32,10 @@ use crate::{
     TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
 };
 
+pub use lifecycle::*;
 pub use models::*;
+
+use lifecycle::{PoolConfig, PooledSlot, WorldEntry, WorldLifecycleMetrics};
 
 /// A per-connection sender with two priority lanes.
 ///
@@ -320,6 +324,23 @@ pub struct Server {
 
     /// WebRTC senders for hybrid networking.
     rtc_senders: Option<RtcSenders>,
+
+    /// Hard ceiling on total live worlds (static + dynamic). `None` = unbounded
+    /// (today's behavior). Enforced by `CreateWorld`.
+    max_worlds: Option<usize>,
+
+    /// Warm world pool configuration. `None` = no pool (today's behavior).
+    world_pool: Option<PoolConfig>,
+
+    /// Warm, dormant worlds retained for reuse when pooling is enabled.
+    world_pool_slots: Vec<PooledSlot>,
+
+    /// Server-side lifecycle bookkeeping per live world (created_at, gc_policy,
+    /// per-world cap, peak, armed GC timer, config fingerprint).
+    world_entries: HashMap<String, WorldEntry>,
+
+    /// Lifecycle observability counters.
+    lifecycle_metrics: WorldLifecycleMetrics,
 }
 
 /// Default max age of the last completed world tick before `/health` is unhealthy.
@@ -424,11 +445,14 @@ impl Server {
         self.world_inbound_state
             .insert(name.clone(), world.inbound_state_handle());
 
+        let entry = WorldEntry::static_world(&world.config().make_copy());
+
         let addr = world.start();
 
         if self.worlds.insert(name.clone(), addr).is_some() {
             return Err(AddWorldError);
         }
+        self.world_entries.insert(name.clone(), entry);
 
         info!(
             "World created: {} ({})",
@@ -662,6 +686,31 @@ impl Server {
                 "ID {} is attempting to connect to a non-existent world!",
                 id
             ));
+        }
+
+        // Per-world join cap. An idempotent replay of an existing membership is
+        // not a new occupant, so it is exempt; a fresh join or a switch into a
+        // full world is rejected with typed backpressure before any world-side
+        // state changes.
+        let is_replay = self
+            .connections
+            .get(id)
+            .map(|(_, world_name, _)| world_name == &json.world)
+            .unwrap_or(false);
+        if !is_replay {
+            let live = self.world_player_count(&json.world);
+            let cap = self.world_max_clients(&json.world);
+            if live >= cap {
+                perf::log(
+                    "client_join_rejected",
+                    &json.world,
+                    json!({ "clientId": id, "reason": "capacity", "live": live, "cap": cap }),
+                );
+                return Some(format!(
+                    "World {} is at capacity ({}/{})",
+                    json.world, live, cap
+                ));
+            }
         }
 
         if let Some((sender, world_name, _)) = self.connections.get(id) {
@@ -1110,8 +1159,10 @@ impl Actor for Server {
 impl Handler<Connect> for Server {
     type Result = MessageResult<Connect>;
 
-    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        MessageResult(self.register_session(msg.id, msg.is_transport, msg.sender))
+    fn handle(&mut self, msg: Connect, ctx: &mut Context<Self>) -> Self::Result {
+        let result = self.register_session(msg.id, msg.is_transport, msg.sender);
+        self.reconcile_gc(ctx);
+        MessageResult(result)
     }
 }
 
@@ -1122,8 +1173,9 @@ impl Handler<Connect> for Server {
 impl Handler<Disconnect> for Server {
     type Result = ();
 
-    fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: Disconnect, ctx: &mut Context<Self>) {
         self.unregister_session(&msg.id, &msg.token);
+        self.reconcile_gc(ctx);
     }
 }
 
@@ -1213,14 +1265,16 @@ impl Handler<GetAllWorldStats> for Server {
 impl Handler<ClientMessage> for Server {
     type Result = Option<String>;
 
-    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) -> Self::Result {
-        self.on_request(
+    fn handle(&mut self, msg: ClientMessage, ctx: &mut Context<Self>) -> Self::Result {
+        let result = self.on_request(
             &msg.id,
             msg.data,
             msg.received_monotonic_ms,
             msg.wire_bytes,
             msg.session_token.as_deref(),
-        )
+        );
+        self.reconcile_gc(ctx);
+        result
     }
 }
 
@@ -1239,6 +1293,8 @@ pub struct ServerBuilder {
     interval: u64,
     secret: Option<String>,
     registry: Option<Registry>,
+    max_worlds: Option<usize>,
+    world_pool: Option<PoolConfig>,
 }
 
 impl ServerBuilder {
@@ -1252,6 +1308,8 @@ impl ServerBuilder {
             interval: DEFAULT_INTERVAL,
             secret: None,
             registry: None,
+            max_worlds: None,
+            world_pool: None,
         }
     }
 
@@ -1332,6 +1390,11 @@ impl ServerBuilder {
             info_handle: default_info_handle,
             action_handles: HashMap::default(),
             rtc_senders: None,
+            max_worlds: self.max_worlds,
+            world_pool: self.world_pool,
+            world_pool_slots: Vec::new(),
+            world_entries: HashMap::default(),
+            lifecycle_metrics: WorldLifecycleMetrics::default(),
         }
     }
 }

@@ -23,7 +23,8 @@ mod utils;
 mod voxels;
 
 use actix::{
-    Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, SyncContext,
+    Actor, ActorContext, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult,
+    SyncContext,
 };
 use actix::{Addr, SyncArbiter};
 use hashbrown::HashMap;
@@ -443,6 +444,23 @@ pub struct TransportLeaveRequest {
     pub id: String,
 }
 
+/// Runtime teardown of a world (see `Server` lifecycle, §3.2). Sent to the
+/// world actor so it frees ECS / sessions and stops on its own single thread,
+/// FIFO *after* any in-flight `Tick` — never mid-borrow. This is why teardown
+/// is a message to the world and never an external `RwLock` write grab.
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct Teardown;
+
+/// Reset a warm pooled world for reuse under a new name (see `Server`
+/// `ResetPolicy::ReuseWarm`). Runs on the world thread FIFO after any in-flight
+/// `Tick`, clearing ECS / inbound state so no state leaks across reuse.
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct ResetWorld {
+    pub name: String,
+}
+
 // Create a new struct that will be the actual actor
 pub struct SyncWorld(Arc<std::sync::RwLock<World>>);
 
@@ -562,6 +580,31 @@ impl Handler<TransportLeaveRequest> for SyncWorld {
 
     fn handle(&mut self, msg: TransportLeaveRequest, _: &mut SyncContext<Self>) {
         self.0.write().unwrap().remove_transport(&msg.id);
+    }
+}
+
+impl Handler<Teardown> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, _: Teardown, ctx: &mut SyncContext<Self>) {
+        // Same single thread as `Tick`; actix mailboxes are FIFO, so this runs
+        // strictly after any in-flight tick returns. Freeing here can never
+        // race a dispatch borrow (the #129 hazard).
+        if let Ok(mut world) = self.0.write() {
+            world.teardown();
+        }
+        ctx.stop();
+    }
+}
+
+impl Handler<ResetWorld> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, msg: ResetWorld, _: &mut SyncContext<Self>) {
+        if let Ok(mut world) = self.0.write() {
+            world.reset();
+            world.rename(&msg.name);
+        }
     }
 }
 
@@ -1820,6 +1863,68 @@ impl World {
     /// Check if this world is empty.
     pub fn is_empty(&self) -> bool {
         self.read_resource::<Clients>().is_empty()
+    }
+
+    /// Free per-session and per-world state on teardown: eject every client
+    /// (dropping its entity, physics body, and buffered state) and clear the
+    /// inbound state channel. Runs on the world's own thread from the
+    /// [`Teardown`] handler, so it never races a tick.
+    pub(crate) fn teardown(&mut self) {
+        let ids: Vec<String> = self.clients().keys().cloned().collect();
+        for id in ids {
+            self.remove_client(&id);
+        }
+        self.inbound_state.reset();
+        self.ecs.maintain();
+    }
+
+    /// Return a warm world to a clean, empty state for pooled reuse: delete
+    /// every entity and reset all per-session / per-tick / per-voxel resources
+    /// to fresh instances, while preserving the registry, config, pipeline
+    /// stages, and savers. After this, the ECS holds no entities and the
+    /// inbound state channel is empty — the no-leak guarantee pooling relies
+    /// on. `WorldConfig`-derived structure (chunk size, bounds) is preserved,
+    /// so only same-shaped configs may reuse a slot.
+    pub(crate) fn reset(&mut self) {
+        let all: Vec<Entity> = {
+            let entities = self.ecs.entities();
+            (&entities).join().collect()
+        };
+        {
+            let entities = self.ecs.entities();
+            for entity in all {
+                let _ = entities.delete(entity);
+            }
+        }
+        self.ecs.maintain();
+
+        let config = self.config().make_copy();
+        *self.write_resource::<Chunks>() = Chunks::new(&config);
+        *self.write_resource::<Clients>() = Clients::new();
+        *self.write_resource::<Transports>() = Transports::new();
+        *self.write_resource::<EntityIDs>() = EntityIDs::new();
+        *self.write_resource::<Bookkeeping>() = Bookkeeping::new();
+        *self.write_resource::<ChunkInterests>() = ChunkInterests::new();
+        *self.write_resource::<ReplicatedStateBuffer>() = ReplicatedStateBuffer::new();
+        *self.write_resource::<MessageQueues>() = MessageQueues::new();
+        *self.write_resource::<EncodedMessageQueue>() = EncodedMessageQueue::new();
+        *self.write_resource::<Events>() = Events::new();
+        *self.write_resource::<KdTree>() = KdTree::new();
+        *self.write_resource::<Physics>() = Physics::new();
+        *self.write_resource::<Mesher>() = Mesher::new();
+
+        self.inbound_state.reset();
+        self.ecs.maintain();
+    }
+
+    /// Rename a (reset) world for pooled reuse. Updates the name everywhere it
+    /// is observed — the struct field and the `String` / [`WorldMetadata`] /
+    /// [`WorldTimingContext`] resources systems read each tick.
+    pub(crate) fn rename(&mut self, new_name: &str) {
+        self.name = new_name.to_owned();
+        *self.write_resource::<String>() = new_name.to_owned();
+        self.write_resource::<WorldMetadata>().world_name = new_name.to_owned();
+        *self.write_resource::<WorldTimingContext>() = WorldTimingContext::new(new_name);
     }
 
     /// Prepare to start.

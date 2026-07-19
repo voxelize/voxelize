@@ -702,6 +702,15 @@ impl InboundStateBuffer {
     pub fn remove_client(&self, client_id: &str) {
         self.pending.lock().unwrap().per_client.remove(client_id);
     }
+
+    /// Drop every staged packet and clear the dropped counter. Used when a
+    /// world is torn down or a pooled slot is reset for reuse, so no inbound
+    /// state can leak across a world's lifecycle.
+    pub fn reset(&self) {
+        let mut pending = self.pending.lock().unwrap();
+        pending.per_client.clear();
+        pending.dropped = 0;
+    }
 }
 
 #[cfg(test)]

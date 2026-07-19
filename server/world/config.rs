@@ -6,7 +6,10 @@ use super::generators::NoiseOptions;
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorldConfig {
-    /// Max clients for each world. Default is 100 clients.
+    /// Per-world hard cap on joined clients. Default is unbounded
+    /// (`usize::MAX`), matching historical behavior where no join cap was
+    /// enforced. Set a finite value (e.g. `6`) to reject joins past the cap
+    /// through the clean rejection channel (see `Server` join resolution).
     pub max_clients: usize,
 
     /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
@@ -186,7 +189,8 @@ impl WorldConfig {
     }
 }
 
-const DEFAULT_MAX_CLIENT: usize = 100;
+/// Unbounded by default: no join cap is enforced unless a world opts in.
+const DEFAULT_MAX_CLIENT: usize = usize::MAX;
 const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_SUB_CHUNKS: usize = 8;
 const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN + 1, i32::MIN + 1];
@@ -321,7 +325,8 @@ impl WorldConfigBuilder {
         }
     }
 
-    /// Configure the maximum clients allowed for this world. Defaults is 100 clients.
+    /// Configure the per-world hard cap on joined clients. Default is
+    /// unbounded. A finite value rejects joins past the cap.
     pub fn max_clients(mut self, max_clients: usize) -> Self {
         self.max_clients = max_clients;
         self
