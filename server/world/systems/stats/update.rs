@@ -25,6 +25,13 @@ impl<'a> System<'a> for UpdateStatsSystem {
             stats.delta = 0.05; // corresponds to a minimum of ~20 FPS
         }
 
+        // Advance the monotonic dispatch counter UNCONDITIONALLY, every run,
+        // regardless of `does_tick_time`. Permanent-night worlds freeze
+        // `stats.tick`/`stats.time` on purpose, but the networking layer needs
+        // a counter that always moves forward for keep-alive cadence and
+        // out-of-order message watermarks.
+        stats.advance_dispatch();
+
         if config.does_tick_time {
             stats.prev_time = now;
 

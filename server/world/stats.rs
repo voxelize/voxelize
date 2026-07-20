@@ -27,6 +27,13 @@ pub struct Stats {
     /// Tick of the game
     pub tick: u64,
 
+    /// Monotonic dispatch counter. Unlike `tick`, this advances every
+    /// dispatch UNCONDITIONALLY (even when `does_tick_time` is false and the
+    /// game tick is frozen). Used solely for networking bookkeeping
+    /// (keep-alive cadence and outbound message tick stamps); it is NOT
+    /// persisted and is NOT part of game time.
+    pub dispatch_count: u64,
+
     /// A number between 0 to config.time_per_day
     pub time: f32,
 
@@ -69,6 +76,7 @@ impl Stats {
         Self {
             delta: 0.0,
             tick: loaded_tick,
+            dispatch_count: 0,
             start_time: Instant::now(),
             prev_time: SystemTime::now(),
             time: loaded_time,
@@ -81,6 +89,18 @@ impl Stats {
     /// Get how long this server has been running.
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
+    }
+
+    /// The monotonic dispatch counter (advances every dispatch, even when the
+    /// game tick is frozen). Used for networking bookkeeping only.
+    pub fn dispatch_count(&self) -> u64 {
+        self.dispatch_count
+    }
+
+    /// Advance the monotonic dispatch counter by one. Called unconditionally
+    /// every dispatch, independent of `does_tick_time`.
+    pub fn advance_dispatch(&mut self) {
+        self.dispatch_count = self.dispatch_count.wrapping_add(1);
     }
 
     pub fn get_stats(&self) -> StatsJson {

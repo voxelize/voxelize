@@ -109,7 +109,7 @@ impl<'a> System<'a> for PeersSendingSystem {
             let peers: Vec<PeerProtocol> = changed.into_iter().map(|(peer, _)| peer).collect();
             let message = Message::new(&MessageType::Peer)
                 .peers(&peers)
-                .tick(stats.tick)
+                .tick(stats.dispatch_count())
                 .build();
             let encoded = encode_message(&message);
             transports.values().for_each(|sender| {

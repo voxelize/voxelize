@@ -90,7 +90,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let release_radius = config.entity_release_radius;
         let keep_alive_interval = config.entity_keep_alive_interval;
         let motion_max_age_ms = config.entity_motion_max_age_ms;
-        let tick = stats.tick;
+        // Use the monotonic dispatch counter (not the game tick) so keep-alive
+        // cadence and outbound tick stamps keep advancing even in frozen-time
+        // worlds where `stats.tick` never moves.
+        let tick = stats.dispatch_count();
         let now_ms = stats.elapsed().as_millis() as u64;
 
         let mut new_entity_handlers = HashMap::new();
@@ -678,7 +681,11 @@ mod tests {
     }
 
     fn run_tick(world: &mut World, tick: u64) {
-        world.write_resource::<Stats>().tick = tick;
+        {
+            let mut stats = world.write_resource::<Stats>();
+            stats.tick = tick;
+            stats.dispatch_count = tick;
+        }
         EntitiesSendingSystem::default().run_now(world);
     }
 
@@ -1033,6 +1040,55 @@ mod tests {
         run_tick(&mut world, 1 + keep_alive_interval);
         let staged = drain_state(&world);
         assert_eq!(staged.len(), 3);
+        assert!(staged
+            .iter()
+            .all(|op| op.metadata.is_none() && op.motion.is_none()));
+    }
+
+    #[test]
+    fn frozen_game_tick_still_keeps_entities_alive() {
+        // Permanent-night worlds are built with `does_tick_time(false)`, so
+        // `stats.tick` is frozen at 0 forever. Keep-alives must STILL fire:
+        // they key off the monotonic dispatch counter, which advances every
+        // dispatch regardless of whether game time ticks. Before the fix the
+        // sending system read `stats.tick`, so in these worlds keep-alives
+        // never fired and idle entities went silent until the client dropped
+        // them (permanently invisible while the wave HUD still counted them).
+        let mut world = make_world(1);
+        let keep_alive_interval = world
+            .read_resource::<WorldConfig>()
+            .entity_keep_alive_interval;
+
+        // Drive the world with the GAME TICK FROZEN at 0, advancing ONLY the
+        // monotonic dispatch counter (what a `does_tick_time(false)` world
+        // does at runtime via UpdateStatsSystem::advance_dispatch).
+        fn run_frozen_dispatch(world: &mut World, dispatch_count: u64) {
+            {
+                let mut stats = world.write_resource::<Stats>();
+                stats.tick = 0; // game time never advances in these worlds
+                stats.dispatch_count = dispatch_count;
+            }
+            EntitiesSendingSystem::default().run_now(world);
+        }
+
+        // First dispatch: the idle entity enters interest as a reliable CREATE.
+        run_frozen_dispatch(&mut world, 1);
+        let created = drain_queued_entity_ops(&world);
+        assert_eq!(created.len(), 1);
+        assert!(created
+            .iter()
+            .all(|op| op.operation == EntityOperation::Create));
+
+        // Nothing about the entity changes; only the dispatch counter climbs.
+        // At the keep-alive cadence a payload-less keep-alive is staged even
+        // though the game tick has been pinned at 0 the entire time.
+        run_frozen_dispatch(&mut world, 1 + keep_alive_interval);
+
+        // Sanity: the game tick truly never advanced.
+        assert_eq!(world.read_resource::<Stats>().tick, 0);
+
+        let staged = drain_state(&world);
+        assert_eq!(staged.len(), 1);
         assert!(staged
             .iter()
             .all(|op| op.metadata.is_none() && op.motion.is_none()));

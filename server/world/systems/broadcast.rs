@@ -370,7 +370,10 @@ impl<'a> System<'a> for BroadcastSystem {
         // instead of a replay of stale positions.
         // This is what keeps the outbound path bounded AND fresh — see
         // `world::replication` before changing it.
-        let tick = stats.tick;
+        // Stamp outbound state/peer messages with the monotonic dispatch
+        // counter so the client's out-of-order watermark keeps working even in
+        // frozen-time worlds where `stats.tick` stays 0.
+        let tick = stats.dispatch_count();
         let now_ms = stats.elapsed().as_millis() as u64;
         let tick_ms = (stats.delta as f64 * 1000.0).max(1.0);
         let mut gated_clients = 0;
