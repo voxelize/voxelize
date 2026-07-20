@@ -1037,4 +1037,80 @@ mod tests {
             .iter()
             .all(|op| op.metadata.is_none() && op.motion.is_none()));
     }
+
+    fn spawn_entity_at(world: &mut World, id: &str, position: Vec3<f32>) -> Entity {
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("position", json!([position.0, position.1, position.2]));
+        metadata.set_value("label", json!("spawned-late"));
+        metadata.set_value("isHostile", json!(true));
+
+        let entity = world
+            .create_entity()
+            .with(EntityFlag)
+            .with(IDComp::new(id))
+            .with(ETypeComp::new("bot", false))
+            .with(PositionComp::new(position.0, position.1, position.2))
+            .with(metadata)
+            .build();
+        world
+            .write_resource::<KdTree>()
+            .add_entity(entity, position);
+        world.maintain();
+        entity
+    }
+
+    #[test]
+    fn a_mid_session_spawn_creates_with_its_full_non_motion_metadata() {
+        let mut world = make_world(1);
+        run_tick(&mut world, 1);
+        drain_queued_entity_ops(&world);
+
+        // The dynamic-spawn shape: the entity is built mid-session (a
+        // LazyUpdate applied by maintain) with its non-motion fields already
+        // set, then first seen by the sending system on a later tick.
+        spawn_entity_at(&mut world, "late-spawn", Vec3(2.0, 0.0, 0.0));
+
+        run_tick(&mut world, 2);
+        let ops = drain_queued_entity_ops(&world);
+        let create = ops
+            .iter()
+            .find(|op| op.id == "late-spawn")
+            .expect("a mid-session spawn must CREATE for the connected client");
+        assert_eq!(create.operation, EntityOperation::Create);
+        let metadata = create.metadata.as_deref().unwrap();
+        assert!(metadata.contains("\"label\":\"spawned-late\""));
+        assert!(metadata.contains("\"isHostile\":true"));
+    }
+
+    #[test]
+    fn an_entity_entering_interest_range_creates_with_full_metadata() {
+        let mut world = make_world(0);
+        let visible_radius = world.read_resource::<WorldConfig>().entity_visible_radius;
+        let far = Vec3(visible_radius * 4.0, 0.0, 0.0);
+        let entity = spawn_entity_at(&mut world, "wanderer", far.clone());
+
+        // Spawned out of range: ticks pass, the metadata snapshot cache
+        // warms up, and nothing is ever sent to the client.
+        for tick in 1..=3 {
+            run_tick(&mut world, tick);
+            assert!(drain_queued_entity_ops(&world).is_empty());
+        }
+
+        // The entity walks into range. The CREATE must still carry the full
+        // metadata even though none of it changed since spawn.
+        let near = [2.0, 0.0, 0.0];
+        move_entity(&mut world, "wanderer", near);
+        world
+            .write_resource::<KdTree>()
+            .update_entity(entity, Vec3(near[0], near[1], near[2]));
+
+        run_tick(&mut world, 4);
+        let ops = drain_queued_entity_ops(&world);
+        assert_eq!(ops.len(), 1);
+        assert_eq!(ops[0].operation, EntityOperation::Create);
+        assert_eq!(ops[0].id, "wanderer");
+        let metadata = ops[0].metadata.as_deref().unwrap();
+        assert!(metadata.contains("\"label\":\"spawned-late\""));
+        assert!(metadata.contains("\"isHostile\":true"));
+    }
 }

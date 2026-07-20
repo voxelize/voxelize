@@ -666,6 +666,9 @@ export class Character extends Group {
     }
 
     if (!username) {
+      // Clear the sprite too: `get username` mirrors `nametag.text`, and a
+      // stale label must not resurface if something else toggles visibility.
+      this.nametag.text = "";
       this.nametag.visible = false;
       return;
     }
