@@ -43,64 +43,117 @@ use crate::mesher::{
     FLUID_STAGE_DROPOFF,
 };
 
-/// Full sunlight, baked into light samples that fall outside the chunk being
-/// LOD-meshed (see [`SkyLitLodSpace`]).
-const VOID_SUNLIGHT: u32 = 15;
-
-/// The isolated coarse space a LOD hull is meshed in, with one lighting
-/// twist: out-of-chunk light samples read as fully sunlit instead of black.
+/// The isolated coarse space a LOD hull is meshed in, with the void treated
+/// as a *continuation of the chunk's own edge* for everything the mesher
+/// samples but does not build geometry from.
 ///
-/// Closed hulls expose walls wherever the displayed neighbor terrain is
-/// lower — walls that face open sky at display time. Their light samples,
-/// however, would come from the void (zero) and from the chunk's own
-/// underground cells (also zero), baking the exposed wall pitch black. Sky
-/// lighting the void matches what those walls actually face. Occupancy is
-/// untouched: `contains` still reports the void, so hull geometry (and the
-/// fluid void-face suppression) behave exactly as before, and interior faces
-/// whose samples stay in-chunk keep their real darkness.
-struct SkyLitLodSpace<'a> {
+/// Occupancy is untouched — `contains` still reports the void, so hull
+/// border walls emit and fluids skip their void faces exactly as before.
+/// What changes is what out-of-chunk *samples* return:
+///
+/// - **Voxels** mirror the nearest in-chunk cell (clamp-to-edge), so ambient
+///   occlusion at border cells darkens like the equivalent interior corner
+///   instead of reading the void as permanently open air.
+/// - **Light** returns the border column's *surface light* — the light
+///   resting directly above the column's topmost solid cell. That is the
+///   best single approximation of the neighbor's open-air light profile:
+///   full sunlight over open land (exposed hull cliffs stay lit — the
+///   original black-wall bug), attenuated water light over the sea floor,
+///   and dim light in shaded valleys. A constant "sky" value here is what
+///   painted a bright lattice along every LOD chunk seam wherever real
+///   local light was below maximum (underwater, shaded slopes): border-face
+///   corners averaged the constant into their samples and rendered brighter
+///   than the interior one cell away.
+struct EdgeLitLodSpace<'a> {
     inner: VoxelSpace<'a>,
+    shape: [i32; 3],
+    /// Per-column packed light (`shape.x * shape.z`, row-major x then z) of
+    /// the cell sitting on the column's topmost solid cell.
+    surface_lights: Vec<u32>,
 }
 
-impl<'a> VoxelAccess for SkyLitLodSpace<'a> {
+impl<'a> EdgeLitLodSpace<'a> {
+    fn new(inner: VoxelSpace<'a>, coarse: &ChunkData, registry: &Registry) -> Self {
+        Self {
+            inner,
+            shape: [
+                coarse.shape[0] as i32,
+                coarse.shape[1] as i32,
+                coarse.shape[2] as i32,
+            ],
+            surface_lights: compute_surface_lights(coarse, registry),
+        }
+    }
+
+    #[inline]
+    fn clamped(&self, vx: i32, vy: i32, vz: i32) -> (i32, i32, i32) {
+        (
+            vx.clamp(0, self.shape[0] - 1),
+            vy.clamp(0, self.shape[1] - 1),
+            vz.clamp(0, self.shape[2] - 1),
+        )
+    }
+
+    #[inline]
+    fn surface_light(&self, vx: i32, vz: i32) -> u32 {
+        let x = vx.clamp(0, self.shape[0] - 1) as usize;
+        let z = vz.clamp(0, self.shape[2] - 1) as usize;
+        self.surface_lights[x * self.shape[2] as usize + z]
+    }
+}
+
+impl<'a> VoxelAccess for EdgeLitLodSpace<'a> {
     fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        self.inner.get_voxel(vx, vy, vz)
+        if self.inner.contains(vx, vy, vz) {
+            return self.inner.get_voxel(vx, vy, vz);
+        }
+        let (cx, cy, cz) = self.clamped(vx, vy, vz);
+        self.inner.get_voxel(cx, cy, cz)
     }
 
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        self.inner.get_raw_voxel(vx, vy, vz)
+        if self.inner.contains(vx, vy, vz) {
+            return self.inner.get_raw_voxel(vx, vy, vz);
+        }
+        let (cx, cy, cz) = self.clamped(vx, vy, vz);
+        self.inner.get_raw_voxel(cx, cy, cz)
     }
 
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
-        self.inner.get_voxel_rotation(vx, vy, vz)
+        let (cx, cy, cz) = self.clamped(vx, vy, vz);
+        self.inner.get_voxel_rotation(cx, cy, cz)
     }
 
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        self.inner.get_voxel_stage(vx, vy, vz)
+        let (cx, cy, cz) = self.clamped(vx, vy, vz);
+        self.inner.get_voxel_stage(cx, cy, cz)
     }
 
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.inner.contains(vx, vy, vz) {
-            return VOID_SUNLIGHT;
+        if self.inner.contains(vx, vy, vz) {
+            return self.inner.get_sunlight(vx, vy, vz);
         }
-        self.inner.get_sunlight(vx, vy, vz)
+        LightUtils::extract_sunlight(self.surface_light(vx, vz))
     }
 
     fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: LightColor) -> u32 {
-        if !self.inner.contains(vx, vy, vz) {
-            return match color {
-                LightColor::Sunlight => VOID_SUNLIGHT,
-                _ => 0,
-            };
+        if self.inner.contains(vx, vy, vz) {
+            return self.inner.get_torch_light(vx, vy, vz, color);
         }
-        self.inner.get_torch_light(vx, vy, vz, color)
+        let light = self.surface_light(vx, vz);
+        match color {
+            LightColor::Sunlight => LightUtils::extract_sunlight(light),
+            LightColor::Red => LightUtils::extract_red_light(light),
+            LightColor::Green => LightUtils::extract_green_light(light),
+            LightColor::Blue => LightUtils::extract_blue_light(light),
+        }
     }
 
     fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
-        if !self.inner.contains(vx, vy, vz) {
-            return (VOID_SUNLIGHT, 0, 0, 0);
+        if self.inner.contains(vx, vy, vz) {
+            return self.inner.get_all_lights(vx, vy, vz);
         }
-        self.inner.get_all_lights(vx, vy, vz)
+        LightUtils::extract_all(self.surface_light(vx, vz))
     }
 
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
@@ -110,6 +163,43 @@ impl<'a> VoxelAccess for SkyLitLodSpace<'a> {
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         self.inner.contains(vx, vy, vz)
     }
+}
+
+/// For every coarse column, the packed light of the cell resting on the
+/// column's topmost solid (non-empty, non-fluid) cell: full sunlight over
+/// open ground, attenuated water light over a submerged floor, dim light
+/// under overhangs. Columns with no solid cell (or solid to the ceiling)
+/// fall back to their topmost cell's light.
+fn compute_surface_lights(coarse: &ChunkData, registry: &Registry) -> Vec<u32> {
+    let [size_x, size_y, size_z] = coarse.shape;
+    let mut surface_lights = vec![0u32; size_x * size_z];
+
+    for x in 0..size_x {
+        for z in 0..size_z {
+            let column = x * size_y * size_z + z;
+            let index_of = |y: usize| column + y * size_z;
+
+            let mut surface_y = size_y - 1;
+            for y in (0..size_y).rev() {
+                let id = coarse.voxels[index_of(y)] & 0xFFFF;
+                if id == 0 {
+                    continue;
+                }
+                let is_solid = registry
+                    .get_block_by_id(id)
+                    .map(|block| !block.is_empty && !block.is_fluid)
+                    .unwrap_or(false);
+                if is_solid {
+                    surface_y = (y + 1).min(size_y - 1);
+                    break;
+                }
+            }
+
+            surface_lights[x * size_z + z] = coarse.lights[index_of(surface_y)];
+        }
+    }
+
+    surface_lights
 }
 
 /// Downsampled stand-in for one coarse cell, chosen from the fine voxels the
@@ -376,8 +466,8 @@ pub fn mesh_coarse_chunk(
 
     // A single-chunk neighborhood: only the center slot is populated, so the
     // space reports `contains() == false` for every out-of-chunk coordinate
-    // and the mesher emits the closed border walls (sky-lit, see
-    // [`SkyLitLodSpace`]).
+    // and the mesher emits the closed border walls (edge-lit, see
+    // [`EdgeLitLodSpace`]).
     let mut chunks: Vec<Option<ChunkData>> = (0..9).map(|_| None).collect();
     chunks[4] = Some(ChunkData {
         voxels: coarse.voxels.clone(),
@@ -386,9 +476,7 @@ pub fn mesh_coarse_chunk(
         min: [0, 0, 0],
     });
 
-    let space = SkyLitLodSpace {
-        inner: VoxelSpace::new(&chunks, cs_x as i32, [0, 0]),
-    };
+    let space = EdgeLitLodSpace::new(VoxelSpace::new(&chunks, cs_x as i32, [0, 0]), coarse, registry);
 
     let min = [0, 0, 0];
     let max = [cs_x as i32, cs_y as i32, cs_z as i32];
@@ -1179,11 +1267,59 @@ mod tests {
         );
     }
 
-    /// Hull walls face open sky at display time, so their baked light must
-    /// come from the sky-lit void, not from the chunk's dark underground
-    /// cells — otherwise every exposed LOD cliff fades to black.
+    /// Border lighting must be continuous with the interior: with uniformly
+    /// dim light (e.g. under water or in shade), border-face corners must
+    /// not brighten from out-of-chunk samples. A constant "sky" void light
+    /// did exactly that — averaging full sunlight into every border corner —
+    /// which painted a bright lattice along every LOD chunk seam.
     #[test]
-    fn lod_hull_walls_are_sky_lit() {
+    fn lod_border_lighting_matches_interior_in_dim_light() {
+        let registry = test_registry();
+        let size = 8usize;
+        let height = 8usize;
+
+        let mut fine = FineChunk::new([size, height, size]);
+        let mut dim = 0u32;
+        dim = LightUtils::insert_sunlight(dim, 9);
+        for x in 0..size {
+            for z in 0..size {
+                for y in 0..3 {
+                    fine.set(x, y, z, STONE);
+                }
+                for y in 3..height {
+                    fine.set_light(x, y, z, dim);
+                }
+            }
+        }
+
+        let geometries = mesh_chunk_lod(&fine.voxels, &fine.lights, fine.shape, 1, &registry);
+        let geometry = geometries
+            .iter()
+            .find(|geometry| geometry.voxel == STONE)
+            .expect("terrain must be meshed");
+
+        let mut max_sunlight = 0;
+        for packed in &geometry.lights {
+            let sunlight = LightUtils::extract_sunlight(*packed as u32 & 0xFFFF);
+            assert!(
+                sunlight <= 9,
+                "no vertex may exceed the ambient light level: border faces must \
+                 light like the interior, got sunlight {sunlight}"
+            );
+            max_sunlight = max_sunlight.max(sunlight);
+        }
+        assert_eq!(
+            max_sunlight, 9,
+            "faces exposed to the dim air must carry its light level"
+        );
+    }
+
+    /// Hull walls face the neighbor's open air at display time, so their
+    /// baked light must come from the border column's surface light — full
+    /// sunlight over open land — not from the chunk's dark underground
+    /// cells, otherwise every exposed LOD cliff fades to black.
+    #[test]
+    fn lod_hull_walls_are_surface_lit() {
         let registry = test_registry();
         let size = 8usize;
         let height = 16usize;

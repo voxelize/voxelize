@@ -2225,12 +2225,19 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     }
 
                     if block.is_opaque {
+                        // A voxel only counts as buried when every neighbor is
+                        // an in-space opaque voxel: out-of-space coordinates
+                        // are unknown terrain whose faces must still be
+                        // evaluated, regardless of what a space's `get_voxel`
+                        // reports for them (e.g. edge-mirrored LOD spaces).
                         let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                            let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                            registry
-                                .get_block_by_id(id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false)
+                            space.contains(vx + nx, vy + ny, vz + nz) && {
+                                let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+                                registry
+                                    .get_block_by_id(id)
+                                    .map(|b| b.is_opaque)
+                                    .unwrap_or(false)
+                            }
                         });
                         if all_neighbors_opaque {
                             continue;
