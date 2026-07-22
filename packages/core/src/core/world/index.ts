@@ -147,7 +147,10 @@ import { LightCones } from "./light-cones";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
-import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
+import {
+  SHADER_LIGHTING_CHUNK_SHADERS,
+  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
+} from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
@@ -805,7 +808,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       sceneColor,
       sceneTextureSize,
       waterRefractionReady,
+      waterRefractionStrength,
     } = this.chunkRenderer.uniforms;
+
+    // Zero strength is a real kill switch: mark the capture stale so the
+    // shader's refraction branch turns off, and skip the mid-frame
+    // framebuffer copy (a full-pass stall on tile-based GPUs) entirely.
+    if (waterRefractionStrength.value <= 0) {
+      waterRefractionReady.value = 0;
+      return;
+    }
 
     // The refraction shader path is disabled while submerged, so skip the
     // framebuffer copy entirely; the threshold mirrors the shader's gate.
@@ -6559,7 +6571,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       lightAttenuation: number,
       transparentStandalone: boolean,
     ) => {
-      const mat = this.makeShaderMaterial();
+      const mat = this.makeShaderMaterial(
+        isFluid ? SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment : undefined,
+      );
 
       mat.side = transparent ? DoubleSide : FrontSide;
       mat.transparent = transparent;

@@ -105,7 +105,7 @@ export const customShaders = {
   },
 };
 
-export const SHADER_LIGHTING_CHUNK_SHADERS = {
+const FULL_CHUNK_SHADERS = {
   vertex: ShaderLib.basic.vertexShader
     .replace(
       "#include <common>",
@@ -595,37 +595,53 @@ if (vIsFluid > 0.5) {
   float sideWaterFace = smoothstep(0.45, 0.9, max(absWaterNormal.x, absWaterNormal.z));
 
   float eps = 0.08;
+  float distToCamera = length(cameraPosition - wPos);
 
-  float roughNoise = snoise(vec3(wPos.x * 0.04 - waveTime * 0.08, wPos.z * 0.04 + waveTime * 0.06, -10.0));
-  float roughMul = 0.3 + 0.7 * (roughNoise * 0.5 + 0.5);
+  // Subpixel-octave LOD: each detail octave fades out across its distance
+  // band from WATER_OPTICS, beyond which its wavelength is subpixel and the
+  // noise only cost ALU and aliased as sparkle.
+  float mediumWaveLod = 1.0 - smoothstep(
+    ${WATER_OPTICS.mediumWaveFadeStartBlocks.toFixed(1)},
+    ${WATER_OPTICS.mediumWaveFadeEndBlocks.toFixed(1)},
+    distToCamera
+  );
+  float rippleLod = 1.0 - smoothstep(
+    ${WATER_OPTICS.rippleFadeStartBlocks.toFixed(1)},
+    ${WATER_OPTICS.rippleFadeEndBlocks.toFixed(1)},
+    distToCamera
+  );
 
-  float swellTiltX = snoise(vec3(wPos.x * 0.05 + waveTime * 0.07, wPos.z * 0.05 - waveTime * 0.05, -5.0)) * 0.07;
-  float swellTiltZ = snoise(vec3(wPos.x * 0.05 - waveTime * 0.04, wPos.z * 0.05 + waveTime * 0.07, -8.0)) * 0.07;
+  // Side and bottom faces keep their geometric normal, so the wave-normal
+  // noise stack only runs on up-facing water.
+  vec3 waterNormal = vWorldNormal;
+  if (vWorldNormal.y >= 0.5) {
+    float swellTiltX = snoise(vec3(wPos.x * 0.05 + waveTime * 0.07, wPos.z * 0.05 - waveTime * 0.05, -5.0)) * 0.07;
+    float swellTiltZ = snoise(vec3(wPos.x * 0.05 - waveTime * 0.04, wPos.z * 0.05 + waveTime * 0.07, -8.0)) * 0.07;
 
-  float lg1 = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
-  float lg1x = snoise(vec3((wPos.x + eps) * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
-  float lg1z = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, (wPos.z + eps) * 0.3 - waveTime * 0.2, 0.0));
+    float lg1 = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
+    float lg1x = snoise(vec3((wPos.x + eps) * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
+    float lg1z = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, (wPos.z + eps) * 0.3 - waveTime * 0.2, 0.0));
 
-  float md1 = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
-  float md1x = snoise(vec3((wPos.x + eps) * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
-  float md1z = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, (wPos.z + eps) * 1.5 - waveTime * 0.35, 5.0));
+    float mediumGradX = 0.0;
+    float mediumGradZ = 0.0;
+    if (mediumWaveLod > 0.001) {
+      float roughNoise = snoise(vec3(wPos.x * 0.04 - waveTime * 0.08, wPos.z * 0.04 + waveTime * 0.06, -10.0));
+      float roughMul = 0.3 + 0.7 * (roughNoise * 0.5 + 0.5);
 
-  float hLg0 = lg1 * 0.3;
-  float hLgX = lg1x * 0.3;
-  float hLgZ = lg1z * 0.3;
+      float md1 = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
+      float md1x = snoise(vec3((wPos.x + eps) * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
+      float md1z = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, (wPos.z + eps) * 1.5 - waveTime * 0.35, 5.0));
 
-  float hMed0 = md1 * 0.6 * roughMul;
-  float hMedX = md1x * 0.6 * roughMul;
-  float hMedZ = md1z * 0.6 * roughMul;
+      float mediumAmp = 0.6 * roughMul * 1.2 * mediumWaveLod;
+      mediumGradX = (md1 - md1x) * mediumAmp;
+      mediumGradZ = (md1 - md1z) * mediumAmp;
+    }
 
-  vec3 waterNormal = normalize(vec3(
-    swellTiltX + (hLg0 - hLgX) * 0.8 + (hMed0 - hMedX) * 1.2,
-    1.0,
-    swellTiltZ + (hLg0 - hLgZ) * 0.8 + (hMed0 - hMedZ) * 1.2
-  ));
-
-  if (vWorldNormal.y < 0.5) {
-    waterNormal = vWorldNormal;
+    waterNormal = normalize(vec3(
+      swellTiltX + (lg1 - lg1x) * 0.3 * 0.8 + mediumGradX,
+      1.0,
+      swellTiltZ + (lg1 - lg1z) * 0.3 * 0.8 + mediumGradZ
+    ));
   }
 
   vec3 viewDir = normalize(cameraPosition - wPos);
@@ -657,26 +673,34 @@ if (vIsFluid > 0.5) {
 
   vec3 baseWater = outgoingLight.rgb;
 
-  float distToCamera = length(cameraPosition - wPos);
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
   float verticalDepthFactor = 1.0 - exp(-max(0.0, uWaterLevel - wPos.y) * ${WATER_OPTICS.downwellingExtinction.green.toFixed(5)});
   vec3 shallowWater = mix(baseWater, uWaterTint, 0.1);
   vec3 deepWater = mix(baseWater, uWaterTint, 0.28);
   vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.72);
 
-  float sideSelector = step(absWaterNormal.x, absWaterNormal.z);
-  float sideCoord = mix(wPos.z, wPos.x, sideSelector);
-  float streakNoise = snoise(vec3(sideCoord * 1.4, wPos.y * 0.32 - waveTime * 0.75, 17.0));
-  float fineStreakNoise = snoise(vec3(sideCoord * 5.0, wPos.y * 0.9 - waveTime * 1.4, 27.0));
-  float streak = smoothstep(0.35, 0.95, streakNoise * 0.7 + fineStreakNoise * 0.3);
-  vec3 streakColor = mix(waterColor * 0.96, waterColor + uWaterTint * 0.08, streak);
-  waterColor = mix(waterColor, streakColor, sideWaterFace * uWaterStreakStrength);
+  float streakStrength = sideWaterFace * uWaterStreakStrength;
+  if (streakStrength > 0.001) {
+    float sideSelector = step(absWaterNormal.x, absWaterNormal.z);
+    float sideCoord = mix(wPos.z, wPos.x, sideSelector);
+    float streakNoise = snoise(vec3(sideCoord * 1.4, wPos.y * 0.32 - waveTime * 0.75, 17.0));
+    float fineStreakNoise = snoise(vec3(sideCoord * 5.0, wPos.y * 0.9 - waveTime * 1.4, 27.0));
+    float streak = smoothstep(0.35, 0.95, streakNoise * 0.7 + fineStreakNoise * 0.3);
+    vec3 streakColor = mix(waterColor * 0.96, waterColor + uWaterTint * 0.08, streak);
+    waterColor = mix(waterColor, streakColor, streakStrength);
+  }
 
-  float rippleNoise = snoise(vec3(wPos.xz * 1.8 + vec2(waveTime * 0.9, -waveTime * 0.65), 31.0));
-  float fineRippleNoise = snoise(vec3(wPos.xz * 4.8 + vec2(-waveTime * 1.2, waveTime * 0.8), 43.0));
-  float surfaceRipple = smoothstep(0.42, 0.92, rippleNoise * 0.65 + fineRippleNoise * 0.35);
-  vec3 surfaceHighlight = mix(waterColor, skyReflection, 0.34);
-  waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
+  float rippleNoise = 0.0;
+  float fineRippleNoise = 0.0;
+  float surfaceRipple = 0.0;
+  float rippleGate = topWaterFace * rippleLod;
+  if (rippleGate > 0.001) {
+    rippleNoise = snoise(vec3(wPos.xz * 1.8 + vec2(waveTime * 0.9, -waveTime * 0.65), 31.0));
+    fineRippleNoise = snoise(vec3(wPos.xz * 4.8 + vec2(-waveTime * 1.2, waveTime * 0.8), 43.0));
+    surfaceRipple = smoothstep(0.42, 0.92, rippleNoise * 0.65 + fineRippleNoise * 0.35) * rippleLod;
+    vec3 surfaceHighlight = mix(waterColor, skyReflection, 0.34);
+    waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
+  }
 
   float refractionFace = max(topWaterFace, sideWaterFace * 0.55);
   if (refractionFace > 0.01) {
@@ -762,6 +786,38 @@ if (uShadowDebugMode > 0.5) {
     ),
 };
 
+const FLUID_BRANCH_OPEN = "if (vIsFluid > 0.5) {";
+
+// The fluid surface pass (wave-normal noise stack, refraction sampling,
+// depth tinting) lives in the shared fragment source, but only fluid
+// materials should pay for it: a branch on a varying cannot be specialized
+// by the compiler, so its registers and samplers would otherwise tax every
+// terrain fragment in the scene. Non-fluid materials compile it out; the
+// fluid variant keeps it and swaps the 5x5 PCF shadow loop for the 5-tap
+// fast path, since a wave-animated surface swallows soft shadow detail.
+export const SHADER_LIGHTING_CHUNK_SHADERS = {
+  vertex: FULL_CHUNK_SHADERS.vertex,
+  fragment: FULL_CHUNK_SHADERS.fragment.replace(
+    FLUID_BRANCH_OPEN,
+    "if (false) {",
+  ),
+};
+
+export const SHADER_LIGHTING_FLUID_CHUNK_SHADERS = {
+  vertex: FULL_CHUNK_SHADERS.vertex,
+  fragment: FULL_CHUNK_SHADERS.fragment
+    .replace(
+      "float shadow0 = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",
+      "float shadow0 = sampleShadowMapFast(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",
+    )
+    .split(
+      "float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5, receiverBiasScale);",
+    )
+    .join(
+      "float shadow1 = sampleShadowMapFast(uShadowMap1, vShadowCoord1, slopeBias * 1.5, receiverBiasScale);",
+    ),
+};
+
 export const SHADER_LIGHTING_CROSS_CHUNK_SHADERS = {
   vertex: SHADER_LIGHTING_CHUNK_SHADERS.vertex,
   fragment: SHADER_LIGHTING_CHUNK_SHADERS.fragment
@@ -793,8 +849,7 @@ vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`,
   + faceShadeWeights.z * uFaceShades.y
   + faceShadeWeights.y * verticalFaceShade;`,
       `float faceShade = 1.0;`,
-    )
-    .replace(`if (vIsFluid > 0.5) {`, `if (false) {`),
+    ),
 };
 
 export function createSwayShader(

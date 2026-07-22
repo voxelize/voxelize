@@ -98,6 +98,22 @@ export const WATER_OPTICS = Object.freeze({
    */
   lightFilterFloor: 0.04,
 
+  /**
+   * Distance band (blocks) over which the medium wave octave of the water
+   * surface fades out. Beyond the end of the band its ~0.7-block wavelength
+   * is subpixel at typical resolutions, so evaluating it only costs ALU and
+   * reads as specular shimmer.
+   */
+  mediumWaveFadeStartBlocks: 64,
+  mediumWaveFadeEndBlocks: 128,
+
+  /**
+   * Distance band (blocks) over which the surface ripple/sparkle octaves
+   * fade out, for the same subpixel reason as the medium wave band.
+   */
+  rippleFadeStartBlocks: 48,
+  rippleFadeEndBlocks: 96,
+
   /** Max blocks scanned upward when measuring a water column's surface. */
   maxSurfaceScanBlocks: 96,
 
