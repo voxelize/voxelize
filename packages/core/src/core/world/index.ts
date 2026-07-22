@@ -386,6 +386,22 @@ export type WorldClientOptions = {
    */
   maxUpdatesPerUpdate: number;
 
+  /**
+   * Client batches larger than this skip the optimistic local apply (with
+   * its per-frame relight) and stream straight to the server; the world
+   * catches up from the server's tick-batched echo. Keeps bulk edits
+   * (WorldEdit) from freezing the tab and guarantees the whole batch is on
+   * the wire before any reload. Defaults to `4000` updates.
+   */
+  maxOptimisticClientUpdates: number;
+
+  /**
+   * Server update batches larger than this are drained through the
+   * incremental per-frame update queue instead of being applied (and
+   * relit) synchronously in one shot. Defaults to `500` updates.
+   */
+  maxImmediateServerUpdates: number;
+
   maxMeshesPerUpdate: number;
 
   /**
@@ -510,6 +526,8 @@ const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 12,
   maxProcessesPerUpdate: 4,
   maxUpdatesPerUpdate: 1000,
+  maxOptimisticClientUpdates: 4000,
+  maxImmediateServerUpdates: 500,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
   maxUrgentMeshWorkers: 4,
@@ -1150,15 +1168,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     const meshWorkerPool = options.isPriority
       ? this.urgentMeshWorkerPool
       : this.meshWorkerPool;
-    const { geometries } = await new Promise<{
-      geometries: GeometryProtocol[];
-    }>((resolve) => {
+    const workerResult = await new Promise<{
+      geometries: GeometryProtocol[] | null;
+    } | null>((resolve) => {
       meshWorkerPool.addJob({
         message: data,
         buffers: arrayBuffers,
         resolve,
       });
     });
+    // A crashed or poisoned worker resolves without geometries; surface it
+    // as a failed job so the pipeline retries on a healthy worker instead
+    // of leaving the chunk permanently invisible.
+    if (!workerResult || !workerResult.geometries) {
+      return null;
+    }
+    const { geometries } = workerResult;
     const workerMs = performance.now() - workerStart;
     const outputBytes = this.estimateGeometryProtocolBytes(geometries);
 
@@ -2882,6 +2907,27 @@ export class World<T = any> extends Scene implements NetIntercept {
         return update;
       });
 
+    if (
+      source === "client" &&
+      voxelUpdates.length > this.options.maxOptimisticClientUpdates
+    ) {
+      // Bulk edit: the optimistic local path would relight and remesh for
+      // minutes (or OOM the tab), and its 1000-per-frame trickle to the
+      // server means a mid-edit reload silently loses the rest. Ship the
+      // whole batch to the server now; the tick-batched echo brings the
+      // world up to date through the incremental queue.
+      for (
+        let start = 0;
+        start < voxelUpdates.length;
+        start += this.options.maxUpdatesPerUpdate
+      ) {
+        this.pushBulkUpdatePacket(
+          voxelUpdates.slice(start, start + this.options.maxUpdatesPerUpdate),
+        );
+      }
+      return;
+    }
+
     this.blockUpdatesQueue.push(
       ...voxelUpdates.map((update) => ({ source, update })),
     );
@@ -2889,7 +2935,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.processClientUpdates();
   };
 
-  private applyServerUpdatesImmediately(updates: UpdateProtocol[]) {
+  private convertServerUpdates(
+    updates: UpdateProtocol[],
+  ): BlockUpdateWithSource[] {
     const blockUpdates: BlockUpdateWithSource[] = [];
 
     for (const update of updates) {
@@ -2945,6 +2993,22 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
+    return blockUpdates;
+  }
+
+  /** Bulk server echoes (WorldEdit, agent fills) drain through the
+   * per-frame update queue so a 50k-voxel tick batch cannot freeze the
+   * main thread the way a synchronous relight would. */
+  private queueServerUpdates(updates: UpdateProtocol[]) {
+    const blockUpdates = this.convertServerUpdates(updates);
+    if (blockUpdates.length === 0) return;
+
+    this.blockUpdatesQueue.push(...blockUpdates);
+    this.processClientUpdates();
+  }
+
+  private applyServerUpdatesImmediately(updates: UpdateProtocol[]) {
+    const blockUpdates = this.convertServerUpdates(updates);
     if (blockUpdates.length === 0) return;
 
     this.isTrackingChunks = true;
@@ -3916,7 +3980,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { updates } = message;
 
         if (updates && updates.length > 0) {
-          this.applyServerUpdatesImmediately(updates);
+          if (updates.length > this.options.maxImmediateServerUpdates) {
+            this.queueServerUpdates(updates);
+          } else {
+            this.applyServerUpdatesImmediately(updates);
+          }
         }
 
         break;
@@ -6302,33 +6370,41 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.options.maxUpdatesPerUpdate,
     );
 
-    const processedUpdates = updates.map((update) => {
-      const { type, rotation, yRotation, stage } = update;
+    this.pushBulkUpdatePacket(updates);
+  };
 
-      const block = this.getBlockById(type);
+  private encodeBlockUpdateToRaw = (update: BlockUpdate): number => {
+    const { type, rotation, yRotation, stage } = update;
 
-      let raw = 0;
-      raw = BlockUtils.insertID(raw, type);
+    const block = this.getBlockById(type);
 
-      if (
-        (block.rotatable || block.yRotatable) &&
-        (!isNaN(rotation) || !isNaN(yRotation))
-      ) {
-        raw = BlockUtils.insertRotation(
-          raw,
-          BlockRotation.encode(rotation, yRotation),
-        );
-      }
+    let raw = 0;
+    raw = BlockUtils.insertID(raw, type);
 
-      if (stage !== undefined) {
-        raw = BlockUtils.insertStage(raw, stage);
-      }
+    if (
+      (block.rotatable || block.yRotatable) &&
+      (!isNaN(rotation) || !isNaN(yRotation))
+    ) {
+      raw = BlockUtils.insertRotation(
+        raw,
+        BlockRotation.encode(rotation, yRotation),
+      );
+    }
 
-      return {
-        ...update,
-        voxel: raw,
-      };
-    });
+    if (stage !== undefined) {
+      raw = BlockUtils.insertStage(raw, stage);
+    }
+
+    return raw;
+  };
+
+  private pushBulkUpdatePacket = (updates: BlockUpdate[]) => {
+    if (updates.length === 0) return;
+
+    const processedUpdates = updates.map((update) => ({
+      ...update,
+      voxel: this.encodeBlockUpdateToRaw(update),
+    }));
 
     this.packets.push({
       type: "UPDATE",

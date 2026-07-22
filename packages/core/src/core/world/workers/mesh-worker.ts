@@ -284,9 +284,25 @@ onmessage = async function (e) {
   maxArray[1] = max[1];
   maxArray[2] = max[2];
 
-  const result = mesh_chunk_fast(chunks, minArray, maxArray, chunkSize) as {
-    geometries: GeometryProtocol[];
-  };
+  let result: { geometries: GeometryProtocol[] };
+  try {
+    result = mesh_chunk_fast(chunks, minArray, maxArray, chunkSize) as {
+      geometries: GeometryProtocol[];
+    };
+  } catch (error) {
+    // A wasm trap (panic) aborts mid-mutation: thread-local state inside the
+    // module (e.g. a borrowed RefCell) stays locked, so every later call on
+    // this instance fails too. wasm-bindgen's init() refuses to re-create an
+    // instance, so the worker cannot heal itself. Report the poisoning so
+    // the pool replaces this worker; the caller re-queues the chunk.
+    console.error(
+      "[mesh-worker] wasm mesher trapped; requesting replacement",
+      error,
+    );
+    // @ts-expect-error postMessage typing
+    postMessage({ geometries: null, isWorkerPoisoned: true }, []);
+    return;
+  }
   const geometries = result.geometries;
 
   const arrayBuffers: ArrayBuffer[] = [];

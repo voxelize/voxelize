@@ -172,6 +172,13 @@ struct NeighborCache {
 impl NeighborCache {
     #[inline]
     fn offset_to_index(x: i32, y: i32, z: i32) -> usize {
+        // The cache holds the 3x3x3 neighborhood only, but face dirs on
+        // custom blocks (authored or rotation-derived) can step further
+        // out. Clamp to the nearest cached cell instead of indexing past
+        // the array and trapping the whole wasm worker.
+        let x = x.clamp(-1, 1);
+        let y = y.clamp(-1, 1);
+        let z = z.clamp(-1, 1);
         ((x + 1) + (y + 1) * 3 + (z + 1) * 9) as usize
     }
 
@@ -374,7 +381,11 @@ impl<'a> VoxelSpace<'a> {
         let coords = self.map_voxel_to_chunk(vx, vz);
         if let Some(chunk) = self.get_chunk(coords) {
             if let Some(index) = self.get_index(chunk, vx, vy, vz) {
-                return LightUtils::extract_sunlight(chunk.lights[index]);
+                // Lights can lag voxels for a chunk mid-transfer; missing
+                // entries read as dark instead of panicking the worker.
+                if let Some(light) = chunk.lights.get(index) {
+                    return LightUtils::extract_sunlight(*light);
+                }
             }
         }
         0
@@ -385,13 +396,14 @@ impl<'a> VoxelSpace<'a> {
         let coords = self.map_voxel_to_chunk(vx, vz);
         if let Some(chunk) = self.get_chunk(coords) {
             if let Some(index) = self.get_index(chunk, vx, vy, vz) {
-                let light = chunk.lights[index];
-                return match color {
-                    LightColor::Red => LightUtils::extract_red_light(light),
-                    LightColor::Green => LightUtils::extract_green_light(light),
-                    LightColor::Blue => LightUtils::extract_blue_light(light),
-                    LightColor::Sunlight => LightUtils::extract_sunlight(light),
-                };
+                if let Some(light) = chunk.lights.get(index).copied() {
+                    return match color {
+                        LightColor::Red => LightUtils::extract_red_light(light),
+                        LightColor::Green => LightUtils::extract_green_light(light),
+                        LightColor::Blue => LightUtils::extract_blue_light(light),
+                        LightColor::Sunlight => LightUtils::extract_sunlight(light),
+                    };
+                }
             }
         }
         0
@@ -402,7 +414,9 @@ impl<'a> VoxelSpace<'a> {
         let coords = self.map_voxel_to_chunk(vx, vz);
         if let Some(chunk) = self.get_chunk(coords) {
             if let Some(index) = self.get_index(chunk, vx, vy, vz) {
-                return LightUtils::extract_all(chunk.lights[index]);
+                if let Some(light) = chunk.lights.get(index) {
+                    return LightUtils::extract_all(*light);
+                }
             }
         }
         (0, 0, 0, 0)
@@ -492,7 +506,13 @@ fn chunk_range_has_non_empty_voxel(
             for vz in start[2]..end[2] {
                 let lz = (vz - chunk_min[2]) as usize;
                 let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
-                let voxel_id = extract_id(chunk.voxels[index]);
+                // A chunk mid-transfer can arrive with fewer voxels than its
+                // shape claims; treat the missing tail as air instead of
+                // aborting the whole wasm worker on an out-of-bounds read.
+                let Some(voxel) = chunk.voxels.get(index) else {
+                    continue;
+                };
+                let voxel_id = extract_id(*voxel);
                 if registry
                     .get_block_by_id(voxel_id)
                     .map(|block| !block.is_empty)
@@ -2599,6 +2619,28 @@ mod tests {
         assert!(
             !can_greedy_mesh_block(&block, &BlockRotation::PY(0.0)),
             "Greedy meshing only emits cardinal faces, so diagonal faces must use the fallback path"
+        );
+    }
+
+    #[test]
+    fn neighbor_cache_clamps_offsets_outside_window() {
+        let cache = NeighborCache {
+            data: [[0u32; 2]; 27],
+        };
+
+        // Custom or rotation-derived face dirs can step past the cached
+        // 3x3x3 window; these must clamp instead of trapping the worker
+        // with an out-of-bounds panic.
+        assert_eq!(cache.get_all_lights(0, 0, 2), (0, 0, 0, 0));
+        assert_eq!(cache.get_all_lights(2, -2, 3), (0, 0, 0, 0));
+        assert_eq!(cache.get_voxel(-2, 0, 2), 0);
+        assert_eq!(
+            NeighborCache::offset_to_index(2, 1, 1),
+            NeighborCache::offset_to_index(1, 1, 1),
+        );
+        assert_eq!(
+            NeighborCache::offset_to_index(-2, -1, -1),
+            NeighborCache::offset_to_index(-1, -1, -1),
         );
     }
 

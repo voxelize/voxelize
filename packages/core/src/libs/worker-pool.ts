@@ -69,6 +69,13 @@ export class WorkerPool {
   private available: number[] = [];
 
   /**
+   * Broadcast messages (worker init/registry state), replayed onto
+   * replacement workers so a swapped-in worker is indistinguishable from
+   * the original.
+   */
+  private broadcastMessages: WorkerPoolJob["message"][] = [];
+
+  /**
    * Create a new worker pool.
    *
    * @param Proto The worker class to create.
@@ -101,6 +108,11 @@ export class WorkerPool {
   };
 
   postMessage = (message: any, buffers?: Transferable[]) => {
+    // Transferred buffers are consumed by the first worker and cannot be
+    // replayed; only plain broadcasts are remembered for replacements.
+    if (!buffers || buffers.length === 0) {
+      this.broadcastMessages.push(message);
+    }
     for (const worker of this.workers) {
       if (buffers) {
         worker.postMessage(message, { transfer: buffers });
@@ -149,6 +161,12 @@ export class WorkerPool {
       };
 
       const workerCallback = ({ data }: any) => {
+        // A wasm trap poisons the worker's module state permanently (see
+        // mesh-worker). Swap in a fresh worker before releasing the slot so
+        // the next job never lands on the corpse.
+        if (data && data.isWorkerPoisoned) {
+          this.replaceWorker(index);
+        }
         cleanup();
         resolve(data);
       };
@@ -178,6 +196,22 @@ export class WorkerPool {
       }
       WorkerPool.WORKING_COUNT++;
     }
+  };
+
+  private replaceWorker = (index: number) => {
+    const dead = this.workers[index];
+    if (!dead) return;
+    dead.terminate();
+
+    const { name } = this.options;
+    const workerOptions: WorkerOptions | undefined = name
+      ? { name: `${name}-${index}` }
+      : undefined;
+    const worker = new this.Proto(workerOptions);
+    for (const message of this.broadcastMessages) {
+      worker.postMessage(message);
+    }
+    this.workers[index] = worker;
   };
 
   /**

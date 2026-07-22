@@ -1154,6 +1154,13 @@ pub struct Neighbors {
 impl Neighbors {
     #[inline]
     fn offset_to_index(x: i32, y: i32, z: i32) -> usize {
+        // Mirrors crates/mesher NeighborCache::offset_to_index: face dirs on
+        // custom blocks (authored or rotation-derived) can step outside the
+        // cached 3x3x3 neighborhood; clamp instead of indexing out of
+        // bounds.
+        let x = x.clamp(-1, 1);
+        let y = y.clamp(-1, 1);
+        let z = z.clamp(-1, 1);
         ((x + 1) + (y + 1) * 3 + (z + 1) * 9) as usize
     }
 
