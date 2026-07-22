@@ -181,6 +181,10 @@ export * from "./water-optics";
 const warnedUnknownBlockIds = new Set<number>();
 const warnedUnloadedUpdateChunks = new Set<string>();
 
+// Minimum updates between two rebuilds of the same LOD region, so streams of
+// chunk arrivals into one region batch into few re-merges.
+const LOD_REGION_REBUILD_COOLDOWN_UPDATES = 10;
+
 export type TextureInfo = {
   blockId: number;
   blockName: string;
@@ -521,6 +525,14 @@ export type WorldClientOptions = {
   maxLodRequestsPerUpdate: number;
 
   /**
+   * Maximum LOD region meshes re-merged and uploaded per update. This
+   * throttles the main-thread cost of ring transitions: chunks whose region
+   * has not been rebuilt yet simply keep their previous form for a few more
+   * frames. Defaults to `2`.
+   */
+  maxLodRegionRebuildsPerUpdate: number;
+
+  /**
    * Hysteresis band width, in chunks, around every LOD ring boundary. A chunk
    * keeps its current detail level until it moves this many chunks past the
    * boundary, preventing thrash while hovering on a ring edge. Defaults to `1`.
@@ -564,6 +576,7 @@ const defaultOptions: WorldClientOptions = {
   mergeChunkGeometries: false,
   isLodEnabled: true,
   maxLodRequestsPerUpdate: 24,
+  maxLodRegionRebuildsPerUpdate: 2,
   lodHysteresis: 1,
   maxLodRadius: 96,
 };
@@ -3944,6 +3957,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         maxRequestsPerUpdate: this.options.maxLodRequestsPerUpdate,
         rerequestInterval: this.options.chunkRerequestInterval,
         maxLodRadius: this.options.maxLodRadius,
+        maxRegionRebuildsPerUpdate: this.options.maxLodRegionRebuildsPerUpdate,
+        regionRebuildCooldown: LOD_REGION_REBUILD_COOLDOWN_UPDATES,
       },
     );
 

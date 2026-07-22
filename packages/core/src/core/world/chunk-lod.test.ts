@@ -73,17 +73,17 @@ describe("resolveLodTarget hysteresis", () => {
 
 describe("lod regions", () => {
   it("doubles region side with level for constant per-ring draw calls", () => {
-    expect(lodRegionSideInChunks(1)).toBe(4);
-    expect(lodRegionSideInChunks(2)).toBe(8);
-    expect(lodRegionSideInChunks(3)).toBe(16);
+    expect(lodRegionSideInChunks(1)).toBe(8);
+    expect(lodRegionSideInChunks(2)).toBe(16);
+    expect(lodRegionSideInChunks(3)).toBe(32);
   });
 
   it("buckets chunk coords into level-scoped regions", () => {
     expect(lodRegionKey(0, 0, 1)).toBe("1|0,0");
-    expect(lodRegionKey(3, 3, 1)).toBe("1|0,0");
-    expect(lodRegionKey(4, 0, 1)).toBe("1|1,0");
+    expect(lodRegionKey(7, 7, 1)).toBe("1|0,0");
+    expect(lodRegionKey(8, 0, 1)).toBe("1|1,0");
     expect(lodRegionKey(-1, -1, 1)).toBe("1|-1,-1");
-    expect(lodRegionKey(4, 0, 2)).toBe("2|0,0");
+    expect(lodRegionKey(8, 0, 2)).toBe("2|0,0");
   });
 });
 
@@ -131,15 +131,24 @@ function makeHost(overrides: Partial<LodChunkManagerHost> = {}): {
 
 function makeManager(
   overrides: Partial<LodChunkManagerHost> = {},
-  maxLodLevel = 2,
+  options: Partial<{
+    maxLodLevel: number;
+    maxRegionRebuildsPerUpdate: number;
+    regionRebuildCooldown: number;
+  }> = {},
 ) {
   const { host, log } = makeHost(overrides);
   const manager = new LodChunkManager(host, {
-    maxLodLevel,
+    maxLodLevel: 2,
     hysteresis: 1,
     maxRequestsPerUpdate: 512,
     rerequestInterval: 300,
     maxLodRadius: 96,
+    // Unthrottled by default so single-update expectations stay simple; the
+    // budget and cooldown behaviors have dedicated tests.
+    maxRegionRebuildsPerUpdate: 64,
+    regionRebuildCooldown: 0,
+    ...options,
   });
   return { manager, log };
 }
@@ -367,5 +376,95 @@ describe("LodChunkManager", () => {
     manager.update([0, 0]);
     expect(manager.owns(0, 0)).toBe(false);
     expect(manager.owns(2, 2)).toBe(false);
+  });
+});
+
+describe("LodChunkManager rebuild throttling", () => {
+  const countMeshes = (manager: LodChunkManager) => {
+    let count = 0;
+    manager.group.traverse((object) => {
+      if ((object as Mesh).isMesh) count++;
+    });
+    return count;
+  };
+
+  it("rebuilds at most the budgeted number of regions per update, nearest first", () => {
+    const { manager } = makeManager({}, { maxRegionRebuildsPerUpdate: 1 });
+
+    manager.update([0, 0]);
+    // Two different level-1 regions: chunks at x=6 (region 0) and x=9
+    // (region 1, farther from center).
+    manager.onLodChunk(lodProtocol(6, 0, 1));
+    manager.onLodChunk(lodProtocol(9, 0, 1));
+
+    manager.update([0, 0]);
+    expect(countMeshes(manager)).toBe(1);
+
+    manager.update([0, 0]);
+    expect(countMeshes(manager)).toBe(2);
+  });
+
+  it("batches repeated arrivals into one rebuild per cooldown window", () => {
+    const { manager } = makeManager(
+      {},
+      { maxRegionRebuildsPerUpdate: 64, regionRebuildCooldown: 5 },
+    );
+
+    manager.update([0, 0]);
+    manager.onLodChunk(lodProtocol(6, 0, 1));
+    manager.update([0, 0]);
+    expect(countMeshes(manager)).toBe(1);
+    const firstMesh = manager.group.children[0].children[0];
+
+    // A second arrival into the same region within the cooldown must not
+    // trigger an immediate re-merge...
+    manager.onLodChunk(lodProtocol(7, 0, 1));
+    manager.update([0, 0]);
+    expect(manager.group.children[0].children[0]).toBe(firstMesh);
+
+    // ...but once the cooldown elapses the region re-merges with both.
+    for (let i = 0; i < 5; i++) manager.update([0, 0]);
+    const rebuilt = manager.group.children[0].children[0] as Mesh;
+    expect(rebuilt).not.toBe(firstMesh);
+    expect(rebuilt.geometry.getAttribute("position").count).toBe(8);
+  });
+
+  it("defers full-chunk disposal until the LOD region actually re-merged", () => {
+    const fullActive = new Set(["9,0"]);
+    const { manager, log } = makeManager(
+      { isFullChunkActive: (cx, cz) => fullActive.has(`${cx},${cz}`) },
+      { maxRegionRebuildsPerUpdate: 1 },
+    );
+
+    manager.update([0, 0]);
+    // Nearer region (chunk 6,0) competes for the single-slot budget with the
+    // demote replacement for chunk (9,0) in the farther region.
+    manager.onLodChunk(lodProtocol(6, 0, 1));
+    manager.onLodChunk(lodProtocol(9, 0, 1));
+
+    manager.update([0, 0]);
+    expect(log.disposedFull).toHaveLength(0);
+
+    manager.update([0, 0]);
+    expect(log.disposedFull).toEqual([[9, 0]]);
+  });
+
+  it("defers the full-chunk reveal until the LOD form left the scene", () => {
+    const { manager, log } = makeManager({}, { maxRegionRebuildsPerUpdate: 1 });
+
+    manager.update([0, 0]);
+    manager.onLodChunk(lodProtocol(9, 0, 1));
+    manager.update([0, 0]);
+    expect(manager.hasDisplayedForm(9, 0)).toBe(true);
+
+    // Retire the LOD form while a nearer region hogs the rebuild budget.
+    manager.onLodChunk(lodProtocol(6, 0, 1));
+    manager.onFullChunkDisplayable(9, 0);
+
+    manager.update([0, 0]);
+    expect(log.revealedFull).toHaveLength(0);
+
+    manager.update([0, 0]);
+    expect(log.revealedFull).toEqual([[9, 0]]);
   });
 });

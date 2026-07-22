@@ -1,5 +1,13 @@
 import { ChunkProtocol, GeometryProtocol } from "@voxelize/protocol";
-import { BufferAttribute, BufferGeometry, Group, Material, Mesh } from "three";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Group,
+  Material,
+  Mesh,
+  Sphere,
+  Vector3,
+} from "three";
 
 import { Coords2 } from "../../types";
 import { ChunkUtils } from "../../utils";
@@ -83,7 +91,7 @@ export function resolveLodTarget(
  * how far it is.
  */
 export function lodRegionSideInChunks(level: number): number {
-  return 1 << (level + 1);
+  return 1 << (level + 2);
 }
 
 export function lodRegionKey(cx: number, cz: number, level: number): string {
@@ -131,19 +139,47 @@ export type LodChunkManagerOptions = {
   rerequestInterval: number;
   /** Hard clamp on the LOD horizon, in chunks. */
   maxLodRadius: number;
+  /**
+   * How many region meshes may be re-merged (and re-uploaded) per update.
+   * This is the throttle that keeps ring transitions hitch-free: swaps whose
+   * region has not been rebuilt yet simply stay on their previous form.
+   */
+  maxRegionRebuildsPerUpdate: number;
+  /**
+   * Minimum updates between two rebuilds of the same region, so a region
+   * receiving a stream of chunk arrivals batches them instead of re-merging
+   * per arrival.
+   */
+  regionRebuildCooldown: number;
+};
+
+/**
+ * A chunk's LOD geometry, converted once at arrival into merge-ready typed
+ * arrays — material resolved, flat normals computed — so region rebuilds are
+ * pure buffer copies.
+ */
+type PreparedLodGeometry = {
+  materialKey: string;
+  material: Material;
+  voxel: number;
+  positions: Float32Array;
+  uvs: Float32Array;
+  lights: ArrayLike<number>;
+  indices: ArrayLike<number>;
+  normals: Float32Array;
 };
 
 type LodGeometryBucket = {
   material: Material;
   voxel: number;
-  geometries: { chunk: LodChunkState; geometry: GeometryProtocol }[];
+  geometries: { chunk: LodChunkState; geometry: PreparedLodGeometry }[];
 };
 
 type LodChunkState = {
   name: string;
   coords: Coords2;
   displayedLevel: number | null;
-  geometries: GeometryProtocol[] | null;
+  geometries: PreparedLodGeometry[] | null;
   requestedLevel: number | null;
   requestedAt: number;
 };
@@ -151,13 +187,17 @@ type LodChunkState = {
 type LodRegion = {
   key: string;
   level: number;
+  /** Region center in chunk coordinates, for rebuild prioritization. */
+  center: Coords2;
   members: Set<LodChunkState>;
   group: Group;
   meshes: Mesh[];
   isDirty: boolean;
+  /** Update count of the last rebuild, for the rebuild cooldown. */
+  lastRebuildAt: number;
 };
 
-const SCAN_INTERVAL_UPDATES = 30;
+const SCAN_INTERVAL_UPDATES = 90;
 
 function computeFlatNormalsInto(
   normals: Float32Array,
@@ -214,14 +254,21 @@ export class LodChunkManager {
   private lastCenter: Coords2 | null = null;
 
   private candidates: [number, number, number][] = [];
-  private pendingFullDisposals: Coords2[] = [];
-  private pendingFullReveals: Coords2[] = [];
+
+  // Swap commits deferred until the region holding the chunk's new (or old)
+  // form has actually re-merged, so a form is never torn down before its
+  // replacement geometry is on screen — even though rebuilds are budgeted
+  // across frames.
+  private pendingFullDisposals: { name: string; coords: Coords2 }[] = [];
+  private pendingFullReveals: { coords: Coords2; regionKey: string }[] = [];
 
   constructor(
     private host: LodChunkManagerHost,
     private options: LodChunkManagerOptions,
   ) {
     this.group.name = "lod-chunks";
+    this.group.matrixAutoUpdate = false;
+    this.group.updateMatrix();
   }
 
   get maxLodLevel(): number {
@@ -318,15 +365,70 @@ export class LodChunkManager {
       this.removeFromRegion(state, state.displayedLevel);
     }
 
-    state.geometries = mesh.geometries ?? [];
+    state.geometries = this.prepareGeometries(mesh.geometries ?? []);
     state.displayedLevel = level;
     this.addToRegion(state, level);
 
     // Reaching here with an active full form means this arrival is the
-    // demote replacement: the full chunk is disposed after regions rebuild.
+    // demote replacement: the full chunk is disposed once the region that
+    // now carries the LOD geometry has rebuilt.
     if (this.host.isFullChunkActive(x, z)) {
-      this.pendingFullDisposals.push([x, z]);
+      if (!this.pendingFullDisposals.some((entry) => entry.name === name)) {
+        this.pendingFullDisposals.push({ name, coords: [x, z] });
+      }
     }
+  }
+
+  /**
+   * Convert wire geometries into merge-ready form once, at arrival: resolve
+   * the material (and its bucket identity), and compute flat normals —
+   * normals depend only on the chunk's own geometry, never on region
+   * membership. Region rebuilds then reduce to buffer copies.
+   */
+  private prepareGeometries(
+    geometries: GeometryProtocol[],
+  ): PreparedLodGeometry[] {
+    const prepared: PreparedLodGeometry[] = [];
+
+    for (const geometry of geometries) {
+      if (!geometry.positions?.length || !geometry.indices?.length) {
+        continue;
+      }
+      // Isolated per-position faces cannot resolve a shared material at LOD
+      // scale; the downsampler avoids such representatives, so simply skip
+      // the rare leftover face.
+      if (geometry.at && geometry.at.length) continue;
+
+      const resolved = this.host.resolveMaterial(
+        geometry.voxel,
+        geometry.faceName ?? undefined,
+      );
+      if (!resolved) continue;
+
+      const positions =
+        geometry.positions instanceof Float32Array
+          ? geometry.positions
+          : new Float32Array(geometry.positions);
+      const indices = new Uint32Array(geometry.indices);
+      const normals = new Float32Array(positions.length);
+      computeFlatNormalsInto(normals, positions, indices);
+
+      prepared.push({
+        materialKey: resolved.key,
+        material: resolved.material,
+        voxel: geometry.voxel,
+        positions,
+        uvs:
+          geometry.uvs instanceof Float32Array
+            ? geometry.uvs
+            : new Float32Array(geometry.uvs),
+        lights: geometry.lights,
+        indices,
+        normals,
+      });
+    }
+
+    return prepared;
   }
 
   /**
@@ -338,11 +440,12 @@ export class LodChunkManager {
     const state = this.states.get(ChunkUtils.getChunkName([cx, cz]));
     if (!state || state.displayedLevel === null) return;
 
+    const regionKey = lodRegionKey(cx, cz, state.displayedLevel);
     this.removeFromRegion(state, state.displayedLevel);
     state.displayedLevel = null;
     state.geometries = null;
     state.requestedLevel = null;
-    this.pendingFullReveals.push([cx, cz]);
+    this.pendingFullReveals.push({ coords: [cx, cz], regionKey });
   }
 
   /**
@@ -382,14 +485,16 @@ export class LodChunkManager {
       centerChanged ||
       this.updateCount - this.lastScanUpdate >= SCAN_INTERVAL_UPDATES
     ) {
-      this.scan(center);
+      // Discovery of never-requested cells is only needed when the window
+      // itself moved; the periodic safety-net scan just maintains tracked
+      // chunks (retries, removals) at a fraction of the cost.
+      this.scan(center, centerChanged);
       this.lastScanUpdate = this.updateCount;
       this.lastCenter = [center[0], center[1]];
     }
 
     this.flushRequests();
-    this.rebuildDirtyRegions();
-    this.commitSwaps();
+    this.rebuildBudgetedRegions(center);
   }
 
   dispose(): void {
@@ -400,6 +505,8 @@ export class LodChunkManager {
     this.regions.clear();
     this.states.clear();
     this.candidates = [];
+    this.pendingFullDisposals = [];
+    this.pendingFullReveals = [];
   }
 
   /**
@@ -410,7 +517,7 @@ export class LodChunkManager {
    * pure arithmetic plus a numeric-key set — and only produces candidates
    * for untracked ring chunks.
    */
-  private scan(center: Coords2): void {
+  private scan(center: Coords2, isDiscovering: boolean): void {
     const renderRadius = this.host.renderRadius();
     const { maxLodLevel, hysteresis, rerequestInterval } = this.options;
     const scanRadius = Math.ceil(this.visualRadius + hysteresis);
@@ -422,7 +529,7 @@ export class LodChunkManager {
     const stride = scanRadius * 2 + 1;
     const windowKey = (cx: number, cz: number) =>
       (cx - centerX + scanRadius) * stride + (cz - centerZ + scanRadius);
-    const tracked = new Set<number>();
+    const tracked = isDiscovering ? new Set<number>() : null;
 
     for (const state of this.states.values()) {
       const [cx, cz] = state.coords;
@@ -435,7 +542,7 @@ export class LodChunkManager {
         continue;
       }
 
-      tracked.add(windowKey(cx, cz));
+      tracked?.add(windowKey(cx, cz));
 
       const currentLevel =
         state.displayedLevel ??
@@ -477,41 +584,54 @@ export class LodChunkManager {
       requests.push({ cx, cz, level: target, d: distance });
     }
 
-    // Full-detail chunks only exist near the render radius (or transiently
-    // just past it mid-demote); beyond this bound the loaded-chunk lookup is
-    // pointless, and a stray full chunk further out still demotes correctly
-    // once its LOD mesh arrives.
-    const fullLookupBound = renderRadius + hysteresis + 2;
+    if (tracked) {
+      // Full-detail chunks only exist near the render radius (or transiently
+      // just past it mid-demote); beyond this bound the loaded-chunk lookup
+      // is pointless, and a stray full chunk further out still demotes
+      // correctly once its LOD mesh arrives.
+      const fullLookupBound = renderRadius + hysteresis + 2;
 
-    for (let ox = -scanRadius; ox <= scanRadius; ox++) {
-      for (let oz = -scanRadius; oz <= scanRadius; oz++) {
-        const distance = Math.sqrt(ox * ox + oz * oz);
-        if (distance > scanRadius) continue;
+      for (let ox = -scanRadius; ox <= scanRadius; ox++) {
+        for (let oz = -scanRadius; oz <= scanRadius; oz++) {
+          const distance = Math.sqrt(ox * ox + oz * oz);
+          if (distance > scanRadius) continue;
 
-        const cx = centerX + ox;
-        const cz = centerZ + oz;
-        if (tracked.has(windowKey(cx, cz))) continue;
+          const cx = centerX + ox;
+          const cz = centerZ + oz;
+          if (tracked.has(windowKey(cx, cz))) continue;
 
-        const currentLevel =
-          distance <= fullLookupBound && this.host.isFullChunkActive(cx, cz)
-            ? 0
-            : null;
-        const target = resolveLodTarget(
-          distance,
-          currentLevel,
-          renderRadius,
-          maxLodLevel,
-          hysteresis,
-        );
-        if (target === null || target === 0) continue;
-        if (!this.host.isWithinWorld(cx, cz)) continue;
+          const currentLevel =
+            distance <= fullLookupBound && this.host.isFullChunkActive(cx, cz)
+              ? 0
+              : null;
+          const target = resolveLodTarget(
+            distance,
+            currentLevel,
+            renderRadius,
+            maxLodLevel,
+            hysteresis,
+          );
+          if (target === null || target === 0) continue;
+          if (!this.host.isWithinWorld(cx, cz)) continue;
 
-        requests.push({ cx, cz, level: target, d: distance });
+          requests.push({ cx, cz, level: target, d: distance });
+        }
       }
     }
 
     requests.sort((a, b) => a.d - b.d);
-    this.candidates = requests.map(({ cx, cz, level }) => [cx, cz, level]);
+    if (isDiscovering) {
+      this.candidates = requests.map(({ cx, cz, level }) => [cx, cz, level]);
+    } else {
+      // Maintenance scans only produce tracked-chunk work (retries, level
+      // changes) — disjoint from any still-unflushed discovery candidates,
+      // which must survive until their turn in the request budget.
+      this.candidates.push(
+        ...requests.map(
+          ({ cx, cz, level }) => [cx, cz, level] as [number, number, number],
+        ),
+      );
+    }
 
     if (toRemove.length) {
       const unloaded: Coords2[] = [];
@@ -560,15 +680,23 @@ export class LodChunkManager {
     const key = lodRegionKey(state.coords[0], state.coords[1], level);
     let region = this.regions.get(key);
     if (!region) {
+      const side = lodRegionSideInChunks(level);
       region = {
         key,
         level,
+        center: [
+          (Math.floor(state.coords[0] / side) + 0.5) * side,
+          (Math.floor(state.coords[1] / side) + 0.5) * side,
+        ],
         members: new Set(),
         group: new Group(),
         meshes: [],
         isDirty: false,
+        lastRebuildAt: -Infinity,
       };
       region.group.name = `lod-region-${key}`;
+      region.group.matrixAutoUpdate = false;
+      region.group.updateMatrix();
       this.group.add(region.group);
       this.regions.set(key, region);
     }
@@ -584,27 +712,93 @@ export class LodChunkManager {
     region.isDirty = true;
   }
 
-  private rebuildDirtyRegions(): void {
+  /**
+   * Re-merge at most `maxRegionRebuildsPerUpdate` dirty regions per update,
+   * nearest first, each no more often than the cooldown allows. Everything
+   * else stays exactly as it was — a dirty region keeps showing its previous
+   * merge, and the swap commits waiting on it stay on their previous form —
+   * so ring transitions cost a bounded slice of every frame instead of one
+   * long stall at the boundary.
+   */
+  private rebuildBudgetedRegions(center: Coords2): void {
+    let candidates: { region: LodRegion; distanceSquared: number }[] | null =
+      null;
+
     for (const region of this.regions.values()) {
       if (!region.isDirty) continue;
+      if (
+        this.updateCount - region.lastRebuildAt <
+        this.options.regionRebuildCooldown
+      ) {
+        continue;
+      }
+
+      const dx = region.center[0] - center[0];
+      const dz = region.center[1] - center[1];
+      (candidates ??= []).push({
+        region,
+        distanceSquared: dx * dx + dz * dz,
+      });
+    }
+
+    if (!candidates) return;
+
+    candidates.sort((a, b) => a.distanceSquared - b.distanceSquared);
+
+    const budget = Math.min(
+      this.options.maxRegionRebuildsPerUpdate,
+      candidates.length,
+    );
+    for (let i = 0; i < budget; i++) {
+      const region = candidates[i].region;
       region.isDirty = false;
+      region.lastRebuildAt = this.updateCount;
       this.rebuildRegion(region);
+      this.commitSwapsForRegion(region.key);
     }
   }
 
-  private commitSwaps(): void {
+  /**
+   * Commit the form swaps that were waiting for this region's geometry to
+   * hit the scene: full-chunk disposals whose LOD replacement lives (and is
+   * now merged) in this region, and full-chunk reveals whose LOD stand-in
+   * was removed from it.
+   */
+  private commitSwapsForRegion(regionKey: string): void {
     if (this.pendingFullDisposals.length) {
-      for (const [cx, cz] of this.pendingFullDisposals) {
-        this.host.disposeFullChunk(cx, cz);
+      const remaining: { name: string; coords: Coords2 }[] = [];
+      for (const entry of this.pendingFullDisposals) {
+        const state = this.states.get(entry.name);
+        // The LOD form may have retired (promote finished first) or changed
+        // level meanwhile; keep waiting for whichever region carries the
+        // current form, and drop the entry when there is nothing to wait on.
+        if (!state || state.displayedLevel === null) {
+          continue;
+        }
+        const currentKey = lodRegionKey(
+          state.coords[0],
+          state.coords[1],
+          state.displayedLevel,
+        );
+        if (currentKey === regionKey) {
+          this.host.disposeFullChunk(entry.coords[0], entry.coords[1]);
+        } else {
+          remaining.push(entry);
+        }
       }
-      this.pendingFullDisposals = [];
+      this.pendingFullDisposals = remaining;
     }
 
     if (this.pendingFullReveals.length) {
-      for (const [cx, cz] of this.pendingFullReveals) {
-        this.host.setFullChunkVisible(cx, cz, true);
+      const remaining: { coords: Coords2; regionKey: string }[] = [];
+      for (const entry of this.pendingFullReveals) {
+        if (entry.regionKey === regionKey) {
+          this.host.setFullChunkVisible(entry.coords[0], entry.coords[1], true);
+        } else {
+          remaining.push(entry);
+        }
       }
-      this.pendingFullReveals = [];
+      this.pendingFullReveals = remaining;
     }
   }
 
@@ -616,6 +810,13 @@ export class LodChunkManager {
     region.meshes = [];
   }
 
+  /**
+   * Re-merge one region's prepared chunk geometries into one mesh per
+   * material. All expensive per-geometry work (material resolution, normal
+   * computation) happened at arrival; this is buffer concatenation with a
+   * position offset, plus the bounding sphere derived from bounds tracked
+   * during the copy.
+   */
   private rebuildRegion(region: LodRegion): void {
     this.disposeRegionMeshes(region);
 
@@ -630,28 +831,14 @@ export class LodChunkManager {
     for (const state of region.members) {
       if (!state.geometries) continue;
       for (const geometry of state.geometries) {
-        if (!geometry.positions?.length || !geometry.indices?.length) {
-          continue;
-        }
-        // Isolated per-position faces cannot resolve a shared material at
-        // LOD scale; the downsampler avoids such representatives, so simply
-        // skip the rare leftover face.
-        if (geometry.at && geometry.at.length) continue;
-
-        const resolved = this.host.resolveMaterial(
-          geometry.voxel,
-          geometry.faceName ?? undefined,
-        );
-        if (!resolved) continue;
-
-        let bucket = buckets.get(resolved.key);
+        let bucket = buckets.get(geometry.materialKey);
         if (!bucket) {
           bucket = {
-            material: resolved.material,
+            material: geometry.material,
             voxel: geometry.voxel,
             geometries: [],
           };
-          buckets.set(resolved.key, bucket);
+          buckets.set(geometry.materialKey, bucket);
         }
         bucket.geometries.push({ chunk: state, geometry });
       }
@@ -675,10 +862,17 @@ export class LodChunkManager {
       const positions = new Float32Array(vertexCount * 3);
       const uvs = new Float32Array(vertexCount * 2);
       const lights = new Int32Array(vertexCount);
+      const normals = new Float32Array(vertexCount * 3);
       const indices = new Uint32Array(indexCount);
 
       let vertexBase = 0;
       let indexBase = 0;
+      let minX = Infinity;
+      let minY = Infinity;
+      let minZ = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      let maxZ = -Infinity;
 
       for (const { chunk, geometry } of bucket.geometries) {
         const offsetX = chunk.coords[0] * chunkSize;
@@ -686,12 +880,21 @@ export class LodChunkManager {
         const count = geometry.positions.length / 3;
 
         for (let i = 0; i < count; i++) {
-          positions[(vertexBase + i) * 3] = geometry.positions[i * 3] + offsetX;
-          positions[(vertexBase + i) * 3 + 1] = geometry.positions[i * 3 + 1];
-          positions[(vertexBase + i) * 3 + 2] =
-            geometry.positions[i * 3 + 2] + offsetZ;
+          const x = geometry.positions[i * 3] + offsetX;
+          const y = geometry.positions[i * 3 + 1];
+          const z = geometry.positions[i * 3 + 2] + offsetZ;
+          positions[(vertexBase + i) * 3] = x;
+          positions[(vertexBase + i) * 3 + 1] = y;
+          positions[(vertexBase + i) * 3 + 2] = z;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (z < minZ) minZ = z;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+          if (z > maxZ) maxZ = z;
         }
         uvs.set(geometry.uvs, vertexBase * 2);
+        normals.set(geometry.normals, vertexBase * 3);
         for (let i = 0; i < count; i++) {
           lights[vertexBase + i] = geometry.lights[i] | lodLevelBits;
         }
@@ -703,16 +906,22 @@ export class LodChunkManager {
         indexBase += geometry.indices.length;
       }
 
-      const normals = new Float32Array(vertexCount * 3);
-      computeFlatNormalsInto(normals, positions, indices);
-
       const merged = new BufferGeometry();
       merged.setAttribute("position", new BufferAttribute(positions, 3));
       merged.setAttribute("uv", new BufferAttribute(uvs, 2));
       merged.setAttribute("light", new BufferAttribute(lights, 1));
       merged.setAttribute("normal", new BufferAttribute(normals, 3));
       merged.setIndex(new BufferAttribute(indices, 1));
-      merged.computeBoundingSphere();
+
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const centerZ = (minZ + maxZ) / 2;
+      merged.boundingSphere = new Sphere(
+        new Vector3(centerX, centerY, centerZ),
+        Math.sqrt(
+          (maxX - centerX) ** 2 + (maxY - centerY) ** 2 + (maxZ - centerZ) ** 2,
+        ),
+      );
 
       const mesh = new Mesh(merged, bucket.material);
       mesh.matrixAutoUpdate = false;

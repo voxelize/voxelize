@@ -30,8 +30,14 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 /* -------------------------------------------------------------------------- */
 /*                               VOXELIZE WORLD                               */
 /* -------------------------------------------------------------------------- */
+const isLodDisabled =
+  new URLSearchParams(window.location.search).get("noLod") === "1";
+
+let worldUpdateMs = 0;
+
 const world = new VOXELIZE.World({
   textureUnitDimension: 8,
+  isLodEnabled: !isLodDisabled,
 });
 // actual world setup code handled later after network and world are initialized
 
@@ -656,6 +662,28 @@ debug.registerDisplay("# of points", () => {
   return renderer.info.render.points;
 });
 
+debug.registerDisplay("# of draw calls", () => {
+  return renderer.info.render.calls;
+});
+
+debug.registerDisplay("World update (ms)", () => {
+  return worldUpdateMs.toFixed(2);
+});
+
+let fpsFrameCount = 0;
+let fpsWindowStart = performance.now();
+let fpsValue = 0;
+debug.registerDisplay("FPS", () => {
+  fpsFrameCount++;
+  const now = performance.now();
+  if (now - fpsWindowStart >= 1000) {
+    fpsValue = Math.round((fpsFrameCount * 1000) / (now - fpsWindowStart));
+    fpsFrameCount = 0;
+    fpsWindowStart = now;
+  }
+  return fpsValue;
+});
+
 debug.registerDisplay("Concurrent WebWorkers", () => {
   return VOXELIZE.WorkerPool.WORKING_COUNT;
 });
@@ -1100,10 +1128,12 @@ const update = () => {
 
   world.chunkRenderer.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
+  const worldUpdateStart = performance.now();
   world.update(
     controls.object.position,
     camera.getWorldDirection(new THREE.Vector3()),
   );
+  worldUpdateMs = performance.now() - worldUpdateStart;
 
   entities.update();
 
@@ -1120,9 +1150,17 @@ const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
 overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
 composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
+// Accumulate renderer.info across every composer pass of a frame so the
+// debug panel reports whole-frame draw calls/triangles; the reset happens
+// here once per frame instead of inside each render() call.
+renderer.info.autoReset = false;
+
 const animate = () => {
   requestAnimationFrame(animate);
+  // The debug panel (inside update) reads the previous frame's accumulated
+  // totals; reset just before this frame's passes begin.
   if (isFocused) update();
+  renderer.info.reset();
   composer.render();
   renderer.clearDepth();
   renderer.render(armScene, armCamera);
