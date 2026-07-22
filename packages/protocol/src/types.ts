@@ -37,6 +37,12 @@ export type GeometryProtocol = {
 export type MeshProtocol = {
   level: number;
   geometries: GeometryProtocol[];
+  /**
+   * Level of detail this mesh was built at. `0` (or absent) is a full-detail
+   * sub-chunk mesh; `L >= 1` is a whole-column chunk mesh downsampled by
+   * `2^L`, carrying no voxel or light data alongside it.
+   */
+  lod?: number;
 };
 
 export type ChunkProtocol = {

@@ -173,6 +173,13 @@ interface MeshState {
   generation: number;
   inFlightGenerations: Set<number>;
   displayedGeneration: number;
+  /**
+   * Whether a mesh result (possibly empty) has ever been applied for this
+   * key — either built locally or accepted fresh from the server. Level-of-
+   * detail swaps use this to know when a chunk's full-detail form is
+   * complete enough to replace its LOD stand-in.
+   */
+  hasDisplayed: boolean;
 }
 
 export class MeshPipeline {
@@ -187,6 +194,7 @@ export class MeshPipeline {
         generation: 0,
         inFlightGenerations: new Set(),
         displayedGeneration: 0,
+        hasDisplayed: false,
       };
       this.states.set(key, state);
     }
@@ -244,6 +252,7 @@ export class MeshPipeline {
     }
 
     state.displayedGeneration = jobGeneration;
+    state.hasDisplayed = true;
     return true;
   }
 
@@ -267,19 +276,25 @@ export class MeshPipeline {
 
   markFreshFromServer(cx: number, cz: number, level: number): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
-    let state = this.states.get(key);
-    if (!state) {
-      state = {
-        generation: 0,
-        inFlightGenerations: new Set(),
-        displayedGeneration: 0,
-      };
-      this.states.set(key, state);
-    }
+    const state = this.getOrCreate(key);
     state.displayedGeneration = state.generation;
+    state.hasDisplayed = true;
     state.inFlightGenerations.clear();
     this.dirty.delete(key);
     this.urgentDirty.delete(key);
+  }
+
+  /**
+   * Whether every sub-chunk level of this chunk has had a mesh result
+   * applied at least once — i.e. the chunk's full-detail form is visually
+   * complete (some levels may legitimately be empty).
+   */
+  hasDisplayedAllLevels(cx: number, cz: number, subChunks: number): boolean {
+    for (let level = 0; level < subChunks; level++) {
+      const state = this.states.get(MeshPipeline.makeKey(cx, cz, level));
+      if (!state?.hasDisplayed) return false;
+    }
+    return true;
   }
 
   getDirtyKeys(): string[] {

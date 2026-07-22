@@ -3047,6 +3047,102 @@ mod chunk_lod_wiring_tests {
         });
     }
 
+    // The sending system routes by interest form: LOD-interested clients get
+    // only the compact LOD model (no voxel or light data), full-interest
+    // clients get chunk data exactly as before.
+    #[test]
+    fn sending_system_routes_lod_and_full_forms_by_interest() {
+        use specs::RunNow;
+
+        actix::System::new().block_on(async {
+            let config = WorldConfig::new()
+                .min_chunk([-3, -3])
+                .max_chunk([3, 3])
+                .max_height(64)
+                .sub_chunks(4)
+                .chunk_lod(Some(ChunkLodConfig { max_level: 2 }))
+                .build();
+            let mut world = World::new("lod-sending", &config);
+            let mut registry = Registry::new();
+            registry.register_block(&Block::new("Stone").id(1).build());
+            world.ecs_mut().insert(registry);
+            world
+                .pipeline_mut()
+                .add_stage(FlatlandStage::new().add_soiling(1, 10));
+
+            let coords = Vec2(0, 0);
+            let mut requests = ChunkRequestsComp::new();
+            requests.add_lod(&coords, 1);
+            world
+                .ecs_mut()
+                .create_entity()
+                .with(IDComp::new("lod-client"))
+                .with(requests)
+                .build();
+
+            let deadline = StdInstant::now() + StdDuration::from_secs(20);
+            while !world.chunks().is_chunk_ready(&coords) {
+                world.tick();
+                assert!(StdInstant::now() < deadline, "chunk never became ready");
+                std::thread::sleep(StdDuration::from_millis(5));
+            }
+
+            {
+                let mut interests = world.chunk_interest_mut();
+                interests.add_lod("lod-client", &coords, 1);
+                interests.add("full-client", &coords);
+            }
+            // Drain whatever the tick loop already queued, then trigger one
+            // clean send of the ready chunk.
+            world.write_resource::<MessageQueues>().drain_prioritized();
+            world
+                .chunks_mut()
+                .add_chunk_to_send(&coords, &MessageType::Load, false);
+
+            ChunkSendingSystem::new().run_now(world.ecs());
+
+            let queued = world
+                .write_resource::<MessageQueues>()
+                .drain_prioritized();
+
+            let mut lod_payloads = 0;
+            let mut full_payloads = 0;
+
+            for (message, filter) in queued {
+                let client_id = match &filter {
+                    ClientFilter::Direct(id) => id.clone(),
+                    other => panic!("unexpected filter {:?}", other),
+                };
+
+                for chunk in &message.chunks {
+                    if client_id == "lod-client" {
+                        lod_payloads += 1;
+                        assert_eq!(chunk.meshes.len(), 1);
+                        assert_eq!(chunk.meshes[0].lod, 1);
+                        assert!(
+                            chunk.voxels.is_empty() && chunk.lights.is_empty(),
+                            "LOD clients must not receive chunk data"
+                        );
+                    } else {
+                        assert_eq!(client_id, "full-client");
+                        full_payloads += 1;
+                        assert!(
+                            !chunk.voxels.is_empty(),
+                            "full clients keep receiving chunk data"
+                        );
+                        assert!(
+                            chunk.meshes.is_empty(),
+                            "client_only_meshing worlds send no full meshes"
+                        );
+                    }
+                }
+            }
+
+            assert_eq!(lod_payloads, 1, "LOD client gets exactly one LOD model");
+            assert_eq!(full_payloads, 1, "full client gets exactly one data model");
+        });
+    }
+
     // Worlds that never opt in ignore LOD requests wholesale — a client
     // cannot switch LOD serving on by itself — and levels outside the
     // configured pyramid are discarded.

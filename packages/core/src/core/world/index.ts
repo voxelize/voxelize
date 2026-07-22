@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import {
+  ChunkProtocol,
   EntityOperation,
   EntityProtocol,
   GeometryProtocol,
@@ -134,6 +135,7 @@ import {
   PY_ROTATION,
 } from "./block";
 import { Chunk } from "./chunk";
+import { LodChunkManager } from "./chunk-lod";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
   ChunkRequestCandidate,
@@ -157,6 +159,7 @@ import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 export * from "./block";
 export * from "./chunk";
+export * from "./chunk-lod";
 export * from "./chunk-renderer";
 export * from "./chunk-requests";
 export * from "./clouds";
@@ -504,6 +507,31 @@ export type WorldClientOptions = {
    * Whether to merge chunk geometries to reduce draw calls. Useful for mobile. Defaults to false.
    */
   mergeChunkGeometries: boolean;
+
+  /**
+   * Whether to render distant chunks as reduced-detail meshes when the world
+   * (server-side) has `chunk_lod` enabled. Has no effect on worlds that did
+   * not opt in. Defaults to `true`.
+   */
+  isLodEnabled: boolean;
+
+  /**
+   * Maximum LOD chunk requests sent per update. Defaults to `24`.
+   */
+  maxLodRequestsPerUpdate: number;
+
+  /**
+   * Hysteresis band width, in chunks, around every LOD ring boundary. A chunk
+   * keeps its current detail level until it moves this many chunks past the
+   * boundary, preventing thrash while hovering on a ring edge. Defaults to `1`.
+   */
+  lodHysteresis: number;
+
+  /**
+   * Hard clamp on the LOD horizon, in chunks, regardless of
+   * `renderRadius * 2^maxLevel`. Defaults to `96`.
+   */
+  maxLodRadius: number;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -534,6 +562,10 @@ const defaultOptions: WorldClientOptions = {
   lightJobRetryLimit: 3,
   deltaRetentionTime: 5000,
   mergeChunkGeometries: false,
+  isLodEnabled: true,
+  maxLodRequestsPerUpdate: 24,
+  lodHysteresis: 1,
+  maxLodRadius: 96,
 };
 
 /**
@@ -606,6 +638,13 @@ export type WorldServerOptions = {
    * The nominal water level of this world, in blocks.
    */
   waterLevel: number;
+
+  /**
+   * Level-of-detail configuration of this world, present only when the
+   * server enabled `chunk_lod`. Distant chunks are then served as compact
+   * meshes downsampled by `2^level`, for levels `1..maxLevel`.
+   */
+  chunkLod?: { maxLevel: number } | null;
 };
 
 /**
@@ -921,7 +960,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   > = new Map();
   private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
-  private deferredBlockEntityUpdates = new DeferredBlockEntityUpdateController();
+  private deferredBlockEntityUpdates =
+    new DeferredBlockEntityUpdateController();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
@@ -935,6 +975,17 @@ export class World<T = any> extends Scene implements NetIntercept {
   // must be re-established after a rejoin, drained through the paced
   // chunk-request flow.
   private chunkRefreshQueue = new Set<string>();
+
+  /**
+   * Renders distant chunks as reduced-detail meshes. Only instantiated when
+   * the server world enabled `chunk_lod` and `options.isLodEnabled` is true;
+   * `null` otherwise, at zero cost.
+   */
+  private lodManager: LodChunkManager | null = null;
+
+  // The chunk-grid center of the last `update` call, used by LOD request
+  // packets issued between updates.
+  private lastUpdateCenter: Coords2 = [0, 0];
 
   public extraInitData: Record<string, unknown> = {};
 
@@ -1248,6 +1299,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     this.buildChunkMesh(cx, cz, mesh);
+    this.maybeRetireLodForm(cx, cz);
 
     const chunk = this.getChunkByCoords(cx, cz);
     if (chunk) {
@@ -1266,6 +1318,24 @@ export class World<T = any> extends Scene implements NetIntercept {
         allMeshes: chunk.meshes,
         reason: "voxel",
       });
+    }
+  }
+
+  /**
+   * Once every sub-chunk level of a chunk has a built mesh, its full-detail
+   * form can replace the LOD stand-in. The manager commits the swap (reveal
+   * full, drop LOD) atomically inside its next update.
+   */
+  private maybeRetireLodForm(cx: number, cz: number) {
+    if (!this.lodManager?.hasDisplayedForm(cx, cz)) return;
+
+    const chunk = this.getChunkByCoords(cx, cz);
+    if (!chunk || !chunk.isReady) return;
+
+    if (
+      this.meshPipeline.hasDisplayedAllLevels(cx, cz, this.options.subChunks)
+    ) {
+      this.lodManager.onFullChunkDisplayable(cx, cz);
     }
   }
 
@@ -3766,12 +3836,87 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.lightWorkerPool.postMessage({ type: "init", registryData });
 
     this.isInitialized = true;
+    this.setupLodManager();
     this.renderRadius = this.options.defaultRenderRadius;
 
     if (this.initialEntities) {
       this.handleEntities(this.initialEntities);
       this.initialEntities = null;
     }
+  }
+
+  private setupLodManager() {
+    const chunkLod = this.options.chunkLod;
+    if (!chunkLod || chunkLod.maxLevel < 1 || !this.options.isLodEnabled) {
+      return;
+    }
+
+    this.lodManager = new LodChunkManager(
+      {
+        chunkSize: this.options.chunkSize,
+        renderRadius: () => this._renderRadius,
+        resolveMaterial: (voxel, faceName) => {
+          const material = this.getBlockFaceMaterial(voxel, faceName);
+          if (!material) return null;
+          return {
+            key: this.makeChunkMaterialKey(voxel, faceName),
+            material,
+          };
+        },
+        configureTransparentMesh: (mesh, voxel) => {
+          this.configureTransparentChunkMesh(
+            mesh,
+            voxel,
+            mesh.material as CustomChunkShaderMaterial,
+          );
+        },
+        requestLodChunks: (lodChunks) => {
+          this.packets.push({
+            type: "LOAD",
+            json: {
+              center: this.lastUpdateCenter,
+              direction: [0, 0],
+              chunks: [],
+              lodChunks,
+            },
+          });
+        },
+        unloadChunks: (chunks) => {
+          if (chunks.length) {
+            this.packets.push({ type: "UNLOAD", json: { chunks } });
+          }
+        },
+        isWithinWorld: (cx, cz) => this.isWithinWorld(cx, cz),
+        isFullChunkActive: (cx, cz) => !!this.getChunkByCoords(cx, cz),
+        disposeFullChunk: (cx, cz) => {
+          const name = ChunkUtils.getChunkName([cx, cz]);
+          const chunk = this.chunkPipeline.getLoadedChunk(name);
+          if (chunk) {
+            // The server already switched this client's interest to the LOD
+            // form when it answered the LOD request, so no UNLOAD is sent.
+            this.disposeLoadedChunk(chunk, name, { isUnloadSent: false });
+          }
+        },
+        setFullChunkVisible: (cx, cz, isVisible) => {
+          const chunk = this.getChunkByCoords(cx, cz);
+          if (chunk) {
+            chunk.group.visible = isVisible;
+          }
+        },
+        refreshFullChunk: (cx, cz) => {
+          this.chunkRefreshQueue.add(ChunkUtils.getChunkName([cx, cz]));
+        },
+      },
+      {
+        maxLodLevel: chunkLod.maxLevel,
+        hysteresis: this.options.lodHysteresis,
+        maxRequestsPerUpdate: this.options.maxLodRequestsPerUpdate,
+        rerequestInterval: this.options.chunkRerequestInterval,
+        maxLodRadius: this.options.maxLodRadius,
+      },
+    );
+
+    this.add(this.lodManager.group);
   }
   update(
     position: Vector3 = new Vector3(),
@@ -3788,6 +3933,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       position.toArray() as Coords3,
       this.options.chunkSize,
     );
+    this.lastUpdateCenter = center;
     if (this.options.doesTickTime) {
       this._time = (this.time + delta) % this.options.timePerDay;
     }
@@ -3800,6 +3946,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const startRequestChunks = performance.now();
     this.requestChunks(center, direction);
+    this.lodManager?.update(center);
     const requestChunksDuration = performance.now() - startRequestChunks;
 
     const startProcessChunks = performance.now();
@@ -3873,6 +4020,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         // immediately instead of idling until the rerequest interval.
         if (this.isInitialized) {
           this.resyncChunkStagesAfterRejoin();
+          this.lodManager?.resyncForRejoin();
         }
 
         break;
@@ -3905,6 +4053,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       case "LOAD": {
         const { chunks } = message;
         chunks.forEach((chunk) => {
+          if (this.isLodChunkProtocol(chunk)) {
+            this.lodManager?.onLodChunk(chunk);
+            return;
+          }
+
           const { x, z } = chunk;
           this.chunkPipeline.markProcessing([x, z], "load", chunk);
         });
@@ -3912,10 +4065,20 @@ export class World<T = any> extends Scene implements NetIntercept {
         break;
       }
       case "UPDATE": {
-        const { updates } = message;
+        const { updates, chunks } = message;
 
         if (updates && updates.length > 0) {
           this.applyServerUpdatesImmediately(updates);
+        }
+
+        // Voxel edits inside a chunk this client views as LOD arrive as a
+        // rebuilt reduced-detail mesh.
+        if (chunks && chunks.length > 0) {
+          chunks.forEach((chunk) => {
+            if (this.isLodChunkProtocol(chunk)) {
+              this.lodManager?.onLodChunk(chunk);
+            }
+          });
         }
 
         break;
@@ -4053,7 +4216,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   getBaseFogRange(): WorldFogRange {
     const { chunkSize, fogNearRenderRatio, fogFarRenderRatio } = this.options;
-    const renderDistance = this._renderRadius * chunkSize;
+
+    // With LOD active the visible horizon extends far beyond the full-detail
+    // radius, so fog tracks the LOD horizon instead of hiding the rings.
+    const visualRadius = this.lodManager
+      ? this.lodManager.visualRadius
+      : this._renderRadius;
+    const renderDistance = visualRadius * chunkSize;
 
     return {
       near: renderDistance * fogNearRenderRatio,
@@ -4255,6 +4424,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             this.buildChunkMesh(x, z, mesh);
             this.meshPipeline.markFreshFromServer(x, z, mesh.level);
           }
+          this.maybeRetireLodForm(x, z);
         }
       };
       if (chunk.isReady) {
@@ -4268,6 +4438,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
       }
     });
+  }
+
+  private isLodChunkProtocol(chunk: ChunkProtocol) {
+    return !!chunk.meshes?.length && (chunk.meshes[0].lod ?? 0) >= 1;
   }
 
   private isChunkReadyForEntityUpdates(
@@ -4312,47 +4486,81 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  /**
+   * Tear down a loaded chunk: events, block entities, scene group, data, and
+   * pipeline records. When `isUnloadSent` is false the server keeps its
+   * (already-downgraded) interest — used when a LOD form replaces the chunk.
+   */
+  private disposeLoadedChunk(
+    chunk: Chunk,
+    name: string,
+    { isUnloadSent }: { isUnloadSent: boolean },
+  ) {
+    const [x, z] = chunk.coords;
+
+    chunk.meshes.forEach((meshes, level) => {
+      for (const mesh of meshes) {
+        if (mesh) {
+          this.csmRenderer?.removeSkipShadowObject(mesh);
+        }
+      }
+      this.emitChunkEvent("chunk-mesh-unloaded", {
+        chunk,
+        coords: chunk.coords,
+        level,
+        meshes,
+      });
+    });
+
+    this.emitChunkEvent("chunk-unloaded", {
+      chunk,
+      coords: chunk.coords,
+      allMeshes: new Map(chunk.meshes),
+    });
+
+    this.pruneBlockEntitiesInChunk(chunk.coords);
+    this.remove(chunk.group);
+    chunk.group.visible = true;
+    chunk.dispose();
+    this.meshPipeline.remove(x, z);
+    this.chunkPipeline.remove(name);
+    this.chunkInitializeListeners.delete(name);
+    this.deferredBlockEntityUpdates.cancelChunk(name);
+
+    if (isUnloadSent) {
+      this.packets.push({
+        type: "UNLOAD",
+        json: { chunks: [chunk.coords] },
+      });
+    }
+  }
+
   private maintainChunks(center: Coords2) {
     const { deleteRadius } = this;
 
     const [centerX, centerZ] = center;
     const deleted: Coords2[] = [];
-    const toRemove: string[] = [];
 
+    // With LOD active, loaded chunks inside the LOD horizon are retired by
+    // the demote flow instead (disposed only once their reduced-detail
+    // replacement is displayable), so walking away never opens holes.
+    const dataDeleteRadius = this.lodManager
+      ? Math.max(deleteRadius, this.lodManager.visualRadius * 1.1)
+      : deleteRadius;
+
+    const loadedToDispose: { chunk: Chunk; name: string }[] = [];
     this.chunkPipeline.forEachLoaded((chunk, name) => {
       const [x, z] = chunk.coords;
 
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
-        chunk.meshes.forEach((meshes, level) => {
-          for (const mesh of meshes) {
-            if (mesh) {
-              this.csmRenderer?.removeSkipShadowObject(mesh);
-            }
-          }
-          this.emitChunkEvent("chunk-mesh-unloaded", {
-            chunk,
-            coords: chunk.coords,
-            level,
-            meshes,
-          });
-        });
-
-        this.emitChunkEvent("chunk-unloaded", {
-          chunk,
-          coords: chunk.coords,
-          allMeshes: new Map(chunk.meshes),
-        });
-
-        this.pruneBlockEntitiesInChunk(chunk.coords);
-        this.remove(chunk.group);
-        chunk.dispose();
-        this.meshPipeline.remove(x, z);
-        toRemove.push(name);
-        deleted.push(chunk.coords);
+      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > dataDeleteRadius ** 2) {
+        loadedToDispose.push({ chunk, name });
       }
     });
 
-    toRemove.forEach((name) => this.chunkPipeline.remove(name));
+    for (const { chunk, name } of loadedToDispose) {
+      this.disposeLoadedChunk(chunk, name, { isUnloadSent: false });
+      deleted.push(chunk.coords);
+    }
 
     this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
@@ -4381,11 +4589,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.deferredBlockEntityUpdates.cancelChunk(name);
     });
 
-    if (deleted.length) {
+    // Chunks the LOD manager tracks keep their server-side interest — the
+    // manager owns (and re-forms) it; an UNLOAD here would tear down the LOD
+    // stream it just negotiated.
+    const toUnload = this.lodManager
+      ? deleted.filter(([x, z]) => !this.lodManager.owns(x, z))
+      : deleted;
+
+    if (toUnload.length) {
       this.packets.push({
         type: "UNLOAD",
         json: {
-          chunks: deleted,
+          chunks: toUnload,
         },
       });
     }
@@ -4950,6 +5165,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (!this.children.includes(chunk.group)) {
       this.add(chunk.group);
+    }
+
+    // While a LOD stand-in still displays for this chunk, its full-detail
+    // meshes build hidden: coarse and fine surfaces can be coplanar (flat
+    // terrain), so showing both would z-fight. The LOD manager reveals the
+    // group atomically once every sub-chunk level is built.
+    if (this.lodManager?.hasDisplayedForm(cx, cz)) {
+      chunk.group.visible = false;
     }
 
     if (!chunk.meshes.has(level)) {
@@ -6048,7 +6271,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   }
 
-  private handleLightJobResult(job: LightJob, result: LightWorkerResult | null) {
+  private handleLightJobResult(
+    job: LightJob,
+    result: LightWorkerResult | null,
+  ) {
     if (
       !this.activeLightBatch ||
       this.activeLightBatch.batchId !== job.batchId

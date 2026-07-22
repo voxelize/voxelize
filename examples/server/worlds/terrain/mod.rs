@@ -4,8 +4,8 @@ use noise::{Curve, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, ScaleBias};
 use serde::{Deserialize, Serialize};
 use std::f64;
 use voxelize::{
-    Biome, Chunk, ChunkStage, KdTree, LSystem, NoiseOptions, Resources, SeededNoise, Space,
-    Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
+    Biome, Chunk, ChunkLodConfig, ChunkStage, KdTree, LSystem, NoiseOptions, Resources,
+    SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
 };
 
 use super::shared::{
@@ -146,6 +146,9 @@ pub fn setup_terrain_world() -> World {
         .default_time(1200.0)
         .time_per_day(2400)
         .seed(999)
+        // Opt into distant-chunk LOD: clients render chunks beyond their
+        // render radius R as reduced-detail meshes, out to R * 2^max_level.
+        .chunk_lod(Some(ChunkLodConfig { max_level: 2 }))
         .build();
 
     let mut world = World::new("terrain", &config);
