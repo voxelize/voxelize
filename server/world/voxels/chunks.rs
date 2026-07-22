@@ -531,6 +531,19 @@ impl Chunks {
         }
     }
 
+    /// The raw value a voxel is staged to become, if an update for it is
+    /// pending (staging area or processing queue). Lets callers observe
+    /// what `update_voxel` accepted before the update system commits it.
+    pub fn staged_update_at(&self, voxel: &Vec3<i32>) -> Option<u32> {
+        if let Some(val) = self.updates_staging.get(voxel) {
+            return Some(*val);
+        }
+        self.updates
+            .iter()
+            .find(|(queued, _)| queued == voxel)
+            .map(|(_, val)| *val)
+    }
+
     /// Schedule `voxel` to become active at absolute tick `active_at`.
     ///
     /// Earliest-deadline upsert:
