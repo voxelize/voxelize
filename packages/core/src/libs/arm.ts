@@ -134,6 +134,14 @@ export class Arm extends THREE.Group {
 
   public heldLightColor = new THREE.Color(1, 1, 1);
 
+  /**
+   * Whether a left click plays the default arm swing. Consumers that own the
+   * left click and drive their own held-object animation (e.g. a gun with its
+   * own recoil) can disable this so the melee swing does not fight and rotate
+   * their viewmodel. Explicit {@link doSwing} calls are unaffected.
+   */
+  public isClickSwingEnabled = true;
+
   emitSwingEvent: () => void;
 
   constructor(options: Partial<ArmOptions> = {}) {
@@ -224,7 +232,14 @@ export class Arm extends THREE.Group {
    * @param namespace The namespace to bind the arm's keyboard inputs to.
    */
   public connect = (inputs: Inputs, namespace = "*") => {
-    const unbindLeftClick = inputs.click("left", this.doSwing, namespace);
+    const unbindLeftClick = inputs.click(
+      "left",
+      () => {
+        if (!this.isClickSwingEnabled) return;
+        this.doSwing();
+      },
+      namespace,
+    );
 
     return () => {
       try {
