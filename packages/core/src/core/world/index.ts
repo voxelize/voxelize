@@ -921,7 +921,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   > = new Map();
   private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
-  private deferredBlockEntityUpdates = new DeferredBlockEntityUpdateController();
+  private deferredBlockEntityUpdates =
+    new DeferredBlockEntityUpdateController();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
@@ -6048,7 +6049,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   }
 
-  private handleLightJobResult(job: LightJob, result: LightWorkerResult | null) {
+  private handleLightJobResult(
+    job: LightJob,
+    result: LightWorkerResult | null,
+  ) {
     if (
       !this.activeLightBatch ||
       this.activeLightBatch.batchId !== job.batchId
@@ -6404,6 +6408,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
         uSunlightIntensity: chunksUniforms.sunlightIntensity,
         uAOTable: chunksUniforms.ao,
+        uFaceShades: chunksUniforms.faceShades,
         uMinLightLevel: chunksUniforms.minLightLevel,
         uBaseAmbient: chunksUniforms.baseAmbient,
         uFogNear: chunksUniforms.fogNear,

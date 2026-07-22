@@ -72,6 +72,7 @@ export class ChunkRenderer {
     fogNear: { value: number };
     fogFar: { value: number };
     ao: { value: Vector4 };
+    faceShades: { value: Vector4 };
     minLightLevel: { value: number };
     baseAmbient: { value: number };
     sunlightIntensity: { value: number };
@@ -110,6 +111,7 @@ export class ChunkRenderer {
     windOffset: { value: new Vector2(0, 0) },
     windSpeed: { value: 1.0 },
     ao: { value: new Vector4(45.0, 105.0, 180.0, 255.0) },
+    faceShades: { value: new Vector4(0.7, 0.85, 0.62, 1.0) },
     minLightLevel: { value: 0.04 },
     baseAmbient: { value: 0.005 },
     sunlightIntensity: { value: 1 },

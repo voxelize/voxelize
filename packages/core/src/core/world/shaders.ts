@@ -216,6 +216,7 @@ uniform float uShowGreedyDebug;
 uniform vec3 uAmbientColor;
 uniform float uMinLightLevel;
 uniform float uBaseAmbient;
+uniform vec4 uFaceShades;
 
 uniform sampler2D uShadowMap0;
 uniform sampler2D uShadowMap1;
@@ -496,12 +497,15 @@ vec3 torchLight = smoothTorch * 1.2;
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
 float sunVisibility = clamp(sunExposure, 0.0, 1.0);
 float fragmentWaterDepth = max(0.0, uWaterLevel - vWorldPosition.y);
-float isFragmentUnderwater = step(vWorldPosition.y, uWaterLevel);
 
-// A water column attenuates voxel sunlight per block, so a fragment clearly
-// brighter than a column of that depth allows is dry ground below the
-// nominal water level (valleys, flatlands) and must not be shaded as
-// submerged.
+// Downwelling attenuation is a view-from-under-the-surface effect. Gating it
+// on camera submersion leaves dry terrain that merely sits below the water
+// line — caves, tunnels, sunken valleys — on its natural ambient floor
+// instead of crushing unlit fragments to black.
+float isFragmentUnderwater = step(vWorldPosition.y, uWaterLevel) * uCameraSubmersion;
+
+// While submerged, a fragment brighter than a full water column of its depth
+// allows is a dry pocket, not seabed, and must not be shaded as submerged.
 float expectedUnderwaterSun = exp(-${VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK.toFixed(5)} * fragmentWaterDepth);
 isFragmentUnderwater *= 1.0 - smoothstep(
   expectedUnderwaterSun + 0.04,
@@ -539,6 +543,16 @@ float torchDominance = torchBrightness / (torchBrightness + dot(sunContribution,
 float torchAOReduction = torchDominance * 0.03;
 float enhancedAO = mix(aoFactor, 1.0, torchAOReduction);
 
+// Constant per-axis face shade (uFaceShades: x = +-X, y = +-Z, z = -Y, w = +Y)
+// keeps adjacent faces of a cube distinct even when sun and flood-fill light
+// give them identical values, so convex edges stay readable in flat lighting.
+vec3 faceShadeWeights = abs(vWorldNormal);
+faceShadeWeights /= max(faceShadeWeights.x + faceShadeWeights.y + faceShadeWeights.z, 0.0001);
+float verticalFaceShade = vWorldNormal.y > 0.0 ? uFaceShades.w : uFaceShades.z;
+float faceShade = faceShadeWeights.x * uFaceShades.x
+  + faceShadeWeights.z * uFaceShades.y
+  + faceShadeWeights.y * verticalFaceShade;
+
 vec3 sunTotal = skyAmbient * ambientOcclusion * tunnelDarkening * downTransmit;
 vec3 reducedSun = sunContribution * mix(1.0, 0.7, isBrightTex);
 reducedSun *= downTransmit;
@@ -564,12 +578,13 @@ vec3 temperatureShift = mix(coolTint, warmTint, torchDominance);
 totalLight *= temperatureShift;
 
 totalLight *= enhancedAO;
+totalLight *= faceShade;
 
 totalLight = (totalLight * (2.51 * totalLight + 0.03))
            / (totalLight * (2.43 * totalLight + 0.59) + 0.14);
 vec3 darknessFloor = vec3(ambientFloor) *
   mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit;
-totalLight = max(totalLight, darknessFloor);
+totalLight = max(totalLight, darknessFloor * faceShade);
 outgoingLight.rgb *= totalLight;
 
 if (vIsFluid > 0.5) {
@@ -770,6 +785,14 @@ vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`,
   if (false) {
     return mix(1.0, 0.0, uShadowStrength);
   }`,
+    )
+    // Cross quads all share the same diagonal normal blend, so face shade
+    // would uniformly darken plants without adding any edge contrast.
+    .replace(
+      `float faceShade = faceShadeWeights.x * uFaceShades.x
+  + faceShadeWeights.z * uFaceShades.y
+  + faceShadeWeights.y * verticalFaceShade;`,
+      `float faceShade = 1.0;`,
     )
     .replace(`if (vIsFluid > 0.5) {`, `if (false) {`),
 };
