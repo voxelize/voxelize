@@ -183,20 +183,40 @@ export class AgentDaemon {
     // menu, badges, chat). Same width/height/scale options as /screenshot.
     this.registerScreenshotRoute("/sc", true);
 
+    // Same optional width/height/scale override as /screenshot: the page is
+    // resized for the measurement only, so FPS can be sampled at a real
+    // display resolution (e.g. ?width=1512&height=982&scale=2 for a Retina
+    // laptop) without the session running at it permanently.
     this.server.get<{
-      Querystring: { durationMs?: string; warmupMs?: string };
-    }>("/frame-rate", async (req) =>
-      this.agent.measureFrameRate({
-        durationMs:
-          req.query.durationMs !== undefined
-            ? Number(req.query.durationMs)
-            : undefined,
-        warmupMs:
-          req.query.warmupMs !== undefined
-            ? Number(req.query.warmupMs)
-            : undefined,
-      }),
-    );
+      Querystring: {
+        durationMs?: string;
+        warmupMs?: string;
+        width?: string;
+        height?: string;
+        scale?: string;
+      };
+    }>("/frame-rate", async (req, reply) => {
+      try {
+        const requested = parseCaptureViewportQuery(req.query);
+        return await this.agent.measureFrameRate({
+          durationMs:
+            req.query.durationMs !== undefined
+              ? Number(req.query.durationMs)
+              : undefined,
+          warmupMs:
+            req.query.warmupMs !== undefined
+              ? Number(req.query.warmupMs)
+              : undefined,
+          ...requested,
+        });
+      } catch (e) {
+        if (e instanceof CaptureViewportError) {
+          reply.code(400);
+          return { ok: false, error: e.message };
+        }
+        throw e;
+      }
+    });
 
     this.server.get<{ Querystring: { x: string; y: string; z: string } }>(
       "/block",

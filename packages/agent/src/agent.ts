@@ -37,6 +37,7 @@ import {
 } from "./browser-lifecycle";
 import {
   CaptureViewport,
+  RequestedCaptureViewport,
   expectedBackingSize,
   resolveCaptureViewport,
 } from "./capture-viewport";
@@ -88,6 +89,10 @@ export type ScreenshotOptions = {
    * 2560x1440 at 1.5 yields a 3840x2160 (4K) capture.
    */
   deviceScaleFactor?: number;
+};
+
+export type FrameRateReport = FrameRateMeasurement & {
+  viewport: CaptureViewport;
 };
 
 const DEFAULT_DAEMON_PORT = 4099;
@@ -800,7 +805,34 @@ export class Agent {
   }
 
   async measureFrameRate(
-    opts: FrameRateMeasurementOptions = {},
+    opts: FrameRateMeasurementOptions & RequestedCaptureViewport = {},
+  ): Promise<FrameRateReport> {
+    const current = this.page.viewport();
+    const currentViewport: CaptureViewport = {
+      width: current?.width ?? 1280,
+      height: current?.height ?? 720,
+      deviceScaleFactor: current?.deviceScaleFactor || 1,
+    };
+    // Like screenshot(): an optional viewport override applies only for the
+    // duration of the measurement, so FPS can be sampled at a real display
+    // resolution without the whole session paying for it.
+    const measureViewport = resolveCaptureViewport(opts, currentViewport);
+    if (!measureViewport) {
+      const measurement = await this.measureFrameRateInPage(opts);
+      return { ...measurement, viewport: currentViewport };
+    }
+
+    await this.setViewportAndAwaitPaint(measureViewport);
+    try {
+      const measurement = await this.measureFrameRateInPage(opts);
+      return { ...measurement, viewport: measureViewport };
+    } finally {
+      await this.setViewportAndAwaitPaint(currentViewport);
+    }
+  }
+
+  private async measureFrameRateInPage(
+    opts: FrameRateMeasurementOptions,
   ): Promise<FrameRateMeasurement> {
     const durationMs = opts.durationMs ?? 10_000;
     const warmupMs = opts.warmupMs ?? 1_000;
