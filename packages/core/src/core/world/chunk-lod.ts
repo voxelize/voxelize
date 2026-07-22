@@ -402,32 +402,44 @@ export class LodChunkManager {
     this.candidates = [];
   }
 
+  /**
+   * Recompute what every chunk in the LOD window should be doing. Two passes
+   * keep it cheap enough to run on every chunk-border crossing: tracked
+   * chunks (a few thousand at most) get the full level/retry/removal logic,
+   * then the discovery sweep over the window runs allocation-free per cell —
+   * pure arithmetic plus a numeric-key set — and only produces candidates
+   * for untracked ring chunks.
+   */
   private scan(center: Coords2): void {
     const renderRadius = this.host.renderRadius();
-    const maxLodLevel = this.options.maxLodLevel;
-    const hysteresis = this.options.hysteresis;
+    const { maxLodLevel, hysteresis, rerequestInterval } = this.options;
     const scanRadius = Math.ceil(this.visualRadius + hysteresis);
     const [centerX, centerZ] = center;
 
     const requests: { cx: number; cz: number; level: number; d: number }[] = [];
     const toRemove: LodChunkState[] = [];
-    const visited = new Set<string>();
 
-    const consider = (cx: number, cz: number, distance: number) => {
-      if (!this.host.isWithinWorld(cx, cz)) return;
+    const stride = scanRadius * 2 + 1;
+    const windowKey = (cx: number, cz: number) =>
+      (cx - centerX + scanRadius) * stride + (cz - centerZ + scanRadius);
+    const tracked = new Set<number>();
 
-      const name = ChunkUtils.getChunkName([cx, cz]);
-      visited.add(name);
-      const state = this.states.get(name);
+    for (const state of this.states.values()) {
+      const [cx, cz] = state.coords;
+      const dx = cx - centerX;
+      const dz = cz - centerZ;
+      const distance = Math.sqrt(dx * dx + dz * dz);
 
-      const isFullActive = this.host.isFullChunkActive(cx, cz);
+      if (distance > scanRadius) {
+        toRemove.push(state);
+        continue;
+      }
+
+      tracked.add(windowKey(cx, cz));
+
       const currentLevel =
-        state?.displayedLevel != null
-          ? state.displayedLevel
-          : isFullActive
-            ? 0
-            : null;
-
+        state.displayedLevel ??
+        (this.host.isFullChunkActive(cx, cz) ? 0 : null);
       const target = resolveLodTarget(
         distance,
         currentLevel,
@@ -437,47 +449,64 @@ export class LodChunkManager {
       );
 
       if (target === null) {
-        if (state) toRemove.push(state);
-        return;
+        toRemove.push(state);
+        continue;
       }
 
       if (target === 0) {
         // The full-detail pipeline owns requesting; the LOD form (if any)
         // stays displayed until the full chunk reports displayable.
-        if (state?.requestedLevel != null) state.requestedLevel = null;
-        return;
+        if (state.requestedLevel != null) state.requestedLevel = null;
+        continue;
       }
 
-      if (state?.displayedLevel === target) {
+      if (state.displayedLevel === target) {
         if (state.requestedLevel != null && state.requestedLevel !== target) {
           state.requestedLevel = null;
         }
-        return;
+        continue;
       }
 
-      if (state?.requestedLevel === target) {
-        const age = this.updateCount - state.requestedAt;
-        if (age <= this.options.rerequestInterval) return;
+      if (
+        state.requestedLevel === target &&
+        this.updateCount - state.requestedAt <= rerequestInterval
+      ) {
+        continue;
       }
 
       requests.push({ cx, cz, level: target, d: distance });
-    };
+    }
+
+    // Full-detail chunks only exist near the render radius (or transiently
+    // just past it mid-demote); beyond this bound the loaded-chunk lookup is
+    // pointless, and a stray full chunk further out still demotes correctly
+    // once its LOD mesh arrives.
+    const fullLookupBound = renderRadius + hysteresis + 2;
 
     for (let ox = -scanRadius; ox <= scanRadius; ox++) {
       for (let oz = -scanRadius; oz <= scanRadius; oz++) {
         const distance = Math.sqrt(ox * ox + oz * oz);
         if (distance > scanRadius) continue;
-        consider(centerX + ox, centerZ + oz, distance);
-      }
-    }
 
-    // States drifting outside the scan window (fast travel) still retire.
-    for (const state of this.states.values()) {
-      if (visited.has(state.name)) continue;
-      const dx = state.coords[0] - centerX;
-      const dz = state.coords[1] - centerZ;
-      if (Math.sqrt(dx * dx + dz * dz) > scanRadius) {
-        toRemove.push(state);
+        const cx = centerX + ox;
+        const cz = centerZ + oz;
+        if (tracked.has(windowKey(cx, cz))) continue;
+
+        const currentLevel =
+          distance <= fullLookupBound && this.host.isFullChunkActive(cx, cz)
+            ? 0
+            : null;
+        const target = resolveLodTarget(
+          distance,
+          currentLevel,
+          renderRadius,
+          maxLodLevel,
+          hysteresis,
+        );
+        if (target === null || target === 0) continue;
+        if (!this.host.isWithinWorld(cx, cz)) continue;
+
+        requests.push({ cx, cz, level: target, d: distance });
       }
     }
 
