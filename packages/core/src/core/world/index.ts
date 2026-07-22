@@ -912,6 +912,29 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Transparent setup for merged LOD region meshes: render order and water
+   * refraction capture only. Per-triangle distance sorting is skipped —
+   * distant merged geometry gains nothing from it and would pay a per-frame
+   * sort over a whole region — and the CSM skip-list is left alone since
+   * region meshes are rebuilt (and disposed) far too often to keep a
+   * registry entry alive.
+   */
+  private configureLodTransparentMesh(mesh: Mesh, voxel: number) {
+    const block = this.getBlockByIdSafe(voxel);
+    const isFluid = block?.isFluid ?? false;
+
+    mesh.renderOrder = isFluid
+      ? TRANSPARENT_FLUID_RENDER_ORDER
+      : TRANSPARENT_RENDER_ORDER;
+
+    if (isFluid) {
+      mesh.onBeforeRender = (renderer) => {
+        this.captureWaterRefraction(renderer);
+      };
+    }
+  }
+
+  /**
    * Whether or not this world is connected to the server and initialized with data from the server.
    */
   public isInitialized = false;
@@ -3858,17 +3881,25 @@ export class World<T = any> extends Scene implements NetIntercept {
         resolveMaterial: (voxel, faceName) => {
           const material = this.getBlockFaceMaterial(voxel, faceName);
           if (!material) return null;
+
+          // The bucket key must mirror the material's identity: only
+          // independent faces own a per-face material — every other face of
+          // a block (e.g. the mesher's per-face fluid geometries) shares one
+          // material and must merge into one bucket.
+          const block = this.getBlockByIdSafe(voxel);
+          const isIndependentFace =
+            !!faceName && !!block?.independentFaces.has(faceName);
+
           return {
-            key: this.makeChunkMaterialKey(voxel, faceName),
+            key: this.makeChunkMaterialKey(
+              voxel,
+              isIndependentFace ? faceName : undefined,
+            ),
             material,
           };
         },
         configureTransparentMesh: (mesh, voxel) => {
-          this.configureTransparentChunkMesh(
-            mesh,
-            voxel,
-            mesh.material as CustomChunkShaderMaterial,
-          );
+          this.configureLodTransparentMesh(mesh, voxel);
         },
         requestLodChunks: (lodChunks) => {
           this.packets.push({

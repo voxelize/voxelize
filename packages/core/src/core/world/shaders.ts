@@ -115,6 +115,7 @@ attribute int light;
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
+varying float vLodTileScale;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -155,10 +156,16 @@ ${SIMPLEX_NOISE_GLSL}
 int ao = (light >> 16) & 0x3;
 int isFluid = (light >> 18) & 0x1;
 int isGreedy = (light >> 19) & 0x1;
+// Bits 21..23 carry the LOD level of reduced-detail chunk meshes (0 for
+// full-detail geometry): textures tile per 2^level-sized cell so distant
+// terrain reads as a scaled-up version of itself instead of a
+// high-frequency repeating pattern.
+int lodLevel = (light >> 21) & 0x7;
 
 vAO = uAOTable[ao] / 255.0;
 vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
+vLodTileScale = float(1 << lodLevel);
 vLight = unpackLight(light & 0xFFFF);
 `,
     )
@@ -247,6 +254,7 @@ uniform float uShadowDebugMode;
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
+varying float vLodTileScale;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -427,25 +435,30 @@ float getShadow() {
     float cellSize = 1.0 / uAtlasSize;
     float padding = cellSize / 4.0;
     
+    // World position in texture-tile units: one tile per block at full
+    // detail, one tile per 2^lod-sized cell on LOD meshes, keeping texture
+    // scale locked to geometry scale.
+    vec3 tilePosition = vWorldPosition.xyz / vLodTileScale;
+    
     vec3 absNormal = abs(vWorldNormal);
     vec2 localUv;
     if (absNormal.y > 0.5) {
       if (vWorldNormal.y > 0.0) {
-        localUv = vec2(1.0 - fract(vWorldPosition.x), fract(vWorldPosition.z));
+        localUv = vec2(1.0 - fract(tilePosition.x), fract(tilePosition.z));
       } else {
-        localUv = vec2(fract(vWorldPosition.x), 1.0 - fract(vWorldPosition.z));
+        localUv = vec2(fract(tilePosition.x), 1.0 - fract(tilePosition.z));
       }
     } else if (absNormal.x > 0.5) {
       if (vWorldNormal.x > 0.0) {
-        localUv = vec2(1.0 - fract(vWorldPosition.z), fract(vWorldPosition.y));
+        localUv = vec2(1.0 - fract(tilePosition.z), fract(tilePosition.y));
       } else {
-        localUv = vec2(fract(vWorldPosition.z), fract(vWorldPosition.y));
+        localUv = vec2(fract(tilePosition.z), fract(tilePosition.y));
       }
     } else {
       if (vWorldNormal.z > 0.0) {
-        localUv = vec2(fract(vWorldPosition.x), fract(vWorldPosition.y));
+        localUv = vec2(fract(tilePosition.x), fract(tilePosition.y));
       } else {
-        localUv = vec2(1.0 - fract(vWorldPosition.x), fract(vWorldPosition.y));
+        localUv = vec2(1.0 - fract(tilePosition.x), fract(tilePosition.y));
       }
     }
     

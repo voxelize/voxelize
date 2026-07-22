@@ -1013,6 +1013,15 @@ fn should_render_face<S: VoxelAccess>(
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
 
+    // Fluids never face the void. Out-of-space is unknown terrain, not air:
+    // a fluid wall there is either duplicated by the neighboring mesh (and,
+    // being transparent, visibly stacks instead of being occluded) or faces
+    // a data horizon where the opaque hull behind it already closes the
+    // silhouette. Suppressing these keeps LOD water a single clean surface.
+    if is_fluid && n_is_void {
+        return false;
+    }
+
     if !n_is_void && !registry.has_type(neighbor_id) {
         return false;
     }
@@ -1707,6 +1716,11 @@ fn process_face<S: VoxelAccess>(
 
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
+
+    // Mirrors `should_render_face`: fluids never face the void (see there).
+    if is_fluid && n_is_void {
+        return;
+    }
 
     if !n_is_void && !registry.has_type(neighbor_id) {
         return;

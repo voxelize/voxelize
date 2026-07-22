@@ -36,12 +36,81 @@
 //! LOD chunks are distant by definition, so the overdraw is negligible next
 //! to the correctness guarantee.
 
-use voxelize_core::LightUtils;
+use voxelize_core::{BlockRotation, LightColor, LightUtils, VoxelAccess};
 
 use crate::mesher::{
     mesh_space_greedy, ChunkData, GeometryProtocol, Registry, VoxelSpace, FLUID_BASE_HEIGHT,
     FLUID_STAGE_DROPOFF,
 };
+
+/// Full sunlight, baked into light samples that fall outside the chunk being
+/// LOD-meshed (see [`SkyLitLodSpace`]).
+const VOID_SUNLIGHT: u32 = 15;
+
+/// The isolated coarse space a LOD hull is meshed in, with one lighting
+/// twist: out-of-chunk light samples read as fully sunlit instead of black.
+///
+/// Closed hulls expose walls wherever the displayed neighbor terrain is
+/// lower — walls that face open sky at display time. Their light samples,
+/// however, would come from the void (zero) and from the chunk's own
+/// underground cells (also zero), baking the exposed wall pitch black. Sky
+/// lighting the void matches what those walls actually face. Occupancy is
+/// untouched: `contains` still reports the void, so hull geometry (and the
+/// fluid void-face suppression) behave exactly as before, and interior faces
+/// whose samples stay in-chunk keep their real darkness.
+struct SkyLitLodSpace<'a> {
+    inner: VoxelSpace<'a>,
+}
+
+impl<'a> VoxelAccess for SkyLitLodSpace<'a> {
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.inner.get_voxel(vx, vy, vz)
+    }
+
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.inner.get_raw_voxel(vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
+        self.inner.get_voxel_rotation(vx, vy, vz)
+    }
+
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.inner.get_voxel_stage(vx, vy, vz)
+    }
+
+    fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.inner.contains(vx, vy, vz) {
+            return VOID_SUNLIGHT;
+        }
+        self.inner.get_sunlight(vx, vy, vz)
+    }
+
+    fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: LightColor) -> u32 {
+        if !self.inner.contains(vx, vy, vz) {
+            return match color {
+                LightColor::Sunlight => VOID_SUNLIGHT,
+                _ => 0,
+            };
+        }
+        self.inner.get_torch_light(vx, vy, vz, color)
+    }
+
+    fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
+        if !self.inner.contains(vx, vy, vz) {
+            return (VOID_SUNLIGHT, 0, 0, 0);
+        }
+        self.inner.get_all_lights(vx, vy, vz)
+    }
+
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        self.inner.get_max_height(vx, vz)
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        self.inner.contains(vx, vy, vz)
+    }
+}
 
 /// Downsampled stand-in for one coarse cell, chosen from the fine voxels the
 /// cell contains.
@@ -307,7 +376,8 @@ pub fn mesh_coarse_chunk(
 
     // A single-chunk neighborhood: only the center slot is populated, so the
     // space reports `contains() == false` for every out-of-chunk coordinate
-    // and the mesher emits the closed border walls.
+    // and the mesher emits the closed border walls (sky-lit, see
+    // [`SkyLitLodSpace`]).
     let mut chunks: Vec<Option<ChunkData>> = (0..9).map(|_| None).collect();
     chunks[4] = Some(ChunkData {
         voxels: coarse.voxels.clone(),
@@ -316,7 +386,9 @@ pub fn mesh_coarse_chunk(
         min: [0, 0, 0],
     });
 
-    let space = VoxelSpace::new(&chunks, cs_x as i32, [0, 0]);
+    let space = SkyLitLodSpace {
+        inner: VoxelSpace::new(&chunks, cs_x as i32, [0, 0]),
+    };
 
     let min = [0, 0, 0];
     let max = [cs_x as i32, cs_y as i32, cs_z as i32];
@@ -1045,6 +1117,120 @@ mod tests {
             "a single coarse cell at LOD 1 must span exactly 2 blocks"
         );
         assert_eq!(geometries[0].voxel, STONE);
+    }
+
+    /// Fluid faces must never be emitted against the void: between adjacent
+    /// water hulls both sides would emit full-height interior walls that are
+    /// all visible through the transparent surface (stacking into an opaque,
+    /// dark mass), and at data horizons the opaque hull behind them already
+    /// closes the silhouette.
+    #[test]
+    fn lod_water_emits_no_hull_border_walls() {
+        let registry = test_registry();
+        let size = 8usize;
+        let height = 8usize;
+        let factor = 2usize;
+
+        let mut fine = FineChunk::new([size, height, size]);
+        for x in 0..size {
+            for z in 0..size {
+                fine.set(x, 0, z, STONE);
+                for y in 1..4 {
+                    fine.set(x, y, z, WATER);
+                }
+            }
+        }
+
+        let geometries = mesh_chunk_lod(&fine.voxels, &fine.lights, fine.shape, 1, &registry);
+        let water_geometry = geometries
+            .iter()
+            .find(|geometry| geometry.voxel == WATER)
+            .expect("water surface must still be meshed");
+
+        let border = size as f32;
+        for quad in 0..water_geometry.positions.len() / 12 {
+            for axis in [0usize, 2usize] {
+                for plane in [0.0f32, border] {
+                    let is_wall_on_plane = (0..4).all(|corner| {
+                        let value = water_geometry.positions[quad * 12 + corner * 3 + axis];
+                        (value - plane).abs() < 0.01
+                    });
+                    assert!(
+                        !is_wall_on_plane,
+                        "water quad {quad} sits on the hull border plane (axis {axis} at \
+                         {plane}) — fluid faces must not be emitted against the void"
+                    );
+                }
+            }
+        }
+
+        let solid_geometry = geometries
+            .iter()
+            .find(|geometry| geometry.voxel == STONE)
+            .expect("hull floor must be meshed");
+        let has_border_wall = (0..solid_geometry.positions.len() / 12).any(|quad| {
+            (0..4).all(|corner| {
+                solid_geometry.positions[quad * 12 + corner * 3].abs() < 0.01
+            })
+        });
+        assert!(
+            has_border_wall,
+            "opaque hull border walls must remain closed — only fluids skip the void"
+        );
+    }
+
+    /// Hull walls face open sky at display time, so their baked light must
+    /// come from the sky-lit void, not from the chunk's dark underground
+    /// cells — otherwise every exposed LOD cliff fades to black.
+    #[test]
+    fn lod_hull_walls_are_sky_lit() {
+        let registry = test_registry();
+        let size = 8usize;
+        let height = 16usize;
+
+        let mut fine = FineChunk::new([size, height, size]);
+        let mut sunlit = 0u32;
+        sunlit = LightUtils::insert_sunlight(sunlit, 15);
+        for x in 0..size {
+            for z in 0..size {
+                for y in 0..6 {
+                    fine.set(x, y, z, STONE);
+                }
+                for y in 6..height {
+                    fine.set_light(x, y, z, sunlit);
+                }
+            }
+        }
+
+        let geometries = mesh_chunk_lod(&fine.voxels, &fine.lights, fine.shape, 1, &registry);
+        let geometry = geometries
+            .iter()
+            .find(|geometry| geometry.voxel == STONE)
+            .expect("terrain must be meshed");
+
+        let mut wall_vertices = 0;
+        for quad in 0..geometry.positions.len() / 12 {
+            let is_border_wall = (0..4).all(|corner| {
+                geometry.positions[quad * 12 + corner * 3].abs() < 0.01
+            });
+            if !is_border_wall {
+                continue;
+            }
+            for corner in 0..4 {
+                wall_vertices += 1;
+                let packed = geometry.lights[quad * 4 + corner] as u32;
+                let sunlight = LightUtils::extract_sunlight(packed & 0xFFFF);
+                assert!(
+                    sunlight >= 10,
+                    "hull border wall vertex must be sky-lit, got sunlight {sunlight}"
+                );
+            }
+        }
+
+        assert!(
+            wall_vertices > 0,
+            "test terrain must produce hull border walls on the x=0 plane"
+        );
     }
 
     /// Water surfaces must stay flat at chunk borders in closed hulls: the

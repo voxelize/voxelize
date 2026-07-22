@@ -229,6 +229,30 @@ describe("LodChunkManager", () => {
     expect(positionCount).toBe(2 * 12);
   });
 
+  it("stamps the region LOD level into the merged light attribute", () => {
+    const { manager } = makeManager();
+
+    const protocol = lodProtocol(10, 0, 2);
+    protocol.meshes[0].geometries[0].lights.set([0xf0f0, 0x0f0f, 7, 0], 0);
+
+    manager.update([0, 0]);
+    manager.onLodChunk(protocol);
+    manager.update([0, 0]);
+
+    const meshes: Mesh[] = [];
+    manager.group.traverse((object) => {
+      if ((object as Mesh).isMesh) meshes.push(object as Mesh);
+    });
+    expect(meshes).toHaveLength(1);
+
+    const lights = meshes[0].geometry.getAttribute("light").array as Int32Array;
+    const levelBits = 2 << 21;
+    expect(lights[0]).toBe(0xf0f0 | levelBits);
+    expect(lights[1]).toBe(0x0f0f | levelBits);
+    expect(lights[2]).toBe(7 | levelBits);
+    expect(lights[3]).toBe(levelBits);
+  });
+
   it("offsets merged chunk geometry by chunk world position", () => {
     const { manager } = makeManager();
 

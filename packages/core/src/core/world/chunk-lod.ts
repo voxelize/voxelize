@@ -658,6 +658,10 @@ export class LodChunkManager {
     }
 
     const chunkSize = this.host.chunkSize;
+    // The shader tiles greedy textures per 2^level-sized cell (instead of
+    // per block) when these bits are set, so distant terrain reads as a
+    // scaled-up version of itself rather than a repeating pattern.
+    const lodLevelBits = region.level << 21;
 
     for (const [key, bucket] of buckets) {
       let vertexCount = 0;
@@ -688,7 +692,9 @@ export class LodChunkManager {
             geometry.positions[i * 3 + 2] + offsetZ;
         }
         uvs.set(geometry.uvs, vertexBase * 2);
-        lights.set(geometry.lights, vertexBase);
+        for (let i = 0; i < count; i++) {
+          lights[vertexBase + i] = geometry.lights[i] | lodLevelBits;
+        }
         for (let i = 0; i < geometry.indices.length; i++) {
           indices[indexBase + i] = geometry.indices[i] + vertexBase;
         }
