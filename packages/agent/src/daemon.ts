@@ -177,28 +177,11 @@ export class AgentDaemon {
     // the page for this one capture only and restore it afterwards. Example:
     // /screenshot?pure=true&width=2560&height=1440&scale=1.5 renders a
     // 3840x2160 (4K) backing canvas without the session ever loading at 4K.
-    this.server.get<{
-      Querystring: {
-        pure?: string;
-        width?: string;
-        height?: string;
-        scale?: string;
-      };
-    }>("/screenshot", async (req, reply) => {
-      const isPure = req.query.pure === "true" || req.query.pure === "1";
-      try {
-        const requested = parseCaptureViewportQuery(req.query);
-        const buffer = await this.agent.screenshot({ isPure, ...requested });
-        reply.header("content-type", "image/png");
-        return buffer;
-      } catch (e) {
-        if (e instanceof CaptureViewportError) {
-          reply.code(400);
-          return { ok: false, error: e.message };
-        }
-        throw e;
-      }
-    });
+    this.registerScreenshotRoute("/screenshot", false);
+    // The in-game "/sc" command over HTTP: always the bare WebGL canvas with
+    // HUD overlays hidden, so in-world captures never include page UI (pause
+    // menu, badges, chat). Same width/height/scale options as /screenshot.
+    this.registerScreenshotRoute("/sc", true);
 
     this.server.get<{
       Querystring: { durationMs?: string; warmupMs?: string };
@@ -336,6 +319,32 @@ export class AgentDaemon {
     this.server.post("/reset", async () => {
       await this.agent.reset();
       return { ok: true };
+    });
+  }
+
+  private registerScreenshotRoute(path: string, isAlwaysPure: boolean): void {
+    this.server.get<{
+      Querystring: {
+        pure?: string;
+        width?: string;
+        height?: string;
+        scale?: string;
+      };
+    }>(path, async (req, reply) => {
+      const isPure =
+        isAlwaysPure || req.query.pure === "true" || req.query.pure === "1";
+      try {
+        const requested = parseCaptureViewportQuery(req.query);
+        const buffer = await this.agent.screenshot({ isPure, ...requested });
+        reply.header("content-type", "image/png");
+        return buffer;
+      } catch (e) {
+        if (e instanceof CaptureViewportError) {
+          reply.code(400);
+          return { ok: false, error: e.message };
+        }
+        throw e;
+      }
     });
   }
 

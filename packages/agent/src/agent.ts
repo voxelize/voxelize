@@ -196,6 +196,11 @@ export class Agent {
     if (process.env.AGENT_CAPTURE_MODE === "true") {
       target.searchParams.set("capture", "true");
     }
+    // Visual tests of held items opt into rendering the first-person arm,
+    // which agent screenshots otherwise omit (see client agent mode).
+    if (process.env.AGENT_ARM_VISIBLE === "true") {
+      target.searchParams.set("agentArm", "true");
+    }
     agent.targetUrl = target.toString();
 
     await page.goto(target.toString(), { waitUntil: "domcontentloaded" });
@@ -334,13 +339,25 @@ export class Agent {
   private attachPageLogging(page: Page): void {
     page.on("console", (msg) => {
       const type = msg.type();
-      const text = msg.text();
+      let text = msg.text();
       if (text.startsWith("[PERF] ")) {
         writeClientPerfLine(text);
         console.log(text);
         return;
       }
       if (type === "error" || type === "warn") {
+        // console.error args arrive as JSHandles whose text collapses to
+        // "JSHandle@error"; the remote object description carries the real
+        // message and stack, which is what makes page failures actionable.
+        if (text.includes("JSHandle@")) {
+          const descriptions = msg
+            .args()
+            .map((arg) => arg.remoteObject().description ?? "")
+            .filter((description) => description.length > 0);
+          if (descriptions.length > 0) {
+            text = descriptions.join(" ");
+          }
+        }
         console.error(`[agent-page] ${type}:`, text);
         return;
       }

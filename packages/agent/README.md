@@ -12,7 +12,7 @@ pnpm dev -- --url http://localhost:3000 --world terrain --port 4099
 
 See `voxelize-agent --help` for all flags. The daemon listens on
 `http://127.0.0.1:<port>` and exposes routes such as `/healthz`, `/me`,
-`/snapshot`, `/screenshot`, `/act`, `/entities`, and `/events`.
+`/snapshot`, `/screenshot`, `/sc`, `/act`, `/entities`, and `/events`.
 
 ## Health
 
@@ -41,7 +41,10 @@ signals are available programmatically via `agent.health()` and
 
 ## Screenshots
 
-`GET /screenshot` returns a PNG of the page. Query parameters:
+`GET /screenshot` returns a PNG of the page. `GET /sc` is the pure-capture
+shorthand: it always hides HUD overlays and returns only the WebGL canvas,
+mirroring the in-game `/sc` chat command, so in-world captures never include
+page UI. Query parameters (both routes; `pure` is implied on `/sc`):
 
 | Parameter | Meaning |
 | --- | --- |
