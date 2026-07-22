@@ -82,6 +82,7 @@ prost-build = "0.12.4"
 awc = "3"
 criterion = { version = "0.5", features = ["html_reports"] }
 kdtree = "0.7"
+lz4_flex = "0.11"
 tokio = { version = "1", features = ["sync", "macros", "rt", "time", "test-util"] }
 
 [[bench]]

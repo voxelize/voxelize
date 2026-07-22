@@ -10,6 +10,11 @@ pub struct ChunkRequestsComp {
     // a 2d unit vector
     pub direction: Vec2<f32>,
     pub requests: Vec<Vec2<i32>>,
+    /// Chunks requested as reduced-detail meshes, with the LOD level per
+    /// chunk. Only populated for worlds that enable `chunk_lod`. A chunk is
+    /// requested in at most one form at a time: adding a LOD request drops
+    /// any pending full request for the same coords and vice versa.
+    pub lod_requests: Vec<(Vec2<i32>, u32)>,
 }
 
 impl ChunkRequestsComp {
@@ -30,6 +35,8 @@ impl ChunkRequestsComp {
 
     /// Add a chunk to the list of chunks requested.
     pub fn add(&mut self, coords: &Vec2<i32>) {
+        self.lod_requests.retain(|(c, _)| c != coords);
+
         if self.requests.contains(coords) {
             return;
         }
@@ -37,17 +44,26 @@ impl ChunkRequestsComp {
         self.requests.push(coords.to_owned());
     }
 
-    pub fn sort(&mut self) {
-        self.requests.sort_by(|a, b| {
-            let a_dist = (a.0 - self.center.0).abs() + (a.1 - self.center.1).abs();
-            let b_dist = (b.0 - self.center.0).abs() + (b.1 - self.center.1).abs();
-
-            a_dist.cmp(&b_dist)
-        });
+    /// Add a chunk to the list of chunks requested as a LOD mesh.
+    pub fn add_lod(&mut self, coords: &Vec2<i32>, level: u32) {
+        self.requests.retain(|c| c != coords);
+        self.lod_requests.retain(|(c, _)| c != coords);
+        self.lod_requests.push((coords.to_owned(), level));
     }
 
-    /// Remove a chunk from the list of chunks requested.
+    pub fn sort(&mut self) {
+        let center = self.center.to_owned();
+        let distance =
+            |coords: &Vec2<i32>| (coords.0 - center.0).abs() + (coords.1 - center.1).abs();
+
+        self.requests.sort_by(|a, b| distance(a).cmp(&distance(b)));
+        self.lod_requests
+            .sort_by(|(a, _), (b, _)| distance(a).cmp(&distance(b)));
+    }
+
+    /// Remove a chunk from the list of chunks requested, in either form.
     pub fn remove(&mut self, coords: &Vec2<i32>) {
         self.requests.retain(|c| c != coords);
+        self.lod_requests.retain(|(c, _)| c != coords);
     }
 }

@@ -161,8 +161,8 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [0, 0, -1],
 ];
 
-const FLUID_BASE_HEIGHT: f32 = 0.875;
-const FLUID_STAGE_DROPOFF: f32 = 0.1;
+pub(crate) const FLUID_BASE_HEIGHT: f32 = 0.875;
+pub(crate) const FLUID_STAGE_DROPOFF: f32 = 0.1;
 const FLUID_SURFACE_OFFSET: f32 = 0.005;
 
 struct NeighborCache {
@@ -281,14 +281,18 @@ pub struct MeshOutput {
     pub geometries: Vec<GeometryProtocol>,
 }
 
-struct VoxelSpace<'a> {
+pub(crate) struct VoxelSpace<'a> {
     chunks: &'a [Option<ChunkData>],
     chunk_size: i32,
     center_coords: [i32; 2],
 }
 
 impl<'a> VoxelSpace<'a> {
-    fn new(chunks: &'a [Option<ChunkData>], chunk_size: i32, center_coords: [i32; 2]) -> Self {
+    pub(crate) fn new(
+        chunks: &'a [Option<ChunkData>],
+        chunk_size: i32,
+        center_coords: [i32; 2],
+    ) -> Self {
         Self {
             chunks,
             chunk_size,
@@ -709,6 +713,14 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     for [dx, dz] in corner_offsets {
         let nx = vx + dx;
         let nz = vz + dz;
+
+        // Out-of-space neighbors are unknown terrain, not air: treat them as a
+        // fluid continuation (neutral) so surfaces stay flat at data borders
+        // instead of drooping toward the void. This keeps closed LOD hulls and
+        // horizon-edge chunks free of scalloped water rims.
+        if !space.contains(nx, vy, nz) {
+            continue;
+        }
 
         if has_fluid_above(nx, vy, nz, fluid_id, space) {
             total_height += 1.0;

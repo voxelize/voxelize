@@ -97,6 +97,9 @@ pub struct GeometryProtocol {
 #[derive(Debug, Clone, Default)]
 pub struct MeshProtocol {
     pub level: i32,
+    /// Level of detail: 0 is a full-detail sub-chunk mesh, `L >= 1` a
+    /// whole-column mesh downsampled by `2^L`.
+    pub lod: u32,
     pub geometries: Vec<GeometryProtocol>,
 }
 
@@ -309,6 +312,7 @@ impl MessageBuilder {
                         .into_iter()
                         .map(|mesh| protocols::Mesh {
                             level: mesh.level,
+                            lod: mesh.lod,
                             geometries: mesh
                                 .geometries
                                 .into_iter()
