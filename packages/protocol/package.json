@@ -14,7 +14,8 @@
     "types": "./dist/index.d.ts"
   },
   "scripts": {
-    "watch": "cross-env NODE_ENV=development npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
+    "watch": "pnpm run proto && cross-env NODE_ENV=development npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\" watch:proto",
+    "watch:proto": "node ./scripts/watch-proto.mjs",
     "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "test": "pnpm vitest run",
     "compile": "vite build",
