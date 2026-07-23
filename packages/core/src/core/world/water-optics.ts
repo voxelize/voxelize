@@ -102,6 +102,48 @@ export const WATER_OPTICS = Object.freeze({
   maxSurfaceScanBlocks: 96,
 
   /**
+   * The cheap distant-water look. LOD water renders as one opaque,
+   * depth-written surface — no refraction capture, no per-pixel
+   * extinction/scatter ray work — so its water read comes entirely from
+   * these tunables: a pull toward the shared water tint, subtle
+   * Beer-Lambert darkening below the waterline, and a single-octave
+   * animated ripple whose perturbed normal drives a baked sky highlight,
+   * Schlick fresnel, and a sun glint.
+   */
+  lodWater: Object.freeze({
+    /**
+     * Mix of the water tint into the lit fluid texture. Matches the deep
+     * end of the near-water tinting so color stays continuous across the
+     * full-detail/LOD boundary.
+     */
+    tintStrength: 0.3,
+
+    /** Darkest multiplier depth darkening may reach on submerged faces. */
+    depthDarkenFloor: 0.55,
+
+    /** Base (head-on) reflectivity of the Schlick fresnel term. */
+    fresnelBase: 0.05,
+
+    /** Ceiling of the fresnel term so grazing water never turns to chrome. */
+    fresnelMax: 0.45,
+
+    /** World-space frequency (1/blocks) of the single ripple octave. */
+    rippleFrequency: 0.08,
+
+    /** Ripple drift speed as a multiple of the shared water wave clock. */
+    rippleSpeed: 0.35,
+
+    /** Tilt amplitude of the ripple-perturbed shading normal. */
+    rippleNormalStrength: 0.35,
+
+    /** Sky-colored highlight strength inside sparkling ripple bands. */
+    rippleHighlightStrength: 0.38,
+
+    /** Strength of the sun glint off the rippled surface. */
+    glintStrength: 0.4,
+  }),
+
+  /**
    * Height of a resting fluid surface within its voxel. Mirrors
    * FLUID_BASE_HEIGHT in the mesher so the waterline plane matches the
    * rendered surface.

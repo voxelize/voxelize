@@ -422,7 +422,9 @@ export class LodChunkManager {
       if (resolved.isLodFluid) {
         // Clearing the fluid flag (bit 18) skips the per-fragment water
         // optics (refraction sampling, absorption, scatter) for distant
-        // water; the wave bit stays so the surface still moves.
+        // water; the wave bit stays so the surface still moves. The water
+        // look itself comes from the LOD fluid material's fixed-cost
+        // shader branch (tint, depth darkening, ripple highlight, fresnel).
         const stripped = new Int32Array(lights.length);
         for (let i = 0; i < lights.length; i++) {
           stripped[i] = lights[i] & ~(1 << 18);

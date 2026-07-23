@@ -927,8 +927,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * The opaque material distant (LOD) water renders with: same shader and
    * shared live uniforms as every chunk material, same texture as the near
-   * water material, but no blending and depth-written. Cached per base
-   * material identity; created lazily on first LOD water arrival.
+   * water material, but no blending and depth-written. Its `uLodWater`
+   * uniform enables the shader's cheap distant-water branch (water tint,
+   * depth darkening, rippled sky highlight, fresnel, sun glint — see
+   * `WATER_OPTICS.lodWater`), so distant water reads as water without any
+   * refraction capture or blended overdraw. Cached per base material
+   * identity; created lazily on first LOD water arrival.
    */
   private lodFluidMaterials = new Map<string, CustomChunkShaderMaterial>();
 
@@ -941,6 +945,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       material = this.makeShaderMaterial();
       material.map = base.map;
       material.uniforms.map = { value: base.map };
+      material.uniforms.uLodWater = { value: 1 };
       material.side = FrontSide;
       material.transparent = false;
       material.depthWrite = true;
@@ -3936,7 +3941,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           // Distant water renders opaque and depth-written: no blending
           // over the whole ocean area, no region-to-region transparent sort
           // hazards, and the sea floor beneath it is early-Z rejected
-          // instead of shaded and then blended over.
+          // instead of shaded and then blended over. The water read comes
+          // from the material's fixed-cost `uLodWater` shader branch, not
+          // from the per-vertex fluid optics flag.
           if (block?.isFluid) {
             return {
               key: `${key}::lod-fluid`,

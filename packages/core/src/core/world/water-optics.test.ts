@@ -59,6 +59,25 @@ describe("refraction incidence band", () => {
   });
 });
 
+describe("lod water look", () => {
+  it("keeps the cheap distant-water tunables in renderable ranges", () => {
+    const lod = WATER_OPTICS.lodWater;
+    expect(lod.tintStrength).toBeGreaterThan(0);
+    expect(lod.tintStrength).toBeLessThanOrEqual(1);
+    expect(lod.depthDarkenFloor).toBeGreaterThan(0);
+    expect(lod.depthDarkenFloor).toBeLessThan(1);
+    expect(lod.fresnelBase).toBeGreaterThanOrEqual(0);
+    expect(lod.fresnelBase).toBeLessThan(lod.fresnelMax);
+    expect(lod.fresnelMax).toBeLessThanOrEqual(1);
+    expect(lod.rippleFrequency).toBeGreaterThan(0);
+    expect(lod.rippleSpeed).toBeGreaterThan(0);
+    expect(lod.rippleNormalStrength).toBeGreaterThan(0);
+    expect(lod.rippleHighlightStrength).toBeGreaterThan(0);
+    expect(lod.rippleHighlightStrength).toBeLessThanOrEqual(1);
+    expect(lod.glintStrength).toBeGreaterThan(0);
+  });
+});
+
 describe("measureWaterColumn", () => {
   const columnTo = (surfaceVoxelY: number) => (vx: number, vy: number) =>
     vy <= surfaceVoxelY && vx === 0;

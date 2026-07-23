@@ -11,6 +11,14 @@ use crate::{
     VoxelAccess, WorldConfig,
 };
 
+/// Weight gap inserted between the last full-detail chunk and the first
+/// LOD-only chunk in the generation/meshing order. Chunks wanted only as
+/// reduced-detail LOD meshes receive the largest full-detail weight plus
+/// this offset, so they sort strictly after every full-detail chunk while
+/// keeping their own relative order — horizon LOD work can never starve
+/// near-field chunks out of a batch (slow nearby chunks on join).
+const LOD_ONLY_WEIGHT_OFFSET: f32 = 1.0;
+
 #[derive(Default)]
 pub struct ChunkGeneratingSystem;
 
@@ -51,6 +59,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         interests.weights.clear();
 
         let mut weights = HashMap::with_capacity(interests.map.len());
+        let mut lod_only_coords = vec![];
+        let mut max_full_weight: f32 = 0.0;
 
         for (coords, ids) in &interests.map {
             let mut weight = 0.0;
@@ -75,7 +85,25 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             }
 
+            if interests.is_lod_only(coords) {
+                lod_only_coords.push(coords.clone());
+            } else {
+                max_full_weight = max_full_weight.max(weight);
+            }
+
             weights.insert(coords.clone(), weight);
+        }
+
+        // Chunks wanted only as reduced-detail LOD meshes sort strictly
+        // after every full-detail chunk in the generation and meshing
+        // batches. Anchoring the offset at the largest full-detail weight
+        // separates the two groups at any render distance, and adding the
+        // same amount to every LOD-only chunk preserves the relative order
+        // within each group.
+        for coords in lod_only_coords {
+            if let Some(weight) = weights.get_mut(&coords) {
+                *weight += max_full_weight + LOD_ONLY_WEIGHT_OFFSET;
+            }
         }
 
         interests.weights = weights;

@@ -246,6 +246,10 @@ uniform sampler2D uSceneColor;
 uniform vec2 uSceneTextureSize;
 uniform float uWaterRefractionReady;
 uniform float uWaterRefractionStrength;
+// 1 only on the dedicated opaque LOD water material; defaults to 0
+// everywhere else, so the cheap distant-water branch is dead code on every
+// other draw.
+uniform float uLodWater;
 
 uniform vec3 uSkyTopColor;
 uniform vec3 uSkyMiddleColor;
@@ -719,6 +723,80 @@ if (vIsFluid > 0.5) {
     * (uWaterAbsorption * ${WATER_OPTICS.surfaceAbsorptionScale.toFixed(4)});
   outgoingLight.rgb *= exp(-fluidMu * waterDepth);
 }
+
+// Distant (LOD) water: opaque and depth-written, so the water read is baked
+// here at fixed cost — no refraction capture, no per-pixel extinction or
+// scatter ray work. One ripple octave (three noise taps) perturbs the
+// shading normal, which together drives a sky-colored sparkle highlight,
+// Schlick fresnel toward the sky, and a sun glint; Beer-Lambert darkening
+// below the waterline keeps submerged hull sides reading deep.
+if (uLodWater > 0.5) {
+  vec3 lodPos = vWorldPosition.xyz;
+  vec3 lodViewDir = normalize(cameraPosition - lodPos);
+  float lodTopFace = smoothstep(0.45, 0.9, vWorldNormal.y);
+  float lodTime = uTime * 0.0005 * ${WATER_OPTICS.lodWater.rippleSpeed.toFixed(
+    4,
+  )};
+
+  vec2 lodRippleUv = lodPos.xz * ${WATER_OPTICS.lodWater.rippleFrequency.toFixed(
+    4,
+  )};
+  float lodEps = 0.35;
+  float lodR0 = snoise(vec3(lodRippleUv.x + lodTime, lodRippleUv.y - lodTime * 0.8, 53.0));
+  float lodRx = snoise(vec3(lodRippleUv.x + lodEps + lodTime, lodRippleUv.y - lodTime * 0.8, 53.0));
+  float lodRz = snoise(vec3(lodRippleUv.x + lodTime, lodRippleUv.y + lodEps - lodTime * 0.8, 53.0));
+  vec3 lodNormal = normalize(vec3(
+    (lodR0 - lodRx) * ${WATER_OPTICS.lodWater.rippleNormalStrength.toFixed(4)},
+    1.0,
+    (lodR0 - lodRz) * ${WATER_OPTICS.lodWater.rippleNormalStrength.toFixed(4)}
+  ));
+  lodNormal = normalize(mix(vWorldNormal, lodNormal, lodTopFace));
+
+  float lodDepth = max(0.0, uWaterLevel - lodPos.y);
+  float lodDepthDarken = 1.0 - exp(-${WATER_OPTICS.downwellingExtinction.green.toFixed(
+    5,
+  )} * lodDepth);
+  vec3 lodWaterColor = mix(outgoingLight.rgb, uWaterTint, ${WATER_OPTICS.lodWater.tintStrength.toFixed(
+    4,
+  )});
+  lodWaterColor *= mix(1.0, ${WATER_OPTICS.lodWater.depthDarkenFloor.toFixed(
+    4,
+  )}, lodDepthDarken);
+
+  float lodNdotV = max(dot(lodNormal, lodViewDir), 0.0);
+  float lodGrazing = 1.0 - lodNdotV;
+  float lodGrazing5 = lodGrazing * lodGrazing;
+  lodGrazing5 *= lodGrazing5;
+  lodGrazing5 *= lodGrazing;
+  float lodFresnel = clamp(
+    ${WATER_OPTICS.lodWater.fresnelBase.toFixed(4)}
+      + uWaterFresnelStrength * lodGrazing5,
+    0.0,
+    ${WATER_OPTICS.lodWater.fresnelMax.toFixed(4)}
+  );
+
+  vec3 lodReflectDir = reflect(-lodViewDir, lodNormal);
+  vec3 lodSky = mix(uSkyMiddleColor, uSkyTopColor, clamp(lodReflectDir.y * 0.5 + 0.5, 0.0, 1.0));
+
+  float lodSparkle = smoothstep(0.35, 0.9, lodR0);
+  vec3 lodHighlight = mix(lodWaterColor, lodSky, ${WATER_OPTICS.lodWater.rippleHighlightStrength.toFixed(
+    4,
+  )});
+  lodWaterColor = mix(lodWaterColor, lodHighlight, lodTopFace * lodSparkle);
+
+  vec3 lodHalf = normalize(uSunDirection + lodViewDir);
+  float lodSpec = max(dot(lodNormal, lodHalf), 0.0);
+  lodSpec *= lodSpec;
+  lodSpec *= lodSpec;
+  lodSpec *= lodSpec;
+  lodSpec *= lodSpec;
+  lodSpec *= lodSpec;
+  vec3 lodGlint = uSunColor * lodSpec * uSunlightIntensity
+    * ${WATER_OPTICS.lodWater.glintStrength.toFixed(4)} * lodTopFace;
+
+  outgoingLight.rgb = mix(lodWaterColor, lodSky, lodFresnel);
+  outgoingLight.rgb += lodGlint;
+}
 `,
     )
     .replace(
@@ -784,7 +862,8 @@ vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`,
     return mix(1.0, 0.0, uShadowStrength);
   }`,
     )
-    .replace(`if (vIsFluid > 0.5) {`, `if (false) {`),
+    .replace(`if (vIsFluid > 0.5) {`, `if (false) {`)
+    .replace(`if (uLodWater > 0.5) {`, `if (false) {`),
 };
 
 export function createSwayShader(

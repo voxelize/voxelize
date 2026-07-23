@@ -107,6 +107,23 @@ impl ChunkInterests {
             .copied()
     }
 
+    /// Whether every client interested in this chunk wants it only as a
+    /// reduced-detail LOD mesh — no client needs its full form. Such chunks
+    /// are horizon work and must never crowd full-detail chunks out of the
+    /// generation/meshing batches.
+    pub fn is_lod_only(&self, coords: &Vec2<i32>) -> bool {
+        let Some(clients) = self.map.get(coords) else {
+            return false;
+        };
+        if clients.is_empty() {
+            return false;
+        }
+        let Some(levels) = self.lod_levels.get(coords) else {
+            return false;
+        };
+        clients.iter().all(|id| levels.contains_key(id))
+    }
+
     fn clear_lod(&mut self, client_id: &str, coords: &Vec2<i32>) {
         if let Some(levels) = self.lod_levels.get_mut(coords) {
             levels.remove(client_id);
@@ -203,6 +220,26 @@ mod tests {
         assert!(!interests.has_interests(&coords));
         assert_eq!(interests.get_lod("a", &coords), None);
         assert!(interests.lod_levels.is_empty());
+    }
+
+    #[test]
+    fn lod_only_requires_every_client_to_want_the_lod_form() {
+        let mut interests = ChunkInterests::new();
+        let coords = Vec2(5, 5);
+
+        assert!(!interests.is_lod_only(&coords));
+
+        interests.add_lod("a", &coords, 2);
+        assert!(interests.is_lod_only(&coords));
+
+        interests.add("b", &coords);
+        assert!(!interests.is_lod_only(&coords));
+
+        interests.add_lod("b", &coords, 1);
+        assert!(interests.is_lod_only(&coords));
+
+        interests.add("a", &coords);
+        assert!(!interests.is_lod_only(&coords));
     }
 
     #[test]
