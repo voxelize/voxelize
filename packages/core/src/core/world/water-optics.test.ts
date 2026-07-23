@@ -76,6 +76,18 @@ describe("lod water look", () => {
     expect(lod.rippleHighlightStrength).toBeLessThanOrEqual(1);
     expect(lod.glintStrength).toBeGreaterThan(0);
   });
+
+  it("keeps the single blended layer translucent head-on and denser at grazing", () => {
+    const lod = WATER_OPTICS.lodWater;
+    // Head-on the layer must actually be see-through (the seabed carries
+    // the translucency cue), yet substantial enough to read as water.
+    expect(lod.surfaceAlpha).toBeGreaterThan(0.2);
+    expect(lod.surfaceAlpha).toBeLessThan(0.85);
+    // Grazing incidence converges on the near water's reflective, more
+    // opaque read without ever exceeding full opacity.
+    expect(lod.grazingAlphaMax).toBeGreaterThan(lod.surfaceAlpha);
+    expect(lod.grazingAlphaMax).toBeLessThanOrEqual(1);
+  });
 });
 
 describe("measureWaterColumn", () => {

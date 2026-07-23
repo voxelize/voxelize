@@ -108,9 +108,10 @@ export type LodChunkManagerHost = {
   renderRadius: () => number;
   /**
    * Resolve a geometry's material and its stable bucketing key. Fluids
-   * resolve to a dedicated opaque LOD water material (`isLodFluid`), and the
-   * manager strips their per-vertex water-optics flag: distant water renders
-   * as one cheap, depth-written surface instead of blended refraction layers.
+   * resolve to a dedicated depth-written, single-alpha-pass LOD water
+   * material (`isLodFluid`), and the manager strips their per-vertex
+   * water-optics flag: distant water renders as one cheap blended surface
+   * layer instead of refraction-capture layers.
    */
   resolveMaterial: (
     voxel: number,
@@ -424,7 +425,8 @@ export class LodChunkManager {
         // optics (refraction sampling, absorption, scatter) for distant
         // water; the wave bit stays so the surface still moves. The water
         // look itself comes from the LOD fluid material's fixed-cost
-        // shader branch (tint, depth darkening, ripple highlight, fresnel).
+        // shader branch (single-layer alpha over the seabed, tint, depth
+        // darkening, ripple highlight, fresnel).
         const stripped = new Int32Array(lights.length);
         for (let i = 0; i < lights.length; i++) {
           stripped[i] = lights[i] & ~(1 << 18);

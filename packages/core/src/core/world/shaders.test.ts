@@ -4,6 +4,7 @@ import {
   SHADER_LIGHTING_CHUNK_SHADERS,
   SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
 } from "./shaders";
+import { WATER_OPTICS } from "./water-optics";
 
 const braceBalance = (source: string) => {
   let balance = 0;
@@ -23,6 +24,19 @@ describe("chunk shader distant (LOD) water branch", () => {
     // never samples the scene color texture.
     const branch = fragment.slice(fragment.indexOf("if (uLodWater > 0.5) {"));
     expect(branch).not.toContain("uSceneColor");
+  });
+
+  it("writes a single translucent layer alpha so the LOD seabed shows through", () => {
+    const { fragment } = SHADER_LIGHTING_CHUNK_SHADERS;
+    const branch = fragment.slice(fragment.indexOf("if (uLodWater > 0.5) {"));
+    // The blended layer's opacity is baked from the lodWater tunables —
+    // head-on surface alpha ramping to the grazing maximum on the fresnel
+    // curve — so near and LOD water share a translucency read at the seam.
+    expect(branch).toContain(
+      "diffuseColor.a = mix(lodAlpha, 1.0, lodDepthDarken);",
+    );
+    expect(branch).toContain(WATER_OPTICS.lodWater.surfaceAlpha.toFixed(4));
+    expect(branch).toContain(WATER_OPTICS.lodWater.grazingAlphaMax.toFixed(4));
   });
 
   it("dead-codes the branch in the cross shader", () => {

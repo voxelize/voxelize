@@ -51,14 +51,22 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         };
 
         for (id, requests) in (&ids, &mut requests).join() {
-            let mut to_add_back_to_requested = HashSet::new();
+            // Requests arrive from the client sorted nearest-first, so the
+            // over-budget remainder is re-queued as an order-preserving Vec
+            // (deduped by the side set). A HashSet here scrambled that order
+            // every capped tick, letting far chunks jump ahead of near ones
+            // while a join backlog drained.
+            let mut to_add_back_to_requested: Vec<Vec2<i32>> = Vec::new();
+            let mut re_added: HashSet<Vec2<i32>> = HashSet::new();
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
                     let count = send_counts.entry(id.0.clone()).or_default();
 
                     if *count >= max_response_per_tick {
-                        to_add_back_to_requested.insert(coords);
+                        if re_added.insert(coords.clone()) {
+                            to_add_back_to_requested.push(coords);
+                        }
                         continue;
                     }
 

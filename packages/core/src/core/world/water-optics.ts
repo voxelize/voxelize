@@ -102,10 +102,12 @@ export const WATER_OPTICS = Object.freeze({
   maxSurfaceScanBlocks: 96,
 
   /**
-   * The cheap distant-water look. LOD water renders as one opaque,
-   * depth-written surface — no refraction capture, no per-pixel
-   * extinction/scatter ray work — so its water read comes entirely from
-   * these tunables: a pull toward the shared water tint, subtle
+   * The cheap distant-water look. LOD water renders as one depth-written,
+   * blended surface layer — a single alpha pass with no refraction capture
+   * and no per-pixel extinction/scatter ray work — so its water read comes
+   * entirely from these tunables: a translucency that lets the coarse
+   * seabed beneath show through (the same cue the near water gets from its
+   * refracted view), a pull toward the shared water tint, subtle
    * Beer-Lambert darkening below the waterline, and a single-octave
    * animated ripple whose perturbed normal drives a baked sky highlight,
    * Schlick fresnel, and a sun glint.
@@ -141,6 +143,22 @@ export const WATER_OPTICS = Object.freeze({
 
     /** Strength of the sun glint off the rippled surface. */
     glintStrength: 0.4,
+
+    /**
+     * Opacity of the single blended LOD water layer viewed head-on. Low
+     * enough that the LOD seabed reads through it — matching the near
+     * water, whose refracted view keeps the lakebed visible — while still
+     * reading as a water surface rather than tinted glass.
+     */
+    surfaceAlpha: 0.56,
+
+    /**
+     * Opacity the layer climbs toward at grazing incidence, following the
+     * same fresnel curve as the sky reflection. Grazing views of the near
+     * water are dominated by reflection anyway, so near and LOD water
+     * converge on the same opaque read toward the horizon.
+     */
+    grazingAlphaMax: 0.9,
   }),
 
   /**

@@ -724,9 +724,10 @@ if (vIsFluid > 0.5) {
   outgoingLight.rgb *= exp(-fluidMu * waterDepth);
 }
 
-// Distant (LOD) water: opaque and depth-written, so the water read is baked
-// here at fixed cost — no refraction capture, no per-pixel extinction or
-// scatter ray work. One ripple octave (three noise taps) perturbs the
+// Distant (LOD) water: one depth-written, blended surface layer, so the
+// water read is baked here at fixed cost — a single alpha pass with no
+// refraction capture, no per-pixel extinction or scatter ray work, and no
+// stacked blend bands. One ripple octave (three noise taps) perturbs the
 // shading normal, which together drives a sky-colored sparkle highlight,
 // Schlick fresnel toward the sky, and a sun glint; Beer-Lambert darkening
 // below the waterline keeps submerged hull sides reading deep.
@@ -774,6 +775,21 @@ if (uLodWater > 0.5) {
     0.0,
     ${WATER_OPTICS.lodWater.fresnelMax.toFixed(4)}
   );
+
+  // Translucency of the single blended layer. The coarse seabed beneath is
+  // real geometry (fluid cells are see-through to the mesher, so submerged
+  // floor faces exist and are lit through the shared underwater filter), so
+  // a tuned head-on alpha shows it the way the near water's refracted view
+  // does. The alpha rides the same fresnel curve as the sky reflection —
+  // grazing views converge on the near water's reflective, opaque read —
+  // and faces below the waterline (hull walls, spill films) go opaque with
+  // depth so the ocean body never reveals what is behind it.
+  float lodAlpha = mix(
+    ${WATER_OPTICS.lodWater.surfaceAlpha.toFixed(4)},
+    ${WATER_OPTICS.lodWater.grazingAlphaMax.toFixed(4)},
+    clamp(lodFresnel / ${WATER_OPTICS.lodWater.fresnelMax.toFixed(4)}, 0.0, 1.0)
+  );
+  diffuseColor.a = mix(lodAlpha, 1.0, lodDepthDarken);
 
   vec3 lodReflectDir = reflect(-lodViewDir, lodNormal);
   vec3 lodSky = mix(uSkyMiddleColor, uSkyTopColor, clamp(lodReflectDir.y * 0.5 + 0.5, 0.0, 1.0));
