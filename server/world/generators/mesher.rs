@@ -5,11 +5,28 @@ use hashbrown::{HashMap, HashSet};
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    Chunk, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry, Space, Vec2, Vec3,
-    VoxelAccess, WorldConfig,
+    Chunk, ChunkLodConfig, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry,
+    Space, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 use super::lights::Lights;
+
+fn to_geometry_protocols(
+    geometries: Vec<voxelize_mesher::GeometryProtocol>,
+) -> Vec<GeometryProtocol> {
+    geometries
+        .into_iter()
+        .map(|g| GeometryProtocol {
+            voxel: g.voxel,
+            at: g.at.map(|[x, y, z]| vec![x, y, z]).unwrap_or_default(),
+            face_name: g.face_name,
+            positions: g.positions,
+            indices: g.indices,
+            uvs: g.uvs,
+            lights: g.lights,
+        })
+        .collect()
+}
 
 pub struct Mesher {
     pub(crate) queue: std::collections::VecDeque<Vec2<i32>>,
@@ -182,11 +199,20 @@ impl Mesher {
                     }
 
                     let started = std::time::Instant::now();
-                    if config.client_only_meshing {
-                        chunk.meshes = None;
-                    } else {
+                    let needs_full_meshes = !config.client_only_meshing;
+
+                    let mesher_registry = if needs_full_meshes || config.chunk_lod.is_some() {
                         let mut mesher_registry = registry.to_mesher_registry();
                         mesher_registry.build_cache();
+                        Some(mesher_registry)
+                    } else {
+                        None
+                    };
+
+                    if !needs_full_meshes {
+                        chunk.meshes = None;
+                    } else {
+                        let mesher_registry = mesher_registry.as_ref().unwrap();
 
                         for level in sub_chunks {
                             let level = level as i32;
@@ -202,33 +228,69 @@ impl Mesher {
                                 &min_arr,
                                 &max_arr,
                                 &space,
-                                &mesher_registry,
+                                mesher_registry,
                             );
 
-                            let geometries: Vec<GeometryProtocol> = mesher_geometries
-                                .into_iter()
-                                .map(|g| GeometryProtocol {
-                                    voxel: g.voxel,
-                                    at: g.at.map(|[x, y, z]| vec![x, y, z]).unwrap_or_default(),
-                                    face_name: g.face_name,
-                                    positions: g.positions,
-                                    indices: g.indices,
-                                    uvs: g.uvs,
-                                    lights: g.lights,
-                                })
-                                .collect();
-
-                            chunk
-                                .meshes
-                                .get_or_insert_with(HashMap::new)
-                                .insert(level as u32, MeshProtocol { level, geometries });
+                            chunk.meshes.get_or_insert_with(HashMap::new).insert(
+                                level as u32,
+                                MeshProtocol {
+                                    level,
+                                    lod: 0,
+                                    geometries: to_geometry_protocols(mesher_geometries),
+                                },
+                            );
                         }
+                    }
+
+                    if let Some(chunk_lod) = &config.chunk_lod {
+                        Self::build_lod_pyramid(
+                            &mut chunk,
+                            chunk_lod,
+                            mesher_registry.as_ref().unwrap(),
+                            &config,
+                        );
                     }
                     super::gen_profiler::record("mesh: greedy", started.elapsed());
 
                     let _ = sender.send((chunk, r#type.clone()));
                 });
         });
+    }
+
+    /// Build (or rebuild) the chunk's reduced-detail mesh pyramid, one
+    /// whole-column mesh per configured LOD level. Runs on the meshing
+    /// thread pool next to the full-detail meshing; the downsample pass is a
+    /// single sweep over the chunk arrays and the coarse mesh volume is
+    /// `1/8^level` of the chunk, so the added cost is a small fraction of a
+    /// full mesh.
+    fn build_lod_pyramid(
+        chunk: &mut Chunk,
+        chunk_lod: &ChunkLodConfig,
+        mesher_registry: &voxelize_mesher::Registry,
+        config: &WorldConfig,
+    ) {
+        let shape = [config.chunk_size, config.max_height, config.chunk_size];
+
+        let lod_meshes = chunk.lod_meshes.get_or_insert_with(HashMap::new);
+
+        for level in chunk_lod.levels() {
+            let geometries = voxelize_mesher::mesh_chunk_lod(
+                &chunk.voxels.data,
+                &chunk.lights.data,
+                shape,
+                level,
+                mesher_registry,
+            );
+
+            lod_meshes.insert(
+                level,
+                MeshProtocol {
+                    level: 0,
+                    lod: level,
+                    geometries: to_geometry_protocols(geometries),
+                },
+            );
+        }
     }
 
     pub fn results(&mut self) -> Vec<(Chunk, MessageType)> {

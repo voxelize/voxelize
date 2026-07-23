@@ -43,6 +43,11 @@ pub struct Chunk {
 
     pub meshes: Option<HashMap<u32, MeshProtocol>>,
 
+    /// Reduced-detail whole-column meshes keyed by LOD level (`1..=max`),
+    /// built by the mesher when the world opts into `chunk_lod`. `None` when
+    /// the feature is off.
+    pub lod_meshes: Option<HashMap<u32, MeshProtocol>>,
+
     pub min: Vec3<i32>,
     pub max: Vec3<i32>,
 
@@ -155,6 +160,22 @@ impl Chunk {
                 None
             },
         }
+    }
+
+    /// Convert chunk to a LOD-only protocol model: just the reduced-detail
+    /// mesh at `level`, no voxel or light data. Returns `None` when the mesh
+    /// for that level has not been built (feature off or not yet meshed).
+    pub fn to_lod_model(&self, level: u32) -> Option<ChunkProtocol> {
+        let mesh = self.lod_meshes.as_ref()?.get(&level)?;
+
+        Some(ChunkProtocol {
+            x: self.coords.0,
+            z: self.coords.1,
+            id: self.id.clone(),
+            meshes: vec![mesh.to_owned()],
+            voxels: None,
+            lights: None,
+        })
     }
 
     /// Flag a level of sub-chunk as dirty, waiting to be remeshed.

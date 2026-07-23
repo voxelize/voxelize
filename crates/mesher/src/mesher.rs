@@ -161,8 +161,8 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [0, 0, -1],
 ];
 
-const FLUID_BASE_HEIGHT: f32 = 0.875;
-const FLUID_STAGE_DROPOFF: f32 = 0.1;
+pub(crate) const FLUID_BASE_HEIGHT: f32 = 0.875;
+pub(crate) const FLUID_STAGE_DROPOFF: f32 = 0.1;
 const FLUID_SURFACE_OFFSET: f32 = 0.005;
 
 struct NeighborCache {
@@ -288,14 +288,18 @@ pub struct MeshOutput {
     pub geometries: Vec<GeometryProtocol>,
 }
 
-struct VoxelSpace<'a> {
+pub(crate) struct VoxelSpace<'a> {
     chunks: &'a [Option<ChunkData>],
     chunk_size: i32,
     center_coords: [i32; 2],
 }
 
 impl<'a> VoxelSpace<'a> {
-    fn new(chunks: &'a [Option<ChunkData>], chunk_size: i32, center_coords: [i32; 2]) -> Self {
+    pub(crate) fn new(
+        chunks: &'a [Option<ChunkData>],
+        chunk_size: i32,
+        center_coords: [i32; 2],
+    ) -> Self {
         Self {
             chunks,
             chunk_size,
@@ -730,6 +734,14 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
         let nx = vx + dx;
         let nz = vz + dz;
 
+        // Out-of-space neighbors are unknown terrain, not air: treat them as a
+        // fluid continuation (neutral) so surfaces stay flat at data borders
+        // instead of drooping toward the void. This keeps closed LOD hulls and
+        // horizon-edge chunks free of scalloped water rims.
+        if !space.contains(nx, vy, nz) {
+            continue;
+        }
+
         if has_fluid_above(nx, vy, nz, fluid_id, space) {
             total_height += 1.0;
             count += 1.0;
@@ -1020,6 +1032,15 @@ fn should_render_face<S: VoxelAccess>(
 
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
+
+    // Fluids never face the void. Out-of-space is unknown terrain, not air:
+    // a fluid wall there is either duplicated by the neighboring mesh (and,
+    // being transparent, visibly stacks instead of being occluded) or faces
+    // a data horizon where the opaque hull behind it already closes the
+    // silhouette. Suppressing these keeps LOD water a single clean surface.
+    if is_fluid && n_is_void {
+        return false;
+    }
 
     if !n_is_void && !registry.has_type(neighbor_id) {
         return false;
@@ -1716,6 +1737,11 @@ fn process_face<S: VoxelAccess>(
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
     let n_is_void = !space.contains(nvx, nvy, nvz);
 
+    // Mirrors `should_render_face`: fluids never face the void (see there).
+    if is_fluid && n_is_void {
+        return;
+    }
+
     if !n_is_void && !registry.has_type(neighbor_id) {
         return;
     }
@@ -2219,12 +2245,19 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     }
 
                     if block.is_opaque {
+                        // A voxel only counts as buried when every neighbor is
+                        // an in-space opaque voxel: out-of-space coordinates
+                        // are unknown terrain whose faces must still be
+                        // evaluated, regardless of what a space's `get_voxel`
+                        // reports for them (e.g. edge-mirrored LOD spaces).
                         let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                            let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
-                            registry
-                                .get_block_by_id(id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false)
+                            space.contains(vx + nx, vy + ny, vz + nz) && {
+                                let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+                                registry
+                                    .get_block_by_id(id)
+                                    .map(|b| b.is_opaque)
+                                    .unwrap_or(false)
+                            }
                         });
                         if all_neighbors_opaque {
                             continue;

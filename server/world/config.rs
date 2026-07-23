@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+use super::chunk_lod::ChunkLodConfig;
 use super::fixed_step::FixedStepConfig;
 use super::generators::NoiseOptions;
 use super::lag_comp::LagCompConfig;
@@ -189,6 +190,14 @@ pub struct WorldConfig {
     /// tick-anchored; a `Some` here without a fixed step is rejected at build
     /// time.
     pub lag_comp: Option<LagCompConfig>,
+
+    /// Opt-in level-of-detail meshing for distant chunks. `None` (default)
+    /// builds no LOD meshes and ignores LOD requests — existing worlds are
+    /// unaffected. `Some(..)` builds a per-chunk pyramid of reduced-detail
+    /// meshes and serves them to clients requesting distant chunks as LOD
+    /// (see [`ChunkLodConfig`]). Validated against chunk dimensions at build
+    /// time.
+    pub chunk_lod: Option<ChunkLodConfig>,
 }
 
 impl Default for WorldConfig {
@@ -295,6 +304,7 @@ pub struct WorldConfigBuilder {
     peer_visible_radius: Option<f32>,
     fixed_timestep: Option<FixedStepConfig>,
     lag_comp: Option<LagCompConfig>,
+    chunk_lod: Option<ChunkLodConfig>,
 }
 
 impl WorldConfigBuilder {
@@ -345,6 +355,7 @@ impl WorldConfigBuilder {
             peer_visible_radius: None,
             fixed_timestep: None,
             lag_comp: None,
+            chunk_lod: None,
         }
     }
 
@@ -601,6 +612,15 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Opt into (or out of) level-of-detail meshing for distant chunks.
+    /// `None` (default) is today's behavior; `Some(..)` builds a per-chunk
+    /// LOD mesh pyramid and serves distant chunks as compact LOD meshes.
+    /// Validated against chunk dimensions at [`Self::build`].
+    pub fn chunk_lod(mut self, chunk_lod: Option<ChunkLodConfig>) -> Self {
+        self.chunk_lod = chunk_lod;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -665,6 +685,12 @@ impl WorldConfigBuilder {
             }
         }
 
+        if let Some(chunk_lod) = &self.chunk_lod {
+            if let Err(error) = chunk_lod.validate(self.chunk_size, self.max_height) {
+                panic!("Invalid chunk_lod config: {}", error);
+            }
+        }
+
         WorldConfig {
             max_clients: self.max_clients,
             chunk_size: self.chunk_size,
@@ -724,6 +750,7 @@ impl WorldConfigBuilder {
             peer_visible_radius: self.peer_visible_radius,
             fixed_timestep: self.fixed_timestep,
             lag_comp: self.lag_comp,
+            chunk_lod: self.chunk_lod,
         }
     }
 }

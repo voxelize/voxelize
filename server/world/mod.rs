@@ -5,6 +5,7 @@ mod config;
 pub mod cpu_profiler;
 mod entities;
 mod entity_ids;
+mod chunk_lod;
 mod events;
 mod fixed_step;
 mod generators;
@@ -63,6 +64,7 @@ use crate::{
 use super::common::ClientFilter;
 
 pub use bookkeeping::*;
+pub use chunk_lod::*;
 pub use clients::*;
 pub use components::*;
 pub use config::*;
@@ -672,6 +674,28 @@ struct OnLoadRequest {
     center: Vec2<i32>,
     direction: Vec2<f32>,
     chunks: Vec<Vec2<i32>>,
+    /// Chunks requested as reduced-detail meshes: `[x, z, lodLevel]` per
+    /// entry. Only sent by clients of worlds that enable `chunk_lod`; absent
+    /// (and ignored) otherwise.
+    #[serde(default, rename = "lodChunks")]
+    lod_chunks: Vec<(i32, i32, u32)>,
+}
+
+/// Gate inbound LOD chunk requests on the world's opt-in: worlds without
+/// `chunk_lod` drop them wholesale (a client cannot switch LOD serving on by
+/// itself), and levels outside the configured pyramid are discarded.
+fn filter_lod_requests(
+    chunk_lod: Option<&ChunkLodConfig>,
+    lod_chunks: Vec<(i32, i32, u32)>,
+) -> Vec<(Vec2<i32>, u32)> {
+    match chunk_lod {
+        Some(config) => lod_chunks
+            .into_iter()
+            .filter(|(_, _, level)| *level >= 1 && *level <= config.max_level)
+            .map(|(x, z, level)| (Vec2(x, z), level))
+            .collect(),
+        None => Vec::new(),
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -2360,7 +2384,10 @@ impl World {
         };
 
         let chunks = json.chunks;
-        if chunks.is_empty() {
+        let lod_chunks =
+            filter_lod_requests(self.config().chunk_lod.as_ref(), json.lod_chunks);
+
+        if chunks.is_empty() && lod_chunks.is_empty() {
             return;
         }
 
@@ -2371,6 +2398,10 @@ impl World {
             if let Some(requests) = storage.get_mut(client_ent) {
                 chunks.iter().for_each(|coords| {
                     requests.add(coords);
+                });
+
+                lod_chunks.iter().for_each(|(coords, level)| {
+                    requests.add_lod(coords, *level);
                 });
 
                 requests.set_center(&json.center);
@@ -2912,5 +2943,224 @@ mod lag_comp_wiring_tests {
             world.record_rewind_poses(1);
             assert!(world.rewound_pose(entity.id() as u64, 1).is_none());
         });
+    }
+}
+
+#[cfg(test)]
+mod chunk_lod_wiring_tests {
+    use super::*;
+    use crate::{ChunkLodConfig, FlatlandStage};
+    use std::time::{Duration as StdDuration, Instant as StdInstant};
+
+    // The LOAD request json accepts the optional camelCase `lodChunks` list
+    // new clients send; absent (legacy clients), it defaults empty.
+    #[test]
+    fn on_load_request_parses_lod_chunks() {
+        let json = r#"{
+            "center": [0, 0],
+            "direction": [0.0, 1.0],
+            "chunks": [[1, 2]],
+            "lodChunks": [[8, -3, 1], [16, 0, 2]]
+        }"#;
+        let request: OnLoadRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.chunks, vec![Vec2(1, 2)]);
+        assert_eq!(request.lod_chunks, vec![(8, -3, 1), (16, 0, 2)]);
+
+        let legacy = r#"{"center": [0, 0], "direction": [0.0, 1.0], "chunks": []}"#;
+        let request: OnLoadRequest = serde_json::from_str(legacy).unwrap();
+        assert!(request.lod_chunks.is_empty());
+    }
+
+    // End-to-end through the real dispatcher: a LOD request on an opted-in
+    // world schedules generation, the mesher builds the pyramid, and the
+    // client's LOD interest is registered at the requested level so the
+    // sending system will serve LOD models for this chunk from now on.
+    #[test]
+    fn lod_request_generates_chunk_and_registers_lod_interest() {
+        actix::System::new().block_on(async {
+            let config = WorldConfig::new()
+                .min_chunk([-3, -3])
+                .max_chunk([3, 3])
+                .max_height(64)
+                .sub_chunks(4)
+                .chunk_lod(Some(ChunkLodConfig { max_level: 2 }))
+                .build();
+            let mut world = World::new("lod-wiring", &config);
+            let mut registry = Registry::new();
+            registry.register_block(&Block::new("Stone").id(1).build());
+            world.ecs_mut().insert(registry);
+            world
+                .pipeline_mut()
+                .add_stage(FlatlandStage::new().add_soiling(1, 10));
+
+            let coords = Vec2(0, 0);
+            let mut requests = ChunkRequestsComp::new();
+            requests.add_lod(&coords, 2);
+            world
+                .ecs_mut()
+                .create_entity()
+                .with(IDComp::new("lod-client"))
+                .with(requests)
+                .build();
+
+            let deadline = StdInstant::now() + StdDuration::from_secs(20);
+            loop {
+                world.tick();
+
+                let ready_with_lod = world
+                    .chunks()
+                    .raw(&coords)
+                    .map(|chunk| {
+                        chunk.status == ChunkStatus::Ready
+                            && chunk
+                                .lod_meshes
+                                .as_ref()
+                                .map_or(false, |meshes| meshes.contains_key(&2))
+                    })
+                    .unwrap_or(false);
+
+                if ready_with_lod {
+                    break;
+                }
+
+                assert!(
+                    StdInstant::now() < deadline,
+                    "chunk never became ready with a LOD pyramid"
+                );
+                std::thread::sleep(StdDuration::from_millis(5));
+            }
+
+            assert_eq!(
+                world.chunk_interest().get_lod("lod-client", &coords),
+                Some(2),
+                "LOD interest must be registered at the requested level"
+            );
+
+            let chunks = world.chunks();
+            let chunk = chunks.raw(&coords).unwrap();
+            let model = chunk.to_lod_model(2).expect("LOD model must resolve");
+            assert_eq!(model.meshes[0].lod, 2);
+            assert!(
+                !model.meshes[0].geometries.is_empty(),
+                "flatland terrain must produce LOD geometry"
+            );
+        });
+    }
+
+    // The sending system routes by interest form: LOD-interested clients get
+    // only the compact LOD model (no voxel or light data), full-interest
+    // clients get chunk data exactly as before.
+    #[test]
+    fn sending_system_routes_lod_and_full_forms_by_interest() {
+        use specs::RunNow;
+
+        actix::System::new().block_on(async {
+            let config = WorldConfig::new()
+                .min_chunk([-3, -3])
+                .max_chunk([3, 3])
+                .max_height(64)
+                .sub_chunks(4)
+                .chunk_lod(Some(ChunkLodConfig { max_level: 2 }))
+                .build();
+            let mut world = World::new("lod-sending", &config);
+            let mut registry = Registry::new();
+            registry.register_block(&Block::new("Stone").id(1).build());
+            world.ecs_mut().insert(registry);
+            world
+                .pipeline_mut()
+                .add_stage(FlatlandStage::new().add_soiling(1, 10));
+
+            let coords = Vec2(0, 0);
+            let mut requests = ChunkRequestsComp::new();
+            requests.add_lod(&coords, 1);
+            world
+                .ecs_mut()
+                .create_entity()
+                .with(IDComp::new("lod-client"))
+                .with(requests)
+                .build();
+
+            let deadline = StdInstant::now() + StdDuration::from_secs(20);
+            while !world.chunks().is_chunk_ready(&coords) {
+                world.tick();
+                assert!(StdInstant::now() < deadline, "chunk never became ready");
+                std::thread::sleep(StdDuration::from_millis(5));
+            }
+
+            {
+                let mut interests = world.chunk_interest_mut();
+                interests.add_lod("lod-client", &coords, 1);
+                interests.add("full-client", &coords);
+            }
+            // Drain whatever the tick loop already queued, then trigger one
+            // clean send of the ready chunk.
+            world.write_resource::<MessageQueues>().drain_prioritized();
+            world
+                .chunks_mut()
+                .add_chunk_to_send(&coords, &MessageType::Load, false);
+
+            ChunkSendingSystem::new().run_now(world.ecs());
+
+            let queued = world
+                .write_resource::<MessageQueues>()
+                .drain_prioritized();
+
+            let mut lod_payloads = 0;
+            let mut full_payloads = 0;
+
+            for (message, filter) in queued {
+                let client_id = match &filter {
+                    ClientFilter::Direct(id) => id.clone(),
+                    other => panic!("unexpected filter {:?}", other),
+                };
+
+                for chunk in &message.chunks {
+                    if client_id == "lod-client" {
+                        lod_payloads += 1;
+                        assert_eq!(chunk.meshes.len(), 1);
+                        assert_eq!(chunk.meshes[0].lod, 1);
+                        assert!(
+                            chunk.voxels.is_empty() && chunk.lights.is_empty(),
+                            "LOD clients must not receive chunk data"
+                        );
+                    } else {
+                        assert_eq!(client_id, "full-client");
+                        full_payloads += 1;
+                        assert!(
+                            !chunk.voxels.is_empty(),
+                            "full clients keep receiving chunk data"
+                        );
+                        assert!(
+                            chunk.meshes.is_empty(),
+                            "client_only_meshing worlds send no full meshes"
+                        );
+                    }
+                }
+            }
+
+            assert_eq!(lod_payloads, 1, "LOD client gets exactly one LOD model");
+            assert_eq!(full_payloads, 1, "full client gets exactly one data model");
+        });
+    }
+
+    // Worlds that never opt in ignore LOD requests wholesale — a client
+    // cannot switch LOD serving on by itself — and levels outside the
+    // configured pyramid are discarded.
+    #[test]
+    fn lod_requests_are_gated_on_world_opt_in() {
+        let requested = vec![(0, 0, 1), (8, 8, 2), (16, 0, 3), (24, 0, 0)];
+
+        assert!(
+            filter_lod_requests(None, requested.clone()).is_empty(),
+            "worlds without chunk_lod must drop every LOD request"
+        );
+
+        let config = ChunkLodConfig { max_level: 2 };
+        let accepted = filter_lod_requests(Some(&config), requested);
+        assert_eq!(
+            accepted,
+            vec![(Vec2(0, 0), 1), (Vec2(8, 8), 2)],
+            "levels outside 1..=max_level must be discarded"
+        );
     }
 }
