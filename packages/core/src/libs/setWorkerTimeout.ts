@@ -10,6 +10,10 @@ export function setWorkerTimeout(func: () => void, timeout: number) {
 
   worker.onmessage = (e) => {
     if (e.data.signal === "timeout" && e.data.id === messageId) {
+      // One-shot: the worker's job ends with its timeout. Without this,
+      // every fired timeout leaks a live worker unless the caller invokes
+      // the canceler it usually has no reason to call.
+      worker.terminate();
       func();
     }
   };

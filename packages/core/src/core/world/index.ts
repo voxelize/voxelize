@@ -764,6 +764,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private aabbOverrides = new Map<string, AABB[]>();
   private waterRefractionFrame = -1;
+  private animatedAtlasTextures = new Set<AtlasTexture>();
 
   setAABBOverride = (voxel: Coords3, aabbs: AABB[]) => {
     this.aabbOverrides.set(ChunkUtils.getVoxelName(voxel), aabbs);
@@ -1000,6 +1001,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private voxelDeltas = new Map<string, VoxelDelta[]>();
   private deltaSequenceCounter = 0;
   private cleanupDeltasInterval: number | null = null;
+  private stopStatsSync: (() => void) | null = null;
+  private isDisposed = false;
 
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
@@ -1061,7 +1064,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.setupUniforms();
     this.startDeltaCleanup();
 
-    setWorkerInterval(() => {
+    // Fires at the start of every scene render (shadow cascades included),
+    // which is the earliest point with a renderer in hand: animated atlas
+    // frames queued since the last flush upload as small sub-rectangle
+    // patches before any material binds the texture.
+    this.onBeforeRender = (renderer) => {
+      this.animatedAtlasTextures.forEach((texture) =>
+        texture.flushAnimationPatches(renderer),
+      );
+    };
+
+    this.stopStatsSync = setWorkerInterval(() => {
       this.packets.push({
         type: "METHOD",
         method: {
@@ -1071,6 +1084,36 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
     }, statsSyncInterval);
   }
+
+  dispose = () => {
+    if (this.isDisposed) return;
+    this.isDisposed = true;
+
+    this.meshWorkerPool.terminate();
+    this.urgentMeshWorkerPool.terminate();
+    this.lightWorkerPool.terminate();
+    this.clouds.dispose();
+    this.csmRenderer?.dispose();
+
+    if (this.cleanupDeltasInterval !== null) {
+      clearInterval(this.cleanupDeltasInterval);
+      this.cleanupDeltasInterval = null;
+    }
+    this.stopStatsSync?.();
+    this.stopStatsSync = null;
+
+    this.lightJobQueue = [];
+    this.activeLightBatch = null;
+    this.lightJobsCompleteResolvers.splice(0).forEach((resolve) => resolve());
+
+    this.chunkPipeline.forEachLoaded((chunk) => chunk.dispose());
+    this.chunkRenderer.materials.forEach((material) => {
+      material.map?.dispose();
+      material.dispose();
+    });
+    this.chunkRenderer.materials.clear();
+    this.animatedAtlasTextures.clear();
+  };
 
   private startDeltaCleanup() {
     this.cleanupDeltasInterval = setInterval(() => {
@@ -1694,6 +1737,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         realKeyframes,
         fadeFrames,
       );
+      this.animatedAtlasTextures.add(mat.map as AtlasTexture);
     });
   }
 

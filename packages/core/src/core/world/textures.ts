@@ -5,11 +5,21 @@ import {
   NearestFilter,
   SRGBColorSpace,
   Texture,
+  Vector3,
+  WebGLRenderer,
 } from "three";
 
 import { ThreeUtils } from "../../utils";
 
 import { UV } from "./uv";
+
+type AtlasAnimationPatch = {
+  scratch: HTMLCanvasElement;
+  x: number;
+  y: number;
+  size: number;
+  dstPosition: Vector3;
+};
 
 /**
  * A texture atlas is a collection of textures that are packed into a single texture.
@@ -60,6 +70,11 @@ export class AtlasTexture extends CanvasTexture {
    * The list of block animations that are being used by this texture atlas.
    */
   public animations: { animation: FaceAnimation; timer: any }[] = [];
+
+  private pendingAnimationPatches = new Map<
+    FaceAnimation,
+    AtlasAnimationPatch
+  >();
 
   /**
    * Create a new texture this.
@@ -257,10 +272,25 @@ export class AtlasTexture extends CanvasTexture {
 
     const entry = { animation, timer: null };
 
+    // Animation ticks never set `needsUpdate` on this texture: doing so
+    // re-uploads the entire atlas canvas to the GPU every tick, which for a
+    // fading animation means a multi-megabyte texSubImage2D stall on nearly
+    // every frame. Frames are composited on a per-animation scratch canvas
+    // instead, mirrored onto the atlas canvas (so full uploads stay
+    // coherent), and queued as a small sub-rectangle GPU patch that the
+    // world flushes before rendering.
+    const patch = this.makeAnimationPatch(animation);
+
     const start = (index = 0) => {
       const keyframe = animation.keyframes[index];
 
-      this.drawImageToRange(range, keyframe[1], this.countPerSide !== 1);
+      this.drawAnimationKeyframe(
+        patch,
+        keyframe[1],
+        this.countPerSide !== 1,
+        1,
+      );
+      this.commitAnimationPatch(animation, patch);
 
       entry.timer = setTimeout(() => {
         clearTimeout(entry.timer);
@@ -278,35 +308,154 @@ export class AtlasTexture extends CanvasTexture {
 
             requestAnimationFrame(() => fade(fraction + 1));
 
-            this.drawImageToRange(
-              range,
+            this.drawAnimationKeyframe(
+              patch,
               nextKeyframe[1],
               true,
               fraction / fadeFrames,
             );
-
-            this.drawImageToRange(
-              range,
+            this.drawAnimationKeyframe(
+              patch,
               keyframe[1],
               false,
               1 - fraction / fadeFrames,
             );
-
-            this.needsUpdate = true;
+            this.commitAnimationPatch(animation, patch);
           };
 
           fade();
         } else {
           start(nextIndex);
         }
-
-        this.needsUpdate = true;
       }, keyframe[0]);
     };
 
     this.animations.push(entry);
 
     start();
+  }
+
+  private makeAnimationPatch(animation: FaceAnimation): AtlasAnimationPatch {
+    const { startU, endV } = animation.range;
+    const canvasWidth = this.canvas.width;
+    const canvasHeight = this.canvas.height;
+    const size = Math.round(
+      this.dimension * this.atlasRatio + 2 * this.atlasMargin,
+    );
+    const x = Math.round((startU - this.atlasOffset) * canvasWidth);
+    const y = Math.round((1 - endV - this.atlasOffset) * canvasHeight);
+
+    const scratch = document.createElement("canvas");
+    scratch.width = size;
+    scratch.height = size;
+    scratch.getContext("2d").imageSmoothingEnabled = false;
+
+    return {
+      scratch,
+      x,
+      y,
+      size,
+      // texSubImage2D destinations are addressed from the texture's bottom
+      // row; the atlas uploads with flipY, so the canvas-space rect flips.
+      dstPosition: new Vector3(x, canvasHeight - y - size, 0),
+    };
+  }
+
+  private drawAnimationKeyframe(
+    patch: AtlasAnimationPatch,
+    image: Color | HTMLImageElement,
+    clearRect: boolean,
+    opacity: number,
+  ) {
+    const context = patch.scratch.getContext("2d");
+    const size = patch.size;
+    const inner = this.dimension * this.atlasRatio;
+
+    context.save();
+    context.globalAlpha = opacity;
+    if (opacity !== 1) context.globalCompositeOperation = "lighter";
+
+    if (clearRect) {
+      context.clearRect(0, 0, size, size);
+    }
+
+    if ((image as Color).isColor) {
+      context.fillStyle = `#${(image as Color).getHexString()}`;
+      context.fillRect(0, 0, size, size);
+      context.restore();
+      return;
+    }
+
+    const source = image as HTMLImageElement;
+
+    // Same margin-bleed layout as drawImageToRange: a padded backdrop, a
+    // carved center, then the actual texture in the center.
+    if (clearRect) {
+      context.drawImage(source, 0, 0, size, size);
+      context.clearRect(this.atlasMargin, this.atlasMargin, inner, inner);
+    }
+
+    context.drawImage(source, this.atlasMargin, this.atlasMargin, inner, inner);
+
+    context.restore();
+  }
+
+  private commitAnimationPatch(
+    animation: FaceAnimation,
+    patch: AtlasAnimationPatch,
+  ) {
+    // Keep the CPU-side atlas canvas coherent so any later full upload
+    // (context loss, needsUpdate from static texture edits) stays correct.
+    const context = this.canvas.getContext("2d");
+    context.clearRect(patch.x, patch.y, patch.size, patch.size);
+    context.drawImage(patch.scratch, patch.x, patch.y);
+
+    this.pendingAnimationPatches.set(animation, patch);
+  }
+
+  flushAnimationPatches(renderer: WebGLRenderer) {
+    // Called by the world right before rendering: queued animation frames
+    // upload as sub-rectangle patches of the GPU texture. No-op when no
+    // animation ticked since the last flush.
+    if (this.pendingAnimationPatches.size === 0) return;
+
+    const textureProperties = renderer.properties.get(this) as {
+      __webglTexture?: WebGLTexture;
+    };
+    if (!textureProperties.__webglTexture) {
+      // Not GPU-resident yet: the atlas canvas already mirrors every patch,
+      // so a full upload on the next bind covers them.
+      this.pendingAnimationPatches.clear();
+      this.needsUpdate = true;
+      return;
+    }
+
+    // Raw texSubImage2D instead of renderer.copyTextureToTexture: the three
+    // helper brackets every copy with five synchronous gl.getParameter
+    // round-trips to the GPU process (to save/restore unpack state), which
+    // stall the main thread for longer than the upload itself. Unpack state
+    // is instead set to the defaults three's own uploads assume.
+    const gl = renderer.getContext();
+    renderer.state.bindTexture(gl.TEXTURE_2D, textureProperties.__webglTexture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.unpackAlignment);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+
+    this.pendingAnimationPatches.forEach((patch) => {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        patch.dstPosition.x,
+        patch.dstPosition.y,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        patch.scratch,
+      );
+    });
+    this.pendingAnimationPatches.clear();
+
+    renderer.state.unbindTexture();
   }
 
   private makeCanvasPowerOfTwo(canvas?: HTMLCanvasElement | undefined) {
