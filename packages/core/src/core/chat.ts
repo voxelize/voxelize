@@ -9,6 +9,10 @@ import { stampChatPerf } from "./perf";
 /**
  * Options for adding a command.
  */
+export type TabCompleteContext = {
+  args: Record<string, string>;
+};
+
 export type CommandOptions<
   T extends ZodObject<Record<string, ZodTypeAny>> = ZodObject<
     Record<string, never>
@@ -19,7 +23,14 @@ export type CommandOptions<
   aliases?: string[];
   flags?: string[];
   args?: T;
-  tabComplete?: Partial<Record<keyof z.infer<T>, () => string[]>>;
+  tabComplete?: Partial<
+    Record<
+      keyof z.infer<T>,
+      (currentValue: string, context: TabCompleteContext) => string[]
+    >
+  >;
+  isHidden?: boolean;
+  isTabCompletePreFiltered?: boolean;
 };
 
 /**
@@ -36,7 +47,14 @@ export type CommandInfo<
   aliases: string[];
   flags: string[];
   args: T;
-  tabComplete: Partial<Record<string, () => string[]>>;
+  tabComplete: Partial<
+    Record<
+      string,
+      (currentValue: string, context: TabCompleteContext) => string[]
+    >
+  >;
+  isHidden: boolean;
+  isTabCompletePreFiltered: boolean;
 };
 
 /**
@@ -48,7 +66,7 @@ export type ArgMetadata = {
   required: boolean;
   options?: string[];
   defaultValue?: string | number | boolean;
-  tabComplete?: () => string[];
+  tabComplete?: (currentValue: string, context: TabCompleteContext) => string[];
 };
 
 /**
@@ -371,7 +389,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       flags: options.flags || [],
       args: (options.args ?? Chat.emptySchema) as T,
       tabComplete:
-        (options.tabComplete as Partial<Record<string, () => string[]>>) ?? {},
+        (options.tabComplete as Partial<
+          Record<
+            string,
+            (currentValue: string, context: TabCompleteContext) => string[]
+          >
+        >) ?? {},
+      isHidden: options.isHidden ?? false,
+      isTabCompletePreFiltered: options.isTabCompletePreFiltered ?? false,
     };
 
     this.commands.set(
@@ -499,7 +524,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private extractArgMetadata(
     schema: ZodObject<Record<string, ZodTypeAny>> | undefined,
-    tabComplete?: Partial<Record<string, () => string[]>>,
+    tabComplete?: Partial<
+      Record<
+        string,
+        (currentValue: string, context: TabCompleteContext) => string[]
+      >
+    >,
   ): ArgMetadata[] {
     if (!schema) {
       return [];
@@ -585,6 +615,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     aliases: string[];
     flags: string[];
     args: ArgMetadata[];
+    isTabCompletePreFiltered: boolean;
   }> {
     const uniqueCommands = new Map<
       CommandInfo<ZodObject<Record<string, ZodTypeAny>>>,
@@ -604,8 +635,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       aliases: string[];
       flags: string[];
       args: ArgMetadata[];
+      isTabCompletePreFiltered: boolean;
     }> = [];
     uniqueCommands.forEach((primaryTrigger, commandInfo) => {
+      if (commandInfo.isHidden) return;
       result.push({
         trigger: primaryTrigger,
         description: commandInfo.description,
@@ -615,6 +648,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         args: commandInfo.args
           ? this.extractArgMetadata(commandInfo.args, commandInfo.tabComplete)
           : [],
+        isTabCompletePreFiltered: commandInfo.isTabCompletePreFiltered,
       });
     });
 
