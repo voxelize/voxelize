@@ -925,6 +925,32 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * The opaque material distant (LOD) water renders with: same shader and
+   * shared live uniforms as every chunk material, same texture as the near
+   * water material, but no blending and depth-written. Cached per base
+   * material identity; created lazily on first LOD water arrival.
+   */
+  private lodFluidMaterials = new Map<string, CustomChunkShaderMaterial>();
+
+  private getLodFluidMaterial(
+    baseKey: string,
+    base: CustomChunkShaderMaterial,
+  ): CustomChunkShaderMaterial {
+    let material = this.lodFluidMaterials.get(baseKey);
+    if (!material) {
+      material = this.makeShaderMaterial();
+      material.map = base.map;
+      material.uniforms.map = { value: base.map };
+      material.side = FrontSide;
+      material.transparent = false;
+      material.depthWrite = true;
+      material.needsUpdate = true;
+      this.lodFluidMaterials.set(baseKey, material);
+    }
+    return material;
+  }
+
+  /**
    * Transparent setup for merged LOD region meshes: render order and water
    * refraction capture only. Per-triangle distance sorting is skipped —
    * distant merged geometry gains nothing from it and would pay a per-frame
@@ -3902,14 +3928,24 @@ export class World<T = any> extends Scene implements NetIntercept {
           const block = this.getBlockByIdSafe(voxel);
           const isIndependentFace =
             !!faceName && !!block?.independentFaces.has(faceName);
+          const key = this.makeChunkMaterialKey(
+            voxel,
+            isIndependentFace ? faceName : undefined,
+          );
 
-          return {
-            key: this.makeChunkMaterialKey(
-              voxel,
-              isIndependentFace ? faceName : undefined,
-            ),
-            material,
-          };
+          // Distant water renders opaque and depth-written: no blending
+          // over the whole ocean area, no region-to-region transparent sort
+          // hazards, and the sea floor beneath it is early-Z rejected
+          // instead of shaded and then blended over.
+          if (block?.isFluid) {
+            return {
+              key: `${key}::lod-fluid`,
+              material: this.getLodFluidMaterial(key, material),
+              isLodFluid: true,
+            };
+          }
+
+          return { key, material };
         },
         configureTransparentMesh: (mesh, voxel) => {
           this.configureLodTransparentMesh(mesh, voxel);

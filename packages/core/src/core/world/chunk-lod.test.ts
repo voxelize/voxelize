@@ -238,6 +238,41 @@ describe("LodChunkManager", () => {
     expect(positionCount).toBe(2 * 12);
   });
 
+  it("strips the water-optics flag from LOD fluid geometry", () => {
+    const fluidBit = 1 << 18;
+    const waveBit = 1 << 20;
+    const { manager } = makeManager({
+      resolveMaterial: () => ({
+        key: "water::lod-fluid",
+        material: new MeshBasicMaterial() as Material,
+        isLodFluid: true,
+      }),
+    });
+
+    const protocol = lodProtocol(6, 0, 1);
+    protocol.meshes[0].geometries[0].lights.set(
+      [fluidBit | waveBit | 0xfff, fluidBit, waveBit, 0],
+      0,
+    );
+
+    manager.update([0, 0]);
+    manager.onLodChunk(protocol);
+    manager.update([0, 0]);
+
+    const meshes: Mesh[] = [];
+    manager.group.traverse((object) => {
+      if ((object as Mesh).isMesh) meshes.push(object as Mesh);
+    });
+    expect(meshes).toHaveLength(1);
+
+    const lights = meshes[0].geometry.getAttribute("light").array as Int32Array;
+    const levelBits = 1 << 21;
+    expect(lights[0]).toBe(waveBit | 0xfff | levelBits);
+    expect(lights[1]).toBe(levelBits);
+    expect(lights[2]).toBe(waveBit | levelBits);
+    expect(lights[3]).toBe(levelBits);
+  });
+
   it("stamps the region LOD level into the merged light attribute", () => {
     const { manager } = makeManager();
 

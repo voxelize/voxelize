@@ -106,11 +106,16 @@ export function lodRegionKey(cx: number, cz: number, level: number): string {
 export type LodChunkManagerHost = {
   chunkSize: number;
   renderRadius: () => number;
-  /** Resolve a geometry's material and its stable bucketing key. */
+  /**
+   * Resolve a geometry's material and its stable bucketing key. Fluids
+   * resolve to a dedicated opaque LOD water material (`isLodFluid`), and the
+   * manager strips their per-vertex water-optics flag: distant water renders
+   * as one cheap, depth-written surface instead of blended refraction layers.
+   */
   resolveMaterial: (
     voxel: number,
     faceName?: string,
-  ) => { key: string; material: Material } | null;
+  ) => { key: string; material: Material; isLodFluid?: boolean } | null;
   /** Apply transparent render-order / sorting setup to a merged mesh. */
   configureTransparentMesh: (mesh: Mesh, voxel: number) => void;
   /** Send a LOAD packet with `[x, z, level]` LOD chunk requests. */
@@ -413,6 +418,18 @@ export class LodChunkManager {
       const normals = new Float32Array(positions.length);
       computeFlatNormalsInto(normals, positions, indices);
 
+      let lights: ArrayLike<number> = geometry.lights;
+      if (resolved.isLodFluid) {
+        // Clearing the fluid flag (bit 18) skips the per-fragment water
+        // optics (refraction sampling, absorption, scatter) for distant
+        // water; the wave bit stays so the surface still moves.
+        const stripped = new Int32Array(lights.length);
+        for (let i = 0; i < lights.length; i++) {
+          stripped[i] = lights[i] & ~(1 << 18);
+        }
+        lights = stripped;
+      }
+
       prepared.push({
         materialKey: resolved.key,
         material: resolved.material,
@@ -422,7 +439,7 @@ export class LodChunkManager {
           geometry.uvs instanceof Float32Array
             ? geometry.uvs
             : new Float32Array(geometry.uvs),
-        lights: geometry.lights,
+        lights,
         indices,
         normals,
       });

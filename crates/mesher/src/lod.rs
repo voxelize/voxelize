@@ -220,6 +220,9 @@ struct CellAccumulator {
     /// Topmost fluid pick `(fine y, local y within the cell, raw voxel)` —
     /// used only when the cell holds no solid block at all.
     fluid: Option<(u32, u32, u32)>,
+    /// Topmost solid fine y in the cell, independent of representative
+    /// preference — the fluid spill-up rule compares against this.
+    top_solid_y: Option<u32>,
     /// Per-channel maxima over the cell (sun, red, green, blue). Max — not
     /// average — so lit surfaces stay as bright as the adjacent full-detail
     /// ring and no dark seams appear at LOD boundaries.
@@ -388,8 +391,10 @@ pub fn downsample_chunk(
                 let preferred = (class & CLASS_PREFERRED != 0) as u8;
                 if class & CLASS_OPAQUE != 0 {
                     upgrade_pick(&mut cell.opaque, (preferred, fy as u32, id));
+                    cell.top_solid_y = Some(cell.top_solid_y.map_or(fy as u32, |y| y.max(fy as u32)));
                 } else if class & CLASS_SOLID != 0 {
                     upgrade_pick(&mut cell.solid, (preferred, fy as u32, id));
+                    cell.top_solid_y = Some(cell.top_solid_y.map_or(fy as u32, |y| y.max(fy as u32)));
                 } else if class & CLASS_FLUID != 0 {
                     if cell.fluid.map_or(true, |(top_y, ..)| fy as u32 >= top_y) {
                         cell.fluid = Some((fy as u32, local_y, raw));
@@ -424,6 +429,36 @@ pub fn downsample_chunk(
         light = LightUtils::insert_green_light(light, cell.light_max[2]);
         light = LightUtils::insert_blue_light(light, cell.light_max[3]);
         coarse_lights[index] = light;
+    }
+
+    // Fluid spill-up: a cell whose fine content is water OVER a floor
+    // resolves solid (the seam invariant demands it), which would leave the
+    // whole shallow area dry — coastlines and shoals then render as bands of
+    // water separated by bare floor. Spill a thin fluid film into the cell
+    // above (when it is otherwise air) so shallow water keeps a continuous
+    // surface; the film sits at most one cell above the true level, which
+    // reads as a gentle shore at LOD distance.
+    for cx in 0..cs_x {
+        for cz in 0..cs_z {
+            for cy in 0..cs_y - 1 {
+                let index = coarse_index(cx, cy, cz);
+                let cell = &cells[index];
+
+                let (Some(top_solid_y), Some((fluid_top_y, _, raw))) =
+                    (cell.top_solid_y, cell.fluid)
+                else {
+                    continue;
+                };
+                if fluid_top_y <= top_solid_y {
+                    continue;
+                }
+
+                let above = coarse_index(cx, cy + 1, cz);
+                if coarse_voxels[above] == 0 {
+                    coarse_voxels[above] = (raw & 0xFFFF) | (15 << 24);
+                }
+            }
+        }
     }
 
     ChunkData {
@@ -872,6 +907,86 @@ mod tests {
 
         let coarse = fine.coarse(2, &test_registry());
         assert_eq!(coarse_at(&coarse, 0, 0, 0), STONE);
+    }
+
+    /// Shallow water whose floor and surface share one coarse cell must not
+    /// dry out: the cell resolves solid (the seam invariant requires it), so
+    /// a thin fluid film spills into the air cell above. Without this,
+    /// coastlines and shoals render as bands of water separated by bare
+    /// floor at LOD distance.
+    #[test]
+    fn shallow_water_spills_a_surface_film_instead_of_drying_out() {
+        let registry = test_registry();
+        let factor = 4usize;
+        let size = 4usize;
+        let height = 16usize;
+
+        let mut fine = FineChunk::new([size, height, size]);
+        for x in 0..size {
+            for z in 0..size {
+                // Floor tops out at fine y=4 (inside coarse cell y1), water
+                // fills y=5..=6 — the surface lives in the same cell as the
+                // floor top.
+                for y in 0..=4 {
+                    fine.set(x, y, z, STONE);
+                }
+                for y in 5..=6 {
+                    fine.set(x, y, z, WATER);
+                }
+            }
+        }
+
+        let coarse = fine.coarse(factor, &registry);
+
+        assert_eq!(
+            coarse_at(&coarse, 0, 1, 0),
+            STONE,
+            "the mixed floor/water cell must stay solid (seam invariant)"
+        );
+
+        let film = coarse_at(&coarse, 0, 2, 0);
+        assert_eq!(film & 0xFFFF, WATER, "a fluid film must spill upward");
+        assert_eq!(
+            (film >> 24) & 0xF,
+            15,
+            "the film must use the minimum-height stage"
+        );
+
+        // The film must actually mesh into a water surface.
+        let geometries = mesh_chunk_lod(&fine.voxels, &fine.lights, fine.shape, 2, &registry);
+        assert!(
+            geometries.iter().any(|geometry| geometry.voxel == WATER),
+            "spilled film must produce water geometry"
+        );
+    }
+
+    /// Cells fully underwater (fluid above and below within the column) must
+    /// not receive spill films — only the true surface cell carries one.
+    #[test]
+    fn fluid_spill_does_not_stack_inside_deep_water() {
+        let registry = test_registry();
+        let mut fine = FineChunk::new([4, 16, 4]);
+        for x in 0..4 {
+            for z in 0..4 {
+                fine.set(x, 0, z, STONE);
+                for y in 1..=9 {
+                    fine.set(x, y, z, WATER);
+                }
+            }
+        }
+
+        let coarse = fine.coarse(4, &registry);
+
+        // Cell y0 mixes floor + water (solid, spills), cells y1 and y2 are
+        // pure water and air above them stays air.
+        assert_eq!(coarse_at(&coarse, 0, 0, 0), STONE);
+        assert_eq!(coarse_at(&coarse, 0, 1, 0) & 0xFFFF, WATER);
+        assert_eq!(coarse_at(&coarse, 0, 2, 0) & 0xFFFF, WATER);
+        assert_eq!(
+            coarse_at(&coarse, 0, 3, 0),
+            AIR,
+            "no film may stack above the true water surface"
+        );
     }
 
     /// Solidity must be monotonic across levels: a solid cell at level L maps
