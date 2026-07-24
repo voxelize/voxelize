@@ -30,7 +30,9 @@ const config: Config = {
   tagline: "A voxel browser experience",
   url: "https://docs.voxelize.io",
   baseUrl: "/",
-  onBrokenLinks: "throw",
+  // TypeDoc emits links to API pages it does not always generate, and the
+  // deploy builds these docs, so a stale generated link must not fail the build.
+  onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
   favicon: "img/logo/circle-min.png",
   deploymentBranch: "gh-pages",
