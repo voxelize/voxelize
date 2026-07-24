@@ -24,6 +24,11 @@ import { NameTag, NameTagOptions } from "./nametag";
 
 const CHARACTER_SCALE = 0.9;
 
+// The frame rate the lerp option factors (positionLerp, rotationLerp) are
+// defined against. update() renormalizes them to the real frame delta so
+// smoothing converges at the same wall-clock speed on every display.
+const LERP_REFERENCE_FPS = 60;
+
 const identityQuaternion = new Quaternion();
 const headBodyInverse = new Quaternion();
 const ridePivotScratch = new Vector3();
@@ -199,12 +204,14 @@ export type CharacterOptions = {
   idleArmSwing?: number;
 
   /**
-   * The lerp factor of the character's position change. Defaults to `0.7`.
+   * The lerp factor of the character's position change, expressed per frame
+   * at 60 FPS and renormalized to the real frame delta. Defaults to `0.7`.
    */
   positionLerp?: number;
 
   /**
-   * The lerp factor of the character's rotation change. Defaults to `0.2`.
+   * The lerp factor of the character's rotation change, expressed per frame
+   * at 60 FPS and renormalized to the real frame delta. Defaults to `0.2`.
    */
   rotationLerp?: number;
 
@@ -595,7 +602,7 @@ export class Character extends Group {
       this.playLegsWalkingAnimation();
     }
 
-    this.lerpAll();
+    this.lerpAll(delta);
   }
 
   snapToTarget() {
@@ -1013,8 +1020,11 @@ export class Character extends Group {
 
   /**
    * Lerp all character's body parts to the new position and new rotation.
+   * The option factors are defined per frame at {@link LERP_REFERENCE_FPS}
+   * and renormalized to `delta`, so convergence speed is frame-rate
+   * independent.
    */
-  private lerpAll = () => {
+  private lerpAll = (delta: number) => {
     // POSITION FIRST!!!!
     // or else network latency will result in a weird
     // animation defect where body glitches out.
@@ -1025,16 +1035,27 @@ export class Character extends Group {
     this.rideOffset.set(0, 0, 0);
 
     if (this.newPosition.length() !== 0) {
-      this.position.lerp(this.newPosition, this.options.positionLerp);
+      this.position.lerp(
+        this.newPosition,
+        this.lerpFactorForDelta(this.options.positionLerp, delta),
+      );
     }
+
+    const rotationLerp = this.lerpFactorForDelta(
+      this.options.rotationLerp,
+      delta,
+    );
 
     const isSwimTransitionActive =
       this._swimBlend > 0.001 && !this._isRideAttitudeActive;
 
     if (isSwimTransitionActive) {
-      const swimRotationLerp = Math.min(
-        1,
-        this.options.rotationLerp * Math.max(this._swimBlend, 0.35),
+      const swimRotationLerp = this.lerpFactorForDelta(
+        Math.min(
+          1,
+          this.options.rotationLerp * Math.max(this._swimBlend, 0.35),
+        ),
+        delta,
       );
       const rootTarget = this._isSwimming
         ? this._swimBodyDirection
@@ -1052,26 +1073,23 @@ export class Character extends Group {
         this._rideAttitudeFreshFrames > 0
           ? this._rideAttitude
           : identityQuaternion;
-      this.quaternion.slerp(rootTarget, this.options.rotationLerp);
+      this.quaternion.slerp(rootTarget, rotationLerp);
 
       if (this.newDirection.length() !== 0) {
         this.computeHeadLocalQuat();
-        this.headGroup.quaternion.slerp(
-          this._headLocalQuat,
-          this.options.rotationLerp,
-        );
+        this.headGroup.quaternion.slerp(this._headLocalQuat, rotationLerp);
       }
 
       if (this.newBodyDirection.length() !== 0) {
-        this.bodyGroup.quaternion.slerp(
-          this.newBodyDirection,
-          this.options.rotationLerp,
-        );
+        this.bodyGroup.quaternion.slerp(this.newBodyDirection, rotationLerp);
       }
     }
 
-    this.applyRideAttitudePivot();
+    this.applyRideAttitudePivot(rotationLerp);
   };
+
+  private lerpFactorForDelta = (baseFactor: number, delta: number) =>
+    1 - Math.pow(1 - baseFactor, delta * LERP_REFERENCE_FPS);
 
   /**
    * Hinge the root rotation at the seat instead of the character origin:
@@ -1081,7 +1099,7 @@ export class Character extends Group {
    * while the head leans away from it. The mount's seat displacement rides
    * on top so the character follows the rendered saddle exactly.
    */
-  private applyRideAttitudePivot = () => {
+  private applyRideAttitudePivot = (rotationLerp: number) => {
     if (!this._isRideAttitudeActive) return;
 
     if (this._rideAttitudeFreshFrames > 0) {
@@ -1090,7 +1108,7 @@ export class Character extends Group {
       // Pushes stopped (dismount): ease the seat displacement out at the
       // same rate the root slerps back upright, then deactivate once both
       // are visually settled.
-      this._rideSeatDisplacement.multiplyScalar(1 - this.options.rotationLerp);
+      this._rideSeatDisplacement.multiplyScalar(1 - rotationLerp);
       if (
         Math.abs(this.quaternion.w) > RIDE_SETTLED_W &&
         this._rideSeatDisplacement.lengthSq() < RIDE_SETTLED_OFFSET_SQ
