@@ -217,7 +217,12 @@ export class MeshPipeline {
     const state = this.states.get(key);
     if (!state) return false;
     if (state.generation === state.displayedGeneration) return false;
-    if (state.inFlightGenerations.has(state.generation)) return false;
+    // Single-flight per key. A sustained update flood bumps the generation
+    // every packet; dispatching a fresh job per bump used to pile dozens of
+    // serialized 9-chunk payloads for the SAME chunk into the worker queue —
+    // an unbounded allocation spiral. The stale completion below re-marks
+    // the key dirty, so the newest generation always gets meshed.
+    if (state.inFlightGenerations.size > 0) return false;
     return true;
   }
 
@@ -240,6 +245,13 @@ export class MeshPipeline {
       jobGeneration < state.displayedGeneration ||
       jobGeneration < state.generation
     ) {
+      // The voxel data moved on while this job was in flight. With
+      // single-flight dispatch there is no newer job already running, so
+      // the key must re-enter the dirty set or the chunk would stall on
+      // stale geometry forever.
+      if (jobGeneration < state.generation) {
+        this.dirty.add(key);
+      }
       return false;
     }
 
@@ -316,6 +328,18 @@ export class MeshPipeline {
   hasInFlightJob(key: string): boolean {
     const state = this.states.get(key);
     return (state?.inFlightGenerations.size ?? 0) > 0;
+  }
+
+  inFlightJobCount(): number {
+    let count = 0;
+    for (const state of this.states.values()) {
+      count += state.inFlightGenerations.size;
+    }
+    return count;
+  }
+
+  get dirtyCount(): number {
+    return this.dirty.size;
   }
 
   hasAnyInFlightJobs(): boolean {

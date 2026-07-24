@@ -188,6 +188,31 @@ class BoundedSpace implements VoxelAccess {
   }
 }
 
+// Processed BFS prefixes are compacted away in blocks so a large flood's
+// queue holds only its live frontier, not every node it ever visited — a
+// blast-sized region used to retain millions of nodes and OOM the worker
+// (which kills the whole renderer).
+const QUEUE_COMPACT_INTERVAL = 8192;
+
+// Voxel-keyed caches are cleared once they reach this many entries; a
+// region-scale flood otherwise grows them without bound.
+const VOXEL_CACHE_LIMIT = 1 << 19;
+
+// Hard ceiling on BFS work per wave, as a multiple of the job's box volume.
+// A healthy flood touches each voxel a handful of times; anything beyond
+// this is pathological, and bailing out with partial light beats OOMing the
+// worker — a worker OOM takes the entire renderer (the player's tab) down.
+const MAX_NODES_PER_VOLUME = 4;
+
+function nodeBudgetFor(min: Coords3 | undefined, max: Coords3 | undefined) {
+  if (!min || !max) return Number.POSITIVE_INFINITY;
+  const volume =
+    Math.max(1, max[0] - min[0]) *
+    Math.max(1, max[1] - min[1]) *
+    Math.max(1, max[2] - min[2]);
+  return volume * MAX_NODES_PER_VOLUME;
+}
+
 function floodLight(
   space: VoxelAccess,
   queue: LightNode[],
@@ -216,6 +241,7 @@ function floodLight(
     if (block === undefined) {
       const id = space.getVoxelAt(vx, vy, vz);
       block = resolveBlockOrAir(id);
+      if (blockCache.size >= VOXEL_CACHE_LIMIT) blockCache.clear();
       blockCache.set(key, block);
     }
     return block;
@@ -230,13 +256,28 @@ function floodLight(
     let rotation = rotationCache.get(key);
     if (!rotation) {
       rotation = space.getVoxelRotationAt(vx, vy, vz);
+      if (rotationCache.size >= VOXEL_CACHE_LIMIT) rotationCache.clear();
       rotationCache.set(key, rotation);
     }
     return rotation;
   };
 
-  for (let i = 0; i < queue.length; i++) {
-    const { voxel, level } = queue[i];
+  const nodeBudget = nodeBudgetFor(min, max);
+  let processedNodes = 0;
+
+  let head = 0;
+  while (head < queue.length) {
+    if (head >= QUEUE_COMPACT_INTERVAL) {
+      queue.splice(0, head);
+      head = 0;
+    }
+    if (++processedNodes > nodeBudget) {
+      console.warn(
+        `[light-worker] flood exceeded node budget (${nodeBudget}); bailing with partial light`,
+      );
+      break;
+    }
+    const { voxel, level } = queue[head++];
 
     if (level === 0) {
       continue;
@@ -327,6 +368,8 @@ function removeLightsBatch(
   space: VoxelAccess,
   voxels: Coords3[],
   color: LightColor,
+  min: Coords3 | undefined,
+  max: Coords3 | undefined,
   options: WorldOptions,
 ): LightNode[] {
   if (!voxels.length) return [];
@@ -352,8 +395,22 @@ function removeLightsBatch(
     }
   });
 
-  for (let i = 0; i < queue.length; i++) {
-    const { voxel, level } = queue[i];
+  const nodeBudget = nodeBudgetFor(min, max);
+  let processedNodes = 0;
+
+  let head = 0;
+  while (head < queue.length) {
+    if (head >= QUEUE_COMPACT_INTERVAL) {
+      queue.splice(0, head);
+      head = 0;
+    }
+    if (++processedNodes > nodeBudget) {
+      console.warn(
+        `[light-worker] removal exceeded node budget (${nodeBudget}); bailing with partial light`,
+      );
+      break;
+    }
+    const { voxel, level } = queue[head++];
     const [vx, vy, vz] = voxel;
 
     for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
@@ -525,6 +582,8 @@ onmessage = function (e) {
         space,
         lightOps.removals,
         color,
+        min,
+        maxCoords,
         options,
       );
       if (fillQueue.length > 0) {
