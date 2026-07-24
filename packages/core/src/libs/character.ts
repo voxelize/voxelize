@@ -858,36 +858,42 @@ export class Character extends Group {
       ...defaultHeadOptions,
       ...(this.options.head ? this.options.head : {}),
       receiveShadows,
+      underwaterFog: true,
     });
 
     const body = new CanvasBox({
       ...defaultBodyOptions,
       ...(this.options.body ? this.options.body : {}),
       receiveShadows,
+      underwaterFog: true,
     });
 
     const leftArm = new CanvasBox({
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
+      underwaterFog: true,
     });
 
     const rightArm = new CanvasBox({
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
+      underwaterFog: true,
     });
 
     const leftLeg = new CanvasBox({
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
+      underwaterFog: true,
     });
 
     const rightLeg = new CanvasBox({
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
+      underwaterFog: true,
     });
 
     this.headGroup = new Group();

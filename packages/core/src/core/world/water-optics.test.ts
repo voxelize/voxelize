@@ -2,10 +2,13 @@ import { Color } from "three";
 import { describe, expect, it } from "vitest";
 
 import {
+  ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   getDownwellingTransmittance,
   getUnderwaterAmbientColor,
   measureWaterColumn,
+  UNDERWATER_FOG_FRAGMENT,
   WATER_OPTICS,
+  WATER_VIEW_EXTINCTION_GLSL,
   WaterOptics,
 } from "./water-optics";
 
@@ -56,6 +59,27 @@ describe("refraction incidence band", () => {
     expect(WATER_OPTICS.refractionGrazingCutoffCos).toBeLessThan(
       WATER_OPTICS.refractionFullStrengthCos,
     );
+  });
+});
+
+describe("ABOVE_SURFACE_WATER_FOG_FRAGMENT", () => {
+  it("reuses the same view extinction as the underwater fog", () => {
+    expect(UNDERWATER_FOG_FRAGMENT).toContain(WATER_VIEW_EXTINCTION_GLSL);
+    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
+      WATER_VIEW_EXTINCTION_GLSL,
+    );
+  });
+
+  it("fades submerged terrain toward the shared in-scattered water color", () => {
+    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("uUnderwaterAmbient");
+  });
+
+  it("only affects water-exposed faces viewed from above the surface", () => {
+    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("vWaterExposed > 0.5");
+    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
+      "cameraPosition.y > uWaterLevel",
+    );
+    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("uCameraSubmersion");
   });
 });
 

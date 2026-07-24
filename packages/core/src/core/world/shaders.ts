@@ -7,6 +7,7 @@ import {
 } from "./light-cones";
 import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
+  ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
@@ -119,6 +120,7 @@ varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
 varying float vViewDepth;
+varying float vWaterExposed;
 uniform vec4 uAOTable;
 uniform float uTime;
 uniform vec2 uWindDirection;
@@ -155,10 +157,12 @@ ${SIMPLEX_NOISE_GLSL}
 int ao = (light >> 16) & 0x3;
 int isFluid = (light >> 18) & 0x1;
 int isGreedy = (light >> 19) & 0x1;
+int isWaterExposed = (light >> 21) & 0x1;
 
 vAO = uAOTable[ao] / 255.0;
 vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
+vWaterExposed = float(isWaterExposed);
 vLight = unpackLight(light & 0xFFFF);
 `,
     )
@@ -252,6 +256,7 @@ varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
 varying float vViewDepth;
+varying float vWaterExposed;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
@@ -586,6 +591,8 @@ vec3 darknessFloor = vec3(ambientFloor) *
   mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit;
 totalLight = max(totalLight, darknessFloor * faceShade);
 outgoingLight.rgb *= totalLight;
+
+${ABOVE_SURFACE_WATER_FOG_FRAGMENT}
 
 if (vIsFluid > 0.5) {
   float waveTime = uTime * 0.0005;

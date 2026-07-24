@@ -21,6 +21,12 @@ import {
   ENTITY_SHADOW_VERTEX_PARS,
   EntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
+import {
+  createUnderwaterFogUniforms,
+  UnderwaterFogUniforms,
+  UNDERWATER_FOG_FRAGMENT,
+  UNDERWATER_FOG_UNIFORM_DECLARATIONS,
+} from "../core/world/water-optics";
 import { DOMUtils } from "../utils";
 
 /**
@@ -84,6 +90,13 @@ export type CanvasBoxOptions = {
    * Whether this canvas box should receive shadows. Defaults to `false`.
    */
   receiveShadows?: boolean;
+
+  /**
+   * Whether this canvas box tints toward the ambient water color while the
+   * camera is submerged, matching the underwater look of instanced entities.
+   * Defaults to `false`.
+   */
+  underwaterFog?: boolean;
 };
 
 /**
@@ -148,6 +161,12 @@ export class BoxLayer extends Mesh {
   public shadowUniforms: EntityShadowUniforms | null = null;
 
   /**
+   * Underwater fog uniforms for this box layer (only set if underwaterFog is
+   * true). Driven externally from the camera's water-optics state.
+   */
+  public underwaterUniforms: UnderwaterFogUniforms | null = null;
+
+  /**
    * The width of the box layer.
    */
   public width: number;
@@ -193,6 +212,11 @@ export class BoxLayer extends Mesh {
   private receiveShadows: boolean;
 
   /**
+   * Whether or not should this canvas box tint underwater.
+   */
+  private underwaterFog: boolean;
+
+  /**
    * Create a six-sided canvas box layer.
    *
    * @param width The width of the box layer.
@@ -204,6 +228,7 @@ export class BoxLayer extends Mesh {
    * @param side The side of the box layer to render.
    * @param transparent Whether or not should this canvas box be rendered as transparent.
    * @param receiveShadows Whether or not should this canvas box receive shadows.
+   * @param underwaterFog Whether or not should this canvas box tint underwater.
    */
   constructor(
     width: number,
@@ -215,6 +240,7 @@ export class BoxLayer extends Mesh {
     side: Side,
     transparent: boolean,
     receiveShadows = false,
+    underwaterFog = false,
   ) {
     super(new BoxGeometry(width, height, depth));
 
@@ -227,10 +253,15 @@ export class BoxLayer extends Mesh {
     this.side = side;
     this.transparent = transparent;
     this.receiveShadows = receiveShadows;
+    this.underwaterFog = underwaterFog;
 
     if (receiveShadows) {
       this.shadowUniforms = createEntityShadowUniforms();
       this.userData.receiveShadows = true;
+    }
+
+    if (underwaterFog) {
+      this.underwaterUniforms = createUnderwaterFogUniforms();
     }
 
     for (const face of BOX_SIDES) {
@@ -337,43 +368,94 @@ export class BoxLayer extends Mesh {
       material.map.needsUpdate = true;
     }
 
-    if (this.receiveShadows && this.shadowUniforms) {
-      const shadowUniforms = this.shadowUniforms;
-      material.onBeforeCompile = (shader) => {
-        Object.assign(shader.uniforms, shadowUniforms);
+    const shadowUniforms =
+      this.receiveShadows && this.shadowUniforms ? this.shadowUniforms : null;
+    const underwaterUniforms = this.underwaterUniforms;
 
-        shader.vertexShader = shader.vertexShader
-          .replace(
-            "#include <uv_pars_vertex>",
-            `#include <uv_pars_vertex>
+    if (shadowUniforms || underwaterUniforms) {
+      material.onBeforeCompile = (shader) => {
+        if (shadowUniforms) {
+          Object.assign(shader.uniforms, shadowUniforms);
+        }
+        if (underwaterUniforms) {
+          Object.assign(shader.uniforms, underwaterUniforms);
+        }
+
+        let vertex = shader.vertexShader;
+        let fragment = shader.fragmentShader;
+
+        if (shadowUniforms) {
+          vertex = vertex
+            .replace(
+              "#include <uv_pars_vertex>",
+              `#include <uv_pars_vertex>
 ${ENTITY_SHADOW_VERTEX_PARS}
 `,
-          )
-          .replace(
-            "#include <worldpos_vertex>",
-            `#include <worldpos_vertex>
+            )
+            .replace(
+              "#include <worldpos_vertex>",
+              `#include <worldpos_vertex>
 vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
 ${ENTITY_SHADOW_VERTEX_MAIN}
 `,
-          );
-
-        shader.fragmentShader = shader.fragmentShader
-          .replace(
+            );
+          fragment = fragment.replace(
             "#include <common>",
             `#include <common>
 ${ENTITY_SHADOW_FRAGMENT_PARS}
 `,
-          )
-          .replace(
-            "#include <dithering_fragment>",
-            `#include <dithering_fragment>
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
-gl_FragColor.rgb *= shadow;
+          );
+        }
+
+        if (underwaterUniforms) {
+          vertex = vertex
+            .replace(
+              "#include <uv_pars_vertex>",
+              `#include <uv_pars_vertex>
+varying vec3 vCanvasBoxWorldPosition;
+`,
+            )
+            .replace(
+              "#include <worldpos_vertex>",
+              `#include <worldpos_vertex>
+vCanvasBoxWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
+`,
+            );
+          fragment = fragment.replace(
+            "#include <common>",
+            `#include <common>
+${UNDERWATER_FOG_UNIFORM_DECLARATIONS}
+varying vec3 vCanvasBoxWorldPosition;
 `,
           );
+        }
+
+        let colorInjection = "#include <dithering_fragment>";
+        if (shadowUniforms) {
+          colorInjection += `
+float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
+gl_FragColor.rgb *= shadow;`;
+        }
+        if (underwaterUniforms) {
+          colorInjection += `
+{
+  vec3 vWorldPosition = vCanvasBoxWorldPosition;
+${UNDERWATER_FOG_FRAGMENT}
+}`;
+        }
+        fragment = fragment.replace(
+          "#include <dithering_fragment>",
+          colorInjection,
+        );
+
+        shader.vertexShader = vertex;
+        shader.fragmentShader = fragment;
       };
 
-      material.onBeforeCompile.toString = () => "canvasbox-shadow-shader";
+      const cacheKey = `canvasbox${shadowUniforms ? "-shadow" : ""}${
+        underwaterUniforms ? "-underwater" : ""
+      }-shader`;
+      material.onBeforeCompile.toString = () => cacheKey;
     }
 
     return material;
@@ -482,6 +564,14 @@ export class CanvasBox extends Group {
   }
 
   /**
+   * Get the underwater fog uniforms for this canvas box (from the first
+   * layer). Returns null if underwaterFog is false.
+   */
+  get underwaterUniforms(): UnderwaterFogUniforms | null {
+    return this.boxLayers[0]?.underwaterUniforms ?? null;
+  }
+
+  /**
    * Add art to the canvas(s) of this box layer.
    *
    * @param side The side(s) of the box layer to draw on.
@@ -520,6 +610,7 @@ export class CanvasBox extends Group {
       depthSegments,
       transparent,
       receiveShadows,
+      underwaterFog,
     } = this.options;
 
     if (!width) {
@@ -541,6 +632,7 @@ export class CanvasBox extends Group {
         side,
         transparent,
         receiveShadows,
+        underwaterFog,
       );
       this.boxLayers.push(newBoxLayer);
       this.add(newBoxLayer);

@@ -1,4 +1,4 @@
-import { Color, MathUtils } from "three";
+import { Color, IUniform, MathUtils } from "three";
 
 import { LightUtils } from "../../utils/light-utils";
 
@@ -209,6 +209,66 @@ if (uCameraSubmersion > 0.001) {
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uwColor, uCameraSubmersion);
 }
 `;
+
+/**
+ * The above-surface counterpart of {@link UNDERWATER_FOG_FRAGMENT}: the same
+ * Beer-Lambert in-scattering fog, but for water-exposed terrain seen from
+ * outside the surface. It fades a submerged fragment toward the water's own
+ * in-scattered color along the sub-surface segment of the view ray, so deep
+ * or steeply-viewed bottoms go murky while shallow water stays readable —
+ * reusing {@link WATER_VIEW_EXTINCTION} and `uUnderwaterAmbient` so the view
+ * from above matches the view from below.
+ *
+ * Expects `outgoingLight`, `vWorldPosition`, `cameraPosition`, `uWaterLevel`,
+ * `uCameraSubmersion`, `uUnderwaterAmbient`, and a `vWaterExposed` varying
+ * (1.0 on faces in contact with fluid) in scope. `uWaterLevel` stands in for
+ * the surface plane, matching the global waterline the rest of the chunk
+ * shader assumes. Runs before sky/height fog so nearer air fog layers on top.
+ */
+export const ABOVE_SURFACE_WATER_FOG_FRAGMENT = `
+if (vWaterExposed > 0.5 && uCameraSubmersion < 1.0 && cameraPosition.y > uWaterLevel) {
+  vec3 aswRay = vWorldPosition.xyz - cameraPosition;
+  float aswDist = max(length(aswRay), 1e-4);
+  float aswSubmergedFraction = clamp(
+    (uWaterLevel - vWorldPosition.y) / max(cameraPosition.y - vWorldPosition.y, 1e-4),
+    0.0,
+    1.0
+  );
+  float aswPath = aswDist * aswSubmergedFraction;
+  vec3 aswTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * aswPath);
+  vec3 aswColor = outgoingLight.rgb * aswTransmit + uUnderwaterAmbient * (1.0 - aswTransmit);
+  outgoingLight.rgb = mix(outgoingLight.rgb, aswColor, 1.0 - uCameraSubmersion);
+}
+`;
+
+export interface UnderwaterFogUniforms {
+  uCameraSubmersion: IUniform<number>;
+  uCameraWaterPlaneY: IUniform<number>;
+  uUnderwaterAmbient: IUniform<Color>;
+}
+
+export interface UnderwaterFogSource {
+  submersion: number;
+  waterPlaneY: number;
+  ambientColor: Color;
+}
+
+export function createUnderwaterFogUniforms(): UnderwaterFogUniforms {
+  return {
+    uCameraSubmersion: { value: 0 },
+    uCameraWaterPlaneY: { value: 0 },
+    uUnderwaterAmbient: { value: new Color(0, 0, 0) },
+  };
+}
+
+export function updateUnderwaterFogUniforms(
+  target: UnderwaterFogUniforms,
+  source: UnderwaterFogSource,
+): void {
+  target.uCameraSubmersion.value = source.submersion;
+  target.uCameraWaterPlaneY.value = source.waterPlaneY;
+  target.uUnderwaterAmbient.value.copy(source.ambientColor);
+}
 
 export function getDownwellingTransmittance(depth: number, out: Color): Color {
   const clampedDepth = Math.max(depth, 0);

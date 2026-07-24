@@ -146,9 +146,7 @@ pub struct MeshConfig {
 
 impl Default for MeshConfig {
     fn default() -> Self {
-        Self {
-            chunk_size: 16,
-        }
+        Self { chunk_size: 16 }
     }
 }
 
@@ -228,6 +226,7 @@ struct FaceKey {
     block_id: u32,
     face_name: String,
     independent: bool,
+    is_water_exposed: bool,
     ao: [i32; 4],
     light: [i32; 4],
     uv_start_u: u32,
@@ -598,7 +597,13 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
     }
 }
 
-fn should_skip_opaque_light_sample(dir: [i32; 3], ddx: i32, ddy: i32, ddz: i32, is_opaque: bool) -> bool {
+fn should_skip_opaque_light_sample(
+    dir: [i32; 3],
+    ddx: i32,
+    ddy: i32,
+    ddz: i32,
+    is_opaque: bool,
+) -> bool {
     if !is_opaque {
         return false;
     }
@@ -1477,9 +1482,14 @@ fn process_greedy_quad(
         let light = quad.data.key.light[i];
         let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
         let greedy_bit = 1 << 19;
+        let water_exposed_bit = if quad.data.key.is_water_exposed {
+            1 << 21
+        } else {
+            0
+        };
         geometry
             .lights
-            .push(light | (ao << 16) | fluid_bit | greedy_bit);
+            .push(light | (ao << 16) | fluid_bit | greedy_bit | water_exposed_bit);
     }
 
     let face_aos = quad.data.key.ao;
@@ -1859,10 +1869,7 @@ fn process_face<S: VoxelAccess>(
         let mut b110 = !get_block_occluder(dx, dy, 0);
         let mut b111 = !get_block_occluder(dx, dy, dz);
 
-        if has_multi_aabb
-            && !is_see_through
-            && should_apply_stair_self_ao(face.dir, corner.pos)
-        {
+        if has_multi_aabb && !is_see_through && should_apply_stair_self_ao(face.dir, corner.pos) {
             let (s011, s101, s110, s111) =
                 compute_self_ao(corner.pos, face.dir, face_bbox_min, &block.aabbs);
             if s011 {
@@ -2049,7 +2056,9 @@ fn process_face<S: VoxelAccess>(
         } else {
             0
         };
-        lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
+        let is_water_exposed = n_block_type.is_fluid || block.is_waterlogged;
+        let water_exposed_bit = if is_water_exposed { 1 << 21 } else { 0 };
+        lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit | water_exposed_bit);
 
         four_red_lights[corner_idx] = red_light;
         four_green_lights[corner_idx] = green_light;
@@ -2261,11 +2270,21 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         let neighbors = NeighborCache::populate(vx, vy, vz, space);
                         let (aos, lights) =
                             compute_face_ao_and_light(dir, block, &neighbors, registry);
+                        let is_water_exposed = block.is_waterlogged
+                            || registry
+                                .get_block_by_id(space.get_voxel(
+                                    vx + dir[0],
+                                    vy + dir[1],
+                                    vz + dir[2],
+                                ))
+                                .map(|b| b.is_fluid)
+                                .unwrap_or(false);
 
                         let key = FaceKey {
                             block_id: block.id,
                             face_name: face.name.clone(),
                             independent: face.independent,
+                            is_water_exposed,
                             ao: aos,
                             light: lights,
                             uv_start_u: (uv_range.start_u * 1000000.0) as u32,
@@ -2286,18 +2305,17 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
 
-                    let faces: Vec<(BlockFace, bool)> = if is_fluid
-                        && has_standard_six_faces(&block.faces)
-                    {
+                    let faces: Vec<(BlockFace, bool)> =
+                        if is_fluid && has_standard_six_faces(&block.faces) {
                             create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
                                 .into_iter()
                                 .map(|f| (f, false))
                                 .collect()
-                    } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                    } else {
-                        block.faces.iter().cloned().map(|f| (f, false)).collect()
-                    };
+                        } else if block.dynamic_patterns.is_some() {
+                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                        } else {
+                            block.faces.iter().cloned().map(|f| (f, false)).collect()
+                        };
 
                     if processed_non_greedy.contains(&(vx, vy, vz)) {
                         continue;
@@ -2424,8 +2442,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         }
     }
 
-    map
-        .into_iter()
+    map.into_iter()
         .map(|(_, geometry)| geometry)
         .filter(|geometry| !geometry.indices.is_empty())
         .collect()
@@ -2731,8 +2748,7 @@ mod tests {
             [0.0, 1.0, 0.5],
             [1.0, 1.0, 0.5],
         ] {
-            let (s011, s101, s110, s111) =
-                compute_self_ao(pos, face_dir, face_bbox_min, &aabbs);
+            let (s011, s101, s110, s111) = compute_self_ao(pos, face_dir, face_bbox_min, &aabbs);
             assert!(
                 !s011 && !s101 && !s110 && !s111,
                 "upper tread top corner at {pos:?} should have no self-occlusion, \
@@ -2821,13 +2837,7 @@ mod tests {
                 self.get_all_lights(vx, vy, vz).0
             }
 
-            fn get_torch_light(
-                &self,
-                vx: i32,
-                vy: i32,
-                vz: i32,
-                color: LightColor,
-            ) -> u32 {
+            fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: LightColor) -> u32 {
                 let (_, red, green, blue) = self.get_all_lights(vx, vy, vz);
                 match color {
                     LightColor::Red => red,
@@ -2909,8 +2919,12 @@ mod tests {
             stone_id: 2,
         };
         let neighbors = NeighborCache::populate(0, 0, 0, &space);
-        let (_aos, lights) =
-            compute_face_ao_and_light([0, 1, 0], registry.get_block_by_id(1).unwrap(), &neighbors, &registry);
+        let (_aos, lights) = compute_face_ao_and_light(
+            [0, 1, 0],
+            registry.get_block_by_id(1).unwrap(),
+            &neighbors,
+            &registry,
+        );
 
         let mut max_sunlight = 0;
         for packed in lights {
@@ -2956,5 +2970,207 @@ mod tests {
                 "single-AABB slab vertex at {pos:?} should have no self-occlusion",
             );
         }
+    }
+
+    const WATER_EXPOSED_BIT: i32 = 1 << 21;
+
+    fn full_cube_aabb() -> Vec<AABB> {
+        vec![AABB {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 1.0,
+            max_z: 1.0,
+        }]
+    }
+
+    fn plain_block(id: u32, name: &str) -> Block {
+        Block {
+            id,
+            name: name.to_string(),
+            name_lower: name.to_lowercase(),
+            rotatable: false,
+            y_rotatable: false,
+            is_empty: false,
+            is_fluid: false,
+            is_waterlogged: false,
+            is_opaque: false,
+            is_see_through: false,
+            is_transparent: [false; 6],
+            transparent_standalone: false,
+            occludes_fluid: false,
+            is_plant: false,
+            faces: vec![],
+            aabbs: full_cube_aabb(),
+            dynamic_patterns: None,
+        }
+    }
+
+    struct ColumnSpace {
+        bottom_id: u32,
+        top_id: u32,
+    }
+
+    impl VoxelAccess for ColumnSpace {
+        fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+            match (vx, vy, vz) {
+                (0, 0, 0) => self.bottom_id,
+                (0, 1, 0) => self.top_id,
+                _ => 0,
+            }
+        }
+
+        fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+            self.get_voxel(vx, vy, vz)
+        }
+
+        fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+            BlockRotation::PY(0.0)
+        }
+
+        fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
+        fn get_sunlight(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            15
+        }
+
+        fn get_torch_light(&self, _vx: i32, _vy: i32, _vz: i32, _color: LightColor) -> u32 {
+            0
+        }
+
+        fn get_all_lights(&self, _vx: i32, _vy: i32, _vz: i32) -> (u32, u32, u32, u32) {
+            (15, 0, 0, 0)
+        }
+
+        fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+            2
+        }
+
+        fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+            vx.abs() <= 1 && (-1..=2).contains(&vy) && vz.abs() <= 1
+        }
+    }
+
+    fn mesh_single_face(
+        block: &Block,
+        face: &BlockFace,
+        registry: &Registry,
+        space: &ColumnSpace,
+    ) -> Vec<i32> {
+        let mut positions = vec![];
+        let mut indices = vec![];
+        let mut uvs = vec![];
+        let mut lights = vec![];
+        let neighbors = NeighborCache::populate(0, 0, 0, space);
+        process_face(
+            0,
+            0,
+            0,
+            block.id,
+            &BlockRotation::PY(0.0),
+            face,
+            block,
+            &HashMap::new(),
+            registry,
+            space,
+            &neighbors,
+            false,
+            block.is_fluid,
+            &mut positions,
+            &mut indices,
+            &mut uvs,
+            &mut lights,
+            &[0, 0, 0],
+            false,
+        );
+        lights
+    }
+
+    #[test]
+    fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
+        let air = Block {
+            is_empty: true,
+            aabbs: vec![],
+            ..plain_block(0, "Air")
+        };
+        let sand = Block {
+            is_opaque: true,
+            ..plain_block(1, "Sand")
+        };
+        let water = Block {
+            is_fluid: true,
+            is_see_through: true,
+            is_transparent: [true; 6],
+            ..plain_block(2, "Water")
+        };
+        let seagrass = Block {
+            is_plant: true,
+            is_waterlogged: true,
+            is_see_through: true,
+            is_transparent: [true; 6],
+            aabbs: vec![],
+            ..plain_block(3, "Seagrass")
+        };
+
+        let mut registry = Registry::new(vec![
+            (0, air),
+            (1, sand.clone()),
+            (2, water),
+            (3, seagrass.clone()),
+        ]);
+        registry.build_cache();
+
+        let up_face = BlockFace {
+            name: "py".to_string(),
+            dir: [0, 1, 0],
+            ..Default::default()
+        };
+        let cross_face = BlockFace {
+            name: "one".to_string(),
+            dir: [0, 0, 0],
+            ..Default::default()
+        };
+
+        let submerged = ColumnSpace {
+            bottom_id: 1,
+            top_id: 2,
+        };
+        let submerged_lights = mesh_single_face(&sand, &up_face, &registry, &submerged);
+        assert!(!submerged_lights.is_empty());
+        assert!(
+            submerged_lights
+                .iter()
+                .all(|packed| packed & WATER_EXPOSED_BIT != 0),
+            "seabed face under water should carry the water-exposed bit",
+        );
+
+        let dry = ColumnSpace {
+            bottom_id: 1,
+            top_id: 0,
+        };
+        let dry_lights = mesh_single_face(&sand, &up_face, &registry, &dry);
+        assert!(!dry_lights.is_empty());
+        assert!(
+            dry_lights
+                .iter()
+                .all(|packed| packed & WATER_EXPOSED_BIT == 0),
+            "dry face under air should not carry the water-exposed bit",
+        );
+
+        let planted = ColumnSpace {
+            bottom_id: 3,
+            top_id: 2,
+        };
+        let plant_lights = mesh_single_face(&seagrass, &cross_face, &registry, &planted);
+        assert!(!plant_lights.is_empty());
+        assert!(
+            plant_lights
+                .iter()
+                .all(|packed| packed & WATER_EXPOSED_BIT != 0),
+            "waterlogged plant quads should carry the water-exposed bit",
+        );
     }
 }
