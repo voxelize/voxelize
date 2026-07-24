@@ -282,4 +282,19 @@ impl KdTree {
             .filter_map(|(dist_sq, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist_sq, e)))
             .collect()
     }
+
+    /// Every tracked entity AND player within `radius` of `point`. Area
+    /// effects (blasts, suction fields) use this so clients are never
+    /// silently excluded the way the entities-only radius query excludes
+    /// them.
+    pub fn all_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<(f32, &Entity)> {
+        let radius_squared = radius * radius;
+        let results = self
+            .all
+            .within(&[point.0, point.1, point.2], radius_squared);
+        results
+            .into_iter()
+            .filter_map(|(dist_sq, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist_sq, e)))
+            .collect()
+    }
 }
