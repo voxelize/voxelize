@@ -221,6 +221,33 @@ export interface ChunkBridge {
   list(): ChunkSnapshot[];
 }
 
+/**
+ * Mirror of `WorldMemoryCounters` from `@voxelize/core`: queue and
+ * in-flight sizes across the update -> relight -> remesh pipeline, used to
+ * diagnose memory pressure during mass terrain edits.
+ */
+export type WorldMemoryCounters = {
+  blockUpdatesQueue: number;
+  blockUpdatesToEmit: number;
+  lightJobQueue: number;
+  activeLightBatchPendingJobs: number;
+  voxelDeltaChunks: number;
+  voxelDeltaTotal: number;
+  meshQueue: number;
+  meshWorking: number;
+  meshQueuedBytes: number;
+  urgentMeshQueue: number;
+  urgentMeshWorking: number;
+  urgentMeshQueuedBytes: number;
+  lightQueue: number;
+  lightWorking: number;
+  lightQueuedBytes: number;
+  meshDirtyKeys: number;
+  meshInFlightJobs: number;
+  loadedChunks: number;
+  lightJobHighWaterChunks: number;
+};
+
 export interface AgentBridge {
   readonly ready: Promise<void>;
 
@@ -254,6 +281,8 @@ export interface AgentBridge {
   meshTransferBenchmark(
     opts?: MeshTransferBenchmarkRequest,
   ): Promise<MeshTransferBenchmarkResult>;
+  /** Pipeline queue/in-flight sizes from `World.getMemoryCounters`. */
+  memoryCounters(): WorldMemoryCounters;
 
   position(): Vec3;
   facing(): YawPitch;

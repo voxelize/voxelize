@@ -304,6 +304,8 @@ export class AgentDaemon {
       }
     });
 
+    this.server.get("/memory", async () => this.agent.memoryStatus());
+
     this.server.get("/mesh-transfer/status", async () =>
       this.agent.meshTransferStatus(),
     );

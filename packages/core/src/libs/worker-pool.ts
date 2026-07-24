@@ -18,6 +18,15 @@ export type WorkerPoolJob = {
    * @param value The result of the job.
    */
   resolve: (value: any) => void;
+
+  /**
+   * Milliseconds this job may run before its worker is presumed dead. A
+   * worker that OOMs mid-job dies without any error event, which used to
+   * leave the slot occupied and the job unresolved forever (frozen
+   * lighting/meshing). On timeout the worker is replaced and the job
+   * resolves `null`.
+   */
+  timeoutMs?: number;
 };
 
 /**
@@ -52,6 +61,22 @@ export class WorkerPool {
    * The queue of jobs that are waiting to be executed.
    */
   public queue: WorkerPoolJob[] = [];
+
+  /**
+   * Total bytes of transferable payloads sitting in the queue, waiting for
+   * a free worker. A sustained climb here means jobs are being enqueued
+   * (with their serialized copies) faster than workers drain them.
+   */
+  get queuedBytes(): number {
+    let bytes = 0;
+    for (const job of this.queue) {
+      if (!job.buffers) continue;
+      for (const buffer of job.buffers) {
+        if (buffer instanceof ArrayBuffer) bytes += buffer.byteLength;
+      }
+    }
+    return bytes;
+  }
 
   /**
    * A static count of working web workers across all worker pools.
@@ -147,10 +172,15 @@ export class WorkerPool {
       const index = this.available.pop() as number;
       const worker = this.workers[index];
 
-      const { message, buffers, resolve } = this.queue.shift() as WorkerPoolJob;
+      const { message, buffers, resolve, timeoutMs } =
+        this.queue.shift() as WorkerPoolJob;
+
+      let isSettled = false;
+      let watchdog: ReturnType<typeof setTimeout> | null = null;
 
       const cleanup = () => {
         WorkerPool.WORKING_COUNT--;
+        if (watchdog !== null) clearTimeout(watchdog);
         worker.removeEventListener("message", workerCallback);
         worker.removeEventListener("error", workerError);
         worker.removeEventListener("messageerror", workerError);
@@ -161,6 +191,8 @@ export class WorkerPool {
       };
 
       const workerCallback = ({ data }: any) => {
+        if (isSettled) return;
+        isSettled = true;
         // A wasm trap poisons the worker's module state permanently (see
         // mesh-worker). Swap in a fresh worker before releasing the slot so
         // the next job never lands on the corpse.
@@ -175,10 +207,29 @@ export class WorkerPool {
       // occupies the slot and never resolves the job — which previously
       // also blocked remesh when callers waited on light completion.
       const workerError = (event: ErrorEvent | MessageEvent) => {
+        if (isSettled) return;
+        isSettled = true;
         console.error("[worker-pool] worker job failed", event);
         cleanup();
         resolve(null);
       };
+
+      if (timeoutMs !== undefined && timeoutMs > 0) {
+        watchdog = setTimeout(() => {
+          if (isSettled) return;
+          isSettled = true;
+          // A worker that OOMed died without any event; replace the corpse
+          // so the slot comes back, and resolve null so the caller's
+          // pipeline keeps moving.
+          console.error(
+            `[worker-pool] job timed out after ${timeoutMs}ms; replacing worker`,
+            this.options.name ?? "",
+          );
+          this.replaceWorker(index);
+          cleanup();
+          resolve(null);
+        }, timeoutMs);
+      }
 
       worker.addEventListener("message", workerCallback);
       worker.addEventListener("error", workerError);

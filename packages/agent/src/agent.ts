@@ -27,6 +27,7 @@ import type {
   WalkDirection,
   WalkOptions,
   WalkToOptions,
+  WorldMemoryCounters,
   YawPitch,
 } from "./bridge";
 import {
@@ -150,12 +151,17 @@ export class Agent {
 
     const browser = await puppeteer.launch({
       headless: isHeadless,
+      // Fatal renderer aborts (V8 OOM, mojo errors, sandbox CHECKs) only
+      // surface on Chromium's stderr; dumpio pipes it into the daemon log so
+      // a dead tab always leaves its reason behind.
+      dumpio: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--enable-webgl",
         "--ignore-gpu-blocklist",
+        "--enable-logging=stderr",
       ],
       defaultViewport: {
         width: positiveEnvNumber("AGENT_VIEWPORT_WIDTH", 1280),
@@ -530,6 +536,27 @@ export class Agent {
       (o) => window.__agentRequired__().meshTransferBenchmark(o),
       opts,
     );
+  }
+
+  /**
+   * JS heap size (CDP metrics) plus the world's pipeline queue counters.
+   * The memory dashboard for update-flood OOM hunts: sample it while mass
+   * terrain edits stream in and watch which stage balloons.
+   */
+  async memoryStatus(): Promise<{
+    heapUsedBytes: number;
+    heapTotalBytes: number;
+    counters: WorldMemoryCounters;
+  }> {
+    const metrics = await this.page.metrics();
+    const counters = await this.page.evaluate(() =>
+      window.__agentRequired__().memoryCounters(),
+    );
+    return {
+      heapUsedBytes: metrics.JSHeapUsedSize ?? 0,
+      heapTotalBytes: metrics.JSHeapTotalSize ?? 0,
+      counters,
+    };
   }
 
   async position(): Promise<Vec3> {

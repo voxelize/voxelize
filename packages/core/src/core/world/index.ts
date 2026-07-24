@@ -405,6 +405,19 @@ export type WorldClientOptions = {
    */
   maxImmediateServerUpdates: number;
 
+  /**
+   * Milliseconds a light worker job may run before its worker is presumed
+   * dead (an OOMed worker dies without any error event) and replaced.
+   * Defaults to `20000`.
+   */
+  lightJobTimeoutMs: number;
+
+  /**
+   * Milliseconds a mesh worker job may run before its worker is presumed
+   * dead and replaced. Defaults to `30000`.
+   */
+  meshJobTimeoutMs: number;
+
   maxMeshesPerUpdate: number;
 
   /**
@@ -531,6 +544,8 @@ const defaultOptions: WorldClientOptions = {
   maxUpdatesPerUpdate: 1000,
   maxOptimisticClientUpdates: 4000,
   maxImmediateServerUpdates: 500,
+  lightJobTimeoutMs: 20000,
+  meshJobTimeoutMs: 30000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
   maxUrgentMeshWorkers: 4,
@@ -635,6 +650,32 @@ export type WorldServerOptions = {
 export type WorldOptions = WorldClientOptions & WorldServerOptions;
 
 /**
+ * A snapshot of every queue and in-flight set in the voxel update ->
+ * relight -> remesh pipeline. See {@link World.getMemoryCounters}.
+ */
+export type WorldMemoryCounters = {
+  blockUpdatesQueue: number;
+  blockUpdatesToEmit: number;
+  lightJobQueue: number;
+  activeLightBatchPendingJobs: number;
+  voxelDeltaChunks: number;
+  voxelDeltaTotal: number;
+  meshQueue: number;
+  meshWorking: number;
+  meshQueuedBytes: number;
+  urgentMeshQueue: number;
+  urgentMeshWorking: number;
+  urgentMeshQueuedBytes: number;
+  lightQueue: number;
+  lightWorking: number;
+  lightQueuedBytes: number;
+  meshDirtyKeys: number;
+  meshInFlightJobs: number;
+  loadedChunks: number;
+  lightJobHighWaterChunks: number;
+};
+
+/**
  * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
  * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
  * This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
@@ -723,6 +764,44 @@ export class World<T = any> extends Scene implements NetIntercept {
     benchmark: (options: MeshTransferBenchmarkOptions) =>
       this.benchmarkMeshTransfer(options),
   };
+
+  /**
+   * Live sizes of every queue and in-flight set in the voxel update ->
+   * relight -> remesh pipeline, plus the bytes of serialized chunk payloads
+   * parked in worker queues. This is the memory-pressure dashboard for
+   * debugging update-flood OOMs (mass terrain edits): sample it while
+   * carving and watch which stage balloons.
+   */
+  getMemoryCounters(): WorldMemoryCounters {
+    let voxelDeltaTotal = 0;
+    this.voxelDeltas.forEach((deltas) => {
+      voxelDeltaTotal += deltas.length;
+    });
+
+    return {
+      blockUpdatesQueue: this.blockUpdatesQueue.length,
+      blockUpdatesToEmit: this.blockUpdatesToEmit.length,
+      lightJobQueue: this.lightJobQueue.length,
+      activeLightBatchPendingJobs: this.activeLightBatch
+        ? this.activeLightBatch.totalJobs - this.activeLightBatch.completedJobs
+        : 0,
+      voxelDeltaChunks: this.voxelDeltas.size,
+      voxelDeltaTotal,
+      meshQueue: this.meshWorkerPool.queue.length,
+      meshWorking: this.meshWorkerPool.workingCount,
+      meshQueuedBytes: this.meshWorkerPool.queuedBytes,
+      urgentMeshQueue: this.urgentMeshWorkerPool.queue.length,
+      urgentMeshWorking: this.urgentMeshWorkerPool.workingCount,
+      urgentMeshQueuedBytes: this.urgentMeshWorkerPool.queuedBytes,
+      lightQueue: this.lightWorkerPool.queue.length,
+      lightWorking: this.lightWorkerPool.workingCount,
+      lightQueuedBytes: this.lightWorkerPool.queuedBytes,
+      meshDirtyKeys: this.meshPipeline.dirtyCount,
+      meshInFlightJobs: this.meshPipeline.inFlightJobCount(),
+      loadedChunks: this.chunkPipeline.loadedCount,
+      lightJobHighWaterChunks: this.lightJobHighWaterChunks,
+    };
+  }
 
   /**
    * Chunk rendering state (materials, uniforms).
@@ -999,6 +1078,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   private blockUpdatesToEmit: BlockUpdate[] = [];
 
   private voxelDeltas = new Map<string, VoxelDelta[]>();
+
+  /** Largest chunk count any single light job has serialized this session. */
+  private lightJobHighWaterChunks = 0;
   private deltaSequenceCounter = 0;
   private cleanupDeltasInterval: number | null = null;
   private stopStatsSync: (() => void) | null = null;
@@ -1229,6 +1311,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       meshWorkerPool.addJob({
         message: data,
         buffers: arrayBuffers,
+        timeoutMs: this.options.meshJobTimeoutMs,
         resolve,
       });
     });
@@ -3134,8 +3217,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       return rotation;
     };
 
+    // Compact processed prefixes away so a large flood's queue holds only
+    // its live frontier, mirroring the light worker's guard.
+    const queueCompactInterval = 8192;
     let head = 0;
     while (head < queue.length) {
+      if (head >= queueCompactInterval) {
+        queue.splice(0, head);
+        head = 0;
+      }
       const node = queue[head++];
       const { voxel, level } = node;
 
@@ -5869,7 +5959,26 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
     const candidateKeys = urgentKeys.length > 0 ? urgentKeys : dirtyKeys;
-    const keysToProcess = candidateKeys.slice(0, maxConcurrentMeshJobs);
+    // Dispatch only what the target pool can start right now. A dispatched
+    // job eagerly serializes its 9-chunk stencil, and a saturated pool used
+    // to park those multi-MB payloads in its queue — during update floods
+    // that queue grew without bound and OOMed the renderer.
+    const targetPool =
+      urgentKeys.length > 0 ? this.urgentMeshWorkerPool : this.meshWorkerPool;
+    const freeWorkerSlots = Math.max(
+      0,
+      targetPool.options.maxWorker -
+        targetPool.workingCount -
+        targetPool.queue.length,
+    );
+    const keysToProcess = candidateKeys.slice(
+      0,
+      Math.min(maxConcurrentMeshJobs, freeWorkerSlots),
+    );
+    if (keysToProcess.length === 0) {
+      this.scheduleDirtyChunkProcessing();
+      return;
+    }
 
     const workerPromises = keysToProcess.map((key) => {
       const { cx, cz, level } = MeshPipeline.parseKey(key);
@@ -5959,6 +6068,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
+    // At most one light batch is ever scheduled; while it runs, further ops
+    // keep accumulating (they merge into fewer, better-clustered jobs).
+    // Scheduling a batch per server packet used to pile up batches faster
+    // than workers drained them during sustained update floods.
+    if (this.activeLightBatch !== null || this.lightJobQueue.length > 0) {
+      return;
+    }
+
     this.scheduleLightJobs(
       this.accumulatedLightOps,
       this.accumulatedStartSequenceId,
@@ -6005,56 +6122,132 @@ export class World<T = any> extends Scene implements NetIntercept {
     const batchId = this.lightBatchIdCounter++;
     const jobsForBatch: LightJob[] = [];
 
+    // Ops separated by more than twice the max light level cannot influence
+    // each other's light, so they split into independent jobs with small
+    // boxes. One merged box used to span every scattered random-tick update
+    // across the render distance — and every chunk in that box got
+    // serialized per color, a renderer-killing burst.
+    const clusterReach = maxLightLevel * 2;
+
+    type LightCluster = {
+      minX: number;
+      minY: number;
+      minZ: number;
+      maxX: number;
+      maxY: number;
+      maxZ: number;
+      removals: Coords3[];
+      floods: LightNode[];
+    };
+
     colorData.forEach(({ color, removals, floods }) => {
       if (removals.length === 0 && floods.length === 0) return;
 
-      const allVoxels = [...removals, ...floods.map((n) => n.voxel)];
+      const clusters: LightCluster[] = [];
 
-      let minX = allVoxels[0][0];
-      let minY = allVoxels[0][1];
-      let minZ = allVoxels[0][2];
-      let maxX = minX;
-      let maxY = minY;
-      let maxZ = minZ;
-
-      for (const [x, y, z] of allVoxels) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        minZ = Math.min(minZ, z);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-        maxZ = Math.max(maxZ, z);
-      }
-
-      minX -= maxLightLevel;
-      minY -= maxLightLevel;
-      minZ -= maxLightLevel;
-      maxX += maxLightLevel;
-      maxY += maxLightLevel;
-      maxZ += maxLightLevel;
-
-      minX = Math.max(minX, minChunk[0] * chunkSize);
-      minZ = Math.max(minZ, minChunk[1] * chunkSize);
-      maxX = Math.min(maxX, (maxChunk[0] + 1) * chunkSize - 1);
-      maxZ = Math.min(maxZ, (maxChunk[1] + 1) * chunkSize - 1);
-      minY = Math.max(minY, 0);
-      maxY = Math.min(maxY, maxHeight - 1);
-
-      const boundingBox: BoundingBox = {
-        min: [minX, minY, minZ],
-        shape: [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1],
+      const place = (x: number, y: number, z: number): LightCluster => {
+        for (const cluster of clusters) {
+          if (
+            x >= cluster.minX - clusterReach &&
+            x <= cluster.maxX + clusterReach &&
+            y >= cluster.minY - clusterReach &&
+            y <= cluster.maxY + clusterReach &&
+            z >= cluster.minZ - clusterReach &&
+            z <= cluster.maxZ + clusterReach
+          ) {
+            cluster.minX = Math.min(cluster.minX, x);
+            cluster.minY = Math.min(cluster.minY, y);
+            cluster.minZ = Math.min(cluster.minZ, z);
+            cluster.maxX = Math.max(cluster.maxX, x);
+            cluster.maxY = Math.max(cluster.maxY, y);
+            cluster.maxZ = Math.max(cluster.maxZ, z);
+            return cluster;
+          }
+        }
+        const fresh: LightCluster = {
+          minX: x,
+          minY: y,
+          minZ: z,
+          maxX: x,
+          maxY: y,
+          maxZ: z,
+          removals: [],
+          floods: [],
+        };
+        clusters.push(fresh);
+        return fresh;
       };
 
-      const jobId = `light-${color}-${this.lightJobIdCounter++}`;
-      jobsForBatch.push({
-        jobId,
-        color,
-        lightOps: { removals, floods },
-        boundingBox,
-        startSequenceId,
-        retryCount: 0,
-        batchId,
-      });
+      for (const voxel of removals) {
+        place(voxel[0], voxel[1], voxel[2]).removals.push(voxel);
+      }
+      for (const node of floods) {
+        place(node.voxel[0], node.voxel[1], node.voxel[2]).floods.push(node);
+      }
+
+      // Growing bounds can bring clusters into reach of one another.
+      let didMerge = true;
+      while (didMerge) {
+        didMerge = false;
+        outer: for (let i = 0; i < clusters.length; i++) {
+          for (let j = i + 1; j < clusters.length; j++) {
+            const a = clusters[i];
+            const b = clusters[j];
+            if (
+              a.minX - clusterReach <= b.maxX &&
+              b.minX - clusterReach <= a.maxX &&
+              a.minY - clusterReach <= b.maxY &&
+              b.minY - clusterReach <= a.maxY &&
+              a.minZ - clusterReach <= b.maxZ &&
+              b.minZ - clusterReach <= a.maxZ
+            ) {
+              a.minX = Math.min(a.minX, b.minX);
+              a.minY = Math.min(a.minY, b.minY);
+              a.minZ = Math.min(a.minZ, b.minZ);
+              a.maxX = Math.max(a.maxX, b.maxX);
+              a.maxY = Math.max(a.maxY, b.maxY);
+              a.maxZ = Math.max(a.maxZ, b.maxZ);
+              a.removals = a.removals.concat(b.removals);
+              a.floods = a.floods.concat(b.floods);
+              clusters.splice(j, 1);
+              didMerge = true;
+              break outer;
+            }
+          }
+        }
+      }
+
+      for (const cluster of clusters) {
+        let minX = cluster.minX - maxLightLevel;
+        let minY = cluster.minY - maxLightLevel;
+        let minZ = cluster.minZ - maxLightLevel;
+        let maxX = cluster.maxX + maxLightLevel;
+        let maxY = cluster.maxY + maxLightLevel;
+        let maxZ = cluster.maxZ + maxLightLevel;
+
+        minX = Math.max(minX, minChunk[0] * chunkSize);
+        minZ = Math.max(minZ, minChunk[1] * chunkSize);
+        maxX = Math.min(maxX, (maxChunk[0] + 1) * chunkSize - 1);
+        maxZ = Math.min(maxZ, (maxChunk[1] + 1) * chunkSize - 1);
+        minY = Math.max(minY, 0);
+        maxY = Math.min(maxY, maxHeight - 1);
+
+        const boundingBox: BoundingBox = {
+          min: [minX, minY, minZ],
+          shape: [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1],
+        };
+
+        const jobId = `light-${color}-${this.lightJobIdCounter++}`;
+        jobsForBatch.push({
+          jobId,
+          color,
+          lightOps: { removals: cluster.removals, floods: cluster.floods },
+          boundingBox,
+          startSequenceId,
+          retryCount: 0,
+          batchId,
+        });
+      }
     });
 
     if (jobsForBatch.length === 0) return;
@@ -6115,6 +6308,23 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
+    // Every chunk in the box is serialized (copied) below, so the box span
+    // IS the job's memory footprint. Track the high-water mark and call out
+    // oversized boxes: a batch merged from spatially-scattered updates
+    // (random ticks across the whole render distance) can balloon into a
+    // renderer-killing burst allocation.
+    if (chunksInSpace.length > this.lightJobHighWaterChunks) {
+      this.lightJobHighWaterChunks = chunksInSpace.length;
+    }
+    if (chunksInSpace.length >= 36) {
+      console.warn(
+        `[world] light job ${jobId} spans ${chunksInSpace.length} chunks ` +
+          `(grid ${maxChunkX - minChunkX + 1}x${maxChunkZ - minChunkZ + 1}, ` +
+          `${lightOps.removals.length} removals, ${lightOps.floods.length} floods); ` +
+          `serializing this box is a large burst allocation`,
+      );
+    }
+
     const relevantDeltas: Record<string, VoxelDelta[]> = {};
     chunksInSpace.forEach((chunkName) => {
       const allDeltas = this.voxelDeltas.get(chunkName) || [];
@@ -6169,6 +6379,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         options: this.options,
       },
       buffers: arrayBuffers,
+      timeoutMs: this.options.lightJobTimeoutMs,
       resolve: (result) => this.handleLightJobResult(job, result),
     });
   }
@@ -6203,6 +6414,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.applyBatchResults(batch);
     this.activeLightBatch = null;
     this.processNextLightBatch();
+    // Ops that accumulated while this batch ran get their turn immediately.
+    this.flushAccumulatedLightOps();
 
     if (this.lightJobQueue.length === 0 && this.activeLightBatch === null) {
       const resolvers = this.lightJobsCompleteResolvers.splice(0);
