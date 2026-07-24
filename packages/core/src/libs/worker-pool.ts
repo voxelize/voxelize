@@ -43,6 +43,17 @@ export type WorkerPoolOptions = {
    * `{name}-0`, `{name}-1`, etc. Shows up in DevTools for debugging.
    */
   name?: string;
+
+  /**
+   * Jobs allowed to wait for a free worker before the oldest are shed
+   * (resolved `null`, exactly like a dead worker). Left undefined the queue
+   * is unbounded, which is only safe when the caller gates dispatch on
+   * {@link WorkerPool.availableCount}: every queued job holds its serialized
+   * payload alive, so a caller that enqueues faster than workers drain turns
+   * the queue into an unbounded allocation. Opt in only from callers that
+   * treat a `null` result as a retryable failure.
+   */
+  maxQueuedJobs?: number;
 };
 
 const defaultOptions: WorkerPoolOptions = {
@@ -129,7 +140,35 @@ export class WorkerPool {
    */
   addJob = (job: WorkerPoolJob) => {
     this.queue.push(job);
+
+    const { maxQueuedJobs } = this.options;
+    if (maxQueuedJobs !== undefined) {
+      const excess = this.queue.length - Math.max(1, maxQueuedJobs);
+      if (excess > 0) {
+        this.shedJobs(this.queue.splice(0, excess));
+      }
+    }
+
     this.process();
+  };
+
+  /**
+   * Drop every job still waiting for a worker, resolving each `null`. Used to
+   * release the serialized payloads parked in the queue when the renderer is
+   * under memory pressure; in-flight jobs are left alone.
+   *
+   * @returns The number of jobs dropped.
+   */
+  drainQueue = (): number => {
+    const dropped = this.queue.splice(0);
+    this.shedJobs(dropped);
+    return dropped.length;
+  };
+
+  private shedJobs = (jobs: WorkerPoolJob[]) => {
+    for (const job of jobs) {
+      job.resolve(null);
+    }
   };
 
   postMessage = (message: any, buffers?: Transferable[]) => {

@@ -51,7 +51,7 @@ import {
   prepareTransparentMesh,
   sortTransparentMesh,
 } from "../../core/transparent-sorter";
-import { WorkerPool } from "../../libs";
+import { BoundedLruMap, WorkerPool } from "../../libs";
 import {
   getMeshTransferStatus,
   MeshTransferBenchmarkOptions,
@@ -145,6 +145,11 @@ import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-upd
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
 import { Loader } from "./loader";
+import {
+  MemoryPressureMonitor,
+  MemoryPressureOptions,
+  MemoryPressureStatus,
+} from "./memory-pressure";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
 import {
@@ -168,6 +173,7 @@ export * from "./entity-shadow-uniforms";
 export * from "./items";
 export * from "./light-cones";
 export * from "./loader";
+export * from "./memory-pressure";
 export * from "./pipelines";
 export * from "./registry";
 export * from "./shaders";
@@ -302,6 +308,12 @@ export type LightBatch = {
   completedJobs: number;
   results: LightBatchResult[];
   jobs: LightJob[];
+  /**
+   * Jobs of this batch that have not been handed to a worker yet. Dispatch
+   * serializes every chunk the job's bounding box covers, so jobs wait here
+   * as cheap descriptors instead of as multi-megabyte copies.
+   */
+  pendingDispatch: LightJob[];
 };
 
 export type LightOperations = {
@@ -536,6 +548,32 @@ export type WorldClientOptions = {
    * Whether to merge chunk geometries to reduce draw calls. Useful for mobile. Defaults to false.
    */
   mergeChunkGeometries: boolean;
+
+  /**
+   * Jobs allowed to wait for a free mesh or light worker before the oldest
+   * are shed. Dispatch is already gated on free worker slots, so this is the
+   * backstop that keeps a future caller from parking unbounded serialized
+   * chunk payloads in a pool queue. Defaults to `8`.
+   */
+  maxQueuedWorkerJobs: number;
+
+  /**
+   * Distinct voxels tracked by {@link World.getPreviousValueAt}. The history
+   * is a debugging convenience, not gameplay state, so it evicts oldest-first
+   * instead of growing with every voxel a session ever edits. Defaults to
+   * `4096`.
+   */
+  maxVoxelHistoryVoxels: number;
+
+  /**
+   * Previous values retained per voxel. Defaults to `4`.
+   */
+  maxVoxelHistoryPerVoxel: number;
+
+  /**
+   * Renderer heap watchdog thresholds. See {@link MemoryPressureOptions}.
+   */
+  memoryPressure: Partial<MemoryPressureOptions>;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -570,6 +608,10 @@ const defaultOptions: WorldClientOptions = {
   lightJobRetryLimit: 3,
   deltaRetentionTime: 5000,
   mergeChunkGeometries: false,
+  maxQueuedWorkerJobs: 8,
+  maxVoxelHistoryVoxels: 4096,
+  maxVoxelHistoryPerVoxel: 4,
+  memoryPressure: {},
 };
 
 /**
@@ -658,6 +700,9 @@ export type WorldMemoryCounters = {
   blockUpdatesToEmit: number;
   lightJobQueue: number;
   activeLightBatchPendingJobs: number;
+  activeLightBatchUndispatchedJobs: number;
+  voxelHistoryVoxels: number;
+  memoryPressure: MemoryPressureStatus;
   voxelDeltaChunks: number;
   voxelDeltaTotal: number;
   meshQueue: number;
@@ -785,6 +830,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       activeLightBatchPendingJobs: this.activeLightBatch
         ? this.activeLightBatch.totalJobs - this.activeLightBatch.completedJobs
         : 0,
+      activeLightBatchUndispatchedJobs:
+        this.activeLightBatch?.pendingDispatch.length ?? 0,
+      voxelHistoryVoxels: this.oldBlocks.size,
+      memoryPressure: this.memoryPressureMonitor.getStatus(),
       voxelDeltaChunks: this.voxelDeltas.size,
       voxelDeltaTotal,
       meshQueue: this.meshWorkerPool.queue.length,
@@ -1002,7 +1051,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * The voxel cache that stores previous values.
    */
-  private oldBlocks: Map<string, number[]> = new Map();
+  private oldBlocks: BoundedLruMap<string, number[]>;
 
   /**
    * Cache for block meshes created by makeBlockMesh with cached option.
@@ -1103,6 +1152,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private static readonly nightAmbient = new Color(0.12, 0.15, 0.22);
   private lightJobsCompleteResolvers: (() => void)[] = [];
   private activeLightBatch: LightBatch | null = null;
+  private memoryPressureMonitor: MemoryPressureMonitor;
 
   private accumulatedLightOps: LightOperations | null = null;
   private accumulatedStartSequenceId = 0;
@@ -1123,10 +1173,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     const maxMeshWorkers = Math.min(navigator.hardwareConcurrency ?? 4, 4);
+    const { maxQueuedWorkerJobs } = this.options;
+
+    this.oldBlocks = new BoundedLruMap(this.options.maxVoxelHistoryVoxels);
 
     this.meshWorkerPool = new WorkerPool(MeshWorker, {
       maxWorker: maxMeshWorkers,
       name: "mesh-worker",
+      maxQueuedJobs: maxQueuedWorkerJobs,
     });
 
     this.urgentMeshWorkerPool = new WorkerPool(MeshWorker, {
@@ -1135,12 +1189,21 @@ export class World<T = any> extends Scene implements NetIntercept {
         Math.min(this.options.maxUrgentMeshWorkers, maxMeshWorkers),
       ),
       name: "mesh-worker-urgent",
+      maxQueuedJobs: maxQueuedWorkerJobs,
     });
 
     this.lightWorkerPool = new WorkerPool(LightWorker, {
       maxWorker: this.options.maxLightWorkers,
       name: "light-worker",
+      maxQueuedJobs: maxQueuedWorkerJobs,
     });
+
+    this.memoryPressureMonitor = new MemoryPressureMonitor(
+      this.options.memoryPressure,
+    );
+    this.memoryPressureMonitor.start((verdict, status) =>
+      this.onMemoryPressureVerdict(verdict, status),
+    );
 
     this.setupComponents();
     this.setupUniforms();
@@ -1174,6 +1237,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.meshWorkerPool.terminate();
     this.urgentMeshWorkerPool.terminate();
     this.lightWorkerPool.terminate();
+    this.memoryPressureMonitor.stop();
     this.clouds.dispose();
     this.csmRenderer?.dispose();
 
@@ -1186,6 +1250,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.lightJobQueue = [];
     this.activeLightBatch = null;
+    this.oldBlocks.clear();
     this.lightJobsCompleteResolvers.splice(0).forEach((resolve) => resolve());
 
     this.chunkPipeline.forEachLoaded((chunk) => chunk.dispose());
@@ -1196,6 +1261,60 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.materials.clear();
     this.animatedAtlasTextures.clear();
   };
+
+  /**
+   * The renderer's heap is shared with every web worker, and a worker that
+   * runs out of V8 heap takes the whole tab down with it. When the watchdog
+   * says the heap is close to its limit, drop every piece of pipeline state
+   * that can be rebuilt: queued worker payloads (the largest single
+   * allocations in the client), light work that has not been serialized yet,
+   * and the voxel history cache. Everything shed here is either retried
+   * automatically or is pure cache, so the world stays correct — it just
+   * catches up more slowly.
+   */
+  private onMemoryPressureVerdict(
+    verdict: "shed" | "relieved",
+    status: MemoryPressureStatus,
+  ) {
+    const heapMb = Math.round(status.heapUsedBytes / 1024 / 1024);
+    const limitMb = Math.round(status.heapLimitBytes / 1024 / 1024);
+
+    if (verdict === "relieved") {
+      console.warn(
+        `[world] renderer memory pressure relieved at ${heapMb}MB / ${limitMb}MB`,
+      );
+      return;
+    }
+
+    const droppedMeshJobs = this.meshWorkerPool.drainQueue();
+    const droppedLightJobs = this.lightWorkerPool.drainQueue();
+    const droppedPendingLightJobs = this.lightJobQueue.length;
+    const droppedVoxelHistory = this.oldBlocks.size;
+
+    this.lightJobQueue = [];
+    this.accumulatedLightOps = null;
+    this.accumulatedStartSequenceId = 0;
+    this.oldBlocks.clear();
+
+    console.warn(
+      `[world] renderer memory pressure at ${heapMb}MB / ${limitMb}MB ` +
+        `(${(status.heapRatio * 100).toFixed(1)}%, shed #${status.shedCount}); ` +
+        `dropped ${droppedMeshJobs} queued mesh jobs, ${droppedLightJobs} queued ` +
+        `light jobs, ${droppedPendingLightJobs} pending light jobs, ` +
+        `${droppedVoxelHistory} voxel history entries`,
+    );
+
+    // Dropped light jobs leave nothing to wait on when no batch is running;
+    // without this the waiters would hang until the next voxel edit.
+    this.settleLightJobWaitersIfIdle();
+  }
+
+  private settleLightJobWaitersIfIdle() {
+    if (this.lightJobQueue.length > 0 || this.activeLightBatch !== null) {
+      return;
+    }
+    this.lightJobsCompleteResolvers.splice(0).forEach((resolve) => resolve());
+  }
 
   private startDeltaCleanup() {
     this.cleanupDeltasInterval = setInterval(() => {
@@ -2318,6 +2437,32 @@ export class World<T = any> extends Scene implements NetIntercept {
     const name = ChunkUtils.getVoxelName([px | 0, py | 0, pz | 0]);
     const arr = this.oldBlocks.get(name) || [];
     return arr[arr.length - count] || 0;
+  }
+
+  /**
+   * Remember the value a voxel held before this change, evicting the
+   * least-recently-touched voxels once the cache is full. A session that
+   * carves thousands of voxels would otherwise keep one string key and one
+   * growing array per voxel it ever edited, forever.
+   */
+  private recordVoxelHistory(
+    vx: number,
+    vy: number,
+    vz: number,
+    oldValue: number,
+  ) {
+    const { maxVoxelHistoryPerVoxel } = this.options;
+    if (maxVoxelHistoryPerVoxel <= 0) return;
+
+    const name = ChunkUtils.getVoxelName([vx, vy, vz]);
+    const history = this.oldBlocks.get(name) ?? [];
+
+    history.push(oldValue);
+    if (history.length > maxVoxelHistoryPerVoxel) {
+      history.splice(0, history.length - maxVoxelHistoryPerVoxel);
+    }
+
+    this.oldBlocks.set(name, history);
   }
 
   getBlockOf(idOrName: number | string) {
@@ -4637,10 +4782,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const oldVal = chunk.getRawValue(vx, vy, vz);
 
     if (oldVal !== newVal) {
-      const name = ChunkUtils.getVoxelName([vx, vy, vz]);
-      const arr = this.oldBlocks.get(name) || [];
-      arr.push(oldVal);
-      this.oldBlocks.set(name, arr);
+      this.recordVoxelHistory(vx, vy, vz, oldVal);
       this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal, source);
     }
   }
@@ -6279,9 +6421,29 @@ export class World<T = any> extends Scene implements NetIntercept {
       completedJobs: 0,
       results: [],
       jobs: batchJobs,
+      pendingDispatch: [...batchJobs],
     };
 
-    for (const job of batchJobs) {
+    this.dispatchPendingLightJobs();
+  }
+
+  /**
+   * Hand pending light jobs to workers, but only as many as can start right
+   * now. Dispatch serializes every chunk the job's bounding box covers, so
+   * dispatching a whole batch at once used to park the batch's worth of
+   * multi-megabyte copies in the pool queue — the same unbounded allocation
+   * that mesh dispatch already guards against.
+   */
+  private dispatchPendingLightJobs() {
+    const batch = this.activeLightBatch;
+    if (!batch) return;
+
+    while (
+      batch.pendingDispatch.length > 0 &&
+      this.lightWorkerPool.availableCount > 0
+    ) {
+      const job = batch.pendingDispatch.shift();
+      if (!job) break;
       this.executeLightJob(job);
     }
   }
@@ -6408,6 +6570,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     batch.completedJobs++;
 
     if (batch.completedJobs < batch.totalJobs) {
+      // A worker slot just came free; serialize the next job into it.
+      this.dispatchPendingLightJobs();
       return;
     }
 
@@ -6418,8 +6582,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.flushAccumulatedLightOps();
 
     if (this.lightJobQueue.length === 0 && this.activeLightBatch === null) {
-      const resolvers = this.lightJobsCompleteResolvers.splice(0);
-      resolvers.forEach((resolve) => resolve());
+      this.settleLightJobWaitersIfIdle();
       this.processDirtyChunks();
     }
   }

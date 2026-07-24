@@ -226,11 +226,23 @@ export interface ChunkBridge {
  * in-flight sizes across the update -> relight -> remesh pipeline, used to
  * diagnose memory pressure during mass terrain edits.
  */
+export type MemoryPressureStatus = {
+  isHeapReadable: boolean;
+  isUnderPressure: boolean;
+  heapRatio: number;
+  heapUsedBytes: number;
+  heapLimitBytes: number;
+  shedCount: number;
+};
+
 export type WorldMemoryCounters = {
   blockUpdatesQueue: number;
   blockUpdatesToEmit: number;
   lightJobQueue: number;
   activeLightBatchPendingJobs: number;
+  activeLightBatchUndispatchedJobs: number;
+  voxelHistoryVoxels: number;
+  memoryPressure: MemoryPressureStatus;
   voxelDeltaChunks: number;
   voxelDeltaTotal: number;
   meshQueue: number;

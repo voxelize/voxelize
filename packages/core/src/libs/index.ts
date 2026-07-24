@@ -2,6 +2,7 @@ export * from "../core/world/clouds";
 export * from "../core/world/sky";
 export * from "./arm";
 export * from "./arrow";
+export * from "./bounded-lru-map";
 export * from "./canvas-box";
 export * from "./character";
 export * from "./color-text";

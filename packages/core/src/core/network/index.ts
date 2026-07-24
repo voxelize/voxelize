@@ -410,9 +410,7 @@ export class Network {
     try {
       this.rtc = new WebRTCConnection();
 
-      this.rtc.onMessage = (data: ArrayBuffer) => {
-        this.packetQueue.push(data);
-      };
+      this.rtc.onMessage = this.enqueuePacket;
 
       this.rtc.onOpen = () => {
         console.log("[NETWORK] WebRTC DataChannel opened");
