@@ -85,4 +85,17 @@ impl World {
         self.entity_loaders
             .insert(etype.to_lowercase(), Arc::new(loader));
     }
+
+    pub fn has_entity_loader(&self, etype: &str) -> bool {
+        self.entity_loaders.contains_key(&etype.to_lowercase())
+    }
+
+    /// Every registered entity loader type, sorted. Spawn methods that must
+    /// reject an unknown type read this to name what a caller could have
+    /// asked for instead of dropping the request in silence.
+    pub fn entity_loader_types(&self) -> Vec<String> {
+        let mut types: Vec<String> = self.entity_loaders.keys().cloned().collect();
+        types.sort();
+        types
+    }
 }
