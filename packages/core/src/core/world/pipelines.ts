@@ -6,7 +6,7 @@ import { ChunkUtils } from "../../utils";
 import { Chunk } from "./chunk";
 
 export type ChunkStage =
-  | { stage: "requested"; retryCount: number; requestedAt: number }
+  | { stage: "requested"; requestedAt: number }
   | { stage: "processing"; source: "update" | "load"; data: ChunkProtocol }
   | { stage: "loaded"; chunk: Chunk };
 
@@ -53,30 +53,19 @@ export class ChunkPipeline {
     const name = ChunkUtils.getChunkName(coords);
     this.setStage(name, {
       stage: "requested",
-      retryCount: 0,
       requestedAt: performance.now(),
     });
   }
 
-  incrementRetry(name: string): number {
+  /**
+   * Whether a request has gone unanswered long enough to be presumed lost.
+   * Measured in elapsed time rather than in world updates, so a chunk asks
+   * again on schedule however slowly the client happens to be running.
+   */
+  isRequestStale(name: string, staleAfterMs: number): boolean {
     const state = this.states.get(name);
-    if (state?.stage === "requested") {
-      state.retryCount++;
-      return state.retryCount;
-    }
-    return 0;
-  }
-
-  resetRetry(name: string): void {
-    const state = this.states.get(name);
-    if (state?.stage === "requested") {
-      state.retryCount = 0;
-    }
-  }
-
-  getRetryCount(name: string): number {
-    const state = this.states.get(name);
-    return state?.stage === "requested" ? state.retryCount : 0;
+    if (state?.stage !== "requested") return false;
+    return performance.now() - state.requestedAt >= staleAfterMs;
   }
 
   markProcessing(

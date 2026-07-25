@@ -73,6 +73,41 @@ describe("ChunkPipeline.resyncForRejoin", () => {
   });
 });
 
+describe("ChunkPipeline.isRequestStale", () => {
+  it("presumes a request lost once its own elapsed time passes the threshold", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequested([0, 0]);
+    const name = ChunkUtils.getChunkName([0, 0]);
+
+    expect(pipeline.isRequestStale(name, 5000)).toBe(false);
+    expect(pipeline.isRequestStale(name, 0)).toBe(true);
+  });
+
+  it("has nothing to reissue for a chunk that was never requested", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markLoaded([1, 0], makeChunk([1, 0]));
+
+    expect(pipeline.isRequestStale(ChunkUtils.getChunkName([1, 0]), 0)).toBe(
+      false,
+    );
+    expect(pipeline.isRequestStale(ChunkUtils.getChunkName([9, 9]), 0)).toBe(
+      false,
+    );
+  });
+
+  it("restarts the clock when a chunk is requested again", () => {
+    const pipeline = new ChunkPipeline();
+    pipeline.markRequested([0, 0]);
+    const name = ChunkUtils.getChunkName([0, 0]);
+    expect(pipeline.isRequestStale(name, 0)).toBe(true);
+
+    pipeline.remove(name);
+    pipeline.markRequested([0, 0]);
+
+    expect(pipeline.isRequestStale(name, 5000)).toBe(false);
+  });
+});
+
 describe("MeshPipeline voxel-change remesh", () => {
   it("marks dirty immediately so remesh can run before light workers finish", () => {
     const pipeline = new MeshPipeline();
@@ -103,7 +138,6 @@ describe("MeshPipeline voxel-change remesh", () => {
     expect(pipeline.onJobComplete("1,1:0", generation)).toBe(false);
     expect(pipeline.getDirtyKeys()).toEqual(["1,1:0"]);
   });
-
 
   it("failJob requeues remesh after a null mesh-worker result", () => {
     const pipeline = new MeshPipeline();

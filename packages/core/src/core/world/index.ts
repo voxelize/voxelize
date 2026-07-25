@@ -466,9 +466,10 @@ export type WorldClientOptions = {
   sunlightChangeSpan: number;
 
   /**
-   * The interval between each time a chunk is re-requested to the server. Defaults to `300` updates.
+   * How long a requested chunk may go unanswered before the request is presumed
+   * lost and reissued, in milliseconds. Defaults to `5000`ms.
    */
-  chunkRerequestInterval: number;
+  chunkRerequestIntervalMs: number;
 
   /**
    * The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks.
@@ -589,7 +590,7 @@ const defaultOptions: WorldClientOptions = {
   maxUrgentMeshWorkers: 4,
   clientOnlyMeshing: true,
   minLightLevel: 0.04,
-  chunkRerequestInterval: 300,
+  chunkRerequestIntervalMs: 5000,
   defaultRenderRadius: 6,
   fogNearRenderRatio: 0.45,
   fogFarRenderRatio: 0.78,
@@ -4436,7 +4437,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const {
       renderRadius,
       options: {
-        chunkRerequestInterval,
+        chunkRerequestIntervalMs,
         chunkLoadExponent,
         maxChunkRequestsPerUpdate,
       },
@@ -4479,9 +4480,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (stage === "requested") {
-          const retryCount = this.chunkPipeline.incrementRetry(chunkName);
-
-          if (retryCount <= chunkRerequestInterval) {
+          if (
+            !this.chunkPipeline.isRequestStale(
+              chunkName,
+              chunkRerequestIntervalMs,
+            )
+          ) {
             continue;
           }
 

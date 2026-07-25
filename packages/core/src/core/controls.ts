@@ -897,7 +897,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       const maxHeight = this.world.getMaxHeightAt(vx, vz);
       this.teleport(Math.floor(vx), maxHeight + yOffset, Math.floor(vz));
     };
-    if (chunk.isReady) {
+    if (chunk?.isReady) {
       teleport();
     } else {
       this.world.addChunkInitListener([cx, cz], teleport);
