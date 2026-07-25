@@ -552,3 +552,61 @@ export async function runScenario(
     await teardown();
   }
 }
+
+export async function freezeEntities(
+  agentUrl: string,
+  entityIds: string[],
+  durationSecs?: number,
+): Promise<EntitySnapshot[]> {
+  const out: EntitySnapshot[] = [];
+  for (const entityId of entityIds) {
+    const res = await fetch(`${agentUrl}/freeze`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entityId, durationSecs }),
+    });
+    if (!res.ok) {
+      throw new Error(
+        `freeze ${entityId} failed: ${res.status} ${await res.text()}`,
+      );
+    }
+    const body = (await res.json()) as { entity?: EntitySnapshot };
+    if (body.entity) out.push(body.entity);
+  }
+  return out;
+}
+
+export async function thawEntities(
+  agentUrl: string,
+  entityIds: string[],
+): Promise<EntitySnapshot[]> {
+  const out: EntitySnapshot[] = [];
+  for (const entityId of entityIds) {
+    const res = await fetch(`${agentUrl}/thaw`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entityId }),
+    });
+    if (!res.ok) {
+      throw new Error(
+        `thaw ${entityId} failed: ${res.status} ${await res.text()}`,
+      );
+    }
+    const body = (await res.json()) as { entity?: EntitySnapshot };
+    if (body.entity) out.push(body.entity);
+  }
+  return out;
+}
+
+export async function thawAll(agentUrl: string): Promise<EntitySnapshot[]> {
+  const res = await fetch(`${agentUrl}/thaw`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ all: true }),
+  });
+  if (!res.ok) {
+    throw new Error(`thaw-all failed: ${res.status} ${await res.text()}`);
+  }
+  const body = (await res.json()) as { thawed?: EntitySnapshot[] };
+  return body.thawed ?? [];
+}

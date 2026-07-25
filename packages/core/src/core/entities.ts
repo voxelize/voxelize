@@ -29,6 +29,19 @@ type JsonValue =
 
 type MutableMetadata = { [key: string]: JsonValue };
 
+/**
+ * Metadata key the server sets on entities pinned by the freeze mechanic.
+ * While true, the client must hold the entity's pose: its class update
+ * (animation clocks, interpolation) is skipped entirely.
+ */
+export const FROZEN_METADATA_KEY = "frozen";
+
+export function isEntityMetadataFrozen(
+  metadata: MutableMetadata | null | undefined,
+): boolean {
+  return metadata?.[FROZEN_METADATA_KEY] === true;
+}
+
 function isJsonObject(
   value: JsonValue | undefined,
 ): value is { [key: string]: JsonValue } {
@@ -445,6 +458,15 @@ export class Entities extends Group implements NetIntercept {
           entity.snapToTarget?.();
           return;
         }
+      }
+
+      // A server-frozen entity holds whatever pose it last rendered: its
+      // class update (animation clocks, interpolation, bone writes) is
+      // skipped, while position bookkeeping stays pinned to the replicated
+      // transform so hitboxes and nametags sit at server truth.
+      if (isEntityMetadataFrozen(entity.metadata as MutableMetadata | null)) {
+        entity.snapToTarget?.();
+        return;
       }
 
       entity.update?.();

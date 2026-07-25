@@ -249,6 +249,16 @@ impl Physics {
         body.collision = None;
         body.stepped = false;
 
+        // A frozen body is pinned in place: discard the tick's accumulated
+        // forces and impulses (so nothing double-applies when it unfreezes)
+        // and skip integration entirely. Velocity is deliberately preserved —
+        // it is the captured motion state an unfreeze resumes from.
+        if body.is_frozen {
+            body.forces.set(0.0, 0.0, 0.0);
+            body.impulses.set(0.0, 0.0, 0.0);
+            return;
+        }
+
         // treat bodies with <= 0 mass as static
         if body.mass <= 0.0 {
             body.velocity.set(0.0, 0.0, 0.0);

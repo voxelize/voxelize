@@ -342,6 +342,124 @@ export class AgentDaemon {
       await this.agent.reset();
       return { ok: true };
     });
+
+    const freezeBodySchema = z.object({
+      entityId: z.string(),
+      durationSecs: z.number().optional(),
+    });
+
+    const thawBodySchema = z.object({
+      entityId: z.string().optional(),
+      all: z.boolean().optional(),
+    });
+
+    this.server.post("/freeze", async (req, reply) => {
+      const body = freezeBodySchema.parse(req.body);
+      await this.agent.call("freeze-entity", {
+        entityId: body.entityId,
+        durationSecs: body.durationSecs,
+      });
+      const entity = await this.waitForFrozenMetadata(body.entityId, true);
+      if (!entity) {
+        reply.code(502);
+        return {
+          ok: false,
+          error: `entity ${body.entityId} metadata.frozen did not flip true`,
+        };
+      }
+      return { ok: true, entity };
+    });
+
+    this.server.post("/thaw", async (req, reply) => {
+      const body = thawBodySchema.parse(req.body);
+      if (body.all) {
+        const before = await this.agent.entitiesNear(128);
+        const frozenBefore = before.filter(
+          (e) => this.metadataFrozenFlag(e.metadata) === true,
+        );
+        await this.agent.call("thaw-all", {});
+        const after = await this.agent.entitiesNear(128);
+        const thawed = frozenBefore.map((prev) => {
+          const now = after.find((e) => e.id === prev.id) ?? prev;
+          return { ...now, metadata: { ...now.metadata, frozen: false } };
+        });
+        const stillFrozen = after.filter(
+          (e) => this.metadataFrozenFlag(e.metadata) === true,
+        );
+        if (stillFrozen.length > 0) {
+          reply.code(502);
+          return {
+            ok: false,
+            error: `${stillFrozen.length} entities still report metadata.frozen after thaw-all`,
+            thawed,
+          };
+        }
+        return { ok: true, thawed };
+      }
+
+      const entityId = body.entityId;
+      if (!entityId) {
+        reply.code(400);
+        return { ok: false, error: "entityId or all:true required" };
+      }
+      await this.agent.call("thaw-entity", { entityId });
+      const entity = await this.waitForFrozenMetadata(entityId, false);
+      if (!entity) {
+        reply.code(502);
+        const entities = await this.agent.entitiesNear(128);
+        const hit = entities.find((e) => e.id === entityId);
+        if (!hit) {
+          return {
+            ok: false,
+            error: `entity ${entityId} not found near agent (despawned or out of radius)`,
+          };
+        }
+        return {
+          ok: false,
+          error: `entity ${entityId} metadata.frozen did not flip false (still ${String(hit.metadata?.frozen)})`,
+        };
+      }
+      return { ok: true, entity };
+    });
+  }
+
+  private metadataFrozenFlag(
+    metadata: Record<string, unknown> | undefined,
+  ): boolean | undefined {
+    const value = metadata?.frozen;
+    if (value === true) {
+      return true;
+    }
+    if (value === false) {
+      return false;
+    }
+    return undefined;
+  }
+
+  private async waitForFrozenMetadata(
+    entityId: string,
+    expectFrozen: boolean,
+    timeoutMs = 8000,
+  ): Promise<import("./bridge").EntitySnapshot | null> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const entities = await this.agent.entitiesNear(128);
+      const hit = entities.find((e) => e.id === entityId);
+      if (!hit) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        continue;
+      }
+      const flag = this.metadataFrozenFlag(hit.metadata);
+      if (expectFrozen) {
+        if (flag === true) {
+          return hit;
+        }
+      } else if (flag === false) {
+        return hit;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return null;
   }
 
   private registerScreenshotRoute(path: string, isAlwaysPure: boolean): void {

@@ -11,7 +11,7 @@ import {
   Vector4,
 } from "three";
 
-import { CustomChunkShaderMaterial } from ".";
+import { CustomChunkShaderMaterial } from "./chunk-materials";
 
 export function makeSceneColorTexture(width = 1, height = 1, isSRGB = false) {
   const texture = new FramebufferTexture(width, height);

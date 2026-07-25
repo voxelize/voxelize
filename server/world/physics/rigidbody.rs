@@ -66,6 +66,13 @@ pub struct RigidBody {
     /// revived entities are placed before their chunks generate, so overlap
     /// with solids can only be resolved on the first ready physics tick.
     pub is_placement_validated: bool,
+
+    /// Whether this body is pinned in place. A frozen body skips physics
+    /// integration entirely — gravity, drag, fluids, forces, and impulses
+    /// cannot move it, and per-tick force/impulse accumulators are discarded
+    /// so nothing double-applies when it unfreezes. Velocity is preserved as
+    /// the captured motion state the body resumes from.
+    pub is_frozen: bool,
 }
 
 impl RigidBody {
@@ -237,6 +244,7 @@ impl RigidBodyBuilder {
             is_swim_pose_active: false,
             auto_step: self.auto_step,
             is_placement_validated: false,
+            is_frozen: false,
         }
     }
 }
