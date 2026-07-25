@@ -1,4 +1,7 @@
 use super::*;
+use hashbrown::HashMap;
+
+use voxelize_core::{BlockFace, BlockRotation, CornerData, LightColor, LightUtils, VoxelAccess, AABB, UV};
 
 struct SingleVoxelSpace {
     voxel_id: u32,
