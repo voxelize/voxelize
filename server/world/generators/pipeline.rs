@@ -261,6 +261,15 @@ impl Pipeline {
         }
     }
 
+    /// Forgets every chunk in flight. Pairs with wiping the chunk map: any
+    /// coord still tracked here would be refused a fresh generation pass.
+    pub fn clear(&mut self) {
+        self.chunks.clear();
+        self.queue.clear();
+        self.leftovers.clear();
+        self.pending_regenerate.clear();
+    }
+
     pub fn mark_for_regenerate(&mut self, coords: &Vec2<i32>) {
         if self.chunks.contains(coords) {
             self.pending_regenerate.insert(coords.to_owned());

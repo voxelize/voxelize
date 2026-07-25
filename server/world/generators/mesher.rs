@@ -61,6 +61,14 @@ impl Mesher {
         self.queue.retain(|c| c != coords);
     }
 
+    /// Forgets every chunk queued for meshing. Pairs with wiping the chunk map,
+    /// where the geometry these entries describe no longer exists.
+    pub fn clear(&mut self) {
+        self.map.clear();
+        self.queue.clear();
+        self.pending_remesh.clear();
+    }
+
     pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
         self.map.contains(coords)
     }

@@ -121,6 +121,43 @@ impl Chunks {
         }
     }
 
+    /// Drops every chunk this world holds, in memory and on disk, and returns
+    /// the coords that were resident. Nothing is regenerated here: the terrain
+    /// comes back through the ordinary cold path the next time a client asks
+    /// for a chunk that neither the map nor the save folder has.
+    pub fn wipe(&mut self) -> Vec<Vec2<i32>> {
+        let resident: Vec<Vec2<i32>> = self.map.keys().cloned().collect();
+
+        self.map.clear();
+        self.updates.clear();
+        self.updates_staging.clear();
+        self.to_send.clear();
+        self.to_save.clear();
+        self.active_voxel_heap.clear();
+        self.active_voxel_set.clear();
+        self.listeners.clear();
+        self.cache.clear();
+        self.freshly_created.clear();
+        self.newly_generated.clear();
+        self.block_entities.clear();
+
+        if let Some(folder) = &self.folder {
+            match fs::read_dir(folder) {
+                Ok(entries) => {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() {
+                            let _ = fs::remove_file(path);
+                        }
+                    }
+                }
+                Err(err) => warn!("Could not read chunk folder to wipe it: {err}"),
+            }
+        }
+
+        resident
+    }
+
     pub fn test_load(&self, coords: &Vec2<i32>) -> bool {
         let path = self.get_chunk_file_path(&ChunkUtils::get_chunk_name(coords.0, coords.1));
         let meta = match fs::metadata(&path) {
