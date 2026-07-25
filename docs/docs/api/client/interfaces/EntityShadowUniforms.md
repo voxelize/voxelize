@@ -26,6 +26,12 @@ ___
 
 ___
 
+### uMinOccluderDepth
+
+• **uMinOccluderDepth**: `IUniform`\<`number`\>
+
+___
+
 ### uShadowBias
 
 • **uShadowBias**: `IUniform`\<`number`\>
@@ -34,19 +40,19 @@ ___
 
 ### uShadowMap0
 
-• **uShadowMap0**: `IUniform`\<`Texture`\>
+• **uShadowMap0**: `IUniform`\<`Texture`\<`unknown`\>\>
 
 ___
 
 ### uShadowMap1
 
-• **uShadowMap1**: `IUniform`\<`Texture`\>
+• **uShadowMap1**: `IUniform`\<`Texture`\<`unknown`\>\>
 
 ___
 
 ### uShadowMap2
 
-• **uShadowMap2**: `IUniform`\<`Texture`\>
+• **uShadowMap2**: `IUniform`\<`Texture`\<`unknown`\>\>
 
 ___
 
@@ -68,9 +74,21 @@ ___
 
 ___
 
+### uShadowNormalBias
+
+• **uShadowNormalBias**: `IUniform`\<`number`\>
+
+___
+
 ### uShadowStrength
 
 • **uShadowStrength**: `IUniform`\<`number`\>
+
+___
+
+### uSunColor
+
+• **uSunColor**: `IUniform`\<`Color`\>
 
 ___
 
@@ -83,3 +101,9 @@ ___
 ### uSunlightIntensity
 
 • **uSunlightIntensity**: `IUniform`\<`number`\>
+
+___
+
+### uWorldOffset
+
+• **uWorldOffset**: `IUniform`\<`Vector3`\>

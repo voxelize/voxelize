@@ -116,9 +116,25 @@ Draw a texture to a range on the texture atlas.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `range` | [`UV`](../modules.md#uv) | `undefined` | The range on the texture atlas to draw the texture to. |
-| `image` | `Color` \| `Texture` \| `HTMLImageElement` \| (`width?`: `number`, `height?`: `number`) => `HTMLImageElement` \| `HTMLCanvasElement` | `undefined` | The texture to draw to the range. |
+| `image` | `Color` \| `Texture`\<`unknown`\> \| `HTMLCanvasElement` \| `HTMLImageElement` \| (`width?`: `number`, `height?`: `number`) => `HTMLImageElement` | `undefined` | The texture to draw to the range. |
 | `clearRect` | `boolean` | `true` | - |
 | `opacity` | `number` | `1.0` | - |
+
+#### Returns
+
+`void`
+
+___
+
+### flushAnimationPatches
+
+▸ **flushAnimationPatches**(`renderer`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `renderer` | `WebGLRenderer` |
 
 #### Returns
 

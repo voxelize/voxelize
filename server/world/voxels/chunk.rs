@@ -55,6 +55,20 @@ pub struct Chunk {
     /// so height-map recalculation can skip the guaranteed-empty sky rows.
     /// `None` means unknown (e.g. bulk-assigned voxel data): scan everything.
     pub top_filled_y: Option<i32>,
+
+    /// Whether `voxels` or `height_map` changed since this chunk's persisted
+    /// form was established. Those two arrays are the whole of what a save
+    /// holds, so a chunk borrowed mutably only to flood light through it never
+    /// sets this — `lights` never reaches disk.
+    ///
+    /// The two methods that write those arrays set it, so saving is the
+    /// default: a new write path is covered without knowing this field exists,
+    /// and skipping a save takes an explicit clear. Saving is not such a
+    /// clear — the write goes to a background thread that can fail, and a flag
+    /// cleared before the bytes land turns a failed write into a lost edit.
+    /// Only a load from disk or the end of worldgen re-establishes the
+    /// persisted form and clears it.
+    pub(crate) is_save_dirty: bool,
 }
 
 impl Chunk {
@@ -217,7 +231,12 @@ impl VoxelAccess for Chunk {
         }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        Arc::make_mut(&mut self.voxels)[&[lx, ly, lz]] = val;
+        let index = [lx, ly, lz];
+
+        if self.voxels[&index] != val {
+            Arc::make_mut(&mut self.voxels)[&index] = val;
+            self.is_save_dirty = true;
+        }
 
         true
     }
@@ -271,7 +290,12 @@ impl VoxelAccess for Chunk {
         }
 
         let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
-        Arc::make_mut(&mut self.height_map)[&[lx as usize, lz as usize]] = height;
+        let index = [lx, lz];
+
+        if self.height_map[&index] != height {
+            Arc::make_mut(&mut self.height_map)[&index] = height;
+            self.is_save_dirty = true;
+        }
 
         true
     }

@@ -69,6 +69,30 @@ ChatMessage sender.
 
 ___
 
+### tSendMs
+
+• **tSendMs**: `number`
+
+ChatMessage tSendMs.
+
+#### Implementation of
+
+[IChatMessage](../interfaces/protocol.IChatMessage.md).[tSendMs](../interfaces/protocol.IChatMessage.md#tsendms)
+
+___
+
+### traceId
+
+• **traceId**: `string`
+
+ChatMessage traceId.
+
+#### Implementation of
+
+[IChatMessage](../interfaces/protocol.IChatMessage.md).[traceId](../interfaces/protocol.IChatMessage.md#traceid)
+
+___
+
 ### type
 
 • **type**: `string`

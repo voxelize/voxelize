@@ -122,6 +122,19 @@ Returns null if receiveShadows is false.
 
 [`EntityShadowUniforms`](../interfaces/EntityShadowUniforms.md)
 
+___
+
+### underwaterUniforms
+
+• `get` **underwaterUniforms**(): [`UnderwaterFogUniforms`](../interfaces/UnderwaterFogUniforms.md)
+
+Get the underwater fog uniforms for this canvas box (from the first
+layer). Returns null if underwaterFog is false.
+
+#### Returns
+
+[`UnderwaterFogUniforms`](../interfaces/UnderwaterFogUniforms.md)
+
 ## Methods
 
 ### paint
@@ -135,7 +148,7 @@ Add art to the canvas(s) of this box layer.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
+| `art` | `Color` \| `Texture`\<`unknown`\> \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns

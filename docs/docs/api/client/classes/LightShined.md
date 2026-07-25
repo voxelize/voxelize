@@ -8,7 +8,7 @@ custom_edit_url: null
 
 A class that allows mesh to dynamically change brightness based on the voxel light level at their position.
 
-By default, `VOXELIZE.Shadow` and `VOXELIZE.NameTag` is ignored by this effect.
+By default, `VOXELIZE.NameTag` is ignored by this effect.
 
 # Example
 ```ts
@@ -47,7 +47,7 @@ Construct a light shined effect manager.
 
 ### ignored
 
-• **ignored**: `Set`\<`any`\>
+• **ignored**: `Set`\<`IgnoredType`\>
 
 A list of types that are ignored by this effect.
 
@@ -95,28 +95,35 @@ Add an object to be affected by this effect.
 
 ___
 
-### ignore
+### clearPositionOverride
 
-▸ **ignore**(`...types`): `void`
-
-Ignore a certain type of object from being affected by this effect.
+▸ **clearPositionOverride**(`obj`): `void`
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `...types` | `any`[] | A type or a list of types to be ignored by this effect. |
+| Name | Type |
+| :------ | :------ |
+| `obj` | `Object3D`\<`Object3DEventMap`\> |
 
 #### Returns
 
 `void`
 
-**`Example`**
+___
 
-```ts
-// Ignore all shadows. (This is done by default)
-lightShined.ignore(VOXELIZE.Shadow);
-```
+### ignore
+
+▸ **ignore**(`...types`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `...types` | `IgnoredType`[] |
+
+#### Returns
+
+`void`
 
 ___
 
@@ -131,6 +138,23 @@ Remove an object from being affected by this effect
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `obj` | `Object3D`\<`Object3DEventMap`\> | The object to be removed from the effect. |
+
+#### Returns
+
+`void`
+
+___
+
+### setPositionOverride
+
+▸ **setPositionOverride**(`obj`, `position`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `obj` | `Object3D`\<`Object3DEventMap`\> |
+| `position` | `Vector3` |
 
 #### Returns
 

@@ -31,6 +31,14 @@ Entity metadata
 
 ___
 
+### motion
+
+• `Optional` **motion**: `Uint8Array`\<`ArrayBufferLike`\>
+
+Entity motion
+
+___
+
 ### operation
 
 • `Optional` **operation**: [`Operation`](../enums/protocol.Entity-1.Operation.md)

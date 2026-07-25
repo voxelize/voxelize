@@ -16,7 +16,38 @@ custom_edit_url: null
 
 [`MeshPipeline`](MeshPipeline.md)
 
+## Accessors
+
+### dirtyCount
+
+• `get` **dirtyCount**(): `number`
+
+#### Returns
+
+`number`
+
 ## Methods
+
+### failJob
+
+▸ **failJob**(`key`, `jobGeneration`): `void`
+
+Release an in-flight generation that produced no mesh (worker bail-out).
+Re-queues the key so remesh can retry instead of leaving a permanent
+ghost mesh when voxel data already changed but geometry never applied.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+| `jobGeneration` | `number` |
+
+#### Returns
+
+`void`
+
+___
 
 ### getDirtyKeys
 
@@ -51,6 +82,32 @@ ___
 ### hasInFlightJob
 
 ▸ **hasInFlightJob**(`key`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+`boolean`
+
+___
+
+### inFlightJobCount
+
+▸ **inFlightJobCount**(): `number`
+
+#### Returns
+
+`number`
+
+___
+
+### isUrgent
+
+▸ **isUrgent**(`key`): `boolean`
 
 #### Parameters
 
@@ -135,15 +192,16 @@ ___
 
 ### onVoxelChange
 
-▸ **onVoxelChange**(`cx`, `cz`, `level`): `void`
+▸ **onVoxelChange**(`cx`, `cz`, `level`, `isUrgent?`): `void`
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `cx` | `number` |
-| `cz` | `number` |
-| `level` | `number` |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `cx` | `number` | `undefined` |
+| `cz` | `number` | `undefined` |
+| `level` | `number` | `undefined` |
+| `isUrgent` | `boolean` | `false` |
 
 #### Returns
 

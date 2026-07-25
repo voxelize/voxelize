@@ -195,6 +195,16 @@ ___
 
 ___
 
+### dispose
+
+▸ **dispose**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
 ### getContent
 
 ▸ **getContent**(`row`, `col`): `T`
@@ -313,6 +323,16 @@ ___
 ### render
 
 ▸ **render**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### requestRender
+
+▸ **requestRender**(): `void`
 
 #### Returns
 

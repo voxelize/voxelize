@@ -255,7 +255,7 @@ world.applyBlockTextureAt(
   "Oak Wall Sign",
   "pz",
   canvasTexture,
-  [10, 5, 20] // This specific sign at this position
+  [10, 5, 20], // This specific sign at this position
 );
 ```
 
@@ -314,7 +314,7 @@ On the client:
 world.applyBlockTexture(
   "Picture Frame 1x1",
   "frame*",
-  "/textures/oak_planks.png"
+  "/textures/oak_planks.png",
 );
 
 // Each frame's inner display is set individually
@@ -322,7 +322,7 @@ world.applyBlockTextureAt(
   "Picture Frame 1x1",
   "innerpz",
   userUploadedImage,
-  [10, 5, 20]
+  [10, 5, 20],
 );
 ```
 
@@ -334,7 +334,7 @@ Blocks with `is_entity(true)` create an entity when placed, storing arbitrary JS
 
 Block entities are required for isolated faces because the system needs to track each instance. They're also useful for storing custom data even without isolated faces (e.g., chest contents, redstone state).
 
-See [Block Textures](./block-textures.md#per-instance-textures-isolated-faces) for the client-side implementation.
+See [Block Textures](./block-textures.md#per-instance-texturing-isolated-faces) for the client-side implementation.
 
 ## Dynamic Blocks (Conditional Geometry)
 

@@ -77,7 +77,7 @@ ___
 
 ### scene
 
-• **scene**: `Scene`
+• **scene**: `Scene`\<`Object3DEventMap`\>
 
 The THREE.js scene to use for rendering this portrait.
 

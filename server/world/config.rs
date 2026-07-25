@@ -51,10 +51,10 @@ pub struct WorldConfig {
     /// Maximum voxel updates to be processed per tick. Default is 1000 voxels.
     pub max_updates_per_tick: usize,
 
-    /// Minecraft-style random tick speed: each loaded/interested 16x16x(section)
-    /// subchunk samples this many random positions per world tick and, if the
-    /// block is `is_random_tickable`, schedules its `active_updater` at the
-    /// current tick. Default is 3 (Minecraft's `randomTickSpeed` default).
+    /// Subchunk random-tick sampler rate: each loaded/interested
+    /// 16x16x(section) subchunk samples this many random positions per world
+    /// tick and, if the block is `is_random_tickable`, schedules its
+    /// `active_updater` at the current tick. Default is 3.
     /// Set to 0 to disable the sampler entirely.
     pub random_tick_speed: usize,
 
@@ -70,6 +70,12 @@ pub struct WorldConfig {
 
     /// Maximum chunks saved per tick.
     pub max_saves_per_tick: usize,
+
+    /// How many ticks a queued chunk save may keep finding its chunk unreadable
+    /// before the entry is dropped and the failure reported as an error. A chunk
+    /// that re-enters the pipeline is unreadable for a few ticks, so the queue
+    /// waits it out instead of losing the save. Only applies if `saving` is true.
+    pub max_save_retries: usize,
 
     /// The amount of ticks per day. Default is 24000 ticks.
     pub time_per_day: u64,
@@ -123,6 +129,15 @@ pub struct WorldConfig {
 
     /// Whether entities should be saved. Only applies if `saving` is true.
     pub save_entities: bool,
+
+    /// Whether chunks that came straight out of the pipeline, unmodified since,
+    /// are written to disk. Only applies if `saving` is true. Default is false:
+    /// generation is a pure function of the world seed, so a pristine chunk is
+    /// cheaper to regenerate than to store, and leaving it off disk is what lets
+    /// a later worldgen change reach terrain a player has already visited — a
+    /// saved chunk short-circuits generation permanently. Worlds whose
+    /// generation is expensive, or not reproducible from the seed, opt in.
+    pub save_pristine_chunks: bool,
 
     /// Whether chunk geometry should only be built by clients. Default is true.
     pub client_only_meshing: bool,
@@ -220,11 +235,15 @@ const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 4;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 50000;
-/// Minecraft default `gamerule randomTickSpeed` = 3 samples per 16^3 section.
+/// Three random-tick samples per 16^3 subchunk section per world tick.
 const DEFAULT_RANDOM_TICK_SPEED: usize = 3;
 const DEFAULT_MAX_RANDOM_TICKS_PER_TICK: usize = 2048;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
+/// A chunk pushed back through the pipeline is readable again within a handful
+/// of ticks, so a save that still cannot read its chunk a full second later
+/// (at the nominal 60Hz tick) is wedged rather than merely waiting.
+const DEFAULT_MAX_SAVE_RETRIES: usize = 60;
 const DEFAULT_TICKS_PER_DAY: u64 = 24000;
 const DEFAULT_WATER_LEVEL: usize = 86;
 const DEFAULT_SEED: u32 = 123123123;
@@ -240,6 +259,7 @@ const DEFAULT_TIME: f32 = 0.0;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
+const DEFAULT_SAVE_PRISTINE_CHUNKS: bool = false;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
 const DEFAULT_CLIENT_ONLY_MESHING: bool = true;
 const DEFAULT_ALLOW_CLIENT_VOXEL_WRITES: bool = false;
@@ -267,6 +287,7 @@ pub struct WorldConfigBuilder {
     max_random_ticks_per_tick: usize,
     max_response_per_tick: usize,
     max_saves_per_tick: usize,
+    max_save_retries: usize,
     time_per_day: u64,
     water_level: usize,
     seed: u32,
@@ -285,6 +306,7 @@ pub struct WorldConfigBuilder {
     save_interval: usize,
     command_symbol: String,
     save_entities: bool,
+    save_pristine_chunks: bool,
     client_only_meshing: bool,
     allow_client_voxel_writes: bool,
     entity_visible_radius: f32,
@@ -319,6 +341,7 @@ impl WorldConfigBuilder {
             max_random_ticks_per_tick: DEFAULT_MAX_RANDOM_TICKS_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
+            max_save_retries: DEFAULT_MAX_SAVE_RETRIES,
             time_per_day: DEFAULT_TICKS_PER_DAY,
             water_level: DEFAULT_WATER_LEVEL,
             seed: DEFAULT_SEED,
@@ -335,6 +358,7 @@ impl WorldConfigBuilder {
             terrain: NoiseOptions::default(),
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
             save_entities: true,
+            save_pristine_chunks: DEFAULT_SAVE_PRISTINE_CHUNKS,
             client_only_meshing: DEFAULT_CLIENT_ONLY_MESHING,
             allow_client_voxel_writes: DEFAULT_ALLOW_CLIENT_VOXEL_WRITES,
             entity_visible_radius: 0.0,
@@ -427,7 +451,7 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Minecraft-style random tick speed (samples per loaded subchunk section
+    /// Subchunk random-tick sampler rate (samples per loaded subchunk section
     /// per world tick). Default 3. Set 0 to disable.
     pub fn random_tick_speed(mut self, random_tick_speed: usize) -> Self {
         self.random_tick_speed = random_tick_speed;
@@ -461,6 +485,13 @@ impl WorldConfigBuilder {
     /// Configure the maximum amount of chunks to be saved.
     pub fn max_saves_per_tick(mut self, max_saves_per_tick: usize) -> Self {
         self.max_saves_per_tick = max_saves_per_tick;
+        self
+    }
+
+    /// Configure how many ticks a queued chunk save may keep finding its chunk
+    /// unreadable before the entry is dropped and reported as an error.
+    pub fn max_save_retries(mut self, max_save_retries: usize) -> Self {
+        self.max_save_retries = max_save_retries;
         self
     }
 
@@ -531,6 +562,15 @@ impl WorldConfigBuilder {
     /// Configure whether entities should be saved. Only applies if `saving` is true.
     pub fn save_entities(mut self, save_entities: bool) -> Self {
         self.save_entities = save_entities;
+        self
+    }
+
+    /// Configure whether unmodified, freshly generated chunks are written to
+    /// disk. Only applies if `saving` is true. Leave off unless generation is
+    /// expensive or not reproducible from the seed — a chunk on disk never
+    /// regenerates, so it can never pick up a later worldgen change.
+    pub fn save_pristine_chunks(mut self, save_pristine_chunks: bool) -> Self {
+        self.save_pristine_chunks = save_pristine_chunks;
         self
     }
 
@@ -677,6 +717,7 @@ impl WorldConfigBuilder {
             max_random_ticks_per_tick: self.max_random_ticks_per_tick,
             max_response_per_tick: self.max_response_per_tick,
             max_saves_per_tick: self.max_saves_per_tick,
+            max_save_retries: self.max_save_retries,
             time_per_day: self.time_per_day,
             water_level: self.water_level,
             seed: self.seed,
@@ -714,6 +755,7 @@ impl WorldConfigBuilder {
             save_interval: self.save_interval,
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
+            save_pristine_chunks: self.save_pristine_chunks,
             client_only_meshing: self.client_only_meshing,
             allow_client_voxel_writes: self.allow_client_voxel_writes,
             entity_visible_radius,

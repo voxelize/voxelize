@@ -281,6 +281,62 @@ RigidControls.ghostMode
 
 ___
 
+### isCrouching
+
+• `get` **isCrouching**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+RigidControls.isCrouching
+
+___
+
+### isSwimPoseActive
+
+• `get` **isSwimPoseActive**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+RigidControls.isSwimPoseActive
+
+___
+
+### isSwimming
+
+• `get` **isSwimming**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+RigidControls.isSwimming
+
+___
+
+### isSwimmingIdleStanding
+
+• `get` **isSwimmingIdleStanding**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+RigidControls.isSwimmingIdleStanding
+
+___
+
 ### position
 
 • `get` **position**(): `Vector3`
@@ -580,6 +636,42 @@ Useful when exiting play mode or pausing.
 
 ___
 
+### restoreSwimming
+
+▸ **restoreSwimming**(): `void`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[restoreSwimming](RigidControls.md#restoreswimming)
+
+___
+
+### setDirection
+
+▸ **setDirection**(`dx`, `dy`, `dz`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `dx` | `number` |
+| `dy` | `number` |
+| `dz` | `number` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[setDirection](RigidControls.md#setdirection)
+
+___
+
 ### setJumping
 
 ▸ **setJumping**(`pressed`): `void`
@@ -659,6 +751,28 @@ Teleport this rigid controls to a new voxel coordinate.
 #### Inherited from
 
 [RigidControls](RigidControls.md).[teleport](RigidControls.md#teleport)
+
+___
+
+### teleportToExact
+
+▸ **teleportToExact**(`x`, `y`, `z`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `x` | `number` |
+| `y` | `number` |
+| `z` | `number` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[teleportToExact](RigidControls.md#teleporttoexact)
 
 ___
 

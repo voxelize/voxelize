@@ -1,8 +1,8 @@
-//! Minecraft-style subchunk random-tick sampler.
+//! Subchunk random-tick sampler.
 //!
 //! Each world tick, for every **loaded + interested** chunk that is `Ready`,
 //! each 16x16x(section_height) subchunk section samples
-//! [`WorldConfig::random_tick_speed`] random positions (MC default: 3).
+//! [`WorldConfig::random_tick_speed`] random positions (default: 3).
 //! If the block at that position is `is_random_tickable` and has an
 //! `active_updater`, it is scheduled via [`Chunks::mark_voxel_active`] at the
 //! **current tick** (earliest-deadline upsert) so the existing active queue

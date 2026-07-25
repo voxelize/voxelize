@@ -103,6 +103,20 @@ Whether or not are there no available workers.
 
 ___
 
+### queuedBytes
+
+• `get` **queuedBytes**(): `number`
+
+Total bytes of transferable payloads sitting in the queue, waiting for
+a free worker. A sustained climb here means jobs are being enqueued
+(with their serialized copies) faster than workers drain them.
+
+#### Returns
+
+`number`
+
+___
+
 ### workingCount
 
 • `get` **workingCount**(): `number`
@@ -133,6 +147,22 @@ Append a new job to be executed by a worker.
 
 ___
 
+### drainQueue
+
+▸ **drainQueue**(): `number`
+
+Drop every job still waiting for a worker, resolving each `null`. Used to
+release the serialized payloads parked in the queue when the renderer is
+under memory pressure; in-flight jobs are left alone.
+
+#### Returns
+
+`number`
+
+The number of jobs dropped.
+
+___
+
 ### postMessage
 
 ▸ **postMessage**(`message`, `buffers?`): `void`
@@ -142,7 +172,17 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `message` | `any` |
-| `buffers?` | `ArrayBufferLike`[] |
+| `buffers?` | `Transferable`[] |
+
+#### Returns
+
+`void`
+
+___
+
+### terminate
+
+▸ **terminate**(): `void`
 
 #### Returns
 

@@ -48,6 +48,23 @@ THREE.Group.constructor
 
 ___
 
+### heldLightColor
+
+• **heldLightColor**: `Color`
+
+___
+
+### isClickSwingEnabled
+
+• **isClickSwingEnabled**: `boolean` = `true`
+
+Whether a left click plays the default arm swing. Consumers that own the
+left click and drive their own held-object animation (e.g. a gun with its
+own recoil) can disable this so the melee swing does not fight and rotate
+their viewmodel. Explicit [doSwing](Arm.md#doswing) calls are unaffected.
+
+___
+
 ### options
 
 • **options**: [`ArmOptions`](../modules.md#armoptions)
@@ -103,7 +120,7 @@ Paint the arm with a texture or color. Only works when showing the empty arm (no
 
 | Name | Type |
 | :------ | :------ |
-| `texture` | `Color` \| `Texture` |
+| `texture` | `Color` \| `Texture`\<`unknown`\> |
 
 #### Returns
 
@@ -146,13 +163,14 @@ ___
 
 ### updateShadowUniforms
 
-▸ **updateShadowUniforms**(`lightingUniforms`): `void`
+▸ **updateShadowUniforms**(`lightingUniforms`, `playerWorldPosition?`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `lightingUniforms` | [`ShaderLightingUniforms`](../interfaces/ShaderLightingUniforms.md) |
+| `playerWorldPosition?` | `Vector3` |
 
 #### Returns
 

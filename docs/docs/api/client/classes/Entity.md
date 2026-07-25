@@ -52,6 +52,18 @@ Group.constructor
 
 ___
 
+### entType
+
+• **entType**: `string` = `""`
+
+___
+
+### metadata
+
+• **metadata**: `T` = `null`
+
+___
+
 ### onCreate
 
 • **onCreate**: (`data`: `T`) => `void`
@@ -105,6 +117,40 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `data` | `T` |
+
+##### Returns
+
+`void`
+
+___
+
+### setHidden
+
+• `Optional` **setHidden**: (`hidden`: `boolean`) => `void`
+
+#### Type declaration
+
+▸ (`hidden`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `hidden` | `boolean` |
+
+##### Returns
+
+`void`
+
+___
+
+### snapToTarget
+
+• `Optional` **snapToTarget**: () => `void`
+
+#### Type declaration
+
+▸ (): `void`
 
 ##### Returns
 

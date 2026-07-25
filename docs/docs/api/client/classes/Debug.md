@@ -6,31 +6,12 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-A class for general debugging purposes in Voxelize, including FPS, value tracking, and real-time value testing.
+Backward-compatible Debug class.
 
-# Example
-```ts
-const debug = new VOXELIZE.Debug();
+**`Deprecated`**
 
-// Track the voxel property of `controls`.
-debug.registerDisplay("Position", controls, "voxel");
-
-// Add a function to track sunlight dynamically.
-debug.registerDisplay("Sunlight", () => {
-  return world.getSunlightByVoxel(...controls.voxel);
-});
-
-// In the game loop, trigger debug updates.
-debug.update();
-```
-
-![Debug](/img/docs/debug.png)
-
-## Hierarchy
-
-- `Group`
-
-  ↳ **`Debug`**
+Prefer `DebugUI` from `@voxelize/debug`. This class is kept so
+existing `@voxelize/core` consumers continue to work unchanged.
 
 ## Constructors
 
@@ -38,22 +19,16 @@ debug.update();
 
 • **new Debug**(`domElement?`, `options?`): [`Debug`](Debug.md)
 
-Create a new [Debug](Debug.md) instance.
-
 #### Parameters
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `domElement` | `HTMLElement` | `document.body` | The DOM element to append the debug panel to. |
-| `options` | `Partial`\<[`DebugOptions`](../modules.md#debugoptions)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
+| Name | Type |
+| :------ | :------ |
+| `domElement?` | `HTMLElement` |
+| `options?` | [`DebugOptions`](../modules.md#debugoptions) |
 
 #### Returns
 
 [`Debug`](Debug.md)
-
-#### Overrides
-
-Group.constructor
 
 ## Properties
 
@@ -61,8 +36,53 @@ Group.constructor
 
 • **dataWrapper**: `HTMLDivElement`
 
-The HTML element that wraps all the debug entries and stats.js instance, located
-on the top-left by default.
+___
+
+### displayNewline
+
+• **displayNewline**: () => `this`
+
+#### Type declaration
+
+▸ (): `this`
+
+##### Returns
+
+`this`
+
+___
+
+### displayTitle
+
+• **displayTitle**: (`title`: `string`) => `this`
+
+#### Type declaration
+
+▸ (`title`): `this`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+
+##### Returns
+
+`this`
+
+___
+
+### dispose
+
+• **dispose**: () => `void`
+
+#### Type declaration
+
+▸ (): `void`
+
+##### Returns
+
+`void`
 
 ___
 
@@ -70,139 +90,104 @@ ___
 
 • **domElement**: `HTMLElement`
 
-The DOM element to append the debug panel to. Defaults to `document.body`.
-
 ___
 
 ### entriesWrapper
 
 • **entriesWrapper**: `HTMLDivElement`
 
-A HTML element wrapping all registered debug entries.
-
 ___
 
 ### options
 
-• **options**: [`DebugOptions`](../modules.md#debugoptions)
-
-Parameters to create a [Debug](Debug.md) instance.
-
-___
-
-### stats
-
-• `Optional` **stats**: `Stats`
-
-The stats.js instance, situated in the top-left corner after the data entries.
-
-## Methods
-
-### displayNewline
-
-▸ **displayNewline**(): [`Debug`](Debug.md)
-
-Add an empty line to the debug entries for spacing.
-
-#### Returns
-
-[`Debug`](Debug.md)
-
-The debug instance for chaining.
-
-___
-
-### displayTitle
-
-▸ **displayTitle**(`title`): [`Debug`](Debug.md)
-
-Add a static title to the debug entries for grouping.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `title` | `string` | A title to display. |
-
-#### Returns
-
-[`Debug`](Debug.md)
-
-The debug instance for chaining.
-
-___
-
-### dispose
-
-▸ **dispose**(): `void`
-
-#### Returns
-
-`void`
+• **options**: `Required`\<`Omit`\<[`DebugOptions`](../modules.md#debugoptions), ``"dataStyles"`` \| ``"entriesStyles"`` \| ``"lineStyles"`` \| ``"newLineStyles"`` \| ``"statsStyles"``\>\> & \{ `dataStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `entriesStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `lineStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `newLineStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `statsStyles`: `Partial`\<`CSSStyleDeclaration`\>  }
 
 ___
 
 ### registerDisplay
 
-▸ **registerDisplay**\<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): [`Debug`](Debug.md)
+• **registerDisplay**: \<T\>(`title`: `string`, `object?`: `T` \| () => `unknown`, `attribute?`: keyof `T`, `formatter?`: (`value`: `unknown`) => `string`) => `this`
 
-Register a new object attribute to track. Needs to call [Debug.update](Debug.md#update) in the game loop
-to update the value.
+#### Type declaration
 
-#### Type parameters
+▸ \<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
+
+##### Type parameters
 
 | Name | Type |
 | :------ | :------ |
-| `T` | `any` |
+| `T` | `unknown` |
 
-#### Parameters
+##### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `title` | `string` | The title of the debug entry. |
-| `object?` | `T` | The object to track. |
-| `attribute?` | keyof `T` | The attribute of the object to track. |
-| `formatter` | (`str`: `string`) => `string` | A function to format the value of the attribute. |
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+| `object?` | `T` \| () => `unknown` |
+| `attribute?` | keyof `T` |
+| `formatter?` | (`value`: `unknown`) => `string` |
 
-#### Returns
+##### Returns
 
-[`Debug`](Debug.md)
-
-The debug instance for chaining.
+`this`
 
 ___
 
-### removeDisplay
+### remove
 
-▸ **removeDisplay**(`title`): `void`
+• **remove**: () => `void`
 
-Remove a registered object attribute from tracking.
+#### Type declaration
 
-#### Parameters
+▸ (): `void`
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `title` | `string` | The title of the debug entry. |
-
-#### Returns
+##### Returns
 
 `void`
 
 ___
 
+### removeDisplay
+
+• **removeDisplay**: (`title`: `string`) => `void`
+
+#### Type declaration
+
+▸ (`title`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+
+##### Returns
+
+`void`
+
+___
+
+### stats
+
+• `Optional` **stats**: `FpsMeter`
+
+___
+
 ### toggle
 
-▸ **toggle**(`force?`): `void`
+• **toggle**: (`force?`: `boolean`) => `void`
 
-Toggle the debug instance on/off.
+#### Type declaration
 
-#### Parameters
+▸ (`force?`): `void`
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `force` | `any` | `null` | Whether or not to force the debug panel to be shown/hidden. |
+##### Parameters
 
-#### Returns
+| Name | Type |
+| :------ | :------ |
+| `force?` | `boolean` |
+
+##### Returns
 
 `void`
 
@@ -210,11 +195,18 @@ ___
 
 ### update
 
-▸ **update**(): `void`
+• **update**: () => `void`
 
-Update the debug entries with the latest values. This should be called in the game loop.
-Utilizes requestAnimationFrame to reduce lag spikes by not overloading the main thread.
+#### Type declaration
 
-#### Returns
+▸ (): `void`
+
+##### Returns
 
 `void`
+
+___
+
+### visible
+
+• **visible**: `boolean`

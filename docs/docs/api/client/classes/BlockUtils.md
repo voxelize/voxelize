@@ -157,6 +157,28 @@ ___
 
 ___
 
+### getBlockTorchLightLevelAt
+
+▸ **getBlockTorchLightLevelAt**(`block`, `color`, `voxel`, `functions`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `block` | [`Block`](../modules.md#block) |
+| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `functions` | `Object` |
+| `functions.getVoxelAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
+| `functions.getVoxelRotationAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => [`BlockRotation`](BlockRotation.md) |
+| `functions.getVoxelStageAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
+
+#### Returns
+
+`number`
+
+___
+
 ### insertAll
 
 ▸ **insertAll**(`id`, `rotation?`, `stage?`): `number`

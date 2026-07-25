@@ -96,7 +96,7 @@ ___
 
 ### meshes
 
-• **meshes**: `Map`\<`number`, `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`\>, `Material` \| `Material`[], `Object3DEventMap`\>[]\>
+• **meshes**: `Map`\<`number`, `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`, `BufferGeometryEventMap`\>, `Material` \| `Material`[], `Object3DEventMap`\>[]\>
 
 ___
 
@@ -164,7 +164,7 @@ RawChunk.isReady
 
 | Name | Type |
 | :------ | :------ |
-| `data` | `any` |
+| `data` | `SerializedChunkPayload` |
 
 #### Returns
 
@@ -450,11 +450,11 @@ ___
 
 ### serialize
 
-▸ **serialize**(): [`object`, `ArrayBuffer`[]]
+▸ **serialize**(): [`SerializedChunkPayload`, `ArrayBuffer`[]]
 
 #### Returns
 
-[`object`, `ArrayBuffer`[]]
+[`SerializedChunkPayload`, `ArrayBuffer`[]]
 
 #### Inherited from
 

@@ -14,6 +14,30 @@ custom_edit_url: null
 
 ___
 
+### depthPolygonOffsetFactor
+
+• **depthPolygonOffsetFactor**: `number`
+
+___
+
+### depthPolygonOffsetUnits
+
+• **depthPolygonOffsetUnits**: `number`
+
+___
+
+### entityShadowFrameInterval
+
+• **entityShadowFrameInterval**: `number`
+
+___
+
+### isDepthPolygonOffsetEnabled
+
+• **isDepthPolygonOffsetEnabled**: `boolean`
+
+___
+
 ### lightMargin
 
 • **lightMargin**: `number`
@@ -32,6 +56,12 @@ ___
 
 ___
 
+### shadowCasterDistance
+
+• **shadowCasterDistance**: `number`
+
+___
+
 ### shadowMapSize
 
 • **shadowMapSize**: `number`
@@ -41,3 +71,27 @@ ___
 ### shadowNormalBias
 
 • **shadowNormalBias**: `number`
+
+___
+
+### shadowSideFaceBiasScale
+
+• **shadowSideFaceBiasScale**: `number`
+
+___
+
+### shadowSlopeBiasMin
+
+• **shadowSlopeBiasMin**: `number`
+
+___
+
+### shadowSlopeBiasScale
+
+• **shadowSlopeBiasScale**: `number`
+
+___
+
+### shadowTopFaceBiasScale
+
+• **shadowTopFaceBiasScale**: `number`

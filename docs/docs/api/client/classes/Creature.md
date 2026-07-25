@@ -124,6 +124,12 @@ ___
 
 ___
 
+### newBodyDirection
+
+• **newBodyDirection**: `Quaternion`
+
+___
+
 ### newDirection
 
 • **newDirection**: `Quaternion`

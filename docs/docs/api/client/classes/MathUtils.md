@@ -70,3 +70,21 @@ Round a number to a given precision.
 `number`
 
 The rounded number.
+
+___
+
+### swimDirectionToQuaternion
+
+▸ **swimDirectionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `dx` | `number` |
+| `dy` | `number` |
+| `dz` | `number` |
+
+#### Returns
+
+`Quaternion`

@@ -23,7 +23,39 @@ For more information about lighting data, see [here](/)
 const number = LightUtils.insertSunlight(0, 13);
 ```
 
+## Properties
+
+### BEER\_LAMBERT\_TRANSMITTANCE\_DEN
+
+▪ `Static` `Readonly` **BEER\_LAMBERT\_TRANSMITTANCE\_DEN**: ``256``
+
+___
+
+### BEER\_LAMBERT\_TRANSMITTANCE\_NUM
+
+▪ `Static` `Readonly` **BEER\_LAMBERT\_TRANSMITTANCE\_NUM**: ``222``
+
 ## Methods
+
+### beerLambertTransmit
+
+▸ **beerLambertTransmit**(`level`, `opticalDensity`): `number`
+
+Beer-Lambert transmission: I' = I * e^(-μd).
+Each optical-density unit multiplies by 222/256 ≈ e^(-0.143).
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `level` | `number` |
+| `opticalDensity` | `number` |
+
+#### Returns
+
+`number`
+
+___
 
 ### canEnter
 
@@ -69,6 +101,28 @@ Check to see if light can go "into" one block, disregarding the source.
 `boolean`
 
 Whether light can enter into the target block.
+
+___
+
+### dedupeFillQueue
+
+▸ **dedupeFillQueue**\<`T`\>(`nodes`): `T`[]
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `Object` |
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `nodes` | `T`[] |
+
+#### Returns
+
+`T`[]
 
 ___
 
@@ -149,6 +203,28 @@ Extract the sunlight level from a number.
 `number`
 
 The extracted sunlight value.
+
+___
+
+### floodLightNextLevel
+
+▸ **floodLightNextLevel**(`isSunlight`, `lightAttenuation`, `oy`, `level`, `maxLightLevel`): `number`
+
+Next light level when flooding into a neighbor voxel.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `isSunlight` | `boolean` |
+| `lightAttenuation` | `number` |
+| `oy` | `number` |
+| `level` | `number` |
+| `maxLightLevel` | `number` |
+
+#### Returns
+
+`number`
 
 ___
 
@@ -233,3 +309,26 @@ Insert a sunlight level into a number.
 `number`
 
 The inserted light value.
+
+___
+
+### retainLiveFillNodes
+
+▸ **retainLiveFillNodes**\<`T`\>(`nodes`, `getLevelAt`): `T`[]
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `Object` |
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `nodes` | `T`[] |
+| `getLevelAt` | (`vx`: `number`, `vy`: `number`, `vz`: `number`) => `number` |
+
+#### Returns
+
+`T`[]

@@ -135,14 +135,14 @@ ___
 
 ### getAllCommands
 
-▸ **getAllCommands**(): \{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
+▸ **getAllCommands**(): \{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `isTabCompletePreFiltered`: `boolean` ; `trigger`: `string`  }[]
 
 Get all registered commands with their documentation.
 This filters out aliases and returns only the primary command triggers.
 
 #### Returns
 
-\{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
+\{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `isTabCompletePreFiltered`: `boolean` ; `trigger`: `string`  }[]
 
 An array of command triggers with their descriptions, categories, aliases, and arg schemas.
 

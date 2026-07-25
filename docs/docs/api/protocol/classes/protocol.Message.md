@@ -141,6 +141,18 @@ Message text.
 
 ___
 
+### tick
+
+• **tick**: `number` \| `Long`
+
+Message tick.
+
+#### Implementation of
+
+[IMessage](../interfaces/protocol.IMessage.md).[tick](../interfaces/protocol.IMessage.md#tick)
+
+___
+
 ### type
 
 • **type**: [`Type`](../enums/protocol.Message-1.Type.md)

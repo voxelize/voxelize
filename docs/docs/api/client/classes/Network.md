@@ -44,6 +44,12 @@ ___
 
 ___
 
+### disconnectReason
+
+• **disconnectReason**: `string` = `""`
+
+___
+
 ### intercepts
 
 • **intercepts**: [`NetIntercept`](../interfaces/NetIntercept.md)[] = `[]`
@@ -150,7 +156,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws) = `null`
 
 ## Accessors
 

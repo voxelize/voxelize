@@ -303,6 +303,17 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             if r#type == MessageType::Load && chunks.freshly_created.remove(&chunk.coords) {
                 chunks.newly_generated.push(chunk.coords.to_owned());
+
+                // The pipeline's writes are worldgen output, which the seed
+                // reproduces, so they are not an edit. `save_pristine_chunks`
+                // alone decides whether this chunk goes to disk.
+                chunk.is_save_dirty = false;
+
+                // A chunk still meshing cannot be read back, so the save has to
+                // be queued here, where the chunk is genuinely done.
+                if config.save_pristine_chunks {
+                    chunks.add_chunk_to_save(&chunk.coords, false);
+                }
             }
 
             chunks.add_chunk_to_send(&chunk.coords, &r#type, false);
@@ -328,7 +339,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     .needs_lights()
                     .build();
                 let chunk = chunks.raw(&coords).unwrap().to_owned();
-                chunks.add_chunk_to_save(&coords, true);
+                if chunks.is_chunk_save_dirty(&coords) {
+                    chunks.add_chunk_to_save(&coords, true);
+                }
                 remesh_processes.push((chunk, space));
             }
             if !remesh_processes.is_empty() {
@@ -401,10 +414,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
 
             pipeline.leftovers.remove(&coords);
-
-            if config.saving {
-                chunks.add_chunk_to_save(&coords, false);
-            }
 
             let chunk = chunks.raw(&coords).unwrap().clone();
             ready_chunks.push((coords, chunk));

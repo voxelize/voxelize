@@ -20,7 +20,7 @@ custom_edit_url: null
 
 ### isBufferGeometry
 
-▸ **isBufferGeometry**(`object`): object is BufferGeometry\<NormalBufferAttributes\>
+▸ **isBufferGeometry**(`object`): object is BufferGeometry\<NormalBufferAttributes, BufferGeometryEventMap\>
 
 #### Parameters
 
@@ -30,7 +30,7 @@ custom_edit_url: null
 
 #### Returns
 
-object is BufferGeometry\<NormalBufferAttributes\>
+object is BufferGeometry\<NormalBufferAttributes, BufferGeometryEventMap\>
 
 ___
 
@@ -52,7 +52,7 @@ ___
 
 ### isCanvasTexture
 
-▸ **isCanvasTexture**(`object`): object is CanvasTexture
+▸ **isCanvasTexture**(`object`): object is CanvasTexture\<HTMLCanvasElement\>
 
 #### Parameters
 
@@ -62,7 +62,7 @@ ___
 
 #### Returns
 
-object is CanvasTexture
+object is CanvasTexture\<HTMLCanvasElement\>
 
 ___
 
@@ -132,7 +132,7 @@ ___
 
 ### isMesh
 
-▸ **isMesh**(`object`): object is Mesh\<BufferGeometry\<NormalBufferAttributes\>, Material \| Material[], Object3DEventMap\>
+▸ **isMesh**(`object`): object is Mesh\<BufferGeometry\<NormalBufferAttributes, BufferGeometryEventMap\>, Material \| Material[], Object3DEventMap\>
 
 #### Parameters
 
@@ -142,7 +142,7 @@ ___
 
 #### Returns
 
-object is Mesh\<BufferGeometry\<NormalBufferAttributes\>, Material \| Material[], Object3DEventMap\>
+object is Mesh\<BufferGeometry\<NormalBufferAttributes, BufferGeometryEventMap\>, Material \| Material[], Object3DEventMap\>
 
 ___
 
@@ -180,7 +180,7 @@ ___
 
 ### isScene
 
-▸ **isScene**(`object`): object is Scene
+▸ **isScene**(`object`): object is Scene\<Object3DEventMap\>
 
 #### Parameters
 
@@ -190,7 +190,7 @@ ___
 
 #### Returns
 
-object is Scene
+object is Scene\<Object3DEventMap\>
 
 ___
 
@@ -212,7 +212,7 @@ ___
 
 ### isTexture
 
-▸ **isTexture**(`object`): object is Texture
+▸ **isTexture**(`object`): object is Texture\<unknown\>
 
 #### Parameters
 
@@ -222,7 +222,7 @@ ___
 
 #### Returns
 
-object is Texture
+object is Texture\<unknown\>
 
 ___
 

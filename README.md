@@ -162,7 +162,7 @@ Questions, showcases, and engine discussion happen on [Discord](https://discord.
 ## Assets Used
 
 - [Connection Serif Font (SIL Open Font)](https://fonts2u.com/connection-serif.font)
-- [Pixel Perfection by XSSheep (CC BY-SA 4.0)](https://www.planetminecraft.com/texture-pack/131pixel-perfection/)
+- Pixel Perfection by XSSheep, modified — licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
 ---
 

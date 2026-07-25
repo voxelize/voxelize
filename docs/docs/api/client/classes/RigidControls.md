@@ -234,6 +234,46 @@ Whether if the client is in ghost mode. Ghost mode means client can fly through 
 
 ___
 
+### isCrouching
+
+• `get` **isCrouching**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
+### isSwimPoseActive
+
+• `get` **isSwimPoseActive**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
+### isSwimming
+
+• `get` **isSwimming**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
+### isSwimmingIdleStanding
+
+• `get` **isSwimmingIdleStanding**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
 ### position
 
 • `get` **position**(): `Vector3`
@@ -497,6 +537,34 @@ Reset all of the control's movements.
 
 ___
 
+### restoreSwimming
+
+▸ **restoreSwimming**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### setDirection
+
+▸ **setDirection**(`dx`, `dy`, `dz`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `dx` | `number` |
+| `dy` | `number` |
+| `dz` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
 ### teleport
 
 ▸ **teleport**(`vx`, `vy`, `vz`): `void`
@@ -510,6 +578,24 @@ Teleport this rigid controls to a new voxel coordinate.
 | `vx` | `number` | The x voxel coordinate to teleport to. |
 | `vy` | `number` | The y voxel coordinate to teleport to. |
 | `vz` | `number` | The z voxel coordinate to teleport to. |
+
+#### Returns
+
+`void`
+
+___
+
+### teleportToExact
+
+▸ **teleportToExact**(`x`, `y`, `z`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `x` | `number` |
+| `y` | `number` |
+| `z` | `number` |
 
 #### Returns
 

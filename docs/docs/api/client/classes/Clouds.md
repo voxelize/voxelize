@@ -71,7 +71,7 @@ ___
 
 ### meshes
 
-• **meshes**: `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`\>, `Material` \| `Material`[], `Object3DEventMap`\>[][] = `[]`
+• **meshes**: `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`, `BufferGeometryEventMap`\>, `Material` \| `Material`[], `Object3DEventMap`\>[][] = `[]`
 
 A 2D array of cloud meshes. The first dimension is the x-axis, and the second dimension is the z-axis.
 
@@ -102,6 +102,16 @@ The z-offset of the clouds since initialization. This is determined by diffing t
 position passed into [Clouds.update](Clouds.md#update).
 
 ## Methods
+
+### dispose
+
+▸ **dispose**(): `void`
+
+#### Returns
+
+`void`
+
+___
 
 ### reset
 

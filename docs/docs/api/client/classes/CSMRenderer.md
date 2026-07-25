@@ -104,7 +104,7 @@ ___
 
 ### getShadowMap
 
-▸ **getShadowMap**(`index`): `Texture`
+▸ **getShadowMap**(`index`): `Texture`\<`unknown`\>
 
 #### Parameters
 
@@ -114,7 +114,7 @@ ___
 
 #### Returns
 
-`Texture`
+`Texture`\<`unknown`\>
 
 ___
 
@@ -131,8 +131,13 @@ ___
 | `uCascadeSplits` | `number`[] |
 | `uNumCascades` | `number` |
 | `uShadowBias` | `number` |
-| `uShadowMaps` | `Texture`[] |
+| `uShadowMaps` | `Texture`\<`unknown`\>[] |
 | `uShadowMatrices` | `Matrix4`[] |
+| `uShadowNormalBias` | `number` |
+| `uShadowSideFaceBiasScale` | `number` |
+| `uShadowSlopeBiasMin` | `number` |
+| `uShadowSlopeBiasScale` | `number` |
+| `uShadowTopFaceBiasScale` | `number` |
 
 ___
 
@@ -164,7 +169,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `scene` | `Scene` |
+| `scene` | `Scene`\<`Object3DEventMap`\> |
 
 #### Returns
 
@@ -197,7 +202,7 @@ ___
 | Name | Type | Default value |
 | :------ | :------ | :------ |
 | `renderer` | `WebGLRenderer` | `undefined` |
-| `scene` | `Scene` | `undefined` |
+| `scene` | `Scene`\<`Object3DEventMap`\> | `undefined` |
 | `entities?` | `Object3D`\<`Object3DEventMap`\>[] | `undefined` |
 | `maxEntityShadowDistance` | `number` | `32` |
 | `instancePools?` | `Group`\<`Object3DEventMap`\>[] | `undefined` |

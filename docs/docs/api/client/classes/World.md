@@ -117,7 +117,12 @@ ___
 • **csmRenderer**: [`CSMRenderer`](CSMRenderer.md) = `null`
 
 The CSM (Cascaded Shadow Map) renderer for shader-based lighting.
-Only available when `shaderBasedLighting` is enabled.
+
+___
+
+### extraInitData
+
+• **extraInitData**: `Record`\<`string`, `unknown`\> = `{}`
 
 ___
 
@@ -129,22 +134,21 @@ Whether or not this world is connected to the server and initialized with data f
 
 ___
 
-### lightRegistry
+### items
 
-• **lightRegistry**: [`LightSourceRegistry`](LightSourceRegistry.md) = `null`
+• **items**: [`ItemRegistry`](ItemRegistry.md)
 
-The light source registry for dynamic point lights.
-Only available when `shaderBasedLighting` is enabled.
+The item registry that holds all item definitions and provides utility methods for item operations.
 
 ___
 
-### lightVolume
+### lightCones
 
-• **lightVolume**: [`LightVolume`](LightVolume.md) = `null`
+• **lightCones**: [`LightCones`](LightCones.md)
 
-The light volume for shader-based lighting.
-Stores torch light data in a 3D texture for GPU sampling.
-Only available when `shaderBasedLighting` is enabled.
+Shared dynamic spot-cone lighting (flashlights, vehicle headlights).
+The game rebuilds the cone list every frame; chunk materials bind these
+uniforms at creation.
 
 ___
 
@@ -161,6 +165,28 @@ ___
 • **meshPipeline**: [`MeshPipeline`](MeshPipeline.md)
 
 Pipeline for mesh generation with ordering guarantees.
+
+___
+
+### meshTransfer
+
+• `Readonly` **meshTransfer**: `Object`
+
+Configure and inspect mesh worker buffer transfer (transfer vs SharedArrayBuffer).
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `benchmark` | (`options`: [`MeshTransferBenchmarkOptions`](../modules.md#meshtransferbenchmarkoptions)) => `Promise`\<[`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)\> |
+| `configure` | (`config`: \{ `mode?`: [`WorkerTransferMode`](../modules.md#workertransfermode)  }) => `void` |
+| `getMode` | () => [`WorkerTransferMode`](../modules.md#workertransfermode) |
+| `getStats` | () => [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats) \| `Record`\<[`WorkerTransferStrategy`](../modules.md#workertransferstrategy), [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats)\> |
+| `getStatus` | () => \{ `isCrossOriginIsolated`: `boolean` ; `isSharedArrayBufferAvailable`: `boolean` ; `mode`: [`WorkerTransferMode`](../modules.md#workertransfermode) ; `pool`: [`ChunkSharedPoolStats`](../modules.md#chunksharedpoolstats) ; `stats`: [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats) \| `Record`\<[`WorkerTransferStrategy`](../modules.md#workertransferstrategy), [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats)\> ; `strategy`: [`WorkerTransferStrategy`](../modules.md#workertransferstrategy)  } |
+| `getStrategy` | () => [`WorkerTransferStrategy`](../modules.md#workertransferstrategy) |
+| `isSharedArrayBufferAvailable` | () => `boolean` |
+| `resetStats` | () => `void` |
+| `setStrategy` | (`strategy`: ``"transfer"`` \| ``"shared"``) => `void` |
 
 ___
 
@@ -193,6 +219,15 @@ ___
 • **sky**: [`Sky`](Sky.md)
 
 The sky that renders the sky and the sun.
+
+___
+
+### waterOptics
+
+• **waterOptics**: [`WaterOptics`](WaterOptics.md)
+
+The camera-driven underwater optics state, updated via
+[World.updateWaterOptics](World.md#updatewateroptics).
 
 ## Accessors
 
@@ -247,20 +282,6 @@ ___
 #### Returns
 
 `void`
-
-___
-
-### usesShaderLighting
-
-• `get` **usesShaderLighting**(): `boolean`
-
-Whether shader-based lighting is enabled for this world.
-When true, lighting uses GPU shaders with cascaded shadow maps.
-CPU light propagation still runs to provide sunlight exposure data.
-
-#### Returns
-
-`boolean`
 
 ## Methods
 
@@ -388,7 +409,7 @@ and draw it onto the block's texture atlas.
 | :------ | :------ | :------ |
 | `idOrName` | `string` \| `number` | The ID or name of the block. |
 | `faceNames` | `string` \| `string`[] | The face names to apply the texture to. |
-| `source` | `string` \| `Color` \| `Texture` \| `HTMLImageElement` | The source of the texture. |
+| `source` | `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement` | The source of the texture. |
 
 #### Returns
 
@@ -412,7 +433,7 @@ ___
 | :------ | :------ |
 | `idOrName` | `string` \| `number` |
 | `faceName` | `string` |
-| `source` | `string` \| `Color` \| `Texture` \| `HTMLImageElement` |
+| `source` | `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement` |
 | `voxel` | [`Coords3`](../modules.md#coords3) |
 
 #### Returns
@@ -456,7 +477,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `groupName` | `string` |
-| `source` | `string` \| `Color` \| `Texture` \| `HTMLImageElement` |
+| `source` | `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement` |
 
 #### Returns
 
@@ -472,11 +493,27 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | \{ `groupName`: `string` ; `source`: `string` \| `Color` \| `Texture` \| `HTMLImageElement`  }[] |
+| `data` | \{ `groupName`: `string` ; `source`: `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement`  }[] |
 
 #### Returns
 
 `Promise`\<`any`[]\>
+
+___
+
+### benchmarkMeshTransfer
+
+▸ **benchmarkMeshTransfer**(`options`): `Promise`\<[`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `options` | [`MeshTransferBenchmarkOptions`](../modules.md#meshtransferbenchmarkoptions) |
+
+#### Returns
+
+`Promise`\<[`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)\>
 
 ___
 
@@ -518,6 +555,16 @@ ___
 
 ___
 
+### dispose
+
+▸ **dispose**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
 ### floodLight
 
 ▸ **floodLight**(`queue`, `color`, `min?`, `max?`): `void`
@@ -534,6 +581,32 @@ ___
 #### Returns
 
 `void`
+
+___
+
+### getAABBOverride
+
+▸ **getAABBOverride**(`voxel`): `AABB`[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+
+#### Returns
+
+`AABB`[]
+
+___
+
+### getBaseFogRange
+
+▸ **getBaseFogRange**(): [`WorldFogRange`](../modules.md#worldfogrange)
+
+#### Returns
+
+[`WorldFogRange`](../modules.md#worldfogrange)
 
 ___
 
@@ -619,7 +692,9 @@ ___
 
 ▸ **getBlockById**(`id`): [`Block`](../modules.md#block)
 
-Get the block type data by a block id.
+Get the block type data by a block id. Unknown ids resolve to air
+(logged once per id) so a server/client registry gap can never take
+down meshing, lighting, or the agent bridge.
 
 #### Parameters
 
@@ -631,7 +706,7 @@ Get the block type data by a block id.
 
 [`Block`](../modules.md#block)
 
-The block data for the given id, or null if it does not exist.
+The block data for the given id, or air if it is unknown.
 
 ___
 
@@ -686,6 +761,24 @@ ___
 #### Returns
 
 `T`
+
+___
+
+### getBlockEntityIdAt
+
+▸ **getBlockEntityIdAt**(`px`, `py`, `pz`): `string`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `px` | `number` |
+| `py` | `number` |
+| `pz` | `number` |
+
+#### Returns
+
+`string`
 
 ___
 
@@ -952,6 +1045,22 @@ The highest block at the given position, or 0 if it does not exist.
 
 ___
 
+### getMemoryCounters
+
+▸ **getMemoryCounters**(): [`WorldMemoryCounters`](../modules.md#worldmemorycounters)
+
+Live sizes of every queue and in-flight set in the voxel update ->
+relight -> remesh pipeline, plus the bytes of serialized chunk payloads
+parked in worker queues. This is the memory-pressure dashboard for
+debugging update-flood OOMs (mass terrain edits): sample it while
+carving and watch which stage balloons.
+
+#### Returns
+
+[`WorldMemoryCounters`](../modules.md#worldmemorycounters)
+
+___
+
 ### getPreviousValueAt
 
 ▸ **getPreviousValueAt**(`px`, `py`, `pz`, `count?`): `number`
@@ -1155,6 +1264,23 @@ Whether or not this chunk is within the bounds of the world.
 
 ___
 
+### makeBlockFragments
+
+▸ **makeBlockFragments**(`idOrName`, `count`): `Group`\<`Object3DEventMap`\>[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `idOrName` | `string` \| `number` |
+| `count` | `number` |
+
+#### Returns
+
+`Group`\<`Object3DEventMap`\>[]
+
+___
+
 ### makeBlockMesh
 
 ▸ **makeBlockMesh**(`idOrName`, `options?`): `Group`\<`Object3DEventMap`\>
@@ -1178,16 +1304,17 @@ ___
 
 ### meshChunkLocally
 
-▸ **meshChunkLocally**(`cx`, `cz`, `level`, `generation?`): `Promise`\<`void`\>
+▸ **meshChunkLocally**(`cx`, `cz`, `level`, `generation?`, `isPriority?`): `Promise`\<`void`\>
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `cx` | `number` |
-| `cz` | `number` |
-| `level` | `number` |
-| `generation?` | `number` |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `cx` | `number` | `undefined` |
+| `cz` | `number` | `undefined` |
+| `level` | `number` | `undefined` |
+| `generation?` | `number` | `undefined` |
+| `isPriority` | `boolean` | `false` |
 
 #### Returns
 
@@ -1307,6 +1434,22 @@ Raycast through the world of voxels and return the details of the first block in
 
 ___
 
+### removeAABBOverride
+
+▸ **removeAABBOverride**(`voxel`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+
+#### Returns
+
+`void`
+
+___
+
 ### removeLight
 
 ▸ **removeLight**(`voxel`, `color`): `void`
@@ -1362,9 +1505,26 @@ ___
 
 ___
 
+### setAABBOverride
+
+▸ **setAABBOverride**(`voxel`, `aabbs`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `aabbs` | `AABB`[] |
+
+#### Returns
+
+`void`
+
+___
+
 ### setBlockEntityDataAt
 
-▸ **setBlockEntityDataAt**(`px`, `py`, `pz`, `data`): `void`
+▸ **setBlockEntityDataAt**(`px`, `py`, `pz`, `data`, `options?`): `void`
 
 #### Parameters
 
@@ -1374,6 +1534,8 @@ ___
 | `py` | `number` |
 | `pz` | `number` |
 | `data` | `T` |
+| `options?` | `Object` |
+| `options.replace?` | `boolean` |
 
 #### Returns
 
@@ -1619,6 +1781,23 @@ block is not [Block.yRotatable](../modules.md#block)).
 | :------ | :------ | :------ | :------ |
 | `updates` | [`BlockUpdate`](../modules.md#blockupdate)[] | `undefined` | A list of updates to send to the server. |
 | `source` | ``"client"`` \| ``"server"`` | `"client"` | - |
+
+#### Returns
+
+`void`
+
+___
+
+### updateWaterOptics
+
+▸ **updateWaterOptics**(`cameraPosition`, `deltaSeconds`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `cameraPosition` | `Vector3` |
+| `deltaSeconds` | `number` |
 
 #### Returns
 

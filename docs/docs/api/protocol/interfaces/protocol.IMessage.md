@@ -87,6 +87,14 @@ Message text
 
 ___
 
+### tick
+
+• `Optional` **tick**: `number` \| `Long`
+
+Message tick
+
+___
+
 ### type
 
 • `Optional` **type**: [`Type`](../enums/protocol.Message-1.Type.md)

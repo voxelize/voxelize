@@ -1,16 +1,13 @@
 import type { Config } from "@docusaurus/types";
 import { themes } from "prism-react-renderer";
 
-const sharedTypeDocConfig = (name) => ({
+const sharedTypeDocConfig = (name: string) => ({
   excludePrivate: true,
   excludeProtected: true,
   excludeExternals: true,
   entryDocument: "none",
   disableSources: true,
-  sort: [
-    // "source-order",
-    "alphabetical",
-  ],
+  sort: ["alphabetical"],
   categorizeByGroup: true,
   sidebar: {
     fullNames: false,
@@ -30,9 +27,7 @@ const config: Config = {
   tagline: "A voxel browser experience",
   url: "https://docs.voxelize.io",
   baseUrl: "/",
-  // TypeDoc emits links to API pages it does not always generate, and the
-  // deploy builds these docs, so a stale generated link must not fail the build.
-  onBrokenLinks: "warn",
+  onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
   favicon: "img/logo/circle-min.png",
   deploymentBranch: "gh-pages",
@@ -42,14 +37,9 @@ const config: Config = {
   },
   themes: ["@docusaurus/theme-mermaid"],
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: "voxelize", // Usually your GitHub org/user name.
-  projectName: "voxelize", // Usually your repo name.
+  organizationName: "voxelize",
+  projectName: "voxelize",
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
@@ -60,13 +50,7 @@ const config: Config = {
       "classic",
       {
         docs: false,
-        blog: {
-          showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            "https://github.com/voxelize/voxelize/tree/main/packages/create-docusaurus/templates/shared/",
-        },
+        blog: false,
         theme: {
           customCss: require.resolve("./src/css/custom.css"),
         },
@@ -161,14 +145,9 @@ const config: Config = {
       "@docusaurus/plugin-content-docs",
       /** @type {import('@docusaurus/plugin-content-docs').Options} */
       {
-        // id: "api",
         sidebarPath: require.resolve("./sidebars/api.js"),
         path: "docs/api",
         routeBasePath: "api",
-        // Please change this to your repo.
-        // Remove this to remove the "edit this page" links.
-        editUrl:
-          "https://github.com/voxelize/voxelize/tree/main/packages/create-docusaurus/templates/shared/",
       },
     ],
     [
@@ -179,7 +158,6 @@ const config: Config = {
         path: "docs/tutorials",
         routeBasePath: "tutorials",
         sidebarPath: require.resolve("./sidebars/tutorials.js"),
-        // ... other options
       },
     ],
     [
@@ -190,7 +168,6 @@ const config: Config = {
         path: "docs/wiki",
         routeBasePath: "wiki",
         sidebarPath: require.resolve("./sidebars/wiki.js"),
-        // ... other options
       },
     ],
     [
@@ -220,25 +197,6 @@ const config: Config = {
           postcssOptions.plugins.push(require("tailwindcss"));
           postcssOptions.plugins.push(require("autoprefixer"));
           return postcssOptions;
-        },
-      };
-    },
-    function webpackPlugin() {
-      return {
-        name: "docusaurus-webpack-esm",
-        configureWebpack() {
-          try {
-            const corePath = require.resolve("@voxelize/core/dist/index.mjs");
-            return {
-              resolve: {
-                alias: {
-                  "@voxelize/core": corePath,
-                },
-              },
-            };
-          } catch (e) {
-            return {};
-          }
         },
       };
     },

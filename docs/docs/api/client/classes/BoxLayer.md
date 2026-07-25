@@ -18,7 +18,7 @@ A layer of a canvas box. This is a group of six canvases that are rendered as a 
 
 ### constructor
 
-• **new BoxLayer**(`width`, `height`, `depth`, `widthSegments`, `heightSegments`, `depthSegments`, `side`, `transparent`, `receiveShadows?`): [`BoxLayer`](BoxLayer.md)
+• **new BoxLayer**(`width`, `height`, `depth`, `widthSegments`, `heightSegments`, `depthSegments`, `side`, `transparent`, `receiveShadows?`, `underwaterFog?`): [`BoxLayer`](BoxLayer.md)
 
 Create a six-sided canvas box layer.
 
@@ -35,6 +35,7 @@ Create a six-sided canvas box layer.
 | `side` | `Side` | `undefined` | The side of the box layer to render. |
 | `transparent` | `boolean` | `undefined` | Whether or not should this canvas box be rendered as transparent. |
 | `receiveShadows` | `boolean` | `false` | Whether or not should this canvas box receive shadows. |
+| `underwaterFog` | `boolean` | `false` | Whether or not should this canvas box tint underwater. |
 
 #### Returns
 
@@ -94,6 +95,15 @@ Shadow uniforms for this box layer (only set if receiveShadows is true).
 
 ___
 
+### underwaterUniforms
+
+• **underwaterUniforms**: [`UnderwaterFogUniforms`](../interfaces/UnderwaterFogUniforms.md) = `null`
+
+Underwater fog uniforms for this box layer (only set if underwaterFog is
+true). Driven externally from the camera's water-optics state.
+
+___
+
 ### width
 
 • **width**: `number`
@@ -121,7 +131,7 @@ Add art to the canvas(s) of this box layer.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | The art or art function to draw on the box layer's side. |
+| `art` | `Color` \| `Texture`\<`unknown`\> \| [`ArtFunction`](../modules.md#artfunction) | The art or art function to draw on the box layer's side. |
 
 #### Returns
 

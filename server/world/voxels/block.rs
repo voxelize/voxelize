@@ -1485,10 +1485,10 @@ pub struct Block {
 
     pub is_active: bool,
 
-    /// When true, the Minecraft-style subchunk random-tick sampler may invoke
-    /// this block's `active_updater` (scheduled via `mark_voxel_active` at the
-    /// current tick). Default false -- copper/fluids stay neighbor/scheduled
-    /// only; plant growth opts in explicitly.
+    /// When true, the subchunk random-tick sampler may invoke this block's
+    /// `active_updater` (scheduled via `mark_voxel_active` at the current
+    /// tick). Default false -- copper/fluids stay neighbor/scheduled only;
+    /// plant growth opts in explicitly.
     #[serde(default)]
     pub is_random_tickable: bool,
 }
@@ -1870,9 +1870,9 @@ impl BlockBuilder {
         self
     }
 
-    /// Opt this block into the subchunk random-tick sampler (Minecraft-style
-    /// plant growth). Requires `active_fn` so `is_active` is true; the sampler
-    /// marks matching voxels active at the current tick for the updater to run.
+    /// Opt this block into the subchunk random-tick sampler (plant growth).
+    /// Requires `active_fn` so `is_active` is true; the sampler marks matching
+    /// voxels active at the current tick for the updater to run.
     pub fn is_random_tickable(mut self, is_random_tickable: bool) -> Self {
         self.is_random_tickable = is_random_tickable;
         self
@@ -1880,7 +1880,7 @@ impl BlockBuilder {
 
     /// Declare that this block needs solid support from the voxel below.
     /// Uses the existing active-voxel neighbor activation so removing the
-    /// support schedules a cascade clear (Minecraft-style plants).
+    /// support schedules a cascade clear (plants).
     pub fn requires_support_below(mut self) -> Self {
         self.requires_support = SupportRequirement::SolidBelow;
         let (ticker, updater) = solid_below_support_fns();

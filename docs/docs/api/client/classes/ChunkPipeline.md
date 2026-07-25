@@ -289,3 +289,13 @@ ___
 #### Returns
 
 `void`
+
+___
+
+### resyncForRejoin
+
+▸ **resyncForRejoin**(): `string`[]
+
+#### Returns
+
+`string`[]

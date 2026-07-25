@@ -39,6 +39,22 @@ ChatMessage sender
 
 ___
 
+### tSendMs
+
+• `Optional` **tSendMs**: `number`
+
+ChatMessage tSendMs
+
+___
+
+### traceId
+
+• `Optional` **traceId**: `string`
+
+ChatMessage traceId
+
+___
+
 ### type
 
 • `Optional` **type**: `string`

@@ -56,6 +56,18 @@ ___
 
 ___
 
+### durabilityBarElement
+
+• **durabilityBarElement**: `HTMLDivElement`
+
+___
+
+### durabilityElement
+
+• **durabilityElement**: `HTMLDivElement`
+
+___
+
 ### element
 
 • **element**: `HTMLDivElement`
@@ -100,7 +112,7 @@ ___
 
 ### scene
 
-• **scene**: `Scene`
+• **scene**: `Scene`\<`Object3DEventMap`\>
 
 ___
 
@@ -186,6 +198,16 @@ ___
 
 ___
 
+### disposeObject
+
+▸ **disposeObject**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
 ### getContent
 
 ▸ **getContent**(): `T`
@@ -257,6 +279,22 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `content` | `T` |
+
+#### Returns
+
+`void`
+
+___
+
+### setDurability
+
+▸ **setDurability**(`pct`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `pct` | `number` |
 
 #### Returns
 

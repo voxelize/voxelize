@@ -163,22 +163,7 @@ impl BackgroundChunkSaver {
         }
     }
 
-    pub fn queue_save(
-        &self,
-        coords: Vec2<i32>,
-        chunk_name: String,
-        chunk_id: String,
-        voxels: Vec<u32>,
-        height_map: Vec<u32>,
-    ) {
-        let data = ChunkSaveData {
-            coords,
-            chunk_name,
-            chunk_id,
-            voxels,
-            height_map,
-        };
-
+    pub fn queue_save(&self, data: ChunkSaveData) {
         if let Err(e) = self.sender.try_send(data) {
             warn!("Failed to queue chunk save: {}", e);
         }

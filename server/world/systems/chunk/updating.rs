@@ -787,9 +787,14 @@ fn process_pending_updates(
     if !chunks.cache.is_empty() {
         let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
 
-        cache.iter().for_each(|coords| {
-            chunks.add_chunk_to_save(coords, true);
-        });
+        // Every chunk the pass borrowed needs a remesh, because light moved
+        // through it. Only the ones whose voxels or height map actually
+        // changed need a save.
+        for coords in &cache {
+            if chunks.is_chunk_save_dirty(coords) {
+                chunks.add_chunk_to_save(coords, true);
+            }
+        }
 
         let mut processes = Vec::new();
         for coords in cache {
@@ -927,7 +932,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         );
         all_results.extend(results);
 
-        // Minecraft-style subchunk random ticks (plants). Runs AFTER the
+        // Subchunk random-tick sampler (plants). Runs AFTER the
         // scheduled active queue so copper/neighbor wakes are never starved.
         // Newly marked voxels are popped immediately below so growth can
         // advance on the same world tick when budget allows.

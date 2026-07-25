@@ -152,6 +152,30 @@ ___
 
 ___
 
+### uTextureBloomIntensity
+
+• **uTextureBloomIntensity**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### uTextureBloomThreshold
+
+• **uTextureBloomThreshold**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
 ### uTopColor
 
 • **uTopColor**: `Object`
@@ -163,6 +187,36 @@ The top color of the sky gradient. Change this by calling Sky.setTopColor.
 | Name | Type |
 | :------ | :------ |
 | `value` | `Color` |
+
+___
+
+### uUnderwaterAmbient
+
+• **uUnderwaterAmbient**: `Object`
+
+The ambient water color the sky gradient fades toward while the camera
+is submerged.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Color` |
+
+___
+
+### uUnderwaterFade
+
+• **uUnderwaterFade**: `Object`
+
+How much of the sky gradient is replaced by the underwater ambient,
+driven by camera depth.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
 
 ___
 
@@ -221,6 +275,23 @@ Returns null if receiveShadows is false.
 
 CanvasBox.shadowUniforms
 
+___
+
+### underwaterUniforms
+
+• `get` **underwaterUniforms**(): [`UnderwaterFogUniforms`](../interfaces/UnderwaterFogUniforms.md)
+
+Get the underwater fog uniforms for this canvas box (from the first
+layer). Returns null if underwaterFog is false.
+
+#### Returns
+
+[`UnderwaterFogUniforms`](../interfaces/UnderwaterFogUniforms.md)
+
+#### Inherited from
+
+CanvasBox.underwaterUniforms
+
 ## Methods
 
 ### getBottomColor
@@ -277,7 +348,7 @@ Add art to the canvas(s) of this box layer.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
+| `art` | `Color` \| `Texture`\<`unknown`\> \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns

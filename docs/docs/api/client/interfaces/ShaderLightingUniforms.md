@@ -56,42 +56,6 @@ ___
 
 ___
 
-### lightVolume
-
-• **lightVolume**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `value` | `Data3DTexture` |
-
-___
-
-### lightVolumeMin
-
-• **lightVolumeMin**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `value` | `Vector3` |
-
-___
-
-### lightVolumeSize
-
-• **lightVolumeSize**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `value` | `Vector3` |
-
-___
-
 ### shadowBias
 
 • **shadowBias**: `Object`
@@ -124,7 +88,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `value` | `Texture` |
+| `value` | `Texture`\<`unknown`\> |
 
 ___
 
@@ -136,7 +100,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `value` | `Texture` |
+| `value` | `Texture`\<`unknown`\> |
 
 ___
 
@@ -148,7 +112,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `value` | `Texture` |
+| `value` | `Texture`\<`unknown`\> |
 
 ___
 
@@ -188,9 +152,69 @@ ___
 
 ___
 
+### shadowNormalBias
+
+• **shadowNormalBias**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### shadowSideFaceBiasScale
+
+• **shadowSideFaceBiasScale**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### shadowSlopeBiasMin
+
+• **shadowSlopeBiasMin**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### shadowSlopeBiasScale
+
+• **shadowSlopeBiasScale**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
 ### shadowStrength
 
 • **shadowStrength**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### shadowTopFaceBiasScale
+
+• **shadowTopFaceBiasScale**: `Object`
 
 #### Type declaration
 
@@ -272,9 +296,33 @@ ___
 
 ___
 
+### waterFresnelStrength
+
+• **waterFresnelStrength**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
 ### waterLevel
 
 • **waterLevel**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### waterStreakStrength
+
+• **waterStreakStrength**: `Object`
 
 #### Type declaration
 

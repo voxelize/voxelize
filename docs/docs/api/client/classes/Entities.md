@@ -43,15 +43,19 @@ network.register(entities);
 
 ### constructor
 
-• **new Entities**(): [`Entities`](Entities.md)
+• **new Entities**(`options?`): [`Entities`](Entities.md)
 
-Creates a new Group.
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `options` | `Partial`\<[`EntitiesOptions`](../modules.md#entitiesoptions)\> |
 
 #### Returns
 
 [`Entities`](Entities.md)
 
-#### Inherited from
+#### Overrides
 
 Group.constructor
 
@@ -60,6 +64,12 @@ Group.constructor
 ### map
 
 • **map**: `Map`\<`string`, [`Entity`](Entity.md)\<`any`\>\>
+
+___
+
+### options
+
+• **options**: [`EntitiesOptions`](../modules.md#entitiesoptions)
 
 ___
 
@@ -118,7 +128,14 @@ ___
 
 ### update
 
-▸ **update**(): `void`
+▸ **update**(`cameraPos?`, `renderDistance?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `cameraPos?` | `Vector3` |
+| `renderDistance?` | `number` |
 
 #### Returns
 

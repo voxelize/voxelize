@@ -205,6 +205,17 @@ Parameters to create a Voxelize character.
 
 ___
 
+### rideOffset
+
+• `Readonly` **rideOffset**: `Vector3`
+
+The render-only translation produced by hinging the ride attitude at
+the seat. It is baked into `position` while riding, so consumers that
+derive anchors from `position` (e.g. mount attachment) should subtract
+it to recover the raw tracked position.
+
+___
+
 ### rightArm
 
 • **rightArm**: [`CanvasBox`](CanvasBox.md)
@@ -347,9 +358,29 @@ ___
 
 ___
 
+### isCrouching
+
+• `get` **isCrouching**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
 ### isSitting
 
 • `get` **isSitting**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
+### isSwimming
+
+• `get` **isSwimming**(): `boolean`
 
 #### Returns
 
@@ -471,6 +502,49 @@ Set the character's arm holding object.
 
 ___
 
+### setCrouching
+
+▸ **setCrouching**(`crouching`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `crouching` | `boolean` |
+
+#### Returns
+
+`void`
+
+___
+
+### setRideAttitude
+
+▸ **setRideAttitude**(`attitude`, `pivotDrop`, `seatDisplacement?`): `void`
+
+Drive the character's whole-body lean from the mount it is riding, so
+the rider stays perpendicular to the mount's back instead of bolt
+upright. The rotation hinges at the seat, `pivotDrop` below the
+character's origin, keeping the rider planted while the torso pitches
+and rolls. The head keeps tracking the look direction in world space.
+
+Push this every frame while riding; the body eases back upright once
+pushes stop.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `attitude` | `Quaternion` | The world-space tilt of the mount (yaw-conjugated, i.e. without the mount's heading baked in). |
+| `pivotDrop` | `number` | Distance from the character's origin down to the seat. |
+| `seatDisplacement?` | `Vector3` | World-space offset from the physics-derived seat to the mount's rendered seat (rotation of the saddle about the mount's center, render-only bobbing, etc.), so the rider stays glued to the rendered mesh rather than floating at the raw seat point. |
+
+#### Returns
+
+`void`
+
+___
+
 ### setSitting
 
 ▸ **setSitting**(`sitting`): `void`
@@ -480,6 +554,22 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `sitting` | `boolean` |
+
+#### Returns
+
+`void`
+
+___
+
+### setSwimming
+
+▸ **setSwimming**(`swimming`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `swimming` | `boolean` |
 
 #### Returns
 

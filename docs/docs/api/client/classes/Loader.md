@@ -43,7 +43,7 @@ ___
 
 ### textures
 
-• **textures**: `Map`\<`string`, `Texture`\>
+• **textures**: `Map`\<`string`, `Texture`\<`unknown`\>\>
 
 A map of all textures loaded by Voxelize.
 
@@ -51,7 +51,7 @@ A map of all textures loaded by Voxelize.
 
 ### getGifTexture
 
-▸ **getGifTexture**(`source`): `Texture`[]
+▸ **getGifTexture**(`source`): `Texture`\<`unknown`\>[]
 
 Get a loaded gif texture with this function.
 
@@ -63,7 +63,7 @@ Get a loaded gif texture with this function.
 
 #### Returns
 
-`Texture`[]
+`Texture`\<`unknown`\>[]
 
 A list of textures for each frame of the gif.
 
@@ -71,7 +71,7 @@ ___
 
 ### getTexture
 
-▸ **getTexture**(`source`): `Texture`
+▸ **getTexture**(`source`): `Texture`\<`unknown`\>
 
 Get a loaded texture by its source.
 
@@ -83,7 +83,7 @@ Get a loaded texture by its source.
 
 #### Returns
 
-`Texture`
+`Texture`\<`unknown`\>
 
 A texture instance loaded from the source.
 
@@ -165,15 +165,15 @@ ___
 
 ### loadTexture
 
-▸ **loadTexture**(`source`, `onLoaded?`): `Promise`\<`Texture`\>
+▸ **loadTexture**(`source`, `onLoaded?`): `Promise`\<`Texture`\<`unknown`\>\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `source` | `string` |
-| `onLoaded?` | (`texture`: `Texture`) => `void` |
+| `onLoaded?` | (`texture`: `Texture`\<`unknown`\>) => `void` |
 
 #### Returns
 
-`Promise`\<`Texture`\>
+`Promise`\<`Texture`\<`unknown`\>\>

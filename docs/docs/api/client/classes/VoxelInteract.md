@@ -141,17 +141,64 @@ Get the voxel ID of the targeted voxel. `null` if no voxel is targeted.
 
 ## Methods
 
+### getAABBOverride
+
+▸ **getAABBOverride**(`voxel`): `AABB`[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+
+#### Returns
+
+`AABB`[]
+
+___
+
+### removeAABBOverride
+
+▸ **removeAABBOverride**(`voxel`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+
+#### Returns
+
+`void`
+
+___
+
+### setAABBOverride
+
+▸ **setAABBOverride**(`voxel`, `aabbs`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `aabbs` | `AABB`[] |
+
+#### Returns
+
+`void`
+
+___
+
 ### toggle
 
 ▸ **toggle**(`force?`): `void`
 
-Toggle on/off of this [VoxelInteract](VoxelInteract.md) instance.
-
 #### Parameters
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `force` | `any` | `null` | Whether or not should it be a forceful toggle on/off. Defaults to `null`. |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `force` | `any` | `null` |
 
 #### Returns
 

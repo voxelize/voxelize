@@ -1,41 +1,30 @@
-# Website
+# Voxelize Docs
 
-This website is built using [Docusaurus 2](https://docusaurus.io/), a modern static website generator.
+The documentation site for Voxelize, built with [Docusaurus](https://docusaurus.io/).
 
-### Installation
+## Local Development
 
-```
-$ yarn
-```
-
-### Local Development
-
-```
-$ yarn start
+```bash
+pnpm install
+pnpm start
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+Serves on port 3040 with TypeDoc watch enabled.
 
-### Build
+## Build
 
-```
-$ yarn build
-```
-
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
-
-### Deployment
-
-Using SSH:
-
-```
-$ USE_SSH=true yarn deploy
+```bash
+pnpm build
 ```
 
-Not using SSH:
+Runs TypeDoc generation, then builds static output into `build/`. Serve it with `pnpm serve`.
 
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
+## Content
 
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+| Path              | Contents                                                         |
+| ----------------- | ---------------------------------------------------------------- |
+| `docs/tutorials/` | Step-by-step guides                                              |
+| `docs/wiki/`      | Concept and pattern explanations                                 |
+| `docs/api/`       | Generated from TypeDoc — edit the JSDoc in `packages/`, not here |
+
+See `AGENT.md` for writing style and structure conventions.

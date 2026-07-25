@@ -23,6 +23,12 @@ ___
 
 ___
 
+### OUT\_OF\_RANGE
+
+• **OUT\_OF\_RANGE** = ``3``
+
+___
+
 ### UPDATE
 
 • **UPDATE** = ``2``

@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
-use log::{info, warn};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::sync::Arc;
@@ -21,6 +21,7 @@ use crate::{
 
 use super::{
     access::VoxelAccess,
+    background_chunk_saver::ChunkSaveData,
     chunk::Chunk,
     space::{SpaceBuilder, SpaceOptions},
 };
@@ -41,6 +42,14 @@ impl PartialOrd for ActiveVoxel {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
+}
+
+/// A chunk waiting to be handed to the background saver, and how many ticks it
+/// has spent unreadable so far. Entries only ever leave this queue by being
+/// saved or by exhausting `max_save_retries`, which is reported as an error.
+pub(crate) struct PendingChunkSave {
+    coords: Vec2<i32>,
+    attempts: usize,
 }
 
 /// Prototype for chunk's internal data used to send to client
@@ -68,7 +77,7 @@ pub struct Chunks {
     pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
 
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
-    pub(crate) to_save: VecDeque<Vec2<i32>>,
+    pub(crate) to_save: VecDeque<PendingChunkSave>,
 
     pub(crate) active_voxel_heap: BinaryHeap<Reverse<ActiveVoxel>>,
     pub(crate) active_voxel_set: HashMap<Vec3<i32>, u64>,
@@ -284,6 +293,10 @@ impl Chunks {
         }
 
         chunk.status = ChunkStatus::Meshing;
+        // This chunk *is* what the file holds, so it owes disk nothing. That
+        // covers the recalculated height map above: it is derived from the
+        // persisted voxels, not an edit of them.
+        chunk.is_save_dirty = false;
 
         Some(chunk)
     }
@@ -348,17 +361,63 @@ impl Chunks {
         true
     }
 
-    pub fn prepare_save_data(
-        &self,
-        coords: &Vec2<i32>,
-    ) -> Option<(String, String, Vec<u32>, Vec<u32>)> {
+    pub fn prepare_save_data(&self, coords: &Vec2<i32>) -> Option<ChunkSaveData> {
         let chunk = self.get(coords)?;
-        Some((
-            chunk.name.clone(),
-            chunk.id.clone(),
-            chunk.voxels.data.clone(),
-            chunk.height_map.data.clone(),
-        ))
+        Some(ChunkSaveData {
+            coords: coords.to_owned(),
+            chunk_name: chunk.name.clone(),
+            chunk_id: chunk.id.clone(),
+            voxels: chunk.voxels.data.clone(),
+            height_map: chunk.height_map.data.clone(),
+        })
+    }
+
+    /// Take up to `max_saves` chunks off the save queue, prepared for the
+    /// background saver.
+    ///
+    /// A queued chunk that cannot be read yet — it went back through the
+    /// pipeline after being queued — is put back rather than skipped over, so a
+    /// coordinate can only leave this queue two ways: prepared here, or dropped
+    /// after `max_retries` ticks of failure with an error naming the chunk.
+    /// Neither path is silent, and a stuck entry at the head cannot hold up the
+    /// chunks behind it.
+    pub fn take_pending_saves(
+        &mut self,
+        max_saves: usize,
+        max_retries: usize,
+    ) -> Vec<ChunkSaveData> {
+        let mut prepared = Vec::new();
+        let mut deferred = Vec::new();
+        let mut unvisited = self.to_save.len();
+
+        while prepared.len() < max_saves && unvisited > 0 {
+            unvisited -= 1;
+
+            let Some(mut pending) = self.to_save.pop_front() else {
+                break;
+            };
+
+            if let Some(data) = self.prepare_save_data(&pending.coords) {
+                prepared.push(data);
+                continue;
+            }
+
+            pending.attempts += 1;
+
+            if pending.attempts >= max_retries {
+                error!(
+                    "Dropping the queued save for chunk {:?}: unreadable for {} ticks, so it never reached disk. Any edits it holds are lost on restart.",
+                    pending.coords, pending.attempts
+                );
+                continue;
+            }
+
+            deferred.push(pending);
+        }
+
+        self.to_save.extend(deferred);
+
+        prepared
     }
 
     /// Update a chunk, removing the old chunk instance and updating with a new one.
@@ -541,6 +600,17 @@ impl Chunks {
         self.cache.clear();
     }
 
+    /// Whether the chunk has persisted data — voxels or height map — that has
+    /// been written since it was loaded or generated.
+    ///
+    /// A mutable borrow is not the same question: light flooding borrows every
+    /// chunk a cascade reaches, and light is never written to disk. Saving on
+    /// the borrow instead writes a file for a chunk nobody changed, and a file
+    /// that exists short-circuits worldgen for that chunk from then on.
+    pub fn is_chunk_save_dirty(&self, coords: &Vec2<i32>) -> bool {
+        self.raw(coords).is_some_and(|chunk| chunk.is_save_dirty)
+    }
+
     /// Update a voxel in the chunk map. This includes recalculating the light and height maps
     /// and sending the chunk to the interested clients. This process is not instant, and will
     /// be done in the background.
@@ -615,14 +685,26 @@ impl Chunks {
         self.active_voxel_set.get(voxel).copied()
     }
 
-    /// Add a chunk to be saved.
+    /// Add a chunk to be saved. A world that does not save discards the request
+    /// here, so the queue cannot accumulate work nothing will ever drain.
     pub fn add_chunk_to_save(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if !self.to_save.contains(coords) {
-            if prioritized {
-                self.to_save.push_front(coords.to_owned());
-            } else {
-                self.to_save.push_back(coords.to_owned());
-            }
+        if !self.config.saving {
+            return;
+        }
+
+        if self.to_save.iter().any(|pending| &pending.coords == coords) {
+            return;
+        }
+
+        let pending = PendingChunkSave {
+            coords: coords.to_owned(),
+            attempts: 0,
+        };
+
+        if prioritized {
+            self.to_save.push_front(pending);
+        } else {
+            self.to_save.push_back(pending);
         }
     }
 
@@ -759,6 +841,141 @@ impl VoxelAccess for Chunks {
     }
 }
 
+
+#[cfg(test)]
+mod pending_save_queue_tests {
+    use super::*;
+
+    fn saving_chunks(label: &str) -> Chunks {
+        let dir = std::env::temp_dir().join(format!(
+            "voxelize-save-queue-{}-{}-{:?}",
+            label,
+            std::process::id(),
+            std::thread::current().id()
+        ));
+
+        Chunks::new(
+            &WorldConfig::new()
+                .saving(true)
+                .save_dir(dir.to_str().expect("utf-8 temp path"))
+                .build(),
+        )
+    }
+
+    fn put_chunk(chunks: &mut Chunks, coords: &Vec2<i32>, status: ChunkStatus) {
+        let mut chunk = Chunk::new(
+            "pending-save-test",
+            coords.0,
+            coords.1,
+            &ChunkOptions {
+                max_height: chunks.config.max_height,
+                sub_chunks: chunks.config.sub_chunks,
+                size: chunks.config.chunk_size,
+            },
+        );
+        chunk.status = status;
+        chunks.renew(chunk, false);
+    }
+
+    #[test]
+    fn a_save_queued_before_the_chunk_is_ready_is_kept_and_retried() {
+        let mut chunks = saving_chunks("retry");
+        let coords = Vec2(3, 7);
+        let max_retries = 4;
+
+        put_chunk(&mut chunks, &coords, ChunkStatus::Meshing);
+        chunks.add_chunk_to_save(&coords, false);
+
+        assert!(chunks.take_pending_saves(8, max_retries).is_empty());
+        assert_eq!(
+            chunks.to_save.len(),
+            1,
+            "a chunk that is not readable yet must stay queued, not be discarded"
+        );
+
+        put_chunk(&mut chunks, &coords, ChunkStatus::Ready);
+
+        let prepared = chunks.take_pending_saves(8, max_retries);
+        assert_eq!(prepared.len(), 1);
+        assert_eq!(prepared[0].coords, coords);
+        assert!(chunks.to_save.is_empty());
+    }
+
+    #[test]
+    fn a_save_leaves_the_queue_only_once_the_retry_budget_is_spent() {
+        let mut chunks = saving_chunks("budget");
+        let coords = Vec2(-2, 5);
+        let max_retries = 3;
+
+        put_chunk(&mut chunks, &coords, ChunkStatus::Generating(0));
+        chunks.add_chunk_to_save(&coords, false);
+
+        for tick in 1..max_retries {
+            assert!(chunks.take_pending_saves(8, max_retries).is_empty());
+            assert_eq!(
+                chunks.to_save.len(),
+                1,
+                "the entry must survive tick {tick} of {max_retries}"
+            );
+        }
+
+        assert!(chunks.take_pending_saves(8, max_retries).is_empty());
+        assert!(
+            chunks.to_save.is_empty(),
+            "the entry is dropped once the budget is spent, and only then"
+        );
+    }
+
+    #[test]
+    fn an_unreadable_chunk_does_not_hold_up_the_chunks_behind_it() {
+        let mut chunks = saving_chunks("head-of-line");
+        let stuck = Vec2(0, 0);
+        let ready = Vec2(1, 0);
+
+        put_chunk(&mut chunks, &stuck, ChunkStatus::Meshing);
+        put_chunk(&mut chunks, &ready, ChunkStatus::Ready);
+        chunks.add_chunk_to_save(&stuck, false);
+        chunks.add_chunk_to_save(&ready, false);
+
+        let prepared = chunks.take_pending_saves(8, 8);
+
+        assert_eq!(prepared.len(), 1);
+        assert_eq!(prepared[0].coords, ready);
+        assert_eq!(
+            chunks.to_save.len(),
+            1,
+            "the unreadable chunk is still waiting its turn"
+        );
+    }
+
+    #[test]
+    fn no_more_than_the_per_tick_cap_is_prepared() {
+        let mut chunks = saving_chunks("cap");
+
+        for x in 0..5 {
+            let coords = Vec2(x, 0);
+            put_chunk(&mut chunks, &coords, ChunkStatus::Ready);
+            chunks.add_chunk_to_save(&coords, false);
+        }
+
+        assert_eq!(chunks.take_pending_saves(2, 8).len(), 2);
+        assert_eq!(chunks.to_save.len(), 3);
+    }
+
+    #[test]
+    fn a_world_that_does_not_save_never_queues_chunks() {
+        let mut chunks = Chunks::new(&WorldConfig::new().build());
+        let coords = Vec2(4, 4);
+
+        put_chunk(&mut chunks, &coords, ChunkStatus::Ready);
+        chunks.add_chunk_to_save(&coords, true);
+
+        assert!(
+            chunks.to_save.is_empty(),
+            "a queue nothing drains must never be filled"
+        );
+    }
+}
 
 #[cfg(test)]
 mod active_voxel_upsert_tests {
