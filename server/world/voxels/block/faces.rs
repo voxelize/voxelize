@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::UV;
 
 use super::{
-    BlockRotation, CornerData, NX_ROTATION, NY_ROTATION, NZ_ROTATION, PX_ROTATION, PY_ROTATION,
-    PZ_ROTATION,
+    BlockRotation, CornerData,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

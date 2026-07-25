@@ -1,9 +1,7 @@
-use hashbrown::{HashMap, HashSet};
-use serde::{Deserialize, Serialize};
+use hashbrown::HashMap;
 
 use voxelize_core::{
-    BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockRuleLogic, CornerData,
-    LightColor, LightUtils, VoxelAccess, AABB, UV,
+    BlockFace, BlockRotation, BlockRule, BlockRuleLogic, LightUtils, VoxelAccess, AABB, UV,
 };
 
 use super::*;

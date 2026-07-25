@@ -75,7 +75,7 @@ pub fn apply_client_swim_pose_state(
 pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Entity) {
     let peer_update: PeerUpdate = match serde_json::from_str(metadata) {
         Ok(metadata) => metadata,
-        Err(e) => {
+        Err(_e) => {
             warn!("Could not parse peer update: {}", metadata);
             return;
         }

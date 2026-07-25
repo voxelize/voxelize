@@ -52,7 +52,7 @@ impl World {
     /// rewound queries and reads rewind depths through this; write access (to
     /// fold RTT samples or record custom poses) is via
     /// [`Self::write_resource::<LagComp>`].
-    pub fn lag_comp(&self) -> Option<Fetch<LagComp>> {
+    pub fn lag_comp(&self) -> Option<Fetch<'_, LagComp>> {
         if self.has_lag_comp() {
             Some(self.read_resource::<LagComp>())
         } else {

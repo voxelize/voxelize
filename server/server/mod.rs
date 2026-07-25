@@ -23,8 +23,7 @@ pub use messages::*;
 use std::time::{Duration, Instant};
 
 use actix::{
-    fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler,
-    Message as ActixMessage, MessageResult, ResponseActFuture,
+    fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context,
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
@@ -45,12 +44,10 @@ use crate::{
     perf,
     world::{
         check_protocol, ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry,
-        World, WorldConfig, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_MISMATCH_REASON,
+        World, PROTOCOL_MISMATCH_CLOSE_CODE,
         PROTOCOL_VERSION,
-    },
-    ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
-    GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
-    TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
+    }, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, Preload, Prepare, RtcSenders, SyncWorld, Tick,
+    TransportJoinRequest, TransportLeaveRequest,
 };
 
 pub use lifecycle::*;

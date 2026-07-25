@@ -104,7 +104,7 @@ impl World {
 
         let json: OnLoadRequest = match serde_json::from_str(&data.json) {
             Ok(json) => json,
-            Err(e) => {
+            Err(_e) => {
                 warn!("`on_load` error. Could not read JSON string: {}", data.json);
                 return;
             }
@@ -147,7 +147,7 @@ impl World {
 
         let json: OnUnloadRequest = match serde_json::from_str(&data.json) {
             Ok(json) => json,
-            Err(e) => {
+            Err(_e) => {
                 warn!(
                     "`on_unload` error. Could not read JSON string: {}",
                     data.json

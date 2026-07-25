@@ -25,7 +25,7 @@ mod utils;
 mod voxels;
 
 use actix::{
-    Actor, ActorContext, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult,
+    Actor, ActorContext, AsyncContext, Handler, Message as ActixMessage, MessageResult,
     SyncContext,
 };
 use actix::{Addr, SyncArbiter};
@@ -41,11 +41,10 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
-use std::f64::consts::E;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, RwLock};
-use std::{env, sync::Arc};
+use std::sync::Arc;
 use std::{
     fs::{self, File},
     time::{Duration, Instant},
@@ -611,7 +610,7 @@ impl World {
         world
     }
 
-    pub fn start(mut self) -> Addr<SyncWorld> {
+    pub fn start(self) -> Addr<SyncWorld> {
         // self.prepare();
         // self.preload();
 

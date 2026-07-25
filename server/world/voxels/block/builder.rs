@@ -1,15 +1,12 @@
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use crate::{
-    AABBBuilder, BlockFace, BlockFaces, BlockUtils, FluidConfig, LightColor, LightUtils, Registry,
-    Vec2, Vec3, VoxelAccess, VoxelUpdate, AABB, UV,
+    BlockFace, BlockFaces, FluidConfig, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB,
 };
 
 use super::super::fluids::create_fluid_active_fn;
 use super::rules::solid_below_support_fns;
-use super::{Block, BlockDynamicPattern, BlockRotation, SupportRequirement, YRotatableSegments};
+use super::{Block, BlockDynamicPattern, SupportRequirement, YRotatableSegments};
 
 #[derive(Default)]
 pub struct BlockBuilder {

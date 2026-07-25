@@ -1,4 +1,5 @@
 use super::*;
+use crate::world::{WorldConfig, PROTOCOL_MISMATCH_REASON};
 use crate::{decode_message, GetWorldStats};
 
 const WORLD: &str = "lifeworld";

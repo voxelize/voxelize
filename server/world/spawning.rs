@@ -2,7 +2,7 @@ use super::*;
 
 impl World {
     /// Create a basic entity ready to be added more.
-    pub fn create_base_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+    pub fn create_base_entity(&mut self, id: &str, _etype: &str) -> EntityBuilder<'_> {
         self.ecs_mut()
             .create_entity()
             .with(IDComp::new(id))
@@ -11,7 +11,7 @@ impl World {
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder<'_> {
         self.create_base_entity(id, etype)
             .with(ETypeComp::new(etype, false))
             .with(MetadataComp::new())
@@ -19,7 +19,7 @@ impl World {
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_block_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+    pub fn create_block_entity(&mut self, id: &str, etype: &str) -> EntityBuilder<'_> {
         self.create_base_entity(id, etype)
             .with(ETypeComp::new(etype, true))
     }

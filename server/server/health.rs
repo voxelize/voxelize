@@ -1,37 +1,9 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use actix::{
-    fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler,
-    Message as ActixMessage, MessageResult, ResponseActFuture,
-};
-use fern::colors::{Color, ColoredLevelConfig};
-use futures_util::future::join_all;
-use hashbrown::{HashMap, HashSet};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use log::{info, warn};
-use nanoid::nanoid;
-use serde::{Deserialize, Serialize};
+use actix::ActorFutureExt;
 use serde_json::{json, Value};
-use std::sync::{
-    atomic::{AtomicU16, AtomicUsize, Ordering},
-    Arc,
-};
-use tokio::sync::mpsc;
 
-use crate::{
-    errors::AddWorldError,
-    perf,
-    world::{
-        check_protocol, ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry,
-        World, WorldConfig, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_MISMATCH_REASON,
-        PROTOCOL_VERSION,
-    },
-    ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
-    GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
-    TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
-};
 
-use super::lifecycle::{PoolConfig, PooledSlot, WorldEntry, WorldLifecycleMetrics};
 
 /// Default max age of the last completed world tick before `/health` is unhealthy.
 pub const DEFAULT_TICK_STALL_THRESHOLD_MS: u64 = 5_000;

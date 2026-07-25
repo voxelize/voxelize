@@ -12,17 +12,10 @@ pub use types::*;
 
 use faces::*;
 use fluid::*;
-use greedy::*;
 use lighting::*;
 use space::*;
 
-use hashbrown::{HashMap, HashSet};
-use serde::{Deserialize, Serialize};
 
-use voxelize_core::{
-    BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockRuleLogic, CornerData,
-    LightColor, LightUtils, VoxelAccess, AABB, UV,
-};
 
 pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
     let center_chunk = input.chunks.get(4).and_then(|c| c.as_ref());

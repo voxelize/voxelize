@@ -1,4 +1,5 @@
 use super::*;
+use crate::world::WorldConfig;
 use crate::FlatlandStage;
 
 #[test]
