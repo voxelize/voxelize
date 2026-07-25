@@ -168,11 +168,7 @@ export function floodLight(
   const blockCache = new Map<string, Block | null>();
   const rotationCache = new Map<string, BlockRotation>();
 
-  const getCachedBlock = (
-    vx: number,
-    vy: number,
-    vz: number,
-  ): Block | null => {
+  const getCachedBlock = (vx: number, vy: number, vz: number): Block | null => {
     const key = `${vx},${vy},${vz}`;
     let block = blockCache.get(key);
     if (block === undefined) {

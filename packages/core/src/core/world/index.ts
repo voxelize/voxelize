@@ -29,13 +29,11 @@ import {
   Object3D,
   SRGBColorSpace,
   Scene,
-  ShaderLib,
   ShaderMaterial,
   Sphere,
   Texture,
   MathUtils as ThreeMathUtils,
   Uniform,
-  UniformsUtils,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -131,7 +129,6 @@ import {
 import { Chunk } from "./chunk";
 import {
   CustomChunkShaderMaterial,
-  isSharedOpaqueMaterialBlock,
   loadChunkMaterials,
   makeChunkMaterialKey,
   makeChunkShaderMaterial,
@@ -141,7 +138,7 @@ import {
   ChunkRequestCandidate,
   compareChunkRequestPriority,
 } from "./chunk-requests";
-import { Clouds, CloudsOptions } from "./clouds";
+import { Clouds } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
 import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
 import { ItemDef, ItemRegistry } from "./items";
@@ -163,24 +160,17 @@ import {
 } from "./lighting";
 import type { BoundingBox } from "./lighting";
 import { Loader } from "./loader";
-import {
-  MemoryPressureMonitor,
-  MemoryPressureOptions,
-  MemoryPressureStatus,
-} from "./memory-pressure";
+import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
-import {
-  SHADER_LIGHTING_CHUNK_SHADERS,
-  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-} from "./shaders";
-import { Sky, SkyOptions } from "./sky";
+import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
+import { Sky } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
 import { WaterOptics } from "./water-optics";
-import { WorldOptions, defaultWorldClientOptions } from "./world-options";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
+import { WorldOptions, defaultWorldClientOptions } from "./world-options";
 
 export * from "./block";
 export * from "./chunk";
@@ -293,7 +283,6 @@ export type VoxelDelta = {
   timestamp: number;
   sequenceId: number;
 };
-
 
 /**
  * A snapshot of every queue and in-flight set in the voxel update ->
@@ -2231,10 +2220,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
   }
 
-  private isSharedOpaqueMaterialBlock(block: Block) {
-    return block.isOpaque && !block.isFluid && !block.isSeeThrough;
-  }
-
   getTextureInfo(): {
     sharedAtlas: { canvas: HTMLCanvasElement; countPerSide: number } | null;
     textures: TextureInfo[];
@@ -2923,7 +2908,12 @@ export class World<T = any> extends Scene implements NetIntercept {
    * itself lives in {@link "./lighting"} and senses the world through the
    * {@link VoxelLightVolume} slice this class satisfies.
    */
-  floodLight(queue: LightNode[], color: LightColor, min?: Coords3, max?: Coords3) {
+  floodLight(
+    queue: LightNode[],
+    color: LightColor,
+    min?: Coords3,
+    max?: Coords3,
+  ) {
     floodLight(this, queue, color, min, max);
   }
 
@@ -5252,12 +5242,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (!modifiedYRange) continue;
 
       for (const [color, result] of colorMap) {
-        mergeSingleColorResult(
-          chunk,
-          result.lights,
-          color,
-          result.boundingBox,
-        );
+        mergeSingleColorResult(chunk, result.lights, color, result.boundingBox);
       }
 
       chunk.isDirty = true;
@@ -5422,228 +5407,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
     });
   };
-
-  /**
-   * Make a chunk shader material with the current atlas.
-   */
-  private makeShaderMaterial = (
-    fragmentShader?: string,
-    vertexShader?: string,
-    uniforms: Record<string, Uniform> = {},
-  ) => {
-    const actualFragmentShader =
-      fragmentShader ?? SHADER_LIGHTING_CHUNK_SHADERS.fragment;
-    const actualVertexShader =
-      vertexShader ?? SHADER_LIGHTING_CHUNK_SHADERS.vertex;
-
-    const chunksUniforms = {
-      ...this.chunkRenderer.uniforms,
-      ...this.options.chunkUniformsOverwrite,
-    };
-
-    const shaderLightingUniforms = {
-      uSunDirection: this.chunkRenderer.shaderLightingUniforms.sunDirection,
-      uSunColor: this.chunkRenderer.shaderLightingUniforms.sunColor,
-      uAmbientColor: this.chunkRenderer.shaderLightingUniforms.ambientColor,
-      uShadowMap0: this.chunkRenderer.shaderLightingUniforms.shadowMap0,
-      uShadowMap1: this.chunkRenderer.shaderLightingUniforms.shadowMap1,
-      uShadowMap2: this.chunkRenderer.shaderLightingUniforms.shadowMap2,
-      uShadowMatrix0: this.chunkRenderer.shaderLightingUniforms.shadowMatrix0,
-      uShadowMatrix1: this.chunkRenderer.shaderLightingUniforms.shadowMatrix1,
-      uShadowMatrix2: this.chunkRenderer.shaderLightingUniforms.shadowMatrix2,
-      uCascadeSplit0: this.chunkRenderer.shaderLightingUniforms.cascadeSplit0,
-      uCascadeSplit1: this.chunkRenderer.shaderLightingUniforms.cascadeSplit1,
-      uCascadeSplit2: this.chunkRenderer.shaderLightingUniforms.cascadeSplit2,
-      uShadowBias: this.chunkRenderer.shaderLightingUniforms.shadowBias,
-      uShadowNormalBias:
-        this.chunkRenderer.shaderLightingUniforms.shadowNormalBias,
-      uShadowSlopeBiasScale:
-        this.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasScale,
-      uShadowSlopeBiasMin:
-        this.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasMin,
-      uShadowTopFaceBiasScale:
-        this.chunkRenderer.shaderLightingUniforms.shadowTopFaceBiasScale,
-      uShadowSideFaceBiasScale:
-        this.chunkRenderer.shaderLightingUniforms.shadowSideFaceBiasScale,
-      uShadowStrength: this.chunkRenderer.shaderLightingUniforms.shadowStrength,
-      uWaterTint: this.chunkRenderer.shaderLightingUniforms.waterTint,
-      uWaterAbsorption:
-        this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
-      uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
-      uWaterStreakStrength:
-        this.chunkRenderer.shaderLightingUniforms.waterStreakStrength,
-      uWaterFresnelStrength:
-        this.chunkRenderer.shaderLightingUniforms.waterFresnelStrength,
-      uSkyTopColor: this.chunkRenderer.shaderLightingUniforms.skyTopColor,
-      uSkyMiddleColor: this.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
-      uShadowDebugMode:
-        this.chunkRenderer.shaderLightingUniforms.shadowDebugMode,
-    };
-
-    const material = new ShaderMaterial({
-      vertexColors: true,
-      fragmentShader: actualFragmentShader,
-      vertexShader: actualVertexShader,
-      uniforms: {
-        ...UniformsUtils.clone(ShaderLib.basic.uniforms),
-        uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
-        uSunlightIntensity: chunksUniforms.sunlightIntensity,
-        uAOTable: chunksUniforms.ao,
-        uFaceShades: chunksUniforms.faceShades,
-        uMinLightLevel: chunksUniforms.minLightLevel,
-        uBaseAmbient: chunksUniforms.baseAmbient,
-        uFogNear: chunksUniforms.fogNear,
-        uFogFar: chunksUniforms.fogFar,
-        uFogColor: chunksUniforms.fogColor,
-        uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
-        uFogHeightDensity: chunksUniforms.fogHeightDensity,
-        uSkyFogTopColor: chunksUniforms.skyFogTopColor,
-        uSkyFogMiddleColor: chunksUniforms.skyFogMiddleColor,
-        uSkyFogBottomColor: chunksUniforms.skyFogBottomColor,
-        uSkyFogOffset: chunksUniforms.skyFogOffset,
-        uSkyFogVoidOffset: chunksUniforms.skyFogVoidOffset,
-        uSkyFogExponent: chunksUniforms.skyFogExponent,
-        uSkyFogExponent2: chunksUniforms.skyFogExponent2,
-        uSkyFogDimension: chunksUniforms.skyFogDimension,
-        uSkyFogStrength: chunksUniforms.skyFogStrength,
-        uSceneColor: chunksUniforms.sceneColor,
-        uSceneTextureSize: chunksUniforms.sceneTextureSize,
-        uWaterRefractionReady: chunksUniforms.waterRefractionReady,
-        uWaterRefractionStrength: chunksUniforms.waterRefractionStrength,
-        uCameraSubmersion: chunksUniforms.cameraSubmersion,
-        uCameraWaterPlaneY: chunksUniforms.cameraWaterPlaneY,
-        uUnderwaterAmbient: chunksUniforms.underwaterAmbient,
-        uWindDirection: chunksUniforms.windDirection,
-        uWindOffset: chunksUniforms.windOffset,
-        uWindSpeed: chunksUniforms.windSpeed,
-        uTime: chunksUniforms.time,
-        uAtlasSize: chunksUniforms.atlasSize,
-        uShowGreedyDebug: chunksUniforms.showGreedyDebug,
-        uChunkReveal: { value: 1 },
-        ...this.lightCones.uniformBindings,
-        ...shaderLightingUniforms,
-        ...uniforms,
-      },
-    }) as CustomChunkShaderMaterial;
-
-    Object.defineProperty(material, "renderStage", {
-      get: function () {
-        return material.uniforms.renderStage.value;
-      },
-
-      set: function (stage) {
-        material.uniforms.renderStage.value = parseFloat(stage);
-      },
-    });
-
-    material.map = AtlasTexture.makeUnknownTexture(
-      this.options.textureUnitDimension,
-    );
-    material.uniforms.map = { value: material.map };
-
-    return material;
-  };
-
-  private async loadMaterials() {
-    const { textureUnitDimension } = this.options;
-
-    const perSide = (total: number) => {
-      let countPerSide = 1;
-      const sqrt = Math.ceil(Math.sqrt(total));
-      while (countPerSide < sqrt) {
-        countPerSide *= 2;
-      }
-
-      return countPerSide;
-    };
-
-    const make = (
-      transparent: boolean,
-      map: Texture,
-      isFluid: boolean,
-      lightAttenuation: number,
-      transparentStandalone: boolean,
-    ) => {
-      const mat = this.makeShaderMaterial(
-        isFluid ? SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment : undefined,
-      );
-
-      mat.side = transparent ? DoubleSide : FrontSide;
-      mat.transparent = transparent;
-      if (transparent) {
-        mat.depthWrite = !isFluid && transparentStandalone;
-        mat.alphaTest = 0.1;
-        mat.uniforms.alphaTest.value = 0.1;
-      }
-      mat.map = map;
-      mat.uniforms.map.value = map;
-      mat.userData.skipShadow =
-        isFluid || (transparent && lightAttenuation === 0);
-
-      return mat;
-    };
-
-    const blocks = Array.from(this.registry.blocksById.values());
-
-    const textureGroups = new Set<string>();
-    let ungroupedFaces = 0;
-    for (const block of blocks) {
-      for (const face of block.faces) {
-        if (face.independent || face.isolated) continue;
-        if (face.textureGroup) {
-          textureGroups.add(face.textureGroup);
-        } else {
-          ungroupedFaces++;
-        }
-      }
-    }
-    const totalSlots = textureGroups.size + ungroupedFaces;
-    const countPerSide = perSide(totalSlots);
-    const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
-    const sharedOpaqueMaterial = make(false, atlas, false, 1, false);
-
-    this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
-
-    blocks.forEach((block) => {
-      const mat = this.isSharedOpaqueMaterialBlock(block)
-        ? sharedOpaqueMaterial
-        : make(
-            block.isSeeThrough,
-            atlas,
-            block.isFluid,
-            block.lightAttenuation,
-            block.transparentStandalone,
-          );
-      const key = makeChunkMaterialKey(this, block.id);
-      this.chunkRenderer.materials.set(key, mat);
-
-      block.faces.forEach((face) => {
-        if (!face.independent || face.isolated) return;
-
-        const independentMat = make(
-          block.isSeeThrough,
-          AtlasTexture.makeUnknownTexture(textureUnitDimension),
-          block.isFluid,
-          block.lightAttenuation,
-          block.transparentStandalone,
-        );
-        const independentKey = this.makeChunkMaterialKey(block.id, face.name);
-        this.chunkRenderer.materials.set(independentKey, independentMat);
-      });
-    });
-  }
-
-  private makeChunkMaterialKey(id: number, faceName?: string, voxel?: Coords3) {
-    const block = this.getBlockById(id);
-
-    return voxel
-      ? `${id}-${faceName}-${voxel.join("-")}`
-      : faceName
-        ? `${id}-${faceName}`
-        : this.isSharedOpaqueMaterialBlock(block)
-          ? SHARED_OPAQUE_MATERIAL_KEY
-          : `${id}`;
-  }
 
   private trackChunkAt(vx: number, vy: number, vz: number) {
     if (!this.isTrackingChunks) return;
