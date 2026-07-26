@@ -35,6 +35,7 @@ import {
   clearAgentPidFile,
   reapStaleAgentBrowser,
   recordAgentBrowser,
+  spawnBrowserWatchdog,
 } from "./browser-lifecycle";
 import {
   CaptureViewport,
@@ -117,6 +118,7 @@ export class Agent {
   private chatLog: ChatMsgIn[] = [];
   private isClosing = false;
   private isBridgeReady = false;
+  private watchdogPidValue: number | undefined;
   private bridgeError: string | null = null;
   private unexpectedDisconnectReason: string | null = null;
   private disconnectListeners = new Set<(reason: string) => void>();
@@ -170,6 +172,13 @@ export class Agent {
       },
     });
     recordAgentBrowser(pidFile, browser.process()?.pid);
+    // Guards the SIGKILL/crash path: signal handlers and exit hooks below
+    // cover clean shutdowns, but only this outlives the daemon process itself.
+    const watchdogPid = spawnBrowserWatchdog({
+      daemonPid: process.pid,
+      browserPid: browser.process()?.pid,
+      port,
+    });
 
     const page = await browser.newPage();
 
@@ -182,6 +191,7 @@ export class Agent {
     }, port);
 
     const agent = new Agent(browser, page, Promise.resolve(), pidFile, world);
+    agent.watchdogPidValue = watchdogPid;
     browser.on("disconnected", () => agent.handleBrowserDisconnected());
     agent.attachPageLogging(page);
     await agent.installChatCapture();
@@ -411,6 +421,10 @@ export class Agent {
 
   browserPid(): number | undefined {
     return this.browser.process()?.pid ?? undefined;
+  }
+
+  watchdogPid(): number | undefined {
+    return this.watchdogPidValue;
   }
 
   killBrowserSync(): void {

@@ -1,8 +1,9 @@
-import Fastify, { FastifyInstance } from "fastify";
+import Fastify, { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { Agent } from "./agent";
 import type { AgentEventMap } from "./bridge";
+import { DEFAULT_IDLE_TTL_MS } from "./browser-lifecycle";
 import {
   CaptureViewportError,
   parseCaptureViewportQuery,
@@ -24,7 +25,32 @@ export type DaemonOptions = {
   agent: Agent;
   port: number;
   host?: string;
+  /** 0 disables idle expiry; see DEFAULT_IDLE_TTL_MS. */
+  idleTtlMs?: number;
 };
+
+export type DaemonStatus = {
+  pid: number;
+  port: number;
+  world: string;
+  browserPid: number | null;
+  watchdogPid: number | null;
+  startedAt: number;
+  lastActivityAt: number;
+  idleMs: number;
+  idleTtlMs: number;
+  inflightCount: number;
+};
+
+// Liveness probes must not count as activity, or anything that watches the
+// fleet (session list, PM2 health checks, humans curling healthz) would reset
+// every idle clock and no session could ever expire.
+const PASSIVE_ROUTES = new Set(["/healthz", "/status"]);
+
+// A busy claim (in-flight command) defers idle expiry, but only for so long:
+// if the in-flight counter ever leaked, an unbounded claim would immortalize
+// the daemon and recreate exactly the orphan problem the TTL exists to kill.
+const INFLIGHT_MAX_AGE_MS = 15 * 60_000;
 
 const vec3Schema = z.object({
   x: z.number(),
@@ -103,10 +129,19 @@ export class AgentDaemon {
   private eventCounter = 0;
   private server: FastifyInstance;
   private agent: Agent;
+  private readonly port: number;
+  private readonly idleTtlMs: number;
+  private readonly startedAt = Date.now();
+  private lastActivityAt = Date.now();
+  private inflightCount = 0;
+  private settledRequests = new WeakSet<FastifyRequest>();
 
   constructor(options: DaemonOptions) {
     this.agent = options.agent;
+    this.port = options.port;
+    this.idleTtlMs = options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
     this.server = Fastify({ logger: false });
+    this.registerActivityTracking();
     this.registerEventTaps();
     this.registerRoutes();
   }
@@ -117,6 +152,65 @@ export class AgentDaemon {
 
   async stop(): Promise<void> {
     await this.server.close();
+  }
+
+  noteActivity(): void {
+    this.lastActivityAt = Date.now();
+  }
+
+  idleMs(): number {
+    return Date.now() - this.lastActivityAt;
+  }
+
+  isBusy(): boolean {
+    return this.inflightCount > 0 && this.idleMs() < INFLIGHT_MAX_AGE_MS;
+  }
+
+  status(): DaemonStatus {
+    return {
+      pid: process.pid,
+      port: this.port,
+      world: this.agent.worldName,
+      browserPid: this.agent.browserPid() ?? null,
+      watchdogPid: this.agent.watchdogPid() ?? null,
+      startedAt: this.startedAt,
+      lastActivityAt: this.lastActivityAt,
+      idleMs: this.idleMs(),
+      idleTtlMs: this.idleTtlMs,
+      inflightCount: this.inflightCount,
+    };
+  }
+
+  private isActivityRequest(req: FastifyRequest): boolean {
+    const pathname = req.url.split("?")[0];
+    return !PASSIVE_ROUTES.has(pathname);
+  }
+
+  private settleRequest(req: FastifyRequest): void {
+    if (!this.isActivityRequest(req) || this.settledRequests.has(req)) {
+      return;
+    }
+    this.settledRequests.add(req);
+    this.inflightCount = Math.max(0, this.inflightCount - 1);
+    this.noteActivity();
+  }
+
+  private registerActivityTracking(): void {
+    this.server.addHook("onRequest", (req, _reply, done) => {
+      if (this.isActivityRequest(req)) {
+        this.inflightCount += 1;
+        this.noteActivity();
+      }
+      done();
+    });
+    this.server.addHook("onResponse", (req, _reply, done) => {
+      this.settleRequest(req);
+      done();
+    });
+    this.server.addHook("onRequestAbort", (req, done) => {
+      this.settleRequest(req);
+      done();
+    });
   }
 
   private registerEventTaps(): void {
@@ -162,6 +256,10 @@ export class AgentDaemon {
       }
       return { ok: health.isHealthy, ...health };
     });
+
+    // Lifecycle facts only, never the page: this must answer even when the
+    // browser is wedged or dead, so reap/session-list can read the fleet.
+    this.server.get("/status", async () => this.status());
 
     this.server.get("/me", async () => {
       const [position, facing] = await Promise.all([

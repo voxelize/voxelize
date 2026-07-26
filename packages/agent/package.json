@@ -25,6 +25,11 @@
       "require": "./dist/scenario.js",
       "import": "./dist/scenario.mjs",
       "types": "./dist/src/scenario.d.ts"
+    },
+    "./lifecycle": {
+      "require": "./dist/lifecycle.js",
+      "import": "./dist/lifecycle.mjs",
+      "types": "./dist/src/browser-lifecycle.d.ts"
     }
   },
   "bin": {

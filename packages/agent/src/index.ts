@@ -15,5 +15,12 @@ export type {
 export { evaluateAgentHealth } from "./health";
 export type { AgentHealth, AgentHealthInput, AgentWorldHealth } from "./health";
 export { AgentDaemon } from "./daemon";
-export type { DaemonEvent, DaemonOptions } from "./daemon";
+export type { DaemonEvent, DaemonOptions, DaemonStatus } from "./daemon";
+export {
+  DEFAULT_IDLE_TTL_MS,
+  IDLE_TTL_EXIT_CODE,
+  agentPidFile,
+  resolveIdleTtlMs,
+  watchdogLogFile,
+} from "./browser-lifecycle";
 export * from "./bridge";
