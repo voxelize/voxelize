@@ -182,9 +182,13 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       }
 
       if (this.fallbackCommand) {
+        // The fallback is terminal: a slash command that matched no trigger
+        // must not also be forwarded to the server as plain chat text, or it
+        // leaks into public chat while looking like it silently did nothing.
         this.fallbackCommand(
           chat.body.substring(this._commandSymbol.length).trim(),
         );
+        return;
       }
     }
 
