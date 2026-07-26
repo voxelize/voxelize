@@ -241,17 +241,28 @@ impl World {
             let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
             if dispatcher_guard.is_none() {
                 let build_timer = SystemTimer::new("dispatcher-build");
-                let dispatcher = (self.dispatcher)().build();
+                let dispatcher = (self.dispatcher)()
+                    .with_pool(super::shared_pools::dispatch_pool())
+                    .build();
                 *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
                 record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
             }
 
             let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
+            // Sequential on purpose. Stage-parallel dispatch injects every
+            // system of every world tick into a rayon pool as its own task
+            // (~60 systems x N worlds x 60Hz), and the workers spin-yield
+            // between those micro-batches faster than they can park, which
+            // burned several cores at idle. The systems themselves are
+            // microseconds each; the ones with real work (physics, metadata,
+            // chunk generation) parallelize internally on the global rayon
+            // pool, and worlds already run concurrently on their own actor
+            // threads.
             dispatcher_guard
                 .as_mut()
                 .unwrap()
                 .get_mut()
-                .dispatch(&self.ecs);
+                .dispatch_seq(&self.ecs);
             dispatch_timer.elapsed_ms()
         };
 

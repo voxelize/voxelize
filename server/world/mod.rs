@@ -17,6 +17,7 @@ mod physics;
 mod profiler;
 mod registry;
 mod replication;
+pub(crate) mod shared_pools;
 mod stats;
 pub mod system_profiler;
 mod systems;

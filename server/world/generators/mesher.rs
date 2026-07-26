@@ -2,7 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
-use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
+use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool};
 
 use crate::{
     Chunk, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry, Space, Vec2, Vec3,
@@ -17,7 +17,7 @@ pub struct Mesher {
     pub(crate) pending_remesh: HashSet<Vec2<i32>>,
     sender: Arc<Sender<(Chunk, MessageType)>>,
     receiver: Arc<Receiver<(Chunk, MessageType)>>,
-    pool: ThreadPool,
+    pool: Arc<ThreadPool>,
 }
 
 impl Mesher {
@@ -30,15 +30,7 @@ impl Mesher {
             pending_remesh: HashSet::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
-            pool: ThreadPoolBuilder::new()
-                .thread_name(|index| format!("chunk-meshing-{index}"))
-                .num_threads(
-                    std::thread::available_parallelism()
-                        .map(|p| p.get())
-                        .unwrap_or(4),
-                )
-                .build()
-                .unwrap(),
+            pool: crate::world::shared_pools::meshing_pool(),
         }
     }
 
