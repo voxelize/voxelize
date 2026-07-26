@@ -2,7 +2,8 @@ use hashbrown::HashMap;
 use lazy_static::lazy_static;
 use serde::Serialize;
 use specs::{DispatcherBuilder, ReadExpect, System, SystemData, World};
-use std::sync::{Arc, RwLock};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 const MAX_SAMPLES: usize = 100;
@@ -15,16 +16,23 @@ pub struct SystemSample {
 
 #[derive(Default)]
 pub struct SystemTimings {
-    samples: HashMap<String, Vec<SystemSample>>,
+    samples: HashMap<String, VecDeque<SystemSample>>,
 }
 
 impl SystemTimings {
     pub fn record(&mut self, name: &str, duration_ms: f64) {
-        let samples = self.samples.entry(name.to_string()).or_default();
-        if samples.len() >= MAX_SAMPLES {
-            samples.remove(0);
+        // Hot path: every system of every world lands here every tick, so a
+        // hit must not allocate. The double lookup on a miss is paid once
+        // per system name for the life of the process.
+        if !self.samples.contains_key(name) {
+            self.samples
+                .insert(name.to_string(), VecDeque::with_capacity(MAX_SAMPLES));
         }
-        samples.push(SystemSample {
+        let samples = self.samples.get_mut(name).unwrap();
+        if samples.len() >= MAX_SAMPLES {
+            samples.pop_front();
+        }
+        samples.push_back(SystemSample {
             duration_ms,
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -67,18 +75,33 @@ pub struct SystemStats {
     pub samples: usize,
 }
 
-type WorldTimingsMap = HashMap<String, SystemTimings>;
+type WorldTimingsMap = HashMap<String, Arc<Mutex<SystemTimings>>>;
 
 lazy_static! {
     pub static ref WORLD_TIMINGS: Arc<RwLock<WorldTimingsMap>> =
         Arc::new(RwLock::new(HashMap::new()));
 }
 
-pub fn record_timing(world_name: &str, system_name: &str, duration_ms: f64) {
-    if let Ok(mut world_timings) = WORLD_TIMINGS.write() {
-        let timings = world_timings.entry(world_name.to_string()).or_default();
-        timings.record(system_name, duration_ms);
+fn world_timings(world_name: &str) -> Arc<Mutex<SystemTimings>> {
+    if let Some(timings) = WORLD_TIMINGS
+        .read()
+        .ok()
+        .and_then(|map| map.get(world_name).cloned())
+    {
+        return timings;
     }
+    let mut map = WORLD_TIMINGS.write().unwrap_or_else(|e| e.into_inner());
+    map.entry(world_name.to_string()).or_default().clone()
+}
+
+pub fn record_timing(world_name: &str, system_name: &str, duration_ms: f64) {
+    // One lock per world, found through a read lock that all worlds share
+    // without contention. The old single write lock serialized every system
+    // of every world tick (tens of thousands of acquisitions a second) and
+    // the contended handoffs burned cores at idle.
+    let timings = world_timings(world_name);
+    let mut timings = timings.lock().unwrap_or_else(|e| e.into_inner());
+    timings.record(system_name, duration_ms);
 }
 
 #[derive(Clone)]
@@ -146,11 +169,9 @@ impl SystemTimer {
 pub fn get_timing_summary_for_world(world_name: &str) -> HashMap<String, SystemStats> {
     WORLD_TIMINGS
         .read()
-        .map(|wt| {
-            wt.get(world_name)
-                .map(|t| t.get_summary())
-                .unwrap_or_default()
-        })
+        .ok()
+        .and_then(|wt| wt.get(world_name).cloned())
+        .map(|t| t.lock().unwrap_or_else(|e| e.into_inner()).get_summary())
         .unwrap_or_default()
 }
 
@@ -162,10 +183,12 @@ pub fn get_all_world_names() -> Vec<String> {
 }
 
 pub fn clear_timing_data_for_world(world_name: &str) {
-    if let Ok(mut world_timings) = WORLD_TIMINGS.write() {
-        if let Some(timings) = world_timings.get_mut(world_name) {
-            timings.clear();
-        }
+    let timings = WORLD_TIMINGS
+        .read()
+        .ok()
+        .and_then(|wt| wt.get(world_name).cloned());
+    if let Some(timings) = timings {
+        timings.lock().unwrap_or_else(|e| e.into_inner()).clear();
     }
 }
 
