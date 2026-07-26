@@ -122,7 +122,16 @@ async function main(): Promise<void> {
   }
 
   console.log("[voxelize-agent] browser launched, awaiting ready...");
-  await agent.ready();
+  try {
+    await agent.ready();
+  } catch (error) {
+    // A shutdown that lands mid-boot tears the page down under this await,
+    // rejecting it with a target-closed error. The shutdown path owns the
+    // exit code; surfacing that rejection here would turn every clean stop
+    // of a booting daemon into a phantom exit 1.
+    if (isShuttingDown) return;
+    throw error;
+  }
   // Finishing the world join counts as activity: the idle clock measures
   // silence after the session became usable, not time spent booting.
   daemon.noteActivity();
