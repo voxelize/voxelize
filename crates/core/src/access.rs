@@ -5,6 +5,10 @@ pub trait VoxelAccess {
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32;
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation;
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32;
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool;
+    /// The level of fluid standing in this voxel, from whichever field owns
+    /// it: a waterlogged block's own level field, or a fluid block's `stage`.
+    fn get_voxel_fluid_level(&self, vx: i32, vy: i32, vz: i32) -> u32;
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32;
     fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: LightColor) -> u32;
     fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32);

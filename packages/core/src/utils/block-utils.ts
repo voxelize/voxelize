@@ -11,6 +11,10 @@ import { LightColor } from "./light-utils";
 const ROTATION_MASK = 0xfff0ffff;
 const Y_ROTATION_MASK = 0xff0fffff;
 const STAGE_MASK = 0xf0ffffff;
+const WATERLOGGED_BIT = 1 << 28;
+const WATERLOGGED_MASK = ~WATERLOGGED_BIT;
+const WATERLOG_LEVEL_SHIFT = 29;
+const WATERLOG_LEVEL_MASK = 0x7 << WATERLOG_LEVEL_SHIFT;
 
 /**
  * A utility class for extracting and inserting voxel data from and into numbers.
@@ -19,7 +23,8 @@ const STAGE_MASK = 0xf0ffffff;
  * - Voxel type: `0x0000ffff`
  * - Rotation: `0x000f0000`
  * - Y-rotation: `0x00f00000`
- * - Stage: `0xff000000`
+ * - Stage: `0x0f000000`
+ * - Waterlogged: `0x10000000`
  *
  * TODO-DOCS
  * For more information about voxel data, see [here](/)
@@ -100,11 +105,82 @@ export class BlockUtils {
     return (voxel & STAGE_MASK) | (stage << 24);
   };
 
-  static insertAll = (id: number, rotation?: BlockRotation, stage?: number) => {
+  /**
+   * Whether this voxel holds the world's waterlogging fluid alongside its
+   * block. Mirrors `BlockUtils::extract_waterlogged` on the server.
+   *
+   * @param voxel The voxel value to extract from.
+   */
+  static extractWaterlogged = (voxel: number) => {
+    return (voxel & WATERLOGGED_BIT) !== 0;
+  };
+
+  /**
+   * Insert the waterlogged flag into a voxel value.
+   *
+   * @param voxel The voxel value to insert the flag into.
+   * @param isWaterlogged Whether the voxel holds the waterlogging fluid.
+   */
+  static insertWaterlogged = (voxel: number, isWaterlogged: boolean) => {
+    return isWaterlogged ? voxel | WATERLOGGED_BIT : voxel & WATERLOGGED_MASK;
+  };
+
+  /**
+   * The level of fluid a waterlogged voxel holds, in the same 0-7 range as a
+   * fluid block's stage.
+   *
+   * @param voxel The voxel value to extract from.
+   */
+  static extractWaterlogLevel = (voxel: number) => {
+    return (voxel >>> WATERLOG_LEVEL_SHIFT) & 0x7;
+  };
+
+  /**
+   * Insert the waterlogging fluid's level into a voxel value.
+   *
+   * The level occupies the top three bits, so the result is normalised back to
+   * unsigned: JavaScript's bitwise operators work on signed 32-bit integers
+   * and a level of 4 or more would otherwise come back negative.
+   *
+   * @param voxel The voxel value to insert the level into.
+   * @param level The fluid level, 0 through 7.
+   */
+  static insertWaterlogLevel = (voxel: number, level: number) => {
+    return (
+      ((voxel & ~WATERLOG_LEVEL_MASK) |
+        ((level & 0x7) << WATERLOG_LEVEL_SHIFT)) >>>
+      0
+    );
+  };
+
+  /**
+   * The level of fluid standing in this voxel, wherever it is stored: a
+   * waterlogged block keeps its water's level in its own field, a fluid block
+   * keeps its own in `stage`. Mirrors `BlockUtils::extract_fluid_level`.
+   *
+   * @param voxel The voxel value to extract from.
+   */
+  static extractFluidLevel = (voxel: number) => {
+    return BlockUtils.extractWaterlogged(voxel)
+      ? BlockUtils.extractWaterlogLevel(voxel)
+      : BlockUtils.extractStage(voxel);
+  };
+
+  static insertAll = (
+    id: number,
+    rotation?: BlockRotation,
+    stage?: number,
+    isWaterlogged?: boolean,
+    waterlogLevel?: number,
+  ) => {
     let value = 0;
     value = BlockUtils.insertID(value, id);
     if (rotation) value = BlockUtils.insertRotation(value, rotation);
     if (stage !== undefined) value = BlockUtils.insertStage(value, stage);
+    if (isWaterlogged !== undefined)
+      value = BlockUtils.insertWaterlogged(value, isWaterlogged);
+    if (waterlogLevel !== undefined)
+      value = BlockUtils.insertWaterlogLevel(value, waterlogLevel);
     return value;
   };
 

@@ -74,7 +74,7 @@ pub(super) fn should_render_face<S: VoxelAccess>(
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
 
-    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
+    if is_fluid && space.get_voxel_waterlogged(nvx, nvy, nvz) {
         return false;
     }
 
@@ -103,7 +103,7 @@ pub(super) fn should_render_face<S: VoxelAccess>(
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space)
+            && !has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space)
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
 }
 
@@ -287,7 +287,7 @@ pub(super) fn process_face<S: VoxelAccess>(
         None => return,
     };
 
-    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
+    if is_fluid && space.get_voxel_waterlogged(nvx, nvy, nvz) {
         return;
     }
 
@@ -320,12 +320,20 @@ pub(super) fn process_face<S: VoxelAccess>(
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space)
+            && !has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space)
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]));
 
     if !should_mesh {
         return;
     }
+
+    // A face is water-exposed when water sits on either side of it: the
+    // neighbour is fluid, this voxel is waterlogged, or the neighbour is. The
+    // last case is what keeps the wall behind a submerged block reading as
+    // underwater instead of as a dry patch cut out of the tank.
+    let is_water_exposed = n_block_type.is_fluid
+        || space.get_voxel_waterlogged(vx, vy, vz)
+        || space.get_voxel_waterlogged(nvx, nvy, nvz);
 
     let UV {
         start_u,
@@ -602,13 +610,13 @@ pub(super) fn process_face<S: VoxelAccess>(
         light = LightUtils::insert_blue_light(light, blue_light);
         light = LightUtils::insert_sunlight(light, sunlight);
         let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
+        let fluid_surface_above = is_fluid
+            && has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space);
         let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
             1 << 20
         } else {
             0
         };
-        let is_water_exposed = n_block_type.is_fluid || block.is_waterlogged;
         let water_exposed_bit = if is_water_exposed { 1 << 21 } else { 0 };
         lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit | water_exposed_bit);
 

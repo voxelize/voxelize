@@ -48,8 +48,17 @@ pub struct Block {
     #[serde(default = "default_ground_friction_multiplier")]
     pub ground_friction_multiplier: f32,
 
-    /// Is this block waterlogged (exists inside water)?
-    pub is_waterlogged: bool,
+    /// Can this block hold the world's waterlogging fluid alongside itself?
+    ///
+    /// This is a capability, not a state: whether a given voxel actually holds
+    /// water, and how much, lives in that voxel's own packed word. The fluid
+    /// keeps its level in a field of its own, so a block is free to be both
+    /// waterloggable and stateful.
+    pub is_waterloggable: bool,
+
+    /// Is this the fluid that waterlogging fills voxels with? Exactly one
+    /// block in a registry may claim this.
+    pub is_waterlogging_fluid: bool,
 
     /// Does the block emit light?
     pub is_light: bool,
@@ -359,7 +368,8 @@ impl Block {
             y_rotatable: self.y_rotatable,
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
-            is_waterlogged: self.is_waterlogged,
+            is_waterloggable: self.is_waterloggable,
+            is_waterlogging_fluid: self.is_waterlogging_fluid,
             is_opaque: self.is_opaque,
             is_see_through: self.is_see_through,
             is_transparent: self.is_transparent,

@@ -17,7 +17,10 @@ pub struct Block {
     pub y_rotatable: bool,
     pub is_empty: bool,
     pub is_fluid: bool,
-    pub is_waterlogged: bool,
+    #[serde(default)]
+    pub is_waterloggable: bool,
+    #[serde(default)]
+    pub is_waterlogging_fluid: bool,
     pub is_opaque: bool,
     pub is_see_through: bool,
     pub is_transparent: [bool; 6],
@@ -73,6 +76,8 @@ pub struct Registry {
     pub blocks_by_id: Vec<(u32, Block)>,
     #[serde(skip)]
     lookup_cache: Option<Vec<usize>>,
+    #[serde(skip)]
+    waterlogging_fluid_id: Option<u32>,
 }
 
 impl Registry {
@@ -80,6 +85,7 @@ impl Registry {
         Self {
             blocks_by_id,
             lookup_cache: None,
+            waterlogging_fluid_id: None,
         }
     }
 
@@ -96,6 +102,18 @@ impl Registry {
             block.compute_name_lower();
         }
         self.lookup_cache = Some(cache);
+        self.waterlogging_fluid_id = self
+            .blocks_by_id
+            .iter()
+            .find(|(_, block)| block.is_waterlogging_fluid)
+            .map(|(id, _)| *id);
+    }
+
+    /// The block waterlogged voxels are filled with, or `None` in a registry
+    /// that never declared one — in which case waterlogging meshes nothing.
+    pub fn waterlogging_fluid(&self) -> Option<(u32, &Block)> {
+        let id = self.waterlogging_fluid_id?;
+        self.get_block_by_id(id).map(|block| (id, block))
     }
 
     pub fn get_block_by_id(&self, id: u32) -> Option<&Block> {

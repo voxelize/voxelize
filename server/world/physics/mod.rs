@@ -479,6 +479,9 @@ impl Physics {
         let y1 = aabb.max_y.floor() as i32;
 
         let test_fluid = |vx: i32, vy: i32, vz: i32| -> bool {
+            if space.get_voxel_waterlogged(vx, vy, vz) {
+                return true;
+            }
             let id = space.get_voxel(vx, vy, vz);
             let block = registry.get_block_by_id(id);
             block.is_fluid
@@ -819,7 +822,10 @@ mod displace_body_tests {
 
         let moved = Physics::displace_body(&mut body, &Vec3(6.0, 0.0, 0.0), &chunk, &registry);
         let pos = body.get_position();
-        assert!(moved.0 > 1.0, "should move toward the wall, moved={moved:?}");
+        assert!(
+            moved.0 > 1.0,
+            "should move toward the wall, moved={moved:?}"
+        );
         assert!(
             moved.0 < 6.0 - 0.01,
             "must not complete full 6u teleport through wall, moved={moved:?}"

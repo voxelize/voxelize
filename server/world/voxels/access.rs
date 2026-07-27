@@ -1,4 +1,4 @@
-use crate::{BlockUtils, LightColor, LightUtils, Ndarray};
+use crate::{BlockUtils, LightColor, LightUtils, Ndarray, Registry};
 
 use super::block::BlockRotation;
 
@@ -49,6 +49,40 @@ pub trait VoxelAccess {
     fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) -> bool {
         let value = BlockUtils::insert_stage(self.get_raw_voxel(vx, vy, vz), stage);
         self.set_raw_voxel(vx, vy, vz, value)
+    }
+
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        BlockUtils::extract_waterlogged(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    /// Whether this voxel holds fluid — either because its block is a fluid,
+    /// or because it is a block waterlogged with one.
+    ///
+    /// Ask this rather than `registry.is_fluid(get_voxel(..))` whenever the
+    /// question is "is there water here": a submerged stair or plant is water
+    /// to swim through even though its block is not a fluid.
+    fn is_fluid_at(&self, registry: &Registry, vx: i32, vy: i32, vz: i32) -> bool {
+        self.get_voxel_waterlogged(vx, vy, vz) || registry.is_fluid(self.get_voxel(vx, vy, vz))
+    }
+
+    fn set_voxel_waterlogged(&mut self, vx: i32, vy: i32, vz: i32, is_waterlogged: bool) -> bool {
+        let value = BlockUtils::insert_waterlogged(self.get_raw_voxel(vx, vy, vz), is_waterlogged);
+        self.set_raw_voxel(vx, vy, vz, value)
+    }
+
+    fn get_voxel_waterlog_level(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        BlockUtils::extract_waterlog_level(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    fn set_voxel_waterlog_level(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        let value = BlockUtils::insert_waterlog_level(self.get_raw_voxel(vx, vy, vz), level);
+        self.set_raw_voxel(vx, vy, vz, value)
+    }
+
+    /// The level of fluid standing in this voxel, from whichever field owns
+    /// it. See [`BlockUtils::extract_fluid_level`].
+    fn get_voxel_fluid_level(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        BlockUtils::extract_fluid_level(self.get_raw_voxel(vx, vy, vz))
     }
 
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {

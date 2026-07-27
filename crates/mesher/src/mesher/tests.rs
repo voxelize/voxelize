@@ -5,6 +5,16 @@ use voxelize_core::{BlockFace, BlockRotation, CornerData, LightColor, LightUtils
 
 struct SingleVoxelSpace {
     voxel_id: u32,
+    is_waterlogged: bool,
+}
+
+impl SingleVoxelSpace {
+    fn dry(voxel_id: u32) -> Self {
+        Self {
+            voxel_id,
+            is_waterlogged: false,
+        }
+    }
 }
 
 impl VoxelAccess for SingleVoxelSpace {
@@ -25,6 +35,14 @@ impl VoxelAccess for SingleVoxelSpace {
     }
 
     fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        self.is_waterlogged && (vx, vy, vz) == (0, 0, 0)
+    }
+
+    fn get_voxel_fluid_level(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
         0
     }
 
@@ -58,7 +76,8 @@ fn full_block_diagonal_block() -> Block {
         y_rotatable: false,
         is_empty: false,
         is_fluid: false,
-        is_waterlogged: false,
+        is_waterloggable: false,
+        is_waterlogging_fluid: false,
         is_opaque: false,
         is_see_through: true,
         is_transparent: [true; 6],
@@ -99,6 +118,28 @@ fn full_block_diagonal_block() -> Block {
         }],
         dynamic_patterns: None,
     }
+}
+
+/// The six cardinal face slots a fluid block needs before the mesher will
+/// build stage-aware fluid geometry for it. `create_fluid_faces` supplies its
+/// own corners, so only the names have to be right.
+fn six_faces() -> Vec<BlockFace> {
+    [
+        ("px", [1, 0, 0]),
+        ("nx", [-1, 0, 0]),
+        ("py", [0, 1, 0]),
+        ("ny", [0, -1, 0]),
+        ("pz", [0, 0, 1]),
+        ("nz", [0, 0, -1]),
+    ]
+    .into_iter()
+    .map(|(name, dir)| BlockFace {
+        name: name.to_string(),
+        name_lower: name.to_string(),
+        dir,
+        ..Default::default()
+    })
+    .collect()
 }
 
 fn stairs_aabbs() -> Vec<AABB> {
@@ -158,7 +199,7 @@ fn neighbor_cache_clamps_offsets_outside_window() {
 fn greedy_meshing_emits_full_block_diagonal_faces() {
     let mut registry = Registry::new(vec![(1, full_block_diagonal_block())]);
     registry.build_cache();
-    let space = SingleVoxelSpace { voxel_id: 1 };
+    let space = SingleVoxelSpace::dry(1);
     let min = [0, 0, 0];
     let max = [1, 1, 1];
 
@@ -171,6 +212,67 @@ fn greedy_meshing_emits_full_block_diagonal_faces() {
     assert!(
         indices > 0,
         "Greedy meshing should emit diagonal plant geometry through the fallback path"
+    );
+}
+
+#[test]
+fn waterlogged_voxel_meshes_the_fluid_it_holds() {
+    const WATER_ID: u32 = 2;
+
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let plant = Block {
+        is_waterloggable: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        ..full_block_diagonal_block()
+    };
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+
+    let mut registry = Registry::new(vec![(0, air), (1, plant), (WATER_ID, water)]);
+    registry.build_cache();
+
+    let min = [0, 0, 0];
+    let max = [1, 1, 1];
+
+    let dry = mesh_space_greedy(&min, &max, &SingleVoxelSpace::dry(1), &registry);
+    assert!(
+        dry.iter().all(|geometry| geometry.voxel != WATER_ID),
+        "a dry plant must not draw any water",
+    );
+
+    let submerged = mesh_space_greedy(
+        &min,
+        &max,
+        &SingleVoxelSpace {
+            voxel_id: 1,
+            is_waterlogged: true,
+        },
+        &registry,
+    );
+    assert!(
+        submerged
+            .iter()
+            .any(|geometry| geometry.voxel == WATER_ID && !geometry.indices.is_empty()),
+        "a waterlogged plant must draw the water it holds, or the surrounding \
+         water leaves a block-shaped hole where it culled against this voxel",
+    );
+    assert!(
+        submerged
+            .iter()
+            .any(|geometry| geometry.voxel == 1 && !geometry.indices.is_empty()),
+        "a waterlogged plant must still draw itself",
     );
 }
 
@@ -326,6 +428,14 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
             0
         }
 
+        fn get_voxel_waterlogged(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+            false
+        }
+
+        fn get_voxel_fluid_level(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+            0
+        }
+
         fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
             self.get_all_lights(vx, vy, vz).0
         }
@@ -365,7 +475,8 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         y_rotatable: true,
         is_empty: false,
         is_fluid: false,
-        is_waterlogged: false,
+        is_waterloggable: false,
+        is_waterlogging_fluid: false,
         is_opaque: false,
         is_see_through: false,
         is_transparent: [true; 6],
@@ -385,7 +496,8 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         y_rotatable: false,
         is_empty: false,
         is_fluid: false,
-        is_waterlogged: false,
+        is_waterloggable: false,
+        is_waterlogging_fluid: false,
         is_opaque: true,
         is_see_through: false,
         is_transparent: [false; 6],
@@ -487,7 +599,8 @@ fn plain_block(id: u32, name: &str) -> Block {
         y_rotatable: false,
         is_empty: false,
         is_fluid: false,
-        is_waterlogged: false,
+        is_waterloggable: false,
+        is_waterlogging_fluid: false,
         is_opaque: false,
         is_see_through: false,
         is_transparent: [false; 6],
@@ -503,6 +616,7 @@ fn plain_block(id: u32, name: &str) -> Block {
 struct ColumnSpace {
     bottom_id: u32,
     top_id: u32,
+    is_bottom_waterlogged: bool,
 }
 
 impl VoxelAccess for ColumnSpace {
@@ -523,6 +637,14 @@ impl VoxelAccess for ColumnSpace {
     }
 
     fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        self.is_bottom_waterlogged && (vx, vy, vz) == (0, 0, 0)
+    }
+
+    fn get_voxel_fluid_level(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
         0
     }
 
@@ -601,7 +723,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     };
     let seagrass = Block {
         is_plant: true,
-        is_waterlogged: true,
+        is_waterloggable: true,
         is_see_through: true,
         is_transparent: [true; 6],
         aabbs: vec![],
@@ -630,6 +752,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     let submerged = ColumnSpace {
         bottom_id: 1,
         top_id: 2,
+        is_bottom_waterlogged: false,
     };
     let submerged_lights = mesh_single_face(&sand, &up_face, &registry, &submerged);
     assert!(!submerged_lights.is_empty());
@@ -643,6 +766,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     let dry = ColumnSpace {
         bottom_id: 1,
         top_id: 0,
+        is_bottom_waterlogged: false,
     };
     let dry_lights = mesh_single_face(&sand, &up_face, &registry, &dry);
     assert!(!dry_lights.is_empty());
@@ -656,6 +780,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     let planted = ColumnSpace {
         bottom_id: 3,
         top_id: 2,
+        is_bottom_waterlogged: true,
     };
     let plant_lights = mesh_single_face(&seagrass, &cross_face, &registry, &planted);
     assert!(!plant_lights.is_empty());
@@ -664,5 +789,19 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
             .iter()
             .all(|packed| packed & WATER_EXPOSED_BIT != 0),
         "waterlogged plant quads should carry the water-exposed bit",
+    );
+
+    let emerged = ColumnSpace {
+        bottom_id: 3,
+        top_id: 0,
+        is_bottom_waterlogged: false,
+    };
+    let emerged_lights = mesh_single_face(&seagrass, &cross_face, &registry, &emerged);
+    assert!(!emerged_lights.is_empty());
+    assert!(
+        emerged_lights
+            .iter()
+            .all(|packed| packed & WATER_EXPOSED_BIT == 0),
+        "the same plant out of water should not carry the water-exposed bit",
     );
 }

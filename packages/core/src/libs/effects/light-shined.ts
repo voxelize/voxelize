@@ -72,8 +72,9 @@ export class LightShined {
   private positionOverrides = new Map<Object3D, Vector3>();
 
   private isFluidAt = (vx: number, vy: number, vz: number): boolean => {
+    if (this.world.getVoxelWaterloggedAt(vx, vy, vz)) return true;
     const block = this.world.getBlockAt(vx, vy, vz);
-    return !!block && (block.isFluid || block.isWaterlogged);
+    return !!block && block.isFluid;
   };
 
   /**

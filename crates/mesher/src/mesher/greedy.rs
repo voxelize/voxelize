@@ -254,6 +254,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 ) -> Vec<GeometryProtocol> {
     let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
     let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
+    let mut processed_waterlogged: HashSet<(i32, i32, i32)> = HashSet::new();
+    let waterlogging_fluid = registry.waterlogging_fluid();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -348,6 +350,42 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
 
+                    // A waterlogged voxel draws its block *and* the fluid it
+                    // holds. Without the fluid pass the surrounding water,
+                    // which culls its faces against this voxel, would leave a
+                    // block-shaped hole in the tank.
+                    if let Some((fluid_id, fluid_block)) = waterlogging_fluid {
+                        if space.get_voxel_waterlogged(vx, vy, vz)
+                            && has_standard_six_faces(&fluid_block.faces)
+                            && processed_waterlogged.insert((vx, vy, vz))
+                        {
+                            for face in create_fluid_faces(
+                                vx,
+                                vy,
+                                vz,
+                                fluid_id,
+                                space,
+                                &fluid_block.faces,
+                                registry,
+                            ) {
+                                let uv_range = face.range.clone();
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    fluid_id,
+                                    BlockRotation::PY(0.0),
+                                    fluid_block.clone(),
+                                    face,
+                                    uv_range,
+                                    fluid_block.is_see_through,
+                                    true,
+                                    false,
+                                ));
+                            }
+                        }
+                    }
+
                     if block.is_opaque {
                         let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
                             let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
@@ -391,7 +429,12 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         let neighbors = NeighborCache::populate(vx, vy, vz, space);
                         let (aos, lights) =
                             compute_face_ao_and_light(dir, block, &neighbors, registry);
-                        let is_water_exposed = block.is_waterlogged
+                        let is_water_exposed = space.get_voxel_waterlogged(vx, vy, vz)
+                            || space.get_voxel_waterlogged(
+                                vx + dir[0],
+                                vy + dir[1],
+                                vz + dir[2],
+                            )
                             || registry
                                 .get_block_by_id(space.get_voxel(
                                     vx + dir[0],

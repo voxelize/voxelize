@@ -1,6 +1,6 @@
 
 use voxelize_core::{
-    BlockRotation,
+    BlockRotation, BlockUtils,
     LightColor, LightUtils, VoxelAccess,
 };
 
@@ -95,6 +95,16 @@ impl<'a> VoxelSpace<'a> {
     }
 
     #[inline]
+    pub(super) fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        BlockUtils::extract_waterlogged(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    #[inline]
+    pub(super) fn get_voxel_fluid_level(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        BlockUtils::extract_fluid_level(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    #[inline]
     pub(super) fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         let coords = self.map_voxel_to_chunk(vx, vz);
         if let Some(chunk) = self.get_chunk(coords) {
@@ -167,6 +177,14 @@ impl<'a> VoxelAccess for VoxelSpace<'a> {
 
     fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         VoxelSpace::get_voxel_stage(self, vx, vy, vz)
+    }
+
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        VoxelSpace::get_voxel_waterlogged(self, vx, vy, vz)
+    }
+
+    fn get_voxel_fluid_level(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelSpace::get_voxel_fluid_level(self, vx, vy, vz)
     }
 
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {

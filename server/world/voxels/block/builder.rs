@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-    BlockFace, BlockFaces, FluidConfig, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB,
-};
+use crate::{BlockFace, BlockFaces, FluidConfig, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
 
 use super::super::fluids::create_fluid_active_fn;
 use super::rules::{attached_support_fns, solid_below_support_fns};
@@ -19,7 +17,8 @@ pub struct BlockBuilder {
     is_fluid: bool,
     fluid_flow_force: f32,
     ground_friction_multiplier: f32,
-    is_waterlogged: bool,
+    is_waterloggable: bool,
+    is_waterlogging_fluid: bool,
     is_passable: bool,
     is_climbable: bool,
     red_light_level: u32,
@@ -119,9 +118,23 @@ impl BlockBuilder {
         self
     }
 
-    /// Configure whether or not this block is waterlogged (exists inside water). Default is false.
-    pub fn is_waterlogged(mut self, is_waterlogged: bool) -> Self {
-        self.is_waterlogged = is_waterlogged;
+    /// Configure whether this block can hold the world's waterlogging fluid
+    /// alongside itself. Default is false.
+    ///
+    /// Suits any block that leaves room in its voxel for water — stairs, slabs,
+    /// fences, rods, submerged plants. Not blocks that water should destroy
+    /// rather than fill, such as a torch, and not a watertight barrier like a
+    /// glass pane, which would render water pressed against its dry face.
+    pub fn is_waterloggable(mut self, is_waterloggable: bool) -> Self {
+        self.is_waterloggable = is_waterloggable;
+        self
+    }
+
+    /// Declare this block as the fluid that waterlogging fills voxels with.
+    /// Exactly one block in a registry may claim this; a registry with none
+    /// simply never waterlogs anything.
+    pub fn is_waterlogging_fluid(mut self, is_waterlogging_fluid: bool) -> Self {
+        self.is_waterlogging_fluid = is_waterlogging_fluid;
         self
     }
 
@@ -381,7 +394,8 @@ impl BlockBuilder {
             is_fluid: self.is_fluid,
             fluid_flow_force: self.fluid_flow_force,
             ground_friction_multiplier: self.ground_friction_multiplier,
-            is_waterlogged: self.is_waterlogged,
+            is_waterloggable: self.is_waterloggable,
+            is_waterlogging_fluid: self.is_waterlogging_fluid,
             is_light: self.red_light_level > 0
                 || self.green_light_level > 0
                 || self.blue_light_level > 0,

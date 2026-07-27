@@ -12,6 +12,8 @@ export type BlockInfo = {
   isEmpty: boolean;
   isFluid: boolean;
   isPassable: boolean;
+  /** Whether this voxel holds the waterlogging fluid alongside its block. */
+  isWaterlogged: boolean;
   sunlight: number;
   torchLight: number;
 };

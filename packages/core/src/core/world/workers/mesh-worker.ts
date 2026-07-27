@@ -18,7 +18,8 @@ type WasmBlock = {
   yRotatable: boolean;
   isEmpty: boolean;
   isFluid: boolean;
-  isWaterlogged: boolean;
+  isWaterloggable: boolean;
+  isWaterloggingFluid: boolean;
   isOpaque: boolean;
   isSeeThrough: boolean;
   isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
@@ -120,7 +121,8 @@ type RawWasmBlock = {
   yRotatable: boolean;
   isEmpty: boolean;
   isFluid: boolean;
-  isWaterlogged: boolean;
+  isWaterloggable?: boolean;
+  isWaterloggingFluid?: boolean;
   isOpaque: boolean;
   isSeeThrough: boolean;
   isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
@@ -357,7 +359,8 @@ function convertRegistryToWasm(rawRegistry: {
         yRotatable: block.yRotatable,
         isEmpty: block.isEmpty,
         isFluid: block.isFluid,
-        isWaterlogged: block.isWaterlogged,
+        isWaterloggable: block.isWaterloggable ?? false,
+        isWaterloggingFluid: block.isWaterloggingFluid ?? false,
         isOpaque: block.isOpaque,
         isSeeThrough: block.isSeeThrough,
         isTransparent: block.isTransparent,

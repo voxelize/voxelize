@@ -15,13 +15,13 @@ use std::{
 };
 
 use crate::{
-    ChunkOptions, ChunkStatus, ChunkUtils, LightUtils, MessageType, Registry, Vec2, Vec3,
-    VoxelUpdate, WorldConfig,
+    BlockUtils, ChunkOptions, ChunkStatus, ChunkUtils, LightUtils, MessageType, Registry, Vec2,
+    Vec3, VoxelUpdate, WorldConfig,
 };
 
 use super::{
     access::VoxelAccess,
-    background_chunk_saver::ChunkSaveData,
+    background_chunk_saver::{ChunkSaveData, CHUNK_FILE_VERSION},
     chunk::Chunk,
     space::{SpaceBuilder, SpaceOptions},
 };
@@ -59,6 +59,64 @@ struct ChunkFileData {
     id: String,
     voxels: String,
     height_map: String,
+    #[serde(default)]
+    version: u32,
+}
+
+/// Backfill the waterlogged bit on a chunk saved before waterlogging existed.
+///
+/// Those files recorded submerged plants as plain blocks that had displaced
+/// their water, which now reads as a block-shaped air pocket in every ocean.
+/// A waterloggable voxel touching the fluid inside this chunk was underwater
+/// when it was written, so it is restored as waterlogged. Cross-chunk
+/// neighbours are deliberately not consulted — the neighbouring chunk may not
+/// be loaded — and the fluid simulation covers the seams it misses.
+///
+/// Returns whether anything changed, so an untouched chunk is not rewritten.
+fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
+    const ORTHOGONAL_NEIGHBORS: [[i32; 3]; 6] = [
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 1, 0],
+        [0, -1, 0],
+        [0, 0, 1],
+        [0, 0, -1],
+    ];
+
+    let Some(fluid_id) = registry.waterlogging_fluid_id() else {
+        return false;
+    };
+
+    let Vec3(min_x, min_y, min_z) = chunk.min;
+    let Vec3(max_x, max_y, max_z) = chunk.max;
+
+    let mut submerged = Vec::new();
+    for vx in min_x..max_x {
+        for vz in min_z..max_z {
+            for vy in min_y..max_y {
+                let raw = chunk.get_raw_voxel(vx, vy, vz);
+                if BlockUtils::extract_waterlogged(raw) {
+                    continue;
+                }
+                if !registry.is_waterloggable(BlockUtils::extract_id(raw)) {
+                    continue;
+                }
+                let touches_fluid = ORTHOGONAL_NEIGHBORS.iter().any(|[ox, oy, oz]| {
+                    let (nx, ny, nz) = (vx + ox, vy + oy, vz + oz);
+                    chunk.contains(nx, ny, nz) && chunk.get_voxel(nx, ny, nz) == fluid_id
+                });
+                if touches_fluid {
+                    submerged.push(Vec3(vx, vy, vz));
+                }
+            }
+        }
+    }
+
+    for Vec3(vx, vy, vz) in &submerged {
+        chunk.set_voxel_waterlogged(*vx, *vy, *vz, true);
+    }
+
+    !submerged.is_empty()
 }
 
 /// A manager for all chunks in the Voxelize world.
@@ -298,6 +356,10 @@ impl Chunks {
         // persisted voxels, not an edit of them.
         chunk.is_save_dirty = false;
 
+        if data.version < CHUNK_FILE_VERSION && backfill_waterlogged_voxels(&mut chunk, registry) {
+            chunk.is_save_dirty = true;
+        }
+
         Some(chunk)
     }
 
@@ -329,6 +391,7 @@ impl Chunks {
             id: chunk.id.to_owned(),
             voxels: to_base_64(&chunk.voxels.data),
             height_map: to_base_64(&chunk.height_map.data),
+            version: CHUNK_FILE_VERSION,
         };
 
         let j = match serde_json::to_string(&data) {
@@ -840,7 +903,6 @@ impl VoxelAccess for Chunks {
         self.raw_chunk_by_voxel(vx, vy, vz).is_some()
     }
 }
-
 
 #[cfg(test)]
 mod pending_save_queue_tests {

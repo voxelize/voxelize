@@ -14,12 +14,20 @@ use std::time::{Duration, Instant};
 
 use crate::Vec2;
 
+/// Bumped whenever a chunk file needs a one-time migration on load.
+///
+/// - `0`: files written before per-voxel waterlogging existed.
+/// - `1`: waterlogged bit is authoritative in the voxel word.
+pub const CHUNK_FILE_VERSION: u32 = 1;
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ChunkFileData {
     id: String,
     voxels: String,
     height_map: String,
+    #[serde(default)]
+    version: u32,
 }
 
 pub struct ChunkSaveData {
@@ -120,6 +128,7 @@ impl BackgroundChunkSaver {
             id: data.chunk_id.clone(),
             voxels: Self::to_base_64(&data.voxels),
             height_map: Self::to_base_64(&data.height_map),
+            version: CHUNK_FILE_VERSION,
         };
 
         let json_data = match serde_json::to_string(&file_data) {

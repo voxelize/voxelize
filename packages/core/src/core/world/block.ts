@@ -110,9 +110,16 @@ export type Block = {
   groundFrictionMultiplier: number;
 
   /**
-   * Whether or not is the block waterlogged (exists inside water).
+   * Whether this block can hold the world's waterlogging fluid alongside
+   * itself. Whether a given voxel actually does is per-voxel state, read with
+   * `World.getVoxelWaterloggedAt`.
    */
-  isWaterlogged: boolean;
+  isWaterloggable: boolean;
+
+  /**
+   * Whether this is the fluid that waterlogging fills voxels with.
+   */
+  isWaterloggingFluid: boolean;
 
   /**
    * Whether or not is this block a light source.
@@ -241,6 +248,17 @@ export type BlockUpdate = {
    * The optional stage of the updated block.
    */
   stage?: number;
+
+  /**
+   * Whether the updated voxel holds the world's waterlogging fluid alongside
+   * its block.
+   */
+  isWaterlogged?: boolean;
+
+  /**
+   * The level of the waterlogging fluid the updated voxel holds, 0 through 7.
+   */
+  waterlogLevel?: number;
 };
 
 export type BlockUpdateWithSource = {

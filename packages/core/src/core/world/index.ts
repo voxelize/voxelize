@@ -1874,6 +1874,54 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Whether the voxel at a 3D world position holds the world's waterlogging
+   * fluid alongside its block.
+   *
+   * @param px The x coordinate of the position.
+   * @param py The y coordinate of the position.
+   * @param pz The z coordinate of the position.
+   */
+  getVoxelWaterloggedAt(px: number, py: number, pz: number) {
+    this.checkIsInitialized("get voxel waterlogged", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return false;
+    return chunk.getVoxelWaterlogged(px, py, pz);
+  }
+
+  setVoxelWaterloggedAt(
+    px: number,
+    py: number,
+    pz: number,
+    isWaterlogged: boolean,
+  ) {
+    this.checkIsInitialized("set voxel waterlogged", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return;
+    chunk.setVoxelWaterlogged(px, py, pz, isWaterlogged);
+  }
+
+  /**
+   * The level of waterlogging fluid held by the voxel at a 3D world position.
+   *
+   * @param px The x coordinate of the position.
+   * @param py The y coordinate of the position.
+   * @param pz The z coordinate of the position.
+   */
+  getVoxelWaterlogLevelAt(px: number, py: number, pz: number) {
+    this.checkIsInitialized("get voxel waterlog level", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return 0;
+    return chunk.getVoxelWaterlogLevel(px, py, pz);
+  }
+
+  setVoxelWaterlogLevelAt(px: number, py: number, pz: number, level: number) {
+    this.checkIsInitialized("set voxel waterlog level", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return;
+    chunk.setVoxelWaterlogLevel(px, py, pz, level);
+  }
+
+  /**
    * Get a voxel sunlight by a 3D world position.
    *
    * @param px The x coordinate of the position.
@@ -2461,7 +2509,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         const {
           id,
           isFluid,
-          isWaterlogged,
           isPassable,
           isSeeThrough,
           aabbs,
@@ -2481,7 +2528,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (
-          (isFluid && ignoreFluids && !isWaterlogged) ||
+          (isFluid && ignoreFluids) ||
           (isPassable && ignorePassables) ||
           (isSeeThrough && ignoreSeeThrough)
         ) {
@@ -2735,6 +2782,27 @@ export class World<T = any> extends Scene implements NetIntercept {
    *
    * @param updates A list of updates to send to the server.
    */
+  /**
+   * Mirror of the server's placement rule so the player who places a block
+   * into water does not watch a block-shaped air pocket for a round trip.
+   * The server's echo is authoritative and overwrites whatever this guessed.
+   */
+  private predictWaterlogging({ vx, vy, vz, type }: BlockUpdate) {
+    const current = this.getBlockAt(vx, vy, vz);
+    if (!current) return null;
+
+    const holdsFluid =
+      current.isFluid || this.getVoxelWaterloggedAt(vx, vy, vz);
+    const canHold = this.getBlockByIdSafe(type)?.isWaterloggable ?? false;
+    if (!holdsFluid || !canHold) return null;
+
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    const level = chunk
+      ? BlockUtils.extractFluidLevel(chunk.getRawValue(vx, vy, vz))
+      : 0;
+    return { isWaterlogged: true, waterlogLevel: level };
+  }
+
   updateVoxels = (
     updates: BlockUpdate[],
     source: "client" | "server" = "client",
@@ -2776,6 +2844,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (!this.getBlockById(update.type).yRotatable) {
           update.yRotation = 0;
+        }
+
+        if (update.isWaterlogged === undefined) {
+          const predicted = this.predictWaterlogging(update);
+          update.isWaterlogged = predicted?.isWaterlogged ?? false;
+          update.waterlogLevel = predicted?.waterlogLevel ?? 0;
         }
 
         return update;
@@ -2840,16 +2914,22 @@ export class World<T = any> extends Scene implements NetIntercept {
       const rotation = BlockUtils.extractRotation(voxel);
       const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
       const stage = BlockUtils.extractStage(voxel);
+      const isWaterlogged = BlockUtils.extractWaterlogged(voxel);
+      const waterlogLevel = BlockUtils.extractWaterlogLevel(voxel);
 
       const currentType = this.getVoxelAt(vx, vy, vz);
       const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
       const currentStage = this.getVoxelStageAt(vx, vy, vz);
+      const isCurrentWaterlogged = this.getVoxelWaterloggedAt(vx, vy, vz);
+      const currentWaterlogLevel = this.getVoxelWaterlogLevelAt(vx, vy, vz);
 
       const needsUpdate =
         currentType !== type ||
         currentRotation.value !== rotation.value ||
         currentRotation.yRotation !== rotation.yRotation ||
-        currentStage !== stage;
+        currentStage !== stage ||
+        isCurrentWaterlogged !== isWaterlogged ||
+        currentWaterlogLevel !== waterlogLevel;
 
       if (needsUpdate) {
         blockUpdates.push({
@@ -2862,6 +2942,8 @@ export class World<T = any> extends Scene implements NetIntercept {
             rotation: rotationValue,
             yRotation: yRotationValue,
             stage,
+            isWaterlogged,
+            waterlogLevel,
           },
         });
       }
@@ -4285,8 +4367,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.waterOptics.update({
       isFluidAt: (vx, vy, vz) => {
+        if (this.getVoxelWaterloggedAt(vx, vy, vz)) return true;
         const block = this.getBlockAt(vx, vy, vz);
-        return !!block && (block.isFluid || block.isWaterlogged);
+        return !!block && block.isFluid;
       },
       cameraX: cameraPosition.x,
       cameraY: cameraPosition.y,
@@ -4684,6 +4767,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         const chunk = this.getChunkByPosition(vx, vy, vz);
         if (!chunk) return false;
 
+        if (chunk.getVoxelWaterlogged(vx, vy, vz)) return true;
+
         const id = chunk.getVoxel(vx, vy, vz);
         const block = this.getBlockByIdSafe(id);
 
@@ -4752,7 +4837,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const {
         source,
-        update: { type, vx, vy, vz, rotation, yRotation, stage },
+        update: {
+          type,
+          vx,
+          vy,
+          vz,
+          rotation,
+          yRotation,
+          stage,
+          isWaterlogged,
+          waterlogLevel,
+        },
       } = update;
 
       if (vy < 0 || vy >= maxHeight) continue;
@@ -4768,6 +4863,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         newBlock.id,
         newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
         stage,
+        isWaterlogged,
+        waterlogLevel,
       );
       this.attemptBlockCache(vx, vy, vz, newValue, source);
 
@@ -4775,6 +4872,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       try {
         this.setVoxelAt(vx, vy, vz, type);
         this.setVoxelStageAt(vx, vy, vz, stage);
+        this.setVoxelWaterloggedAt(vx, vy, vz, isWaterlogged ?? false);
+        this.setVoxelWaterlogLevelAt(vx, vy, vz, waterlogLevel ?? 0);
 
         if (newBlock.rotatable || newBlock.yRotatable) {
           this.setVoxelRotationAt(vx, vy, vz, newRotation);

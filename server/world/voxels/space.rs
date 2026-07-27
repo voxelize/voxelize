@@ -450,6 +450,14 @@ impl voxelize_core::VoxelAccess for Space {
         VoxelAccess::get_voxel_stage(self, vx, vy, vz)
     }
 
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        VoxelAccess::get_voxel_waterlogged(self, vx, vy, vz)
+    }
+
+    fn get_voxel_fluid_level(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_voxel_fluid_level(self, vx, vy, vz)
+    }
+
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         VoxelAccess::get_sunlight(self, vx, vy, vz)
     }

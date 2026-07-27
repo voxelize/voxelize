@@ -80,6 +80,10 @@ pub struct Registry {
 
     /// Map of name -> ID.
     type_map: HashMap<String, u32>,
+
+    /// The block waterlogged voxels are filled with, claimed by whichever
+    /// block sets `is_waterlogging_fluid`.
+    waterlogging_fluid_id: Option<u32>,
 }
 
 impl Registry {
@@ -357,6 +361,23 @@ impl Registry {
         self.get_block_by_id(id).is_fluid
     }
 
+    /// Check if block can hold the waterlogging fluid alongside itself by id.
+    pub fn is_waterloggable(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_waterloggable
+    }
+
+    /// The block waterlogging fills voxels with, or `None` in a registry that
+    /// never declared one — in which case nothing ever waterlogs.
+    pub fn waterlogging_fluid(&self) -> Option<&Block> {
+        let id = self.waterlogging_fluid_id?;
+        self.blocks_by_id.get(&id)
+    }
+
+    /// The id of the block waterlogging fills voxels with.
+    pub fn waterlogging_fluid_id(&self) -> Option<u32> {
+        self.waterlogging_fluid_id
+    }
+
     /// Get type map of all blocks.
     pub fn get_type_map(&self, blocks: &[&str]) -> HashMap<String, u32> {
         let mut type_map = HashMap::new();
@@ -411,6 +432,20 @@ impl Registry {
         self.blocks_by_id.insert(*id, block.clone());
         self.name_map.insert(*id, lower_name.clone());
         self.type_map.insert(lower_name.clone(), *id);
+
+        if block.is_waterlogging_fluid {
+            if let Some(claimed) = self.waterlogging_fluid_id {
+                assert_eq!(
+                    claimed,
+                    *id,
+                    "two blocks claim to be the waterlogging fluid: {} and {name}",
+                    self.name_map.get(&claimed).map_or("?", |n| n.as_str()),
+                );
+            }
+            self.waterlogging_fluid_id = Some(*id);
+        } else if self.waterlogging_fluid_id == Some(*id) {
+            self.waterlogging_fluid_id = None;
+        }
 
         for (idx, side) in faces.iter().enumerate() {
             self.textures.insert((*id, idx, side.independent));

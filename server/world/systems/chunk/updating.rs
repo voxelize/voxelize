@@ -8,7 +8,7 @@ use crate::{
     beer_lambert_transmit, sample_random_ticks, BlockUtils, ChunkInterests, ChunkUtils, Chunks,
     ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode,
     Lights, Mesher, Message, MessageQueues, MessageType, MetadataComp, Registry, Stats,
-    UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, WorldConfig,
+    UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -196,6 +196,100 @@ fn try_unlink_partner(
     }
 }
 
+/// Queue the updates an active voxel wants this tick.
+///
+/// A waterlogged voxel additionally ticks as the fluid it holds: its own block
+/// is a stair or a plant with no updater of its own, but the water inside it
+/// still has to spread and drain like any other water.
+fn queue_active_updates(chunks: &mut Chunks, registry: &Registry, voxel: &Vec3<i32>) {
+    let Vec3(vx, vy, vz) = *voxel;
+    let id = chunks.get_voxel(vx, vy, vz);
+    let block = registry.get_block_by_id(id);
+
+    let mut updates = Vec::new();
+    if let Some(updater) = &block.active_updater {
+        updates.extend(updater(Vec3(vx, vy, vz), &*chunks, registry));
+    }
+
+    if chunks.get_voxel_waterlogged(vx, vy, vz) {
+        if let Some(fluid) = registry.waterlogging_fluid() {
+            if fluid.id != id {
+                if let Some(updater) = &fluid.active_updater {
+                    updates.extend(updater(Vec3(vx, vy, vz), &*chunks, registry));
+                }
+            }
+        }
+    }
+
+    for (pos, val) in updates {
+        chunks.update_voxel(&pos, val);
+    }
+}
+
+/// Schedule a waterlogged voxel to tick as the fluid it holds.
+///
+/// Its own block has no updater — a stair does nothing on its own — so without
+/// this the water inside it would never spread or drain.
+fn mark_waterlogged_fluid_active(
+    chunks: &mut Chunks,
+    registry: &Registry,
+    voxel: Vec3<i32>,
+    current_tick: u64,
+) {
+    let Some(fluid) = registry.waterlogging_fluid() else {
+        return;
+    };
+    let Some(ticker) = &fluid.active_ticker else {
+        return;
+    };
+    let ticks = ticker(voxel.clone(), &*chunks, registry);
+    chunks.mark_voxel_active(&voxel, ticks + current_tick);
+}
+
+/// The raw word an update should actually commit, once waterlogging has had
+/// its say.
+///
+/// Placing a different block into water carries that water over when the block
+/// can hold it, and removing a waterlogged block leaves the water behind.
+/// Every other update is taken exactly as written — which is what lets the
+/// fluid simulation drain a waterlogged voxel by clearing the bit. Any
+/// disagreement heals on the next fluid tick, since waterloggable voxels are
+/// themselves flow targets.
+fn resolve_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>, raw: u32) -> u32 {
+    let Some(fluid_id) = registry.waterlogging_fluid_id() else {
+        return raw;
+    };
+
+    let Vec3(vx, vy, vz) = *voxel;
+    let current_raw = chunks.get_raw_voxel(vx, vy, vz);
+    let current_id = BlockUtils::extract_id(current_raw);
+    let updated_id = BlockUtils::extract_id(raw);
+
+    if updated_id == current_id {
+        return raw;
+    }
+
+    let level = BlockUtils::extract_fluid_level(current_raw);
+    let is_current_waterlogged = BlockUtils::extract_waterlogged(current_raw);
+
+    if registry.is_air(updated_id) {
+        if is_current_waterlogged {
+            return VoxelPacker::new()
+                .with_id(fluid_id)
+                .with_stage(level)
+                .pack();
+        }
+        return raw;
+    }
+
+    let holds_fluid = is_current_waterlogged || current_id == fluid_id;
+    if holds_fluid && registry.is_waterloggable(updated_id) {
+        return BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(raw, true), level);
+    }
+
+    raw
+}
+
 fn process_pending_updates(
     chunks: &mut Chunks,
     mesher: &mut Mesher,
@@ -263,6 +357,7 @@ fn process_pending_updates(
 
         for (voxel, raw) in chunk_updates {
             let Vec3(vx, vy, vz) = voxel;
+            let raw = resolve_waterlogging(&*chunks, registry, &voxel, raw);
             let updated_id = BlockUtils::extract_id(raw);
             let current_id = chunks.get_voxel(vx, vy, vz);
 
@@ -285,6 +380,8 @@ fn process_pending_updates(
 
             let rotation = BlockUtils::extract_rotation(raw);
             let stage = BlockUtils::extract_stage(raw);
+            let is_waterlogged = BlockUtils::extract_waterlogged(raw);
+            let waterlog_level = BlockUtils::extract_waterlog_level(raw);
             let height = chunks.get_max_height(vx, vz);
 
             let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
@@ -340,6 +437,8 @@ fn process_pending_updates(
 
             chunks.set_voxel(vx, vy, vz, updated_id);
             chunks.set_voxel_stage(vx, vy, vz, stage);
+            chunks.set_voxel_waterlogged(vx, vy, vz, is_waterlogged);
+            chunks.set_voxel_waterlog_level(vx, vy, vz, waterlog_level);
 
             if updated_type.is_active {
                 let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
@@ -368,7 +467,16 @@ fn process_pending_updates(
                         registry,
                     );
                     chunks.mark_voxel_active(&Vec3(nx, ny, nz), ticks + current_tick);
+                    continue;
                 }
+
+                if chunks.get_voxel_waterlogged(nx, ny, nz) {
+                    mark_waterlogged_fluid_active(chunks, registry, Vec3(nx, ny, nz), current_tick);
+                }
+            }
+
+            if is_waterlogged && !updated_type.is_active {
+                mark_waterlogged_fluid_active(chunks, registry, Vec3(vx, vy, vz), current_tick);
             }
 
             if updated_type.rotatable || updated_type.y_rotatable {
@@ -894,16 +1002,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut all_results = Vec::new();
 
         for voxel in due_voxels.iter() {
-            let Vec3(vx, vy, vz) = *voxel;
-            let id = chunks.get_voxel(vx, vy, vz);
-            let block = registry.get_block_by_id(id);
-
-            if let Some(updater) = &block.active_updater {
-                let updates = updater(Vec3(vx, vy, vz), &*chunks, &registry);
-                for (pos, val) in updates {
-                    chunks.update_voxel(&pos, val);
-                }
-            }
+            queue_active_updates(&mut chunks, &registry, voxel);
 
             let results = process_pending_updates(
                 &mut chunks,
@@ -936,13 +1035,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         // scheduled active queue so copper/neighbor wakes are never starved.
         // Newly marked voxels are popped immediately below so growth can
         // advance on the same world tick when budget allows.
-        let _random_samples = sample_random_ticks(
-            &mut chunks,
-            &registry,
-            &interests,
-            &config,
-            current_tick,
-        );
+        let _random_samples =
+            sample_random_ticks(&mut chunks, &registry, &interests, &config, current_tick);
 
         let mut random_due = Vec::new();
         while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
@@ -960,15 +1054,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         }
         random_due.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
         for voxel in random_due.iter() {
-            let Vec3(vx, vy, vz) = *voxel;
-            let id = chunks.get_voxel(vx, vy, vz);
-            let block = registry.get_block_by_id(id);
-            if let Some(updater) = &block.active_updater {
-                let updates = updater(Vec3(vx, vy, vz), &*chunks, &registry);
-                for (pos, val) in updates {
-                    chunks.update_voxel(&pos, val);
-                }
-            }
+            queue_active_updates(&mut chunks, &registry, voxel);
             let results = process_pending_updates(
                 &mut chunks,
                 &mut mesher,

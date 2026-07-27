@@ -369,6 +369,74 @@ export class RawChunk {
   }
 
   /**
+   * Whether the voxel at a given coordinate holds the world's waterlogging
+   * fluid alongside its block.
+   *
+   * @param vx The x voxel coordinate.
+   * @param vy The y voxel coordinate.
+   * @param vz The z voxel coordinate.
+   */
+  getVoxelWaterlogged(vx: number, vy: number, vz: number) {
+    if (!this.contains(vx, vy, vz)) return false;
+    return BlockUtils.extractWaterlogged(this.getRawValue(vx, vy, vz));
+  }
+
+  /**
+   * Set whether the voxel at a given coordinate holds the waterlogging fluid.
+   *
+   * Note: This method is purely client-side and does not affect the actual values on the server.
+   *
+   * @param vx The x voxel coordinate.
+   * @param vy The y voxel coordinate.
+   * @param vz The z voxel coordinate.
+   * @param isWaterlogged Whether the voxel holds the waterlogging fluid.
+   */
+  setVoxelWaterlogged(
+    vx: number,
+    vy: number,
+    vz: number,
+    isWaterlogged: boolean,
+  ) {
+    const value = BlockUtils.insertWaterlogged(
+      this.getRawValue(vx, vy, vz),
+      isWaterlogged,
+    );
+    this.setRawValue(vx, vy, vz, value);
+    return isWaterlogged;
+  }
+
+  /**
+   * The level of waterlogging fluid held by the voxel at a given coordinate.
+   *
+   * @param vx The x voxel coordinate.
+   * @param vy The y voxel coordinate.
+   * @param vz The z voxel coordinate.
+   */
+  getVoxelWaterlogLevel(vx: number, vy: number, vz: number) {
+    if (!this.contains(vx, vy, vz)) return 0;
+    return BlockUtils.extractWaterlogLevel(this.getRawValue(vx, vy, vz));
+  }
+
+  /**
+   * Set the level of waterlogging fluid held by the voxel at a coordinate.
+   *
+   * Note: This method is purely client-side and does not affect the actual values on the server.
+   *
+   * @param vx The x voxel coordinate.
+   * @param vy The y voxel coordinate.
+   * @param vz The z voxel coordinate.
+   * @param level The fluid level, 0 through 7.
+   */
+  setVoxelWaterlogLevel(vx: number, vy: number, vz: number, level: number) {
+    const value = BlockUtils.insertWaterlogLevel(
+      this.getRawValue(vx, vy, vz),
+      level,
+    );
+    this.setRawValue(vx, vy, vz, value);
+    return level;
+  }
+
+  /**
    * Get the red light level at a given voxel coordinate.
    *
    * @param vx The x voxel coordinate.
