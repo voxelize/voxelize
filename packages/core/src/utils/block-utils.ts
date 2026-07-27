@@ -215,12 +215,16 @@ export class BlockUtils {
         if (voxelId !== id) return false;
       }
 
-      if (rotation !== null) {
+      if (rotation !== null && rotation !== undefined) {
+        // Rule rotations arrive f32-rounded from the server while voxel
+        // rotations are computed in f64, so compare decoded segments rather
+        // than raw radians.
+        const expected = BlockRotation.fromServerRotation(rotation);
         const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
-        if (
-          voxelRotation.value !== rotation.value ||
-          voxelRotation.yRotation !== rotation.yRotation
-        )
+        const [expectedValue, expectedSegment] = BlockRotation.decode(expected);
+        const [actualValue, actualSegment] =
+          BlockRotation.decode(voxelRotation);
+        if (actualValue !== expectedValue || actualSegment !== expectedSegment)
           return false;
       }
 

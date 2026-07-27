@@ -4,10 +4,19 @@ import { Coords3 } from "../../types";
 
 import { UV } from "./uv";
 
+/**
+ * The wire shape of a block rotation inside server-authored block rules: the
+ * Rust `BlockRotation` enum serializes as a single-key object mapping the axis
+ * to the y-rotation angle in radians, e.g. `{ "PX": 0 }`.
+ */
+export type SerializedBlockRotation = {
+  [K in "PX" | "NX" | "PY" | "NY" | "PZ" | "NZ"]?: number;
+};
+
 export type BlockSimpleRule = {
   offset: Coords3;
   id?: number;
-  rotation?: BlockRotation;
+  rotation?: BlockRotation | SerializedBlockRotation;
   stage?: number;
 };
 
@@ -357,6 +366,41 @@ export class BlockRotation {
       Y_ROT_SEGMENTS;
 
     return [value, yDecoded];
+  };
+
+  /**
+   * Resolve a rotation that may still be in its server-serialized rule shape
+   * (`{ "PX": angle }`) into a block rotation instance. Server-authored block
+   * rules arrive as raw JSON and are handed to the wasm mesher untouched, so
+   * they are normalized here at evaluation time instead of at parse time.
+   */
+  static fromServerRotation = (
+    rotation: BlockRotation | SerializedBlockRotation,
+  ): BlockRotation => {
+    if (rotation instanceof BlockRotation) {
+      return rotation;
+    }
+
+    const axes: [keyof SerializedBlockRotation, number][] = [
+      ["PY", PY_ROTATION],
+      ["NY", NY_ROTATION],
+      ["PX", PX_ROTATION],
+      ["NX", NX_ROTATION],
+      ["PZ", PZ_ROTATION],
+      ["NZ", NZ_ROTATION],
+    ];
+    for (const [axis, value] of axes) {
+      const yRotation = rotation[axis];
+      if (yRotation !== undefined) {
+        return new BlockRotation(value, yRotation);
+      }
+    }
+
+    throw new Error(
+      `Unrecognized block rotation shape in block rule: ${JSON.stringify(
+        rotation,
+      )}`,
+    );
   };
 
   /**
