@@ -452,10 +452,12 @@ export class Engine {
     body.inFluid = true;
     body.ratioInFluid = ratioInFluid;
 
+    // Buoyancy is gravity's counterpart, so it scales with the same
+    // multiplier: a body flying under zero gravity hangs where it is
+    // instead of being shoved to the surface.
+    const effectiveGravityMult = body.onClimbable ? 0 : body.gravityMultiplier;
+
     if (body.isSwimming) {
-      const effectiveGravityMult = body.onClimbable
-        ? 0
-        : body.gravityMultiplier;
       const neutralBuoyancyY =
         -body.mass *
         this.options.gravity[1] *
@@ -466,7 +468,8 @@ export class Engine {
       const vol =
         (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
       const displaced = vol * ratioInFluid;
-      const scale = -this.options.fluidDensity * displaced;
+      const scale =
+        -this.options.fluidDensity * displaced * effectiveGravityMult;
       const f = [
         this.options.gravity[0] * scale,
         this.options.gravity[1] * scale,

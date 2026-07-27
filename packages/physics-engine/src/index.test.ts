@@ -22,6 +22,10 @@ const WORLD_MIN = -20;
 const WORLD_MAX = 80;
 const STEP_HEIGHT = 0.5;
 const POSITION_EPSILON = 1e-9;
+const WATER_SURFACE_Y = 40;
+const SUBMERGED_MIN_Y = 20;
+const BUOYANT_FLUID_DENSITY = 2;
+const BUOYANCY_FRAMES = 60;
 
 function rotateY(vector: number[], radians: number) {
   const x = vector[0];
@@ -134,6 +138,44 @@ function simulateWallSlide(stepHeight: number) {
   return body.getPosition();
 }
 
+function simulateSubmerged(gravityMultiplier: number) {
+  const engine = new Engine(
+    () => [],
+    (_vx, vy) => vy < WATER_SURFACE_Y,
+    () => [],
+    () => 0,
+    () => 0,
+    {
+      gravity: [0, -28, 0],
+      minBounceImpulse: 0,
+      airDrag: 0,
+      fluidDrag: 0,
+      fluidDensity: BUOYANT_FLUID_DENSITY,
+    },
+  );
+
+  const body = engine.addBody({
+    aabb: new AABB(
+      -BODY_WIDTH / 2,
+      SUBMERGED_MIN_Y,
+      -BODY_DEPTH / 2,
+      BODY_WIDTH / 2,
+      SUBMERGED_MIN_Y + BODY_HEIGHT,
+      BODY_DEPTH / 2,
+    ),
+    gravityMultiplier,
+  });
+
+  for (let frame = 0; frame < BUOYANCY_FRAMES; frame++) {
+    // Stand in for the controls driving the body every frame, so the
+    // engine never parks it as asleep.
+    body.markActive();
+    engine.update(DELTA_TIME);
+  }
+
+  return body.getPosition()[1];
+}
+
 describe("Engine", () => {
   it("does not add extra wall-slide movement through auto-step", () => {
     const withoutAutoStep = simulateWallSlide(0);
@@ -142,5 +184,12 @@ describe("Engine", () => {
     expect(withAutoStep[2]).toBeLessThanOrEqual(
       withoutAutoStep[2] + POSITION_EPSILON,
     );
+  });
+
+  it("holds a zero-gravity body in place underwater", () => {
+    const startY = SUBMERGED_MIN_Y + BODY_HEIGHT / 2;
+
+    expect(simulateSubmerged(1)).toBeGreaterThan(startY);
+    expect(simulateSubmerged(0)).toBeCloseTo(startY);
   });
 });
