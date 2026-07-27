@@ -82,10 +82,7 @@ const fn parse_json_u32(src: &str, quoted_key: &str) -> u32 {
             }
             // Skip whitespace before the number.
             while p < n
-                && (bytes[p] == b' '
-                    || bytes[p] == b'\t'
-                    || bytes[p] == b'\n'
-                    || bytes[p] == b'\r')
+                && (bytes[p] == b' ' || bytes[p] == b'\t' || bytes[p] == b'\n' || bytes[p] == b'\r')
             {
                 p += 1;
             }
@@ -576,7 +573,10 @@ mod rng_tests {
         // client cosmetic sink and the server sim agree bit-for-bit.
         let mut r = DetRng::from_seed(0);
         let got: Vec<u32> = (0..4).map(|_| r.next_u32()).collect();
-        assert_eq!(got, vec![1_144_304_738, 1_416_247, 958_946_056, 627_933_444]);
+        assert_eq!(
+            got,
+            vec![1_144_304_738, 1_416_247, 958_946_056, 627_933_444]
+        );
     }
 }
 

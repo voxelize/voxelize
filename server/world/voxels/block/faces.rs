@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::UV;
 
-use super::{
-    BlockRotation, CornerData,
-};
+use super::{BlockRotation, CornerData};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

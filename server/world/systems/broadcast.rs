@@ -423,8 +423,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     .entities(&flush.entities)
                     .tick(tick);
                 if let Some(trace_id) = flush.trace_ids.last() {
-                    message = message
-                        .json(&json!({ "townPerfTraceId": trace_id }).to_string());
+                    message = message.json(&json!({ "townPerfTraceId": trace_id }).to_string());
                 }
                 let data = encode_message(&message.build());
                 send_to_client(client, rtc_sender, &data);

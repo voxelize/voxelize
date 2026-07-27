@@ -113,12 +113,7 @@ impl<'a> System<'a> for PhysicsSystem {
                 // written under older body dimensions bake in centers the
                 // current box may overlap the floor with).
                 if !body.0.is_placement_validated {
-                    Physics::validate_placement(
-                        &mut body.0,
-                        chunks.deref(),
-                        &registry,
-                        &config,
-                    );
+                    Physics::validate_placement(&mut body.0, chunks.deref(), &registry, &config);
                     let lifted_pos = body.0.get_position();
                     position.0.set(lifted_pos.0, lifted_pos.1, lifted_pos.2);
                 }

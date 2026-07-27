@@ -72,7 +72,9 @@ impl<'a> System<'a> for PeersSendingSystem {
         // one. Never append peer positions to a queue — a backlog of old
         // positions is what makes other players rubber-band.
         for (client_id, client) in clients.iter() {
-            let client_pos = positions.get(client.entity).map(|p| [p.0 .0, p.0 .1, p.0 .2]);
+            let client_pos = positions
+                .get(client.entity)
+                .map(|p| [p.0 .0, p.0 .1, p.0 .2]);
 
             for (peer, peer_pos) in &changed {
                 // A client is authoritative over its own pose; echoing it back
@@ -87,10 +89,7 @@ impl<'a> System<'a> for PeersSendingSystem {
                         let dx = peer_pos[0] - client_pos[0];
                         let dy = peer_pos[1] - client_pos[1];
                         let dz = peer_pos[2] - client_pos[2];
-                        is_peer_relevant(
-                            dx * dx + dy * dy + dz * dz,
-                            config.peer_visible_radius,
-                        )
+                        is_peer_relevant(dx * dx + dy * dy + dz * dz, config.peer_visible_radius)
                     }
                     // Unlimited radius, or a missing position on either side
                     // (never cull on missing data): always relevant.

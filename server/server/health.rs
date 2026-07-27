@@ -3,8 +3,6 @@ use std::time::Duration;
 use actix::ActorFutureExt;
 use serde_json::{json, Value};
 
-
-
 /// Default max age of the last completed world tick before `/health` is unhealthy.
 pub const DEFAULT_TICK_STALL_THRESHOLD_MS: u64 = 5_000;
 
@@ -40,11 +38,7 @@ pub fn build_health_value(
     let preload_progress = if worlds.is_empty() {
         0.0
     } else {
-        worlds
-            .iter()
-            .map(|(_, _, progress)| *progress)
-            .sum::<f32>()
-            / worlds.len() as f32
+        worlds.iter().map(|(_, _, progress)| *progress).sum::<f32>() / worlds.len() as f32
     };
     let tick_ok = match last_tick_age_ms {
         Some(age) => age <= stall_threshold_ms,
@@ -88,24 +82,14 @@ mod health_tests {
 
     #[test]
     fn health_ok_when_recent_tick_and_not_preloading() {
-        let value = build_health_value(
-            true,
-            Some(40),
-            &[("spireash".into(), false, 1.0)],
-            5_000,
-        );
+        let value = build_health_value(true, Some(40), &[("spireash".into(), false, 1.0)], 5_000);
         assert_eq!(value["ok"], json!(true));
         assert_eq!(value["ready"], json!(true));
     }
 
     #[test]
     fn health_not_ready_while_preloading() {
-        let value = build_health_value(
-            true,
-            Some(10),
-            &[("spireash".into(), true, 0.4)],
-            5_000,
-        );
+        let value = build_health_value(true, Some(10), &[("spireash".into(), true, 0.4)], 5_000);
         assert_eq!(value["ok"], json!(false));
         assert_eq!(value["ready"], json!(false));
         assert_eq!(value["preloading"], json!(true));
@@ -114,12 +98,7 @@ mod health_tests {
     #[test]
     fn health_not_ready_before_started_even_with_ticks() {
         // Bind-before-preload leaves started=false until RunPreload finishes.
-        let value = build_health_value(
-            false,
-            Some(5),
-            &[("spireash".into(), true, 0.1)],
-            5_000,
-        );
+        let value = build_health_value(false, Some(5), &[("spireash".into(), true, 0.1)], 5_000);
         assert_eq!(value["ok"], json!(false));
         assert_eq!(value["started"], json!(false));
         assert_eq!(value["preloading"], json!(true));

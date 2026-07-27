@@ -22,9 +22,7 @@ pub use messages::*;
 
 use std::time::{Duration, Instant};
 
-use actix::{
-    fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context,
-};
+use actix::{fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context};
 use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
 use hashbrown::{HashMap, HashSet};
@@ -44,10 +42,10 @@ use crate::{
     perf,
     world::{
         check_protocol, ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry,
-        World, PROTOCOL_MISMATCH_CLOSE_CODE,
-        PROTOCOL_VERSION,
-    }, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, Preload, Prepare, RtcSenders, SyncWorld, Tick,
-    TransportJoinRequest, TransportLeaveRequest,
+        World, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_VERSION,
+    },
+    ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, Preload, Prepare, RtcSenders,
+    SyncWorld, Tick, TransportJoinRequest, TransportLeaveRequest,
 };
 
 pub use lifecycle::*;
@@ -498,11 +496,7 @@ impl Server {
                 .or_else(|| self.lost_sessions.get(id).map(|(_, token)| token));
             if let Some(current_token) = current_token {
                 if current_token != session_token {
-                    perf::log(
-                        "session_superseded",
-                        "server",
-                        json!({ "clientId": id }),
-                    );
+                    perf::log("session_superseded", "server", json!({ "clientId": id }));
                     return Some(
                         "Session superseded by a newer connection with the same client id."
                             .to_owned(),

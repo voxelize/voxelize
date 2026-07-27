@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB,
-};
+use crate::{BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
 
 use super::{BlockFace, BlockRotation};
 
@@ -243,9 +241,8 @@ pub(super) fn solid_below_support_fns() -> (
     Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>,
     Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + Send + Sync>,
 ) {
-    let ticker = Arc::new(
-        |_pos: Vec3<i32>, _space: &dyn VoxelAccess, _reg: &Registry| -> u64 { 1 },
-    );
+    let ticker =
+        Arc::new(|_pos: Vec3<i32>, _space: &dyn VoxelAccess, _reg: &Registry| -> u64 { 1 });
     let updater = Arc::new(
         |pos: Vec3<i32>, space: &dyn VoxelAccess, reg: &Registry| -> Vec<VoxelUpdate> {
             if voxel_has_solid_support_below(&pos, space, reg) {
@@ -262,9 +259,8 @@ pub(super) fn attached_support_fns() -> (
     Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>,
     Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + Send + Sync>,
 ) {
-    let ticker = Arc::new(
-        |_pos: Vec3<i32>, _space: &dyn VoxelAccess, _reg: &Registry| -> u64 { 1 },
-    );
+    let ticker =
+        Arc::new(|_pos: Vec3<i32>, _space: &dyn VoxelAccess, _reg: &Registry| -> u64 { 1 });
     let updater = Arc::new(
         |pos: Vec3<i32>, space: &dyn VoxelAccess, reg: &Registry| -> Vec<VoxelUpdate> {
             let rotation = space.get_voxel_rotation(pos.0, pos.1, pos.2);

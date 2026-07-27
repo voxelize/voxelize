@@ -1,14 +1,10 @@
-
 use actix::{
-    fut::wrap_future, Actor, ActorFutureExt, Addr, Context, Handler,
-    Message as ActixMessage, MessageResult, ResponseActFuture,
+    fut::wrap_future, Actor, ActorFutureExt, Addr, Context, Handler, Message as ActixMessage,
+    MessageResult, ResponseActFuture,
 };
 use serde_json::Value;
 
-use crate::{
-    perf, GetInfo,
-    GetWorldStats, SyncWorld, WorldStatsResponse,
-};
+use crate::{perf, GetInfo, GetWorldStats, SyncWorld, WorldStatsResponse};
 
 use super::health::{build_health_value, tick_stall_threshold_ms};
 use super::{Server, WsSender};
@@ -152,9 +148,7 @@ impl Handler<Health> for Server {
 
     fn handle(&mut self, _: Health, _: &mut Context<Self>) -> Self::Result {
         let started = self.started;
-        let last_tick_age_ms = self
-            .last_tick_at
-            .map(|at| at.elapsed().as_millis() as u64);
+        let last_tick_age_ms = self.last_tick_at.map(|at| at.elapsed().as_millis() as u64);
         let stall_threshold_ms = tick_stall_threshold_ms();
         let world_addrs: Vec<(String, Addr<SyncWorld>)> = self
             .worlds

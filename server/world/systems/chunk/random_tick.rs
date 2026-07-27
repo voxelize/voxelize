@@ -76,8 +76,16 @@ pub fn sample_random_ticks(
             let remaining = budget - samples_taken;
             let n = speed.min(remaining);
             for i in 0..n {
-                let (lx, ly_local, lz) =
-                    sample_position(seed, current_tick, coords.0, coords.1, section as u32, i as u32, chunk_size, section_height);
+                let (lx, ly_local, lz) = sample_position(
+                    seed,
+                    current_tick,
+                    coords.0,
+                    coords.1,
+                    section as u32,
+                    i as u32,
+                    chunk_size,
+                    section_height,
+                );
                 let vx = min.0 + lx as i32;
                 let vy = (section * section_height + ly_local) as i32;
                 let vz = min.2 + lz as i32;

@@ -461,7 +461,11 @@ pub fn rewind_ticks(rtt_ms: f64, interp_ms: f64, tick_ms: f64, max_ticks: u32) -
     if !tick_ms.is_finite() || tick_ms <= 0.0 {
         return 0;
     }
-    let rtt = if rtt_ms.is_finite() { rtt_ms.max(0.0) } else { 0.0 };
+    let rtt = if rtt_ms.is_finite() {
+        rtt_ms.max(0.0)
+    } else {
+        0.0
+    };
     let interp = if interp_ms.is_finite() {
         interp_ms.max(0.0)
     } else {
@@ -506,7 +510,8 @@ impl RewindAnchor {
     /// bleeds off one tick of rewind, saturating at zero.
     pub fn effective_rewind(&self, resolve_tick: u64) -> u32 {
         let elapsed = resolve_tick.saturating_sub(self.born_tick);
-        self.lag_rewind.saturating_sub(elapsed.min(u32::MAX as u64) as u32)
+        self.lag_rewind
+            .saturating_sub(elapsed.min(u32::MAX as u64) as u32)
     }
 
     /// The historical tick to look up: `born_tick - effective_rewind`. As the
@@ -762,7 +767,11 @@ impl DamageGate {
         // Spawn grace: full invulnerability for a brief window after (re)spawn.
         // The shield is untouched here — it exists to absorb the first hit of
         // real combat *after* grace, so it cannot be camped into active play.
-        if tick < state.spawn_tick.saturating_add(self.rules.spawn_grace_ticks as u64) {
+        if tick
+            < state
+                .spawn_tick
+                .saturating_add(self.rules.spawn_grace_ticks as u64)
+        {
             return DamageOutcome::Blocked {
                 reason: DamageBlock::SpawnGrace,
             };
@@ -1011,7 +1020,10 @@ mod depth_tests {
         lag.observe_rtt(3, 8.0);
         let other = lag.rewind_depth_for(3, 2, current, 0.0);
         assert!(other <= cfg().max_ticks);
-        assert_ne!(other, liar, "one client's lie must not change another's depth");
+        assert_ne!(
+            other, liar,
+            "one client's lie must not change another's depth"
+        );
     }
 
     #[test]
@@ -1031,7 +1043,10 @@ mod depth_tests {
         assert!((ewma.value_ms() - 150.0).abs() < 1e-9);
         ewma.observe(f64::NAN);
         ewma.observe(-1.0);
-        assert!((ewma.value_ms() - 150.0).abs() < 1e-9, "bad samples ignored");
+        assert!(
+            (ewma.value_ms() - 150.0).abs() < 1e-9,
+            "bad samples ignored"
+        );
     }
 }
 
@@ -1138,23 +1153,14 @@ mod resolve_tests {
         let attacker_swing_pose = history.pose_at(1, born).unwrap();
         // Resolve the melee volume around the attacker's swing-start position
         // against the target's pose at the same tick.
-        let hit = history.resolve_volume_at_tick(
-            attacker_swing_pose.position,
-            1.5,
-            born,
-            Some(1),
-        );
+        let hit = history.resolve_volume_at_tick(attacker_swing_pose.position, 1.5, born, Some(1));
         assert!(hit.is_some(), "reach at swing-start must connect");
         assert_eq!(hit.unwrap().entity, 2);
 
         // A reach that is too short at that same anchored tick misses — proving
         // both endpoints are the fire-time poses, not current ones.
-        let short = history.resolve_volume_at_tick(
-            attacker_swing_pose.position,
-            0.5,
-            born,
-            Some(1),
-        );
+        let short =
+            history.resolve_volume_at_tick(attacker_swing_pose.position, 0.5, born, Some(1));
         assert!(short.is_none());
     }
 }

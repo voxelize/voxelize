@@ -50,8 +50,7 @@ impl World {
             ent
         } else {
             let body =
-                RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build())
-                    .build();
+                RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
 
             let interactor = self.physics_mut().register(&body);
 

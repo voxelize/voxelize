@@ -48,10 +48,7 @@ fn drain_messages(sender: &WsSender, rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) 
     messages
 }
 
-fn drain_message_types(
-    sender: &WsSender,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
-) -> Vec<i32> {
+fn drain_message_types(sender: &WsSender, rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<i32> {
     drain_messages(sender, rx)
         .into_iter()
         .map(|message| message.r#type)
@@ -215,7 +212,10 @@ fn duplicate_join_replays_ack_without_error_or_duplicate_entity() {
         let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
 
         // First JOIN, then a retry as if the INIT ack was lost in flight.
-        assert_eq!(on_request(&mut server, &id, &token, join_message(WORLD)), None);
+        assert_eq!(
+            on_request(&mut server, &id, &token, join_message(WORLD)),
+            None
+        );
         assert_eq!(
             on_request(&mut server, &id, &token, join_message(WORLD)),
             None,
@@ -239,8 +239,12 @@ fn abrupt_disconnect_then_same_id_reconnect_joins_cleanly() {
         let mut server = build_server_with_world();
 
         let (old_sender, _old_rx) = fake_socket();
-        let (id, old_token) = server.register_session(Some("bot".into()), false, old_sender.clone());
-        assert_eq!(on_request(&mut server, &id, &old_token, join_message(WORLD)), None);
+        let (id, old_token) =
+            server.register_session(Some("bot".into()), false, old_sender.clone());
+        assert_eq!(
+            on_request(&mut server, &id, &old_token, join_message(WORLD)),
+            None
+        );
         assert_eq!(world_client_count(&server).await, 1);
 
         // Abrupt closure: no Leave, no Disconnect — the process died. A
@@ -253,7 +257,11 @@ fn abrupt_disconnect_then_same_id_reconnect_joins_cleanly() {
             "reconnect join must not report 'already in world'"
         );
 
-        assert_eq!(world_client_count(&server).await, 1, "exactly one live entity");
+        assert_eq!(
+            world_client_count(&server).await,
+            1,
+            "exactly one live entity"
+        );
         let types = drain_message_types(&new_sender, &mut new_rx);
         assert!(
             types.contains(&(MessageType::Init as i32)),
@@ -274,8 +282,12 @@ fn superseded_socket_is_rejected_and_cannot_cross_wire_sessions() {
         let mut server = build_server_with_world();
 
         let (old_sender, mut old_rx) = fake_socket();
-        let (id, old_token) = server.register_session(Some("bot".into()), false, old_sender.clone());
-        assert_eq!(on_request(&mut server, &id, &old_token, join_message(WORLD)), None);
+        let (id, old_token) =
+            server.register_session(Some("bot".into()), false, old_sender.clone());
+        assert_eq!(
+            on_request(&mut server, &id, &old_token, join_message(WORLD)),
+            None
+        );
 
         // New socket connects while the old one is still open.
         let (new_sender, _new_rx) = fake_socket();
@@ -290,7 +302,10 @@ fn superseded_socket_is_rejected_and_cannot_cross_wire_sessions() {
         let error = on_request(&mut server, &id, &old_token, join_message(WORLD));
         assert!(error.is_some(), "superseded socket must be rejected");
 
-        assert_eq!(on_request(&mut server, &id, &new_token, join_message(WORLD)), None);
+        assert_eq!(
+            on_request(&mut server, &id, &new_token, join_message(WORLD)),
+            None
+        );
         assert_eq!(world_client_count(&server).await, 1);
     });
 }
@@ -302,7 +317,10 @@ fn disconnect_removes_membership_deterministically_and_rejoin_works() {
 
         let (sender, _rx) = fake_socket();
         let (id, token) = server.register_session(Some("bot".into()), false, sender.clone());
-        assert_eq!(on_request(&mut server, &id, &token, join_message(WORLD)), None);
+        assert_eq!(
+            on_request(&mut server, &id, &token, join_message(WORLD)),
+            None
+        );
         assert_eq!(world_client_count(&server).await, 1);
 
         server.unregister_session(&id, &token);
@@ -313,7 +331,10 @@ fn disconnect_removes_membership_deterministically_and_rejoin_works() {
         // A later reconnect with the same id starts a clean session.
         let (sender, mut rx) = fake_socket();
         let (_, token) = server.register_session(Some("bot".into()), false, sender.clone());
-        assert_eq!(on_request(&mut server, &id, &token, join_message(WORLD)), None);
+        assert_eq!(
+            on_request(&mut server, &id, &token, join_message(WORLD)),
+            None
+        );
         assert_eq!(world_client_count(&server).await, 1);
         assert!(drain_message_types(&sender, &mut rx).contains(&(MessageType::Init as i32)));
     });
@@ -331,7 +352,10 @@ fn join_for_unknown_world_is_rejected_without_touching_session() {
         assert!(error.is_some());
         // The session registration survives, so a corrected JOIN works.
         assert!(server.lost_sessions.contains_key(&id));
-        assert_eq!(on_request(&mut server, &id, &token, join_message(WORLD)), None);
+        assert_eq!(
+            on_request(&mut server, &id, &token, join_message(WORLD)),
+            None
+        );
         assert_eq!(world_client_count(&server).await, 1);
     });
 }
@@ -353,17 +377,21 @@ fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
         // A joins first and settles (its metadata dirty flag is long
         // consumed by the time B joins).
         let (sender_a, mut rx_a) = fake_socket();
-        let (id_a, token_a) =
-            server.register_session(Some("visA".into()), false, sender_a.clone());
-        assert_eq!(on_request(&mut server, &id_a, &token_a, join_message(WORLD)), None);
+        let (id_a, token_a) = server.register_session(Some("visA".into()), false, sender_a.clone());
+        assert_eq!(
+            on_request(&mut server, &id_a, &token_a, join_message(WORLD)),
+            None
+        );
         tick(4).await;
         drain_messages(&sender_a, &mut rx_a);
 
         // B joins later.
         let (sender_b, mut rx_b) = fake_socket();
-        let (id_b, token_b) =
-            server.register_session(Some("visB".into()), false, sender_b.clone());
-        assert_eq!(on_request(&mut server, &id_b, &token_b, join_message(WORLD)), None);
+        let (id_b, token_b) = server.register_session(Some("visB".into()), false, sender_b.clone());
+        assert_eq!(
+            on_request(&mut server, &id_b, &token_b, join_message(WORLD)),
+            None
+        );
         tick(4).await;
 
         // A must learn about B: reliable JOIN exactly once + peer state.
@@ -372,7 +400,10 @@ fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
             .iter()
             .filter(|m| m.r#type == MessageType::Join as i32 && m.text == id_b)
             .count();
-        assert_eq!(joins_for_b, 1, "existing client gets exactly one JOIN for newcomer");
+        assert_eq!(
+            joins_for_b, 1,
+            "existing client gets exactly one JOIN for newcomer"
+        );
         let a_peer_ids = peer_ids_in(&a_messages);
         assert!(
             a_peer_ids.contains(&id_b),
@@ -403,7 +434,10 @@ fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
                 metadata: json!({ "position": [5.0, 0.0, 0.0] }).to_string(),
             }])
             .build();
-        assert_eq!(server.on_request(&id_b, move_b, None, 0, Some(&token_b)), None);
+        assert_eq!(
+            server.on_request(&id_b, move_b, None, 0, Some(&token_b)),
+            None
+        );
         tick(4).await;
         let a_messages = drain_messages(&sender_a, &mut rx_a);
         let b_position = a_messages
@@ -435,10 +469,16 @@ fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
                 metadata: json!({ "position": [8.0, 0.0, 0.0] }).to_string(),
             }])
             .build();
-        assert_eq!(server.on_request(&id_b, move_b, None, 0, Some(&token_b)), None);
+        assert_eq!(
+            server.on_request(&id_b, move_b, None, 0, Some(&token_b)),
+            None
+        );
         tick(2).await;
         let leave_b = Message::new(&MessageType::Leave).text(WORLD).build();
-        assert_eq!(server.on_request(&id_b, leave_b, None, 0, Some(&token_b)), None);
+        assert_eq!(
+            server.on_request(&id_b, leave_b, None, 0, Some(&token_b)),
+            None
+        );
         tick(4).await;
 
         let a_messages = drain_messages(&sender_a, &mut rx_a);

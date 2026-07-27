@@ -46,7 +46,11 @@ impl World {
         Some(ent)
     }
 
-    pub(super) fn lift_spawn_clear_of_solids(&self, ent: Entity, position: &Vec3<f32>) -> Vec3<f32> {
+    pub(super) fn lift_spawn_clear_of_solids(
+        &self,
+        ent: Entity,
+        position: &Vec3<f32>,
+    ) -> Vec3<f32> {
         // Swept-AABB physics only detects a body entering a block face from
         // outside, so a body placed overlapping solid terrain falls straight
         // through the overlapped layer and rests buried inside it: only its

@@ -26,8 +26,7 @@ mod utils;
 mod voxels;
 
 use actix::{
-    Actor, ActorContext, AsyncContext, Handler, Message as ActixMessage, MessageResult,
-    SyncContext,
+    Actor, ActorContext, AsyncContext, Handler, Message as ActixMessage, MessageResult, SyncContext,
 };
 use actix::{Addr, SyncArbiter};
 use hashbrown::HashMap;
@@ -44,8 +43,8 @@ use specs::{
 };
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, RwLock};
 use std::sync::Arc;
+use std::sync::{Mutex, RwLock};
 use std::{
     fs::{self, File},
     time::{Duration, Instant},
@@ -69,8 +68,8 @@ pub use config::*;
 pub use cpu_profiler::*;
 pub use entities::*;
 pub use entity_ids::*;
-pub use fixed_step::*;
 pub use events::*;
+pub use fixed_step::*;
 pub use generators::*;
 pub use interests::*;
 pub use items::*;
@@ -93,16 +92,16 @@ mod client_body;
 mod dispatcher;
 mod handles;
 mod inbound;
+#[cfg(test)]
+mod lag_comp_wiring_tests;
 mod lifecycle;
 mod sessions;
 mod spawning;
 mod sync;
-#[cfg(test)]
-mod lag_comp_wiring_tests;
 
 pub use client_body::*;
-pub use sync::*;
 use dispatcher::dispatcher;
+pub use sync::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

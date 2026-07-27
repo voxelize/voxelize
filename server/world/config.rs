@@ -699,9 +699,7 @@ impl WorldConfigBuilder {
             // ring's tick stamps are meaningless and "tick T" is ambiguous
             // across record and query. Reject the combination loudly.
             if self.fixed_timestep.is_none() {
-                panic!(
-                    "lag_comp requires fixed_timestep to be set (rewind is tick-anchored)"
-                );
+                panic!("lag_comp requires fixed_timestep to be set (rewind is tick-anchored)");
             }
         }
 
@@ -733,7 +731,8 @@ impl WorldConfigBuilder {
                             "Clamping preload_radius {} → {} (max_preload_radius); \
                              large preloads before/while HTTP is accepting can wedge \
                              small hosts — prefer bind-before-preload + a bounded radius",
-                            radius, max
+                            radius,
+                            max
                         );
                         radius = max;
                     }
