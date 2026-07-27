@@ -102,6 +102,21 @@ impl<'a> System<'a> for PathFindingSystem {
                     target_position.2.floor() as i32,
                 );
 
+                // A* over voxels is a pure function of the (seeker, target)
+                // voxel pair, so until one of them crosses a voxel boundary
+                // the answer cannot change and the search is skipped. The
+                // age ceiling is what lets terrain edits under an unmoved
+                // pair heal instead of being pathed through forever.
+                let pair = (body_vpos.clone(), target_vpos.clone());
+                if entity_path.computed_for.as_ref() == Some(&pair)
+                    && entity_path.ticks_since_computed < entity_path.repath_max_age_ticks
+                {
+                    entity_path.ticks_since_computed += 1;
+                    return;
+                }
+                entity_path.computed_for = Some(pair);
+                entity_path.ticks_since_computed = 0;
+
                 if !is_passable(target_vpos.0, target_vpos.1, target_vpos.2) {
                     entity_path.path = None;
                     return;
