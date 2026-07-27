@@ -194,6 +194,27 @@ pub enum SupportRequirement {
     /// Classic plant / carpet / snow-layer behavior. Uses the existing `active_fn`
     /// neighbor-activation path in `ChunkUpdatingSystem`.
     SolidBelow,
+    /// Cleared (set to air) when the voxel this block is mounted on stops being
+    /// solid. The mount direction is derived from the block's own rotation:
+    /// PY/NY hang on the voxel below, PX on the voxel at -x, NX at +x, PZ at
+    /// -z, and NZ at +z (matching how placement encodes the clicked face
+    /// normal). Torches and other wall-mountable blocks use this.
+    Attached,
+}
+
+/// Shared support test used by [`SupportRequirement`] variants and game code.
+pub fn voxel_has_solid_support_toward(
+    pos: &Vec3<i32>,
+    offset: &Vec3<i32>,
+    space: &dyn VoxelAccess,
+    registry: &Registry,
+) -> bool {
+    let support_id = space.get_voxel(pos.0 + offset.0, pos.1 + offset.1, pos.2 + offset.2);
+    if registry.is_air(support_id) {
+        return false;
+    }
+    let support = registry.get_block_by_id(support_id);
+    !(support.is_empty || support.is_passable || support.is_fluid)
 }
 
 /// Shared support test used by [`SupportRequirement::SolidBelow`] and game code.
@@ -202,12 +223,20 @@ pub fn voxel_has_solid_support_below(
     space: &dyn VoxelAccess,
     registry: &Registry,
 ) -> bool {
-    let below_id = space.get_voxel(pos.0, pos.1 - 1, pos.2);
-    if registry.is_air(below_id) {
-        return false;
+    voxel_has_solid_support_toward(pos, &Vec3(0, -1, 0), space, registry)
+}
+
+/// The voxel offset a rotation-mounted block leans on, matching the rotation
+/// that placement derives from the clicked face normal: a block placed against
+/// the +x face of a wall carries `PX`, so its support sits at -x.
+pub fn attachment_support_offset(rotation: &BlockRotation) -> Vec3<i32> {
+    match rotation {
+        BlockRotation::PX(_) => Vec3(-1, 0, 0),
+        BlockRotation::NX(_) => Vec3(1, 0, 0),
+        BlockRotation::PZ(_) => Vec3(0, 0, -1),
+        BlockRotation::NZ(_) => Vec3(0, 0, 1),
+        BlockRotation::PY(_) | BlockRotation::NY(_) => Vec3(0, -1, 0),
     }
-    let below = registry.get_block_by_id(below_id);
-    !(below.is_empty || below.is_passable || below.is_fluid)
 }
 
 pub(super) fn solid_below_support_fns() -> (
@@ -220,6 +249,27 @@ pub(super) fn solid_below_support_fns() -> (
     let updater = Arc::new(
         |pos: Vec3<i32>, space: &dyn VoxelAccess, reg: &Registry| -> Vec<VoxelUpdate> {
             if voxel_has_solid_support_below(&pos, space, reg) {
+                Vec::new()
+            } else {
+                vec![(pos, 0)]
+            }
+        },
+    );
+    (ticker, updater)
+}
+
+pub(super) fn attached_support_fns() -> (
+    Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>,
+    Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + Send + Sync>,
+) {
+    let ticker = Arc::new(
+        |_pos: Vec3<i32>, _space: &dyn VoxelAccess, _reg: &Registry| -> u64 { 1 },
+    );
+    let updater = Arc::new(
+        |pos: Vec3<i32>, space: &dyn VoxelAccess, reg: &Registry| -> Vec<VoxelUpdate> {
+            let rotation = space.get_voxel_rotation(pos.0, pos.1, pos.2);
+            let offset = attachment_support_offset(&rotation);
+            if voxel_has_solid_support_toward(&pos, &offset, space, reg) {
                 Vec::new()
             } else {
                 vec![(pos, 0)]

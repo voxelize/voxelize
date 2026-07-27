@@ -5,7 +5,7 @@ use crate::{
 };
 
 use super::super::fluids::create_fluid_active_fn;
-use super::rules::solid_below_support_fns;
+use super::rules::{attached_support_fns, solid_below_support_fns};
 use super::{Block, BlockDynamicPattern, SupportRequirement, YRotatableSegments};
 
 #[derive(Default)]
@@ -162,6 +162,11 @@ impl BlockBuilder {
             SupportRequirement::None => {}
             SupportRequirement::SolidBelow => {
                 let (ticker, updater) = solid_below_support_fns();
+                self.active_ticker = Some(ticker);
+                self.active_updater = Some(updater);
+            }
+            SupportRequirement::Attached => {
+                let (ticker, updater) = attached_support_fns();
                 self.active_ticker = Some(ticker);
                 self.active_updater = Some(updater);
             }
