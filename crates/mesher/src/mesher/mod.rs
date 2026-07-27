@@ -4,11 +4,13 @@ mod greedy;
 mod lighting;
 mod space;
 mod types;
+mod vertex_light;
 #[cfg(test)]
 mod tests;
 
 pub use greedy::mesh_space_greedy;
 pub use types::*;
+pub use vertex_light::*;
 
 use faces::*;
 use fluid::*;

@@ -98,6 +98,11 @@ pub struct Block {
 
     pub is_plant: bool,
 
+    /// Groups this block into vertical stacks with any block sharing the same
+    /// non-zero value, so the mesher can tell a vertex where it sits in the
+    /// run. Zero means the block never stacks.
+    pub stack_group: u16,
+
     /// Declares whether this block auto-clears when its support is removed.
     /// Wired through [`BlockBuilder::requires_support`] into `active_fn`.
     #[serde(default)]
@@ -376,6 +381,7 @@ impl Block {
             transparent_standalone: self.transparent_standalone,
             occludes_fluid: self.occludes_fluid,
             is_plant: self.is_plant,
+            stack_group: self.stack_group,
             faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
             aabbs: self.aabbs.clone(),
             dynamic_patterns: self

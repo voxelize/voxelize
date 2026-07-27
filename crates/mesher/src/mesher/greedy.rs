@@ -171,16 +171,16 @@ pub(super) fn process_greedy_quad(
 
         let ao = quad.data.key.ao[i];
         let light = quad.data.key.light[i];
-        let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        let greedy_bit = 1 << 19;
+        let fluid_bit = if is_fluid { FLUID_BIT } else { 0 };
+        let greedy_bit = GREEDY_BIT;
         let water_exposed_bit = if quad.data.key.is_water_exposed {
-            1 << 21
+            WATER_EXPOSED_BIT
         } else {
             0
         };
         geometry
             .lights
-            .push(light | (ao << 16) | fluid_bit | greedy_bit | water_exposed_bit);
+            .push(light | (ao << AO_SHIFT) | fluid_bit | greedy_bit | water_exposed_bit);
     }
 
     let face_aos = quad.data.key.ao;

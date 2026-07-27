@@ -29,6 +29,13 @@ pub struct Block {
     pub occludes_fluid: bool,
     #[serde(default)]
     pub is_plant: bool,
+    /// Vertically contiguous voxels whose blocks share a non-zero group are
+    /// shaded as one object: each vertex learns its index in the run and the
+    /// run's length. The library assigns no groups itself — a game decides
+    /// which of its blocks stack together, so a two-part door or a plant
+    /// column can span more than one block id.
+    #[serde(default)]
+    pub stack_group: u16,
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,

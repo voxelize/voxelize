@@ -84,6 +84,7 @@ fn full_block_diagonal_block() -> Block {
         transparent_standalone: true,
         occludes_fluid: false,
         is_plant: true,
+        stack_group: 0,
         faces: vec![BlockFace::new(
             "one".to_string(),
             false,
@@ -483,6 +484,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         transparent_standalone: false,
         occludes_fluid: false,
         is_plant: false,
+        stack_group: 0,
         faces: vec![],
         aabbs: stairs_aabbs(),
         dynamic_patterns: None,
@@ -504,6 +506,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         transparent_standalone: false,
         occludes_fluid: false,
         is_plant: false,
+        stack_group: 0,
         faces: vec![],
         aabbs: vec![AABB {
             min_x: 0.0,
@@ -607,6 +610,7 @@ fn plain_block(id: u32, name: &str) -> Block {
         transparent_standalone: false,
         occludes_fluid: false,
         is_plant: false,
+        stack_group: 0,
         faces: vec![],
         aabbs: full_cube_aabb(),
         dynamic_patterns: None,
@@ -804,4 +808,98 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
             .all(|packed| packed & WATER_EXPOSED_BIT == 0),
         "the same plant out of water should not carry the water-exposed bit",
     );
+}
+
+/// A stack is defined by the group, not by the block id, so a run may span
+/// several ids the way the two halves of a door do.
+#[test]
+fn a_vertical_run_is_grouped_by_stack_group_not_block_id() {
+    const LOWER_ID: u32 = 1;
+    const UPPER_ID: u32 = 3;
+    const GROUP: u16 = 7;
+
+    let lower = Block {
+        stack_group: GROUP,
+        ..full_block_diagonal_block()
+    };
+    let upper_same_group = Block {
+        id: UPPER_ID,
+        name: "upper".to_string(),
+        name_lower: "upper".to_string(),
+        stack_group: GROUP,
+        ..full_block_diagonal_block()
+    };
+    let upper_other_group = Block {
+        stack_group: GROUP + 1,
+        ..upper_same_group.clone()
+    };
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+
+    let face = lower.faces[0].clone();
+
+    let run_length = |upper: Block, top_id: u32| {
+        let mut registry =
+            Registry::new(vec![(0, air.clone()), (LOWER_ID, lower.clone()), (UPPER_ID, upper)]);
+        registry.build_cache();
+        let space = ColumnSpace {
+            bottom_id: LOWER_ID,
+            top_id,
+            is_bottom_waterlogged: false,
+        };
+        let lights = mesh_single_face(&lower, &face, &registry, &space);
+        let count = ((lights[0] >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
+        let index = (lights[0] >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
+        assert_eq!(index, 0, "the bottom of a run is index 0");
+        count
+    };
+
+    assert_eq!(
+        run_length(upper_same_group.clone(), UPPER_ID),
+        2,
+        "a different id sharing the group continues the run",
+    );
+    assert_eq!(
+        run_length(upper_other_group, UPPER_ID),
+        1,
+        "a different group ends the run",
+    );
+    assert_eq!(
+        run_length(upper_same_group, 0),
+        1,
+        "air ends the run",
+    );
+}
+
+/// A block that opts out of stacking must not disturb any other field.
+#[test]
+fn an_ungrouped_block_writes_no_stack_bits() {
+    let block = full_block_diagonal_block();
+    assert_eq!(block.stack_group, 0);
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (1, block.clone())]);
+    registry.build_cache();
+
+    let space = ColumnSpace {
+        bottom_id: 1,
+        top_id: 1,
+        is_bottom_waterlogged: false,
+    };
+    let lights = mesh_single_face(&block, &block.faces[0], &registry, &space);
+
+    for light in lights {
+        assert_eq!(
+            light >> STACK_INDEX_SHIFT,
+            0,
+            "an ungrouped block left stack bits set",
+        );
+    }
 }

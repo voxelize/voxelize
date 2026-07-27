@@ -30,6 +30,7 @@ pub struct BlockBuilder {
     is_see_through: bool,
     occludes_fluid: bool,
     is_plant: bool,
+    stack_group: u16,
     is_random_tickable: bool,
     requires_support: SupportRequirement,
     is_px_transparent: bool,
@@ -243,6 +244,19 @@ impl BlockBuilder {
         self
     }
 
+    /// Group this block into vertical stacks with every other block sharing
+    /// the same non-zero group.
+    ///
+    /// A run of stacked voxels is shaded as one object: each vertex is told
+    /// its index in the run and the run's length, which is what lets a plant
+    /// column bend as a whole rather than kinking at every block boundary.
+    /// Grouping rather than matching block ids is what allows a stack to span
+    /// several ids, such as the two halves of a door.
+    pub fn stack_group(mut self, stack_group: u16) -> Self {
+        self.stack_group = stack_group;
+        self
+    }
+
     /// Does this block prevent fluids from rendering faces against it?
     pub fn occludes_fluid(mut self, occludes_fluid: bool) -> Self {
         self.occludes_fluid = occludes_fluid;
@@ -416,6 +430,7 @@ impl BlockBuilder {
             is_see_through: self.is_see_through,
             occludes_fluid: self.occludes_fluid,
             is_plant: self.is_plant,
+            stack_group: self.stack_group,
             requires_support: self.requires_support,
             is_transparent: [
                 self.is_px_transparent,

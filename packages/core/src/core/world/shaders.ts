@@ -113,6 +113,19 @@ const FULL_CHUNK_SHADERS = {
       `
 attribute int light;
 
+// Bit map of the packed light attribute, mirroring
+// crates/mesher/src/mesher/vertex_light.rs. Change neither side alone.
+#define LIGHT_MASK 0xFFFF
+#define AO_SHIFT 16
+#define AO_BITS 0x3
+#define FLUID_SHIFT 18
+#define GREEDY_SHIFT 19
+#define WAVE_SHIFT 20
+#define WATER_EXPOSED_SHIFT 21
+#define STACK_INDEX_SHIFT 22
+#define STACK_COUNT_SHIFT 26
+#define STACK_FIELD_BITS 0xF
+
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
@@ -154,16 +167,29 @@ ${SIMPLEX_NOISE_GLSL}
       `
 #include <color_vertex>
 
-int ao = (light >> 16) & 0x3;
-int isFluid = (light >> 18) & 0x1;
-int isGreedy = (light >> 19) & 0x1;
-int isWaterExposed = (light >> 21) & 0x1;
+// Mirrors the bit map in crates/mesher/src/mesher/vertex_light.rs. The two
+// must agree; that file is the reference for which field owns which bit.
+int ao = (light >> AO_SHIFT) & AO_BITS;
+int isFluid = (light >> FLUID_SHIFT) & 0x1;
+int isGreedy = (light >> GREEDY_SHIFT) & 0x1;
+int isWaterExposed = (light >> WATER_EXPOSED_SHIFT) & 0x1;
+
+int stackIndex = (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
+int stackCount = ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
 
 vAO = uAOTable[ao] / 255.0;
 vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
 vWaterExposed = float(isWaterExposed);
-vLight = unpackLight(light & 0xFFFF);
+vLight = unpackLight(light & LIGHT_MASK);
+
+// Where this vertex sits in its vertical run, for displacement later in this
+// shader. A block that does not stack reports a single-block run, which
+// makes every effect keyed on these degrade to acting on the block alone.
+// Locals rather than varyings: nothing downstream of the vertex stage reads
+// them, and an interpolator is not free.
+float stackIndexF = float(stackIndex);
+float stackHeight = float(stackCount);
 `,
     )
     .replace(
@@ -171,7 +197,7 @@ vLight = unpackLight(light & 0xFFFF);
       `
 vec3 transformed = vec3(position);
 
-int shouldWave = (light >> 20) & 0x1;
+int shouldWave = (light >> WAVE_SHIFT) & 0x1;
 if (shouldWave == 1) {
   vec3 worldPosForWave = (modelMatrix * vec4(position, 1.0)).xyz;
   float waveTime = uTime * 0.0006;
@@ -878,9 +904,19 @@ export function createSwayShader(
     ...options,
   };
 
+  // How far this vertex is from the rooted end, 0 at the root and 1 at the
+  // tip. Measured across the whole vertical run when the mesher supplied one,
+  // so a plant column arcs as a single frond; measured within the block when
+  // it did not, which is the same thing for a plant one block tall.
+  const rootScaleCode = !rooted
+    ? "1.0"
+    : baseShaders.vertex.includes("float stackIndexF")
+      ? "((stackIndexF + position.y - floor(position.y)) / stackHeight)"
+      : "(position.y - floor(position.y))";
+
   const swayCode = `
 float swayScale = uTime * 0.00002 * ${speed.toFixed(2)};
-float rootScale = ${rooted ? "(position.y - floor(position.y))" : "1.0"};
+float rootScale = ${rootScaleCode};
 float swayNoise = snoise(vec3(
   position.x * swayScale + uWindOffset.x,
   position.y * swayScale * ${yScale.toFixed(2)},

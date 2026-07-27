@@ -232,6 +232,40 @@ pub(super) fn get_dynamic_faces<S: VoxelAccess>(
     block.faces.iter().cloned().map(|f| (f, false)).collect()
 }
 
+/// Where this voxel sits in the vertical run of blocks sharing its stack
+/// group, as `(index from the bottom, length of the run)`.
+///
+/// The walk is bounded by the width of the packed field, so a run taller than
+/// the field can hold reports a truncated window rather than scanning a
+/// column of unbounded height.
+fn stack_position<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    group: u16,
+    registry: &Registry,
+    space: &S,
+) -> (u32, u32) {
+    let shares_group = |y: i32| {
+        registry
+            .get_block_by_id(space.get_voxel(vx, y, vz))
+            .map(|b| b.stack_group == group)
+            .unwrap_or(false)
+    };
+
+    let mut below = 0u32;
+    while below + 1 < STACK_MAX && shares_group(vy - below as i32 - 1) {
+        below += 1;
+    }
+
+    let mut above = 0u32;
+    while below + above + 1 < STACK_MAX && shares_group(vy + above as i32 + 1) {
+        above += 1;
+    }
+
+    (below, below + above + 1)
+}
+
 pub(super) fn process_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -254,6 +288,14 @@ pub(super) fn process_face<S: VoxelAccess>(
     world_space: bool,
 ) {
     let [min_x, min_y, min_z] = *min;
+
+    let stack_bits = if block.stack_group == 0 {
+        0
+    } else {
+        let (index, count) =
+            stack_position(vx, vy, vz, block.stack_group, registry, space);
+        with_stack(0, index, count)
+    };
 
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
@@ -609,16 +651,23 @@ pub(super) fn process_face<S: VoxelAccess>(
         light = LightUtils::insert_green_light(light, green_light);
         light = LightUtils::insert_blue_light(light, blue_light);
         light = LightUtils::insert_sunlight(light, sunlight);
-        let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
+        let fluid_bit = if is_fluid { FLUID_BIT } else { 0 };
         let fluid_surface_above = is_fluid
             && has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space);
         let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
-            1 << 20
+            WAVE_BIT
         } else {
             0
         };
-        let water_exposed_bit = if is_water_exposed { 1 << 21 } else { 0 };
-        lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit | water_exposed_bit);
+        let water_exposed_bit = if is_water_exposed { WATER_EXPOSED_BIT } else { 0 };
+        lights.push(
+            light as i32
+                | ao << AO_SHIFT
+                | fluid_bit
+                | wave_bit
+                | water_exposed_bit
+                | stack_bits,
+        );
 
         four_red_lights[corner_idx] = red_light;
         four_green_lights[corner_idx] = green_light;
