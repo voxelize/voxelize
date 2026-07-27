@@ -61,6 +61,16 @@ pub struct RigidBody {
     /// Whether or not this rigid body auto-steps up blocks.
     pub auto_step: bool,
 
+    /// How far the body's visual prow (snout, bill, rostrum) reaches ahead
+    /// of its center, beyond the collision box. A swept AABB can neither
+    /// rotate with the body nor grow to hold a life-sized snout without
+    /// wrecking navigation, so bodies that declare a prow get a speed
+    /// governor instead: horizontal velocity toward a solid inside this
+    /// reach is shed before integration, so the prow glides to a stop at
+    /// the obstacle face instead of clipping through it. Zero (the
+    /// default) opts out entirely.
+    pub prow_clearance: f32,
+
     /// Whether this body's placement has been checked against loaded terrain
     /// (see `Physics::validate_placement`). False on every fresh body:
     /// revived entities are placed before their chunks generate, so overlap
@@ -174,6 +184,7 @@ pub struct RigidBodyBuilder {
     restitution: f32,
     gravity_multiplier: f32,
     auto_step: bool,
+    prow_clearance: f32,
 }
 
 impl RigidBodyBuilder {
@@ -218,6 +229,14 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Configure how far the body's visual prow reaches ahead of its
+    /// center (see [`RigidBody::prow_clearance`]). Default is 0.0: no
+    /// governor.
+    pub fn prow_clearance(mut self, prow_clearance: f32) -> Self {
+        self.prow_clearance = prow_clearance;
+        self
+    }
+
     pub fn build(self) -> RigidBody {
         RigidBody {
             collision: None,
@@ -243,6 +262,7 @@ impl RigidBodyBuilder {
             is_swimming: false,
             is_swim_pose_active: false,
             auto_step: self.auto_step,
+            prow_clearance: self.prow_clearance,
             is_placement_validated: false,
             is_frozen: false,
         }

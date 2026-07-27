@@ -329,6 +329,8 @@ impl Physics {
         let mult = (1.0 - (drag * dt) / body.mass).max(0.0);
         body.velocity = body.velocity.scale(mult);
 
+        Physics::apply_prow_standoff(space, registry, body);
+
         // x1-x0 = v1*dt
         let dx = body.velocity.scale(dt);
 
@@ -599,6 +601,67 @@ impl Physics {
         body.on_climbable = intersects_climbable;
     }
 
+    /// The speed governor for bodies with a declared prow (see
+    /// [`RigidBody::prow_clearance`]). One ray from the body's center along
+    /// its horizontal velocity: a solid ahead sheds horizontal speed as the
+    /// prow closes on it, reaching a dead stop exactly when the prow
+    /// touches the face. A grazing course hits far along the ray (or not
+    /// at all) and keeps its speed, so cruising parallel to a wall stays
+    /// free; only motion that would carry the prow into the obstacle is
+    /// shed.
+    ///
+    /// The zero sits at the prow's reach, not at the body's center, and
+    /// releases quadratically over one further prow-length of approach: a
+    /// brake that only completes at the center lets a patient drive creep
+    /// the snout asymptotically through the pane, shedding a fraction of an
+    /// ever-smaller speed each tick while the nose sits in the glass.
+    ///
+    /// Horizontal only: vertical motion belongs to gravity, buoyancy, and
+    /// the ground-contact rules, and shedding it here would fight all
+    /// three.
+    fn apply_prow_standoff(space: &dyn VoxelAccess, registry: &Registry, body: &mut RigidBody) {
+        let prow = body.prow_clearance;
+        if prow <= 0.0 {
+            return;
+        }
+
+        let vx = body.velocity.0;
+        let vz = body.velocity.2;
+        let speed = (vx * vx + vz * vz).sqrt();
+        if approx_equals(speed, 0.0) {
+            return;
+        }
+
+        let get_voxel = |x: i32, y: i32, z: i32| -> bool {
+            let id = space.get_voxel(x, y, z);
+            let block = registry.get_block_by_id(id);
+            !block.is_fluid && !block.is_empty && !block.is_passable
+        };
+
+        let position = body.get_position();
+        let mut origin = position.clone();
+        let mut direction = Vec3(vx / speed, 0.0, vz / speed);
+        let mut hit_pos = Vec3(0.0, 0.0, 0.0);
+        let mut hit_norm = Vec3(0, 0, 0);
+
+        if !trace(
+            prow * 2.0,
+            &get_voxel,
+            &mut origin,
+            &mut direction,
+            &mut hit_pos,
+            &mut hit_norm,
+        ) {
+            return;
+        }
+
+        let dist = ((hit_pos.0 - position.0).powi(2) + (hit_pos.2 - position.2).powi(2)).sqrt();
+        let release = ((dist - prow) / prow).clamp(0.0, 1.0);
+        let keep = release * release;
+        body.velocity.0 *= keep;
+        body.velocity.2 *= keep;
+    }
+
     fn apply_friction_by_axis(axis: usize, body: &mut RigidBody, dvel: &Vec3<f32>) {
         // friction applies only if moving into a touched surface
         let rest_dir = body.resting[axis];
@@ -851,5 +914,95 @@ mod displace_body_tests {
             "open path should apply full delta, moved={moved:?}"
         );
         assert_eq!(body.resting[0], 0);
+    }
+}
+
+#[cfg(test)]
+mod prow_standoff_tests {
+    use super::*;
+    use crate::{Block, Chunk, ChunkOptions, Registry};
+
+    // A wall column at x=12 (y 11..=13, all z), nothing else solid at body
+    // height — the same shape displace_body_tests build, minus the floor so
+    // only the wall can influence the probe.
+    fn walled_chunk() -> (Chunk, Registry) {
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Stone").id(5).build());
+        let opts = ChunkOptions {
+            size: 16,
+            max_height: 64,
+            sub_chunks: 4,
+        };
+        let mut chunk = Chunk::new("prow", 0, 0, &opts);
+        for y in 11..=13 {
+            for z in 0..16 {
+                chunk.set_voxel(12, y, z, 5);
+            }
+        }
+        (chunk, registry)
+    }
+
+    fn prow_body(prow: f32, x: f32, velocity: Vec3<f32>) -> RigidBody {
+        let aabb = AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build();
+        let mut body = RigidBody::new(&aabb).prow_clearance(prow).build();
+        body.set_position(x, 12.5, 8.0);
+        body.velocity = velocity;
+        body
+    }
+
+    #[test]
+    fn prow_inside_reach_stops_dead() {
+        // Wall face plane at x=12; center at 10.5 puts the ray hit 1.5 away,
+        // inside the 2.0 prow. The zero must sit here, at the prow's reach:
+        // a brake that only completes at the center lets a patient drive
+        // creep the snout through the pane.
+        let (chunk, registry) = walled_chunk();
+        let mut body = prow_body(2.0, 10.5, Vec3(1.0, 0.0, 0.0));
+        Physics::apply_prow_standoff(&chunk, &registry, &mut body);
+        assert_eq!(
+            body.velocity.0, 0.0,
+            "speed toward a face already inside the prow's reach must be fully shed"
+        );
+    }
+
+    #[test]
+    fn prow_in_release_band_sheds_quadratically() {
+        // Center at 9.0: the hit is 3.0 out, halfway through the release
+        // band (prow 2.0 .. 2x prow 4.0), so keep = 0.5^2.
+        let (chunk, registry) = walled_chunk();
+        let mut body = prow_body(2.0, 9.0, Vec3(1.0, 0.0, 0.0));
+        Physics::apply_prow_standoff(&chunk, &registry, &mut body);
+        assert!(
+            (body.velocity.0 - 0.25).abs() < 1e-4,
+            "halfway through the release band keeps 25% of speed, kept={}",
+            body.velocity.0
+        );
+    }
+
+    #[test]
+    fn prow_ignores_walls_beyond_release_band_and_parallel_courses() {
+        let (chunk, registry) = walled_chunk();
+
+        // 7.0 blocks out is past the 4.0 trace: full speed.
+        let mut far = prow_body(2.0, 5.0, Vec3(1.0, 0.0, 0.0));
+        Physics::apply_prow_standoff(&chunk, &registry, &mut far);
+        assert_eq!(
+            far.velocity.0, 1.0,
+            "a face beyond the release band is ignored"
+        );
+
+        // Cruising parallel to the wall, one block off it: the ray along
+        // velocity never meets the wall, so the flank pass stays free.
+        let mut parallel = prow_body(2.0, 10.5, Vec3(0.0, 0.0, 1.0));
+        Physics::apply_prow_standoff(&chunk, &registry, &mut parallel);
+        assert_eq!(
+            parallel.velocity.2, 1.0,
+            "parallel cruising beside a wall must not be braked"
+        );
+
+        // No declared prow opts out entirely.
+        let mut plain = prow_body(0.0, 10.5, Vec3(1.0, 0.0, 0.0));
+        Physics::apply_prow_standoff(&chunk, &registry, &mut plain);
+        assert_eq!(plain.velocity.0, 1.0, "prow_clearance 0 is a no-op");
     }
 }
