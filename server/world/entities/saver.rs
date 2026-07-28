@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde_json::{json, Value};
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
@@ -33,6 +33,18 @@ impl EntitiesSaver {
 
     pub fn save(&self, id: &str, etype: &str, is_block: bool, metadata: &MetadataComp) {
         if !self.saving {
+            return;
+        }
+
+        // Same policy as BackgroundEntitiesSaver::queue_save: scenario-owned
+        // entities are live-only and never reach the world save.
+        if super::is_scenario_owned(metadata) {
+            debug!(
+                "not persisting entity {} ({}): metadata carries {}, so it is scenario-owned",
+                id,
+                etype,
+                super::SCENARIO_ID_METADATA_KEY
+            );
             return;
         }
 
