@@ -35,14 +35,23 @@ export class Method implements NetIntercept {
    *
    * @param name The name of the method to call.
    * @param payload The JSON serializable payload to send to the server.
+   * @returns The queued packet. Callers that must know whether the command
+   *   actually left the client can flush the network and then check the
+   *   packet's absence from both this intercept's `packets` queue and
+   *   `Network.isPacketPendingSend`.
    */
-  call = (name: string, payload: any = {}) => {
-    this.packets.push({
+  call = (
+    name: string,
+    payload: any = {},
+  ): MessageProtocol<any, any, any, any> => {
+    const packet: MessageProtocol<any, any, any, any> = {
       type: "METHOD",
       method: {
         name,
         payload: JSON.stringify(payload),
       },
-    });
+    };
+    this.packets.push(packet);
+    return packet;
   };
 }

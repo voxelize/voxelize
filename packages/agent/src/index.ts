@@ -1,5 +1,20 @@
-export { Agent } from "./agent";
+export { Agent, PageStallError } from "./agent";
 export type { AgentLaunchOptions, ScreenshotOptions } from "./agent";
+export {
+  DEFAULT_FRAME_DISTANCE_MULTIPLIER,
+  FRAME_PRESETS,
+  computeFramePose,
+  facingYawRad,
+  subjectExtent,
+} from "./frame-pose";
+export type { FramePose, FramePoseRequest, FramePreset } from "./frame-pose";
+export {
+  describeLastSeen,
+  filterWaitCandidates,
+  matchesPredicate,
+  resolvePath,
+} from "./wait-until";
+export type { WaitOp, WaitPredicate, WaitValue } from "./wait-until";
 export {
   CaptureViewportError,
   MAX_CAPTURE_BACKING_PIXELS,
@@ -15,7 +30,12 @@ export type {
 export { evaluateAgentHealth } from "./health";
 export type { AgentHealth, AgentHealthInput, AgentWorldHealth } from "./health";
 export { AgentDaemon } from "./daemon";
-export type { DaemonEvent, DaemonOptions, DaemonStatus } from "./daemon";
+export type {
+  DaemonEvent,
+  DaemonLeaseStatus,
+  DaemonOptions,
+  DaemonStatus,
+} from "./daemon";
 export {
   DEFAULT_IDLE_TTL_MS,
   IDLE_TTL_EXIT_CODE,

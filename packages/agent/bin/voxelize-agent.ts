@@ -18,6 +18,7 @@ async function main(): Promise<void> {
       authUrl: { type: "string" },
       headed: { type: "boolean" },
       "idle-ttl-ms": { type: "string" },
+      "lease-minutes": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -35,13 +36,17 @@ async function main(): Promise<void> {
   // Invalid TTL input fails here, before a browser exists: an explicit but
   // unparseable value silently defaulting would be a plausible lie.
   const idleTtlMs = resolveIdleTtlMs(values["idle-ttl-ms"], process.env);
+  const leaseMinutes = resolveLeaseMinutes(
+    values["lease-minutes"],
+    process.env,
+  );
 
   console.log(
     `[voxelize-agent] launching agent world=${world} url=${url} port=${port} headless=${isHeadless} ${
       idleTtlMs === 0
         ? "idle-ttl=disabled"
         : `idle-ttl=${Math.round(idleTtlMs / 1000)}s`
-    }`,
+    }${leaseMinutes > 0 ? ` lease=${leaseMinutes}m` : ""}`,
   );
 
   const agent = await Agent.launch({
@@ -57,7 +62,7 @@ async function main(): Promise<void> {
     agent.killBrowserSync();
   });
 
-  const daemon = new AgentDaemon({ agent, port, idleTtlMs });
+  const daemon = new AgentDaemon({ agent, port, idleTtlMs, leaseMinutes });
 
   let isShuttingDown = false;
   const shutdown = async (reason: string, exitCode: number) => {
@@ -110,6 +115,11 @@ async function main(): Promise<void> {
       if (idleMs <= idleTtlMs || daemon.isBusy()) {
         return;
       }
+      // An unexpired lease is a worker's explicit claim on this session;
+      // idle retirement resumes once the lease runs out.
+      if (daemon.isLeaseActive()) {
+        return;
+      }
       clearInterval(idleTimer);
       console.log(
         `[voxelize-agent] idle ttl expired: no activity for ${Math.round(idleMs / 1000)}s ` +
@@ -138,6 +148,25 @@ async function main(): Promise<void> {
   console.log("[voxelize-agent] agent ready");
 }
 
+function resolveLeaseMinutes(
+  flagValue: string | undefined,
+  env: Record<string, string | undefined>,
+): number {
+  const raw = flagValue ?? env.AGENT_LEASE_MINUTES;
+  if (raw === undefined || raw === "") {
+    return 0;
+  }
+  const origin =
+    flagValue !== undefined ? "--lease-minutes" : "AGENT_LEASE_MINUTES";
+  const minutes = Number(raw);
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    throw new Error(
+      `${origin} must be a non-negative number of minutes (0 = no lease), received \`${raw}\``,
+    );
+  }
+  return minutes;
+}
+
 function printHelp(): void {
   console.log(`voxelize-agent - headless browser agent for Voxelize worlds
 
@@ -153,10 +182,15 @@ Options:
       --headed           Launch a visible browser window (default: headless)
       --idle-ttl-ms <n>  Shut down after n ms without commands (default: 30m;
                          0 disables; env AGENT_IDLE_TTL_MS). Exits code ${IDLE_TTL_EXIT_CODE}.
+      --lease-minutes <n> Claim this session for n minutes from start
+                         (env AGENT_LEASE_MINUTES). Reported in /status;
+                         defers idle retirement while unexpired, and an
+                         expired lease is reap evidence.
   -h, --help             Show this help
 
 Environment:
   AGENT_IDLE_TTL_MS        Same as --idle-ttl-ms (flag wins).
+  AGENT_LEASE_MINUTES      Same as --lease-minutes (flag wins).
   AGENT_BROWSER_WATCHDOG   Set to 0 to skip the detached watchdog that kills
                            the browser if this process dies uncleanly. Only
                            for tests; disabling it re-enables orphan browsers.

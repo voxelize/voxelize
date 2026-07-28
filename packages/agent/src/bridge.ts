@@ -77,6 +77,44 @@ export type CommandResult = {
   message?: string;
 };
 
+export type ConnectionSnapshot = {
+  isConnected: boolean;
+  isJoined: boolean;
+  /** A (re)join handshake is in flight; world reads are answered from a map
+   * the server may no longer agree with. */
+  isJoinPending: boolean;
+  /** Terminal protocol rejection: only a fresh page load can reconnect. */
+  isClientOutdated: boolean;
+  /** Completed INIT handshakes; bumps on first join, every rejoin, and
+   * every world switch. Monotonically increasing. */
+  joinGeneration: number;
+  pendingCommandCount: number;
+  droppedCommandCount: number;
+  serverUrl: string | null;
+};
+
+export type CommandQueueReason = "disconnected" | "rejoining" | "retrying";
+
+/**
+ * The honest fate of a one-shot command: either it was handed to an OPEN
+ * socket (`isSent`), or it is queued client-side and goes out automatically
+ * once the session is connected and joined again (`isQueued` plus a reason).
+ * At most one is true; both false means there was nothing to send.
+ */
+export type CommandDispatch = {
+  isSent: boolean;
+  isQueued: boolean;
+  queuedReason?: CommandQueueReason;
+};
+
+export type PaintSettleReport = {
+  /** All pipeline queues drained and two consecutive quiet frames painted. */
+  isSettled: boolean;
+  elapsedMs: number;
+  /** Which counters were still non-zero when the wait gave up. */
+  blockedOn?: string;
+};
+
 export type CaptureFrameOptions = {
   isPure?: boolean;
 };
@@ -221,6 +259,14 @@ export interface ChunkBridge {
   loaded(): ChunkCoord[];
   pending(): ChunkCoord[];
   list(): ChunkSnapshot[];
+  /**
+   * Wait until the world is paint-ready: update/light/mesh pipeline queues
+   * drained, then two consecutive animation frames with no new work. Bounded
+   * by `timeoutMs`; a timeout reports `isSettled: false` (with what was
+   * still pending) instead of throwing, because a slightly-unsettled capture
+   * beats no capture.
+   */
+  waitForPaint(opts?: { timeoutMs?: number }): Promise<PaintSettleReport>;
 }
 
 /**
@@ -280,12 +326,14 @@ export interface AgentBridge {
   /**
    * Optimistic client voxel clear + authoritative `break-block` method.
    * Used by staging smoke to assert mesh/raycast catch up with inventory.
+   * The dispatch fields report the real fate of the `break-block` command.
    */
-  breakVoxel(pos: Vec3): Promise<{
-    beforeId: number;
-    afterId: number;
-    queued: boolean;
-  }>;
+  breakVoxel(pos: Vec3): Promise<
+    {
+      beforeId: number;
+      afterId: number;
+    } & CommandDispatch
+  >;
   captureFrame(opts?: CaptureFrameOptions): Promise<string | null>;
 
   meshTransferStatus(): Promise<MeshTransferStatus>;
@@ -306,6 +354,14 @@ export interface AgentBridge {
   peers(): PeerSnapshot[];
   chunks: ChunkBridge;
   snapshot(): Snapshot;
+  /** Live connection/join state straight from the network layer. */
+  connection(): ConnectionSnapshot;
+  /**
+   * Ask the network to reconnect immediately (bypassing its periodic
+   * backoff). Returns false when there is nothing to do: already connected,
+   * never connected, or the client build was terminally rejected.
+   */
+  reconnectNow(): boolean;
 
   on<E extends AgentEventName>(
     event: E,

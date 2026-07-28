@@ -8,7 +8,9 @@ import type {
   ChunkCoord,
   ChunkSnapshot,
   ChunkState,
+  CommandDispatch,
   CommandResult,
+  ConnectionSnapshot,
   EntitySnapshot,
   FaceInput,
   FollowOptions,
@@ -19,6 +21,7 @@ import type {
   MeshTransferBenchmarkRequest,
   MeshTransferBenchmarkResult,
   MeshTransferStatus,
+  PaintSettleReport,
   PeerSnapshot,
   RaycastHit,
   Snapshot,
@@ -102,6 +105,41 @@ const BROWSER_CLOSE_TIMEOUT_MS = 1500;
 const ENTITY_ACCESS_TIMEOUT_MS = 5000;
 const CAPTURE_RESIZE_PAINT_TIMEOUT_MS = 15_000;
 const HEALTH_SNAPSHOT_TIMEOUT_MS = 3_000;
+// Quick reads and fire-and-forget actions: generous against normal jank but
+// far short of "the harness killed the CLI". Override per daemon with
+// AGENT_PAGE_TIMEOUT_MS.
+const DEFAULT_PAGE_CALL_TIMEOUT_MS = 10_000;
+// Rendering plus PNG encode under software WebGL is the slowest page call
+// that is still healthy, so captures get their own ceiling.
+const CAPTURE_PAGE_CALL_TIMEOUT_MS = 30_000;
+// Headroom added on top of a page-side operation's own bound (walk duration,
+// chunk-wait timeout, ...) before the daemon declares the page stalled.
+const PAGE_CALL_GRACE_MS = 5_000;
+// The in-page chunk wait inside teleport/view uses this fixed bound (see
+// bridge teleport); the page timeout must outlast it.
+const ENSURE_CHUNKS_PAGE_WAIT_MS = 15_000;
+const MESH_BENCHMARK_PAGE_TIMEOUT_MS = 180_000;
+const DEFAULT_SETTLE_TIMEOUT_MS = 10_000;
+// Suggested client retry delay after a 503 for a stalled page call.
+const PAGE_STALL_RETRY_AFTER_MS = 2_000;
+
+/**
+ * A page call either exceeded its timeout or was refused because an earlier
+ * identical call already timed out and is still pending in the page.
+ * Promise.race cannot cancel a puppeteer evaluate, so stacking retries onto a
+ * blocked main thread only deepens the wedge; the daemon maps this error to
+ * HTTP 503 with `retryAfterMs`.
+ */
+export class PageStallError extends Error {
+  constructor(
+    public readonly call: string,
+    public readonly retryAfterMs: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "PageStallError";
+  }
+}
 
 function positiveEnvNumber(name: string, fallback: number): number {
   const value = Number(process.env[name]);
@@ -122,6 +160,16 @@ export class Agent {
   private bridgeError: string | null = null;
   private unexpectedDisconnectReason: string | null = null;
   private disconnectListeners = new Set<(reason: string) => void>();
+  /**
+   * Labels of page calls that exceeded their timeout and whose evaluate is
+   * still pending in the page, keyed to the start time of the stalled call.
+   * New calls with the same label are refused until the stalled one settles.
+   */
+  private stalledPageCalls = new Map<string, number>();
+  private readonly defaultPageTimeoutMs = positiveEnvNumber(
+    "AGENT_PAGE_TIMEOUT_MS",
+    DEFAULT_PAGE_CALL_TIMEOUT_MS,
+  );
   public readyPromise: Promise<void>;
 
   private constructor(
@@ -319,6 +367,69 @@ export class Agent {
     return this.readyPromise;
   }
 
+  /** Labels of page calls that timed out and have not settled yet. */
+  stalledPageCallLabels(): string[] {
+    return [...this.stalledPageCalls.keys()];
+  }
+
+  /**
+   * Run one page call under a deadline. Every route that touches the page
+   * goes through here so a stalled page main thread (bulk remesh under
+   * software WebGL) turns into a named, typed error instead of an await that
+   * never returns. A losing evaluate keeps running in the page — nothing can
+   * cancel it — so while it is pending, further calls with the same label
+   * fail fast instead of piling more work onto the blocked thread.
+   */
+  private async withPageTimeout<T>(
+    label: string,
+    timeoutMs: number,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    const stalledSince = this.stalledPageCalls.get(label);
+    if (stalledSince !== undefined) {
+      throw new PageStallError(
+        label,
+        PAGE_STALL_RETRY_AFTER_MS,
+        `page call "${label}" started ${Date.now() - stalledSince}ms ago, timed out, and still has not settled; ` +
+          `refusing to stack another onto a blocked page. Retry in ~${PAGE_STALL_RETRY_AFTER_MS}ms, ` +
+          `or POST /reset to reload the page.`,
+      );
+    }
+
+    const startedAt = Date.now();
+    const taskPromise = task();
+    void taskPromise
+      .catch(() => undefined)
+      .finally(() => {
+        if (this.stalledPageCalls.get(label) === startedAt) {
+          this.stalledPageCalls.delete(label);
+        }
+      });
+
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        taskPromise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            this.stalledPageCalls.set(label, startedAt);
+            reject(
+              new PageStallError(
+                label,
+                PAGE_STALL_RETRY_AFTER_MS,
+                `page call "${label}" timed out after ${timeoutMs}ms; the page main thread is likely stalled ` +
+                  `(bulk remesh under software WebGL is the usual cause). The call may still finish in the page; ` +
+                  `further "${label}" calls are refused until it settles.`,
+              ),
+            );
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   /**
    * Reload the page and wait for the bridge to reinstall. Recovers from
    * dropped websockets (server rebuilds) and wedged pages without cycling
@@ -438,117 +549,206 @@ export class Agent {
   }
 
   async chat(text: string): Promise<CommandResult> {
-    return this.page.evaluate((t) => window.__agentRequired__().chat(t), text);
+    return this.withPageTimeout("chat", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate((t) => window.__agentRequired__().chat(t), text),
+    );
   }
 
   async teleport(
     pos: Vec3,
     opts?: { isEnsuringChunks?: boolean },
   ): Promise<void> {
-    await this.page.evaluate(
-      (p, o) => window.__agentRequired__().teleport(p, o),
-      pos,
-      opts ?? {},
+    const timeoutMs = opts?.isEnsuringChunks
+      ? ENSURE_CHUNKS_PAGE_WAIT_MS + PAGE_CALL_GRACE_MS
+      : this.defaultPageTimeoutMs;
+    await this.withPageTimeout("teleport", timeoutMs, () =>
+      this.page.evaluate(
+        (p, o) => window.__agentRequired__().teleport(p, o),
+        pos,
+        opts ?? {},
+      ),
     );
   }
 
   async face(input: FaceInput): Promise<void> {
-    await this.page.evaluate((i) => window.__agentRequired__().face(i), input);
+    await this.withPageTimeout("face", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate((i) => window.__agentRequired__().face(i), input),
+    );
   }
 
   async walk(direction: WalkDirection, opts?: WalkOptions): Promise<void> {
-    await this.page.evaluate(
-      (d, o) => window.__agentRequired__().walk(d, o),
-      direction,
-      opts ?? {},
+    // The page-side walk holds keys for its whole duration by design; only
+    // time beyond that duration indicates a stall.
+    const timeoutMs = (opts?.durationMs ?? 1000) + PAGE_CALL_GRACE_MS;
+    await this.withPageTimeout("walk", timeoutMs, () =>
+      this.page.evaluate(
+        (d, o) => window.__agentRequired__().walk(d, o),
+        direction,
+        opts ?? {},
+      ),
     );
   }
 
   async walkTo(target: Vec3, opts?: WalkToOptions): Promise<void> {
-    await this.page.evaluate(
-      (t, o) => window.__agentRequired__().walkTo(t, o),
-      target,
-      opts ?? {},
+    const timeoutMs = (opts?.timeoutMs ?? 10_000) + PAGE_CALL_GRACE_MS;
+    await this.withPageTimeout("walkTo", timeoutMs, () =>
+      this.page.evaluate(
+        (t, o) => window.__agentRequired__().walkTo(t, o),
+        target,
+        opts ?? {},
+      ),
     );
   }
 
   async view(opts: ViewOptions): Promise<void> {
-    await this.page.evaluate((o) => window.__agentRequired__().view(o), opts);
+    const timeoutMs = opts.isEnsuringChunks
+      ? ENSURE_CHUNKS_PAGE_WAIT_MS + PAGE_CALL_GRACE_MS
+      : this.defaultPageTimeoutMs;
+    await this.withPageTimeout("view", timeoutMs, () =>
+      this.page.evaluate((o) => window.__agentRequired__().view(o), opts),
+    );
   }
 
   async follow(
     target: FollowTarget,
     opts?: FollowOptions,
   ): Promise<FollowStatus> {
-    return this.page.evaluate(
-      (t, o) => window.__agentRequired__().follow(t, o),
-      target,
-      opts ?? {},
+    return this.withPageTimeout("follow", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(
+        (t, o) => window.__agentRequired__().follow(t, o),
+        target,
+        opts ?? {},
+      ),
     );
   }
 
   async unfollow(): Promise<void> {
-    await this.page.evaluate(() => window.__agentRequired__().unfollow());
+    await this.withPageTimeout("unfollow", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().unfollow()),
+    );
   }
 
   async following(): Promise<FollowStatus | null> {
-    return this.page.evaluate(() => window.__agentRequired__().following());
+    return this.withPageTimeout("following", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().following()),
+    );
   }
 
   async setFlying(isFlying: boolean): Promise<void> {
-    await this.page.evaluate(
-      (f) => window.__agentRequired__().setFlying(f),
-      isFlying,
+    await this.withPageTimeout("setFlying", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(
+        (f) => window.__agentRequired__().setFlying(f),
+        isFlying,
+      ),
     );
   }
 
   async setRenderRadius(radius: number): Promise<number> {
-    return this.page.evaluate(
-      (r) => window.__agentRequired__().setRenderRadius(r),
-      radius,
+    return this.withPageTimeout(
+      "setRenderRadius",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(
+          (r) => window.__agentRequired__().setRenderRadius(r),
+          radius,
+        ),
     );
   }
 
   async call(method: string, payload: unknown): Promise<unknown> {
-    return this.page.evaluate(
-      (m, p) => window.__agentRequired__().call(m, p),
-      method,
-      payload,
+    return this.withPageTimeout("call", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(
+        (m, p) => window.__agentRequired__().call(m, p),
+        method,
+        payload,
+      ),
     );
   }
 
-  async breakVoxel(pos: Vec3): Promise<{
-    beforeId: number;
-    afterId: number;
-    queued: boolean;
-  }> {
-    return this.page.evaluate(
-      (p) => window.__agentRequired__().breakVoxel(p),
-      pos,
+  async breakVoxel(pos: Vec3): Promise<
+    {
+      beforeId: number;
+      afterId: number;
+    } & CommandDispatch
+  > {
+    return this.withPageTimeout("breakVoxel", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate((p) => window.__agentRequired__().breakVoxel(p), pos),
+    );
+  }
+
+  async connection(): Promise<ConnectionSnapshot> {
+    return this.withPageTimeout("connection", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().connection()),
+    );
+  }
+
+  /**
+   * Ask the in-page network layer to reconnect immediately. Returns false
+   * when there is nothing to do (already connected, or the client build was
+   * terminally rejected — that case needs a page reset instead).
+   */
+  async reconnectInPage(): Promise<boolean> {
+    return this.withPageTimeout("reconnectNow", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().reconnectNow()),
+    );
+  }
+
+  /**
+   * Wait until the world is paint-ready: pipeline queues drained plus two
+   * quiet frames. A timeout reports `isSettled: false` rather than throwing,
+   * because a slightly-unsettled capture beats no capture.
+   */
+  async settle(
+    timeoutMs = DEFAULT_SETTLE_TIMEOUT_MS,
+  ): Promise<PaintSettleReport> {
+    return this.withPageTimeout(
+      "waitForPaint",
+      timeoutMs + PAGE_CALL_GRACE_MS,
+      () =>
+        this.page.evaluate(
+          (t) =>
+            window.__agentRequired__().chunks.waitForPaint({ timeoutMs: t }),
+          timeoutMs,
+        ),
     );
   }
 
   async meshTransferStatus(): Promise<MeshTransferStatus> {
-    return this.page.evaluate(() =>
-      window.__agentRequired__().meshTransferStatus(),
+    return this.withPageTimeout(
+      "meshTransferStatus",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() =>
+          window.__agentRequired__().meshTransferStatus(),
+        ),
     );
   }
 
   async meshTransferConfigure(
     mode: "auto" | "transfer" | "shared",
   ): Promise<MeshTransferStatus> {
-    return this.page.evaluate(
-      (m) => window.__agentRequired__().meshTransferConfigure(m),
-      mode,
+    return this.withPageTimeout(
+      "meshTransferConfigure",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(
+          (m) => window.__agentRequired__().meshTransferConfigure(m),
+          mode,
+        ),
     );
   }
 
   async meshTransferBenchmark(
     opts: MeshTransferBenchmarkRequest = {},
   ): Promise<MeshTransferBenchmarkResult> {
-    return this.page.evaluate(
-      (o) => window.__agentRequired__().meshTransferBenchmark(o),
-      opts,
+    return this.withPageTimeout(
+      "meshTransferBenchmark",
+      MESH_BENCHMARK_PAGE_TIMEOUT_MS,
+      () =>
+        this.page.evaluate(
+          (o) => window.__agentRequired__().meshTransferBenchmark(o),
+          opts,
+        ),
     );
   }
 
@@ -562,9 +762,16 @@ export class Agent {
     heapTotalBytes: number;
     counters: WorldMemoryCounters;
   }> {
-    const metrics = await this.page.metrics();
-    const counters = await this.page.evaluate(() =>
-      window.__agentRequired__().memoryCounters(),
+    const metrics = await this.withPageTimeout(
+      "pageMetrics",
+      this.defaultPageTimeoutMs,
+      () => this.page.metrics(),
+    );
+    const counters = await this.withPageTimeout(
+      "memoryCounters",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() => window.__agentRequired__().memoryCounters()),
     );
     return {
       heapUsedBytes: metrics.JSHeapUsedSize ?? 0,
@@ -574,21 +781,26 @@ export class Agent {
   }
 
   async position(): Promise<Vec3> {
-    return this.page.evaluate(() => window.__agentRequired__().position());
+    return this.withPageTimeout("position", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().position()),
+    );
   }
 
   async facing(): Promise<YawPitch> {
-    return this.page.evaluate(() => window.__agentRequired__().facing());
+    return this.withPageTimeout("facing", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().facing()),
+    );
   }
 
   async raycast(): Promise<RaycastHit | null> {
-    return this.page.evaluate(() => window.__agentRequired__().raycast());
+    return this.withPageTimeout("raycast", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().raycast()),
+    );
   }
 
   async blockAt(pos: Vec3): Promise<BlockInfo | null> {
-    return this.page.evaluate(
-      (p) => window.__agentRequired__().blockAt(p),
-      pos,
+    return this.withPageTimeout("blockAt", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate((p) => window.__agentRequired__().blockAt(p), pos),
     );
   }
 
@@ -606,26 +818,17 @@ export class Agent {
       });
     }
 
-    let timeout: NodeJS.Timeout | undefined;
     try {
-      const entities = await Promise.race([
-        this.page.evaluate(
-          (r, t) => window.__agentRequired__().entitiesNear(r, t),
-          radius,
-          traceId,
-        ),
-        new Promise<EntitySnapshot[]>((_, reject) => {
-          timeout = setTimeout(
-            () =>
-              reject(
-                new Error(
-                  `Entity cache access timed out after ${ENTITY_ACCESS_TIMEOUT_MS}ms`,
-                ),
-              ),
-            ENTITY_ACCESS_TIMEOUT_MS,
-          );
-        }),
-      ]);
+      const entities = await this.withPageTimeout(
+        "entitiesNear",
+        ENTITY_ACCESS_TIMEOUT_MS,
+        () =>
+          this.page.evaluate(
+            (r, t) => window.__agentRequired__().entitiesNear(r, t),
+            radius,
+            traceId,
+          ),
+      );
       if (isLogging) {
         logAgentPerf("entity_bridge_result", this.worldName, {
           traceId,
@@ -642,17 +845,19 @@ export class Agent {
         });
       }
       throw error;
-    } finally {
-      if (timeout) clearTimeout(timeout);
     }
   }
 
   async peers(): Promise<PeerSnapshot[]> {
-    return this.page.evaluate(() => window.__agentRequired__().peers());
+    return this.withPageTimeout("peers", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().peers()),
+    );
   }
 
   async snapshot(): Promise<Snapshot> {
-    return this.page.evaluate(() => window.__agentRequired__().snapshot());
+    return this.withPageTimeout("snapshot", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().snapshot()),
+    );
   }
 
   async health(): Promise<AgentHealth> {
@@ -675,22 +880,12 @@ export class Agent {
       this.isBridgeReady &&
       isBrowserProcessAlive !== false
     ) {
-      let timeout: NodeJS.Timeout | undefined;
       try {
-        const snapshot = await Promise.race([
-          this.snapshot(),
-          new Promise<never>((_, reject) => {
-            timeout = setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    `snapshot timed out after ${HEALTH_SNAPSHOT_TIMEOUT_MS}ms`,
-                  ),
-                ),
-              HEALTH_SNAPSHOT_TIMEOUT_MS,
-            );
-          }),
-        ]);
+        const snapshot = await this.withPageTimeout(
+          "snapshot",
+          HEALTH_SNAPSHOT_TIMEOUT_MS,
+          () => this.page.evaluate(() => window.__agentRequired__().snapshot()),
+        );
         world = {
           name: snapshot.world || this.worldName,
           isReady: snapshot.isReady,
@@ -702,8 +897,6 @@ export class Agent {
           isReady: null,
           error: error instanceof Error ? error.message : String(error),
         };
-      } finally {
-        if (timeout) clearTimeout(timeout);
       }
     }
 
@@ -720,9 +913,11 @@ export class Agent {
   }
 
   async chunkState(target: Vec3 | ChunkCoord): Promise<ChunkState> {
-    return this.page.evaluate(
-      (t) => window.__agentRequired__().chunks.state(t),
-      target as Vec3 | ChunkCoord,
+    return this.withPageTimeout("chunkState", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(
+        (t) => window.__agentRequired__().chunks.state(t),
+        target as Vec3 | ChunkCoord,
+      ),
     );
   }
 
@@ -731,26 +926,38 @@ export class Agent {
     radius = 2,
     timeoutMs = 10_000,
   ): Promise<void> {
-    await this.page.evaluate(
-      (p, r, t) => window.__agentRequired__().chunks.waitFor(p, r, t),
-      pos,
-      radius,
-      timeoutMs,
+    await this.withPageTimeout(
+      "waitForChunks",
+      timeoutMs + PAGE_CALL_GRACE_MS,
+      () =>
+        this.page.evaluate(
+          (p, r, t) => window.__agentRequired__().chunks.waitFor(p, r, t),
+          pos,
+          radius,
+          timeoutMs,
+        ),
     );
   }
 
   async loadedChunks(): Promise<ChunkCoord[]> {
-    return this.page.evaluate(() => window.__agentRequired__().chunks.loaded());
+    return this.withPageTimeout("loadedChunks", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().chunks.loaded()),
+    );
   }
 
   async pendingChunks(): Promise<ChunkCoord[]> {
-    return this.page.evaluate(() =>
-      window.__agentRequired__().chunks.pending(),
+    return this.withPageTimeout(
+      "pendingChunks",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() => window.__agentRequired__().chunks.pending()),
     );
   }
 
   async chunkList(): Promise<ChunkSnapshot[]> {
-    return this.page.evaluate(() => window.__agentRequired__().chunks.list());
+    return this.withPageTimeout("chunkList", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().chunks.list()),
+    );
   }
 
   async screenshot(opts: ScreenshotOptions = {}): Promise<Buffer> {
@@ -782,11 +989,74 @@ export class Agent {
     }
   }
 
+  /**
+   * Capture a series of pure frames on a fixed cadence with a single
+   * viewport resize for the whole run. Frames are scheduled on an absolute
+   * timeline (start + i * intervalMs); when a capture overruns its slot the
+   * next one fires immediately and the overrun is reported instead of
+   * silently stretching the burst.
+   */
+  async captureBurst(opts: {
+    count: number;
+    intervalMs: number;
+    width?: number;
+    height?: number;
+    deviceScaleFactor?: number;
+  }): Promise<{
+    frames: Buffer[];
+    capturedAtMs: number[];
+    overrunFrameCount: number;
+  }> {
+    const current = this.page.viewport();
+    const currentViewport: CaptureViewport = {
+      width: current?.width ?? 1280,
+      height: current?.height ?? 720,
+      deviceScaleFactor: current?.deviceScaleFactor || 1,
+    };
+    const captureViewport = resolveCaptureViewport(opts, currentViewport);
+
+    const runBurst = async () => {
+      const frames: Buffer[] = [];
+      const capturedAtMs: number[] = [];
+      let overrunFrameCount = 0;
+      const startedAt = Date.now();
+      for (let index = 0; index < opts.count; index++) {
+        const scheduledAt = startedAt + index * opts.intervalMs;
+        const waitMs = scheduledAt - Date.now();
+        if (waitMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+        } else if (index > 0) {
+          overrunFrameCount += 1;
+        }
+        frames.push(await this.captureBuffer(true));
+        capturedAtMs.push(Date.now() - startedAt);
+      }
+      return { frames, capturedAtMs, overrunFrameCount };
+    };
+
+    if (!captureViewport) {
+      return runBurst();
+    }
+    await this.setViewportAndAwaitPaint(captureViewport);
+    try {
+      return await runBurst();
+    } finally {
+      await this.setViewportAndAwaitPaint(currentViewport);
+    }
+  }
+
   private async captureBuffer(isPure: boolean): Promise<Buffer> {
     if (isPure) {
-      const dataUrl = await this.page.evaluate(
-        (o) => window.__agentRequired__().captureFrame(o),
-        { isPure: true },
+      const dataUrl = await this.withPageTimeout(
+        "captureFrame",
+        CAPTURE_PAGE_CALL_TIMEOUT_MS,
+        () =>
+          this.page.evaluate(
+            (o) => window.__agentRequired__().captureFrame(o),
+            {
+              isPure: true,
+            },
+          ),
       );
       if (!dataUrl) {
         throw new Error(
@@ -796,10 +1066,15 @@ export class Agent {
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       return Buffer.from(base64, "base64");
     }
-    const result = await this.page.screenshot({
-      type: "png",
-      fullPage: false,
-    });
+    const result = await this.withPageTimeout(
+      "pageScreenshot",
+      CAPTURE_PAGE_CALL_TIMEOUT_MS,
+      () =>
+        this.page.screenshot({
+          type: "png",
+          fullPage: false,
+        }),
+    );
     return Buffer.from(result);
   }
 
@@ -837,11 +1112,18 @@ export class Agent {
 
     // Double requestAnimationFrame guarantees at least one full frame has
     // been rendered and presented at the new backing size before capture.
-    await this.page.evaluate(
+    await this.withPageTimeout(
+      "resizePaint",
+      CAPTURE_RESIZE_PAINT_TIMEOUT_MS + PAGE_CALL_GRACE_MS,
       () =>
-        new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        }),
+        this.page.evaluate(
+          () =>
+            new Promise<void>((resolve) => {
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => resolve()),
+              );
+            }),
+        ),
     );
   }
 
@@ -878,6 +1160,17 @@ export class Agent {
     const durationMs = opts.durationMs ?? 10_000;
     const warmupMs = opts.warmupMs ?? 1_000;
 
+    return this.withPageTimeout(
+      "measureFrameRate",
+      durationMs + warmupMs + PAGE_CALL_GRACE_MS,
+      () => this.evaluateFrameRateMeasurement(durationMs, warmupMs),
+    );
+  }
+
+  private evaluateFrameRateMeasurement(
+    durationMs: number,
+    warmupMs: number,
+  ): Promise<FrameRateMeasurement> {
     return this.page.evaluate(
       ({ durationMs: measuredDurationMs, warmupMs: measuredWarmupMs }) =>
         new Promise<FrameRateMeasurement>((resolve) => {

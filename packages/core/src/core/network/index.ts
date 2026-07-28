@@ -26,7 +26,7 @@ export { WebRTCConnection } from "./webrtc";
 const { Message } = protocol;
 
 export type ProtocolWS = WebSocket & {
-  sendEvent: (event: any) => void;
+  sendEvent: (event: any) => boolean;
 };
 
 export type NetworkOptions = {
@@ -45,6 +45,15 @@ export type NetworkOptions = {
    * request is sent again.
    */
   joinRetryTimeout: number;
+
+  /**
+   * Upper bound on command packets (see {@link COMMAND_PACKET_TYPES}) held
+   * for retry after a send raced a closing socket. Beyond it the oldest are
+   * dropped loudly and counted in {@link Network.droppedCommandCount}:
+   * bounded loss beats unbounded buffering, but a command must never vanish
+   * in silence.
+   */
+  maxPendingCommandPackets: number;
 };
 
 const defaultOptions: NetworkOptions = {
@@ -52,7 +61,25 @@ const defaultOptions: NetworkOptions = {
   maxBacklogFactor: 16,
   maxQueuedPackets: 4096,
   joinRetryTimeout: 10000,
+  maxPendingCommandPackets: 256,
 };
+
+/**
+ * Client-to-server packet types that carry one-shot intent. Dropping one
+ * silently desyncs the caller from the server (a METHOD or CHAT the caller
+ * believes was delivered). Every other outgoing type is continuous state
+ * (PEER samples, chunk interest) that the rejoin handshake re-converges, so
+ * those may drop by design.
+ */
+const COMMAND_PACKET_TYPES = new Set(["METHOD", "CHAT"]);
+
+function describeCommandPacket(packet: MessageProtocol): string {
+  if (packet.type === "METHOD") {
+    const name = (packet as { method?: { name?: string } }).method?.name;
+    return name ? `METHOD:${name}` : "METHOD";
+  }
+  return String(packet.type);
+}
 
 export type NetworkConnectionOptions = {
   /**
@@ -122,7 +149,18 @@ export class Network {
    * same rejection, so the client stops retrying and surfaces `client_outdated`
    * instead of burning reconnect grace.
    */
-  private isClientOutdated = false;
+  private isTerminallyOutdated = false;
+
+  /**
+   * Command packets whose send raced a closing socket: {@link flush} retries
+   * them, in order and ahead of newer packets, once the session is connected
+   * and joined again. Bounded by `options.maxPendingCommandPackets`.
+   */
+  private pendingCommandPackets: MessageProtocol[] = [];
+
+  private droppedCommandPacketCount = 0;
+
+  private joinGenerationCount = 0;
 
   private stopSyncInterval: (() => void) | null = null;
 
@@ -182,7 +220,7 @@ export class Network {
     this.disconnectReason = "";
     // A deliberate (re)connect attempt clears any prior terminal state so a
     // freshly-loaded build can try again.
-    this.isClientOutdated = false;
+    this.isTerminallyOutdated = false;
     console.log(`[NETWORK] Connecting to ${serverURL}`);
     this.ensureDecodeWorkers();
     this.startSyncInterval();
@@ -217,19 +255,19 @@ export class Network {
     return new Promise<Network>((resolve) => {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
-      ws.sendEvent = async (event: any) => {
-        // Only wait out the socket's own connecting window. Sends attempted
-        // while disconnected are dropped: session state is rebuilt by the
-        // rejoin handshake after reconnecting, and unbounded waiters would
-        // pile up for the whole outage otherwise.
-        while (ws.readyState === WebSocket.CONNECTING && this.ws === ws) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+      ws.sendEvent = (event: any): boolean => {
+        // Honest by construction: the packet is either handed to an OPEN
+        // socket right now, or it is not sent and the caller is told so.
+        // Waiting out a CONNECTING window here would let the answer race the
+        // socket's fate; a JOIN issued during that window is covered by the
+        // onopen rejoin path instead.
+        if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) {
+          return false;
         }
-        if (this.ws === ws && ws.readyState === WebSocket.OPEN) {
-          const encoded = Network.encodeSync(event);
-          logChatWireSend(event, encoded.byteLength);
-          ws.send(encoded);
-        }
+        const encoded = Network.encodeSync(event);
+        logChatWireSend(event, encoded.byteLength);
+        ws.send(encoded);
+        return true;
       };
       ws.onopen = async () => {
         console.log("[NETWORK] WebSocket opened");
@@ -284,7 +322,7 @@ export class Network {
 
         if (event.code === PROTOCOL_MISMATCH_CLOSE_CODE) {
           // Terminal: the client build is out of date. Do not reconnect.
-          this.isClientOutdated = true;
+          this.isTerminallyOutdated = true;
           this.disconnectReason = "client_outdated";
           console.error(
             `[NETWORK] Protocol mismatch (client is v${PROTOCOL_VERSION}); ` +
@@ -319,7 +357,7 @@ export class Network {
 
     // A terminal protocol reject is not retryable: reconnecting would hit the
     // same close(4001). Stay down until the page reloads a fresh build.
-    if (this.isClientOutdated) {
+    if (this.isTerminallyOutdated) {
       return;
     }
 
@@ -505,15 +543,59 @@ export class Network {
   };
 
   flush = () => {
+    // Outgoing packets are only meaningful on a connected, joined session.
+    // While disconnected or mid-(re)join they stay queued in their
+    // intercepts — exactly where the sync loop has always left them — and go
+    // out once the INIT handshake completes. Splicing them out earlier hands
+    // them to a socket that silently drops them, which is how a command
+    // could be "acked" by the client yet never applied by the server.
+    if (!this.connected || this.waitingForInit) {
+      return;
+    }
+
+    if (this.pendingCommandPackets.length > 0) {
+      const retries = this.pendingCommandPackets.splice(
+        0,
+        this.pendingCommandPackets.length,
+      );
+      for (let i = 0; i < retries.length; i++) {
+        this.dispatchOutgoingPacket(retries[i]);
+      }
+    }
+
     for (let i = 0; i < this.intercepts.length; i++) {
       const intercept = this.intercepts[i];
       const packets = intercept.packets;
       if (packets && packets.length) {
         const toSend = packets.splice(0, packets.length);
         for (let j = 0; j < toSend.length; j++) {
-          this.send(toSend[j]);
+          this.dispatchOutgoingPacket(toSend[j]);
         }
       }
+    }
+  };
+
+  private dispatchOutgoingPacket = (packet: MessageProtocol) => {
+    if (this.send(packet)) {
+      return;
+    }
+    // State samples (PEER, LOAD, ...) re-converge after the rejoin
+    // handshake; commands must never vanish silently, so they wait in a
+    // bounded retry queue that the next successful flush drains first.
+    if (!COMMAND_PACKET_TYPES.has(String(packet.type))) {
+      return;
+    }
+    this.pendingCommandPackets.push(packet);
+    const excess =
+      this.pendingCommandPackets.length - this.options.maxPendingCommandPackets;
+    if (excess > 0) {
+      const dropped = this.pendingCommandPackets.splice(0, excess);
+      this.droppedCommandPacketCount += dropped.length;
+      console.error(
+        `[NETWORK] Dropped ${dropped.length} queued command packet(s) ` +
+          `(${dropped.map(describeCommandPacket).join(", ")}): more than ` +
+          `${this.options.maxPendingCommandPackets} commands accumulated while the socket could not send.`,
+      );
     }
   };
 
@@ -539,6 +621,21 @@ export class Network {
 
   disconnect = () => {
     const wasConnected = this.connected;
+
+    // A deliberate teardown is the end of the line for queued commands:
+    // nothing will ever send them, so say what is being lost instead of
+    // letting them evaporate.
+    if (this.pendingCommandPackets.length > 0) {
+      const abandoned = this.pendingCommandPackets.splice(
+        0,
+        this.pendingCommandPackets.length,
+      );
+      this.droppedCommandPacketCount += abandoned.length;
+      console.error(
+        `[NETWORK] Disconnecting with ${abandoned.length} undelivered command packet(s) ` +
+          `(${abandoned.map(describeCommandPacket).join(", ")}); they will never be sent.`,
+      );
+    }
 
     if (this.ws) {
       this.ws.onclose = null;
@@ -570,8 +667,14 @@ export class Network {
     }
   };
 
-  send = (event: any) => {
-    this.ws?.sendEvent(event);
+  /**
+   * Hand one event to the socket. Returns whether the packet was actually
+   * given to an OPEN socket: `false` means it was NOT sent (no socket, still
+   * connecting, closing, or closed). Callers that carry one-shot intent must
+   * check the answer; {@link flush} does this for every intercept packet.
+   */
+  send = (event: any): boolean => {
+    return this.ws?.sendEvent(event) ?? false;
   };
 
   setID = (id: string) => {
@@ -593,6 +696,64 @@ export class Network {
   get packetQueueLength() {
     return this.packetQueue.length;
   }
+
+  /** True between a (re)join request and its INIT: reads of world state are
+   * answered from a map the server may no longer agree with. */
+  get isJoinPending() {
+    return this.waitingForInit;
+  }
+
+  /** Completed INIT handshakes so far; bumps on first join, every rejoin,
+   * and every world switch. */
+  get joinGeneration() {
+    return this.joinGenerationCount;
+  }
+
+  /** Command packets waiting for a live session to retry on. */
+  get pendingCommandCount() {
+    return this.pendingCommandPackets.length;
+  }
+
+  /** Command packets dropped for good, with an error logged for each batch. */
+  get droppedCommandCount() {
+    return this.droppedCommandPacketCount;
+  }
+
+  /** Terminal protocol rejection: only a fresh client build can reconnect. */
+  get isClientOutdated() {
+    return this.isTerminallyOutdated;
+  }
+
+  get serverUrl(): string | null {
+    return this.serverURL;
+  }
+
+  /**
+   * Whether this exact packet object is still waiting in the command retry
+   * queue. Together with the packet's absence from its intercept queue this
+   * lets a caller prove a command was handed to an OPEN socket.
+   */
+  isPacketPendingSend = (packet: MessageProtocol): boolean =>
+    this.pendingCommandPackets.includes(packet);
+
+  /**
+   * Trigger an immediate reconnect attempt, bypassing the periodic backoff.
+   * Returns false when there is nothing to do: already connected, never
+   * connected, or terminally rejected (outdated client build).
+   */
+  reconnectNow = (): boolean => {
+    if (
+      this.connected ||
+      !this.serverURL ||
+      !this.connectionOptions ||
+      this.isTerminallyOutdated
+    ) {
+      return false;
+    }
+    console.log("[NETWORK] Reconnect requested; attempting now");
+    void this.connect(this.serverURL, this.connectionOptions);
+    return true;
+  };
 
   get rtcConnected() {
     return this.rtc?.isConnected ?? false;
@@ -631,6 +792,10 @@ export class Network {
 
     if (type === "INIT") {
       this.waitingForInit = false;
+      // Monotone across first joins, rejoins, and world switches: observers
+      // (e.g. the agent daemon) compare generations to know a rejoin
+      // actually completed rather than merely started.
+      this.joinGenerationCount += 1;
 
       // Rejoin INITs (after a reconnect) have no pending join promise; the
       // handshake side effects below run for both first joins and rejoins.

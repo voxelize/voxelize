@@ -254,6 +254,38 @@ export class Arena {
   }
 }
 
+export type WaitUntilSpec = {
+  until?: {
+    kind?: string;
+    entityId?: string;
+    radius?: number;
+    path: string;
+    op: "eq" | "ne" | "gt" | "lt" | "contains";
+    value: string | number | boolean | null;
+  };
+  block?: {
+    x: number;
+    y: number;
+    z: number;
+    predicate: {
+      path?: string;
+      op?: "eq" | "ne" | "gt" | "lt" | "contains";
+      value: string | number | boolean | null;
+    };
+  };
+  timeoutMs?: number;
+  pollMs?: number;
+};
+
+export type WaitUntilResult = {
+  ok: true;
+  elapsedMs: number;
+  pollCount: number;
+  staleSkipCount: number;
+  matched: unknown;
+  value: unknown;
+};
+
 export type AgentControls = {
   position(): Promise<Vec3Tuple>;
   teleport(
@@ -265,6 +297,12 @@ export type AgentControls = {
   setRenderRadius(radius: number): Promise<void>;
   chat(text: string): Promise<void>;
   entitiesNear(radius: number): Promise<EntitySnapshot[]>;
+  /**
+   * Daemon-side polling via POST /wait: one HTTP round-trip however long
+   * the condition takes. Throws on timeout with the daemon's last-seen
+   * state embedded in the message.
+   */
+  waitUntil(spec: WaitUntilSpec): Promise<WaitUntilResult>;
   measureFrameRate(
     opts?: FrameRateMeasurementOptions,
   ): Promise<FrameRateMeasurement>;
@@ -321,6 +359,22 @@ function createAgentControls(
       const res = await fetch(`${agentUrl}/entities?radius=${radius}`);
       const body = await res.json();
       return body.entities ?? [];
+    },
+    async waitUntil(spec) {
+      const res = await fetch(`${agentUrl}/wait`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(spec),
+      });
+      const body = await res.json();
+      if (!res.ok || body.ok !== true) {
+        throw new Error(
+          `waitUntil failed (${res.status}): ${body.error ?? "unknown"}; ` +
+            `lastSeen=${JSON.stringify(body.lastSeen ?? null)}`,
+        );
+      }
+      log(`waitUntil satisfied in ${body.elapsedMs}ms`);
+      return body as WaitUntilResult;
     },
     async measureFrameRate(opts = {}) {
       const params = new URLSearchParams();
