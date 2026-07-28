@@ -1,6 +1,7 @@
 use crate::{BlockUtils, LightColor, LightUtils, Ndarray, Registry};
 
 use super::block::BlockRotation;
+use super::waterlogging::WaterloggingRules;
 
 #[allow(unused)]
 pub trait VoxelAccess {
@@ -20,13 +21,42 @@ pub trait VoxelAccess {
         todo!("Voxel access `set_raw_voxel` is not implemented.");
     }
 
+    fn waterlogging_rules(&self) -> Option<&WaterloggingRules> {
+        None
+    }
+
     fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         BlockUtils::extract_id(self.get_raw_voxel(vx, vy, vz))
     }
 
-    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
+    /// Stamp this block id and zero all packed state, including any standing
+    /// fluid. Prefer [`VoxelAccess::set_voxel`] unless discarding that state
+    /// is deliberate.
+    fn set_voxel_hard(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
         let value = BlockUtils::insert_id(0, id);
         self.set_raw_voxel(vx, vy, vz, value)
+    }
+
+    /// Set the block id at this voxel. When waterlogging rules are present,
+    /// a waterloggable id written into standing fluid carries that fluid into
+    /// the block's waterlog field at the level found.
+    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
+        if let Some(rules) = self.waterlogging_rules() {
+            let current_raw = self.get_raw_voxel(vx, vy, vz);
+            let holds_fluid = BlockUtils::extract_waterlogged(current_raw)
+                || rules.fluid_id == BlockUtils::extract_id(current_raw);
+
+            if holds_fluid && rules.waterloggable_ids.contains(&id) {
+                let level = BlockUtils::extract_fluid_level(current_raw);
+                let raw = BlockUtils::insert_waterlog_level(
+                    BlockUtils::insert_waterlogged(BlockUtils::insert_id(0, id), true),
+                    level,
+                );
+                return self.set_raw_voxel(vx, vy, vz, raw);
+            }
+        }
+
+        self.set_voxel_hard(vx, vy, vz, id)
     }
 
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
@@ -83,38 +113,6 @@ pub trait VoxelAccess {
     /// it. See [`BlockUtils::extract_fluid_level`].
     fn get_voxel_fluid_level(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         BlockUtils::extract_fluid_level(self.get_raw_voxel(vx, vy, vz))
-    }
-
-    /// Set a voxel while keeping any fluid already standing in it: the
-    /// worldgen counterpart of the update queue's `resolve_waterlogging`.
-    ///
-    /// A waterloggable block written into the waterlogging fluid (or into an
-    /// already waterlogged voxel) carries that water into its waterlog field
-    /// at the level it found — kelp grown through the ocean must not leave a
-    /// column of air-shaped holes in the sea. Every other write is a plain
-    /// `set_voxel`.
-    fn set_voxel_keeping_fluid(
-        &mut self,
-        registry: &Registry,
-        vx: i32,
-        vy: i32,
-        vz: i32,
-        id: u32,
-    ) -> bool {
-        let current_raw = self.get_raw_voxel(vx, vy, vz);
-        let holds_fluid = BlockUtils::extract_waterlogged(current_raw)
-            || registry.waterlogging_fluid_id() == Some(BlockUtils::extract_id(current_raw));
-
-        if holds_fluid && registry.is_waterloggable(id) {
-            let level = BlockUtils::extract_fluid_level(current_raw);
-            let raw = BlockUtils::insert_waterlog_level(
-                BlockUtils::insert_waterlogged(BlockUtils::insert_id(0, id), true),
-                level,
-            );
-            return self.set_raw_voxel(vx, vy, vz, raw);
-        }
-
-        self.set_voxel(vx, vy, vz, id)
     }
 
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
@@ -235,9 +233,11 @@ pub trait VoxelAccess {
 }
 
 #[cfg(test)]
-mod set_voxel_keeping_fluid_tests {
+mod set_voxel_waterlogging_tests {
+    use std::sync::Arc;
+
     use super::*;
-    use crate::{Block, Chunk, ChunkOptions};
+    use crate::{Block, Chunk, ChunkOptions, Registry};
 
     const WATER_ID: u32 = 100;
     const KELP_ID: u32 = 200;
@@ -269,7 +269,22 @@ mod set_voxel_keeping_fluid_tests {
         registry
     }
 
-    fn test_chunk() -> Chunk {
+    fn test_chunk_with_rules(registry: &Registry) -> Chunk {
+        let mut chunk = Chunk::new(
+            "test",
+            0,
+            0,
+            &ChunkOptions {
+                size: 16,
+                max_height: 64,
+                sub_chunks: 1,
+            },
+        );
+        chunk.waterlogging_rules = registry.waterlogging_rules().map(Arc::new);
+        chunk
+    }
+
+    fn test_chunk_without_rules() -> Chunk {
         Chunk::new(
             "test",
             0,
@@ -285,12 +300,12 @@ mod set_voxel_keeping_fluid_tests {
     #[test]
     fn waterloggable_block_keeps_the_fluid_it_replaces() {
         let registry = test_registry();
-        let mut chunk = test_chunk();
+        let mut chunk = test_chunk_with_rules(&registry);
 
         chunk.set_voxel(1, 2, 3, WATER_ID);
         chunk.set_voxel_stage(1, 2, 3, 3);
 
-        chunk.set_voxel_keeping_fluid(&registry, 1, 2, 3, KELP_ID);
+        chunk.set_voxel(1, 2, 3, KELP_ID);
 
         assert_eq!(chunk.get_voxel(1, 2, 3), KELP_ID);
         assert!(chunk.get_voxel_waterlogged(1, 2, 3));
@@ -300,13 +315,13 @@ mod set_voxel_keeping_fluid_tests {
     #[test]
     fn waterloggable_block_keeps_water_held_by_the_block_it_replaces() {
         let registry = test_registry();
-        let mut chunk = test_chunk();
+        let mut chunk = test_chunk_with_rules(&registry);
 
         chunk.set_voxel(1, 2, 3, KELP_ID);
         chunk.set_voxel_waterlogged(1, 2, 3, true);
         chunk.set_voxel_waterlog_level(1, 2, 3, 2);
 
-        chunk.set_voxel_keeping_fluid(&registry, 1, 2, 3, SEAGRASS_ID);
+        chunk.set_voxel(1, 2, 3, SEAGRASS_ID);
 
         assert_eq!(chunk.get_voxel(1, 2, 3), SEAGRASS_ID);
         assert!(chunk.get_voxel_waterlogged(1, 2, 3));
@@ -316,11 +331,11 @@ mod set_voxel_keeping_fluid_tests {
     #[test]
     fn non_waterloggable_block_displaces_the_fluid() {
         let registry = test_registry();
-        let mut chunk = test_chunk();
+        let mut chunk = test_chunk_with_rules(&registry);
 
         chunk.set_voxel(1, 2, 3, WATER_ID);
 
-        chunk.set_voxel_keeping_fluid(&registry, 1, 2, 3, STONE_ID);
+        chunk.set_voxel(1, 2, 3, STONE_ID);
 
         assert_eq!(chunk.get_voxel(1, 2, 3), STONE_ID);
         assert!(!chunk.get_voxel_waterlogged(1, 2, 3));
@@ -329,11 +344,38 @@ mod set_voxel_keeping_fluid_tests {
     #[test]
     fn placement_into_air_stays_dry() {
         let registry = test_registry();
-        let mut chunk = test_chunk();
+        let mut chunk = test_chunk_with_rules(&registry);
 
-        chunk.set_voxel_keeping_fluid(&registry, 1, 2, 3, KELP_ID);
+        chunk.set_voxel(1, 2, 3, KELP_ID);
 
         assert_eq!(chunk.get_voxel(1, 2, 3), KELP_ID);
         assert!(!chunk.get_voxel_waterlogged(1, 2, 3));
+    }
+
+    #[test]
+    fn set_voxel_hard_strips_fluid_even_for_waterloggable_ids() {
+        let registry = test_registry();
+        let mut chunk = test_chunk_with_rules(&registry);
+
+        chunk.set_voxel(1, 2, 3, WATER_ID);
+
+        chunk.set_voxel_hard(1, 2, 3, KELP_ID);
+
+        assert_eq!(chunk.get_voxel(1, 2, 3), KELP_ID);
+        assert!(!chunk.get_voxel_waterlogged(1, 2, 3));
+    }
+
+    #[test]
+    fn chunk_without_rules_behaves_like_set_voxel_hard() {
+        let registry = test_registry();
+        let mut chunk = test_chunk_without_rules();
+
+        chunk.set_voxel(1, 2, 3, WATER_ID);
+
+        chunk.set_voxel(1, 2, 3, KELP_ID);
+
+        assert_eq!(chunk.get_voxel(1, 2, 3), KELP_ID);
+        assert!(!chunk.get_voxel_waterlogged(1, 2, 3));
+        let _ = registry;
     }
 }

@@ -378,6 +378,22 @@ impl Registry {
         self.waterlogging_fluid_id
     }
 
+    /// Build waterlogging rules from registered blocks, or `None` when no
+    /// waterlogging fluid is declared.
+    pub fn waterlogging_rules(&self) -> Option<super::voxels::WaterloggingRules> {
+        let fluid_id = self.waterlogging_fluid_id()?;
+        let waterloggable_ids = self
+            .blocks_by_id
+            .values()
+            .filter(|block| block.is_waterloggable)
+            .map(|block| block.id)
+            .collect();
+        Some(super::voxels::WaterloggingRules {
+            fluid_id,
+            waterloggable_ids,
+        })
+    }
+
     /// Get type map of all blocks.
     pub fn get_type_map(&self, blocks: &[&str]) -> HashMap<String, u32> {
         let mut type_map = HashMap::new();

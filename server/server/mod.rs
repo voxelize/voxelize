@@ -31,6 +31,7 @@ use log::{info, warn};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use specs::WorldExt;
 use std::sync::{
     atomic::{AtomicU16, AtomicUsize, Ordering},
     Arc,
@@ -41,7 +42,7 @@ use crate::{
     errors::AddWorldError,
     perf,
     world::{
-        check_protocol, ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry,
+        check_protocol, Chunks, ClientPreferencesPatch, InboundStateBuffer, MotionProtocol, Registry,
         World, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_VERSION,
     },
     ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, Preload, Prepare, RtcSenders,
@@ -489,7 +490,12 @@ impl Server {
         let name = world.name.clone();
         let saving = world.config().saving;
         let save_dir = world.config().save_dir.clone();
-        world.ecs_mut().insert(self.registry.clone());
+        let registry = self.registry.clone();
+        world.ecs_mut().insert(registry.clone());
+        world
+            .ecs_mut()
+            .write_resource::<Chunks>()
+            .set_waterlogging_rules(registry.waterlogging_rules().map(Arc::new));
 
         if let Some(rtc_senders) = &self.rtc_senders {
             world.ecs_mut().insert(rtc_senders.clone());

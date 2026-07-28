@@ -5,8 +5,10 @@ mod chunk;
 mod chunks;
 mod fluids;
 mod space;
+mod waterlogging;
 
 pub use access::VoxelAccess;
+pub use waterlogging::WaterloggingRules;
 pub use background_chunk_saver::*;
 pub use block::*;
 pub use chunk::*;

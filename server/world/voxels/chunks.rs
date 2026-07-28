@@ -16,7 +16,7 @@ use std::{
 
 use crate::{
     BlockUtils, ChunkOptions, ChunkStatus, ChunkUtils, LightUtils, MessageType, Registry, Vec2,
-    Vec3, VoxelUpdate, WorldConfig,
+    Vec3, VoxelUpdate, WaterloggingRules, WorldConfig,
 };
 
 use super::{
@@ -156,11 +156,24 @@ pub struct Chunks {
 
     /// The folder to store the chunks.
     folder: Option<PathBuf>,
+
+    waterlogging_rules: Option<Arc<WaterloggingRules>>,
 }
 
 impl Chunks {
     pub fn folder(&self) -> Option<&PathBuf> {
         self.folder.as_ref()
+    }
+
+    pub fn waterlogging_rules(&self) -> Option<&WaterloggingRules> {
+        self.waterlogging_rules.as_deref()
+    }
+
+    pub fn set_waterlogging_rules(&mut self, rules: Option<Arc<WaterloggingRules>>) {
+        self.waterlogging_rules = rules;
+        for chunk in self.map.values_mut() {
+            chunk.waterlogging_rules = self.waterlogging_rules.clone();
+        }
     }
 
     /// Create a new instance of a chunk manager.
@@ -350,6 +363,7 @@ impl Chunks {
             chunk.calculate_max_height(registry);
         }
 
+        chunk.waterlogging_rules = self.waterlogging_rules.clone();
         chunk.status = ChunkStatus::Meshing;
         // This chunk *is* what the file holds, so it owes disk nothing. That
         // covers the recalculated height map above: it is derived from the
@@ -484,7 +498,7 @@ impl Chunks {
     }
 
     /// Update a chunk, removing the old chunk instance and updating with a new one.
-    pub fn renew(&mut self, chunk: Chunk, renew_mesh_only: bool) {
+    pub fn renew(&mut self, mut chunk: Chunk, renew_mesh_only: bool) {
         if renew_mesh_only {
             if let Some(mut old_chunk) = self.map.remove(&chunk.coords) {
                 old_chunk.meshes = chunk.meshes;
@@ -495,6 +509,7 @@ impl Chunks {
             return;
         }
 
+        chunk.waterlogging_rules = self.waterlogging_rules.clone();
         self.map.remove(&chunk.coords);
         self.map.insert(chunk.coords.to_owned(), chunk);
     }
@@ -817,6 +832,10 @@ impl Chunks {
 }
 
 impl VoxelAccess for Chunks {
+    fn waterlogging_rules(&self) -> Option<&WaterloggingRules> {
+        self.waterlogging_rules.as_deref()
+    }
+
     /// Get the raw voxel value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {

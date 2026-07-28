@@ -435,7 +435,8 @@ fn process_pending_updates(
                 }
             }
 
-            chunks.set_voxel(vx, vy, vz, updated_id);
+            // resolve_waterlogging already chose id, stage, and waterlog fields.
+            chunks.set_voxel_hard(vx, vy, vz, updated_id);
             chunks.set_voxel_stage(vx, vy, vz, stage);
             chunks.set_voxel_waterlogged(vx, vy, vz, is_waterlogged);
             chunks.set_voxel_waterlog_level(vx, vy, vz, waterlog_level);

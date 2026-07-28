@@ -69,6 +69,8 @@ pub struct Chunk {
     /// Only a load from disk or the end of worldgen re-establishes the
     /// persisted form and clears it.
     pub(crate) is_save_dirty: bool,
+
+    pub waterlogging_rules: Option<Arc<super::waterlogging::WaterloggingRules>>,
 }
 
 impl Chunk {
@@ -197,6 +199,10 @@ impl Chunk {
 }
 
 impl VoxelAccess for Chunk {
+    fn waterlogging_rules(&self) -> Option<&super::waterlogging::WaterloggingRules> {
+        self.waterlogging_rules.as_deref()
+    }
+
     /// Get the raw value of voxel.
     ///
     /// Returns 0 if it's outside of the chunk.
