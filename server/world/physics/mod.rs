@@ -635,12 +635,13 @@ impl Physics {
 
     /// The speed governor for bodies with a declared prow (see
     /// [`RigidBody::prow_clearance`]). One ray from the body's center along
-    /// its horizontal velocity: a solid ahead sheds horizontal speed as the
+    /// its horizontal velocity, against the same AABBs the sweep collides
+    /// with (`trace_solids`): a face ahead sheds horizontal speed as the
     /// prow closes on it, reaching a dead stop exactly when the prow
     /// touches the face. A grazing course hits far along the ray (or not
-    /// at all) and keeps its speed, so cruising parallel to a wall stays
-    /// free; only motion that would carry the prow into the obstacle is
-    /// shed.
+    /// at all) and keeps its speed, so cruising parallel to a wall — or
+    /// through the open water beside a waterlogged housing — stays free;
+    /// only motion that would carry the prow into the obstacle is shed.
     ///
     /// The zero sits at the prow's reach, not at the body's center, and
     /// releases quadratically over one further prow-length of approach: a
@@ -664,30 +665,13 @@ impl Physics {
             return;
         }
 
-        let get_voxel = |x: i32, y: i32, z: i32| -> bool {
-            let id = space.get_voxel(x, y, z);
-            let block = registry.get_block_by_id(id);
-            !block.is_fluid && !block.is_empty && !block.is_passable
+        let position = body.get_position();
+        let direction = Vec3(vx / speed, 0.0, vz / speed);
+
+        let Some(dist) = trace_solids(space, registry, &position, &direction, prow * 2.0) else {
+            return;
         };
 
-        let position = body.get_position();
-        let mut origin = position.clone();
-        let mut direction = Vec3(vx / speed, 0.0, vz / speed);
-        let mut hit_pos = Vec3(0.0, 0.0, 0.0);
-        let mut hit_norm = Vec3(0, 0, 0);
-
-        if !trace(
-            prow * 2.0,
-            &get_voxel,
-            &mut origin,
-            &mut direction,
-            &mut hit_pos,
-            &mut hit_norm,
-        ) {
-            return;
-        }
-
-        let dist = ((hit_pos.0 - position.0).powi(2) + (hit_pos.2 - position.2).powi(2)).sqrt();
         let release = ((dist - prow) / prow).clamp(0.0, 1.0);
         let keep = release * release;
         body.velocity.0 *= keep;
