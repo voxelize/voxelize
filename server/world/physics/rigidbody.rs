@@ -1,10 +1,33 @@
 use crate::{Vec3, AABB};
 
+/// A one-shot modifier for a body's contact response, consumed by the next
+/// physics tick like `forces` and `impulses`: game systems set it before
+/// physics runs, integration applies it to any impact that tick, and it is
+/// cleared whether or not a contact happened — a stale response is
+/// unrepresentable. Powers soft surfaces (deadened rims, mud, gel pads)
+/// without the engine learning what any of those are.
+#[derive(Clone, Debug)]
+pub struct ContactResponse {
+    /// Replaces the body's own `restitution` for impacts this tick.
+    pub restitution: f32,
+    /// Fraction (0..1) of the velocity parallel to the hit face removed on
+    /// impact: 0 keeps the full slide, 1 stops dead along the face.
+    pub tangential_damp: f32,
+    /// Only impacts at or below this speed are modified; harder hits keep
+    /// the body's own response. `None` modifies every impact.
+    pub max_impact_speed: Option<f32>,
+}
+
 /// A physical body in the Voxelize world.
 #[derive(Default, Clone)]
 pub struct RigidBody {
     /// If `body.collision` is true that tick, means there's a collision detected.
     pub collision: Option<[f32; 3]>,
+
+    /// One-shot contact response for this tick's impacts, set through
+    /// [`RigidBody::set_contact_response`] and consumed by
+    /// `Physics::iterate_body` alongside forces and impulses.
+    pub contact_response: Option<ContactResponse>,
 
     /// If the body stepped upwards that tick.
     pub stepped: bool,
@@ -142,6 +165,14 @@ impl RigidBody {
         self.mark_active();
     }
 
+    /// Sets the one-shot [`ContactResponse`] for this tick's impacts. Like
+    /// forces and impulses, it is consumed by the next physics tick whether
+    /// or not a contact happens, so callers re-set it each tick while their
+    /// condition holds.
+    pub fn set_contact_response(&mut self, response: ContactResponse) {
+        self.contact_response = Some(response);
+    }
+
     /// Get x-axis of the resting vector of a rigid body. A resting
     /// vector indicates whether a body is resting or not.
     pub fn at_rest_x(&self) -> i32 {
@@ -240,6 +271,7 @@ impl RigidBodyBuilder {
     pub fn build(self) -> RigidBody {
         RigidBody {
             collision: None,
+            contact_response: None,
             stepped: false,
 
             air_drag: -1.0,

@@ -249,6 +249,12 @@ impl Physics {
         body.collision = None;
         body.stepped = false;
 
+        // One-shot contact response: taken now so it is consumed this tick
+        // on every path (frozen, static, asleep, or integrated), exactly
+        // like forces and impulses — a stale response can never survive to
+        // a later impact.
+        let contact_response = body.contact_response.take();
+
         // A frozen body is pinned in place: discard the tick's accumulated
         // forces and impulses (so nothing double-applies when it unfreezes)
         // and skip integration entirely. Velocity is deliberately preserved —
@@ -377,10 +383,36 @@ impl Physics {
             impacts = impacts.scale(body.mass);
             body.collision = Some(impacts.clone().to_arr());
 
-            // bounce depending on restitution and min_bounce_impulse
-            if body.restitution > 0.0 && mag > config.min_bounce_impulse {
-                impacts = impacts.scale(body.restitution);
+            // A gated contact response only modifies impacts at or below
+            // its speed threshold (`mag` is the velocity change, i.e. the
+            // impact speed); harder hits keep the body's own response.
+            let response = contact_response.filter(|response| {
+                response
+                    .max_impact_speed
+                    .map_or(true, |gate| mag <= gate)
+            });
+
+            // bounce depending on restitution and min_bounce_impulse; a
+            // one-shot contact response overrides the body's restitution
+            // for this hit.
+            let restitution = response
+                .as_ref()
+                .map_or(body.restitution, |response| response.restitution);
+            if restitution > 0.0 && mag > config.min_bounce_impulse {
+                impacts = impacts.scale(restitution);
                 body.apply_impulse(impacts.0, impacts.1, impacts.2);
+            }
+
+            // Tangential damp: shed velocity parallel to the hit faces (the
+            // axes that did not collide), deadening skids and ricochets off
+            // the modified surface.
+            if let Some(response) = response {
+                let keep = (1.0 - response.tangential_damp).clamp(0.0, 1.0);
+                for i in 0..3 {
+                    if body.resting[i] == 0 {
+                        body.velocity[i] *= keep;
+                    }
+                }
             }
         }
 
@@ -1004,5 +1036,147 @@ mod prow_standoff_tests {
         let mut plain = prow_body(0.0, 10.5, Vec3(1.0, 0.0, 0.0));
         Physics::apply_prow_standoff(&chunk, &registry, &mut plain);
         assert_eq!(plain.velocity.0, 1.0, "prow_clearance 0 is a no-op");
+    }
+}
+
+#[cfg(test)]
+mod contact_response_tests {
+    use super::*;
+    use crate::{Block, Chunk, ChunkOptions, Registry, WorldConfig};
+
+    // A flat stone floor at y=10; everything above is open air.
+    fn floored_chunk() -> (Chunk, Registry) {
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Stone").id(5).build());
+        let opts = ChunkOptions {
+            size: 16,
+            max_height: 64,
+            sub_chunks: 4,
+        };
+        let mut chunk = Chunk::new("contact", 0, 0, &opts);
+        for x in 0..16 {
+            for z in 0..16 {
+                chunk.set_voxel(x, 10, z, 5);
+            }
+        }
+        (chunk, registry)
+    }
+
+    // A lively ball dropped from above the floor, frictionless so the
+    // tangential axis isolates the response's damp from contact friction.
+    fn bouncy_ball(horizontal_speed: f32) -> RigidBody {
+        let aabb = AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build();
+        let mut body = RigidBody::new(&aabb)
+            .restitution(0.72)
+            .friction(0.0)
+            .build();
+        body.air_drag = 0.0;
+        body.set_position(8.0, 14.0, 8.0);
+        body.velocity = Vec3(horizontal_speed, 0.0, 0.0);
+        body
+    }
+
+    // Re-sets the response every tick (exactly how a game system uses the
+    // one-shot) and integrates until the floor impact lands.
+    fn step_to_impact(
+        body: &mut RigidBody,
+        chunk: &Chunk,
+        registry: &Registry,
+        config: &WorldConfig,
+        response: Option<&ContactResponse>,
+    ) {
+        for _ in 0..600 {
+            if let Some(response) = response {
+                body.set_contact_response(response.clone());
+            }
+            Physics::iterate_body(body, 1.0 / 60.0, chunk, registry, config);
+            if body.collision.is_some() {
+                return;
+            }
+        }
+        panic!("ball never hit the floor");
+    }
+
+    #[test]
+    fn response_deadens_bounce_and_damps_tangential_velocity() {
+        let (chunk, registry) = floored_chunk();
+        let config = WorldConfig::new().build();
+
+        let mut plain = bouncy_ball(3.0);
+        step_to_impact(&mut plain, &chunk, &registry, &config, None);
+        let plain_bounce = plain.impulses.1;
+        assert!(
+            plain_bounce > 1.0,
+            "a lively ball must carry a pending bounce impulse, got {plain_bounce}"
+        );
+        assert!(
+            plain.velocity.0 > 2.5,
+            "without a response the frictionless slide keeps its speed, got {}",
+            plain.velocity.0
+        );
+
+        let response = ContactResponse {
+            restitution: 0.05,
+            tangential_damp: 1.0,
+            max_impact_speed: None,
+        };
+        let mut soft = bouncy_ball(3.0);
+        step_to_impact(&mut soft, &chunk, &registry, &config, Some(&response));
+        assert!(
+            soft.impulses.1 < plain_bounce * 0.15,
+            "the response's restitution must replace the body's for this hit: soft {} vs plain {plain_bounce}",
+            soft.impulses.1
+        );
+        assert!(
+            soft.velocity.0.abs() < 1e-4,
+            "full tangential damp stops the slide dead, got {}",
+            soft.velocity.0
+        );
+    }
+
+    #[test]
+    fn speed_gate_passes_hard_impacts_through() {
+        let (chunk, registry) = floored_chunk();
+        let config = WorldConfig::new().build();
+
+        // The drop lands well above 0.5 blocks/s, so the gated response
+        // must not touch the impact at all.
+        let response = ContactResponse {
+            restitution: 0.0,
+            tangential_damp: 1.0,
+            max_impact_speed: Some(0.5),
+        };
+        let mut gated = bouncy_ball(3.0);
+        step_to_impact(&mut gated, &chunk, &registry, &config, Some(&response));
+        assert!(
+            gated.impulses.1 > 1.0,
+            "an impact above the gate keeps the body's own bounce, got {}",
+            gated.impulses.1
+        );
+        assert!(
+            gated.velocity.0 > 2.5,
+            "an impact above the gate keeps its slide, got {}",
+            gated.velocity.0
+        );
+    }
+
+    #[test]
+    fn response_is_consumed_every_tick_even_without_contact() {
+        let (chunk, registry) = floored_chunk();
+        let config = WorldConfig::new().build();
+
+        let mut body = bouncy_ball(0.0);
+        body.set_contact_response(ContactResponse {
+            restitution: 0.0,
+            tangential_damp: 1.0,
+            max_impact_speed: None,
+        });
+        // One mid-air tick: no contact happens, the response must be gone.
+        Physics::iterate_body(&mut body, 1.0 / 60.0, &chunk, &registry, &config);
+        assert!(body.collision.is_none(), "the first tick is still airborne");
+        assert!(
+            body.contact_response.is_none(),
+            "a contact response is one-shot: consumed whether or not a contact happened"
+        );
     }
 }
