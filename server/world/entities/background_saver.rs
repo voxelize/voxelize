@@ -1,6 +1,6 @@
 use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
-use log::{debug, warn};
+use log::warn;
 use serde_json::json;
 use std::fs::{self, File};
 use std::io::Write;
@@ -11,16 +11,6 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::{MetadataComp, WorldConfig};
-
-/// Metadata key that marks an entity as owned by a test scenario (stamped by
-/// `test:spawn`-style methods). Scenario entities are live-only: they spawn
-/// and despawn normally, but persisting them would litter the world save
-/// with one orphaned JSON file per test run.
-pub const SCENARIO_ID_METADATA_KEY: &str = "scenarioId";
-
-pub fn is_scenario_owned(metadata: &MetadataComp) -> bool {
-    metadata.map.contains_key(SCENARIO_ID_METADATA_KEY)
-}
 
 #[derive(Clone)]
 pub struct EntitySaveData {
@@ -167,16 +157,6 @@ impl BackgroundEntitiesSaver {
             return;
         }
 
-        // A decision, not a silent drop: scenario-owned entities live and die
-        // with their test run and must never reach the world save.
-        if is_scenario_owned(metadata) {
-            debug!(
-                "not persisting entity {} ({}): metadata carries {}, so it is scenario-owned",
-                id, etype, SCENARIO_ID_METADATA_KEY
-            );
-            return;
-        }
-
         let data = EntitySaveData {
             id: id.to_string(),
             etype: etype.to_string(),
@@ -239,14 +219,6 @@ mod tests {
     use nanoid::nanoid;
     use serde_json::json;
 
-    fn scenario_metadata() -> MetadataComp {
-        let mut metadata = MetadataComp::new();
-        metadata
-            .map
-            .insert(SCENARIO_ID_METADATA_KEY.to_owned(), json!("scn-test"));
-        metadata
-    }
-
     fn saving_config() -> (WorldConfig, PathBuf) {
         let save_dir = std::env::temp_dir().join(format!("bg-saver-test-{}", nanoid!()));
         let config = WorldConfig::new()
@@ -258,30 +230,15 @@ mod tests {
     }
 
     #[test]
-    fn scenario_stamped_metadata_is_scenario_owned() {
-        assert!(is_scenario_owned(&scenario_metadata()));
-    }
-
-    #[test]
-    fn ordinary_metadata_is_not_scenario_owned() {
-        assert!(!is_scenario_owned(&MetadataComp::new()));
-
-        let mut metadata = MetadataComp::new();
-        metadata.map.insert("fishType".to_owned(), json!("salmon"));
-        assert!(!is_scenario_owned(&metadata));
-    }
-
-    #[test]
-    fn queue_save_persists_ordinary_entities_but_never_scenario_owned_ones() {
+    fn queue_save_writes_the_entity_file_once_the_queue_flushes() {
         let (config, save_dir) = saving_config();
         let entities_dir = save_dir.join("entities");
         {
             let saver = BackgroundEntitiesSaver::new(&config);
-            let mut ordinary = MetadataComp::new();
-            ordinary.map.insert("fishType".to_owned(), json!("salmon"));
+            let mut metadata = MetadataComp::new();
+            metadata.map.insert("fishType".to_owned(), json!("salmon"));
 
-            saver.queue_save("keep-me", "fish", false, &ordinary);
-            saver.queue_save("skip-me", "fish", false, &scenario_metadata());
+            saver.queue_save("keep-me", "fish", false, &metadata);
             // Drop joins the background thread, which flushes pending saves.
         }
 

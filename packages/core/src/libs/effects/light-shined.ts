@@ -33,6 +33,21 @@ const defaultOptions: LightShinedOptions = {
 };
 
 /**
+ * Mark a material as its own light source, so the voxel-light effects leave
+ * it alone. A lamp lens, a screen, or a glowing sign must not be multiplied
+ * by the light around it: that would put the emitter out in exactly the dark
+ * it was lit for. Honored by {@link LightShined} and by the Arm's
+ * held-object lighting and shadow shaders.
+ */
+export function markSelfIlluminated(material: Material): void {
+  material.userData.isSelfIlluminated = true;
+}
+
+export function isSelfIlluminated(material: Material): boolean {
+  return material.userData.isSelfIlluminated === true;
+}
+
+/**
  * A class that allows mesh to dynamically change brightness based on the voxel light level at their position.
  *
  * By default, `VOXELIZE.NameTag` is ignored by this effect.
@@ -142,7 +157,8 @@ export class LightShined {
       if (
         ThreeUtils.isShaderMaterial(material) ||
         material.userData.lightEffectSetup ||
-        material.userData.heldObjectLighting === true
+        material.userData.heldObjectLighting === true ||
+        isSelfIlluminated(material)
       )
         return;
 

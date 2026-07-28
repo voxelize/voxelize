@@ -141,7 +141,19 @@ impl World {
             .to_owned();
 
         let ent = loader(self, metadata.clone()).build();
+        let is_scenario_spawn = is_scenario_owned(&metadata);
         self.populate_entity(ent, &nanoid!(), etype, metadata);
+
+        // Scenario entities are live-only, settled once here rather than
+        // offered to the saver every interval and refused. Fresh spawns
+        // only: an entity revived under this tag already owns a file on
+        // disk, and freezing that file mid-life would orphan it.
+        if is_scenario_spawn {
+            self.ecs_mut()
+                .write_storage::<DoNotPersistComp>()
+                .insert(ent, DoNotPersistComp)
+                .expect("Failed to insert do-not-persist flag");
+        }
 
         let position = self.lift_spawn_clear_of_solids(ent, position);
         set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
@@ -351,5 +363,64 @@ impl World {
                 bookkeeping.entities = loaded_entities;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PROBE: &str = "probe";
+
+    fn probe_world() -> World {
+        let config = WorldConfig::new()
+            .saving(false)
+            .min_chunk([-1, -1])
+            .max_chunk([1, 1])
+            .build();
+        let mut world = World::new("scenario-spawn", &config);
+        world.set_entity_loader(PROBE, |world, _| world.create_entity(PROBE, PROBE));
+        world
+    }
+
+    fn spawn_probe(world: &mut World, metadata: MetadataComp) -> Entity {
+        world
+            .spawn_entity_with_metadata(PROBE, &Vec3(0.0, 0.0, 0.0), metadata)
+            .expect("the probe loader is registered")
+    }
+
+    fn is_persisted(world: &World, entity: Entity) -> bool {
+        world
+            .ecs()
+            .read_storage::<DoNotPersistComp>()
+            .get(entity)
+            .is_none()
+    }
+
+    #[test]
+    fn a_scenario_spawn_is_settled_as_never_persisted() {
+        let mut world = probe_world();
+        let mut metadata = MetadataComp::new();
+        metadata.map.insert(
+            SCENARIO_ID_METADATA_KEY.to_owned(),
+            serde_json::json!("scn-test"),
+        );
+
+        let entity = spawn_probe(&mut world, metadata);
+
+        assert!(!is_persisted(&world, entity));
+    }
+
+    #[test]
+    fn an_ordinary_spawn_still_reaches_the_saver() {
+        let mut world = probe_world();
+        let mut metadata = MetadataComp::new();
+        metadata
+            .map
+            .insert("fishType".to_owned(), serde_json::json!("salmon"));
+
+        let entity = spawn_probe(&mut world, metadata);
+
+        assert!(is_persisted(&world, entity));
     }
 }

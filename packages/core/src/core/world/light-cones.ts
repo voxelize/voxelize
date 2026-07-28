@@ -9,11 +9,14 @@ import { WATER_VIEW_EXTINCTION_GLSL } from "./water-optics";
  */
 export const LIGHT_CONES = Object.freeze({
   /**
-   * Hard cap on simultaneous cones. Three covers the intended loadout: the
-   * local player's flashlight plus one submarine's two headlights. Extra
-   * emitters beyond the budget are dropped nearest-first by the game driver.
+   * Hard cap on simultaneous cones. Six covers the intended loadout: the
+   * local player's flashlight, a few nearby players' flashlights, and one
+   * submarine's two headlights. Emitters beyond the budget are dropped
+   * farthest-first by the game driver. Raising this is not free — the shader
+   * breaks out at the live cone count, so dry scenes cost nothing extra, but
+   * every submerged cone adds `scatterSamples` taps per fragment.
    */
-  maxCones: 3,
+  maxCones: 6,
 
   /**
    * Fixed sample count of the per-cone in-scattering estimate along the view

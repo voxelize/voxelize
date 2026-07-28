@@ -14,6 +14,7 @@ import { AnimationUtils } from "../utils";
 
 import { CanvasBox } from "./canvas-box";
 import { defaultArmsOptions } from "./character";
+import { isSelfIlluminated } from "./effects/light-shined";
 
 const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
@@ -399,6 +400,7 @@ export class Arm extends THREE.Group {
       for (const material of materials) {
         if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
         if (material.userData.heldObjectLighting === true) continue;
+        if (isSelfIlluminated(material)) continue;
 
         material.userData.heldObjectLighting = true;
         material.userData.lightEffectSetup = true;
@@ -446,6 +448,7 @@ gl_FragColor.rgb *= uLightColor;
 
       for (const material of materials) {
         if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
+        if (isSelfIlluminated(material)) continue;
 
         material.userData.heldObjectLighting = true;
         material.userData.lightEffectSetup = true;

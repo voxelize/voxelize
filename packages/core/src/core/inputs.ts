@@ -8,9 +8,22 @@ import { v4 as uuidv4 } from "uuid";
 export type ClickType = "left" | "middle" | "right";
 
 /**
+ * The occasion a mouse click listener fires on. Mirrors {@link InputOccasion}
+ * for the keyboard: press and release are separate lanes, so a listener can
+ * tell a tap from a hold.
+ */
+export type ClickOccasion = "mousedown" | "mouseup";
+
+/**
  * The occasion that the input should be fired.
  */
 export type InputOccasion = "keydown" | "keypress" | "keyup";
+
+const CLICK_TYPES_BY_BUTTON: Record<number, ClickType> = {
+  0: "left",
+  1: "middle",
+  2: "right",
+};
 
 /**
  * The specific options of the key to listen to.
@@ -97,7 +110,8 @@ export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * A map for click callbacks.
    */
-  private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
+  private clickCallbacks: Map<ClickOccasion, Map<ClickType, ClickCallbacks>> =
+    new Map();
 
   /**
    * A map for scroll callbacks.
@@ -168,16 +182,21 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * @param type The type of click to listen for. Either "left", "middle" or "right".
    * @param callback The callback to call when the click is fired, passing the MouseEvent.
    * @param namespace The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace.
+   * @param occasion Whether to fire on press or on release. Defaults to "mousedown".
    * @returns A function to unbind the click.
    */
   click = (
     type: ClickType,
     callback: (event: MouseEvent) => boolean | void,
     namespace: T | "*" = "*",
+    occasion: ClickOccasion = "mousedown",
   ) => {
     const id = uuidv4();
-    this.clickCallbacks.get(type)?.set(id, { namespace, callback });
-    return () => this.clickCallbacks.get(type).delete(id);
+    this.clickCallbacks.get(occasion)?.get(type)?.set(id, {
+      namespace,
+      callback,
+    });
+    return () => this.clickCallbacks.get(occasion)?.get(type)?.delete(id);
   };
 
   /**
@@ -492,19 +511,22 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the mouse input listeners.
    */
   private initializeClickListeners = () => {
-    (["left", "middle", "right"] as ClickType[]).forEach((type) =>
-      this.clickCallbacks.set(type, new Map()),
-    );
+    const occasions: ClickOccasion[] = ["mousedown", "mouseup"];
 
-    const listener = (event: MouseEvent) => {
-      let callbacks: ClickCallbacks;
+    occasions.forEach((occasion) => {
+      const byType = new Map<ClickType, ClickCallbacks>();
+      (["left", "middle", "right"] as ClickType[]).forEach((type) =>
+        byType.set(type, new Map()),
+      );
+      this.clickCallbacks.set(occasion, byType);
+    });
 
-      if (event.button === 0)
-        callbacks = this.clickCallbacks.get("left") as any;
-      else if (event.button === 1)
-        callbacks = this.clickCallbacks.get("middle") as any;
-      else if (event.button === 2)
-        callbacks = this.clickCallbacks.get("right") as any;
+    const listenerFor = (occasion: ClickOccasion) => (event: MouseEvent) => {
+      const type = CLICK_TYPES_BY_BUTTON[event.button];
+      if (!type) return;
+
+      const callbacks = this.clickCallbacks.get(occasion)?.get(type);
+      if (!callbacks) return;
 
       for (const bound of callbacks.values()) {
         const { namespace, callback } = bound;
@@ -515,10 +537,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
       }
     };
 
-    document.addEventListener("mousedown", listener, false);
-    this.unbinds.push(() =>
-      document.removeEventListener("mousedown", listener, false),
-    );
+    occasions.forEach((occasion) => {
+      const listener = listenerFor(occasion);
+      document.addEventListener(occasion, listener, false);
+      this.unbinds.push(() =>
+        document.removeEventListener(occasion, listener, false),
+      );
+    });
   };
 
   /**

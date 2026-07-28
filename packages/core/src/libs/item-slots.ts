@@ -359,10 +359,21 @@ export class ItemSlots<T = number> {
 
   public onSlotClick: (slot: ItemSlot<T>) => void = noop;
   public onSlotUpdate: (slot: ItemSlot<T>) => void = noop;
+  /**
+   * Listen for the focused slot changing.
+   *
+   * @returns A function to unsubscribe. A listener owned by something with a
+   * lifetime shorter than the hotbar's — a mounted UI component, say — must
+   * call it, or every remount leaves another copy running.
+   */
   public onFocusChange = (
     callbackFunc: (prevSlot: ItemSlot<T>, nextSlot: ItemSlot<T>) => void,
   ) => {
     this.focusChangeCallbacks.push(callbackFunc);
+    return () => {
+      const index = this.focusChangeCallbacks.indexOf(callbackFunc);
+      if (index !== -1) this.focusChangeCallbacks.splice(index, 1);
+    };
   };
   public triggerFocusChange = (
     prevSlot: ItemSlot<T>,
