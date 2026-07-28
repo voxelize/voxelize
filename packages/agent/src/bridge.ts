@@ -16,6 +16,10 @@ export type BlockInfo = {
   isWaterlogged: boolean;
   sunlight: number;
   torchLight: number;
+  /** Replicated block-entity JSON for `is_entity` blocks (signs, baskets,
+   * wave makers), null when the voxel carries none. Lets tests assert on
+   * replicated state (e.g. a basketball basket's scores). */
+  entityData?: Record<string, string | number | boolean | object | null> | null;
 };
 
 export type EntitySnapshot = {
