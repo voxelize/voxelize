@@ -3,7 +3,9 @@ use hashbrown::{HashMap, HashSet};
 use crate::world::Registry;
 
 use super::lifecycle::{PoolConfig, WorldLifecycleMetrics};
-use super::{default_info_handle, Server};
+use super::{
+    default_info_handle, executable_modified_unix_seconds, unix_seconds_now, BuildIdentity, Server,
+};
 
 const DEFAULT_DEBUG: bool = true;
 const DEFAULT_PORT: u16 = 4000;
@@ -20,6 +22,7 @@ pub struct ServerBuilder {
     interval: u64,
     secret: Option<String>,
     registry: Option<Registry>,
+    build_identity: BuildIdentity,
     pub(super) max_worlds: Option<usize>,
     pub(super) world_pool: Option<PoolConfig>,
 }
@@ -35,6 +38,7 @@ impl ServerBuilder {
             interval: DEFAULT_INTERVAL,
             secret: None,
             registry: None,
+            build_identity: BuildIdentity::default(),
             max_worlds: None,
             world_pool: None,
         }
@@ -83,6 +87,13 @@ impl ServerBuilder {
         self
     }
 
+    /// Stamp the compile-time identity this server reports on `/info`.
+    /// Without it every identity field reads "unknown".
+    pub fn build_identity(mut self, build_identity: BuildIdentity) -> Self {
+        self.build_identity = build_identity;
+        self
+    }
+
     /// Instantiate a voxelize server instance.
     pub fn build(self) -> Server {
         let mut registry = self.registry.unwrap_or(Registry::new());
@@ -115,6 +126,9 @@ impl ServerBuilder {
             worlds: HashMap::default(),
             world_inbound_state: HashMap::default(),
             info_handle: default_info_handle,
+            build_identity: self.build_identity,
+            process_started_at_secs: unix_seconds_now(),
+            executable_built_at_secs: executable_modified_unix_seconds(),
             action_handles: HashMap::default(),
             rtc_senders: None,
             max_worlds: self.max_worlds,

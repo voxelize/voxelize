@@ -20,7 +20,7 @@ pub use builder::*;
 pub use health::*;
 pub use messages::*;
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use actix::{fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context};
 use fern::colors::{Color, ColoredLevelConfig};
@@ -180,12 +180,76 @@ struct OnActionRequest {
 
 type ServerInfoHandle = fn(&Server) -> Value;
 
+/// Value reported on `/info` for any build-identity fact that could not be
+/// established. A visible "unknown" — never a fabricated stand-in — so a
+/// binary without a stamped identity is unmistakable to tooling.
+pub const UNKNOWN_BUILD_IDENTITY: &str = "unknown";
+
+/// Compile-time identity of the binary behind this server, surfaced on
+/// `/info` so tooling can prove which sources a running process was built
+/// from. Adapters stamp it via [`ServerBuilder::build_identity`]; unset
+/// fields stay [`UNKNOWN_BUILD_IDENTITY`].
+#[derive(Clone, Debug)]
+pub struct BuildIdentity {
+    /// Content fingerprint of the sources the binary was compiled from.
+    /// The only field tooling may use for staleness decisions.
+    pub build_id: String,
+
+    /// Git commit the working tree was on at compile time. Human-facing
+    /// context only: uncommitted edits never move it.
+    pub git_sha: String,
+
+    /// Cargo profile the binary was compiled with.
+    pub profile: String,
+}
+
+impl Default for BuildIdentity {
+    fn default() -> Self {
+        Self {
+            build_id: UNKNOWN_BUILD_IDENTITY.to_owned(),
+            git_sha: UNKNOWN_BUILD_IDENTITY.to_owned(),
+            profile: UNKNOWN_BUILD_IDENTITY.to_owned(),
+        }
+    }
+}
+
+pub(super) fn unix_seconds_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock predates the unix epoch")
+        .as_secs()
+}
+
+pub(super) fn executable_modified_unix_seconds() -> Option<u64> {
+    let executable = std::env::current_exe().ok()?;
+    let modified = std::fs::metadata(executable).ok()?.modified().ok()?;
+    modified
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|since_epoch| since_epoch.as_secs())
+}
+
 fn default_info_handle(server: &Server) -> Value {
     let mut info = HashMap::new();
 
     info.insert(
         "lost_sessions".to_owned(),
         json!(server.lost_sessions.len()),
+    );
+
+    info.insert("buildId".to_owned(), json!(server.build_identity.build_id));
+    info.insert("gitSha".to_owned(), json!(server.build_identity.git_sha));
+    info.insert("profile".to_owned(), json!(server.build_identity.profile));
+    // Informational context only. `builtAt` is the executable's mtime captured
+    // once at startup (a rebuild replacing the file on disk must not
+    // masquerade as this process's own build time); tooling must never use
+    // wall-clock fields for staleness decisions — that is what `buildId` is
+    // for.
+    info.insert("builtAt".to_owned(), json!(server.executable_built_at_secs));
+    info.insert("pid".to_owned(), json!(std::process::id()));
+    info.insert(
+        "startedAt".to_owned(),
+        json!(server.process_started_at_secs),
     );
 
     let mut connections = HashMap::new();
@@ -359,6 +423,17 @@ pub struct Server {
 
     /// The information sent to the client when requested.
     info_handle: ServerInfoHandle,
+
+    /// Compile-time identity of this binary, stamped by the adapter.
+    pub build_identity: BuildIdentity,
+
+    /// Unix seconds when this server was constructed (process start, for all
+    /// practical purposes). Informational only.
+    process_started_at_secs: u64,
+
+    /// Unix seconds mtime of the running executable, captured once at
+    /// construction. `None` when the executable cannot be stat'ed.
+    executable_built_at_secs: Option<u64>,
 
     /// The handler for `Action`s.
     action_handles: HashMap<String, Arc<dyn Fn(Value, &mut Server)>>,
@@ -1086,5 +1161,41 @@ impl Actor for Server {
                 );
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod build_identity_tests {
+    use super::*;
+
+    #[test]
+    fn info_reports_the_stamped_identity_and_process_facts() {
+        let mut server = Server::new()
+            .debug(false)
+            .build_identity(BuildIdentity {
+                build_id: "f00dfacecafe0123".to_owned(),
+                git_sha: "abc1234".to_owned(),
+                profile: "release-dev".to_owned(),
+            })
+            .build();
+
+        let info = server.get_info();
+        assert_eq!(info["buildId"], "f00dfacecafe0123");
+        assert_eq!(info["gitSha"], "abc1234");
+        assert_eq!(info["profile"], "release-dev");
+        assert_eq!(info["pid"], json!(std::process::id()));
+        assert!(info["startedAt"].as_u64().unwrap() > 0);
+        // The test harness executable exists on disk, so its mtime is known.
+        assert!(info["builtAt"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn unset_identity_reads_unknown_never_a_fabricated_value() {
+        let mut server = Server::new().debug(false).build();
+
+        let info = server.get_info();
+        assert_eq!(info["buildId"], UNKNOWN_BUILD_IDENTITY);
+        assert_eq!(info["gitSha"], UNKNOWN_BUILD_IDENTITY);
+        assert_eq!(info["profile"], UNKNOWN_BUILD_IDENTITY);
     }
 }
