@@ -26,24 +26,7 @@ impl World {
 
     /// Spawn an entity of type at a location.
     pub fn spawn_entity_at(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
-        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
-            warn!("Tried to spawn unrecognized entity type: {}", etype);
-            return None;
-        }
-
-        let loader = self
-            .entity_loaders
-            .get(&etype.to_lowercase())
-            .unwrap()
-            .to_owned();
-
-        let ent = loader(self, MetadataComp::default()).build();
-        self.populate_entity(ent, &nanoid!(), etype, MetadataComp::default());
-
-        let position = self.lift_spawn_clear_of_solids(ent, position);
-        set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
-
-        Some(ent)
+        self.spawn_entity_with_metadata(etype, position, MetadataComp::default())
     }
 
     pub(super) fn lift_spawn_clear_of_solids(
@@ -139,6 +122,18 @@ impl World {
             .get(&etype.to_lowercase())
             .unwrap()
             .to_owned();
+
+        // The loader must see the spawn position: loaders derive spawn-time
+        // memory from it (a golem anchors its home at the position it was
+        // raised), and without this stamp an absent "position" key reads as
+        // the origin even though the body is placed correctly afterwards.
+        let mut metadata = metadata;
+        if !metadata.map.contains_key("position") {
+            metadata.set(
+                "position",
+                &PositionComp::new(position.0, position.1, position.2),
+            );
+        }
 
         let ent = loader(self, metadata.clone()).build();
         let is_scenario_spawn = is_scenario_owned(&metadata);
@@ -276,7 +271,7 @@ impl World {
                 .folder()
                 .clone();
             fs::create_dir_all(&folder).ok();
-            let paths = fs::read_dir(folder).unwrap();
+            let paths = fs::read_dir(&folder).unwrap();
             let mut loaded_entities = HashMap::new();
 
             for path in paths {
@@ -288,23 +283,42 @@ impl World {
                         match serde_json::from_reader(entity_data) {
                             Ok(data) => data,
                             Err(e) => {
-                                info!(
-                                    "Could not load entity file: {:?}. Error: {}, removing...",
-                                    path, e
+                                quarantine_entity_file(
+                                    &folder,
+                                    &path,
+                                    &format!("unparseable entity JSON: {}", e),
                                 );
-                                // remove the file
-                                fs::remove_file(path).unwrap();
                                 continue;
                             }
                         };
-                    let etype: String = serde_json::from_value(data.remove("etype").unwrap())
-                        .unwrap_or_else(|_| {
-                            panic!("EType filed does not exist on file: {:?}", path)
-                        });
-                    let mut metadata: MetadataComp =
-                        serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
-                            |_| panic!("Metadata field does not exist on file: {:?}", path),
-                        );
+                    let etype: String = match data
+                        .remove("etype")
+                        .map(serde_json::from_value)
+                    {
+                        Some(Ok(etype)) => etype,
+                        _ => {
+                            quarantine_entity_file(
+                                &folder,
+                                &path,
+                                "missing or malformed \"etype\" field",
+                            );
+                            continue;
+                        }
+                    };
+                    let mut metadata: MetadataComp = match data
+                        .remove("metadata")
+                        .map(serde_json::from_value)
+                    {
+                        Some(Ok(metadata)) => metadata,
+                        _ => {
+                            quarantine_entity_file(
+                                &folder,
+                                &path,
+                                "missing or malformed \"metadata\" field",
+                            );
+                            continue;
+                        }
+                    };
 
                     if etype.starts_with("block::") {
                         if let Some(Value::String(json_str)) = metadata.map.get("json") {
@@ -327,15 +341,14 @@ impl World {
                         loaded_entities
                             .insert(id.to_owned(), (etype, ent, metadata.to_string(), true));
                     } else {
-                        // Use error! instead of info! for better visibility
-                        error!(
-                            "Failed to revive entity {:?} of type {}. Metadata: {:?}. File will be removed.",
-                            id, etype, metadata
+                        quarantine_entity_file(
+                            &folder,
+                            &path,
+                            &format!(
+                                "failed to revive entity {:?} of type {} (metadata: {:?})",
+                                id, etype, metadata
+                            ),
                         );
-                        // remove the file
-                        if let Err(e) = fs::remove_file(path) {
-                            warn!("Failed to remove file {:?}", e);
-                        }
                     }
                 }
             }
@@ -363,6 +376,54 @@ impl World {
                 bookkeeping.entities = loaded_entities;
             }
         }
+    }
+}
+
+/// Move an entity file the loader cannot revive into a quarantine folder
+/// beside the entities folder, loudly. Never delete: a file the current
+/// binary cannot parse may be one the next binary (or a human) can — the
+/// silent-delete version of this path once wiped an entire world's
+/// persisted entities over one missing serde default.
+fn quarantine_entity_file(
+    entities_folder: &std::path::Path,
+    path: &std::path::Path,
+    reason: &str,
+) {
+    let quarantine_folder = entities_folder
+        .parent()
+        .map(|parent| parent.join("entities-quarantine"))
+        .unwrap_or_else(|| entities_folder.join("entities-quarantine"));
+    if let Err(e) = fs::create_dir_all(&quarantine_folder) {
+        error!(
+            "Could not create quarantine folder {:?} for entity file {:?} ({}); \
+             leaving the file in place: {}",
+            quarantine_folder, path, reason, e
+        );
+        return;
+    }
+
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "unnamed-entity.json".to_owned());
+    let mut destination = quarantine_folder.join(&file_name);
+    if destination.exists() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        destination = quarantine_folder.join(format!("{}.{}", file_name, stamp));
+    }
+
+    match fs::rename(path, &destination) {
+        Ok(()) => error!(
+            "Quarantined entity file {:?} to {:?}: {}",
+            path, destination, reason
+        ),
+        Err(e) => error!(
+            "Failed to quarantine entity file {:?} ({}); leaving the file in place: {}",
+            path, reason, e
+        ),
     }
 }
 
@@ -422,5 +483,78 @@ mod tests {
         let entity = spawn_probe(&mut world, metadata);
 
         assert!(is_persisted(&world, entity));
+    }
+
+    #[test]
+    fn the_loader_stamps_the_spawn_position_into_loader_metadata() {
+        // Loaders derive spawn-time memory (e.g. a golem's home anchor)
+        // from the "position" metadata key. Before the stamp, a summon
+        // without an explicit key read the origin and anchored there.
+        let config = WorldConfig::new()
+            .saving(false)
+            .min_chunk([-1, -1])
+            .max_chunk([1, 1])
+            .build();
+        let mut world = World::new("position-stamp", &config);
+        world.set_entity_loader(PROBE, |world, metadata| {
+            let position = metadata
+                .get::<PositionComp>("position")
+                .expect("the spawn position must be visible to the loader");
+            assert_eq!(position.0 .0, 3.0);
+            assert_eq!(position.0 .1, 7.0);
+            assert_eq!(position.0 .2, -2.0);
+            world.create_entity(PROBE, PROBE)
+        });
+        world
+            .spawn_entity_with_metadata(PROBE, &Vec3(3.0, 7.0, -2.0), MetadataComp::new())
+            .expect("the probe loader is registered");
+    }
+
+    #[test]
+    fn an_unrevivable_entity_file_is_quarantined_never_deleted() {
+        let save_dir = std::env::temp_dir().join(format!(
+            "voxelize-quarantine-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let entities_folder = save_dir.join("entities");
+        fs::create_dir_all(&entities_folder).expect("temp entities folder");
+
+        // One file of JSON garbage, one well-formed file whose etype no
+        // loader recognizes: the two quarantine paths.
+        fs::write(entities_folder.join("garbled.json"), b"{ not json").expect("write");
+        fs::write(
+            entities_folder.join("ghost.json"),
+            serde_json::json!({ "etype": "ghost", "metadata": {} }).to_string(),
+        )
+        .expect("write");
+
+        let config = WorldConfig::new()
+            .saving(true)
+            .save_dir(save_dir.to_str().expect("utf-8 temp path"))
+            .min_chunk([-1, -1])
+            .max_chunk([1, 1])
+            .build();
+        let mut world = World::new("quarantine-probe", &config);
+        world.load_entities();
+
+        let quarantine_folder = save_dir.join("entities-quarantine");
+        for name in ["garbled.json", "ghost.json"] {
+            assert!(
+                !entities_folder.join(name).exists(),
+                "{} must leave the entities folder",
+                name
+            );
+            assert!(
+                quarantine_folder.join(name).exists(),
+                "{} must be quarantined, not deleted",
+                name
+            );
+        }
+
+        fs::remove_dir_all(&save_dir).ok();
     }
 }
