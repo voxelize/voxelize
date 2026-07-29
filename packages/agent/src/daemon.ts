@@ -11,6 +11,7 @@ import { z } from "zod";
 import { Agent, PageStallError } from "./agent";
 import type { AgentEventMap, ConnectionSnapshot } from "./bridge";
 import { DEFAULT_IDLE_TTL_MS } from "./browser-lifecycle";
+import { ensureCaptureDir } from "./capture-dir";
 import {
   CaptureViewportError,
   parseCaptureViewportQuery,
@@ -111,7 +112,7 @@ const FRAME_SETTLE_TIMEOUT_MS = 10_000;
 // Freeze-during-shot auto-expires server-side so a dying daemon can never
 // leave a permanently frozen entity behind.
 const FRAME_FREEZE_SECONDS = 30;
-const FRAME_OUTPUT_DIR = "/tmp/agent-frames";
+const FRAME_OUTPUT_SUBDIR = "agent-frames";
 
 const BURST_MAX_FRAMES = 120;
 const BURST_MIN_INTERVAL_MS = 50;
@@ -121,7 +122,6 @@ const BURST_DEFAULT_COUNT = 10;
 // software WebGL at full size would starve the interval budget.
 const BURST_DEFAULT_WIDTH = 800;
 const BURST_DEFAULT_HEIGHT = 450;
-const BURST_OUTPUT_ROOT = "/tmp";
 
 const MAX_BATCH_ACTIONS = 200;
 
@@ -1224,14 +1224,11 @@ export class AgentDaemon {
           height: body.height,
           deviceScaleFactor: body.scale,
         });
-        fs.mkdirSync(FRAME_OUTPUT_DIR, { recursive: true });
+        const outputDir = ensureCaptureDir([FRAME_OUTPUT_SUBDIR]);
         const label = sanitizeFileLabel(
           body.label ?? `${target.kind}-${body.preset}`,
         );
-        const filePath = path.join(
-          FRAME_OUTPUT_DIR,
-          `${Date.now()}_${label}.png`,
-        );
+        const filePath = path.join(outputDir, `${Date.now()}_${label}.png`);
         fs.writeFileSync(filePath, buffer);
         return {
           ok: true,
@@ -1301,7 +1298,7 @@ export class AgentDaemon {
       });
       const label = sanitizeFileLabel(body.label ?? "burst");
       const dir = path.join(
-        BURST_OUTPUT_ROOT,
+        ensureCaptureDir(),
         `agent-burst-${label}-${Date.now()}`,
       );
       fs.mkdirSync(dir, { recursive: true });

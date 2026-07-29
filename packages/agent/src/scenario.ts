@@ -5,6 +5,7 @@ import type {
   FrameRateMeasurement,
   FrameRateMeasurementOptions,
 } from "./bridge";
+import { ensureCaptureDir } from "./capture-dir";
 
 export type Vec3Tuple = [number, number, number];
 
@@ -521,7 +522,10 @@ export async function runScenario(
   const timeoutMs = opts.timeoutMs ?? 60_000;
   const startedAt = Date.now();
   const elapsed = (): number => Date.now() - startedAt;
-  const screenshotDir = path.join("/tmp", `scenario-${opts.name}-${startedAt}`);
+  const screenshotDir = path.join(
+    ensureCaptureDir(),
+    `scenario-${opts.name}-${startedAt}`,
+  );
 
   const log = (msg: string): void => {
     const seconds = (elapsed() / 1000).toFixed(2).padStart(7, " ");
