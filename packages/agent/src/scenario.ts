@@ -24,6 +24,10 @@ export type BlockInfo = {
   isFluid: boolean;
   isEmpty: boolean;
   isPassable: boolean;
+  /** Stage bits: copper signal strength, door open state, crop growth. */
+  stage: number;
+  /** Y-rotation segment (0-15) for y-rotatable blocks. */
+  yRotation: number;
 };
 
 export type ArenaOptions = {
@@ -38,7 +42,12 @@ export type SpawnOptions = {
   waterSeekChance?: number;
 };
 
-const DEFAULT_AGENT_URL = "http://127.0.0.1:4099";
+// Match the CLI's daemon resolution: explicit AGENT_URL beats AGENT_PORT
+// beats the default port, so scenarios follow the same session a
+// `pnpm agent` invocation in the same shell would.
+const DEFAULT_AGENT_URL =
+  process.env.AGENT_URL ??
+  `http://127.0.0.1:${process.env.AGENT_PORT ?? "4099"}`;
 const DEFAULT_ARENA_SIZE: Vec3Tuple = [16, 8, 16];
 const ARENA_FLOOR_Y = 64;
 const ARENA_PADDING = 4;
@@ -120,11 +129,25 @@ export class Arena {
     return [cx, cy + this.size[1] + 6, cz];
   }
 
-  async fill(min: Vec3Tuple, max: Vec3Tuple, block: string): Promise<void> {
+  async fill(
+    min: Vec3Tuple,
+    max: Vec3Tuple,
+    block: string,
+    options: {
+      rotation?: "py" | "ny" | "px" | "nx" | "pz" | "nz";
+      yRotation?: number;
+      stage?: number;
+    } = {},
+  ): Promise<void> {
     await this.call("test:fill", {
       min: this.worldPos(min),
       max: this.worldPos(max),
       block,
+      ...(options.rotation !== undefined && { rotation: options.rotation }),
+      ...(options.yRotation !== undefined && {
+        yRotation: options.yRotation,
+      }),
+      ...(options.stage !== undefined && { stage: options.stage }),
     });
   }
 

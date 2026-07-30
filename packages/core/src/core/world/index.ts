@@ -2952,7 +2952,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     return blockUpdates;
   }
 
-  /** Bulk server echoes (WorldEdit, agent fills) drain through the
+  /** Bulk server echoes (agent fills and large direct edits) drain through the
    * per-frame update queue so a 50k-voxel tick batch cannot freeze the
    * main thread the way a synchronous relight would. */
   private queueServerUpdates(updates: UpdateProtocol[]) {
@@ -5541,9 +5541,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     levels.push(level);
 
-    const isUrgent =
-      this.options.clientOnlyMeshing &&
-      this.activeBlockUpdateSource === "client";
+    // A client-sourced update is the player's own edit (a lever flip, a
+    // block placed under the crosshair). Its remesh takes the urgent lane
+    // unconditionally: making interaction feel instant is the entire point
+    // of the optimistic path, and parking it behind the regular queue reads
+    // as input lag whenever the surrounding chunks are remesh-heavy.
+    const isUrgent = this.activeBlockUpdateSource === "client";
 
     for (const [chunkX, chunkZ] of chunkCoordsList) {
       for (const lvl of levels) {

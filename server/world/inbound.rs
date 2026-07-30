@@ -194,29 +194,36 @@ impl World {
     }
 
     /// Handler for `Update` type messages.
-    pub(super) fn on_update(&mut self, _: &str, data: Message) {
+    pub(super) fn on_update(&mut self, client_id: &str, data: Message) {
         let chunk_size = self.config().chunk_size;
-        let allow_client_writes = self.config().allow_client_voxel_writes;
         let mut chunks = self.chunks_mut();
 
         if let Some(bulk) = data.bulk_update {
-            for i in 0..bulk.vx.len() {
-                let vx = bulk.vx[i];
-                let vy = bulk.vy[i];
-                let vz = bulk.vz[i];
-                let voxel = bulk.voxels[i];
+            let lengths = [
+                bulk.vx.len(),
+                bulk.vy.len(),
+                bulk.vz.len(),
+                bulk.voxels.len(),
+            ];
+            if lengths.iter().any(|length| *length != lengths[0]) {
+                warn!(
+                    "Ignoring malformed bulk voxel update from {client_id}: \
+                     vx/vy/vz/voxel lengths were {:?}",
+                    lengths
+                );
+                return;
+            }
 
+            for (((vx, vy), vz), voxel) in bulk
+                .vx
+                .into_iter()
+                .zip(bulk.vy)
+                .zip(bulk.vz)
+                .zip(bulk.voxels)
+            {
                 let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
 
                 if !chunks.is_within_world(&coords) {
-                    continue;
-                }
-
-                if !allow_client_writes {
-                    let n = CLIENT_VOXEL_UPDATE_REJECTED.fetch_add(1, Ordering::Relaxed) + 1;
-                    debug!(
-                        "rejected client bulk voxel write #{n} at ({vx},{vy},{vz}) -> {voxel} (allow_client_voxel_writes=false)"
-                    );
                     continue;
                 }
 
@@ -228,15 +235,6 @@ impl World {
                     ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
 
                 if !chunks.is_within_world(&coords) {
-                    return;
-                }
-
-                if !allow_client_writes {
-                    let n = CLIENT_VOXEL_UPDATE_REJECTED.fetch_add(1, Ordering::Relaxed) + 1;
-                    debug!(
-                        "rejected client voxel write #{n} at ({},{},{}) -> {} (allow_client_voxel_writes=false)",
-                        update.vx, update.vy, update.vz, update.voxel
-                    );
                     return;
                 }
 

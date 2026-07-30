@@ -8,7 +8,8 @@ use crate::{
     beer_lambert_transmit, sample_random_ticks, BlockUtils, ChunkInterests, ChunkUtils, Chunks,
     ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode,
     Lights, Mesher, Message, MessageQueues, MessageType, MetadataComp, Registry, Stats,
-    UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker, WorldConfig,
+    UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker, WaterloggingRules,
+    WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -196,34 +197,100 @@ fn try_unlink_partner(
     }
 }
 
-/// Queue the updates an active voxel wants this tick.
+/// Schedule `voxel` to run its active updater `delay` ticks from now.
 ///
-/// A waterlogged voxel additionally ticks as the fluid it holds: its own block
-/// is a stair or a plant with no updater of its own, but the water inside it
-/// still has to spread and drain like any other water.
-fn queue_active_updates(chunks: &mut Chunks, registry: &Registry, voxel: &Vec3<i32>) {
-    let Vec3(vx, vy, vz) = *voxel;
-    let id = chunks.get_voxel(vx, vy, vz);
-    let block = registry.get_block_by_id(id);
+/// A ticker returning `u64::MAX` means "never on my own": the voxel only
+/// re-arms when a neighboring update consults its ticker again. Without this
+/// guard the deadline arithmetic overflows — wrapping to "one tick ago" in
+/// release (spurious immediate wake) and panicking in debug.
+fn schedule_active(chunks: &mut Chunks, voxel: &Vec3<i32>, delay: u64, current_tick: u64) {
+    if delay == u64::MAX {
+        return;
+    }
+    chunks.mark_voxel_active(voxel, delay.saturating_add(current_tick));
+}
 
-    let mut updates = Vec::new();
-    if let Some(updater) = &block.active_updater {
-        updates.extend(updater(Vec3(vx, vy, vz), &*chunks, registry));
+struct ActiveOverlay<'a> {
+    chunks: &'a Chunks,
+    updates: &'a HashMap<Vec3<i32>, u32>,
+}
+
+impl VoxelAccess for ActiveOverlay<'_> {
+    fn waterlogging_rules(&self) -> Option<&WaterloggingRules> {
+        self.chunks.waterlogging_rules()
     }
 
-    if chunks.get_voxel_waterlogged(vx, vy, vz) {
-        if let Some(fluid) = registry.waterlogging_fluid() {
-            if fluid.id != id {
-                if let Some(updater) = &fluid.active_updater {
-                    updates.extend(updater(Vec3(vx, vy, vz), &*chunks, registry));
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.updates
+            .get(&Vec3(vx, vy, vz))
+            .copied()
+            .unwrap_or_else(|| self.chunks.get_raw_voxel(vx, vy, vz))
+    }
+
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.chunks.get_raw_light(vx, vy, vz)
+    }
+
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        self.chunks.get_max_height(vx, vz)
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        self.chunks.contains(vx, vy, vz)
+    }
+}
+
+fn apply_active_updates(
+    chunks: &Chunks,
+    overlay: &mut HashMap<Vec3<i32>, u32>,
+    registry: &Registry,
+    voxel: &Vec3<i32>,
+) {
+    let updates = {
+        let space = ActiveOverlay {
+            chunks,
+            updates: overlay,
+        };
+        let id = space.get_voxel(voxel.0, voxel.1, voxel.2);
+        let block = registry.get_block_by_id(id);
+        let mut updates = Vec::new();
+        if let Some(updater) = &block.active_updater {
+            updates.extend(updater(voxel.clone(), &space, registry));
+        }
+        if space.get_voxel_waterlogged(voxel.0, voxel.1, voxel.2) {
+            if let Some(fluid) = registry.waterlogging_fluid() {
+                if fluid.id != id {
+                    if let Some(updater) = &fluid.active_updater {
+                        updates.extend(updater(voxel.clone(), &space, registry));
+                    }
                 }
             }
         }
-    }
+        updates
+    };
 
-    for (pos, val) in updates {
-        chunks.update_voxel(&pos, val);
+    for (position, raw) in updates {
+        overlay.insert(position, raw);
     }
+}
+
+fn collect_due_active_voxels(chunks: &mut Chunks, current_tick: u64) -> Vec<Vec3<i32>> {
+    let mut due = Vec::new();
+    while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
+        if active.tick > current_tick {
+            break;
+        }
+        let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
+        match chunks.active_voxel_set.get(&active.voxel).copied() {
+            Some(scheduled) if scheduled == active.tick => {
+                chunks.active_voxel_set.remove(&active.voxel);
+                due.push(active.voxel);
+            }
+            _ => {}
+        }
+    }
+    due.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+    due
 }
 
 /// Schedule a waterlogged voxel to tick as the fluid it holds.
@@ -243,7 +310,7 @@ fn mark_waterlogged_fluid_active(
         return;
     };
     let ticks = ticker(voxel.clone(), &*chunks, registry);
-    chunks.mark_voxel_active(&voxel, ticks + current_tick);
+    schedule_active(chunks, &voxel, ticks, current_tick);
 }
 
 /// The raw word an update should actually commit, once waterlogging has had
@@ -359,7 +426,11 @@ fn process_pending_updates(
             let Vec3(vx, vy, vz) = voxel;
             let raw = resolve_waterlogging(&*chunks, registry, &voxel, raw);
             let updated_id = BlockUtils::extract_id(raw);
-            let current_id = chunks.get_voxel(vx, vy, vz);
+            let current_raw = chunks.get_raw_voxel(vx, vy, vz);
+            if raw == current_raw {
+                continue;
+            }
+            let current_id = BlockUtils::extract_id(current_raw);
 
             if registry.is_air(updated_id) && registry.is_air(current_id) {
                 continue;
@@ -447,7 +518,7 @@ fn process_pending_updates(
                     &*chunks,
                     registry,
                 );
-                chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
+                schedule_active(chunks, &Vec3(vx, vy, vz), ticks, current_tick);
             }
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS_WITH_STAIRS {
@@ -467,7 +538,7 @@ fn process_pending_updates(
                         &*chunks,
                         registry,
                     );
-                    chunks.mark_voxel_active(&Vec3(nx, ny, nz), ticks + current_tick);
+                    schedule_active(chunks, &Vec3(nx, ny, nz), ticks, current_tick);
                     continue;
                 }
 
@@ -972,54 +1043,32 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         chunks.clear_cache();
 
-        // Collect all due active voxels.
-        // Lazy discard: after an earliest-deadline upsert the heap may hold a
-        // stale later entry for the same voxel. Only fire when the heap tick
-        // still matches the deadline stored in active_voxel_set.
-        let mut due_voxels = Vec::new();
-        while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
-            if active.tick > current_tick {
-                break;
-            }
-            let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
-            match chunks.active_voxel_set.get(&active.voxel).copied() {
-                Some(scheduled) if scheduled == active.tick => {
-                    chunks.active_voxel_set.remove(&active.voxel);
-                    due_voxels.push(active.voxel);
-                }
-                _ => {
-                    // Stale entry (rescheduled earlier, or already processed).
-                }
-            }
+        // Active updaters run against a shared logical overlay: later
+        // updaters see earlier state changes (water cascade semantics), while
+        // lighting, persistence, replication, and remeshing flush once.
+        let mut active_overlay = HashMap::new();
+        let due_voxels = collect_due_active_voxels(&mut chunks, current_tick);
+        for voxel in &due_voxels {
+            apply_active_updates(&chunks, &mut active_overlay, &registry, voxel);
         }
 
-        // Sort by position for deterministic ordering when multiple voxels are due at the same tick
-        due_voxels.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+        // Subchunk random-tick sampler (plants). Runs AFTER the
+        // scheduled active queue so copper/neighbor wakes are never starved.
+        // Newly marked voxels are popped immediately below so growth can
+        // advance on the same world tick when budget allows.
+        let _random_samples =
+            sample_random_ticks(&mut chunks, &registry, &interests, &config, current_tick);
 
-        // Process active voxels sequentially with immediate state application.
-        // After each active voxel queues its updates, we fully process those updates
-        // so the next active voxel sees the updated world state.
-        // This is required for correct cellular automaton behavior (e.g., water removal cascades).
-        let mut all_results = Vec::new();
-
-        for voxel in due_voxels.iter() {
-            queue_active_updates(&mut chunks, &registry, voxel);
-
-            let results = process_pending_updates(
-                &mut chunks,
-                &mut mesher,
-                &lazy,
-                &entities,
-                &mut json_storage,
-                &config,
-                &registry,
-                current_tick,
-                max_updates_per_tick,
-            );
-            all_results.extend(results);
+        let random_due = collect_due_active_voxels(&mut chunks, current_tick);
+        for voxel in &random_due {
+            apply_active_updates(&chunks, &mut active_overlay, &registry, voxel);
         }
 
-        let results = process_pending_updates(
+        let mut active_updates = active_overlay.into_iter().collect::<Vec<_>>();
+        active_updates.sort_by_key(|(voxel, _)| (voxel.0, voxel.1, voxel.2));
+        chunks.update_voxels(&active_updates);
+
+        let all_results = process_pending_updates(
             &mut chunks,
             &mut mesher,
             &lazy,
@@ -1030,47 +1079,17 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             current_tick,
             max_updates_per_tick,
         );
-        all_results.extend(results);
-
-        // Subchunk random-tick sampler (plants). Runs AFTER the
-        // scheduled active queue so copper/neighbor wakes are never starved.
-        // Newly marked voxels are popped immediately below so growth can
-        // advance on the same world tick when budget allows.
-        let _random_samples =
-            sample_random_ticks(&mut chunks, &registry, &interests, &config, current_tick);
-
-        let mut random_due = Vec::new();
-        while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
-            if active.tick > current_tick {
-                break;
-            }
-            let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
-            match chunks.active_voxel_set.get(&active.voxel).copied() {
-                Some(scheduled) if scheduled == active.tick => {
-                    chunks.active_voxel_set.remove(&active.voxel);
-                    random_due.push(active.voxel);
-                }
-                _ => {}
-            }
-        }
-        random_due.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
-        for voxel in random_due.iter() {
-            queue_active_updates(&mut chunks, &registry, voxel);
-            let results = process_pending_updates(
-                &mut chunks,
-                &mut mesher,
-                &lazy,
-                &entities,
-                &mut json_storage,
-                &config,
-                &registry,
-                current_tick,
-                max_updates_per_tick,
-            );
-            all_results.extend(results);
-        }
 
         if !all_results.is_empty() {
+            let mut coalesced = HashMap::new();
+            for update in all_results {
+                coalesced.insert((update.vx, update.vy, update.vz), update);
+            }
+            let mut all_results = coalesced.into_values().collect::<Vec<_>>();
+            all_results.sort_by(|a, b| {
+                (a.vx, a.vy, a.vz).cmp(&(b.vx, b.vy, b.vz))
+            });
+
             // Route each update only to clients whose chunk interest covers a
             // chunk the update can affect: the updated chunk itself or any
             // chunk within the light-spill ring, since an edge update can

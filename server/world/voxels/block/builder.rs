@@ -363,6 +363,10 @@ impl BlockBuilder {
         self
     }
 
+    /// Register the active-voxel pair: `active_ticker` returns how many ticks
+    /// from now the voxel wants its `active_updater` run (`u64::MAX` means
+    /// "never on my own" — the voxel then only re-arms when a neighboring
+    /// update consults the ticker again).
     pub fn active_fn<
         F1: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + 'static + Send + Sync,
         F2: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + 'static + Send + Sync,

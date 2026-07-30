@@ -42,7 +42,6 @@ use specs::{
     World as ECSWorld, WorldExt, WriteStorage,
 };
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::{Mutex, RwLock};
 use std::{

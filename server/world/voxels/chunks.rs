@@ -716,19 +716,6 @@ impl Chunks {
         }
     }
 
-    /// The raw value a voxel is staged to become, if an update for it is
-    /// pending (staging area or processing queue). Lets callers observe
-    /// what `update_voxel` accepted before the update system commits it.
-    pub fn staged_update_at(&self, voxel: &Vec3<i32>) -> Option<u32> {
-        if let Some(val) = self.updates_staging.get(voxel) {
-            return Some(*val);
-        }
-        self.updates
-            .iter()
-            .find(|(queued, _)| queued == voxel)
-            .map(|(_, val)| *val)
-    }
-
     /// Schedule `voxel` to become active at absolute tick `active_at`.
     ///
     /// Earliest-deadline upsert:
@@ -761,6 +748,16 @@ impl Chunks {
     /// Absolute tick currently scheduled for `voxel`, if any.
     pub fn active_voxel_deadline(&self, voxel: &Vec3<i32>) -> Option<u64> {
         self.active_voxel_set.get(voxel).copied()
+    }
+
+    /// Number of voxels currently scheduled to run their active updater.
+    pub fn active_voxel_count(&self) -> usize {
+        self.active_voxel_set.len()
+    }
+
+    /// Number of voxel updates staged or queued but not yet committed.
+    pub fn pending_updates_count(&self) -> usize {
+        self.updates.len() + self.updates_staging.len()
     }
 
     /// Add a chunk to be saved. A world that does not save discards the request

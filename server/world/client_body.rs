@@ -7,9 +7,6 @@ const CLIENT_CROUCH_BODY_HEIGHT_RATIO: f32 = 0.83;
 const CLIENT_SWIM_BODY_HEIGHT: f32 = 0.4;
 const CLIENT_AABB_HEIGHT_EPSILON: f32 = 0.01;
 
-/// Count of inbound client voxel UPDATEs dropped while `allow_client_voxel_writes` is false.
-pub(super) static CLIENT_VOXEL_UPDATE_REJECTED: AtomicU64 = AtomicU64::new(0);
-
 fn apply_client_ghost_state(body: &mut RigidBodyComp, is_ghost: bool) {
     let position = body.0.get_position();
     let aabb = &mut body.0.aabb;

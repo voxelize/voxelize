@@ -14,6 +14,11 @@ export type BlockInfo = {
   isPassable: boolean;
   /** Whether this voxel holds the waterlogging fluid alongside its block. */
   isWaterlogged: boolean;
+  /** The voxel's stage bits (copper signal strength, door open state, crop
+   * growth), the observable state of stage-driven blocks. */
+  stage: number;
+  /** Y-rotation segment (0-15) for y-rotatable blocks (gates, stairs). */
+  yRotation: number;
   sunlight: number;
   torchLight: number;
   /** Replicated block-entity JSON for `is_entity` blocks (signs, baskets,
@@ -328,9 +333,8 @@ export interface AgentBridge {
   setRenderRadius(radius: number): Promise<number>;
   call(method: string, payload: unknown): Promise<unknown>;
   /**
-   * Optimistic client voxel clear + authoritative `break-block` method.
+   * Local break prediction plus one transactional `break-block` command.
    * Used by staging smoke to assert mesh/raycast catch up with inventory.
-   * The dispatch fields report the real fate of the `break-block` command.
    */
   breakVoxel(pos: Vec3): Promise<
     {
