@@ -4,7 +4,7 @@
 
 <h1>Voxelize</h1>
 
-<p><b>A full-stack Rust + TypeScript multiplayer voxel engine for the browser.</b></p>
+<p>A multiplayer, <i>super fast</i>, voxel engine in your browser!</p>
 
 <a href="https://discord.gg/9483RZtWVU">
   <img alt="Discord Server" src="https://img.shields.io/discord/1229328337713762355?label=Discord&logo=Discord&style=for-the-badge">
@@ -32,17 +32,12 @@
 
 ## Why Voxelize
 
-Voxelize powers persistent, multiplayer voxel worlds that run in any modern browser — no install, no plugins. The server is authoritative Rust; the client is TypeScript on Three.js; both sides share one protocol and the same meshing core, keeping authoritative state and rendered geometry aligned.
+Voxelize powers persistent, multiplayer voxel worlds that run in any modern browser. No installs, no plugins. 
 
-- **Realtime multiplayer built in** — authoritative server with entity, chat, and event synchronization out of the box.
-- **Fast, multithreaded chunk meshing** — the same Rust mesher runs natively on the server and as WebAssembly on the client.
-- **Custom blocks with custom geometry** — static or dynamic meshes with flexible combinational rendering logic.
-- **Multi-stage world generation with chunk overflow** — structures that spill into neighboring chunks (trees, buildings) are handled automatically.
-- **Voxel-aware AABB physics** — auto-stepping, raycasting, and entity-to-entity collision detection and resolution against any static or dynamic blocks.
-- **Periodic world persistence** — worlds save and reload without ceremony.
-- **Configurable chat and command registry** — wire up game commands declaratively.
-- **Headless agent SDK** — drive real clients programmatically for bots, smoke tests, and automation.
-- **Developer tooling** — debug panels and a robust event system for custom game logic.
+- **Build custom blocks**: register any blocks of any shape, size, and material. Blocks can also hold custom metadata through block entities.
+- **Create custom entities**: pigs, cows, sheeps, any entities you can imagine. They can roam around and interact with blocks and players.
+- **Realtime multiplayer**: authoritative server with entity, chat, and event synchronization out of the box.
+- **Any world generation**: define your own world generation and generate infinitely large worlds.
 
 <p align="center">
   <img src="assets/voxelize-terrain-debug.webp" alt="Voxelize terrain generation and debug tooling" />
@@ -73,15 +68,53 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 [**Town**](https://create.town) is a live, persistent multiplayer building world built on Voxelize — the engine's full stack (authoritative Rust server, Three.js client, WASM meshing, headless agents for smoke testing) running as a real production application.
 
 <p align="center">
-  <img src="assets/town-hub2-massif-4k.webp" width="48%" alt="Town hub2 mountain terrain" />
-  <img src="assets/town-zoo-pig-meadow-4k.webp" width="48%" alt="Custom pig entities in a Town zoo exhibit" />
+  <img src="assets/interior-chapel-stained-glass.webp" alt="Chapel interior lit through stained-glass windows" />
 </p>
 
-<p align="center">
-  <img src="assets/voxelize-terrain-debug.webp" width="70%" alt="Voxelize terrain generation and debug tooling" />
-</p>
+<p align="center"><i>Colored glass, voxel lighting, and custom block geometry.</i></p>
 
-<p align="center"><i>Production worlds, custom entities, and engine tooling — more gallery frames landing as they pass capture gates.</i></p>
+<table>
+  <tr>
+    <td width="50%">
+      <img src="assets/creature-capybara-lounge.webp" alt="Capybara lounging on open ground" /><br />
+      <sub><i>Instanced creatures with server-driven behavior.</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/mars-basalt-golem-ridge.webp" alt="Basalt golem standing on a Mars ridge" /><br />
+      <sub><i>Custom biomes — a basalt golem on a Mars ridge.</i></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/creature-obsidian-golem.webp" alt="Obsidian golem with an emissive core under a dusk sky" /><br />
+      <sub><i>Entity variants with emissive detail at dusk.</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/mars-ashvulture.webp" alt="Ashvulture flying over the Mars colony" /><br />
+      <sub><i>Flying fauna over the Mars colony.</i></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/underwater-tangs.webp" alt="School of tangs in an underwater exhibit" /><br />
+      <sub><i>Underwater rendering and schooling fish.</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/vfx-hologram-row-night.webp" alt="Row of emissive creature holograms at night" /><br />
+      <sub><i>Emissive hologram block entities at night.</i></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/circuits-hex-display.webp" alt="Copper circuitry driving a hex display" /><br />
+      <sub><i>In-world circuitry driving a hex display.</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/underwater-lantern-garden.webp" alt="Sunken lantern garden with kelp and glowing plants under water fog" /><br />
+      <sub><i>A sunken lantern garden in the water-fogged shallows.</i></sub>
+    </td>
+  </tr>
+</table>
 
 ## Quick Start
 
