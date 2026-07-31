@@ -2673,7 +2673,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           },
         );
 
-        if (patternsMatched && part.isPassable !== undefined) {
+        if (patternsMatched && typeof part.isPassable === "boolean") {
           return part.isPassable;
         }
       }
