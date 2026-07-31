@@ -1,3 +1,4 @@
+use super::fluid::WATERLOG_FLUID_INSET;
 use super::*;
 use hashbrown::HashMap;
 
@@ -274,6 +275,32 @@ fn waterlogged_voxel_meshes_the_fluid_it_holds() {
             .iter()
             .any(|geometry| geometry.voxel == 1 && !geometry.indices.is_empty()),
         "a waterlogged plant must still draw itself",
+    );
+
+    let water_positions: Vec<[f32; 3]> = submerged
+        .iter()
+        .filter(|geometry| geometry.voxel == WATER_ID)
+        .flat_map(|geometry| {
+            geometry
+                .positions
+                .chunks_exact(3)
+                .map(|pos| [pos[0], pos[1], pos[2]])
+        })
+        .collect();
+    assert!(
+        water_positions
+            .iter()
+            .any(|pos| (pos[1] - WATERLOG_FLUID_INSET).abs() < 1e-3),
+        "waterlogged fluid floor should be inset by {WATERLOG_FLUID_INSET}, got {water_positions:?}",
+    );
+    assert!(
+        water_positions.iter().any(|pos| {
+            (pos[0] - WATERLOG_FLUID_INSET).abs() < 1e-3
+                || (pos[0] - (1.0 - WATERLOG_FLUID_INSET)).abs() < 1e-3
+                || (pos[2] - WATERLOG_FLUID_INSET).abs() < 1e-3
+                || (pos[2] - (1.0 - WATERLOG_FLUID_INSET)).abs() < 1e-3
+        }),
+        "waterlogged fluid sides should be inset by {WATERLOG_FLUID_INSET}, got {water_positions:?}",
     );
 }
 

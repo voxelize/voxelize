@@ -12,6 +12,8 @@ pub(super) const FLUID_STAGE_DROPOFF: f32 = 0.1;
 
 pub(super) const FLUID_SURFACE_OFFSET: f32 = 0.005;
 
+pub(super) const WATERLOG_FLUID_INSET: f32 = 0.01;
+
 pub(super) fn get_fluid_effective_height(stage: u32) -> f32 {
     (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
 }

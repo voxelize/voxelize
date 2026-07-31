@@ -418,6 +418,8 @@ pub(super) fn process_face<S: VoxelAccess>(
     };
     let face_inset = if is_opaque {
         0.0
+    } else if is_fluid && space.get_voxel_waterlogged(vx, vy, vz) {
+        WATERLOG_FLUID_INSET
     } else if has_diagonals && !is_diagonal {
         0.0001 + hash_ox
     } else {
