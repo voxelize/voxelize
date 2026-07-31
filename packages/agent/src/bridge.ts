@@ -47,6 +47,10 @@ export type PeerSnapshot = {
   distance: number;
   isSelf: boolean;
   isSpectator: boolean;
+  role: string;
+  // False until this peer's role claim has replicated from its own client
+  // through the server; the window where nametags render role-less.
+  isRoleClaimed: boolean;
 };
 
 export type RaycastHit = {
