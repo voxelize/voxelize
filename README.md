@@ -28,7 +28,7 @@
 
 ![Town, a production world built on Voxelize](assets/town-hub2-massif-4k.webp)
 
-<p align="center"><i><a href="https://create.town">Town</a> — a live multiplayer world running on Voxelize in production.</i></p>
+<p align="center"><i><a href="https://create.town">Town</a>, a live multiplayer world running on Voxelize in production.</i></p>
 
 ## Why Voxelize
 
@@ -99,21 +99,21 @@ Both the server and the client are extremely optimized for performance and scala
   <tr>
     <td width="50%">
       <img src="assets/underwater-tangs.webp" alt="School of tangs in an underwater exhibit" /><br />
-      <sub><i>Underwater rendering and schooling fish.</i></sub>
+      <sub><i>Tropical fish and clams in my coral garden</i></sub>
     </td>
     <td width="50%">
       <img src="assets/vfx-hologram-row-night.webp" alt="Row of emissive creature holograms at night" /><br />
-      <sub><i>Emissive hologram block entities at night.</i></sub>
+      <sub><i>Hologram block using custom block entities</i></sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <img src="assets/circuits-hex-display.webp" alt="Copper circuitry driving a hex display" /><br />
-      <sub><i>In-world circuitry driving a hex display.</i></sub>
+      <sub><i>In-world copper circuitry driving a hex display</i></sub>
     </td>
     <td width="50%">
       <img src="assets/underwater-lantern-garden.webp" alt="Sunken lantern garden with kelp and glowing plants under water fog" /><br />
-      <sub><i>A sunken lantern garden in the water-fogged shallows.</i></sub>
+      <sub><i>Under the sea, kelp</i></sub>
     </td>
   </tr>
 </table>
@@ -133,6 +133,8 @@ pnpm demo      # run the demo server and client
 ```
 
 Then open http://localhost:3000.
+
+I strongly recommend using Voxelize as a submodule of the workspace you're building.
 
 ## Packages
 
@@ -185,10 +187,6 @@ Notes on faster local builds:
 ## Community
 
 Questions, showcases, and engine discussion happen on [Discord](https://discord.gg/9483RZtWVU). Issues and pull requests are welcome on [GitHub](https://github.com/voxelize/voxelize).
-
-<p align="center">
-  <img src="https://api.star-history.com/svg?repos=voxelize/voxelize&type=Date" alt="Star history chart" />
-</p>
 
 ## License
 
