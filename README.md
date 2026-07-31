@@ -47,6 +47,8 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 
 ## Architecture
 
+Both the server and the client are extremely optimized for performance and scalability. The server is written in Rust, and the client is written in TypeScript.
+
 ```text
 ┌───────────────────────────────┐                      ┌───────────────────────────────┐
 │   Browser client (TS)         │      WebSocket       │   Authoritative server (Rust) │
@@ -57,7 +59,7 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 └───────────────────────────────┘                      └───────────────────────────────┘
 ```
 
-- **Rust authoritative server** — `voxelize` runs ECS-driven worlds: chunk generation, physics, entities, and events all live server-side.
+- **Rust authoritative server** — `voxelize` runs [ECS](https://amethyst.github.io/specs/docs/tutorials/)-driven worlds: chunk generation, physics, entities, and events all live server-side.
 - **TypeScript / Three.js client** — `@voxelize/core` renders worlds in the browser and stays in sync over WebSocket.
 - **Shared protocol and transport** — `@voxelize/protocol` defines the protobuf messages; `@voxelize/transport` moves them.
 - **WASM meshing** — `voxelize-wasm-mesher` compiles the server's mesher to WebAssembly, so client-side remeshing follows the same geometry rules as server-side meshing.
@@ -65,33 +67,33 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 
 ## In Production
 
-[**Town**](https://create.town) is a live, persistent multiplayer building world built on Voxelize — the engine's full stack (authoritative Rust server, Three.js client, WASM meshing, headless agents for smoke testing) running as a real production application.
+[**Town**](https://create.town) is a live, persistent multiplayer building world built on Voxelize, with custom textures, entities, and more.
 
 <p align="center">
   <img src="assets/interior-chapel-stained-glass.webp" alt="Chapel interior lit through stained-glass windows" />
 </p>
 
-<p align="center"><i>Colored glass, voxel lighting, and custom block geometry.</i></p>
+<p align="center"><i>Colored glass, voxel lighting, and custom block geometry</i></p>
 
 <table>
   <tr>
     <td width="50%">
       <img src="assets/creature-capybara-lounge.webp" alt="Capybara lounging on open ground" /><br />
-      <sub><i>Instanced creatures with server-driven behavior.</i></sub>
+      <sub><i>Instanced creatures with server-driven behavior (capybaras)</i></sub>
     </td>
     <td width="50%">
       <img src="assets/mars-basalt-golem-ridge.webp" alt="Basalt golem standing on a Mars ridge" /><br />
-      <sub><i>Custom biomes — a basalt golem on a Mars ridge.</i></sub>
+      <sub><i>A basalt golem on Mars</i></sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <img src="assets/creature-obsidian-golem.webp" alt="Obsidian golem with an emissive core under a dusk sky" /><br />
-      <sub><i>Entity variants with emissive detail at dusk.</i></sub>
+      <sub><i>Obsidian golem with an emissive core</i></sub>
     </td>
     <td width="50%">
       <img src="assets/mars-ashvulture.webp" alt="Ashvulture flying over the Mars colony" /><br />
-      <sub><i>Flying fauna over the Mars colony.</i></sub>
+      <sub><i>Flying fauna</i></sub>
     </td>
   </tr>
   <tr>
