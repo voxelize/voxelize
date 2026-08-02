@@ -321,6 +321,34 @@ export type WorldMemoryCounters = {
   lightJobHighWaterChunks: number;
 };
 
+/**
+ * What the renderer is being asked to do for one frame, which is the thing a
+ * frame-rate number cannot tell you on its own: a scene can be slow because it
+ * draws too much or because it merely *walks* too much. `sceneObjects` counts
+ * every node the per-frame matrix and culling traversals visit, and
+ * `visibleChunkGroups` how many of the chunk subtrees survive culling.
+ */
+export type RenderStats = {
+  drawCalls: number;
+  /** The part of `drawCalls` spent filling the shadow cascades. */
+  shadowDrawCalls: number;
+  triangles: number;
+  programs: number;
+  geometries: number;
+  textures: number;
+  sceneObjects: number;
+  chunkGroups: number;
+  visibleChunkGroups: number;
+  chunkMeshes: number;
+  visibleChunkMeshes: number;
+  /** The twelve biggest material buckets among chunk meshes, largest first. */
+  meshBuckets: { bucket: string; total: number; visible: number }[];
+  /** Non-terrain scene subtrees, worst visible-mesh count first. */
+  otherSceneNodes: { label: string; total: number; visibleMeshes: number }[];
+  loadedChunks: number;
+  renderRadius: number;
+};
+
 export interface AgentBridge {
   readonly ready: Promise<void>;
 
@@ -357,6 +385,8 @@ export interface AgentBridge {
   ): Promise<MeshTransferBenchmarkResult>;
   /** Pipeline queue/in-flight sizes from `World.getMemoryCounters`. */
   memoryCounters(): WorldMemoryCounters;
+  /** Per-frame renderer and scene-graph load; see {@link RenderStats}. */
+  renderStats(): RenderStats;
 
   position(): Vec3;
   facing(): YawPitch;

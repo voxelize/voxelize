@@ -15,7 +15,7 @@ function noise(
   octaves: number,
   falloff: number,
   lacunarity = 0.8,
-) {
+): number {
   let total = 0;
   let frequency = 1.0;
   let amplitude = 1.0;
@@ -43,6 +43,7 @@ onmessage = function (e) {
       min,
       max,
       noiseScale,
+      verticalNoiseScale,
       threshold,
       stride,
       octaves,
@@ -50,6 +51,12 @@ onmessage = function (e) {
       seed,
     },
   } = e.data;
+
+  // Sampled separately from the horizontal scale. At one shared scale a stack
+  // of cloud layers only a few blocks tall spans almost no noise, so every
+  // column fills to the same layer and the deck comes out with a dead flat top
+  // no matter how much structure the horizontal field has.
+  const yScale = verticalNoiseScale ?? noiseScale;
 
   instance.seed(seed);
 
@@ -62,7 +69,7 @@ onmessage = function (e) {
         const value =
           noise(
             vx * noiseScale,
-            vy * noiseScale,
+            vy * yScale,
             vz * noiseScale,
             octaves,
             falloff,

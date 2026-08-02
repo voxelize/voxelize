@@ -311,7 +311,19 @@ export function decodeMessage(
                     geo.indices as Uint8Array,
                     [],
                   );
-                  const indices = new Uint16Array(decompressedI32.length);
+                  // Dense geometries (e.g. hand-authored canopies) exceed
+                  // 65535 vertices per chunk; Uint16 silently wraps those
+                  // indices and tears wedge-shaped holes through the mesh.
+                  let maxIndex = 0;
+                  for (let idx = 0; idx < decompressedI32.length; idx++) {
+                    if (decompressedI32[idx] > maxIndex) {
+                      maxIndex = decompressedI32[idx];
+                    }
+                  }
+                  const indices =
+                    maxIndex > 65535
+                      ? new Uint32Array(decompressedI32.length)
+                      : new Uint16Array(decompressedI32.length);
                   for (let idx = 0; idx < decompressedI32.length; idx++) {
                     indices[idx] = decompressedI32[idx];
                   }

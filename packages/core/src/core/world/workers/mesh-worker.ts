@@ -148,7 +148,7 @@ type GeometryProtocol = {
 
 function workerComputeNormals(
   positions: Float32Array,
-  indices: Uint16Array,
+  indices: Uint16Array | Uint32Array,
 ): Float32Array {
   const normals = new Float32Array(positions.length);
   for (let i = 0; i < indices.length; i += 3) {
@@ -313,7 +313,14 @@ onmessage = async function (e) {
   const geometriesPacked = geometries
     .map((geometry) => {
       const positions = new Float32Array(geometry.positions);
-      const indices = new Uint16Array(geometry.indices.length);
+      // Dense geometries (e.g. hand-authored canopies) exceed 65535 vertices
+      // per chunk; Uint16 silently wraps those indices and tears wedge-shaped
+      // holes through the mesh.
+      const vertexCount = positions.length / 3;
+      const indices =
+        vertexCount > 65535
+          ? new Uint32Array(geometry.indices.length)
+          : new Uint16Array(geometry.indices.length);
       for (let i = 0; i < geometry.indices.length; i++) {
         indices[i] = geometry.indices[i];
       }
