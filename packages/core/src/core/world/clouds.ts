@@ -35,7 +35,17 @@ export type CloudsOptions = {
   noiseScale: number;
 
   /**
-   * The horizontal count of how many cloud blocks are in a cloud cell. Defaults to `8`.
+   * The scale of the noise along the vertical axis. Defaults to `noiseScale`.
+   *
+   * Raise it above `noiseScale` for a shallow deck: a handful of layers span
+   * almost no noise at the horizontal scale, so every column fills to the same
+   * layer and the top comes out perfectly flat.
+   */
+  verticalNoiseScale?: number;
+
+  /**
+   * The number of cloud cells along each axis of the grid, `width` * `width` in
+   * total. Defaults to `8`.
    */
   width: number;
 
@@ -83,12 +93,34 @@ export type CloudsOptions = {
   alpha: number;
 
   /**
+   * Brightness of the vertical faces of a cloud block relative to its top,
+   * `0..1`. Defaults to `0.86`.
+   */
+  sideShade: number;
+
+  /**
+   * Brightness of the underside of a cloud block relative to its top, `0..1`.
+   * Defaults to `0.7`.
+   */
+  bottomShade: number;
+
+  /**
+   * Extra brightness given to faces pointing at the sun, as a fraction.
+   * Defaults to `0.12`.
+   */
+  sunTint: number;
+
+  /**
    * The seed used to generate the clouds. Defaults to `-1`.
    */
   seed: number;
 
   /**
-   * The number of cloud cells to generate, `count` * `count`. Defaults to `16`.
+   * The horizontal count of how many cloud blocks are along each edge of a
+   * cloud cell, `count` * `count` per cell. Defaults to `16`.
+   *
+   * The whole cloud sheet therefore spans `width` * `count` * `dimensions[0]`
+   * blocks: it is `width`, not this, that adds cells.
    */
   count: number;
 
@@ -166,6 +198,9 @@ const defaultOptions: CloudsOptions = {
   alpha: 0.8,
   color: "#fff",
   count: 16,
+  sideShade: 0.86,
+  bottomShade: 0.7,
+  sunTint: 0.12,
   noiseScale: 0.08,
   width: 8,
   height: 3,
@@ -208,6 +243,12 @@ export class Clouds extends Group {
    * The shard shader material used to render the clouds.
    */
   public material: ShaderMaterial;
+
+  /**
+   * The authored cloud colour, kept because the day/night cycle overwrites the
+   * live uniform every frame and would otherwise have nothing to scale from.
+   */
+  public baseColorHSL: { h: number; s: number; l: number };
 
   /**
    * A 2D array of cloud meshes. The first dimension is the x-axis, and the second dimension is the z-axis.
@@ -356,10 +397,14 @@ export class Clouds extends Group {
         uCloudAlpha: {
           value: alpha,
         },
+        uCloudSideShade: { value: this.options.sideShade },
+        uCloudBottomShade: { value: this.options.bottomShade },
+        uCloudSunTint: { value: this.options.sunTint },
       },
     });
 
     this.material.toneMapped = false;
+    this.baseColorHSL = new Color(color).getHSL({ h: 0, s: 0, l: 0 });
 
     this.initialize();
   }
@@ -546,6 +591,7 @@ export class Clouds extends Group {
       height,
       count,
       noiseScale,
+      verticalNoiseScale,
       seed,
       threshold,
       dimensions,
@@ -573,6 +619,7 @@ export class Clouds extends Group {
             min,
             max,
             noiseScale,
+            verticalNoiseScale,
             threshold,
             stride: array.stride,
             octaves,

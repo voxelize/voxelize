@@ -60,6 +60,94 @@ export type WorldClientOptions = {
   maxUrgentMeshWorkers: number;
 
   /**
+   * World Y under which distant chunks are left unmeshed, trading the terrain
+   * below it for a much larger render radius. Only chunks farther away than
+   * {@link nearDetailRadius} are culled; the ones around the player always mesh
+   * to the ground, and a chunk fills in the rest as the player approaches.
+   * `null` (the default) meshes everything everywhere.
+   *
+   * Culling leaves the underside of distant terrain open, so this is only
+   * invisible when something opaque sits over the cut — a cloud deck whose
+   * lowest surface is above the cut line. Set it above that and distant
+   * mountains read as hollow shells.
+   *
+   * For the same reason the cull applies only while the player is above this
+   * line. Underneath it the deck is no longer in the way, so the world meshes
+   * in full and gives up the range until they climb back over it.
+   *
+   * Only applies under {@link clientOnlyMeshing}; server-meshed worlds render
+   * what they are sent.
+   */
+  distantDetailCullBelowY: number | null;
+
+  /**
+   * Chunk radius within which every sub-chunk level is meshed regardless of
+   * {@link distantDetailCullBelowY}. Defaults to `10` chunks.
+   */
+  nearDetailRadius: number;
+
+  /**
+   * How far above {@link distantDetailCullBelowY} the player must climb before
+   * culling resumes, having dropped below it. Falling below the line always
+   * suspends culling immediately — the gap only delays switching it back on,
+   * so that standing at the line does not flip the two states frame by frame.
+   * Defaults to `8` blocks.
+   */
+  distantDetailCullHysteresis: number;
+
+  /**
+   * How many chunks may have their culled levels queued for meshing per world
+   * update. Refinement is spread over frames and ordered nearest-first so
+   * walking into a region never lands as one burst of mesh jobs. Defaults to
+   * `4` chunks.
+   */
+  maxDetailRefinementsPerUpdate: number;
+
+  /**
+   * Whether whole chunk subtrees are hidden while the camera cannot see them.
+   *
+   * three.js culls per mesh, but it pays to walk the scene graph first: every
+   * node is visited by the matrix pass and the culling pass whether or not it
+   * ends up drawn, and a wide render radius is tens of thousands of visits per
+   * frame. Testing one box per chunk and hiding the ones that miss lets the
+   * renderer skip those branches outright.
+   *
+   * Requires a camera to be passed to {@link World.update}; without one there
+   * is nothing to cull against and every chunk stays visible.
+   */
+  isCullingChunksByFrustum: boolean;
+
+  /**
+   * Blocks within which chunks stay visible even when the camera is looking
+   * away from them, because geometry behind the camera still casts shadows into
+   * the view. Defaults to `160` blocks, comfortably past the shadow cascades'
+   * 128-block reach; shorten it below that and near shadows start vanishing as
+   * the player turns.
+   *
+   * In blocks rather than chunks so that a world choosing a coarser chunk size
+   * does not silently pin hundreds of chunks visible.
+   */
+  chunkCullShadowSafeDistance: number;
+
+  /**
+   * Block distance out to which plant decoration (grass tufts, flowers — any
+   * block the registry marks `isPlant`) is drawn. Beyond it those meshes are
+   * hidden. `null` (the default) draws them everywhere.
+   *
+   * Plants cannot share a mesh with the terrain: each species is its own
+   * double-sided alpha-tested material, so a chunk with grass and two flower
+   * species costs three extra draw calls no matter how few blocks are in them.
+   * Across a wide render disc that is most of the frame's draw calls spent on
+   * geometry a metre wide, which past a couple of hundred blocks covers well
+   * under a pixel.
+   *
+   * This hides whole meshes rather than fading them, so set it past the point
+   * where a tuft is still resolvable or the boundary reads as a moving edge in
+   * the ground cover.
+   */
+  plantDetailDistance: number | null;
+
+  /**
    * Whether to use client-only meshing. When true, chunks are always meshed locally.
    * When false, server-provided meshes are used for initial chunk load.
    * Defaults to `true`.
@@ -210,6 +298,13 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
   maxUrgentMeshWorkers: 4,
+  isCullingChunksByFrustum: true,
+  chunkCullShadowSafeDistance: 160,
+  plantDetailDistance: null,
+  distantDetailCullBelowY: null,
+  nearDetailRadius: 10,
+  distantDetailCullHysteresis: 8,
+  maxDetailRefinementsPerUpdate: 4,
   clientOnlyMeshing: true,
   minLightLevel: 0.04,
   chunkRerequestIntervalMs: 5000,

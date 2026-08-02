@@ -30,6 +30,7 @@ import type {
   WalkDirection,
   WalkOptions,
   WalkToOptions,
+  RenderStats,
   WorldMemoryCounters,
   YawPitch,
 } from "./bridge";
@@ -778,6 +779,15 @@ export class Agent {
       heapTotalBytes: metrics.JSHeapTotalSize ?? 0,
       counters,
     };
+  }
+
+  /**
+   * Renderer and scene-graph load for the current frame. Read it alongside
+   * {@link measureFrameRate}: the FPS says a frame is slow, this says whether
+   * the renderer is drawing too much or the scene graph is simply too wide.
+   */
+  async renderStats(): Promise<RenderStats> {
+    return this.page.evaluate(() => window.__agentRequired__().renderStats());
   }
 
   async position(): Promise<Vec3> {

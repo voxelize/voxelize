@@ -155,6 +155,13 @@ export type Block = {
   transparentStandalone: boolean;
 
   /**
+   * Whether this block is plant decoration — a grass tuft, a flower, a crop.
+   * The mesher uses it to jitter diagonal faces; the renderer uses it to decide
+   * what {@link WorldClientOptions.plantDetailDistance} may stop drawing.
+   */
+  isPlant: boolean;
+
+  /**
    * A list of block face data that this block has.
    */
   faces: {

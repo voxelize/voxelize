@@ -9,14 +9,15 @@ import { WATER_VIEW_EXTINCTION_GLSL } from "./water-optics";
  */
 export const LIGHT_CONES = Object.freeze({
   /**
-   * Hard cap on simultaneous cones. Six covers the intended loadout: the
-   * local player's flashlight, a few nearby players' flashlights, and one
-   * submarine's two headlights. Emitters beyond the budget are dropped
-   * farthest-first by the game driver. Raising this is not free — the shader
-   * breaks out at the live cone count, so dry scenes cost nothing extra, but
-   * every submerged cone adds `scatterSamples` taps per fragment.
+   * Hard cap on simultaneous cones. Eight covers the intended loadout: the
+   * local player's flashlight plus a scene's worth of mounted fixtures — or
+   * nearby players' flashlights and one submarine's two headlights. Emitters
+   * beyond the budget are dropped farthest-first by the game driver. Raising
+   * this is not free — the shader breaks out at the live cone count, so
+   * empty scenes cost nothing extra, but every scattering cone adds
+   * `scatterSamples` taps per fragment.
    */
-  maxCones: 6,
+  maxCones: 8,
 
   /**
    * Fixed sample count of the per-cone in-scattering estimate along the view
@@ -83,7 +84,9 @@ vec3 lightConeScatter(vec3 lcCam, vec3 lcRayDir, float lcFragDist) {
   for (int i = 0; i < ${MAX}; i++) {
     if (i >= uConeCount) break;
     vec4 lcShape = uConeShapes[i];
-    float lcStrength = lcShape.w * uConeOrigins[i].w;
+    // Clear air scatters a few percent of what murky water does: enough to
+    // see the shaft of a strong beam, nowhere near enough to white it out.
+    float lcStrength = lcShape.w * mix(0.05, 1.0, uConeOrigins[i].w);
     if (lcStrength <= 0.0) continue;
     vec3 lcOrigin = uConeOrigins[i].xyz;
     float lcMax = min(lcFragDist, distance(lcCam, lcOrigin) + lcShape.z);
@@ -101,7 +104,7 @@ vec3 lightConeScatter(vec3 lcCam, vec3 lcRayDir, float lcFragDist) {
       float lcNorm = lcAxial / lcShape.z;
       float lcFall = 1.0 - lcNorm * lcNorm;
       lcFall *= lcFall;
-      lcSum += exp(-${WATER_VIEW_EXTINCTION_GLSL} * (lcAxial + lcT)) * (lcAngular * lcFall);
+      lcSum += exp(-${WATER_VIEW_EXTINCTION_GLSL} * (lcAxial + lcT) * uConeOrigins[i].w) * (lcAngular * lcFall);
     }
     lcTotal += uConeColors[i] * lcSum * (lcStrength * lcStep);
   }
@@ -111,9 +114,12 @@ vec3 lightConeScatter(vec3 lcCam, vec3 lcRayDir, float lcFragDist) {
 
 /**
  * Adds the in-scattered beam glow after fog. Expects `vWorldPosition`,
- * `cameraPosition`, and `gl_FragColor` in scope. Scatter strength is scaled
- * by each cone's submersion, so beams only bloom in the murk; in air the
- * cone remains a pure surface light.
+ * `cameraPosition`, and `gl_FragColor` in scope. Scatter strength is the
+ * game's per-cone knob: this is how a beam is *seen* in air — real
+ * spotlights are invisible between lens and surface unless the air itself
+ * scatters some light toward the eye (dust, haze), which this term
+ * estimates. Submersion additionally applies water extinction along the
+ * path, so underwater beams bloom hard and die short.
  */
 export const LIGHT_CONES_SCATTER_FRAGMENT = `
 if (uConeCount > 0) {

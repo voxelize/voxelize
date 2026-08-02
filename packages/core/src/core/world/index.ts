@@ -12,6 +12,7 @@ import {
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
 import {
+  Box3,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
@@ -22,7 +23,9 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   FrontSide,
+  Frustum,
   Group,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -706,6 +709,48 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private _deleteRadius = 0;
 
+  /**
+   * The chunk the player was in as of the last update, used to decide which
+   * chunks are far enough away to skip their below-cutoff levels.
+   */
+  private centerChunk: Coords2 = [0, 0];
+
+  /**
+   * The altitude the player was at as of the last update. Culling depends on
+   * it because the cut is only hidden while the deck lies between the eye and
+   * it, which stops being true from underneath.
+   */
+  private centerY = 0;
+
+  /**
+   * Whether the cull is currently in effect. Held as state rather than derived
+   * per call so it can lag the altitude that drives it; see
+   * {@link updateDistantCullState}.
+   */
+  private distantCullHidden = false;
+
+  /**
+   * World Y each loaded chunk's meshes currently start at. A chunk first seen
+   * from a distance sits at the cull altitude until the player comes close
+   * enough to refine it down to `0`. Tracked here rather than read back off
+   * `Chunk.meshes` because a level that meshes to nothing leaves no entry
+   * there, and re-queueing those forever would be an invisible treadmill.
+   */
+  private chunkDetailFloor = new Map<string, number>();
+
+  /**
+   * The subset of {@link chunkDetailFloor} still holding terrain back, with the
+   * coordinates needed to find it again. Kept apart so the refinement pass can
+   * walk the chunks that actually owe geometry instead of sweeping the whole
+   * loaded disc every frame looking for them.
+   */
+  private culledChunks = new Map<string, Coords2>();
+
+  /** Scratch state for the per-chunk frustum cull; see {@link updateChunkVisibility}. */
+  private chunkCullFrustum = new Frustum();
+  private chunkCullMatrix = new Matrix4();
+  private chunkCullBox = new Box3();
+
   private meshWorkerPool!: WorkerPool;
   private urgentMeshWorkerPool!: WorkerPool;
 
@@ -758,6 +803,15 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   constructor(options: Partial<WorldOptions> = {}) {
     super();
+
+    // The world scene sits at the origin and never moves, and leaving its
+    // matrix on auto is not free: `Object3D.updateMatrix` unconditionally
+    // raises `matrixWorldNeedsUpdate`, so the root re-dirtied itself every
+    // frame and forced a world-matrix recompute down every branch beneath it.
+    // Static chunk meshes were paying for a transform they do not have,
+    // thousands of times a frame. Anything that does move the root has to call
+    // `updateMatrix()` itself, which is the trade this line makes.
+    this.matrixAutoUpdate = false;
 
     // @ts-ignore
     const { statsSyncInterval } = (this.options = {
@@ -979,8 +1033,26 @@ export class World<T = any> extends Scene implements NetIntercept {
     const heightPerSubChunk = Math.floor(
       this.options.maxHeight / this.options.subChunks,
     );
-    const subChunkMin = [min[0], heightPerSubChunk * level, min[2]];
+    // Raised to the chunk's cull line while it is distant, so the level the
+    // line runs through meshes only its upper part and the ones entirely under
+    // it produce nothing at all.
+    const floorY = this.chunkDetailFloor.get(ChunkUtils.getChunkName([cx, cz]));
+    const subChunkMin = [
+      min[0],
+      Math.max(heightPerSubChunk * level, floorY ?? 0),
+      min[2],
+    ];
     const subChunkMax = [max[0], heightPerSubChunk * (level + 1), max[2]];
+
+    if (subChunkMin[1] >= subChunkMax[1]) {
+      return {
+        geometries: [],
+        serializeMs: 0,
+        workerMs: 0,
+        inputBytes: 0,
+        outputBytes: 0,
+      };
+    }
 
     const chunksData: unknown[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
@@ -3439,6 +3511,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   update(
     position: Vector3 = new Vector3(),
     direction: Vector3 = new Vector3(),
+    camera?: Camera,
   ) {
     if (!this.isInitialized) {
       return;
@@ -3457,6 +3530,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const startOverall = performance.now();
 
+    this.centerChunk = center;
+    this.centerY = position.y;
+    this.updateDistantCullState();
+
     const startMaintainChunks = performance.now();
     this.maintainChunks(center);
     const maintainChunksDuration = performance.now() - startMaintainChunks;
@@ -3468,6 +3545,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const startProcessChunks = performance.now();
     this.processChunks(center);
     const processChunksDuration = performance.now() - startProcessChunks;
+
+    this.refineNearbyChunkDetail();
+
+    if (camera) {
+      this.updateChunkVisibility(camera);
+    }
 
     const startUpdatePhysics = performance.now();
     this.updatePhysics(delta);
@@ -4017,6 +4100,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.remove(chunk.group);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
+        this.chunkDetailFloor.delete(name);
+        this.culledChunks.delete(name);
         toRemove.push(name);
         deleted.push(chunk.coords);
       }
@@ -4156,13 +4241,16 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
-    // Update the clouds' colors based on the sky's colors.
+    // Dim the clouds toward night. Scaled from the authored colour rather than
+    // assigned from the sunlight directly: assigning drives lightness to a flat
+    // 1.0 at midday, which forces every cloud to pure white whatever colour it
+    // was given and saturates its shading away.
     const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
-    const cloudColorHSL = cloudColor.getHSL({});
+    const cloudBase = this.clouds.baseColorHSL;
     cloudColor.setHSL(
-      cloudColorHSL.h,
-      cloudColorHSL.s,
-      ThreeMathUtils.clamp(sunlightIntensity, 0, 1),
+      cloudBase.h,
+      cloudBase.s,
+      cloudBase.l * ThreeMathUtils.clamp(sunlightIntensity, 0, 1),
     );
 
     const fogColor = this.chunkRenderer.uniforms.fogColor.value;
@@ -4533,6 +4621,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           merged: true,
           materialBucket: materialKey,
           voxel: isSingleVoxelMesh ? voxel : undefined,
+          isPlant: isSingleVoxelMesh && this.isPlantVoxel(voxel),
         };
         if (material.transparent) {
           this.configureTransparentChunkMesh(mesh, voxel, material);
@@ -4608,6 +4697,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             faceName,
             at && at.length ? at : undefined,
           ),
+          isPlant: this.isPlantVoxel(voxel),
         };
         if (material.transparent) {
           this.configureTransparentChunkMesh(mesh, voxel, material);
@@ -4621,6 +4711,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!this.children.includes(chunk.group)) {
       this.add(chunk.group);
     }
+
+    // The group holds its subtree's matrices back until told geometry landed,
+    // and a mesh whose `matrixWorld` was never composed renders at the origin.
+    chunk.group.updateMatrixWorld(true);
+
+    // Fresh meshes default to visible, so a chunk beyond the plant radius has
+    // to be re-asked rather than left believing it is already hidden.
+    chunk.plantsShown = null;
 
     if (!chunk.meshes.has(level)) {
       chunk.meshes.set(level, []);
@@ -5018,6 +5116,16 @@ export class World<T = any> extends Scene implements NetIntercept {
             key,
             geometries,
           }) as const,
+        (error) => {
+          // A dispatch that throws (e.g. payload serialization failing an
+          // array-buffer allocation under memory pressure) must still settle:
+          // an unhandled rejection here escapes Promise.all, skips every
+          // failJob in the batch, and leaves those generations in flight
+          // forever — wedging the whole mesh pipeline on chunks that will
+          // never be retried.
+          console.error(`[world] mesh dispatch failed for ${key}`, error);
+          return { cx, cz, level, generation, key, geometries: null } as const;
+        },
       );
     });
 
@@ -5632,9 +5740,267 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
 
       if (allNeighborsReady) {
+        const floorY = this.detailFloorYFor(nx, nz);
+        const heightPerSubChunk = Math.floor(
+          this.options.maxHeight / subChunks,
+        );
+        const name = ChunkUtils.getChunkName([nx, nz]);
+        // A chunk already meshed to the ground keeps that depth even once it
+        // is distant again, so the levels queued below have to be chosen by
+        // the depth the chunk actually holds and not by the one its distance
+        // asks for. Filtering on the latter skips levels the chunk still owns,
+        // leaving them stale with nothing left to queue them: the refinement
+        // pass takes this floor as proof they are already up to date.
+        const effectiveFloor = Math.min(
+          this.chunkDetailFloor.get(name) ?? Infinity,
+          floorY,
+        );
+
+        this.setDetailFloor(nx, nz, effectiveFloor);
+
         for (let level = 0; level < subChunks; level++) {
+          if (heightPerSubChunk * (level + 1) <= effectiveFloor) continue;
           this.meshPipeline.onVoxelChange(nx, nz, level);
         }
+      }
+    }
+
+    this.scheduleDirtyChunkProcessing();
+  }
+
+  /**
+   * Hides the chunk subtrees the camera cannot see, so the renderer's matrix
+   * and culling passes stop at one node per chunk instead of descending into
+   * every mesh of every chunk in the loaded disc.
+   *
+   * Chunks inside {@link WorldClientOptions.chunkCullShadowSafeDistance} are
+   * left alone whichever way the camera points: they are still inside the shadow
+   * cascades, and hiding a shadow caster is visible from the front even when
+   * the caster is not.
+   */
+  private isPlantVoxel(voxel: number) {
+    try {
+      return this.getBlockById(voxel)?.isPlant === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Shows or hides a chunk's plant meshes for its current distance band. Cached
+   * per chunk because the answer only changes when a chunk crosses the boundary
+   * — walking the children of every loaded chunk every frame would cost more
+   * than the draw calls it saves.
+   */
+  private updateChunkPlantDetail(chunk: Chunk, distanceSquared: number) {
+    const { plantDetailDistance, chunkSize } = this.options;
+    if (plantDetailDistance === null) return;
+
+    const radius = plantDetailDistance / chunkSize;
+    const wanted = distanceSquared <= radius * radius;
+    if (chunk.plantsShown === wanted) return;
+    chunk.plantsShown = wanted;
+
+    for (const mesh of chunk.group.children) {
+      if (mesh.userData?.isPlant) mesh.visible = wanted;
+    }
+  }
+
+  private updateChunkVisibility(camera: Camera) {
+    const { isCullingChunksByFrustum, chunkCullShadowSafeDistance, chunkSize } =
+      this.options;
+    if (!isCullingChunksByFrustum) return;
+
+    // The renderer only refreshes these during its own pass, which has not run
+    // yet this frame; culling against last frame's camera lags the view by a
+    // frame and shows up as chunks blinking in at the edge of a fast turn.
+    camera.updateMatrixWorld();
+    this.chunkCullMatrix.multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse,
+    );
+    this.chunkCullFrustum.setFromProjectionMatrix(this.chunkCullMatrix);
+
+    const [centerX, centerZ] = this.centerChunk;
+    const shadowSafeSquared = (chunkCullShadowSafeDistance / chunkSize) ** 2;
+    const { maxHeight } = this.options;
+
+    this.chunkPipeline.forEachLoaded((chunk) => {
+      const [cx, cz] = chunk.coords;
+      const dx = cx - centerX;
+      const dz = cz - centerZ;
+      const distanceSquared = dx * dx + dz * dz;
+
+      this.updateChunkPlantDetail(chunk, distanceSquared);
+
+      if (distanceSquared <= shadowSafeSquared) {
+        chunk.group.visible = true;
+        return;
+      }
+
+      // The whole column, not the meshed part of it: a chunk's geometry can
+      // reach anywhere between the floor and the ceiling, and a box that
+      // tracked the geometry would have to be rebuilt on every remesh.
+      this.chunkCullBox.min.set(cx * chunkSize, 0, cz * chunkSize);
+      this.chunkCullBox.max.set(
+        (cx + 1) * chunkSize,
+        maxHeight,
+        (cz + 1) * chunkSize,
+      );
+
+      chunk.group.visible = this.chunkCullFrustum.intersectsBox(
+        this.chunkCullBox,
+      );
+    });
+  }
+
+  /**
+   * The world Y a chunk should mesh up from right now. Chunks near the player
+   * always mesh from the ground; distant ones start at the cull line.
+   *
+   * An altitude rather than a level index because the mesher takes an arbitrary
+   * Y range: the cut can land wherever the cloud deck covers, instead of the
+   * world having to be re-cut into sub-chunks fine enough to have a boundary
+   * near it.
+   */
+  private detailFloorYFor(cx: number, cz: number) {
+    const { distantDetailCullBelowY, nearDetailRadius } = this.options;
+
+    if (distantDetailCullBelowY === null) return 0;
+    if (!this.isDistantCullHidden()) return 0;
+
+    const dx = cx - this.centerChunk[0];
+    const dz = cz - this.centerChunk[1];
+
+    if (dx * dx + dz * dz <= nearDetailRadius * nearDetailRadius) return 0;
+
+    return Math.max(0, distantDetailCullBelowY);
+  }
+
+  /**
+   * Whether terrain hidden by the cull would in fact be out of sight.
+   *
+   * Only from above the cut, where the deck that motivated it lies in between.
+   * Drop below and there is nothing left covering the seam: distant mountains
+   * read as sliced off in mid-air with their trees hanging over open sky. The
+   * scheme switches itself off there rather than show that, and the terrain it
+   * skipped is queued back in by {@link refineNearbyChunkDetail}.
+   */
+  private isDistantCullHidden() {
+    return this.distantCullHidden;
+  }
+
+  /**
+   * Decides whether the cull may be in effect at the player's current altitude.
+   *
+   * Deliberately lopsided. Dropping below the line switches it off at once,
+   * because the moment the deck is no longer overhead the seam is in plain
+   * sight; climbing back only switches it on once clear of the line by
+   * {@link WorldClientOptions.distantDetailCullHysteresis}. Without that gap a
+   * player resting at the cull altitude flips the state every frame, and since
+   * a chunk's floor only ever ratchets downward, each flip permanently refines
+   * more of the disc until the range this buys has quietly drained away.
+   */
+  private updateDistantCullState() {
+    const { distantDetailCullBelowY, distantDetailCullHysteresis } =
+      this.options;
+
+    if (distantDetailCullBelowY === null) {
+      this.distantCullHidden = false;
+      return;
+    }
+
+    if (this.centerY < distantDetailCullBelowY) {
+      this.distantCullHidden = false;
+    } else if (
+      this.centerY >=
+      distantDetailCullBelowY + distantDetailCullHysteresis
+    ) {
+      this.distantCullHidden = true;
+    }
+  }
+
+  /**
+   * Records how far up a chunk is meshed, keeping {@link culledChunks} in step
+   * so the two can never disagree about which chunks still owe geometry.
+   */
+  private setDetailFloor(cx: number, cz: number, floorY: number) {
+    const name = ChunkUtils.getChunkName([cx, cz]);
+
+    this.chunkDetailFloor.set(name, floorY);
+
+    if (floorY > 0) {
+      this.culledChunks.set(name, [cx, cz]);
+    } else {
+      this.culledChunks.delete(name);
+    }
+  }
+
+  /**
+   * Queues the terrain that was culled away while a chunk was distant, now that
+   * the player has come close enough to need it. Spread over frames and ordered
+   * nearest-first: the whole point of culling is a bigger radius, and a bigger
+   * radius means far more chunks can cross the near boundary at once.
+   */
+  private refineNearbyChunkDetail() {
+    const {
+      distantDetailCullBelowY,
+      nearDetailRadius,
+      subChunks,
+      maxHeight,
+      maxDetailRefinementsPerUpdate,
+    } = this.options;
+
+    if (distantDetailCullBelowY === null) return;
+    if (this.culledChunks.size === 0) return;
+
+    const [centerX, centerZ] = this.centerChunk;
+    // Dropping below the deck suspends the cull everywhere at once, so the
+    // whole loaded disc has terrain owed back to it, not just the near ring.
+    const scanRadius = this.isDistantCullHidden()
+      ? nearDetailRadius
+      : this.renderRadius;
+    const radiusSquared = scanRadius * scanRadius;
+    const candidates: { cx: number; cz: number; distanceSquared: number }[] =
+      [];
+
+    // Walks the chunks still holding terrain back rather than the disc they
+    // sit in. The disc is the same size every frame whether or not anything in
+    // it owes geometry, and building a key per cell to ask made the answer
+    // cost more than acting on it.
+    for (const [cx, cz] of this.culledChunks.values()) {
+      const dx = cx - centerX;
+      const dz = cz - centerZ;
+      const distanceSquared = dx * dx + dz * dz;
+
+      if (distanceSquared > radiusSquared) continue;
+
+      const chunk = this.getChunkByCoords(cx, cz);
+      if (!chunk || !chunk.isReady) continue;
+
+      candidates.push({ cx, cz, distanceSquared });
+    }
+
+    if (candidates.length === 0) return;
+
+    candidates.sort((a, b) => a.distanceSquared - b.distanceSquared);
+
+    const heightPerSubChunk = Math.floor(maxHeight / subChunks);
+
+    for (const { cx, cz } of candidates.slice(
+      0,
+      maxDetailRefinementsPerUpdate,
+    )) {
+      const floorY =
+        this.chunkDetailFloor.get(ChunkUtils.getChunkName([cx, cz])) ?? 0;
+
+      this.setDetailFloor(cx, cz, 0);
+
+      // Includes the level the cull line ran through, whose mesh is missing
+      // everything under that line and has to be rebuilt whole.
+      for (let level = 0; level < subChunks; level++) {
+        if (heightPerSubChunk * level > floorY) break;
+        this.meshPipeline.onVoxelChange(cx, cz, level);
       }
     }
 

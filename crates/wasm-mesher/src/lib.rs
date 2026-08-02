@@ -10,11 +10,14 @@ thread_local! {
 }
 
 #[wasm_bindgen]
-pub fn init() {}
+pub fn init() {
+    console_error_panic_hook::set_once();
+}
 
 #[wasm_bindgen]
 pub fn set_registry(registry: JsValue) {
-    let mut registry: Registry = serde_wasm_bindgen::from_value(registry).unwrap();
+    let mut registry: Registry = serde_wasm_bindgen::from_value(registry)
+        .expect("mesher registry did not match the wasm Registry shape");
     registry.build_cache();
     CACHED_REGISTRY.with(|r| {
         *r.borrow_mut() = Some(registry);

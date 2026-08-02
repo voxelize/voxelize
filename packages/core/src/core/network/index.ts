@@ -882,6 +882,17 @@ export class Network {
         message: data,
         buffers: data,
         resolve: (messages) => {
+          // A dead decode worker resolves `null`. The packets are gone (their
+          // buffers were transferred into the corpse), so say so loudly and
+          // settle with nothing rather than handing callers a non-iterable —
+          // which used to throw in the packet loop and mask the real loss.
+          if (!messages) {
+            console.error(
+              `[network] decode worker died; ${data.length} packet(s) lost`,
+            );
+            resolve([]);
+            return;
+          }
           if (byteSizes) {
             annotateIncomingMessages(messages, byteSizes);
           }

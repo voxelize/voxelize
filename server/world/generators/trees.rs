@@ -321,9 +321,15 @@ impl Trees {
         for x in -dx..=dx {
             for y in -dy..=dy {
                 for z in -dz..=dz {
-                    // Encapsulate the position within an ellipse
-                    let dist = (x * x + y * y + z * z) as f32;
-                    if dist >= (dx * dx + dy * dy + dz * dz) as f32 {
+                    // A true ellipsoid test. The old check compared the
+                    // squared distance against dx²+dy²+dz² — a sphere large
+                    // enough that the surrounding box clipped it, so every
+                    // canopy came out as a slab-sided box with shaved
+                    // corners rather than a rounded clump.
+                    let nx = x as f32 / (dx as f32 + 0.5);
+                    let ny = y as f32 / (dy as f32 + 0.5);
+                    let nz = z as f32 / (dz as f32 + 0.5);
+                    if nx * nx + ny * ny + nz * nz > 1.0 {
                         continue;
                     }
 
