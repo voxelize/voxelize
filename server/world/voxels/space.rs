@@ -410,7 +410,13 @@ impl VoxelAccess for Space {
         let (coords, Vec3(lx, _, lz)) = self.to_local(vx, 0, vz);
 
         if let Some(height_map) = self.height_maps.get(&coords) {
-            return height_map[&[lx, lz]];
+            if !height_map.contains(&[lx, lz]) {
+                return 0;
+            }
+            let index = height_map.index(&[lx, lz]);
+            if let Some(&height) = height_map.data.get(index) {
+                return height;
+            }
         }
 
         0

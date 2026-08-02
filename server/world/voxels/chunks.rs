@@ -342,33 +342,58 @@ impl Chunks {
             }
         };
 
+        let size = self.config.chunk_size;
+        let max_height = self.config.max_height;
+        let expected_voxels = size * max_height * size;
+        let expected_height_map = size * size;
+
+        if voxels.is_empty() || voxels.len() != expected_voxels {
+            self.remove_corrupt_chunk_file(
+                &path,
+                &format!(
+                    "voxels length {} does not match chunk_size={} max_height={} (expected {})",
+                    voxels.len(),
+                    size,
+                    max_height,
+                    expected_voxels
+                ),
+            );
+            return None;
+        }
+
         let mut chunk = Chunk::new(
             &data.id,
             coords.0,
             coords.1,
             &ChunkOptions {
-                max_height: self.config.max_height,
+                max_height,
                 sub_chunks: self.config.sub_chunks,
-                size: self.config.chunk_size,
+                size,
             },
         );
 
         Arc::make_mut(&mut chunk.voxels).data = voxels;
-        // Bulk-assigned voxel data invalidates the fill watermark.
         chunk.top_filled_y = None;
 
-        if height_map.len() > 0 {
+        let mut is_save_dirty = false;
+        if height_map.len() == expected_height_map {
             Arc::make_mut(&mut chunk.height_map).data = height_map;
         } else {
+            if !height_map.is_empty() {
+                warn!(
+                    "Chunk save at {} has height_map length {} (expected {}); recalculating from voxels",
+                    path.display(),
+                    height_map.len(),
+                    expected_height_map
+                );
+                is_save_dirty = true;
+            }
             chunk.calculate_max_height(registry);
         }
 
         chunk.waterlogging_rules = self.waterlogging_rules.clone();
         chunk.status = ChunkStatus::Meshing;
-        // This chunk *is* what the file holds, so it owes disk nothing. That
-        // covers the recalculated height map above: it is derived from the
-        // persisted voxels, not an edit of them.
-        chunk.is_save_dirty = false;
+        chunk.is_save_dirty = is_save_dirty;
 
         if data.version < CHUNK_FILE_VERSION && backfill_waterlogged_voxels(&mut chunk, registry) {
             chunk.is_save_dirty = true;
