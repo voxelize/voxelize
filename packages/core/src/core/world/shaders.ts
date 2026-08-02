@@ -134,7 +134,9 @@ varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
+varying float vWaterSurfaceY;
 uniform vec4 uAOTable;
+uniform float uWaterLevel;
 uniform float uTime;
 uniform vec2 uWindDirection;
 uniform vec2 uWindOffset;
@@ -190,6 +192,11 @@ vLight = unpackLight(light & LIGHT_MASK);
 // them, and an interpolator is not free.
 float stackIndexF = float(stackIndex);
 float stackHeight = float(stackCount);
+
+// Blocks of fluid standing above this one, from the run the mesher measured
+// down from this column's own surface. Saturates at the field width, by
+// which depth the water is black anyway.
+float fluidAbove = stackHeight - 1.0 - stackIndexF;
 `,
     )
     .replace(
@@ -220,6 +227,13 @@ vec4 worldPosition = vec4( transformed, 1.0 );
 worldPosition = modelMatrix * worldPosition;
 vWorldPosition = worldPosition;
 vWorldNormal = normalize(mat3(modelMatrix) * normal);
+
+// The surface that governs this fragment's water shading. A fluid reads its
+// own column, so a pond on a hilltop and a pond in a cellar both look like
+// water; everything else keeps the world's nominal waterline, which is still
+// the right answer for terrain sitting under a sea. Accurate to within a
+// block, which is far finer than an exponential falloff can show.
+vWaterSurfaceY = isFluid == 1 ? worldPosition.y + fluidAbove : uWaterLevel;
 
 vec4 viewPos = viewMatrix * worldPosition;
 vViewDepth = -viewPos.z;
@@ -283,6 +297,7 @@ varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
+varying float vWaterSurfaceY;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
@@ -707,7 +722,7 @@ if (vIsFluid > 0.5) {
   vec3 baseWater = outgoingLight.rgb;
 
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
-  float verticalDepthFactor = 1.0 - exp(-max(0.0, uWaterLevel - wPos.y) * ${WATER_OPTICS.downwellingExtinction.green.toFixed(5)});
+  float verticalDepthFactor = 1.0 - exp(-max(0.0, vWaterSurfaceY - wPos.y) * ${WATER_OPTICS.downwellingExtinction.green.toFixed(5)});
   vec3 shallowWater = mix(baseWater, uWaterTint, 0.1);
   vec3 deepWater = mix(baseWater, uWaterTint, 0.28);
   vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.72);
@@ -773,7 +788,7 @@ if (vIsFluid > 0.5) {
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;
 
-  float waterDepth = max(0.0, uWaterLevel - vWorldPosition.y);
+  float waterDepth = max(0.0, vWaterSurfaceY - vWorldPosition.y);
   vec3 fluidMu = ${WATER_DOWNWELLING_EXTINCTION_GLSL}
     * (uWaterAbsorption * ${WATER_OPTICS.surfaceAbsorptionScale.toFixed(4)});
   outgoingLight.rgb *= exp(-fluidMu * waterDepth);

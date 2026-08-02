@@ -40,10 +40,10 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 - **Any world generation**: define your own world generation and generate infinitely large worlds.
 
 <p align="center">
-  <img src="assets/voxelize-terrain-debug.webp" alt="Voxelize terrain generation and debug tooling" />
+  <img src="assets/creature-axolotl-greenhouse-pond.webp" alt="Axolotl on the bank of a terraced pond inside a glass greenhouse" />
 </p>
 
-<p align="center"><i>Terrain generation, lighting, chunk streaming, and live debug tooling in the browser.</i></p>
+<p align="center"><i>Custom blocks, instanced creatures, water, and voxel lighting in the browser.</i></p>
 
 ## Architecture
 
@@ -70,10 +70,10 @@ Both the server and the client are extremely optimized for performance and scala
 [**Town**](https://create.town) is a live, persistent multiplayer building world built on Voxelize, with custom textures, entities, and more.
 
 <p align="center">
-  <img src="assets/interior-chapel-stained-glass.webp" alt="Chapel interior lit through stained-glass windows" />
+  <img src="assets/creature-ashen-dragon-volcano.webp" alt="Ashen dragon breathing fire on the flank of a volcano at night" />
 </p>
 
-<p align="center"><i>Colored glass, voxel lighting, and custom block geometry</i></p>
+<p align="center"><i>Server-driven creature behavior and particle VFX over emissive volcanic terrain</i></p>
 
 <table>
   <tr>
@@ -92,8 +92,8 @@ Both the server and the client are extremely optimized for performance and scala
       <sub><i>Obsidian golem with an emissive core</i></sub>
     </td>
     <td width="50%">
-      <img src="assets/mars-ashvulture.webp" alt="Ashvulture flying over the Mars colony" /><br />
-      <sub><i>Flying fauna</i></sub>
+      <img src="assets/interior-chapel-stained-glass.webp" alt="Chapel interior lit through stained-glass windows" /><br />
+      <sub><i>Colored glass, voxel lighting, and custom block geometry</i></sub>
     </td>
   </tr>
   <tr>
@@ -108,8 +108,8 @@ Both the server and the client are extremely optimized for performance and scala
   </tr>
   <tr>
     <td width="50%">
-      <img src="assets/circuits-hex-display.webp" alt="Copper circuitry driving a hex display" /><br />
-      <sub><i>In-world copper circuitry driving a hex display</i></sub>
+      <img src="assets/circuits-copper-adder-console.webp" alt="Block-built hex display reading 1F, driven by copper circuitry" /><br />
+      <sub><i>A 4-bit copper adder driving a block-built hex display</i></sub>
     </td>
     <td width="50%">
       <img src="assets/underwater-lantern-garden.webp" alt="Sunken lantern garden with kelp and glowing plants under water fog" /><br />

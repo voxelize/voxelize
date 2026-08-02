@@ -704,7 +704,7 @@ fn mesh_single_face(
     block: &Block,
     face: &BlockFace,
     registry: &Registry,
-    space: &ColumnSpace,
+    space: &impl VoxelAccess,
 ) -> Vec<i32> {
     let mut positions = vec![];
     let mut indices = vec![];
@@ -898,6 +898,184 @@ fn a_vertical_run_is_grouped_by_stack_group_not_block_id() {
         run_length(upper_same_group, 0),
         1,
         "air ends the run",
+    );
+}
+
+/// A vertical run of one fluid centred on the origin, with an optional
+/// waterlogged voxel standing in for a plant rooted part-way up it.
+struct FluidColumnSpace {
+    fluid_id: u32,
+    plant_id: u32,
+    above: i32,
+    below: i32,
+    waterlogged_offset: Option<i32>,
+}
+
+impl FluidColumnSpace {
+    fn holds_column(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        vx == 0 && vz == 0 && (-self.below..=self.above).contains(&vy)
+    }
+}
+
+impl VoxelAccess for FluidColumnSpace {
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.holds_column(vx, vy, vz) {
+            return 0;
+        }
+        if self.waterlogged_offset == Some(vy) {
+            self.plant_id
+        } else {
+            self.fluid_id
+        }
+    }
+
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.get_voxel(vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+        BlockRotation::PY(0.0)
+    }
+
+    fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        self.holds_column(vx, vy, vz) && self.waterlogged_offset == Some(vy)
+    }
+
+    fn get_voxel_fluid_level(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_sunlight(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        15
+    }
+
+    fn get_torch_light(&self, _vx: i32, _vy: i32, _vz: i32, _color: LightColor) -> u32 {
+        0
+    }
+
+    fn get_all_lights(&self, _vx: i32, _vy: i32, _vz: i32) -> (u32, u32, u32, u32) {
+        (15, 0, 0, 0)
+    }
+
+    fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+        (self.above.max(0) + 1) as u32
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        vx.abs() <= 1 && vz.abs() <= 1 && (-self.below - 1..=self.above + 1).contains(&vy)
+    }
+}
+
+/// What the shader derives from the packed run: how many blocks of fluid
+/// stand above the voxel at the origin. Read off a side face, which is the
+/// one face that meshes at every depth — a submerged voxel's top face is
+/// culled against the water above it.
+fn fluid_blocks_above(space: &FluidColumnSpace, water: &Block, registry: &Registry) -> i32 {
+    let face = water.faces[0].clone();
+    let lights = mesh_single_face(water, &face, registry, space);
+    let index = (lights[0] >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
+    let count = ((lights[0] >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
+    count - 1 - index
+}
+
+/// A fluid fragment is shaded by how much fluid stands above it, so its run
+/// has to be measured from the surface down. Read from the floor the way a
+/// plant's run is, a voxel a few blocks under an ocean would report nothing
+/// above it once the window filled from below, and the shader would paint
+/// deep water as bright shallows.
+#[test]
+fn a_fluid_run_is_measured_down_from_its_surface() {
+    const WATER_ID: u32 = 2;
+    const KELP_ID: u32 = 3;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: vec![BlockFace::new(
+            "px".to_string(),
+            false,
+            false,
+            [1, 0, 0],
+            [
+                CornerData {
+                    pos: [1.0, 1.0, 0.0],
+                    uv: [0.0, 1.0],
+                },
+                CornerData {
+                    pos: [1.0, 0.0, 0.0],
+                    uv: [0.0, 0.0],
+                },
+                CornerData {
+                    pos: [1.0, 1.0, 1.0],
+                    uv: [1.0, 1.0],
+                },
+                CornerData {
+                    pos: [1.0, 0.0, 1.0],
+                    uv: [1.0, 0.0],
+                },
+            ],
+        )],
+        ..plain_block(WATER_ID, "Water")
+    };
+    let kelp = Block {
+        is_plant: true,
+        is_waterloggable: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        aabbs: vec![],
+        ..plain_block(KELP_ID, "Kelp")
+    };
+
+    let mut registry = Registry::new(vec![
+        (0, air),
+        (WATER_ID, water.clone()),
+        (KELP_ID, kelp),
+    ]);
+    registry.build_cache();
+
+    let column = |above: i32, below: i32, waterlogged_offset: Option<i32>| FluidColumnSpace {
+        fluid_id: WATER_ID,
+        plant_id: KELP_ID,
+        above,
+        below,
+        waterlogged_offset,
+    };
+
+    assert_eq!(
+        fluid_blocks_above(&column(0, 1, None), &water, &registry),
+        0,
+        "the top of a puddle has nothing above it",
+    );
+    assert_eq!(
+        fluid_blocks_above(&column(1, 0, None), &water, &registry),
+        1,
+        "the floor of a two-deep puddle has one block above it",
+    );
+    assert_eq!(
+        fluid_blocks_above(&column(3, 36, None), &water, &registry),
+        3,
+        "depth is measured from the surface, however much water is underneath",
+    );
+    assert_eq!(
+        fluid_blocks_above(&column(40, 40, None), &water, &registry),
+        STACK_MAX as i32 - 1,
+        "a run past the field width saturates deep rather than reporting a surface",
+    );
+    assert_eq!(
+        fluid_blocks_above(&column(2, 0, Some(1)), &water, &registry),
+        2,
+        "a waterlogged voxel is still water and does not cut the run in half",
     );
 }
 

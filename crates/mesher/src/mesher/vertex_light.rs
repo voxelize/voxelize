@@ -18,6 +18,8 @@
 //! bit  21       in contact with fluid
 //! bits 22..=25  stack index: like blocks below this one in its vertical run
 //! bits 26..=29  stack count: length of that run, minus one
+//!               (a plant's run is its stack group read from the root; a
+//!                fluid's is its own column read from the surface)
 //! bit  30       unallocated
 //! bit  31       sign; the attribute is read as a signed int, keep it clear
 //! ```
@@ -33,9 +35,10 @@ pub const GREEDY_BIT: i32 = 1 << 19;
 pub const WAVE_BIT: i32 = 1 << 20;
 pub const WATER_EXPOSED_BIT: i32 = 1 << 21;
 
-/// A voxel's position within a vertical run of blocks sharing a stack group,
-/// and how long that run is. Four bits each caps a run at 16, which is longer
-/// than any stack the shader needs to shade as one object.
+/// A voxel's position within its vertical run, and how long that run is.
+/// Four bits each caps a run at 16, which is longer than any stack the shader
+/// needs to shade as one object, and deep enough that fluid past it is
+/// already black.
 pub const STACK_INDEX_SHIFT: i32 = 22;
 pub const STACK_COUNT_SHIFT: i32 = 26;
 pub const STACK_FIELD_BITS: i32 = 0xF;

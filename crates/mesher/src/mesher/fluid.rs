@@ -47,6 +47,45 @@ pub(super) fn has_fluid_above<S: VoxelAccess>(
     voxel_holds_fluid(vx, vy + 1, vz, fluid_id, is_waterlogging, space)
 }
 
+/// Where this voxel sits in the column of its own fluid, as `(index from the
+/// bottom, length of the run)` — the encoding the packed stack fields already
+/// use for plants, so the shader can read how much fluid stands above a
+/// fragment and shade it by its true depth instead of by a world-wide sea
+/// level.
+///
+/// Two things differ from the plant walk in `faces.rs`, and both are the
+/// point. Membership is "holds this fluid", so a waterlogged kelp voxel does
+/// not cut an ocean column in half. And the window is anchored at the
+/// surface, not the floor: a run longer than the field can hold has to drop
+/// blocks from the bottom, because dropping them from the top would report a
+/// fragment far below an ocean's surface as floating on top of a short
+/// column and shade it as bright shallows.
+pub(super) fn fluid_column_position<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    fluid_id: u32,
+    registry: &Registry,
+    space: &S,
+) -> (u32, u32) {
+    let is_waterlogging = registry
+        .get_block_by_id(fluid_id)
+        .is_some_and(|block| block.is_waterlogging_fluid);
+    let holds = |y: i32| voxel_holds_fluid(vx, y, vz, fluid_id, is_waterlogging, space);
+
+    let mut above = 0u32;
+    while above + 1 < STACK_MAX && holds(vy + above as i32 + 1) {
+        above += 1;
+    }
+
+    let mut below = 0u32;
+    while below + above + 1 < STACK_MAX && holds(vy - below as i32 - 1) {
+        below += 1;
+    }
+
+    (below, below + above + 1)
+}
+
 pub(super) fn get_fluid_height_at<S: VoxelAccess>(
     vx: i32,
     vy: i32,

@@ -237,7 +237,9 @@ pub(super) fn get_dynamic_faces<S: VoxelAccess>(
 ///
 /// The walk is bounded by the width of the packed field, so a run taller than
 /// the field can hold reports a truncated window rather than scanning a
-/// column of unbounded height.
+/// column of unbounded height. A plant's window is anchored at its root,
+/// which is the end its shading is measured from; fluids measure from the
+/// other end and get their own walk in `fluid::fluid_column_position`.
 fn stack_position<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -289,11 +291,17 @@ pub(super) fn process_face<S: VoxelAccess>(
 ) {
     let [min_x, min_y, min_z] = *min;
 
-    let stack_bits = if block.stack_group == 0 {
+    // Fluids report their own column instead of a stack group: what the
+    // shader needs from a water fragment is how much water stands above it,
+    // and that run is defined by which voxels hold the fluid, not by a
+    // registry grouping.
+    let stack_bits = if is_fluid {
+        let (index, count) = fluid_column_position(vx, vy, vz, voxel_id, registry, space);
+        with_stack(0, index, count)
+    } else if block.stack_group == 0 {
         0
     } else {
-        let (index, count) =
-            stack_position(vx, vy, vz, block.stack_group, registry, space);
+        let (index, count) = stack_position(vx, vy, vz, block.stack_group, registry, space);
         with_stack(0, index, count)
     };
 

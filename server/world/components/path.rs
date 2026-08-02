@@ -2,7 +2,7 @@ use crate::Vec3;
 use serde::{Deserialize, Serialize};
 use specs::{Component, VecStorage};
 use std::time::Duration;
-#[derive(Component, Debug, Serialize, Deserialize, Default)]
+#[derive(Component, Debug, Serialize, Deserialize)]
 #[storage(VecStorage)]
 #[serde(rename_all = "camelCase")]
 pub struct PathComp {
@@ -23,11 +23,28 @@ pub struct PathComp {
     /// search reruns anyway.
     #[serde(skip)]
     pub ticks_since_computed: u32,
-    /// How many ticks an unmoved pair's path stays trusted. Defaulted so
-    /// entities persisted before this field existed still deserialize —
-    /// without it, loading one old save panics the whole server.
-    #[serde(default = "default_repath_max_age_ticks")]
+    /// How many ticks an unmoved pair's path stays trusted. Code-owned, not
+    /// save data: it once persisted, and a derived `Default` of 0 spawned a
+    /// generation of entities whose saves disabled the repath guard outright
+    /// — every pathfinder re-ran its full A* every tick, forever. Skipping
+    /// the field heals those saves on load instead of trusting them.
+    #[serde(skip, default = "default_repath_max_age_ticks")]
     pub repath_max_age_ticks: u32,
+}
+
+impl Default for PathComp {
+    fn default() -> Self {
+        Self {
+            path: None,
+            max_nodes: 0,
+            max_distance: 0.0,
+            max_depth_search: 0,
+            max_pathfinding_time: Duration::ZERO,
+            computed_for: None,
+            ticks_since_computed: 0,
+            repath_max_age_ticks: default_repath_max_age_ticks(),
+        }
+    }
 }
 
 /// A third of a second: long enough to amortise the search, short enough
