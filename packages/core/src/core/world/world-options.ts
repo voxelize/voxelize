@@ -315,6 +315,13 @@ export type WorldClientOptions = {
    * per-section meshes.
    */
   regionArenas: ChunkRegionArenasOptions | null;
+
+  /**
+   * Slots in the shared cutout buckets' sway-profile uniform table (one
+   * vec4 pair each). Slot 0 is reserved for "no sway", so a world can
+   * register one fewer distinct profile than this. Defaults to `16`.
+   */
+  swayProfileCapacity: number;
 };
 
 /**
@@ -407,6 +414,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
     growthFactor: 1.5,
     indexPerVertexRatio: 1.5,
   },
+  swayProfileCapacity: 16,
 };
 
 /**

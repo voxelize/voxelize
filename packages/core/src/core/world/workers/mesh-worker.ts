@@ -270,6 +270,7 @@ onmessage = async function (e) {
   }
 
   if (!wasmInitialized) {
+    console.warn("[mesh-worker] mesh request before init; returning empty");
     // @ts-expect-error postMessage typing
     postMessage({ geometries: [] }, []);
     return;

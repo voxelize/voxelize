@@ -132,11 +132,13 @@ import {
 import { Chunk } from "./chunk";
 import {
   CustomChunkShaderMaterial,
+  SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
   applyQuantizedPositionDefine,
   loadChunkMaterials,
   makeChunkMaterialKey,
   makeChunkShaderMaterial,
+  sharedCutoutMaterialKeyFor,
 } from "./chunk-materials";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
@@ -825,6 +827,25 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private chunkPositionUnits = 1;
 
+  /**
+   * Blocks whose materials were rewritten through
+   * {@link customizeMaterialShaders}. A customized block cannot share a
+   * bucket material — its shader is its own — so the bucket resolution in
+   * {@link makeChunkMaterialKey} sends it back to its per-id material.
+   */
+  private customMaterialBlockIds = new Set<number>();
+
+  /**
+   * Flat vec4-pair table behind the shared cutout buckets' sway shader; see
+   * {@link createSwayTableShader}. Slot 0 stays zeroed as the "no sway"
+   * profile.
+   */
+  readonly swayProfileTable: Uniform;
+
+  private swayProfileCount = 1;
+  private swayProfileIndexBySignature = new Map<string, number>();
+  private swayProfileIndexByVoxel = new Map<number, number>();
+
   private meshWorkerPool!: WorkerPool;
   private urgentMeshWorkerPool!: WorkerPool;
 
@@ -895,6 +916,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const maxMeshWorkers = Math.min(navigator.hardwareConcurrency ?? 4, 4);
     const { maxQueuedWorkerJobs } = this.options;
+
+    this.swayProfileTable = new Uniform(
+      new Float32Array(this.options.swayProfileCapacity * 8),
+    );
 
     this.oldBlocks = new BoundedLruMap(this.options.maxVoxelHistoryVoxels);
 
@@ -3459,6 +3484,79 @@ export class World<T = any> extends Scene implements NetIntercept {
     return fragments;
   };
 
+  hasCustomBlockMaterial = (id: number) => {
+    return this.customMaterialBlockIds.has(id);
+  };
+
+  /**
+   * Register a sway profile for a cutout block instead of compiling it a
+   * bespoke material: the block stays in its shared cutout bucket and its
+   * quads carry the profile's index into the table
+   * {@link createSwayTableShader} reads. Parameter defaults mirror
+   * {@link createSwayShader}; `isCrossShaded` selects the flattened
+   * cross-quad shading the dedicated cross materials used to bake in.
+   */
+  setBlockSway = (
+    idOrName: number | string,
+    options: Partial<{
+      speed: number;
+      amplitude: number;
+      scale: number;
+      rooted: boolean;
+      yScale: number;
+      isCrossShaded: boolean;
+    }> = {},
+  ) => {
+    this.checkIsInitialized("set block sway", false);
+
+    const block = this.getBlockOf(idOrName);
+    const { speed, amplitude, scale, rooted, yScale, isCrossShaded } = {
+      speed: 1,
+      amplitude: 0.1,
+      scale: 1,
+      rooted: false,
+      yScale: 1,
+      isCrossShaded: false,
+      ...options,
+    };
+
+    const signature = [
+      speed,
+      amplitude,
+      scale,
+      rooted ? 1 : 0,
+      yScale,
+      isCrossShaded ? 1 : 0,
+    ].join(",");
+
+    let index = this.swayProfileIndexBySignature.get(signature);
+    if (index === undefined) {
+      if (this.swayProfileCount >= this.options.swayProfileCapacity) {
+        throw new Error(
+          `Sway profile table is full (capacity ${this.options.swayProfileCapacity}); raise WorldClientOptions.swayProfileCapacity.`,
+        );
+      }
+      index = this.swayProfileCount++;
+      const table = this.swayProfileTable.value as Float32Array;
+      table.set(
+        [
+          speed,
+          amplitude,
+          scale,
+          yScale,
+          rooted ? 1 : 0,
+          isCrossShaded ? 1 : 0,
+          0,
+          0,
+        ],
+        index * 8,
+      );
+      this.swayProfileIndexBySignature.set(signature, index);
+    }
+
+    this.swayProfileIndexByVoxel.set(block.id, index);
+  };
+
   customizeMaterialShaders = (
     idOrName: number | string,
     faceName: string | null = null,
@@ -3479,6 +3577,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       fragmentShader = SHADER_LIGHTING_CHUNK_SHADERS.fragment,
       uniforms = {},
     } = data;
+
+    // Opting out has to precede the material lookup: the bucket resolution
+    // reads this set, and a block-level customization on a shared-bucket
+    // block must land on the block's own material, never the shared one.
+    if (faceName === null) {
+      this.customMaterialBlockIds.add(this.getBlockOf(idOrName).id);
+    }
 
     const mat = this.getBlockFaceMaterial(idOrName, faceName);
 
@@ -4747,6 +4852,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     } else {
       computeFlatNormals(geometry);
     }
+
+    // Shared-cutout geometry carries its sway profile per vertex so one
+    // material serves every species. Applied to all of a qualifying block's
+    // geometries — independent-face buckets included — so any bucket the
+    // block's geometry lands in has a uniform attribute set for merging.
+    if (
+      !this.customMaterialBlockIds.has(geo.voxel) &&
+      sharedCutoutMaterialKeyFor(this.getBlockById(geo.voxel))
+    ) {
+      const profiles = new Uint8Array(geo.positions.length / 3).fill(
+        this.swayProfileIndexByVoxel.get(geo.voxel) ?? 0,
+      );
+      geometry.setAttribute("swayProfile", new BufferAttribute(profiles, 1));
+    }
+
     return geometry;
   }
 
@@ -4917,7 +5037,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           merged: true,
           materialBucket: materialKey,
           voxel: isSingleVoxelMesh ? voxel : undefined,
-          isPlant: isSingleVoxelMesh && this.isPlantVoxel(voxel),
+          isPlant:
+            materialKey === SHARED_CUTOUT_PLANT_MATERIAL_KEY ||
+            (isSingleVoxelMesh && this.isPlantVoxel(voxel)),
         };
         if (material.transparent) {
           this.configureTransparentChunkMesh(mesh, voxel, material);

@@ -1037,3 +1037,85 @@ ${swayCode}`,
     fragmentShader: baseShaders.fragment,
   };
 }
+
+/**
+ * Table-driven variant of {@link createSwayShader} for the shared cutout
+ * buckets: instead of compiling one material per species with its sway
+ * constants baked into the source, every quad carries a `swayProfile`
+ * attribute indexing a vec4-pair uniform table (params: speed, amplitude,
+ * scale, yScale; flags: rooted, cross shading). Profile 0 is reserved as
+ * "no sway" so geometry without a registered profile — and geometry whose
+ * material never binds the attribute, which WebGL defaults to 0 — stays
+ * still.
+ *
+ * Cross-quad plants historically used a separate fragment (fixed sun
+ * incidence, no face shade); that difference rides the profile's cross flag
+ * through the `vCrossShading` varying so one program serves both shapes.
+ */
+export function createSwayTableShader(
+  baseShaders: { vertex: string; fragment: string },
+  profileCapacity: number,
+) {
+  const tableLength = profileCapacity * 2;
+
+  const vertexShader = baseShaders.vertex
+    .replace(
+      "#include <common>",
+      `
+attribute float swayProfile;
+uniform vec4 uSwayParams[${tableLength}];
+varying float vCrossShading;
+
+#include <common>
+`,
+    )
+    .replace(
+      "vec3 transformed = vec3(position);",
+      `vec3 transformed = vec3(position);
+int swayIdx = int(swayProfile + 0.5) * 2;
+vec4 swayParams = uSwayParams[swayIdx];
+vec4 swayFlags = uSwayParams[swayIdx + 1];
+vec3 swayBlockPosition = vec3(position) / POSITION_UNITS_PER_BLOCK;
+float swayScale = uTime * 0.00002 * swayParams.x;
+float rootScale = mix(
+  1.0,
+  (stackIndexF + swayBlockPosition.y - floor(swayBlockPosition.y)) / stackHeight,
+  swayFlags.x
+);
+float swayNoise = snoise(vec3(
+  swayBlockPosition.x * swayScale + uWindOffset.x,
+  swayBlockPosition.y * swayScale * swayParams.w,
+  swayBlockPosition.z * swayScale + uWindOffset.y
+));
+float swayShift = rootScale * swayParams.z * swayNoise * swayParams.y;
+transformed.x += swayShift * 2.0 * POSITION_UNITS_PER_BLOCK;
+transformed.z += swayShift * uWindSpeed * 0.5 * POSITION_UNITS_PER_BLOCK;
+vCrossShading = swayFlags.y;
+`,
+    );
+
+  const fragmentShader = baseShaders.fragment
+    .replace(
+      "varying float vAO;",
+      `varying float vCrossShading;
+varying float vAO;`,
+    )
+    .replace(
+      "float NdotL = dot(vWorldNormal, uSunDirection);",
+      "float NdotL = mix(dot(vWorldNormal, uSunDirection), 0.5, vCrossShading);",
+    )
+    .replace(
+      `float faceShade = faceShadeWeights.x * uFaceShades.x
+  + faceShadeWeights.z * uFaceShades.y
+  + faceShadeWeights.y * verticalFaceShade;`,
+      `float faceShade = mix(
+  faceShadeWeights.x * uFaceShades.x
+    + faceShadeWeights.z * uFaceShades.y
+    + faceShadeWeights.y * verticalFaceShade,
+  1.0,
+  vCrossShading
+);`,
+    );
+
+  return { vertexShader, fragmentShader };
+}
