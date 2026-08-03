@@ -283,13 +283,29 @@ export class MeshPipeline {
     this.urgentDirty.delete(key);
   }
 
-  getDirtyKeys(): string[] {
+  /**
+   * Dirty keys ready for dispatch: the urgent lane first in insertion order
+   * (player edits stay latency-ordered), then regular keys nearest-first
+   * around `center` so remesh work reaches the camera before the horizon.
+   * Without a center the regular lane keeps insertion order.
+   */
+  getDirtyKeys(center?: Coords2): string[] {
     const urgentKeys = [...this.urgentDirty].filter((key) =>
       this.shouldStartJob(key),
     );
     const regularKeys = [...this.dirty].filter(
       (key) => !this.urgentDirty.has(key) && this.shouldStartJob(key),
     );
+    if (center) {
+      const [centerX, centerZ] = center;
+      const distanceSq = (key: string) => {
+        const { cx, cz } = MeshPipeline.parseKey(key);
+        const dx = cx - centerX;
+        const dz = cz - centerZ;
+        return dx * dx + dz * dz;
+      };
+      regularKeys.sort((a, b) => distanceSq(a) - distanceSq(b));
+    }
     return [...urgentKeys, ...regularKeys];
   }
 

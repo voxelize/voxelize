@@ -152,4 +152,30 @@ describe("MeshPipeline voxel-change remesh", () => {
     expect(pipeline.shouldStartJob("2,2:0")).toBe(true);
     expect(pipeline.needsRemesh("2,2:0")).toBe(true);
   });
+
+  it("orders regular dirty keys nearest-first around the given center", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(10, 10, 0);
+    pipeline.onVoxelChange(2, 2, 0);
+    pipeline.onVoxelChange(5, 5, 0);
+
+    expect(pipeline.getDirtyKeys([1, 1])).toEqual([
+      "2,2:0",
+      "5,5:0",
+      "10,10:0",
+    ]);
+    expect(pipeline.getDirtyKeys([9, 9])).toEqual([
+      "10,10:0",
+      "5,5:0",
+      "2,2:0",
+    ]);
+  });
+
+  it("keeps the urgent lane in insertion order ahead of sorted regular keys", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(50, 50, 0, true);
+    pipeline.onVoxelChange(1, 1, 0);
+
+    expect(pipeline.getDirtyKeys([0, 0])).toEqual(["50,50:0", "1,1:0"]);
+  });
 });

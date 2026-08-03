@@ -322,6 +322,15 @@ export type WorldClientOptions = {
    * register one fewer distinct profile than this. Defaults to `16`.
    */
   swayProfileCapacity: number;
+
+  /**
+   * Per-frame time budget for applying completed regular mesh results on
+   * the main thread, in milliseconds. At least one result always applies
+   * per frame; the budget is checked after each apply. Urgent (player-edit)
+   * results and the initial join flow bypass the budget entirely.
+   * Defaults to `3`.
+   */
+  meshApplyBudgetMs: number;
 };
 
 /**
@@ -415,6 +424,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
     indexPerVertexRatio: 1.5,
   },
   swayProfileCapacity: 16,
+  meshApplyBudgetMs: 3,
 };
 
 /**

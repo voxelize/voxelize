@@ -505,6 +505,23 @@ export class World<T = any> extends Scene implements NetIntercept {
   public regionArenas: ChunkRegionArenas | null = null;
 
   /**
+   * Completed regular mesh results waiting to apply under
+   * {@link WorldClientOptions.meshApplyBudgetMs}. Urgent results and results
+   * arriving before the first {@link update} tick bypass this queue.
+   */
+  private pendingMeshResults: {
+    cx: number;
+    cz: number;
+    level: number;
+    geometries: GeometryProtocol[];
+    connectivity: number;
+    generation: number;
+  }[] = [];
+
+  /** The render loop has driven at least one {@link update} tick. */
+  private isTicking = false;
+
+  /**
    * The voxel physics engine using `@voxelize/physics-engine`.
    */
   public physics: PhysicsEngine;
@@ -3780,6 +3797,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const startOverall = performance.now();
 
+    this.isTicking = true;
     this.centerChunk = center;
     this.centerY = position.y;
     this.updateDistantCullState();
@@ -5556,7 +5574,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   private processDirtyChunks = async () => {
-    const dirtyKeys = this.meshPipeline.getDirtyKeys();
+    const dirtyKeys = this.meshPipeline.getDirtyKeys(this.centerChunk);
     if (dirtyKeys.length === 0) return;
 
     const urgentKeys = dirtyKeys.filter((key) =>
@@ -5632,17 +5650,34 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     const results = await Promise.all(workerPromises);
+    const isUrgentBatch = urgentKeys.length > 0;
 
     for (const result of results) {
       if (result.geometries) {
-        this.applyMeshResult(
-          result.cx,
-          result.cz,
-          result.level,
-          result.geometries,
-          result.connectivity,
-          result.generation,
-        );
+        // Urgent results (player edits) apply immediately for latency; the
+        // join flow applies immediately too so loading drains at full speed.
+        // Steady-state regular results queue up and apply under a per-frame
+        // time budget so a burst of finished sections cannot spike a frame.
+        if (isUrgentBatch || !this.isTicking) {
+          this.applyMeshResult(
+            result.cx,
+            result.cz,
+            result.level,
+            result.geometries,
+            result.connectivity,
+            result.generation,
+          );
+        } else {
+          this.pendingMeshResults.push({
+            cx: result.cx,
+            cz: result.cz,
+            level: result.level,
+            geometries: result.geometries,
+            connectivity: result.connectivity,
+            generation: result.generation,
+          });
+          this.scheduleMeshResultDrain();
+        }
       } else {
         // dispatchMeshWorker returns null when the chunk is mid-load/update
         // or neighbors are missing. startJob already reserved this generation
@@ -5675,6 +5710,49 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
     };
   })();
+
+  private scheduleMeshResultDrain = (() => {
+    let scheduled = false;
+    return () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        this.drainPendingMeshResults();
+      });
+    };
+  })();
+
+  /**
+   * Apply queued mesh results under the per-frame time budget. At least one
+   * result lands per frame — an oversized single apply cannot be refused —
+   * and the budget is checked after each unit, mirroring the budgeted-drain
+   * contract. Leftovers reschedule for the next frame.
+   */
+  private drainPendingMeshResults() {
+    if (this.pendingMeshResults.length === 0) return;
+
+    const budgetMs = this.options.meshApplyBudgetMs;
+    const start = performance.now();
+
+    while (this.pendingMeshResults.length > 0) {
+      const result = this.pendingMeshResults.shift();
+      if (!result) break;
+      this.applyMeshResult(
+        result.cx,
+        result.cz,
+        result.level,
+        result.geometries,
+        result.connectivity,
+        result.generation,
+      );
+      if (performance.now() - start >= budgetMs) break;
+    }
+
+    if (this.pendingMeshResults.length > 0) {
+      this.scheduleMeshResultDrain();
+    }
+  }
 
   private flushAccumulatedLightOps() {
     if (!this.accumulatedLightOps || !this.accumulatedLightOps.hasOperations) {
