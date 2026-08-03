@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/wasm-mesher",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "WebAssembly mesher for Voxelize",
   "main": "./pkg/voxelize_wasm_mesher.js",
   "module": "./pkg/voxelize_wasm_mesher.js",
@@ -9,9 +9,11 @@
     "pkg"
   ],
   "scripts": {
-    "build": "wasm-pack build --target web",
-    "build:dev": "wasm-pack build --target web --dev",
-    "build:release": "wasm-pack build --target web --release"
+    "build": "wasm-pack build --target web && pnpm run strip-pkg-gitignore",
+    "build:dev": "wasm-pack build --target web --dev && pnpm run strip-pkg-gitignore",
+    "build:release": "wasm-pack build --target web --release && pnpm run strip-pkg-gitignore",
+    "strip-pkg-gitignore": "rm -f pkg/.gitignore",
+    "prepublishOnly": "pnpm run build"
   },
   "license": "MIT"
 }

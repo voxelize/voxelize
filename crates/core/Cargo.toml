@@ -1,9 +1,10 @@
 [package]
 name = "voxelize-core"
-version = "1.0.0"
+version = "3.0.0"
 edition = "2021"
 description = "Core types and utilities for Voxelize - the single source of truth for voxel data encoding"
 license = "MIT"
+repository = "https://github.com/voxelize/voxelize"
 
 [lib]
 crate-type = ["lib"]
