@@ -20,8 +20,26 @@ import {
   SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
 } from "./shaders";
 import { AtlasTexture } from "./textures";
+import { positionUnitsPerBlock } from "./vertex-quantization";
 
 export const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
+
+/**
+ * Chunk geometry that is not main-thread sorted arrives with fixed-point
+ * positions whose dequantization lives in the mesh matrix. The shader still
+ * needs the scale for displacement math (sway, waves) that reads the raw
+ * `position` attribute before any matrix applies; without the define the
+ * shader's fallback of 1.0 treats positions as block-space floats.
+ */
+export function applyQuantizedPositionDefine(
+  material: ShaderMaterial,
+  unitsPerBlock: number,
+) {
+  material.defines = {
+    ...material.defines,
+    POSITION_UNITS_PER_BLOCK: unitsPerBlock.toFixed(1),
+  };
+}
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
@@ -45,6 +63,9 @@ export interface ChunkMaterialHost {
   options: {
     chunkUniformsOverwrite: Partial<ChunkRenderer["uniforms"]>;
     textureUnitDimension: number;
+    chunkSize: number;
+    maxHeight: number;
+    subChunks: number;
   };
 }
 
@@ -195,6 +216,7 @@ export async function loadChunkMaterials(
   },
 ) {
   const { textureUnitDimension } = world.options;
+  const positionUnits = positionUnitsPerBlock(world.options);
 
   const perSide = (total: number) => {
     let countPerSide = 1;
@@ -242,6 +264,14 @@ export async function loadChunkMaterials(
     mat.uniforms.map.value = map;
     mat.userData.skipShadow =
       isFluid || (transparent && lightAttenuation === 0);
+
+    // Sorted-transparent meshes (the depth-non-writing ones the main-thread
+    // sorter rewrites) keep full-float positions; everything else is
+    // quantized. This mirrors `isMainThreadSortedBlock`, so every material
+    // serves exactly one vertex format.
+    if (!(transparent && !mat.depthWrite)) {
+      applyQuantizedPositionDefine(mat, positionUnits);
+    }
 
     return mat;
   };

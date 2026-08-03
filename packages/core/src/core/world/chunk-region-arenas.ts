@@ -1,9 +1,20 @@
-import { BatchedMesh, BufferGeometry, Matrix4, Object3D } from "three";
+import {
+  BatchedMesh,
+  BufferGeometry,
+  Matrix4,
+  Object3D,
+  Quaternion,
+  Vector3,
+} from "three";
 
 import { CustomChunkShaderMaterial } from "./chunk-materials";
+import { POSITION_BLOCK_BIAS } from "./vertex-quantization";
 import { ChunkRegionArenasOptions } from "./world-options";
 
-const _translation = new Matrix4();
+const _transform = new Matrix4();
+const _position = new Vector3();
+const _rotation = new Quaternion();
+const _scale = new Vector3();
 
 type SectionSlot = {
   regionKey: string;
@@ -46,6 +57,7 @@ export class ChunkRegionArenas {
     private maxSectionsPerRegion: number,
     private getMaterial: () => CustomChunkShaderMaterial,
     private parent: Object3D,
+    private positionUnitsPerBlock: number,
   ) {}
 
   setSectionGeometry(
@@ -92,7 +104,10 @@ export class ChunkRegionArenas {
       reservedIndexCount,
     );
     const instanceId = region.mesh.addInstance(geometryId);
-    region.mesh.setMatrixAt(instanceId, _translation.makeTranslation(x, y, z));
+    region.mesh.setMatrixAt(
+      instanceId,
+      this.sectionTransform(geometry, x, y, z),
+    );
     region.usedVertexCount += reservedVertexCount;
     region.usedIndexCount += reservedIndexCount;
     region.slotCount += 1;
@@ -151,6 +166,33 @@ export class ChunkRegionArenas {
       regions: this.regions.size,
       sections: this.sections.size,
     };
+  }
+
+  /**
+   * Quantized sections store positions as biased fixed-point counts; the
+   * instance matrix carries the mapping back to block space so every camera
+   * that renders the arena — main pass or the CSM depth passes with their
+   * scene-wide override material — sees correct world positions.
+   */
+  private sectionTransform(
+    geometry: BufferGeometry,
+    x: number,
+    y: number,
+    z: number,
+  ) {
+    const isQuantized =
+      geometry.getAttribute("position").array instanceof Uint16Array;
+    if (!isQuantized) {
+      return _transform.makeTranslation(x, y, z);
+    }
+
+    _position.set(
+      x - POSITION_BLOCK_BIAS,
+      y - POSITION_BLOCK_BIAS,
+      z - POSITION_BLOCK_BIAS,
+    );
+    _scale.setScalar(1 / this.positionUnitsPerBlock);
+    return _transform.compose(_position, _rotation.identity(), _scale);
   }
 
   private regionKeyFor(cx: number, cz: number) {

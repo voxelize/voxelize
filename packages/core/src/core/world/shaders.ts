@@ -113,6 +113,14 @@ const FULL_CHUNK_SHADERS = {
       `
 attribute int light;
 
+// Quantized-position materials define this to the fixed-point scale
+// (counts per block); the mesh matrix owns dequantization, so the shader
+// only needs it where displacement math touches the raw position
+// attribute. Float-position materials fall back to 1.0.
+#ifndef POSITION_UNITS_PER_BLOCK
+#define POSITION_UNITS_PER_BLOCK 1.0
+#endif
+
 // Bit map of the packed light attribute, mirroring
 // crates/mesher/src/mesher/vertex_light.rs. Change neither side alone.
 #define LIGHT_MASK 0xFFFF
@@ -217,7 +225,7 @@ if (shouldWave == 1) {
   float wave2 = snoise(vec3(worldPosForWave.x * 0.4 - waveTime * 0.5, worldPosForWave.z * 0.4 + waveTime * 0.4, 10.0)) * 0.04;
   float wave3 = snoise(vec3(worldPosForWave.x * 0.8 + waveTime * 0.7, worldPosForWave.z * 0.8 - waveTime * 0.5, 20.0)) * 0.02;
 
-  transformed.y += wave1 + wave2 + wave3;
+  transformed.y += (wave1 + wave2 + wave3) * POSITION_UNITS_PER_BLOCK;
 }
 `,
     )
@@ -976,23 +984,28 @@ export function createSwayShader(
   const rootScaleCode = !rooted
     ? "1.0"
     : baseShaders.vertex.includes("float stackIndexF")
-      ? "((stackIndexF + position.y - floor(position.y)) / stackHeight)"
-      : "(position.y - floor(position.y))";
+      ? "((stackIndexF + swayBlockPosition.y - floor(swayBlockPosition.y)) / stackHeight)"
+      : "(swayBlockPosition.y - floor(swayBlockPosition.y))";
 
+  // Sway math runs in block space: quantized materials store `position` in
+  // fixed-point counts, and both the fract-based root measure and the noise
+  // phase are meaningless at that scale. Displacement converts back so it
+  // survives the matrix that dequantizes the mesh.
   const swayCode = `
+vec3 swayBlockPosition = vec3(position) / POSITION_UNITS_PER_BLOCK;
 float swayScale = uTime * 0.00002 * ${speed.toFixed(2)};
 float rootScale = ${rootScaleCode};
 float swayNoise = snoise(vec3(
-  position.x * swayScale + uWindOffset.x,
-  position.y * swayScale * ${yScale.toFixed(2)},
-  position.z * swayScale + uWindOffset.y
+  swayBlockPosition.x * swayScale + uWindOffset.x,
+  swayBlockPosition.y * swayScale * ${yScale.toFixed(2)},
+  swayBlockPosition.z * swayScale + uWindOffset.y
 ));
 transformed.x += rootScale * ${scale.toFixed(
     2,
-  )} * swayNoise * 2.0 * ${amplitude.toFixed(2)};
+  )} * swayNoise * 2.0 * ${amplitude.toFixed(2)} * POSITION_UNITS_PER_BLOCK;
 transformed.z += rootScale * ${scale.toFixed(
     2,
-  )} * swayNoise * ${amplitude.toFixed(2)} * uWindSpeed * 0.5;
+  )} * swayNoise * ${amplitude.toFixed(2)} * uWindSpeed * 0.5 * POSITION_UNITS_PER_BLOCK;
 `;
 
   let vertexShader = baseShaders.vertex;

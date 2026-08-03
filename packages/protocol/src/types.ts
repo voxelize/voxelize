@@ -25,11 +25,11 @@ export type GeometryProtocol = {
   voxel: number;
   at?: [number, number, number];
   faceName?: string;
-  positions: Float32Array;
-  uvs: Float32Array;
+  positions: Float32Array | Uint16Array;
+  uvs: Float32Array | Uint16Array;
   indices: Uint32Array;
   lights: Uint32Array;
-  normals?: Float32Array;
+  normals?: Float32Array | Int8Array;
   bsCenter?: [number, number, number];
   bsRadius?: number;
 };

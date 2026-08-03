@@ -133,6 +133,7 @@ import { Chunk } from "./chunk";
 import {
   CustomChunkShaderMaterial,
   SHARED_OPAQUE_MATERIAL_KEY,
+  applyQuantizedPositionDefine,
   loadChunkMaterials,
   makeChunkMaterialKey,
   makeChunkShaderMaterial,
@@ -176,6 +177,14 @@ import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { Sky } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
+import {
+  POSITION_BLOCK_BIAS,
+  isMainThreadSortedBlock,
+  positionUnitsPerBlock,
+  quantizeNormals,
+  quantizePositions,
+  quantizeUvs,
+} from "./vertex-quantization";
 import { WATER_OPTICS, WaterOptics } from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
@@ -204,6 +213,7 @@ export * from "./sky";
 export * from "./sky-fog";
 export * from "./textures";
 export * from "./uv";
+export * from "./vertex-quantization";
 export * from "./water-optics";
 export * from "./world-options";
 
@@ -805,6 +815,15 @@ export class World<T = any> extends Scene implements NetIntercept {
    * {@link SectionVisibilityGraph}.
    */
   private sectionVisibility: SectionVisibilityGraph | null = null;
+
+  /**
+   * Fixed-point position scale for quantized chunk geometry, derived from
+   * the server's section extent once options merge. Every consumer — mesh
+   * placement, arena instance matrices, material defines — must agree with
+   * the mesh workers, which derive the same value from the options object
+   * each mesh request carries.
+   */
+  private chunkPositionUnits = 1;
 
   private meshWorkerPool!: WorkerPool;
   private urgentMeshWorkerPool!: WorkerPool;
@@ -1459,7 +1478,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
-    const isolatedMat = mat || makeChunkShaderMaterial(this);
+    let isolatedMat = mat;
+    if (!isolatedMat) {
+      isolatedMat = makeChunkShaderMaterial(this);
+      if (!isMainThreadSortedBlock(block)) {
+        applyQuantizedPositionDefine(isolatedMat, this.chunkPositionUnits);
+      }
+    }
 
     // Handle different types of source inputs
     if (typeof source === "string") {
@@ -3573,6 +3598,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     };
 
+    this.chunkPositionUnits = positionUnitsPerBlock(this.options);
+
     // Only now are the server's chunk dimensions known; a graph keyed with
     // the client defaults would never find the camera's own section.
     this.sectionVisibility = this.options.isCullingChunksByOcclusion
@@ -4661,13 +4688,101 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
   }
 
+  private isQuantizedChunkVoxel(voxel: number) {
+    const block = this.getBlockByIdSafe(voxel);
+    if (!block) return true;
+    return !isMainThreadSortedBlock(block);
+  }
+
+  /**
+   * Every geometry leaves here in the canonical format for its transparency
+   * class — quantized (u16 positions/uvs, i8 normals) or full-float for the
+   * main-thread-sorted buckets — regardless of whether it came from the mesh
+   * worker (already canonical) or from a server mesh (always f32 on the
+   * wire). One format per class is a hard requirement: material shaders bake
+   * the dequantization define at creation, and the region arenas'
+   * `BatchedMesh` storage adopts the first geometry's attribute types.
+   */
+  private canonicalizeChunkGeometry(
+    geo: MeshProtocol["geometries"][number],
+  ): MeshProtocol["geometries"][number] {
+    if (!(geo.positions instanceof Float32Array)) return geo;
+    if (!(geo.uvs instanceof Float32Array)) return geo;
+    if (!this.isQuantizedChunkVoxel(geo.voxel)) return geo;
+
+    const normals =
+      geo.normals instanceof Float32Array && geo.normals.length > 0
+        ? geo.normals
+        : computeNormalsFromBuffers(geo.positions, geo.indices);
+
+    return {
+      ...geo,
+      positions: quantizePositions(geo.positions, this.chunkPositionUnits),
+      uvs: quantizeUvs(geo.uvs),
+      normals: quantizeNormals(normals),
+      bsCenter: geo.bsCenter?.map(
+        (c) => (c + POSITION_BLOCK_BIAS) * this.chunkPositionUnits,
+      ) as [number, number, number] | undefined,
+      bsRadius:
+        geo.bsRadius === undefined
+          ? undefined
+          : geo.bsRadius * this.chunkPositionUnits,
+    };
+  }
+
+  private makeChunkBufferGeometry(
+    geo: MeshProtocol["geometries"][number],
+  ): BufferGeometry {
+    const isQuantized = geo.positions instanceof Uint16Array;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(geo.positions, 3));
+    geometry.setAttribute("uv", new BufferAttribute(geo.uvs, 2, isQuantized));
+    geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
+    geometry.setIndex(new BufferAttribute(geo.indices, 1));
+    if (geo.normals && geo.normals.length > 0) {
+      geometry.setAttribute(
+        "normal",
+        new BufferAttribute(geo.normals, 3, isQuantized),
+      );
+    } else {
+      computeFlatNormals(geometry);
+    }
+    return geometry;
+  }
+
+  private placeChunkMesh(mesh: Mesh, cx: number, cz: number, level: number) {
+    const { maxHeight, subChunks, chunkSize } = this.options;
+    const heightPerSubChunk = Math.floor(maxHeight / subChunks);
+    const isQuantized =
+      mesh.geometry.getAttribute("position").array instanceof Uint16Array;
+
+    if (isQuantized) {
+      mesh.scale.setScalar(1 / this.chunkPositionUnits);
+      mesh.position.set(
+        cx * chunkSize - POSITION_BLOCK_BIAS,
+        level * heightPerSubChunk - POSITION_BLOCK_BIAS,
+        cz * chunkSize - POSITION_BLOCK_BIAS,
+      );
+    } else {
+      mesh.position.set(
+        cx * chunkSize,
+        level * heightPerSubChunk,
+        cz * chunkSize,
+      );
+    }
+    mesh.updateMatrix();
+    mesh.matrixAutoUpdate = false;
+  }
+
   private buildChunkMeshTimed(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
     if (!chunk) return;
 
-    const { maxHeight, subChunks, chunkSize, mergeChunkGeometries } =
-      this.options;
-    const { level, geometries } = data;
+    const { maxHeight, subChunks, mergeChunkGeometries } = this.options;
+    const { level } = data;
+    const geometries = data.geometries.map((geo) =>
+      this.canonicalizeChunkGeometry(geo),
+    );
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
     this.sectionVisibility?.setConnectivity(
@@ -4728,18 +4843,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       >();
 
       for (const geo of meshGeometries) {
-        const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
-        const geometry = new BufferGeometry();
-
-        geometry.setAttribute("position", new BufferAttribute(positions, 3));
-        geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
-        geometry.setIndex(new BufferAttribute(indices, 1));
-        if (geo.normals && geo.normals.length > 0) {
-          geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
-        } else {
-          computeFlatNormals(geometry);
-        }
+        const { voxel, at, faceName } = geo;
+        const geometry = this.makeChunkBufferGeometry(geo);
 
         let material = this.getBlockFaceMaterial(
           voxel,
@@ -4806,13 +4911,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         finalGeometry.computeBoundingSphere();
 
         const mesh = new Mesh(finalGeometry, material);
-        mesh.position.set(
-          cx * chunkSize,
-          level * heightPerSubChunk,
-          cz * chunkSize,
-        );
-        mesh.updateMatrix();
-        mesh.matrixAutoUpdate = false;
+        this.placeChunkMesh(mesh, cx, cz, level);
         mesh.userData = {
           isChunk: true,
           merged: true,
@@ -4831,18 +4930,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       meshes = [];
       for (let i = 0; i < meshGeometries.length; i++) {
         const geo = meshGeometries[i];
-        const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
-        const geometry = new BufferGeometry();
-
-        geometry.setAttribute("position", new BufferAttribute(positions, 3));
-        geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-        geometry.setAttribute("light", new BufferAttribute(lights, 1));
-        geometry.setIndex(new BufferAttribute(indices, 1));
-        if (geo.normals && geo.normals.length > 0) {
-          geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
-        } else {
-          computeFlatNormals(geometry);
-        }
+        const { voxel, at, faceName } = geo;
+        const geometry = this.makeChunkBufferGeometry(geo);
         if (geo.bsCenter && geo.bsRadius !== undefined) {
           geometry.boundingSphere = new Sphere(
             new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
@@ -4878,13 +4967,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
         const mesh = new Mesh(geometry, material);
-        mesh.position.set(
-          cx * chunkSize,
-          level * heightPerSubChunk,
-          cz * chunkSize,
-        );
-        mesh.updateMatrix();
-        mesh.matrixAutoUpdate = false;
+        this.placeChunkMesh(mesh, cx, cz, level);
         mesh.userData = {
           isChunk: true,
           voxel,
@@ -4966,17 +5049,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const parts: BufferGeometry[] = [];
     for (const geo of geometries) {
-      const geometry = new BufferGeometry();
-      geometry.setAttribute("position", new BufferAttribute(geo.positions, 3));
-      geometry.setAttribute("uv", new BufferAttribute(geo.uvs, 2));
-      geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
-      geometry.setIndex(new BufferAttribute(geo.indices, 1));
-      if (geo.normals && geo.normals.length > 0) {
-        geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
-      } else {
-        computeFlatNormals(geometry);
-      }
-      parts.push(geometry);
+      parts.push(this.makeChunkBufferGeometry(geo));
     }
 
     const merged =
@@ -5037,6 +5110,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         return material;
       },
       this,
+      this.chunkPositionUnits,
     );
     return this.regionArenas;
   }

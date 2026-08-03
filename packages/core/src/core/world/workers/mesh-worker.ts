@@ -3,6 +3,14 @@ import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
 import { Coords3 } from "../../../types";
 import { type WorldOptions } from "../index";
 import { type SerializedChunkPayload } from "../raw-chunk";
+import {
+  isMainThreadSortedBlock,
+  POSITION_BLOCK_BIAS,
+  positionUnitsPerBlock,
+  quantizeNormals,
+  quantizePositions,
+  quantizeUvs,
+} from "../vertex-quantization";
 
 type ChunkData = {
   voxels: Uint32Array | number[];
@@ -128,6 +136,7 @@ type RawWasmBlock = {
   isSeeThrough: boolean;
   isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
   transparentStandalone: boolean;
+  lightAttenuation?: number;
   occludesFluid?: boolean;
   isPlant?: boolean;
   stackGroup?: number;
@@ -212,6 +221,7 @@ function workerComputeBoundingSphere(positions: Float32Array): {
 }
 
 let wasmInitialized = false;
+let sortedBlockIds = new Set<number>();
 
 const minArray = new Int32Array(3);
 const maxArray = new Int32Array(3);
@@ -243,6 +253,19 @@ onmessage = async function (e) {
     const rawRegistry = e.data.registryData;
     const wasmRegistry = convertRegistryToWasm(rawRegistry);
     set_registry(wasmRegistry);
+
+    sortedBlockIds = new Set(
+      rawRegistry.blocksById
+        .filter(([, block]: [number, RawWasmBlock]) =>
+          isMainThreadSortedBlock({
+            isFluid: block.isFluid,
+            isSeeThrough: block.isSeeThrough,
+            transparentStandalone: block.transparentStandalone,
+            lightAttenuation: block.lightAttenuation ?? 0,
+          }),
+        )
+        .map(([id]: [number, RawWasmBlock]) => id),
+    );
     return;
   }
 
@@ -253,7 +276,9 @@ onmessage = async function (e) {
   }
 
   const { chunksData, min, max } = e.data;
-  const { chunkSize } = e.data.options as WorldOptions;
+  const options = e.data.options as WorldOptions;
+  const { chunkSize } = options;
+  const positionUnits = positionUnitsPerBlock(options);
 
   const chunks = chunksData.map(
     (chunkData: SerializedChunkPayload | null): ChunkData | null => {
@@ -329,14 +354,23 @@ onmessage = async function (e) {
       const normals = workerComputeNormals(positions, indices);
       const bs = workerComputeBoundingSphere(positions);
 
+      const isQuantized = !sortedBlockIds.has(geometry.voxel);
       const packedGeometry = {
         indices,
         lights: new Int32Array(geometry.lights),
-        positions,
-        uvs: new Float32Array(geometry.uvs),
-        normals,
-        bsCenter: bs.center,
-        bsRadius: bs.radius,
+        positions: isQuantized
+          ? quantizePositions(positions, positionUnits)
+          : positions,
+        uvs: isQuantized
+          ? quantizeUvs(geometry.uvs)
+          : new Float32Array(geometry.uvs),
+        normals: isQuantized ? quantizeNormals(normals) : normals,
+        bsCenter: isQuantized
+          ? (bs.center.map(
+              (c) => (c + POSITION_BLOCK_BIAS) * positionUnits,
+            ) as [number, number, number])
+          : bs.center,
+        bsRadius: isQuantized ? bs.radius * positionUnits : bs.radius,
         voxel: geometry.voxel,
         faceName: geometry.faceName,
         at: geometry.at,
@@ -344,8 +378,8 @@ onmessage = async function (e) {
 
       arrayBuffers.push(packedGeometry.indices.buffer);
       arrayBuffers.push(packedGeometry.lights.buffer);
-      arrayBuffers.push(packedGeometry.positions.buffer);
-      arrayBuffers.push(packedGeometry.uvs.buffer);
+      arrayBuffers.push(packedGeometry.positions.buffer as ArrayBuffer);
+      arrayBuffers.push(packedGeometry.uvs.buffer as ArrayBuffer);
       arrayBuffers.push(packedGeometry.normals.buffer as ArrayBuffer);
 
       return packedGeometry;
