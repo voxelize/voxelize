@@ -385,6 +385,19 @@ export type RenderStats = {
     regions: number;
     sections: number;
   };
+  /**
+   * Occlusion-walk state: graph size, sections reporting real (non-full)
+   * connectivity, sections the last walk reached and marked visible, and
+   * whether the walk started from a loaded section at all. `constrained: 0`
+   * means no connectivity data has arrived and the walk can prune nothing.
+   */
+  occlusion: {
+    sections: number;
+    constrained: number;
+    reached: number;
+    visible: number;
+    isComplete: boolean;
+  };
   /** Cascaded-shadow scheduler internals; null when the world has no CSM. */
   csm: {
     isCameraStill: boolean;

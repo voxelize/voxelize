@@ -98,6 +98,9 @@ pub struct GeometryProtocol {
 pub struct MeshProtocol {
     pub level: i32,
     pub geometries: Vec<GeometryProtocol>,
+    /// Packed unordered face-pair visibility for the meshed range; see
+    /// `voxelize_mesher::connectivity_pair_bit`.
+    pub connectivity: Option<u32>,
 }
 
 /// Protocol buffer compatible chunk data structure.
@@ -309,6 +312,7 @@ impl MessageBuilder {
                         .into_iter()
                         .map(|mesh| protocols::Mesh {
                             level: mesh.level,
+                            connectivity: mesh.connectivity,
                             geometries: mesh
                                 .geometries
                                 .into_iter()

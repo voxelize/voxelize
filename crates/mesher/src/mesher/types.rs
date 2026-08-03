@@ -307,4 +307,8 @@ pub struct MeshInputNoRegistry {
 #[serde(rename_all = "camelCase")]
 pub struct MeshOutput {
     pub geometries: Vec<GeometryProtocol>,
+    /// Packed unordered face-pair visibility for the meshed range; see
+    /// `connectivity_pair_bit`. `CONNECTIVITY_FULL` when nothing opaque
+    /// stands in the way (or the range was unknowable).
+    pub connectivity: u32,
 }

@@ -46,6 +46,14 @@ export class Chunk extends RawChunk {
    */
   public plantsShown: boolean | null = null;
 
+  /**
+   * Bit-per-level mask of which sections the occlusion walk last left
+   * visible, or `null` when it must be reapplied (fresh meshes default to
+   * visible). Lets the per-frame walk skip rewriting mesh visibility for
+   * chunks whose answer has not changed.
+   */
+  public sectionVisibleMask: number | null = null;
+
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     super(id, coords, options);
   }

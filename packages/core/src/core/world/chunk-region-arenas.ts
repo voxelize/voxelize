@@ -106,6 +106,14 @@ export class ChunkRegionArenas {
     });
   }
 
+  setSectionVisible(cx: number, cz: number, level: number, isVisible: boolean) {
+    const slot = this.sections.get(`${cx},${cz},${level}`);
+    if (!slot) return;
+    this.regions
+      .get(slot.regionKey)
+      ?.mesh.setVisibleAt(slot.instanceId, isVisible);
+  }
+
   clearSection(cx: number, cz: number, level: number) {
     const sectionKey = `${cx},${cz},${level}`;
     const slot = this.sections.get(sectionKey);

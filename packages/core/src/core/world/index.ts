@@ -168,6 +168,10 @@ import { Loader } from "./loader";
 import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
+import {
+  CONNECTIVITY_FULL,
+  SectionVisibilityGraph,
+} from "./section-visibility";
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { Sky } from "./sky";
 import { AtlasTexture } from "./textures";
@@ -193,6 +197,7 @@ export * from "./loader";
 export * from "./memory-pressure";
 export * from "./pipelines";
 export * from "./registry";
+export * from "./section-visibility";
 export * from "./shaders";
 export * from "./shadow-sampling";
 export * from "./sky";
@@ -792,6 +797,14 @@ export class World<T = any> extends Scene implements NetIntercept {
   private chunkCullFrustum = new Frustum();
   private chunkCullMatrix = new Matrix4();
   private chunkCullBox = new Box3();
+  private chunkCullCameraPosition = new Vector3();
+
+  /**
+   * Section traversal graph behind
+   * {@link WorldClientOptions.isCullingChunksByOcclusion}; see
+   * {@link SectionVisibilityGraph}.
+   */
+  private sectionVisibility: SectionVisibilityGraph | null = null;
 
   private meshWorkerPool!: WorkerPool;
   private urgentMeshWorkerPool!: WorkerPool;
@@ -945,6 +958,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkPipeline.forEachLoaded((chunk) => chunk.dispose());
     this.regionArenas?.dispose();
     this.regionArenas = null;
+    this.sectionVisibility?.clear();
     this.chunkRenderer.materials.forEach((material) => {
       material.map?.dispose();
       material.dispose();
@@ -1029,12 +1043,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     cz: number,
     level: number,
     isPriority = false,
-  ): Promise<GeometryProtocol[] | null> {
+  ): Promise<{
+    geometries: GeometryProtocol[];
+    connectivity: number;
+  } | null> {
     const result = await this.dispatchMeshWorkerMeasured(cx, cz, level, {
       isRecordingStats: true,
       isPriority,
     });
-    return result?.geometries ?? null;
+    if (!result) return null;
+    return { geometries: result.geometries, connectivity: result.connectivity };
   }
 
   private async dispatchMeshWorkerMeasured(
@@ -1044,6 +1062,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     options: { isRecordingStats: boolean; isPriority?: boolean },
   ): Promise<{
     geometries: GeometryProtocol[];
+    connectivity: number;
     serializeMs: number;
     workerMs: number;
     inputBytes: number;
@@ -1091,6 +1110,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (subChunkMin[1] >= subChunkMax[1]) {
       return {
         geometries: [],
+        connectivity: CONNECTIVITY_FULL,
         serializeMs: 0,
         workerMs: 0,
         inputBytes: 0,
@@ -1135,6 +1155,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       : this.meshWorkerPool;
     const workerResult = await new Promise<{
       geometries: GeometryProtocol[] | null;
+      connectivity?: number;
     } | null>((resolve) => {
       meshWorkerPool.addJob({
         message: data,
@@ -1171,6 +1192,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     return {
       geometries,
+      connectivity: workerResult.connectivity ?? CONNECTIVITY_FULL,
       serializeMs,
       workerMs,
       inputBytes,
@@ -1224,6 +1246,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     cz: number,
     level: number,
     geometries: GeometryProtocol[],
+    connectivity: number,
     generation?: number,
   ) {
     const key = MeshPipeline.makeKey(cx, cz, level);
@@ -1237,6 +1260,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const mesh: MeshProtocol = {
       level,
       geometries,
+      connectivity,
     };
 
     this.buildChunkMesh(cx, cz, mesh);
@@ -1268,9 +1292,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     generation?: number,
     isPriority = false,
   ) {
-    const geometries = await this.dispatchMeshWorker(cx, cz, level, isPriority);
-    if (!geometries) return;
-    this.applyMeshResult(cx, cz, level, geometries, generation);
+    const result = await this.dispatchMeshWorker(cx, cz, level, isPriority);
+    if (!result) return;
+    this.applyMeshResult(
+      cx,
+      cz,
+      level,
+      result.geometries,
+      result.connectivity,
+      generation,
+    );
   }
 
   /**
@@ -3542,6 +3573,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     };
 
+    // Only now are the server's chunk dimensions known; a graph keyed with
+    // the client defaults would never find the camera's own section.
+    this.sectionVisibility = this.options.isCullingChunksByOcclusion
+      ? new SectionVisibilityGraph({
+          subChunks: this.options.subChunks,
+          chunkSize: this.options.chunkSize,
+          maxHeight: this.options.maxHeight,
+        })
+      : null;
+
     if (typeof this.options.waterLevel === "number") {
       this.chunkRenderer.shaderLightingUniforms.waterLevel.value =
         this.options.waterLevel;
@@ -4071,6 +4112,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       chunk.isDirty = false;
 
       this.chunkPipeline.markLoaded([x, z], chunk);
+      this.sectionVisibility?.addChunk(x, z);
 
       this.emitChunkEvent("chunk-data-loaded", {
         chunk,
@@ -4175,6 +4217,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         this.pruneBlockEntitiesInChunk(chunk.coords);
         this.regionArenas?.clearChunk(x, z);
+        this.sectionVisibility?.removeChunk(x, z);
         this.remove(chunk.group);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
@@ -4627,6 +4670,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { level, geometries } = data;
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
+    this.sectionVisibility?.setConnectivity(
+      cx,
+      cz,
+      level,
+      data.connectivity ?? CONNECTIVITY_FULL,
+    );
+    // Fresh meshes and arena slots default to visible; force the occlusion
+    // walk to reapply this chunk's answer instead of trusting a stale mask.
+    chunk.sectionVisibleMask = null;
+
     const oldMeshes = chunk.meshes.get(level);
     if (oldMeshes) {
       for (let i = 0; i < oldMeshes.length; i++) {
@@ -4952,6 +5005,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (const part of parts) {
       if (part !== merged) part.dispose();
     }
+  }
+
+  get sectionVisibilityStats() {
+    return this.sectionVisibility?.stats ?? null;
   }
 
   private ensureRegionArenas() {
@@ -5347,14 +5404,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       const generation = this.meshPipeline.startJob(key);
 
       return this.dispatchMeshWorker(cx, cz, level, isPriority).then(
-        (geometries) =>
+        (result) =>
           ({
             cx,
             cz,
             level,
             generation,
             key,
-            geometries,
+            geometries: result?.geometries ?? null,
+            connectivity: result?.connectivity ?? CONNECTIVITY_FULL,
           }) as const,
         (error) => {
           // A dispatch that throws (e.g. payload serialization failing an
@@ -5364,7 +5422,15 @@ export class World<T = any> extends Scene implements NetIntercept {
           // forever — wedging the whole mesh pipeline on chunks that will
           // never be retried.
           console.error(`[world] mesh dispatch failed for ${key}`, error);
-          return { cx, cz, level, generation, key, geometries: null } as const;
+          return {
+            cx,
+            cz,
+            level,
+            generation,
+            key,
+            geometries: null,
+            connectivity: CONNECTIVITY_FULL,
+          } as const;
         },
       );
     });
@@ -5378,6 +5444,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           result.cz,
           result.level,
           result.geometries,
+          result.connectivity,
           result.generation,
         );
       } else {
@@ -6041,14 +6108,47 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (chunk.plantsShown === wanted) return;
     chunk.plantsShown = wanted;
 
-    for (const mesh of chunk.group.children) {
-      if (mesh.userData?.isPlant) mesh.visible = wanted;
+    for (const [level, meshes] of chunk.meshes) {
+      const isLevelVisible =
+        chunk.sectionVisibleMask === null ||
+        ((chunk.sectionVisibleMask >> level) & 1) === 1;
+      for (const mesh of meshes) {
+        if (mesh.userData?.isPlant) mesh.visible = wanted && isLevelVisible;
+      }
+    }
+  }
+
+  /**
+   * Writes one section-visibility answer onto a chunk's meshes and arena
+   * slots, skipping chunks whose answer has not changed since the last walk.
+   */
+  private applySectionVisibility(chunk: Chunk, sectionMask: number) {
+    if (chunk.sectionVisibleMask === sectionMask) return;
+    chunk.sectionVisibleMask = sectionMask;
+
+    const [cx, cz] = chunk.coords;
+    const isPlantShown = chunk.plantsShown !== false;
+
+    for (const [level, meshes] of chunk.meshes) {
+      const isLevelVisible = ((sectionMask >> level) & 1) === 1;
+      for (const mesh of meshes) {
+        mesh.visible =
+          isLevelVisible && (isPlantShown || mesh.userData?.isPlant !== true);
+      }
+      this.regionArenas?.setSectionVisible(cx, cz, level, isLevelVisible);
     }
   }
 
   private updateChunkVisibility(camera: Camera) {
-    const { isCullingChunksByFrustum, chunkCullShadowSafeDistance, chunkSize } =
-      this.options;
+    const {
+      isCullingChunksByFrustum,
+      isCullingChunksByOcclusion,
+      isCullingChunksByFog,
+      fogCullSlack,
+      chunkCullShadowSafeDistance,
+      chunkSize,
+      subChunks,
+    } = this.options;
     if (!isCullingChunksByFrustum) return;
 
     // The renderer only refreshes these during its own pass, which has not run
@@ -6061,9 +6161,26 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
     this.chunkCullFrustum.setFromProjectionMatrix(this.chunkCullMatrix);
 
+    let graph: SectionVisibilityGraph | null = null;
+    if (isCullingChunksByOcclusion && this.sectionVisibility) {
+      camera.getWorldPosition(this.chunkCullCameraPosition);
+      const fogFar = isCullingChunksByFog
+        ? this.chunkRenderer.uniforms.fogFar.value + fogCullSlack
+        : Infinity;
+      this.sectionVisibility.walk(
+        this.chunkCullCameraPosition,
+        this.chunkCullMatrix,
+        fogFar,
+      );
+      // A walk that could not start (camera outside the loaded disc) proves
+      // nothing; fall back to frustum-only culling rather than hide the world.
+      if (this.sectionVisibility.isComplete) graph = this.sectionVisibility;
+    }
+
     const [centerX, centerZ] = this.centerChunk;
     const shadowSafeSquared = (chunkCullShadowSafeDistance / chunkSize) ** 2;
     const { maxHeight } = this.options;
+    const allVisibleMask = (1 << subChunks) - 1;
 
     this.chunkPipeline.forEachLoaded((chunk) => {
       const [cx, cz] = chunk.coords;
@@ -6073,8 +6190,38 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.updateChunkPlantDetail(chunk, distanceSquared);
 
-      if (distanceSquared <= shadowSafeSquared) {
-        chunk.group.visible = true;
+      // Chunks inside the shadow-safe ring are still inside the shadow
+      // cascades, and hiding a caster is visible from the front even when the
+      // caster is not — so there the reached set (an air path exists, however
+      // the camera points) decides, not the frustum-tested visible set. A
+      // section no air path reaches cannot cast onto anything the camera
+      // sees, so a sealed interior collapses either way.
+      const isShadowSafe = distanceSquared <= shadowSafeSquared;
+
+      let sectionMask = allVisibleMask;
+      if (graph) {
+        sectionMask = 0;
+        for (let level = 0; level < subChunks; level++) {
+          const isSectionShown = isShadowSafe
+            ? graph.isSectionReached(cx, cz, level)
+            : graph.isSectionVisible(cx, cz, level);
+          if (isSectionShown) {
+            sectionMask |= 1 << level;
+          }
+        }
+      }
+
+      this.applySectionVisibility(chunk, sectionMask);
+
+      if (isShadowSafe) {
+        chunk.group.visible = graph ? sectionMask !== 0 : true;
+        return;
+      }
+
+      // The walk already carried the frustum (and fog) test per section, so
+      // its verdict subsumes the whole-column box test.
+      if (graph) {
+        chunk.group.visible = sectionMask !== 0;
         return;
       }
 

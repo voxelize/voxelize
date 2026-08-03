@@ -14,6 +14,10 @@ message Geometry {
 message Mesh {
   int32 level = 1;
   repeated Geometry geometries = 2;
+  // Packed unordered face-pair visibility of the meshed range (15 bits,
+  // -X/+X/-Y/+Y/-Z/+Z face order); absent from servers that predate
+  // occlusion culling, which clients treat as fully open.
+  optional uint32 connectivity = 3;
 }
 
 message Chunk {

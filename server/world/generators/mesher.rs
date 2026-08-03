@@ -204,6 +204,12 @@ impl Mesher {
                                 &space,
                                 &mesher_registry,
                             );
+                            let connectivity = voxelize_mesher::compute_section_connectivity(
+                                &min_arr,
+                                &max_arr,
+                                &space,
+                                &mesher_registry,
+                            );
 
                             let geometries: Vec<GeometryProtocol> = mesher_geometries
                                 .into_iter()
@@ -221,7 +227,14 @@ impl Mesher {
                             chunk
                                 .meshes
                                 .get_or_insert_with(HashMap::new)
-                                .insert(level as u32, MeshProtocol { level, geometries });
+                                .insert(
+                                    level as u32,
+                                    MeshProtocol {
+                                        level,
+                                        geometries,
+                                        connectivity: Some(connectivity),
+                                    },
+                                );
                         }
                     }
                     super::gen_profiler::record("mesh: greedy", started.elapsed());

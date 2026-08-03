@@ -130,6 +130,29 @@ export type WorldClientOptions = {
   chunkCullShadowSafeDistance: number;
 
   /**
+   * Whether to hide chunk sections the camera provably cannot see through the
+   * terrain, walking the mesher-reported face-connectivity graph outward from
+   * the camera's own section (Sodium-style occlusion culling). An enclosed
+   * interior stops drawing the world around it. Requires
+   * {@link WorldClientOptions.isCullingChunksByFrustum}, since the walk also
+   * carries the frustum test.
+   */
+  isCullingChunksByOcclusion: boolean;
+
+  /**
+   * Whether the occlusion walk also prunes sections past the fog's far edge,
+   * where every fragment already resolves to pure fog color.
+   */
+  isCullingChunksByFog: boolean;
+
+  /**
+   * Blocks past the fog far edge a section may reach before fog culling hides
+   * it, absorbing the difference between a section's center distance and the
+   * nearest fragment the fog actually shades.
+   */
+  fogCullSlack: number;
+
+  /**
    * Block distance out to which plant decoration (grass tufts, flowers — any
    * block the registry marks `isPlant`) is drawn. Beyond it those meshes are
    * hidden. `null` (the default) draws them everywhere.
@@ -344,6 +367,9 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   maxUrgentMeshWorkers: 4,
   isCullingChunksByFrustum: true,
   chunkCullShadowSafeDistance: 160,
+  isCullingChunksByOcclusion: true,
+  isCullingChunksByFog: true,
+  fogCullSlack: 16,
   plantDetailDistance: null,
   distantDetailCullBelowY: null,
   nearDetailRadius: 10,

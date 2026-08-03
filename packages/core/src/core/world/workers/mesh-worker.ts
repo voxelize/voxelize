@@ -288,10 +288,11 @@ onmessage = async function (e) {
   maxArray[1] = max[1];
   maxArray[2] = max[2];
 
-  let result: { geometries: GeometryProtocol[] };
+  let result: { geometries: GeometryProtocol[]; connectivity: number };
   try {
     result = mesh_chunk_fast(chunks, minArray, maxArray, chunkSize) as {
       geometries: GeometryProtocol[];
+      connectivity: number;
     };
   } catch (error) {
     // A wasm trap (panic) aborts mid-mutation: thread-local state inside the
@@ -351,8 +352,12 @@ onmessage = async function (e) {
     })
     .filter((geometry) => geometry.positions.length > 0);
 
+  const payload = {
+    geometries: geometriesPacked,
+    connectivity: result.connectivity,
+  };
   // @ts-expect-error postMessage typing
-  postMessage({ geometries: geometriesPacked }, arrayBuffers);
+  postMessage(payload, arrayBuffers);
 };
 
 function convertRegistryToWasm(rawRegistry: {

@@ -10,6 +10,7 @@ export type GeometryProtocol = {
 export type MeshProtocol = {
   level: number;
   geometries: GeometryProtocol[];
+  connectivity?: number;
 };
 
 export type ChunkProtocol = {
