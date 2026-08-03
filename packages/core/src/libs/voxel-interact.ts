@@ -275,7 +275,7 @@ export class VoxelInteract extends Group {
     return this.world.getAABBOverride(voxel);
   };
 
-  toggle = (force = null) => {
+  toggle = (force: boolean | null = null) => {
     this.active = force === null ? !this.active : force;
 
     this.potential = null;
@@ -427,9 +427,9 @@ export class VoxelInteract extends Group {
 
     const calculateYRotation = (segmentCount: 4 | 8 | 16) => {
       if (Math.abs(ny) !== 0) {
-        const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
+        const [vx, , vz] = [objPos.x, objPos.y, objPos.z];
 
-        const [tx, ty, tz] = [
+        const [tx, , tz] = [
           targetVoxel[0] + 0.5,
           targetVoxel[1] + 0.5,
           targetVoxel[2] + 0.5,
@@ -467,9 +467,9 @@ export class VoxelInteract extends Group {
         return closest;
       }
 
-      const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
+      const [vx, , vz] = [objPos.x, objPos.y, objPos.z];
 
-      const [tx, ty, tz] = [
+      const [tx, , tz] = [
         targetVoxel[0] + 0.5,
         targetVoxel[1] + 0.5,
         targetVoxel[2] + 0.5,
