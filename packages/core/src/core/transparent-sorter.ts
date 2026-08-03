@@ -18,6 +18,27 @@ export interface TransparentMeshData {
 
 const CAMERA_MOVE_THRESHOLD_SQ = 0.25;
 
+/**
+ * Cumulative main-thread cost of per-face translucency sorting across all
+ * meshes since page load: how many sorts ran, their total/max milliseconds,
+ * and the number of faces pushed through the radix sort. Difference two reads
+ * for a window; a camera strafe re-sorts every mesh each time it crosses the
+ * movement threshold, which is exactly the cost this exists to expose.
+ */
+export type TransparentSortStats = {
+  count: number;
+  totalMs: number;
+  maxMs: number;
+  faces: number;
+};
+
+export const transparentSortStats: TransparentSortStats = {
+  count: 0,
+  totalMs: 0,
+  maxMs: 0,
+  faces: 0,
+};
+
 export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   const geometry = mesh.geometry;
   if (!geometry.index) return null;
@@ -150,6 +171,7 @@ export function sortTransparentMesh(
   }
   data.lastCameraPos.copy(_camPos);
 
+  const sortStart = performance.now();
   const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =
     data;
 
@@ -182,4 +204,12 @@ export function sortTransparentMesh(
   const targetArray = indexAttr.array;
   (targetArray as Uint32Array).set(sortedIndices);
   indexAttr.needsUpdate = true;
+
+  const sortMs = performance.now() - sortStart;
+  transparentSortStats.count += 1;
+  transparentSortStats.totalMs += sortMs;
+  if (sortMs > transparentSortStats.maxMs) {
+    transparentSortStats.maxMs = sortMs;
+  }
+  transparentSortStats.faces += faceCount;
 }

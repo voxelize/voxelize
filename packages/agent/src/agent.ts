@@ -1232,7 +1232,12 @@ export class Agent {
             const sorted = [...frameTimes].sort((a, b) => a - b);
             const p50FrameMs = percentile(sorted, 0.5);
             const p95FrameMs = percentile(sorted, 0.95);
+            const p99FrameMs = percentile(sorted, 0.99);
             const maxFrameMs = sorted[sorted.length - 1] ?? 0;
+            const worstCount = Math.max(1, Math.floor(sorted.length / 100));
+            const worst = sorted.slice(sorted.length - worstCount);
+            const worstMeanMs =
+              worst.reduce((sum, ms) => sum + ms, 0) / worst.length;
 
             resolve({
               durationMs: measuredDurationMs,
@@ -1242,9 +1247,11 @@ export class Agent {
               avgFps: elapsedMs > 0 ? (frameCount * 1000) / elapsedMs : 0,
               p50Fps: p50FrameMs > 0 ? 1000 / p50FrameMs : 0,
               lowFps: p95FrameMs > 0 ? 1000 / p95FrameMs : 0,
+              onePercentLowFps: worstMeanMs > 0 ? 1000 / worstMeanMs : 0,
               avgFrameMs,
               p50FrameMs,
               p95FrameMs,
+              p99FrameMs,
               maxFrameMs,
             });
           };

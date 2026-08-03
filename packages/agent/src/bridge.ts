@@ -236,9 +236,16 @@ export type FrameRateMeasurement = {
   avgFps: number;
   p50Fps: number;
   lowFps: number;
+  /**
+   * 1000 / mean of the worst 1% of frame times — the community-standard
+   * "1% low" stutter metric. Falls back to the single worst frame when the
+   * sample has fewer than 100 frames.
+   */
+  onePercentLowFps: number;
   avgFrameMs: number;
   p50FrameMs: number;
   p95FrameMs: number;
+  p99FrameMs: number;
   maxFrameMs: number;
 };
 
@@ -357,6 +364,17 @@ export type RenderStats = {
     totalMs: number;
     maxMs: number;
     bytes: number;
+  };
+  /**
+   * Cumulative main-thread cost of per-face translucency sorting: sort count,
+   * total/max milliseconds, and faces sorted. Difference two reads for a
+   * window; camera strafes are what drive it.
+   */
+  transparentSort: {
+    count: number;
+    totalMs: number;
+    maxMs: number;
+    faces: number;
   };
   /** Cascaded-shadow scheduler internals; null when the world has no CSM. */
   csm: {
