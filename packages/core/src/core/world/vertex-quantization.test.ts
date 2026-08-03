@@ -59,9 +59,9 @@ describe("positionUnitsPerBlock", () => {
     });
     expect(shortSections).toBe(512);
 
-    // A single 352-block sub-chunk (the anson world) must still fit: at 256
-    // units per block every vertex above ~224 blocks wrapped the u16 range
-    // and shredded the terrain.
+    // A world configured as a single 352-block sub-chunk must still fit: at
+    // 256 units per block every vertex above ~224 blocks wrapped the u16
+    // range and shredded the terrain.
     const tallSection = positionUnitsPerBlock({
       chunkSize: 16,
       maxHeight: 352,
