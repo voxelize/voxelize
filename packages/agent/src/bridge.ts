@@ -347,6 +347,17 @@ export type RenderStats = {
   otherSceneNodes: { label: string; total: number; visibleMeshes: number }[];
   loadedChunks: number;
   renderRadius: number;
+  /**
+   * Cumulative main-thread cost of applying finished mesh results
+   * (`World.buildChunkMesh`): call count, total/max milliseconds, and the
+   * geometry attribute bytes applied. Difference two reads for a window.
+   */
+  meshApply: {
+    count: number;
+    totalMs: number;
+    maxMs: number;
+    bytes: number;
+  };
   /** Cascaded-shadow scheduler internals; null when the world has no CSM. */
   csm: {
     isCameraStill: boolean;

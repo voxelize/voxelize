@@ -317,6 +317,19 @@ export type WorldMemoryCounters = {
 };
 
 /**
+ * Cumulative cost of turning finished mesh results into live scene geometry
+ * (`buildChunkMesh`), the main-thread half of every remesh. `bytes` counts the
+ * geometry attribute payload applied, which is what the GPU upload scales
+ * with. Cumulative since world init so a caller can difference two reads.
+ */
+export type MeshApplyStats = {
+  count: number;
+  totalMs: number;
+  maxMs: number;
+  bytes: number;
+};
+
+/**
  * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
  * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
  * This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
@@ -452,6 +465,17 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Chunk rendering state (materials, uniforms).
    */
   public chunkRenderer: ChunkRenderer;
+
+  /**
+   * Running cost of applying mesh results on the main thread; see
+   * {@link MeshApplyStats}.
+   */
+  public meshApplyStats: MeshApplyStats = {
+    count: 0,
+    totalMs: 0,
+    maxMs: 0,
+    bytes: 0,
+  };
 
   /**
    * The voxel physics engine using `@voxelize/physics-engine`.
@@ -4568,6 +4592,20 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
+    const applyStart = performance.now();
+    this.buildChunkMeshTimed(cx, cz, data);
+    const applyMs = performance.now() - applyStart;
+    this.meshApplyStats.count += 1;
+    this.meshApplyStats.totalMs += applyMs;
+    if (applyMs > this.meshApplyStats.maxMs) {
+      this.meshApplyStats.maxMs = applyMs;
+    }
+    this.meshApplyStats.bytes += this.estimateGeometryProtocolBytes(
+      data.geometries,
+    );
+  }
+
+  private buildChunkMeshTimed(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
     if (!chunk) return;
 
