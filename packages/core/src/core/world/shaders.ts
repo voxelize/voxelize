@@ -206,7 +206,11 @@ vec3 transformed = vec3(position);
 
 int shouldWave = (light >> WAVE_SHIFT) & 0x1;
 if (shouldWave == 1) {
-  vec3 worldPosForWave = (modelMatrix * vec4(position, 1.0)).xyz;
+  vec4 wavePosition = vec4(position, 1.0);
+#ifdef USE_BATCHING
+  wavePosition = batchingMatrix * wavePosition;
+#endif
+  vec3 worldPosForWave = (modelMatrix * wavePosition).xyz;
   float waveTime = uTime * 0.0006;
 
   float wave1 = snoise(vec3(worldPosForWave.x * 0.15 + waveTime * 0.3, worldPosForWave.z * 0.15 - waveTime * 0.2, 0.0)) * 0.08;
@@ -221,12 +225,20 @@ if (shouldWave == 1) {
       "#include <worldpos_vertex>",
       `
 vec4 worldPosition = vec4( transformed, 1.0 );
+#ifdef USE_BATCHING
+  worldPosition = batchingMatrix * worldPosition;
+#endif
 #ifdef USE_INSTANCING
   worldPosition = instanceMatrix * worldPosition;
 #endif
 worldPosition = modelMatrix * worldPosition;
 vWorldPosition = worldPosition;
-vWorldNormal = normalize(mat3(modelMatrix) * normal);
+
+vec3 objectNormal = normal;
+#ifdef USE_BATCHING
+  objectNormal = mat3(batchingMatrix) * objectNormal;
+#endif
+vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
 
 // The surface that governs this fragment's water shading. A fluid reads its
 // own column, so a pond on a hilltop and a pond in a cellar both look like

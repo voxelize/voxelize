@@ -285,6 +285,50 @@ export type WorldClientOptions = {
    * Renderer heap watchdog thresholds. See {@link MemoryPressureOptions}.
    */
   memoryPressure: Partial<MemoryPressureOptions>;
+
+  /**
+   * Region buffer arenas for the shared-opaque chunk bucket. See
+   * {@link ChunkRegionArenasOptions}. `null` disables batching and keeps
+   * per-section meshes.
+   */
+  regionArenas: ChunkRegionArenasOptions | null;
+};
+
+/**
+ * Tunables for the per-region `BatchedMesh` arenas that batch every
+ * shared-opaque chunk section into one multi-draw call per region.
+ */
+export type ChunkRegionArenasOptions = {
+  /**
+   * The width and depth of a region, in chunk columns. Every section whose
+   * chunk falls inside the same region shares one `BatchedMesh`.
+   */
+  regionSizeInChunks: number;
+
+  /**
+   * Vertex capacity a region arena is created with. Arenas grow geometrically
+   * from here, so this is a floor, not a limit.
+   */
+  initialVertexCapacity: number;
+
+  /**
+   * Multiplier applied to a section's vertex/index count when reserving its
+   * arena slot, so small remeshes update in place instead of reallocating.
+   */
+  slotSlack: number;
+
+  /**
+   * Factor a full arena's capacity is multiplied by when it grows. Growth
+   * re-uploads the region's buffers, so it should be rare: geometric growth
+   * bounds the number of growth events logarithmically.
+   */
+  growthFactor: number;
+
+  /**
+   * Index capacity per vertex of capacity. Quad geometry uses six indices for
+   * every four vertices, hence the 1.5 default.
+   */
+  indexPerVertexRatio: number;
 };
 
 export const defaultWorldClientOptions: WorldClientOptions = {
@@ -330,6 +374,13 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   maxVoxelHistoryVoxels: 4096,
   maxVoxelHistoryPerVoxel: 4,
   memoryPressure: {},
+  regionArenas: {
+    regionSizeInChunks: 8,
+    initialVertexCapacity: 1 << 18,
+    slotSlack: 1.1,
+    growthFactor: 1.5,
+    indexPerVertexRatio: 1.5,
+  },
 };
 
 /**

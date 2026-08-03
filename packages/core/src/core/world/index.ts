@@ -132,10 +132,12 @@ import {
 import { Chunk } from "./chunk";
 import {
   CustomChunkShaderMaterial,
+  SHARED_OPAQUE_MATERIAL_KEY,
   loadChunkMaterials,
   makeChunkMaterialKey,
   makeChunkShaderMaterial,
 } from "./chunk-materials";
+import { ChunkRegionArenas } from "./chunk-region-arenas";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
   ChunkRequestCandidate,
@@ -178,6 +180,7 @@ import { WorldOptions, defaultWorldClientOptions } from "./world-options";
 export * from "./block";
 export * from "./chunk";
 export * from "./chunk-materials";
+export * from "./chunk-region-arenas";
 export * from "./chunk-renderer";
 export * from "./chunk-requests";
 export * from "./clouds";
@@ -476,6 +479,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     maxMs: 0,
     bytes: 0,
   };
+
+  /**
+   * Region buffer arenas batching the shared-opaque bucket, one
+   * `BatchedMesh` per region; `null` until the first opaque section lands or
+   * when {@link WorldClientOptions.regionArenas} disables batching.
+   */
+  public regionArenas: ChunkRegionArenas | null = null;
 
   /**
    * The voxel physics engine using `@voxelize/physics-engine`.
@@ -933,6 +943,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.lightJobsCompleteResolvers.splice(0).forEach((resolve) => resolve());
 
     this.chunkPipeline.forEachLoaded((chunk) => chunk.dispose());
+    this.regionArenas?.dispose();
+    this.regionArenas = null;
     this.chunkRenderer.materials.forEach((material) => {
       material.map?.dispose();
       material.dispose();
@@ -4162,6 +4174,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
 
         this.pruneBlockEntitiesInChunk(chunk.coords);
+        this.regionArenas?.clearChunk(x, z);
         this.remove(chunk.group);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
@@ -4628,11 +4641,30 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     chunk.meshes.delete(level);
 
+    const isArenaBucketed = this.options.regionArenas !== null;
+    const meshGeometries = isArenaBucketed
+      ? geometries.filter((geo) => !this.isArenaGeometry(geo))
+      : geometries;
+
+    if (isArenaBucketed) {
+      this.applyArenaSectionGeometry(
+        cx,
+        cz,
+        level,
+        geometries.filter((geo) => this.isArenaGeometry(geo)),
+        heightPerSubChunk,
+      );
+    }
+
     if (geometries.length === 0) return;
 
-    let meshes: Mesh[];
+    let meshes: Mesh[] = [];
 
-    if (mergeChunkGeometries) {
+    if (meshGeometries.length === 0) {
+      // The arena owns everything in this section; fall through so the
+      // section still counts as landed (group registration, load events,
+      // cascade invalidation).
+    } else if (mergeChunkGeometries) {
       const materialToGeometries = new Map<
         string,
         {
@@ -4642,7 +4674,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }[]
       >();
 
-      for (const geo of geometries) {
+      for (const geo of meshGeometries) {
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
         const geometry = new BufferGeometry();
 
@@ -4744,8 +4776,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     } else {
       meshes = [];
-      for (let i = 0; i < geometries.length; i++) {
-        const geo = geometries[i];
+      for (let i = 0; i < meshGeometries.length; i++) {
+        const geo = meshGeometries[i];
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
         const geometry = new BufferGeometry();
 
@@ -4853,6 +4885,103 @@ export class World<T = any> extends Scene implements NetIntercept {
         allMeshes: chunk.meshes,
       });
     }
+  }
+
+  private isArenaGeometry(geo: MeshProtocol["geometries"][number]) {
+    return (
+      this.getChunkMaterialBucket(
+        geo.voxel,
+        geo.faceName,
+        geo.at && geo.at.length ? geo.at : undefined,
+      ) === SHARED_OPAQUE_MATERIAL_KEY
+    );
+  }
+
+  private applyArenaSectionGeometry(
+    cx: number,
+    cz: number,
+    level: number,
+    geometries: MeshProtocol["geometries"],
+    heightPerSubChunk: number,
+  ) {
+    const arenas = this.ensureRegionArenas();
+
+    if (geometries.length === 0) {
+      arenas.clearSection(cx, cz, level);
+      return;
+    }
+
+    const parts: BufferGeometry[] = [];
+    for (const geo of geometries) {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute("position", new BufferAttribute(geo.positions, 3));
+      geometry.setAttribute("uv", new BufferAttribute(geo.uvs, 2));
+      geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
+      geometry.setIndex(new BufferAttribute(geo.indices, 1));
+      if (geo.normals && geo.normals.length > 0) {
+        geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
+      } else {
+        computeFlatNormals(geometry);
+      }
+      parts.push(geometry);
+    }
+
+    const merged =
+      parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+    if (!merged) {
+      console.error(
+        `Chunk section ${cx},${cz} level ${level}: opaque geometries failed to merge; section dropped from the region arena.`,
+      );
+      for (const part of parts) part.dispose();
+      arenas.clearSection(cx, cz, level);
+      return;
+    }
+
+    const { chunkSize } = this.options;
+    arenas.setSectionGeometry(
+      cx,
+      cz,
+      level,
+      merged,
+      cx * chunkSize,
+      level * heightPerSubChunk,
+      cz * chunkSize,
+    );
+
+    merged.dispose();
+    for (const part of parts) {
+      if (part !== merged) part.dispose();
+    }
+  }
+
+  private ensureRegionArenas() {
+    if (this.regionArenas) return this.regionArenas;
+
+    const arenaOptions = this.options.regionArenas;
+    if (!arenaOptions) {
+      throw new Error(
+        "Region arenas requested while WorldClientOptions.regionArenas is null.",
+      );
+    }
+
+    const { subChunks } = this.options;
+    this.regionArenas = new ChunkRegionArenas(
+      arenaOptions,
+      arenaOptions.regionSizeInChunks ** 2 * subChunks,
+      () => {
+        const material = this.chunkRenderer.materials.get(
+          SHARED_OPAQUE_MATERIAL_KEY,
+        );
+        if (!material) {
+          throw new Error(
+            "Region arena created before chunk materials loaded.",
+          );
+        }
+        return material;
+      },
+      this,
+    );
+    return this.regionArenas;
   }
 
   private setupComponents() {

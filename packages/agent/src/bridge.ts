@@ -376,6 +376,15 @@ export type RenderStats = {
     maxMs: number;
     faces: number;
   };
+  /**
+   * Region-arena batching state for the shared-opaque bucket: live
+   * `BatchedMesh` regions and the chunk sections slotted into them. Both
+   * zero when batching is disabled or nothing opaque is loaded.
+   */
+  regionArenas: {
+    regions: number;
+    sections: number;
+  };
   /** Cascaded-shadow scheduler internals; null when the world has no CSM. */
   csm: {
     isCameraStill: boolean;
