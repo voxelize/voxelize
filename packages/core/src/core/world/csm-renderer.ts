@@ -20,6 +20,46 @@ import {
 export interface CSMConfig {
   cascades: number;
   shadowMapSize: number;
+  /**
+   * Map size for cascades past the first. The far cascades cover tens of
+   * times the near cascade's area, so their texel density per block is far
+   * higher than it needs to be at the near cascade's resolution — and a far
+   * cascade re-render's depth-write cost is what turns a shadow refresh
+   * into a dropped frame at high display resolutions.
+   */
+  farShadowMapSize: number;
+  /**
+   * Shadow strength at or below which cascade re-renders are skipped
+   * entirely. During the dusk handoff the light azimuth swings 180 degrees
+   * from sun to moon while the same curve fades shadows to invisibility;
+   * re-rendering every cascade to track a swing nobody can see is the
+   * single most expensive thing the renderer does all day.
+   */
+  shadowStrengthRenderFloor: number;
+  /**
+   * Per-frame light-direction delta above which direction changes stop
+   * marking cascades dirty. The day-cycle drift moves the light a few
+   * hundred-thousandths of a radian per frame; the dusk sun-to-moon
+   * handoff swings it thirty times faster, fast enough that shadows
+   * re-rendered mid-swing are stale by the time they are sampled. The
+   * skipped motion keeps accumulating against the dirty threshold, so the
+   * first calm frame after a swing (or a time-command jump) still
+   * refreshes every cascade at the settled direction.
+   */
+  maxLightSwingPerFrame: number;
+  /**
+   * Player movement (blocks per frame) below which the camera counts as
+   * still. Control smoothing approaches its target asymptotically and
+   * never lands bit-exactly, so an exact-equality stillness test never
+   * fires; this floor sits well above that residue and well below any
+   * motion a player could perceive.
+   */
+  stillCameraPositionEpsilon: number;
+  /**
+   * Max absolute per-element view-projection delta below which the camera
+   * counts as still, catching rotation the positional test cannot see.
+   */
+  stillCameraMatrixEpsilon: number;
   maxShadowDistance: number;
   shadowBias: number;
   shadowNormalBias: number;
@@ -42,9 +82,23 @@ interface Cascade {
   split: number;
 }
 
+/**
+ * Blocks from the player within which entities cast dynamic shadows. The
+ * cascade entity refresh and the caller's decision of whether any entity is
+ * worth a refresh at all must agree on this number, or entities outside it
+ * trigger full cascade re-renders for shadows that are then distance-culled
+ * before drawing.
+ */
+export const ENTITY_SHADOW_DISTANCE = 32;
+
 const defaultConfig: CSMConfig = {
   cascades: 3,
   shadowMapSize: 2048,
+  farShadowMapSize: 2048,
+  shadowStrengthRenderFloor: 0.15,
+  maxLightSwingPerFrame: 0.0001,
+  stillCameraPositionEpsilon: 0.0005,
+  stillCameraMatrixEpsilon: 0.0005,
   maxShadowDistance: 128,
   shadowBias: 0.00018,
   shadowNormalBias: 0.0015,
@@ -74,6 +128,11 @@ export class CSMRenderer {
   private depthMaterial: MeshDepthMaterial;
   private frameCount = 0;
   private lastCameraPosition = new Vector3();
+  private lastViewProjection = new Matrix4();
+  private isCameraStill = false;
+  private currentShadowStrength = 1;
+  private lastFrameLightSwing = 0;
+  private lastMainCamera: Camera | null = null;
   private cascadeDirty: boolean[] = [];
   private cascadeNeedsRender: boolean[] = [];
   private tempMatrix = new Matrix4();
@@ -116,7 +175,8 @@ export class CSMRenderer {
   }
 
   private initCascades() {
-    const { cascades, shadowMapSize, maxShadowDistance } = this.config;
+    const { cascades, shadowMapSize, farShadowMapSize, maxShadowDistance } =
+      this.config;
 
     const lambda = 2.0;
     const splits: number[] = [];
@@ -128,7 +188,7 @@ export class CSMRenderer {
     }
 
     for (let i = 0; i < cascades; i++) {
-      const size = shadowMapSize;
+      const size = i === 0 ? shadowMapSize : farShadowMapSize;
 
       const renderTarget = new WebGLRenderTarget(size, size, {
         depthTexture: new DepthTexture(size, size),
@@ -172,6 +232,14 @@ export class CSMRenderer {
       return true;
     }
 
+    // A cascade render redraws every caster in its frustum, so a frame where
+    // neither the camera nor the light budged buys nothing from one. Chunk
+    // remeshes and entity refreshes bypass this via markAllCascadesForRender
+    // and markCascadesForEntityRender, which set needsRender directly.
+    if (this.isCameraStill) {
+      return false;
+    }
+
     if (index === 0) {
       return true;
     }
@@ -196,18 +264,42 @@ export class CSMRenderer {
     });
   }
 
-  update(mainCamera: Camera, sunDirection: Vector3, playerPosition?: Vector3) {
+  update(
+    mainCamera: Camera,
+    sunDirection: Vector3,
+    playerPosition?: Vector3,
+    shadowStrength = 1,
+  ) {
     this.frameCount++;
+
+    const frameLightSwing = this.tempVec3
+      .copy(sunDirection)
+      .normalize()
+      .sub(this.lightDirection)
+      .length();
+    this.lastFrameLightSwing = frameLightSwing;
+    const isLightSwinging = frameLightSwing > this.config.maxLightSwingPerFrame;
+
     this.lightDirection.copy(sunDirection).normalize();
+    this.currentShadowStrength = shadowStrength;
 
     const effectivePosition = playerPosition || mainCamera.position;
+
+    // Faded shadows (the dusk dip) and a fast-swinging light (the dusk
+    // sun-to-moon handoff, or a time-command jump) both make re-rendering
+    // worthless: the result is invisible or stale on arrival.
+    // lastLightDirection deliberately keeps accumulating through the skip,
+    // so the first calm frame afterwards crosses the dirty threshold and
+    // refreshes every cascade at the settled direction.
+    const isShadowFaded =
+      shadowStrength <= this.config.shadowStrengthRenderFloor;
 
     const lightDirChange = this.tempVec3
       .copy(this.lightDirection)
       .sub(this.lastLightDirection)
       .length();
 
-    if (lightDirChange > 0.01) {
+    if (lightDirChange > 0.01 && !isShadowFaded && !isLightSwinging) {
       this.markAllCascadesDirty();
       this.lastLightDirection.copy(this.lightDirection);
     }
@@ -225,21 +317,38 @@ export class CSMRenderer {
       .multiply(mainCamera.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.tempMatrix);
 
-    let prevSplit = 0;
+    // Epsilon comparison on the view-projection: control smoothing keeps
+    // nudging the camera by asymptotic residue long after input stops, so
+    // exact equality never fires. The matrix delta catches rotation, which
+    // the positional cameraMovement metric cannot see.
+    const viewProjection = this.tempMatrix.elements;
+    const lastViewProjection = this.lastViewProjection.elements;
+    let isViewProjectionUnchanged = true;
+    for (let i = 0; i < 16; i++) {
+      if (
+        Math.abs(viewProjection[i] - lastViewProjection[i]) >
+        this.config.stillCameraMatrixEpsilon
+      ) {
+        isViewProjectionUnchanged = false;
+        break;
+      }
+    }
+    this.lastViewProjection.copy(this.tempMatrix);
+    this.isCameraStill =
+      isViewProjectionUnchanged &&
+      cameraMovement < this.config.stillCameraPositionEpsilon;
+
+    // Only the flags are decided here. The cascade frustum (and with it the
+    // shadow matrix the shader samples through) is computed in render(),
+    // immediately before the map it describes is drawn: a far cascade can be
+    // deferred a frame by the one-far-cascade-per-frame cap, and a matrix
+    // that moves a frame ahead of its map flashes the whole cascade band.
+    this.lastMainCamera = mainCamera;
     for (let i = 0; i < this.cascades.length; i++) {
       if (!this.shouldUpdateCascade(i, cameraMovement)) {
-        prevSplit = this.cascades[i].split;
         continue;
       }
 
-      this.updateCascadeFrustum(
-        i,
-        mainCamera,
-        effectivePosition,
-        prevSplit,
-        this.cascades[i].split,
-      );
-      prevSplit = this.cascades[i].split;
       this.cascadeDirty[i] = false;
       this.cascadeNeedsRender[i] = true;
     }
@@ -356,9 +465,15 @@ export class CSMRenderer {
     renderer: WebGLRenderer,
     scene: Scene,
     entities?: Object3D[],
-    maxEntityShadowDistance = 32,
+    maxEntityShadowDistance = ENTITY_SHADOW_DISTANCE,
     instancePools?: Group[],
   ) {
+    // Invisible shadows are not worth a depth pass; marked flags stay put
+    // and drain when the strength comes back.
+    if (this.currentShadowStrength <= this.config.shadowStrengthRenderFloor) {
+      return;
+    }
+
     const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
     if (!anyNeedsRender) {
       return;
@@ -407,12 +522,35 @@ export class CSMRenderer {
 
     scene.overrideMaterial = this.depthMaterial;
 
+    // At most one far cascade per frame: a sun step or a chunk remesh marks
+    // all cascades at once, and redrawing every caster into two big shadow
+    // maps in a single frame is exactly the double-length frame players feel
+    // as a hitch. A deferred cascade keeps its needsRender flag and lands on
+    // the next frame instead.
+    let hasRenderedFarCascade = false;
+
     for (let i = 0; i < this.cascades.length; i++) {
       if (!this.cascadeNeedsRender[i]) {
         continue;
       }
 
+      if (i > 0 && hasRenderedFarCascade) {
+        continue;
+      }
+
       const cascade = this.cascades[i];
+
+      // Frustum and matrix update land here, atomically with the map they
+      // describe — see the note in update().
+      if (this.lastMainCamera) {
+        this.updateCascadeFrustum(
+          i,
+          this.lastMainCamera,
+          this.lastCameraPosition,
+          i === 0 ? 0 : this.cascades[i - 1].split,
+          cascade.split,
+        );
+      }
 
       this.cascadeMatrix
         .copy(cascade.camera.projectionMatrix)
@@ -491,6 +629,9 @@ export class CSMRenderer {
       }
 
       this.cascadeNeedsRender[i] = false;
+      if (i > 0) {
+        hasRenderedFarCascade = true;
+      }
     }
 
     for (const [mesh, originalMaterial] of poolOriginalMaterials) {
@@ -509,6 +650,10 @@ export class CSMRenderer {
   private shouldRenderEntityShadows = false;
 
   markCascadesForEntityRender() {
+    if (this.currentShadowStrength <= this.config.shadowStrengthRenderFloor) {
+      this.shouldRenderEntityShadows = false;
+      return;
+    }
     this.entityShadowFrameCounter++;
     const frameInterval = Math.max(1, this.config.entityShadowFrameInterval);
     this.shouldRenderEntityShadows =
@@ -559,6 +704,22 @@ export class CSMRenderer {
 
   get numCascades(): number {
     return this.cascades.length;
+  }
+
+  getDebugState(): {
+    isCameraStill: boolean;
+    cascadeDirty: boolean[];
+    cascadeNeedsRender: boolean[];
+    currentShadowStrength: number;
+    lastFrameLightSwing: number;
+  } {
+    return {
+      isCameraStill: this.isCameraStill,
+      cascadeDirty: [...this.cascadeDirty],
+      cascadeNeedsRender: [...this.cascadeNeedsRender],
+      currentShadowStrength: this.currentShadowStrength,
+      lastFrameLightSwing: this.lastFrameLightSwing,
+    };
   }
 
   get shadowBias(): number {

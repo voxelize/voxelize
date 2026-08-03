@@ -99,6 +99,19 @@ export const WATER_OPTICS = Object.freeze({
   lightFilterFloor: 0.04,
 
   /**
+   * Drawing-buffer pixel count above which the refraction capture turns
+   * itself off. The capture is a mid-render-pass framebuffer copy, which on
+   * tile-based GPUs splits the pass and pays a full store + reload of the
+   * framebuffer; measured on Apple Silicon it fits the 60fps budget at 7.5M
+   * pixels (retina 1728p) and busts it at 14.7M (5K), so the line sits
+   * between. At the densities being cut off, the 0.08-strength displacement
+   * spans only a few physical pixels and water keeps its tint, waves,
+   * fresnel, and specular — losing the copy is far less visible than the
+   * frame drops it caused.
+   */
+  refractionMaxDrawingBufferPixels: 10_000_000,
+
+  /**
    * Distance band (blocks) over which the medium wave octave of the water
    * surface fades out. Beyond the end of the band its ~0.7-block wavelength
    * is subpixel at typical resolutions, so evaluating it only costs ALU and
@@ -106,6 +119,27 @@ export const WATER_OPTICS = Object.freeze({
    */
   mediumWaveFadeStartBlocks: 64,
   mediumWaveFadeEndBlocks: 128,
+
+  /**
+   * Distance band (blocks) over which the large wave octave (~3-block
+   * wavelength) fades out — the same subpixel argument as the other bands,
+   * one octave up. The low-frequency swell (20-block wavelength) is spared:
+   * it stays resolvable to the horizon, and without any normal variation
+   * distant water collapses into a flat mirror of the sky — a bright sheet
+   * that reads as an artifact behind shoreline foliage.
+   */
+  baseWaveFadeStartBlocks: 144,
+  baseWaveFadeEndBlocks: 256,
+
+  /**
+   * What grazing-angle fresnel decays toward across the base-wave fade
+   * band. A wavy surface tilts half its normals toward the viewer, so its
+   * aggregate reflectivity sits well below a flat mirror's; once the large
+   * octave no longer supplies that variation per-fragment, this factor
+   * supplies it statistically, keeping far water the same tint-dominant
+   * shade it had when the octave was evaluated.
+   */
+  distantFresnelFactor: 0.55,
 
   /**
    * Distance band (blocks) over which the surface ripple/sparkle octaves

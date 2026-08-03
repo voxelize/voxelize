@@ -347,6 +347,14 @@ export type RenderStats = {
   otherSceneNodes: { label: string; total: number; visibleMeshes: number }[];
   loadedChunks: number;
   renderRadius: number;
+  /** Cascaded-shadow scheduler internals; null when the world has no CSM. */
+  csm: {
+    isCameraStill: boolean;
+    cascadeDirty: boolean[];
+    cascadeNeedsRender: boolean[];
+    currentShadowStrength: number;
+    lastFrameLightSwing: number;
+  } | null;
 };
 
 export interface AgentBridge {

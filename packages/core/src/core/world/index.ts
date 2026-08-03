@@ -142,7 +142,7 @@ import {
   compareChunkRequestPriority,
 } from "./chunk-requests";
 import { Clouds } from "./clouds";
-import { CSMRenderer } from "./csm-renderer";
+import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
@@ -170,7 +170,7 @@ import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { Sky } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
-import { WaterOptics } from "./water-optics";
+import { WATER_OPTICS, WaterOptics } from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
 import { WorldOptions, defaultWorldClientOptions } from "./world-options";
@@ -565,6 +565,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       const size = renderer.getDrawingBufferSize(sceneTextureSize.value);
       width = Math.max(1, Math.floor(size.x));
       height = Math.max(1, Math.floor(size.y));
+    }
+
+    // Past this many pixels the mid-pass copy's store + reload alone breaks
+    // the frame budget (measured: fine at 7.5M, 33ms frames at 14.7M), so
+    // high-density screens trade the subtle displacement for a stable 60fps.
+    if (width * height > WATER_OPTICS.refractionMaxDrawingBufferPixels) {
+      waterRefractionReady.value = 0;
+      return;
     }
 
     const capture = sceneColor.value;
@@ -2340,6 +2348,33 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
   }
 
+  /**
+   * The material bucket a geometry group lands in, mirroring
+   * {@link getBlockFaceMaterial}'s resolution exactly. Geometry groups may
+   * arrive keyed by face name without the face owning its own material — the
+   * fluid mesher emits per-direction groups (`py`, `px`, ...) for water whose
+   * registry faces are not independent, and they all resolve to the one fluid
+   * material. Keying meshes by this bucket instead of the raw face name lets
+   * those groups merge into a single mesh per chunk rather than five.
+   */
+  private getChunkMaterialBucket(
+    voxel: number,
+    faceName?: string,
+    at?: Coords3,
+  ) {
+    const block = this.getBlockById(voxel);
+
+    if (at && faceName && block.isolatedFaces.has(faceName)) {
+      return makeChunkMaterialKey(this, voxel, faceName, at);
+    }
+
+    if (faceName && block.independentFaces.has(faceName)) {
+      return makeChunkMaterialKey(this, voxel, faceName);
+    }
+
+    return makeChunkMaterialKey(this, voxel);
+  }
+
   getTextureInfo(): {
     sharedAtlas: { canvas: HTMLCanvasElement; countPerSide: number } | null;
     textures: TextureInfo[];
@@ -3479,9 +3514,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.physics.options = this.options;
 
     if (!this.csmRenderer) {
+      // The near cascade only spans ~14 blocks, so 2048 still gives it an
+      // order of magnitude more texels per block than the far cascades; at
+      // 4096 the own-character shadow refresh (a full cascade re-render
+      // every third frame) was the single largest steady-state GPU cost at
+      // high display resolutions.
       this.csmRenderer = new CSMRenderer({
         cascades: 3,
-        shadowMapSize: 4096,
+        shadowMapSize: 2048,
+        farShadowMapSize: 2048,
         maxShadowDistance: 128,
         shadowBias: 0.00018,
         shadowNormalBias: 0.0015,
@@ -4399,7 +4440,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       sunlightIntensity;
 
     if (this.csmRenderer) {
-      this.csmRenderer.update(camera, sunDirection.value, position);
+      this.csmRenderer.update(
+        camera,
+        sunDirection.value,
+        position,
+        shadowStrength,
+      );
 
       const csmUniforms = this.csmRenderer.getUniforms();
 
@@ -4489,7 +4535,36 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.csmRenderer.markCascadesForEntityRender();
     }
 
-    this.csmRenderer.render(renderer, this, entities, 32, instancePools);
+    this.csmRenderer.render(
+      renderer,
+      this,
+      entities,
+      ENTITY_SHADOW_DISTANCE,
+      instancePools,
+    );
+
+    // The cascade matrices move inside render(), atomically with the maps,
+    // so the copies taken during update() are one write behind. Re-copy
+    // after the maps land or the shader samples fresh frustums against
+    // stale depths for a frame — a visible flash across the cascade band.
+    const shadowMatrix0 = this.csmRenderer.getCascadeMatrix(0);
+    if (shadowMatrix0) {
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix0.value.copy(
+        shadowMatrix0,
+      );
+    }
+    const shadowMatrix1 = this.csmRenderer.getCascadeMatrix(1);
+    if (shadowMatrix1) {
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix1.value.copy(
+        shadowMatrix1,
+      );
+    }
+    const shadowMatrix2 = this.csmRenderer.getCascadeMatrix(2);
+    if (shadowMatrix2) {
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix2.value.copy(
+        shadowMatrix2,
+      );
+    }
   }
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
@@ -4562,8 +4637,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             continue;
           }
         }
-        const matKey = makeChunkMaterialKey(
-          this,
+        const matKey = this.getChunkMaterialBucket(
           voxel,
           faceName,
           at && at.length ? at : undefined,
@@ -4691,8 +4765,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         mesh.userData = {
           isChunk: true,
           voxel,
-          materialBucket: makeChunkMaterialKey(
-            this,
+          materialBucket: this.getChunkMaterialBucket(
             voxel,
             faceName,
             at && at.length ? at : undefined,

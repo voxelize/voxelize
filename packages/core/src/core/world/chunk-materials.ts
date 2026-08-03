@@ -17,6 +17,7 @@ import { Registry } from "./registry";
 import {
   SHADER_LIGHTING_CHUNK_SHADERS,
   SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
+  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
 } from "./shaders";
 import { AtlasTexture } from "./textures";
 
@@ -214,13 +215,26 @@ export async function loadChunkMaterials(
   ) => {
     const mat = makeChunkShaderMaterial(
       world,
-      isFluid ? SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment : undefined,
+      isFluid
+        ? SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment
+        : transparent
+          ? SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment
+          : undefined,
     );
 
     mat.side = transparent ? DoubleSide : FrontSide;
     mat.transparent = transparent;
     if (transparent) {
-      mat.depthWrite = !isFluid && transparentStandalone;
+      // Light-attenuating see-through solids are the leaf-like cutouts
+      // (alphaTest already discards their holes); they occlude like the
+      // near-opaque surfaces they are. Without the depth write, fluid —
+      // which renders after every other transparent so its refraction
+      // capture can see them — blends its tint straight over canopies,
+      // and same-order foliage meshes wash over each other by sort luck.
+      // Glass keeps attenuation 0 and stays non-writing so stacked panes
+      // still layer.
+      mat.depthWrite =
+        !isFluid && (transparentStandalone || lightAttenuation > 0);
       mat.alphaTest = 0.1;
       mat.uniforms.alphaTest.value = 0.1;
     }

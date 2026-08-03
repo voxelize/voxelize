@@ -658,17 +658,30 @@ if (vIsFluid > 0.5) {
     ${WATER_OPTICS.rippleFadeEndBlocks.toFixed(1)},
     distToCamera
   );
+  float baseWaveLod = 1.0 - smoothstep(
+    ${WATER_OPTICS.baseWaveFadeStartBlocks.toFixed(1)},
+    ${WATER_OPTICS.baseWaveFadeEndBlocks.toFixed(1)},
+    distToCamera
+  );
 
   // Side and bottom faces keep their geometric normal, so the wave-normal
-  // noise stack only runs on up-facing water.
+  // noise stack only runs on up-facing water. The 20-block swell stays on
+  // at every distance (it is never subpixel, and without it far water is a
+  // flat mirror of the sky); the finer large octave gates on the base band.
   vec3 waterNormal = vWorldNormal;
   if (vWorldNormal.y >= 0.5) {
     float swellTiltX = snoise(vec3(wPos.x * 0.05 + waveTime * 0.07, wPos.z * 0.05 - waveTime * 0.05, -5.0)) * 0.07;
     float swellTiltZ = snoise(vec3(wPos.x * 0.05 - waveTime * 0.04, wPos.z * 0.05 + waveTime * 0.07, -8.0)) * 0.07;
 
-    float lg1 = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
-    float lg1x = snoise(vec3((wPos.x + eps) * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
-    float lg1z = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, (wPos.z + eps) * 0.3 - waveTime * 0.2, 0.0));
+    float largeGradX = 0.0;
+    float largeGradZ = 0.0;
+    if (baseWaveLod > 0.001) {
+      float lg1 = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
+      float lg1x = snoise(vec3((wPos.x + eps) * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
+      float lg1z = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, (wPos.z + eps) * 0.3 - waveTime * 0.2, 0.0));
+      largeGradX = (lg1 - lg1x) * 0.3 * 0.8 * baseWaveLod;
+      largeGradZ = (lg1 - lg1z) * 0.3 * 0.8 * baseWaveLod;
+    }
 
     float mediumGradX = 0.0;
     float mediumGradZ = 0.0;
@@ -686,9 +699,9 @@ if (vIsFluid > 0.5) {
     }
 
     waterNormal = normalize(vec3(
-      swellTiltX + (lg1 - lg1x) * 0.3 * 0.8 + mediumGradX,
+      swellTiltX + largeGradX + mediumGradX,
       1.0,
-      swellTiltZ + (lg1 - lg1z) * 0.3 * 0.8 + mediumGradZ
+      swellTiltZ + largeGradZ + mediumGradZ
     ));
   }
 
@@ -698,6 +711,10 @@ if (vIsFluid > 0.5) {
   float fresnelMax = mix(0.22, 0.56, topWaterFace);
   float fresnel = fresnelBase + uWaterFresnelStrength * pow(1.0 - NdotV, 5.0);
   fresnel = clamp(fresnel, 0.01, fresnelMax);
+  // Where the large octave has faded, its statistical effect on grazing
+  // reflectivity is applied instead, so far water keeps the tint-dominant
+  // shade it had when the octave was evaluated per fragment.
+  fresnel *= mix(${WATER_OPTICS.distantFresnelFactor.toFixed(4)}, 1.0, baseWaveLod);
 
   vec3 reflectDir = reflect(-viewDir, waterNormal);
   float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -854,6 +871,27 @@ export const SHADER_LIGHTING_CHUNK_SHADERS = {
 export const SHADER_LIGHTING_FLUID_CHUNK_SHADERS = {
   vertex: FULL_CHUNK_SHADERS.vertex,
   fragment: FULL_CHUNK_SHADERS.fragment
+    .replace(
+      "float shadow0 = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",
+      "float shadow0 = sampleShadowMapFast(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",
+    )
+    .split(
+      "float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5, receiverBiasScale);",
+    )
+    .join(
+      "float shadow1 = sampleShadowMapFast(uShadowMap1, vShadowCoord1, slopeBias * 1.5, receiverBiasScale);",
+    ),
+};
+
+// See-through solids (glass, foliage) draw as stacked double-sided layers,
+// so a full-screen pane multiplies whatever the fragment costs by every
+// layer behind it. They take the same 5-tap shadow fast path as fluids —
+// tinted glass and leaf clusters swallow soft shadow detail exactly as
+// waves do — while compiling the fluid surface branch out like the opaque
+// shader does.
+export const SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS = {
+  vertex: FULL_CHUNK_SHADERS.vertex,
+  fragment: SHADER_LIGHTING_CHUNK_SHADERS.fragment
     .replace(
       "float shadow0 = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",
       "float shadow0 = sampleShadowMapFast(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",
