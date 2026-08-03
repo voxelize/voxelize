@@ -4,6 +4,23 @@ const _worldPos = new Vector3();
 const _camPos = new Vector3();
 const _camWorldPos = new Vector3();
 
+/**
+ * How a translucent mesh decides when to re-sort:
+ *
+ * - `"single-plane"` — every face lies in one plane, so no camera ray can
+ *   ever hit two faces; the mesh never needs sorting.
+ * - `"plane-triggers"` — all faces are axis-aligned quads. A valid painter's
+ *   order can only change when the camera crosses one of the mesh's distinct
+ *   face planes, so re-sorts fire on plane crossings instead of distance
+ *   moved (Sodium's trigger model).
+ * - `"distance"` — geometry with non-axis-aligned faces falls back to the
+ *   original re-sort-every-half-block behavior.
+ */
+export type TransparentSortClassification =
+  | "single-plane"
+  | "plane-triggers"
+  | "distance";
+
 export interface TransparentMeshData {
   centroids: Float32Array;
   faceCount: number;
@@ -14,9 +31,15 @@ export interface TransparentMeshData {
   lastCameraPos: Vector3;
   sortKeys: Uint32Array;
   sortTemp: Uint32Array;
+  classification: TransparentSortClassification;
+  /** Sorted distinct face-plane offsets per axis (x, y, z). */
+  planesByAxis: [number[], number[], number[]];
+  /** Camera interval index per axis at the last sort; -2 = never sorted. */
+  lastIntervals: [number, number, number];
 }
 
 const CAMERA_MOVE_THRESHOLD_SQ = 0.25;
+const NEVER_SORTED_INTERVAL = -2;
 
 /**
  * Cumulative main-thread cost of per-face translucency sorting across all
@@ -50,18 +73,62 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   if (faceCount === 0) return null;
 
   const centroids = new Float32Array(faceCount * 3);
+  const planeSets: [Set<number>, Set<number>, Set<number>] = [
+    new Set(),
+    new Set(),
+    new Set(),
+  ];
+  let isAxisAligned = true;
 
   for (let f = 0; f < faceCount; f++) {
     const i0 = indices[f * 6] * 3;
     const i1 = indices[f * 6 + 1] * 3;
     const i2 = indices[f * 6 + 2] * 3;
 
-    centroids[f * 3] = (positions[i0] + positions[i1] + positions[i2]) / 3;
-    centroids[f * 3 + 1] =
-      (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
-    centroids[f * 3 + 2] =
-      (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+    const cx = (positions[i0] + positions[i1] + positions[i2]) / 3;
+    const cy = (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
+    const cz = (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+    centroids[f * 3] = cx;
+    centroids[f * 3 + 1] = cy;
+    centroids[f * 3 + 2] = cz;
+
+    if (!isAxisAligned) continue;
+
+    const e1x = positions[i1] - positions[i0];
+    const e1y = positions[i1 + 1] - positions[i0 + 1];
+    const e1z = positions[i1 + 2] - positions[i0 + 2];
+    const e2x = positions[i2] - positions[i0];
+    const e2y = positions[i2 + 1] - positions[i0 + 1];
+    const e2z = positions[i2 + 2] - positions[i0 + 2];
+    const nx = e1y * e2z - e1z * e2y;
+    const ny = e1z * e2x - e1x * e2z;
+    const nz = e1x * e2y - e1y * e2x;
+
+    if (ny === 0 && nz === 0 && nx !== 0) {
+      planeSets[0].add(cx);
+    } else if (nx === 0 && nz === 0 && ny !== 0) {
+      planeSets[1].add(cy);
+    } else if (nx === 0 && ny === 0 && nz !== 0) {
+      planeSets[2].add(cz);
+    } else {
+      isAxisAligned = false;
+    }
   }
+
+  const planesByAxis: [number[], number[], number[]] = [[], [], []];
+  let planeCount = 0;
+  if (isAxisAligned) {
+    for (let axis = 0; axis < 3; axis++) {
+      planesByAxis[axis] = [...planeSets[axis]].sort((a, b) => a - b);
+      planeCount += planesByAxis[axis].length;
+    }
+  }
+
+  const classification: TransparentSortClassification = !isAxisAligned
+    ? "distance"
+    : planeCount <= 1
+      ? "single-plane"
+      : "plane-triggers";
 
   return {
     centroids,
@@ -73,6 +140,13 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     lastCameraPos: new Vector3(Infinity, Infinity, Infinity),
     sortKeys: new Uint32Array(faceCount),
     sortTemp: new Uint32Array(faceCount),
+    classification,
+    planesByAxis,
+    lastIntervals: [
+      NEVER_SORTED_INTERVAL,
+      NEVER_SORTED_INTERVAL,
+      NEVER_SORTED_INTERVAL,
+    ],
   };
 }
 
@@ -91,6 +165,10 @@ export function setupTransparentSorting(object: Object3D): void {
     const sortData = prepareTransparentMesh(child);
     if (!sortData) return;
 
+    // Coplanar faces can never overlap on screen, so the mesher's emission
+    // order is already a valid painter's order — no hook, no sorts, ever.
+    if (sortData.classification === "single-plane") return;
+
     child.userData.transparentSortData = sortData;
     child.onBeforeRender = (_renderer, _scene, camera) => {
       sortTransparentMesh(
@@ -100,6 +178,21 @@ export function setupTransparentSorting(object: Object3D): void {
       );
     };
   });
+}
+
+/** Index of the interval the coordinate falls in among sorted planes. */
+function planeInterval(planes: number[], coordinate: number): number {
+  let low = 0;
+  let high = planes.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (planes[mid] <= coordinate) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low;
 }
 
 const _floatView = new Float32Array(1);
@@ -158,18 +251,36 @@ export function sortTransparentMesh(
   camera.getWorldPosition(_camWorldPos);
   _camPos.copy(_camWorldPos).sub(_worldPos);
 
-  const isFirstSort =
-    data.lastCameraPos.x === Infinity &&
-    data.lastCameraPos.y === Infinity &&
-    data.lastCameraPos.z === Infinity;
-
-  if (
-    !isFirstSort &&
-    _camPos.distanceToSquared(data.lastCameraPos) < CAMERA_MOVE_THRESHOLD_SQ
-  ) {
+  if (data.classification === "single-plane") {
     return;
   }
-  data.lastCameraPos.copy(_camPos);
+
+  if (data.classification === "plane-triggers") {
+    const [xPlanes, yPlanes, zPlanes] = data.planesByAxis;
+    const xInterval = planeInterval(xPlanes, _camPos.x);
+    const yInterval = planeInterval(yPlanes, _camPos.y);
+    const zInterval = planeInterval(zPlanes, _camPos.z);
+    const [lastX, lastY, lastZ] = data.lastIntervals;
+    if (xInterval === lastX && yInterval === lastY && zInterval === lastZ) {
+      return;
+    }
+    data.lastIntervals[0] = xInterval;
+    data.lastIntervals[1] = yInterval;
+    data.lastIntervals[2] = zInterval;
+  } else {
+    const isFirstSort =
+      data.lastCameraPos.x === Infinity &&
+      data.lastCameraPos.y === Infinity &&
+      data.lastCameraPos.z === Infinity;
+
+    if (
+      !isFirstSort &&
+      _camPos.distanceToSquared(data.lastCameraPos) < CAMERA_MOVE_THRESHOLD_SQ
+    ) {
+      return;
+    }
+    data.lastCameraPos.copy(_camPos);
+  }
 
   const sortStart = performance.now();
   const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =

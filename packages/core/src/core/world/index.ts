@@ -679,19 +679,23 @@ export class World<T = any> extends Scene implements NetIntercept {
     const block = this.getBlockByIdSafe(voxel);
     const isFluid = block?.isFluid ?? false;
     const sortData = !material.depthWrite ? prepareTransparentMesh(mesh) : null;
+    // Coplanar sections (flat water surfaces, single glass walls) can never
+    // self-overlap, so they skip the sort hook entirely.
+    const sortableData =
+      sortData && sortData.classification !== "single-plane" ? sortData : null;
 
     mesh.renderOrder = isFluid
       ? TRANSPARENT_FLUID_RENDER_ORDER
       : TRANSPARENT_RENDER_ORDER;
 
-    if (sortData) {
-      mesh.userData.transparentSortData = sortData;
+    if (sortableData) {
+      mesh.userData.transparentSortData = sortableData;
     }
 
-    if (sortData || isFluid) {
+    if (sortableData || isFluid) {
       mesh.onBeforeRender = (renderer, _scene, camera) => {
-        if (sortData) {
-          sortTransparentMesh(mesh, sortData, camera);
+        if (sortableData) {
+          sortTransparentMesh(mesh, sortableData, camera);
         }
 
         if (isFluid) {
