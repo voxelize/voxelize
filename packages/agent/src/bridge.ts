@@ -132,6 +132,111 @@ export type CaptureFrameOptions = {
   isPure?: boolean;
 };
 
+export type VideoRecordingRequest = {
+  /** Rate the canvas is sampled at; the page still paints as fast as it can. */
+  fps?: number;
+  bitsPerSecond?: number;
+  /** The shutter closes itself after this long, so a lost caller cannot leak a take. */
+  maxDurationMs?: number;
+  /** Scene overlays and the voxel highlight off, as in a pure screenshot. */
+  isPure?: boolean;
+};
+
+export type VideoRecordingStarted = {
+  mimeType: string;
+  fps: number;
+  /** Canvas backing size the take is locked to; resizing mid-take breaks it. */
+  width: number;
+  height: number;
+  isPure: boolean;
+};
+
+export type VideoRecordingResult = {
+  mimeType: string;
+  byteLength: number;
+  durationMs: number;
+  /** Frames the page actually painted while the shutter was open. */
+  frameCount: number;
+  /** The take closed on its own `maxDurationMs` rather than on a stop. */
+  isAutoStopped: boolean;
+};
+
+/**
+ * What the lens is pointed at during a shot. An entity aim is resolved every
+ * frame, so a move can hold a swimming subject in the frame while the camera
+ * flies its own path — the two are independent, which is the whole point.
+ */
+export type CameraAim =
+  | { point: Vec3 }
+  | ({ entityId: string } & SubjectAim)
+  | ({ kind: string } & SubjectAim);
+
+export type SubjectAim = {
+  /** Added to the resolved point, after `aimY` if that is set too. */
+  offset?: Vec3;
+  /**
+   * Hold the aim at this world height and take only the horizontal position
+   * from the subject. A creature that walks the bottom of a pond otherwise
+   * drags the lens down with it and the shot ends looking at gravel.
+   */
+  aimY?: number;
+};
+
+export type CameraKeyframe = {
+  /** Milliseconds from the start of the shot. The first must be 0. */
+  atMs: number;
+  position: Vec3;
+  aim: CameraAim;
+  /** Vertical field of view in degrees. Animating it against a dolly is the
+   * dolly zoom; leaving it off every keyframe leaves the lens alone. */
+  fov?: number;
+};
+
+/**
+ * Applied to the shot as a whole, not per segment: a move that starts and
+ * stops abruptly reads as a teleport however smooth its middle was.
+ *
+ * `in`, `out` and `inOut` are cubic — the punchy curve interface animation
+ * uses, which suits a short move. `sine` is the gentle one, and it is what a
+ * long move wants: cubic `inOut` reaches three times the average speed at the
+ * midpoint, so a seven-second reveal dwells, rushes, and dwells again, which
+ * reads as the camera being shoved rather than flown. Sinusoidal peaks at
+ * about 1.6x and holds a near-even pace through the body of the move.
+ */
+export type CameraEasing = "linear" | "in" | "out" | "inOut" | "sine";
+
+export type CameraShot = {
+  keyframes: CameraKeyframe[];
+  easing?: CameraEasing;
+  /**
+   * Straight segments between keyframes instead of a curve through them.
+   * A curve is what makes a multi-point move look flown rather than hinged,
+   * so it is the default; straight is for a deliberate rail.
+   */
+  isLinear?: boolean;
+};
+
+export type CameraShotStatus = {
+  isRunning: boolean;
+  elapsedMs: number;
+  durationMs: number;
+  progress: number;
+  /** Frames the shot actually drove. A move that ran at 12fps is a bad move,
+   * and this is the only place that fact is visible. */
+  frameCount: number;
+  /** Why the last shot ended, when it was not by reaching the end. */
+  endedReason: string | null;
+};
+
+export type VideoRecordingStatus = {
+  isRecording: boolean;
+  mimeType: string | null;
+  elapsedMs: number | null;
+  frameCount: number | null;
+  /** Bytes of a finished take still waiting to be read out of the page. */
+  pendingByteLength: number | null;
+};
+
 export type FaceInput =
   | { target: Vec3 }
   | { yaw: number; pitch: number }
@@ -434,6 +539,28 @@ export interface AgentBridge {
     } & CommandDispatch
   >;
   captureFrame(opts?: CaptureFrameOptions): Promise<string | null>;
+
+  /**
+   * Film the canvas rather than photograph it. The take is encoded in the page
+   * by `MediaRecorder`, so it carries real motion at the rate the client
+   * actually paints; `readVideoChunk` walks the finished bytes out in slices
+   * because a whole clip in one evaluate result is a payload nobody can bound.
+   */
+  startVideo(request?: VideoRecordingRequest): Promise<VideoRecordingStarted>;
+  stopVideo(): Promise<VideoRecordingResult>;
+  readVideoChunk(offset: number, length: number): Promise<string>;
+  videoStatus(): VideoRecordingStatus;
+
+  /**
+   * Fly a keyframed camera move, driven per rendered frame in the page. It
+   * has to run here rather than as a stream of `view` calls: a move stepped
+   * over HTTP arrives at whatever rate the network felt like, and judder is
+   * the one thing a camera move cannot survive. Returns as soon as the shot
+   * is armed; poll `cameraShotStatus` for the end.
+   */
+  startCameraShot(shot: CameraShot): Promise<CameraShotStatus>;
+  stopCameraShot(): Promise<CameraShotStatus>;
+  cameraShotStatus(): CameraShotStatus;
 
   meshTransferStatus(): Promise<MeshTransferStatus>;
   meshTransferConfigure(

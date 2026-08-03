@@ -1,9 +1,14 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import puppeteer, { Browser, Page } from "puppeteer";
 
 import type {
   AgentEventMap,
   AgentEventName,
   BlockInfo,
+  CameraShot,
+  CameraShotStatus,
   ChatMsgIn,
   ChunkCoord,
   ChunkSnapshot,
@@ -26,6 +31,10 @@ import type {
   RaycastHit,
   Snapshot,
   Vec3,
+  VideoRecordingRequest,
+  VideoRecordingResult,
+  VideoRecordingStarted,
+  VideoRecordingStatus,
   ViewOptions,
   WalkDirection,
   WalkOptions,
@@ -101,6 +110,18 @@ export type FrameRateReport = FrameRateMeasurement & {
   viewport: CaptureViewport;
 };
 
+export type VideoRecordingOptions = VideoRecordingRequest &
+  RequestedCaptureViewport;
+
+export type VideoRecordingStartReport = VideoRecordingStarted & {
+  viewport: CaptureViewport;
+};
+
+export type VideoRecordingFile = VideoRecordingResult & {
+  path: string;
+  viewport: CaptureViewport;
+};
+
 const DEFAULT_DAEMON_PORT = 4099;
 const BROWSER_CLOSE_TIMEOUT_MS = 1500;
 const ENTITY_ACCESS_TIMEOUT_MS = 5000;
@@ -113,6 +134,10 @@ const DEFAULT_PAGE_CALL_TIMEOUT_MS = 10_000;
 // Rendering plus PNG encode under software WebGL is the slowest page call
 // that is still healthy, so captures get their own ceiling.
 const CAPTURE_PAGE_CALL_TIMEOUT_MS = 30_000;
+// Read a finished take out of the page in slices: the whole clip in one
+// evaluate result is a payload with no upper bound, and base64 inflates it by
+// a third on the way across.
+const VIDEO_CHUNK_BYTES = 4 * 1024 * 1024;
 // Headroom added on top of a page-side operation's own bound (walk duration,
 // chunk-wait timeout, ...) before the daemon declares the page stalled.
 const PAGE_CALL_GRACE_MS = 5_000;
@@ -147,6 +172,15 @@ function positiveEnvNumber(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+/** `video/mp4;codecs=avc1.42E01E` -> `mp4`. */
+function containerExtension(mimeType: string): string {
+  const subtype = mimeType.split(";")[0]?.split("/")[1];
+  if (subtype === undefined || subtype === "") {
+    throw new Error(`cannot name a file for mime type "${mimeType}"`);
+  }
+  return subtype;
+}
+
 export class Agent {
   private browser: Browser;
   private page: Page;
@@ -167,6 +201,15 @@ export class Agent {
    * New calls with the same label are refused until the stalled one settles.
    */
   private stalledPageCalls = new Map<string, number>();
+  /**
+   * A take in flight, holding the viewport to put back when it ends. Kept on
+   * the daemon rather than only in the page so a second start is refused with
+   * the first one's age instead of quietly replacing it.
+   */
+  private activeRecording: {
+    startedAt: number;
+    previousViewport: CaptureViewport | null;
+  } | null = null;
   private readonly defaultPageTimeoutMs = positiveEnvNumber(
     "AGENT_PAGE_TIMEOUT_MS",
     DEFAULT_PAGE_CALL_TIMEOUT_MS,
@@ -371,6 +414,13 @@ export class Agent {
   /** Labels of page calls that timed out and have not settled yet. */
   stalledPageCallLabels(): string[] {
     return [...this.stalledPageCalls.keys()];
+  }
+
+  /** How long a take has been open, or null when the shutter is closed. */
+  recordingForMs(): number | null {
+    return this.activeRecording === null
+      ? null
+      : Date.now() - this.activeRecording.startedAt;
   }
 
   /**
@@ -971,12 +1021,7 @@ export class Agent {
   }
 
   async screenshot(opts: ScreenshotOptions = {}): Promise<Buffer> {
-    const current = this.page.viewport();
-    const currentViewport: CaptureViewport = {
-      width: current?.width ?? 1280,
-      height: current?.height ?? 720,
-      deviceScaleFactor: current?.deviceScaleFactor || 1,
-    };
+    const currentViewport = this.currentViewport();
     // Throws CaptureViewportError for out-of-range requests; the daemon maps
     // that to an HTTP 400 before the page is touched at all.
     const captureViewport = resolveCaptureViewport(opts, currentViewport);
@@ -1017,12 +1062,7 @@ export class Agent {
     capturedAtMs: number[];
     overrunFrameCount: number;
   }> {
-    const current = this.page.viewport();
-    const currentViewport: CaptureViewport = {
-      width: current?.width ?? 1280,
-      height: current?.height ?? 720,
-      deviceScaleFactor: current?.deviceScaleFactor || 1,
-    };
+    const currentViewport = this.currentViewport();
     const captureViewport = resolveCaptureViewport(opts, currentViewport);
 
     const runBurst = async () => {
@@ -1053,6 +1093,175 @@ export class Agent {
     } finally {
       await this.setViewportAndAwaitPaint(currentViewport);
     }
+  }
+
+  /**
+   * Open the shutter and leave it open. Unlike a burst, the page keeps
+   * painting at its own rate and encodes as it goes, so the take carries real
+   * motion instead of a series of stalls; the caller is free to move the
+   * camera, wait on a behaviour, or do nothing at all until it stops.
+   *
+   * The viewport is locked for the whole take because a canvas that resizes
+   * mid-recording produces a clip no player can decode.
+   */
+  async startVideoRecording(
+    opts: VideoRecordingOptions = {},
+  ): Promise<VideoRecordingStartReport> {
+    if (this.activeRecording !== null) {
+      throw new Error(
+        `a recording has been running for ${Date.now() - this.activeRecording.startedAt}ms; stop it before starting another`,
+      );
+    }
+    const currentViewport = this.currentViewport();
+    const captureViewport = resolveCaptureViewport(opts, currentViewport);
+    if (captureViewport) {
+      await this.setViewportAndAwaitPaint(captureViewport);
+    }
+
+    try {
+      const started = await this.withPageTimeout(
+        "startVideo",
+        CAPTURE_PAGE_CALL_TIMEOUT_MS,
+        () =>
+          this.page.evaluate(
+            (request) => window.__agentRequired__().startVideo(request),
+            {
+              fps: opts.fps,
+              bitsPerSecond: opts.bitsPerSecond,
+              maxDurationMs: opts.maxDurationMs,
+              isPure: opts.isPure,
+            } satisfies VideoRecordingRequest,
+          ),
+      );
+      this.activeRecording = {
+        startedAt: Date.now(),
+        previousViewport: captureViewport ? currentViewport : null,
+      };
+      return { ...started, viewport: captureViewport ?? currentViewport };
+    } catch (error) {
+      if (captureViewport) {
+        await this.setViewportAndAwaitPaint(currentViewport);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Close the shutter and stream the encoded take into `dir`. The container
+   * extension comes from what the page actually recorded, never from a guess:
+   * an `.mp4` holding WebM bytes plays for nobody and blames the wrong thing.
+   * The viewport is restored whatever happens, because a failed stop that left
+   * the session at recording resolution would silently change every later
+   * capture.
+   */
+  async stopVideoRecording(
+    dir: string,
+    basename: string,
+  ): Promise<VideoRecordingFile> {
+    const active = this.activeRecording;
+    if (active === null) {
+      throw new Error("no recording is running");
+    }
+    const viewport = this.currentViewport();
+    this.activeRecording = null;
+
+    try {
+      const result = await this.withPageTimeout(
+        "stopVideo",
+        CAPTURE_PAGE_CALL_TIMEOUT_MS,
+        () => this.page.evaluate(() => window.__agentRequired__().stopVideo()),
+      );
+
+      const filePath = path.join(
+        dir,
+        `${basename}.${containerExtension(result.mimeType)}`,
+      );
+      const handle = fs.openSync(filePath, "w");
+      try {
+        for (
+          let offset = 0;
+          offset < result.byteLength;
+          offset += VIDEO_CHUNK_BYTES
+        ) {
+          const base64 = await this.withPageTimeout(
+            "readVideoChunk",
+            CAPTURE_PAGE_CALL_TIMEOUT_MS,
+            () =>
+              this.page.evaluate(
+                (from, length) =>
+                  window.__agentRequired__().readVideoChunk(from, length),
+                offset,
+                VIDEO_CHUNK_BYTES,
+              ),
+          );
+          fs.writeSync(handle, Buffer.from(base64, "base64"));
+        }
+      } finally {
+        fs.closeSync(handle);
+      }
+
+      const writtenBytes = fs.statSync(filePath).size;
+      if (writtenBytes !== result.byteLength) {
+        throw new Error(
+          `recording truncated: page reported ${result.byteLength} bytes, wrote ${writtenBytes} to ${filePath}`,
+        );
+      }
+      return { ...result, path: filePath, viewport };
+    } finally {
+      if (active.previousViewport !== null) {
+        await this.setViewportAndAwaitPaint(active.previousViewport);
+      }
+    }
+  }
+
+  async videoStatus(): Promise<VideoRecordingStatus> {
+    return this.withPageTimeout("videoStatus", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => window.__agentRequired__().videoStatus()),
+    );
+  }
+
+  /**
+   * Arm a keyframed camera move and return immediately — the move itself runs
+   * per rendered frame in the page, which is the only place it can run without
+   * judder. Poll `cameraShotStatus` for the end.
+   */
+  async startCameraShot(shot: CameraShot): Promise<CameraShotStatus> {
+    return this.withPageTimeout(
+      "startCameraShot",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(
+          (spec) => window.__agentRequired__().startCameraShot(spec),
+          shot,
+        ),
+    );
+  }
+
+  async stopCameraShot(): Promise<CameraShotStatus> {
+    return this.withPageTimeout(
+      "stopCameraShot",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() => window.__agentRequired__().stopCameraShot()),
+    );
+  }
+
+  async cameraShotStatus(): Promise<CameraShotStatus> {
+    return this.withPageTimeout(
+      "cameraShotStatus",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() => window.__agentRequired__().cameraShotStatus()),
+    );
+  }
+
+  private currentViewport(): CaptureViewport {
+    const current = this.page.viewport();
+    return {
+      width: current?.width ?? 1280,
+      height: current?.height ?? 720,
+      deviceScaleFactor: current?.deviceScaleFactor || 1,
+    };
   }
 
   private async captureBuffer(isPure: boolean): Promise<Buffer> {
@@ -1140,12 +1349,7 @@ export class Agent {
   async measureFrameRate(
     opts: FrameRateMeasurementOptions & RequestedCaptureViewport = {},
   ): Promise<FrameRateReport> {
-    const current = this.page.viewport();
-    const currentViewport: CaptureViewport = {
-      width: current?.width ?? 1280,
-      height: current?.height ?? 720,
-      deviceScaleFactor: current?.deviceScaleFactor || 1,
-    };
+    const currentViewport = this.currentViewport();
     // Like screenshot(): an optional viewport override applies only for the
     // duration of the measurement, so FPS can be sampled at a real display
     // resolution without the whole session paying for it.

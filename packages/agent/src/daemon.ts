@@ -77,6 +77,9 @@ export type DaemonStatus = {
   connection: ConnectionSnapshot | null;
   droppedCommandCount: number | null;
   stalledPageCalls: string[];
+  /** Milliseconds a video take has been open, so a leaked one is visible in
+   * the same place every other stuck resource is. */
+  recordingForMs: number | null;
   lease: DaemonLeaseStatus | null;
 };
 
@@ -113,6 +116,16 @@ const FRAME_SETTLE_TIMEOUT_MS = 10_000;
 // leave a permanently frozen entity behind.
 const FRAME_FREEZE_SECONDS = 30;
 const FRAME_OUTPUT_SUBDIR = "agent-frames";
+
+// A take is filmed at the size it will be published at, so the default is a
+// social-media 1080p rather than the burst's thumbnail viewport. Motion is the
+// subject here, and the page keeps painting at its own rate throughout.
+const VIDEO_DEFAULT_WIDTH = 1920;
+const VIDEO_DEFAULT_HEIGHT = 1080;
+// Every take carries its own shutter close, so a caller that dies mid-shot
+// cannot leave the page encoding into a growing buffer forever.
+const VIDEO_DEFAULT_MAX_DURATION_MS = 60_000;
+const VIDEO_MAX_DURATION_MS = 600_000;
 
 const BURST_MAX_FRAMES = 120;
 const BURST_MIN_INTERVAL_MS = 50;
@@ -329,6 +342,7 @@ export class AgentDaemon {
       droppedCommandCount:
         this.freshness.lastConnection?.droppedCommandCount ?? null,
       stalledPageCalls: this.agent.stalledPageCallLabels(),
+      recordingForMs: this.agent.recordingForMs(),
       lease: this.leaseStatus(),
     };
   }
@@ -789,6 +803,8 @@ export class AgentDaemon {
     this.registerWaitRoute();
     this.registerFrameRoute();
     this.registerBurstRoute();
+    this.registerVideoRoutes();
+    this.registerCameraRoutes();
     this.registerReconnectRoute();
 
     this.server.get("/memory", async () => this.agent.memoryStatus());
@@ -1323,6 +1339,135 @@ export class AgentDaemon {
         overrunFrameCount: burst.overrunFrameCount,
       };
     });
+  }
+
+  private registerVideoRoutes(): void {
+    const startBodySchema = z.object({
+      fps: z.number().min(1).max(120).optional(),
+      bitsPerSecond: z.number().int().min(100_000).optional(),
+      maxDurationMs: z
+        .number()
+        .int()
+        .min(200)
+        .max(VIDEO_MAX_DURATION_MS)
+        .default(VIDEO_DEFAULT_MAX_DURATION_MS),
+      isPure: z.boolean().optional(),
+      width: z.number().optional(),
+      height: z.number().optional(),
+      scale: z.number().optional(),
+      allowStale: z.boolean().optional(),
+    });
+
+    this.server.post("/video/start", async (req, reply) => {
+      const parsed = startBodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        reply.code(400);
+        return { ok: false, error: parsed.error.flatten() };
+      }
+      const body = parsed.data;
+      const guardQuery = { allowStale: body.allowStale ? "true" : undefined };
+      if (!(await this.assertReadableWorld(guardQuery, reply))) return reply;
+
+      try {
+        const started = await this.agent.startVideoRecording({
+          fps: body.fps,
+          bitsPerSecond: body.bitsPerSecond,
+          maxDurationMs: body.maxDurationMs,
+          isPure: body.isPure,
+          width: body.width ?? VIDEO_DEFAULT_WIDTH,
+          height: body.height ?? VIDEO_DEFAULT_HEIGHT,
+          deviceScaleFactor: body.scale,
+        });
+        return { ok: true, ...started };
+      } catch (e) {
+        if (e instanceof CaptureViewportError) {
+          reply.code(400);
+          return { ok: false, error: e.message };
+        }
+        // A take already running is a conflict the caller can act on, not a
+        // daemon fault: say so with the running take's age.
+        reply.code(409);
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    this.server.post<{ Body: { label?: string } }>(
+      "/video/stop",
+      async (req, reply) => {
+        const label = sanitizeFileLabel(req.body?.label ?? "clip");
+        try {
+          const recording = await this.agent.stopVideoRecording(
+            ensureCaptureDir(),
+            `agent-video-${label}-${Date.now()}`,
+          );
+          return { ok: true, ...recording };
+        } catch (e) {
+          if (this.agent.recordingForMs() === null) {
+            reply.code(409);
+            return {
+              ok: false,
+              error: e instanceof Error ? e.message : String(e),
+            };
+          }
+          throw e;
+        }
+      },
+    );
+
+    this.server.get("/video/status", async () => this.agent.videoStatus());
+  }
+
+  private registerCameraRoutes(): void {
+    const subjectAim = {
+      offset: vec3Schema.optional(),
+      aimY: z.number().optional(),
+    };
+    const aimSchema = z.union([
+      z.object({ point: vec3Schema }),
+      z.object({ entityId: z.string(), ...subjectAim }),
+      z.object({ kind: z.string(), ...subjectAim }),
+    ]);
+    const shotSchema = z.object({
+      keyframes: z
+        .array(
+          z.object({
+            atMs: z.number().min(0),
+            position: vec3Schema,
+            aim: aimSchema,
+            fov: z.number().min(30).max(150).optional(),
+          }),
+        )
+        .min(2),
+      easing: z.enum(["linear", "in", "out", "inOut", "sine"]).optional(),
+      isLinear: z.boolean().optional(),
+    });
+
+    this.server.post("/camera/shot", async (req, reply) => {
+      const parsed = shotSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        reply.code(400);
+        return { ok: false, error: parsed.error.flatten() };
+      }
+      if (!(await this.assertReadableWorld({}, reply))) return reply;
+
+      try {
+        return { ok: true, ...(await this.agent.startCameraShot(parsed.data)) };
+      } catch (e) {
+        // A malformed shot (keyframes out of order, first not at zero) is the
+        // caller's mistake, not a page fault: say which, with the reason.
+        reply.code(400);
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    this.server.post("/camera/stop", async () => ({
+      ok: true,
+      ...(await this.agent.stopCameraShot()),
+    }));
+
+    this.server.get("/camera/status", async () =>
+      this.agent.cameraShotStatus(),
+    );
   }
 
   private registerReconnectRoute(): void {
