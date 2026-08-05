@@ -166,9 +166,14 @@ export class Arena {
   async wipe(): Promise<void> {
     const [ox, oy, oz] = this.origin;
     const max = MAX_ARENA_FOOTPRINT;
+    // The ceiling must clear the tallest thing a scenario can build: a
+    // cage() lid sits at rel size[1] - 1, which for tall arenas is above
+    // the flat WIPE_Y_ABOVE — leaving an invisible Barrier lid floating
+    // over the slot for every later scenario (found the hard way).
+    const wipeTop = Math.max(WIPE_Y_ABOVE, this.size[1] + 1);
     await this.call("test:fill", {
       min: [ox - WIPE_PAD, oy - WIPE_Y_BELOW, oz - WIPE_PAD],
-      max: [ox + max + WIPE_PAD, oy + WIPE_Y_ABOVE, oz + max + WIPE_PAD],
+      max: [ox + max + WIPE_PAD, oy + wipeTop, oz + max + WIPE_PAD],
       block: "air",
     });
   }
