@@ -402,6 +402,13 @@ fn process_pending_updates(
     let mut removed_light_sources = Vec::new();
     let mut processed_updates = Vec::new();
 
+    // Voxels whose active tickers must be consulted once every write in this
+    // call has committed. Written voxels and their neighbors are kept apart
+    // because they consult under different rules (a written voxel may be
+    // active air, a neighbor may not).
+    let mut written_voxels: HashSet<Vec3<i32>> = HashSet::new();
+    let mut neighbor_voxels: HashSet<Vec3<i32>> = HashSet::new();
+
     for (coords, chunk_updates) in updates_by_chunk {
         if !chunks.is_chunk_ready(&coords) {
             for (voxel, raw) in chunk_updates.into_iter().rev() {
@@ -512,43 +519,9 @@ fn process_pending_updates(
             chunks.set_voxel_waterlogged(vx, vy, vz, is_waterlogged);
             chunks.set_voxel_waterlog_level(vx, vy, vz, waterlog_level);
 
-            if updated_type.is_active {
-                let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
-                    Vec3(vx, vy, vz),
-                    &*chunks,
-                    registry,
-                );
-                schedule_active(chunks, &Vec3(vx, vy, vz), ticks, current_tick);
-            }
-
+            written_voxels.insert(voxel.clone());
             for [ox, oy, oz] in VOXEL_NEIGHBORS_WITH_STAIRS {
-                let nx = vx + ox;
-                let ny = vy + oy;
-                let nz = vz + oz;
-
-                let neighbor_id = chunks.get_voxel(nx, ny, nz);
-                let neighbor_block = registry.get_block_by_id(neighbor_id);
-
-                let should_activate = neighbor_block.is_active
-                    && (neighbor_block.is_fluid || !registry.is_air(neighbor_id));
-
-                if should_activate {
-                    let ticks = (&neighbor_block.active_ticker.as_ref().unwrap())(
-                        Vec3(nx, ny, nz),
-                        &*chunks,
-                        registry,
-                    );
-                    schedule_active(chunks, &Vec3(nx, ny, nz), ticks, current_tick);
-                    continue;
-                }
-
-                if chunks.get_voxel_waterlogged(nx, ny, nz) {
-                    mark_waterlogged_fluid_active(chunks, registry, Vec3(nx, ny, nz), current_tick);
-                }
-            }
-
-            if is_waterlogged && !updated_type.is_active {
-                mark_waterlogged_fluid_active(chunks, registry, Vec3(vx, vy, vz), current_tick);
+                neighbor_voxels.insert(Vec3(vx + ox, vy + oy, vz + oz));
             }
 
             if updated_type.rotatable || updated_type.y_rotatable {
@@ -582,6 +555,48 @@ fn process_pending_updates(
                 voxel: 0,
                 light: 0,
             });
+        }
+    }
+
+    // Ticker consults run only after every write in this call has committed.
+    // Consulting inline read half-applied state: when a door pair committed in
+    // one batch, the top's write consulted the bottom's ticker while the
+    // bottom still read closed, scheduling a zero-delay wake — and since
+    // `mark_voxel_active` keeps the earliest deadline, the correct dwell
+    // scheduled a moment later could never override it, so the door slammed
+    // shut in the tick a button opened it. Post-commit, a ticker always sees
+    // the state the tick actually produced.
+    neighbor_voxels.retain(|voxel| !written_voxels.contains(voxel));
+    let mut ticker_consults: Vec<(Vec3<i32>, bool)> = written_voxels
+        .into_iter()
+        .map(|voxel| (voxel, true))
+        .chain(neighbor_voxels.into_iter().map(|voxel| (voxel, false)))
+        .collect();
+    ticker_consults.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
+
+    for (voxel, is_written) in ticker_consults {
+        let Vec3(vx, vy, vz) = voxel;
+        let id = chunks.get_voxel(vx, vy, vz);
+        let block = registry.get_block_by_id(id);
+
+        // A written voxel consults whatever it became, including active air
+        // (destruction propagation). A neighbor only consults real blocks and
+        // fluids, so plain air around an edit never schedules itself.
+        let should_consult = if is_written {
+            block.is_active
+        } else {
+            block.is_active && (block.is_fluid || !registry.is_air(id))
+        };
+
+        if should_consult {
+            let ticks =
+                (block.active_ticker.as_ref().unwrap())(Vec3(vx, vy, vz), &*chunks, registry);
+            schedule_active(chunks, &Vec3(vx, vy, vz), ticks, current_tick);
+            continue;
+        }
+
+        if chunks.get_voxel_waterlogged(vx, vy, vz) {
+            mark_waterlogged_fluid_active(chunks, registry, Vec3(vx, vy, vz), current_tick);
         }
     }
 

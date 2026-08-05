@@ -722,6 +722,12 @@ impl Chunks {
     }
 
     /// Flush staged updates into the processing queue. Called before processing updates.
+    ///
+    /// Staged updates commit in (y, x, z) order rather than HashMap order:
+    /// multi-voxel structures are written bottom-up, so when a batch is cut by
+    /// the per-tick budget, a door bottom (or tall-plant base) is always
+    /// committed before the half that depends on it. Random order let the
+    /// dependent half commit first and watch its support "missing" for a tick.
     pub fn flush_staged_updates(&mut self) {
         if self.updates_staging.is_empty() {
             return;
@@ -730,7 +736,10 @@ impl Chunks {
         self.updates
             .retain(|(v, _)| !self.updates_staging.contains_key(v));
 
-        for (voxel, val) in self.updates_staging.drain() {
+        let mut staged: Vec<(Vec3<i32>, u32)> = self.updates_staging.drain().collect();
+        staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
+
+        for (voxel, val) in staged {
             self.updates.push_back((voxel, val));
         }
     }
