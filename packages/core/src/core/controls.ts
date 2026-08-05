@@ -1091,6 +1091,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   /**
    * Attach a {@link Character} to this controls instance. This can be seen in 2nd/3rd person mode.
    *
+   * The character's height drives the collision height and eye level so the
+   * camera sits where the model's eyes are. Width and depth deliberately stay
+   * at `options.bodyWidth`/`options.bodyDepth`: the visual model is wider
+   * than the hull should be (a model-width hull could not fit through an
+   * open door's leaf gap), and a collision hull narrower than the body is
+   * the norm players expect.
+   *
    * @param character The {@link Character} to attach to this controls instance.
    * @param newLerpFactor The new lerp factor to use for the character.
    */
@@ -1105,14 +1112,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const crouchRatio = this.options.crouchBodyHeight / this.options.bodyHeight;
 
     this.options.bodyHeight = character.totalHeight;
-    this.options.bodyWidth = character.body.width;
-    this.options.bodyDepth = character.body.depth;
     this.options.eyeHeight = character.eyeHeight / character.totalHeight;
     this.options.crouchBodyHeight = character.totalHeight * crouchRatio;
 
-    this.body.aabb.maxX = this.body.aabb.minX + this.options.bodyWidth;
     this.body.aabb.maxY = this.body.aabb.minY + this.options.bodyHeight;
-    this.body.aabb.maxZ = this.body.aabb.minZ + this.options.bodyDepth;
 
     this._smoothedBodyHeight = this.options.bodyHeight;
     this._crouching = false;
