@@ -73,13 +73,26 @@ impl MetadataComp {
         }
     }
 
-    /// Get a component's metadata
+    /// Get a component's metadata. Malformed metadata (a stale persisted
+    /// shape, a bad client payload) reads as absent with a loud error
+    /// instead of panicking: the panic unwound into the world actor's
+    /// catch_unwind, which silently swallowed whatever operation carried
+    /// it — entity spawns vanished without a trace.
     pub fn get<T: Component + DeserializeOwned>(&self, component: &str) -> Option<T> {
-        if let Some(component) = self.map.get(component) {
-            return Some(serde_json::from_value(component.to_owned()).unwrap());
+        let value = self.map.get(component)?;
+        match serde_json::from_value(value.to_owned()) {
+            Ok(data) => Some(data),
+            Err(err) => {
+                log::error!(
+                    "metadata key '{}' failed to deserialize as {} and reads as absent: {} (value: {})",
+                    component,
+                    std::any::type_name::<T>(),
+                    err,
+                    value
+                );
+                None
+            }
         }
-
-        None
     }
 
     /// Serialize to JSON, returning whether it changed since the last call.
