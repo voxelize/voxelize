@@ -681,6 +681,7 @@ export class Character extends Group {
     }
 
     this.nametag.text = username;
+    this.nametag.visible = true;
   }
 
   /**
