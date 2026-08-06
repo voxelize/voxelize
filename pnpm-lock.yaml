@@ -394,6 +394,31 @@ importers:
         specifier: ^5.4.14
         version: 5.4.21(@types/node@25.5.2)(terser@5.46.1)
 
+  packages/particles:
+    dependencies:
+      '@voxelize/aabb':
+        specifier: workspace:*
+        version: link:../aabb
+      '@voxelize/physics-engine':
+        specifier: workspace:*
+        version: link:../physics-engine
+    devDependencies:
+      '@types/three':
+        specifier: ^0.182.0
+        version: 0.182.0
+      cross-env:
+        specifier: ^7.0.3
+        version: 7.0.3
+      three:
+        specifier: ^0.183.0
+        version: 0.183.2
+      tsup:
+        specifier: ^5.12.9
+        version: 5.12.9(@swc/core@1.15.24)(postcss@8.5.8)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+
   packages/physics-engine:
     dependencies:
       '@voxelize/aabb':

@@ -25,6 +25,7 @@
     "@voxelize/physics-engine": "workspace:*"
   },
   "devDependencies": {
+    "@types/three": "^0.182.0",
     "cross-env": "^7.0.3",
     "three": "^0.183.0",
     "tsup": "^5.12.9",
