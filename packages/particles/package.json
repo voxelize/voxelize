@@ -1,0 +1,36 @@
+{
+  "name": "@voxelize/particles",
+  "version": "3.0.0",
+  "license": "MIT",
+  "description": "Pooled instanced particle engine for Voxelize worlds",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "require": "./dist/index.js",
+    "import": "./dist/index.mjs",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "watch": "cross-env NODE_ENV=development pnpm build --watch",
+    "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
+    "prepublishOnly": "pnpm run build"
+  },
+  "author": "Ian Huang <ian1314159@gmail.com>",
+  "dependencies": {
+    "@voxelize/aabb": "workspace:*",
+    "@voxelize/physics-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "three": "^0.183.0",
+    "tsup": "^5.12.9",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "three": ">=0.150.0"
+  }
+}
