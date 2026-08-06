@@ -1,5 +1,6 @@
 import { applyStyles, createElement, type StyleDecl } from "./dom";
 import { FpsMeter } from "./fps-meter";
+import { FrameSampler } from "./frame-sampler";
 
 export type DebugOptions = {
   stats?: boolean;
@@ -83,6 +84,7 @@ export class LegacyDebug {
   public domElement: HTMLElement;
   public stats?: FpsMeter;
 
+  private sampler?: FrameSampler;
   private entries: DataEntry[] = [];
 
   constructor(
@@ -120,7 +122,8 @@ export class LegacyDebug {
     }) as HTMLDivElement;
 
     if (this.options.stats) {
-      this.stats = new FpsMeter();
+      this.sampler = new FrameSampler();
+      this.stats = new FpsMeter({ sampler: this.sampler });
       applyStyles(this.stats.element, {
         marginTop: "6px",
         ...(this.options.statsStyles ?? {}),
@@ -218,6 +221,7 @@ export class LegacyDebug {
         entry.lastText = formatted;
       }
     });
+    this.sampler?.update();
     this.stats?.update();
   };
 

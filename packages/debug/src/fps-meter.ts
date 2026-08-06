@@ -1,21 +1,30 @@
 import { createElement } from "./dom";
+import {
+  DEFAULT_FRAME_THRESHOLDS,
+  drawFrameGraph,
+  type FrameThresholds,
+} from "./frame-graph";
+import type { FrameSampler } from "./frame-sampler";
 
-const HISTORY = 80;
+export type FpsMeterOptions = {
+  sampler: FrameSampler;
+  thresholds?: FrameThresholds;
+};
 
 export class FpsMeter {
   readonly element: HTMLElement;
 
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private fpsLabel: HTMLSpanElement;
-  private msLabel: HTMLSpanElement;
-  private samples: number[] = [];
-  private lastFrame = performance.now();
-  private lastUpdate = 0;
-  private currentFps = 0;
-  private currentMs = 0;
+  private readonly sampler: FrameSampler;
+  private readonly thresholds: FrameThresholds;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly fpsLabel: HTMLSpanElement;
+  private readonly msLabel: HTMLSpanElement;
+  private renderedRevision = -1;
 
-  constructor() {
+  constructor(options: FpsMeterOptions) {
+    this.sampler = options.sampler;
+    this.thresholds = options.thresholds ?? DEFAULT_FRAME_THRESHOLDS;
+
     this.element = createElement("div", { className: "vxd-fps" });
 
     const header = createElement("div", {
@@ -35,60 +44,29 @@ export class FpsMeter {
 
     this.canvas = createElement("canvas", {
       className: "vxd-fps-graph",
-      attrs: { width: String(HISTORY * 2), height: "24" },
+      attrs: {
+        width: String(this.sampler.historySize * 2),
+        height: "24",
+      },
       parent: this.element,
     });
-
-    const ctx = this.canvas.getContext("2d");
-    if (!ctx) throw new Error("FpsMeter: 2D canvas context unavailable");
-    this.ctx = ctx;
   }
 
   update(): void {
-    const now = performance.now();
-    const frameMs = now - this.lastFrame;
-    this.lastFrame = now;
+    if (this.renderedRevision === this.sampler.revision) return;
+    this.renderedRevision = this.sampler.revision;
 
-    if (frameMs <= 0 || frameMs > 1000) return;
-
-    this.samples.push(frameMs);
-    if (this.samples.length > HISTORY) this.samples.shift();
-
-    if (now - this.lastUpdate >= 200) {
-      this.lastUpdate = now;
-      const sum = this.samples.reduce((acc, v) => acc + v, 0);
-      const avg = sum / this.samples.length;
-      this.currentFps = Math.round(1000 / avg);
-      this.currentMs = Math.round(avg * 10) / 10;
-      this.fpsLabel.textContent = `${this.currentFps} fps`;
-      this.msLabel.textContent = `${this.currentMs.toFixed(1)} ms`;
-      this.drawGraph();
-    }
+    this.fpsLabel.textContent = `${this.sampler.fps} fps`;
+    this.msLabel.textContent = `${this.sampler.frameMs.toFixed(1)} ms`;
+    drawFrameGraph(
+      this.canvas,
+      this.sampler.frames,
+      this.sampler.historySize,
+      this.thresholds,
+    );
   }
 
   dispose(): void {
     this.element.remove();
-  }
-
-  private drawGraph(): void {
-    const { ctx, canvas, samples } = this;
-    const width = canvas.width;
-    const height = canvas.height;
-    ctx.clearRect(0, 0, width, height);
-
-    if (samples.length === 0) return;
-
-    const cap = 33;
-    const barWidth = width / HISTORY;
-
-    for (let i = 0; i < samples.length; i++) {
-      const ms = samples[i];
-      const normalized = Math.min(ms / cap, 1);
-      const barHeight = Math.max(1, Math.round(normalized * height));
-      const x = Math.floor(i * barWidth);
-
-      ctx.fillStyle = ms <= 17 ? "#5fb86b" : ms <= 25 ? "#d6a44e" : "#d04a4a";
-      ctx.fillRect(x, height - barHeight, Math.ceil(barWidth) - 1, barHeight);
-    }
   }
 }

@@ -1,6 +1,6 @@
-import type { StorageScope } from "./controllers";
 import { createElement } from "./dom";
 import type { LogEntry, LogLevel, Logger } from "./logger";
+import type { StorageScope } from "./storage";
 
 const LEVELS: LogLevel[] = ["debug", "info", "warn", "error"];
 
@@ -199,6 +199,18 @@ export class LogPane {
       this.refreshBadge();
       this.scrollToBottom();
     }
+  }
+
+  toggleCollapsed(): void {
+    this.setCollapsed(!this.isCollapsed);
+  }
+
+  isOpen(): boolean {
+    return !this.isCollapsed;
+  }
+
+  getUnreadCount(): number {
+    return this.unreadCount;
   }
 
   setTitle(title: string): void {

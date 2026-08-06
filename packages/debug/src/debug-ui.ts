@@ -1,36 +1,37 @@
-import type { StorageScope } from "./controllers";
 import { createElement, isInteractiveTarget } from "./dom";
+import { FrameSampler } from "./frame-sampler";
 import { LogPane } from "./log-pane";
 import { Logger } from "./logger";
-import { Pane } from "./pane";
-import { StatsPanel } from "./stats-panel";
-import { DebugStorage } from "./storage";
+import { StatusBar } from "./status-bar";
+import { DebugStorage, type StorageScope } from "./storage";
+
+export const STATUS_BAR_INSET_VARIABLE = "--vxd-statusbar-inset";
 
 export type DebugUIOptions = {
   parent?: HTMLElement;
   namespace?: string;
   hotkey?: string;
-  showStats?: boolean;
-  showPane?: boolean;
   showLogs?: boolean;
+  showStatusBar?: boolean;
   visibleByDefault?: boolean;
   legacyStorageKeys?: string[];
-  paneTitle?: string;
   logger?: Logger;
+  statusBarHeightPx?: number;
 };
 
 export class DebugUI {
   readonly storage: DebugStorage;
   readonly logger: Logger;
-  readonly stats: StatsPanel;
-  readonly pane: Pane;
+  readonly sampler: FrameSampler;
   readonly logs: LogPane;
+  readonly statusBar: StatusBar;
 
   readonly element: HTMLDivElement;
 
   private readonly storageScope: StorageScope;
   private readonly parent: HTMLElement;
   private readonly visiblePath = "ui.visible";
+  private readonly isStatusBarMounted: boolean;
   private isVisible: boolean;
   private hotkeyHandler: ((event: KeyboardEvent) => void) | null = null;
 
@@ -45,6 +46,7 @@ export class DebugUI {
 
     this.storageScope = { storage: this.storage, basePath: "settings" };
     this.logger = options.logger ?? new Logger({ maxEntries: 500 });
+    this.sampler = new FrameSampler();
 
     this.parent = options.parent ?? document.body;
 
@@ -56,30 +58,25 @@ export class DebugUI {
       id: `${namespace}-debug-root`,
     }) as HTMLDivElement;
 
-    const leftColumn = createElement("div", {
-      className: "vxd-column vxd-column-left",
-      parent: this.element,
-    });
-
     const rightColumn = createElement("div", {
       className: "vxd-column vxd-column-right",
       parent: this.element,
     });
 
-    this.stats = new StatsPanel();
-    if (options.showStats !== false) leftColumn.appendChild(this.stats.element);
-
     this.logs = new LogPane({
       logger: this.logger,
-      storage: { storage: this.storage, basePath: "settings" },
+      storage: this.storageScope,
     });
     if (options.showLogs !== false) rightColumn.appendChild(this.logs.element);
 
-    this.pane = new Pane({
-      title: options.paneTitle ?? "Debug",
-      storage: this.storageScope,
+    this.statusBar = new StatusBar({
+      sampler: this.sampler,
+      heightPx: options.statusBarHeightPx,
     });
-    if (options.showPane !== false) rightColumn.appendChild(this.pane.element);
+    this.isStatusBarMounted = options.showStatusBar !== false;
+    if (this.isStatusBarMounted) {
+      this.element.appendChild(this.statusBar.element);
+    }
 
     const storedVisible = this.storage.get(this.visiblePath);
     this.isVisible =
@@ -109,12 +106,9 @@ export class DebugUI {
   }
 
   update(): void {
-    if (!this.isVisible) {
-      this.stats.update();
-      return;
-    }
-    this.stats.update();
-    this.pane.update();
+    this.sampler.update();
+    if (!this.isVisible) return;
+    this.statusBar.update();
   }
 
   dispose(): void {
@@ -122,9 +116,9 @@ export class DebugUI {
       window.removeEventListener("keydown", this.hotkeyHandler);
       this.hotkeyHandler = null;
     }
-    this.stats.dispose();
-    this.pane.dispose();
+    this.publishStatusBarInset(false);
     this.logs.dispose();
+    this.statusBar.dispose();
     this.storage.flush();
     this.element.remove();
   }
@@ -132,6 +126,21 @@ export class DebugUI {
   private applyVisibility(): void {
     if (this.isVisible) this.element.classList.add("vxd-visible");
     else this.element.classList.remove("vxd-visible");
+    this.publishStatusBarInset(this.isVisible);
+  }
+
+  private publishStatusBarInset(visible: boolean): void {
+    // Host HUDs anchor to this so nothing sits underneath the bar. Published
+    // during construction too, from the persisted visibility, so a reload with
+    // the bar already on lays out right on the first paint instead of jumping.
+    const inset =
+      visible && this.isStatusBarMounted
+        ? `${this.statusBar.heightPx}px`
+        : "0px";
+    document.documentElement.style.setProperty(
+      STATUS_BAR_INSET_VARIABLE,
+      inset,
+    );
   }
 
   private bindHotkey(hotkey: string): void {

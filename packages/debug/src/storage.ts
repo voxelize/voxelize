@@ -14,6 +14,12 @@ export type StorageOptions = {
   legacyKeys?: string[];
 };
 
+/** A storage handle plus the prefix a component writes its keys under. */
+export type StorageScope = {
+  storage: DebugStorage;
+  basePath: string;
+};
+
 export class DebugStorage {
   private readonly key: string;
   private readonly debounceMs: number;
