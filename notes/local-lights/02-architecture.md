@@ -82,8 +82,11 @@ incremental CPU updates.
 ### Options compared
 
 **(a) World-space clustered grid — recommended.** A camera-centered, world-axis-aligned 3D
-grid (default: 8-block cells, 24×12×24 cells = 192×96×192 blocks) holding, per cell, up to
-`maxLightsPerCell` light indices. Fragment: `worldPos → cell → fixed-slot loop`. The window
+grid (default: 8-block cells, 24×12×24 cells = 192×96×192 blocks — the vertical span is
+deliberately half the horizontal, matching mostly-horizontal gameplay; `gridDims` is an
+option for games with tall verticality, and selection culls against the window so the
+shorter axis never wastes slots) holding, per cell, up to `maxLightsPerCell` light
+indices. Fragment: `worldPos → cell → fixed-slot loop`. The window
 scrolls with the camera in whole cells; light-to-cell assignment changes only when a light
 moves/appears/dies or the window scrolls a row of cells — both incremental, both O(cells
 touched). Camera *rotation* costs zero. The grid is the same shape as the world's own
@@ -126,12 +129,13 @@ scene profile without the upheaval [2][3]; rejected on evidence, per the task co
   per axis. A light with range r overlaps ⌈(2r)/8⌉³ cells ≈ 27 cells for r = 10 — cheap to
   re-bin on move.
 - **Fixed slots per cell** (`maxLightsPerCell`, default 8, tier-scaled): a `R8UI`
-  `DataTexture` of dims `(cellCount, slots)`; slot value = light index + 1, `0` = empty —
-  which caps the clustered set at **255** (the ultra tier's ceiling; a hypothetical larger
-  tier promotes the texture to `R16UI` with no other design change). Fixed slots (vs
-  offset+count lists) make single-cell updates a `texSubImage2D` of one column with zero
-  re-linearization — the incremental property matters more than the memory
-  (24×12×24×8 = 55 KB).
+  `DataTexture`; slot value = light rank + 1, `0` = empty — which caps the clustered set
+  at **255** (the ultra tier's ceiling; a hypothetical larger tier promotes the texture
+  to `R16UI` with no other design change). **[implemented]** The texture lays 32 cells
+  of 8 slots per row (256×216 texels for the default dims), comfortably inside WebGL2's
+  guaranteed 2048 `MAX_TEXTURE_SIZE`; a naive `(cellCount, slots)` layout would exceed
+  it. The 55 KB texture uploads whole on change frames — cheaper than scattered
+  sub-uploads, and free on idle frames.
 - **Overflow policy:** when > 8 lights overlap a cell, keep the 8 highest-importance
   (deterministic; §4), drop the rest *for that cell only*, count it in
   `stats.overflowCells`. Visual effect is bounded because dropped lights keep L0 flood.
@@ -241,12 +245,21 @@ has:
 float occ = smoothstep(0.0, MASK_KNEE, dot(vLight.rgb, LUMA));  // MASK_KNEE ≈ 2/15
 ```
 
-Properties: a torch behind a wall contributes *zero* analytic light on the far side (the
-flood is zero there); no shadow camera, no map, no invalidation — occlusion updates ride
-the existing relight on block edits. Limitations, stated honestly: voxel-resolution
-(vertex-interpolated) edges — a soft ~1-block penumbra at wall boundaries rather than a
-crisp line; no occlusion from *entities* (a player in front of a torch blocks nothing);
-and it only works where a flood exists, i.e. static block emitters.
+Properties: an isolated torch behind a wall contributes *zero* analytic light on the far
+side (the flood is zero there); no shadow camera, no map, no invalidation — occlusion
+updates ride the existing relight on block edits. Limitations, stated honestly:
+
+- **Voxel-resolution edges** (vertex-interpolated): a soft ~1-block penumbra at wall
+  boundaries rather than a crisp line.
+- **The mask is shared, not per-light.** The flood field is the sum of every emitter, so
+  where some *other* light legitimately reaches a fragment, the mask is open and an
+  occluded light's analytic falloff can bleed there too. The leak is bounded — it only
+  appears where the area is already lit by the unoccluded source, scaled by the occluded
+  light's distance falloff — and vanishes in the isolated case (the one that reads as a
+  glaring bug). Per-light occlusion is exactly what the L3 shadow maps buy; profiles that
+  cannot tolerate the bleed request `shadowPolicy: "shadowMap"`.
+- **No occlusion from entities** (a player in front of a torch blocks nothing).
+- Works only where a flood exists, i.e. static block emitters.
 
 **Dynamic** sources have no flood. Policy per descriptor:
 

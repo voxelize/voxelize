@@ -228,6 +228,20 @@ describe("LightClusterGrid selection", () => {
     expect(contributors).toBe(10);
   });
 
+  it("culls candidates outside the grid window's vertical span", () => {
+    const registry = new LightSourceRegistry(8);
+    // Window is 24x12x24 cells of 8 blocks: ±96 horizontal, ±48 vertical.
+    registry.add(pointLight({ range: 4 }), 8, 0, 0);
+    const tooHigh = registry.add(pointLight({ range: 4 }), 0, 60, 0);
+    const grid = makeGrid(registry, { analyticRadius: 96 });
+    const stats = makeStats();
+    grid.update(0, 0, 0, stats);
+    // The high light could never be binned; selecting it would waste a slot.
+    expect(stats.candidates).toBe(1);
+    expect(grid.selectedCount).toBe(1);
+    expect(grid.selectedIndices[0]).not.toBe(registry.resolve(tooHigh));
+  });
+
   it("caps the clustered set at the tier limit", () => {
     const registry = new LightSourceRegistry(64);
     for (let i = 0; i < 40; i++) {

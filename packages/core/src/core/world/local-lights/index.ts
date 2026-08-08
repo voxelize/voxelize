@@ -202,8 +202,8 @@ export class LocalLights {
     return this.registry.setIntensity(handle, intensity);
   }
 
-  setColor(handle: LightHandle, r: number, g: number, b: number): boolean {
-    return this.registry.setColor(handle, r, g, b);
+  setColor(handle: LightHandle, color: [number, number, number]): boolean {
+    return this.registry.setColor(handle, color);
   }
 
   setRange(handle: LightHandle, range: number): boolean {

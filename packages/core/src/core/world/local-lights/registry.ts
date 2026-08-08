@@ -268,12 +268,12 @@ export class LightSourceRegistry {
     return true;
   }
 
-  setColor(handle: LightHandle, r: number, g: number, b: number): boolean {
+  setColor(handle: LightHandle, color: [number, number, number]): boolean {
     const index = this.resolve(handle);
     if (index < 0) return false;
-    this.colors[index * 3] = r;
-    this.colors[index * 3 + 1] = g;
-    this.colors[index * 3 + 2] = b;
+    this.colors[index * 3] = color[0];
+    this.colors[index * 3 + 1] = color[1];
+    this.colors[index * 3 + 2] = color[2];
     this.revision++;
     return true;
   }

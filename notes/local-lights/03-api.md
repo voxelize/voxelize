@@ -136,7 +136,7 @@ export class LocalLights {
   setPosition(handle: LightHandle, position: Vector3): boolean;   // dynamic only
   setDirection(handle: LightHandle, direction: Vector3): boolean; // spot only
   setIntensity(handle: LightHandle, intensity: number): boolean;
-  setColor(handle: LightHandle, r: number, g: number, b: number): boolean;
+  setColor(handle: LightHandle, color: [number, number, number]): boolean;
   setRange(handle: LightHandle, range: number): boolean;          // re-bins cells
   setEnabled(handle: LightHandle, isEnabled: boolean): boolean;
 

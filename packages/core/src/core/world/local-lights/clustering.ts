@@ -301,8 +301,15 @@ export class LightClusterGrid {
       priorityBiases,
     } = this.registry;
     const radius = this.analyticRadius;
-    const radius2 = radius * radius;
     const limit = this.maxClusteredLights;
+    const cellSize = this.uniforms.gridCellSize.value;
+    // Candidates must be able to touch both the analytic radius and the grid
+    // window: a light past the window (the vertical span is deliberately
+    // shorter than the horizontal) could never be binned, so selecting it
+    // would waste a slot.
+    const windowHalfX = Math.min((this.gridDims[0] * cellSize) / 2, radius);
+    const windowHalfY = Math.min((this.gridDims[1] * cellSize) / 2, radius);
+    const windowHalfZ = Math.min((this.gridDims[2] * cellSize) / 2, radius);
     const heapScores = this.heapScores;
     const heapIndices = this.heapIndices;
     let heapSize = 0;
@@ -315,12 +322,14 @@ export class LightClusterGrid {
       const dy = positions[i * 3 + 1] - cameraY;
       const dz = positions[i * 3 + 2] - cameraZ;
       const range = ranges[i];
-      const reach = radius + range;
+      if (
+        Math.abs(dx) > windowHalfX + range ||
+        Math.abs(dy) > windowHalfY + range ||
+        Math.abs(dz) > windowHalfZ + range
+      ) {
+        continue;
+      }
       const d2 = dx * dx + dy * dy + dz * dz;
-      // A light whose sphere of influence cannot touch the analytic radius
-      // can never matter; everything closer competes on importance.
-      if (d2 > reach * reach) continue;
-      if (d2 > radius2 && limit === 0) continue;
       candidates++;
       if (limit === 0) continue;
 
