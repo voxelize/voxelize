@@ -42,16 +42,26 @@ mod chunk_persistence_tests {
     const GROUND_HEIGHT: i32 = 4;
     const ROOF_Y: i32 = 12;
     const WORLD_EDGE: i32 = 1;
-    const MAX_PRELOAD_TICKS: usize = 4000;
+    /// Progress happens on worker pools, so the waits below are bounded by
+    /// wall time, not tick count: a tick with an idle pipeline is
+    /// microseconds, so a fixed tick budget elapses in a couple of wall
+    /// seconds exactly when the workers are starved (CI runners under load),
+    /// while a healthy preload finishes in milliseconds. Sixty seconds is
+    /// orders of magnitude beyond healthy and still fails fast enough to
+    /// flag a genuinely wedged world.
+    const WAIT_DEADLINE: Duration = Duration::from_secs(60);
+    /// Yield between waiting ticks so the spin does not starve the very
+    /// worker threads it is waiting on.
+    const WAIT_TICK_PAUSE: Duration = Duration::from_millis(1);
     /// Long enough for the save queue to drain at `max_saves_per_tick` and for
     /// the background saver to pass its flush interval, so "no further file
     /// appeared" is a real observation rather than a race the test won.
     const SAVE_DRAIN_TICKS: usize = 60;
     /// Preload reporting complete does not mean lighting has settled: chunks
-    /// keep relighting for a while afterwards. These bound the wait for light
-    /// to stop moving, so the tests compare settled worlds rather than two
-    /// arbitrary moments in a still-running relight.
-    const MAX_SETTLE_TICKS: usize = 4000;
+    /// keep relighting for a while afterwards. The confirm count bounds how
+    /// long light must hold still to count as settled, so the tests compare
+    /// settled worlds rather than two arbitrary moments in a still-running
+    /// relight.
     const SETTLE_CONFIRM_TICKS: usize = 30;
 
     /// Flat ground under a roof covering half the world, so sunlight reaches
@@ -124,7 +134,8 @@ mod chunk_persistence_tests {
         world.prepare();
         world.preload();
 
-        for _ in 0..MAX_PRELOAD_TICKS {
+        let deadline = Instant::now() + WAIT_DEADLINE;
+        while Instant::now() < deadline {
             world.tick();
 
             if !world.preloading {
@@ -132,9 +143,11 @@ mod chunk_persistence_tests {
                 settle_light(&mut world);
                 return world;
             }
+
+            std::thread::sleep(WAIT_TICK_PAUSE);
         }
 
-        panic!("world never finished preloading");
+        panic!("world never finished preloading within {WAIT_DEADLINE:?}");
     }
 
     /// Preload completion only guarantees the interior of the preload area is
@@ -145,7 +158,8 @@ mod chunk_persistence_tests {
     /// settled darkness, so snapshots must not run until every chunk is
     /// `Ready`.
     fn wait_until_all_chunks_ready(world: &mut World) {
-        for _ in 0..MAX_PRELOAD_TICKS {
+        let deadline = Instant::now() + WAIT_DEADLINE;
+        while Instant::now() < deadline {
             let all_ready = {
                 let chunks = world.chunks();
                 all_coords()
@@ -158,16 +172,18 @@ mod chunk_persistence_tests {
             }
 
             world.tick();
+            std::thread::sleep(WAIT_TICK_PAUSE);
         }
 
-        panic!("chunks never all reached Ready after preload");
+        panic!("chunks never all reached Ready within {WAIT_DEADLINE:?} after preload");
     }
 
     fn settle_light(world: &mut World) {
         let mut previous = light_signature(world);
         let mut unchanged = 0;
 
-        for _ in 0..MAX_SETTLE_TICKS {
+        let deadline = Instant::now() + WAIT_DEADLINE;
+        while Instant::now() < deadline {
             world.tick();
             let current = light_signature(world);
 
@@ -184,7 +200,7 @@ mod chunk_persistence_tests {
             previous = current;
         }
 
-        panic!("light never stopped changing");
+        panic!("light never stopped changing within {WAIT_DEADLINE:?}");
     }
 
     fn light_signature(world: &World) -> Vec<u32> {
