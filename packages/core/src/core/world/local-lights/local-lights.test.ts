@@ -192,6 +192,26 @@ describe("LightClusterGrid selection", () => {
     expect(grid.selectedIndices[0]).toBe(registry.resolve(incumbent));
   });
 
+  it("does not leak hysteresis onto a new light reusing a freed slot", () => {
+    const registry = new LightSourceRegistry(2);
+    const incumbent = registry.add(pointLight(), 8, 0, 0);
+    const grid = makeGrid(registry, { maxClusteredLights: 1 });
+    const stats = makeStats();
+    grid.update(0, 0, 0, stats);
+    expect(grid.selectedIndices[0]).toBe(registry.resolve(incumbent));
+
+    // The incumbent dies; a challenger reuses its slot at a slightly worse
+    // spot than a new second light. Without generation-checked hysteresis
+    // the reused slot would inherit the dead light's boost and win.
+    registry.remove(incumbent);
+    const reusedSlot = registry.add(pointLight(), 8, 0, 0);
+    const closer = registry.add(pointLight(), 7.6, 0, 0);
+    grid.update(0, 0, 0, stats);
+    expect(grid.selectedCount).toBe(1);
+    expect(grid.selectedIndices[0]).toBe(registry.resolve(closer));
+    expect(registry.resolve(reusedSlot)).toBeGreaterThanOrEqual(0);
+  });
+
   it("does nothing when neither the registry nor the camera cell changed", () => {
     const registry = new LightSourceRegistry(8);
     registry.add(pointLight(), 4, 0, 4);

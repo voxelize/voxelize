@@ -73,7 +73,13 @@ export class LightClusterGrid {
   private readonly heapScores: Float64Array;
   private readonly heapIndices: Uint32Array;
   private readonly sortedScores: Float64Array;
-  private readonly wasSelected: Uint8Array;
+  /**
+   * Generation of the light selected in the previous pass, per slot; `0` is
+   * never a live generation. Keying hysteresis to the generation (not the
+   * slot) keeps a freshly added light from inheriting the boost of a removed
+   * one that happened to reuse its slot.
+   */
+  private readonly selectedGenerations: Uint16Array;
 
   private maxClusteredLights: number;
   private maxLightsPerCell: number;
@@ -156,7 +162,7 @@ export class LightClusterGrid {
     this.heapScores = new Float64Array(MAX_CLUSTERED_LIGHTS);
     this.heapIndices = new Uint32Array(MAX_CLUSTERED_LIGHTS);
     this.sortedScores = new Float64Array(MAX_CLUSTERED_LIGHTS);
-    this.wasSelected = new Uint8Array(registry.capacity);
+    this.selectedGenerations = new Uint16Array(registry.capacity);
   }
 
   setTierCaps(
@@ -181,7 +187,7 @@ export class LightClusterGrid {
    * it across the map.
    */
   resetHysteresis() {
-    this.wasSelected.fill(0);
+    this.selectedGenerations.fill(0);
     this.isForceDirty = true;
   }
 
@@ -303,13 +309,26 @@ export class LightClusterGrid {
     const radius = this.analyticRadius;
     const limit = this.maxClusteredLights;
     const cellSize = this.uniforms.gridCellSize.value;
-    // Candidates must be able to touch both the analytic radius and the grid
-    // window: a light past the window (the vertical span is deliberately
-    // shorter than the horizontal) could never be binned, so selecting it
-    // would waste a slot.
-    const windowHalfX = Math.min((this.gridDims[0] * cellSize) / 2, radius);
-    const windowHalfY = Math.min((this.gridDims[1] * cellSize) / 2, radius);
-    const windowHalfZ = Math.min((this.gridDims[2] * cellSize) / 2, radius);
+    // Candidates must be able to touch both the analytic radius and the
+    // exact cell-aligned window the binning and the shader use (the vertical
+    // span is deliberately shorter than the horizontal): a light outside it
+    // could never be binned, so selecting it would waste a slot.
+    const origin = this.uniforms.gridOrigin.value;
+    const lowX = Math.max(origin.x, cameraX - radius);
+    const lowY = Math.max(origin.y, cameraY - radius);
+    const lowZ = Math.max(origin.z, cameraZ - radius);
+    const highX = Math.min(
+      origin.x + this.gridDims[0] * cellSize,
+      cameraX + radius,
+    );
+    const highY = Math.min(
+      origin.y + this.gridDims[1] * cellSize,
+      cameraY + radius,
+    );
+    const highZ = Math.min(
+      origin.z + this.gridDims[2] * cellSize,
+      cameraZ + radius,
+    );
     const heapScores = this.heapScores;
     const heapIndices = this.heapIndices;
     let heapSize = 0;
@@ -318,17 +337,23 @@ export class LightClusterGrid {
     for (let k = 0; k < aliveCount; k++) {
       const i = aliveIndices[k];
       if (!this.registry.isEnabledAt(i)) continue;
-      const dx = positions[i * 3] - cameraX;
-      const dy = positions[i * 3 + 1] - cameraY;
-      const dz = positions[i * 3 + 2] - cameraZ;
+      const px = positions[i * 3];
+      const py = positions[i * 3 + 1];
+      const pz = positions[i * 3 + 2];
       const range = ranges[i];
       if (
-        Math.abs(dx) > windowHalfX + range ||
-        Math.abs(dy) > windowHalfY + range ||
-        Math.abs(dz) > windowHalfZ + range
+        px < lowX - range ||
+        px > highX + range ||
+        py < lowY - range ||
+        py > highY + range ||
+        pz < lowZ - range ||
+        pz > highZ + range
       ) {
         continue;
       }
+      const dx = px - cameraX;
+      const dy = py - cameraY;
+      const dz = pz - cameraZ;
       const d2 = dx * dx + dy * dy + dz * dz;
       candidates++;
       if (limit === 0) continue;
@@ -339,7 +364,9 @@ export class LightClusterGrid {
           colors[i * 3 + 1] * LUMA_G +
           colors[i * 3 + 2] * LUMA_B);
       let score = (luma * range * range) / Math.max(d2, 1) + priorityBiases[i];
-      if (this.wasSelected[i]) score *= this.selectionHysteresis;
+      if (this.selectedGenerations[i] === this.registry.generationAt(i)) {
+        score *= this.selectionHysteresis;
+      }
 
       if (heapSize < limit) {
         heapScores[heapSize] = score;
@@ -390,20 +417,25 @@ export class LightClusterGrid {
     }
 
     let churn = 0;
-    const wasSelected = this.wasSelected;
+    const selectedGenerations = this.selectedGenerations;
     for (let n = 0; n < count; n++) {
-      if (!wasSelected[selected[n]]) churn++;
+      const i = selected[n];
+      if (selectedGenerations[i] !== this.registry.generationAt(i)) churn++;
     }
     let previousCount = 0;
     for (let k = 0; k < aliveCount; k++) {
-      if (wasSelected[aliveIndices[k]]) previousCount++;
+      const i = aliveIndices[k];
+      if (selectedGenerations[i] === this.registry.generationAt(i)) {
+        previousCount++;
+      }
     }
     churn += Math.max(previousCount - (count - churn), 0);
     stats.selectionChurn = churn;
 
-    wasSelected.fill(0);
+    selectedGenerations.fill(0);
     for (let n = 0; n < count; n++) {
-      wasSelected[selected[n]] = 1;
+      const i = selected[n];
+      selectedGenerations[i] = this.registry.generationAt(i);
     }
 
     this.selectedCount = count;

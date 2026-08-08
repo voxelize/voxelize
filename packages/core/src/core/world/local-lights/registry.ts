@@ -231,6 +231,14 @@ export class LightSourceRegistry {
     return this.isAlive[index] ? index : -1;
   }
 
+  /**
+   * Current generation of a slot, for state keyed to a light's lifetime
+   * rather than its slot (selection hysteresis must not survive slot reuse).
+   */
+  generationAt(index: number): number {
+    return this.generations[index];
+  }
+
   isEnabledAt(index: number): boolean {
     return this.isEnabled[index] === 1;
   }

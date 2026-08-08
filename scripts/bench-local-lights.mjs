@@ -138,7 +138,7 @@ await sleep(1000);
 // The flat world persists edits; start every run from a clean slate.
 await teleportAndLook(EYE, ORIGIN);
 await settle(90000);
-await bench("runScene", "clear", BLOCK, ORIGIN, 140);
+await bench("runScene", "clear", BLOCK, ORIGIN, 10000);
 await bench("runScene", "clear-tunnel", BLOCK, TUNNEL_ORIGIN, 64);
 await sleep(4000);
 await settle(60000);
@@ -158,7 +158,7 @@ if (shouldRun("scaling")) {
   // the registry and selection at true record counts.
   await bench("setAggregation", BLOCK, "none");
   for (const count of [1, 16, 128, 1000]) {
-    await bench("runScene", "clear", BLOCK, ORIGIN, 140);
+    await bench("runScene", "clear", BLOCK, ORIGIN, 1000);
     await sleep(2000);
     await bench("runScene", "grid", BLOCK, ORIGIN, count);
     await sleep(2000);
@@ -169,7 +169,7 @@ if (shouldRun("scaling")) {
   }
   // 10k registered: a packed field; grids at this count would outrun the
   // world bounds, so density carries the count.
-  await bench("runScene", "clear", BLOCK, ORIGIN, 140);
+  await bench("runScene", "clear", BLOCK, ORIGIN, 1000);
   await sleep(2000);
   await bench("runScene", "field", BLOCK, ORIGIN, 10000);
   await sleep(6000);
@@ -186,7 +186,7 @@ if (shouldRun("scaling")) {
   await screenshot("s_lava_field_aggregated");
 
   await bench("clearProfile", BLOCK);
-  await bench("runScene", "clear", BLOCK, ORIGIN, 140);
+  await bench("runScene", "clear", BLOCK, ORIGIN, 10000);
   await sleep(4000);
   await settle(60000);
 }
@@ -227,7 +227,7 @@ if (shouldRun("churn")) {
   while (Date.now() - churnStart < 20000) {
     await bench("runScene", "grid", BLOCK, ORIGIN, 10);
     await sleep(500);
-    await bench("runScene", "clear", BLOCK, ORIGIN, 16);
+    await bench("runScene", "clear", BLOCK, ORIGIN, 10);
     await sleep(500);
     flips++;
   }
@@ -254,7 +254,7 @@ if (shouldRun("streaming")) {
     backRegistered: back.localLights.registered,
   };
   console.log("[bench] streaming registered:", results.scenes.streaming);
-  await bench("runScene", "clear", BLOCK, ORIGIN, 140);
+  await bench("runScene", "clear", BLOCK, ORIGIN, 1000);
   await sleep(2000);
 }
 

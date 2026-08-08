@@ -144,11 +144,14 @@ pub fn setup_methods(world: &mut World) {
                         .update_voxel(&Vec3(ox + gx, oy + 2, oz + gz), block_id);
                 }
             }
-            // Clear the single emitter layer of a `count`-sided square —
-            // exactly what "grid" and "field" wrote, so a clear never floods
-            // the update queue.
+            // Clear the single emitter layer a `count`-emitter "grid" or
+            // "field" scene wrote: the footprint is derived with the same
+            // side formula (at grid spacing, the wider of the two) and
+            // capped at the largest layout the bench worlds can host, so a
+            // clear stays inside one server tick's update budget instead of
+            // flooding the queue with a `count`-sided sweep.
             "clear" => {
-                let side = count.max(1);
+                let side = ((count.max(1) as f32).sqrt().ceil() as i32 * 4).min(160);
                 for gx in -2..side + 2 {
                     for gz in -2..side + 2 {
                         world
