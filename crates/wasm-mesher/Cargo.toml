@@ -1,3 +1,7 @@
+# Standalone workspace: wasm-pack builds this crate with its own profiles,
+# outside the root cargo workspace.
+[workspace]
+
 [package]
 name = "voxelize-wasm-mesher"
 version = "3.0.0"

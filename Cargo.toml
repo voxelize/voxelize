@@ -1,3 +1,10 @@
+[workspace]
+members = [".", "crates/core", "crates/gen", "crates/mesher"]
+# The wasm mesher builds through wasm-pack with its own profiles and stays a
+# standalone workspace.
+exclude = ["crates/wasm-mesher"]
+resolver = "2"
+
 [package]
 description = "A fast multiplayer voxel engine."
 edition = "2021"
