@@ -1,0 +1,23 @@
+[package]
+name = "voxelize-gen"
+version = "3.0.0"
+edition = "2021"
+description = "Deterministic, content-free world generation mechanisms for Voxelize: seed streams, bit-stable noise, compiled field programs, climate partitions, surface rules, carvers, hydrology, plan-sliced structures, chunk-stage adapters, and generation diagnostics."
+license = "MIT"
+repository = "https://github.com/voxelize/voxelize"
+
+[dependencies]
+voxelize = { path = "../..", version = "3.0.0" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+smallvec = { version = "1.13", features = ["serde"] }
+hashbrown = "0.14"
+png = "0.17"
+
+[dev-dependencies]
+rayon = "1.10"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "gen_bench"
+harness = false

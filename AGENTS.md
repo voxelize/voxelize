@@ -13,8 +13,8 @@ caveats for building, running, and testing it in the cloud VM.
   all packages).
 - Standalone demo: `pnpm demo` runs the demo server (Rust `--example demo`, port **4000**) and the
   demo client (Vite, port **3000**); then open http://localhost:3000.
-- Tests: `pnpm test` (TypeScript, vitest), `pnpm test:rust` (mesher + lighting), `pnpm check`
-  (`cargo check --all-targets`).
+- Tests: `pnpm test` (TypeScript, vitest), `pnpm test:rust` (mesher + lighting + worldgen), `pnpm check`
+  (`cargo check --workspace --all-targets`).
 
 ### Non-obvious caveats
 
@@ -34,6 +34,6 @@ caveats for building, running, and testing it in the cloud VM.
 
 ### Programmatic checks
 
-- Rust type check: `pnpm check` (or `cargo check --all-targets`).
+- Rust type check: `pnpm check` (or `cargo check --workspace --all-targets`).
 - Rust tests: `pnpm test:rust` (or `pnpm test:rust:all`).
 - TypeScript tests: `pnpm test`.
