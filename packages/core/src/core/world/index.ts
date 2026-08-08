@@ -151,6 +151,7 @@ import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
+import { LocalLights } from "./local-lights";
 import {
   LightBatch,
   LightJob,
@@ -204,6 +205,7 @@ export * from "./entity-shadow-uniforms";
 export * from "./items";
 export * from "./light-cones";
 export * from "./lighting";
+export * from "./local-lights";
 export * from "./loader";
 export * from "./memory-pressure";
 export * from "./pipelines";
@@ -548,6 +550,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    * uniforms at creation.
    */
   public lightCones = new LightCones();
+
+  /**
+   * Local light emitters: block-anchored sources scanned out of chunks plus
+   * game-registered dynamic sources, clustered into the chunk shaders. The
+   * game declares semantic block profiles and dynamic lights; the engine
+   * owns scanning, selection, culling, and GPU representation.
+   */
+  public localLights: LocalLights;
 
   /**
    * The CSM (Cascaded Shadow Map) renderer for shader-based lighting.
@@ -1007,6 +1017,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.memoryPressureMonitor.stop();
     this.clouds.dispose();
     this.csmRenderer?.dispose();
+    this.localLights.dispose();
 
     if (this.cleanupDeltasInterval !== null) {
       clearInterval(this.cleanupDeltasInterval);
@@ -3828,6 +3839,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.updatePhysics(delta);
     const updatePhysicsDuration = performance.now() - startUpdatePhysics;
 
+    this.localLights.update(position);
+
     const startUpdateUniforms = performance.now();
     this.updateUniforms(delta);
     const updateUniformsDuration = performance.now() - startUpdateUniforms;
@@ -4267,6 +4280,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.chunkPipeline.markLoaded([x, z], chunk);
       this.sectionVisibility?.addChunk(x, z);
+      this.localLights.handleChunkLoaded(x, z, chunk);
 
       this.emitChunkEvent("chunk-data-loaded", {
         chunk,
@@ -4372,6 +4386,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.pruneBlockEntitiesInChunk(chunk.coords);
         this.regionArenas?.clearChunk(x, z);
         this.sectionVisibility?.removeChunk(x, z);
+        this.localLights.handleChunkUnloaded(x, z);
         this.remove(chunk.group);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
@@ -4429,6 +4444,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     newValue: number,
     source: "client" | "server",
   ) {
+    this.localLights.handleBlockUpdate(
+      vx,
+      vy,
+      vz,
+      BlockUtils.extractID(oldValue),
+      BlockUtils.extractID(newValue),
+      this.getChunkByPosition(vx, vy, vz) ?? null,
+    );
     this.blockUpdateListeners.forEach((listener) =>
       listener({
         voxel: [vx, vy, vz],
@@ -5269,6 +5292,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkPipeline = new ChunkPipeline();
     this.meshPipeline = new MeshPipeline();
     this.chunkRenderer = new ChunkRenderer();
+
+    // World shape and block data only exist after the server handshake, so
+    // the facade resolves both lazily through these closures.
+    this.localLights = new LocalLights(
+      this.options.localLights,
+      () => ({
+        chunkSize: this.options.chunkSize,
+        maxHeight: this.options.maxHeight,
+        subChunks: this.options.subChunks,
+        maxLightLevel: this.options.maxLightLevel,
+      }),
+      () => this.registry.blocksById.values(),
+    );
+    this.localLights.getLoadedChunk = (cx, cz) =>
+      this.getChunkByCoords(cx, cz) ?? null;
 
     this.csmRenderer = new CSMRenderer({
       cascades: 3,

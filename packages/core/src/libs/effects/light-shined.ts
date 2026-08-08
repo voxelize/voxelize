@@ -13,6 +13,10 @@ import { NameTag } from "../nametag";
 const position = new Vector3();
 const tempColor = new Color();
 const waterTransmittance = new Color();
+const localLightSample = {
+  color: [0, 0, 0] as [number, number, number],
+  count: 0,
+};
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
@@ -341,6 +345,16 @@ export class LightShined {
       cpuTorchG = (lightValues.green / maxLightLevel) ** 2;
       cpuTorchB = (lightValues.blue / maxLightLevel) ** 2;
     }
+
+    // Clustered local lights (held torches, projectiles, analytic block
+    // emitters) shine on entities the same way they shine on the world.
+    localLightSample.color[0] = 0;
+    localLightSample.color[1] = 0;
+    localLightSample.color[2] = 0;
+    this.world.localLights.queryLocalLights(pos, localLightSample);
+    cpuTorchR += localLightSample.color[0];
+    cpuTorchG += localLightSample.color[1];
+    cpuTorchB += localLightSample.color[2];
 
     const globalAmbientR =
       (0.025 * sunVisibility + ambientColor.value.r * ambientFloor) * spectralR;

@@ -1,5 +1,6 @@
 import { ChunkRenderer } from "./chunk-renderer";
 import { CloudsOptions } from "./clouds";
+import { LocalLightsOptions } from "./local-lights/types";
 import { MemoryPressureOptions } from "./memory-pressure";
 import { SkyOptions } from "./sky";
 
@@ -259,6 +260,13 @@ export type WorldClientOptions = {
   maxLightsUpdateTime: number;
 
   /**
+   * Budgets, capacities, and quality tier of the local light emitter system
+   * (`world.localLights`). See {@link LocalLightsOptions} for the knobs;
+   * defaults make an unconfigured world pay nothing.
+   */
+  localLights: Partial<LocalLightsOptions>;
+
+  /**
    * Whether to use web workers for light calculations. Defaults to true.
    */
   useLightWorkers: boolean;
@@ -407,6 +415,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   sunlightChangeSpan: 0.15,
   timeForceThreshold: 0.1,
   statsSyncInterval: 500,
+  localLights: {},
   useLightWorkers: true,
   maxLightWorkers: 4,
   lightJobRetryLimit: 3,

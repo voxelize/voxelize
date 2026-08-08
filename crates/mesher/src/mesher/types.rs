@@ -264,6 +264,11 @@ pub(super) struct FaceData {
     pub(super) uv_range: UV,
     pub(super) is_see_through: bool,
     pub(super) is_fluid: bool,
+    /// `EMISSIVE_BIT | index << AO_SHIFT` for an emissive face, `0` otherwise
+    /// (see `ao_or_emissive_bits`). Not part of the merge key: `block_id` +
+    /// `face_name` already determine a face's emissive, so equal keys imply
+    /// equal emissive bits.
+    pub(super) emissive_bits: i32,
 }
 
 #[derive(Clone, Debug)]

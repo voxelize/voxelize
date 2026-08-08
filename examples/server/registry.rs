@@ -298,7 +298,13 @@ pub fn setup_registry() -> Registry {
             .build(),
         Block::new("Grass Block").id(4).build(),
         Block::new("Snow").id(5).build(),
-        Block::new("Obsidian").id(20).torch_light_level(15).build(),
+        // The demo's placeable light source: full white flood light plus an
+        // emissive surface so the block itself glows at night.
+        Block::new("Obsidian")
+            .id(20)
+            .torch_light_level(15)
+            .emissive(2.5)
+            .build(),
         Block::new("Granite").id(21).build(),
         Block::new("Graphite").id(22).build(),
         Block::new("Andesite").id(23).green_light_level(10).build(),
@@ -522,6 +528,9 @@ pub fn setup_registry() -> Registry {
             .is_transparent(true)
             .rotatable(true)
             .torch_light_level(15)
+            // Only the glowing cap is emissive; the stem shades normally —
+            // the per-face declaration path.
+            .face_emissive("top-py", 1.75)
             .build(),
         Block::new("Biggie")
             .id(500)

@@ -453,6 +453,22 @@ export type RenderStats = {
   visibleChunkGroups: number;
   chunkMeshes: number;
   visibleChunkMeshes: number;
+  /**
+   * Snapshot of `world.localLights.stats` — registered/candidate/clustered
+   * counts, per-frame select/pack/scan milliseconds, overflow and churn
+   * counters. Absent on hosts built before the local-lights system.
+   */
+  localLights?: {
+    registered: number;
+    candidates: number;
+    clustered: number;
+    cellsOverflowed: number;
+    selectMs: number;
+    packMs: number;
+    scanMs: number;
+    sectionsPendingScan: number;
+    selectionChurn: number;
+  };
   /** The twelve biggest material buckets among chunk meshes, largest first. */
   meshBuckets: { bucket: string; total: number; visible: number }[];
   /** Non-terrain scene subtrees, worst visible-mesh count first. */

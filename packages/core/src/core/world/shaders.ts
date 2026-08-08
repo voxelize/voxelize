@@ -5,6 +5,10 @@ import {
   LIGHT_CONES_SCATTER_FRAGMENT,
   LIGHT_CONES_UNIFORM_DECLARATIONS,
 } from "./light-cones";
+import {
+  LOCAL_LIGHTS_FUNCTIONS,
+  LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
+} from "./local-lights/shader";
 import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
@@ -133,7 +137,10 @@ attribute int light;
 #define STACK_INDEX_SHIFT 22
 #define STACK_COUNT_SHIFT 26
 #define STACK_FIELD_BITS 0xF
+#define EMISSIVE_SHIFT 30
 
+uniform vec4 uEmissiveLevels;
+varying float vEmissive;
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
@@ -192,6 +199,10 @@ vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
 vWaterExposed = float(isWaterExposed);
 vLight = unpackLight(light & LIGHT_MASK);
+
+// Under the emissive bit the AO bits are a strength index, not occlusion —
+// the face bypasses the lighting model, so its vAO is never read.
+vEmissive = float((light >> EMISSIVE_SHIFT) & 0x1) * uEmissiveLevels[ao];
 
 // Where this vertex sits in its vertical run, for displacement later in this
 // shader. A block that does not stack reports a single-block run, which
@@ -273,6 +284,7 @@ vShadowCoord2 = uShadowMatrix2 * offsetPosition;
       `
 ${SKY_FOG_UNIFORM_DECLARATIONS}
 ${LIGHT_CONES_UNIFORM_DECLARATIONS}
+${LOCAL_LIGHTS_UNIFORM_DECLARATIONS}
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
@@ -318,6 +330,7 @@ varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
 varying float vWaterSurfaceY;
+varying float vEmissive;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
@@ -325,6 +338,8 @@ varying vec4 vShadowCoord2;
 ${SIMPLEX_NOISE_GLSL}
 
 ${LIGHT_CONES_FUNCTIONS}
+
+${LOCAL_LIGHTS_FUNCTIONS}
 
 float shadowMapEdgeFade(vec3 coord) {
   float fadeWidth = 0.08;
@@ -638,6 +653,12 @@ vec3 totalLight = 1.0 - (1.0 - sunTotal) * (1.0 - torchLight);
 vec3 coneLight = lightConeSurface(vWorldPosition.xyz, vWorldNormal);
 totalLight = 1.0 - (1.0 - totalLight) * (1.0 - coneLight);
 
+// Clustered local lights (torches, lanterns, held lights) add the per-pixel
+// falloff and normal response the baked flood cannot carry. Static sources
+// are leak-masked by the flood field itself inside localLightSurface.
+vec3 clusterLight = localLightSurface(vWorldPosition.xyz, vWorldNormal, vLight.rgb);
+totalLight = 1.0 - (1.0 - totalLight) * (1.0 - clusterLight);
+
 vec3 warmTint = vec3(1.05, 0.92, 0.75);
 vec3 coolTint = vec3(0.92, 0.95, 1.05);
 vec3 temperatureShift = mix(coolTint, warmTint, torchDominance);
@@ -651,7 +672,16 @@ totalLight = (totalLight * (2.51 * totalLight + 0.03))
 vec3 darknessFloor = vec3(ambientFloor) *
   mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit;
 totalLight = max(totalLight, darknessFloor * faceShade);
-outgoingLight.rgb *= totalLight;
+
+// An emissive face is its own light source: it bypasses the lighting model
+// entirely and renders the texture at its declared strength. Fog and water
+// shading still apply after, so a distant lava lake fades like everything
+// else.
+if (vEmissive > 0.0) {
+  outgoingLight.rgb = diffuseColor.rgb * vEmissive;
+} else {
+  outgoingLight.rgb *= totalLight;
+}
 
 ${ABOVE_SURFACE_WATER_FOG_FRAGMENT}
 
@@ -755,6 +785,10 @@ if (vIsFluid > 0.5) {
   spec32 *= spec32;
   float specMed = spec32 * spec32 * spec32 * uSunlightIntensity * 0.24;
   vec3 specularColor = uSunColor * (spec32 * uSunlightIntensity * (0.08 + topWaterFace * 0.14) + specMed);
+
+  // Torch sparkle on water: the clustered lights are the only local sources
+  // with a position to reflect, so fluids are where local specular lives.
+  specularColor += localLightSpecular(wPos, waterNormal, viewDir);
 
   vec3 baseWater = outgoingLight.rgb;
 
@@ -866,6 +900,15 @@ if (uShadowDebugMode > 0.5) {
   } else if (uShadowDebugMode < 7.5) {
     gl_FragColor.rgb = vec3(tunnelDarkening);
   }
+}
+
+if (uLocalLightDebugMode > 0.5) {
+  gl_FragColor.rgb = localLightDebugColor(
+    vWorldPosition.xyz,
+    gl_FragColor.rgb,
+    vWorldNormal,
+    vLight.rgb
+  );
 }
 `,
     ),

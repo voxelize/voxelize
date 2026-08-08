@@ -213,11 +213,19 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
     let h_nxpz = corner_height(0, 1, &corner_nxpz);
     let h_pxpz = corner_height(1, 1, &corner_pxpz);
 
-    let mut uv_map: HashMap<String, UV> = HashMap::new();
+    let mut uv_map: HashMap<String, (UV, f32)> = HashMap::new();
     for face in original_faces {
-        uv_map.insert(face.name.clone(), face.range.clone());
+        uv_map.insert(face.name.clone(), (face.range.clone(), face.emissive));
     }
-    let get_range = |name: &str| uv_map.get(name).cloned().unwrap_or_default();
+    let get_range = |name: &str| {
+        uv_map
+            .get(name)
+            .map(|(range, _)| range.clone())
+            .unwrap_or_default()
+    };
+    // Generated fluid faces replace the block's authored ones, so an emissive
+    // fluid (lava) must carry its glow onto the replacements.
+    let get_emissive = |name: &str| uv_map.get(name).map(|(_, e)| *e).unwrap_or(0.0);
 
     vec![
         BlockFace {
@@ -228,6 +236,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             isolated: false,
             texture_group: None,
             range: get_range("py"),
+            emissive: get_emissive("py"),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -255,6 +264,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             isolated: false,
             texture_group: None,
             range: get_range("ny"),
+            emissive: get_emissive("ny"),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -282,6 +292,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             isolated: false,
             texture_group: None,
             range: get_range("px"),
+            emissive: get_emissive("px"),
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -309,6 +320,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             isolated: false,
             texture_group: None,
             range: get_range("nx"),
+            emissive: get_emissive("nx"),
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -336,6 +348,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             isolated: false,
             texture_group: None,
             range: get_range("pz"),
+            emissive: get_emissive("pz"),
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -363,6 +376,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             isolated: false,
             texture_group: None,
             range: get_range("nz"),
+            emissive: get_emissive("nz"),
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],

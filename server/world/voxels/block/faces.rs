@@ -16,6 +16,12 @@ pub struct BlockFace {
     pub dir: [i32; 3],
     pub corners: [CornerData; 4],
     pub range: UV,
+    /// Emissive output of this face in tonemapped-scene-relative units;
+    /// `0.0` shades normally. Set through [`BlockBuilder::emissive`] or
+    /// [`BlockBuilder::face_emissive`]; the mesher quantizes it to the
+    /// shared level table and the client renders the face full-bright.
+    #[serde(default)]
+    pub emissive: f32,
 }
 
 impl BlockFace {
@@ -34,6 +40,7 @@ impl BlockFace {
             dir,
             corners,
             range: UV::default(),
+            emissive: 0.0,
         }
     }
 
@@ -81,6 +88,7 @@ impl BlockFace {
                 start_v: self.range.start_v,
                 end_v: self.range.end_v,
             },
+            emissive: self.emissive,
         }
     }
 }
@@ -310,6 +318,7 @@ impl DiagonalFacesBuilder {
                     isolated: false,
                     texture_group: texture_group.clone(),
                     range: UV::default(),
+                    emissive: 0.0,
                     corners: [
                         CornerData {
                             pos: [
@@ -348,6 +357,7 @@ impl DiagonalFacesBuilder {
                     isolated: false,
                     texture_group: texture_group.clone(),
                     range: UV::default(),
+                    emissive: 0.0,
                     corners: [
                         CornerData {
                             pos: [
@@ -386,6 +396,7 @@ impl DiagonalFacesBuilder {
                     isolated: false,
                     texture_group: texture_group.clone(),
                     range: UV::default(),
+                    emissive: 0.0,
                     corners: [
                         CornerData {
                             pos: [
@@ -424,6 +435,7 @@ impl DiagonalFacesBuilder {
                     isolated: false,
                     texture_group: texture_group.clone(),
                     range: UV::default(),
+                    emissive: 0.0,
                     corners: [
                         CornerData {
                             pos: [
@@ -465,6 +477,7 @@ impl DiagonalFacesBuilder {
                     isolated: false,
                     texture_group: texture_group.clone(),
                     range: UV::default(),
+                    emissive: 0.0,
                     corners: [
                         CornerData {
                             pos: [
@@ -499,6 +512,7 @@ impl DiagonalFacesBuilder {
                     isolated: false,
                     texture_group,
                     range: UV::default(),
+                    emissive: 0.0,
                     corners: [
                         CornerData {
                             pos: [
@@ -807,6 +821,7 @@ impl SixFacesBuilder {
                 isolated: is_px_isolated,
                 texture_group: px_group,
                 range: UV::default(),
+                emissive: 0.0,
                 corners: [
                     CornerData {
                         pos: [
@@ -856,6 +871,7 @@ impl SixFacesBuilder {
                 isolated: is_py_isolated,
                 texture_group: py_group,
                 range: UV::default(),
+                emissive: 0.0,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
@@ -905,6 +921,7 @@ impl SixFacesBuilder {
                 isolated: is_pz_isolated,
                 texture_group: pz_group,
                 range: UV::default(),
+                emissive: 0.0,
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -954,6 +971,7 @@ impl SixFacesBuilder {
                 isolated: is_nx_isolated,
                 texture_group: nx_group,
                 range: UV::default(),
+                emissive: 0.0,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
@@ -999,6 +1017,7 @@ impl SixFacesBuilder {
                 isolated: is_ny_isolated,
                 texture_group: ny_group,
                 range: UV::default(),
+                emissive: 0.0,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -1044,6 +1063,7 @@ impl SixFacesBuilder {
                 isolated: is_nz_isolated,
                 texture_group: nz_group,
                 range: UV::default(),
+                emissive: 0.0,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],

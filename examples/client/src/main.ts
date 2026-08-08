@@ -32,6 +32,8 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 /* -------------------------------------------------------------------------- */
 const world = new VOXELIZE.World({
   textureUnitDimension: 8,
+  // Sized for the local-lights benchmark scenes (10k registered emitters).
+  localLights: { maxRegisteredLights: 12288 },
 });
 // actual world setup code handled later after network and world are initialized
 
@@ -55,6 +57,12 @@ renderer.setSize(
 );
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+// Local light GPU state is rebuilt from CPU pools on a restored context.
+canvas.addEventListener("webglcontextlost", (event) => event.preventDefault());
+canvas.addEventListener("webglcontextrestored", () => {
+  world.localLights.onContextRestored();
+});
 
 // resize window event listener found inside start() function
 
@@ -372,6 +380,141 @@ inputs.bind("KeyV", () => {
   });
 });
 
+/* -------------------------------------------------------------------------- */
+/*                          LOCAL LIGHTS DEMO / BENCH                         */
+/* -------------------------------------------------------------------------- */
+
+// KeyL cycles the shader debug views (off, cell occupancy, isolated
+// contribution, leak mask); KeyK cycles quality tiers; KeyJ toggles the
+// selected-light bounds overlay; KeyO orbits a dynamic light around you.
+inputs.bind("KeyL", () => {
+  const next = ((world.localLights.getDebugMode() + 1) % 4) as 0 | 1 | 2 | 3;
+  world.localLights.setDebugMode(next);
+  console.log(`[demo] local light debug mode: ${next}`);
+});
+
+const LIGHT_TIERS: VOXELIZE.LightQualityTier[] = [
+  "ultra",
+  "high",
+  "medium",
+  "low",
+  "potato",
+];
+inputs.bind("KeyK", () => {
+  const current = LIGHT_TIERS.indexOf(world.localLights.getQualityTier());
+  const next = LIGHT_TIERS[(current + 1) % LIGHT_TIERS.length];
+  world.localLights.setQualityTier(next);
+  console.log(`[demo] local light quality tier: ${next}`);
+});
+
+let isLightOverlayShown = false;
+inputs.bind("KeyJ", () => {
+  isLightOverlayShown = !isLightOverlayShown;
+  if (isLightOverlayShown) {
+    world.localLights.showDebugOverlay(world);
+  } else {
+    world.localLights.hideDebugOverlay();
+  }
+});
+
+let orbitLightHandle = VOXELIZE.INVALID_LIGHT_HANDLE;
+const orbitLightPosition = new THREE.Vector3();
+const updateOrbitLight = () => {
+  if (orbitLightHandle === VOXELIZE.INVALID_LIGHT_HANDLE) return;
+  const t = performance.now() * 0.0012;
+  orbitLightPosition.set(
+    controls.object.position.x + Math.cos(t) * 6,
+    controls.object.position.y + 1,
+    controls.object.position.z + Math.sin(t) * 6,
+  );
+  world.localLights.setPosition(orbitLightHandle, orbitLightPosition);
+};
+const toggleOrbitLight = () => {
+  if (orbitLightHandle === VOXELIZE.INVALID_LIGHT_HANDLE) {
+    orbitLightHandle = world.localLights.add(
+      {
+        shape: "point",
+        colorTemperatureK: 1900,
+        intensity: 1.2,
+        range: 14,
+        isStatic: false,
+        shadowPolicy: "none",
+        priorityBias: 2,
+        flicker: { speed: 9, amplitude: 0.1 },
+      },
+      controls.object.position,
+    );
+  } else {
+    world.localLights.remove(orbitLightHandle);
+    orbitLightHandle = VOXELIZE.INVALID_LIGHT_HANDLE;
+  }
+};
+inputs.bind("KeyO", toggleOrbitLight);
+
+// Headless benchmark hooks: deterministic scenes, stats sampling, tier and
+// debug switching, scripted context loss. Driven by scripts/bench-local-lights.mjs.
+const frameSamples = new Float64Array(600);
+let frameSampleCount = 0;
+let frameSampleCursor = 0;
+let lastFrameAt = 0;
+const recordFrame = (now: number) => {
+  if (lastFrameAt > 0) {
+    frameSamples[frameSampleCursor] = now - lastFrameAt;
+    frameSampleCursor = (frameSampleCursor + 1) % frameSamples.length;
+    if (frameSampleCount < frameSamples.length) frameSampleCount++;
+  }
+  lastFrameAt = now;
+};
+const frameStats = () => {
+  const sorted = [...frameSamples.slice(0, frameSampleCount)].sort(
+    (a, b) => a - b,
+  );
+  const at = (q: number) =>
+    sorted.length === 0 ? 0 : sorted[Math.floor(q * (sorted.length - 1))];
+  return { p50: at(0.5), p95: at(0.95), p99: at(0.99), samples: sorted.length };
+};
+
+(window as unknown as Record<string, unknown>).__bench__ = {
+  runScene: (scene: string, block: string, origin: number[], count: number) =>
+    method.call("bench-lights", { scene, block, origin, count }),
+  stats: () => ({
+    frame: frameStats(),
+    localLights: { ...world.localLights.stats },
+    render: { ...renderer.info.render },
+    programs: renderer.info.programs?.length ?? 0,
+    memory:
+      (
+        performance as unknown as {
+          memory?: { usedJSHeapSize: number };
+        }
+      ).memory?.usedJSHeapSize ?? 0,
+  }),
+  resetFrameStats: () => {
+    frameSampleCount = 0;
+    frameSampleCursor = 0;
+    lastFrameAt = 0;
+  },
+  setTier: (tier: VOXELIZE.LightQualityTier) =>
+    world.localLights.setQualityTier(tier),
+  setDebugMode: (mode: 0 | 1 | 2 | 3) => world.localLights.setDebugMode(mode),
+  toggleOrbit: () => toggleOrbitLight(),
+  teleport: (x: number, y: number, z: number) => controls.teleport(x, y, z),
+  lookAt: (x: number, y: number, z: number) =>
+    controls.object.lookAt(new THREE.Vector3(x, y, z)),
+  setTime: (time: number) => method.call("time", { time }),
+  loseContext: () => {
+    const ext = renderer.getContext().getExtension("WEBGL_lose_context");
+    ext?.loseContext();
+    setTimeout(() => ext?.restoreContext(), 1500);
+  },
+  worldReady: () => world.isInitialized,
+  pendingWork: () => ({
+    scans: world.localLights.stats.sectionsPendingScan,
+    chunksProcessing: world.chunkPipeline.processingCount,
+    chunksRequested: world.chunkPipeline.requestedCount,
+  }),
+};
+
 inputs.bind(
   "KeyZ",
   () => {
@@ -603,6 +746,16 @@ debug.registerDisplay(
   () => world.chunkPipeline.processingCount,
 );
 debug.registerDisplay("Chunks Loaded", () => world.chunkPipeline.loadedCount);
+
+debug.registerDisplay("Local Lights", () => {
+  const { registered, clustered, candidates } = world.localLights.stats;
+  return `${clustered}/${candidates} of ${registered}`;
+});
+
+debug.registerDisplay("Light CPU", () => {
+  const { selectMs, packMs, scanMs } = world.localLights.stats;
+  return `${(selectMs + packMs).toFixed(2)}ms +scan ${scanMs.toFixed(2)}ms`;
+});
 
 debug.registerDisplay("Position", controls, "voxel");
 
@@ -1100,6 +1253,8 @@ const update = () => {
 
   world.chunkRenderer.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
+  updateOrbitLight();
+
   world.update(
     controls.object.position,
     camera.getWorldDirection(new THREE.Vector3()),
@@ -1122,6 +1277,7 @@ composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
 const animate = () => {
   requestAnimationFrame(animate);
+  recordFrame(performance.now());
   if (isFocused) update();
   composer.render();
   renderer.clearDepth();

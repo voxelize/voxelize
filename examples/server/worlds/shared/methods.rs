@@ -36,6 +36,15 @@ struct SpawnFaunaPayload {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct BenchLightsPayload {
+    scene: String,
+    block: String,
+    origin: Vec3<i32>,
+    #[serde(default)]
+    count: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct BreakWithDropPayload {
     voxel: Vec3<i32>,
 }
@@ -50,6 +59,103 @@ pub fn setup_methods(world: &mut World) {
         let time_per_day = world.config().time_per_day as f32;
         let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
         world.stats_mut().set_time(new_time.time % time_per_day);
+    });
+
+    // Deterministic emitter layouts for the local-lights benchmark scenes.
+    // Every scene is a pure function of (origin, count), so a run on this
+    // branch and a run on main see byte-identical worlds.
+    world.set_method_handle("bench-lights", |world, _, payload| {
+        let data: BenchLightsPayload = serde_json::from_str(&payload).unwrap();
+        let Some(block) = world.registry().try_get_block_by_name(&data.block) else {
+            return;
+        };
+        let block_id = block.id;
+        let Vec3(ox, oy, oz) = data.origin;
+        let count = data.count.min(20_000) as i32;
+
+        match data.scene.as_str() {
+            // `count` emitters in a square grid, 4-block spacing.
+            "grid" => {
+                let side = (count as f32).sqrt().ceil() as i32;
+                let mut placed = 0;
+                'grid: for gx in 0..side {
+                    for gz in 0..side {
+                        if placed >= count {
+                            break 'grid;
+                        }
+                        world
+                            .chunks_mut()
+                            .update_voxel(&Vec3(ox + gx * 4, oy, oz + gz * 4), block_id);
+                        placed += 1;
+                    }
+                }
+            }
+            // `count` emitters packed side by side: the aggregation stress.
+            "field" => {
+                let side = (count as f32).sqrt().ceil() as i32;
+                let mut placed = 0;
+                'field: for gx in 0..side {
+                    for gz in 0..side {
+                        if placed >= count {
+                            break 'field;
+                        }
+                        world
+                            .chunks_mut()
+                            .update_voxel(&Vec3(ox + gx, oy, oz + gz), block_id);
+                        placed += 1;
+                    }
+                }
+            }
+            // A roofed corridor along +x with `count` emitters alternating
+            // between its walls every 4 blocks.
+            "tunnel" => {
+                let stone_id = world
+                    .registry()
+                    .try_get_block_by_name("Stone")
+                    .map(|stone| stone.id)
+                    .unwrap_or(block_id);
+                let length = (count / 2).max(1) * 4 + 4;
+                for gx in 0..length {
+                    for gy in 0..5 {
+                        world
+                            .chunks_mut()
+                            .update_voxel(&Vec3(ox + gx, oy + gy, oz - 3), stone_id);
+                        world
+                            .chunks_mut()
+                            .update_voxel(&Vec3(ox + gx, oy + gy, oz + 3), stone_id);
+                    }
+                    for gz in -3..=3 {
+                        world
+                            .chunks_mut()
+                            .update_voxel(&Vec3(ox + gx, oy - 1, oz + gz), stone_id);
+                        world
+                            .chunks_mut()
+                            .update_voxel(&Vec3(ox + gx, oy + 5, oz + gz), stone_id);
+                    }
+                }
+                for n in 0..count {
+                    let gx = 2 + (n / 2) * 4;
+                    let gz = if n % 2 == 0 { -2 } else { 2 };
+                    world
+                        .chunks_mut()
+                        .update_voxel(&Vec3(ox + gx, oy + 2, oz + gz), block_id);
+                }
+            }
+            // Clear a `count`-sided square region, eight blocks tall.
+            "clear" => {
+                let side = count.max(1);
+                for gx in -2..side + 2 {
+                    for gz in -2..side + 2 {
+                        for gy in -1..7 {
+                            world
+                                .chunks_mut()
+                                .update_voxel(&Vec3(ox + gx, oy + gy, oz + gz), 0);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     });
 
     world.set_method_handle("spawn-bot", |world, _, payload| {
