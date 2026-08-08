@@ -27,8 +27,8 @@ milliseconds as real.
 
 CPU costs of the light system itself (peaks over measurement windows, main thread):
 
-- selection + packing: ≤ 0.2 ms at village scale; **0.63 ms select + 0.13 ms pack** at
-  10 000 registered / 7 694 candidates (micro-benchmark, 50 passes) — the linear
+- selection + packing: ≤ 0.2 ms at village scale; **0.44 ms select + 0.11 ms pack** at
+  10 000 registered / 9 752 candidates (micro-benchmark, 50 passes) — the linear
   O(registered) pass holds to the biggest scene.
 - section emitter scans: ≤ 4.4 ms per frame during cold chunk-load bursts (16 sections;
   amortized by `maxSectionScansPerFrame`), 0 when idle.
