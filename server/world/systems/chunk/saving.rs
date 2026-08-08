@@ -128,12 +128,39 @@ mod chunk_persistence_tests {
             world.tick();
 
             if !world.preloading {
+                wait_until_all_chunks_ready(&mut world);
                 settle_light(&mut world);
                 return world;
             }
         }
 
         panic!("world never finished preloading");
+    }
+
+    /// Preload completion only guarantees the interior of the preload area is
+    /// ready: the engine shrinks its readiness check by the light padding
+    /// ring, so border chunks can still be waiting on their first mesher
+    /// result when `preloading` clears. Such a chunk holds all-zero light,
+    /// which `settle_light`'s stability window cannot distinguish from
+    /// settled darkness, so snapshots must not run until every chunk is
+    /// `Ready`.
+    fn wait_until_all_chunks_ready(world: &mut World) {
+        for _ in 0..MAX_PRELOAD_TICKS {
+            let all_ready = {
+                let chunks = world.chunks();
+                all_coords()
+                    .into_iter()
+                    .all(|coords| chunks.is_chunk_ready(&coords))
+            };
+
+            if all_ready {
+                return;
+            }
+
+            world.tick();
+        }
+
+        panic!("chunks never all reached Ready after preload");
     }
 
     fn settle_light(world: &mut World) {
