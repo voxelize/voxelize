@@ -1,7 +1,10 @@
-# RFC: Local light emitters
+# Local light emitters: design and implementation notes
 
-Status: **design review — no implementation in this PR**
-Reviewer gate: Ian must approve the decisions in this file before any implementation PR opens.
+Status: **Engine PR A implemented** (emissive faces + registry + clustered analytic layer).
+Engine PR B (shadow atlas, hero point shadows, CSM ledger) remains future work; its
+sections in these documents are design, not shipped behavior. Where the implementation
+deviates from the original RFC text, the deviation is marked inline with **[implemented]**
+notes — the code is the source of truth, these documents are the rationale.
 
 Scope: extremely performant local light emitters — torches, lanterns, campfires, lava,
 glowing windows, magic lamps, held lights, projectiles, moving entities — rendered by the
@@ -80,3 +83,17 @@ Read in order: `01-baseline` (30 min — establishes shared facts), `02-architec
 will actually code against), then skim `04-benchmarks` and `05-rollout` (15 min). Every
 "Decision" callout in `02-architecture.md` maps to a row above; comment on the row, not
 just the prose.
+
+## Implementation map (Engine PR A)
+
+| Piece | Code |
+| --- | --- |
+| Emissive vertex bit + strength levels | `crates/mesher/src/mesher/vertex_light.rs` (`EMISSIVE_BIT`, `EMISSIVE_LEVELS`, `ao_or_emissive_bits`), packed in `faces.rs` / `greedy.rs` / `fluid.rs` |
+| Block declaration | `server/world/voxels/block/builder.rs` (`emissive`, `face_emissive`), `BlockFace.emissive` on both the server and `voxelize_core` types |
+| Registry / handles | `packages/core/src/core/world/local-lights/registry.ts` |
+| Profiles + chunk scan + aggregation | `local-lights/scan.ts` |
+| Selection + grid + GPU packing | `local-lights/clustering.ts` |
+| Shader functions + emissive branch | `local-lights/shader.ts`, composed in `world/shaders.ts` |
+| Facade, lifecycle, stats, tiers | `local-lights/index.ts`, wired in `world/index.ts` |
+| Debug overlay | `local-lights/debug.ts` |
+| Benchmarks | `scripts/bench-local-lights.mjs`, demo scenes in `examples/server/worlds/shared/methods.rs` |

@@ -5,6 +5,60 @@ misses a gate on the reference hardware does not merge. Values marked ⚙ are in
 calibrations to be pinned (possibly re-argued with data) in Engine PR A's first benchmark
 run; the *structure* of every gate is fixed now.
 
+## 0. Measured results — Engine PR A (see §6 for methodology caveats)
+
+Environment: headless Chromium on **SwiftShader software WebGL** (cloud VM, no GPU),
+1280×720, flat demo world, night, `renderRadius` 8, identical deterministic scenes and
+camera on both revisions via `scripts/bench-local-lights.mjs`. Software rasterization
+executes every fragment on the CPU, so per-fragment shader cost appears grossly amplified
+relative to any real GPU — treat GPU-side deltas as loose upper bounds and the CPU-side
+milliseconds as real.
+
+| Scene | main p50/p95 (ms) | branch p50/p95 (ms) | registered → clustered |
+| --- | --- | --- | --- |
+| parity (0 emitters) | 93.5 / 189.2 | 100.6 / 192.7 | 0 → 0 |
+| grid 1 | 97.3 / 180.9 | 105.4 / 197.5 | 1 → 1 |
+| grid 16 | 98.0 / 151.7 | 116.7 / 217.1 | 16 → 16 |
+| grid 128 | 108.0 / 212.0 | 139.0 / 233.3 | 128 → 128 |
+| grid 1 000 | 112.3 / 217.1 | 142.7 / 256.8 | 946 → 192 (tier cap) |
+| field 10 000, aggregation off | 125.5 / 242.8 | 172.7 / 362.3 | **10 000** → 192 |
+| field 10 000, aggregated | 125.2 / 245.0 | 167.0 / 331.4 | **193 records** → 184 |
+| torch tunnel (64) | 159.7 / 298.1 | 218.3 / 691.0 | 56 → 42 |
+
+CPU costs of the light system itself (peaks over measurement windows, main thread):
+
+- selection + packing: ≤ 0.2 ms at village scale; **0.63 ms select + 0.13 ms pack** at
+  10 000 registered / 7 694 candidates (micro-benchmark, 50 passes) — the linear
+  O(registered) pass holds to the biggest scene.
+- section emitter scans: ≤ 4.4 ms per frame during cold chunk-load bursts (16 sections;
+  amortized by `maxSectionScansPerFrame`), 0 when idle.
+- idle frames: selection, packing, and uploads all skip — a 12-minute night soak with a
+  perpetually moving orbit light held heap flat (~155–185 MB sawtooth, no trend) with
+  zero selection churn.
+
+Behavior gates, all green:
+
+- draw calls flat at 6 in every scene on both revisions (shared-material pipeline
+  untouched; invariant holds).
+- streaming: 108 registered → fly away → 0 → fly back → **108** (no leak, exact
+  restoration).
+- churn: 20 place/clear cycles of a 10-torch grid over 20 s; aftermath frame times match
+  parity and the registry returns to its pre-churn count.
+- quality tiers step 120 → 80 → 80 → 64 → 0 clustered with p50 falling 144.5 → 125.0 ms
+  (SwiftShader exaggerates the shader-side delta; `potato` renders the pre-branch frame
+  plus emissive).
+- context loss/restore: scripted `WEBGL_lose_context` mid-scene; full visual recovery,
+  lights re-clustered (80) on the restored context.
+- selection determinism and tie-breaks, overflow policy, hysteresis retention, handle
+  stability across rescans, and aggregation determinism are locked by unit tests rather
+  than benchmarks.
+
+The parity delta (+7.6 % p50, +1.9 % p95) is the cost of the always-present cluster-loop
+early-out **under software rasterization**; the added per-fragment work at zero lights is
+one uniform integer compare, which real GPUs absorb below measurement noise. Re-verifying
+parity on GPU hardware is the one open measurement for the reference-desktop gate table
+below.
+
 ## 1. Reference hardware & settings
 
 | Class | Reference | Resolution | Tier |

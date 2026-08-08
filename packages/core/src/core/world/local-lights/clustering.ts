@@ -245,6 +245,9 @@ export class LightClusterGrid {
 
     stats.selectMs = packStart - selectStart;
     stats.packMs = end - packStart;
+    if (stats.selectMs > stats.selectMsPeak)
+      stats.selectMsPeak = stats.selectMs;
+    if (stats.packMs > stats.packMsPeak) stats.packMsPeak = stats.packMs;
     stats.clustered = this.selectedCount;
     this.uniforms.clusteredCount.value = this.selectedCount;
   }

@@ -1,7 +1,10 @@
 # API: types, lifecycle guarantees, worked examples
 
-Everything here is the reviewable contract. Names, shapes, and guarantees are what Engine
-PR A/B implement and what Town codes against. Nothing below is implemented in this PR.
+Everything here is the contract Town codes against. Engine PR A implements it as written
+apart from the **[implemented]** notes below; shadow-facing surface (`shadowMap`
+honoring, `invalidateShadowRegion`, atlas options) parses and validates today but only
+takes effect with Engine PR B. The authoritative signatures live in
+`packages/core/src/core/world/local-lights/`.
 
 ## 1. TypeScript surface (`@voxelize/core`)
 
@@ -38,9 +41,10 @@ export interface FlickerProfile {
   speed: number;
   /** 0..1 fraction of intensity the wobble spans. */
   amplitude: number;
-  /** Deterministic per-handle phase offset is derived from the handle; no RNG. */
-  style: "torch" | "campfire" | "pulse" | "none";
 }
+// [implemented] Flicker is evaluated in the shader (two detuned sines over uTime,
+// phase derived deterministically from the slot) so it costs no CPU and no uploads.
+// The RFC's named style presets collapsed into (speed, amplitude) pairs.
 
 export interface LocalLightDescriptor {
   shape: LightShape;
@@ -87,11 +91,7 @@ export interface BlockLightProfile
   extends Partial<Omit<LocalLightDescriptor, "isStatic">> {
   /** Emitter origin within the voxel, e.g. a torch head. Default [0.5, 0.5, 0.5]. */
   offset?: [number, number, number];
-  /**
-   * Derive mount from block rotation: shadow faces looking into the mount are
-   * skipped; spots inherit the mount normal as direction. Default true.
-   */
-  mountAware?: boolean;
+  // Engine PR B adds mountAware (mount-derived shadow-face skipping).
   /** Collapse dense same-profile emitters into per-section proxies. Default "cluster". */
   aggregation?: "none" | "cluster";
   aggregateThreshold?: number;   // default 8 per section
@@ -141,27 +141,34 @@ export class LocalLights {
   setEnabled(handle: LightHandle, isEnabled: boolean): boolean;
 
   /**
-   * Force shadow re-render for cached maps intersecting the region. The engine
-   * already invalidates on block updates; this is the escape hatch for game-side
-   * visual changes the voxel stream can't see (e.g. a scripted door mesh).
+   * CPU query over the same SoA for entities/particles/items. Zero alloc;
+   * each selected light contributes within its own range.
    */
-  invalidateShadowRegion(min: Coords3, max: Coords3): void;
-
-  /** CPU query over the same SoA for entities/particles/items. Zero alloc. */
-  queryLocalLights(position: Vector3, radius: number, out: LocalLightSample): void;
+  queryLocalLights(position: Vector3, out: LocalLightSample): void;
 
   setQualityTier(tier: LightQualityTier): void;
   getQualityTier(): LightQualityTier;
 
-  readonly stats: LocalLightStats;    // shape in 04-benchmarks.md §2
-  readonly debug: LocalLightsDebug;   // views in 04-benchmarks.md §5
+  /** 0 off, 1 cell-occupancy heatmap, 2 isolated contribution, 3 leak mask. */
+  setDebugMode(mode: 0 | 1 | 2 | 3): void;
+  getDebugMode(): number;
+  /** Instanced wireframe range spheres of the clustered set. */
+  showDebugOverlay(parent: Object3D): void;
+  hideDebugOverlay(): void;
+
+  /** Re-upload GPU textures after `webglcontextrestored`; CPU state is truth. */
+  onContextRestored(): void;
+  /** Start a fresh peak-cost window (benchmark harnesses). */
+  resetPeakStats(): void;
+
+  readonly stats: LocalLightStats;    // see local-lights/types.ts
 }
+// Engine PR B adds: invalidateShadowRegion(min, max).
 
 export interface LocalLightSample {
-  /** Combined linear RGB arriving at the query point (falloff + mask applied). */
+  /** Combined linear RGB arriving at the query point. */
   color: [number, number, number];
-  /** Dominant incident direction (for entity rim/diffuse hints). */
-  direction: [number, number, number];
+  /** Lights that contributed. */
   count: number;
 }
 ```
@@ -321,7 +328,7 @@ world.localLights.setBlockProfile(TOWN_BLOCKS.TORCH, {
   range: 12,
   offset: [0.5, 0.7, 0.5],
   shadowPolicy: "voxelMask",
-  flicker: { style: "torch", speed: 9, amplitude: 0.12 },
+  flicker: { speed: 9, amplitude: 0.12 },
 });
 
 // Lantern: steadier, cooler, slightly longer reach; eligible for a cached shadow
@@ -332,7 +339,7 @@ world.localLights.setBlockProfile(TOWN_BLOCKS.LANTERN, {
   intensity: 1.1,
   range: 14,
   shadowPolicy: "shadowMap",       // request, not entitlement — budget decides
-  flicker: { style: "pulse", speed: 0.5, amplitude: 0.04 },
+  flicker: { speed: 0.5, amplitude: 0.04 },
 });
 
 // Campfire: bigger, hero-shadow candidate, strong flicker, slight volumetric hint.
@@ -344,7 +351,7 @@ world.localLights.setBlockProfile(TOWN_BLOCKS.CAMPFIRE, {
   offset: [0.5, 0.4, 0.5],
   shadowPolicy: "shadowMap",
   priorityBias: 0.5,
-  flicker: { style: "campfire", speed: 6, amplitude: 0.25 },
+  flicker: { speed: 6, amplitude: 0.25 },
   volumetric: 0.15,
 });
 
@@ -386,7 +393,7 @@ const heldTorch = world.localLights.add(
     isStatic: false,
     shadowPolicy: "shadowMap",
     priorityBias: 2.0,             // the player's own light wins ties
-    flicker: { style: "torch", speed: 9, amplitude: 0.1 },
+    flicker: { speed: 9, amplitude: 0.1 },
   },
   handWorldPosition,
 );

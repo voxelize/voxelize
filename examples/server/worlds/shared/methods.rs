@@ -66,10 +66,13 @@ pub fn setup_methods(world: &mut World) {
     // branch and a run on main see byte-identical worlds.
     world.set_method_handle("bench-lights", |world, _, payload| {
         let data: BenchLightsPayload = serde_json::from_str(&payload).unwrap();
-        let Some(block) = world.registry().try_get_block_by_name(&data.block) else {
+        let Some(block_id) = world
+            .registry()
+            .try_get_block_by_name(&data.block)
+            .map(|block| block.id)
+        else {
             return;
         };
-        let block_id = block.id;
         let Vec3(ox, oy, oz) = data.origin;
         let count = data.count.min(20_000) as i32;
 
@@ -141,12 +144,25 @@ pub fn setup_methods(world: &mut World) {
                         .update_voxel(&Vec3(ox + gx, oy + 2, oz + gz), block_id);
                 }
             }
-            // Clear a `count`-sided square region, eight blocks tall.
+            // Clear the single emitter layer of a `count`-sided square —
+            // exactly what "grid" and "field" wrote, so a clear never floods
+            // the update queue.
             "clear" => {
                 let side = count.max(1);
                 for gx in -2..side + 2 {
                     for gz in -2..side + 2 {
-                        for gy in -1..7 {
+                        world
+                            .chunks_mut()
+                            .update_voxel(&Vec3(ox + gx, oy, oz + gz), 0);
+                    }
+                }
+            }
+            // Clear the box a `count`-emitter tunnel occupies.
+            "clear-tunnel" => {
+                let length = (count / 2).max(1) * 4 + 6;
+                for gx in -1..length {
+                    for gz in -4..=4 {
+                        for gy in -1..=6 {
                             world
                                 .chunks_mut()
                                 .update_voxel(&Vec3(ox + gx, oy + gy, oz + gz), 0);

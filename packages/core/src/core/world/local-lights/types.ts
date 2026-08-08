@@ -165,9 +165,14 @@ export interface LocalLightStats {
   candidates: number;
   clustered: number;
   cellsOverflowed: number;
+  /** Cost of the current frame's phases; `0` on frames that skipped them. */
   selectMs: number;
   packMs: number;
   scanMs: number;
+  /** Worst frame since the last {@link LocalLights.resetPeakStats}. */
+  selectMsPeak: number;
+  packMsPeak: number;
+  scanMsPeak: number;
   sectionsPendingScan: number;
   selectionChurn: number;
   gridTextureUploads: number;

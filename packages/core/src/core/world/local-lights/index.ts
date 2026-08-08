@@ -84,6 +84,9 @@ export class LocalLights {
     selectMs: 0,
     packMs: 0,
     scanMs: 0,
+    selectMsPeak: 0,
+    packMsPeak: 0,
+    scanMsPeak: 0,
     sectionsPendingScan: 0,
     selectionChurn: 0,
     gridTextureUploads: 0,
@@ -259,7 +262,7 @@ export class LocalLights {
    * Wireframe bounds of every selected light, colored by state. Attached to
    * the given parent (typically the world); allocated on first use only.
    */
-  showDebugOverlay(parent: { add(object: object): unknown }): void {
+  showDebugOverlay(parent: { add(object: object): void }): void {
     if (!this.debugOverlay) {
       this.debugOverlay = new LocalLightsDebugOverlay(this.registry, this.grid);
     }
@@ -345,6 +348,7 @@ export class LocalLights {
       }
     }
     stats.scanMs = scanned > 0 ? performance.now() - scanStart : 0;
+    if (stats.scanMs > stats.scanMsPeak) stats.scanMsPeak = stats.scanMs;
     stats.sectionsPendingScan = this.pendingScans.size;
 
     // A teleport-scale jump means the previous selection belongs to another
@@ -372,6 +376,13 @@ export class LocalLights {
    */
   onContextRestored(): void {
     this.grid.markTexturesDirty();
+  }
+
+  /** Start a fresh peak-cost measurement window (benchmark harnesses). */
+  resetPeakStats(): void {
+    this.stats.selectMsPeak = 0;
+    this.stats.packMsPeak = 0;
+    this.stats.scanMsPeak = 0;
   }
 
   dispose(): void {

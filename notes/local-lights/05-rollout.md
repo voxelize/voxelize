@@ -5,6 +5,14 @@
 Three PRs, strictly ordered, each independently shippable and revertible. No calendar
 estimates; scope is defined by files touched and gates passed.
 
+**Status: Engine PR A is implemented and measured** (results in `04-benchmarks.md` §0).
+Differences against the plan below: the emitter scan runs amortized on the main thread
+(bounded by `maxSectionScansPerFrame`, measured ≤ 4.4 ms on cold load bursts) instead of
+inside the mesh workers — the worker-protocol change wasn't warranted at the measured
+cost; `LightShined` folds the CPU query in, while the particles-package integration and
+the `RenderStats` bridge implementation (the type landed) ride the Town PR where their
+consumers live.
+
 ### Engine PR A — analytic layer (no shadow maps)
 
 Touches:

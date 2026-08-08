@@ -384,10 +384,10 @@ inputs.bind("KeyV", () => {
 /*                          LOCAL LIGHTS DEMO / BENCH                         */
 /* -------------------------------------------------------------------------- */
 
-// KeyL cycles the shader debug views (off, cell occupancy, isolated
-// contribution, leak mask); KeyK cycles quality tiers; KeyJ toggles the
-// selected-light bounds overlay; KeyO orbits a dynamic light around you.
-inputs.bind("KeyL", () => {
+// KeyH cycles the shader debug views (off, cell occupancy, isolated
+// contribution, leak mask); KeyY cycles quality tiers; KeyX toggles the
+// selected-light bounds overlay; KeyC orbits a dynamic light around you.
+inputs.bind("KeyH", () => {
   const next = ((world.localLights.getDebugMode() + 1) % 4) as 0 | 1 | 2 | 3;
   world.localLights.setDebugMode(next);
   console.log(`[demo] local light debug mode: ${next}`);
@@ -400,7 +400,7 @@ const LIGHT_TIERS: VOXELIZE.LightQualityTier[] = [
   "low",
   "potato",
 ];
-inputs.bind("KeyK", () => {
+inputs.bind("KeyY", () => {
   const current = LIGHT_TIERS.indexOf(world.localLights.getQualityTier());
   const next = LIGHT_TIERS[(current + 1) % LIGHT_TIERS.length];
   world.localLights.setQualityTier(next);
@@ -408,7 +408,7 @@ inputs.bind("KeyK", () => {
 });
 
 let isLightOverlayShown = false;
-inputs.bind("KeyJ", () => {
+inputs.bind("KeyX", () => {
   isLightOverlayShown = !isLightOverlayShown;
   if (isLightOverlayShown) {
     world.localLights.showDebugOverlay(world);
@@ -449,7 +449,7 @@ const toggleOrbitLight = () => {
     orbitLightHandle = VOXELIZE.INVALID_LIGHT_HANDLE;
   }
 };
-inputs.bind("KeyO", toggleOrbitLight);
+inputs.bind("KeyC", toggleOrbitLight);
 
 // Headless benchmark hooks: deterministic scenes, stats sampling, tier and
 // debug switching, scripted context loss. Driven by scripts/bench-local-lights.mjs.
@@ -474,7 +474,7 @@ const frameStats = () => {
   return { p50: at(0.5), p95: at(0.95), p99: at(0.99), samples: sorted.length };
 };
 
-(window as unknown as Record<string, unknown>).__bench__ = {
+(window as Window & { __bench__?: object }).__bench__ = {
   runScene: (scene: string, block: string, origin: number[], count: number) =>
     method.call("bench-lights", { scene, block, origin, count }),
   stats: () => ({
@@ -483,25 +483,28 @@ const frameStats = () => {
     render: { ...renderer.info.render },
     programs: renderer.info.programs?.length ?? 0,
     memory:
-      (
-        performance as unknown as {
-          memory?: { usedJSHeapSize: number };
-        }
-      ).memory?.usedJSHeapSize ?? 0,
+      (performance as Performance & { memory?: { usedJSHeapSize: number } })
+        .memory?.usedJSHeapSize ?? 0,
   }),
   resetFrameStats: () => {
     frameSampleCount = 0;
     frameSampleCursor = 0;
     lastFrameAt = 0;
+    world.localLights.resetPeakStats();
   },
   setTier: (tier: VOXELIZE.LightQualityTier) =>
     world.localLights.setQualityTier(tier),
   setDebugMode: (mode: 0 | 1 | 2 | 3) => world.localLights.setDebugMode(mode),
+  setAggregation: (block: string, mode: "none" | "cluster") =>
+    world.localLights.setBlockProfile(block, { aggregation: mode }),
+  clearProfile: (block: string) => world.localLights.clearBlockProfile(block),
   toggleOrbit: () => toggleOrbitLight(),
   teleport: (x: number, y: number, z: number) => controls.teleport(x, y, z),
   lookAt: (x: number, y: number, z: number) =>
     controls.object.lookAt(new THREE.Vector3(x, y, z)),
   setTime: (time: number) => method.call("time", { time }),
+  setTimeFrac: (frac: number) =>
+    method.call("time", { time: world.options.timePerDay * frac }),
   loseContext: () => {
     const ext = renderer.getContext().getExtension("WEBGL_lose_context");
     ext?.loseContext();
@@ -513,6 +516,7 @@ const frameStats = () => {
     chunksProcessing: world.chunkPipeline.processingCount,
     chunksRequested: world.chunkPipeline.requestedCount,
   }),
+  getVoxel: (x: number, y: number, z: number) => world.getVoxelAt(x, y, z),
 };
 
 inputs.bind(

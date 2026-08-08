@@ -530,7 +530,11 @@ pub fn setup_registry() -> Registry {
             .torch_light_level(15)
             // Only the glowing cap is emissive; the stem shades normally —
             // the per-face declaration path.
+            .face_emissive("top-px", 1.75)
             .face_emissive("top-py", 1.75)
+            .face_emissive("top-pz", 1.75)
+            .face_emissive("top-nx", 1.75)
+            .face_emissive("top-nz", 1.75)
             .build(),
         Block::new("Biggie")
             .id(500)

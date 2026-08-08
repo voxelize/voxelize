@@ -127,8 +127,11 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
 
     // Submerged emitters lose energy to the water column, with the same
     // extinction the cone lights use; the waterline transition spans one
-    // block so a bobbing lantern does not pop.
-    float llSubmersion = clamp(uWaterLevel - llOrigin.y, 0.0, 1.0);
+    // block so a bobbing lantern does not pop. Gated on camera submersion
+    // exactly like the terrain's downwelling attenuation: the nominal
+    // waterline must not drown dry lights in below-sea-level terrain.
+    float llSubmersion =
+      clamp(uWaterLevel - llOrigin.y, 0.0, 1.0) * uCameraSubmersion;
     vec3 llTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * llDist * llSubmersion);
 
     llTotal += llT1.rgb * (llFall * llAngular * llLambert * llFlicker * llOcclusion) * llTransmit;

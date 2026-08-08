@@ -135,12 +135,13 @@ scene profile without the upheaval [2][3]; rejected on evidence, per the task co
 - **Overflow policy:** when > 8 lights overlap a cell, keep the 8 highest-importance
   (deterministic; §4), drop the rest *for that cell only*, count it in
   `stats.overflowCells`. Visual effect is bounded because dropped lights keep L0 flood.
-- **Light data texture:** `RGBA32F DataTexture`, 4 texels per record, 256 record rows
-  (16 KB total): texel 0 `[x, y, z, range]`; texel 1 `[r·i, g·i, b·i, flags]` (flags:
-  type, static, maskPolicy, shadowSlot, submerged); texel 2 `[dir.xyz, cosOuter]` (spot)
-  or capsule end; texel 3 shadow params (atlas rect, face layout) — texels 2–3 fetched
-  only when flags say so. Uploaded per frame only for dirty rows; a fully static scene
-  uploads nothing.
+- **Light data texture:** `RGBA32F DataTexture`, 4 texels per record, 255 record rows
+  (~16 KB): texel 0 `[x, y, z, range]`; texel 1 `[r·i·share, g·i·share, b·i·share, flags]`
+  (flags: masked, flicker, shape); texel 2 spot `[dir.xyz, cosOuter]` or capsule end
+  offset; texel 3 `[flickerSpeed, flickerAmplitude, flickerPhase, spotInvCosDelta]` —
+  texels 2–3 fetched only when flags say so. **[implemented]** Shadow parameters join
+  texel 3's layout in Engine PR B. Uploaded whole on change frames only; a static scene
+  uploads nothing (flicker lives in the shader).
 - **Fragment loop sketch** (final GLSL in Engine PR A, signatures in `03-api.md`):
 
 ```glsl
@@ -199,27 +200,35 @@ carry the surface glow and L0 carries the flood. Aggregation is per-profile opt-
 
 ## 4. Selection: stable, budgeted, deterministic
 
-Per frame (amortizable to every N frames by option):
+**[implemented]** The selection pass runs only when the registry revision or the camera's
+grid cell changed — an idle frame does nothing at all (measured: zero work during a
+12-minute soak). When it runs:
 
-1. **Gather** candidates from grid cells within `analyticRadius` (default 64) — O(occupied
-   cells), never O(all lights).
-2. **Score** `importance = intensityLuma × range² / max(d², 1) × frustumFactor + priorityBias
-   + hysteresisBonus`. `frustumFactor` soft-scales (0.25 outside the view frustum, not 0 —
-   lights behind you still light geometry you see). `hysteresisBonus` (+20 % if selected
-   last frame) prevents boundary flicker.
-3. **Select** top `maxClusteredLights` (tier) into L2; ties break on handle order —
-   deterministic, testable.
-4. **Shadow-select** top `maxShadowedLights` (tier, ≤ 4) among selected lights whose
-   `shadowPolicy` allows maps, with **eviction hysteresis**: a challenger must out-score an
-   incumbent by > 25 % for 30 consecutive frames to take its atlas slot. Slots therefore
-   change on the timescale of walking between rooms, not head turns — this single rule is
-   what kills atlas thrash and shadow popping.
-5. **Pack** dirty cells / dirty light rows to the two textures.
+1. **Gather + score in one linear pass over the alive SoA** (O(registered), cache-friendly;
+   measured 0.1 ms at 10 000 registered). The RFC sketched a cell-bucketed gather; the
+   linear pass is simpler, allocation-free, and already far under budget, so the extra
+   structure stays unbuilt until a gate says otherwise.
+   `importance = intensityLuma × range² / max(d², 1) + priorityBias`, times the hysteresis
+   factor (×1.2) for lights selected last pass. The RFC's `frustumFactor` was dropped:
+   rotation-independent scoring is what lets selection skip entirely while the camera pans,
+   and lights behind the camera still light visible geometry anyway.
+2. **Select** top `maxClusteredLights` (tier) via a fixed min-heap; ties break on handle
+   order — deterministic, unit-tested.
+3. **Bin** the ranked selection into the grid, full rebuild (55 KB memset + ~27 cells per
+   light): rank order makes per-cell overflow drop the least important, deterministically.
+   Incremental cell diffing was designed but unnecessary — the full rebuild measures
+   ≤ 0.3 ms at the 255-light cap and only runs on change frames.
+4. **Pack** all selected rows and upload both textures whole (≤ 71 KB; cheaper than
+   scattered sub-uploads).
 
-Moving lights mark only their overlapped cells dirty (old ∪ new). Flicker (`03-api.md`
-§1.2) animates intensity *inside* the packed record — it never touches selection
-score (score uses base intensity), never dirties cells, never invalidates shadows
-(invariant 5).
+Shadow-selection with eviction hysteresis (challenger must out-score an incumbent by
+> 25 % for 30 frames) is Engine PR B, with the L3 shadows it gates.
+
+Moving lights bump the registry revision, so a frame with a moving light re-selects and
+re-bins — the measured full-pass cost at torch-village scale is ~0.3 ms. Flicker
+(`03-api.md` §1.2) is evaluated **in the shader** from `uTime` and per-light parameters
+packed once — it never touches selection, never dirties anything, never re-uploads
+(invariant 5), and a fully static scene uploads nothing even while every torch flickers.
 
 ## 5. Occlusion without shadow maps: the flood mask (D6)
 
@@ -363,8 +372,11 @@ totalLight = 1.0 - (1.0-sunTotal)*(1.0-torchLight)*(1.0-localLight)*(1.0-coneLig
   tonemap naturally crushes a torch's relative contribution, at night it dominates — no
   special-casing, matching how L0 behaves today.
 - **Emissive (L1):** a fragment whose vertex carries bit 30 outputs
-  `albedo × emissiveStrength` bypassing the lighting model (still tonemapped, still
-  fogged). Declared per block (`03-api.md`); the mesher sets the bit per face.
+  `albedo × emissiveStrength` bypassing the lighting model (still fogged, still
+  water-shaded). Declared per block (`03-api.md`); the mesher sets the bit per face.
+  **[implemented]** The 4-entry strength table is a fixed engine constant mirrored in
+  `vertex_light.rs` and the `uEmissiveLevels` uniform; making it configurable is a
+  data-only change deferred until a game needs different anchors.
 
 ## 8. Quality tiers, capability, degradation
 
