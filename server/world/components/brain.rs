@@ -137,7 +137,15 @@ impl BrainComp {
         // jumping
         let on_ground = body.at_rest_y() < 0;
         let can_jump = on_ground || self.state.jump_count < self.options.air_jumps;
-        if on_ground {
+        // Resting flags only change when physics integrates, so a second
+        // operate() call within the same tick still reads the pre-takeoff
+        // ground contact. A queued upward impulse means a jump already
+        // started this tick: the body is mid-takeoff, not landed, and
+        // clearing `is_jumping` here would let that second call charge a
+        // second full jump impulse onto the same physics tick — a
+        // quadruple-height launch, lethal to fall-damage-prone fauna.
+        let is_landed = on_ground && body.impulses[1] <= 0.0;
+        if is_landed {
             self.state.is_jumping = false;
             self.state.jump_count = 0;
         }
