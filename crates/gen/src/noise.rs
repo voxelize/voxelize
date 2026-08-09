@@ -99,7 +99,7 @@ impl Perlin {
             u,
         );
         // grad2 spans roughly [-2, 2]; normalize toward [-1, 1].
-        lerp(x1, x2, v) * 0.7071067811865476
+        lerp(x1, x2, v) * std::f64::consts::FRAC_1_SQRT_2
     }
 
     pub fn sample3(&self, x: f64, y: f64, z: f64) -> f64 {
@@ -148,7 +148,7 @@ impl Perlin {
             u,
         );
         let y2 = lerp(x3, x4, v);
-        lerp(y1, y2, w) * 0.7071067811865476
+        lerp(y1, y2, w) * std::f64::consts::FRAC_1_SQRT_2
     }
 }
 

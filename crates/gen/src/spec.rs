@@ -683,8 +683,7 @@ impl TerrainView for CompiledGenerator {
         self.biomes[blend.primary.0 as usize]
             .params
             .tags
-            .iter()
-            .any(|t| *t == tag)
+            .contains(&tag)
     }
 
     fn sea_level(&self) -> Option<i32> {
