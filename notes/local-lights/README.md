@@ -1,10 +1,11 @@
 # Local light emitters: design and implementation notes
 
-Status: **Engine PR A implemented** (emissive faces + registry + clustered analytic layer).
-Engine PR B (shadow atlas, hero point shadows, CSM ledger) remains future work; its
-sections in these documents are design, not shipped behavior. Where the implementation
-deviates from the original RFC text, the deviation is marked inline with **[implemented]**
-notes — the code is the source of truth, these documents are the rationale.
+Status: **Engine PR A and Engine PR B implemented** (emissive faces + registry +
+clustered analytic layer; shadow atlas + cached static maps + dynamic caster overlays +
+CSM frame ledger). Where the implementation deviates from the original RFC text, the
+deviation is marked inline with **[implemented]** notes — the code is the source of
+truth, these documents are the rationale. PR B's implementation-level decisions and
+their tradeoffs live in [`06-shadows-implementation.md`](./06-shadows-implementation.md).
 
 Scope: extremely performant local light emitters — torches, lanterns, campfires, lava,
 glowing windows, magic lamps, held lights, projectiles, moving entities — rendered by the
@@ -20,6 +21,7 @@ sunlight/CSM/shadow/render pipeline without disturbing it.
 | [`03-api.md`](./03-api.md) | Reviewable TypeScript / Rust / shader-facing types, lifecycle guarantees, worked Town-side examples. |
 | [`04-benchmarks.md`](./04-benchmarks.md) | Hard budgets, acceptance gates, benchmark scenes, methodology, metrics, debug overlays. |
 | [`05-rollout.md`](./05-rollout.md) | Phased implementation plan (engine PRs, then Town PR), migration, risks. |
+| [`06-shadows-implementation.md`](./06-shadows-implementation.md) | Engine PR B: the implementation-level shadow decisions (dynamic caster overlays, analytic face math, bias model, atlas residency, ledger semantics, emissive-face anchors) and their alternatives. |
 
 ## One-paragraph summary
 
@@ -84,16 +86,19 @@ will actually code against), then skim `04-benchmarks` and `05-rollout` (15 min)
 "Decision" callout in `02-architecture.md` maps to a row above; comment on the row, not
 just the prose.
 
-## Implementation map (Engine PR A)
+## Implementation map (Engine PR A + PR B)
 
 | Piece | Code |
 | --- | --- |
 | Emissive vertex bit + strength levels | `crates/mesher/src/mesher/vertex_light.rs` (`EMISSIVE_BIT`, `EMISSIVE_LEVELS`, `ao_or_emissive_bits`), packed in `faces.rs` / `greedy.rs` / `fluid.rs` |
 | Block declaration | `server/world/voxels/block/builder.rs` (`emissive`, `face_emissive`), `BlockFace.emissive` on both the server and `voxelize_core` types |
 | Registry / handles | `packages/core/src/core/world/local-lights/registry.ts` |
-| Profiles + chunk scan + aggregation | `local-lights/scan.ts` |
-| Selection + grid + GPU packing | `local-lights/clustering.ts` |
-| Shader functions + emissive branch | `local-lights/shader.ts`, composed in `world/shaders.ts` |
+| Profiles + chunk scan + aggregation + emissive-face anchors | `local-lights/scan.ts` |
+| Selection + grid + GPU packing (incl. shadow texels) | `local-lights/clustering.ts` |
+| Shader functions + emissive branch + shadow sampling | `local-lights/shader.ts`, composed in `world/shaders.ts` |
+| Shadow atlas + face camera math | `local-lights/shadow-atlas.ts` |
+| Shadow slots, caching, invalidation, dynamic overlays | `local-lights/shadow-scheduler.ts` |
+| CSM/local frame budget | `local-lights/shadow-ledger.ts`, consulted by `world/csm-renderer.ts` |
 | Facade, lifecycle, stats, tiers | `local-lights/index.ts`, wired in `world/index.ts` |
-| Debug overlay | `local-lights/debug.ts` |
-| Benchmarks | `scripts/bench-local-lights.mjs`, demo scenes in `examples/server/worlds/shared/methods.rs` |
+| Debug overlay | `local-lights/debug.ts`; shader debug modes 4–5; demo atlas viewer + ledger HUD in `examples/client` |
+| Benchmarks / proofs | `scripts/bench-local-lights.mjs`, `scripts/shadow-proof.mjs`, demo scenes in `examples/server/worlds/shared/methods.rs` + `examples/client/src/main.ts` |

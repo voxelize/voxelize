@@ -5,7 +5,9 @@
 Three PRs, strictly ordered, each independently shippable and revertible. No calendar
 estimates; scope is defined by files touched and gates passed.
 
-**Status: Engine PR A is implemented and measured** (results in `04-benchmarks.md` §0).
+**Status: Engine PR A and Engine PR B are implemented and measured** (PR A results in
+`04-benchmarks.md` §0; PR B decisions and measurements in `06-shadows-implementation.md`
+and the PR itself).
 Differences against the plan below: the emitter scan runs amortized on the main thread
 (bounded by `maxSectionScansPerFrame`, measured ≤ 4.4 ms on cold load bursts) instead of
 inside the mesh workers — the worker-protocol change wasn't warranted at the measured

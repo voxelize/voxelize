@@ -1,10 +1,12 @@
 # API: types, lifecycle guarantees, worked examples
 
-Everything here is the contract Town codes against. Engine PR A implements it as written
-apart from the **[implemented]** notes below; shadow-facing surface (`shadowMap`
-honoring, `invalidateShadowRegion`, atlas options) parses and validates today but only
-takes effect with Engine PR B. The authoritative signatures live in
-`packages/core/src/core/world/local-lights/`.
+Everything here is the contract Town codes against. Engine PR A and PR B implement it
+as written apart from the **[implemented]** notes below; the shadow-facing surface
+(`shadowMap` honoring, `invalidateShadowRegion(min, max)`, atlas/tier options, the
+`ShadowFrameLedger`) is live as of Engine PR B. PR B also derives each emitter's
+default anchor from its declared emissive faces (a torch lights from its tip, rotating
+with the block); `BlockLightProfile.offset` overrides it. The authoritative signatures
+live in `packages/core/src/core/world/local-lights/`.
 
 ## 1. TypeScript surface (`@voxelize/core`)
 
