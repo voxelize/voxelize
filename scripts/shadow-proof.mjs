@@ -278,15 +278,21 @@ if (shouldRun("pig-video")) {
 }
 
 // ── player walking through colored pools video ──────────────────────────────
+// The tint is a lerp (LightShined lerpFactor 0.1/frame); at software-render
+// frame rates it needs a few seconds of standing still to settle, so the
+// walk pauses inside each pool.
 if (shouldRun("pools-video")) {
   await bench("setPerspective", "third");
-  await view([AZURE[0] - 3, OY, AZURE[2] - 3], [EMBER[0] + 2, OY + 1, EMBER[2] + 2]);
-  await sleep(800);
+  await view([AZURE[0] - 2, OY, AZURE[2] - 2.5], [EMBER[0] + 1, OY + 1, EMBER[2] + 1.5]);
+  await sleep(5000); // settle the cool tint before the take starts
   const recorder = await page.screencast({
     path: join(outDir, "player_walk_colored_pools.webm"),
   });
-  await bench("walk", 6500);
-  await sleep(8500);
+  await sleep(3500); // hold: blue tint beside the azure lamp
+  await bench("walk", 2600); // cross toward the warm pool
+  await sleep(3200);
+  await bench("walk", 2600);
+  await sleep(6500); // hold: warm tint beside the ember lamp
   await recorder.stop();
   console.log("[proof] video player_walk_colored_pools");
   await bench("setPerspective", "first");
@@ -364,6 +370,16 @@ if (shouldRun("debug")) {
   await view([OX + 7, OY + 4, OZ - 9], [OX + 7, OY + 4, OZ - 3]);
   await shot("debug_atlas_viewer");
   await bench("toggleAtlasViewer", 0, 0, 0, 0);
+
+  // Ledger / shadow budget HUD (bottom-left stats panel) over the stage,
+  // with a moving hero light spending dynamic units.
+  await view([OX + 9, OY + 4, OZ - 7], [OX - 2, OY + 1, OZ + 5]);
+  await bench("toggleOrbitShadowed");
+  await bench("toggleDebugPanel");
+  await sleep(2500);
+  await shot("debug_ledger_hud");
+  await bench("toggleDebugPanel");
+  await bench("toggleOrbitShadowed");
   console.log("[proof] ledger:", JSON.stringify(await bench("ledgerStats")));
   console.log(
     "[proof] invalidation log:",

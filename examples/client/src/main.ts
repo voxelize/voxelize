@@ -594,10 +594,14 @@ const buildShadowStage = (ox: number, oy: number, oz: number) => {
 };
 
 const clearShadowStage = (ox: number, oy: number, oz: number) => {
+  // The stage floor replaced the plain's own surface layer; restore stone
+  // there instead of leaving a crater that changes nearby chunk geometry.
+  const stone = world.getBlockByName("Stone")?.id ?? 0;
   const updates: VOXELIZE.BlockUpdate[] = [];
   for (let x = -14; x <= 14; x++) {
     for (let z = -14; z <= 14; z++) {
-      for (let y = -1; y <= 7; y++) {
+      updates.push({ vx: ox + x, vy: oy - 1, vz: oz + z, type: stone });
+      for (let y = 0; y <= 7; y++) {
         updates.push({ vx: ox + x, vy: oy + y, vz: oz + z, type: 0 });
       }
     }
@@ -819,6 +823,7 @@ const frameStats = () => {
       controls.movements.front = false;
     }, forwardMs);
   },
+  toggleDebugPanel: () => debug.toggle(),
   ledgerStats: () => ({ ...world.localLights.shadowLedger.frameStats }),
   invalidationLog: () => world.localLights.shadows.invalidationLog.slice(),
   invalidateShadowRegion: (

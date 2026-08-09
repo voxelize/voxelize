@@ -208,14 +208,11 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
     int llFlags = int(llT1.w + 0.5);
     int llShape = llFlags >> 4;
 
-    vec4 llT2 = vec4(0.0);
-    if (llShape != 0) {
-      llT2 = texelFetch(uLightData, ivec2(2, llRec), 0);
-    }
-
     vec3 llOrigin = llT0.xyz;
+    vec3 llSpotDir = vec3(0.0);
     if (llShape == 2) {
       // Capsule: light from the closest point on the segment.
+      vec4 llT2 = texelFetch(uLightData, ivec2(2, llRec), 0);
       vec3 llAxis = llT2.xyz;
       float llLen2 = max(dot(llAxis, llAxis), 1e-6);
       float llT = clamp(dot(llPos - llT0.xyz, llAxis) / llLen2, 0.0, 1.0);
@@ -235,7 +232,9 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
 
     float llAngular = 1.0;
     if (llShape == 1) {
+      vec4 llT2 = texelFetch(uLightData, ivec2(2, llRec), 0);
       vec4 llT3s = texelFetch(uLightData, ivec2(3, llRec), 0);
+      llSpotDir = llT2.xyz;
       llAngular = clamp((dot(-llL, llT2.xyz) - llT2.w) * llT3s.w, 0.0, 1.0);
       llAngular *= llAngular;
     }
@@ -249,12 +248,11 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
 
     // Occlusion ladder: a granted shadow slot samples its atlas maps
     // (per-light, entity-aware); otherwise a masked light multiplies by the
-    // shared flood mask; otherwise the light is unoccluded.
-    float llOcclusion = 1.0;
+    // shared flood mask; otherwise the light is unoccluded. The common
+    // masked-point case costs the same select it did before shadows.
+    float llOcclusion = (llFlags & 1) != 0 ? llMask : 1.0;
     if ((llFlags & 4) != 0) {
-      llOcclusion = localLightShadow(llRec, llPos, llNormal, llShape, llT0.xyz, llT2.xyz);
-    } else if ((llFlags & 1) != 0) {
-      llOcclusion = llMask;
+      llOcclusion = localLightShadow(llRec, llPos, llNormal, llShape, llT0.xyz, llSpotDir);
     }
 
     // Submerged emitters lose energy to the water column, with the same
