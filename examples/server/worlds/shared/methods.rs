@@ -36,6 +36,19 @@ struct SpawnFaunaPayload {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct SpawnPigPayload {
+    position: Vec3<f32>,
+    count: usize,
+    #[serde(default)]
+    radius: f32,
+    #[serde(default)]
+    speed: f32,
+    /// Demo animal species: "pig" (default) or "sheep".
+    #[serde(default)]
+    kind: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct BenchLightsPayload {
     scene: String,
     block: String,
@@ -59,6 +72,26 @@ pub fn setup_methods(world: &mut World) {
         let time_per_day = world.config().time_per_day as f32;
         let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
         world.stats_mut().set_time(new_time.time % time_per_day);
+    });
+
+    // Authoritative client teleport for the demo's scripted scenes. The
+    // anti-cheat clamp on peer position deltas makes a client-side teleport
+    // *crawl* server-side (24 blocks per update) — until it arrives, entity
+    // interest management still orbits the old position and nothing streams.
+    world.set_method_handle("teleport-client", |world, client_id, payload| {
+        let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
+        let entity = {
+            let clients = world.read_resource::<voxelize::Clients>();
+            clients.get(client_id).map(|client| client.entity)
+        };
+        if let Some(entity) = entity {
+            let mut positions = world.ecs_mut().write_storage::<PositionComp>();
+            if let Some(position) = positions.get_mut(entity) {
+                position
+                    .0
+                    .set(data.position.0, data.position.1, data.position.2);
+            }
+        }
     });
 
     // Deterministic emitter layouts for the local-lights benchmark scenes.
@@ -265,6 +298,63 @@ pub fn setup_methods(world: &mut World) {
                 .ecs_mut()
                 .delete_entity(entity)
                 .expect("Failed to delete drop entity");
+        }
+    });
+
+    // Ground-walking demo animals for the local-light shadow proofs: each
+    // pig orbits the given center at walking pace with zero bob, so it
+    // passes between lights and walls on a smooth, deterministic path.
+    world.set_method_handle("spawn-pig", |world, _, payload| {
+        let data: SpawnPigPayload = serde_json::from_str(&payload).unwrap();
+        let count = data.count.clamp(1, 32);
+        let radius = if data.radius > 0.0 { data.radius } else { 3.5 };
+        let speed = if data.speed > 0.0 { data.speed } else { 0.35 };
+        let kind = if data.kind == "sheep" { "sheep" } else { "pig" };
+
+        for i in 0..count {
+            // Phase 0 keeps the first pig's path a clean circle; extras
+            // spread into deterministic Lissajous wanders around the center.
+            let phase = i as f32 * 2.399963;
+            let fauna = FaunaComp {
+                center: data.position.clone(),
+                radius_x: radius,
+                radius_z: radius,
+                angular_speed_x: speed,
+                angular_speed_z: speed,
+                bob_amplitude: 0.0,
+                phase,
+            };
+            world
+                .create_entity(&nanoid!(), kind)
+                .with(PositionComp::new(
+                    data.position.0,
+                    data.position.1,
+                    data.position.2,
+                ))
+                .with(DirectionComp::default())
+                .with(DoNotPersistComp)
+                .with(fauna)
+                .build();
+        }
+    });
+
+    world.set_method_handle("clear-pigs", |world, _, _| {
+        let entities = world.ecs().entities();
+        let etypes = world.ecs().read_storage::<ETypeComp>();
+
+        let mut to_delete = vec![];
+        for (entity, etype) in (&entities, &etypes).join() {
+            if etype.0 == "pig" || etype.0 == "sheep" {
+                to_delete.push(entity);
+            }
+        }
+        drop((entities, etypes));
+
+        for entity in to_delete {
+            world
+                .ecs_mut()
+                .delete_entity(entity)
+                .expect("Failed to delete pig entity");
         }
     });
 

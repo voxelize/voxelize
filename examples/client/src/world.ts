@@ -163,6 +163,12 @@ export async function setupWorld(world: VOXELIZE.World) {
     { idOrName: "Snow", faceNames: all, source: SnowImage },
     { idOrName: "Water", faceNames: all, source: WaterImage },
     { idOrName: "Obsidian", faceNames: all, source: ObsidianImage },
+    // Torch: plain wooden stick, hot emitting tip. Only "py" glows.
+    { idOrName: "Torch", faceNames: side, source: new THREE.Color("#7A5230") },
+    { idOrName: "Torch", faceNames: ["ny"], source: new THREE.Color("#5C3D22") },
+    { idOrName: "Torch", faceNames: ["py"], source: new THREE.Color("#FFC773") },
+    { idOrName: "Ember Lamp", faceNames: all, source: new THREE.Color("#FF6A35") },
+    { idOrName: "Azure Lamp", faceNames: all, source: new THREE.Color("#4D8FFF") },
     { idOrName: "Granite", faceNames: all, source: GraniteImage },
     { idOrName: "Graphite", faceNames: all, source: GraphiteImage },
     { idOrName: "Slate", faceNames: all, source: SlateImage },

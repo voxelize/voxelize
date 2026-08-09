@@ -305,6 +305,51 @@ pub fn setup_registry() -> Registry {
             .torch_light_level(15)
             .emissive(2.5)
             .build(),
+        // Authored torch: a plain wooden stick whose *tip face* is the hot,
+        // emitting surface. The stick shades, occludes, and receives shadows
+        // like any geometry; only the py face glows, and the engine derives
+        // the light's anchor from that face (rotates with the block).
+        Block::new("Torch")
+            .id(30)
+            .rotatable(true)
+            .is_transparent(true)
+            .is_passable(true)
+            .red_light_level(14)
+            .green_light_level(9)
+            .blue_light_level(2)
+            .faces(
+                &BlockFaces::six_faces()
+                    .scale_x(0.2)
+                    .offset_x(0.4)
+                    .scale_z(0.2)
+                    .offset_z(0.4)
+                    .scale_y(0.62)
+                    .build(),
+            )
+            .aabbs(&[AABB::new()
+                .scale_x(0.2)
+                .offset_x(0.4)
+                .scale_z(0.2)
+                .offset_z(0.4)
+                .scale_y(0.62)
+                .build()])
+            .face_emissive("py", 2.5)
+            .build(),
+        // Warm / cool hero lamps for the local-shadow demo scenes.
+        Block::new("Ember Lamp")
+            .id(31)
+            .red_light_level(15)
+            .green_light_level(5)
+            .blue_light_level(1)
+            .emissive(1.75)
+            .build(),
+        Block::new("Azure Lamp")
+            .id(32)
+            .red_light_level(2)
+            .green_light_level(7)
+            .blue_light_level(15)
+            .emissive(1.75)
+            .build(),
         Block::new("Granite").id(21).build(),
         Block::new("Graphite").id(22).build(),
         Block::new("Andesite").id(23).green_light_level(10).build(),
