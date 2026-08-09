@@ -532,6 +532,13 @@ export type ScenarioOptions = {
   name: string;
   arena?: ArenaOptions;
   timeoutMs?: number;
+  /**
+   * Whether teardown clears the arena's blocks. Defaults to true.
+   *
+   * Set to false for scenarios that do not modify terrain to avoid the
+   * fill and remesh work. Spawned entities are always removed.
+   */
+  isWipingArena?: boolean;
   body: (ctx: ScenarioContext) => Promise<void>;
 };
 
@@ -578,7 +585,9 @@ export async function runScenario(
   const teardown = async (): Promise<void> => {
     try {
       await arena.despawn();
-      await arena.wipe();
+      if (opts.isWipingArena !== false) {
+        await arena.wipe();
+      }
     } catch (e) {
       log(`teardown error: ${formatError(e)}`);
     }
