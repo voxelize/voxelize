@@ -769,7 +769,7 @@ const frameStats = () => {
     camera.getWorldDirection(new THREE.Vector3()).toArray(),
   charLight: () => {
     const sample = { color: [0, 0, 0] as [number, number, number], count: 0 };
-    world.localLights.queryLocalLights(character.position, sample, 1, 0);
+    world.localLights.queryLocalLights(character.position, sample);
     const uniform = (
       character.userData.lightUniforms as { value: THREE.Color }[] | undefined
     )?.[0]?.value;
@@ -784,8 +784,7 @@ const frameStats = () => {
   listEntities: () => {
     const out: { type: string; position: number[] }[] = [];
     entities.map.forEach((entity) => {
-      const caster = (entity as { shadowCaster?: THREE.Object3D })
-        .shadowCaster;
+      const caster = (entity as { shadowCaster?: THREE.Object3D }).shadowCaster;
       out.push({
         type: entity.entType ?? "?",
         position: (caster ?? entity).position.toArray(),
@@ -810,7 +809,7 @@ const frameStats = () => {
         vx: x,
         vy: y,
         vz: z,
-        type: name === "air" ? 0 : (world.getBlockByName(name)?.id ?? 0),
+        type: name === "air" ? 0 : world.getBlockByName(name)?.id ?? 0,
         rotation,
       },
     ]),

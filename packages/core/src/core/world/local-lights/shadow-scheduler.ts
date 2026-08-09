@@ -43,6 +43,22 @@ const MOVE_EPSILON = 0.01;
 /** Shadow cameras hug the light; nearer geometry cannot occlude usefully. */
 const SHADOW_NEAR = 0.25;
 
+/** Scratch views for the face-render camera calls; zero per-face allocation. */
+const pointViewScratch = {
+  light: [0, 0, 0] as [number, number, number],
+  face: 0,
+  tanHalf: 0,
+  near: SHADOW_NEAR,
+  far: 1,
+};
+const spotViewScratch = {
+  light: [0, 0, 0] as [number, number, number],
+  direction: [0, 0, 0] as [number, number, number],
+  tanHalf: 0,
+  near: SHADOW_NEAR,
+  far: 1,
+};
+
 export type ShadowInvalidationCause =
   | "blockEdit"
   | "chunkMeshed"
@@ -50,7 +66,8 @@ export type ShadowInvalidationCause =
   | "tierChange"
   | "contextRestore"
   | "manualRegion"
-  | "lightMoved";
+  | "lightMoved"
+  | "lightRotated";
 
 export interface ShadowInvalidationEntry {
   frame: number;
@@ -79,6 +96,13 @@ interface ShadowSlot {
   far: number;
   tanHalf: number;
   isSpot: boolean;
+  /** Spot only: cone direction and outer cosine the cached faces were aimed
+   * with, so a rotated or re-angled cone re-renders instead of sampling a
+   * map that still points the old way. */
+  dirX: number;
+  dirY: number;
+  dirZ: number;
+  cosOuter: number;
   /** The owning light mutates position (held/orbit lights). */
   isMovingLight: boolean;
   /** Mount-aware faces this light may ever render (bitmask). */
@@ -128,8 +152,7 @@ export class LocalShadowScheduler {
   private readonly depthMaterial: MeshDepthMaterial;
   private readonly faceCamera = new PerspectiveCamera();
   private readonly casterScene = new Scene();
-  private readonly hiddenObjects: { object: Object3D; visible: boolean }[] =
-    [];
+  private readonly hiddenObjects: { object: Object3D; visible: boolean }[] = [];
   private readonly reparentedCasters: {
     object: Object3D;
     parent: Object3D | null;
@@ -242,15 +265,20 @@ export class LocalShadowScheduler {
   }
 
   /** Public API: invalidate every cached map intersecting a world region. */
-  invalidateRegion(
-    minX: number,
-    minY: number,
-    minZ: number,
-    maxX: number,
-    maxY: number,
-    maxZ: number,
-  ): void {
-    this.invalidateBox(minX, minY, minZ, maxX, maxY, maxZ, "manualRegion");
+  invalidateRegion(region: {
+    min: [number, number, number];
+    max: [number, number, number];
+  }): void {
+    const { min, max } = region;
+    this.invalidateBox(
+      min[0],
+      min[1],
+      min[2],
+      max[0],
+      max[1],
+      max[2],
+      "manualRegion",
+    );
   }
 
   /**
@@ -258,14 +286,22 @@ export class LocalShadowScheduler {
    * whatever geometry existed at render time; streaming in late meshes must
    * refresh them or lights shine through terrain that "wasn't there yet".
    */
-  notifyChunkMeshed(
-    minX: number,
-    minZ: number,
-    maxX: number,
-    maxZ: number,
-    maxHeight: number,
-  ): void {
-    this.invalidateBox(minX, 0, minZ, maxX, maxHeight, maxZ, "chunkMeshed");
+  notifyChunkMeshed(area: {
+    minX: number;
+    minZ: number;
+    maxX: number;
+    maxZ: number;
+    maxHeight: number;
+  }): void {
+    this.invalidateBox(
+      area.minX,
+      0,
+      area.minZ,
+      area.maxX,
+      area.maxHeight,
+      area.maxZ,
+      "chunkMeshed",
+    );
   }
 
   private invalidateBox(
@@ -506,7 +542,7 @@ export class LocalShadowScheduler {
 
   /** Track anchor movement and spot-direction-derived parameters. */
   private refreshSlotGeometry(): boolean {
-    const { positions, ranges } = this.registry;
+    const { positions, ranges, aux } = this.registry;
     let changed = false;
     for (let s = 0; s < this.slots.length; s++) {
       const slot = this.slots[s];
@@ -521,7 +557,29 @@ export class LocalShadowScheduler {
         Math.abs(y - slot.y) > MOVE_EPSILON ||
         Math.abs(z - slot.z) > MOVE_EPSILON ||
         Math.abs(far - slot.far) > MOVE_EPSILON;
-      if (!moved) continue;
+      // A spot's cached face aims along its cone: rotating the cone (or
+      // widening it) stales the map exactly like moving the anchor, so the
+      // atlas must not keep aiming the old way after setDirection.
+      let rotated = false;
+      if (slot.isSpot) {
+        const dx = aux[i * 4];
+        const dy = aux[i * 4 + 1];
+        const dz = aux[i * 4 + 2];
+        const cosOuter = aux[i * 4 + 3];
+        rotated =
+          Math.abs(dx - slot.dirX) > MOVE_EPSILON ||
+          Math.abs(dy - slot.dirY) > MOVE_EPSILON ||
+          Math.abs(dz - slot.dirZ) > MOVE_EPSILON ||
+          Math.abs(cosOuter - slot.cosOuter) > MOVE_EPSILON;
+        if (rotated) {
+          slot.dirX = dx;
+          slot.dirY = dy;
+          slot.dirZ = dz;
+          slot.cosOuter = cosOuter;
+          slot.tanHalf = spotGuardTanHalf(cosOuter);
+        }
+      }
+      if (!moved && !rotated) continue;
       slot.x = x;
       slot.y = y;
       slot.z = z;
@@ -530,7 +588,9 @@ export class LocalShadowScheduler {
       slot.staticMask &= slot.allowedMask;
       slot.dynamicMask &= slot.allowedMask;
       slot.staticPending = slot.allowedMask;
-      if (!slot.isMovingLight) this.logInvalidation(s, "lightMoved");
+      if (!slot.isMovingLight) {
+        this.logInvalidation(s, moved ? "lightMoved" : "lightRotated");
+      }
       changed = true;
     }
     return changed;
@@ -548,10 +608,16 @@ export class LocalShadowScheduler {
     slot.isSpot = shapes[index] === LIGHT_SHAPE_SPOT;
     slot.isMovingLight = (flags[index] & LIGHT_FLAG_STATIC) === 0;
     if (slot.isSpot) {
-      const cosOuter = Math.min(Math.max(aux[index * 4 + 3], 0.05), 0.999);
-      slot.tanHalf =
-        (Math.sqrt(1 - cosOuter * cosOuter) / cosOuter) * SPOT_GUARD_SCALE;
+      slot.dirX = aux[index * 4];
+      slot.dirY = aux[index * 4 + 1];
+      slot.dirZ = aux[index * 4 + 2];
+      slot.cosOuter = aux[index * 4 + 3];
+      slot.tanHalf = spotGuardTanHalf(slot.cosOuter);
     } else {
+      slot.dirX = 0;
+      slot.dirY = 0;
+      slot.dirZ = 0;
+      slot.cosOuter = 0;
       slot.tanHalf = POINT_FACE_GUARD_TAN_HALF;
     }
     slot.allowedMask = this.computeAllowedMask(slot);
@@ -568,6 +634,10 @@ export class LocalShadowScheduler {
     slot.dynamicMask = 0;
     slot.staticPending = 0;
     slot.allowedMask = FULL_FACE_MASK;
+    slot.dirX = 0;
+    slot.dirY = 0;
+    slot.dirZ = 0;
+    slot.cosOuter = 0;
   }
 
   /**
@@ -612,15 +682,18 @@ export class LocalShadowScheduler {
 
   /**
    * Estimated dynamic face units this frame wants, for the ledger
-   * reservation taken before CSM renders its cascades.
+   * reservation taken before CSM renders its cascades. Mirrors exactly what
+   * `render` will draw through the dynamic tier — a moving light's pending
+   * world refreshes plus every slot's entity overlay faces — so an idle
+   * held light with no casters nearby reserves nothing and never squeezes
+   * the CSM far cascades or the static FIFO.
    */
   estimateDynamicDemand(entities?: Object3D[]): number {
     let faces = 0;
     for (const slot of this.slots) {
       if (slot.index < 0) continue;
-      if (slot.isMovingLight) {
-        faces += popcount(slot.allowedMask);
-        continue;
+      if (slot.isMovingLight && slot.staticPending !== 0) {
+        faces += popcount(slot.staticPending & slot.allowedMask);
       }
       if (!entities || entities.length === 0) continue;
       for (let f = 0; f < 6; f++) {
@@ -673,34 +746,29 @@ export class LocalShadowScheduler {
       const slot = this.slots[s];
       if (slot.index < 0) continue;
 
-      if (slot.isMovingLight) {
-        // A moving light's cache can never survive; render world + entities
-        // together into the static cells and keep the overlay empty.
-        if (slot.staticPending !== 0) {
-          for (let f = 0; f < 6; f++) {
-            const bit = 1 << f;
-            if ((slot.staticPending & bit) === 0) continue;
-            if (!ledger.requestLocal("dynamic", this.faceCostUnits)) break;
-            this.renderFace(renderer, scene, slot, s, f, false, {
-              includeWorld: true,
-              entities,
-              instancePools,
-            });
-            slot.staticPending &= ~bit;
-            slot.staticMask |= bit;
-            facesDynamic++;
-            texelsChanged = true;
-          }
-        }
-        if (slot.dynamicMask !== 0) {
-          slot.dynamicMask = 0;
+      if (slot.isMovingLight && slot.staticPending !== 0) {
+        // A moving light's world cache cannot survive its own motion:
+        // pending faces re-render world-only depth through the reserved
+        // dynamic tier. Entities never bake into these cells — they ride
+        // the per-frame overlay below like every other slot, so a held
+        // light that stops moving keeps live caster shadows instead of a
+        // frozen imprint of wherever they stood at the last refresh.
+        for (let f = 0; f < 6; f++) {
+          const bit = 1 << f;
+          if ((slot.staticPending & bit) === 0) continue;
+          if (!ledger.requestLocal("dynamic", this.faceCostUnits)) break;
+          this.renderFace(renderer, scene, slot, s, f, false, {
+            includeWorld: true,
+          });
+          slot.staticPending &= ~bit;
+          slot.staticMask |= bit;
+          facesDynamic++;
           texelsChanged = true;
         }
-        continue;
       }
 
-      // Static light: entity overlay faces re-render every frame while a
-      // caster stands in them; cached world faces are never touched.
+      // Entity overlay faces re-render every frame while a caster stands in
+      // them; cached world faces are never touched.
       let overlayMask = 0;
       if (entities && entities.length > 0) {
         for (let f = 0; f < 6; f++) {
@@ -788,29 +856,27 @@ export class LocalShadowScheduler {
     const camera = this.faceCamera;
     if (slot.isSpot) {
       const i = slot.index;
-      orientSpotCamera(
-        camera,
-        slot.x,
-        slot.y,
-        slot.z,
-        this.registry.aux[i * 4],
-        this.registry.aux[i * 4 + 1],
-        this.registry.aux[i * 4 + 2],
-        slot.tanHalf,
-        SHADOW_NEAR,
-        slot.far,
-      );
+      const view = spotViewScratch;
+      view.light[0] = slot.x;
+      view.light[1] = slot.y;
+      view.light[2] = slot.z;
+      view.direction[0] = this.registry.aux[i * 4];
+      view.direction[1] = this.registry.aux[i * 4 + 1];
+      view.direction[2] = this.registry.aux[i * 4 + 2];
+      view.tanHalf = slot.tanHalf;
+      view.near = SHADOW_NEAR;
+      view.far = slot.far;
+      orientSpotCamera(camera, view);
     } else {
-      orientPointFaceCamera(
-        camera,
-        slot.x,
-        slot.y,
-        slot.z,
-        face,
-        slot.tanHalf,
-        SHADOW_NEAR,
-        slot.far,
-      );
+      const view = pointViewScratch;
+      view.light[0] = slot.x;
+      view.light[1] = slot.y;
+      view.light[2] = slot.z;
+      view.face = face;
+      view.tanHalf = slot.tanHalf;
+      view.near = SHADOW_NEAR;
+      view.far = slot.far;
+      orientPointFaceCamera(camera, view);
     }
 
     const cell = this.atlas.cellIndex(slotId, face, isDynamicCell);
@@ -925,12 +991,22 @@ function makeEmptySlot(): ShadowSlot {
     far: 1,
     tanHalf: POINT_FACE_GUARD_TAN_HALF,
     isSpot: false,
+    dirX: 0,
+    dirY: 0,
+    dirZ: 0,
+    cosOuter: 0,
     isMovingLight: false,
     allowedMask: FULL_FACE_MASK,
     staticMask: 0,
     dynamicMask: 0,
     staticPending: 0,
   };
+}
+
+/** Guarded half-FOV tangent for a spot cone's authored outer cosine. */
+function spotGuardTanHalf(cosOuterRaw: number): number {
+  const cosOuter = Math.min(Math.max(cosOuterRaw, 0.05), 0.999);
+  return (Math.sqrt(1 - cosOuter * cosOuter) / cosOuter) * SPOT_GUARD_SCALE;
 }
 
 function popcount(mask: number): number {

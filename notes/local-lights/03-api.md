@@ -143,10 +143,16 @@ export class LocalLights {
   setEnabled(handle: LightHandle, isEnabled: boolean): boolean;
 
   /**
-   * CPU query over the same SoA for entities/particles/items. Zero alloc;
-   * each selected light contributes within its own range.
+   * CPU query over the same SoA for entities/particles/items. Zero alloc
+   * (per-frame callers reuse one options scratch object); each selected
+   * light contributes within its own range. `floodMask` is the caller's
+   * knee-mapped flood level (occlusion stand-in), `timeMs` drives flicker.
    */
-  queryLocalLights(position: Vector3, out: LocalLightSample): void;
+  queryLocalLights(
+    position: Vector3,
+    out: LocalLightSample,
+    options?: { floodMask?: number; timeMs?: number },
+  ): void;
 
   setQualityTier(tier: LightQualityTier): void;
   getQualityTier(): LightQualityTier;
@@ -165,7 +171,9 @@ export class LocalLights {
 
   readonly stats: LocalLightStats;    // see local-lights/types.ts
 }
-// Engine PR B adds: invalidateShadowRegion(min, max).
+// Engine PR B adds: invalidateShadowRegion(min: Vector3, max: Vector3),
+// forwarding to the scheduler's named-args form:
+//   shadows.invalidateRegion({ min: [x, y, z], max: [x, y, z] }).
 
 export interface LocalLightSample {
   /** Combined linear RGB arriving at the query point. */
@@ -424,7 +432,8 @@ const arrowLight = world.localLights.add(
 Entity/particle consumption (unchanged pattern, richer data):
 
 ```ts
-const sample: LocalLightSample = { color: [0, 0, 0], direction: [0, 0, 0], count: 0 };
-world.localLights.queryLocalLights(npc.position, 2, sample);
-// LightShined extension folds `sample.color` into its existing voxel-light term.
+const sample: LocalLightSample = { color: [0, 0, 0], count: 0 };
+const options = { floodMask: 1, timeMs: 0 }; // scratch, reused per frame
+world.localLights.queryLocalLights(npc.position, sample, options);
+// LightShined folds `sample.color` into its existing voxel-light term.
 ```

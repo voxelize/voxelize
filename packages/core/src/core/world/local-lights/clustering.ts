@@ -286,18 +286,30 @@ export class LightClusterGrid {
    * and — when the caller supplies its local flood level — the same
    * occlusion mask the world surfaces use, so an entity behind a wall stops
    * tinting from the light the wall blocks. Zero allocation; the caller owns
-   * `outColor`.
+   * `outColor` and may reuse one `options` scratch object across calls
+   * (`floodMask` is the knee-mapped local flood level, 1 = fully open;
+   * `timeMs` drives the same flicker curve the shader evaluates).
    */
   sampleIrradiance(
     x: number,
     y: number,
     z: number,
     outColor: [number, number, number],
-    floodMask = 1,
-    timeMs = 0,
+    options?: { floodMask?: number; timeMs?: number },
   ): number {
-    const { positions, ranges, colors, intensities, shares, flags, shapes, aux, flickers } =
-      this.registry;
+    const floodMask = options?.floodMask ?? 1;
+    const timeMs = options?.timeMs ?? 0;
+    const {
+      positions,
+      ranges,
+      colors,
+      intensities,
+      shares,
+      flags,
+      shapes,
+      aux,
+      flickers,
+    } = this.registry;
     let contributors = 0;
     for (let rank = 0; rank < this.selectedCount; rank++) {
       const i = this.selectedIndices[rank];
@@ -406,13 +418,17 @@ export class LightClusterGrid {
       (this.registry.shapes[i] << 4);
     if (hasShadowData) {
       packed |= PACKED_FLAG_SHADOWED;
-    } else if (
+    }
+    if (
       registryFlags & LIGHT_FLAG_MASKED ||
       (registryFlags & LIGHT_FLAG_SHADOW_REQUEST &&
         registryFlags & LIGHT_FLAG_STATIC)
     ) {
-      // Graceful fallback: a static light that wants (or is still waiting
-      // for) a shadow slot leans on the flood mask instead of leaking.
+      // A static light that wants (or is still waiting for) a shadow slot
+      // leans on the flood mask instead of leaking — and the bit stays set
+      // for holders too: passes that cannot afford the atlas sampler (fluid
+      // specular) occlude by the mask, while the diffuse ladder prefers the
+      // per-light atlas whenever the shadowed bit is present.
       packed |= PACKED_FLAG_MASKED;
     }
     data[base + 7] = packed;

@@ -1,4 +1,12 @@
-import { Group, Object3D, Scene, Texture, Vector3, Vector4, WebGLRenderer } from "three";
+import {
+  Group,
+  Object3D,
+  Scene,
+  Texture,
+  Vector3,
+  Vector4,
+  WebGLRenderer,
+} from "three";
 
 import { LightClusterGrid } from "./clustering";
 import { LocalLightsDebugOverlay } from "./debug";
@@ -298,18 +306,19 @@ export class LocalLights {
 
   /**
    * CPU sample of the selected lights' combined irradiance at a point, for
-   * entities, held items, and particles. Writes into `out`; no allocation.
+   * entities, held items, and particles. Writes into `out`; no allocation
+   * (per-frame callers may reuse one `options` scratch object).
    *
-   * `floodMask` is the caller's local flood-light level mapped through the
-   * mask knee (1 = fully open); masked and shadow-fallback lights multiply
-   * by it so an entity behind a wall stops tinting from a blocked light.
-   * `timeMs` drives the same flicker curve the shader evaluates.
+   * `options.floodMask` is the caller's local flood-light level mapped
+   * through the mask knee (1 = fully open); masked and shadow-fallback
+   * lights multiply by it so an entity behind a wall stops tinting from a
+   * blocked light. `options.timeMs` drives the same flicker curve the
+   * shader evaluates.
    */
   queryLocalLights(
     position: Vector3,
     out: LocalLightSample,
-    floodMask = 1,
-    timeMs = 0,
+    options?: { floodMask?: number; timeMs?: number },
   ): void {
     out.color[0] = 0;
     out.color[1] = 0;
@@ -319,8 +328,7 @@ export class LocalLights {
       position.y,
       position.z,
       out.color,
-      floodMask,
-      timeMs,
+      options,
     );
   }
 
@@ -405,23 +413,31 @@ export class LocalLights {
   }
 
   /**
-   * A voxel changed. Only edits that add or remove an emitter queue a
-   * section rescan; everything else is free.
+   * A voxel changed. Only edits that touch an emitter queue a section
+   * rescan; everything else costs one AABB test per active shadow slot.
+   *
+   * Takes the raw voxel words, not bare ids: rotating a torch in place
+   * changes only the rotation bits, yet must re-anchor its light (the scan
+   * signatures carry rotation) and refresh cached shadow maps (the stick
+   * occludes differently) exactly like swapping the block would.
    */
-  handleBlockUpdate(
-    vx: number,
-    vy: number,
-    vz: number,
-    oldId: number,
-    newId: number,
-    chunk: ScannableChunk | null,
-  ): void {
-    if (oldId === newId) return;
+  handleBlockUpdate(edit: {
+    voxel: [number, number, number];
+    /** Raw voxel words: id in the low 16 bits, rotation/stage above. */
+    oldValue: number;
+    newValue: number;
+    chunk: ScannableChunk | null;
+  }): void {
+    const { voxel, oldValue, newValue, chunk } = edit;
+    if (oldValue === newValue) return;
+    const [vx, vy, vz] = voxel;
     // Any voxel change invalidates cached shadow maps whose range it
     // intersects — geometry occludes regardless of whether it emits.
     this.shadows.notifyBlockEdit(vx, vy, vz);
     if (!chunk) return;
     const table = this.ensureProfileTable();
+    const oldId = oldValue & 0xffff;
+    const newId = newValue & 0xffff;
     const isOldEmitter =
       oldId < table.isLightById.length && table.isLightById[oldId] === 1;
     const isNewEmitter =
@@ -535,19 +551,22 @@ export class LocalLights {
    * systems that alter occluding geometry outside the block-update stream.
    */
   invalidateShadowRegion(min: Vector3, max: Vector3): void {
-    this.shadows.invalidateRegion(min.x, min.y, min.z, max.x, max.y, max.z);
+    this.shadows.invalidateRegion({
+      min: [min.x, min.y, min.z],
+      max: [max.x, max.y, max.z],
+    });
   }
 
   /** A chunk mesh (re)built: refresh cached maps that reach into it. */
   handleChunkMeshed(cx: number, cz: number): void {
     const { chunkSize, maxHeight } = this.getWorldConfig();
-    this.shadows.notifyChunkMeshed(
-      cx * chunkSize,
-      cz * chunkSize,
-      (cx + 1) * chunkSize,
-      (cz + 1) * chunkSize,
+    this.shadows.notifyChunkMeshed({
+      minX: cx * chunkSize,
+      minZ: cz * chunkSize,
+      maxX: (cx + 1) * chunkSize,
+      maxZ: (cz + 1) * chunkSize,
       maxHeight,
-    );
+    });
   }
 
   /**

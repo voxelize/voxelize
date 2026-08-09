@@ -791,7 +791,9 @@ if (vIsFluid > 0.5) {
 
   // Torch sparkle on water: the clustered lights are the only local sources
   // with a position to reflect, so fluids are where local specular lives.
-  specularColor += localLightSpecular(wPos, waterNormal, viewDir);
+  // The flood field rides along for the same leak masking the diffuse path
+  // applies — an occluded lamp must not glint through its wall.
+  specularColor += localLightSpecular(wPos, waterNormal, viewDir, vLight.rgb);
 
   vec3 baseWater = outgoingLight.rgb;
 

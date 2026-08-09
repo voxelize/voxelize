@@ -43,6 +43,9 @@ uniform vec4 uLocalShadowParams2;
  * Record layout (one row per selected light, six RGBA32F texels):
  *   t0 = [x, y, z, range]
  *   t1 = [r*i, g*i, b*i, flags]   flags: 1 masked | 2 flicker | 4 shadowed | shape << 4
+ *        (a static shadow holder carries masked *and* shadowed: the diffuse
+ *        ladder prefers its atlas, while the fluid specular pass occludes by
+ *        the mask so the atlas sampler stays inlined exactly once)
  *   t2 = spot [dir.xyz, cosOuter] / capsule [end offset.xyz, 0]
  *   t3 = [flickerSpeed, flickerAmplitude, flickerPhase, spotInvCosDelta]
  *   t4 = [shadow slot (-1 none), static face mask, dynamic face mask, near]
@@ -256,10 +259,16 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
   return llTotal;
 }
 
-vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir) {
+vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood) {
   if (uClusteredLightCount == 0 || uLocalSpecularStrength <= 0.0) return vec3(0.0);
   int llCell = localLightCell(llPos);
   if (llCell < 0) return vec3(0.0);
+
+  float llMask = smoothstep(
+    0.0,
+    uLocalMaskKnee,
+    max(max(llFlood.r, llFlood.g), llFlood.b)
+  );
 
   vec3 llTotal = vec3(0.0);
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
@@ -287,7 +296,13 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir) {
     llSpec *= llSpec;
 
     vec4 llT1 = texelFetch(uLightData, ivec2(1, llRec), 0);
-    llTotal += llT1.rgb * (llSpec * llFall);
+    // The same flood-mask occlusion the masked diffuse path applies — the
+    // masked bit rides along on shadow holders exactly so this pass never
+    // glints from a light behind a wall, without inlining a second resident
+    // copy of the atlas sampler into the water branch.
+    int llFlags = int(llT1.w + 0.5);
+    float llOcclusion = (llFlags & 1) != 0 ? llMask : 1.0;
+    llTotal += llT1.rgb * (llSpec * llFall * llOcclusion);
   }
   return llTotal * uLocalSpecularStrength;
 }

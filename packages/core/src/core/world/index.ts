@@ -151,7 +151,6 @@ import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
-import { LocalLights } from "./local-lights";
 import {
   LightBatch,
   LightJob,
@@ -169,6 +168,7 @@ import {
 } from "./lighting";
 import type { BoundingBox } from "./lighting";
 import { Loader } from "./loader";
+import { LocalLights } from "./local-lights";
 import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
@@ -4449,14 +4449,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     newValue: number,
     source: "client" | "server",
   ) {
-    this.localLights.handleBlockUpdate(
-      vx,
-      vy,
-      vz,
-      BlockUtils.extractID(oldValue),
-      BlockUtils.extractID(newValue),
-      this.getChunkByPosition(vx, vy, vz) ?? null,
-    );
+    // Raw values, not extracted ids: an in-place rotation (same id, new
+    // rotation bits) must re-anchor the block's light and refresh cached
+    // shadow maps.
+    this.localLights.handleBlockUpdate({
+      voxel: [vx, vy, vz],
+      oldValue,
+      newValue,
+      chunk: this.getChunkByPosition(vx, vy, vz) ?? null,
+    });
     this.blockUpdateListeners.forEach((listener) =>
       listener({
         voxel: [vx, vy, vz],

@@ -88,17 +88,20 @@ export function makeShadowFaceProjection(
  * Orient `camera` for a point-light cube face using the shared basis table.
  * The camera's matrices are written directly (no lookAt) so the orientation
  * is bit-identical to what the shader reconstruction assumes.
+ *
+ * Named-args view: hot callers keep a scratch object and mutate it in place.
  */
 export function orientPointFaceCamera(
   camera: PerspectiveCamera,
-  lightX: number,
-  lightY: number,
-  lightZ: number,
-  face: number,
-  tanHalf: number,
-  near: number,
-  far: number,
+  view: {
+    light: [number, number, number];
+    face: number;
+    tanHalf: number;
+    near: number;
+    far: number;
+  },
 ): void {
+  const { light, face, tanHalf, near, far } = view;
   const forward = SHADOW_FACE_FORWARD[face];
   const up = SHADOW_FACE_UP[face];
   const right = SHADOW_FACE_RIGHT[face];
@@ -109,9 +112,9 @@ export function orientPointFaceCamera(
 
   applyShadowCameraBasis(
     camera,
-    lightX,
-    lightY,
-    lightZ,
+    light[0],
+    light[1],
+    light[2],
     scratchRight,
     scratchUp,
     scratchBack,
@@ -125,23 +128,24 @@ export function orientPointFaceCamera(
  * Derive the spot-light shadow basis from its direction, with the same
  * deterministic up-reference rule the shader uses: world +Y unless the axis
  * is near-vertical, then world +Z.
+ *
+ * Named-args view: hot callers keep a scratch object and mutate it in place.
  */
 export function orientSpotCamera(
   camera: PerspectiveCamera,
-  lightX: number,
-  lightY: number,
-  lightZ: number,
-  dirX: number,
-  dirY: number,
-  dirZ: number,
-  tanHalf: number,
-  near: number,
-  far: number,
+  view: {
+    light: [number, number, number];
+    direction: [number, number, number];
+    tanHalf: number;
+    near: number;
+    far: number;
+  },
 ): void {
-  const length = Math.hypot(dirX, dirY, dirZ) || 1;
-  const fx = dirX / length;
-  const fy = dirY / length;
-  const fz = dirZ / length;
+  const { light, direction, tanHalf, near, far } = view;
+  const length = Math.hypot(direction[0], direction[1], direction[2]) || 1;
+  const fx = direction[0] / length;
+  const fy = direction[1] / length;
+  const fz = direction[2] / length;
 
   const isVertical = Math.abs(fy) > 0.99;
   const upRefX = 0;
@@ -165,9 +169,9 @@ export function orientSpotCamera(
 
   applyShadowCameraBasis(
     camera,
-    lightX,
-    lightY,
-    lightZ,
+    light[0],
+    light[1],
+    light[2],
     scratchRight,
     scratchUp,
     scratchBack,
@@ -324,10 +328,14 @@ export class LocalShadowAtlas {
       depthTexture.type = UnsignedIntType;
       depthTexture.minFilter = NearestFilter;
       depthTexture.magFilter = NearestFilter;
-      this.renderTarget = new WebGLRenderTarget(this.atlasSize, this.atlasSize, {
-        depthTexture,
-        generateMipmaps: false,
-      });
+      this.renderTarget = new WebGLRenderTarget(
+        this.atlasSize,
+        this.atlasSize,
+        {
+          depthTexture,
+          generateMipmaps: false,
+        },
+      );
       // The scissored face passes each clear their own cell; a full-target
       // clear between them would wipe every cached map in the atlas.
       this.renderTarget.scissorTest = true;
@@ -341,7 +349,9 @@ export class LocalShadowAtlas {
    */
   cellIndex(slot: number, face: number, isDynamic: boolean): number {
     return (
-      slot * CELLS_PER_SHADOW_SLOT + (isDynamic ? DYNAMIC_CELL_OFFSET : 0) + face
+      slot * CELLS_PER_SHADOW_SLOT +
+      (isDynamic ? DYNAMIC_CELL_OFFSET : 0) +
+      face
     );
   }
 

@@ -29,10 +29,15 @@ caster stands in the face's frustum, mask-cleared the frame it leaves). The frag
 shader takes `min(staticVis, dynamicVis)` — the union of occluders. A face with no
 entity in it costs nothing to maintain and one mask test to skip.
 
-Moving lights (held torch, orbit light) collapse the split: their static cache can
-never survive a move, so they render world + entities together into the static cells
-each move and keep the overlay empty — 6 faces instead of 12, charged at the ledger's
-dynamic priority (grant order 2, matching the RFC).
+Moving lights (held torch, orbit light) keep the same split with a different refresh
+cadence: every anchor move re-queues their *world-only* static faces, charged at the
+ledger's dynamic priority (grant order 2, matching the RFC) because staleness is
+immediately visible, while entities ride the same per-frame overlay as every other
+slot. Entities are never baked into the cached world cells — the first cut did bake
+them, and a held light that stopped moving kept a frozen imprint of wherever its
+casters stood at the last refresh while its full face set stayed reserved in the
+ledger every frame. Now an idle held light costs zero static work, refreshes only the
+overlay faces a caster actually stands in, and reserves nothing beyond them.
 
 Instanced pools (item drops) render into overlay faces via their `customDepthMaterial`,
 exactly like the CSM entity pass — but only when an *entity* already triggered that
@@ -131,7 +136,11 @@ call, *before* local faces are drawn. The implemented contract keeps the order's
 intent without restructuring CSM:
 
 - the local scheduler **reserves** its dynamic-face units before CSM renders
-  (`reserveDynamic`), capped at the free budget;
+  (`reserveDynamic`), capped at the free budget. The estimate mirrors exactly what
+  `render` will draw through the dynamic tier — a moving light's *pending* world
+  refreshes plus the overlay faces casters currently stand in — so an idle held
+  light with nothing to redraw reserves nothing and cannot squeeze the far
+  cascades or the static FIFO with phantom demand;
 - CSM near charges unconditionally (priority 1 — never denied, may overdraw);
 - a CSM far cascade is granted unless local lights are *actively sharing the frame*
   (reservation or last-frame spend) and it does not fit beside the reservation; a far
@@ -179,6 +188,15 @@ atlas is not CPU-readable; the flood mask is the correct conservative stand-in).
 tint per entity remains the model (an entity does not self-shadow its own tint);
 per-face entity lighting is a material feature, not a light-system feature.
 
+The fluid specular pass follows the same stand-in rule from the GPU side: a static
+shadow holder's packed flags carry the masked bit *alongside* the shadowed bit, so
+water highlights multiply by the flood mask (no glint through a wall) while the
+diffuse ladder keeps preferring the per-light atlas. Sampling the atlas in the water
+branch instead would inline a second resident copy of the shadow sampler — the exact
+code-volume regression I2's restructuring removed. Dynamic holders (held lights) keep
+unmasked specular: they have no flood field of their own, and killing their glint by
+whatever flood surrounds them would darken legitimate highlights in unlit rooms.
+
 ## I8 — Cache invalidation triggers (superset of the RFC's list)
 
 The RFC named block edits, eviction, tier change, and context restore. Implementation
@@ -190,7 +208,12 @@ added two the RFC missed, both found by testing:
   `buildChunkMesh` event CSM already uses to re-mark cascades.
 - **Light anchor movement** (`refreshSlotGeometry`): dynamic lights obviously, but
   also a *static* light whose registration moved (block rotated in place → same slot
-  index, new anchor).
+  index, new anchor). The block-edit path hands the facade *raw voxel words*, not
+  extracted ids, precisely so an in-place rotation (same id, new rotation bits)
+  queues the rescan that moves the anchor and refreshes the maps.
+- **Spot cone rotation** (`refreshSlotGeometry`, cause `lightRotated`): a spot's
+  cached face aims along its cone; `setDirection` (or a cone-angle change) re-queues
+  it, or the atlas would keep shadowing the old aim.
 
 Every invalidation lands in a 32-entry ring (`invalidationLog`) with its cause, read
 by the debug HUD and the proof harness.

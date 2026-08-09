@@ -17,6 +17,7 @@ const localLightSample = {
   color: [0, 0, 0] as [number, number, number],
   count: 0,
 };
+const localLightQueryOptions = { floodMask: 1, timeMs: 0 };
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
@@ -362,11 +363,12 @@ export class LightShined {
     localLightSample.color[0] = 0;
     localLightSample.color[1] = 0;
     localLightSample.color[2] = 0;
+    localLightQueryOptions.floodMask = floodMask;
+    localLightQueryOptions.timeMs = performance.now();
     this.world.localLights.queryLocalLights(
       pos,
       localLightSample,
-      floodMask,
-      performance.now(),
+      localLightQueryOptions,
     );
     cpuTorchR += localLightSample.color[0];
     cpuTorchG += localLightSample.color[1];
