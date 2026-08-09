@@ -298,12 +298,22 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir) {
 // or the dynamic layer — a fraction of the inlined size, honest about where
 // the cached static maps darken. Point/capsule faces only.
 const LOCAL_SHADOW_DEBUG_PROBE = `
-float localShadowDebugProbe(int llRec, vec3 llPos) {
+float localShadowDebugProbe(int llRec, vec3 llPos, vec3 llNormal) {
   vec4 llT4 = texelFetch(uLightData, ivec2(4, llRec), 0);
   int llSlot = int(floor(llT4.x + 0.5));
   if (llSlot < 0) return 1.0;
   vec4 llT5 = texelFetch(uLightData, ivec2(5, llRec), 0);
-  vec3 llRel = llPos - texelFetch(uLightData, ivec2(0, llRec), 0).xyz;
+  vec3 llLightPos = texelFetch(uLightData, ivec2(0, llRec), 0).xyz;
+  // Same slope-scaled normal offset as the real sampler, or grazing floors
+  // stripe with acne in the debug view.
+  vec3 llToL = normalize(llLightPos - llPos);
+  float llNdl = clamp(dot(llNormal, llToL), 0.0, 1.0);
+  float llSlope = clamp(sqrt(1.0 - llNdl * llNdl) / max(llNdl, 0.05), 0.0, 8.0);
+  float llTexelWorld =
+    (2.0 * llT5.y * max(length(llPos - llLightPos), llT4.w)) / uLocalShadowParams.y;
+  vec3 llRel = llPos
+    + llNormal * (uLocalShadowParams.w * llTexelWorld * (1.0 + llSlope))
+    - llLightPos;
   vec3 llA = abs(llRel);
   int llFace;
   float llW;
@@ -332,7 +342,8 @@ float localShadowDebugProbe(int llRec, vec3 llPos) {
   float llZn = texture(uLocalShadowAtlas, llBaseUv).r * 2.0 - 1.0;
   float llStored = (2.0 * llT5.x * llT4.w)
     / (llT5.x + llT4.w - llZn * (llT5.x - llT4.w));
-  return (llW - uLocalShadowParams.z - 0.15 > llStored) ? 0.0 : 1.0;
+  float llBias = uLocalShadowParams.z + llTexelWorld * (0.75 + llSlope);
+  return (llW - llBias > llStored) ? 0.0 : 1.0;
 }
 `;
 
@@ -382,7 +393,7 @@ vec3 localLightDebugColor(vec3 llPos, vec3 llBase, vec3 llNormal, vec3 llFlood, 
     vec4 llT0d = texelFetch(uLightData, ivec2(0, llRec), 0);
     vec3 llToLd = llT0d.xyz - llPos;
     if (dot(llToLd, llToLd) >= llT0d.w * llT0d.w) continue;
-    float llVisD = localShadowDebugProbe(llRec, llPos);
+    float llVisD = localShadowDebugProbe(llRec, llPos, llNormal);
     llVisAll *= llVisD;
     vec4 llT4d = texelFetch(uLightData, ivec2(4, llRec), 0);
     int llSlotD = int(floor(llT4d.x + 0.5));

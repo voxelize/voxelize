@@ -283,16 +283,27 @@ if (shouldRun("pig-video")) {
 // walk pauses inside each pool.
 if (shouldRun("pools-video")) {
   await bench("setPerspective", "third");
-  await view([AZURE[0] - 2, OY, AZURE[2] - 2.5], [EMBER[0] + 1, OY + 1, EMBER[2] + 1.5]);
+  // A lane that clears both lamp poles and stops on the open north side of
+  // the ember lamp (out of the pillar's shadow pocket).
+  await view([OX - 6, OY, OZ - 9], [OX + 3, OY + 0.5, OZ - 0.5]);
   await sleep(5000); // settle the cool tint before the take starts
   const recorder = await page.screencast({
     path: join(outDir, "player_walk_colored_pools.webm"),
   });
-  await sleep(3500); // hold: blue tint beside the azure lamp
-  await bench("walk", 2600); // cross toward the warm pool
-  await sleep(3200);
-  await bench("walk", 2600);
-  await sleep(6500); // hold: warm tint beside the ember lamp
+  await sleep(3500); // hold: cool tint at the azure side
+  // Closed-loop walk: short bursts with position feedback, stopping on the
+  // open north side of the ember lamp (out of the pillar's shadow pocket).
+  const walkTarget = [OX + 1.5, OZ - 1.5];
+  for (let burst = 0; burst < 10; burst++) {
+    const position = await bench("getPosition");
+    const dx = walkTarget[0] - position[0];
+    const dz = walkTarget[1] - position[2];
+    if (Math.hypot(dx, dz) < 2.2) break;
+    await bench("setDirection", dx, -0.15, dz);
+    await bench("walk", 550);
+    await sleep(1400);
+  }
+  await sleep(8000); // hold: warm tint beside the ember lamp
   await recorder.stop();
   console.log("[proof] video player_walk_colored_pools");
   await bench("setPerspective", "first");

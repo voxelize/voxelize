@@ -323,6 +323,15 @@ world.loader.loadTexture(LolImage, (texture) => {
 });
 const createCharacter = () => {
   const character = new VOXELIZE.Character();
+  // Light neutral panels: the LightShined tint (and with it every colored
+  // local light) reads on the body from any angle, instead of drowning in
+  // the default dark navy/brown palette.
+  character.head.paint("all", new THREE.Color("#E7E1D5"));
+  character.body.paint("all", new THREE.Color("#DDD5C6"));
+  character.leftArm.paint("all", new THREE.Color("#D3CCBD"));
+  character.rightArm.paint("all", new THREE.Color("#D3CCBD"));
+  character.leftLeg.paint("all", new THREE.Color("#C9C2B3"));
+  character.rightLeg.paint("all", new THREE.Color("#C9C2B3"));
   world.add(character);
   lightShined.add(character);
 
@@ -758,6 +767,18 @@ const frameStats = () => {
   getPosition: () => controls.object.position.toArray(),
   getCameraFacing: () =>
     camera.getWorldDirection(new THREE.Vector3()).toArray(),
+  charLight: () => {
+    const sample = { color: [0, 0, 0] as [number, number, number], count: 0 };
+    world.localLights.queryLocalLights(character.position, sample, 1, 0);
+    const uniform = (
+      character.userData.lightUniforms as { value: THREE.Color }[] | undefined
+    )?.[0]?.value;
+    return {
+      position: character.position.toArray(),
+      sample,
+      uniform: uniform ? [uniform.r, uniform.g, uniform.b] : null,
+    };
+  },
   getBlockNameAt: (x: number, y: number, z: number) =>
     world.getBlockAt(x, y, z)?.name ?? "<none>",
   listEntities: () => {

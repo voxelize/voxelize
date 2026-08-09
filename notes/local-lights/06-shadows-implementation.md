@@ -91,6 +91,22 @@ resolution-driven (256² ⇒ ~1.5-texel soft edge at mid range), not distance-dr
 PCSS-style contact hardening was evaluated and rejected for v1 (blocker-search taps
 triple the cost of the common case on surfaces that are mostly *fully lit*).
 
+**Resident-code cost under software rasterization.** A finding the RFC's methodology
+did not anticipate: SwiftShader (the only rasterizer cloud CI can run) pays per
+*fragment* for inlined shader volume even on branches never taken. The first cut
+inlined the sampler at three sites (lit path, and each of the two new debug modes —
+one of which re-inlined the entire clustered loop for its "isolated contribution"
+view) and regressed the fill-heavy 42-light tunnel scene 48 % and zero-light parity
+17 % — with identical draw calls, programs, and zero executed shadow instructions
+(verified by stubbing the sampler bodies: costs returned to baseline exactly). The
+shipped structure inlines the full sampler exactly once (both atlas layers fold into
+one loop inside it), reuses the main pass's cluster term for debug mode 2, and gives
+debug modes 4/5 a shared single-tap probe. Measured after: zero-light parity is
+byte-equal with PR A (96.9 vs 97.6 ms p50 — inside noise) and the tunnel worst case
+is +22 % under SwiftShader — the one resident sampler copy, the same order as the
++37 % SwiftShader delta PR A itself shipped for the analytic loop, and like it, a
+software-rasterizer artifact to be re-checked on the reference-hardware gate.
+
 ## I4 — Atlas residency: fixed per-slot regions, no allocator
 
 With `maxShadowedLights ≤ 4` and 12 cells per slot, the worst case is 48 cells of a
