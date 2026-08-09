@@ -171,7 +171,7 @@ export class LocalLights {
 
   readonly stats: LocalLightStats;    // see local-lights/types.ts
 }
-// Engine PR B adds: invalidateShadowRegion(min: Vector3, max: Vector3),
+// Engine PR B adds: invalidateShadowRegion({ min: Vector3, max: Vector3 }),
 // forwarding to the scheduler's named-args form:
 //   shadows.invalidateRegion({ min: [x, y, z], max: [x, y, z] }).
 

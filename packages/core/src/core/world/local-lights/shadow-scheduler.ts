@@ -949,28 +949,41 @@ export class LocalShadowScheduler {
     return dx * dx + dy * dy + dz * dz <= reach * reach;
   }
 
-  /** Conservative test: does an entity intersect this face's frustum? */
+  /**
+   * Conservative test: does an entity intersect this face's frustum? A spot
+   * slot's single face renders along its *cone*, not the cube-face basis, so
+   * the axis comes from the slot's aim and the lateral bound is the exact
+   * distance from that axis (visible spot response is circular; casters
+   * outside it cannot darken anything the light shows).
+   */
   private faceHasEntityCaster(
     slot: ShadowSlot,
     face: number,
     entities: Object3D[],
   ): boolean {
     const fwd = SHADOW_FACE_FORWARD[face];
+    const fx = slot.isSpot ? slot.dirX : fwd[0];
+    const fy = slot.isSpot ? slot.dirY : fwd[1];
+    const fz = slot.isSpot ? slot.dirZ : fwd[2];
     for (const entity of entities) {
       if (entity.userData.castsShadow === false) continue;
       if (!this.isEntityNearSlot(slot, entity)) continue;
       const rx = entity.position.x - slot.x;
       const ry = entity.position.y - slot.y;
       const rz = entity.position.z - slot.z;
-      const w = rx * fwd[0] + ry * fwd[1] + rz * fwd[2];
+      const w = rx * fx + ry * fy + rz * fz;
       if (w < -ENTITY_CASTER_RADIUS) continue;
+      const limit = Math.max(w, 0) * slot.tanHalf + ENTITY_CASTER_RADIUS;
+      if (slot.isSpot) {
+        const lateralSq = Math.max(rx * rx + ry * ry + rz * rz - w * w, 0);
+        if (lateralSq <= limit * limit) return true;
+        continue;
+      }
       const uAbs = Math.abs(rx * (1 - Math.abs(fwd[0])));
       const vAbs = Math.abs(ry * (1 - Math.abs(fwd[1])));
       const sAbs = Math.abs(rz * (1 - Math.abs(fwd[2])));
       const lateral = Math.max(uAbs, vAbs, sAbs);
-      if (lateral <= Math.max(w, 0) * slot.tanHalf + ENTITY_CASTER_RADIUS) {
-        return true;
-      }
+      if (lateral <= limit) return true;
     }
     return false;
   }

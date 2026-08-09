@@ -854,10 +854,10 @@ const frameStats = () => {
     maxY: number,
     maxZ: number,
   ) =>
-    world.localLights.invalidateShadowRegion(
-      new THREE.Vector3(minX, minY, minZ),
-      new THREE.Vector3(maxX, maxY, maxZ),
-    ),
+    world.localLights.invalidateShadowRegion({
+      min: new THREE.Vector3(minX, minY, minZ),
+      max: new THREE.Vector3(maxX, maxY, maxZ),
+    }),
 };
 
 inputs.bind(

@@ -765,6 +765,41 @@ describe("moving-light shadow scheduling", () => {
     expect(ledger.frameStats.csmFarForced).toBe(0);
   });
 
+  it("tests spot overlay casters against the cone aim, not the +X cube face", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+
+    // Spot at the origin aiming -Z. Its one face renders along the cone,
+    // so the caster test must follow the aim (regression: it used the
+    // cube-face +X axis, skipping casters in the beam and opening overlay
+    // faces for casters beside the light).
+    const spot = registry.add(
+      shadowLight({
+        shape: "spot",
+        direction: [0, 0, -1],
+        angleDeg: 60,
+        isStatic: false,
+      }),
+      4,
+      60,
+      4,
+    );
+    scheduler.update(selectionOf(registry, [spot]), 1, 0, 60, 0, stats);
+    const anyScheduler = scheduler as unknown as {
+      slots: { staticPending: number }[];
+    };
+    anyScheduler.slots[0].staticPending = 0; // idle: only overlay demand left
+
+    const inBeam = new Object3D();
+    inBeam.position.set(4, 60, -2);
+    const besideLight = new Object3D();
+    besideLight.position.set(9, 60, 4);
+
+    expect(scheduler.estimateDynamicDemand([inBeam])).toBe(1);
+    expect(scheduler.estimateDynamicDemand([besideLight])).toBe(0);
+  });
+
   it("requeues cached spot faces when the cone rotates or widens", () => {
     const registry = new LightSourceRegistry(16);
     const scheduler = makeScheduler(registry);

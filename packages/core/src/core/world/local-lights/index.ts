@@ -550,7 +550,8 @@ export class LocalLights {
    * Invalidate every cached shadow map intersecting `[min, max)` — for game
    * systems that alter occluding geometry outside the block-update stream.
    */
-  invalidateShadowRegion(min: Vector3, max: Vector3): void {
+  invalidateShadowRegion(region: { min: Vector3; max: Vector3 }): void {
+    const { min, max } = region;
     this.shadows.invalidateRegion({
       min: [min.x, min.y, min.z],
       max: [max.x, max.y, max.z],
