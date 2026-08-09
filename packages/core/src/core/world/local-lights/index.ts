@@ -41,6 +41,7 @@ export { BlockProfileTable, SectionTracker } from "./scan";
 export type { EmitterBlock, ScannableChunk } from "./scan";
 export {
   EMISSIVE_LEVELS,
+  LOCAL_LIGHTS_DEBUG_FUNCTIONS,
   LOCAL_LIGHTS_FUNCTIONS,
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./shader";

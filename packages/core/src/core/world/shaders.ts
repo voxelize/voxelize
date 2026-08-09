@@ -6,6 +6,7 @@ import {
   LIGHT_CONES_UNIFORM_DECLARATIONS,
 } from "./light-cones";
 import {
+  LOCAL_LIGHTS_DEBUG_FUNCTIONS,
   LOCAL_LIGHTS_FUNCTIONS,
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./local-lights/shader";
@@ -340,6 +341,8 @@ ${SIMPLEX_NOISE_GLSL}
 ${LIGHT_CONES_FUNCTIONS}
 
 ${LOCAL_LIGHTS_FUNCTIONS}
+
+${LOCAL_LIGHTS_DEBUG_FUNCTIONS}
 
 float shadowMapEdgeFade(vec3 coord) {
   float fadeWidth = 0.08;
@@ -907,7 +910,8 @@ if (uLocalLightDebugMode > 0.5) {
     vWorldPosition.xyz,
     gl_FragColor.rgb,
     vWorldNormal,
-    vLight.rgb
+    vLight.rgb,
+    clusterLight
   );
 }
 `,
