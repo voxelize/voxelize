@@ -96,6 +96,31 @@ export interface LocalLightsOptions {
   fluidSpecularStrength: number;
   /** Flood-mask knee: flood level (0..1) at which masked lights reach full. */
   maskKnee: number;
+  /** Shadowed local lights at once; each owns a fixed atlas region. */
+  maxShadowedLights: number;
+  /** Edge length of the shared depth atlas, in pixels. */
+  shadowAtlasSize: number;
+  /** Edge length of one atlas cell (one cube face render), in pixels. */
+  shadowSlotSize: number;
+  /** Face units the shadow ledger may spend per frame (CSM + local). */
+  shadowLedgerUnitsPerFrame: number;
+  /** Ledger cost of the CSM near cascade, in face units. */
+  csmNearCascadeUnits: number;
+  /** Ledger cost of one CSM far cascade, in face units. */
+  csmFarCascadeUnits: number;
+  /**
+   * A challenger light must out-score a shadow holder by `ratio` for
+   * `frames` consecutive frames before evicting it from the atlas.
+   */
+  shadowEvictionHysteresis: { ratio: number; frames: number };
+  /** Constant occluder-side depth bias in blocks (linear light space). */
+  localShadowBias: number;
+  /** Receiver offset along the surface normal, in shadow texels. */
+  localShadowNormalBiasTexels: number;
+  /** PCF tap spread, in shadow texels. */
+  localShadowPcfRadius: number;
+  /** 1 = an occluded fragment loses the light entirely. */
+  localShadowStrength: number;
 }
 
 export const defaultLocalLightsOptions: LocalLightsOptions = {
@@ -110,6 +135,17 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   qualityTier: "high",
   fluidSpecularStrength: 1,
   maskKnee: 2 / 15,
+  maxShadowedLights: 3,
+  shadowAtlasSize: 2048,
+  shadowSlotSize: 256,
+  shadowLedgerUnitsPerFrame: 12,
+  csmNearCascadeUnits: 4,
+  csmFarCascadeUnits: 6,
+  shadowEvictionHysteresis: { ratio: 1.25, frames: 30 },
+  localShadowBias: 0.035,
+  localShadowNormalBiasTexels: 1.5,
+  localShadowPcfRadius: 1.0,
+  localShadowStrength: 1.0,
 };
 
 /**
@@ -125,6 +161,10 @@ export const LIGHT_QUALITY_TIERS: Record<
     | "maxLightsPerCell"
     | "analyticRadius"
     | "fluidSpecularStrength"
+    | "maxShadowedLights"
+    | "shadowAtlasSize"
+    | "shadowSlotSize"
+    | "shadowLedgerUnitsPerFrame"
   >
 > = {
   ultra: {
@@ -132,30 +172,50 @@ export const LIGHT_QUALITY_TIERS: Record<
     maxLightsPerCell: 8,
     analyticRadius: 96,
     fluidSpecularStrength: 1,
+    maxShadowedLights: 4,
+    shadowAtlasSize: 4096,
+    shadowSlotSize: 512,
+    shadowLedgerUnitsPerFrame: 16,
   },
   high: {
     maxClusteredLights: 192,
     maxLightsPerCell: 8,
     analyticRadius: 64,
     fluidSpecularStrength: 1,
+    maxShadowedLights: 3,
+    shadowAtlasSize: 2048,
+    shadowSlotSize: 256,
+    shadowLedgerUnitsPerFrame: 12,
   },
   medium: {
     maxClusteredLights: 128,
     maxLightsPerCell: 6,
     analyticRadius: 48,
     fluidSpecularStrength: 0,
+    maxShadowedLights: 2,
+    shadowAtlasSize: 2048,
+    shadowSlotSize: 256,
+    shadowLedgerUnitsPerFrame: 8,
   },
   low: {
     maxClusteredLights: 64,
     maxLightsPerCell: 4,
     analyticRadius: 32,
     fluidSpecularStrength: 0,
+    maxShadowedLights: 0,
+    shadowAtlasSize: 1024,
+    shadowSlotSize: 256,
+    shadowLedgerUnitsPerFrame: 4,
   },
   potato: {
     maxClusteredLights: 0,
     maxLightsPerCell: 0,
     analyticRadius: 0,
     fluidSpecularStrength: 0,
+    maxShadowedLights: 0,
+    shadowAtlasSize: 1024,
+    shadowSlotSize: 256,
+    shadowLedgerUnitsPerFrame: 4,
   },
 };
 
@@ -177,6 +237,32 @@ export interface LocalLightStats {
   selectionChurn: number;
   gridTextureUploads: number;
   dataTextureUploads: number;
+  /** Lights currently holding a shadow slot. */
+  shadowed: number;
+  /** Atlas faces rendered this frame (static + dynamic). */
+  shadowFacesRendered: number;
+  shadowFacesStatic: number;
+  shadowFacesDynamic: number;
+  /** Main-thread cost of the shadow schedule + face renders this frame. */
+  shadowScheduleMs: number;
+  shadowScheduleMsPeak: number;
+  /** Cumulative cache invalidations (block edits, streaming, regions). */
+  shadowInvalidations: number;
+  /** Cumulative slot evictions through the challenger hysteresis. */
+  atlasEvictions: number;
+  /** Active shadow slots over capacity, 0..1. */
+  atlasOccupancy: number;
+  /**
+   * Of the frames in which a shadowed light was live, the fraction served
+   * entirely from its cached static faces. Resets with peak stats.
+   */
+  shadowCacheHitRate: number;
+  /** Ledger units the CSM cascades consumed this frame. */
+  ledgerUnitsCsm: number;
+  /** Ledger units local faces consumed this frame. */
+  ledgerUnitsLocal: number;
+  /** GPU bytes held by the shadow atlas (0 until first allocation). */
+  atlasBytes: number;
 }
 
 /** Zero-allocation output target for {@link LocalLights.queryLocalLights}. */

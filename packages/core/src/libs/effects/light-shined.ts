@@ -347,11 +347,27 @@ export class LightShined {
     }
 
     // Clustered local lights (held torches, projectiles, analytic block
-    // emitters) shine on entities the same way they shine on the world.
+    // emitters) shine on entities the same way they shine on the world —
+    // including the flood-mask occlusion term, so a character behind a wall
+    // stops picking up the tint of the torch the wall blocks.
+    let floodMask = 1;
+    if (lightValues) {
+      const floodLevel =
+        Math.max(lightValues.red, lightValues.green, lightValues.blue) /
+        maxLightLevel;
+      const knee = this.world.localLights.options.maskKnee;
+      const t = Math.min(Math.max(floodLevel / Math.max(knee, 1e-4), 0), 1);
+      floodMask = t * t * (3 - 2 * t);
+    }
     localLightSample.color[0] = 0;
     localLightSample.color[1] = 0;
     localLightSample.color[2] = 0;
-    this.world.localLights.queryLocalLights(pos, localLightSample);
+    this.world.localLights.queryLocalLights(
+      pos,
+      localLightSample,
+      floodMask,
+      performance.now(),
+    );
     cpuTorchR += localLightSample.color[0];
     cpuTorchG += localLightSample.color[1];
     cpuTorchB += localLightSample.color[2];

@@ -3773,6 +3773,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         shadowSideFaceBiasScale: 1.0,
         lightMargin: 32,
       });
+      this.csmRenderer.attachShadowLedger(
+        this.localLights.shadowLedger,
+        this.localLights.options.csmNearCascadeUnits,
+        this.localLights.options.csmFarCascadeUnits,
+      );
     }
 
     await loadChunkMaterials(this);
@@ -4785,6 +4790,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     if (!this.csmRenderer) return;
 
+    // One budget, opened once per frame: dynamic local faces reserve first
+    // (a held light must not go stale because a far cascade landed), the
+    // cascades spend next, and the invalidated-static FIFO drains whatever
+    // remains. With zero local lights this is two counter writes.
+    this.localLights.beginShadowFrame(entities);
+
     if (
       (entities && entities.length > 0) ||
       (instancePools && instancePools.length > 0)
@@ -4798,6 +4809,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       entities,
       ENTITY_SHADOW_DISTANCE,
       instancePools,
+    );
+
+    this.localLights.renderShadows(
+      renderer,
+      this,
+      entities,
+      instancePools,
+      this.csmRenderer.skipShadowObjects,
     );
 
     // The cascade matrices move inside render(), atomically with the maps,
@@ -5173,6 +5192,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     chunk.meshes.get(level)?.push(...meshes);
 
     this.csmRenderer?.markAllCascadesForRender();
+    // Cached local shadow maps that reach into this chunk baked whatever
+    // geometry existed when they rendered; a new mesh means new occluders.
+    this.localLights.handleChunkMeshed(cx, cz);
 
     this.emitChunkEvent("chunk-mesh-loaded", {
       chunk,
@@ -5307,6 +5329,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
     this.localLights.getLoadedChunk = (cx, cz) =>
       this.getChunkByCoords(cx, cz) ?? null;
+    // Opacity oracle for mount-aware shadow-face skipping: a face buried in
+    // an opaque neighbor (the wall behind a torch) never renders.
+    this.localLights.getIsOpaqueAt = (vx, vy, vz) => {
+      const block = this.getBlockAt(vx, vy, vz);
+      return !!block && block.isOpaque;
+    };
 
     this.csmRenderer = new CSMRenderer({
       cascades: 3,
@@ -5320,6 +5348,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       shadowSideFaceBiasScale: 1.0,
       lightMargin: 32,
     });
+    this.csmRenderer.attachShadowLedger(
+      this.localLights.shadowLedger,
+      this.localLights.options.csmNearCascadeUnits,
+      this.localLights.options.csmFarCascadeUnits,
+    );
 
     const chunkUniforms = {
       ...this.chunkRenderer.uniforms,

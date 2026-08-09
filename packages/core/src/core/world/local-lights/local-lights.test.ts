@@ -46,6 +46,19 @@ const makeStats = (): LocalLightStats => ({
   selectionChurn: 0,
   gridTextureUploads: 0,
   dataTextureUploads: 0,
+  shadowed: 0,
+  shadowFacesRendered: 0,
+  shadowFacesStatic: 0,
+  shadowFacesDynamic: 0,
+  shadowScheduleMs: 0,
+  shadowScheduleMsPeak: 0,
+  shadowInvalidations: 0,
+  atlasEvictions: 0,
+  atlasOccupancy: 0,
+  shadowCacheHitRate: 1,
+  ledgerUnitsCsm: 0,
+  ledgerUnitsLocal: 0,
+  atlasBytes: 0,
 });
 
 const makeGrid = (

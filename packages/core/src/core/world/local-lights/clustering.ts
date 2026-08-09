@@ -12,8 +12,13 @@ import {
 import {
   LIGHT_FLAG_FLICKER,
   LIGHT_FLAG_MASKED,
+  LIGHT_FLAG_SHADOW_REQUEST,
+  LIGHT_FLAG_STATIC,
+  LIGHT_SHAPE_CAPSULE,
+  LIGHT_SHAPE_SPOT,
   LightSourceRegistry,
 } from "./registry";
+import type { ShadowTexelRecord } from "./shadow-scheduler";
 import { LocalLightStats } from "./types";
 
 /**
@@ -28,8 +33,18 @@ export const GRID_CELLS_PER_ROW = 32;
 /** Hard ceiling of the clustered set: grid slots hold `rank + 1` in a byte. */
 export const MAX_CLUSTERED_LIGHTS = 255;
 
-/** Texels per packed light record (position/range, color/flags, aux, flicker). */
-const DATA_TEXELS_PER_LIGHT = 4;
+/**
+ * Texels per packed light record: position/range, color/flags, aux, flicker,
+ * plus two shadow texels (slot/masks/near, far/tanHalf) that stay zero for
+ * unshadowed lights. Widening the record keeps shadow parameters inside the
+ * one existing data texture instead of spending another texture unit.
+ */
+const DATA_TEXELS_PER_LIGHT = 6;
+
+/** Shader-facing flag bits packed into texel 1's `w` (mirrored in shader.ts). */
+export const PACKED_FLAG_MASKED = 1;
+export const PACKED_FLAG_FLICKER = 2;
+export const PACKED_FLAG_SHADOWED = 4;
 
 const LUMA_R = 0.2126;
 const LUMA_G = 0.7152;
@@ -61,6 +76,12 @@ export class LightClusterGrid {
   /** Selected registry slot per rank; `selectedCount` entries are live. */
   readonly selectedIndices: Uint32Array;
   selectedCount = 0;
+
+  /**
+   * Shadow-slot data source, wired by the facade once the shadow scheduler
+   * exists. Null keeps every record unshadowed (Engine PR A behavior).
+   */
+  shadowProvider: ((index: number) => ShadowTexelRecord | null) | null = null;
 
   private readonly registry: LightSourceRegistry;
   private readonly gridDims: [number, number, number];
@@ -261,34 +282,160 @@ export class LightClusterGrid {
   /**
    * CPU mirror of the shader's light response, for entities and particles:
    * accumulates the falloff-weighted color of every selected light in range
-   * of the point. Zero allocation; the caller owns `outColor`.
+   * of the point, with the same spot/capsule shaping, shader-matched flicker,
+   * and — when the caller supplies its local flood level — the same
+   * occlusion mask the world surfaces use, so an entity behind a wall stops
+   * tinting from the light the wall blocks. Zero allocation; the caller owns
+   * `outColor`.
    */
   sampleIrradiance(
     x: number,
     y: number,
     z: number,
     outColor: [number, number, number],
+    floodMask = 1,
+    timeMs = 0,
   ): number {
-    const { positions, ranges, colors, intensities, shares } = this.registry;
+    const { positions, ranges, colors, intensities, shares, flags, shapes, aux, flickers } =
+      this.registry;
     let contributors = 0;
     for (let rank = 0; rank < this.selectedCount; rank++) {
       const i = this.selectedIndices[rank];
-      const dx = positions[i * 3] - x;
-      const dy = positions[i * 3 + 1] - y;
-      const dz = positions[i * 3 + 2] - z;
+
+      let ox = positions[i * 3];
+      let oy = positions[i * 3 + 1];
+      let oz = positions[i * 3 + 2];
+      if (shapes[i] === LIGHT_SHAPE_CAPSULE) {
+        const axx = aux[i * 4];
+        const axy = aux[i * 4 + 1];
+        const axz = aux[i * 4 + 2];
+        const len2 = Math.max(axx * axx + axy * axy + axz * axz, 1e-6);
+        const t = Math.min(
+          Math.max(
+            ((x - ox) * axx + (y - oy) * axy + (z - oz) * axz) / len2,
+            0,
+          ),
+          1,
+        );
+        ox += axx * t;
+        oy += axy * t;
+        oz += axz * t;
+      }
+
+      const dx = ox - x;
+      const dy = oy - y;
+      const dz = oz - z;
       const range = ranges[i];
       const d2 = dx * dx + dy * dy + dz * dz;
       if (d2 >= range * range) continue;
-      const norm = Math.sqrt(d2) / range;
+      const dist = Math.sqrt(Math.max(d2, 1e-6));
+      const norm = dist / range;
       let falloff = 1 - norm * norm;
       falloff *= falloff;
-      const energy = intensities[i] * shares[i] * falloff;
+
+      let angular = 1;
+      if (shapes[i] === LIGHT_SHAPE_SPOT) {
+        // -L · spotDir against the cone edges, matching the shader.
+        const cos =
+          (-dx / dist) * aux[i * 4] +
+          (-dy / dist) * aux[i * 4 + 1] +
+          (-dz / dist) * aux[i * 4 + 2];
+        angular = Math.min(
+          Math.max((cos - aux[i * 4 + 3]) * flickers[i * 4 + 3], 0),
+          1,
+        );
+        angular *= angular;
+        if (angular <= 0) continue;
+      }
+
+      let flicker = 1;
+      if (flags[i] & LIGHT_FLAG_FLICKER) {
+        const t = timeMs * 0.001 * flickers[i * 4] * 6.28318;
+        const phase = flickers[i * 4 + 2];
+        const wobble =
+          Math.sin(t + phase) * Math.sin(t * 0.531 + phase * 1.7) * 0.5 + 0.5;
+        flicker = 1 - flickers[i * 4 + 1] * wobble;
+      }
+
+      // Masked lights (and shadow-requesting statics, whose atlas map the
+      // CPU cannot read) use the flood mask as their occlusion term.
+      let occlusion = 1;
+      if (
+        flags[i] & LIGHT_FLAG_MASKED ||
+        (flags[i] & LIGHT_FLAG_SHADOW_REQUEST && flags[i] & LIGHT_FLAG_STATIC)
+      ) {
+        occlusion = floodMask;
+      }
+      if (occlusion <= 0) continue;
+
+      const energy =
+        intensities[i] * shares[i] * falloff * angular * flicker * occlusion;
       outColor[0] += colors[i * 3] * energy;
       outColor[1] += colors[i * 3 + 1] * energy;
       outColor[2] += colors[i * 3 + 2] * energy;
       contributors++;
     }
     return contributors;
+  }
+
+  /**
+   * Rewrite only the shadow-facing data (flags bit 2 + texels 4–5) of every
+   * packed record. Runs when shadow slots change on a frame where the main
+   * pack did not — a ≤ 32 KB re-upload, counted in stats.
+   */
+  refreshShadowTexels(stats: LocalLightStats): void {
+    for (let rank = 0; rank < this.selectedCount; rank++) {
+      this.writeShadowTexels(rank, this.selectedIndices[rank]);
+    }
+    this.dataTexture.needsUpdate = true;
+    stats.dataTextureUploads++;
+  }
+
+  private writeShadowTexels(rank: number, i: number): void {
+    const data = this.lightData;
+    const base = rank * DATA_TEXELS_PER_LIGHT * 4;
+    const registryFlags = this.registry.flags[i];
+    const record = this.shadowProvider ? this.shadowProvider(i) : null;
+    const hasShadowData =
+      record !== null &&
+      record.slot >= 0 &&
+      (record.staticMask | record.dynamicMask) !== 0;
+
+    let packed =
+      (registryFlags & LIGHT_FLAG_FLICKER ? PACKED_FLAG_FLICKER : 0) |
+      (this.registry.shapes[i] << 4);
+    if (hasShadowData) {
+      packed |= PACKED_FLAG_SHADOWED;
+    } else if (
+      registryFlags & LIGHT_FLAG_MASKED ||
+      (registryFlags & LIGHT_FLAG_SHADOW_REQUEST &&
+        registryFlags & LIGHT_FLAG_STATIC)
+    ) {
+      // Graceful fallback: a static light that wants (or is still waiting
+      // for) a shadow slot leans on the flood mask instead of leaking.
+      packed |= PACKED_FLAG_MASKED;
+    }
+    data[base + 7] = packed;
+
+    if (hasShadowData && record) {
+      data[base + 16] = record.slot;
+      data[base + 17] = record.staticMask;
+      data[base + 18] = record.dynamicMask;
+      data[base + 19] = record.near;
+      data[base + 20] = record.far;
+      data[base + 21] = record.tanHalf;
+      data[base + 22] = 0;
+      data[base + 23] = 0;
+    } else {
+      data[base + 16] = -1;
+      data[base + 17] = 0;
+      data[base + 18] = 0;
+      data[base + 19] = 0;
+      data[base + 20] = 0;
+      data[base + 21] = 0;
+      data[base + 22] = 0;
+      data[base + 23] = 0;
+    }
   }
 
   private select(
@@ -561,10 +708,7 @@ export class LightClusterGrid {
       data[base + 4] = colors[i * 3] * energy;
       data[base + 5] = colors[i * 3 + 1] * energy;
       data[base + 6] = colors[i * 3 + 2] * energy;
-      data[base + 7] =
-        (flags[i] & LIGHT_FLAG_MASKED ? 1 : 0) |
-        (flags[i] & LIGHT_FLAG_FLICKER ? 2 : 0) |
-        (shapes[i] << 4);
+      data[base + 7] = 0; // flags land in writeShadowTexels below
       data[base + 8] = aux[i * 4];
       data[base + 9] = aux[i * 4 + 1];
       data[base + 10] = aux[i * 4 + 2];
@@ -573,6 +717,7 @@ export class LightClusterGrid {
       data[base + 13] = flickers[i * 4 + 1];
       data[base + 14] = flickers[i * 4 + 2];
       data[base + 15] = flickers[i * 4 + 3];
+      this.writeShadowTexels(rank, i);
     }
 
     stats.cellsOverflowed = overflowed;

@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import { Group, Object3D, Scene, Texture, Vector3, Vector4, WebGLRenderer } from "three";
 
 import { LightClusterGrid } from "./clustering";
 import { LocalLightsDebugOverlay } from "./debug";
@@ -9,6 +9,8 @@ import {
   ScannableChunk,
   SectionTracker,
 } from "./scan";
+import { ShadowFrameLedger } from "./shadow-ledger";
+import { LocalShadowScheduler } from "./shadow-scheduler";
 import {
   BlockLightProfile,
   defaultLocalLightsOptions,
@@ -42,6 +44,26 @@ export {
   LOCAL_LIGHTS_FUNCTIONS,
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./shader";
+export { ShadowFrameLedger } from "./shadow-ledger";
+export { LocalShadowScheduler } from "./shadow-scheduler";
+export type {
+  ShadowInvalidationCause,
+  ShadowInvalidationEntry,
+  ShadowTexelRecord,
+} from "./shadow-scheduler";
+export {
+  LocalShadowAtlas,
+  POINT_FACE_GUARD_TAN_HALF,
+  SHADOW_FACE_FORWARD,
+  SHADOW_FACE_RIGHT,
+  SHADOW_FACE_UP,
+  SPOT_GUARD_SCALE,
+  linearizeShadowDepth,
+  makeShadowFaceProjection,
+  orientPointFaceCamera,
+  orientSpotCamera,
+  projectPointLightFragment,
+} from "./shadow-atlas";
 
 /**
  * What the facade needs from the world it lights. Resolved lazily because
@@ -74,6 +96,10 @@ export class LocalLights {
   readonly options: LocalLightsOptions;
   readonly registry: LightSourceRegistry;
   readonly grid: LightClusterGrid;
+  /** The L3 shadow tier: slot selection, cached faces, atlas renders. */
+  readonly shadows: LocalShadowScheduler;
+  /** The per-frame face-unit budget CSM and local shadows share. */
+  readonly shadowLedger = new ShadowFrameLedger();
 
   /** Mutated in place; never reallocated. */
   readonly stats: LocalLightStats = {
@@ -91,7 +117,27 @@ export class LocalLights {
     selectionChurn: 0,
     gridTextureUploads: 0,
     dataTextureUploads: 0,
+    shadowed: 0,
+    shadowFacesRendered: 0,
+    shadowFacesStatic: 0,
+    shadowFacesDynamic: 0,
+    shadowScheduleMs: 0,
+    shadowScheduleMsPeak: 0,
+    shadowInvalidations: 0,
+    atlasEvictions: 0,
+    atlasOccupancy: 0,
+    shadowCacheHitRate: 1,
+    ledgerUnitsCsm: 0,
+    ledgerUnitsLocal: 0,
+    atlasBytes: 0,
   };
+
+  private readonly shadowUniforms = {
+    atlas: { value: null as Texture | null },
+    params: { value: new Vector4() },
+    params2: { value: new Vector4() },
+  };
+  private shadowLedgerUnitsPerFrame: number;
 
   private readonly getWorldConfig: () => LocalLightsWorldConfig;
   private readonly getBlocks: () => Iterable<EmitterBlock>;
@@ -123,7 +169,39 @@ export class LocalLights {
 
     this.registry = new LightSourceRegistry(this.options.maxRegisteredLights);
     this.grid = new LightClusterGrid(this.registry, this.options);
+    this.shadows = new LocalShadowScheduler(this.registry, this.options);
+    this.shadowLedgerUnitsPerFrame = this.options.shadowLedgerUnitsPerFrame;
+
+    // The packer reads shadow assignments; shadow changes on frames the
+    // packer skipped rewrite just the shadow texels.
+    this.grid.shadowProvider = (index) => this.shadows.recordForIndex(index);
+    this.shadows.onShadowDataChanged = () =>
+      this.grid.refreshShadowTexels(this.stats);
+
+    this.shadowUniforms.params.value.set(
+      this.options.shadowAtlasSize,
+      this.options.shadowSlotSize,
+      this.options.localShadowBias,
+      this.options.localShadowNormalBiasTexels,
+    );
+    this.shadowUniforms.params2.value.set(
+      this.options.localShadowPcfRadius,
+      this.options.localShadowStrength,
+      0,
+      0,
+    );
+
     this.setQualityTier(this.tier);
+  }
+
+  /**
+   * Voxel opacity oracle for mount-aware shadow-face skipping, wired by the
+   * world adapter. Null disables the skip (all six faces render).
+   */
+  set getIsOpaqueAt(
+    fn: ((vx: number, vy: number, vz: number) => boolean) | null,
+  ) {
+    this.shadows.getIsOpaqueAt = fn;
   }
 
   /**
@@ -143,6 +221,9 @@ export class LocalLights {
       uLocalSpecularStrength: u.specularStrength,
       uLocalLightDebugMode: u.debugMode,
       uEmissiveLevels: u.emissiveLevels,
+      uLocalShadowAtlas: this.shadowUniforms.atlas,
+      uLocalShadowParams: this.shadowUniforms.params,
+      uLocalShadowParams2: this.shadowUniforms.params2,
     };
   }
 
@@ -217,8 +298,18 @@ export class LocalLights {
   /**
    * CPU sample of the selected lights' combined irradiance at a point, for
    * entities, held items, and particles. Writes into `out`; no allocation.
+   *
+   * `floodMask` is the caller's local flood-light level mapped through the
+   * mask knee (1 = fully open); masked and shadow-fallback lights multiply
+   * by it so an entity behind a wall stops tinting from a blocked light.
+   * `timeMs` drives the same flicker curve the shader evaluates.
    */
-  queryLocalLights(position: Vector3, out: LocalLightSample): void {
+  queryLocalLights(
+    position: Vector3,
+    out: LocalLightSample,
+    floodMask = 1,
+    timeMs = 0,
+  ): void {
     out.color[0] = 0;
     out.color[1] = 0;
     out.color[2] = 0;
@@ -227,6 +318,8 @@ export class LocalLights {
       position.y,
       position.z,
       out.color,
+      floodMask,
+      timeMs,
     );
   }
 
@@ -241,6 +334,17 @@ export class LocalLights {
       preset.analyticRadius,
       preset.fluidSpecularStrength * this.options.fluidSpecularStrength,
     );
+    // Like the clustered caps, tier presets replace the shadow caps — the
+    // constructor's options only seed state until this first call.
+    this.shadows.setTierCaps(
+      preset.maxShadowedLights,
+      preset.shadowAtlasSize,
+      preset.shadowSlotSize,
+    );
+    this.shadowLedgerUnitsPerFrame = preset.shadowLedgerUnitsPerFrame;
+    this.shadowUniforms.params.value.x = preset.shadowAtlasSize;
+    this.shadowUniforms.params.value.y = preset.shadowSlotSize;
+    this.shadowUniforms.atlas.value = null;
   }
 
   getQualityTier(): LightQualityTier {
@@ -249,8 +353,11 @@ export class LocalLights {
 
   // ── debug ────────────────────────────────────────────────────────────────
 
-  /** 0 off, 1 cell occupancy heatmap, 2 isolated contribution, 3 leak mask. */
-  setDebugMode(mode: 0 | 1 | 2 | 3): void {
+  /**
+   * 0 off, 1 cell occupancy heatmap, 2 isolated contribution, 3 leak mask,
+   * 4 shadow-slot tint, 5 isolated local-shadow visibility.
+   */
+  setDebugMode(mode: 0 | 1 | 2 | 3 | 4 | 5): void {
     this.grid.uniforms.debugMode.value = mode;
   }
 
@@ -308,7 +415,11 @@ export class LocalLights {
     newId: number,
     chunk: ScannableChunk | null,
   ): void {
-    if (oldId === newId || !chunk) return;
+    if (oldId === newId) return;
+    // Any voxel change invalidates cached shadow maps whose range it
+    // intersects — geometry occludes regardless of whether it emits.
+    this.shadows.notifyBlockEdit(vx, vy, vz);
+    if (!chunk) return;
     const table = this.ensureProfileTable();
     const isOldEmitter =
       oldId < table.isLightById.length && table.isLightById[oldId] === 1;
@@ -366,7 +477,76 @@ export class LocalLights {
     this.lastCameraZ = position.z;
 
     this.grid.update(position.x, position.y, position.z, stats);
+    this.shadows.update(
+      this.grid.selectedIndices,
+      this.grid.selectedCount,
+      position.x,
+      position.y,
+      position.z,
+      stats,
+    );
     this.debugOverlay?.update();
+  }
+
+  // ── shadow frame (called by World.renderShadowMaps; not game-facing) ────
+
+  /**
+   * Open this frame's shadow budget and reserve units for dynamic faces
+   * (moving hero lights, entity overlays) before the CSM cascades spend.
+   */
+  beginShadowFrame(entities?: Object3D[]): void {
+    this.shadowLedger.beginFrame(this.shadowLedgerUnitsPerFrame);
+    const demand = this.shadows.estimateDynamicDemand(entities);
+    if (demand > 0) this.shadowLedger.reserveDynamic(demand);
+  }
+
+  /**
+   * Render whatever local shadow faces this frame's remaining budget grants:
+   * moving-light refreshes and entity overlays first, then the invalidated
+   * static FIFO. A frame with zero shadow slots returns immediately.
+   */
+  renderShadows(
+    renderer: WebGLRenderer,
+    scene: Scene,
+    entities?: Object3D[],
+    instancePools?: Group[],
+    skipShadowObjects: readonly Object3D[] = [],
+  ): void {
+    this.shadows.render(
+      renderer,
+      scene,
+      this.shadowLedger,
+      entities,
+      instancePools,
+      skipShadowObjects,
+      this.stats,
+    );
+    this.shadowUniforms.atlas.value = this.shadows.atlas.depthTexture;
+    const ledger = this.shadowLedger.frameStats;
+    this.stats.ledgerUnitsCsm = ledger.csmNearUnits + ledger.csmFarUnits;
+    this.stats.ledgerUnitsLocal =
+      ledger.localDynamicUnits + ledger.localStaticUnits;
+    this.stats.atlasBytes = this.shadows.atlas.estimatedBytes;
+  }
+
+  /**
+   * Invalidate every cached shadow map intersecting `[min, max)` — for game
+   * systems that alter occluding geometry outside the block-update stream.
+   */
+  invalidateShadowRegion(min: Vector3, max: Vector3): void {
+    this.shadows.invalidateRegion(min.x, min.y, min.z, max.x, max.y, max.z);
+  }
+
+  /** A chunk mesh (re)built: refresh cached maps that reach into it. */
+  handleChunkMeshed(cx: number, cz: number): void {
+    const { chunkSize, maxHeight } = this.getWorldConfig();
+    this.shadows.notifyChunkMeshed(
+      cx * chunkSize,
+      cz * chunkSize,
+      (cx + 1) * chunkSize,
+      (cz + 1) * chunkSize,
+      maxHeight,
+    );
   }
 
   /**
@@ -376,6 +556,7 @@ export class LocalLights {
    */
   onContextRestored(): void {
     this.grid.markTexturesDirty();
+    this.shadows.onContextRestored();
   }
 
   /** Start a fresh peak-cost measurement window (benchmark harnesses). */
@@ -383,6 +564,8 @@ export class LocalLights {
     this.stats.selectMsPeak = 0;
     this.stats.packMsPeak = 0;
     this.stats.scanMsPeak = 0;
+    this.stats.shadowScheduleMsPeak = 0;
+    this.shadows.resetCacheCounters();
   }
 
   dispose(): void {
@@ -393,6 +576,7 @@ export class LocalLights {
     this.tracker?.releaseAll();
     this.pendingScans.clear();
     this.grid.dispose();
+    this.shadows.dispose();
   }
 
   // ── internals ────────────────────────────────────────────────────────────

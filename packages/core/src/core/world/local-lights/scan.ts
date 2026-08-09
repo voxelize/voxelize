@@ -1,5 +1,16 @@
+import { BlockRotation } from "../block";
+
 import { LightSourceRegistry } from "./registry";
 import { BlockLightProfile, LightHandle, LocalLightDescriptor } from "./types";
+
+/**
+ * The slice of a block face the anchor derivation needs: authored corner
+ * geometry plus the server-declared emissive strength.
+ */
+export interface EmitterBlockFace {
+  corners: { pos: [number, number, number] }[];
+  emissive?: number;
+}
 
 /**
  * The slice of a client block definition the scanner needs. Structural on
@@ -11,6 +22,12 @@ export interface EmitterBlock {
   redLightLevel: number;
   greenLightLevel: number;
   blueLightLevel: number;
+  /**
+   * Authored face geometry. When present and the block declares emissive
+   * faces, the default emitter anchor is derived from the hot faces instead
+   * of the voxel center — a torch emits from its flame, not its stick.
+   */
+  faces?: EmitterBlockFace[];
 }
 
 interface ResolvedProfile {
@@ -62,6 +79,51 @@ export class BlockProfileTable {
   }
 }
 
+const clampAnchor = (v: number) => Math.min(Math.max(v, 0.02), 0.98);
+
+/**
+ * Where inside its voxel a block emits from, when the game declares no
+ * explicit offset: the emissive-strength-weighted centroid of its authored
+ * hot faces. A torch whose stick is plain wood and whose tip face carries
+ * `face_emissive` anchors its light — analytic falloff, shadow projection,
+ * mount tests, and source bounds alike — at the tip, not the block center.
+ * Falls back to the voxel center when nothing is declared emissive.
+ */
+export function deriveEmissiveAnchor(
+  faces: EmitterBlockFace[] | undefined,
+): [number, number, number] | null {
+  if (!faces || faces.length === 0) return null;
+  let weight = 0;
+  let sx = 0;
+  let sy = 0;
+  let sz = 0;
+  for (const face of faces) {
+    const strength = face.emissive ?? 0;
+    if (strength <= 0 || face.corners.length === 0) continue;
+    let fx = 0;
+    let fy = 0;
+    let fz = 0;
+    for (const corner of face.corners) {
+      fx += corner.pos[0];
+      fy += corner.pos[1];
+      fz += corner.pos[2];
+    }
+    const inv = strength / face.corners.length;
+    sx += fx * inv;
+    sy += fy * inv;
+    sz += fz * inv;
+    weight += strength;
+  }
+  if (weight <= 0) return null;
+  // The clamp keeps the anchor strictly inside the voxel so mount tests and
+  // cell binning attribute it to the emitter block, not a neighbor.
+  return [
+    clampAnchor(sx / weight),
+    clampAnchor(sy / weight),
+    clampAnchor(sz / weight),
+  ];
+}
+
 function resolveProfile(
   block: EmitterBlock,
   declared: BlockLightProfile | undefined,
@@ -95,7 +157,9 @@ function resolveProfile(
 
   return {
     descriptor,
-    offset: declared?.offset ?? [0.5, 0.5, 0.5],
+    offset:
+      declared?.offset ??
+      deriveEmissiveAnchor(block.faces) ?? [0.5, 0.5, 0.5],
     isAggregated: (declared?.aggregation ?? "cluster") === "cluster",
     aggregateThreshold: declared?.aggregateThreshold ?? 8,
     maxProxiesPerSection: declared?.maxProxiesPerSection ?? 4,
@@ -114,7 +178,11 @@ export interface ScannableChunk {
 type SectionRecord = {
   /** Local voxel key to the handle of its individually registered emitter. */
   singles: Map<number, LightHandle>;
-  /** Local voxel key to the block id it was registered for. */
+  /**
+   * Local voxel key to the signature it was registered for: block id in the
+   * low 16 bits, rotation bits above — so rotating a torch in place rescans
+   * exactly like swapping the block, moving its anchored light with it.
+   */
   singleIds: Map<number, number>;
   proxies: LightHandle[];
 };
@@ -148,6 +216,8 @@ export class SectionTracker {
   private readonly desiredSingles = new Map<number, number>();
   private readonly staleKeys: number[] = [];
   private readonly groupKeys = new Map<number, number[]>();
+  private readonly scanSignatures = new Map<number, number>();
+  private readonly rotatedOffset: [number, number, number] = [0, 0, 0];
 
   constructor(
     registry: LightSourceRegistry,
@@ -198,10 +268,13 @@ export class SectionTracker {
       for (let ly = 0; ly < sectionHeight; ly++) {
         const yBase = xBase + (yStart + ly) * chunkSize;
         for (let lz = 0; lz < chunkSize; lz++) {
-          const id = voxels[yBase + lz] & 0xffff;
+          const raw = voxels[yBase + lz];
+          const id = raw & 0xffff;
           if (id < isLightById.length && isLightById[id]) {
             keys.push(packLocalKey(lx, ly, lz, chunkSize));
-            ids.push(id);
+            // Signature keeps the rotation bits (16–23 of the raw voxel):
+            // a wall torch's anchor rotates with its stick.
+            ids.push(raw & 0xffffff);
           }
         }
       }
@@ -227,7 +300,8 @@ export class SectionTracker {
     groups.clear();
 
     for (let n = 0; n < ids.length; n++) {
-      const id = ids[n];
+      const signature = ids[n];
+      const id = signature & 0xffff;
       const profile = table.profileFor(id);
       if (!profile) continue;
       if (profile.isAggregated) {
@@ -237,18 +311,22 @@ export class SectionTracker {
           groups.set(id, group);
         }
         group.push(keys[n]);
+        this.scanSignatures.set(keys[n], signature);
       } else {
-        desired.set(keys[n], id);
+        desired.set(keys[n], signature);
       }
     }
     for (const [id, group] of groups) {
       const profile = table.profileFor(id);
       if (!profile) continue;
       if (group.length <= profile.aggregateThreshold) {
-        for (const localKey of group) desired.set(localKey, id);
+        for (const localKey of group) {
+          desired.set(localKey, this.scanSignatures.get(localKey) ?? id);
+        }
         groups.delete(id);
       }
     }
+    this.scanSignatures.clear();
 
     // Diff singles: registered emitters that are gone (or changed block)
     // release their handles; new ones register. Unchanged ones keep their
@@ -265,21 +343,44 @@ export class SectionTracker {
       record.singleIds.delete(localKey);
     }
     const [minX, , minZ] = chunk.min;
-    for (const [localKey, id] of desired) {
+    for (const [localKey, signature] of desired) {
       if (record.singleIds.has(localKey)) continue;
+      const id = signature & 0xffff;
       const profile = table.profileFor(id);
       if (!profile) continue;
       const lx = localKey % chunkSize;
       const lz = Math.floor(localKey / chunkSize) % chunkSize;
       const ly = Math.floor(localKey / (chunkSize * chunkSize));
+
+      // The anchor rides the block's rotation: a wall torch's emitting tip
+      // (and with it shadow projection and mount tests) leans with the stick.
+      let ox = profile.offset[0];
+      let oy = profile.offset[1];
+      let oz = profile.offset[2];
+      const rotBits = (signature >>> 16) & 0xff;
+      if (rotBits !== 0) {
+        const rotated = this.rotatedOffset;
+        rotated[0] = ox;
+        rotated[1] = oy;
+        rotated[2] = oz;
+        BlockRotation.encode(rotBits & 0xf, (rotBits >> 4) & 0xf).rotateNode(
+          rotated,
+          true,
+          true,
+        );
+        ox = Math.min(Math.max(rotated[0], 0.02), 0.98);
+        oy = Math.min(Math.max(rotated[1], 0.02), 0.98);
+        oz = Math.min(Math.max(rotated[2], 0.02), 0.98);
+      }
+
       const handle = this.registry.add(
         profile.descriptor,
-        minX + lx + profile.offset[0],
-        yStart + ly + profile.offset[1],
-        minZ + lz + profile.offset[2],
+        minX + lx + ox,
+        yStart + ly + oy,
+        minZ + lz + oz,
       );
       record.singles.set(localKey, handle);
-      record.singleIds.set(localKey, id);
+      record.singleIds.set(localKey, signature);
     }
 
     // Proxies rebuild wholesale: membership defines them, so any edit in an

@@ -119,6 +119,16 @@ type VisibilitySnapshot = {
   visible: boolean;
 };
 
+/**
+ * The slice of the shared shadow ledger CSM consults. Injected rather than
+ * imported so the CSM renderer stays constructible without the local-light
+ * system (and byte-identical in behavior when no ledger is attached).
+ */
+export interface CSMShadowLedger {
+  chargeCsmNear(units: number): void;
+  requestCsmFar(units: number): boolean;
+}
+
 export class CSMRenderer {
   private config: CSMConfig;
   private cascades: Cascade[] = [];
@@ -139,6 +149,10 @@ export class CSMRenderer {
   private tempVec3 = new Vector3();
 
   private skipShadowObjectsCache: Object3D[] = [];
+
+  private ledger: CSMShadowLedger | null = null;
+  private ledgerNearUnits = 4;
+  private ledgerFarUnits = 6;
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
@@ -249,6 +263,32 @@ export class CSMRenderer {
     }
 
     return cameraMovement > 3.0 || this.frameCount % 10 === 0;
+  }
+
+  /**
+   * Share the per-frame shadow budget with the local light atlas. The near
+   * cascade is priority 1 and only *records* its spend; far cascades ask for
+   * a grant where the hard-coded one-far-per-frame rule used to be the only
+   * throttle. With no ledger attached (or no local lights active — the
+   * ledger grants unconditionally then), behavior is exactly today's.
+   */
+  attachShadowLedger(
+    ledger: CSMShadowLedger | null,
+    nearUnits = 4,
+    farUnits = 6,
+  ) {
+    this.ledger = ledger;
+    this.ledgerNearUnits = nearUnits;
+    this.ledgerFarUnits = farUnits;
+  }
+
+  /**
+   * The `skipShadow`-flagged objects every depth consumer must hide. The
+   * local shadow atlas hides the same list, so casters can never disagree
+   * between the sun's maps and a torch's.
+   */
+  get skipShadowObjects(): readonly Object3D[] {
+    return this.skipShadowObjectsCache;
   }
 
   rebuildSkipShadowCache(scene: Scene) {
@@ -536,6 +576,16 @@ export class CSMRenderer {
 
       if (i > 0 && hasRenderedFarCascade) {
         continue;
+      }
+
+      // The ledger can defer a far cascade a frame when local shadow faces
+      // reserved the budget; needsRender stays set so it lands on the next.
+      // Near cascades never ask — they are the ledger's priority 1.
+      if (i > 0 && this.ledger && !this.ledger.requestCsmFar(this.ledgerFarUnits)) {
+        continue;
+      }
+      if (i === 0) {
+        this.ledger?.chargeCsmNear(this.ledgerNearUnits);
       }
 
       const cascade = this.cascades[i];

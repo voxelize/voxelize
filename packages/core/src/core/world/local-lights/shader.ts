@@ -27,6 +27,11 @@ uniform int uClusteredLightCount;
 uniform float uLocalMaskKnee;
 uniform float uLocalSpecularStrength;
 uniform float uLocalLightDebugMode;
+uniform sampler2D uLocalShadowAtlas;
+// [atlas px, cell px, linear depth bias (blocks), normal bias (texels)]
+uniform vec4 uLocalShadowParams;
+// [pcf radius (texels), shadow strength, unused, unused]
+uniform vec4 uLocalShadowParams2;
 `;
 
 /**
@@ -35,13 +40,129 @@ uniform float uLocalLightDebugMode;
  * specular functions walk the cell's fixed slot list, breaking at the first
  * empty slot, so an empty world costs one integer compare per fragment.
  *
- * Record layout (one row per selected light, four RGBA32F texels):
+ * Record layout (one row per selected light, six RGBA32F texels):
  *   t0 = [x, y, z, range]
- *   t1 = [r*i, g*i, b*i, flags]   flags: 1 masked | 2 flicker | shape << 4
+ *   t1 = [r*i, g*i, b*i, flags]   flags: 1 masked | 2 flicker | 4 shadowed | shape << 4
  *   t2 = spot [dir.xyz, cosOuter] / capsule [end offset.xyz, 0]
  *   t3 = [flickerSpeed, flickerAmplitude, flickerPhase, spotInvCosDelta]
+ *   t4 = [shadow slot (-1 none), static face mask, dynamic face mask, near]
+ *   t5 = [far, guard tanHalf, 0, 0]
+ *
+ * Shadow lookup mirrors the camera construction in `shadow-atlas.ts`
+ * (face bases, guard FOV, GL perspective depth); change neither side alone.
+ * Depth compares run in *linear* light-space distance so bias is a world
+ * unit, not a resolution- and range-dependent NDC fudge.
  */
 export const LOCAL_LIGHTS_FUNCTIONS = `
+const vec2 LL_PCF_TAPS[4] = vec2[4](
+  vec2(-0.6, -0.2), vec2(0.6, 0.2), vec2(-0.2, 0.6), vec2(0.2, -0.6)
+);
+
+float localShadowCellVisibility(
+  int llCell, vec2 llFaceUv, float llW, float llNear, float llFar, float llBias
+) {
+  float llAtlas = uLocalShadowParams.x;
+  float llCellPx = uLocalShadowParams.y;
+  float llPerRow = floor(llAtlas / llCellPx + 0.5);
+  vec2 llOrigin = vec2(
+    mod(float(llCell), llPerRow),
+    floor(float(llCell) / llPerRow)
+  ) * llCellPx;
+
+  // Keep every tap inside this cell: the atlas neighbors are other maps.
+  float llPcf = uLocalShadowParams2.x;
+  float llBorder = (llPcf + 1.0) / llCellPx;
+  vec2 llClamped = clamp(llFaceUv, vec2(llBorder), vec2(1.0 - llBorder));
+  vec2 llBaseUv = (llOrigin + llClamped * llCellPx) / llAtlas;
+  vec2 llTexel = vec2(llPcf / llAtlas);
+
+  float llVis = 0.0;
+  for (int t = 0; t < 4; t++) {
+    float llD01 = texture(uLocalShadowAtlas, llBaseUv + LL_PCF_TAPS[t] * llTexel).r;
+    float llZn = llD01 * 2.0 - 1.0;
+    float llStored = (2.0 * llFar * llNear) / (llFar + llNear - llZn * (llFar - llNear));
+    llVis += (llW - llBias > llStored) ? 0.0 : 1.0;
+  }
+  return llVis * 0.25;
+}
+
+float localLightShadow(
+  int llRec, vec3 llPos, vec3 llNormal, int llShape, vec3 llLightPos, vec3 llSpotDir
+) {
+  vec4 llT4 = texelFetch(uLightData, ivec2(4, llRec), 0);
+  int llSlot = int(floor(llT4.x + 0.5));
+  if (llSlot < 0) return 1.0;
+  int llStaticMask = int(llT4.y + 0.5);
+  int llDynMask = int(llT4.z + 0.5);
+  float llNear = llT4.w;
+  vec4 llT5 = texelFetch(uLightData, ivec2(5, llRec), 0);
+  float llFar = llT5.x;
+  float llTanHalf = llT5.y;
+
+  // Receiver offset along the normal by the light-space texel footprint,
+  // scaled up as the light grazes the surface: at glancing incidence one
+  // texel of map resolution spans a long stretch of receiver, and the only
+  // artifact-free correction is to lift the sample off the plane. This is
+  // resolution-aware, so contact shadows never detach at close range.
+  vec3 llToLightDir = normalize(llLightPos - llPos);
+  float llNdl = clamp(dot(llNormal, llToLightDir), 0.0, 1.0);
+  float llSlope = clamp(sqrt(1.0 - llNdl * llNdl) / max(llNdl, 0.05), 0.0, 8.0);
+  float llW0 = max(length(llPos - llLightPos), llNear);
+  float llTexelWorld = (2.0 * llTanHalf * llW0) / uLocalShadowParams.y;
+  vec3 llSample = llPos
+    + llNormal * (uLocalShadowParams.w * llTexelWorld * (1.0 + llSlope));
+  vec3 llRel = llSample - llLightPos;
+
+  int llFace;
+  float llW;
+  vec2 llFaceUv;
+  if (llShape == 1) {
+    vec3 llFwd = llSpotDir;
+    vec3 llUpRef = abs(llFwd.y) > 0.99 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+    vec3 llRight = normalize(cross(llFwd, llUpRef));
+    vec3 llUp = cross(llRight, llFwd);
+    llW = dot(llRel, llFwd);
+    if (llW <= llNear) return 1.0;
+    vec2 llNdc = vec2(dot(llRel, llRight), dot(llRel, llUp)) / (llW * llTanHalf);
+    if (abs(llNdc.x) >= 1.0 || abs(llNdc.y) >= 1.0) return 1.0;
+    llFace = 0;
+    llFaceUv = llNdc * 0.5 + 0.5;
+  } else {
+    vec3 llA = abs(llRel);
+    vec2 llUv;
+    if (llA.x >= llA.y && llA.x >= llA.z) {
+      llFace = llRel.x > 0.0 ? 0 : 1;
+      llW = llA.x;
+      llUv = vec2(llRel.x > 0.0 ? llRel.z : -llRel.z, llRel.y);
+    } else if (llA.y >= llA.z) {
+      llFace = llRel.y > 0.0 ? 2 : 3;
+      llW = llA.y;
+      llUv = vec2(llRel.y > 0.0 ? llRel.x : -llRel.x, llRel.z);
+    } else {
+      llFace = llRel.z > 0.0 ? 4 : 5;
+      llW = llA.z;
+      llUv = vec2(llRel.z > 0.0 ? -llRel.x : llRel.x, llRel.y);
+    }
+    if (llW <= llNear) return 1.0;
+    llFaceUv = (llUv / (llW * llTanHalf)) * 0.5 + 0.5;
+  }
+
+  float llBias = uLocalShadowParams.z + llTexelWorld * (0.75 + llSlope);
+  int llBase = llSlot * 12;
+  float llVis = 1.0;
+  if ((llStaticMask & (1 << llFace)) != 0) {
+    llVis = localShadowCellVisibility(
+      llBase + llFace, llFaceUv, llW, llNear, llFar, llBias
+    );
+  }
+  if ((llDynMask & (1 << llFace)) != 0) {
+    llVis = min(llVis, localShadowCellVisibility(
+      llBase + 6 + llFace, llFaceUv, llW, llNear, llFar, llBias
+    ));
+  }
+  return mix(1.0, llVis, uLocalShadowParams2.y);
+}
+
 int localLightCell(vec3 llPos) {
   vec3 llRel = (llPos - uLightGridOrigin) / uLightGridCellSize;
   if (any(lessThan(llRel, vec3(0.0))) || any(greaterThanEqual(llRel, uLightGridDims))) {
@@ -87,10 +208,14 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
     int llFlags = int(llT1.w + 0.5);
     int llShape = llFlags >> 4;
 
+    vec4 llT2 = vec4(0.0);
+    if (llShape != 0) {
+      llT2 = texelFetch(uLightData, ivec2(2, llRec), 0);
+    }
+
     vec3 llOrigin = llT0.xyz;
     if (llShape == 2) {
       // Capsule: light from the closest point on the segment.
-      vec4 llT2 = texelFetch(uLightData, ivec2(2, llRec), 0);
       vec3 llAxis = llT2.xyz;
       float llLen2 = max(dot(llAxis, llAxis), 1e-6);
       float llT = clamp(dot(llPos - llT0.xyz, llAxis) / llLen2, 0.0, 1.0);
@@ -110,7 +235,6 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
 
     float llAngular = 1.0;
     if (llShape == 1) {
-      vec4 llT2 = texelFetch(uLightData, ivec2(2, llRec), 0);
       vec4 llT3s = texelFetch(uLightData, ivec2(3, llRec), 0);
       llAngular = clamp((dot(-llL, llT2.xyz) - llT2.w) * llT3s.w, 0.0, 1.0);
       llAngular *= llAngular;
@@ -123,7 +247,15 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
       llFlicker = localLightFlicker(texelFetch(uLightData, ivec2(3, llRec), 0));
     }
 
-    float llOcclusion = (llFlags & 1) != 0 ? llMask : 1.0;
+    // Occlusion ladder: a granted shadow slot samples its atlas maps
+    // (per-light, entity-aware); otherwise a masked light multiplies by the
+    // shared flood mask; otherwise the light is unoccluded.
+    float llOcclusion = 1.0;
+    if ((llFlags & 4) != 0) {
+      llOcclusion = localLightShadow(llRec, llPos, llNormal, llShape, llT0.xyz, llT2.xyz);
+    } else if ((llFlags & 1) != 0) {
+      llOcclusion = llMask;
+    }
 
     // Submerged emitters lose energy to the water column, with the same
     // extinction the cone lights use; the waterline transition spans one
@@ -199,7 +331,58 @@ vec3 localLightDebugColor(vec3 llPos, vec3 llBase, vec3 llNormal, vec3 llFlood) 
     // Isolated clustered contribution.
     return localLightSurface(llPos, llNormal, llFlood);
   }
-  // Flood leak mask the masked lights multiply by.
-  return vec3(smoothstep(0.0, uLocalMaskKnee, max(max(llFlood.r, llFlood.g), llFlood.b)));
+  if (uLocalLightDebugMode < 3.5) {
+    // Flood leak mask the masked lights multiply by.
+    return vec3(smoothstep(0.0, uLocalMaskKnee, max(max(llFlood.r, llFlood.g), llFlood.b)));
+  }
+  if (uLocalLightDebugMode < 4.5) {
+    // Shadow-slot tint: fragments inside a shadowed light's range show that
+    // light's slot color, darkened where its atlas maps occlude.
+    if (llCell < 0) return llBase * 0.2;
+    vec3 llTint = llBase * 0.15;
+    for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
+      int llRec = localLightSlot(llCell, s);
+      if (llRec == 0) break;
+      llRec -= 1;
+      vec4 llT1d = texelFetch(uLightData, ivec2(1, llRec), 0);
+      int llFlagsD = int(llT1d.w + 0.5);
+      if ((llFlagsD & 4) == 0) continue;
+      vec4 llT0d = texelFetch(uLightData, ivec2(0, llRec), 0);
+      vec3 llToLd = llT0d.xyz - llPos;
+      if (dot(llToLd, llToLd) >= llT0d.w * llT0d.w) continue;
+      int llShapeD = llFlagsD >> 4;
+      vec4 llT2d = vec4(0.0);
+      if (llShapeD != 0) llT2d = texelFetch(uLightData, ivec2(2, llRec), 0);
+      float llVisD = localLightShadow(llRec, llPos, llNormal, llShapeD, llT0d.xyz, llT2d.xyz);
+      vec4 llT4d = texelFetch(uLightData, ivec2(4, llRec), 0);
+      int llSlotD = int(floor(llT4d.x + 0.5));
+      vec3 llSlotColor = llSlotD == 0 ? vec3(1.0, 0.3, 0.2)
+        : llSlotD == 1 ? vec3(0.2, 1.0, 0.3)
+        : llSlotD == 2 ? vec3(0.25, 0.4, 1.0)
+        : vec3(1.0, 0.9, 0.2);
+      llTint += llSlotColor * (0.2 + 0.8 * llVisD) * 0.6;
+    }
+    return llTint;
+  }
+  // Mode 5: isolated local-shadow visibility — the product every shadowed
+  // light in range multiplies into this fragment.
+  if (llCell < 0) return vec3(1.0);
+  float llVisAll = 1.0;
+  for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
+    int llRec = localLightSlot(llCell, s);
+    if (llRec == 0) break;
+    llRec -= 1;
+    vec4 llT1v = texelFetch(uLightData, ivec2(1, llRec), 0);
+    int llFlagsV = int(llT1v.w + 0.5);
+    if ((llFlagsV & 4) == 0) continue;
+    vec4 llT0v = texelFetch(uLightData, ivec2(0, llRec), 0);
+    vec3 llToLv = llT0v.xyz - llPos;
+    if (dot(llToLv, llToLv) >= llT0v.w * llT0v.w) continue;
+    int llShapeV = llFlagsV >> 4;
+    vec4 llT2v = vec4(0.0);
+    if (llShapeV != 0) llT2v = texelFetch(uLightData, ivec2(2, llRec), 0);
+    llVisAll *= localLightShadow(llRec, llPos, llNormal, llShapeV, llT0v.xyz, llT2v.xyz);
+  }
+  return vec3(llVisAll);
 }
 `;
