@@ -157,8 +157,7 @@ function resolveProfile(
 
   return {
     descriptor,
-    offset:
-      declared?.offset ??
+    offset: declared?.offset ??
       deriveEmissiveAnchor(block.faces) ?? [0.5, 0.5, 0.5],
     isAggregated: (declared?.aggregation ?? "cluster") === "cluster",
     aggregateThreshold: declared?.aggregateThreshold ?? 8,

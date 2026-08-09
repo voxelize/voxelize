@@ -581,7 +581,11 @@ export class CSMRenderer {
       // The ledger can defer a far cascade a frame when local shadow faces
       // reserved the budget; needsRender stays set so it lands on the next.
       // Near cascades never ask — they are the ledger's priority 1.
-      if (i > 0 && this.ledger && !this.ledger.requestCsmFar(this.ledgerFarUnits)) {
+      if (
+        i > 0 &&
+        this.ledger &&
+        !this.ledger.requestCsmFar(this.ledgerFarUnits)
+      ) {
         continue;
       }
       if (i === 0) {

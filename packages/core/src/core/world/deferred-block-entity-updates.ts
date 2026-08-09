@@ -15,8 +15,13 @@ export class DeferredBlockEntityUpdateController {
   private pendingByChunk = new Map<string, Set<DeferredEntry>>();
 
   defer(options: DeferBlockEntityUpdateOptions) {
-    const { chunkName, timeoutMs, shouldApplyOnTimeout, onApply, bindChunkInit } =
-      options;
+    const {
+      chunkName,
+      timeoutMs,
+      shouldApplyOnTimeout,
+      onApply,
+      bindChunkInit,
+    } = options;
 
     let isResolved = false;
     let unbind = () => {};
@@ -56,7 +61,8 @@ export class DeferredBlockEntityUpdateController {
 
     unbind = bindChunkInit(() => resolve(true));
 
-    const pending = this.pendingByChunk.get(chunkName) ?? new Set<DeferredEntry>();
+    const pending =
+      this.pendingByChunk.get(chunkName) ?? new Set<DeferredEntry>();
     pending.add(entry);
     this.pendingByChunk.set(chunkName, pending);
 
