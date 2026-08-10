@@ -729,12 +729,12 @@ const frameStats = () => {
   // renders the loaded scene twice in ONE synchronous turn — once with the
   // shipped chunk programs, once with true "local lights never existed"
   // programs compiled via stripLocalLightsFromFragment — through the same
-  // renderer, camera, and shared uniform objects, then byte-compares the
-  // readbacks. Every pixel input is frozen by construction: nothing (world
-  // update, animation, particles, clocks) runs between the two renders, the
-  // uniforms are the same live objects for both programs, and uTime is
-  // pinned for reproducibility of the captures. At the off tier the outputs
-  // must be byte-identical.
+  // renderer, camera, and shared uniform objects, then compares every byte
+  // of the full RGBA readbacks (alpha included). Every pixel input is
+  // frozen by construction: nothing (world update, animation, particles,
+  // clocks) runs between the two renders, the uniforms are the same live
+  // objects for both programs, and uTime is pinned for reproducibility of
+  // the captures. At the off tier the outputs must be byte-identical.
   renderOffParityDiff: () => {
     const size = 512;
     world.chunkRenderer.uniforms.time.value = 123456;
@@ -836,19 +836,22 @@ const frameStats = () => {
     for (const object of hidden) object.visible = true;
     world.onBeforeRender = worldOnBeforeRender;
 
+    // Full-RGBA comparison: every byte of the readback counts, alpha
+    // included — the contract is byte-identical output, not RGB-close.
     const compare = (a: Uint8Array, b: Uint8Array) => {
       let diffBytes = 0;
       let diffPixels = 0;
       let maxDelta = 0;
       for (let p = 0; p < size * size; p++) {
         const i = p * 4;
-        const d =
-          Math.abs(a[i] - b[i]) +
-          Math.abs(a[i + 1] - b[i + 1]) +
-          Math.abs(a[i + 2] - b[i + 2]);
+        let d = 0;
+        for (let c = 0; c < 4; c++) {
+          const delta = Math.abs(a[i + c] - b[i + c]);
+          if (delta > 0) diffBytes++;
+          d += delta;
+        }
         if (d > 0) {
           diffPixels++;
-          diffBytes += d;
           if (d > maxDelta) maxDelta = d;
         }
       }
@@ -875,11 +878,14 @@ const frameStats = () => {
     };
     const result = {
       diffPixels,
+      /** Differing BYTES across the full RGBA readback (alpha included). */
       diffBytes,
       maxDelta,
       controlDiffPixels: control.diffPixels,
+      controlDiffBytes: control.diffBytes,
       controlMaxDelta: control.maxDelta,
       totalPixels: size * size,
+      totalBytes: size * size * 4,
       shippedPng: toPng(shipped),
       legacyPng: toPng(legacy),
     };

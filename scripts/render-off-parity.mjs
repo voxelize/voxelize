@@ -13,9 +13,11 @@
  * nonzero diff can only come from the local-lights code failing to be
  * bit-inert at zero lights.
  *
- * Scenes: noon cleared ground, noon torch grid, night torch grid (dark
- * local-light scene) — at the `off` tier, plus `potato` on the night scene.
- * Exit code 1 if any comparison is not exactly zero.
+ * Scenes: true noon (setTimeFrac(0.5) — time 6000 in the flat world's
+ * 24,000-tick day is the sunrise boundary, not noon) over cleared ground
+ * and over a torch grid, plus a dark night torch grid (setTimeFrac(0.85))
+ * — at the `off` tier, plus `potato` on the night scene. The comparison is
+ * full-RGBA (alpha included); exit code 1 unless every byte matches.
  *
  * Usage: node scripts/render-off-parity.mjs [--url http://localhost:3000]
  *          [--shots /tmp/off-parity]
@@ -128,33 +130,34 @@ await settle();
 
 const results = {};
 let failed = false;
-const runCase = async (name, tier, time) => {
+const runCase = async (name, tier, timeFrac) => {
   await bench("setTier", tier);
   await sleep(1200);
-  await bench("setTime", time);
+  // Normalized day fraction: 0.5 = actual noon regardless of timePerDay.
+  await bench("setTimeFrac", timeFrac);
   await sleep(1500);
   const result = await bench("renderOffParityDiff");
   const { shippedPng, legacyPng, ...stats } = result;
   results[name] = stats;
   await savePair(name, result);
-  const verdict = stats.diffPixels === 0 ? "BYTE-IDENTICAL" : "DIFFERS";
-  if (stats.diffPixels !== 0 || stats.controlDiffPixels !== 0) failed = true;
+  const verdict = stats.diffBytes === 0 ? "BYTE-IDENTICAL" : "DIFFERS";
+  if (stats.diffBytes !== 0 || stats.controlDiffBytes !== 0) failed = true;
   console.log(
-    `[off-parity] ${name}: ${verdict} — ${stats.diffPixels}/${stats.totalPixels} px, ` +
-      `maxΔ ${stats.maxDelta}, control ${stats.controlDiffPixels} px (maxΔ ${stats.controlMaxDelta}), tier ${tier}`,
+    `[off-parity] ${name}: ${verdict} — ${stats.diffBytes}/${stats.totalBytes} RGBA bytes ` +
+      `(${stats.diffPixels} px, maxΔ ${stats.maxDelta}), control ${stats.controlDiffBytes} bytes, tier ${tier}`,
   );
 };
 
-// Noon, cleared ground.
-await runCase("noon_clear_off", "off", 6000);
+// Noon (day fraction 0.5), cleared ground.
+await runCase("noon_clear_off", "off", 0.5);
 
-// Noon + night with a torch grid (dark local-light scene).
+// Noon + dark night with a torch grid (dark local-light scene).
 await bench("runScene", "grid", "Torch", ORIGIN, 9);
 await sleep(2500);
 await settle();
-await runCase("noon_torches_off", "off", 6000);
-await runCase("night_torches_off", "off", 20000);
-await runCase("night_torches_potato", "potato", 20000);
+await runCase("noon_torches_off", "off", 0.5);
+await runCase("night_torches_off", "off", 0.85);
+await runCase("night_torches_potato", "potato", 0.85);
 
 await bench("setTier", "high");
 await writeFile(
