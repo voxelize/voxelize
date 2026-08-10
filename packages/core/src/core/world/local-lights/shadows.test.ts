@@ -1006,6 +1006,185 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0);
   });
 
+  it("keeps multiple remote avatars out of world cells through translate, turn, pose, and lifecycle churn", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    // Three peer avatars, scene children like Peers parents them, standing
+    // in three different faces of the lamp. Each has an articulated child
+    // ("limb") whose rotation animates — the pose lives in the subtree, so
+    // hiding the render root is what keeps the pose out of cached depth.
+    const scene = new Scene();
+    const makeAvatar = (x: number, y: number, z: number) => {
+      const avatar = new Object3D();
+      avatar.position.set(x, y, z);
+      avatar.add(new Object3D()); // limb
+      scene.add(avatar);
+      return avatar;
+    };
+    const peerA = makeAvatar(8, 60, 4); // +X face
+    const peerB = makeAvatar(0, 60, 4); // -X face
+    const peerC = makeAvatar(4, 60, 8); // +Z face
+
+    const { renders, renderer } = makeVisibilityRenderer([peerA, peerB, peerC]);
+    const ledger = new ShadowFrameLedger();
+    const casters = [peerA, peerB, peerC];
+
+    // Frame 1: the world FIFO drains with every avatar hidden.
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, casters, undefined, [], stats);
+    const worldPasses = renders.filter((r) => r.scene === scene);
+    expect(worldPasses.length).toBe(6);
+    for (const pass of worldPasses) {
+      expect(pass.visibleAtRender).toEqual([false, false, false]);
+    }
+    const index = indexOf(registry, lamp);
+    // +X (bit 0), -X (bit 1), +Z (bit 4) overlay faces opened.
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b010011);
+
+    // Frames 2..4: translate, turn, and animate the pose. The overlay
+    // re-renders every frame; the cached world cells are never touched.
+    for (let frame = 0; frame < 3; frame++) {
+      peerA.position.z += 0.3; // translate
+      peerB.rotation.y += 0.6; // turn
+      peerC.children[0].rotation.x += 0.8; // joint animation
+      renders.length = 0;
+      ledger.beginFrame(100);
+      scheduler.render(renderer, scene, ledger, casters, undefined, [], stats);
+      expect(renders.filter((r) => r.scene === scene).length).toBe(0);
+      expect(renders.length).toBe(3); // one overlay render per held face
+    }
+
+    // Churn: one peer leaves (splice — the Peers map is rebuilt per frame),
+    // its face closes the same frame; the others stay live.
+    casters.splice(casters.indexOf(peerB), 1);
+    scene.remove(peerB);
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, casters, undefined, [], stats);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b010001);
+
+    // A block edit invalidates the cache while two peers still stand there:
+    // the re-rendered world cells must exclude them, exactly like frame 1.
+    scheduler.invalidateRegion({
+      min: [0, 56, 0],
+      max: [8, 64, 8],
+    });
+    renders.length = 0;
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, casters, undefined, [], stats);
+    const refreshPasses = renders.filter((r) => r.scene === scene);
+    expect(refreshPasses.length).toBe(6);
+    for (const pass of refreshPasses) {
+      expect(pass.visibleAtRender.slice(0, 1)).toEqual([false]);
+      expect(pass.visibleAtRender.slice(2)).toEqual([false]);
+    }
+
+    // A new peer joins into the freed face: it opens the same frame.
+    const peerD = makeAvatar(0, 60, 4);
+    casters.push(peerD);
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, casters, undefined, [], stats);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b010011);
+    expect(peerA.visible && peerC.visible && peerD.visible).toBe(true);
+  });
+
+  it("keeps cached maps when the same tier caps are re-applied", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const { renderer } = makeVisibilityRenderer([]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, undefined, undefined, [], stats);
+    const index = indexOf(registry, lamp);
+    expect(scheduler.recordForIndex(index)?.staticMask).toBe(0b111111);
+    const invalidationsBefore = scheduler.invalidationLog.length;
+
+    // Re-applying the exact same caps (settings "apply", same-tier world
+    // re-init) is a no-op: cached faces stay sampleable, nothing requeues.
+    scheduler.setTierCaps(2, 2048, 256);
+    expect(scheduler.recordForIndex(index)?.staticMask).toBe(0b111111);
+    expect(scheduler.invalidationLog.length).toBe(invalidationsBefore);
+
+    // An actual change still invalidates through the tierChange cause.
+    scheduler.setTierCaps(2, 4096, 512);
+    expect(scheduler.recordForIndex(index)?.staticMask).toBe(0);
+    expect(
+      scheduler.invalidationLog[scheduler.invalidationLog.length - 1]?.cause,
+    ).toBe("tierChange");
+  });
+
+  it("clears packed claims when only the slot count changes (same atlas)", () => {
+    // high↔medium share one atlas geometry and differ only in slot count.
+    // The outgoing holders must be invalidated BEFORE the slot array is
+    // rebuilt, or the texel rewrite sees only fresh empty slots, skips,
+    // and a frame before the next selection pack samples the prior tier's
+    // shadow claims against a still-bound atlas.
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry, 3);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const { renderer } = makeVisibilityRenderer([]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, undefined, undefined, [], stats);
+    expect(scheduler.recordForIndex(indexOf(registry, lamp))?.staticMask).toBe(
+      0b111111,
+    );
+
+    let texelRewrites = 0;
+    scheduler.onShadowDataChanged = () => {
+      texelRewrites++;
+    };
+    scheduler.setTierCaps(2, 2048, 256); // fewer slots, identical atlas
+    expect(texelRewrites).toBe(1);
+    expect(scheduler.recordForIndex(indexOf(registry, lamp))).toBeNull();
+  });
+
+  it("keeps the atlas uniform bound across a same-tier re-apply", () => {
+    const lights = new LocalLights(
+      {},
+      () => ({
+        chunkSize: 16,
+        maxHeight: 256,
+        subChunks: 8,
+        maxLightLevel: 15,
+      }),
+      () => [],
+    );
+    // Allocate the atlas the way the first shadow render would, and bind
+    // its depth texture the way renderShadows does each frame.
+    const target = lights.shadows.atlas.ensureAllocated();
+    expect(target.depthTexture).toBeTruthy();
+    const binding = lights.uniformBindings.uLocalShadowAtlas;
+    binding.value = lights.shadows.atlas.depthTexture;
+    const bound = binding.value;
+    expect(bound).toBeTruthy();
+
+    // Same tier re-applied: caps are idempotent, cached maps survive, so
+    // the live texture must STAY bound — a null here would give any frame
+    // rendered before the next renderShadows a null atlas against masks
+    // that still claim shadow data.
+    lights.setQualityTier(lights.getQualityTier());
+    expect(binding.value).toBe(bound);
+
+    // A real atlas change disposes the target; null now agrees with the
+    // invalidated masks until the next shadow render rebinds.
+    lights.setQualityTier("ultra");
+    expect(binding.value).toBeNull();
+    lights.dispose();
+  });
+
   it("clears slot state on light removal so a successor starts clean", () => {
     const registry = new LightSourceRegistry(16);
     const scheduler = makeScheduler(registry);

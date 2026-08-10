@@ -349,6 +349,45 @@ export class Peers<
   getPeerById = (id: string) => this.map.get(id);
 
   /**
+   * Append every peer avatar render root that should cast dynamic shadows
+   * (the CSM entity pass and the local-light overlay tier) to `out`: the
+   * client's own avatar when visible (third person), then every remote
+   * peer's avatar. Pass the result to `World.renderShadowMaps` as part of
+   * the `entities` list — anything omitted from that list is treated as
+   * world geometry by the cached shadow passes, so a missing avatar both
+   * loses its live shadow and can be baked into a cached cell as a frozen
+   * stamp. Rebuild per frame into a caller-owned scratch array (zero
+   * allocation): the peers map is the live truth, so join, leave, and
+   * reconnect churn is picked up the same frame it happens.
+   *
+   * @param out The array to append render roots to (not cleared first).
+   * @returns The same array, for chaining.
+   */
+  collectShadowCasters(out: Object3D[]): Object3D[] {
+    if (this.ownPeer && Peers.isVisibleInGraph(this.ownPeer)) {
+      out.push(this.ownPeer);
+    }
+    this.map.forEach((peer) => {
+      if (Peers.isVisibleInGraph(peer)) out.push(peer);
+    });
+    return out;
+  }
+
+  /**
+   * Effective scene-graph visibility, walking the ancestor chain: the
+   * shadow passes reparent collected roots into their own depth scenes, so
+   * an avatar hidden by an ancestor (for example this whole peers group,
+   * toggled off to hide multiplayer) must be filtered at collection time —
+   * its own `visible` flag alone cannot see that.
+   */
+  private static isVisibleInGraph(object: Object3D): boolean {
+    for (let node: Object3D | null = object; node; node = node.parent) {
+      if (!node.visible) return false;
+    }
+    return true;
+  }
+
+  /**
    * Update the peers manager. Internally, this attempts to call any children that has a `update` method.
    * You can turn this behavior off by setting `options.updateChildren` to `false`.
    *

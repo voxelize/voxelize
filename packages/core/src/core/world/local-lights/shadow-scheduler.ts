@@ -228,15 +228,28 @@ export class LocalShadowScheduler {
     atlasSize: number,
     slotSize: number,
   ): void {
+    // Idempotent on identical caps: re-applying the current tier (a
+    // settings screen "apply", a world re-init on the same quality) must
+    // not wipe every cached shadow map for nothing. Only an actual change
+    // of atlas geometry or slot count invalidates.
+    const atlasUnchanged =
+      atlasSize === this.atlas.size && slotSize === this.atlas.cellSize;
     this.atlas.resize(atlasSize, slotSize);
     this.faceCostUnits = Math.max((slotSize / 256) ** 2, 1);
     const newMax = Math.min(maxShadowedLights, this.atlas.capacitySlots);
+    if (atlasUnchanged && newMax === this.maxSlots) return;
+    // Invalidate while the outgoing holders are still registered: the
+    // texel rewrite must see them to clear their packed shadow claims.
+    // Rebuilding the slot array first would make this a no-op (empty
+    // slots look like "nothing to invalidate"), leaving a slot-count-only
+    // change — high↔medium share one atlas geometry — with stale claims
+    // packed against a still-bound atlas until the next selection pack.
+    this.invalidateAll("tierChange");
     if (newMax !== this.maxSlots) {
       this.maxSlots = newMax;
       this.slots.length = 0;
       for (let s = 0; s < newMax; s++) this.slots.push(makeEmptySlot());
     }
-    this.invalidateAll("tierChange");
   }
 
   /** GPU context restored: atlas contents are gone; re-render lazily. */

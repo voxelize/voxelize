@@ -366,7 +366,14 @@ export class LocalLights {
     this.shadowLedgerUnitsPerFrame = preset.shadowLedgerUnitsPerFrame;
     this.shadowUniforms.params.value.x = preset.shadowAtlasSize;
     this.shadowUniforms.params.value.y = preset.shadowSlotSize;
-    this.shadowUniforms.atlas.value = null;
+    // Bind whatever the scheduler's atlas actually holds now: on a
+    // same-caps re-apply the cached maps survived (setTierCaps is
+    // idempotent) and the live depth texture must stay bound, or a frame
+    // rendered before the next renderShadows samples a null atlas against
+    // masks that still claim shadow data. On a real cap change the resize
+    // disposed the target, so this reads back null and the invalidated
+    // masks agree.
+    this.shadowUniforms.atlas.value = this.shadows.atlas.depthTexture;
   }
 
   getQualityTier(): LightQualityTier {
