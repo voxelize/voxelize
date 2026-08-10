@@ -157,6 +157,7 @@ I strongly recommend using Voxelize as a submodule of the workspace you're build
 | --- | --- |
 | [`voxelize`](server) | The authoritative multiplayer server engine |
 | [`voxelize-core`](crates/core) | Core types and utilities — the single source of truth for voxel data encoding |
+| [`voxelize-gen`](crates/gen) | Deterministic, content-free world generation: seed streams, bit-stable noise, compiled field programs, climate partitions, surface rules, carvers, hydrology, plan-sliced structures, and diagnostics |
 | [`voxelize-mesher`](crates/mesher) | Chunk meshing logic |
 | [`voxelize-wasm-mesher`](crates/wasm-mesher) | WebAssembly wrapper around the mesher for client-side use |
 

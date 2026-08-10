@@ -93,6 +93,8 @@ mod handles;
 mod inbound;
 #[cfg(test)]
 mod lag_comp_wiring_tests;
+#[cfg(test)]
+mod mesher_readiness_tests;
 mod lifecycle;
 mod sessions;
 mod spawning;
