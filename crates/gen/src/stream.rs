@@ -36,6 +36,7 @@ pub enum Subsystem {
     Hydrology,
     Structures,
     Ecology,
+    Geology,
 }
 
 pub fn stream_seed(

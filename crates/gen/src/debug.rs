@@ -15,6 +15,8 @@ pub enum MapLayer {
     Biome,
     Height,
     Steepness,
+    /// Folded moisture 0..1 (geology drainage or river proximity).
+    Moisture,
     Axis(usize),
     Margin,
 }
@@ -86,6 +88,11 @@ impl<'a> GenDebug<'a> {
                         let t = (self.generator.steepness(x, z) / 3.0).clamp(0.0, 1.0);
                         let v = (t * 255.0) as u8;
                         [v, 255 - v / 2, 64]
+                    }
+                    MapLayer::Moisture => {
+                        let t = self.generator.moisture_at(x, z).clamp(0.0, 1.0);
+                        let v = (t * 255.0) as u8;
+                        [40, 255 - v / 2, v]
                     }
                     MapLayer::Axis(index) => {
                         let axes = self.generator.axes_at(x, z);
@@ -165,9 +172,18 @@ impl<'a> GenDebug<'a> {
             },
             "axes": axis_report,
             "surfaceRaw": surface,
+            "ground": generator.ground_at(x, z),
             "steepness": generator.steepness(x, z),
             "seaLevel": generator.sea_level(),
             "aquiferLevel": generator.aquifer_level(x, z),
+            "moisture": generator.moisture_at(x, z),
+            "lakeLevel": generator.lake_level(x, z),
+            "river": generator.river_sample(x, z).map(|point| json!({
+                "dist": point.dist,
+                "waterY": point.water_y,
+                "halfWidth": point.half_width,
+                "depth": point.depth,
+            })),
             "biome": {
                 "primary": generator.biome_key(blend.primary),
                 "weights": weights,

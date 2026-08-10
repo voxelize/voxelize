@@ -58,7 +58,7 @@ pub struct CavernSpec {
 
 pub(crate) const LATTICE_STRIDE: i32 = 4;
 
-pub(crate) struct DensityLattice {
+pub struct DensityLattice {
     min_x: i32,
     min_y: i32,
     min_z: i32,
@@ -68,7 +68,7 @@ pub(crate) struct DensityLattice {
 }
 
 impl DensityLattice {
-    fn build(
+    pub(crate) fn build(
         min: (i32, i32, i32),
         max: (i32, i32, i32),
         sample: impl Fn(i32, i32, i32) -> f64,

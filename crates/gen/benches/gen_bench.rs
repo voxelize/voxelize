@@ -17,7 +17,9 @@ fn compile_graph(graph: &voxelize_gen::FieldGraph) -> FieldProgram {
 fn bench_field_programs(c: &mut Criterion) {
     let mut group = c.benchmark_group("field_sample");
 
-    let voxelize_gen::TopologySpec::Heightfield(lane) = fixture_spec().topology;
+    let voxelize_gen::TopologySpec::Heightfield(lane) = fixture_spec().topology else {
+        unreachable!("the fixture runs the heightfield lane");
+    };
     let simple = compile_graph(&lane.base_height);
     let mut cursor = 0i32;
     group.bench_function("fixture_base", |b| {

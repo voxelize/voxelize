@@ -141,6 +141,12 @@ pub fn fixture_spec() -> GeneratorSpec {
             }],
             slope_probe: 2,
         }),
+        density: None,
+        mosaic: None,
+        rivers: None,
+        ecology: None,
+        flora: vec![],
+        species: vec![],
         climate: ClimateSpec {
             axes: vec![(AxisKey("temperature"), temperature)],
         },
