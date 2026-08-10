@@ -76,6 +76,54 @@ fn bench_chunk_pipeline(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_density(c: &mut Criterion) {
+    let mut group = c.benchmark_group("density");
+    let spec = voxelize_gen::DensitySpec {
+        salt: voxelize_gen::SaltPath("bench.density"),
+        band: 14.0,
+        amp: 6.0,
+        shelf: Some(voxelize_gen::ShelfSpec {
+            spacing: 9.0,
+            resistant_share: 0.55,
+            warp_amp: 4.0,
+            warp_scale: 60.0,
+            lens_scale: 40.0,
+            lens_squash: 3.0,
+            slope: (0.8, 8.0),
+            relief: 4.5,
+        }),
+        notch: Some(voxelize_gen::NotchSpec {
+            depth: 3.5,
+            height: 5.0,
+            slope: (0.7, 8.0),
+            scale: 48.0,
+            river_reach: 24.0,
+        }),
+    };
+    let density =
+        voxelize_gen::density::CompiledDensity::compile(&spec, 7, "bench_dim").expect("compiles");
+    let column = density.column(1.8, f64::NEG_INFINITY);
+
+    // One engaged cliff column, full band: the worst-case per-column
+    // cost the shape stage pays.
+    let mut x = 0i32;
+    group.bench_function("engaged_column_band", |b| {
+        b.iter(|| {
+            x = x.wrapping_add(13);
+            let surface = 90;
+            let mut solids = 0u32;
+            for y in (surface - 14)..(surface + 14) {
+                if density.solid(x % 4096, y, (x * 7) % 4096, surface, &column) {
+                    solids += 1;
+                }
+            }
+            std::hint::black_box(solids)
+        })
+    });
+
+    group.finish();
+}
+
 fn bench_structures(c: &mut Criterion) {
     let fixture = harness();
     let generator = &fixture.generator;
@@ -97,6 +145,7 @@ criterion_group!(
     benches,
     bench_field_programs,
     bench_chunk_pipeline,
+    bench_density,
     bench_structures
 );
 criterion_main!(benches);

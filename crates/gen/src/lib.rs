@@ -14,13 +14,20 @@
 //! spec format (`FORMAT_VERSION`) and its compatibility rules.
 
 pub mod carve;
+pub mod channels;
 pub mod climate;
 pub mod debug;
+pub mod density;
 pub mod diag;
+pub mod ecology;
 pub mod field;
+pub mod flora;
+pub mod geology;
 pub mod hydro;
 pub mod lane;
+pub mod mosaic;
 pub mod noise;
+pub mod rivers;
 pub mod spec;
 pub mod stages;
 pub mod stream;
@@ -28,23 +35,36 @@ pub mod structures;
 pub mod surface;
 
 pub use carve::{CarverSpec, CavernSpec, EntranceSpec, TunnelPairSpec};
+pub use channels::{ChannelField, ChannelPoint, ChannelProfile};
 pub use climate::{
     AxisKey, AxisWindow, BiomeBlend, BiomeGenParams, BiomeId, BiomeKey, BiomePartition,
     BiomeSetSpec, ClimateBox, ClimatePartition, ClimateRegion, ClimateSpec, ClusterSpec,
     DressingSpec, OverlayRule, TransitionSpec, ZoneEntry, ZonedPartition,
 };
 pub use debug::{GenDebug, MapLayer, MapRequest};
+pub use density::{DensitySpec, NotchSpec, ShelfSpec};
 pub use diag::{
     autocorrelation, band_shares, local_maxima, relief_windows, repetition_score, FieldGrid,
     FieldStats,
+};
+pub use ecology::{
+    CanopySpec, CellCache, CommunityDef, CompiledEcology, EcologySpec, Env, FloorSpec, Owner,
 };
 pub use field::{
     FieldGraph, FieldGraphBuilder, FieldNode, FieldProgram, SplineEasing, SplinePoints,
     MAX_FIELD_NODES,
 };
+pub use flora::{CompiledFlora, FloraSetSpec, SpeciesDef, TreeForm, TreeInstance};
+pub use geology::{
+    BeltSpec, BoundaryClass, GeoGrid, GeoModel, GeologySpec, MoistureSpec, PriorSample, ReliefSpec,
+};
 pub use hydro::{AquiferSpec, HydrologySpec, LavaSpec, SeaSpec, VoidMaterial};
 pub use lane::{HeightfieldLane, ReliefLayer, TopologySpec};
+pub use mosaic::{
+    ColumnSample, CompiledMosaic, MosaicSpec, SnowSpec, StrataSpec, SubstratePatch, TalusSpec,
+};
 pub use noise::{Fractal, NoiseKind, Perlin};
+pub use rivers::{CompiledRivers, RiverColumn, RiverEnd, RiverPoint, RiverSpec};
 pub use spec::{
     check_compat, compile, CompatVerdict, CompiledGenerator, DimCapabilities, DimensionSpec,
     GenError, GeneratorIdentity, GeneratorSpec, Version, ENGINE_SALT_PREFIX, FORMAT_VERSION,
