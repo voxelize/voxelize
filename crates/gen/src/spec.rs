@@ -477,6 +477,28 @@ pub fn compile(
 
     let content = |message: String| GenError::Content { message };
 
+    // Every subsystem salt joins the one collision namespace: a geology
+    // backbone reusing a field salt (or any pair colliding) refuses at
+    // boot instead of silently correlating streams.
+    if let Some(geology) = &spec.geology {
+        claim_salt(&geology.salt, &mut used_salts)?;
+    }
+    if let Some(density) = &spec.density {
+        claim_salt(&density.salt, &mut used_salts)?;
+    }
+    if let Some(rivers) = &spec.rivers {
+        claim_salt(&rivers.salt, &mut used_salts)?;
+    }
+    if let Some(ecology) = &spec.ecology {
+        claim_salt(&ecology.salt, &mut used_salts)?;
+    }
+    for set in &spec.flora {
+        claim_salt(&set.salt, &mut used_salts)?;
+    }
+    if let Some(mosaic) = &spec.mosaic {
+        claim_salt(&mosaic.salt, &mut used_salts)?;
+    }
+
     let geo = match &spec.geology {
         Some(geology) => Some(Arc::new(
             GeoModel::compile(geology, world_seed, dimension).map_err(content)?,
@@ -699,6 +721,16 @@ impl CompiledGenerator {
     }
 
     /// The solved geology backbone, when this world runs on one.
+    /// Moisture 0..1: the geology model folds channel proximity,
+    /// drainage flow, and elevation; worlds without a backbone answer a
+    /// neutral 0.5.
+    pub fn moisture_at(&self, x: i32, z: i32) -> f64 {
+        match &self.geo {
+            Some(geo) => geo.moisture(x, z),
+            None => 0.5,
+        }
+    }
+
     pub fn geo(&self) -> Option<&Arc<GeoModel>> {
         self.geo.as_ref()
     }

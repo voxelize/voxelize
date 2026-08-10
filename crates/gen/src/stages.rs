@@ -58,6 +58,7 @@ struct ColumnCtx {
     steepness: Vec<f64>,
     biomes: Vec<BiomeId>,
     plans: Vec<Arc<StructurePlan>>,
+    patches: Vec<GroundPatch>,
 }
 
 impl ColumnCtx {
@@ -95,7 +96,25 @@ impl ColumnCtx {
             steepness,
             biomes,
             plans,
+            patches,
         }
+    }
+
+    /// Whether a structure claims this column: the 3D density term is
+    /// silenced here so plans keep the ground their platform adapted.
+    fn is_structure_column(&self, x: i32, z: i32) -> bool {
+        self.plans.iter().any(|plan| {
+            x >= plan.bbox_min.0 - 1
+                && x < plan.bbox_max.0 + 1
+                && z >= plan.bbox_min.2 - 1
+                && z < plan.bbox_max.2 + 1
+        }) || self.patches.iter().any(|patch| {
+            let falloff = patch.falloff.max(1) as i32;
+            x >= patch.min_x - falloff
+                && x < patch.max_x + falloff
+                && z >= patch.min_z - falloff
+                && z < patch.max_z + falloff
+        })
     }
 
     #[inline]
@@ -148,7 +167,13 @@ impl ChunkStage for GenShapeStage {
             for z in min_z..max_z {
                 let surface = ctx.surface(x, z);
 
-                let column = generator.density_column(x, z, ctx.steep(x, z));
+                // Structures silence the density term: their platforms
+                // keep exactly the flat ground the adaptation built.
+                let column = if ctx.is_structure_column(x, z) {
+                    crate::density::DensityColumn::inert()
+                } else {
+                    generator.density_column(x, z, ctx.steep(x, z))
+                };
                 match generator.density() {
                     Some(density) if !column.is_inert() => {
                         // Banded 3D solid test: the column may carry
@@ -259,7 +284,13 @@ impl ChunkStage for GenSurfaceStage {
                 // the column's top solid — which may sit above the
                 // nominal surface (a protruding bed) — and stops at the
                 // first air below it, so shelf undersides stay base rock.
-                let column = generator.density_column(x, z, steepness);
+                // The same structure silencing as the shape stage, or the
+                // paint scan would disagree with the built ground.
+                let column = if ctx.is_structure_column(x, z) {
+                    crate::density::DensityColumn::inert()
+                } else {
+                    generator.density_column(x, z, steepness)
+                };
                 let active_density = match generator.density() {
                     Some(density) if !column.is_inert() => Some(density),
                     _ => None,

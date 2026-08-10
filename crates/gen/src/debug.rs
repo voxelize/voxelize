@@ -15,6 +15,8 @@ pub enum MapLayer {
     Biome,
     Height,
     Steepness,
+    /// Folded moisture 0..1 (geology worlds; neutral elsewhere).
+    Moisture,
     Axis(usize),
     Margin,
 }
@@ -86,6 +88,11 @@ impl<'a> GenDebug<'a> {
                         let t = (self.generator.steepness(x, z) / 3.0).clamp(0.0, 1.0);
                         let v = (t * 255.0) as u8;
                         [v, 255 - v / 2, 64]
+                    }
+                    MapLayer::Moisture => {
+                        let t = self.generator.moisture_at(x, z).clamp(0.0, 1.0);
+                        let v = (t * 255.0) as u8;
+                        [40, 255 - v / 2, v]
                     }
                     MapLayer::Axis(index) => {
                         let axes = self.generator.axes_at(x, z);
