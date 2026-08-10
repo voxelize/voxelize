@@ -117,15 +117,14 @@ impl CompiledFlora {
     ) -> Result<Self, String> {
         let mut compiled_species = Vec::new();
         for def in species {
-            let log = registry
-                .get_block_by_name(def.log)
-                .id;
-            let leaves = registry
-                .get_block_by_name(def.leaves)
-                .id;
+            let resolve = |name: &'static str| -> Result<u32, String> {
+                registry
+                    .try_get_id_by_name(name)
+                    .ok_or_else(|| format!("species {}: unknown block {name:?}", def.key))
+            };
             compiled_species.push(CompiledSpecies {
-                log,
-                leaves,
+                log: resolve(def.log)?,
+                leaves: resolve(def.leaves)?,
                 form: def.form,
             });
         }

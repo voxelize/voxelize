@@ -116,10 +116,6 @@ impl ColumnCtx {
     }
 }
 
-fn water_id(registry: &Registry) -> u32 {
-    registry.get_block_by_name("Water").id
-}
-
 pub struct GenShapeStage {
     generator: Arc<CompiledGenerator>,
 }
@@ -141,10 +137,12 @@ impl ChunkStage for GenShapeStage {
         let Vec3(min_x, min_y, min_z) = chunk.min;
         let Vec3(max_x, max_y, max_z) = chunk.max;
         let base = generator.base_block();
+        // Solved lakes fill with the river water: geology worlds carry
+        // river materials by construction.
         let water = generator
             .geo()
-            .is_some()
-            .then(|| water_id(resources.registry));
+            .and(generator.river_material_ids())
+            .map(|(water, _, _)| water);
 
         for x in min_x..max_x {
             for z in min_z..max_z {
@@ -501,14 +499,9 @@ impl ChunkStage for RiverStage {
             return chunk;
         }
         let registry = resources.registry;
-        let water = registry.get_block_by_name("Water").id;
-        let sand = registry.get_block_by_name("Sand").id;
-        // The wetted bed is gravel, not sand: river water is shallow, and
-        // a bright sand floor transmits straight through it — the channel
-        // reads as dry wash from any distance. A dark bed is what makes
-        // three blocks of water read as water. Banks and beach edges
-        // above the waterline stay sand.
-        let gravel = registry.get_block_by_name("Gravel").id;
+        let (water, bed_material, bank_material) = generator
+            .river_material_ids()
+            .expect("a world with rivers carries validated river materials");
         let base = generator.base_block();
 
         let Vec3(min_x, min_y, min_z) = chunk.min;
@@ -556,11 +549,12 @@ impl ChunkStage for RiverStage {
                             }
                         }
                         if bed >= min_y && bed < max_y {
-                            // Gravel only under a real water column; the
-                            // one-layer fringe at the channel edge reads
-                            // as shore, and dark gravel there would smear
-                            // the river twice as wide as its water.
-                            let material = if water_y - bed >= 3 { gravel } else { sand };
+                            // The dark bed only under a real water
+                            // column; the one-layer fringe at the channel
+                            // edge reads as shore, and a dark bed there
+                            // would smear the river twice as wide as its
+                            // water.
+                            let material = if water_y - bed >= 3 { bed_material } else { bank_material };
                             chunk.set_voxel(x, bed, z, material);
                         }
                         let fill_top = water_y.min(max_y - 1);
@@ -577,17 +571,17 @@ impl ChunkStage for RiverStage {
                     RiverColumn::Bank { raise_to, water_y } => {
                         let ground = generator.surface_raw(x, z);
                         if ground < raise_to {
-                            // Containment levee: sand up to one above the
-                            // waterline, so channel water cannot hang over
-                            // lower ground beside it.
+                            // Containment levee: bank material up to one
+                            // above the waterline, so channel water cannot
+                            // hang over lower ground beside it.
                             for y in (ground + 1)..=raise_to.min(max_y - 1) {
                                 if y >= min_y {
-                                    chunk.set_voxel(x, y, z, sand);
+                                    chunk.set_voxel(x, y, z, bank_material);
                                 }
                             }
                         } else if ground <= water_y + 2 && ground >= min_y && ground < max_y {
                             // Beach edge where the bank meets the water.
-                            chunk.set_voxel(x, ground, z, sand);
+                            chunk.set_voxel(x, ground, z, bank_material);
                         }
                     }
                     RiverColumn::Outside => {}

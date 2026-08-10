@@ -123,6 +123,9 @@ pub struct GeneratorSpec {
     /// Walker-solved rivers for lane worlds (geology worlds derive
     /// theirs from drainage instead).
     pub rivers: Option<crate::rivers::RiverSpec>,
+    /// Blocks the river stage writes; required whenever rivers exist —
+    /// walker-routed or geology drainage. The engine names no blocks.
+    pub river_materials: Option<crate::rivers::RiverMaterials>,
     /// Azonal flora sets: riparian galleries, lone landmark trees.
     /// Closed-canopy vegetation belongs to `ecology` communities.
     pub flora: Vec<crate::flora::FloraSetSpec>,
@@ -316,6 +319,8 @@ pub struct CompiledGenerator {
     geo: Option<Arc<GeoModel>>,
     density: Option<CompiledDensity>,
     rivers: Option<CompiledRivers>,
+    /// Resolved (water, bed, bank) ids; present exactly when rivers are.
+    river_materials: Option<(u32, u32, u32)>,
     ecology: Option<CompiledEcology>,
     flora: CompiledFlora,
     mosaic: Option<CompiledMosaic>,
@@ -503,6 +508,26 @@ pub fn compile(
         }
         _ => None,
     };
+    let is_river_world = rivers.is_some() || geo.is_some();
+    let river_materials = match (&spec.river_materials, is_river_world) {
+        (Some(materials), true) => Some((
+            resolve_block(materials.water)?,
+            resolve_block(materials.bed)?,
+            resolve_block(materials.bank)?,
+        )),
+        (Some(_), false) => {
+            return Err(content(
+                "spec.river_materials without rivers: drop it or add a routing".to_string(),
+            ))
+        }
+        (None, true) => {
+            return Err(content(
+                "rivers need spec.river_materials (water, bed, bank blocks): the engine names no blocks"
+                    .to_string(),
+            ))
+        }
+        (None, false) => None,
+    };
     let ecology = match &spec.ecology {
         Some(ecology) => Some(
             CompiledEcology::compile(ecology, world_seed, dimension).map_err(content)?,
@@ -592,6 +617,7 @@ pub fn compile(
         geo,
         density,
         rivers,
+        river_materials,
         ecology,
         flora,
         mosaic,
@@ -728,6 +754,11 @@ impl CompiledGenerator {
     /// rivers are the solved drainage (ask the geo model).
     pub fn walker_rivers(&self) -> Option<&CompiledRivers> {
         self.rivers.as_ref()
+    }
+
+    /// Resolved (water, bed, bank) block ids for the river stage.
+    pub fn river_material_ids(&self) -> Option<(u32, u32, u32)> {
+        self.river_materials
     }
 
     pub fn flora_floor_seed(&self) -> u64 {

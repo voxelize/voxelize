@@ -15,6 +15,16 @@ use crate::channels::{ChannelField, ChannelProfile};
 
 pub use crate::channels::ChannelPoint as RiverPoint;
 
+/// Blocks the river stage writes, for either routing: channel water, the
+/// dark wetted bed under real water columns, and the bank block for
+/// containment levees, beach fringes, and shallow beds.
+#[derive(Debug, Clone, Serialize)]
+pub struct RiverMaterials {
+    pub water: &'static str,
+    pub bed: &'static str,
+    pub bank: &'static str,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RiverSpec {
     pub salt: SaltPath,

@@ -21,8 +21,12 @@ pub struct MosaicSpec {
     /// tone borders wander instead of tracing contour lines.
     pub tone_dither: f64,
     pub tone_scale: f64,
+    /// The table block the tone grading replaces (the biome's grass).
+    pub grass_block: &'static str,
     pub dry_block: &'static str,
     pub lush_block: &'static str,
+    /// The table block strata banding replaces (the biome's stone).
+    pub stone_block: &'static str,
     /// Clustered substrate exposures, checked in order over soft ground.
     pub patches: Vec<SubstratePatch>,
     /// Rock-family variation on exposed stone.
@@ -169,7 +173,11 @@ impl CompiledMosaic {
             return Err("mosaic: tone_dry_below must be <= tone_lush_above".to_string());
         }
         let seed = stream_seed(world_seed, dimension, Subsystem::Fields, &spec.salt, 3);
-        let block_id = |name: &'static str| registry.get_block_by_name(name).id;
+        let block_id = |name: &'static str| -> Result<u32, String> {
+            registry
+                .try_get_id_by_name(name)
+                .ok_or_else(|| format!("mosaic: unknown block {name:?}"))
+        };
 
         let mut patches = Vec::new();
         for (index, patch) in spec.patches.iter().enumerate() {
@@ -185,7 +193,7 @@ impl CompiledMosaic {
                     2.0,
                     NoiseKind::Fbm,
                 ),
-                block: block_id(patch.block),
+                block: block_id(patch.block)?,
                 threshold: patch.threshold,
                 slope: patch.slope,
                 moisture: patch.moisture,
@@ -198,7 +206,13 @@ impl CompiledMosaic {
                     return Err("mosaic strata: needs blocks and spacing >= 2".to_string());
                 }
                 Some(CompiledStrata {
-                    blocks: strata.blocks.iter().map(|b| block_id(b)).collect(),
+                    blocks: {
+                        let mut blocks = Vec::new();
+                        for name in &strata.blocks {
+                            blocks.push(block_id(name)?);
+                        }
+                        blocks
+                    },
                     spacing: strata.spacing,
                     warp: Fractal::new(
                         seed ^ 0x57,
@@ -214,12 +228,15 @@ impl CompiledMosaic {
             None => None,
         };
 
-        let talus = spec.talus.as_ref().map(|talus| CompiledTalus {
-            block: block_id(talus.block),
-            probe: talus.probe.max(1),
-            min_face_rise: talus.min_face_rise,
-            slope: talus.slope,
-        });
+        let talus = match &spec.talus {
+            Some(talus) => Some(CompiledTalus {
+                block: block_id(talus.block)?,
+                probe: talus.probe.max(1),
+                min_face_rise: talus.min_face_rise,
+                slope: talus.slope,
+            }),
+            None => None,
+        };
 
         let snow = match &spec.snow {
             Some(snow) => {
@@ -240,8 +257,8 @@ impl CompiledMosaic {
                     ),
                     noise_amp: snow.noise_amp,
                     scour_slope: snow.scour_slope,
-                    snow_id: block_id(snow.snow_block),
-                    rock_id: block_id(snow.rock_block),
+                    snow_id: block_id(snow.snow_block)?,
+                    rock_id: block_id(snow.rock_block)?,
                 })
             }
             None => None,
@@ -259,10 +276,10 @@ impl CompiledMosaic {
             tone_dry_below: spec.tone_dry_below,
             tone_lush_above: spec.tone_lush_above,
             tone_dither: spec.tone_dither,
-            dry_id: block_id(spec.dry_block),
-            lush_id: block_id(spec.lush_block),
-            grass_id: block_id("Grass Block"),
-            stone_id: block_id("Stone"),
+            dry_id: block_id(spec.dry_block)?,
+            lush_id: block_id(spec.lush_block)?,
+            grass_id: block_id(spec.grass_block)?,
+            stone_id: block_id(spec.stone_block)?,
             patches,
             strata,
             talus,

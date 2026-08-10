@@ -340,6 +340,7 @@ pub fn fixture_spec() -> GeneratorSpec {
         geology: None,
         density: None,
         rivers: None,
+        river_materials: None,
         flora: vec![],
         species: vec![],
         ecology: None,
