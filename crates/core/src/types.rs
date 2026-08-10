@@ -258,6 +258,13 @@ pub struct BlockFace {
     pub corners: [CornerData; 4],
     #[serde(default)]
     pub range: UV,
+    /// Emissive output of this face, in tonemapped-scene-relative units.
+    /// `0.0` (the default) shades normally; anything above marks the face
+    /// emissive: the mesher sets the vertex emissive bit and quantizes the
+    /// strength to the shared level table in `vertex_light.rs`, and the
+    /// fragment shader bypasses the lighting model with the level's value.
+    #[serde(default)]
+    pub emissive: f32,
 }
 
 fn default_corners() -> [CornerData; 4] {
@@ -286,6 +293,7 @@ impl BlockFace {
             dir,
             corners,
             range: UV::default(),
+            emissive: 0.0,
         }
     }
 

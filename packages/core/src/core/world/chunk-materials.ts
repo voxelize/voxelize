@@ -13,6 +13,7 @@ import { Coords3 } from "../../types";
 import { Block } from "./block";
 import { ChunkRenderer } from "./chunk-renderer";
 import { LightCones } from "./light-cones";
+import { LocalLights } from "./local-lights";
 import { Registry } from "./registry";
 import {
   createSwayTableShader,
@@ -63,6 +64,7 @@ export type CustomChunkShaderMaterial = ShaderMaterial & {
 export interface ChunkMaterialHost {
   chunkRenderer: ChunkRenderer;
   lightCones: LightCones;
+  localLights: LocalLights;
   swayProfileTable: Uniform;
   hasCustomBlockMaterial(id: number): boolean;
   options: {
@@ -214,6 +216,7 @@ export function makeChunkShaderMaterial(
       uShowGreedyDebug: chunksUniforms.showGreedyDebug,
       uChunkReveal: { value: 1 },
       ...world.lightCones.uniformBindings,
+      ...world.localLights.uniformBindings,
       ...shaderLightingUniforms,
       ...uniforms,
     },

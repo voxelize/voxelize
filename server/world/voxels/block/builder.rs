@@ -42,6 +42,8 @@ pub struct BlockBuilder {
     is_entity: bool,
     default_entity_json: Option<String>,
     light_attenuation: u8,
+    emissive: f32,
+    face_emissives: Vec<(String, f32)>,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     dynamic_fn: Option<
         Arc<
@@ -217,6 +219,25 @@ impl BlockBuilder {
         self.red_light_level = light_level;
         self.green_light_level = light_level;
         self.blue_light_level = light_level;
+        self
+    }
+
+    /// Render every face of this block emissive at `strength` (tonemapped-
+    /// scene-relative; quantized to the mesher's shared level table). Emissive
+    /// faces bypass the lighting model — a lava surface stays bright at night.
+    /// This declares how the block *looks*; light cast onto neighbors still
+    /// comes from the flood levels (`torch_light_level` and friends).
+    pub fn emissive(mut self, strength: f32) -> Self {
+        self.emissive = strength;
+        self
+    }
+
+    /// Render one face emissive at `strength`, by exact face name — e.g. the
+    /// flame quad of a torch while its handle shades normally. Applies after
+    /// [`Self::emissive`], so a block-wide strength can be overridden per
+    /// face (including back to `0.0`).
+    pub fn face_emissive(mut self, face_name: &str, strength: f32) -> Self {
+        self.face_emissives.push((face_name.to_owned(), strength));
         self
     }
 
@@ -402,6 +423,18 @@ impl BlockBuilder {
 
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
+        let mut faces = self.faces;
+        if self.emissive > 0.0 {
+            for face in faces.iter_mut() {
+                face.emissive = self.emissive;
+            }
+        }
+        for (face_name, strength) in &self.face_emissives {
+            for face in faces.iter_mut().filter(|face| &face.name == face_name) {
+                face.emissive = *strength;
+            }
+        }
+
         Block {
             id: self.id,
             name: self.name,
@@ -429,7 +462,7 @@ impl BlockBuilder {
             green_light_level: self.green_light_level,
             blue_light_level: self.blue_light_level,
             transparent_standalone: self.transparent_standalone,
-            faces: self.faces,
+            faces,
             aabbs: self.aabbs,
             is_see_through: self.is_see_through,
             occludes_fluid: self.occludes_fluid,

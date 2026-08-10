@@ -5,6 +5,11 @@ import {
   LIGHT_CONES_SCATTER_FRAGMENT,
   LIGHT_CONES_UNIFORM_DECLARATIONS,
 } from "./light-cones";
+import {
+  LOCAL_LIGHTS_DEBUG_FUNCTIONS,
+  LOCAL_LIGHTS_FUNCTIONS,
+  LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
+} from "./local-lights/shader";
 import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
@@ -13,6 +18,97 @@ import {
   WATER_OPTICS,
   WATER_SURFACE_SCATTER_GLSL,
 } from "./water-optics";
+
+// ── local-lights fragment insertions ─────────────────────────────────────
+// Each block below is interpolated into the composed fragment exactly once
+// and removed (or swapped for its legacy counterpart) by
+// stripLocalLightsFromFragment, so the render-diff harness can compile a
+// true "local lights never existed" program from the same pipeline. Keeping
+// insertion and removal on one constant makes drift impossible: change the
+// block and both sides change together.
+
+const LOCAL_LIGHTS_OWNERSHIP_FRAGMENT = `
+// Analytic ownership of block-source lighting: where selected clustered
+// lights claim this fragment, the baked flood term yields in proportion
+// (llFloodRemainder → 0) and the per-pixel model — falloff, N·L, masks,
+// shadows — is the sole visible block light, so nothing double-lights.
+// Where no selected light reaches (beyond falloff, past the selection cap,
+// outside the grid window, or with local lights off) the remainder returns
+// to 1 and this is byte-for-byte the legacy flood term: every operation
+// below is an IEEE identity at remainder 1 and clusterLight 0. Sunlight is
+// composed separately and never touched by either model.
+float llFloodRemainder = 1.0;
+vec3 clusterLight = localLightSurface(
+  vWorldPosition.xyz, vWorldNormal, vLight.rgb, llFloodRemainder
+);
+
+float torchBrightness = max(
+  max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b) * llFloodRemainder,
+  min(max(max(clusterLight.r, clusterLight.g), clusterLight.b), 1.0)
+);
+vec3 torchLight = smoothTorch * (1.2 * llFloodRemainder);
+`;
+
+const LEGACY_BLOCK_LIGHT_FRAGMENT = `
+float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
+vec3 torchLight = smoothTorch * 1.2;
+`;
+
+const LOCAL_LIGHTS_BLEND_FRAGMENT = `
+// Clustered local lights (torches, lanterns, held lights) carry the
+// per-pixel falloff and normal response the baked flood cannot; the flood
+// term above already yielded them this fragment via llFloodRemainder.
+// Static sources are leak-masked by the flood field inside
+// localLightSurface. The zero-light guard is exactness, not speed:
+// 1.0 - (1.0 - t) is not an IEEE identity, so blending a zero cluster
+// would still perturb totalLight by an ulp — enough to flip an 8-bit
+// pixel at a rounding boundary and break byte-parity with the legacy
+// program.
+if (uClusteredLightCount != 0) {
+  totalLight = 1.0 - (1.0 - totalLight) * (1.0 - clusterLight);
+}
+`;
+
+const LOCAL_LIGHTS_SPECULAR_FRAGMENT = `
+  // Torch sparkle on water: the clustered lights are the only local sources
+  // with a position to reflect, so fluids are where local specular lives.
+  // The flood field rides along for the same leak masking the diffuse path
+  // applies — an occluded lamp must not glint through its wall.
+  specularColor += localLightSpecular(wPos, waterNormal, viewDir, vLight.rgb);
+`;
+
+const LOCAL_LIGHTS_DEBUG_TAIL_FRAGMENT = `
+if (uLocalLightDebugMode > 0.5) {
+  gl_FragColor.rgb = localLightDebugColor(
+    vWorldPosition.xyz,
+    gl_FragColor.rgb,
+    vWorldNormal,
+    vLight.rgb,
+    clusterLight,
+    llFloodRemainder
+  );
+}
+`;
+
+/**
+ * Compile the local-lights layer entirely out of a composed chunk fragment:
+ * the uniform/function/debug sources vanish, the ownership block becomes
+ * the legacy flood expressions, and the guarded cluster blend, fluid
+ * specular add, and debug tail disappear. The result is the
+ * "local lights never existed" program the render-diff harness compares
+ * against the shipped program at the off tier — byte-identical output is
+ * the contract (see scripts/render-off-parity.mjs).
+ */
+export function stripLocalLightsFromFragment(fragment: string): string {
+  return fragment
+    .replace(LOCAL_LIGHTS_UNIFORM_DECLARATIONS, "")
+    .replace(LOCAL_LIGHTS_FUNCTIONS, "")
+    .replace(LOCAL_LIGHTS_DEBUG_FUNCTIONS, "")
+    .replace(LOCAL_LIGHTS_OWNERSHIP_FRAGMENT, LEGACY_BLOCK_LIGHT_FRAGMENT)
+    .replace(LOCAL_LIGHTS_BLEND_FRAGMENT, "\n")
+    .replace(LOCAL_LIGHTS_SPECULAR_FRAGMENT, "\n")
+    .replace(LOCAL_LIGHTS_DEBUG_TAIL_FRAGMENT, "\n");
+}
 
 const SIMPLEX_NOISE_GLSL = `
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
@@ -133,7 +229,10 @@ attribute int light;
 #define STACK_INDEX_SHIFT 22
 #define STACK_COUNT_SHIFT 26
 #define STACK_FIELD_BITS 0xF
+#define EMISSIVE_SHIFT 30
 
+uniform vec4 uEmissiveLevels;
+varying float vEmissive;
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
@@ -192,6 +291,10 @@ vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
 vWaterExposed = float(isWaterExposed);
 vLight = unpackLight(light & LIGHT_MASK);
+
+// Under the emissive bit the AO bits are a strength index, not occlusion —
+// the face bypasses the lighting model, so its vAO is never read.
+vEmissive = float((light >> EMISSIVE_SHIFT) & 0x1) * uEmissiveLevels[ao];
 
 // Where this vertex sits in its vertical run, for displacement later in this
 // shader. A block that does not stack reports a single-block run, which
@@ -273,6 +376,7 @@ vShadowCoord2 = uShadowMatrix2 * offsetPosition;
       `
 ${SKY_FOG_UNIFORM_DECLARATIONS}
 ${LIGHT_CONES_UNIFORM_DECLARATIONS}
+${LOCAL_LIGHTS_UNIFORM_DECLARATIONS}
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
@@ -318,6 +422,7 @@ varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
 varying float vWaterSurfaceY;
+varying float vEmissive;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
@@ -325,6 +430,10 @@ varying vec4 vShadowCoord2;
 ${SIMPLEX_NOISE_GLSL}
 
 ${LIGHT_CONES_FUNCTIONS}
+
+${LOCAL_LIGHTS_FUNCTIONS}
+
+${LOCAL_LIGHTS_DEBUG_FUNCTIONS}
 
 float shadowMapEdgeFade(vec3 coord) {
   float fadeWidth = 0.08;
@@ -557,8 +666,7 @@ vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity * sunExpo
 
 vec3 cpuTorchLight = vLight.rgb;
 vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
-float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
-vec3 torchLight = smoothTorch * 1.2;
+${LOCAL_LIGHTS_OWNERSHIP_FRAGMENT}
 
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
 float sunVisibility = clamp(sunExposure, 0.0, 1.0);
@@ -638,6 +746,8 @@ vec3 totalLight = 1.0 - (1.0 - sunTotal) * (1.0 - torchLight);
 vec3 coneLight = lightConeSurface(vWorldPosition.xyz, vWorldNormal);
 totalLight = 1.0 - (1.0 - totalLight) * (1.0 - coneLight);
 
+${LOCAL_LIGHTS_BLEND_FRAGMENT}
+
 vec3 warmTint = vec3(1.05, 0.92, 0.75);
 vec3 coolTint = vec3(0.92, 0.95, 1.05);
 vec3 temperatureShift = mix(coolTint, warmTint, torchDominance);
@@ -651,7 +761,16 @@ totalLight = (totalLight * (2.51 * totalLight + 0.03))
 vec3 darknessFloor = vec3(ambientFloor) *
   mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit;
 totalLight = max(totalLight, darknessFloor * faceShade);
-outgoingLight.rgb *= totalLight;
+
+// An emissive face is its own light source: it bypasses the lighting model
+// entirely and renders the texture at its declared strength. Fog and water
+// shading still apply after, so a distant lava lake fades like everything
+// else.
+if (vEmissive > 0.0) {
+  outgoingLight.rgb = diffuseColor.rgb * vEmissive;
+} else {
+  outgoingLight.rgb *= totalLight;
+}
 
 ${ABOVE_SURFACE_WATER_FOG_FRAGMENT}
 
@@ -755,7 +874,7 @@ if (vIsFluid > 0.5) {
   spec32 *= spec32;
   float specMed = spec32 * spec32 * spec32 * uSunlightIntensity * 0.24;
   vec3 specularColor = uSunColor * (spec32 * uSunlightIntensity * (0.08 + topWaterFace * 0.14) + specMed);
-
+${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   vec3 baseWater = outgoingLight.rgb;
 
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
@@ -867,6 +986,8 @@ if (uShadowDebugMode > 0.5) {
     gl_FragColor.rgb = vec3(tunnelDarkening);
   }
 }
+
+${LOCAL_LIGHTS_DEBUG_TAIL_FRAGMENT}
 `,
     ),
 };
