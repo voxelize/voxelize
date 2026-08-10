@@ -75,6 +75,66 @@ fn bench_chunk_pipeline(c: &mut Criterion) {
         )
     });
 
+    let density = harness_for(density_fixture_spec());
+    group.bench_function("full_pipeline_density", |b| {
+        b.iter_batched(
+            || {
+                slot += 1;
+                (slot % 64, slot / 64 % 64)
+            },
+            |(cx, cz)| std::hint::black_box(density.generate_chunk(cx, cz)),
+            BatchSize::SmallInput,
+        )
+    });
+
+    let walker = harness_for(walker_fixture_spec());
+    group.bench_function("full_pipeline_rivers_flora", |b| {
+        b.iter_batched(
+            || {
+                slot += 1;
+                (slot % 64, slot / 64 % 64)
+            },
+            |(cx, cz)| std::hint::black_box(walker.generate_chunk(cx, cz)),
+            BatchSize::SmallInput,
+        )
+    });
+
+    // Steady-state geology chunks: solves cached, sampling fused tiles.
+    let geology = harness_for(geology_fixture_spec());
+    for cx in 0..2 {
+        for cz in 0..2 {
+            std::hint::black_box(geology.generate_chunk(cx, cz));
+        }
+    }
+    group.bench_function("full_pipeline_geology_steady", |b| {
+        b.iter_batched(
+            || {
+                slot += 1;
+                (slot % 32, slot / 32 % 32)
+            },
+            |(cx, cz)| std::hint::black_box(geology.generate_chunk(cx, cz)),
+            BatchSize::SmallInput,
+        )
+    });
+
+    group.finish();
+}
+
+fn bench_geology_solve(c: &mut Criterion) {
+    let mut group = c.benchmark_group("geology");
+    group.sample_size(10);
+    let harness = harness_for(geology_fixture_spec());
+    let mut tile = 100i64;
+    group.bench_function("tile_solve_cold", |b| {
+        b.iter_batched(
+            || {
+                tile += 7;
+                tile
+            },
+            |t| std::hint::black_box(harness.generator.geology_tile_digest(t, -t)),
+            BatchSize::SmallInput,
+        )
+    });
     group.finish();
 }
 
@@ -99,6 +159,7 @@ criterion_group!(
     benches,
     bench_field_programs,
     bench_chunk_pipeline,
+    bench_geology_solve,
     bench_structures
 );
 criterion_main!(benches);
