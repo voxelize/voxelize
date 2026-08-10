@@ -489,6 +489,9 @@ pub struct GeoModel {
     rib_seed: u64,
     bench_seed: u64,
     meander_seed: u64,
+    /// Widest reach any consumer asks of the channel field beyond the
+    /// solver's own (riparian flora, ecology floors, density notches).
+    extra_reach: f64,
     tiles: RwLock<HashMap<(i64, i64), Arc<GeoTile>>>,
     hydro: RwLock<HashMap<(i64, i64), Arc<TileHydro>>>,
 }

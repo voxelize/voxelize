@@ -838,11 +838,22 @@ impl FieldProgram {
                     b: check_ref(*b, index)?,
                     t: check_ref(*t, index)?,
                 },
-                FieldNode::Clamp { input, min, max } => Op::Clamp {
-                    input: check_ref(*input, index)?,
-                    min: *min,
-                    max: *max,
-                },
+                FieldNode::Clamp { input, min, max } => {
+                    // f64::clamp panics on reversed or NaN bounds; refuse
+                    // at compile like every other malformed node.
+                    if !(min.is_finite() && max.is_finite() && min <= max) {
+                        return Err(GenError::OutOfRange {
+                            path: format!("{path}[{index}].clamp"),
+                            what: "clamp window (finite, min <= max)",
+                            got: *max,
+                        });
+                    }
+                    Op::Clamp {
+                        input: check_ref(*input, index)?,
+                        min: *min,
+                        max: *max,
+                    }
+                }
                 FieldNode::Gate { input, low, high } => {
                     if high <= low {
                         return Err(GenError::OutOfRange {

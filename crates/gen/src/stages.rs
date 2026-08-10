@@ -480,7 +480,10 @@ impl RiverSource<'_> {
                 let height = |ix: i32, iz: i32| generator.surface_raw(ix, iz) as f64;
                 rivers.sample(x, z, &height)
             }
-            RiverSource::Geo(geo) => geo.river_sample(x, z),
+            // The margin already folds in every consumer's reach
+            // (riparian gates, floors, notches), so one wide query serves
+            // the cut and the ecology alike.
+            RiverSource::Geo(geo) => geo.channel_within(x, z, f64::MAX),
             RiverSource::None => None,
         }
     }
@@ -716,11 +719,19 @@ impl ChunkStage for FloraStage {
         );
 
         for tree in &trees {
+            // The skip ring covers the whole density-silenced ground:
+            // the plan box plus its platform falloff apron, where
+            // ground_at and the built voxels may disagree.
             let in_plan = plans.iter().any(|plan| {
-                tree.x >= plan.bbox_min.0 - 2
-                    && tree.x < plan.bbox_max.0 + 2
-                    && tree.z >= plan.bbox_min.2 - 2
-                    && tree.z < plan.bbox_max.2 + 2
+                let falloff = plan
+                    .ground_patch
+                    .as_ref()
+                    .map(|patch| patch.falloff.max(1) as i32)
+                    .unwrap_or(0);
+                tree.x >= plan.bbox_min.0 - 2 - falloff
+                    && tree.x < plan.bbox_max.0 + 2 + falloff
+                    && tree.z >= plan.bbox_min.2 - 2 - falloff
+                    && tree.z < plan.bbox_max.2 + 2 + falloff
             });
             // No trunks in lakes or river channels: the channel cut
             // removed the ground the tree thinks it stands on.

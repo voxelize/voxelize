@@ -5,7 +5,12 @@
 use super::*;
 
 impl GeoModel {
-    pub fn compile(spec: &GeologySpec, world_seed: u32, dimension: &str) -> Result<Self, String> {
+    pub fn compile(
+        spec: &GeologySpec,
+        world_seed: u32,
+        dimension: &str,
+        extra_reach: f64,
+    ) -> Result<Self, String> {
         if spec.cell < 2 || spec.cell > 16 {
             return Err(format!("geology.cell must be 2..=16, got {}", spec.cell));
         }
@@ -85,6 +90,7 @@ impl GeoModel {
             rib_seed: mix64(seed ^ 0x7269_6273),
             bench_seed: mix64(seed ^ 0x626e_6368),
             meander_seed: mix64(seed ^ 0x6d64_7273),
+            extra_reach,
             tiles: RwLock::new(HashMap::new()),
             hydro: RwLock::new(HashMap::new()),
         })

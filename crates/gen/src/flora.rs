@@ -188,12 +188,15 @@ impl CompiledFlora {
                         community.key
                     ));
                 }
+                // Canopy streams branch off the ecology salt by community
+                // slot, so community keys never enter the salt namespace
+                // (a community named like a content salt must not collide).
                 let seed = stream_seed(
                     world_seed,
                     dimension,
                     Subsystem::Structures,
-                    &SaltPath(community.key),
-                    2,
+                    &ecology.spec().salt,
+                    1_000 + index as u64,
                 );
                 canopies.push(CompiledCanopy {
                     community: index,

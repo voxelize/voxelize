@@ -150,8 +150,10 @@ impl CompiledDensity {
                 if shelf.spacing < 3.0 {
                     return Err("density shelf: spacing must be >= 3".to_string());
                 }
-                if !(0.05..=0.95).contains(&shelf.resistant_share) {
-                    return Err("density shelf: resistant_share must be 0.05..=0.95".to_string());
+                // The bed square-wave uses 0.12-wide transitions; shares
+                // inside them would invert the rise/fall windows.
+                if !(0.15..=0.85).contains(&shelf.resistant_share) {
+                    return Err("density shelf: resistant_share must be 0.15..=0.85".to_string());
                 }
                 if shelf.relief <= 0.0 {
                     return Err("density shelf: relief must be > 0".to_string());
@@ -305,7 +307,9 @@ impl CompiledDensity {
         }
 
         let delta = (delta * envelope).clamp(-self.amp, self.amp);
-        base + delta > 0.0
+        // The heightfield rule counts base == 0 (y == surface) as solid;
+        // a zero delta must not open the surface voxel into a pinhole.
+        base + delta >= 0.0
     }
 }
 

@@ -81,6 +81,9 @@ pub struct CompiledRivers {
     spec: RiverSpec,
     seed: u64,
     sea_level: Option<i32>,
+    /// Widest reach any consumer asks of the field (carve, riparian
+    /// flora, ecology floors, density notches); buckets register to it.
+    query_reach: f64,
     cache: RwLock<HashMap<(i64, i64), Arc<SolvedTile>>>,
 }
 
@@ -90,6 +93,7 @@ impl CompiledRivers {
         sea_level: Option<i32>,
         world_seed: u32,
         dimension: &str,
+        extra_reach: f64,
     ) -> Result<Self, String> {
         if spec.tile < 128 {
             return Err(format!("rivers.tile must be >= 128 blocks, got {}", spec.tile));
@@ -101,6 +105,7 @@ impl CompiledRivers {
             return Err("rivers.carve_through must be >= 0".to_string());
         }
         Ok(Self {
+            query_reach: (spec.width.1 + spec.bank).max(extra_reach),
             spec: spec.clone(),
             seed: stream_seed(world_seed, dimension, Subsystem::Hydrology, &spec.salt, 0),
             sea_level,
@@ -275,7 +280,7 @@ impl CompiledRivers {
         }
 
         SolvedTile {
-            channels: ChannelField::from_polylines(&lines, self.max_reach()),
+            channels: ChannelField::from_polylines(&lines, self.query_reach),
             paths,
         }
     }
@@ -287,7 +292,7 @@ impl CompiledRivers {
         let tile = self.spec.tile as i64;
         let tile_x = (x as i64).div_euclid(tile);
         let tile_z = (z as i64).div_euclid(tile);
-        let reach = self.max_reach();
+        let reach = self.query_reach;
 
         let mut best: Option<RiverPoint> = None;
         for dtx in -1..=1 {

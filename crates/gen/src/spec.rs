@@ -477,6 +477,31 @@ pub fn compile(
 
     let content = |message: String| GenError::Content { message };
 
+    // The widest reach any consumer asks of the river channel field:
+    // riparian flora gates, ecology floor boosts, and density notches all
+    // sample beyond the carve band, and the field's spatial buckets must
+    // register far enough to answer them.
+    let mut river_query_reach: f64 = 0.0;
+    for set in &spec.flora {
+        if let Some(near) = set.near_river {
+            river_query_reach = river_query_reach.max(near);
+        }
+        river_query_reach = river_query_reach.max(set.avoid_river_within);
+    }
+    if let Some(ecology) = &spec.ecology {
+        for community in &ecology.communities {
+            river_query_reach = river_query_reach.max(community.floor.riparian_band);
+            if let Some(canopy) = &community.canopy {
+                river_query_reach = river_query_reach.max(canopy.avoid_river_within);
+            }
+        }
+    }
+    if let Some(density) = &spec.density {
+        if let Some(notch) = &density.notch {
+            river_query_reach = river_query_reach.max(notch.river_reach);
+        }
+    }
+
     // Every subsystem salt joins the one collision namespace: a geology
     // backbone reusing a field salt (or any pair colliding) refuses at
     // boot instead of silently correlating streams.
@@ -501,7 +526,8 @@ pub fn compile(
 
     let geo = match &spec.geology {
         Some(geology) => Some(Arc::new(
-            GeoModel::compile(geology, world_seed, dimension).map_err(content)?,
+            GeoModel::compile(geology, world_seed, dimension, river_query_reach)
+                .map_err(content)?,
         )),
         None => None,
     };
@@ -519,8 +545,14 @@ pub fn compile(
     };
     let rivers = match (&spec.rivers, &geo) {
         (Some(rivers), None) => Some(
-            CompiledRivers::compile(rivers, hydro.sea_level(), world_seed, dimension)
-                .map_err(content)?,
+            CompiledRivers::compile(
+                rivers,
+                hydro.sea_level(),
+                world_seed,
+                dimension,
+                river_query_reach,
+            )
+            .map_err(content)?,
         ),
         (Some(_), Some(_)) => {
             return Err(content(
@@ -798,7 +830,7 @@ impl CompiledGenerator {
     /// geology drainage.
     pub fn river_sample(&self, x: i32, z: i32) -> Option<RiverPoint> {
         if let Some(geo) = &self.geo {
-            return geo.river_sample(x, z);
+            return geo.channel_within(x, z, f64::MAX);
         }
         let rivers = self.rivers.as_ref()?;
         let height = |ix: i32, iz: i32| self.surface_raw(ix, iz) as f64;

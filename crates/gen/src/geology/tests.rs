@@ -113,7 +113,7 @@
 
     #[test]
     fn every_land_cell_drains_to_an_outlet() {
-        let model = GeoModel::compile(&test_spec(), 77, "geo_test").expect("compiles");
+        let model = GeoModel::compile(&test_spec(), 77, "geo_test", 0.0).expect("compiles");
         let tile = model.tile(0, 0);
         let side = tile.side;
         let sea = model.spec.sea_level as f32;
@@ -157,7 +157,7 @@
 
     #[test]
     fn fused_surface_is_continuous_across_tile_boundaries() {
-        let model = GeoModel::compile(&test_spec(), 91, "geo_seam").expect("compiles");
+        let model = GeoModel::compile(&test_spec(), 91, "geo_seam", 0.0).expect("compiles");
         let boundary = model.spec.tile; // x = 512 is a stride boundary
         let mut worst_at_boundary = 0.0f64;
         let mut worst_elsewhere = 0.0f64;
@@ -187,7 +187,7 @@
 
     #[test]
     fn channel_levels_are_continuous_across_tile_boundaries() {
-        let model = GeoModel::compile(&test_spec(), 91, "geo_seam").expect("compiles");
+        let model = GeoModel::compile(&test_spec(), 91, "geo_seam", 0.0).expect("compiles");
         let boundary = model.spec.tile; // x = 512 is a stride boundary
 
         // Wherever a channel crosses the seam, the water level sampled
@@ -219,7 +219,7 @@
 
     #[test]
     fn contested_seam_basins_answer_dry_on_both_sides() {
-        let model = GeoModel::compile(&test_spec(), 91, "geo_seam").expect("compiles");
+        let model = GeoModel::compile(&test_spec(), 91, "geo_seam", 0.0).expect("compiles");
         let cell = model.spec.cell as f64;
         let boundary = model.spec.tile;
 
@@ -280,7 +280,7 @@
         let mut rejected_channel_cells = 0usize;
         let mut wet = 0usize;
         for seed in [91u32, 17, 23, 47, 65] {
-            let model = GeoModel::compile(&test_spec(), seed, "geo_seam").expect("compiles");
+            let model = GeoModel::compile(&test_spec(), seed, "geo_seam", 0.0).expect("compiles");
             let spec = model.spec.clone();
             let cell = spec.cell as f64;
             let halo = spec.halo_cells as usize;
@@ -340,8 +340,8 @@
     #[test]
     fn geology_is_query_order_independent() {
         let spec = test_spec();
-        let forward = GeoModel::compile(&spec, 123, "geo_order").expect("compiles");
-        let reverse = GeoModel::compile(&spec, 123, "geo_order").expect("compiles");
+        let forward = GeoModel::compile(&spec, 123, "geo_order", 0.0).expect("compiles");
+        let reverse = GeoModel::compile(&spec, 123, "geo_order", 0.0).expect("compiles");
 
         let points: Vec<(i32, i32)> = (0..60)
             .map(|i| (((i * 97) % 1400) - 700, ((i * 61) % 1400) - 700))

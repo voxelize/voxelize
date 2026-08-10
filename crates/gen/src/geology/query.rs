@@ -492,7 +492,7 @@ impl GeoModel {
         let spec = &self.spec;
         let carve = spec.river_width.1 + spec.river_bank;
         let meander = spec.meander_amp * spec.river_width.1;
-        carve.max(spec.moisture.reach) + meander
+        carve.max(spec.moisture.reach).max(self.extra_reach) + meander
     }
 
     pub fn river_reach(&self) -> f64 {

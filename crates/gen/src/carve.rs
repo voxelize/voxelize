@@ -173,6 +173,13 @@ impl CompiledCarvers {
                             got: t.half_width,
                         });
                     }
+                    if t.mask_bit > 7 {
+                        return Err(GenError::OutOfRange {
+                            path: format!("carver.{}.mask_bit", t.salt.0),
+                            what: "carver mask bit (0..=7 in a u8 mask)",
+                            got: t.mask_bit as f64,
+                        });
+                    }
                     let seed = stream_seed(world_seed, dimension, Subsystem::Carvers, &t.salt, 0);
                     tunnels.push(CompiledTunnelPair {
                         field_a: Fractal::new(seed ^ 0x0A, t.frequency, 1, 0.5, 2.0, NoiseKind::Fbm),
@@ -198,6 +205,20 @@ impl CompiledCarvers {
                 }
                 CarverSpec::Cavern(c) => {
                     crate::spec::claim_salt(&c.salt, used_salts)?;
+                    if c.mask_bit > 7 {
+                        return Err(GenError::OutOfRange {
+                            path: format!("carver.{}.mask_bit", c.salt.0),
+                            what: "carver mask bit (0..=7 in a u8 mask)",
+                            got: c.mask_bit as f64,
+                        });
+                    }
+                    if c.threshold.abs() > 1.0 || c.detail_amplitude < 0.0 {
+                        return Err(GenError::OutOfRange {
+                            path: format!("carver.{}.threshold", c.salt.0),
+                            what: "cavern threshold/detail amplitude",
+                            got: c.threshold,
+                        });
+                    }
                     let seed = stream_seed(world_seed, dimension, Subsystem::Carvers, &c.salt, 0);
                     caverns.push(CompiledCavern {
                         field: Fractal::new(seed ^ 0x1A, c.frequency, 2, 0.5, 2.0, NoiseKind::Fbm),
