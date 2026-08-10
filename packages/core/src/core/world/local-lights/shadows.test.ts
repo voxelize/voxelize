@@ -1121,6 +1121,36 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     ).toBe("tierChange");
   });
 
+  it("clears packed claims when only the slot count changes (same atlas)", () => {
+    // high↔medium share one atlas geometry and differ only in slot count.
+    // The outgoing holders must be invalidated BEFORE the slot array is
+    // rebuilt, or the texel rewrite sees only fresh empty slots, skips,
+    // and a frame before the next selection pack samples the prior tier's
+    // shadow claims against a still-bound atlas.
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry, 3);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const { renderer } = makeVisibilityRenderer([]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, undefined, undefined, [], stats);
+    expect(scheduler.recordForIndex(indexOf(registry, lamp))?.staticMask).toBe(
+      0b111111,
+    );
+
+    let texelRewrites = 0;
+    scheduler.onShadowDataChanged = () => {
+      texelRewrites++;
+    };
+    scheduler.setTierCaps(2, 2048, 256); // fewer slots, identical atlas
+    expect(texelRewrites).toBe(1);
+    expect(scheduler.recordForIndex(indexOf(registry, lamp))).toBeNull();
+  });
+
   it("keeps the atlas uniform bound across a same-tier re-apply", () => {
     const lights = new LocalLights(
       {},

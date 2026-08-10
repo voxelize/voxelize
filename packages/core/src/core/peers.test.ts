@@ -105,6 +105,56 @@ describe("Peers.collectShadowCasters", () => {
     expect(out).toEqual([own]);
   });
 
+  it("survives a world switch: every remote drops, fresh peers rebuild", () => {
+    // Switching worlds (or reconnecting) tears every remote peer down via
+    // LEAVE and repopulates from the new world's JOINs. The caster set
+    // must never resurrect an old world's avatar — its baked-stamp risk
+    // and its live shadow both belong to the torn-down render root.
+    const { peers, message } = makePeers();
+    const own = new Object3D();
+    peers.setOwnPeer(own);
+    message(init("me"));
+    message(join("old-world-a"));
+    message(join("old-world-b"));
+    const oldRoots = peers.collectShadowCasters([]);
+    expect(oldRoots).toHaveLength(3);
+
+    message(leave("old-world-a"));
+    message(leave("old-world-b"));
+    expect(peers.collectShadowCasters([])).toEqual([own]);
+
+    message(join("new-world-a"));
+    const fresh = peers.collectShadowCasters([]);
+    expect(fresh).toHaveLength(2);
+    for (const root of fresh) {
+      if (root !== own) {
+        expect(oldRoots).not.toContain(root);
+        expect(root.name).toBe("new-world-a");
+      }
+    }
+  });
+
+  it("collects hundreds of peers within a bounded per-frame budget", () => {
+    // The collection is a per-frame hot-path helper: one linear map walk
+    // appending into a caller-owned scratch array, no allocation. Bound it
+    // loosely enough for CI noise, tightly enough that an accidental
+    // O(n²) or per-call allocation storm fails.
+    const { peers, message } = makePeers();
+    peers.setOwnPeer(new Object3D());
+    for (let n = 0; n < 256; n++) message(join(`peer-${n}`));
+
+    const scratch: Object3D[] = [];
+    const start = performance.now();
+    for (let frame = 0; frame < 1000; frame++) {
+      scratch.length = 0;
+      peers.collectShadowCasters(scratch);
+    }
+    const elapsed = performance.now() - start;
+    expect(scratch).toHaveLength(257);
+    // 1,000 frames × 257 roots; generous CI bound (~0.25 ms/frame).
+    expect(elapsed).toBeLessThan(250);
+  });
+
   it("never lists the client's own peer twice and ignores its own JOIN", () => {
     const { peers, message } = makePeers();
     const own = new Object3D();
