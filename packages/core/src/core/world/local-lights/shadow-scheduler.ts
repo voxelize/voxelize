@@ -163,6 +163,9 @@ export class LocalShadowScheduler {
   }[] = [];
   private readonly viewportScratch: [number, number, number] = [0, 0, 0];
 
+  /** Overlay-owned casters hidden for the duration of a world-cell render. */
+  private readonly worldPassHidden: Object3D[] = [];
+
   /** Scratch for per-frame candidate scoring; no per-frame allocation. */
   private readonly candidateScores: Float64Array;
   private readonly candidateIndices: Uint32Array;
@@ -759,6 +762,8 @@ export class LocalShadowScheduler {
           if (!ledger.requestLocal("dynamic", this.faceCostUnits)) break;
           this.renderFace(renderer, scene, slot, s, f, false, {
             includeWorld: true,
+            excludeEntities: entities,
+            excludePools: instancePools,
           });
           slot.staticPending &= ~bit;
           slot.staticMask |= bit;
@@ -808,6 +813,8 @@ export class LocalShadowScheduler {
         if (!ledger.requestLocal("static", this.faceCostUnits)) break;
         this.renderFace(renderer, scene, slot, s, f, false, {
           includeWorld: true,
+          excludeEntities: entities,
+          excludePools: instancePools,
         });
         slot.staticPending &= ~bit;
         slot.staticMask |= bit;
@@ -851,6 +858,14 @@ export class LocalShadowScheduler {
       includeWorld: boolean;
       entities?: Object3D[];
       instancePools?: Group[];
+      /**
+       * Overlay-owned casters that must never bake into a world cell: the
+       * scene graph contains them as children, so a world depth pass would
+       * otherwise stamp whatever pose and position they hold this instant
+       * into a cache that outlives both.
+       */
+      excludeEntities?: Object3D[];
+      excludePools?: Group[];
     },
   ): void {
     const camera = this.faceCamera;
@@ -889,9 +904,35 @@ export class LocalShadowScheduler {
     renderer.clear(true, true, false);
 
     if (casters.includeWorld) {
+      // Entity casters live exclusively in the per-frame dynamic overlay.
+      // They are also children of the world scene, so without this they
+      // would render into the cached cell too — freezing their current
+      // pose and position into depth that gets sampled long after they
+      // walked away (the stamped-silhouette bug). Hide them for the world
+      // pass; exact visibility is restored before returning.
+      const hiddenCasters = this.worldPassHidden;
+      hiddenCasters.length = 0;
+      if (casters.excludeEntities) {
+        for (const entity of casters.excludeEntities) {
+          if (entity.visible) {
+            hiddenCasters.push(entity);
+            entity.visible = false;
+          }
+        }
+      }
+      if (casters.excludePools) {
+        for (const pool of casters.excludePools) {
+          if (pool.visible) {
+            hiddenCasters.push(pool);
+            pool.visible = false;
+          }
+        }
+      }
       scene.overrideMaterial = this.depthMaterial;
       renderer.render(scene, camera);
       scene.overrideMaterial = null;
+      for (const object of hiddenCasters) object.visible = true;
+      hiddenCasters.length = 0;
     }
 
     if (casters.entities && casters.entities.length > 0) {

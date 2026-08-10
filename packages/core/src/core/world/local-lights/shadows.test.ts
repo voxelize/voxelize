@@ -1,4 +1,5 @@
 import {
+  Group,
   Object3D,
   PerspectiveCamera,
   Scene,
@@ -852,5 +853,336 @@ describe("fluid specular occlusion (shader source)", () => {
     expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
       "localLightSpecular(wPos, waterNormal, viewDir, vLight.rgb)",
     );
+  });
+});
+
+describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
+  // Mock renderer that snapshots the watched objects' visibility at the
+  // moment of every render call — the exact instant a caster would rasterize
+  // into a cached cell.
+  const makeVisibilityRenderer = (watch: Object3D[]) => {
+    const renders: { scene: unknown; visibleAtRender: boolean[] }[] = [];
+    let target: unknown = null;
+    const renderer = {
+      getRenderTarget: () => target,
+      setRenderTarget: (t: unknown) => {
+        target = t;
+      },
+      clear: () => {},
+      render: (scene: unknown) => {
+        renders.push({
+          scene,
+          visibleAtRender: watch.map((object) => object.visible),
+        });
+      },
+    } as unknown as WebGLRenderer;
+    return { renders, renderer };
+  };
+
+  it("hides scene-child casters and pools during every world-cell render, and restores them", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    // Production wiring: entity casters and instance pools are CHILDREN of
+    // the world scene, so a plain scene render includes them. Baking one
+    // into a cached world cell stamps its pose and position into depth that
+    // outlives both — the frozen-silhouette bug.
+    const scene = new Scene();
+    const caster = new Object3D();
+    caster.position.set(8, 60, 4); // inside the +X face, well in range
+    scene.add(caster);
+    const pool = new Group();
+    scene.add(pool);
+
+    const { renders, renderer } = makeVisibilityRenderer([caster, pool]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], [pool], [], stats);
+
+    const worldPasses = renders.filter((r) => r.scene === scene);
+    expect(worldPasses.length).toBe(6); // static FIFO drained all faces
+    for (const pass of worldPasses) {
+      expect(pass.visibleAtRender).toEqual([false, false]);
+    }
+    // The overlay pass still renders the caster (reparented, visible).
+    const overlayPasses = renders.filter(
+      (r) => r.scene !== scene && r.scene !== pool,
+    );
+    expect(overlayPasses.length).toBe(1);
+    expect(overlayPasses[0].visibleAtRender[0]).toBe(true);
+
+    // Exact scene state restored afterward.
+    expect(caster.visible).toBe(true);
+    expect(pool.visible).toBe(true);
+    expect(caster.parent).toBe(scene);
+  });
+
+  it("also excludes casters from a moving light's world refreshes", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const held = registry.add(shadowLight({ isStatic: false }), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [held]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const caster = new Object3D();
+    caster.position.set(8, 60, 4);
+    scene.add(caster);
+
+    const { renders, renderer } = makeVisibilityRenderer([caster]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
+
+    const worldPasses = renders.filter((r) => r.scene === scene);
+    expect(worldPasses.length).toBe(6); // moving-light world refresh
+    for (const pass of worldPasses) {
+      expect(pass.visibleAtRender).toEqual([false]);
+    }
+    expect(caster.visible).toBe(true);
+  });
+
+  it("keeps a walking caster's overlay live every frame and never re-touches the world cache", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const caster = new Object3D();
+    caster.position.set(8, 60, 4);
+    scene.add(caster);
+    const { renders, renderer } = makeVisibilityRenderer([caster]);
+    const ledger = new ShadowFrameLedger();
+
+    let texelRewrites = 0;
+    scheduler.onShadowDataChanged = () => {
+      texelRewrites++;
+    };
+
+    // Frame 1 drains the world FIFO and opens the overlay face.
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
+    const index = indexOf(registry, lamp);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b1);
+
+    // Frames 2..4: the caster keeps walking (animating) inside the face.
+    // Every frame re-renders exactly one overlay pass — the shadow tracks
+    // the current pose — and never touches the cached world cells.
+    for (let frame = 0; frame < 3; frame++) {
+      caster.position.set(8, 60, 4 + frame * 0.4);
+      renders.length = 0;
+      ledger.beginFrame(100);
+      scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
+      expect(renders.filter((r) => r.scene === scene).length).toBe(0);
+      expect(renders.length).toBe(1);
+      expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b1);
+    }
+
+    // The caster leaves: the overlay mask drops the same frame and the
+    // texels rewrite, so the shader stops sampling the stale overlay cell.
+    const rewritesBeforeLeave = texelRewrites;
+    caster.position.set(200, 60, 200);
+    renders.length = 0;
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
+    expect(renders.length).toBe(0);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0);
+    expect(texelRewrites).toBeGreaterThan(rewritesBeforeLeave);
+
+    // It comes back: the overlay reopens…
+    caster.position.set(8, 60, 4);
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b1);
+
+    // …and despawning (an empty caster list) closes it again.
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, undefined, undefined, [], stats);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0);
+  });
+
+  it("clears slot state on light removal so a successor starts clean", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const caster = new Object3D();
+    caster.position.set(8, 60, 4);
+    scene.add(caster);
+    const { renderer } = makeVisibilityRenderer([caster]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
+
+    const index = indexOf(registry, lamp);
+    expect(scheduler.recordForIndex(index)?.staticMask).toBe(0b111111);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b1);
+
+    // Remove the light: the slot releases and its texel record vanishes —
+    // the packer writes "no shadow" and the shader never samples the slot.
+    registry.remove(lamp);
+    scheduler.update(new Uint32Array(0), 0, 0, 60, 0, stats);
+    expect(scheduler.recordForIndex(index)).toBeNull();
+    expect(stats.shadowed).toBe(0);
+
+    // A successor reusing the slot starts with empty masks: no stale
+    // depth from the previous occupant is ever sampleable.
+    const successor = registry.add(shadowLight(), -6, 60, -6);
+    scheduler.update(selectionOf(registry, [successor]), 1, 0, 60, 0, stats);
+    const successorIndex = indexOf(registry, successor);
+    expect(scheduler.recordForIndex(successorIndex)?.staticMask).toBe(0);
+    expect(scheduler.recordForIndex(successorIndex)?.dynamicMask).toBe(0);
+  });
+});
+
+describe("holder occlusion composition (top-down leak regression)", () => {
+  it("composes the flood mask with the atlas sample instead of replacing it", () => {
+    // A shadow holder's face with no cached map — mount-skipped by
+    // allowedMask or still queued in the FIFO — samples as fully visible.
+    // If the ladder REPLACES the flood mask with that sample, a
+    // ceiling-mounted lamp pours full unoccluded light through the roof
+    // above it: the giant colored top-down patches. Composing keeps the
+    // mask as the conservative floor and lets the maps refine it.
+    expect(LOCAL_LIGHTS_FUNCTIONS).toMatch(
+      /llOcclusion \*= localLightShadow\(/,
+    );
+    expect(LOCAL_LIGHTS_FUNCTIONS).not.toMatch(
+      /llOcclusion = localLightShadow\(/,
+    );
+    // The masked bit must gate holders too (set for static shadow
+    // requesters), or the composition has no mask to stand on.
+    const ladder = LOCAL_LIGHTS_FUNCTIONS.slice(
+      LOCAL_LIGHTS_FUNCTIONS.indexOf("Occlusion ladder"),
+      LOCAL_LIGHTS_FUNCTIONS.indexOf("llSubmersion"),
+    );
+    expect(ladder).toContain("(llFlags & 1) != 0 ? llMask : 1.0");
+  });
+
+  it("keeps the CPU entity mirror on the same conservative mask for holders", () => {
+    const registry = new LightSourceRegistry(8);
+    const grid = new LightClusterGrid(registry, {
+      maxClusteredLights: 8,
+      maxLightsPerCell: 8,
+      analyticRadius: 64,
+      gridCellSize: 8,
+      gridDims: [8, 8, 8] as [number, number, number],
+      selectionHysteresis: 1.2,
+      maskKnee: 2 / 15,
+      fluidSpecularStrength: 1,
+    });
+    // A ceiling-mounted holder above a "roof": the sample point on top has
+    // zero flood (the roof seals it), so the holder must contribute nothing
+    // there — mask-occluded — even though its falloff easily reaches.
+    registry.add(shadowLight(), 0, 28.5, 0);
+    grid.update(0, 30, 0, makeStats());
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+    grid.sampleIrradiance([0, 30.5, 0], sample, { floodMask: 0 });
+    expect(sample.color).toEqual([0, 0, 0]);
+    // The claim still stands: an owned dark side must not be refilled by
+    // the baked flood term.
+    expect(sample.claim).toBeGreaterThan(0);
+  });
+});
+
+describe("top-down hub camera sweep (exact-coordinate regression)", () => {
+  it("keeps clustered state finite, bounded, and reference-valid across pitch, altitude, aspect, and tier sweeps", () => {
+    // The reported camera: (-0.654, 44.744, 1.867), direction ~(0, -1, 0)
+    // (pitch -88.2°), over a dense lit hub ~16 blocks below. Clustering
+    // consumes only the camera POSITION by construction — pitch, aspect,
+    // and FOV cannot reach it — so the sweep drives the position across
+    // the altitudes those views imply and asserts the packed state stays
+    // valid: no NaN texels, counts within caps, and every grid slot
+    // reference resolving to a live packed record.
+    const registry = new LightSourceRegistry(64);
+    const grid = new LightClusterGrid(registry, {
+      maxClusteredLights: 16,
+      maxLightsPerCell: 8,
+      analyticRadius: 64,
+      gridCellSize: 8,
+      gridDims: [24, 12, 24] as [number, number, number],
+      selectionHysteresis: 1.2,
+      maskKnee: 2 / 15,
+      fluidSpecularStrength: 1,
+    });
+    // Hub emitters around y≈29 like the report: mounted colored lamps.
+    for (let i = 0; i < 12; i++) {
+      registry.add(
+        shadowLight({
+          color: i % 2 ? [1, 0, 1] : [0, 1, 1],
+          range: 14,
+        }),
+        (i % 4) * 6 - 9,
+        28.5 + (i % 3),
+        Math.floor(i / 4) * 6 - 6,
+      );
+    }
+
+    const stats = makeStats();
+    const raw = grid as unknown as {
+      gridData: Uint8Array;
+      lightData: Float32Array;
+    };
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+
+    // Altitudes from the exact report through extreme overhead views; the
+    // lateral offsets stand in for aspect/FOV framing differences, which
+    // move only where the camera POSITION ends up.
+    for (const y of [44.744, 60, 120, 300]) {
+      for (const [dx, dz] of [
+        [0, 0],
+        [-0.654, 1.867],
+        [30, -30],
+      ]) {
+        for (const caps of [16, 8, 0]) {
+          grid.setTierCaps({
+            maxClusteredLights: caps,
+            maxLightsPerCell: 8,
+            analyticRadius: 64,
+            fluidSpecularStrength: 1,
+            blockLightOwnership: caps > 0 ? 1 : 0,
+          });
+          grid.update(dx, y, dz, stats);
+
+          expect(grid.selectedCount).toBeLessThanOrEqual(caps);
+          for (let n = 0; n < raw.lightData.length; n++) {
+            if (!Number.isFinite(raw.lightData[n])) {
+              throw new Error(`non-finite packed texel at ${n}`);
+            }
+          }
+          for (let n = 0; n < raw.gridData.length; n++) {
+            // Every nonzero grid byte is a 1-based reference into the
+            // packed records; a reference past the live count would read
+            // garbage rows in the shader — colored patches from nowhere.
+            expect(raw.gridData[n]).toBeLessThanOrEqual(grid.selectedCount);
+          }
+
+          // Roof-plane probe: with the flood sealed (mask 0), no mounted
+          // holder may tint the plane above the hub, at any altitude.
+          grid.sampleIrradiance([0, 30.5, 0], sample, { floodMask: 0 });
+          expect(sample.color[0]).toBe(0);
+          expect(sample.color[1]).toBe(0);
+          expect(sample.color[2]).toBe(0);
+          expect(Number.isFinite(sample.claim)).toBe(true);
+        }
+      }
+    }
   });
 });
