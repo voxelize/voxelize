@@ -1121,6 +1121,40 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     ).toBe("tierChange");
   });
 
+  it("keeps the atlas uniform bound across a same-tier re-apply", () => {
+    const lights = new LocalLights(
+      {},
+      () => ({
+        chunkSize: 16,
+        maxHeight: 256,
+        subChunks: 8,
+        maxLightLevel: 15,
+      }),
+      () => [],
+    );
+    // Allocate the atlas the way the first shadow render would, and bind
+    // its depth texture the way renderShadows does each frame.
+    const target = lights.shadows.atlas.ensureAllocated();
+    expect(target.depthTexture).toBeTruthy();
+    const binding = lights.uniformBindings.uLocalShadowAtlas;
+    binding.value = lights.shadows.atlas.depthTexture;
+    const bound = binding.value;
+    expect(bound).toBeTruthy();
+
+    // Same tier re-applied: caps are idempotent, cached maps survive, so
+    // the live texture must STAY bound — a null here would give any frame
+    // rendered before the next renderShadows a null atlas against masks
+    // that still claim shadow data.
+    lights.setQualityTier(lights.getQualityTier());
+    expect(binding.value).toBe(bound);
+
+    // A real atlas change disposes the target; null now agrees with the
+    // invalidated masks until the next shadow render rebinds.
+    lights.setQualityTier("ultra");
+    expect(binding.value).toBeNull();
+    lights.dispose();
+  });
+
   it("clears slot state on light removal so a successor starts clean", () => {
     const registry = new LightSourceRegistry(16);
     const scheduler = makeScheduler(registry);
