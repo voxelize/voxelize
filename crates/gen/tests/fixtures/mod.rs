@@ -40,7 +40,31 @@ pub fn fixture_registry() -> Registry {
             .build(),
         simple("Test Plank", 6),
         simple("Test Cobble", 7),
-        simple("Test Tuft", 8),
+        Block::new("Test Tuft")
+            .id(8)
+            .is_passable(true)
+            .faces(&BlockFaces::six_faces().build())
+            .build(),
+        simple("Test Dry Grass", 9),
+        simple("Test Lush Grass", 10),
+        simple("Test Snow", 11),
+        simple("Test Log A", 12),
+        Block::new("Test Leaves A")
+            .id(13)
+            .is_passable(true)
+            .faces(&BlockFaces::six_faces().build())
+            .build(),
+        simple("Test Log B", 14),
+        Block::new("Test Leaves B")
+            .id(15)
+            .is_passable(true)
+            .faces(&BlockFaces::six_faces().build())
+            .build(),
+        Block::new("Test Fern")
+            .id(16)
+            .is_passable(true)
+            .faces(&BlockFaces::six_faces().build())
+            .build(),
     ]);
     registry
 }
@@ -425,6 +449,404 @@ pub fn reference_stack() -> FieldGraph {
     b.build()
 }
 
+/// A small, fast geology world over the fixture registry: analytic
+/// plates and a short erosion solve, drainage rivers, shelf/notch 3D
+/// density, a ground mosaic, and a two-community ecology with
+/// named-species canopies. Numbers are sized for a 128-block world and
+/// test-speed tile solves.
+pub fn geology_fixture_spec() -> GeneratorSpec {
+    let mut spec = fixture_spec();
+    spec.preset = "geology_fixture";
+    spec.dimension.key = "geology_fixture_dim";
+    // The heightfield lane is inert on geology worlds but still
+    // compiles; keep it minimal so its salts stay out of the way.
+    spec.topology = TopologySpec::Heightfield(HeightfieldLane {
+        base_height: {
+            let mut b = FieldGraphBuilder::new();
+            b.constant(64.0);
+            b.build()
+        },
+        relief: vec![],
+        slope_probe: 2,
+    });
+    spec.carvers = vec![];
+    spec.structures = vec![];
+    spec.pieces = vec![];
+    spec.pools = vec![];
+    spec.biomes.partition = BiomePartition::Single(BiomeKey("meadow"));
+    spec.biomes.overlays = vec![];
+    spec.biomes.registry.truncate(1);
+    spec.hydrology = HydrologySpec {
+        sea: Some(SeaSpec {
+            level: 60,
+            fluid: "Test Water",
+        }),
+        aquifers: None,
+        lava: None,
+    };
+    spec.geology = Some(GeologySpec {
+        salt: SaltPath("geofix.backbone"),
+        cell: 8,
+        tile: 256,
+        halo_cells: 24,
+        plate_cell: 700.0,
+        plate_jitter: 0.35,
+        plate_warp_amp: 110.0,
+        plate_warp_scale: 420.0,
+        continental_share: 0.6,
+        margin_width: 200.0,
+        base_land: 16.0,
+        base_ocean: 28.0,
+        swell_amp: 12.0,
+        swell_scale: 320.0,
+        swell_octaves: 3,
+        plateau_amp: 10.0,
+        plateau_scale: 700.0,
+        belt_collision: BeltSpec {
+            height: 46.0,
+            width: 180.0,
+            segment_scale: 280.0,
+            segment_depth: 0.5,
+            uplift: 1.0,
+            root_share: 0.4,
+            root_width_factor: 2.2,
+        },
+        belt_arc: BeltSpec {
+            height: 40.0,
+            width: 170.0,
+            segment_scale: 260.0,
+            segment_depth: 0.5,
+            uplift: 0.8,
+            root_share: 0.35,
+            root_width_factor: 2.0,
+        },
+        arc_inland_offset: 130.0,
+        belt_island_arc: BeltSpec {
+            height: 26.0,
+            width: 110.0,
+            segment_scale: 220.0,
+            segment_depth: 0.6,
+            uplift: 0.5,
+            root_share: 0.3,
+            root_width_factor: 1.8,
+        },
+        island_arc_offset: 40.0,
+        rift_depth: 12.0,
+        rift_width: 130.0,
+        trench_depth: 10.0,
+        trench_width: 90.0,
+        convergence_floor: 0.15,
+        belt_strength_span: 0.55,
+        iterations: 6,
+        fill_every: 2,
+        erode_k: 0.05,
+        erode_m: 0.5,
+        dt: 20.0,
+        interior_uplift: 0.04,
+        diffusion: 0.006,
+        high_diffusion_share: 0.3,
+        talus: 6.0,
+        uplift_rate: 0.1,
+        seed_relief: 5.0,
+        snowline: 96.0,
+        glacial_iterations: 2,
+        glacial_strength: 0.3,
+        lake_min_depth: 2.5,
+        ceiling_start: 104.0,
+        ceiling_max: 122.0,
+        channel_area: 40.0,
+        channel_area_full: 1200.0,
+        river_width: (2.0, 5.0),
+        river_depth: (1.0, 2.5),
+        river_bank: 3.0,
+        detail_amp: 1.2,
+        detail_scale: 22.0,
+        detail_broad_amp: 1.0,
+        detail_broad_scale: 60.0,
+        detail_floor: 0.25,
+        relief: ReliefSpec {
+            rib_amp: 2.5,
+            rib_scale: 16.0,
+            rib_stretch: 2.5,
+            rib_slope: (0.35, 1.0),
+            bench_amp: 2.5,
+            bench_spacing: 8.0,
+            bench_tread: 0.34,
+            bench_warp_amp: 6.0,
+            bench_warp_scale: 80.0,
+            bench_slope: (0.8, 1.6),
+            calm_flow: 90.0,
+            shore_calm_band: 5.0,
+        },
+        moisture: MoistureSpec {
+            reach: 26.0,
+            flow_half: 70.0,
+            dry_height: 50.0,
+            proximity_weight: 0.5,
+            flow_weight: 0.25,
+            elevation_weight: 0.25,
+        },
+        meander_amp: 1.0,
+        meander_scale: 60.0,
+        riffle_amp: 0.3,
+        riffle_scale: 40.0,
+        sea_level: 60,
+    });
+    spec.density = Some(DensitySpec {
+        salt: SaltPath("geofix.density"),
+        band: 6.0,
+        amp: 4.0,
+        shelf: Some(ShelfSpec {
+            spacing: 9.0,
+            resistant_share: 0.45,
+            warp_amp: 4.0,
+            warp_scale: 70.0,
+            lens_scale: 40.0,
+            lens_squash: 3.0,
+            slope: (0.7, 1.4),
+            relief: 3.0,
+        }),
+        notch: Some(NotchSpec {
+            depth: 3.0,
+            height: 4.0,
+            slope: (0.6, 1.2),
+            scale: 36.0,
+            river_reach: 10.0,
+        }),
+    });
+    spec.river_materials = Some(RiverMaterials {
+        water: "Test Water",
+        bed: "Test Cobble",
+        bank: "Test Sand",
+    });
+    spec.mosaic = Some(MosaicSpec {
+        salt: SaltPath("geofix.mosaic"),
+        tone_dry_below: 0.25,
+        tone_lush_above: 0.6,
+        tone_dither: 0.08,
+        tone_scale: 40.0,
+        grass_block: "Test Grass",
+        dry_block: "Test Dry Grass",
+        lush_block: "Test Lush Grass",
+        stone_block: "Test Stone",
+        patches: vec![SubstratePatch {
+            block: "Test Dirt",
+            scale: 26.0,
+            threshold: 0.16,
+            slope: (0.0, 1.2),
+            moisture: (0.0, 1.0),
+        }],
+        strata: Some(StrataSpec {
+            blocks: vec!["Test Stone", "Test Cobble"],
+            spacing: 9.0,
+            warp_amp: 5.0,
+            warp_scale: 60.0,
+        }),
+        talus: Some(TalusSpec {
+            block: "Test Cobble",
+            probe: 3,
+            min_face_rise: 4.0,
+            slope: (0.4, 1.4),
+        }),
+        snow: Some(SnowSpec {
+            line: 92.0,
+            band: 6.0,
+            aspect_shift: 4.0,
+            noise_amp: 3.0,
+            noise_scale: 40.0,
+            scour_slope: 1.5,
+            snow_block: "Test Snow",
+            rock_block: "Test Stone",
+        }),
+    });
+    spec.ecology = Some(EcologySpec {
+        salt: SaltPath("geofix.ecology"),
+        cell: 48.0,
+        ecotone: 0.25,
+        lane_moisture_reach: 0.0,
+        communities: vec![
+            CommunityDef {
+                key: "pine_stand",
+                biomes: vec!["meadow"],
+                surface: (61, 100),
+                max_slope: 1.2,
+                moisture: (0.0, 1.0),
+                weight: 0.6,
+                canopy: Some(CanopySpec {
+                    cell: 22.0,
+                    cluster_chance: 0.8,
+                    points: (2, 4),
+                    spread: 8.0,
+                    species: vec![("pine", 1.0)],
+                    cohesion: 0.9,
+                    age_spread: 0.3,
+                    max_slope: 1.0,
+                    avoid_river_within: 4.0,
+                }),
+                edge_species: vec![("birchling", 0.8)],
+                floor: FloorSpec {
+                    density: 0.2,
+                    plants: vec![("Test Fern", 1.0)],
+                    riparian_boost: 2.0,
+                    riparian_band: 8.0,
+                },
+            },
+            CommunityDef {
+                key: "wet_meadow",
+                biomes: vec!["meadow"],
+                surface: (61, 100),
+                max_slope: 0.8,
+                moisture: (0.0, 1.0),
+                weight: 0.4,
+                canopy: None,
+                edge_species: vec![],
+                floor: FloorSpec {
+                    density: 0.3,
+                    plants: vec![("Test Tuft", 1.0)],
+                    riparian_boost: 2.0,
+                    riparian_band: 8.0,
+                },
+            },
+        ],
+    });
+    spec.species = vec![
+        SpeciesDef {
+            key: "pine",
+            log: "Test Log A",
+            leaves: "Test Leaves A",
+            form: TreeForm::Conic,
+        },
+        SpeciesDef {
+            key: "birchling",
+            log: "Test Log B",
+            leaves: "Test Leaves B",
+            form: TreeForm::Slender,
+        },
+    ];
+    spec
+}
+
+/// The heightfield fixture with walker rivers, a riparian flora set, and
+/// the ecology field — the lane-world composition Town's savannah and
+/// coastline run.
+pub fn walker_fixture_spec() -> GeneratorSpec {
+    let mut spec = fixture_spec();
+    spec.rivers = Some(RiverSpec {
+        salt: SaltPath("fixture.rivers"),
+        tile: 256,
+        sources_per_tile: 6,
+        min_source_height: 52,
+        max_steps: 260,
+        width: (1.5, 4.0),
+        depth: (1.0, 2.5),
+        bank: 2.0,
+        carve_through: 1.5,
+    });
+    spec.river_materials = Some(RiverMaterials {
+        water: "Test Water",
+        bed: "Test Cobble",
+        bank: "Test Sand",
+    });
+    spec.ecology = Some(EcologySpec {
+        salt: SaltPath("fixture.ecology"),
+        cell: 44.0,
+        ecotone: 0.25,
+        lane_moisture_reach: 24.0,
+        communities: vec![
+            CommunityDef {
+                key: "oakwood",
+                biomes: vec!["meadow"],
+                surface: (47, 100),
+                max_slope: 1.2,
+                moisture: (0.0, 1.0),
+                weight: 0.7,
+                canopy: Some(CanopySpec {
+                    cell: 20.0,
+                    cluster_chance: 0.75,
+                    points: (2, 4),
+                    spread: 7.0,
+                    species: vec![("oak", 1.0)],
+                    cohesion: 0.9,
+                    age_spread: 0.3,
+                    max_slope: 1.0,
+                    avoid_river_within: 4.0,
+                }),
+                edge_species: vec![("birch", 0.8)],
+                floor: FloorSpec {
+                    density: 0.25,
+                    plants: vec![("Test Fern", 0.7), ("Test Tuft", 0.3)],
+                    riparian_boost: 2.5,
+                    riparian_band: 7.0,
+                },
+            },
+            CommunityDef {
+                key: "birch_fringe",
+                biomes: vec!["meadow"],
+                surface: (47, 100),
+                max_slope: 1.0,
+                moisture: (0.0, 1.0),
+                weight: 0.3,
+                canopy: Some(CanopySpec {
+                    cell: 24.0,
+                    cluster_chance: 0.7,
+                    points: (1, 3),
+                    spread: 6.0,
+                    species: vec![("birch", 1.0)],
+                    cohesion: 0.95,
+                    age_spread: 0.25,
+                    max_slope: 0.9,
+                    avoid_river_within: 4.0,
+                }),
+                edge_species: vec![],
+                floor: FloorSpec {
+                    density: 0.15,
+                    plants: vec![("Test Tuft", 1.0)],
+                    riparian_boost: 2.0,
+                    riparian_band: 6.0,
+                },
+            },
+        ],
+    });
+    spec.flora = vec![FloraSetSpec {
+        key: "riverside_snags",
+        salt: SaltPath("fixture.flora.snags"),
+        biomes: vec!["meadow", "dunes"],
+        cell: 36.0,
+        cluster_chance: 0.5,
+        gate_frequency: 0.0,
+        gate_window: (-1.0, 1.0),
+        points: (1, 2),
+        spread: 5.0,
+        species: vec![("snag", 1.0)],
+        max_slope: 1.2,
+        near_river: Some(10.0),
+        avoid_river_within: 3.0,
+        min_surface: Some(47),
+        max_surface: None,
+    }];
+    spec.species = vec![
+        SpeciesDef {
+            key: "oak",
+            log: "Test Log A",
+            leaves: "Test Leaves A",
+            form: TreeForm::Round,
+        },
+        SpeciesDef {
+            key: "birch",
+            log: "Test Log B",
+            leaves: "Test Leaves B",
+            form: TreeForm::Slender,
+        },
+        SpeciesDef {
+            key: "snag",
+            log: "Test Log A",
+            leaves: "Test Leaves A",
+            form: TreeForm::Snag,
+        },
+    ];
+    spec
+}
+
 pub struct Harness {
     pub registry: Registry,
     pub config: WorldConfig,
@@ -440,12 +862,16 @@ pub fn harness_for(spec: GeneratorSpec) -> Harness {
     let registry = fixture_registry();
     let config = fixture_config();
     let generator = compile(&spec, &registry, &config).expect("fixture compiles");
-    let stages: Vec<Box<dyn ChunkStage + Send + Sync>> = vec![
+    let mut stages: Vec<Box<dyn ChunkStage + Send + Sync>> = vec![
         Box::new(stages::GenShapeStage::new(Arc::clone(&generator))),
         Box::new(stages::GenSurfaceStage::new(Arc::clone(&generator))),
         Box::new(stages::GenCarveStage::new(Arc::clone(&generator))),
         Box::new(stages::GenPopulateStage::new(Arc::clone(&generator))),
     ];
+    if generator.geo().is_some() || generator.walker_rivers().is_some() {
+        stages.push(Box::new(stages::RiverStage::new(Arc::clone(&generator))));
+    }
+    stages.push(Box::new(stages::FloraStage::new(Arc::clone(&generator))));
     Harness {
         registry,
         config,

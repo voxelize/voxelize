@@ -25,7 +25,7 @@ use crate::geology::{GeoGrid, GeoModel};
 use crate::hydro::{CompiledHydrology, HydrologySpec, VoidMaterial};
 use crate::lane::{CompiledLane, LaneGrid, TopologySpec};
 use crate::mosaic::CompiledMosaic;
-use crate::rivers::CompiledRivers;
+use crate::rivers::{CompiledRivers, RiverColumn, RiverPoint};
 use crate::stream::{cell_id, fnv1a_64, hash_unit, mix64, stream_seed, HashStream, SaltPath, Subsystem};
 use crate::structures::{
     CompiledStructures, GroundPatch, PieceDef, Pool, StructurePlan, StructureSetSpec, TerrainView,
@@ -791,6 +791,71 @@ impl CompiledGenerator {
     /// Resolved (water, bed, bank) block ids for the river stage.
     pub fn river_material_ids(&self) -> Option<(u32, u32, u32)> {
         self.river_materials
+    }
+
+    /// Nearest river channel sample within the carve reach, whichever
+    /// routing this world runs — walker networks on lane heights or the
+    /// geology drainage.
+    pub fn river_sample(&self, x: i32, z: i32) -> Option<RiverPoint> {
+        if let Some(geo) = &self.geo {
+            return geo.river_sample(x, z);
+        }
+        let rivers = self.rivers.as_ref()?;
+        let height = |ix: i32, iz: i32| self.surface_raw(ix, iz) as f64;
+        rivers.sample(x, z, &height)
+    }
+
+    /// Classify one column against the nearest channel sample.
+    pub fn river_column(&self, point: &RiverPoint) -> RiverColumn {
+        if let Some(geo) = &self.geo {
+            return geo.river_column(point);
+        }
+        match &self.rivers {
+            Some(rivers) => rivers.column(point),
+            None => RiverColumn::Outside,
+        }
+    }
+
+    /// Distance in blocks to the nearest channel line, `f64::MAX` when no
+    /// river reaches the column (or the world has none).
+    pub fn river_distance(&self, x: i32, z: i32) -> f64 {
+        self.river_sample(x, z)
+            .map(|point| point.dist)
+            .unwrap_or(f64::MAX)
+    }
+
+    /// Solved lake surface at this column (geology worlds only): tarns,
+    /// valley ponds, rift floors. Contested seam basins answer dry.
+    pub fn lake_level(&self, x: i32, z: i32) -> Option<f64> {
+        self.geo.as_ref().and_then(|geo| geo.lake_level(x, z))
+    }
+
+    /// Deterministic digest of one solved geology tile, for provenance
+    /// logs and determinism tests; `None` on lane worlds.
+    pub fn geology_tile_digest(&self, tile_x: i64, tile_z: i64) -> Option<u64> {
+        self.geo.as_ref().map(|geo| geo.tile_digest(tile_x, tile_z))
+    }
+
+    /// The ground a column actually offers: the spine surface, reshaped
+    /// by the density band where one is active. Flora and probes root
+    /// here; matches the shape stage voxel for voxel away from
+    /// structures (which silence the term).
+    pub fn ground_at(&self, x: i32, z: i32) -> i32 {
+        let surface = self.surface_raw(x, z);
+        let Some(density) = &self.density else {
+            return surface;
+        };
+        let column = self.density_column(x, z, self.steepness(x, z));
+        if column.is_inert() {
+            return surface;
+        }
+        let band = density.band().ceil() as i32;
+        for y in ((surface - band)..(surface + band)).rev() {
+            if y <= surface - band || density.solid(x, y, z, surface, &column) {
+                return y;
+            }
+        }
+        surface - band
     }
 
     pub fn flora_floor_seed(&self) -> u64 {

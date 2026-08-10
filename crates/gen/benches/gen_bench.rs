@@ -73,6 +73,37 @@ fn bench_chunk_pipeline(c: &mut Criterion) {
         )
     });
 
+    let walker = harness_for(walker_fixture_spec());
+    group.bench_function("full_pipeline_rivers_flora", |b| {
+        b.iter_batched(
+            || {
+                slot += 1;
+                (slot % 64, slot / 64 % 64)
+            },
+            |(cx, cz)| std::hint::black_box(walker.generate_chunk(cx, cz)),
+            BatchSize::SmallInput,
+        )
+    });
+
+    // Steady-state geology chunks: solves cached, sampling fused tiles,
+    // shelf/notch density, mosaic, ecology all engaged.
+    let geology = harness_for(geology_fixture_spec());
+    for cx in 0..2 {
+        for cz in 0..2 {
+            std::hint::black_box(geology.generate_chunk(cx, cz));
+        }
+    }
+    group.bench_function("full_pipeline_geology_steady", |b| {
+        b.iter_batched(
+            || {
+                slot += 1;
+                (slot % 32, slot / 32 % 32)
+            },
+            |(cx, cz)| std::hint::black_box(geology.generate_chunk(cx, cz)),
+            BatchSize::SmallInput,
+        )
+    });
+
     group.finish();
 }
 
@@ -129,6 +160,24 @@ fn bench_structures(c: &mut Criterion) {
     let generator = &fixture.generator;
     let structures = generator.structures();
     let mut site = 0i64;
+    {
+        let mut group = c.benchmark_group("geology");
+        group.sample_size(10);
+        let harness = harness_for(geology_fixture_spec());
+        let mut tile = 100i64;
+        group.bench_function("tile_solve_cold", |b| {
+            b.iter_batched(
+                || {
+                    tile += 7;
+                    tile
+                },
+                |t| std::hint::black_box(harness.generator.geology_tile_digest(t, -t)),
+                BatchSize::SmallInput,
+            )
+        });
+        group.finish();
+    }
+
     c.bench_function("structures/plan_for_site", |b| {
         b.iter(|| {
             site += 1;

@@ -656,11 +656,12 @@ impl ChunkStage for FloraStage {
                 .map(|point| point.dist)
                 .unwrap_or(f64::MAX)
         };
-        // Trees stand on the river-shaped ground: a bank column was raised
-        // by the river stage, so the trunk must start on the levee, not
-        // under it. Lake floors get no trees.
+        // Trees stand on the river- and density-shaped ground: a bank
+        // column was raised by the river stage, so the trunk must start
+        // on the levee, not under it; a shelf top is real ground. Lake
+        // floors get no trees.
         let surface = |ix: i32, iz: i32| -> i32 {
-            let ground = generator.surface_raw(ix, iz);
+            let ground = generator.ground_at(ix, iz);
             match rivers.sample(ix, iz).map(|point| rivers.column(&point)) {
                 Some(RiverColumn::Bank { raise_to, .. }) => ground.max(raise_to),
                 _ => ground,

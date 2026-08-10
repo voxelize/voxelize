@@ -64,7 +64,7 @@ pub use mosaic::{
     ColumnSample, CompiledMosaic, MosaicSpec, SnowSpec, StrataSpec, SubstratePatch, TalusSpec,
 };
 pub use noise::{Fractal, NoiseKind, Perlin};
-pub use rivers::{CompiledRivers, RiverColumn, RiverEnd, RiverPoint, RiverSpec};
+pub use rivers::{CompiledRivers, RiverColumn, RiverEnd, RiverMaterials, RiverPoint, RiverSpec};
 pub use spec::{
     check_compat, compile, CompatVerdict, CompiledGenerator, DimCapabilities, DimensionSpec,
     GenError, GeneratorIdentity, GeneratorSpec, Version, ENGINE_SALT_PREFIX, FORMAT_VERSION,
