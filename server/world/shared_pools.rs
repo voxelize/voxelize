@@ -2,11 +2,20 @@ use std::sync::{Arc, OnceLock};
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
+/// Worker stack size for the shared pools. Rayon's default is 2 MiB, which
+/// the greedy mesher overflowed on worldgen-v2 terrain (dense cave/overhang
+/// chunks) — a `chunk-meshing-*` thread aborting the whole process with
+/// "fatal runtime error: stack overflow". Sized to the same 8 MiB a main
+/// thread gets, so the mesher is no deeper-constrained than the code that
+/// calls it.
+const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
 fn build(name: &'static str, threads: usize) -> Arc<ThreadPool> {
     Arc::new(
         ThreadPoolBuilder::new()
             .thread_name(move |index| format!("{name}-{index}"))
             .num_threads(threads)
+            .stack_size(WORKER_STACK_BYTES)
             .build()
             .unwrap_or_else(|err| panic!("failed to build {name} thread pool: {err}")),
     )

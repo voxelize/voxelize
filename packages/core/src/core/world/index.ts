@@ -3754,32 +3754,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.physics.options = this.options;
 
-    if (!this.csmRenderer) {
-      // The near cascade only spans ~14 blocks, so 2048 still gives it an
-      // order of magnitude more texels per block than the far cascades; at
-      // 4096 the own-character shadow refresh (a full cascade re-render
-      // every third frame) was the single largest steady-state GPU cost at
-      // high display resolutions.
-      this.csmRenderer = new CSMRenderer({
-        cascades: 3,
-        shadowMapSize: 2048,
-        farShadowMapSize: 2048,
-        maxShadowDistance: 128,
-        shadowBias: 0.00018,
-        shadowNormalBias: 0.0015,
-        shadowSlopeBiasScale: 0.0012,
-        shadowSlopeBiasMin: 0.00012,
-        shadowTopFaceBiasScale: 1.0,
-        shadowSideFaceBiasScale: 1.0,
-        lightMargin: 32,
-      });
-      this.csmRenderer.attachShadowLedger(
-        this.localLights.shadowLedger,
-        this.localLights.options.csmNearCascadeUnits,
-        this.localLights.options.csmFarCascadeUnits,
-      );
-    }
-
     await loadChunkMaterials(this);
 
     const registryData = this.registry.serialize();
@@ -5337,9 +5311,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       return !!block && block.isOpaque;
     };
 
+    // The near cascade only spans ~14 blocks, so 2048 still gives it an
+    // order of magnitude more texels per block than the far cascades; at
+    // 4096 the own-character shadow refresh (a full cascade re-render
+    // every third frame) was the single largest steady-state GPU cost at
+    // high display resolutions. An initialize()-time downgrade to these
+    // sizes used to sit behind `if (!this.csmRenderer)` and never ran,
+    // because this constructor-time renderer already existed -- the sizes
+    // have to be right here, at the only creation site.
     this.csmRenderer = new CSMRenderer({
       cascades: 3,
-      shadowMapSize: 4096,
+      shadowMapSize: 2048,
+      farShadowMapSize: 2048,
       maxShadowDistance: 128,
       shadowBias: 0.00018,
       shadowNormalBias: 0.0015,

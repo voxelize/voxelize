@@ -226,6 +226,7 @@ export class LegacyDebug {
   };
 
   dispose = (): void => {
+    this.sampler?.dispose();
     this.dataWrapper.remove();
     this.entries = [];
   };

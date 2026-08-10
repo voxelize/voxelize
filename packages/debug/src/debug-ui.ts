@@ -1,5 +1,6 @@
 import { createElement, isInteractiveTarget } from "./dom";
 import { FrameSampler } from "./frame-sampler";
+import { InputLagSampler } from "./input-lag-sampler";
 import { LogPane } from "./log-pane";
 import { Logger } from "./logger";
 import { StatusBar } from "./status-bar";
@@ -23,6 +24,7 @@ export class DebugUI {
   readonly storage: DebugStorage;
   readonly logger: Logger;
   readonly sampler: FrameSampler;
+  readonly inputLag: InputLagSampler;
   readonly logs: LogPane;
   readonly statusBar: StatusBar;
 
@@ -47,6 +49,7 @@ export class DebugUI {
     this.storageScope = { storage: this.storage, basePath: "settings" };
     this.logger = options.logger ?? new Logger({ maxEntries: 500 });
     this.sampler = new FrameSampler();
+    this.inputLag = new InputLagSampler();
 
     this.parent = options.parent ?? document.body;
 
@@ -107,6 +110,7 @@ export class DebugUI {
 
   update(): void {
     this.sampler.update();
+    this.inputLag.sample();
     if (!this.isVisible) return;
     this.statusBar.update();
   }
@@ -116,6 +120,8 @@ export class DebugUI {
       window.removeEventListener("keydown", this.hotkeyHandler);
       this.hotkeyHandler = null;
     }
+    this.sampler.dispose();
+    this.inputLag.dispose();
     this.publishStatusBarInset(false);
     this.logs.dispose();
     this.statusBar.dispose();

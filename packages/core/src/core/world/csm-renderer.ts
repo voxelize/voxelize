@@ -134,9 +134,15 @@ export class CSMRenderer {
   private cascades: Cascade[] = [];
   private lightDirection = new Vector3(0, -1, 0.3).normalize();
   private lastLightDirection = new Vector3(0, -1, 0.3).normalize();
+  // The direction maps are actually drawn with: the live direction drifts a
+  // few hundred-thousandths of a radian every frame, and fitting cascades to
+  // it would make every fit unique — no fit could ever be skipped as
+  // unchanged. Maps instead hold the last *accepted* direction and step when
+  // the accumulated drift crosses the dirty threshold, which is the cadence
+  // stationary cameras have always seen.
+  private renderLightDirection = new Vector3(0, -1, 0.3).normalize();
   private frustum = new Frustum();
   private depthMaterial: MeshDepthMaterial;
-  private frameCount = 0;
   private lastCameraPosition = new Vector3();
   private lastViewProjection = new Matrix4();
   private isCameraStill = false;
@@ -145,6 +151,7 @@ export class CSMRenderer {
   private lastMainCamera: Camera | null = null;
   private cascadeDirty: boolean[] = [];
   private cascadeNeedsRender: boolean[] = [];
+  private cascadeGeometryStale: boolean[] = [];
   private tempMatrix = new Matrix4();
   private tempVec3 = new Vector3();
 
@@ -166,7 +173,6 @@ export class CSMRenderer {
   private originalEntityParents = new Map<Object3D, Object3D | null>();
 
   private frustumCenter = new Vector3();
-  private frustumCameraDir = new Vector3();
   private frustumUp = new Vector3();
   private lightViewMatrix = new Matrix4();
   private lightViewMatrixInverse = new Matrix4();
@@ -175,6 +181,12 @@ export class CSMRenderer {
   private cornerPool: Vector3[] = Array(8)
     .fill(null)
     .map(() => new Vector3());
+  // Scratch camera the candidate fit is computed on. The real cascade camera
+  // and matrix are only written once a draw is committed: a matrix that moves
+  // a frame ahead of its map flashes the whole cascade band, and a fit that
+  // turns out identical should leave no trace at all.
+  private fitCamera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+  private fitMatrix = new Matrix4();
 
   constructor(config: Partial<CSMConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
@@ -220,11 +232,13 @@ export class CSMRenderer {
 
       this.cascadeDirty.push(true);
       this.cascadeNeedsRender.push(true);
+      this.cascadeGeometryStale.push(true);
     }
   }
 
   setLightDirection(direction: Vector3) {
     this.lightDirection.copy(direction).normalize();
+    this.renderLightDirection.copy(this.lightDirection);
     this.markAllCascadesDirty();
   }
 
@@ -239,30 +253,6 @@ export class CSMRenderer {
     for (let i = 0; i < this.cascadeNeedsRender.length; i++) {
       this.cascadeNeedsRender[i] = true;
     }
-  }
-
-  private shouldUpdateCascade(index: number, cameraMovement: number): boolean {
-    if (this.cascadeDirty[index]) {
-      return true;
-    }
-
-    // A cascade render redraws every caster in its frustum, so a frame where
-    // neither the camera nor the light budged buys nothing from one. Chunk
-    // remeshes and entity refreshes bypass this via markAllCascadesForRender
-    // and markCascadesForEntityRender, which set needsRender directly.
-    if (this.isCameraStill) {
-      return false;
-    }
-
-    if (index === 0) {
-      return true;
-    }
-
-    if (index === 1) {
-      return cameraMovement > 1.5 || this.frameCount % 5 === 0;
-    }
-
-    return cameraMovement > 3.0 || this.frameCount % 10 === 0;
   }
 
   /**
@@ -310,8 +300,6 @@ export class CSMRenderer {
     playerPosition?: Vector3,
     shadowStrength = 1,
   ) {
-    this.frameCount++;
-
     const frameLightSwing = this.tempVec3
       .copy(sunDirection)
       .normalize()
@@ -342,6 +330,7 @@ export class CSMRenderer {
     if (lightDirChange > 0.01 && !isShadowFaded && !isLightSwinging) {
       this.markAllCascadesDirty();
       this.lastLightDirection.copy(this.lightDirection);
+      this.renderLightDirection.copy(this.lightDirection);
     }
 
     const cameraMovement = this.tempVec3
@@ -378,38 +367,43 @@ export class CSMRenderer {
       isViewProjectionUnchanged &&
       cameraMovement < this.config.stillCameraPositionEpsilon;
 
-    // Only the flags are decided here. The cascade frustum (and with it the
-    // shadow matrix the shader samples through) is computed in render(),
-    // immediately before the map it describes is drawn: a far cascade can be
-    // deferred a frame by the one-far-cascade-per-frame cap, and a matrix
-    // that moves a frame ahead of its map flashes the whole cascade band.
+    // Only the flags are decided here; render() decides the draws. A dirty
+    // cascade (light step) must redraw whatever else happens. Camera motion
+    // only makes a cascade's *fit* suspect — the fit is player-anchored and
+    // texel-snapped, so rotation and sub-texel movement land on a bitwise
+    // identical matrix, and render() skips the redraw after checking rather
+    // than paying for a full caster pass on every mouse twitch.
     this.lastMainCamera = mainCamera;
     for (let i = 0; i < this.cascades.length; i++) {
-      if (!this.shouldUpdateCascade(i, cameraMovement)) {
-        continue;
+      if (this.cascadeDirty[i]) {
+        this.cascadeDirty[i] = false;
+        this.cascadeNeedsRender[i] = true;
       }
-
-      this.cascadeDirty[i] = false;
-      this.cascadeNeedsRender[i] = true;
+      if (!this.isCameraStill) {
+        this.cascadeGeometryStale[i] = true;
+      }
     }
   }
 
-  private updateCascadeFrustum(
-    index: number,
-    mainCamera: Camera,
-    playerPosition: Vector3,
-    _nearSplit: number,
-    farSplit: number,
-  ) {
+  /**
+   * Computes the cascade's candidate fit on the scratch camera and reports
+   * whether the resulting shadow matrix differs from the one the map was
+   * last drawn with. Nothing on the cascade is touched: the caller applies
+   * the fit only together with the draw it belongs to.
+   *
+   * The fit reads only the player position, the accepted light direction,
+   * and per-cascade constants, and the light-space centre snaps to the
+   * texel grid — so rotation and sub-texel movement reproduce the previous
+   * matrix bit for bit, and the comparison can be exact.
+   */
+  private fitCascade(index: number, playerPosition: Vector3): boolean {
     const cascade = this.cascades[index];
     const { lightMargin } = this.config;
 
     this.frustumCenter.set(0, 0, 0);
 
-    const far = farSplit;
+    const far = cascade.split;
     const yScale = 0.3 + 0.7 * (index / (this.cascades.length - 1));
-
-    mainCamera.getWorldDirection(this.frustumCameraDir);
 
     let cornerIdx = 0;
     for (let x = -1; x <= 1; x += 2) {
@@ -437,14 +431,17 @@ export class CSMRenderer {
     radius = Math.ceil(radius * 16) / 16;
 
     this.frustumUp.set(0, 1, 0);
-    if (Math.abs(this.lightDirection.dot(this.frustumUp)) > 0.999) {
+    if (Math.abs(this.renderLightDirection.dot(this.frustumUp)) > 0.999) {
       this.frustumUp.set(0, 0, 1);
     }
 
     const shadowMapSize = cascade.renderTarget.width;
     const texelSize = (2 * radius) / shadowMapSize;
 
-    this.tempLookAtTarget.addVectors(this.frustumCenter, this.lightDirection);
+    this.tempLookAtTarget.addVectors(
+      this.frustumCenter,
+      this.renderLightDirection,
+    );
     this.lightViewMatrix.lookAt(
       this.tempLookAtTarget,
       this.frustumCenter,
@@ -465,23 +462,32 @@ export class CSMRenderer {
     const offset = radius + lightMargin;
     const casterDepth = Math.max(offset, this.config.shadowCasterDistance);
 
-    cascade.camera.position
+    const camera = this.fitCamera;
+    camera.position
       .copy(this.frustumCenter)
-      .addScaledVector(this.lightDirection, offset);
-    cascade.camera.lookAt(this.frustumCenter);
-    cascade.camera.up.copy(this.frustumUp);
-    cascade.camera.updateMatrixWorld();
+      .addScaledVector(this.renderLightDirection, offset);
+    camera.up.copy(this.frustumUp);
+    camera.lookAt(this.frustumCenter);
+    camera.updateMatrixWorld();
 
-    cascade.camera.left = -radius;
-    cascade.camera.right = radius;
-    cascade.camera.top = radius;
-    cascade.camera.bottom = -radius;
-    cascade.camera.near = 0.1;
-    cascade.camera.far = offset + casterDepth;
-    cascade.camera.updateProjectionMatrix();
+    camera.left = -radius;
+    camera.right = radius;
+    camera.top = radius;
+    camera.bottom = -radius;
+    camera.near = 0.1;
+    camera.far = offset + casterDepth;
+    camera.updateProjectionMatrix();
 
-    cascade.matrix.copy(cascade.camera.projectionMatrix);
-    cascade.matrix.multiply(cascade.camera.matrixWorldInverse);
+    this.fitMatrix.copy(camera.projectionMatrix);
+    this.fitMatrix.multiply(camera.matrixWorldInverse);
+
+    return !this.fitMatrix.equals(cascade.matrix);
+  }
+
+  private applyCascadeFit(index: number) {
+    const cascade = this.cascades[index];
+    cascade.camera.copy(this.fitCamera);
+    cascade.matrix.copy(this.fitMatrix);
   }
 
   addSkipShadowObject(object: Object3D) {
@@ -512,6 +518,23 @@ export class CSMRenderer {
     // and drain when the strength comes back.
     if (this.currentShadowStrength <= this.config.shadowStrengthRenderFloor) {
       return;
+    }
+
+    // Resolve suspect fits before any scene bookkeeping: rotation and
+    // sub-texel movement land on the exact matrix each map was already drawn
+    // with, and if nothing owes a draw the preamble (hiding skip-shadow
+    // casters, traversing entities) is not worth paying either.
+    for (let i = 0; i < this.cascades.length; i++) {
+      if (!this.cascadeGeometryStale[i]) {
+        continue;
+      }
+      this.cascadeGeometryStale[i] = false;
+      if (this.cascadeNeedsRender[i] || !this.lastMainCamera) {
+        continue;
+      }
+      if (this.fitCascade(i, this.lastCameraPosition)) {
+        this.cascadeNeedsRender[i] = true;
+      }
     }
 
     const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
@@ -594,16 +617,14 @@ export class CSMRenderer {
 
       const cascade = this.cascades[i];
 
-      // Frustum and matrix update land here, atomically with the map they
-      // describe — see the note in update().
+      // The fit lands here, atomically with the map it describes — a matrix
+      // that moves a frame ahead of its map flashes the whole cascade band.
+      // Recomputed rather than cached from the resolve pass above: the fit
+      // scratch holds one cascade at a time, and the computation is a few
+      // dozen vector operations against a full caster draw.
       if (this.lastMainCamera) {
-        this.updateCascadeFrustum(
-          i,
-          this.lastMainCamera,
-          this.lastCameraPosition,
-          i === 0 ? 0 : this.cascades[i - 1].split,
-          cascade.split,
-        );
+        this.fitCascade(i, this.lastCameraPosition);
+        this.applyCascadeFit(i);
       }
 
       this.cascadeMatrix

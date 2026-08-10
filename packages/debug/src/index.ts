@@ -24,6 +24,9 @@ export type { FpsMeterOptions } from "./fps-meter";
 export { FrameSampler } from "./frame-sampler";
 export type { FrameSamplerOptions } from "./frame-sampler";
 
+export { InputLagSampler } from "./input-lag-sampler";
+export type { InputLagSamplerOptions } from "./input-lag-sampler";
+
 export {
   DEFAULT_FRAME_THRESHOLDS,
   drawFrameGraph,

@@ -34,11 +34,37 @@ export type LightShinedOptions = {
    * The maximum brightness cap for the light effect. Defaults to `2.5`.
    */
   maxBrightness: number;
+  /**
+   * Frames between fresh light samples for a stationary object. Each sample
+   * pays a sun raycast, a water-column walk, and a local-light query, while
+   * the sampled color is only ever consumed through the per-frame
+   * `lerpFactor` smoothing — a filter whose settling time is already several
+   * frames long, so a stationary object cannot display the difference
+   * between "sampled every frame" and "sampled every few frames". Objects
+   * are phase-staggered so the samples spread across frames instead of
+   * bunching. Defaults to `4`.
+   */
+  sampleIntervalFrames: number;
+  /**
+   * Movement in blocks past which an object is resampled immediately
+   * instead of waiting out its interval: light data is voxel-grained, so a
+   * fast mover can cross into differently-lit voxels between scheduled
+   * samples. Defaults to `0.5`.
+   */
+  resampleDistance: number;
 };
 
 const defaultOptions: LightShinedOptions = {
   lerpFactor: 0.1,
   maxBrightness: 2.5,
+  sampleIntervalFrames: 4,
+  resampleDistance: 0.5,
+};
+
+type LightSample = {
+  color: Color;
+  position: Vector3;
+  phase: number;
 };
 
 /**
@@ -95,6 +121,12 @@ export class LightShined {
 
   private positionOverrides = new Map<Object3D, Vector3>();
 
+  private samples = new Map<Object3D, LightSample>();
+
+  private frameIndex = 0;
+
+  private nextSamplePhase = 0;
+
   private isFluidAt = (vx: number, vy: number, vz: number): boolean => {
     if (this.world.getVoxelWaterloggedAt(vx, vy, vz)) return true;
     const block = this.world.getBlockAt(vx, vy, vz);
@@ -133,6 +165,7 @@ export class LightShined {
    */
   remove = (obj: Object3D) => {
     this.list.delete(obj);
+    this.samples.delete(obj);
   };
 
   /**
@@ -142,6 +175,7 @@ export class LightShined {
    * This should be called in the render loop.
    */
   update = () => {
+    this.frameIndex++;
     this.list.forEach((obj) => {
       this.recursiveUpdate(obj);
     });
@@ -295,14 +329,45 @@ export class LightShined {
         obj.getWorldPosition(position);
       }
 
-      color = this.computeShaderBasedLight(position);
-
-      if (!color) return;
+      color = this.sampleLight(obj, position);
     }
 
     obj.traverse((child) => {
       this.updateObject(child, color);
     });
+  };
+
+  /** The cached target color for an object, refreshed on its stagger phase,
+   * on real movement, or on a material swap — never merely because another
+   * frame elapsed. The per-frame smoothing in updateObject is what consumers
+   * see; it keeps running against the cached target every frame. */
+  private sampleLight = (obj: Object3D, worldPosition: Vector3): Color => {
+    let sample = this.samples.get(obj);
+
+    if (!sample) {
+      sample = {
+        color: new Color(),
+        position: new Vector3(),
+        phase: this.nextSamplePhase++,
+      };
+      this.samples.set(obj, sample);
+      sample.color.copy(this.computeShaderBasedLight(worldPosition));
+      sample.position.copy(worldPosition);
+      return sample.color;
+    }
+
+    const interval = Math.max(1, this.options.sampleIntervalFrames);
+    const isDue = (this.frameIndex + sample.phase) % interval === 0;
+    const hasMoved =
+      sample.position.distanceToSquared(worldPosition) >
+      this.options.resampleDistance * this.options.resampleDistance;
+
+    if (isDue || hasMoved || obj.userData.justChanged === true) {
+      sample.color.copy(this.computeShaderBasedLight(worldPosition));
+      sample.position.copy(worldPosition);
+    }
+
+    return sample.color;
   };
 
   private computeShaderBasedLight(pos: Vector3): Color {
