@@ -489,6 +489,9 @@ pub fn compile(
         river_query_reach = river_query_reach.max(set.avoid_river_within);
     }
     if let Some(ecology) = &spec.ecology {
+        // Lane-world moisture divides river distance by this radius, so
+        // the field must answer at least that far.
+        river_query_reach = river_query_reach.max(ecology.lane_moisture_reach);
         for community in &ecology.communities {
             river_query_reach = river_query_reach.max(community.floor.riparian_band);
             if let Some(canopy) = &community.canopy {
