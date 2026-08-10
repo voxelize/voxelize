@@ -56,6 +56,24 @@ describe("Peers.collectShadowCasters", () => {
     expect(out.map((o) => o.name)).toEqual(["remote-b"]);
   });
 
+  it("skips every avatar when the peers group itself is hidden", () => {
+    // The documented way to hide multiplayer is toggling the Peers GROUP.
+    // The shadow passes reparent collected roots out of the group, so a
+    // group-hidden avatar must be filtered here — its own visible flag is
+    // still true.
+    const { peers, message } = makePeers();
+    const own = new Object3D();
+    peers.setOwnPeer(own);
+    message(join("remote-a"));
+    expect(peers.collectShadowCasters([])).toHaveLength(2);
+
+    peers.visible = false;
+    expect(peers.collectShadowCasters([])).toEqual([]);
+
+    peers.visible = true;
+    expect(peers.collectShadowCasters([])).toHaveLength(2);
+  });
+
   it("tracks join, leave, and reconnect churn the same frame", () => {
     const { peers, message } = makePeers();
     message(init("me"));

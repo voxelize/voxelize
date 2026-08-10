@@ -364,13 +364,27 @@ export class Peers<
    * @returns The same array, for chaining.
    */
   collectShadowCasters(out: Object3D[]): Object3D[] {
-    if (this.ownPeer && this.ownPeer.visible) {
+    if (this.ownPeer && Peers.isVisibleInGraph(this.ownPeer)) {
       out.push(this.ownPeer);
     }
     this.map.forEach((peer) => {
-      if (peer.visible) out.push(peer);
+      if (Peers.isVisibleInGraph(peer)) out.push(peer);
     });
     return out;
+  }
+
+  /**
+   * Effective scene-graph visibility, walking the ancestor chain: the
+   * shadow passes reparent collected roots into their own depth scenes, so
+   * an avatar hidden by an ancestor (for example this whole peers group,
+   * toggled off to hide multiplayer) must be filtered at collection time —
+   * its own `visible` flag alone cannot see that.
+   */
+  private static isVisibleInGraph(object: Object3D): boolean {
+    for (let node: Object3D | null = object; node; node = node.parent) {
+      if (!node.visible) return false;
+    }
+    return true;
   }
 
   /**
