@@ -229,7 +229,7 @@ impl CompiledEcology {
                 if moisture < community.moisture.0 || moisture > community.moisture.1 {
                     continue;
                 }
-                if !community.biomes.iter().any(|b| *b == biome) {
+                if !community.biomes.contains(&biome) {
                     continue;
                 }
                 eligible.push((index as u16, community.weight));

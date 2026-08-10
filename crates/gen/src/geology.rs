@@ -1244,7 +1244,7 @@ impl GeoModel {
             // makes pools read blue between bright riffles.
             if spec.riffle_amp > 0.0 {
                 let swing = self.value_fbm(
-                    mix64(self.meander_seed ^ 0x41ff_1e),
+                    mix64(self.meander_seed ^ 0x0041_ff1e),
                     x,
                     z,
                     spec.riffle_scale,
@@ -1563,7 +1563,7 @@ impl GeoModel {
             // landform terms so it cannot redraw coastlines.
             let broad = if self.spec.detail_broad_amp > 0.0 {
                 self.value_fbm(
-                    mix64(self.detail_seed ^ 0xb40a_d),
+                    mix64(self.detail_seed ^ 0x000b_40ad),
                     fx,
                     fz,
                     self.spec.detail_broad_scale,
