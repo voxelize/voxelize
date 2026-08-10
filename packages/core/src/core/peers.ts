@@ -349,6 +349,31 @@ export class Peers<
   getPeerById = (id: string) => this.map.get(id);
 
   /**
+   * Append every peer avatar render root that should cast dynamic shadows
+   * (the CSM entity pass and the local-light overlay tier) to `out`: the
+   * client's own avatar when visible (third person), then every remote
+   * peer's avatar. Pass the result to `World.renderShadowMaps` as part of
+   * the `entities` list — anything omitted from that list is treated as
+   * world geometry by the cached shadow passes, so a missing avatar both
+   * loses its live shadow and can be baked into a cached cell as a frozen
+   * stamp. Rebuild per frame into a caller-owned scratch array (zero
+   * allocation): the peers map is the live truth, so join, leave, and
+   * reconnect churn is picked up the same frame it happens.
+   *
+   * @param out The array to append render roots to (not cleared first).
+   * @returns The same array, for chaining.
+   */
+  collectShadowCasters(out: Object3D[]): Object3D[] {
+    if (this.ownPeer && this.ownPeer.visible) {
+      out.push(this.ownPeer);
+    }
+    this.map.forEach((peer) => {
+      if (peer.visible) out.push(peer);
+    });
+    return out;
+  }
+
+  /**
    * Update the peers manager. Internally, this attempts to call any children that has a `update` method.
    * You can turn this behavior off by setting `options.updateChildren` to `false`.
    *

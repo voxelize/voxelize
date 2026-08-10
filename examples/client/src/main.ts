@@ -536,12 +536,16 @@ inputs.bind("KeyR", toggleHeldLight);
 /* -------------------------------------------------------------------------- */
 
 // Local light shadows and CSM want the demo's dynamic casters each frame:
-// the player's own character plus every entity that exposes a caster object
-// (pigs and bots below). Scratch array, rebuilt in place.
+// the player's own character, every REMOTE player's avatar, and every
+// entity that exposes a caster object (pigs and bots below). Peer avatars
+// come from peers.collectShadowCasters — the peers map is the live truth,
+// so join/leave/reconnect churn is covered the same frame. Omitting an
+// avatar from this list would let the cached world passes bake it into a
+// frozen stamp and deny it a live shadow. Scratch array, rebuilt in place.
 const shadowCasters: THREE.Object3D[] = [];
 const collectShadowCasters = () => {
   shadowCasters.length = 0;
-  if (character.visible) shadowCasters.push(character);
+  peers.collectShadowCasters(shadowCasters);
   entities.map.forEach((entity) => {
     const caster = (entity as { shadowCaster?: THREE.Object3D }).shadowCaster;
     if (caster) shadowCasters.push(caster);
