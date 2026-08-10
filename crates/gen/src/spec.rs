@@ -18,16 +18,15 @@ use crate::climate::{
     compile_climate, BiomeBlend, BiomeGenParams, BiomeId, BiomeKey, BiomeSetSpec, CompiledClimate,
     CompiledDressing, CompiledPartition, MAX_AXES,
 };
-use crate::density::{CompiledDensity, DensitySpec};
-use crate::ecology::{CompiledEcology, EcologySpec};
-use crate::flora::{CompiledFlora, FloraSetSpec, SpeciesDef};
+use crate::density::CompiledDensity;
+use crate::ecology::CompiledEcology;
+use crate::flora::CompiledFlora;
+use crate::geology::{GeoGrid, GeoModel};
 use crate::hydro::{CompiledHydrology, HydrologySpec, VoidMaterial};
 use crate::lane::{CompiledLane, LaneGrid, TopologySpec};
-use crate::mosaic::{CompiledMosaic, MosaicSpec};
-use crate::rivers::{
-    CompiledWalkerRivers, RiverColumn, RiverPoint, RiverRouting, RiverSpec,
-};
-use crate::stream::{cell_id, fnv1a_64, hash_unit, mix64, stream_seed, SaltPath, Subsystem};
+use crate::mosaic::CompiledMosaic;
+use crate::rivers::CompiledRivers;
+use crate::stream::{cell_id, fnv1a_64, hash_unit, mix64, stream_seed, HashStream, SaltPath, Subsystem};
 use crate::structures::{
     CompiledStructures, GroundPatch, PieceDef, Pool, StructurePlan, StructureSetSpec, TerrainView,
 };
@@ -105,31 +104,36 @@ pub struct GeneratorSpec {
     pub content_version: Version,
     pub dimension: DimensionSpec,
     pub topology: TopologySpec,
-    /// The 3D density spine: bounded, mask-gated positive density around
-    /// the lane surface for restrained overhangs, arches, shelves, and
-    /// undercuts on either lane.
-    pub density: Option<DensitySpec>,
     pub climate: crate::climate::ClimateSpec,
     pub biomes: BiomeSetSpec,
     pub surface: SurfaceSpec,
-    /// Ground mosaic over the surface tables: moisture-graded grass
-    /// tones, substrate patches, strata-varied rock, talus, snowline.
-    pub mosaic: Option<MosaicSpec>,
     pub carvers: Vec<CarverSpec>,
     pub hydrology: HydrologySpec,
-    /// Rivers: walker-routed on heightfield lanes, drainage-solved on the
-    /// geology lane; both re-cut the built terrain in the river stage.
-    pub rivers: Option<RiverSpec>,
-    /// The community field: exclusive patch ownership, canopy mixes
-    /// rolled per stand, understory floors, ecotone edges.
-    pub ecology: Option<EcologySpec>,
-    /// Azonal flora sets (riparian galleries, lone landmarks) and the
-    /// species library both they and ecology canopies draw from.
-    pub flora: Vec<FloraSetSpec>,
-    pub species: Vec<SpeciesDef>,
     pub pieces: Vec<PieceDef>,
     pub pools: Vec<Pool>,
     pub structures: Vec<StructureSetSpec>,
+    /// The solved height backbone. When set it replaces the topology
+    /// lane as the terrain spine: plate graph, erosion tiles, drainage,
+    /// lakes. Rivers then come from flow accumulation, so `rivers` must
+    /// stay `None`.
+    pub geology: Option<crate::geology::GeologySpec>,
+    /// 3D density in the spine's surface band: strata shelving and
+    /// waterline notches. Requires `geology`.
+    pub density: Option<crate::density::DensitySpec>,
+    /// Walker-solved rivers for lane worlds (geology worlds derive
+    /// theirs from drainage instead).
+    pub rivers: Option<crate::rivers::RiverSpec>,
+    /// Azonal flora sets: riparian galleries, lone landmark trees.
+    /// Closed-canopy vegetation belongs to `ecology` communities.
+    pub flora: Vec<crate::flora::FloraSetSpec>,
+    pub species: Vec<crate::flora::SpeciesDef>,
+    /// The community field: exclusive patch ownership, canopy mixes
+    /// rolled per stand, understory floors, ecotone edges.
+    pub ecology: Option<crate::ecology::EcologySpec>,
+    /// Ground mosaic over the surface tables: grass tones, substrate
+    /// patches, strata, talus, ragged snowline. Requires `geology` (its
+    /// moisture and aspect terms read the solved model).
+    pub mosaic: Option<crate::mosaic::MosaicSpec>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -170,9 +174,6 @@ pub fn check_compat(recorded: &GeneratorIdentity, current: &GeneratorIdentity) -
 
 #[derive(Debug)]
 pub enum GenError {
-    /// A subsystem-specific validation failure: `path` names the spec
-    /// field, `reason` says what it needed.
-    Invalid { path: String, reason: String },
     EmptyGraph { path: String },
     GraphTooLarge { path: String, got: usize, max: usize },
     ForwardReference { path: String, node: usize, target: usize },
@@ -203,12 +204,15 @@ pub enum GenError {
     UnknownSet { key: String },
     HeightMismatch { spec: u32, config: u32 },
     UnsupportedFormatVersion { got: u32, supported: u32 },
+    /// Validation failures from the geology/density/rivers/ecology/
+    /// flora/mosaic compilers, which report precise messages of their
+    /// own.
+    Content { message: String },
 }
 
 impl fmt::Display for GenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            GenError::Invalid { path, reason } => write!(f, "{path}: {reason}"),
             GenError::EmptyGraph { path } => write!(f, "{path}: field graph has no nodes"),
             GenError::GraphTooLarge { path, got, max } => {
                 write!(f, "{path}: field graph has {got} nodes; the cap is {max}")
@@ -278,6 +282,7 @@ impl fmt::Display for GenError {
                 f,
                 "spec format version {got} unsupported (this build supports {supported})"
             ),
+            GenError::Content { message } => write!(f, "{message}"),
         }
     }
 }
@@ -288,18 +293,6 @@ struct BiomeRuntime {
     params: BiomeGenParams,
     surface_table: usize,
     dressing: Vec<CompiledDressing>,
-}
-
-pub(crate) struct CompiledRiverSystem {
-    pub routing: CompiledRiverRouting,
-    pub water: u32,
-    pub bed: u32,
-    pub bank: u32,
-}
-
-pub(crate) enum CompiledRiverRouting {
-    Walker(CompiledWalkerRivers),
-    Drainage,
 }
 
 pub struct CompiledGenerator {
@@ -319,17 +312,43 @@ pub struct CompiledGenerator {
     hydro: CompiledHydrology,
     carvers: CompiledCarvers,
     structures: CompiledStructures,
+    biomes: Vec<BiomeRuntime>,
+    geo: Option<Arc<GeoModel>>,
     density: Option<CompiledDensity>,
-    rivers: Option<CompiledRiverSystem>,
-    mosaic: Option<CompiledMosaic>,
+    rivers: Option<CompiledRivers>,
     ecology: Option<CompiledEcology>,
     flora: CompiledFlora,
-    /// Per-community floor palettes resolved to ids, indexed like the
-    /// ecology's communities.
+    mosaic: Option<CompiledMosaic>,
+    /// Per-community understory palettes resolved to block ids, indexed
+    /// like the ecology's communities.
     floor_palettes: Vec<Vec<(u32, f64)>>,
     floor_seed: u64,
-    biomes: Vec<BiomeRuntime>,
     spec_json: String,
+}
+
+/// One prefetched terrain grid per chunk, from whichever spine the world
+/// runs on.
+pub(crate) enum TerrainGrid {
+    Lane(LaneGrid),
+    Geo(GeoGrid),
+}
+
+impl TerrainGrid {
+    #[inline]
+    pub(crate) fn surface_raw(&self, x: i32, z: i32) -> i32 {
+        match self {
+            TerrainGrid::Lane(grid) => grid.surface_raw(x, z),
+            TerrainGrid::Geo(grid) => grid.surface_raw(x, z),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn steepness(&self, x: i32, z: i32) -> f64 {
+        match self {
+            TerrainGrid::Lane(grid) => grid.steepness(x, z),
+            TerrainGrid::Geo(grid) => grid.steepness(x, z),
+        }
+    }
 }
 
 pub fn compile(
@@ -390,20 +409,9 @@ pub fn compile(
         &mut used_salts,
     )?;
 
-    // Hydrology precedes the lane: the geology lane anchors its solve on
-    // the global sea level.
-    let hydro = CompiledHydrology::compile(
-        &spec.hydrology,
-        &resolve_block,
-        world_seed,
-        dimension,
-        &mut used_salts,
-    )?;
-
     let lane = CompiledLane::compile(
         &spec.topology,
         spec.dimension.height,
-        hydro.sea_level(),
         world_seed,
         dimension,
         &mut used_salts,
@@ -443,6 +451,13 @@ pub fn compile(
         });
     }
 
+    let hydro = CompiledHydrology::compile(
+        &spec.hydrology,
+        &resolve_block,
+        world_seed,
+        dimension,
+        &mut used_salts,
+    )?;
     let carvers = CompiledCarvers::compile(&spec.carvers, world_seed, dimension, &mut used_salts)?;
     let structures = CompiledStructures::compile(
         &spec.pieces,
@@ -455,81 +470,74 @@ pub fn compile(
         &mut used_salts,
     )?;
 
-    let density = match &spec.density {
-        Some(density) => Some(CompiledDensity::compile(
-            density,
-            world_seed,
-            dimension,
-            &mut used_salts,
-        )?),
+    let content = |message: String| GenError::Content { message };
+
+    let geo = match &spec.geology {
+        Some(geology) => Some(Arc::new(
+            GeoModel::compile(geology, world_seed, dimension).map_err(content)?,
+        )),
         None => None,
     };
-
-    let rivers = match &spec.rivers {
-        Some(rivers) => {
-            let routing = match (&rivers.routing, lane.geo().is_some()) {
-                (RiverRouting::Walker(walker), false) => {
-                    CompiledRiverRouting::Walker(CompiledWalkerRivers::compile(
-                        walker,
-                        hydro.sea_level(),
-                        world_seed,
-                        dimension,
-                        &mut used_salts,
-                    )?)
-                }
-                (RiverRouting::Drainage, true) => CompiledRiverRouting::Drainage,
-                (RiverRouting::Walker(_), true) => {
-                    return Err(GenError::Invalid {
-                        path: "rivers.routing".to_string(),
-                        reason: "walker rivers route on heightfield lanes; the geology lane \
-                                 solves its own drainage (use RiverRouting::Drainage)"
-                            .to_string(),
-                    })
-                }
-                (RiverRouting::Drainage, false) => {
-                    return Err(GenError::Invalid {
-                        path: "rivers.routing".to_string(),
-                        reason: "drainage rivers need the geology lane".to_string(),
-                    })
-                }
-            };
-            Some(CompiledRiverSystem {
-                routing,
-                water: resolve_block(rivers.materials.water)?,
-                bed: resolve_block(rivers.materials.bed)?,
-                bank: resolve_block(rivers.materials.bank)?,
-            })
+    let density = match (&spec.density, &geo) {
+        (Some(density), Some(_)) => Some(
+            CompiledDensity::compile(density, world_seed, dimension).map_err(content)?,
+        ),
+        (Some(_), None) => {
+            return Err(content(
+                "spec.density requires spec.geology: the density band hangs off the solved spine"
+                    .to_string(),
+            ))
         }
-        None => None,
+        _ => None,
     };
-
-    let mosaic = match &spec.mosaic {
-        Some(mosaic) => Some(CompiledMosaic::compile(
-            mosaic,
-            registry,
-            world_seed,
-            dimension,
-            &mut used_salts,
-        )?),
-        None => None,
+    let rivers = match (&spec.rivers, &geo) {
+        (Some(rivers), None) => Some(
+            CompiledRivers::compile(rivers, hydro.sea_level(), world_seed, dimension)
+                .map_err(content)?,
+        ),
+        (Some(_), Some(_)) => {
+            return Err(content(
+                "spec.rivers must be None on geology worlds: rivers come from the solved drainage"
+                    .to_string(),
+            ))
+        }
+        _ => None,
     };
-
     let ecology = match &spec.ecology {
-        Some(ecology) => Some(CompiledEcology::compile(
-            ecology,
-            world_seed,
-            dimension,
-            &mut used_salts,
-        )?),
+        Some(ecology) => Some(
+            CompiledEcology::compile(ecology, world_seed, dimension).map_err(content)?,
+        ),
         None => None,
     };
+    let flora = CompiledFlora::compile(
+        &spec.flora,
+        &spec.species,
+        ecology.as_ref(),
+        registry,
+        world_seed,
+        dimension,
+    )
+    .map_err(content)?;
+    let mosaic = match (&spec.mosaic, &geo) {
+        (Some(mosaic), Some(_)) => Some(
+            CompiledMosaic::compile(mosaic, registry, world_seed, dimension).map_err(content)?,
+        ),
+        (Some(_), None) => {
+            return Err(content(
+                "spec.mosaic requires spec.geology: its moisture and aspect terms read the solved model"
+                    .to_string(),
+            ))
+        }
+        _ => None,
+    };
+
     let mut floor_palettes = Vec::new();
     let mut floor_seed = 0u64;
     if let Some(ecology_spec) = &spec.ecology {
         floor_seed = stream_seed(
             world_seed,
             dimension,
-            Subsystem::Ecology,
+            Subsystem::Structures,
             &ecology_spec.salt,
             4,
         );
@@ -541,15 +549,6 @@ pub fn compile(
             floor_palettes.push(palette);
         }
     }
-    let flora = CompiledFlora::compile(
-        &spec.flora,
-        &spec.species,
-        ecology.as_ref(),
-        registry,
-        world_seed,
-        dimension,
-        &mut used_salts,
-    )?;
 
     let spec_json = canonical_json(spec);
     let spec_hash = fnv1a_64(spec_json.as_bytes());
@@ -589,14 +588,15 @@ pub fn compile(
         hydro,
         carvers,
         structures,
+        biomes,
+        geo,
         density,
         rivers,
-        mosaic,
         ecology,
         flora,
+        mosaic,
         floor_palettes,
         floor_seed,
-        biomes,
         spec_json,
     }))
 }
@@ -643,21 +643,114 @@ impl CompiledGenerator {
         self.climate.axis_keys.iter().map(|k| k.0).collect()
     }
 
+    /// Raw spine height: the geology's fused surface when the world has
+    /// a solved backbone, the topology lane's otherwise. Every consumer
+    /// — structures, stages, debug, rivers, flora — sees one terrain.
     pub fn surface_raw(&self, x: i32, z: i32) -> i32 {
-        self.lane.surface_raw(x, z)
+        match &self.geo {
+            Some(geo) => geo.surface(x, z),
+            None => self.lane.surface_raw(x, z),
+        }
     }
 
     pub fn steepness(&self, x: i32, z: i32) -> f64 {
-        self.lane.steepness(x, z)
+        match &self.geo {
+            Some(geo) => geo.steepness(x, z),
+            None => self.lane.steepness(x, z),
+        }
     }
 
-    pub(crate) fn lane_grid(&self, min: (i32, i32), max: (i32, i32)) -> LaneGrid {
-        self.lane.grid(min, max)
+    pub(crate) fn terrain_grid(&self, min: (i32, i32), max: (i32, i32)) -> TerrainGrid {
+        match &self.geo {
+            Some(geo) => TerrainGrid::Geo(geo.grid(min, max)),
+            None => TerrainGrid::Lane(self.lane.grid(min, max)),
+        }
     }
 
-    /// Lane height adjusted by structure ground patches in reach.
+    /// Spine height adjusted by structure ground patches in reach.
     pub fn surface_adapted(&self, x: i32, z: i32, patches: &[GroundPatch]) -> i32 {
-        self.adapt_surface(self.lane.surface_raw(x, z), x, z, patches)
+        self.adapt_surface(self.surface_raw(x, z), x, z, patches)
+    }
+
+    /// The solved geology backbone, when this world runs on one.
+    pub fn geo(&self) -> Option<&Arc<GeoModel>> {
+        self.geo.as_ref()
+    }
+
+    pub fn density(&self) -> Option<&CompiledDensity> {
+        self.density.as_ref()
+    }
+
+    /// The 2D density prep for one column: engage gates from slope, the
+    /// waterline from sea, solved lakes, and river reaches. Inert when
+    /// the world has no density spec.
+    pub fn density_column(
+        &self,
+        x: i32,
+        z: i32,
+        steepness: f64,
+    ) -> crate::density::DensityColumn {
+        let Some(density) = &self.density else {
+            return crate::density::DensityColumn::inert();
+        };
+        let mut waterline = self
+            .hydro
+            .sea_level()
+            .map(|sea| sea as f64)
+            .unwrap_or(f64::NEG_INFINITY);
+        if let Some(geo) = &self.geo {
+            if let Some(lake) = geo.lake_level(x, z) {
+                waterline = waterline.max(lake);
+            }
+            let reach = density.notch_river_reach();
+            if reach > 0.0 {
+                if let Some(point) = geo.channel_within(x, z, reach) {
+                    waterline = waterline.max(point.water_y);
+                }
+            }
+        }
+        density.column(steepness, waterline)
+    }
+
+    pub fn ecology(&self) -> Option<&CompiledEcology> {
+        self.ecology.as_ref()
+    }
+
+    pub fn flora(&self) -> &CompiledFlora {
+        &self.flora
+    }
+
+    pub fn mosaic(&self) -> Option<&CompiledMosaic> {
+        self.mosaic.as_ref()
+    }
+
+    /// Walker rivers on lane worlds; `None` on geology worlds, whose
+    /// rivers are the solved drainage (ask the geo model).
+    pub fn walker_rivers(&self) -> Option<&CompiledRivers> {
+        self.rivers.as_ref()
+    }
+
+    pub fn flora_floor_seed(&self) -> u64 {
+        self.floor_seed
+    }
+
+    /// Weighted understory pick for one community, 0 when it has none.
+    pub fn floor_plant(&self, community: usize, stream: &mut HashStream) -> u32 {
+        let Some(palette) = self.floor_palettes.get(community) else {
+            return 0;
+        };
+        if palette.is_empty() {
+            return 0;
+        }
+        let total: f64 = palette.iter().map(|(_, weight)| weight).sum();
+        let mut roll = stream.unit() * total;
+        for (block, weight) in palette {
+            roll -= weight;
+            if roll <= 0.0 {
+                return *block;
+            }
+        }
+        palette.last().map(|(block, _)| *block).unwrap_or(0)
     }
 
     pub(crate) fn adapt_surface(
@@ -797,8 +890,8 @@ impl CompiledGenerator {
         &self,
         x: i32,
         z: i32,
+        surface: i32,
         steepness: f64,
-        is_under_fluid: bool,
     ) -> SurfaceColumnCtx {
         let mut patch_values = SmallVec::new();
         for program in &self.surface.patch_programs {
@@ -806,29 +899,12 @@ impl CompiledGenerator {
         }
         SurfaceColumnCtx {
             steepness,
-            is_under_fluid,
+            is_under_fluid: self
+                .hydro
+                .sea_level()
+                .map(|sea| surface < sea)
+                .unwrap_or(false),
             patch_values,
-        }
-    }
-
-    pub(crate) fn sea_fluid(&self) -> Option<u32> {
-        self.hydro.sea.map(|(_, fluid)| fluid)
-    }
-
-    pub(crate) fn has_flora(&self) -> bool {
-        !self.flora.is_empty() || self.ecology.is_some()
-    }
-
-    /// The ground a column actually offers: the lane surface, lowered or
-    /// raised by the 3D density band where one is configured. Flora and
-    /// probes root here.
-    pub fn ground_at(&self, x: i32, z: i32) -> i32 {
-        let surface = self.lane.surface_raw(x, z);
-        match &self.density {
-            Some(density) => {
-                density.top_solid_at(x, z, surface, density.mask_at(x, z), self.sea_level())
-            }
-            None => surface,
         }
     }
 
@@ -839,153 +915,19 @@ impl CompiledGenerator {
     pub(crate) fn surface_max_depth(&self) -> u16 {
         self.surface.max_depth
     }
-
-    pub fn density(&self) -> Option<&CompiledDensity> {
-        self.density.as_ref()
-    }
-
-    pub fn mosaic(&self) -> Option<&CompiledMosaic> {
-        self.mosaic.as_ref()
-    }
-
-    pub fn ecology(&self) -> Option<&CompiledEcology> {
-        self.ecology.as_ref()
-    }
-
-    pub fn flora(&self) -> &CompiledFlora {
-        &self.flora
-    }
-
-    pub(crate) fn river_system(&self) -> Option<&CompiledRiverSystem> {
-        self.rivers.as_ref()
-    }
-
-    /// Deterministic digest of one solved geology tile, for provenance
-    /// logs and determinism tests; `None` on heightfield lanes.
-    pub fn geology_tile_digest(&self, tile_x: i64, tile_z: i64) -> Option<u64> {
-        self.lane.geo().map(|geo| geo.tile_digest(tile_x, tile_z))
-    }
-
-    /// Nearest river channel sample within the carve reach, whichever
-    /// routing this world runs.
-    pub fn river_sample(&self, x: i32, z: i32) -> Option<RiverPoint> {
-        match &self.rivers.as_ref()?.routing {
-            CompiledRiverRouting::Walker(walker) => {
-                walker.sample(x, z, &|ix, iz| self.lane.surface_raw(ix, iz) as f64)
-            }
-            CompiledRiverRouting::Drainage => self
-                .lane
-                .geo()
-                .expect("drainage routing is validated against the geology lane")
-                .river_sample(x, z),
-        }
-    }
-
-    /// Classify one column against the nearest channel sample.
-    pub fn river_column(&self, point: &RiverPoint) -> RiverColumn {
-        match &self.rivers {
-            Some(system) => match &system.routing {
-                CompiledRiverRouting::Walker(walker) => walker.column(point),
-                CompiledRiverRouting::Drainage => self
-                    .lane
-                    .geo()
-                    .expect("drainage routing is validated against the geology lane")
-                    .river_column(point),
-            },
-            None => RiverColumn::Outside,
-        }
-    }
-
-    /// Distance in blocks to the nearest channel line, `f64::MAX` when no
-    /// river reaches the column (or the world has none).
-    pub fn river_distance(&self, x: i32, z: i32) -> f64 {
-        self.river_sample(x, z)
-            .map(|point| point.dist)
-            .unwrap_or(f64::MAX)
-    }
-
-    /// Solved lake surface at this column (geology lane only): tarns,
-    /// valley ponds, rift floors. Contested seam basins answer dry.
-    pub fn lake_level(&self, x: i32, z: i32) -> Option<f64> {
-        self.lane.geo().and_then(|geo| geo.lake_level(x, z))
-    }
-
-    /// Moisture 0..1: the geology lane folds channel proximity, drainage
-    /// flow, and elevation; heightfield lanes read river proximity over
-    /// the ecology's declared reach; a world with neither answers 0.5.
-    pub fn moisture_at(&self, x: i32, z: i32) -> f64 {
-        if let Some(geo) = self.lane.geo() {
-            return geo.moisture(x, z);
-        }
-        let reach = self
-            .ecology
-            .as_ref()
-            .map(|ecology| ecology.spec().lane_moisture_reach)
-            .unwrap_or(0.0);
-        if reach <= 0.0 || self.rivers.is_none() {
-            return 0.5;
-        }
-        let dist = self.river_distance(x, z);
-        if dist == f64::MAX {
-            return 0.0;
-        }
-        (1.0 - dist / reach).clamp(0.0, 1.0)
-    }
-
-    /// Normalized downslope direction, (0, 0) on flats: the aspect input
-    /// for snow scour and substrate mosaics.
-    pub fn aspect_at(&self, x: i32, z: i32) -> (f64, f64) {
-        if let Some(geo) = self.lane.geo() {
-            return geo.aspect(x, z);
-        }
-        let probe = 2.0;
-        let hx = self.lane.surface_raw_f(x + 2, z) - self.lane.surface_raw_f(x - 2, z);
-        let hz = self.lane.surface_raw_f(x, z + 2) - self.lane.surface_raw_f(x, z - 2);
-        let gx = hx / (2.0 * probe);
-        let gz = hz / (2.0 * probe);
-        let g = (gx * gx + gz * gz).sqrt();
-        if g < 1e-9 {
-            (0.0, 0.0)
-        } else {
-            (-gx / g, -gz / g)
-        }
-    }
-
-    pub(crate) fn floor_seed(&self) -> u64 {
-        self.floor_seed
-    }
-
-    /// Weighted floor-plant pick for one community, 0 when it has none.
-    pub(crate) fn floor_plant(&self, community: usize, stream: &mut crate::stream::HashStream) -> u32 {
-        let Some(palette) = self.floor_palettes.get(community) else {
-            return 0;
-        };
-        if palette.is_empty() {
-            return 0;
-        }
-        let total: f64 = palette.iter().map(|(_, weight)| weight).sum();
-        let mut roll = stream.unit() * total;
-        for (block, weight) in palette {
-            roll -= weight;
-            if roll <= 0.0 {
-                return *block;
-            }
-        }
-        palette.last().map(|(block, _)| *block).unwrap_or(0)
-    }
 }
 
 impl TerrainView for CompiledGenerator {
     fn surface_raw(&self, x: i32, z: i32) -> i32 {
-        self.lane.surface_raw(x, z)
+        CompiledGenerator::surface_raw(self, x, z)
     }
 
     fn steepness(&self, x: i32, z: i32) -> f64 {
-        self.lane.steepness(x, z)
+        CompiledGenerator::steepness(self, x, z)
     }
 
     fn biome_has_tag(&self, x: i32, z: i32, tag: &str) -> bool {
-        let surface = self.lane.surface_raw(x, z);
+        let surface = CompiledGenerator::surface_raw(self, x, z);
         let blend = self.blend_at(x, z, surface);
         self.biomes[blend.primary.0 as usize]
             .params

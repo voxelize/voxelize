@@ -8,10 +8,7 @@
 
 use serde::Serialize;
 use voxelize::Registry;
-
-use crate::noise::{Fractal, NoiseKind};
-use crate::spec::GenError;
-use crate::stream::{stream_seed, SaltPath, Subsystem};
+use crate::{stream_seed, Fractal, NoiseKind, SaltPath, Subsystem};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MosaicSpec {
@@ -24,12 +21,8 @@ pub struct MosaicSpec {
     /// tone borders wander instead of tracing contour lines.
     pub tone_dither: f64,
     pub tone_scale: f64,
-    /// The table block the tone grading replaces (the biome's grass).
-    pub grass_block: &'static str,
     pub dry_block: &'static str,
     pub lush_block: &'static str,
-    /// The table block strata banding replaces (the biome's stone).
-    pub stone_block: &'static str,
     /// Clustered substrate exposures, checked in order over soft ground.
     pub patches: Vec<SubstratePatch>,
     /// Rock-family variation on exposed stone.
@@ -171,31 +164,17 @@ impl CompiledMosaic {
         registry: &Registry,
         world_seed: u32,
         dimension: &str,
-        used_salts: &mut hashbrown::HashSet<&'static str>,
-    ) -> Result<Self, GenError> {
-        crate::spec::claim_salt(&spec.salt, used_salts)?;
+    ) -> Result<Self, String> {
         if spec.tone_dry_below > spec.tone_lush_above {
-            return Err(GenError::Invalid {
-                path: "mosaic.tone".to_string(),
-                reason: "tone_dry_below must be <= tone_lush_above".to_string(),
-            });
+            return Err("mosaic: tone_dry_below must be <= tone_lush_above".to_string());
         }
         let seed = stream_seed(world_seed, dimension, Subsystem::Fields, &spec.salt, 3);
-        let block_id = |name: &'static str| -> Result<u32, GenError> {
-            registry
-                .try_get_id_by_name(name)
-                .ok_or_else(|| GenError::UnknownBlock {
-                    name: name.to_string(),
-                })
-        };
+        let block_id = |name: &'static str| registry.get_block_by_name(name).id;
 
         let mut patches = Vec::new();
         for (index, patch) in spec.patches.iter().enumerate() {
             if patch.scale < 4.0 {
-                return Err(GenError::Invalid {
-                    path: format!("mosaic.patch.{}", patch.block),
-                    reason: "scale must be >= 4".to_string(),
-                });
+                return Err(format!("mosaic patch {}: scale must be >= 4", patch.block));
             }
             patches.push(CompiledPatch {
                 field: Fractal::new(
@@ -206,7 +185,7 @@ impl CompiledMosaic {
                     2.0,
                     NoiseKind::Fbm,
                 ),
-                block: block_id(patch.block)?,
+                block: block_id(patch.block),
                 threshold: patch.threshold,
                 slope: patch.slope,
                 moisture: patch.moisture,
@@ -216,17 +195,10 @@ impl CompiledMosaic {
         let strata = match &spec.strata {
             Some(strata) => {
                 if strata.blocks.is_empty() || strata.spacing < 2.0 {
-                    return Err(GenError::Invalid {
-                        path: "mosaic.strata".to_string(),
-                        reason: "needs blocks and spacing >= 2".to_string(),
-                    });
-                }
-                let mut blocks = Vec::new();
-                for name in &strata.blocks {
-                    blocks.push(block_id(name)?);
+                    return Err("mosaic strata: needs blocks and spacing >= 2".to_string());
                 }
                 Some(CompiledStrata {
-                    blocks,
+                    blocks: strata.blocks.iter().map(|b| block_id(b)).collect(),
                     spacing: strata.spacing,
                     warp: Fractal::new(
                         seed ^ 0x57,
@@ -242,23 +214,17 @@ impl CompiledMosaic {
             None => None,
         };
 
-        let talus = match &spec.talus {
-            Some(talus) => Some(CompiledTalus {
-                block: block_id(talus.block)?,
-                probe: talus.probe.max(1),
-                min_face_rise: talus.min_face_rise,
-                slope: talus.slope,
-            }),
-            None => None,
-        };
+        let talus = spec.talus.as_ref().map(|talus| CompiledTalus {
+            block: block_id(talus.block),
+            probe: talus.probe.max(1),
+            min_face_rise: talus.min_face_rise,
+            slope: talus.slope,
+        });
 
         let snow = match &spec.snow {
             Some(snow) => {
                 if snow.band <= 0.0 {
-                    return Err(GenError::Invalid {
-                        path: "mosaic.snow.band".to_string(),
-                        reason: "must be > 0".to_string(),
-                    });
+                    return Err("mosaic snow: band must be > 0".to_string());
                 }
                 Some(CompiledSnow {
                     line: snow.line,
@@ -274,8 +240,8 @@ impl CompiledMosaic {
                     ),
                     noise_amp: snow.noise_amp,
                     scour_slope: snow.scour_slope,
-                    snow_id: block_id(snow.snow_block)?,
-                    rock_id: block_id(snow.rock_block)?,
+                    snow_id: block_id(snow.snow_block),
+                    rock_id: block_id(snow.rock_block),
                 })
             }
             None => None,
@@ -293,10 +259,10 @@ impl CompiledMosaic {
             tone_dry_below: spec.tone_dry_below,
             tone_lush_above: spec.tone_lush_above,
             tone_dither: spec.tone_dither,
-            dry_id: block_id(spec.dry_block)?,
-            lush_id: block_id(spec.lush_block)?,
-            grass_id: block_id(spec.grass_block)?,
-            stone_id: block_id(spec.stone_block)?,
+            dry_id: block_id(spec.dry_block),
+            lush_id: block_id(spec.lush_block),
+            grass_id: block_id("Grass Block"),
+            stone_id: block_id("Stone"),
             patches,
             strata,
             talus,

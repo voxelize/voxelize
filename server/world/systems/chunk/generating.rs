@@ -361,7 +361,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         let mut ready_chunks = vec![];
-        let mut waiting_chunks = vec![];
+        // Chunks whose light-traversal neighborhood is not created yet
+        // cannot register a status listener (there is no chunk entry to
+        // listen to), so they must go back on the queue — dropping them
+        // here strands them in `Meshing` forever and the requesting
+        // client never receives them. Collected outside the drain loop
+        // so a retry cannot spin within one tick.
+        let mut retry_chunks = vec![];
 
         while !mesher.queue.is_empty() {
             let coords = mesher.get().unwrap();
@@ -373,15 +379,12 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .enumerate()
             {
                 if !chunks.map.contains_key(&n_coords) {
-                    // A light-traversal neighbor nobody ever requested:
-                    // without queueing it, nothing will ever create it, no
-                    // listener can fire, and this chunk would sit in
-                    // `Meshing` forever. Generate the neighbor and retry
-                    // this chunk on a later dispatch.
+                    // Out-of-world neighbors can never exist, and a chunk
+                    // already in the pipeline must not be enqueued twice.
                     if chunks.is_within_world(&n_coords) && !pipeline.has_chunk(&n_coords) {
                         pipeline.add_chunk(&n_coords, false);
                     }
-                    waiting_chunks.push(coords.to_owned());
+                    retry_chunks.push(coords.clone());
                     ready = false;
                     break;
                 }
@@ -429,9 +432,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             ready_chunks.push((coords, chunk));
         }
 
-        // Chunks popped over a missing neighbor go back in the queue: the
-        // drain must never silently drop a chunk that is still `Meshing`.
-        for coords in waiting_chunks {
+        for coords in retry_chunks {
             mesher.add_chunk(&coords, false);
         }
 

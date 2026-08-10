@@ -18,9 +18,7 @@
 
 use hashbrown::HashMap;
 use serde::Serialize;
-
-use crate::spec::GenError;
-use crate::stream::{cell_id, hash_unit, mix64, stream_seed, HashStream, SaltPath, Subsystem};
+use crate::{cell_id, mix64, stream_seed, HashStream, SaltPath, Subsystem};
 
 /// The ecology field and its communities for one world.
 #[derive(Debug, Clone, Serialize)]
@@ -132,50 +130,55 @@ impl CompiledEcology {
         spec: &EcologySpec,
         world_seed: u32,
         dimension: &str,
-        used_salts: &mut hashbrown::HashSet<&'static str>,
-    ) -> Result<Self, GenError> {
-        crate::spec::claim_salt(&spec.salt, used_salts)?;
-        let invalid = |path: String, reason: String| GenError::Invalid { path, reason };
+    ) -> Result<Self, String> {
         if spec.cell < 16.0 {
-            return Err(invalid(
-                "ecology.cell".to_string(),
-                format!("must be >= 16 blocks, got {}", spec.cell),
+            return Err(format!(
+                "ecology.cell must be >= 16 blocks, got {}",
+                spec.cell
             ));
         }
         if !(0.0..=0.5).contains(&spec.ecotone) {
-            return Err(invalid(
-                "ecology.ecotone".to_string(),
-                "must be within 0..=0.5".to_string(),
-            ));
+            return Err("ecology.ecotone must be within 0..=0.5".to_string());
         }
         if spec.communities.is_empty() {
-            return Err(invalid(
-                "ecology.communities".to_string(),
-                "needs at least one community".to_string(),
-            ));
+            return Err("ecology needs at least one community".to_string());
         }
         for community in &spec.communities {
-            let path = |what: &str| format!("ecology.community.{}.{what}", community.key);
             if community.weight <= 0.0 {
-                return Err(invalid(path("weight"), "must be > 0".to_string()));
+                return Err(format!(
+                    "community {}: weight must be > 0",
+                    community.key
+                ));
             }
             if let Some(canopy) = &community.canopy {
                 if canopy.points.0 == 0 || canopy.points.1 < canopy.points.0 {
-                    return Err(invalid(path("canopy.points"), "must be 1..=max".to_string()));
+                    return Err(format!(
+                        "community {}: canopy points must be 1..=max",
+                        community.key
+                    ));
                 }
                 if !(0.0..=1.0).contains(&canopy.cohesion) {
-                    return Err(invalid(path("canopy.cohesion"), "must be 0..=1".to_string()));
+                    return Err(format!(
+                        "community {}: cohesion must be 0..=1",
+                        community.key
+                    ));
                 }
                 if !(0.0..=0.5).contains(&canopy.age_spread) {
-                    return Err(invalid(path("canopy.age_spread"), "must be 0..=0.5".to_string()));
+                    return Err(format!(
+                        "community {}: age_spread must be 0..=0.5",
+                        community.key
+                    ));
                 }
             }
             let floor = &community.floor;
             if !(0.0..=1.0).contains(&floor.density) {
-                return Err(invalid(path("floor.density"), "must be 0..=1".to_string()));
+                return Err(format!(
+                    "community {}: floor density must be 0..=1",
+                    community.key
+                ));
             }
         }
-        let seed = stream_seed(world_seed, dimension, Subsystem::Ecology, &spec.salt, 1);
+        let seed = stream_seed(world_seed, dimension, Subsystem::Structures, &spec.salt, 1);
         Ok(Self {
             spec: spec.clone(),
             seed,
@@ -229,7 +232,7 @@ impl CompiledEcology {
                 if moisture < community.moisture.0 || moisture > community.moisture.1 {
                     continue;
                 }
-                if !community.biomes.contains(&biome) {
+                if !community.biomes.iter().any(|b| *b == biome) {
                     continue;
                 }
                 eligible.push((index as u16, community.weight));
@@ -326,4 +329,9 @@ impl CompiledEcology {
         out.push(("open", counts[self.spec.communities.len()]));
         out
     }
+}
+
+#[inline]
+fn hash_unit(hash: u64) -> f64 {
+    (hash >> 11) as f64 / (1u64 << 53) as f64
 }

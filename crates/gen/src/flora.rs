@@ -8,11 +8,9 @@
 
 use serde::Serialize;
 use voxelize::Registry;
+use crate::{cell_id, mix64, stream_seed, Fractal, HashStream, NoiseKind, SaltPath, Subsystem};
 
 use crate::ecology::{CanopySpec, CellCache, CompiledEcology, Env};
-use crate::noise::{Fractal, NoiseKind};
-use crate::spec::GenError;
-use crate::stream::{cell_id, mix64, stream_seed, HashStream, SaltPath, Subsystem};
 
 const CLUSTER_MAX_POINTS: i64 = 8;
 
@@ -116,36 +114,31 @@ impl CompiledFlora {
         registry: &Registry,
         world_seed: u32,
         dimension: &str,
-        used_salts: &mut hashbrown::HashSet<&'static str>,
-    ) -> Result<Self, GenError> {
-        let resolve_block = |name: &'static str| -> Result<u32, GenError> {
-            registry
-                .try_get_id_by_name(name)
-                .ok_or_else(|| GenError::UnknownBlock {
-                    name: name.to_string(),
-                })
-        };
+    ) -> Result<Self, String> {
         let mut compiled_species = Vec::new();
         for def in species {
+            let log = registry
+                .get_block_by_name(def.log)
+                .id;
+            let leaves = registry
+                .get_block_by_name(def.leaves)
+                .id;
             compiled_species.push(CompiledSpecies {
-                log: resolve_block(def.log)?,
-                leaves: resolve_block(def.leaves)?,
+                log,
+                leaves,
                 form: def.form,
             });
         }
 
         let resolve_mix = |context: &str,
                            mix: &[(&'static str, f64)]|
-         -> Result<Vec<(usize, f64)>, GenError> {
+         -> Result<Vec<(usize, f64)>, String> {
             let mut indices = Vec::new();
             for (key, weight) in mix {
                 let index = species
                     .iter()
                     .position(|def| def.key == *key)
-                    .ok_or_else(|| GenError::Invalid {
-                        path: context.to_string(),
-                        reason: format!("unknown species {key}"),
-                    })?;
+                    .ok_or_else(|| format!("{context}: unknown species {key}"))?;
                 indices.push((index, *weight));
             }
             Ok(indices)
@@ -157,13 +150,9 @@ impl CompiledFlora {
                 || set.points.1 < set.points.0
                 || (set.points.1 as i64) > CLUSTER_MAX_POINTS
             {
-                return Err(GenError::Invalid {
-                    path: format!("flora.{}.points", set.key),
-                    reason: "must be 1..=8".to_string(),
-                });
+                return Err(format!("flora set {}: points must be 1..=8", set.key));
             }
-            crate::spec::claim_salt(&set.salt, used_salts)?;
-            let seed = stream_seed(world_seed, dimension, Subsystem::Ecology, &set.salt, 0);
+            let seed = stream_seed(world_seed, dimension, Subsystem::Structures, &set.salt, 0);
             let gate = if set.gate_frequency > 0.0 {
                 Some(Fractal::new(
                     seed ^ 0x6F,
@@ -195,19 +184,17 @@ impl CompiledFlora {
                     || canopy.points.1 < canopy.points.0
                     || (canopy.points.1 as i64) > CLUSTER_MAX_POINTS
                 {
-                    return Err(GenError::Invalid {
-                        path: format!("ecology.community.{}.canopy.points", community.key),
-                        reason: "must be 1..=8".to_string(),
-                    });
+                    return Err(format!(
+                        "community {}: canopy points must be 1..=8",
+                        community.key
+                    ));
                 }
-                // Canopy streams branch off the ecology salt by community
-                // slot, so community keys never join the salt namespace.
                 let seed = stream_seed(
                     world_seed,
                     dimension,
-                    Subsystem::Ecology,
-                    &ecology.spec().salt,
-                    1000 + index as u64,
+                    Subsystem::Structures,
+                    &SaltPath(community.key),
+                    2,
                 );
                 canopies.push(CompiledCanopy {
                     community: index,
@@ -231,10 +218,6 @@ impl CompiledFlora {
             canopies,
             max_canopy: 5,
         })
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.sets.is_empty() && self.canopies.is_empty()
     }
 
     /// Horizontal margin a chunk must look beyond itself for trees whose
@@ -290,9 +273,10 @@ impl CompiledFlora {
                                     cluster_z,
                                 )),
                         );
-                        let (dx, dz) = disc_offset(&mut point_stream, spec.spread);
-                        let x = center_x + dx;
-                        let z = center_z + dz;
+                        let angle = point_stream.unit() * std::f64::consts::TAU;
+                        let radius = point_stream.unit().sqrt() * spec.spread;
+                        let x = center_x + (angle.cos() * radius) as i32;
+                        let z = center_z + (angle.sin() * radius) as i32;
                         if x < min.0 - pad || x >= max.0 + pad || z < min.1 - pad || z >= max.1 + pad
                         {
                             continue;
@@ -387,9 +371,10 @@ impl CompiledFlora {
                                     cluster_z,
                                 )),
                         );
-                        let (dx, dz) = disc_offset(&mut point_stream, spec.spread);
-                        let x = center_x + dx;
-                        let z = center_z + dz;
+                        let angle = point_stream.unit() * std::f64::consts::TAU;
+                        let radius = point_stream.unit().sqrt() * spec.spread;
+                        let x = center_x + (angle.cos() * radius) as i32;
+                        let z = center_z + (angle.sin() * radius) as i32;
                         if x < min.0 - pad || x >= max.0 + pad || z < min.1 - pad || z >= max.1 + pad
                         {
                             continue;
@@ -643,28 +628,4 @@ impl CompiledFlora {
             }
         }
     }
-}
-
-/// Uniform draw from a disc of `radius` blocks by rejection over the
-/// unit square: trigonometry is not bit-stable across platforms, and
-/// four attempts accept with probability ~0.996. The rare full miss
-/// pulls the last attempt onto the unit circle.
-fn disc_offset(stream: &mut HashStream, radius: f64) -> (i32, i32) {
-    let mut px = 0.0;
-    let mut pz = 0.0;
-    let mut is_inside = false;
-    for _ in 0..4 {
-        px = stream.unit() * 2.0 - 1.0;
-        pz = stream.unit() * 2.0 - 1.0;
-        if px * px + pz * pz <= 1.0 {
-            is_inside = true;
-            break;
-        }
-    }
-    if !is_inside {
-        let norm = (px * px + pz * pz).sqrt().max(1e-9);
-        px /= norm;
-        pz /= norm;
-    }
-    ((px * radius) as i32, (pz * radius) as i32)
 }

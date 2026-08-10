@@ -42,7 +42,7 @@ pub use climate::{
     DressingSpec, OverlayRule, TransitionSpec, ZoneEntry, ZonedPartition,
 };
 pub use debug::{GenDebug, MapLayer, MapRequest};
-pub use density::{CompiledDensity, DensitySpec, DensityStrata};
+pub use density::{DensitySpec, NotchSpec, ShelfSpec};
 pub use diag::{
     autocorrelation, band_shares, local_maxima, relief_windows, repetition_score, FieldGrid,
     FieldStats,
@@ -56,7 +56,7 @@ pub use field::{
 };
 pub use flora::{CompiledFlora, FloraSetSpec, SpeciesDef, TreeForm, TreeInstance};
 pub use geology::{
-    BeltSpec, BoundaryClass, GeoModel, GeologySpec, MoistureSpec, PriorSample, ReliefSpec,
+    BeltSpec, BoundaryClass, GeoGrid, GeoModel, GeologySpec, MoistureSpec, PriorSample, ReliefSpec,
 };
 pub use hydro::{AquiferSpec, HydrologySpec, LavaSpec, SeaSpec, VoidMaterial};
 pub use lane::{HeightfieldLane, ReliefLayer, TopologySpec};
@@ -64,18 +64,12 @@ pub use mosaic::{
     ColumnSample, CompiledMosaic, MosaicSpec, SnowSpec, StrataSpec, SubstratePatch, TalusSpec,
 };
 pub use noise::{Fractal, NoiseKind, Perlin};
-pub use rivers::{
-    CompiledWalkerRivers, RiverColumn, RiverEnd, RiverMaterials, RiverPoint, RiverRouting,
-    RiverSpec, WalkerRivers,
-};
+pub use rivers::{CompiledRivers, RiverColumn, RiverEnd, RiverPoint, RiverSpec};
 pub use spec::{
     check_compat, compile, CompatVerdict, CompiledGenerator, DimCapabilities, DimensionSpec,
     GenError, GeneratorIdentity, GeneratorSpec, Version, ENGINE_SALT_PREFIX, FORMAT_VERSION,
 };
 pub use stages::install;
-pub use stages::{
-    GenCarveStage, GenFloraStage, GenPopulateStage, GenRiverStage, GenShapeStage, GenSurfaceStage,
-};
 pub use stream::{
     cell_id, fnv1a_64, hash_unit, mix64, stream_seed, HashStream, SaltPath, Subsystem,
 };

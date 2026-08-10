@@ -1,49 +1,22 @@
-//! River networks. Two routings share one channel geometry and one
-//! column contract: `Walker` rivers roll sources on upland lattice cells
-//! and walk deterministic steepest-descent paths over the lane height
-//! (heightfield worlds); `Drainage` rivers come from the geology lane's
-//! solved flow accumulation. Every question a chunk asks (distance to
-//! channel, water level, width) is answered from solved-tile polylines
-//! cached under a pure key — chunk-order-free by construction.
+//! Tile-solved river networks. Sources roll on upland lattice cells, walk
+//! deterministic steepest-descent paths over the generator's height field,
+//! merge on contact with other channels, and terminate at the sea, a
+//! basin pond (a lake), or their step bound. Every question a chunk asks
+//! (distance to channel, water level, width) is answered from solved-tile
+//! polylines cached under a pure key — chunk-order-free by construction.
 
 use std::sync::{Arc, RwLock};
 
 use hashbrown::HashMap;
 use serde::Serialize;
+use crate::{cell_id, mix64, stream_seed, HashStream, SaltPath, Subsystem};
 
 use crate::channels::{ChannelField, ChannelProfile};
-use crate::spec::GenError;
-use crate::stream::{cell_id, mix64, stream_seed, HashStream, SaltPath, Subsystem};
 
 pub use crate::channels::ChannelPoint as RiverPoint;
 
-/// Rivers for one world: routing plus the blocks the river stage writes.
 #[derive(Debug, Clone, Serialize)]
 pub struct RiverSpec {
-    pub materials: RiverMaterials,
-    pub routing: RiverRouting,
-}
-
-/// Content blocks for the river stage: channel water, the dark wetted
-/// bed under real water columns, and the bank/beach block for levees
-/// and shore fringes (also used as the shallow bed).
-#[derive(Debug, Clone, Serialize)]
-pub struct RiverMaterials {
-    pub water: &'static str,
-    pub bed: &'static str,
-    pub bank: &'static str,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub enum RiverRouting {
-    /// Source-and-descent solver over the lane height; heightfield lanes.
-    Walker(WalkerRivers),
-    /// The geology lane's solved drainage channels; requires that lane.
-    Drainage,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct WalkerRivers {
     pub salt: SaltPath,
     /// Network tile size in blocks; sources are rolled per tile.
     pub tile: i32,
@@ -94,39 +67,28 @@ pub struct SolvedTile {
     pub paths: Vec<(Vec<(i32, i32, f64)>, RiverEnd)>,
 }
 
-pub struct CompiledWalkerRivers {
-    spec: WalkerRivers,
+pub struct CompiledRivers {
+    spec: RiverSpec,
     seed: u64,
     sea_level: Option<i32>,
     cache: RwLock<HashMap<(i64, i64), Arc<SolvedTile>>>,
 }
 
-impl CompiledWalkerRivers {
+impl CompiledRivers {
     pub fn compile(
-        spec: &WalkerRivers,
+        spec: &RiverSpec,
         sea_level: Option<i32>,
         world_seed: u32,
         dimension: &str,
-        used_salts: &mut hashbrown::HashSet<&'static str>,
-    ) -> Result<Self, GenError> {
-        crate::spec::claim_salt(&spec.salt, used_salts)?;
+    ) -> Result<Self, String> {
         if spec.tile < 128 {
-            return Err(GenError::Invalid {
-                path: "rivers.walker.tile".to_string(),
-                reason: format!("must be >= 128 blocks, got {}", spec.tile),
-            });
+            return Err(format!("rivers.tile must be >= 128 blocks, got {}", spec.tile));
         }
         if spec.width.0 <= 0.0 || spec.width.1 < spec.width.0 {
-            return Err(GenError::Invalid {
-                path: "rivers.walker.width".to_string(),
-                reason: format!("span invalid: {:?}", spec.width),
-            });
+            return Err(format!("rivers.width span invalid: {:?}", spec.width));
         }
         if spec.carve_through < 0.0 {
-            return Err(GenError::Invalid {
-                path: "rivers.walker.carve_through".to_string(),
-                reason: "must be >= 0".to_string(),
-            });
+            return Err("rivers.carve_through must be >= 0".to_string());
         }
         Ok(Self {
             spec: spec.clone(),
@@ -136,7 +98,7 @@ impl CompiledWalkerRivers {
         })
     }
 
-    pub fn spec(&self) -> &WalkerRivers {
+    pub fn spec(&self) -> &RiverSpec {
         &self.spec
     }
 
@@ -333,29 +295,22 @@ impl CompiledWalkerRivers {
 
     /// Classify one column against the nearest channel.
     pub fn column(&self, point: &RiverPoint) -> RiverColumn {
-        classify_column(point, self.spec.bank)
-    }
-}
-
-/// Shared column classification: inside the half-width the channel cuts
-/// to an eased bed; inside the bank band terrain clamps up to one above
-/// the waterline; beyond it the river does not touch the column.
-pub(crate) fn classify_column(point: &RiverPoint, bank: f64) -> RiverColumn {
-    let water_y = point.water_y.floor() as i32;
-    if point.dist < point.half_width {
-        let t = 1.0 - point.dist / point.half_width;
-        let ease = t * t * (3.0 - 2.0 * t);
-        let bed = point.water_y - 1.0 - point.depth * ease;
-        RiverColumn::Channel {
-            bed: bed.floor() as i32,
-            water_y,
+        let water_y = point.water_y.floor() as i32;
+        if point.dist < point.half_width {
+            let t = 1.0 - point.dist / point.half_width;
+            let ease = t * t * (3.0 - 2.0 * t);
+            let bed = point.water_y - 1.0 - point.depth * ease;
+            RiverColumn::Channel {
+                bed: bed.floor() as i32,
+                water_y,
+            }
+        } else if point.dist < point.half_width + self.spec.bank {
+            RiverColumn::Bank {
+                raise_to: water_y + 1,
+                water_y,
+            }
+        } else {
+            RiverColumn::Outside
         }
-    } else if point.dist < point.half_width + bank {
-        RiverColumn::Bank {
-            raise_to: water_y + 1,
-            water_y,
-        }
-    } else {
-        RiverColumn::Outside
     }
 }
