@@ -30,23 +30,28 @@ export const BLOCK_LIGHT_OWNERSHIP_GAIN = 1.5;
 /**
  * CPU mirror of the chunk shader's flood-remainder computation: the
  * fraction of the baked flood term a point keeps, given the analytic
- * luminance claim at that point (already scaled by the effective ownership;
- * {@link LightClusterGrid.sampleIrradiance} bakes the shader's window-edge
- * fade into it) and the raw flood level (0..1, max channel). Uses the same
- * smoothstep denominator the shader uses, so an entity and the block it
- * stands on agree on how much flood survives. Callers may reuse one scratch
- * args object; nothing is retained.
+ * luminance claim at that point (unfaded, scaled by the effective
+ * ownership), the raw flood level (0..1, max channel), and the window-rim
+ * fade ({@link LocalLightSample.windowFade}). Matches the shader exactly:
+ * the owned remainder uses the smoothstep denominator, then mixes toward 1
+ * by the rim fade — the same crossfade the analytic contribution rides, so
+ * the combined block light stays continuous across the rim on entities and
+ * blocks alike. Callers may reuse one scratch args object; nothing is
+ * retained.
  */
 export function blockLightFloodRemainder(args: {
   scaledClaim: number;
   floodLevel: number;
+  windowFade: number;
 }): number {
   const level = Math.min(Math.max(args.floodLevel, 0), 1);
   const floodSmooth = level * level * (3 - 2 * level);
   const ratio =
     (args.scaledClaim * BLOCK_LIGHT_OWNERSHIP_GAIN) /
     Math.max(floodSmooth, 1e-3);
-  return 1 - Math.min(Math.max(ratio, 0), 1);
+  const owned = 1 - Math.min(Math.max(ratio, 0), 1);
+  const fade = Math.min(Math.max(args.windowFade, 0), 1);
+  return 1 + (owned - 1) * fade;
 }
 
 export const LOCAL_LIGHTS_UNIFORM_DECLARATIONS = `
@@ -210,14 +215,26 @@ float localLightFlicker(vec4 llT3) {
   return 1.0 - llT3.y * llWobble;
 }
 
+// Window-rim fade shared by the analytic output and its flood claim: the
+// grid window's edge steps with the camera in whole cells, so both fade
+// over the outer two cells — the analytic light hands its coverage back to
+// the flood term in lockstep, and the combined visible block light stays
+// continuous across the rim instead of stacking full analytic on top of a
+// partially returned flood.
+float localLightWindowFade(vec3 llPos) {
+  vec3 llCellPos = (llPos - uLightGridOrigin) / uLightGridCellSize;
+  vec3 llEdge = min(llCellPos, uLightGridDims - llCellPos);
+  return clamp(min(min(llEdge.x, llEdge.y), llEdge.z) * 0.5, 0.0, 1.0);
+}
+
 // Alongside the lit response, computes llFloodRemainder: the fraction of
 // the baked flood term this fragment should keep. Selected lights *claim*
 // their coverage with falloff and cone shaping only — no Lambert, flicker,
 // occlusion, or shadow, so a torch's shadowed side and its facing-away
-// surfaces stay owned (dark) instead of being refilled by flat flood. The
-// claim fades over the outer two cells of the grid window (the window edge
-// steps with the camera in whole cells; the fade keeps that step invisible)
-// and is scaled by uLocalOwnership, so 0 renders the exact legacy frame.
+// surfaces stay owned (dark) instead of being refilled by flat flood. Both
+// the lit response and the claim ride the window-rim fade, and the claim is
+// scaled by uLocalOwnership (0 at the off/potato tiers, where the clustered
+// count is also 0: the exact legacy frame).
 vec3 localLightSurface(
   vec3 llPos, vec3 llNormal, vec3 llFlood, out float llFloodRemainder
 ) {
@@ -232,6 +249,7 @@ vec3 localLightSurface(
     max(max(llFlood.r, llFlood.g), llFlood.b)
   );
 
+  float llWindowFade = localLightWindowFade(llPos);
   float llClaim = 0.0;
   vec3 llTotal = vec3(0.0);
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
@@ -307,23 +325,23 @@ vec3 localLightSurface(
     llTotal += llT1.rgb * (llFall * llAngular * llLambert * llFlicker * llOcclusion) * llTransmit;
   }
 
-  // The window edge steps by whole cells as the camera moves; fading the
-  // claim over the outer two cells hands coverage back to the flood term
-  // before that hard edge can show.
-  vec3 llCellPos = (llPos - uLightGridOrigin) / uLightGridCellSize;
-  vec3 llEdge = min(llCellPos, uLightGridDims - llCellPos);
-  float llWindowFade = clamp(min(min(llEdge.x, llEdge.y), llEdge.z) * 0.5, 0.0, 1.0);
-
+  // A true crossfade between the two complete compositions: the owned
+  // frame (analytic + its unfaded remainder's flood) and the legacy flood
+  // frame. Feeding the *faded* claim into the gain-clamped remainder would
+  // keep the flood suppressed while the analytic dims — a dark ring in the
+  // rim; mixing the remainder toward 1 by the same fade the analytic rides
+  // keeps the combined block light continuous across the whole band.
   float llFloodLum = max(max(llFlood.r, llFlood.g), llFlood.b);
   float llFloodSmooth = llFloodLum * llFloodLum * (3.0 - 2.0 * llFloodLum);
-  llFloodRemainder = 1.0 - clamp(
-    (llClaim * uLocalOwnership * llWindowFade * ${BLOCK_LIGHT_OWNERSHIP_GAIN.toFixed(2)})
+  float llRemainderOwned = 1.0 - clamp(
+    (llClaim * uLocalOwnership * ${BLOCK_LIGHT_OWNERSHIP_GAIN.toFixed(2)})
       / max(llFloodSmooth, 1e-3),
     0.0,
     1.0
   );
+  llFloodRemainder = mix(1.0, llRemainderOwned, llWindowFade);
 
-  return llTotal;
+  return llTotal * llWindowFade;
 }
 
 vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood) {
@@ -337,6 +355,7 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)
     max(max(llFlood.r, llFlood.g), llFlood.b)
   );
 
+  float llWindowFade = localLightWindowFade(llPos);
   vec3 llTotal = vec3(0.0);
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
     int llRec = localLightSlot(llCell, s);
@@ -371,7 +390,9 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)
     float llOcclusion = (llFlags & 1) != 0 ? llMask : 1.0;
     llTotal += llT1.rgb * (llSpec * llFall * llOcclusion);
   }
-  return llTotal * uLocalSpecularStrength;
+  // The same rim fade the diffuse response rides: highlights from a light
+  // whose coverage is handing back to the flood must dim in lockstep.
+  return llTotal * (uLocalSpecularStrength * llWindowFade);
 }
 `;
 

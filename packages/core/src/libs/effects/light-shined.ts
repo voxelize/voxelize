@@ -18,9 +18,10 @@ const localLightSample = {
   color: [0, 0, 0] as [number, number, number],
   count: 0,
   claim: 0,
+  windowFade: 1,
 };
 const localLightQueryOptions = { floodMask: 1, timeMs: 0 };
-const floodRemainderArgs = { scaledClaim: 0, floodLevel: 0 };
+const floodRemainderArgs = { scaledClaim: 0, floodLevel: 0, windowFade: 1 };
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
@@ -386,6 +387,7 @@ export class LightShined {
       ? Math.max(lightValues.red, lightValues.green, lightValues.blue) /
         maxLightLevel
       : 0;
+    floodRemainderArgs.windowFade = localLightSample.windowFade;
     const floodRemainder = blockLightFloodRemainder(floodRemainderArgs);
     cpuTorchR = cpuTorchR * floodRemainder + localLightSample.color[0];
     cpuTorchG = cpuTorchG * floodRemainder + localLightSample.color[1];

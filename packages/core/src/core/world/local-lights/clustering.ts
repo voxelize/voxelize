@@ -209,6 +209,17 @@ export class LightClusterGrid {
       Math.max(caps.blockLightOwnership, 0),
       1,
     );
+    if (this.maxClusteredLights === 0) {
+      // A zero-cap tier (off/potato) takes effect on the frame it is set:
+      // the selection and the GPU grid clear synchronously, so a frame
+      // rendered between this call and the next update() cannot draw the
+      // stale clustered set on top of the just-restored flood term.
+      this.selectedCount = 0;
+      this.uniforms.clusteredCount.value = 0;
+      this.gridData.fill(0);
+      this.gridTexture.needsUpdate = true;
+      this.selectedGenerations.fill(0);
+    }
     this.isForceDirty = true;
   }
 
@@ -299,12 +310,13 @@ export class LightClusterGrid {
    * per-fragment structure exactly: only lights present in the point's grid
    * cell contribute — color and claim alike — so a point outside the window
    * or in an overflowed cell keeps its flood look on entities just as it
-   * does on blocks, and `out.claim` (the unoccluded luminance claim that
-   * drives the flood remainder) carries the same outer-two-cell window fade
-   * the shader applies. Zero allocation; the caller owns `out` and may
-   * reuse one `options` scratch object across calls (`floodMask` is the
-   * knee-mapped local flood level, 1 = fully open; `timeMs` drives the same
-   * flicker curve the shader evaluates).
+   * does on blocks, and both the color and `out.claim` (the unoccluded
+   * luminance claim that drives the flood remainder) carry the same
+   * outer-two-cell window fade the shader applies, keeping the combined
+   * block light continuous across the rim. Zero allocation; the caller owns
+   * `out` and may reuse one `options` scratch object across calls
+   * (`floodMask` is the knee-mapped local flood level, 1 = fully open;
+   * `timeMs` drives the same flicker curve the shader evaluates).
    */
   sampleIrradiance(
     point: [number, number, number],
@@ -453,8 +465,18 @@ export class LightClusterGrid {
       outColor[2] += colors[i * 3 + 2] * energy;
       contributors++;
     }
+    // The analytic tint rides the same window-rim fade the shader applies
+    // to fragments; the claim stays unfaded and the fade is reported
+    // alongside it, so consumers reproduce the shader's exact crossfade
+    // (blockLightFloodRemainder mixes the owned remainder toward 1 by it)
+    // and an entity's combined block light stays continuous across the rim
+    // exactly like the ground under it.
+    outColor[0] *= windowFade;
+    outColor[1] *= windowFade;
+    outColor[2] *= windowFade;
     out.count = contributors;
-    out.claim = claim * windowFade;
+    out.claim = claim;
+    out.windowFade = windowFade;
     return contributors;
   }
 

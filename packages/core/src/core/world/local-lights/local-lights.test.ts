@@ -1,3 +1,4 @@
+import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "../shaders";
@@ -16,6 +17,7 @@ import {
 } from "./shader";
 import {
   BlockLightProfile,
+  defaultLocalLightsOptions,
   INVALID_LIGHT_HANDLE,
   LIGHT_QUALITY_TIERS,
   LocalLightDescriptor,
@@ -270,6 +272,7 @@ describe("LightClusterGrid selection", () => {
       color: [0, 0, 0] as [number, number, number],
       count: 0,
       claim: 0,
+      windowFade: 1,
     };
     // The CPU sample mirrors the fragment gate: only the eight cell-held
     // lights contribute; the two overflow victims neither tint nor claim.
@@ -321,6 +324,7 @@ describe("block-light ownership", () => {
     color: [0, 0, 0] as [number, number, number],
     count: 0,
     claim: 0,
+    windowFade: 1,
   });
 
   it("claims coverage even where the light itself is occluded", () => {
@@ -411,10 +415,12 @@ describe("block-light ownership", () => {
     expect(outside.claim).toBe(0);
   });
 
-  it("fades the claim over the window's outer two cells, like the shader", () => {
-    // Same light, two sample points: deep inside the window the claim is
-    // unfaded; in the rim band it scales by the shader's edge fade so the
-    // flood hand-off never pops when the window steps with the camera.
+  it("fades the analytic tint over the rim and reports the crossfade", () => {
+    // Same light, two sample points: deep inside the window nothing fades;
+    // in the rim band the analytic contribution scales by the edge fade
+    // while the claim stays raw and the fade is reported alongside it, so
+    // consumers crossfade to the legacy flood exactly like the shader —
+    // full analytic never sits on top of a partially returned flood.
     const registry = new LightSourceRegistry(8);
     registry.add(pointLight({ range: 32, intensity: 1 }), 60, 4, 4);
     const grid = makeGrid(registry, { analyticRadius: 96 });
@@ -428,8 +434,115 @@ describe("block-light ownership", () => {
     const dist = 28;
     const norm = dist / 32;
     const falloff = (1 - norm * norm) ** 2;
-    expect(deep.claim).toBeGreaterThan(0);
-    expect(rim.claim).toBeCloseTo(deep.claim * falloff * 0.5, 6);
+    expect(deep.windowFade).toBe(1);
+    expect(rim.windowFade).toBeCloseTo(0.5, 6);
+    // Color rides the fade; the claim is the raw unfaded coverage.
+    expect(rim.color[0]).toBeCloseTo(deep.color[0] * falloff * 0.5, 6);
+    expect(rim.claim).toBeCloseTo(deep.claim * falloff, 6);
+  });
+
+  it("keeps the combined block light continuous across the window rim", () => {
+    // Walk a sample line from deep coverage, through the fade band, across
+    // the hard window boundary, and out: the combined visible block light —
+    // analytic contribution plus the flood the remainder lets through —
+    // must transition without a seam, most importantly at the boundary
+    // itself where the clustered set stops being sampled at all.
+    const registry = new LightSourceRegistry(8);
+    registry.add(pointLight({ range: 32, intensity: 1 }), 80, 4, 4);
+    const grid = makeGrid(registry, { analyticRadius: 96 });
+    grid.update(0, 0, 0, makeStats());
+
+    const floodLevel = 0.6; // constant hypothetical flood under the line
+    const floodVisible = floodLevel * floodLevel * (3 - 2 * floodLevel);
+    const combinedAt = (x: number) => {
+      const sample = makeSample();
+      grid.sampleIrradiance([x, 4, 4], sample);
+      const remainder = blockLightFloodRemainder({
+        scaledClaim: sample.claim,
+        floodLevel,
+        windowFade: sample.windowFade,
+      });
+      const lum =
+        0.2126 * sample.color[0] +
+        0.7152 * sample.color[1] +
+        0.0722 * sample.color[2];
+      return lum + remainder * floodVisible;
+    };
+
+    // 4-block steps from deep coverage through the fade band, across the
+    // hard boundary (95.9 → 96.1), and out into pure flood.
+    const line = [80, 84, 88, 92, 95.9, 96.1, 100];
+    const combined = line.map(combinedAt);
+    for (let n = 1; n < combined.length; n++) {
+      expect(Math.abs(combined[n] - combined[n - 1])).toBeLessThan(0.09);
+    }
+    // The hard boundary itself: the faded-to-zero inside must equal the
+    // flood-only outside to numerical noise.
+    expect(Math.abs(combined[4] - combined[5])).toBeLessThan(0.02);
+    // And the far side is exactly the legacy flood.
+    expect(combined[6]).toBeCloseTo(floodVisible, 6);
+  });
+
+  it("clears clustered CPU and GPU state synchronously on zero-cap tiers", () => {
+    // High→Off must not leave one frame where the stale clustered set
+    // renders on top of the just-restored flood: setTierCaps(0) empties the
+    // selection, the count uniform, and the grid texture immediately, and
+    // switching back to High resurrects nothing until the next update().
+    const lights = new LocalLights(
+      {},
+      () => ({
+        chunkSize: CHUNK_SIZE,
+        maxHeight: MAX_HEIGHT,
+        subChunks: SUB_CHUNKS,
+        maxLightLevel: MAX_LIGHT_LEVEL,
+      }),
+      () => [],
+    );
+    const grid = lights.grid;
+    const gridData = (grid as unknown as { gridData: Uint8Array }).gridData;
+    lights.add(
+      {
+        shape: "point",
+        color: [1, 0.8, 0.5],
+        intensity: 1,
+        range: 10,
+        isStatic: false,
+        shadowPolicy: "none",
+      },
+      new Vector3(4, 4, 4),
+    );
+    lights.update(new Vector3(0, 4, 0));
+    expect(grid.selectedCount).toBeGreaterThan(0);
+    expect(grid.uniforms.clusteredCount.value).toBeGreaterThan(0);
+
+    lights.setQualityTier("off");
+    expect(grid.selectedCount).toBe(0);
+    expect(grid.uniforms.clusteredCount.value).toBe(0);
+    expect(gridData.every((v) => v === 0)).toBe(true);
+    expect(lights.blockLightOwnership).toBe(0);
+
+    lights.setQualityTier("high");
+    expect(grid.selectedCount).toBe(0);
+    expect(grid.uniforms.clusteredCount.value).toBe(0);
+
+    lights.update(new Vector3(0, 4, 0));
+    expect(grid.selectedCount).toBeGreaterThan(0);
+    lights.dispose();
+  });
+
+  it("keeps ownership an invariant, not a configurable option", () => {
+    // Every tier that renders clustered lights owns visible block lighting
+    // exclusively; the zero-cap tiers render the exact legacy frame. No
+    // LocalLightsOptions field can re-enable hybrid visible stacking.
+    expect("blockLightOwnership" in defaultLocalLightsOptions).toBe(false);
+    for (const tier of Object.keys(LIGHT_QUALITY_TIERS) as Array<
+      keyof typeof LIGHT_QUALITY_TIERS
+    >) {
+      const preset = LIGHT_QUALITY_TIERS[tier];
+      expect(preset.blockLightOwnership).toBe(
+        preset.maxClusteredLights > 0 ? 1 : 0,
+      );
+    }
   });
 
   it("claims only the lights the point's cell actually holds (overflow)", () => {
@@ -454,23 +567,59 @@ describe("block-light ownership", () => {
 
   it("mirrors the shader's flood-remainder curve on the CPU", () => {
     // No claim: legacy flood untouched.
-    expect(blockLightFloodRemainder({ scaledClaim: 0, floodLevel: 0.5 })).toBe(
-      1,
-    );
-    // Saturated claim: fully owned.
-    expect(blockLightFloodRemainder({ scaledClaim: 10, floodLevel: 0.5 })).toBe(
-      0,
-    );
+    expect(
+      blockLightFloodRemainder({
+        scaledClaim: 0,
+        floodLevel: 0.5,
+        windowFade: 1,
+      }),
+    ).toBe(1);
+    // Saturated claim, deep inside the window: fully owned.
+    expect(
+      blockLightFloodRemainder({
+        scaledClaim: 10,
+        floodLevel: 0.5,
+        windowFade: 1,
+      }),
+    ).toBe(0);
     // smoothstep(0.5) = 0.5; ratio = 0.2 × 1.5 / 0.5 = 0.6 → remainder 0.4.
     expect(
-      blockLightFloodRemainder({ scaledClaim: 0.2, floodLevel: 0.5 }),
+      blockLightFloodRemainder({
+        scaledClaim: 0.2,
+        floodLevel: 0.5,
+        windowFade: 1,
+      }),
     ).toBeCloseTo(0.4, 6);
     // Monotone: more claim, less flood.
     expect(
-      blockLightFloodRemainder({ scaledClaim: 0.3, floodLevel: 0.5 }),
+      blockLightFloodRemainder({
+        scaledClaim: 0.3,
+        floodLevel: 0.5,
+        windowFade: 1,
+      }),
     ).toBeLessThan(
-      blockLightFloodRemainder({ scaledClaim: 0.1, floodLevel: 0.5 }),
+      blockLightFloodRemainder({
+        scaledClaim: 0.1,
+        floodLevel: 0.5,
+        windowFade: 1,
+      }),
     );
+    // The rim crossfade: at the window edge the flood is fully back no
+    // matter the claim; halfway through the band, halfway back.
+    expect(
+      blockLightFloodRemainder({
+        scaledClaim: 10,
+        floodLevel: 0.5,
+        windowFade: 0,
+      }),
+    ).toBe(1);
+    expect(
+      blockLightFloodRemainder({
+        scaledClaim: 10,
+        floodLevel: 0.5,
+        windowFade: 0.5,
+      }),
+    ).toBeCloseTo(0.5, 6);
   });
 
   it("drives the ownership uniform from the quality tier, live", () => {
@@ -507,8 +656,15 @@ describe("block-light ownership", () => {
     );
     // The surface function owns the remainder computation…
     expect(LOCAL_LIGHTS_FUNCTIONS).toContain("out float llFloodRemainder");
+    expect(LOCAL_LIGHTS_FUNCTIONS).toContain("llClaim * uLocalOwnership");
     expect(LOCAL_LIGHTS_FUNCTIONS).toContain(
-      "llClaim * uLocalOwnership * llWindowFade",
+      "mix(1.0, llRemainderOwned, llWindowFade)",
+    );
+    // …the analytic output rides the same rim fade as its claim, diffuse
+    // and specular alike, so nothing stacks on the partially returned flood…
+    expect(LOCAL_LIGHTS_FUNCTIONS).toContain("return llTotal * llWindowFade;");
+    expect(LOCAL_LIGHTS_FUNCTIONS).toContain(
+      "return llTotal * (uLocalSpecularStrength * llWindowFade);",
     );
     // …and the chunk fragment scales the legacy flood term by it. The
     // unscaled legacy expression must be gone: covered fragments cannot

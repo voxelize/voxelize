@@ -714,9 +714,11 @@ const frameStats = () => {
     world.localLights.setQualityTier(tier),
   setDebugMode: (mode: 0 | 1 | 2 | 3 | 4 | 5 | 6) =>
     world.localLights.setDebugMode(mode),
-  // QA override for the ownership blend: 0 renders the pre-ownership
-  // additive composition (flood + analytic double-lit), 1 the shipped
-  // behavior. Tier changes reset it.
+  // DEBUG-ONLY ownership override for QA A/B captures: pokes the raw
+  // uniform to render the pre-ownership additive composition (0) against
+  // the shipped exclusive-ownership behavior (1). Deliberately not part of
+  // the engine's configuration surface — hybrid visible stacking is not a
+  // supported state, and any tier change resets this to the invariant.
   setOwnership: (value: number) => {
     world.localLights.grid.uniforms.ownership.value = Math.min(
       Math.max(value, 0),
@@ -797,6 +799,7 @@ const frameStats = () => {
       color: [0, 0, 0] as [number, number, number],
       count: 0,
       claim: 0,
+      windowFade: 1,
     };
     world.localLights.queryLocalLights(character.position, sample);
     const uniform = (

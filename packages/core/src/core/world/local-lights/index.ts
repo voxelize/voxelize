@@ -321,12 +321,13 @@ export class LocalLights {
    * blocked light. `options.timeMs` drives the same flicker curve the
    * shader evaluates.
    *
-   * `out.claim` mirrors the chunk shader's flood-ownership term: consumers
-   * that also apply a baked flood tint scale that tint by
-   * `1 - clamp(out.claim × {@link blockLightOwnership} ×
-   * BLOCK_LIGHT_OWNERSHIP_GAIN / floodLuminance, 0, 1)` so a point covered
-   * by analytic lights is never lit by both models (`LightShined` does
-   * exactly this).
+   * `out.claim` and `out.windowFade` mirror the chunk shader's
+   * flood-ownership term: consumers that also apply a baked flood tint
+   * scale that tint by `blockLightFloodRemainder({ scaledClaim:
+   * out.claim × {@link blockLightOwnership}, floodLevel, windowFade:
+   * out.windowFade })` so a point covered by analytic lights is never lit
+   * by both models and the window-rim crossfade matches the ground
+   * (`LightShined` does exactly this).
    */
   queryLocalLights(
     position: Vector3,
@@ -353,8 +354,7 @@ export class LocalLights {
       analyticRadius: preset.analyticRadius,
       fluidSpecularStrength:
         preset.fluidSpecularStrength * this.options.fluidSpecularStrength,
-      blockLightOwnership:
-        preset.blockLightOwnership * this.options.blockLightOwnership,
+      blockLightOwnership: preset.blockLightOwnership,
     });
     // Like the clustered caps, tier presets replace the shadow caps — the
     // constructor's options only seed state until this first call.
@@ -374,11 +374,13 @@ export class LocalLights {
   }
 
   /**
-   * Effective flood-ownership weight of the current tier (0..1): how
-   * strongly analytic claims suppress the baked flood term. `0` at the
-   * `off`/`potato` tiers — the legacy flood look, exactly. CPU consumers
-   * (`LightShined`) scale {@link LocalLightSample.claim} by this, mirroring
-   * the chunk shader's `uLocalOwnership` uniform.
+   * Flood-ownership weight of the current tier: `1` on every tier that
+   * renders clustered lights (the analytic layer owns visible block-source
+   * lighting exclusively — nothing double-lights), `0` at `off`/`potato`
+   * (the exact legacy flood frame). This is an invariant, not
+   * configuration — read-only introspection for CPU consumers
+   * (`LightShined`) that mirror the chunk shader's `uLocalOwnership`
+   * uniform; hybrid visible stacking is not a supported state.
    */
   get blockLightOwnership(): number {
     return this.grid.uniforms.ownership.value;

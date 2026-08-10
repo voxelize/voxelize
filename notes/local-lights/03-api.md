@@ -161,8 +161,10 @@ export class LocalLights {
 
   setQualityTier(tier: LightQualityTier): void;
   getQualityTier(): LightQualityTier;
-  /** Effective flood-ownership weight of the current tier (0..1); see
-   *  blockLightOwnership in LocalLightsOptions. 0 at off/potato. */
+  /** Flood-ownership weight of the current tier — an invariant, not
+   *  configuration: 1 on every clustered tier (analytic owns visible block
+   *  light exclusively), 0 at off/potato (exact legacy frame). Read-only
+   *  introspection for CPU consumers; hybrid stacking is unsupported. */
   readonly blockLightOwnership: number;
 
   /** 0 off, 1 cell-occupancy heatmap, 2 isolated contribution, 3 leak mask. */
@@ -440,10 +442,17 @@ const arrowLight = world.localLights.add(
 Entity/particle consumption (unchanged pattern, richer data):
 
 ```ts
-const sample: LocalLightSample = { color: [0, 0, 0], count: 0, claim: 0 };
+const sample: LocalLightSample = {
+  color: [0, 0, 0],
+  count: 0,
+  claim: 0,
+  windowFade: 1,
+};
 const options = { floodMask: 1, timeMs: 0 }; // scratch, reused per frame
 world.localLights.queryLocalLights(npc.position, sample, options);
-// LightShined scales its baked flood tint by the remainder derived from
-// `sample.claim` (× blockLightOwnership × BLOCK_LIGHT_OWNERSHIP_GAIN), then
-// adds `sample.color` — analytic-covered entities are never lit by both.
+// LightShined scales its baked flood tint by blockLightFloodRemainder
+// ({ scaledClaim: sample.claim × blockLightOwnership, floodLevel,
+// windowFade: sample.windowFade }) and adds `sample.color` — analytic-
+// covered entities are never lit by both models, and the rim crossfade
+// matches the chunk shader exactly.
 ```

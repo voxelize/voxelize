@@ -114,17 +114,6 @@ export interface LocalLightsOptions {
   fluidSpecularStrength: number;
   /** Flood-mask knee: flood level (0..1) at which masked lights reach full. */
   maskKnee: number;
-  /**
-   * How strongly the analytic layer owns visible block-source lighting
-   * where it claims coverage (0..1). At 1, a fragment inside a selected
-   * light's falloff is lit by the per-pixel model alone — the baked flood
-   * term fades out in proportion to the analytic claim, so nothing
-   * double-lights; where no selected light reaches (beyond range, past the
-   * selection cap, outside the grid window), the flood remainder returns
-   * to 1 and the legacy look is untouched. At 0 the legacy flood term
-   * renders exactly as before local lights existed.
-   */
-  blockLightOwnership: number;
   /** Shadowed local lights at once; each owns a fixed atlas region. */
   maxShadowedLights: number;
   /** Edge length of the shared depth atlas, in pixels. */
@@ -164,7 +153,6 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   qualityTier: "high",
   fluidSpecularStrength: 1,
   maskKnee: 2 / 15,
-  blockLightOwnership: 1,
   maxShadowedLights: 3,
   shadowAtlasSize: 2048,
   shadowSlotSize: 256,
@@ -191,12 +179,22 @@ export const LIGHT_QUALITY_TIERS: Record<
     | "maxLightsPerCell"
     | "analyticRadius"
     | "fluidSpecularStrength"
-    | "blockLightOwnership"
     | "maxShadowedLights"
     | "shadowAtlasSize"
     | "shadowSlotSize"
     | "shadowLedgerUnitsPerFrame"
-  >
+  > & {
+    /**
+     * Whether the analytic layer owns visible block-source lighting at this
+     * tier. Invariant, not configuration: every tier that renders clustered
+     * lights owns them exclusively (1 — nothing double-lights), and the
+     * zero-cap tiers render the exact legacy flood frame (0). Deliberately
+     * absent from {@link LocalLightsOptions}: hybrid visible stacking is
+     * not a supported state, and only the demo's debug hook writes the
+     * underlying uniform directly for QA A/B captures.
+     */
+    blockLightOwnership: number;
+  }
 > = {
   ultra: {
     maxClusteredLights: 255,
@@ -314,18 +312,28 @@ export interface LocalLightStats {
 
 /** Zero-allocation output target for {@link LocalLights.queryLocalLights}. */
 export interface LocalLightSample {
-  /** Combined linear RGB arriving at the query point. */
+  /**
+   * Combined linear RGB arriving at the query point, already scaled by the
+   * window-rim fade like the chunk shader's analytic term.
+   */
   color: [number, number, number];
   /** Lights that contributed. */
   count: number;
   /**
-   * Unoccluded luminance the selected lights *claim* at the point (falloff
-   * and cone shaping only — no flicker, occlusion, or shadows). Consumers
-   * that also apply a baked flood term scale it by the flood remainder
-   * derived from this claim, mirroring the chunk shader's ownership blend,
-   * so a point covered by analytic lights is never lit by both models.
+   * Unoccluded luminance the cell-held lights *claim* at the point (falloff
+   * and cone shaping only — no flicker, occlusion, shadows, or rim fade).
+   * Consumers that also apply a baked flood term scale that term by the
+   * flood remainder derived from this claim and {@link windowFade},
+   * mirroring the chunk shader's ownership blend, so a point covered by
+   * analytic lights is never lit by both models.
    */
   claim: number;
+  /**
+   * Window-rim fade at the point (1 deep inside the grid window, 0 at and
+   * beyond its edge) — the crossfade weight between the owned composition
+   * and the legacy flood frame.
+   */
+  windowFade: number;
 }
 
 /**
