@@ -361,6 +361,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         let mut ready_chunks = vec![];
+        let mut waiting_chunks = vec![];
 
         while !mesher.queue.is_empty() {
             let coords = mesher.get().unwrap();
@@ -372,6 +373,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .enumerate()
             {
                 if !chunks.map.contains_key(&n_coords) {
+                    // A light-traversal neighbor nobody ever requested:
+                    // without queueing it, nothing will ever create it, no
+                    // listener can fire, and this chunk would sit in
+                    // `Meshing` forever. Generate the neighbor and retry
+                    // this chunk on a later dispatch.
+                    if chunks.is_within_world(&n_coords) && !pipeline.has_chunk(&n_coords) {
+                        pipeline.add_chunk(&n_coords, false);
+                    }
+                    waiting_chunks.push(coords.to_owned());
                     ready = false;
                     break;
                 }
@@ -417,6 +427,12 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             let chunk = chunks.raw(&coords).unwrap().clone();
             ready_chunks.push((coords, chunk));
+        }
+
+        // Chunks popped over a missing neighbor go back in the queue: the
+        // drain must never silently drop a chunk that is still `Meshing`.
+        for coords in waiting_chunks {
+            mesher.add_chunk(&coords, false);
         }
 
         // Process the ready chunks in parallel
