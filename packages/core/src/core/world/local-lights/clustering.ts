@@ -529,8 +529,11 @@ export class LightClusterGrid {
       // A static light that wants (or is still waiting for) a shadow slot
       // leans on the flood mask instead of leaking — and the bit stays set
       // for holders too: passes that cannot afford the atlas sampler (fluid
-      // specular) occlude by the mask, while the diffuse ladder prefers the
-      // per-light atlas whenever the shadowed bit is present.
+      // specular) occlude by the mask alone, while the diffuse ladder
+      // COMPOSES the per-light atlas on top of it. The mask floor is what
+      // keeps a holder's unmapped faces (mount-skipped, or FIFO-pending)
+      // from pouring unoccluded light through the very block they are
+      // mounted against.
       packed |= PACKED_FLAG_MASKED;
     }
     data[base + 7] = packed;

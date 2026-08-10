@@ -1042,3 +1042,147 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     expect(scheduler.recordForIndex(successorIndex)?.dynamicMask).toBe(0);
   });
 });
+
+describe("holder occlusion composition (top-down leak regression)", () => {
+  it("composes the flood mask with the atlas sample instead of replacing it", () => {
+    // A shadow holder's face with no cached map — mount-skipped by
+    // allowedMask or still queued in the FIFO — samples as fully visible.
+    // If the ladder REPLACES the flood mask with that sample, a
+    // ceiling-mounted lamp pours full unoccluded light through the roof
+    // above it: the giant colored top-down patches. Composing keeps the
+    // mask as the conservative floor and lets the maps refine it.
+    expect(LOCAL_LIGHTS_FUNCTIONS).toMatch(
+      /llOcclusion \*= localLightShadow\(/,
+    );
+    expect(LOCAL_LIGHTS_FUNCTIONS).not.toMatch(
+      /llOcclusion = localLightShadow\(/,
+    );
+    // The masked bit must gate holders too (set for static shadow
+    // requesters), or the composition has no mask to stand on.
+    const ladder = LOCAL_LIGHTS_FUNCTIONS.slice(
+      LOCAL_LIGHTS_FUNCTIONS.indexOf("Occlusion ladder"),
+      LOCAL_LIGHTS_FUNCTIONS.indexOf("llSubmersion"),
+    );
+    expect(ladder).toContain("(llFlags & 1) != 0 ? llMask : 1.0");
+  });
+
+  it("keeps the CPU entity mirror on the same conservative mask for holders", () => {
+    const registry = new LightSourceRegistry(8);
+    const grid = new LightClusterGrid(registry, {
+      maxClusteredLights: 8,
+      maxLightsPerCell: 8,
+      analyticRadius: 64,
+      gridCellSize: 8,
+      gridDims: [8, 8, 8] as [number, number, number],
+      selectionHysteresis: 1.2,
+      maskKnee: 2 / 15,
+      fluidSpecularStrength: 1,
+    });
+    // A ceiling-mounted holder above a "roof": the sample point on top has
+    // zero flood (the roof seals it), so the holder must contribute nothing
+    // there — mask-occluded — even though its falloff easily reaches.
+    registry.add(shadowLight(), 0, 28.5, 0);
+    grid.update(0, 30, 0, makeStats());
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+    grid.sampleIrradiance([0, 30.5, 0], sample, { floodMask: 0 });
+    expect(sample.color).toEqual([0, 0, 0]);
+    // The claim still stands: an owned dark side must not be refilled by
+    // the baked flood term.
+    expect(sample.claim).toBeGreaterThan(0);
+  });
+});
+
+describe("top-down hub camera sweep (exact-coordinate regression)", () => {
+  it("keeps clustered state finite, bounded, and reference-valid across pitch, altitude, aspect, and tier sweeps", () => {
+    // The reported camera: (-0.654, 44.744, 1.867), direction ~(0, -1, 0)
+    // (pitch -88.2°), over a dense lit hub ~16 blocks below. Clustering
+    // consumes only the camera POSITION by construction — pitch, aspect,
+    // and FOV cannot reach it — so the sweep drives the position across
+    // the altitudes those views imply and asserts the packed state stays
+    // valid: no NaN texels, counts within caps, and every grid slot
+    // reference resolving to a live packed record.
+    const registry = new LightSourceRegistry(64);
+    const grid = new LightClusterGrid(registry, {
+      maxClusteredLights: 16,
+      maxLightsPerCell: 8,
+      analyticRadius: 64,
+      gridCellSize: 8,
+      gridDims: [24, 12, 24] as [number, number, number],
+      selectionHysteresis: 1.2,
+      maskKnee: 2 / 15,
+      fluidSpecularStrength: 1,
+    });
+    // Hub emitters around y≈29 like the report: mounted colored lamps.
+    for (let i = 0; i < 12; i++) {
+      registry.add(
+        shadowLight({
+          color: i % 2 ? [1, 0, 1] : [0, 1, 1],
+          range: 14,
+        }),
+        (i % 4) * 6 - 9,
+        28.5 + (i % 3),
+        Math.floor(i / 4) * 6 - 6,
+      );
+    }
+
+    const stats = makeStats();
+    const raw = grid as unknown as {
+      gridData: Uint8Array;
+      lightData: Float32Array;
+    };
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+
+    // Altitudes from the exact report through extreme overhead views; the
+    // lateral offsets stand in for aspect/FOV framing differences, which
+    // move only where the camera POSITION ends up.
+    for (const y of [44.744, 60, 120, 300]) {
+      for (const [dx, dz] of [
+        [0, 0],
+        [-0.654, 1.867],
+        [30, -30],
+      ]) {
+        for (const caps of [16, 8, 0]) {
+          grid.setTierCaps({
+            maxClusteredLights: caps,
+            maxLightsPerCell: 8,
+            analyticRadius: 64,
+            fluidSpecularStrength: 1,
+            blockLightOwnership: caps > 0 ? 1 : 0,
+          });
+          grid.update(dx, y, dz, stats);
+
+          expect(grid.selectedCount).toBeLessThanOrEqual(caps);
+          for (let n = 0; n < raw.lightData.length; n++) {
+            if (!Number.isFinite(raw.lightData[n])) {
+              throw new Error(`non-finite packed texel at ${n}`);
+            }
+          }
+          for (let n = 0; n < raw.gridData.length; n++) {
+            // Every nonzero grid byte is a 1-based reference into the
+            // packed records; a reference past the live count would read
+            // garbage rows in the shader — colored patches from nowhere.
+            expect(raw.gridData[n]).toBeLessThanOrEqual(grid.selectedCount);
+          }
+
+          // Roof-plane probe: with the flood sealed (mask 0), no mounted
+          // holder may tint the plane above the hub, at any altitude.
+          grid.sampleIrradiance([0, 30.5, 0], sample, { floodMask: 0 });
+          expect(sample.color[0]).toBe(0);
+          expect(sample.color[1]).toBe(0);
+          expect(sample.color[2]).toBe(0);
+          expect(Number.isFinite(sample.claim)).toBe(true);
+        }
+      }
+    }
+  });
+});

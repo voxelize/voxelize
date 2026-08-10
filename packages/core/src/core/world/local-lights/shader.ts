@@ -304,13 +304,19 @@ vec3 localLightSurface(
       llFlicker = localLightFlicker(texelFetch(uLightData, ivec2(3, llRec), 0));
     }
 
-    // Occlusion ladder: a granted shadow slot samples its atlas maps
-    // (per-light, entity-aware); otherwise a masked light multiplies by the
-    // shared flood mask; otherwise the light is unoccluded. The common
+    // Occlusion ladder: a masked light multiplies by the shared flood
+    // mask, and a granted shadow slot COMPOSES its atlas maps on top of
+    // that mask rather than replacing it. The mask is the conservative
+    // always-available occluder; the maps refine it where cached content
+    // exists. A holder's face with no cached map (mount-skipped by
+    // allowedMask, or still queued in the FIFO) samples as fully visible,
+    // so without the mask floor a ceiling-mounted lamp pours full
+    // unoccluded light through the roof above it — giant colored patches
+    // across surfaces its flood provably cannot reach. The common
     // masked-point case costs the same select it did before shadows.
     float llOcclusion = (llFlags & 1) != 0 ? llMask : 1.0;
     if ((llFlags & 4) != 0) {
-      llOcclusion = localLightShadow(llRec, llPos, llNormal, llShape, llT0.xyz, llSpotDir);
+      llOcclusion *= localLightShadow(llRec, llPos, llNormal, llShape, llT0.xyz, llSpotDir);
     }
 
     // Submerged emitters lose energy to the water column, with the same
