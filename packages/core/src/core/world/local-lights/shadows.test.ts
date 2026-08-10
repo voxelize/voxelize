@@ -1091,6 +1091,36 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     expect(peerA.visible && peerC.visible && peerD.visible).toBe(true);
   });
 
+  it("keeps cached maps when the same tier caps are re-applied", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const { renderer } = makeVisibilityRenderer([]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, undefined, undefined, [], stats);
+    const index = indexOf(registry, lamp);
+    expect(scheduler.recordForIndex(index)?.staticMask).toBe(0b111111);
+    const invalidationsBefore = scheduler.invalidationLog.length;
+
+    // Re-applying the exact same caps (settings "apply", same-tier world
+    // re-init) is a no-op: cached faces stay sampleable, nothing requeues.
+    scheduler.setTierCaps(2, 2048, 256);
+    expect(scheduler.recordForIndex(index)?.staticMask).toBe(0b111111);
+    expect(scheduler.invalidationLog.length).toBe(invalidationsBefore);
+
+    // An actual change still invalidates through the tierChange cause.
+    scheduler.setTierCaps(2, 4096, 512);
+    expect(scheduler.recordForIndex(index)?.staticMask).toBe(0);
+    expect(
+      scheduler.invalidationLog[scheduler.invalidationLog.length - 1]?.cause,
+    ).toBe("tierChange");
+  });
+
   it("clears slot state on light removal so a successor starts clean", () => {
     const registry = new LightSourceRegistry(16);
     const scheduler = makeScheduler(registry);
