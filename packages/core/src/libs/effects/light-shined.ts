@@ -20,6 +20,7 @@ const localLightSample = {
   claim: 0,
 };
 const localLightQueryOptions = { floodMask: 1, timeMs: 0 };
+const floodRemainderArgs = { scaledClaim: 0, floodLevel: 0 };
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
@@ -379,14 +380,13 @@ export class LightShined {
     // remainder helper uses the shader's smoothstep denominator on the raw
     // flood level, so the entity and the block it stands on agree on how
     // much flood survives.
-    const rawFloodLevel = lightValues
+    floodRemainderArgs.scaledClaim =
+      localLightSample.claim * this.world.localLights.blockLightOwnership;
+    floodRemainderArgs.floodLevel = lightValues
       ? Math.max(lightValues.red, lightValues.green, lightValues.blue) /
         maxLightLevel
       : 0;
-    const floodRemainder = blockLightFloodRemainder(
-      localLightSample.claim * this.world.localLights.blockLightOwnership,
-      rawFloodLevel,
-    );
+    const floodRemainder = blockLightFloodRemainder(floodRemainderArgs);
     cpuTorchR = cpuTorchR * floodRemainder + localLightSample.color[0];
     cpuTorchG = cpuTorchG * floodRemainder + localLightSample.color[1];
     cpuTorchB = cpuTorchB * floodRemainder + localLightSample.color[2];

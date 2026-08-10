@@ -295,12 +295,13 @@ export class LightClusterGrid {
    * of the point, with the same spot/capsule shaping, shader-matched flicker,
    * and — when the caller supplies its local flood level — the same
    * occlusion mask the world surfaces use, so an entity behind a wall stops
-   * tinting from the light the wall blocks. Also writes `out.claim` — the
-   * unoccluded luminance the selected lights claim at the point, mirroring
-   * the chunk shader's flood-ownership term exactly: only lights present in
-   * the point's grid cell claim it (an overflowed cell keeps its flood look
-   * on entities just as it does on blocks), and a point outside the grid
-   * window claims nothing. Zero allocation; the caller owns `out` and may
+   * tinting from the light the wall blocks. Mirrors the chunk shader's
+   * per-fragment structure exactly: only lights present in the point's grid
+   * cell contribute — color and claim alike — so a point outside the window
+   * or in an overflowed cell keeps its flood look on entities just as it
+   * does on blocks, and `out.claim` (the unoccluded luminance claim that
+   * drives the flood remainder) carries the same outer-two-cell window fade
+   * the shader applies. Zero allocation; the caller owns `out` and may
    * reuse one `options` scratch object across calls (`floodMask` is the
    * knee-mapped local flood level, 1 = fully open; `timeMs` drives the same
    * flicker curve the shader evaluates).
@@ -328,14 +329,17 @@ export class LightClusterGrid {
     let contributors = 0;
     let claim = 0;
 
-    // Cell membership for the claim, mirroring localLightCell + the fixed
-    // slot list in the shader. -1 = outside the window: nothing claims.
+    // Cell membership, mirroring localLightCell + the fixed slot list in
+    // the shader. -1 = outside the window: nothing lights or claims here.
     const origin = this.uniforms.gridOrigin.value;
     const cellSize = this.uniforms.gridCellSize.value;
     const [dimX, dimY, dimZ] = this.gridDims;
-    const cellX = Math.floor((x - origin.x) / cellSize);
-    const cellY = Math.floor((y - origin.y) / cellSize);
-    const cellZ = Math.floor((z - origin.z) / cellSize);
+    const relX = (x - origin.x) / cellSize;
+    const relY = (y - origin.y) / cellSize;
+    const relZ = (z - origin.z) / cellSize;
+    const cellX = Math.floor(relX);
+    const cellY = Math.floor(relY);
+    const cellZ = Math.floor(relZ);
     let cellBase = -1;
     if (
       cellX >= 0 &&
@@ -350,7 +354,17 @@ export class LightClusterGrid {
         (cell >> 5) * (GRID_CELLS_PER_ROW * MAX_LIGHTS_PER_CELL) +
         (cell & 31) * MAX_LIGHTS_PER_CELL;
     }
+    // The shader fades the claim over the window's outer two cells so its
+    // cell-stepped edge never pops; the CPU claim rides the same fade.
+    const edgeCells = Math.min(
+      Math.min(relX, dimX - relX),
+      Math.min(Math.min(relY, dimY - relY), Math.min(relZ, dimZ - relZ)),
+    );
+    const windowFade = Math.min(Math.max(edgeCells * 0.5, 0), 1);
     for (let rank = 0; rank < this.selectedCount; rank++) {
+      // Same gate as a fragment: outside the window, or not in the cell's
+      // slot list (overflow), this light neither tints nor claims here.
+      if (cellBase < 0 || !this.cellHoldsRank(cellBase, rank)) continue;
       const i = this.selectedIndices[rank];
 
       let ox = positions[i * 3];
@@ -402,18 +416,15 @@ export class LightClusterGrid {
       // Unoccluded claim: falloff and cone shaping only — no flicker, no
       // occlusion. Accumulated before the occlusion continue, because a
       // wall-blocked light still owns its coverage: the baked flood term
-      // must not refill the side the analytic model keeps dark. Gated on
-      // the point's grid cell actually holding this light, like the shader.
-      if (cellBase >= 0 && this.cellHoldsRank(cellBase, rank)) {
-        claim +=
-          intensities[i] *
-          shares[i] *
-          falloff *
-          angular *
-          (colors[i * 3] * LUMA_R +
-            colors[i * 3 + 1] * LUMA_G +
-            colors[i * 3 + 2] * LUMA_B);
-      }
+      // must not refill the side the analytic model keeps dark.
+      claim +=
+        intensities[i] *
+        shares[i] *
+        falloff *
+        angular *
+        (colors[i * 3] * LUMA_R +
+          colors[i * 3 + 1] * LUMA_G +
+          colors[i * 3 + 2] * LUMA_B);
 
       let flicker = 1;
       if (flags[i] & LIGHT_FLAG_FLICKER) {
@@ -443,7 +454,7 @@ export class LightClusterGrid {
       contributors++;
     }
     out.count = contributors;
-    out.claim = claim;
+    out.claim = claim * windowFade;
     return contributors;
   }
 

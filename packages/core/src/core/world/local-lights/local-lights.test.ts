@@ -271,8 +271,10 @@ describe("LightClusterGrid selection", () => {
       count: 0,
       claim: 0,
     };
+    // The CPU sample mirrors the fragment gate: only the eight cell-held
+    // lights contribute; the two overflow victims neither tint nor claim.
     const contributors = grid.sampleIrradiance([4, 4, 4], sample);
-    expect(contributors).toBe(10);
+    expect(contributors).toBe(8);
     expect(sample.claim).toBeGreaterThan(0);
   });
 
@@ -388,20 +390,46 @@ describe("block-light ownership", () => {
     expect(sample.color[0]).toBe(0);
   });
 
-  it("claims nothing outside the grid window, like the shader", () => {
-    // The window spans ±96 around the camera cell. A light near the edge
-    // still tints a point just past it (the CPU color is range-based for
-    // smooth entity lerps), but the *claim* must be zero there: the shader
-    // renders that fragment from the flood term alone.
+  it("neither tints nor claims outside the grid window, like the shader", () => {
+    // The window spans ±96 around the camera cell. A fragment just past it
+    // renders from the flood term alone — no cluster color, no claim — and
+    // the CPU sample must agree, or entities there would stack analytic
+    // tint on top of unsuppressed flood: exactly the double-lighting the
+    // ownership blend removes.
     const registry = new LightSourceRegistry(8);
     registry.add(pointLight({ range: 10 }), 90, 4, 4);
     const grid = makeGrid(registry, { analyticRadius: 96 });
     grid.update(0, 0, 0, makeStats());
 
-    const sample = makeSample();
-    grid.sampleIrradiance([98, 4, 4], sample);
-    expect(sample.color[0]).toBeGreaterThan(0);
-    expect(sample.claim).toBe(0);
+    const inside = makeSample();
+    grid.sampleIrradiance([88, 4, 4], inside);
+    expect(inside.color[0]).toBeGreaterThan(0);
+
+    const outside = makeSample();
+    grid.sampleIrradiance([98, 4, 4], outside);
+    expect(outside.color[0]).toBe(0);
+    expect(outside.claim).toBe(0);
+  });
+
+  it("fades the claim over the window's outer two cells, like the shader", () => {
+    // Same light, two sample points: deep inside the window the claim is
+    // unfaded; in the rim band it scales by the shader's edge fade so the
+    // flood hand-off never pops when the window steps with the camera.
+    const registry = new LightSourceRegistry(8);
+    registry.add(pointLight({ range: 32, intensity: 1 }), 60, 4, 4);
+    const grid = makeGrid(registry, { analyticRadius: 96 });
+    grid.update(0, 0, 0, makeStats());
+
+    const deep = makeSample();
+    grid.sampleIrradiance([60, 4, 4], deep); // edge distance 4.5 cells: fade 1
+    const rim = makeSample();
+    grid.sampleIrradiance([88, 4, 4], rim); // 1 cell from the +X edge: fade 0.5
+
+    const dist = 28;
+    const norm = dist / 32;
+    const falloff = (1 - norm * norm) ** 2;
+    expect(deep.claim).toBeGreaterThan(0);
+    expect(rim.claim).toBeCloseTo(deep.claim * falloff * 0.5, 6);
   });
 
   it("claims only the lights the point's cell actually holds (overflow)", () => {
@@ -425,13 +453,23 @@ describe("block-light ownership", () => {
   });
 
   it("mirrors the shader's flood-remainder curve on the CPU", () => {
-    expect(blockLightFloodRemainder(0, 0.5)).toBe(1); // no claim: legacy
-    expect(blockLightFloodRemainder(10, 0.5)).toBe(0); // saturated: owned
+    // No claim: legacy flood untouched.
+    expect(blockLightFloodRemainder({ scaledClaim: 0, floodLevel: 0.5 })).toBe(
+      1,
+    );
+    // Saturated claim: fully owned.
+    expect(blockLightFloodRemainder({ scaledClaim: 10, floodLevel: 0.5 })).toBe(
+      0,
+    );
     // smoothstep(0.5) = 0.5; ratio = 0.2 × 1.5 / 0.5 = 0.6 → remainder 0.4.
-    expect(blockLightFloodRemainder(0.2, 0.5)).toBeCloseTo(0.4, 6);
+    expect(
+      blockLightFloodRemainder({ scaledClaim: 0.2, floodLevel: 0.5 }),
+    ).toBeCloseTo(0.4, 6);
     // Monotone: more claim, less flood.
-    expect(blockLightFloodRemainder(0.3, 0.5)).toBeLessThan(
-      blockLightFloodRemainder(0.1, 0.5),
+    expect(
+      blockLightFloodRemainder({ scaledClaim: 0.3, floodLevel: 0.5 }),
+    ).toBeLessThan(
+      blockLightFloodRemainder({ scaledClaim: 0.1, floodLevel: 0.5 }),
     );
   });
 

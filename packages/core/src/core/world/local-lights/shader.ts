@@ -30,19 +30,22 @@ export const BLOCK_LIGHT_OWNERSHIP_GAIN = 1.5;
 /**
  * CPU mirror of the chunk shader's flood-remainder computation: the
  * fraction of the baked flood term a point keeps, given the analytic
- * luminance claim at that point (already scaled by the effective ownership)
- * and the raw flood level (0..1, max channel). Uses the same smoothstep
- * denominator the shader uses, so an entity and the block it stands on
- * agree on how much flood survives.
+ * luminance claim at that point (already scaled by the effective ownership;
+ * {@link LightClusterGrid.sampleIrradiance} bakes the shader's window-edge
+ * fade into it) and the raw flood level (0..1, max channel). Uses the same
+ * smoothstep denominator the shader uses, so an entity and the block it
+ * stands on agree on how much flood survives. Callers may reuse one scratch
+ * args object; nothing is retained.
  */
-export function blockLightFloodRemainder(
-  scaledClaim: number,
-  floodLevel: number,
-): number {
-  const level = Math.min(Math.max(floodLevel, 0), 1);
+export function blockLightFloodRemainder(args: {
+  scaledClaim: number;
+  floodLevel: number;
+}): number {
+  const level = Math.min(Math.max(args.floodLevel, 0), 1);
   const floodSmooth = level * level * (3 - 2 * level);
   const ratio =
-    (scaledClaim * BLOCK_LIGHT_OWNERSHIP_GAIN) / Math.max(floodSmooth, 1e-3);
+    (args.scaledClaim * BLOCK_LIGHT_OWNERSHIP_GAIN) /
+    Math.max(floodSmooth, 1e-3);
   return 1 - Math.min(Math.max(ratio, 0), 1);
 }
 
