@@ -1108,3 +1108,97 @@ fn an_ungrouped_block_writes_no_stack_bits() {
         );
     }
 }
+
+/// An emissive face packs `EMISSIVE_BIT` and its quantized strength index in
+/// the AO bits, on the per-face path; a plain face of the same block does not.
+#[test]
+fn emissive_faces_pack_the_bit_and_strength_index() {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut lantern = Block {
+        is_opaque: true,
+        faces: six_faces(),
+        ..plain_block(1, "Lantern")
+    };
+    // Only the top face glows, at strength 1.75 -> index 1.
+    lantern
+        .faces
+        .iter_mut()
+        .find(|face| face.name == "py")
+        .unwrap()
+        .emissive = 1.75;
+
+    let mut registry = Registry::new(vec![(0, air), (1, lantern.clone())]);
+    registry.build_cache();
+
+    let space = ColumnSpace {
+        bottom_id: 1,
+        top_id: 0,
+        is_bottom_waterlogged: false,
+    };
+
+    let glowing_face = lantern.faces.iter().find(|f| f.name == "py").unwrap();
+    let glowing = mesh_single_face(&lantern, glowing_face, &registry, &space);
+    assert!(!glowing.is_empty());
+    for packed in &glowing {
+        assert_ne!(packed & EMISSIVE_BIT, 0, "emissive face lost its bit");
+        assert_eq!(
+            (packed >> AO_SHIFT) & AO_BITS,
+            1,
+            "strength 1.75 should quantize to level index 1",
+        );
+    }
+
+    let plain_face = lantern.faces.iter().find(|f| f.name == "pz").unwrap();
+    let plain = mesh_single_face(&lantern, plain_face, &registry, &space);
+    assert!(!plain.is_empty());
+    for packed in &plain {
+        assert_eq!(packed & EMISSIVE_BIT, 0, "plain face gained the bit");
+    }
+}
+
+/// The greedy path must carry the emissive bits onto merged quads, alongside
+/// its own greedy flag.
+#[test]
+fn greedy_quads_carry_emissive_bits() {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let glowstone = Block {
+        is_opaque: true,
+        faces: six_faces()
+            .into_iter()
+            .map(|mut face| {
+                face.emissive = 2.5;
+                face
+            })
+            .collect(),
+        ..plain_block(1, "Glowstone")
+    };
+
+    let mut registry = Registry::new(vec![(0, air), (1, glowstone)]);
+    registry.build_cache();
+
+    let space = SingleVoxelSpace::dry(1);
+    let geometries = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
+
+    let mut packed_lights = 0;
+    for geometry in &geometries {
+        for packed in &geometry.lights {
+            packed_lights += 1;
+            assert_ne!(packed & EMISSIVE_BIT, 0, "greedy quad lost the emissive bit");
+            assert_eq!(
+                (packed >> AO_SHIFT) & AO_BITS,
+                2,
+                "strength 2.5 should quantize to level index 2",
+            );
+            assert_ne!(packed & GREEDY_BIT, 0, "quad lost the greedy flag");
+        }
+    }
+    assert!(packed_lights > 0, "the glowstone meshed nothing");
+}

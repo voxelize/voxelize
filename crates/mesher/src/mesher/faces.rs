@@ -672,7 +672,7 @@ pub(super) fn process_face<S: VoxelAccess>(
         let water_exposed_bit = if is_water_exposed { WATER_EXPOSED_BIT } else { 0 };
         lights.push(
             light as i32
-                | ao << AO_SHIFT
+                | ao_or_emissive_bits(ao, face.emissive)
                 | fluid_bit
                 | wave_bit
                 | water_exposed_bit

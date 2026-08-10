@@ -1,6 +1,7 @@
 import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
+import { blockLightFloodRemainder } from "../../core/world/local-lights";
 import {
   getDownwellingTransmittance,
   measureWaterColumn,
@@ -13,6 +14,14 @@ import { NameTag } from "../nametag";
 const position = new Vector3();
 const tempColor = new Color();
 const waterTransmittance = new Color();
+const localLightSample = {
+  color: [0, 0, 0] as [number, number, number],
+  count: 0,
+  claim: 0,
+  windowFade: 1,
+};
+const localLightQueryOptions = { floodMask: 1, timeMs: 0 };
+const floodRemainderArgs = { scaledClaim: 0, floodLevel: 0, windowFade: 1 };
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
@@ -341,6 +350,48 @@ export class LightShined {
       cpuTorchG = (lightValues.green / maxLightLevel) ** 2;
       cpuTorchB = (lightValues.blue / maxLightLevel) ** 2;
     }
+
+    // Clustered local lights (held torches, projectiles, analytic block
+    // emitters) shine on entities the same way they shine on the world —
+    // including the flood-mask occlusion term, so a character behind a wall
+    // stops picking up the tint of the torch the wall blocks.
+    let floodMask = 1;
+    if (lightValues) {
+      const floodLevel =
+        Math.max(lightValues.red, lightValues.green, lightValues.blue) /
+        maxLightLevel;
+      const knee = this.world.localLights.options.maskKnee;
+      const t = Math.min(Math.max(floodLevel / Math.max(knee, 1e-4), 0), 1);
+      floodMask = t * t * (3 - 2 * t);
+    }
+    localLightSample.color[0] = 0;
+    localLightSample.color[1] = 0;
+    localLightSample.color[2] = 0;
+    localLightQueryOptions.floodMask = floodMask;
+    localLightQueryOptions.timeMs = performance.now();
+    this.world.localLights.queryLocalLights(
+      pos,
+      localLightSample,
+      localLightQueryOptions,
+    );
+    // Ownership blend, mirroring the chunk shader: where selected analytic
+    // lights claim this entity, the baked flood tint yields in proportion
+    // so the entity is never lit by both models; beyond their reach (or
+    // with local lights off) the legacy flood tint stands untouched. The
+    // remainder helper uses the shader's smoothstep denominator on the raw
+    // flood level, so the entity and the block it stands on agree on how
+    // much flood survives.
+    floodRemainderArgs.scaledClaim =
+      localLightSample.claim * this.world.localLights.blockLightOwnership;
+    floodRemainderArgs.floodLevel = lightValues
+      ? Math.max(lightValues.red, lightValues.green, lightValues.blue) /
+        maxLightLevel
+      : 0;
+    floodRemainderArgs.windowFade = localLightSample.windowFade;
+    const floodRemainder = blockLightFloodRemainder(floodRemainderArgs);
+    cpuTorchR = cpuTorchR * floodRemainder + localLightSample.color[0];
+    cpuTorchG = cpuTorchG * floodRemainder + localLightSample.color[1];
+    cpuTorchB = cpuTorchB * floodRemainder + localLightSample.color[2];
 
     const globalAmbientR =
       (0.025 * sunVisibility + ambientColor.value.r * ambientFloor) * spectralR;

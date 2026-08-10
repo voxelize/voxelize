@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { protocol } from "./index";
@@ -37,7 +38,9 @@ describe("Entity protobuf codegen (motion = 5)", () => {
     expect(decoded.id).toBe("fauna-1");
     expect(decoded.type).toBe("fauna");
     expect(decoded.motion).toBeInstanceOf(Uint8Array);
-    expect(Array.from(decoded.motion as Uint8Array)).toEqual(Array.from(motion));
+    expect(Array.from(decoded.motion as Uint8Array)).toEqual(
+      Array.from(motion),
+    );
   });
 
   it("omits motion when absent so legacy clients stay on metadata.position", () => {
@@ -46,7 +49,7 @@ describe("Entity protobuf codegen (motion = 5)", () => {
         operation: Entity.Operation.UPDATE,
         id: "legacy-1",
         type: "fauna",
-        metadata: "{\"position\":[1,2,3]}",
+        metadata: '{"position":[1,2,3]}',
       }),
     ).finish();
     const decoded = Entity.decode(encoded);

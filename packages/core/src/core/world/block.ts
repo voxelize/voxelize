@@ -172,6 +172,11 @@ export type Block = {
     textureGroup: string | null;
     range: UV;
     name: string;
+    /**
+     * Emissive output of this face; `0` shades normally. Declared server-side
+     * with the block and rendered full-bright by the chunk shader.
+     */
+    emissive?: number;
   }[];
 
   /**

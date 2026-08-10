@@ -36,13 +36,24 @@ async fn world_client_count(server: &Server) -> usize {
 
 /// Drain everything on a fake socket's control lane, marking each message
 /// written so the sender's depth (the state-flush gate signal) reflects a
-/// live socket. Undecodable payloads (test filler) are skipped.
+/// live socket. Messages above the encoder's compression threshold arrive
+/// LZ4-frame-compressed (an INIT carrying a real block registry crosses it),
+/// so decode falls back to decompression exactly like a live client's decode
+/// worker. Payloads that survive neither path (test filler) are skipped.
 fn drain_messages(sender: &WsSender, rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<Message> {
     let mut messages = vec![];
     while let Ok(bytes) = rx.try_recv() {
         sender.mark_control_written();
         if let Ok(message) = decode_message(&bytes) {
             messages.push(message);
+            continue;
+        }
+        let mut decoder = lz4_flex::frame::FrameDecoder::new(&bytes[..]);
+        let mut decompressed = Vec::new();
+        if std::io::Read::read_to_end(&mut decoder, &mut decompressed).is_ok() {
+            if let Ok(message) = decode_message(&decompressed) {
+                messages.push(message);
+            }
         }
     }
     messages

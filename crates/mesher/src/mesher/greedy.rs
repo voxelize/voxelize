@@ -178,9 +178,14 @@ pub(super) fn process_greedy_quad(
         } else {
             0
         };
+        let ao_bits = if quad.data.emissive_bits != 0 {
+            quad.data.emissive_bits
+        } else {
+            ao << AO_SHIFT
+        };
         geometry
             .lights
-            .push(light | (ao << AO_SHIFT) | fluid_bit | greedy_bit | water_exposed_bit);
+            .push(light | ao_bits | fluid_bit | greedy_bit | water_exposed_bit);
     }
 
     let face_aos = quad.data.key.ao;
@@ -464,6 +469,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 uv_range,
                                 is_see_through,
                                 is_fluid,
+                                emissive_bits: ao_or_emissive_bits(0, face.emissive),
                             },
                         );
                         continue;
