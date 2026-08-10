@@ -17,6 +17,16 @@ export const EMISSIVE_LEVELS: [number, number, number, number] = [
  */
 const LAMBERT_WRAP = 0.25;
 
+/**
+ * Safety gain on the analytic claim when it suppresses the baked flood
+ * term: the two models approximate the same sources with different falloff
+ * curves, so ownership must saturate decisively near a source (fully
+ * analytic — N·L and shadows undiluted) while still fading smoothly to the
+ * flood look at the claim's edge. Shared by the chunk shader and the CPU
+ * entity mirror; change neither side alone.
+ */
+export const BLOCK_LIGHT_OWNERSHIP_GAIN = 1.5;
+
 export const LOCAL_LIGHTS_UNIFORM_DECLARATIONS = `
 uniform highp usampler2D uLightGrid;
 uniform sampler2D uLightData;
@@ -26,6 +36,8 @@ uniform float uLightGridCellSize;
 uniform int uClusteredLightCount;
 uniform float uLocalMaskKnee;
 uniform float uLocalSpecularStrength;
+// 0..1: how strongly analytic claims suppress the baked flood term.
+uniform float uLocalOwnership;
 uniform float uLocalLightDebugMode;
 uniform sampler2D uLocalShadowAtlas;
 // [atlas px, cell px, linear depth bias (blocks), normal bias (texels)]
@@ -176,7 +188,18 @@ float localLightFlicker(vec4 llT3) {
   return 1.0 - llT3.y * llWobble;
 }
 
-vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
+// Alongside the lit response, computes llFloodRemainder: the fraction of
+// the baked flood term this fragment should keep. Selected lights *claim*
+// their coverage with falloff and cone shaping only — no Lambert, flicker,
+// occlusion, or shadow, so a torch's shadowed side and its facing-away
+// surfaces stay owned (dark) instead of being refilled by flat flood. The
+// claim fades over the outer two cells of the grid window (the window edge
+// steps with the camera in whole cells; the fade keeps that step invisible)
+// and is scaled by uLocalOwnership, so 0 renders the exact legacy frame.
+vec3 localLightSurface(
+  vec3 llPos, vec3 llNormal, vec3 llFlood, out float llFloodRemainder
+) {
+  llFloodRemainder = 1.0;
   if (uClusteredLightCount == 0) return vec3(0.0);
   int llCell = localLightCell(llPos);
   if (llCell < 0) return vec3(0.0);
@@ -187,6 +210,7 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
     max(max(llFlood.r, llFlood.g), llFlood.b)
   );
 
+  float llClaim = 0.0;
   vec3 llTotal = vec3(0.0);
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
     int llRec = localLightSlot(llCell, s);
@@ -229,6 +253,10 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
       llAngular *= llAngular;
     }
 
+    // llT1.rgb is color pre-multiplied by intensity × share, so this is the
+    // light's unoccluded luminance claim at the fragment.
+    llClaim += (llFall * llAngular) * dot(llT1.rgb, vec3(0.2126, 0.7152, 0.0722));
+
     float llLambert = max(dot(llNormal, llL), 0.0) * ${(1 - LAMBERT_WRAP).toFixed(4)} + ${LAMBERT_WRAP.toFixed(4)};
 
     float llFlicker = 1.0;
@@ -256,6 +284,23 @@ vec3 localLightSurface(vec3 llPos, vec3 llNormal, vec3 llFlood) {
 
     llTotal += llT1.rgb * (llFall * llAngular * llLambert * llFlicker * llOcclusion) * llTransmit;
   }
+
+  // The window edge steps by whole cells as the camera moves; fading the
+  // claim over the outer two cells hands coverage back to the flood term
+  // before that hard edge can show.
+  vec3 llCellPos = (llPos - uLightGridOrigin) / uLightGridCellSize;
+  vec3 llEdge = min(llCellPos, uLightGridDims - llCellPos);
+  float llWindowFade = clamp(min(min(llEdge.x, llEdge.y), llEdge.z) * 0.5, 0.0, 1.0);
+
+  float llFloodLum = max(max(llFlood.r, llFlood.g), llFlood.b);
+  float llFloodSmooth = llFloodLum * llFloodLum * (3.0 - 2.0 * llFloodLum);
+  llFloodRemainder = 1.0 - clamp(
+    (llClaim * uLocalOwnership * llWindowFade * ${BLOCK_LIGHT_OWNERSHIP_GAIN.toFixed(2)})
+      / max(llFloodSmooth, 1e-3),
+    0.0,
+    1.0
+  );
+
   return llTotal;
 }
 
@@ -365,8 +410,15 @@ float localShadowDebugProbe(int llRec, vec3 llPos, vec3 llNormal) {
 export const LOCAL_LIGHTS_DEBUG_FUNCTIONS = `
 ${LOCAL_SHADOW_DEBUG_PROBE}
 
-vec3 localLightDebugColor(vec3 llPos, vec3 llBase, vec3 llNormal, vec3 llFlood, vec3 llCluster) {
+vec3 localLightDebugColor(
+  vec3 llPos, vec3 llBase, vec3 llNormal, vec3 llFlood, vec3 llCluster, float llRemainder
+) {
   if (uLocalLightDebugMode < 0.5) return llBase;
+  if (uLocalLightDebugMode > 5.5) {
+    // Mode 6: flood-ownership remainder — white where the legacy flood term
+    // still renders, black where the analytic layer owns the fragment.
+    return vec3(llRemainder);
+  }
   int llCell = localLightCell(llPos);
   if (uLocalLightDebugMode < 1.5) {
     // Cell occupancy heatmap: black 0, green 1-2, yellow 3-5, red 6+.

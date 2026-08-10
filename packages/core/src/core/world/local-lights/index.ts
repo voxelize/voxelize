@@ -48,6 +48,7 @@ export {
 export { BlockProfileTable, SectionTracker } from "./scan";
 export type { EmitterBlock, ScannableChunk } from "./scan";
 export {
+  BLOCK_LIGHT_OWNERSHIP_GAIN,
   EMISSIVE_LEVELS,
   LOCAL_LIGHTS_DEBUG_FUNCTIONS,
   LOCAL_LIGHTS_FUNCTIONS,
@@ -228,6 +229,7 @@ export class LocalLights {
       uClusteredLightCount: u.clusteredCount,
       uLocalMaskKnee: u.maskKnee,
       uLocalSpecularStrength: u.specularStrength,
+      uLocalOwnership: u.ownership,
       uLocalLightDebugMode: u.debugMode,
       uEmissiveLevels: u.emissiveLevels,
       uLocalShadowAtlas: this.shadowUniforms.atlas,
@@ -314,6 +316,13 @@ export class LocalLights {
    * lights multiply by it so an entity behind a wall stops tinting from a
    * blocked light. `options.timeMs` drives the same flicker curve the
    * shader evaluates.
+   *
+   * `out.claim` mirrors the chunk shader's flood-ownership term: consumers
+   * that also apply a baked flood tint scale that tint by
+   * `1 - clamp(out.claim × {@link blockLightOwnership} ×
+   * BLOCK_LIGHT_OWNERSHIP_GAIN / floodLuminance, 0, 1)` so a point covered
+   * by analytic lights is never lit by both models (`LightShined` does
+   * exactly this).
    */
   queryLocalLights(
     position: Vector3,
@@ -323,11 +332,11 @@ export class LocalLights {
     out.color[0] = 0;
     out.color[1] = 0;
     out.color[2] = 0;
-    out.count = this.grid.sampleIrradiance(
+    this.grid.sampleIrradiance(
       position.x,
       position.y,
       position.z,
-      out.color,
+      out,
       options,
     );
   }
@@ -337,12 +346,15 @@ export class LocalLights {
   setQualityTier(tier: LightQualityTier): void {
     this.tier = tier;
     const preset = LIGHT_QUALITY_TIERS[tier];
-    this.grid.setTierCaps(
-      preset.maxClusteredLights,
-      preset.maxLightsPerCell,
-      preset.analyticRadius,
-      preset.fluidSpecularStrength * this.options.fluidSpecularStrength,
-    );
+    this.grid.setTierCaps({
+      maxClusteredLights: preset.maxClusteredLights,
+      maxLightsPerCell: preset.maxLightsPerCell,
+      analyticRadius: preset.analyticRadius,
+      fluidSpecularStrength:
+        preset.fluidSpecularStrength * this.options.fluidSpecularStrength,
+      blockLightOwnership:
+        preset.blockLightOwnership * this.options.blockLightOwnership,
+    });
     // Like the clustered caps, tier presets replace the shadow caps — the
     // constructor's options only seed state until this first call.
     this.shadows.setTierCaps(
@@ -360,13 +372,26 @@ export class LocalLights {
     return this.tier;
   }
 
+  /**
+   * Effective flood-ownership weight of the current tier (0..1): how
+   * strongly analytic claims suppress the baked flood term. `0` at the
+   * `off`/`potato` tiers — the legacy flood look, exactly. CPU consumers
+   * (`LightShined`) scale {@link LocalLightSample.claim} by this, mirroring
+   * the chunk shader's `uLocalOwnership` uniform.
+   */
+  get blockLightOwnership(): number {
+    return this.grid.uniforms.ownership.value;
+  }
+
   // ── debug ────────────────────────────────────────────────────────────────
 
   /**
    * 0 off, 1 cell occupancy heatmap, 2 isolated contribution, 3 leak mask,
-   * 4 shadow-slot tint, 5 isolated local-shadow visibility.
+   * 4 shadow-slot tint, 5 isolated local-shadow visibility, 6 flood-
+   * ownership remainder (white = legacy flood renders, black = analytic
+   * owns).
    */
-  setDebugMode(mode: 0 | 1 | 2 | 3 | 4 | 5): void {
+  setDebugMode(mode: 0 | 1 | 2 | 3 | 4 | 5 | 6): void {
     this.grid.uniforms.debugMode.value = mode;
   }
 

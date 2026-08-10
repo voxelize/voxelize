@@ -354,9 +354,15 @@ Order in the chunk fragment shader (all layers pre-fog, matching today's torch p
 
 ```glsl
 // existing: sunTotal (CSM-shadowed sun + sky ambient + bounce + underwater fill)
-// existing: torchLight = shaped vLight.rgb                      (L0)
-vec3 localLight = clusteredLocalLight(worldPos, N, vLight.rgb);  // L2 (+L3 shadow inside)
-vec3 coneLight  = lightConeSurface(worldPos, N);                 // L4 (existing)
+// [implemented] L2 computes, alongside its lit response, the fraction of the
+// baked flood term this fragment keeps (the "flood remainder"): selected
+// lights claim their coverage with falloff/cone shaping only, the claim is
+// scaled by uLocalOwnership (0..1, tier-driven) and a grid-window edge fade,
+// and the L0 term yields in proportion.
+float remainder;                                                     // 1 → legacy
+vec3 localLight = localLightSurface(worldPos, N, vLight.rgb, remainder); // L2 (+L3)
+vec3 torchLight = shapedFlood * remainder;                           // L0 yields
+vec3 coneLight  = lightConeSurface(worldPos, N);                     // L4 (existing)
 
 totalLight = 1.0 - (1.0-sunTotal)*(1.0-torchLight)*(1.0-localLight)*(1.0-coneLight);
 // then: temperature tint, AO, face shade, tonemap — unchanged
@@ -364,10 +370,17 @@ totalLight = 1.0 - (1.0-sunTotal)*(1.0-torchLight)*(1.0-localLight)*(1.0-coneLig
 
 - **Screen blend** keeps every layer ≤ 1 and order-independent, and is what torch + cones
   already do — locals slot in rather than redefining the model.
-- **Double-counting L0+L2:** near a static emitter both layers contribute. This is by
-  design (L2 is the crisp detail on L0's broad base — same reasoning as ambient + direct),
-  but each `BlockLightProfile` carries `analyticShare` (default 0.6) scaling L2 so the
-  sum is tuned once per profile, not per scene. The screen blend caps the worst case.
+- **L0/L2 ownership `[implemented — supersedes the original "L2 atop L0" plan]`:**
+  the RFC originally layered L2 additively on L0's base, which double-lit near sources
+  (Town #162). Implemented behavior: where selected lights *claim* a fragment (falloff ×
+  cone shaping, no Lambert/flicker/occlusion — so an analytic light's dark sides and
+  shadowed regions stay owned rather than flood-refilled), the flood term fades out in
+  proportion and the per-pixel model is the sole visible block light. Where no selected
+  light reaches — beyond falloff, past the selection cap (dense fields keep their flood),
+  outside the grid window (edge-faded over two cells), or with ownership 0 (`off`/
+  `potato` tiers) — the remainder returns to 1 and the legacy flood look is untouched.
+  Sunlight/skylight compose separately and are never touched by either model.
+  `analyticShare` still scales L2's energy per profile.
 - **Specular:** L2 adds Blinn-Phong specular **on fluids only** in v1 (the only surfaces
   with any specular today), sharing the water path's half-vector math. Glossy solids are
   a later material feature, not a lighting feature.

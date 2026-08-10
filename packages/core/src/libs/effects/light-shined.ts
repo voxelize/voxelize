@@ -1,6 +1,7 @@
 import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
+import { BLOCK_LIGHT_OWNERSHIP_GAIN } from "../../core/world/local-lights";
 import {
   getDownwellingTransmittance,
   measureWaterColumn,
@@ -16,6 +17,7 @@ const waterTransmittance = new Color();
 const localLightSample = {
   color: [0, 0, 0] as [number, number, number],
   count: 0,
+  claim: 0,
 };
 const localLightQueryOptions = { floodMask: 1, timeMs: 0 };
 
@@ -370,9 +372,20 @@ export class LightShined {
       localLightSample,
       localLightQueryOptions,
     );
-    cpuTorchR += localLightSample.color[0];
-    cpuTorchG += localLightSample.color[1];
-    cpuTorchB += localLightSample.color[2];
+    // Ownership blend, mirroring the chunk shader: where selected analytic
+    // lights claim this entity, the baked flood tint yields in proportion
+    // so the entity is never lit by both models; beyond their reach (or
+    // with local lights off) the legacy flood tint stands untouched.
+    const floodLum = Math.max(cpuTorchR, Math.max(cpuTorchG, cpuTorchB));
+    const scaledClaim =
+      localLightSample.claim *
+      this.world.localLights.blockLightOwnership *
+      BLOCK_LIGHT_OWNERSHIP_GAIN;
+    const floodRemainder =
+      1 - Math.min(Math.max(scaledClaim / Math.max(floodLum, 1e-3), 0), 1);
+    cpuTorchR = cpuTorchR * floodRemainder + localLightSample.color[0];
+    cpuTorchG = cpuTorchG * floodRemainder + localLightSample.color[1];
+    cpuTorchB = cpuTorchB * floodRemainder + localLightSample.color[2];
 
     const globalAmbientR =
       (0.025 * sunVisibility + ambientColor.value.r * ambientFloor) * spectralR;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { SHADER_LIGHTING_CHUNK_SHADERS } from "../shaders";
+
 import { LightClusterGrid } from "./clustering";
 import {
   LIGHT_FLAG_MASKED,
@@ -8,11 +10,18 @@ import {
 } from "./registry";
 import { BlockProfileTable, EmitterBlock, SectionTracker } from "./scan";
 import {
+  LOCAL_LIGHTS_FUNCTIONS,
+  LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
+} from "./shader";
+import {
   BlockLightProfile,
   INVALID_LIGHT_HANDLE,
+  LIGHT_QUALITY_TIERS,
   LocalLightDescriptor,
   LocalLightStats,
 } from "./types";
+
+import { LocalLights } from "./index";
 
 const CHUNK_SIZE = 16;
 const MAX_HEIGHT = 64;
@@ -256,9 +265,14 @@ describe("LightClusterGrid selection", () => {
     expect(stats.cellsOverflowed).toBeGreaterThan(0);
 
     // The overflow victims must be the two weakest lights: ranks 8 and 9.
-    const sample: [number, number, number] = [0, 0, 0];
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+    };
     const contributors = grid.sampleIrradiance(4, 4, 4, sample);
     expect(contributors).toBe(10);
+    expect(sample.claim).toBeGreaterThan(0);
   });
 
   it("culls candidates outside the grid window's vertical span", () => {
@@ -285,10 +299,140 @@ describe("LightClusterGrid selection", () => {
     grid.update(0, 0, 0, stats);
     expect(grid.selectedCount).toBe(8);
 
-    grid.setTierCaps(0, 0, 0, 0);
+    grid.setTierCaps({
+      maxClusteredLights: 0,
+      maxLightsPerCell: 0,
+      analyticRadius: 0,
+      fluidSpecularStrength: 0,
+      blockLightOwnership: 0,
+    });
     grid.update(0, 0, 0, stats);
     expect(grid.selectedCount).toBe(0);
     expect(grid.uniforms.clusteredCount.value).toBe(0);
+    expect(grid.uniforms.ownership.value).toBe(0);
+  });
+});
+
+describe("block-light ownership", () => {
+  const makeSample = () => ({
+    color: [0, 0, 0] as [number, number, number],
+    count: 0,
+    claim: 0,
+  });
+
+  it("claims coverage even where the light itself is occluded", () => {
+    // A masked static torch behind a wall: the flood mask kills its visible
+    // contribution, but its *claim* must survive — the shader suppresses
+    // the baked flood by the claim, so the analytic layer's dark side stays
+    // dark instead of being refilled by flood. Covered points never render
+    // both models.
+    const registry = new LightSourceRegistry(8);
+    registry.add(
+      pointLight({ isStatic: true, shadowPolicy: "voxelMask" }),
+      4,
+      4,
+      4,
+    );
+    const grid = makeGrid(registry);
+    grid.update(0, 0, 0, makeStats());
+
+    const sample = makeSample();
+    grid.sampleIrradiance(5, 4, 4, sample, { floodMask: 0 });
+    expect(sample.color[0]).toBe(0); // fully occluded by the mask
+    expect(sample.claim).toBeGreaterThan(0); // still owns its coverage
+  });
+
+  it("keeps the claim steady while flicker modulates the lit color", () => {
+    const registry = new LightSourceRegistry(8);
+    registry.add(
+      pointLight({ flicker: { speed: 3, amplitude: 0.8 } }),
+      4,
+      4,
+      4,
+    );
+    const grid = makeGrid(registry);
+    grid.update(0, 0, 0, makeStats());
+
+    const a = makeSample();
+    const b = makeSample();
+    grid.sampleIrradiance(5, 4, 4, a, { timeMs: 0 });
+    grid.sampleIrradiance(5, 4, 4, b, { timeMs: 137 });
+    expect(a.claim).toBeCloseTo(b.claim, 10); // ownership must not pulse
+    expect(a.color[0]).not.toBeCloseTo(b.color[0], 10); // brightness does
+  });
+
+  it("computes the claim as falloff-shaped unoccluded luminance", () => {
+    // Pins the shader-mirrored formula: claim = intensity × share × falloff
+    // × luminance(color), with no Lambert, flicker, or occlusion terms.
+    const registry = new LightSourceRegistry(8);
+    registry.add(pointLight({ intensity: 1, range: 10 }), 4, 4, 4);
+    const grid = makeGrid(registry);
+    grid.update(0, 0, 0, makeStats());
+
+    const sample = makeSample();
+    grid.sampleIrradiance(9, 4, 4, sample); // 5 blocks out: falloff 0.5625
+    const luma = 0.2126 * 1 + 0.7152 * 0.8 + 0.0722 * 0.5;
+    expect(sample.claim).toBeCloseTo(0.5625 * luma, 6);
+  });
+
+  it("claims nothing where no selected light reaches", () => {
+    const registry = new LightSourceRegistry(8);
+    registry.add(pointLight({ range: 6 }), 4, 4, 4);
+    const grid = makeGrid(registry);
+    grid.update(0, 0, 0, makeStats());
+
+    const sample = makeSample();
+    grid.sampleIrradiance(40, 4, 4, sample);
+    expect(sample.claim).toBe(0); // flood remainder stays 1: legacy look
+    expect(sample.color[0]).toBe(0);
+  });
+
+  it("drives the ownership uniform from the quality tier, live", () => {
+    const lights = new LocalLights(
+      {},
+      () => ({
+        chunkSize: CHUNK_SIZE,
+        maxHeight: MAX_HEIGHT,
+        subChunks: SUB_CHUNKS,
+        maxLightLevel: MAX_LIGHT_LEVEL,
+      }),
+      () => [],
+    );
+    // Default tier is high: analytic owns covered block lighting.
+    expect(lights.getQualityTier()).toBe("high");
+    expect(lights.blockLightOwnership).toBe(1);
+
+    // Off restores the legacy flood appearance: ownership 0 and zero
+    // clustered lights, so the shader's early-outs render the exact
+    // pre-local-lights frame.
+    lights.setQualityTier("off");
+    expect(lights.blockLightOwnership).toBe(0);
+    expect(LIGHT_QUALITY_TIERS.off.maxClusteredLights).toBe(0);
+    expect(LIGHT_QUALITY_TIERS.off.maxShadowedLights).toBe(0);
+
+    lights.setQualityTier("high");
+    expect(lights.blockLightOwnership).toBe(1);
+    lights.dispose();
+  });
+
+  it("compiles the ownership blend into the chunk shader", () => {
+    expect(LOCAL_LIGHTS_UNIFORM_DECLARATIONS).toContain(
+      "uniform float uLocalOwnership;",
+    );
+    // The surface function owns the remainder computation…
+    expect(LOCAL_LIGHTS_FUNCTIONS).toContain("out float llFloodRemainder");
+    expect(LOCAL_LIGHTS_FUNCTIONS).toContain(
+      "llClaim * uLocalOwnership * llWindowFade",
+    );
+    // …and the chunk fragment scales the legacy flood term by it. The
+    // unscaled legacy expression must be gone: covered fragments cannot
+    // receive both the flood term and the analytic term.
+    const fragment = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
+    expect(fragment).toContain("smoothTorch * (1.2 * llFloodRemainder)");
+    expect(fragment).not.toContain("smoothTorch * 1.2;");
+    expect(fragment).toContain(
+      "1.0 - (1.0 - totalLight) * (1.0 - clusterLight)",
+    );
   });
 });
 

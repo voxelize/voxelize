@@ -19,7 +19,7 @@ import {
   LightSourceRegistry,
 } from "./registry";
 import type { ShadowTexelRecord } from "./shadow-scheduler";
-import { LocalLightStats } from "./types";
+import { LocalLightSample, LocalLightStats } from "./types";
 
 /**
  * Compile-time slot count of the shader loop. Quality tiers cap how many
@@ -69,6 +69,8 @@ export class LightClusterGrid {
     clusteredCount: { value: 0 },
     maskKnee: { value: 2 / 15 },
     specularStrength: { value: 1 },
+    /** 0..1: how strongly analytic claims suppress the baked flood term. */
+    ownership: { value: 1 },
     debugMode: { value: 0 },
     emissiveLevels: { value: new Vector4(1.0, 1.75, 2.5, 3.5) },
   };
@@ -186,19 +188,27 @@ export class LightClusterGrid {
     this.selectedGenerations = new Uint16Array(registry.capacity);
   }
 
-  setTierCaps(
-    maxClusteredLights: number,
-    maxLightsPerCell: number,
-    analyticRadius: number,
-    fluidSpecularStrength: number,
-  ) {
+  setTierCaps(caps: {
+    maxClusteredLights: number;
+    maxLightsPerCell: number;
+    analyticRadius: number;
+    fluidSpecularStrength: number;
+    blockLightOwnership: number;
+  }) {
     this.maxClusteredLights = Math.min(
-      maxClusteredLights,
+      caps.maxClusteredLights,
       MAX_CLUSTERED_LIGHTS,
     );
-    this.maxLightsPerCell = Math.min(maxLightsPerCell, MAX_LIGHTS_PER_CELL);
-    this.analyticRadius = analyticRadius;
-    this.uniforms.specularStrength.value = fluidSpecularStrength;
+    this.maxLightsPerCell = Math.min(
+      caps.maxLightsPerCell,
+      MAX_LIGHTS_PER_CELL,
+    );
+    this.analyticRadius = caps.analyticRadius;
+    this.uniforms.specularStrength.value = caps.fluidSpecularStrength;
+    this.uniforms.ownership.value = Math.min(
+      Math.max(caps.blockLightOwnership, 0),
+      1,
+    );
     this.isForceDirty = true;
   }
 
@@ -285,8 +295,10 @@ export class LightClusterGrid {
    * of the point, with the same spot/capsule shaping, shader-matched flicker,
    * and — when the caller supplies its local flood level — the same
    * occlusion mask the world surfaces use, so an entity behind a wall stops
-   * tinting from the light the wall blocks. Zero allocation; the caller owns
-   * `outColor` and may reuse one `options` scratch object across calls
+   * tinting from the light the wall blocks. Also writes `out.claim` — the
+   * unoccluded luminance the selected lights claim at the point, mirroring
+   * the chunk shader's flood-ownership term. Zero allocation; the caller
+   * owns `out` and may reuse one `options` scratch object across calls
    * (`floodMask` is the knee-mapped local flood level, 1 = fully open;
    * `timeMs` drives the same flicker curve the shader evaluates).
    */
@@ -294,11 +306,12 @@ export class LightClusterGrid {
     x: number,
     y: number,
     z: number,
-    outColor: [number, number, number],
+    out: LocalLightSample,
     options?: { floodMask?: number; timeMs?: number },
   ): number {
     const floodMask = options?.floodMask ?? 1;
     const timeMs = options?.timeMs ?? 0;
+    const outColor = out.color;
     const {
       positions,
       ranges,
@@ -311,6 +324,7 @@ export class LightClusterGrid {
       flickers,
     } = this.registry;
     let contributors = 0;
+    let claim = 0;
     for (let rank = 0; rank < this.selectedCount; rank++) {
       const i = this.selectedIndices[rank];
 
@@ -360,6 +374,19 @@ export class LightClusterGrid {
         if (angular <= 0) continue;
       }
 
+      // Unoccluded claim: falloff and cone shaping only — no flicker, no
+      // occlusion. Accumulated before the occlusion continue, because a
+      // wall-blocked light still owns its coverage: the baked flood term
+      // must not refill the side the analytic model keeps dark.
+      claim +=
+        intensities[i] *
+        shares[i] *
+        falloff *
+        angular *
+        (colors[i * 3] * LUMA_R +
+          colors[i * 3 + 1] * LUMA_G +
+          colors[i * 3 + 2] * LUMA_B);
+
       let flicker = 1;
       if (flags[i] & LIGHT_FLAG_FLICKER) {
         const t = timeMs * 0.001 * flickers[i * 4] * 6.28318;
@@ -387,6 +414,8 @@ export class LightClusterGrid {
       outColor[2] += colors[i * 3 + 2] * energy;
       contributors++;
     }
+    out.count = contributors;
+    out.claim = claim;
     return contributors;
   }
 

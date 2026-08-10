@@ -424,17 +424,18 @@ world.localLights.setBlockProfile("Azure Lamp", {
 });
 
 // KeyH cycles the shader debug views (off, cell occupancy, isolated
-// contribution, leak mask, shadow slots, shadow visibility); KeyY cycles
-// quality tiers; KeyX toggles the selected-light bounds overlay; KeyC orbits
-// a dynamic light around you.
+// contribution, leak mask, shadow slots, shadow visibility, flood-ownership
+// remainder); KeyY cycles quality tiers; KeyX toggles the selected-light
+// bounds overlay; KeyC orbits a dynamic light around you.
 inputs.bind("KeyH", () => {
-  const next = ((world.localLights.getDebugMode() + 1) % 6) as
+  const next = ((world.localLights.getDebugMode() + 1) % 7) as
     | 0
     | 1
     | 2
     | 3
     | 4
-    | 5;
+    | 5
+    | 6;
   world.localLights.setDebugMode(next);
   console.log(`[demo] local light debug mode: ${next}`);
 });
@@ -445,6 +446,7 @@ const LIGHT_TIERS: VOXELIZE.LightQualityTier[] = [
   "medium",
   "low",
   "potato",
+  "off",
 ];
 inputs.bind("KeyY", () => {
   const current = LIGHT_TIERS.indexOf(world.localLights.getQualityTier());
@@ -710,8 +712,31 @@ const frameStats = () => {
   },
   setTier: (tier: VOXELIZE.LightQualityTier) =>
     world.localLights.setQualityTier(tier),
-  setDebugMode: (mode: 0 | 1 | 2 | 3 | 4 | 5) =>
+  setDebugMode: (mode: 0 | 1 | 2 | 3 | 4 | 5 | 6) =>
     world.localLights.setDebugMode(mode),
+  // QA override for the ownership blend: 0 renders the pre-ownership
+  // additive composition (flood + analytic double-lit), 1 the shipped
+  // behavior. Tier changes reset it.
+  setOwnership: (value: number) => {
+    world.localLights.grid.uniforms.ownership.value = Math.min(
+      Math.max(value, 0),
+      1,
+    );
+  },
+  // Positions of every registered light, for QA sweeps of leftover emitters.
+  lightReport: () => {
+    const { registry } = world.localLights;
+    const out: number[][] = [];
+    for (let n = 0; n < registry.aliveCount; n++) {
+      const i = registry.aliveIndices[n];
+      out.push([
+        Math.round(registry.positions[i * 3] * 10) / 10,
+        Math.round(registry.positions[i * 3 + 1] * 10) / 10,
+        Math.round(registry.positions[i * 3 + 2] * 10) / 10,
+      ]);
+    }
+    return out;
+  },
   setAggregation: (block: string, mode: "none" | "cluster") =>
     world.localLights.setBlockProfile(block, { aggregation: mode }),
   setProfile: (block: string | number, profile: VOXELIZE.BlockLightProfile) =>
@@ -768,7 +793,11 @@ const frameStats = () => {
   getCameraFacing: () =>
     camera.getWorldDirection(new THREE.Vector3()).toArray(),
   charLight: () => {
-    const sample = { color: [0, 0, 0] as [number, number, number], count: 0 };
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+    };
     world.localLights.queryLocalLights(character.position, sample);
     const uniform = (
       character.userData.lightUniforms as { value: THREE.Color }[] | undefined

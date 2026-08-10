@@ -575,8 +575,25 @@ vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity * sunExpo
 
 vec3 cpuTorchLight = vLight.rgb;
 vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
-float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
-vec3 torchLight = smoothTorch * 1.2;
+
+// Analytic ownership of block-source lighting: where selected clustered
+// lights claim this fragment, the baked flood term yields in proportion
+// (llFloodRemainder → 0) and the per-pixel model — falloff, N·L, masks,
+// shadows — is the sole visible block light, so nothing double-lights.
+// Where no selected light reaches (beyond falloff, past the selection cap,
+// outside the grid window, or with local lights off) the remainder returns
+// to 1 and this is byte-for-byte the legacy flood term. Sunlight is
+// composed separately and never touched by either model.
+float llFloodRemainder = 1.0;
+vec3 clusterLight = localLightSurface(
+  vWorldPosition.xyz, vWorldNormal, vLight.rgb, llFloodRemainder
+);
+
+float torchBrightness = max(
+  max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b) * llFloodRemainder,
+  min(max(max(clusterLight.r, clusterLight.g), clusterLight.b), 1.0)
+);
+vec3 torchLight = smoothTorch * (1.2 * llFloodRemainder);
 
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
 float sunVisibility = clamp(sunExposure, 0.0, 1.0);
@@ -656,10 +673,11 @@ vec3 totalLight = 1.0 - (1.0 - sunTotal) * (1.0 - torchLight);
 vec3 coneLight = lightConeSurface(vWorldPosition.xyz, vWorldNormal);
 totalLight = 1.0 - (1.0 - totalLight) * (1.0 - coneLight);
 
-// Clustered local lights (torches, lanterns, held lights) add the per-pixel
-// falloff and normal response the baked flood cannot carry. Static sources
-// are leak-masked by the flood field itself inside localLightSurface.
-vec3 clusterLight = localLightSurface(vWorldPosition.xyz, vWorldNormal, vLight.rgb);
+// Clustered local lights (torches, lanterns, held lights) carry the
+// per-pixel falloff and normal response the baked flood cannot; the flood
+// term above already yielded them this fragment via llFloodRemainder.
+// Static sources are leak-masked by the flood field inside
+// localLightSurface.
 totalLight = 1.0 - (1.0 - totalLight) * (1.0 - clusterLight);
 
 vec3 warmTint = vec3(1.05, 0.92, 0.75);
@@ -913,7 +931,8 @@ if (uLocalLightDebugMode > 0.5) {
     gl_FragColor.rgb,
     vWorldNormal,
     vLight.rgb,
-    clusterLight
+    clusterLight,
+    llFloodRemainder
   );
 }
 `,

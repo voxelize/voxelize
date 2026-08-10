@@ -109,7 +109,12 @@ how the renderer treats the *analytic* light; block = what the block *is*.
 ### 1.4 The facade
 
 ```ts
-export type LightQualityTier = "ultra" | "high" | "medium" | "low" | "potato";
+// [implemented] "off" is the user-facing disable (exact legacy flood frame,
+// ownership 0); "potato" is the identical-looking low-end fallback. The
+// game's Off/Low/Medium/High/Ultra setting maps 1:1 onto
+// off/low/medium/high/ultra via setQualityTier, live; default "high".
+export type LightQualityTier =
+  | "ultra" | "high" | "medium" | "low" | "potato" | "off";
 
 export interface LocalLightsOptions {
   maxRegisteredLights: number;     // 4096
@@ -156,6 +161,9 @@ export class LocalLights {
 
   setQualityTier(tier: LightQualityTier): void;
   getQualityTier(): LightQualityTier;
+  /** Effective flood-ownership weight of the current tier (0..1); see
+   *  blockLightOwnership in LocalLightsOptions. 0 at off/potato. */
+  readonly blockLightOwnership: number;
 
   /** 0 off, 1 cell-occupancy heatmap, 2 isolated contribution, 3 leak mask. */
   setDebugMode(mode: 0 | 1 | 2 | 3): void;
@@ -432,8 +440,10 @@ const arrowLight = world.localLights.add(
 Entity/particle consumption (unchanged pattern, richer data):
 
 ```ts
-const sample: LocalLightSample = { color: [0, 0, 0], count: 0 };
+const sample: LocalLightSample = { color: [0, 0, 0], count: 0, claim: 0 };
 const options = { floodMask: 1, timeMs: 0 }; // scratch, reused per frame
 world.localLights.queryLocalLights(npc.position, sample, options);
-// LightShined folds `sample.color` into its existing voxel-light term.
+// LightShined scales its baked flood tint by the remainder derived from
+// `sample.claim` (× blockLightOwnership × BLOCK_LIGHT_OWNERSHIP_GAIN), then
+// adds `sample.color` — analytic-covered entities are never lit by both.
 ```

@@ -45,7 +45,13 @@ export interface LocalLightDescriptor {
   innerRatio?: number;
   /** Capsule only: second endpoint relative to the position. */
   endOffset?: [number, number, number];
-  /** Scales this light's analytic contribution against the flood base. */
+  /**
+   * Scales this light's analytic contribution — and, with it, the coverage
+   * claim that suppresses the baked flood term. `1` (default): the light's
+   * full visible output is analytic wherever it reaches. Lower values lean
+   * on the flood base instead (useful for aggregated dense fields whose few
+   * proxy records cannot reproduce a distributed glow).
+   */
   analyticShare?: number;
   /** Shader-evaluated intensity wobble; never touches selection or packing. */
   flicker?: FlickerProfile;
@@ -71,7 +77,19 @@ export interface BlockLightProfile
   maxProxiesPerSection?: number;
 }
 
-export type LightQualityTier = "ultra" | "high" | "medium" | "low" | "potato";
+/**
+ * `off` is the user-facing disable: exactly the legacy flood-lit frame plus
+ * emissive faces. `potato` is the identical-looking low-end fallback tier —
+ * same rendering, kept separate so a device auto-downgrade and an explicit
+ * user setting remain distinguishable.
+ */
+export type LightQualityTier =
+  | "ultra"
+  | "high"
+  | "medium"
+  | "low"
+  | "potato"
+  | "off";
 
 export interface LocalLightsOptions {
   /** Pool capacity for registered lights (static emitters + dynamic sources). */
@@ -96,6 +114,17 @@ export interface LocalLightsOptions {
   fluidSpecularStrength: number;
   /** Flood-mask knee: flood level (0..1) at which masked lights reach full. */
   maskKnee: number;
+  /**
+   * How strongly the analytic layer owns visible block-source lighting
+   * where it claims coverage (0..1). At 1, a fragment inside a selected
+   * light's falloff is lit by the per-pixel model alone — the baked flood
+   * term fades out in proportion to the analytic claim, so nothing
+   * double-lights; where no selected light reaches (beyond range, past the
+   * selection cap, outside the grid window), the flood remainder returns
+   * to 1 and the legacy look is untouched. At 0 the legacy flood term
+   * renders exactly as before local lights existed.
+   */
+  blockLightOwnership: number;
   /** Shadowed local lights at once; each owns a fixed atlas region. */
   maxShadowedLights: number;
   /** Edge length of the shared depth atlas, in pixels. */
@@ -135,6 +164,7 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   qualityTier: "high",
   fluidSpecularStrength: 1,
   maskKnee: 2 / 15,
+  blockLightOwnership: 1,
   maxShadowedLights: 3,
   shadowAtlasSize: 2048,
   shadowSlotSize: 256,
@@ -161,6 +191,7 @@ export const LIGHT_QUALITY_TIERS: Record<
     | "maxLightsPerCell"
     | "analyticRadius"
     | "fluidSpecularStrength"
+    | "blockLightOwnership"
     | "maxShadowedLights"
     | "shadowAtlasSize"
     | "shadowSlotSize"
@@ -172,6 +203,7 @@ export const LIGHT_QUALITY_TIERS: Record<
     maxLightsPerCell: 8,
     analyticRadius: 96,
     fluidSpecularStrength: 1,
+    blockLightOwnership: 1,
     maxShadowedLights: 4,
     shadowAtlasSize: 4096,
     shadowSlotSize: 512,
@@ -182,6 +214,7 @@ export const LIGHT_QUALITY_TIERS: Record<
     maxLightsPerCell: 8,
     analyticRadius: 64,
     fluidSpecularStrength: 1,
+    blockLightOwnership: 1,
     maxShadowedLights: 3,
     shadowAtlasSize: 2048,
     shadowSlotSize: 256,
@@ -192,6 +225,7 @@ export const LIGHT_QUALITY_TIERS: Record<
     maxLightsPerCell: 6,
     analyticRadius: 48,
     fluidSpecularStrength: 0,
+    blockLightOwnership: 1,
     maxShadowedLights: 2,
     shadowAtlasSize: 2048,
     shadowSlotSize: 256,
@@ -202,6 +236,7 @@ export const LIGHT_QUALITY_TIERS: Record<
     maxLightsPerCell: 4,
     analyticRadius: 32,
     fluidSpecularStrength: 0,
+    blockLightOwnership: 1,
     maxShadowedLights: 0,
     shadowAtlasSize: 1024,
     shadowSlotSize: 256,
@@ -212,6 +247,18 @@ export const LIGHT_QUALITY_TIERS: Record<
     maxLightsPerCell: 0,
     analyticRadius: 0,
     fluidSpecularStrength: 0,
+    blockLightOwnership: 0,
+    maxShadowedLights: 0,
+    shadowAtlasSize: 1024,
+    shadowSlotSize: 256,
+    shadowLedgerUnitsPerFrame: 4,
+  },
+  off: {
+    maxClusteredLights: 0,
+    maxLightsPerCell: 0,
+    analyticRadius: 0,
+    fluidSpecularStrength: 0,
+    blockLightOwnership: 0,
     maxShadowedLights: 0,
     shadowAtlasSize: 1024,
     shadowSlotSize: 256,
@@ -271,6 +318,14 @@ export interface LocalLightSample {
   color: [number, number, number];
   /** Lights that contributed. */
   count: number;
+  /**
+   * Unoccluded luminance the selected lights *claim* at the point (falloff
+   * and cone shaping only — no flicker, occlusion, or shadows). Consumers
+   * that also apply a baked flood term scale it by the flood remainder
+   * derived from this claim, mirroring the chunk shader's ownership blend,
+   * so a point covered by analytic lights is never lit by both models.
+   */
+  claim: number;
 }
 
 /**

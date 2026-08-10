@@ -125,7 +125,11 @@ export class LightSourceRegistry {
     this.colors[index * 3 + 1] = color[1];
     this.colors[index * 3 + 2] = color[2];
     this.intensities[index] = Math.max(descriptor.intensity, 0);
-    this.shares[index] = descriptor.analyticShare ?? 0.6;
+    // Full analytic energy by default: under the ownership blend the
+    // clustered layer *replaces* the flood term where it claims coverage,
+    // so it must carry the source's whole visible output. (The pre-ownership
+    // default was 0.6, tuned to sit atop an unsuppressed flood base.)
+    this.shares[index] = descriptor.analyticShare ?? 1.0;
     this.priorityBiases[index] = descriptor.priorityBias ?? 0;
 
     let flags = 0;
