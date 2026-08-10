@@ -337,6 +337,13 @@ pub fn fixture_spec() -> GeneratorSpec {
             max_reach: (24, 16, 24),
             phase: PopulatePhase::Major,
         }],
+        geology: None,
+        density: None,
+        rivers: None,
+        flora: vec![],
+        species: vec![],
+        ecology: None,
+        mosaic: None,
     }
 }
 
