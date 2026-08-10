@@ -140,10 +140,22 @@ impl GeoModel {
             if spec.meander_amp <= 0.0 {
                 return (x, z);
             }
-            let angle = self.value_fbm(self.meander_seed, x, z, spec.meander_scale, 2)
-                * std::f64::consts::PI;
+            // Direction from two independent smooth fields, normalized by
+            // sqrt: trigonometry is not bit-stable across platforms.
+            let dx = self.value_fbm(self.meander_seed, x, z, spec.meander_scale, 2);
+            let dz = self.value_fbm(
+                crate::stream::mix64(self.meander_seed ^ 0x5a),
+                x,
+                z,
+                spec.meander_scale,
+                2,
+            );
+            let norm = (dx * dx + dz * dz).sqrt();
+            if norm < 1e-6 {
+                return (x, z);
+            }
             let amp = spec.meander_amp * half_width;
-            (x + angle.cos() * amp, z + angle.sin() * amp)
+            (x + dx / norm * amp, z + dz / norm * amp)
         };
 
         let mut lines: Vec<(Vec<(f64, f64, f64)>, Vec<ChannelProfile>)> = Vec::new();

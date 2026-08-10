@@ -27,8 +27,17 @@ impl GeoModel {
         if spec.iterations == 0 || spec.fill_every == 0 {
             return Err("geology.iterations and fill_every must be > 0".to_string());
         }
-        if spec.erode_m <= 0.0 || spec.erode_k < 0.0 {
-            return Err("geology stream-power constants must be positive".to_string());
+        if spec.erode_k < 0.0 {
+            return Err("geology.erode_k must be >= 0".to_string());
+        }
+        // The stream-power exponent evaluates through an exact sqrt chain
+        // (bit-stable across platforms, unlike powf): quarter multiples only.
+        let quarters = spec.erode_m * 4.0;
+        if !(1.0..=8.0).contains(&quarters) || quarters.fract() != 0.0 {
+            return Err(format!(
+                "geology.erode_m must be a multiple of 0.25 in 0.25..=2.0, got {}",
+                spec.erode_m
+            ));
         }
         if spec.channel_area < 4.0 || spec.channel_area_full <= spec.channel_area {
             return Err("geology channel areas must satisfy 4 <= area < area_full".to_string());
@@ -392,6 +401,7 @@ impl GeoModel {
                 height[index] += uplift[index] * spec.dt;
             }
             let k_dt = spec.erode_k * spec.dt;
+            let quarters = (spec.erode_m * 4.0) as i32;
             for &index in order.iter().rev() {
                 let index = index as usize;
                 let recv = receiver[index] as usize;
@@ -399,7 +409,7 @@ impl GeoModel {
                     continue;
                 }
                 let dist = cell_distance(index, recv, side) * cell;
-                let f = k_dt * flow[index].powf(spec.erode_m) / dist;
+                let f = k_dt * quarter_power(flow[index], quarters) / dist;
                 height[index] = (height[index] + f * height[recv]) / (1.0 + f);
             }
 
@@ -618,4 +628,11 @@ impl GeoModel {
         }
     }
 
+}
+
+/// `x^(quarters/4)` for nonnegative `x` through exact IEEE sqrt and
+/// integer powers — the bit-stable stand-in for `powf`, which is free to
+/// differ between platforms' libm implementations.
+fn quarter_power(x: f64, quarters: i32) -> f64 {
+    x.max(0.0).sqrt().sqrt().powi(quarters)
 }

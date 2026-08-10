@@ -273,10 +273,9 @@ impl CompiledFlora {
                                     cluster_z,
                                 )),
                         );
-                        let angle = point_stream.unit() * std::f64::consts::TAU;
-                        let radius = point_stream.unit().sqrt() * spec.spread;
-                        let x = center_x + (angle.cos() * radius) as i32;
-                        let z = center_z + (angle.sin() * radius) as i32;
+                        let (dx, dz) = disc_offset(&mut point_stream, spec.spread);
+                        let x = center_x + dx;
+                        let z = center_z + dz;
                         if x < min.0 - pad || x >= max.0 + pad || z < min.1 - pad || z >= max.1 + pad
                         {
                             continue;
@@ -371,10 +370,9 @@ impl CompiledFlora {
                                     cluster_z,
                                 )),
                         );
-                        let angle = point_stream.unit() * std::f64::consts::TAU;
-                        let radius = point_stream.unit().sqrt() * spec.spread;
-                        let x = center_x + (angle.cos() * radius) as i32;
-                        let z = center_z + (angle.sin() * radius) as i32;
+                        let (dx, dz) = disc_offset(&mut point_stream, spec.spread);
+                        let x = center_x + dx;
+                        let z = center_z + dz;
                         if x < min.0 - pad || x >= max.0 + pad || z < min.1 - pad || z >= max.1 + pad
                         {
                             continue;
@@ -628,4 +626,28 @@ impl CompiledFlora {
             }
         }
     }
+}
+
+/// Uniform draw from a disc of `radius` blocks by rejection over the
+/// unit square: trigonometry is not bit-stable across platforms, and
+/// four attempts accept with probability ~0.996. The rare full miss
+/// pulls the last attempt onto the unit circle.
+fn disc_offset(stream: &mut HashStream, radius: f64) -> (i32, i32) {
+    let mut px = 0.0;
+    let mut pz = 0.0;
+    let mut is_inside = false;
+    for _ in 0..4 {
+        px = stream.unit() * 2.0 - 1.0;
+        pz = stream.unit() * 2.0 - 1.0;
+        if px * px + pz * pz <= 1.0 {
+            is_inside = true;
+            break;
+        }
+    }
+    if !is_inside {
+        let norm = (px * px + pz * pz).sqrt().max(1e-9);
+        px /= norm;
+        pz /= norm;
+    }
+    ((px * radius) as i32, (pz * radius) as i32)
 }
