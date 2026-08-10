@@ -725,6 +725,169 @@ const frameStats = () => {
       1,
     );
   },
+  // Deterministic renderer diff harness (scripts/render-off-parity.mjs):
+  // renders the loaded scene twice in ONE synchronous turn — once with the
+  // shipped chunk programs, once with true "local lights never existed"
+  // programs compiled via stripLocalLightsFromFragment — through the same
+  // renderer, camera, and shared uniform objects, then byte-compares the
+  // readbacks. Every pixel input is frozen by construction: nothing (world
+  // update, animation, particles, clocks) runs between the two renders, the
+  // uniforms are the same live objects for both programs, and uTime is
+  // pinned for reproducibility of the captures. At the off tier the outputs
+  // must be byte-identical.
+  renderOffParityDiff: () => {
+    const size = 512;
+    world.chunkRenderer.uniforms.time.value = 123456;
+    const chunkMaterials = [
+      ...new Set(world.chunkRenderer.materials.values()),
+    ] as THREE.ShaderMaterial[];
+    // globalThis: the demo shadows Map with its minimap component import.
+    const legacyOf = new globalThis.Map<THREE.Material, THREE.ShaderMaterial>();
+    for (const material of chunkMaterials) {
+      const legacy = new THREE.ShaderMaterial({
+        vertexShader: material.vertexShader,
+        fragmentShader: VOXELIZE.stripLocalLightsFromFragment(
+          material.fragmentShader,
+        ),
+        uniforms: material.uniforms, // shared: identical inputs, both passes
+        vertexColors: material.vertexColors,
+        transparent: material.transparent,
+        side: material.side,
+        depthWrite: material.depthWrite,
+        depthTest: material.depthTest,
+        blending: material.blending,
+        alphaTest: material.alphaTest,
+        polygonOffset: material.polygonOffset,
+        polygonOffsetFactor: material.polygonOffsetFactor,
+        polygonOffsetUnits: material.polygonOffsetUnits,
+        defines: { ...material.defines },
+      });
+      // The chunk pipeline assigns `.map` after construction; the program
+      // builder keys USE_MAP off the property, so the legacy program must
+      // carry it too or it compiles untextured.
+      (legacy as THREE.ShaderMaterial & { map?: THREE.Texture }).map = (
+        material as THREE.ShaderMaterial & { map?: THREE.Texture }
+      ).map;
+      legacyOf.set(material, legacy);
+    }
+
+    const target = new THREE.WebGLRenderTarget(size, size, {
+      depthBuffer: true,
+      stencilBuffer: false,
+    });
+    const readback = () => {
+      renderer.setRenderTarget(target);
+      renderer.render(world, camera);
+      const pixels = new Uint8Array(size * size * 4);
+      renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
+      return pixels;
+    };
+    const swap = (toLegacy: boolean) => {
+      world.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const material = mesh.material as THREE.Material;
+        if (toLegacy && legacyOf.has(material)) {
+          mesh.userData.__parityOriginal = material;
+          mesh.material = legacyOf.get(material)!;
+        } else if (!toLegacy && mesh.userData.__parityOriginal) {
+          mesh.material = mesh.userData.__parityOriginal;
+          delete mesh.userData.__parityOriginal;
+        }
+      });
+    };
+
+    // The world's own per-render hook flushes animated-atlas frames on a
+    // real-time clock — a texture patch landing between two passes would
+    // fail the control for reasons outside the programs under test. Freeze
+    // it for the harness; queued patches flush on the next live frame.
+    const worldOnBeforeRender = world.onBeforeRender;
+    world.onBeforeRender = () => undefined;
+
+    // The contract under test is the CHUNK programs. Sky, clouds, entities,
+    // and overlays render identical programs in both passes but animate on
+    // their own real-time clocks, so they only add nondeterminism; hide
+    // everything that is not chunk geometry for the duration.
+    const hidden: THREE.Object3D[] = [];
+    world.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.visible) return;
+      if (!legacyOf.has(mesh.material as THREE.Material)) {
+        mesh.visible = false;
+        hidden.push(mesh);
+      }
+    });
+
+    // Warm-up render: lazily-initialized render-path state (target
+    // allocation, first-render uploads, program compiles) settles before
+    // the measured passes, exactly like a real frame stream.
+    readback();
+    // Control: two consecutive readbacks with the SAME programs must be
+    // byte-identical, or the surface itself has order-dependent state and
+    // the legacy comparison would be meaningless.
+    const shippedControl = readback();
+    const shipped = readback();
+    swap(true);
+    // Compile + settle the legacy programs, then measure their pass.
+    readback();
+    const legacy = readback();
+    swap(false);
+    renderer.setRenderTarget(null);
+    for (const object of hidden) object.visible = true;
+    world.onBeforeRender = worldOnBeforeRender;
+
+    const compare = (a: Uint8Array, b: Uint8Array) => {
+      let diffBytes = 0;
+      let diffPixels = 0;
+      let maxDelta = 0;
+      for (let p = 0; p < size * size; p++) {
+        const i = p * 4;
+        const d =
+          Math.abs(a[i] - b[i]) +
+          Math.abs(a[i + 1] - b[i + 1]) +
+          Math.abs(a[i + 2] - b[i + 2]);
+        if (d > 0) {
+          diffPixels++;
+          diffBytes += d;
+          if (d > maxDelta) maxDelta = d;
+        }
+      }
+      return { diffBytes, diffPixels, maxDelta };
+    };
+    const control = compare(shippedControl, shipped);
+    const { diffBytes, diffPixels, maxDelta } = compare(shipped, legacy);
+
+    const toPng = (pixels: Uint8Array) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d")!;
+      const image = ctx.createImageData(size, size);
+      // GL readback is bottom-up; PNGs are top-down.
+      for (let row = 0; row < size; row++) {
+        image.data.set(
+          pixels.subarray((size - 1 - row) * size * 4, (size - row) * size * 4),
+          row * size * 4,
+        );
+      }
+      ctx.putImageData(image, 0, 0);
+      return canvas.toDataURL("image/png");
+    };
+    const result = {
+      diffPixels,
+      diffBytes,
+      maxDelta,
+      controlDiffPixels: control.diffPixels,
+      controlMaxDelta: control.maxDelta,
+      totalPixels: size * size,
+      shippedPng: toPng(shipped),
+      legacyPng: toPng(legacy),
+    };
+
+    target.dispose();
+    for (const legacyMaterial of legacyOf.values()) legacyMaterial.dispose();
+    return result;
+  },
   // Positions of every registered light, for QA sweeps of leftover emitters.
   lightReport: () => {
     const { registry } = world.localLights;

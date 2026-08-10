@@ -1,7 +1,13 @@
 import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
-import { SHADER_LIGHTING_CHUNK_SHADERS } from "../shaders";
+import {
+  SHADER_LIGHTING_CHUNK_SHADERS,
+  SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
+  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
+  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
+  stripLocalLightsFromFragment,
+} from "../shaders";
 
 import { LightClusterGrid } from "./clustering";
 import {
@@ -672,9 +678,44 @@ describe("block-light ownership", () => {
     const fragment = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
     expect(fragment).toContain("smoothTorch * (1.2 * llFloodRemainder)");
     expect(fragment).not.toContain("smoothTorch * 1.2;");
+    // The cluster blend is guarded for bit-exactness at zero lights:
+    // 1.0 - (1.0 - t) is not an IEEE identity, so the blend must not run
+    // at all when nothing is clustered.
+    expect(fragment).toContain("if (uClusteredLightCount != 0) {");
     expect(fragment).toContain(
       "1.0 - (1.0 - totalLight) * (1.0 - clusterLight)",
     );
+  });
+
+  it("strips to a true local-lights-never-existed program", () => {
+    // The render-diff harness (scripts/render-off-parity.mjs) compiles this
+    // stripped fragment in the live client and requires byte-identical
+    // output against the shipped program at the off tier. Here: every
+    // local-lights token must be gone from every shipped variant, the
+    // legacy flood expressions must be back, and the layers local lights
+    // must not touch — CSM, emissive faces, cones — must survive.
+    const variants = {
+      opaque: SHADER_LIGHTING_CHUNK_SHADERS,
+      fluid: SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
+      seeThrough: SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
+      cross: SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
+    };
+    const forbidden =
+      /uLightGrid|uLightData|uLocalOwnership|uLocalMaskKnee|uLocalShadow|uLocalSpecularStrength|uLocalLightDebugMode|uClusteredLightCount|localLight|llFlood|llClaim|llWindowFade|clusterLight/;
+    for (const [name, variant] of Object.entries(variants)) {
+      const stripped = stripLocalLightsFromFragment(variant.fragment);
+      expect(stripped, name).not.toMatch(forbidden);
+      expect(stripped, name).toContain("vec3 torchLight = smoothTorch * 1.2;");
+      expect(stripped, name).toContain(
+        "float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);",
+      );
+      // Untouched layers survive the strip.
+      expect(stripped, name).toContain("getShadow");
+      expect(stripped, name).toContain("vEmissive");
+      expect(stripped, name).toContain("lightConeSurface");
+      // And the strip actually removed something on every variant.
+      expect(stripped.length, name).toBeLessThan(variant.fragment.length);
+    }
   });
 });
 
