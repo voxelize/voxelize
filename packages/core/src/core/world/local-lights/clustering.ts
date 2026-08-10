@@ -297,18 +297,20 @@ export class LightClusterGrid {
    * occlusion mask the world surfaces use, so an entity behind a wall stops
    * tinting from the light the wall blocks. Also writes `out.claim` — the
    * unoccluded luminance the selected lights claim at the point, mirroring
-   * the chunk shader's flood-ownership term. Zero allocation; the caller
-   * owns `out` and may reuse one `options` scratch object across calls
-   * (`floodMask` is the knee-mapped local flood level, 1 = fully open;
-   * `timeMs` drives the same flicker curve the shader evaluates).
+   * the chunk shader's flood-ownership term exactly: only lights present in
+   * the point's grid cell claim it (an overflowed cell keeps its flood look
+   * on entities just as it does on blocks), and a point outside the grid
+   * window claims nothing. Zero allocation; the caller owns `out` and may
+   * reuse one `options` scratch object across calls (`floodMask` is the
+   * knee-mapped local flood level, 1 = fully open; `timeMs` drives the same
+   * flicker curve the shader evaluates).
    */
   sampleIrradiance(
-    x: number,
-    y: number,
-    z: number,
+    point: [number, number, number],
     out: LocalLightSample,
     options?: { floodMask?: number; timeMs?: number },
   ): number {
+    const [x, y, z] = point;
     const floodMask = options?.floodMask ?? 1;
     const timeMs = options?.timeMs ?? 0;
     const outColor = out.color;
@@ -325,6 +327,29 @@ export class LightClusterGrid {
     } = this.registry;
     let contributors = 0;
     let claim = 0;
+
+    // Cell membership for the claim, mirroring localLightCell + the fixed
+    // slot list in the shader. -1 = outside the window: nothing claims.
+    const origin = this.uniforms.gridOrigin.value;
+    const cellSize = this.uniforms.gridCellSize.value;
+    const [dimX, dimY, dimZ] = this.gridDims;
+    const cellX = Math.floor((x - origin.x) / cellSize);
+    const cellY = Math.floor((y - origin.y) / cellSize);
+    const cellZ = Math.floor((z - origin.z) / cellSize);
+    let cellBase = -1;
+    if (
+      cellX >= 0 &&
+      cellY >= 0 &&
+      cellZ >= 0 &&
+      cellX < dimX &&
+      cellY < dimY &&
+      cellZ < dimZ
+    ) {
+      const cell = (cellZ * dimY + cellY) * dimX + cellX;
+      cellBase =
+        (cell >> 5) * (GRID_CELLS_PER_ROW * MAX_LIGHTS_PER_CELL) +
+        (cell & 31) * MAX_LIGHTS_PER_CELL;
+    }
     for (let rank = 0; rank < this.selectedCount; rank++) {
       const i = this.selectedIndices[rank];
 
@@ -377,15 +402,18 @@ export class LightClusterGrid {
       // Unoccluded claim: falloff and cone shaping only — no flicker, no
       // occlusion. Accumulated before the occlusion continue, because a
       // wall-blocked light still owns its coverage: the baked flood term
-      // must not refill the side the analytic model keeps dark.
-      claim +=
-        intensities[i] *
-        shares[i] *
-        falloff *
-        angular *
-        (colors[i * 3] * LUMA_R +
-          colors[i * 3 + 1] * LUMA_G +
-          colors[i * 3 + 2] * LUMA_B);
+      // must not refill the side the analytic model keeps dark. Gated on
+      // the point's grid cell actually holding this light, like the shader.
+      if (cellBase >= 0 && this.cellHoldsRank(cellBase, rank)) {
+        claim +=
+          intensities[i] *
+          shares[i] *
+          falloff *
+          angular *
+          (colors[i * 3] * LUMA_R +
+            colors[i * 3 + 1] * LUMA_G +
+            colors[i * 3 + 2] * LUMA_B);
+      }
 
       let flicker = 1;
       if (flags[i] & LIGHT_FLAG_FLICKER) {
@@ -417,6 +445,18 @@ export class LightClusterGrid {
     out.count = contributors;
     out.claim = claim;
     return contributors;
+  }
+
+  /** Does the fixed slot list at `cellBase` hold the light ranked `rank`? */
+  private cellHoldsRank(cellBase: number, rank: number): boolean {
+    const slotValue = rank + 1;
+    const gridData = this.gridData;
+    for (let s = 0; s < MAX_LIGHTS_PER_CELL; s++) {
+      const value = gridData[cellBase + s];
+      if (value === 0) return false;
+      if (value === slotValue) return true;
+    }
+    return false;
   }
 
   /**

@@ -1,7 +1,7 @@
 import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
-import { BLOCK_LIGHT_OWNERSHIP_GAIN } from "../../core/world/local-lights";
+import { blockLightFloodRemainder } from "../../core/world/local-lights";
 import {
   getDownwellingTransmittance,
   measureWaterColumn,
@@ -375,14 +375,18 @@ export class LightShined {
     // Ownership blend, mirroring the chunk shader: where selected analytic
     // lights claim this entity, the baked flood tint yields in proportion
     // so the entity is never lit by both models; beyond their reach (or
-    // with local lights off) the legacy flood tint stands untouched.
-    const floodLum = Math.max(cpuTorchR, Math.max(cpuTorchG, cpuTorchB));
-    const scaledClaim =
-      localLightSample.claim *
-      this.world.localLights.blockLightOwnership *
-      BLOCK_LIGHT_OWNERSHIP_GAIN;
-    const floodRemainder =
-      1 - Math.min(Math.max(scaledClaim / Math.max(floodLum, 1e-3), 0), 1);
+    // with local lights off) the legacy flood tint stands untouched. The
+    // remainder helper uses the shader's smoothstep denominator on the raw
+    // flood level, so the entity and the block it stands on agree on how
+    // much flood survives.
+    const rawFloodLevel = lightValues
+      ? Math.max(lightValues.red, lightValues.green, lightValues.blue) /
+        maxLightLevel
+      : 0;
+    const floodRemainder = blockLightFloodRemainder(
+      localLightSample.claim * this.world.localLights.blockLightOwnership,
+      rawFloodLevel,
+    );
     cpuTorchR = cpuTorchR * floodRemainder + localLightSample.color[0];
     cpuTorchG = cpuTorchG * floodRemainder + localLightSample.color[1];
     cpuTorchB = cpuTorchB * floodRemainder + localLightSample.color[2];

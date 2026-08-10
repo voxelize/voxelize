@@ -49,6 +49,7 @@ export { BlockProfileTable, SectionTracker } from "./scan";
 export type { EmitterBlock, ScannableChunk } from "./scan";
 export {
   BLOCK_LIGHT_OWNERSHIP_GAIN,
+  blockLightFloodRemainder,
   EMISSIVE_LEVELS,
   LOCAL_LIGHTS_DEBUG_FUNCTIONS,
   LOCAL_LIGHTS_FUNCTIONS,
@@ -85,6 +86,9 @@ export interface LocalLightsWorldConfig {
   subChunks: number;
   maxLightLevel: number;
 }
+
+/** Scratch for queryLocalLights → sampleIrradiance; zero per-call alloc. */
+const samplePointScratch: [number, number, number] = [0, 0, 0];
 
 type PendingScan = {
   chunk: ScannableChunk;
@@ -332,13 +336,10 @@ export class LocalLights {
     out.color[0] = 0;
     out.color[1] = 0;
     out.color[2] = 0;
-    this.grid.sampleIrradiance(
-      position.x,
-      position.y,
-      position.z,
-      out,
-      options,
-    );
+    samplePointScratch[0] = position.x;
+    samplePointScratch[1] = position.y;
+    samplePointScratch[2] = position.z;
+    this.grid.sampleIrradiance(samplePointScratch, out, options);
   }
 
   // ── quality tiers ────────────────────────────────────────────────────────

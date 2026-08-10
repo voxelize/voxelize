@@ -10,6 +10,7 @@ import {
 } from "./registry";
 import { BlockProfileTable, EmitterBlock, SectionTracker } from "./scan";
 import {
+  blockLightFloodRemainder,
   LOCAL_LIGHTS_FUNCTIONS,
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./shader";
@@ -270,7 +271,7 @@ describe("LightClusterGrid selection", () => {
       count: 0,
       claim: 0,
     };
-    const contributors = grid.sampleIrradiance(4, 4, 4, sample);
+    const contributors = grid.sampleIrradiance([4, 4, 4], sample);
     expect(contributors).toBe(10);
     expect(sample.claim).toBeGreaterThan(0);
   });
@@ -337,7 +338,7 @@ describe("block-light ownership", () => {
     grid.update(0, 0, 0, makeStats());
 
     const sample = makeSample();
-    grid.sampleIrradiance(5, 4, 4, sample, { floodMask: 0 });
+    grid.sampleIrradiance([5, 4, 4], sample, { floodMask: 0 });
     expect(sample.color[0]).toBe(0); // fully occluded by the mask
     expect(sample.claim).toBeGreaterThan(0); // still owns its coverage
   });
@@ -355,8 +356,8 @@ describe("block-light ownership", () => {
 
     const a = makeSample();
     const b = makeSample();
-    grid.sampleIrradiance(5, 4, 4, a, { timeMs: 0 });
-    grid.sampleIrradiance(5, 4, 4, b, { timeMs: 137 });
+    grid.sampleIrradiance([5, 4, 4], a, { timeMs: 0 });
+    grid.sampleIrradiance([5, 4, 4], b, { timeMs: 137 });
     expect(a.claim).toBeCloseTo(b.claim, 10); // ownership must not pulse
     expect(a.color[0]).not.toBeCloseTo(b.color[0], 10); // brightness does
   });
@@ -370,7 +371,7 @@ describe("block-light ownership", () => {
     grid.update(0, 0, 0, makeStats());
 
     const sample = makeSample();
-    grid.sampleIrradiance(9, 4, 4, sample); // 5 blocks out: falloff 0.5625
+    grid.sampleIrradiance([9, 4, 4], sample); // 5 blocks out: falloff 0.5625
     const luma = 0.2126 * 1 + 0.7152 * 0.8 + 0.0722 * 0.5;
     expect(sample.claim).toBeCloseTo(0.5625 * luma, 6);
   });
@@ -382,9 +383,56 @@ describe("block-light ownership", () => {
     grid.update(0, 0, 0, makeStats());
 
     const sample = makeSample();
-    grid.sampleIrradiance(40, 4, 4, sample);
+    grid.sampleIrradiance([40, 4, 4], sample);
     expect(sample.claim).toBe(0); // flood remainder stays 1: legacy look
     expect(sample.color[0]).toBe(0);
+  });
+
+  it("claims nothing outside the grid window, like the shader", () => {
+    // The window spans ±96 around the camera cell. A light near the edge
+    // still tints a point just past it (the CPU color is range-based for
+    // smooth entity lerps), but the *claim* must be zero there: the shader
+    // renders that fragment from the flood term alone.
+    const registry = new LightSourceRegistry(8);
+    registry.add(pointLight({ range: 10 }), 90, 4, 4);
+    const grid = makeGrid(registry, { analyticRadius: 96 });
+    grid.update(0, 0, 0, makeStats());
+
+    const sample = makeSample();
+    grid.sampleIrradiance([98, 4, 4], sample);
+    expect(sample.color[0]).toBeGreaterThan(0);
+    expect(sample.claim).toBe(0);
+  });
+
+  it("claims only the lights the point's cell actually holds (overflow)", () => {
+    // Ten equal-position lights, eight cell slots: the shader lights the
+    // fragment from the eight held ranks and keeps the flood look for the
+    // dropped two — the CPU claim must agree or entities darken where
+    // blocks do not.
+    const registry = new LightSourceRegistry(16);
+    for (let i = 0; i < 10; i++) {
+      registry.add(pointLight({ intensity: 10 - i, range: 4 }), 4, 4, 4);
+    }
+    const grid = makeGrid(registry);
+    grid.update(0, 0, 0, makeStats());
+
+    const sample = makeSample();
+    grid.sampleIrradiance([4, 4, 4], sample);
+    const luma = 0.2126 * 1 + 0.7152 * 0.8 + 0.0722 * 0.5;
+    // Held ranks are the eight strongest: intensities 10..3 sum to 52; the
+    // dropped two (2 and 1) would push the total to 55.
+    expect(sample.claim).toBeCloseTo(52 * luma, 4);
+  });
+
+  it("mirrors the shader's flood-remainder curve on the CPU", () => {
+    expect(blockLightFloodRemainder(0, 0.5)).toBe(1); // no claim: legacy
+    expect(blockLightFloodRemainder(10, 0.5)).toBe(0); // saturated: owned
+    // smoothstep(0.5) = 0.5; ratio = 0.2 × 1.5 / 0.5 = 0.6 → remainder 0.4.
+    expect(blockLightFloodRemainder(0.2, 0.5)).toBeCloseTo(0.4, 6);
+    // Monotone: more claim, less flood.
+    expect(blockLightFloodRemainder(0.3, 0.5)).toBeLessThan(
+      blockLightFloodRemainder(0.1, 0.5),
+    );
   });
 
   it("drives the ownership uniform from the quality tier, live", () => {

@@ -27,6 +27,25 @@ const LAMBERT_WRAP = 0.25;
  */
 export const BLOCK_LIGHT_OWNERSHIP_GAIN = 1.5;
 
+/**
+ * CPU mirror of the chunk shader's flood-remainder computation: the
+ * fraction of the baked flood term a point keeps, given the analytic
+ * luminance claim at that point (already scaled by the effective ownership)
+ * and the raw flood level (0..1, max channel). Uses the same smoothstep
+ * denominator the shader uses, so an entity and the block it stands on
+ * agree on how much flood survives.
+ */
+export function blockLightFloodRemainder(
+  scaledClaim: number,
+  floodLevel: number,
+): number {
+  const level = Math.min(Math.max(floodLevel, 0), 1);
+  const floodSmooth = level * level * (3 - 2 * level);
+  const ratio =
+    (scaledClaim * BLOCK_LIGHT_OWNERSHIP_GAIN) / Math.max(floodSmooth, 1e-3);
+  return 1 - Math.min(Math.max(ratio, 0), 1);
+}
+
 export const LOCAL_LIGHTS_UNIFORM_DECLARATIONS = `
 uniform highp usampler2D uLightGrid;
 uniform sampler2D uLightData;
