@@ -104,22 +104,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                 if next_stage >= pipeline.stages.len() {
                     chunk.status = ChunkStatus::Meshing;
-                    // A mesh is a client artifact: server physics and entity
-                    // simulation read voxel data, which is complete at this
-                    // point. In a non-saving world, meshing a chunk nobody is
-                    // interested in produces output sending.rs immediately
-                    // drops (no interested clients) — at boot that was tens of
-                    // thousands of ~50ms greedy meshes from spectator-less
-                    // worlds monopolizing the shared meshing pool while worlds
-                    // with real players starved unserved. Leave such chunks
-                    // data-complete in `Meshing`; the request path re-queues
-                    // them the moment a client actually asks (requests.rs
-                    // handles status == Meshing), and saving worlds keep
-                    // meshing everything so persisted edits behave exactly as
-                    // before.
-                    if interests.has_interests(&chunk.coords) || config.saving {
-                        mesher.add_chunk(&chunk.coords, false);
-                    }
+                    // A finished chunk always enters the mesher: light is
+                    // flooded there, so readiness is unreachable without it,
+                    // and preload, physics neighbor checks, saving, and
+                    // request delivery all wait on a chunk being `Ready`.
+                    mesher.add_chunk(&chunk.coords, false);
                     pipeline.remove_chunk(&chunk.coords);
                 } else {
                     chunk.status = ChunkStatus::Generating(next_stage);
