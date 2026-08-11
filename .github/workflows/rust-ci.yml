@@ -1,0 +1,33 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: cargo test --lib
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # build.rs compiles messages.proto via prost-build, which shells out to protoc.
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      # Honors the pinned channel in rust-toolchain.toml (stable).
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Authoritative Voxelize library test command, run from the workspace root
+      # so it exercises the `voxelize` crate whose lib Town pins and consumes.
+      - name: Run library tests
+        run: cargo test --lib
