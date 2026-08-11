@@ -84,9 +84,15 @@ export class AtlasTexture extends CanvasTexture {
    * @param options The options used to create the texture this.
    * @returns The texture atlas generated.
    */
+  // Defaults exist because three.js constructs textures with no arguments:
+  // `Texture.clone()` is `new this.constructor().copy(source)`, so a clone
+  // passes through here before `copy` installs the real atlas state. With
+  // required arguments that path fed NaN into the power-of-two loop below,
+  // which can never converge on NaN — a held torch cloning its flame strip
+  // froze the whole tab.
   constructor(
-    countPerSide: number,
-    dimension: number,
+    countPerSide = 1,
+    dimension = 1,
     canvas = document.createElement("canvas"),
   ) {
     super(canvas);
@@ -108,6 +114,15 @@ export class AtlasTexture extends CanvasTexture {
         (this.atlasMargin / this.atlasOffset / countPerSide -
           2 * this.atlasMargin) /
         dimension;
+
+      if (!Number.isFinite(this.atlasRatio)) {
+        // The doubling loop below cannot converge on NaN or Infinity; it
+        // would spin the main thread forever. Refuse loudly instead.
+        throw new Error(
+          `AtlasTexture cannot be built from countPerSide=${countPerSide}, ` +
+            `dimension=${dimension}: the atlas ratio is not finite`,
+        );
+      }
 
       while (this.atlasRatio !== Math.floor(this.atlasRatio)) {
         this.atlasRatio *= 2;
@@ -147,6 +162,24 @@ export class AtlasTexture extends CanvasTexture {
         );
       }
     }
+  }
+
+  /**
+   * Carries the atlas geometry so `clone()` yields a faithful atlas view
+   * sharing the source's pixels, with independently settable repeat/offset
+   * (how the held torch windows its flame strip). Animations deliberately do
+   * not transfer: their timers drive the source's own offsets, and a clone
+   * inheriting them would be fought over by two drivers.
+   */
+  copy(source: this): this {
+    super.copy(source);
+    this.canvas = source.canvas;
+    this.countPerSide = source.countPerSide;
+    this.dimension = source.dimension;
+    this.atlasMargin = source.atlasMargin;
+    this.atlasOffset = source.atlasOffset;
+    this.atlasRatio = source.atlasRatio;
+    return this;
   }
 
   /**
