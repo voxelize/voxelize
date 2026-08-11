@@ -149,6 +149,7 @@ import {
 import { Clouds } from "./clouds";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
+import { computePoolCasterBounds } from "./dynamic-caster-bounds";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
 import {
@@ -4765,6 +4766,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     if (!this.csmRenderer) return;
 
+    // Live world bounds per pool, folded once and shared by both shadow
+    // consumers so each can skip pools with no caster anywhere near its
+    // light or cascade instead of paying a render call per pool per face.
+    const poolBounds = this.foldPoolCasterBounds(instancePools);
+
     // One budget, opened once per frame: dynamic local faces reserve first
     // (a held light must not go stale because a far cascade landed), the
     // cascades spend next, and the invalidated-static FIFO drains whatever
@@ -4784,6 +4790,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       entities,
       ENTITY_SHADOW_DISTANCE,
       instancePools,
+      poolBounds,
     );
 
     this.localLights.renderShadows(
@@ -4792,6 +4799,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       entities,
       instancePools,
       this.csmRenderer.skipShadowObjects,
+      poolBounds,
     );
 
     // The cascade matrices move inside render(), atomically with the maps,
@@ -4816,6 +4824,21 @@ export class World<T = any> extends Scene implements NetIntercept {
         shadowMatrix2,
       );
     }
+  }
+
+  /** Scratch for {@link foldPoolCasterBounds}; grown once per pool index. */
+  private readonly poolCasterBoundsScratch: Box3[] = [];
+
+  private foldPoolCasterBounds(
+    instancePools?: Group[],
+  ): (Box3 | null)[] | undefined {
+    if (!instancePools || instancePools.length === 0) return undefined;
+    const scratch = this.poolCasterBoundsScratch;
+    while (scratch.length < instancePools.length) scratch.push(new Box3());
+    for (let p = 0; p < instancePools.length; p++) {
+      computePoolCasterBounds(instancePools[p], scratch[p]);
+    }
+    return scratch;
   }
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
@@ -5309,6 +5332,24 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.localLights.getIsOpaqueAt = (vx, vy, vz) => {
       const block = this.getBlockAt(vx, vy, vz);
       return !!block && block.isOpaque;
+    };
+    // Static caster collection for local shadow world cells: the chunk
+    // groups whose columns intersect the light's range sphere. Rendering a
+    // face from just these skips a whole-scene traversal per face.
+    this.localLights.shadows.getStaticCasterRoots = (x, _y, z, radius, out) => {
+      const { chunkSize } = this.options;
+      const minCx = Math.floor((x - radius) / chunkSize);
+      const maxCx = Math.floor((x + radius) / chunkSize);
+      const minCz = Math.floor((z - radius) / chunkSize);
+      const maxCz = Math.floor((z + radius) / chunkSize);
+      for (let cx = minCx; cx <= maxCx; cx++) {
+        for (let cz = minCz; cz <= maxCz; cz++) {
+          const chunk = this.getChunkByCoords(cx, cz);
+          if (chunk && chunk.group.children.length > 0) {
+            out.push(chunk.group);
+          }
+        }
+      }
     };
 
     // The near cascade only spans ~14 blocks, so 2048 still gives it an

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import {
+  Box3,
   Camera,
   DepthTexture,
   Frustum,
@@ -16,6 +17,8 @@ import {
   WebGLRenderTarget,
   WebGLRenderer,
 } from "three";
+
+import { boundsIntersectSphere } from "./dynamic-caster-bounds";
 
 export interface CSMConfig {
   cascades: number;
@@ -90,6 +93,13 @@ interface Cascade {
  * before drawing.
  */
 export const ENTITY_SHADOW_DISTANCE = 32;
+
+/**
+ * Margin added when testing a pool's instance-origin bounds against the
+ * entity shadow sphere: a creature's silhouette reaches past its origin by
+ * up to its body radius, and bounds fold origins only.
+ */
+const ENTITY_CASTER_BODY_RADIUS = 1.6;
 
 const defaultConfig: CSMConfig = {
   cascades: 3,
@@ -166,6 +176,7 @@ export class CSMRenderer {
   private entityBatchScene = new Scene();
   private hiddenObjects: VisibilitySnapshot[] = [];
   private hiddenEntities: VisibilitySnapshot[] = [];
+  private activePoolsScratch: Group[] = [];
   private poolOriginalMaterials = new Map<
     Object3D,
     THREE.Material | THREE.Material[]
@@ -513,11 +524,38 @@ export class CSMRenderer {
     entities?: Object3D[],
     maxEntityShadowDistance = ENTITY_SHADOW_DISTANCE,
     instancePools?: Group[],
+    poolBounds?: readonly (Box3 | null)[],
   ) {
     // Invisible shadows are not worth a depth pass; marked flags stay put
     // and drain when the strength comes back.
     if (this.currentShadowStrength <= this.config.shadowStrengthRenderFloor) {
       return;
+    }
+
+    // Entity shadows are distance-culled per entity; pools were not, so a
+    // roster of dozens of pool groups rendered into both near cascades even
+    // when every creature stood beyond the entity shadow distance. Bounds
+    // (folded from live instance positions) restore the same rule per pool.
+    const activePools = this.activePoolsScratch;
+    activePools.length = 0;
+    if (instancePools && instancePools.length > 0) {
+      for (let p = 0; p < instancePools.length; p++) {
+        const bounds = poolBounds?.[p];
+        if (
+          bounds &&
+          !boundsIntersectSphere(
+            bounds,
+            this.lastCameraPosition.x,
+            this.lastCameraPosition.y,
+            this.lastCameraPosition.z,
+            maxEntityShadowDistance,
+            ENTITY_CASTER_BODY_RADIUS,
+          )
+        ) {
+          continue;
+        }
+        activePools.push(instancePools[p]);
+      }
     }
 
     // Resolve suspect fits before any scene bookkeeping: rotation and
@@ -572,8 +610,8 @@ export class CSMRenderer {
 
     const poolOriginalMaterials = this.poolOriginalMaterials;
     poolOriginalMaterials.clear();
-    if (this.shouldRenderEntityShadows && instancePools) {
-      for (const pool of instancePools) {
+    if (this.shouldRenderEntityShadows && activePools.length > 0) {
+      for (const pool of activePools) {
         pool.traverse((child) => {
           if (child instanceof THREE.Mesh && child.customDepthMaterial) {
             poolOriginalMaterials.set(child, child.material);
@@ -660,14 +698,9 @@ export class CSMRenderer {
         object.visible = visible;
       }
 
-      if (
-        this.shouldRenderEntityShadows &&
-        instancePools &&
-        instancePools.length > 0 &&
-        i < 2
-      ) {
+      if (this.shouldRenderEntityShadows && activePools.length > 0 && i < 2) {
         scene.overrideMaterial = null;
-        for (const pool of instancePools) {
+        for (const pool of activePools) {
           renderer.render(pool, cascade.camera);
         }
         scene.overrideMaterial = this.depthMaterial;

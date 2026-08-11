@@ -1,4 +1,5 @@
 import {
+  Box3,
   Group,
   MeshDepthMaterial,
   Object3D,
@@ -9,6 +10,8 @@ import {
 } from "three";
 import type { Material, Mesh } from "three";
 
+import { boundsIntersectSphere } from "../dynamic-caster-bounds";
+
 import {
   LIGHT_FLAG_SHADOW_REQUEST,
   LIGHT_FLAG_STATIC,
@@ -16,7 +19,6 @@ import {
   LightSourceRegistry,
 } from "./registry";
 import {
-  CELLS_PER_SHADOW_SLOT,
   LocalShadowAtlas,
   orientPointFaceCamera,
   orientSpotCamera,
@@ -113,6 +115,14 @@ interface ShadowSlot {
   staticPending: number;
   /** Dynamic overlay faces holding casters as of the last overlay pass. */
   dynamicMask: number;
+  /**
+   * Fingerprint of each face's caster arrangement as of its last overlay
+   * render: quantized caster positions folded with the light anchor. A face
+   * whose casters have not moved re-serves its existing overlay cell instead
+   * of re-rendering — idle creatures beside a torch otherwise re-render the
+   * full overlay budget every frame forever.
+   */
+  overlayHashes: Int32Array;
 }
 
 /**
@@ -166,6 +176,38 @@ export class LocalShadowScheduler {
   /** Overlay-owned casters hidden for the duration of a world-cell render. */
   private readonly worldPassHidden: Object3D[] = [];
 
+  /**
+   * Static world geometry near one light, reparented here for its world-cell
+   * depth renders so a 13-block torch never pays a traversal of the whole
+   * scene graph. Owns the depth override permanently: nothing else renders
+   * through this scene.
+   */
+  private readonly worldCellScene = new Scene();
+  private readonly worldCellRoots: Object3D[] = [];
+  private readonly reparentedWorldRoots: {
+    object: Object3D;
+    parent: Object3D | null;
+  }[] = [];
+
+  /** Per-slot pool subset scratch; rebuilt for each slot that renders. */
+  private readonly slotPoolsScratch: Group[] = [];
+
+  /**
+   * Static caster collection hook, wired by the world: append every world
+   * root (chunk group) whose geometry can occlude a light at `(x, y, z)`
+   * with range `radius` to `out`. Null falls back to rendering the whole
+   * scene per face, which stays correct but pays full-graph traversal.
+   */
+  getStaticCasterRoots:
+    | ((
+        x: number,
+        y: number,
+        z: number,
+        radius: number,
+        out: Object3D[],
+      ) => void)
+    | null = null;
+
   /** Scratch for per-frame candidate scoring; no per-frame allocation. */
   private readonly candidateScores: Float64Array;
   private readonly candidateIndices: Uint32Array;
@@ -203,6 +245,7 @@ export class LocalShadowScheduler {
     this.depthMaterial = new MeshDepthMaterial({
       depthPacking: RGBADepthPacking,
     });
+    this.worldCellScene.overrideMaterial = this.depthMaterial;
 
     this.candidateScores = new Float64Array(registry.capacity);
     this.candidateIndices = new Uint32Array(registry.capacity);
@@ -640,6 +683,7 @@ export class LocalShadowScheduler {
     slot.staticMask = 0;
     slot.dynamicMask = 0;
     slot.staticPending = slot.allowedMask;
+    slot.overlayHashes.fill(0);
   }
 
   private releaseSlot(s: number): void {
@@ -654,6 +698,7 @@ export class LocalShadowScheduler {
     slot.dirY = 0;
     slot.dirZ = 0;
     slot.cosOuter = 0;
+    slot.overlayHashes.fill(0);
   }
 
   /**
@@ -713,8 +758,19 @@ export class LocalShadowScheduler {
       }
       if (!entities || entities.length === 0) continue;
       for (let f = 0; f < 6; f++) {
-        if ((slot.allowedMask & (1 << f)) === 0) continue;
-        if (this.faceHasEntityCaster(slot, f, entities)) faces++;
+        const bit = 1 << f;
+        if ((slot.allowedMask & bit) === 0) continue;
+        const fingerprint = this.overlayFaceFingerprint(slot, f, entities);
+        if (fingerprint === 0) continue;
+        // Mirror render()'s skip: a face whose casters have not moved serves
+        // its existing cell and reserves nothing.
+        if (
+          fingerprint === slot.overlayHashes[f] &&
+          (slot.dynamicMask & bit) !== 0
+        ) {
+          continue;
+        }
+        faces++;
       }
     }
     return faces * this.faceCostUnits;
@@ -733,6 +789,7 @@ export class LocalShadowScheduler {
     instancePools: Group[] | undefined,
     skipShadowObjects: readonly Object3D[],
     stats: LocalLightStats,
+    poolBounds?: readonly (Box3 | null)[],
   ): void {
     if (this.activeSlotCount === 0) return;
 
@@ -744,6 +801,7 @@ export class LocalShadowScheduler {
     let facesStatic = 0;
     let facesDynamic = 0;
     let texelsChanged = false;
+    let arePoolsSwapped = false;
 
     // Objects flagged skipShadow (fluids, glass, plants) hide exactly as
     // they do for CSM — one caster rule set, two consumers.
@@ -785,25 +843,67 @@ export class LocalShadowScheduler {
         }
       }
 
-      // Entity overlay faces re-render every frame while a caster stands in
-      // them; cached world faces are never touched.
+      // Entity overlay faces re-render while a caster stands in them AND the
+      // caster arrangement has actually changed; a face whose fingerprint is
+      // unchanged keeps serving its existing overlay cell. Cached world
+      // faces are never touched.
       let overlayMask = 0;
       if (entities && entities.length > 0) {
+        // Only pools with an instance inside this light's reach render into
+        // its overlay faces: an instanced roster is dozens of pool groups,
+        // and paying a `renderer.render` per pool per face for creatures
+        // nowhere near the light was most of the local-shadow frame cost.
+        // Without bounds the pool list passes through untrimmed.
+        const slotPools = this.slotPoolsScratch;
+        slotPools.length = 0;
+        if (instancePools && instancePools.length > 0) {
+          for (let p = 0; p < instancePools.length; p++) {
+            const bounds = poolBounds?.[p];
+            if (
+              bounds &&
+              !boundsIntersectSphere(
+                bounds,
+                slot.x,
+                slot.y,
+                slot.z,
+                slot.far,
+                ENTITY_CASTER_RADIUS,
+              )
+            ) {
+              continue;
+            }
+            slotPools.push(instancePools[p]);
+          }
+        }
         for (let f = 0; f < 6; f++) {
           const bit = 1 << f;
           if ((slot.allowedMask & bit) === 0) continue;
-          if (!this.faceHasEntityCaster(slot, f, entities)) continue;
+          const fingerprint = this.overlayFaceFingerprint(slot, f, entities);
+          if (fingerprint === 0) continue;
+          if (
+            fingerprint === slot.overlayHashes[f] &&
+            (slot.dynamicMask & bit) !== 0
+          ) {
+            // Nothing moved: the cell already holds this exact arrangement.
+            overlayMask |= bit;
+            continue;
+          }
           if (!ledger.requestLocal("dynamic", this.faceCostUnits)) {
             // Denied: keep sampling last frame's overlay rather than
             // popping the caster's shadow off for a frame.
             overlayMask |= slot.dynamicMask & bit;
             continue;
           }
+          if (instancePools && slotPools.length > 0 && !arePoolsSwapped) {
+            arePoolsSwapped = true;
+            this.applyPoolDepthSwaps(instancePools);
+          }
           this.renderFace(renderer, scene, slot, s, f, true, {
             includeWorld: false,
             entities,
-            instancePools,
+            instancePools: slotPools,
           });
+          slot.overlayHashes[f] = fingerprint;
           overlayMask |= bit;
           facesDynamic++;
         }
@@ -836,6 +936,7 @@ export class LocalShadowScheduler {
       }
     }
 
+    if (arePoolsSwapped) this.restorePoolDepthSwaps();
     for (const { object, visible } of hidden) object.visible = visible;
     scene.overrideMaterial = originalOverride;
     renderer.setRenderTarget(previousTarget);
@@ -917,35 +1018,65 @@ export class LocalShadowScheduler {
     renderer.clear(true, true, false);
 
     if (casters.includeWorld) {
-      // Entity casters live exclusively in the per-frame dynamic overlay.
-      // They are also children of the world scene, so without this they
-      // would render into the cached cell too — freezing their current
-      // pose and position into depth that gets sampled long after they
-      // walked away (the stamped-silhouette bug). Hide them for the world
-      // pass; exact visibility is restored before returning.
-      const hiddenCasters = this.worldPassHidden;
-      hiddenCasters.length = 0;
-      if (casters.excludeEntities) {
-        for (const entity of casters.excludeEntities) {
-          if (entity.visible) {
-            hiddenCasters.push(entity);
-            entity.visible = false;
+      if (this.getStaticCasterRoots) {
+        // Static occluders for a local light are the chunk groups within its
+        // range sphere. Rendering only those from a scratch scene skips the
+        // full scene-graph traversal (and every hide/restore) a whole-scene
+        // depth pass pays per face — for a torch that reaches 13 blocks,
+        // that was thousands of objects visited to draw a handful.
+        // Reparenting is transform-safe: chunk groups sit at identity under
+        // the world scene, exactly like the entity overlay's casterScene
+        // borrowing below.
+        const roots = this.worldCellRoots;
+        roots.length = 0;
+        this.getStaticCasterRoots(slot.x, slot.y, slot.z, slot.far, roots);
+        const reparented = this.reparentedWorldRoots;
+        reparented.length = 0;
+        for (const root of roots) {
+          reparented.push({ object: root, parent: root.parent });
+          this.worldCellScene.add(root);
+        }
+        renderer.render(this.worldCellScene, camera);
+        for (const { object, parent } of reparented) {
+          if (parent) {
+            parent.add(object);
+          } else {
+            this.worldCellScene.remove(object);
           }
         }
-      }
-      if (casters.excludePools) {
-        for (const pool of casters.excludePools) {
-          if (pool.visible) {
-            hiddenCasters.push(pool);
-            pool.visible = false;
+        this.worldCellScene.children.length = 0;
+        reparented.length = 0;
+      } else {
+        // Entity casters live exclusively in the per-frame dynamic overlay.
+        // They are also children of the world scene, so without this they
+        // would render into the cached cell too — freezing their current
+        // pose and position into depth that gets sampled long after they
+        // walked away (the stamped-silhouette bug). Hide them for the world
+        // pass; exact visibility is restored before returning.
+        const hiddenCasters = this.worldPassHidden;
+        hiddenCasters.length = 0;
+        if (casters.excludeEntities) {
+          for (const entity of casters.excludeEntities) {
+            if (entity.visible) {
+              hiddenCasters.push(entity);
+              entity.visible = false;
+            }
           }
         }
+        if (casters.excludePools) {
+          for (const pool of casters.excludePools) {
+            if (pool.visible) {
+              hiddenCasters.push(pool);
+              pool.visible = false;
+            }
+          }
+        }
+        scene.overrideMaterial = this.depthMaterial;
+        renderer.render(scene, camera);
+        scene.overrideMaterial = null;
+        for (const object of hiddenCasters) object.visible = true;
+        hiddenCasters.length = 0;
       }
-      scene.overrideMaterial = this.depthMaterial;
-      renderer.render(scene, camera);
-      scene.overrideMaterial = null;
-      for (const object of hiddenCasters) object.visible = true;
-      hiddenCasters.length = 0;
     }
 
     if (casters.entities && casters.entities.length > 0) {
@@ -972,27 +1103,40 @@ export class LocalShadowScheduler {
       }
     }
 
-    // Instanced pools carry their own depth materials (alpha-tested
-    // impostors); swap exactly the way the CSM entity pass does.
+    // Depth materials were swapped in once for the whole shadow frame by
+    // `render()` (lazily, on the first face that has pools to draw), so a
+    // face render is just the draws.
     if (casters.instancePools && casters.instancePools.length > 0) {
-      const swaps = this.poolMaterialSwaps;
-      swaps.length = 0;
       for (const pool of casters.instancePools) {
-        pool.traverse((child) => {
-          const mesh = child as Mesh;
-          if (mesh.isMesh && mesh.customDepthMaterial) {
-            swaps.push({ mesh, material: mesh.material });
-            mesh.material = mesh.customDepthMaterial;
-          }
-        });
-      }
-      if (swaps.length > 0) {
-        for (const pool of casters.instancePools) {
-          renderer.render(pool, camera);
-        }
-        for (const { mesh, material } of swaps) mesh.material = material;
+        renderer.render(pool, camera);
       }
     }
+  }
+
+  /**
+   * Swap every pool mesh onto its depth material for the duration of one
+   * shadow frame. Per-face swapping traversed every pool once per rendered
+   * face — up to slots x faces full-roster traversals a frame for the same
+   * result this single pass produces.
+   */
+  private applyPoolDepthSwaps(instancePools: readonly Group[]): void {
+    const swaps = this.poolMaterialSwaps;
+    swaps.length = 0;
+    for (const pool of instancePools) {
+      pool.traverse((child) => {
+        const mesh = child as Mesh;
+        if (mesh.isMesh && mesh.customDepthMaterial) {
+          swaps.push({ mesh, material: mesh.material });
+          mesh.material = mesh.customDepthMaterial;
+        }
+      });
+    }
+  }
+
+  private restorePoolDepthSwaps(): void {
+    const swaps = this.poolMaterialSwaps;
+    for (const { mesh, material } of swaps) mesh.material = material;
+    swaps.length = 0;
   }
 
   private isEntityNearSlot(slot: ShadowSlot, entity: Object3D): boolean {
@@ -1004,21 +1148,34 @@ export class LocalShadowScheduler {
   }
 
   /**
-   * Conservative test: does an entity intersect this face's frustum? A spot
-   * slot's single face renders along its *cone*, not the cube-face basis, so
-   * the axis comes from the slot's aim and the lateral bound is the exact
-   * distance from that axis (visible spot response is circular; casters
-   * outside it cannot darken anything the light shows).
+   * Caster fingerprint of one face: every entity intersecting the face's
+   * frustum folds its quantized rendered position (and the light anchor)
+   * into a hash; `0` means no caster intersects. A spot slot's single face
+   * renders along its *cone*, not the cube-face basis, so the axis comes
+   * from the slot's aim and the lateral bound is the exact distance from
+   * that axis (visible spot response is circular; casters outside it cannot
+   * darken anything the light shows).
+   *
+   * Positions and root rotations are the smoothed, rendered `Object3D`
+   * transforms, so a walking or turning creature changes the fingerprint
+   * every frame (live shadow) while an idle one holds it steady and serves
+   * from the existing overlay cell. Pose-only motion — limb animation, idle
+   * sway — deliberately does not refresh: reading it would mean traversing
+   * every caster subtree per face per frame, which is the cost this
+   * fingerprint exists to remove, and an unmoving caster's frozen shadow
+   * silhouette is imperceptible next to re-rendering the whole overlay
+   * budget every frame.
    */
-  private faceHasEntityCaster(
+  private overlayFaceFingerprint(
     slot: ShadowSlot,
     face: number,
     entities: Object3D[],
-  ): boolean {
+  ): number {
     const fwd = SHADOW_FACE_FORWARD[face];
     const fx = slot.isSpot ? slot.dirX : fwd[0];
     const fy = slot.isSpot ? slot.dirY : fwd[1];
     const fz = slot.isSpot ? slot.dirZ : fwd[2];
+    let hash = 0;
     for (const entity of entities) {
       if (entity.userData.castsShadow === false) continue;
       if (!this.isEntityNearSlot(slot, entity)) continue;
@@ -1030,16 +1187,33 @@ export class LocalShadowScheduler {
       const limit = Math.max(w, 0) * slot.tanHalf + ENTITY_CASTER_RADIUS;
       if (slot.isSpot) {
         const lateralSq = Math.max(rx * rx + ry * ry + rz * rz - w * w, 0);
-        if (lateralSq <= limit * limit) return true;
-        continue;
+        if (lateralSq > limit * limit) continue;
+      } else {
+        const uAbs = Math.abs(rx * (1 - Math.abs(fwd[0])));
+        const vAbs = Math.abs(ry * (1 - Math.abs(fwd[1])));
+        const sAbs = Math.abs(rz * (1 - Math.abs(fwd[2])));
+        if (Math.max(uAbs, vAbs, sAbs) > limit) continue;
       }
-      const uAbs = Math.abs(rx * (1 - Math.abs(fwd[0])));
-      const vAbs = Math.abs(ry * (1 - Math.abs(fwd[1])));
-      const sAbs = Math.abs(rz * (1 - Math.abs(fwd[2])));
-      const lateral = Math.max(uAbs, vAbs, sAbs);
-      if (lateral <= limit) return true;
+      if (hash === 0) {
+        // Seed with the anchor so a moving light refreshes its overlays
+        // even when its casters hold still relative to the world.
+        hash = 1;
+        hash = (Math.imul(hash, 31) + (Math.round(slot.x * 64) | 0)) | 0;
+        hash = (Math.imul(hash, 31) + (Math.round(slot.y * 64) | 0)) | 0;
+        hash = (Math.imul(hash, 31) + (Math.round(slot.z * 64) | 0)) | 0;
+      }
+      hash = (Math.imul(hash, 31) + (Math.round(rx * 64) | 0)) | 0;
+      hash = (Math.imul(hash, 31) + (Math.round(ry * 64) | 0)) | 0;
+      hash = (Math.imul(hash, 31) + (Math.round(rz * 64) | 0)) | 0;
+      const q = entity.quaternion;
+      hash = (Math.imul(hash, 31) + (Math.round(q.x * 50) | 0)) | 0;
+      hash = (Math.imul(hash, 31) + (Math.round(q.y * 50) | 0)) | 0;
+      hash = (Math.imul(hash, 31) + (Math.round(q.z * 50) | 0)) | 0;
+      hash = (Math.imul(hash, 31) + (Math.round(q.w * 50) | 0)) | 0;
+      // A zero fold result would read as "no casters"; nudge it off zero.
+      if (hash === 0) hash = 1;
     }
-    return false;
+    return hash;
   }
 
   private logInvalidation(slot: number, cause: ShadowInvalidationCause): void {
@@ -1067,6 +1241,7 @@ function makeEmptySlot(): ShadowSlot {
     staticMask: 0,
     dynamicMask: 0,
     staticPending: 0,
+    overlayHashes: new Int32Array(6),
   };
 }
 

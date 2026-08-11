@@ -715,17 +715,27 @@ describe("moving-light shadow scheduling", () => {
     expect(renders.length - 6).toBe(1);
     expect(stats.shadowFacesDynamic).toBe(7);
 
-    // Idle light (no movement): the reservation shrinks to the overlay
-    // face a caster actually stands in — and to zero without casters.
+    // Idle light, idle caster: the overlay cell already holds this exact
+    // arrangement, so nothing reserves and nothing re-renders — the face
+    // keeps serving the cached overlay (its mask stays up).
     scheduler.update(selectionOf(registry, [held]), 1, 0, 60, 0, stats);
-    expect(scheduler.estimateDynamicDemand([entity])).toBe(1);
+    expect(scheduler.estimateDynamicDemand([entity])).toBe(0);
     expect(scheduler.estimateDynamicDemand()).toBe(0);
 
     renders.length = 0;
     ledger.beginFrame(100);
     scheduler.render(renderer, scene, ledger, [entity], undefined, [], stats);
-    // The overlay re-renders every frame while the caster stands there
-    // (live shadow, not a frozen imprint); the world cache is untouched.
+    expect(renders.length).toBe(0);
+    const heldIndex = registry.aliveIndices[0];
+    expect(scheduler.recordForIndex(heldIndex)?.dynamicMask).toBe(0b1);
+
+    // The caster steps: its arrangement changes, so exactly that face
+    // reserves and re-renders; the world cache is untouched.
+    entity.position.set(9, 60, 5);
+    expect(scheduler.estimateDynamicDemand([entity])).toBe(1);
+    renders.length = 0;
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [entity], undefined, [], stats);
     expect(renders.filter((r) => r.scene === scene).length).toBe(0);
     expect(renders.length).toBe(1);
 
@@ -970,11 +980,11 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     const index = indexOf(registry, lamp);
     expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b1);
 
-    // Frames 2..4: the caster keeps walking (animating) inside the face.
-    // Every frame re-renders exactly one overlay pass — the shadow tracks
-    // the current pose — and never touches the cached world cells.
+    // Frames 2..4: the caster keeps walking inside the face. Every step
+    // re-renders exactly one overlay pass — the shadow tracks the current
+    // position — and never touches the cached world cells.
     for (let frame = 0; frame < 3; frame++) {
-      caster.position.set(8, 60, 4 + frame * 0.4);
+      caster.position.set(8, 60, 4.4 + frame * 0.4);
       renders.length = 0;
       ledger.beginFrame(100);
       scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
@@ -982,6 +992,14 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
       expect(renders.length).toBe(1);
       expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b1);
     }
+
+    // A frame where the caster holds still re-renders nothing: the face
+    // serves its existing overlay cell and stays sampleable.
+    renders.length = 0;
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], undefined, [], stats);
+    expect(renders.length).toBe(0);
+    expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b1);
 
     // The caster leaves: the overlay mask drops the same frame and the
     // texels rewrite, so the shader stops sampling the stale overlay cell.
@@ -1045,17 +1063,23 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     // +X (bit 0), -X (bit 1), +Z (bit 4) overlay faces opened.
     expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b010011);
 
-    // Frames 2..4: translate, turn, and animate the pose. The overlay
-    // re-renders every frame; the cached world cells are never touched.
+    // Frames 2..4: translate, turn, and animate the pose. Root translation
+    // and rotation change the caster fingerprint, so those two faces
+    // re-render; pose-only joint animation deliberately does not (reading
+    // subtree pose per face per frame is the cost the fingerprint removes),
+    // so that face keeps serving its cached overlay. World cells are never
+    // touched.
     for (let frame = 0; frame < 3; frame++) {
-      peerA.position.z += 0.3; // translate
-      peerB.rotation.y += 0.6; // turn
-      peerC.children[0].rotation.x += 0.8; // joint animation
+      peerA.position.z += 0.3; // translate — re-renders
+      peerB.rotation.y += 0.6; // turn — re-renders (root quaternion folds)
+      peerC.children[0].rotation.x += 0.8; // joint animation — served cached
       renders.length = 0;
       ledger.beginFrame(100);
       scheduler.render(renderer, scene, ledger, casters, undefined, [], stats);
       expect(renders.filter((r) => r.scene === scene).length).toBe(0);
-      expect(renders.length).toBe(3); // one overlay render per held face
+      expect(renders.length).toBe(2);
+      // All three faces stay sampleable, including the pose-only one.
+      expect(scheduler.recordForIndex(index)?.dynamicMask).toBe(0b010011);
     }
 
     // Churn: one peer leaves (splice — the Peers map is rebuilt per frame),

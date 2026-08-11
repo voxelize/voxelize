@@ -1,4 +1,5 @@
 import {
+  Box3,
   Group,
   Object3D,
   Scene,
@@ -563,6 +564,7 @@ export class LocalLights {
     entities?: Object3D[],
     instancePools?: Group[],
     skipShadowObjects: readonly Object3D[] = [],
+    poolBounds?: readonly (Box3 | null)[],
   ): void {
     this.shadows.render(
       renderer,
@@ -572,6 +574,7 @@ export class LocalLights {
       instancePools,
       skipShadowObjects,
       this.stats,
+      poolBounds,
     );
     this.shadowUniforms.atlas.value = this.shadows.atlas.depthTexture;
     const ledger = this.shadowLedger.frameStats;

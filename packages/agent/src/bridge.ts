@@ -468,6 +468,16 @@ export type RenderStats = {
     scanMs: number;
     sectionsPendingScan: number;
     selectionChurn: number;
+    /** Lights currently holding a shadow slot. */
+    shadowed: number;
+    /** Atlas faces rendered this frame, split by tier below. */
+    shadowFacesRendered: number;
+    shadowFacesStatic: number;
+    shadowFacesDynamic: number;
+    shadowScheduleMs: number;
+    shadowCacheHitRate: number;
+    atlasEvictions: number;
+    shadowInvalidations: number;
   };
   /** The twelve biggest material buckets among chunk meshes, largest first. */
   meshBuckets: { bucket: string; total: number; visible: number }[];
