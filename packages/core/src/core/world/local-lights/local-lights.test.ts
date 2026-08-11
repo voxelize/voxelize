@@ -12,6 +12,7 @@ import {
 import { LightClusterGrid } from "./clustering";
 import {
   LIGHT_FLAG_MASKED,
+  LIGHT_FLAG_SHADOW_REQUEST,
   LIGHT_FLAG_STATIC,
   LightSourceRegistry,
 } from "./registry";
@@ -768,20 +769,24 @@ describe("BlockProfileTable", () => {
     const table = makeTable();
     expect(table.isLightById[TORCH.id]).toBe(1);
     expect(table.isLightById[STONE.id]).toBe(0);
-    const profile = table.profileFor(TORCH.id)!;
+    const profile = table.profileFor(TORCH.id);
+    if (!profile) throw new Error("expected a torch profile");
     expect(profile.descriptor.isStatic).toBe(true);
     expect(profile.descriptor.shadowPolicy).toBe("voxelMask");
     expect(profile.descriptor.range).toBe(14);
     expect(profile.descriptor.intensity).toBeCloseTo(14 / 15);
-    expect(profile.descriptor.color![0]).toBeCloseTo(1);
-    expect(profile.descriptor.color![1]).toBeCloseTo(9 / 14);
+    const color = profile.descriptor.color;
+    if (!color) throw new Error("expected a derived color");
+    expect(color[0]).toBeCloseTo(1);
+    expect(color[1]).toBeCloseTo(9 / 14);
   });
 
   it("lets a declared profile override the defaults", () => {
     const table = makeTable([
       [TORCH.id, { colorTemperatureK: 1900, intensity: 1.2, range: 12 }],
     ]);
-    const profile = table.profileFor(TORCH.id)!;
+    const profile = table.profileFor(TORCH.id);
+    if (!profile) throw new Error("expected a torch profile");
     expect(profile.descriptor.intensity).toBe(1.2);
     expect(profile.descriptor.range).toBe(12);
     expect(profile.descriptor.color).toBeUndefined();
@@ -899,5 +904,98 @@ describe("SectionTracker", () => {
     setVoxel(chunk, 14, 1, 14, LAVA.id);
     tracker.rescanSection(tracker.sectionKey(0, 0, 0), chunk, 0, table);
     expect(registry.aliveCount).toBe(2);
+  });
+
+  it("refreshes registered descriptors when the profile table changes", () => {
+    const registry = new LightSourceRegistry(16);
+    const tracker = new SectionTracker(
+      registry,
+      CHUNK_SIZE,
+      MAX_HEIGHT,
+      SUB_CHUNKS,
+    );
+    const chunk = makeChunk(0, 0);
+    setVoxel(chunk, 3, 5, 3, TORCH.id);
+    const key = tracker.sectionKey(0, 0, 0);
+
+    const derivedTable = makeTable();
+    tracker.rescanSection(key, chunk, 0, derivedTable);
+    expect(registry.aliveCount).toBe(1);
+    const before = registry.aliveIndices[0];
+    expect(registry.intensities[before]).toBeCloseTo(14 / 15);
+    expect(registry.flags[before] & LIGHT_FLAG_SHADOW_REQUEST).toBe(0);
+
+    // Same table build: the unchanged voxel keeps its handle (and with it
+    // its selection hysteresis).
+    tracker.rescanSection(key, chunk, 0, derivedTable);
+    expect(registry.aliveCount).toBe(1);
+    expect(registry.aliveIndices[0]).toBe(before);
+
+    // A newer table build — a late setBlockProfile — must refresh the
+    // descriptor even though the voxel signature never changed: what is
+    // registered is a copy made from the old table.
+    tracker.rescanSection(
+      key,
+      chunk,
+      0,
+      makeTable([[TORCH.id, { intensity: 1.2, shadowPolicy: "shadowMap" }]]),
+    );
+    expect(registry.aliveCount).toBe(1);
+    const after = registry.aliveIndices[0];
+    expect(registry.intensities[after]).toBeCloseTo(1.2);
+    expect(registry.flags[after] & LIGHT_FLAG_SHADOW_REQUEST).toBe(
+      LIGHT_FLAG_SHADOW_REQUEST,
+    );
+  });
+});
+
+describe("setBlockProfile timing", () => {
+  it("refreshes live emitters when a profile is declared after their scan", () => {
+    // The first-world-entry race: chunks stream in and scan while the game
+    // is still booting, and the game's profile install lands afterwards.
+    // The contract ("affects every present and future emitter") must hold
+    // regardless — no near-white, shadowless torches until re-placed.
+    const NAMED_TORCH: EmitterBlock & { name: string } = {
+      ...TORCH,
+      name: "Torch",
+    };
+    const lights = new LocalLights(
+      {},
+      () => ({
+        chunkSize: CHUNK_SIZE,
+        maxHeight: MAX_HEIGHT,
+        subChunks: SUB_CHUNKS,
+        maxLightLevel: MAX_LIGHT_LEVEL,
+      }),
+      () => [NAMED_TORCH],
+    );
+    const chunk = makeChunk(0, 0);
+    setVoxel(chunk, 3, 5, 3, TORCH.id);
+    // The world adapter provides loaded-chunk lookup; late declarations
+    // resolve chunks through it exactly like the live client.
+    lights.getLoadedChunk = () => chunk;
+
+    lights.handleChunkLoaded(0, 0, chunk);
+    const camera = new Vector3(3, 5, 3);
+    for (let n = 0; n < 4; n++) lights.update(camera);
+
+    expect(lights.registry.aliveCount).toBe(1);
+    const before = lights.registry.aliveIndices[0];
+    expect(lights.registry.intensities[before]).toBeCloseTo(14 / 15);
+    expect(lights.registry.flags[before] & LIGHT_FLAG_SHADOW_REQUEST).toBe(0);
+
+    lights.setBlockProfile("Torch", {
+      intensity: 1.2,
+      shadowPolicy: "shadowMap",
+    });
+    for (let n = 0; n < 4; n++) lights.update(camera);
+
+    expect(lights.registry.aliveCount).toBe(1);
+    const after = lights.registry.aliveIndices[0];
+    expect(lights.registry.intensities[after]).toBeCloseTo(1.2);
+    expect(lights.registry.flags[after] & LIGHT_FLAG_SHADOW_REQUEST).toBe(
+      LIGHT_FLAG_SHADOW_REQUEST,
+    );
+    lights.dispose();
   });
 });

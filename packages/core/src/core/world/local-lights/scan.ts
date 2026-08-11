@@ -39,6 +39,9 @@ interface ResolvedProfile {
   maxProxiesPerSection: number;
 }
 
+/** Monotone identity for profile-table builds; see BlockProfileTable.version. */
+let nextProfileTableVersion = 1;
+
 /**
  * Per-block-id lookup the scan hot loop runs against: a byte LUT for the
  * "is this an emitter" test and a resolved profile for everything after.
@@ -46,6 +49,16 @@ interface ResolvedProfile {
  */
 export class BlockProfileTable {
   readonly isLightById: Uint8Array;
+  /**
+   * Which build of the table this is. A section scanned under an older
+   * version must treat every registered emitter as stale even when its
+   * voxel signature is unchanged — the profile *behind* the signature
+   * changed, and the registered descriptor is a copy of the old one. This
+   * is what makes `setBlockProfile` timing-independent: declared before,
+   * during, or after chunk streaming, live emitters converge on the
+   * declared profile through the ordinary rescan queue.
+   */
+  readonly version: number = nextProfileTableVersion++;
   private readonly profiles: (ResolvedProfile | undefined)[];
 
   constructor(
@@ -183,6 +196,12 @@ type SectionRecord = {
    * exactly like swapping the block, moving its anchored light with it.
    */
   singleIds: Map<number, number>;
+  /**
+   * The profile-table build the singles were registered from. A rescan under
+   * a newer table refreshes them all; a rescan under the same table keeps
+   * unchanged handles (and their selection hysteresis) untouched.
+   */
+  tableVersion: number;
   proxies: LightHandle[];
 };
 
@@ -285,6 +304,7 @@ export class SectionTracker {
       record = {
         singles: new Map(),
         singleIds: new Map(),
+        tableVersion: table.version,
         proxies: [],
       };
       this.sections.set(key, record);
@@ -329,12 +349,18 @@ export class SectionTracker {
 
     // Diff singles: registered emitters that are gone (or changed block)
     // release their handles; new ones register. Unchanged ones keep their
-    // handle untouched.
+    // handle untouched — unless the profile table itself changed, in which
+    // case every registered descriptor is a copy made from the old table
+    // and must be rebuilt, signature match or not.
+    const isProfileTableChanged = record.tableVersion !== table.version;
     const stale = this.staleKeys;
     stale.length = 0;
     for (const [localKey, registeredId] of record.singleIds) {
-      if (desired.get(localKey) !== registeredId) stale.push(localKey);
+      if (isProfileTableChanged || desired.get(localKey) !== registeredId) {
+        stale.push(localKey);
+      }
     }
+    record.tableVersion = table.version;
     for (const localKey of stale) {
       const handle = record.singles.get(localKey);
       if (handle !== undefined) this.registry.remove(handle);
@@ -461,7 +487,7 @@ export class SectionTracker {
       let sumZ = 0;
       let memberCount = 0;
       for (let s = start; s < end; s++) {
-        for (const localKey of bySubcell.get(occupied[s])!) {
+        for (const localKey of bySubcell.get(occupied[s]) ?? []) {
           sumX += minX + (localKey % chunkSize) + profile.offset[0];
           sumY +=
             yStart +
@@ -480,7 +506,7 @@ export class SectionTracker {
 
       let range = base.range;
       for (let s = start; s < end; s++) {
-        for (const localKey of bySubcell.get(occupied[s])!) {
+        for (const localKey of bySubcell.get(occupied[s]) ?? []) {
           const dx = minX + (localKey % chunkSize) + profile.offset[0] - cx;
           const dy =
             yStart +
