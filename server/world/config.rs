@@ -227,7 +227,12 @@ const DEFAULT_PRELOAD: bool = false;
 const DEFAULT_PRELOAD_RADIUS: usize = 8;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
-const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 4;
+// 64 pops * 60 ticks = ~3.8k chunks/s of pipeline intake, comfortably above
+// what a joining client bursts (a radius-12 join wants ~450), while bounding
+// the per-tick space-assembly and disk-load work the drain pays inline. The
+// old value of 4 predates the drain honoring this config at all — it was
+// written when the drain was unbounded, so nothing ever ran at 4.
+const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 64;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 50000;
 /// Three random-tick samples per 16^3 subchunk section per world tick.
 const DEFAULT_RANDOM_TICK_SPEED: usize = 3;

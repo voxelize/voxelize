@@ -104,15 +104,24 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                 if next_stage >= pipeline.stages.len() {
                     chunk.status = ChunkStatus::Meshing;
-                    // A finished chunk always enters the mesher: light is
-                    // flooded there, so readiness is unreachable without it,
-                    // and preload, physics neighbor checks, saving, and
-                    // request delivery all wait on a chunk being `Ready`.
-                    mesher.add_chunk(&chunk.coords, false);
+                    // Light is flooded in the mesher, so a chunk something is
+                    // waiting on (a request, preload, a lone generation call)
+                    // must enter it to reach `Ready`. A chunk generated only
+                    // as context for a neighbor parks here instead: meshing
+                    // it would send it into the drain below, whose neighbor
+                    // pull conscripts *its* ring in turn — the expansion that
+                    // filled whole worlds from a single request. A parked
+                    // chunk is not dropped: `ChunkRequestsSystem` re-queues
+                    // it the moment anything asks.
+                    let is_context = pipeline.take_context(&chunk.coords)
+                        && !interests.has_interests(&chunk.coords);
+                    if !is_context {
+                        mesher.add_chunk(&chunk.coords, false);
+                    }
                     pipeline.remove_chunk(&chunk.coords);
                 } else {
                     chunk.status = ChunkStatus::Generating(next_stage);
-                    pipeline.add_chunk(&chunk.coords, false);
+                    pipeline.requeue_chunk(&chunk.coords, false);
                 }
 
                 if let Some(listeners) = chunks.listeners.remove(&chunk.coords) {
@@ -123,7 +132,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                                 ChunkStatus::Generating(_)
                             )
                         {
-                            pipeline.add_chunk(&n_coords, true);
+                            pipeline.requeue_chunk(&n_coords, true);
                         } else if let Some(chunk) = chunks.raw(&n_coords) {
                             if matches!(chunk.status, ChunkStatus::Meshing) {
                                 mesher.add_chunk(&n_coords, true);
@@ -136,8 +145,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
         }
 
+        // Demand that arrived while these were mid-flight already promoted
+        // them in `add_chunk`; the re-add itself expresses nothing new.
         for coords in pipeline.drain_pending_regenerate() {
-            pipeline.add_chunk(&coords, true);
+            pipeline.requeue_chunk(&coords, true);
         }
 
         /* -------------------------------------------------------------------------- */
@@ -196,7 +207,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             } else {
                 unreachable!()
             };
-            let stage = &pipeline.stages[index];
+            let stage = pipeline.stages[index].clone();
             let margin = stage.neighbors(&config);
 
             if margin > 0 {
@@ -215,12 +226,21 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                             continue;
                         }
 
-                        if let Some(neighbor) = chunks.raw(&n_coords) {
-                            if let ChunkStatus::Generating(n_stage) = neighbor.status {
-                                if n_stage >= index {
-                                    continue;
-                                }
-                            }
+                        match chunks.raw(&n_coords).map(|neighbor| &neighbor.status) {
+                            // A chunk parked in `Meshing` has run every stage,
+                            // and no further stage-finish will ever fire its
+                            // listeners — treating it as pending would wait on
+                            // it forever.
+                            Some(ChunkStatus::Meshing) | Some(ChunkStatus::Ready) => continue,
+                            Some(ChunkStatus::Generating(n_stage)) if *n_stage >= index => continue,
+                            Some(ChunkStatus::Generating(_)) => {}
+                            // The margin neighbor exists nowhere and nothing
+                            // else will create it: queue it for its voxel data
+                            // only. Each context ring needs one stage less
+                            // than the ring that demanded it, so the chain
+                            // dies out after the margin stages instead of
+                            // sweeping the world.
+                            None => pipeline.add_context_chunk(&n_coords),
                         }
 
                         chunks.add_listener(&n_coords, &coords);
@@ -265,10 +285,18 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         for (coords, loaded_chunk) in loaded_chunks.into_iter() {
             if let Some(chunk) = loaded_chunk {
                 chunks.renew(chunk, false);
-                mesher.add_chunk(&coords, false);
+                // A save loaded only as context serves its purpose by
+                // existing (voxel data for a neighbor); meshing it would pull
+                // its own ring off disk in turn, sweeping whole saved regions
+                // into memory.
+                let is_context =
+                    pipeline.take_context(&coords) && !interests.has_interests(&coords);
+                if !is_context {
+                    mesher.add_chunk(&coords, false);
+                }
             } else {
                 // Corrupt/empty save was removed by try_load; regenerate via pipeline.
-                pipeline.add_chunk(&coords, false);
+                pipeline.requeue_chunk(&coords, false);
             }
         }
 
@@ -292,7 +320,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                                 ChunkStatus::Generating(_)
                             )
                         {
-                            pipeline.add_chunk(&n_coords, true);
+                            pipeline.requeue_chunk(&n_coords, true);
                         } else if let Some(chunk) = chunks.raw(&n_coords) {
                             if matches!(chunk.status, ChunkStatus::Meshing) {
                                 mesher.add_chunk(&n_coords, true);
@@ -383,10 +411,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 .enumerate()
             {
                 if !chunks.map.contains_key(&n_coords) {
-                    // Out-of-world neighbors can never exist, and a chunk
-                    // already in the pipeline must not be enqueued twice.
-                    if chunks.is_within_world(&n_coords) && !pipeline.has_chunk(&n_coords) {
-                        pipeline.add_chunk(&n_coords, false);
+                    // Lighting this chunk needs the neighbor to exist with
+                    // voxel data, not to be lit or meshed itself — so it is
+                    // queued as context, never as a first-class chunk. When
+                    // it was queued as demand here, every meshed chunk
+                    // conscripted a fresh ring, and one request generated the
+                    // world to its bounds (out-of-world neighbors can never
+                    // exist, so they are not queued at all).
+                    if chunks.is_within_world(&n_coords) {
+                        pipeline.add_context_chunk(&n_coords);
                     }
                     retry_chunks.push(coords.clone());
                     ready = false;

@@ -224,6 +224,14 @@ pub struct Pipeline {
     /// A queue of chunk coordinates that are waiting to be processed.
     pub(crate) queue: VecDeque<Vec2<i32>>,
 
+    /// Coordinates queued only because a neighbor needs their voxel data
+    /// (lighting borders, stage margins) — not because anything asked for
+    /// them. They generate and then park short of the mesher, because a
+    /// context chunk that meshes conscripts *its* neighborhood in turn, and
+    /// that chain reaction once filled entire worlds from a single request.
+    /// Any deliberate `add_chunk` promotes them to demand.
+    context: HashSet<Vec2<i32>>,
+
     /// A map of leftover changes from processing chunk stages.
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
 
@@ -248,6 +256,7 @@ impl Pipeline {
             chunks: HashSet::new(),
             leftovers: HashMap::new(),
             pending_regenerate: HashSet::new(),
+            context: HashSet::new(),
             queue: VecDeque::new(),
             stages: Vec::new(),
         }
@@ -260,6 +269,7 @@ impl Pipeline {
         self.queue.clear();
         self.leftovers.clear();
         self.pending_regenerate.clear();
+        self.context.clear();
     }
 
     pub fn mark_for_regenerate(&mut self, coords: &Vec2<i32>) {
@@ -272,11 +282,36 @@ impl Pipeline {
         self.pending_regenerate.drain().collect()
     }
 
-    /// Add a chunk coordinate to the pipeline to be processed.
+    /// Add a chunk coordinate to the pipeline to be processed. A deliberate
+    /// add is demand: if the coords were previously queued only as context,
+    /// they are context no longer.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
+        self.context.remove(coords);
+        self.requeue_chunk(coords, prioritized);
+    }
+
+    /// Put a chunk already in flight back on the queue without touching its
+    /// context standing. Internal re-queues (stage hops, listener wake-ups,
+    /// corrupt-save regeneration) express no new demand, so routing them
+    /// through `add_chunk` would silently promote context chunks and revive
+    /// the chain reaction the context set exists to stop.
+    pub(crate) fn requeue_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
         if self.has_chunk(coords) {
             self.mark_for_regenerate(coords);
             return;
+        }
+
+        // A generation queue this deep means something is conscripting chunks
+        // far faster than any client could ask for them (an unbounded world's
+        // mesh-prerequisite expansion once filled it with hundreds of
+        // thousands of entries). Say so at the crossing instead of melting
+        // quietly.
+        if self.queue.len() == 100_000 {
+            log::error!(
+                "[pipeline] generation queue crossed 100k entries (adding {:?}); \
+                 a system is requesting chunks far beyond any client interest",
+                coords
+            );
         }
 
         self.remove_chunk(coords);
@@ -286,6 +321,26 @@ impl Pipeline {
         } else {
             self.queue.push_back(coords.to_owned());
         }
+    }
+
+    /// Queue a chunk purely as generation context for a neighbor: it will
+    /// generate its voxel data and then park short of the mesher until
+    /// something demands it. Coords already queued or in flight keep whatever
+    /// standing they have.
+    pub(crate) fn add_context_chunk(&mut self, coords: &Vec2<i32>) {
+        if self.has_chunk(coords) || self.queue.contains(coords) {
+            return;
+        }
+
+        self.context.insert(coords.to_owned());
+        self.queue.push_back(coords.to_owned());
+    }
+
+    /// Whether these coords were queued only as context, consuming the flag.
+    /// Called exactly once per generation campaign, at the point the finished
+    /// chunk would otherwise enter the mesher.
+    pub(crate) fn take_context(&mut self, coords: &Vec2<i32>) -> bool {
+        self.context.remove(coords)
     }
 
     /// Remove a chunk coordinate from the pipeline.
