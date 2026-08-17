@@ -1,14 +1,20 @@
 import {
+  CanvasTexture,
+  ClampToEdgeWrapping,
+  Color,
   DoubleSide,
   FrontSide,
+  NearestFilter,
   ShaderLib,
   ShaderMaterial,
+  SRGBColorSpace,
   Texture,
   Uniform,
   UniformsUtils,
 } from "three";
 
 import { Coords3 } from "../../types";
+import { ThreeUtils } from "../../utils";
 
 import { Block } from "./block";
 import { ChunkRenderer } from "./chunk-renderer";
@@ -240,6 +246,85 @@ export function makeChunkShaderMaterial(
   return material;
 }
 
+/**
+ * Whether a face carries a whole texture of its own instead of a slot in the
+ * shared atlas. Independent faces own one per block face; isolated faces own
+ * one per voxel, plus the face-keyed default below for when there is no
+ * voxel to ask (a held block, a drop, an inventory thumbnail).
+ */
+export function isOwnTextureFace(face: Block["faces"][0]) {
+  return face.independent || face.isolated;
+}
+
+/**
+ * Textures minted by {@link makeOwnFaceTexture}, one per material, and so
+ * ours to release when that material moves on. Everything else a face
+ * material can be holding belongs to somebody else: the shared unknown
+ * texture is handed to every unpainted surface at once, and a texture passed
+ * in by a caller is theirs to keep repainting and to dispose.
+ */
+const mintedFaceTextures = new WeakSet<Texture>();
+
+/**
+ * The texture an own-texture face should carry for `source`. Block art is
+ * pixel art, so a texture minted here samples the way the atlas does. Mint
+ * one per material rather than sharing: the sharing that matters — one GPU
+ * upload per image — already happens at the texture's source.
+ */
+export function makeOwnFaceTexture(
+  source: Color | HTMLImageElement | Texture,
+): Texture {
+  if (ThreeUtils.isTexture(source)) return source;
+
+  const texture = ThreeUtils.isColor(source)
+    ? new CanvasTexture(makeSolidColorCanvas(source))
+    : new Texture(source);
+
+  texture.colorSpace = SRGBColorSpace;
+  texture.wrapS = ClampToEdgeWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
+  texture.minFilter = NearestFilter;
+  texture.magFilter = NearestFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+
+  mintedFaceTextures.add(texture);
+
+  return texture;
+}
+
+/** Point an own-texture face's material at `texture`. */
+export function setOwnFaceTexture(
+  material: CustomChunkShaderMaterial,
+  texture: Texture,
+) {
+  const previous = material.map;
+
+  material.map = texture;
+  material.uniforms.map.value = texture;
+  material.needsUpdate = true;
+
+  if (previous && previous !== texture && mintedFaceTextures.has(previous)) {
+    previous.dispose();
+  }
+}
+
+function makeSolidColorCanvas(color: Color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Cannot build a solid color texture without a 2d context");
+  }
+
+  context.fillStyle = color.getStyle();
+  context.fillRect(0, 0, 1, 1);
+
+  return canvas;
+}
+
 export async function loadChunkMaterials(
   world: ChunkMaterialHost & {
     registry: Registry;
@@ -378,18 +463,23 @@ export async function loadChunkMaterials(
     // customizeMaterialShaders can opt it out into a bespoke shader.
     world.chunkRenderer.materials.set(`${block.id}`, mat);
 
+    // A face that owns its texture gets a material keyed by face name. For an
+    // independent face that is the material its chunk geometry renders with.
+    // For an isolated face — whose pixels belong to a voxel — it is the
+    // face's default: what the block looks like with no voxel behind it,
+    // which is the only honest answer a display mesh can be given.
     block.faces.forEach((face) => {
-      if (!face.independent || face.isolated) return;
+      if (!isOwnTextureFace(face)) return;
 
-      const independentMat = make(
+      const ownTextureMat = make(
         block.isSeeThrough,
         AtlasTexture.makeUnknownTexture(textureUnitDimension),
         block.isFluid,
         block.lightAttenuation,
         block.transparentStandalone,
       );
-      const independentKey = makeChunkMaterialKey(world, block.id, face.name);
-      world.chunkRenderer.materials.set(independentKey, independentMat);
+      const ownTextureKey = makeChunkMaterialKey(world, block.id, face.name);
+      world.chunkRenderer.materials.set(ownTextureKey, ownTextureMat);
     });
   });
 }

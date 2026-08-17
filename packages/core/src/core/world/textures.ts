@@ -538,6 +538,11 @@ export class AtlasTexture extends CanvasTexture {
     return canvas;
   }
 
+  /**
+   * The magenta-and-black checker every surface with no texture yet is given.
+   * One instance serves all of them, so treat it as read-only: painting into
+   * it or disposing it reaches every one of those surfaces at once.
+   */
   static makeUnknownTexture(dimension: number) {
     if (AtlasTexture.sharedUnknownTexture) {
       return AtlasTexture.sharedUnknownTexture;

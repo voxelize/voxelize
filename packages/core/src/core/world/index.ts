@@ -17,7 +17,6 @@ import {
   BufferAttribute,
   BufferGeometry,
   Camera,
-  CanvasTexture,
   Timer,
   Color,
   DoubleSide,
@@ -69,7 +68,6 @@ import {
   BlockUtils,
   ChunkUtils,
   LightColor,
-  ThreeUtils,
   findSimilar,
   formatSuggestion,
 } from "../../utils";
@@ -135,9 +133,12 @@ import {
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
   applyQuantizedPositionDefine,
+  isOwnTextureFace,
   loadChunkMaterials,
   makeChunkMaterialKey,
   makeChunkShaderMaterial,
+  makeOwnFaceTexture,
+  setOwnFaceTexture,
   sharedCutoutMaterialKeyFor,
 } from "./chunk-materials";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
@@ -741,7 +742,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   private oldBlocks: BoundedLruMap<string, number[]>;
 
   /**
-   * Cache for block meshes created by makeBlockMesh with cached option.
+   * Cache for block meshes created by makeBlockMesh with cached option. Each
+   * entry copies the face materials' maps as they stood when it was built, so
+   * {@link retireBlockMeshCache} drops the lot whenever a block texture is
+   * written rather than letting a stale snapshot keep being served.
    */
   private blockMeshCache = new Map<string, Group>();
 
@@ -1385,6 +1389,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Apply a texture to a face or faces of a block. This will automatically load the image from the source
    * and draw it onto the block's texture atlas.
    *
+   * An isolated face, whose pixels belong to a voxel, takes this as its
+   * default — what the face looks like where there is no voxel to ask, which
+   * is every display mesh: a held block, a drop, an inventory thumbnail.
+   * {@link applyBlockTextureAt} still overrides it per voxel.
+   *
    * @deprecated When applying the same texture to multiple faces, use texture groups instead
    * for better atlas efficiency. Define texture_group on the server-side block faces and use
    * {@link applyTextureGroup} or {@link applyTextureGroups} on the client.
@@ -1432,42 +1441,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const data = source;
 
     blockFaces.forEach((face) => {
-      if (face.isolated) {
-        // console.warn(
-        //   `Attempting to apply texture onto an isolated face: ${block.name}, ${face.name}. Use 'applyBlockTextureAt' instead.`
-        // );
-        return;
-      }
-
       const mat = this.getBlockFaceMaterial(block.id, face.name);
 
-      // If the face is independent, that means this face does not share a texture atlas with other faces.
-      // In this case, we can just set the map to the texture.
-      if (face.independent) {
-        if (ThreeUtils.isTexture(source)) {
-          mat.map = source;
-          mat.uniforms.map = { value: source };
-          mat.needsUpdate = true;
-        } else if (data instanceof HTMLImageElement) {
-          mat.map.image = data;
-          mat.map.needsUpdate = true;
-          mat.needsUpdate = true;
-        } else if (ThreeUtils.isColor(data)) {
-          const canvas = mat.map.image as HTMLCanvasElement;
-          canvas.width = 1;
-          canvas.height = 1;
-          const ctx = canvas.getContext("2d");
-          ctx.fillStyle = data.getStyle();
-          ctx.fillRect(0, 0, 1, 1);
-          // Update the texture with the new color
-          mat.map.needsUpdate = true;
-          mat.needsUpdate = true;
-        } else {
-          throw new Error(
-            `Cannot apply texture to face "${face.name}" on block "${block.name}" because the source is not an image or a color.`,
-          );
-        }
-
+      if (isOwnTextureFace(face)) {
+        setOwnFaceTexture(mat, makeOwnFaceTexture(data));
         return;
       }
 
@@ -1478,6 +1455,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       // Update the texture with the new image
       mat.map.needsUpdate = true;
     });
+
+    this.retireBlockMeshCache();
   }
 
   getIsolatedBlockMaterialAt(
@@ -1486,17 +1465,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     defaultDimension?: number,
   ) {
     const block = this.getBlockAt(...voxel);
-    const idOrName = block.id;
-    return this.applyBlockTextureAt(
-      idOrName,
-      faceName,
-      AtlasTexture.makeUnknownTexture(
-        defaultDimension ?? this.options.textureUnitDimension,
-      ),
+    return this.getOrCreateIsolatedBlockMaterial(
+      block.id,
       voxel,
+      faceName,
+      defaultDimension,
     );
   }
 
+  // Chunk meshing creates these while the game is still setting up its
+  // registry, so the face's default is not reliably painted yet; the voxel's
+  // own content lands here moments later either way.
   private getOrCreateIsolatedBlockMaterial(
     blockId: number,
     position: Coords3,
@@ -1544,65 +1523,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    // Handle different types of source inputs
     if (typeof source === "string") {
       this.loader.loadImage(source).then((image) => {
-        if (isolatedMat.map) {
-          isolatedMat.map.dispose();
-        }
-        isolatedMat.map = new Texture(image);
-        isolatedMat.map.colorSpace = SRGBColorSpace;
-        isolatedMat.map.needsUpdate = true;
-        isolatedMat.needsUpdate = true;
+        setOwnFaceTexture(isolatedMat, makeOwnFaceTexture(image));
       });
-    } else if (source instanceof HTMLImageElement) {
-      if (isolatedMat.map) {
-        isolatedMat.map.dispose();
-      }
-      isolatedMat.map = new Texture(source);
-      isolatedMat.map.colorSpace = SRGBColorSpace;
-      isolatedMat.map.needsUpdate = true;
-      isolatedMat.needsUpdate = true;
-    } else if (ThreeUtils.isColor(source)) {
-      if (isolatedMat.map) {
-        if (isolatedMat.map instanceof AtlasTexture) {
-          isolatedMat.map.paintColor(source);
-          isolatedMat.map.needsUpdate = true;
-        } else if (ThreeUtils.isCanvasTexture(isolatedMat.map)) {
-          const canvas = isolatedMat.map.image;
-          const ctx = canvas.getContext("2d");
-          const canvasWidth = canvas.width;
-          const canvasHeight = canvas.height;
-          ctx.fillStyle = source.getStyle();
-          ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-          isolatedMat.map.needsUpdate = true;
-        }
-      } else {
-        const canvas = document.createElement("canvas");
-        canvas.width = 1;
-        canvas.height = 1;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = source.getStyle();
-        ctx.fillRect(0, 0, 1, 1);
-        isolatedMat.map = new CanvasTexture(canvas);
-        isolatedMat.map.colorSpace = SRGBColorSpace;
-        isolatedMat.map.needsUpdate = true;
-        isolatedMat.needsUpdate = true;
-      }
-    } else if (ThreeUtils.isTexture(source)) {
-      if (isolatedMat.map) {
-        isolatedMat.map.dispose();
-      }
-      isolatedMat.map = source;
-      isolatedMat.map.needsUpdate = true;
-      isolatedMat.needsUpdate = true;
     } else {
-      throw new Error("Unsupported source type for texture.");
+      setOwnFaceTexture(isolatedMat, makeOwnFaceTexture(source));
     }
 
-    if (isolatedMat.map) {
-      isolatedMat.uniforms.map.value = isolatedMat.map;
-    }
     isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
     isolatedMat.transparent = block.isSeeThrough;
 
@@ -1648,7 +1576,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (const [id, block] of this.registry.blocksById) {
       for (const face of block.faces) {
-        if (face.isolated) continue;
         if (face.textureGroup === groupName) {
           facesInGroup.push({ blockId: id, face });
         }
@@ -1665,22 +1592,43 @@ export class World<T = any> extends Scene implements NetIntercept {
       return this.applyTextureGroup(groupName, data);
     }
 
-    const firstEntry = facesInGroup[0];
-    const mat = this.getBlockFaceMaterial(
-      firstEntry.blockId,
-      firstEntry.face.name,
+    // Members sharing the atlas all read the group's one slot, so it takes a
+    // single draw; members that own a whole texture take a copy each.
+    const sharedEntry = facesInGroup.find(
+      ({ face }) => !isOwnTextureFace(face),
     );
 
-    if (!mat) {
-      console.warn(
-        `No material found for texture group "${groupName}" (block ${firstEntry.blockId}, face ${firstEntry.face.name})`,
+    if (sharedEntry) {
+      const mat = this.getBlockFaceMaterial(
+        sharedEntry.blockId,
+        sharedEntry.face.name,
       );
-      return;
+
+      if (mat) {
+        const atlas = mat.map as AtlasTexture;
+        atlas.drawImageToRange(sharedEntry.face.range, source);
+        mat.map.needsUpdate = true;
+      } else {
+        console.warn(
+          `No material found for texture group "${groupName}" (block ${sharedEntry.blockId}, face ${sharedEntry.face.name})`,
+        );
+      }
     }
 
-    const atlas = mat.map as AtlasTexture;
-    atlas.drawImageToRange(firstEntry.face.range, source);
-    mat.map.needsUpdate = true;
+    for (const { blockId, face } of facesInGroup) {
+      if (!isOwnTextureFace(face)) continue;
+
+      const ownMat = this.getBlockFaceMaterial(blockId, face.name);
+      if (!ownMat) {
+        console.warn(
+          `No material found for texture group "${groupName}" (block ${blockId}, face ${face.name})`,
+        );
+        continue;
+      }
+      setOwnFaceTexture(ownMat, makeOwnFaceTexture(source));
+    }
+
+    this.retireBlockMeshCache();
   }
 
   async applyTextureGroups(
@@ -1764,6 +1712,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
       this.animatedAtlasTextures.add(mat.map as AtlasTexture);
     });
+
+    this.retireBlockMeshCache();
   }
 
   /**
@@ -2487,7 +2437,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    if (faceName && block.independentFaces.has(faceName)) {
+    // Both kinds of own-texture face answer to the same face-keyed material.
+    // For an isolated face that is its default, which is what callers with no
+    // voxel in hand are asking for.
+    if (
+      faceName &&
+      (block.independentFaces.has(faceName) ||
+        block.isolatedFaces.has(faceName))
+    ) {
       return this.chunkRenderer.materials.get(
         makeChunkMaterialKey(this, block.id, faceName),
       );
@@ -3269,6 +3226,16 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Drop every cached {@link makeBlockMesh} group. Called by the texture APIs:
+   * a face whose material swaps its map — every own-texture face does — would
+   * otherwise leave the cached mesh showing whatever the map used to be.
+   * Meshes already handed out keep their textures; the next build is current.
+   */
+  private retireBlockMeshCache() {
+    this.blockMeshCache.clear();
+  }
+
+  /**
    * Get a mesh of the model of the given block.
    *
    * @param id The ID of the block.
@@ -3346,13 +3313,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       let geometry = geometries.get(identifier);
 
       if (!geometry) {
-        const chunkMat = face.isolated
-          ? {
-              map: AtlasTexture.makeUnknownTexture(
-                this.options.textureUnitDimension,
-              ),
-            }
-          : this.getBlockFaceMaterial(block.id, name);
+        const chunkMat = this.getBlockFaceMaterial(block.id, name);
 
         const matOptions = {
           transparent: isSeeThrough,
@@ -3459,13 +3420,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const face = faces[Math.floor(Math.random() * faces.length)];
       const { range, name } = face;
 
-      const chunkMat = face.isolated
-        ? {
-            map: AtlasTexture.makeUnknownTexture(
-              this.options.textureUnitDimension,
-            ),
-          }
-        : this.getBlockFaceMaterial(block.id, name);
+      const chunkMat = this.getBlockFaceMaterial(block.id, name);
 
       const uRange = range.endU - range.startU;
       const vRange = range.endV - range.startV;
