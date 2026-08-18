@@ -6,9 +6,9 @@ use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::world::profiler::Profiler;
 use crate::{
-    BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRequestsComp, ChunkStatus, ChunkUtils,
-    Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Stats, Vec2, Vec3,
-    VoxelAccess, WorldConfig,
+    BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRenewal, ChunkRequestsComp, ChunkStatus,
+    ChunkUtils, Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Stats,
+    Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 #[derive(Default)]
@@ -110,12 +110,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     // as context for a neighbor parks here instead: meshing
                     // it would send it into the drain below, whose neighbor
                     // pull conscripts *its* ring in turn — the expansion that
-                    // filled whole worlds from a single request. A parked
-                    // chunk is not dropped: `ChunkRequestsSystem` re-queues
-                    // it the moment anything asks.
-                    let is_context = pipeline.take_context(&chunk.coords)
+                    // filled whole worlds from a single request. Parking is
+                    // not dropping: demand is sticky and this decision is a
+                    // pure read, so `ChunkRequestsSystem` revives a parked
+                    // chunk whenever anything asks, however many times.
+                    let is_parked = !pipeline.is_demanded(&chunk.coords)
                         && !interests.has_interests(&chunk.coords);
-                    if !is_context {
+                    if !is_parked {
                         mesher.add_chunk(&chunk.coords, false);
                     }
                     pipeline.remove_chunk(&chunk.coords);
@@ -141,7 +142,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     }
                 }
 
-                chunks.renew(chunk, false);
+                chunks.renew(chunk, ChunkRenewal::Full);
             }
         }
 
@@ -191,7 +192,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 );
 
                 chunks.freshly_created.insert(coords.to_owned());
-                chunks.renew(new_chunk, false);
+                chunks.renew(new_chunk, ChunkRenewal::Full);
             }
 
             let chunk = chunks.raw(&coords).unwrap();
@@ -284,14 +285,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         for (coords, loaded_chunk) in loaded_chunks.into_iter() {
             if let Some(chunk) = loaded_chunk {
-                chunks.renew(chunk, false);
+                chunks.renew(chunk, ChunkRenewal::Full);
                 // A save loaded only as context serves its purpose by
                 // existing (voxel data for a neighbor); meshing it would pull
                 // its own ring off disk in turn, sweeping whole saved regions
-                // into memory.
-                let is_context =
-                    pipeline.take_context(&coords) && !interests.has_interests(&coords);
-                if !is_context {
+                // into memory. Parked loads revive on demand exactly like
+                // parked generations.
+                let is_parked =
+                    !pipeline.is_demanded(&coords) && !interests.has_interests(&coords);
+                if !is_parked {
                     mesher.add_chunk(&coords, false);
                 }
             } else {
@@ -331,26 +333,58 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
 
             chunk.status = ChunkStatus::Ready;
+            let coords = chunk.coords.to_owned();
             let is_updating = r#type == MessageType::Update;
 
-            if r#type == MessageType::Load && chunks.freshly_created.remove(&chunk.coords) {
-                chunks.newly_generated.push(chunk.coords.to_owned());
+            // The campaign delivered; a later regenerate pass starts clean
+            // and parks again unless somebody asks again.
+            pipeline.clear_demand(&coords);
 
-                // The pipeline's writes are worldgen output, which the seed
-                // reproduces, so they are not an edit. `save_pristine_chunks`
-                // alone decides whether this chunk goes to disk.
+            let is_freshly_generated =
+                r#type == MessageType::Load && chunks.freshly_created.remove(&coords);
+
+            if is_freshly_generated {
+                chunks.newly_generated.push(coords.to_owned());
+
+                // Duplicated onto the live chunk after the renew below —
+                // this copy only matters when no live chunk exists and the
+                // result is inserted whole.
                 chunk.is_save_dirty = false;
 
                 // A chunk still meshing cannot be read back, so the save has to
                 // be queued here, where the chunk is genuinely done.
                 if config.save_pristine_chunks {
-                    chunks.add_chunk_to_save(&chunk.coords, false);
+                    chunks.add_chunk_to_save(&coords, false);
                 }
             }
 
-            chunks.add_chunk_to_send(&chunk.coords, &r#type, false);
+            chunks.add_chunk_to_send(&coords, &r#type, false);
 
-            chunks.renew(chunk, is_updating);
+            // An Update remesh was fed by lights the updating pass already
+            // flooded into the live chunk, so only its meshes are newer. A
+            // Load mesh computed the flood itself, so its lights are the
+            // authoritative ones — but its voxels are a clone from dispatch
+            // time, and edits landed since must survive it.
+            chunks.renew(
+                chunk,
+                if is_updating {
+                    ChunkRenewal::MeshOnly
+                } else {
+                    ChunkRenewal::MeshAndLights
+                },
+            );
+
+            if is_freshly_generated {
+                // The end of worldgen re-establishes the persisted form: the
+                // pipeline's writes are seed-reproducible output, not edits,
+                // so `save_pristine_chunks` alone decides whether this chunk
+                // goes to disk. This lands on the live chunk (the renew above
+                // keeps live voxels and bookkeeping), and any edit that raced
+                // the mesh already queued its own save with the live voxels.
+                if let Some(live) = chunks.map.get_mut(&coords) {
+                    live.is_save_dirty = false;
+                }
+            }
         }
 
         let pending_remesh_coords = mesher.drain_pending_remesh();

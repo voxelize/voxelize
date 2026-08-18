@@ -42,20 +42,54 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                     clients_to_send.insert(coords.clone());
                     interests.add(&id.0, &coords);
-                } else {
-                    if !interests.has_interests(&coords) {
-                        for coords in chunks.light_traversed_chunks(&coords) {
-                            match chunks.raw(&coords) {
-                                Some(chunk) if matches!(chunk.status, ChunkStatus::Meshing) => {
-                                    mesher.add_chunk(&coords, false);
-                                }
-                                None | Some(_) => {
-                                    pipeline.add_chunk(&coords, false);
-                                }
+                    continue;
+                }
+
+                interests.add(&id.0, &coords);
+
+                // Every request for a not-yet-ready chunk re-ensures the whole
+                // path to `Ready`, unconditionally. This used to run only for
+                // the first asker (gated on the interest set being empty), so
+                // any race that lost that one promotion — a chunk mid-disk-load,
+                // a mesher entry superseded — wedged the chunk for every client
+                // forever: retries saw an existing interest and did nothing.
+                // Each arm below is idempotent, so re-asking is always safe:
+                // in-flight work is left alone, parked work is re-queued, and
+                // a client retrying a stale request always makes progress.
+                for n_coords in chunks.light_traversed_chunks(&coords) {
+                    let is_target = n_coords == coords;
+
+                    match chunks.raw(&n_coords).map(|chunk| &chunk.status) {
+                        Some(ChunkStatus::Ready) => {}
+                        // The asked-for chunk parked short of the mesher (or is
+                        // already queued there — the mesher dedupes): revive it.
+                        // A *ring* member parked at `Meshing` is left alone: its
+                        // voxel data already exists, which is all the target's
+                        // mesh needs from it.
+                        Some(ChunkStatus::Meshing) => {
+                            if is_target {
+                                mesher.add_chunk(&n_coords, true);
+                            }
+                        }
+                        // Mid-generation: the pipeline already carries it;
+                        // recording demand for the target is what stops it from
+                        // parking when it comes out the far end.
+                        Some(ChunkStatus::Generating(_)) => {
+                            if is_target {
+                                pipeline.add_chunk(&n_coords, false);
+                            }
+                        }
+                        // Nothing anywhere: the asked-for chunk is demand, its
+                        // ring is context (voxel data for lighting) so a request
+                        // never conscripts first-class neighbors.
+                        None => {
+                            if is_target {
+                                pipeline.add_chunk(&n_coords, false);
+                            } else {
+                                pipeline.add_context_chunk(&n_coords);
                             }
                         }
                     }
-                    interests.add(&id.0, &coords);
                 }
             }
 

@@ -249,6 +249,16 @@ impl Mesher {
 
         while let Ok(result) = self.receiver.try_recv() {
             if !self.map.contains(&result.0.coords) {
+                // The only legitimate path here is a world wipe between
+                // dispatch and completion (`clear` empties the map). A
+                // finished mesh vanishing for any other reason means a chunk
+                // some client is waiting on will never arrive — say so
+                // instead of silently eating the work.
+                log::warn!(
+                    "[mesher] discarding a finished {:?} mesh for {:?}: no longer tracked (expected only after a world wipe)",
+                    result.1,
+                    result.0.coords
+                );
                 continue;
             }
 

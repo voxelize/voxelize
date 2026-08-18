@@ -224,13 +224,22 @@ pub struct Pipeline {
     /// A queue of chunk coordinates that are waiting to be processed.
     pub(crate) queue: VecDeque<Vec2<i32>>,
 
-    /// Coordinates queued only because a neighbor needs their voxel data
-    /// (lighting borders, stage margins) — not because anything asked for
-    /// them. They generate and then park short of the mesher, because a
-    /// context chunk that meshes conscripts *its* neighborhood in turn, and
-    /// that chain reaction once filled entire worlds from a single request.
-    /// Any deliberate `add_chunk` promotes them to demand.
-    context: HashSet<Vec2<i32>>,
+    /// Coordinates something deliberately asked for — a client request, a
+    /// preload, an explicit `add_chunk`. Demand is *sticky*: it survives
+    /// re-queues, stage hops, and repeated requests, and is only cleared when
+    /// the chunk reaches `Ready` (or leaves the world). Everything queued
+    /// without demand is context — a neighbor pulled in for its voxel data
+    /// (lighting borders, stage margins) — and parks short of the mesher,
+    /// because a context chunk that meshes conscripts *its* neighborhood in
+    /// turn, and that chain reaction once filled entire worlds from a single
+    /// request.
+    ///
+    /// This used to be the inverse (a `context` set, consumed by the park
+    /// decision). Consume-once semantics meant asking the question destroyed
+    /// the answer: any race that read the flag at the wrong moment promoted
+    /// or parked a chunk permanently, and a client whose first request lost
+    /// that race could never revive the chunk by asking again.
+    demanded: HashSet<Vec2<i32>>,
 
     /// A map of leftover changes from processing chunk stages.
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
@@ -256,7 +265,7 @@ impl Pipeline {
             chunks: HashSet::new(),
             leftovers: HashMap::new(),
             pending_regenerate: HashSet::new(),
-            context: HashSet::new(),
+            demanded: HashSet::new(),
             queue: VecDeque::new(),
             stages: Vec::new(),
         }
@@ -269,7 +278,7 @@ impl Pipeline {
         self.queue.clear();
         self.leftovers.clear();
         self.pending_regenerate.clear();
-        self.context.clear();
+        self.demanded.clear();
     }
 
     pub fn mark_for_regenerate(&mut self, coords: &Vec2<i32>) {
@@ -283,10 +292,17 @@ impl Pipeline {
     }
 
     /// Add a chunk coordinate to the pipeline to be processed. A deliberate
-    /// add is demand: if the coords were previously queued only as context,
-    /// they are context no longer.
+    /// add is demand, and demand is sticky: repeating this call is always
+    /// safe and never loses progress. A chunk already queued or mid-stage
+    /// keeps its place (its demand is simply recorded); only a chunk the
+    /// pipeline is not carrying at all is freshly queued.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        self.context.remove(coords);
+        self.demanded.insert(coords.to_owned());
+
+        if self.has_chunk(coords) || self.queue.contains(coords) {
+            return;
+        }
+
         self.requeue_chunk(coords, prioritized);
     }
 
@@ -326,21 +342,27 @@ impl Pipeline {
     /// Queue a chunk purely as generation context for a neighbor: it will
     /// generate its voxel data and then park short of the mesher until
     /// something demands it. Coords already queued or in flight keep whatever
-    /// standing they have.
+    /// standing they have, and existing demand is never downgraded.
     pub(crate) fn add_context_chunk(&mut self, coords: &Vec2<i32>) {
         if self.has_chunk(coords) || self.queue.contains(coords) {
             return;
         }
 
-        self.context.insert(coords.to_owned());
         self.queue.push_back(coords.to_owned());
     }
 
-    /// Whether these coords were queued only as context, consuming the flag.
-    /// Called exactly once per generation campaign, at the point the finished
-    /// chunk would otherwise enter the mesher.
-    pub(crate) fn take_context(&mut self, coords: &Vec2<i32>) -> bool {
-        self.context.remove(coords)
+    /// Whether anything has deliberately asked for these coords. Read-only:
+    /// asking never changes the answer, so the park decision can be made any
+    /// number of times by any system and always agree.
+    pub(crate) fn is_demanded(&self, coords: &Vec2<i32>) -> bool {
+        self.demanded.contains(coords)
+    }
+
+    /// Forget recorded demand once a generation campaign has delivered (the
+    /// chunk reached `Ready`) or the chunk left the world. A later regenerate
+    /// pass starts with a clean slate and parks again if nobody asks.
+    pub(crate) fn clear_demand(&mut self, coords: &Vec2<i32>) {
+        self.demanded.remove(coords);
     }
 
     /// Remove a chunk coordinate from the pipeline.

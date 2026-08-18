@@ -1374,7 +1374,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     isPriority = false,
   ) {
     const result = await this.dispatchMeshWorker(cx, cz, level, isPriority);
-    if (!result) return;
+    if (!result) {
+      // A bailed worker (missing neighbors, mid-load chunk, shed queue) must
+      // release the generation it reserved, or single-flight dispatch will
+      // refuse every future mesh of this level and the chunk stays invisible
+      // for the rest of the session.
+      if (generation !== undefined) {
+        this.meshPipeline.failJob(
+          MeshPipeline.makeKey(cx, cz, level),
+          generation,
+        );
+      }
+      return;
+    }
     this.applyMeshResult(
       cx,
       cz,

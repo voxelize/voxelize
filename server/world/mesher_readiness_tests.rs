@@ -134,3 +134,62 @@ fn a_parked_context_chunk_is_revived_by_demand() {
         );
     });
 }
+
+#[test]
+fn a_client_rerequest_revives_a_parked_chunk_despite_recorded_interest() {
+    // The production wedge behind walkable-but-invisible regions: a client's
+    // first request for a chunk recorded its interest, but the revival raced
+    // (chunk mid-load, mesher entry superseded) and got lost. Revival used to
+    // run only when the interest set was empty, so every retry from then on
+    // saw the recorded interest and did nothing — the chunk stayed parked at
+    // `Meshing` forever, its data never reached the client, and the client
+    // could not mesh any chunk whose 9-stencil touched it. A re-request must
+    // make progress no matter what interest is already recorded.
+    actix::System::new().block_on(async {
+        use specs::{Builder, WorldExt};
+
+        let mut world = flatland_world("mesher_rerequest_revive", 8);
+
+        world.pipeline_mut().add_chunk(&Vec2(0, 0), false);
+        assert!(
+            tick_for(&mut world, Duration::from_secs(60), |world| world
+                .chunks()
+                .is_chunk_ready(&Vec2(0, 0))),
+            "the demanded chunk (0,0) never reached Ready"
+        );
+
+        let parked = Vec2(1, 1);
+        assert!(
+            matches!(
+                world.chunks().raw(&parked).expect("ring member missing").status,
+                ChunkStatus::Meshing
+            ),
+            "ring member {parked:?} should be parked in Meshing"
+        );
+
+        // The lost-race state: interest recorded, chunk still parked.
+        world
+            .ecs_mut()
+            .write_resource::<ChunkInterests>()
+            .add("wedged-client", &parked);
+
+        // The client's retry, through the real request system.
+        let mut requests = ChunkRequestsComp::new();
+        requests.requests.push(parked.to_owned());
+        world
+            .ecs_mut()
+            .create_entity()
+            .with(IDComp::new("wedged-client"))
+            .with(requests)
+            .build();
+
+        assert!(
+            tick_for(&mut world, Duration::from_secs(60), |world| world
+                .chunks()
+                .is_chunk_ready(&parked)),
+            "a re-request with interest already recorded never revived the \
+             parked chunk {parked:?}: the revival gate only opens for the \
+             first asker"
+        );
+    });
+}

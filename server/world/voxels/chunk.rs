@@ -16,6 +16,24 @@ pub enum ChunkStatus {
     Ready,
 }
 
+/// Which parts of an asynchronously produced chunk are newer than the live
+/// copy in the map. Every async pass (generation stage, load mesh, update
+/// remesh) operates on a clone taken at dispatch time, so a result merged
+/// back wholesale would clobber anything written to the live chunk since.
+/// Naming what the result is actually authoritative for is what lets the
+/// rest survive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkRenewal {
+    /// The whole chunk is newer: generation stage output and disk loads.
+    Full,
+    /// The pass computed meshes and flooded lights itself (a `Load` mesh):
+    /// take both, keep the live voxels, height map and save bookkeeping.
+    MeshAndLights,
+    /// The pass only remeshed; the live chunk's lights were already written
+    /// synchronously by whatever queued it (an `Update` remesh).
+    MeshOnly,
+}
+
 impl Default for ChunkStatus {
     fn default() -> Self {
         Self::Generating(0)

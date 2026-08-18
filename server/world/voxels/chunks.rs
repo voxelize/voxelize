@@ -22,7 +22,7 @@ use crate::{
 use super::{
     access::VoxelAccess,
     background_chunk_saver::{ChunkSaveData, CHUNK_FILE_VERSION},
-    chunk::Chunk,
+    chunk::{Chunk, ChunkRenewal},
     space::{SpaceBuilder, SpaceOptions},
 };
 
@@ -522,16 +522,22 @@ impl Chunks {
         prepared
     }
 
-    /// Update a chunk, removing the old chunk instance and updating with a new one.
-    pub fn renew(&mut self, mut chunk: Chunk, renew_mesh_only: bool) {
-        if renew_mesh_only {
+    /// Update a chunk with the outcome of an asynchronous pass. The renewal
+    /// mode names exactly which parts of the incoming chunk are newer than
+    /// the live one — the async worker operated on a clone, so anything not
+    /// taken from the result is deliberately kept from the live chunk.
+    pub fn renew(&mut self, mut chunk: Chunk, renewal: ChunkRenewal) {
+        if !matches!(renewal, ChunkRenewal::Full) {
             if let Some(mut old_chunk) = self.map.remove(&chunk.coords) {
                 old_chunk.meshes = chunk.meshes;
                 old_chunk.status = chunk.status;
+                if matches!(renewal, ChunkRenewal::MeshAndLights) {
+                    old_chunk.lights = chunk.lights;
+                }
                 self.map.insert(chunk.coords.to_owned(), old_chunk);
+                return;
             }
-
-            return;
+            // No live chunk to merge into: fall through and insert whole.
         }
 
         chunk.waterlogging_rules = self.waterlogging_rules.clone();
@@ -541,7 +547,7 @@ impl Chunks {
 
     /// Add a new chunk, synonym for `chunks.renew`
     pub fn add(&mut self, chunk: Chunk) {
-        self.renew(chunk, false);
+        self.renew(chunk, ChunkRenewal::Full);
     }
 
     /// Get raw chunk data.
@@ -817,14 +823,22 @@ impl Chunks {
         }
     }
 
-    /// Add a chunk to be sent.
+    /// Add a chunk to be sent. One pending entry per chunk, but the entry's
+    /// message type is an upgrade lattice, not first-writer-wins: a `Load`
+    /// (full snapshot) subsumes an `Update` (incremental levels), so a queued
+    /// `Update` is upgraded in place when a `Load` arrives — dropping the
+    /// `Load` instead would deliver a partial message to a client that was
+    /// promised a whole chunk.
     pub fn add_chunk_to_send(
         &mut self,
         coords: &Vec2<i32>,
         r#type: &MessageType,
         prioritized: bool,
     ) {
-        if self.to_send.iter().any(|(c, _)| c == coords) {
+        if let Some(entry) = self.to_send.iter_mut().find(|(c, _)| c == coords) {
+            if entry.1 == MessageType::Update && *r#type == MessageType::Load {
+                entry.1 = MessageType::Load;
+            }
             return;
         }
         if prioritized {
@@ -986,7 +1000,30 @@ mod pending_save_queue_tests {
             },
         );
         chunk.status = status;
-        chunks.renew(chunk, false);
+        chunks.renew(chunk, ChunkRenewal::Full);
+    }
+
+    #[test]
+    fn a_queued_update_send_upgrades_to_load_instead_of_shadowing_it() {
+        let mut chunks = saving_chunks("send-dedupe");
+        let coords = Vec2(1, 2);
+
+        chunks.add_chunk_to_send(&coords, &MessageType::Update, false);
+        chunks.add_chunk_to_send(&coords, &MessageType::Load, false);
+
+        assert_eq!(chunks.to_send.len(), 1, "one pending entry per chunk");
+        assert_eq!(
+            chunks.to_send[0].1,
+            MessageType::Load,
+            "a Load send must not be swallowed by a queued Update: the \
+             client was promised a whole chunk and would get partial levels"
+        );
+
+        // The reverse never downgrades.
+        let other = Vec2(3, 4);
+        chunks.add_chunk_to_send(&other, &MessageType::Load, false);
+        chunks.add_chunk_to_send(&other, &MessageType::Update, false);
+        assert_eq!(chunks.to_send[1].1, MessageType::Load);
     }
 
     #[test]
