@@ -712,6 +712,15 @@ export class AgentDaemon {
       return { block: await this.agent.blockAt(pos), pos };
     });
 
+    this.server.get<{
+      Querystring: { x: string; y: string; z: string; allowStale?: string };
+    }>("/light", async (req, reply) => {
+      if (!(await this.assertReadableWorld(req.query, reply))) return reply;
+      const { x, y, z } = req.query;
+      const pos = { x: Number(x), y: Number(y), z: Number(z) };
+      return { light: await this.agent.lightAt(pos), pos };
+    });
+
     this.server.get("/chunks", async () => {
       const [loaded, pending] = await Promise.all([
         this.agent.loadedChunks(),

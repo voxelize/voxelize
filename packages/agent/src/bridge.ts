@@ -564,6 +564,19 @@ export interface AgentBridge {
       afterId: number;
     } & CommandDispatch
   >;
+  /**
+   * Raw per-voxel light channels as the client currently holds them —
+   * sunlight plus the three torch colors, with the voxel id for context.
+   * The honest probe for "why is this block tinted": rendered color is
+   * derived state, these are the values it is derived from.
+   */
+  lightAt(pos: Vec3): {
+    sunlight: number;
+    red: number;
+    green: number;
+    blue: number;
+    voxelId: number;
+  };
   captureFrame(opts?: CaptureFrameOptions): Promise<string | null>;
 
   /**

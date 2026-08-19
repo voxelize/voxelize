@@ -727,6 +727,18 @@ export class Agent {
     );
   }
 
+  async lightAt(pos: Vec3): Promise<{
+    sunlight: number;
+    red: number;
+    green: number;
+    blue: number;
+    voxelId: number;
+  }> {
+    return this.withPageTimeout("lightAt", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate((p) => window.__agentRequired__().lightAt(p), pos),
+    );
+  }
+
   async connection(): Promise<ConnectionSnapshot> {
     return this.withPageTimeout("connection", this.defaultPageTimeoutMs, () =>
       this.page.evaluate(() => window.__agentRequired__().connection()),
