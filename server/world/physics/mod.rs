@@ -335,17 +335,6 @@ impl Physics {
         let mult = (1.0 - (drag * dt) / body.mass).max(0.0);
         body.velocity = body.velocity.scale(mult);
 
-        if body.velocity[1] > 12.0 {
-            let p = body.get_position();
-            log::warn!(
-                "[launch-debug] vy={:.1} pos=({:.1},{:.1},{:.1}) impulses_y={:.2} forces_y={:.2} on_climbable={} gmult={:.2} at_rest_y={} mass={:.2}",
-                body.velocity[1], p.0, p.1, p.2,
-                body.impulses[1], body.forces[1],
-                body.on_climbable, body.gravity_multiplier,
-                body.at_rest_y(), body.mass,
-            );
-        }
-
         Physics::apply_prow_standoff(space, registry, body);
 
         // x1-x0 = v1*dt

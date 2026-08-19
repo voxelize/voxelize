@@ -212,16 +212,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                     let quantized = QuantizedMotion::from_sample(&sample);
                     let is_motion_changed = old_motion.get(&id.0) != Some(&quantized);
                     if is_motion_changed && !is_new {
-                        if id.0.starts_with("bot-") && sample.position[1] > 36.0 {
-                            log::warn!(
-                                "[motion-debug] {} staged y={:.2} pos_comp=({:.2},{:.2},{:.2})",
-                                id.0,
-                                sample.position[1],
-                                position.0 .0,
-                                position.0 .1,
-                                position.0 .2,
-                            );
-                        }
                         changed_motion.insert(id.0.clone(), quantized.encode());
                     }
                     new_motion.insert(id.0.clone(), quantized);
