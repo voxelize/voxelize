@@ -42,6 +42,21 @@ vec3 clusterLight = localLightSurface(
   vWorldPosition.xyz, vWorldNormal, vLight.rgb, llFloodRemainder
 );
 
+// Daylight washes analytic block light. The legacy flood term is screened
+// against the sun and vanishes into a fully sunlit fragment; the cluster
+// blend is screened against totalLight *after* tinting, so without this
+// wash every lamp, portal and gem painted its falloff rings onto open
+// ground at noon — overlapping warm and cool emitters read as tie-dye
+// stains on daylit builds. A fragment keeps its analytic light in
+// proportion to the sun it lacks (sky exposure × time-of-day intensity):
+// interiors keep their lamps at noon, everything keeps them at night. The
+// flood remainder returns to 1 in the same proportion, handing the washed
+// fragment back to the legacy model instead of leaving it doubly dimmed
+// at dusk. At night (intensity → 0) the wash is an identity.
+float llSunWash = 1.0 - clamp(sunExposure * uSunlightIntensity, 0.0, 1.0);
+clusterLight *= llSunWash;
+llFloodRemainder = mix(1.0, llFloodRemainder, llSunWash);
+
 float torchBrightness = max(
   max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b) * llFloodRemainder,
   min(max(max(clusterLight.r, clusterLight.g), clusterLight.b), 1.0)

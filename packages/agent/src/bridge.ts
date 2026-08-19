@@ -576,6 +576,9 @@ export interface AgentBridge {
     green: number;
     blue: number;
     voxelId: number;
+    worldTime: number;
+    sunlightIntensity: number;
+    clusteredLights: number;
   };
   captureFrame(opts?: CaptureFrameOptions): Promise<string | null>;
 

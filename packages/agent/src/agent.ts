@@ -733,6 +733,9 @@ export class Agent {
     green: number;
     blue: number;
     voxelId: number;
+    worldTime: number;
+    sunlightIntensity: number;
+    clusteredLights: number;
   }> {
     return this.withPageTimeout("lightAt", this.defaultPageTimeoutMs, () =>
       this.page.evaluate((p) => window.__agentRequired__().lightAt(p), pos),
