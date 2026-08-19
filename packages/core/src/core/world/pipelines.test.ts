@@ -153,6 +153,40 @@ describe("MeshPipeline voxel-change remesh", () => {
     expect(pipeline.needsRemesh("2,2:0")).toBe(true);
   });
 
+  it("expires a stuck in-flight job and requeues its key", () => {
+    // The long-session hole shape: a dispatched job that never settles
+    // (worker died, queue shed without release, a path missing failJob)
+    // blocks single-flight dispatch for its chunk level forever. The
+    // watchdog must declare it leaked, release it, and re-queue the key.
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(7, 7, 1);
+    pipeline.startJob("7,7:1", 1_000);
+
+    // Within the ceiling: nothing expires, single-flight still holds.
+    expect(pipeline.expireStuckJobs(20_000, 30_000)).toEqual([]);
+    expect(pipeline.shouldStartJob("7,7:1")).toBe(false);
+
+    // Past the ceiling: the leak is released and the key is dirty again.
+    expect(pipeline.expireStuckJobs(31_001, 30_000)).toEqual(["7,7:1"]);
+    expect(pipeline.shouldStartJob("7,7:1")).toBe(true);
+    expect(pipeline.needsRemesh("7,7:1")).toBe(true);
+
+    // A late completion from the expired job cannot regress the display:
+    // its generation was already released, and the fresh dispatch owns it.
+    const freshGeneration = pipeline.startJob("7,7:1", 31_002);
+    expect(pipeline.onJobComplete("7,7:1", freshGeneration)).toBe(true);
+  });
+
+  it("a healthy in-flight job is never expired", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(4, 4, 0);
+    const generation = pipeline.startJob("4,4:0", 0);
+
+    expect(pipeline.expireStuckJobs(29_999, 30_000)).toEqual([]);
+    expect(pipeline.onJobComplete("4,4:0", generation)).toBe(true);
+    expect(pipeline.expireStuckJobs(120_000, 30_000)).toEqual([]);
+  });
+
   it("orders regular dirty keys nearest-first around the given center", () => {
     const pipeline = new MeshPipeline();
     pipeline.onVoxelChange(10, 10, 0);

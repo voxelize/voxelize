@@ -162,6 +162,13 @@ interface MeshState {
   generation: number;
   inFlightGenerations: Set<number>;
   displayedGeneration: number;
+  /**
+   * When each in-flight generation was dispatched, for the leak watchdog.
+   * Single-flight dispatch means a generation that never settles blocks the
+   * key forever, and every settle path missing a release becomes a chunk
+   * that silently never re-meshes for the rest of the session.
+   */
+  inFlightStartedAt: Map<number, number>;
 }
 
 export class MeshPipeline {
@@ -176,6 +183,7 @@ export class MeshPipeline {
         generation: 0,
         inFlightGenerations: new Set(),
         displayedGeneration: 0,
+        inFlightStartedAt: new Map(),
       };
       this.states.set(key, state);
     }
@@ -215,10 +223,11 @@ export class MeshPipeline {
     return true;
   }
 
-  startJob(key: string): number {
+  startJob(key: string, nowMs: number = performance.now()): number {
     const state = this.states.get(key);
     if (!state) return 0;
     state.inFlightGenerations.add(state.generation);
+    state.inFlightStartedAt.set(state.generation, nowMs);
     this.dirty.delete(key);
     this.urgentDirty.delete(key);
     return state.generation;
@@ -229,6 +238,7 @@ export class MeshPipeline {
     if (!state) return false;
 
     state.inFlightGenerations.delete(jobGeneration);
+    state.inFlightStartedAt.delete(jobGeneration);
 
     if (
       jobGeneration < state.displayedGeneration ||
@@ -257,7 +267,40 @@ export class MeshPipeline {
     const state = this.states.get(key);
     if (!state) return;
     state.inFlightGenerations.delete(jobGeneration);
+    state.inFlightStartedAt.delete(jobGeneration);
     this.dirty.add(key);
+  }
+
+  /**
+   * The leak watchdog: release any in-flight generation older than
+   * `maxAgeMs` and re-queue its key. Single-flight dispatch turns one
+   * unsettled job into a chunk level that never re-meshes again for the
+   * whole session, and every historical instance of that (a shed queue, a
+   * dispatch path missing its release, a worker that died) has looked like
+   * this exact symptom: a walkable chunk that stopped rendering hours into
+   * a long session and stayed gone until reload. Expiry converts whichever
+   * such path still exists — or gets written next — from a permanent hole
+   * into a logged self-heal. Returns the expired keys for the caller to
+   * report.
+   */
+  expireStuckJobs(nowMs: number, maxAgeMs: number): string[] {
+    const expired: string[] = [];
+    for (const [key, state] of this.states) {
+      if (state.inFlightGenerations.size === 0) continue;
+      for (const generation of [...state.inFlightGenerations]) {
+        const startedAt = state.inFlightStartedAt.get(generation);
+        // A missing timestamp is itself a leak (added before the watchdog
+        // existed, or through a path that bypassed startJob): expire it.
+        if (startedAt !== undefined && nowMs - startedAt < maxAgeMs) {
+          continue;
+        }
+        state.inFlightGenerations.delete(generation);
+        state.inFlightStartedAt.delete(generation);
+        this.dirty.add(key);
+        expired.push(key);
+      }
+    }
+    return expired;
   }
 
   needsRemesh(key: string): boolean {
@@ -268,17 +311,10 @@ export class MeshPipeline {
 
   markFreshFromServer(cx: number, cz: number, level: number): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
-    let state = this.states.get(key);
-    if (!state) {
-      state = {
-        generation: 0,
-        inFlightGenerations: new Set(),
-        displayedGeneration: 0,
-      };
-      this.states.set(key, state);
-    }
+    const state = this.getOrCreate(key);
     state.displayedGeneration = state.generation;
     state.inFlightGenerations.clear();
+    state.inFlightStartedAt.clear();
     this.dirty.delete(key);
     this.urgentDirty.delete(key);
   }

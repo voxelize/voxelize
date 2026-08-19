@@ -3776,6 +3776,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.processChunks(center);
     const processChunksDuration = performance.now() - startProcessChunks;
 
+    this.sweepStuckMeshJobs();
+
     this.refineNearbyChunkDetail();
 
     if (camera) {
@@ -5639,6 +5641,34 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     processUpdatesInIdleTime();
   };
+
+  private lastStuckMeshSweepMs = 0;
+
+  /**
+   * The mesh pipeline's leak watchdog, run from the per-frame update on a
+   * coarse cadence. Single-flight dispatch means one unsettled job silently
+   * blocks its chunk level from ever re-meshing again; every past instance
+   * (shed worker queues, dispatch paths missing their release) presented as
+   * walkable-but-invisible chunks hours into a long session, invisible in
+   * any fresh-client repro. Expiry turns whichever leak path still exists
+   * into a logged self-heal instead of a permanent hole.
+   */
+  private sweepStuckMeshJobs() {
+    const nowMs = performance.now();
+    if (nowMs - this.lastStuckMeshSweepMs < 5_000) return;
+    this.lastStuckMeshSweepMs = nowMs;
+
+    const expired = this.meshPipeline.expireStuckJobs(nowMs, 30_000);
+    if (expired.length === 0) return;
+
+    console.warn(
+      `[world] mesh watchdog expired ${expired.length} stuck mesh job(s) ` +
+        `(in flight >30s) and re-queued them: ${expired.join(", ")}. ` +
+        `A job leaking like this used to leave its chunk invisible for the ` +
+        `rest of the session.`,
+    );
+    this.scheduleDirtyChunkProcessing();
+  }
 
   private processDirtyChunks = async () => {
     const dirtyKeys = this.meshPipeline.getDirtyKeys(this.centerChunk);
