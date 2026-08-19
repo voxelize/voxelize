@@ -151,16 +151,23 @@ impl BrainComp {
         }
 
         // process jump input
+        // `jump_time` is declared and serialized in milliseconds; `dt`
+        // arrives in seconds. Decrementing ms by seconds stretched the
+        // "50ms" of hold-jump thrust to ~52 SECONDS of continuous upward
+        // force — any brain that held `jumping` (a pathing bot aiming at a
+        // step) became a rocket climbing ~25 blocks/s until its driver let
+        // go. Convert once at the boundary so the two never mix again.
+        let dt_ms = dt * 1000.0;
         if self.state.jumping {
             if self.state.is_jumping {
                 // continue previous jump
                 if self.state.current_jump_time > 0.0 {
                     let mut jf = self.options.jump_force;
-                    if self.state.current_jump_time < dt {
-                        jf *= self.state.current_jump_time / dt;
+                    if self.state.current_jump_time < dt_ms {
+                        jf *= self.state.current_jump_time / dt_ms;
                     }
                     body.apply_force(0.0, jf, 0.0);
-                    self.state.current_jump_time -= dt;
+                    self.state.current_jump_time -= dt_ms;
                 }
             } else if can_jump {
                 // start new jump
