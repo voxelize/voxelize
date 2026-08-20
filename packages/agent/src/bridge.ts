@@ -556,7 +556,7 @@ export interface AgentBridge {
   call(method: string, payload: unknown): Promise<unknown>;
   /**
    * Local break prediction plus one transactional `break-block` command.
-   * Used by staging smoke to assert mesh/raycast catch up with inventory.
+   * Used by regression smoke tests to assert mesh/raycast catch up with inventory.
    */
   breakVoxel(pos: Vec3): Promise<
     {

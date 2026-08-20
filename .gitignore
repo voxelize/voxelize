@@ -22,4 +22,5 @@ yarn-error.log
 # WASM build output
 **/pkg
 # local perf capture output
+.artifacts/
 .staging/

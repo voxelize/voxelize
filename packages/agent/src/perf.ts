@@ -8,7 +8,8 @@ const PERF_PREFIX = "[PERF] ";
 const isPerfEnabled =
   process.env.TOWN_PERF_LOG === "true" || process.env.TOWN_PERF_LOG === "1";
 const perfDirectory =
-  process.env.TOWN_PERF_DIR ?? path.resolve(process.cwd(), ".staging", "perf");
+  process.env.TOWN_PERF_DIR ??
+  path.resolve(process.cwd(), ".artifacts", "perf");
 
 let agentSequence = 0;
 let agentStream: fs.WriteStream | null = null;

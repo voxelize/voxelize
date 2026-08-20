@@ -739,7 +739,7 @@ impl Server {
     /// the current session must replay the acknowledgement, never produce a
     /// fatal error — a fatal error here is what caused live
     /// join -> ack unanswered -> retry -> "already in world" -> disconnect
-    /// loops on staging.
+    /// loops in live deployments.
     fn on_join(&mut self, id: &str, json: OnJoinRequest) -> Option<String> {
         let preferences = json
             .flat_preferences

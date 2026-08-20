@@ -26,7 +26,7 @@ export const IDLE_TTL_EXIT_CODE = 66;
  * browser included. Long enough that a worker pausing between tasks keeps its
  * session, short enough that a forgotten session cannot hold a browser
  * overnight. Override per daemon with --idle-ttl-ms or AGENT_IDLE_TTL_MS;
- * 0 disables expiry for deliberately long-lived daemons (staging monitor).
+ * 0 disables expiry for deliberately long-lived managed daemons.
  */
 export const DEFAULT_IDLE_TTL_MS = 30 * 60_000;
 

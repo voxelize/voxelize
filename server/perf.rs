@@ -227,7 +227,7 @@ fn writer() -> io::Result<&'static Mutex<File>> {
 
     let directory = std::env::var("TOWN_PERF_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(".staging/perf"));
+        .unwrap_or_else(|_| PathBuf::from(".artifacts/perf"));
     fs::create_dir_all(&directory)?;
     let file = OpenOptions::new()
         .create(true)
