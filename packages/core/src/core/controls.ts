@@ -974,6 +974,28 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   /**
+   * Snap the smoothed body height (the crouch-transition ease) straight to
+   * its target and re-derive the eye anchor from the rigid body now. Call
+   * this after re-anchoring the body instantaneously — e.g. attaching to a
+   * mount — where easing the eye toward the new height would misplace
+   * everything derived from the anchor (mount attachment, streamed
+   * position) for the duration of the ease.
+   */
+  snapBodyHeight = () => {
+    if (!this.body) return;
+
+    const targetHeight = this._crouching
+      ? this.options.crouchBodyHeight
+      : this.options.bodyHeight;
+    this._smoothedBodyHeight = targetHeight;
+
+    const [x, y, z] = this.body.getPosition();
+    const { eyeHeight } = this.options;
+    this.newPosition.set(x, y + targetHeight * (eyeHeight - 0.5), z);
+    this.object.position.copy(this.newPosition);
+  };
+
+  /**
    * Reset all of the control's movements.
    */
   resetMovements = () => {
