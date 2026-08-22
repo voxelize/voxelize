@@ -209,7 +209,7 @@ export const LIGHT_QUALITY_TIERS: Record<
   },
   high: {
     maxClusteredLights: 192,
-    maxLightsPerCell: 8,
+    maxLightsPerCell: 4,
     analyticRadius: 64,
     fluidSpecularStrength: 1,
     blockLightOwnership: 1,
@@ -220,7 +220,7 @@ export const LIGHT_QUALITY_TIERS: Record<
   },
   medium: {
     maxClusteredLights: 128,
-    maxLightsPerCell: 6,
+    maxLightsPerCell: 3,
     analyticRadius: 48,
     fluidSpecularStrength: 0,
     blockLightOwnership: 1,
@@ -231,7 +231,7 @@ export const LIGHT_QUALITY_TIERS: Record<
   },
   low: {
     maxClusteredLights: 64,
-    maxLightsPerCell: 4,
+    maxLightsPerCell: 2,
     analyticRadius: 32,
     fluidSpecularStrength: 0,
     blockLightOwnership: 1,

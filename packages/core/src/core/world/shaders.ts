@@ -5,6 +5,7 @@ import {
   LIGHT_CONES_SCATTER_FRAGMENT,
   LIGHT_CONES_UNIFORM_DECLARATIONS,
 } from "./light-cones";
+import { MAX_LIGHTS_PER_CELL } from "./local-lights/clustering";
 import {
   LOCAL_LIGHTS_DEBUG_FUNCTIONS,
   LOCAL_LIGHTS_FUNCTIONS,
@@ -17,7 +18,13 @@ import {
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
   WATER_SURFACE_SCATTER_GLSL,
+  WATER_VIEW_EXTINCTION_GLSL,
 } from "./water-optics";
+
+export const CHUNK_RENDER_QUALITY = {
+  highResolutionPixelThreshold: 2_100_000,
+  highResolutionLocalLightsPerCell: 2,
+} as const;
 
 // ── local-lights fragment insertions ─────────────────────────────────────
 // Each block below is interpolated into the composed fragment exactly once
@@ -38,8 +45,19 @@ const LOCAL_LIGHTS_OWNERSHIP_FRAGMENT = `
 // below is an IEEE identity at remainder 1 and clusterLight 0. Sunlight is
 // composed separately and never touched by either model.
 float llFloodRemainder = 1.0;
+bool llHighResolution =
+  uSceneTextureSize.x * uSceneTextureSize.y >= ${CHUNK_RENDER_QUALITY.highResolutionPixelThreshold}.0;
 vec3 clusterLight = localLightSurface(
-  vWorldPosition.xyz, vWorldNormal, vLight.rgb, llFloodRemainder
+  vWorldPosition.xyz,
+  vWorldNormal,
+  vLight.rgb,
+  vIsFluid > 0.5
+    ? 0
+    : (llHighResolution
+      ? ${CHUNK_RENDER_QUALITY.highResolutionLocalLightsPerCell}
+      : ${MAX_LIGHTS_PER_CELL}),
+  1,
+  llFloodRemainder
 );
 
 // Daylight washes analytic block light. The legacy flood term is screened
@@ -257,8 +275,10 @@ varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
 varying float vWaterSurfaceY;
+varying vec3 vAboveSurfaceWaterTransmit;
 uniform vec4 uAOTable;
 uniform float uWaterLevel;
+uniform float uCameraSubmersion;
 uniform float uTime;
 uniform vec2 uWindDirection;
 uniform vec2 uWindOffset;
@@ -372,6 +392,25 @@ vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
 // the right answer for terrain sitting under a sea. Accurate to within a
 // block, which is far finer than an exponential falloff can show.
 vWaterSurfaceY = isFluid == 1 ? worldPosition.y + fluidAbove : uWaterLevel;
+vAboveSurfaceWaterTransmit = vec3(1.0);
+if (
+  isWaterExposed == 1
+  && uCameraSubmersion < 1.0
+  && cameraPosition.y > uWaterLevel
+) {
+  vec3 aswRay = worldPosition.xyz - cameraPosition;
+  float aswDist = max(length(aswRay), 1e-4);
+  float aswSubmergedFraction = clamp(
+    (uWaterLevel - worldPosition.y)
+      / max(cameraPosition.y - worldPosition.y, 1e-4),
+    0.0,
+    1.0
+  );
+  float aswPath = aswDist * aswSubmergedFraction;
+  vAboveSurfaceWaterTransmit = exp(
+    -${WATER_VIEW_EXTINCTION_GLSL} * aswPath
+  );
+}
 
 vec4 viewPos = viewMatrix * worldPosition;
 vViewDepth = -viewPos.z;
@@ -437,6 +476,7 @@ varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
 varying float vWaterSurfaceY;
+varying vec3 vAboveSurfaceWaterTransmit;
 varying float vEmissive;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
@@ -472,7 +512,6 @@ vec2 shadowReceiverPlaneDepthBias(vec3 coord) {
     (dx.x * dy.z - dy.x * dx.z) / determinant
   );
 }
-
 
 float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias, float receiverBiasScale) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
@@ -685,35 +724,36 @@ ${LOCAL_LIGHTS_OWNERSHIP_FRAGMENT}
 
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
 float sunVisibility = clamp(sunExposure, 0.0, 1.0);
-float fragmentWaterDepth = max(0.0, uWaterLevel - vWorldPosition.y);
+float isFragmentUnderwater = 0.0;
+vec3 downTransmit = vec3(1.0);
+vec3 underwaterFill = vec3(0.0);
+if (uCameraSubmersion > 0.001 && vWorldPosition.y < uWaterLevel) {
+  float fragmentWaterDepth = uWaterLevel - vWorldPosition.y;
 
-// Downwelling attenuation is a view-from-under-the-surface effect. Gating it
-// on camera submersion leaves dry terrain that merely sits below the water
-// line — caves, tunnels, sunken valleys — on its natural ambient floor
-// instead of crushing unlit fragments to black.
-float isFragmentUnderwater = step(vWorldPosition.y, uWaterLevel) * uCameraSubmersion;
+  // A fragment brighter than a full water column of its depth allows is a
+  // dry pocket, not seabed, and must not be shaded as submerged.
+  float expectedUnderwaterSun = exp(
+    -${VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK.toFixed(
+      5,
+    )} * fragmentWaterDepth
+  );
+  isFragmentUnderwater = 1.0 - smoothstep(
+    expectedUnderwaterSun + 0.04,
+    expectedUnderwaterSun + 0.18,
+    sunExposure
+  );
 
-// While submerged, a fragment brighter than a full water column of its depth
-// allows is a dry pocket, not seabed, and must not be shaded as submerged.
-float expectedUnderwaterSun = exp(-${VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK.toFixed(5)} * fragmentWaterDepth);
-isFragmentUnderwater *= 1.0 - smoothstep(
-  expectedUnderwaterSun + 0.04,
-  expectedUnderwaterSun + 0.18,
-  sunExposure
-);
-
-// Beer-Lambert downwelling transmittance for this fragment's depth below the
-// water level. Sunlight and sky ambient are filtered through it so submerged
-// terrain shifts teal, then blue, then black with depth.
-vec3 downTransmit = mix(
-  vec3(1.0),
-  exp(-${WATER_DOWNWELLING_EXTINCTION_GLSL} * fragmentWaterDepth),
-  isFragmentUnderwater
-);
-
-vec3 underwaterFill = ${WATER_SURFACE_SCATTER_GLSL}
-  * (${WATER_OPTICS.scatterFillSunStrength.toFixed(4)} * uSunlightIntensity + ${WATER_OPTICS.scatterFillBase.toFixed(4)})
-  * downTransmit * isFragmentUnderwater;
+  // The branch is camera-uniform and skips four exponentials on every dry
+  // terrain pixel; mix() would evaluate the expensive argument eagerly.
+  downTransmit = exp(
+    -${WATER_DOWNWELLING_EXTINCTION_GLSL} * fragmentWaterDepth
+  );
+  underwaterFill = ${WATER_SURFACE_SCATTER_GLSL}
+    * (${WATER_OPTICS.scatterFillSunStrength.toFixed(
+      4,
+    )} * uSunlightIntensity + ${WATER_OPTICS.scatterFillBase.toFixed(4)})
+    * downTransmit * isFragmentUnderwater;
+}
 vec3 globalAmbient =
   (vec3(0.025, 0.03, 0.04) * sunVisibility + uAmbientColor * ambientFloor) * downTransmit;
 
@@ -796,7 +836,22 @@ if (vIsFluid > 0.5) {
   float topWaterFace = smoothstep(0.45, 0.9, vWorldNormal.y);
   float sideWaterFace = smoothstep(0.45, 0.9, max(absWaterNormal.x, absWaterNormal.z));
 
-  float eps = 0.08;
+  // In air, only the outward water face draws. Fluids are DoubleSide and
+  // do not write depth, so the near wall, its back, the far wall, and the
+  // underside of the surface would otherwise stack into a milky pane —
+  // the thing a Barrier tank window is supposed to not be. Underwater
+  // viewing keeps both sides so the surface is still visible from below.
+  float airSideFace = sideWaterFace * (1.0 - uCameraSubmersion);
+  if (uCameraSubmersion < 0.5 && !gl_FrontFacing) {
+    discard;
+  }
+  // Head-on tank walls drop out entirely (Barrier windows are supposed to
+  // be a hole). Geometric normal, not the waved one — sides never wave.
+  float airFacing = max(dot(vWorldNormal, normalize(cameraPosition - vWorldPosition.xyz)), 0.0);
+  if (airSideFace * airFacing > ${WATER_OPTICS.airSideFaceCullCos.toFixed(4)}) {
+    discard;
+  }
+
   float distToCamera = length(cameraPosition - wPos);
 
   // Subpixel-octave LOD: each detail octave fades out across its distance
@@ -818,45 +873,37 @@ if (vIsFluid > 0.5) {
     distToCamera
   );
 
-  // Side and bottom faces keep their geometric normal, so the wave-normal
-  // noise stack only runs on up-facing water. The 20-block swell stays on
-  // at every distance (it is never subpixel, and without it far water is a
-  // flat mirror of the sky); the finer large octave gates on the base band.
+  // Side and bottom faces keep their geometric normal. Top faces use three
+  // analytic directional slopes: the old finite-difference stack evaluated
+  // 3D simplex eleven times per pixel, dominating high-resolution water.
   vec3 waterNormal = vWorldNormal;
   if (vWorldNormal.y >= 0.5) {
-    float swellTiltX = snoise(vec3(wPos.x * 0.05 + waveTime * 0.07, wPos.z * 0.05 - waveTime * 0.05, -5.0)) * 0.07;
-    float swellTiltZ = snoise(vec3(wPos.x * 0.05 - waveTime * 0.04, wPos.z * 0.05 + waveTime * 0.07, -8.0)) * 0.07;
-
-    float largeGradX = 0.0;
-    float largeGradZ = 0.0;
-    if (baseWaveLod > 0.001) {
-      float lg1 = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
-      float lg1x = snoise(vec3((wPos.x + eps) * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
-      float lg1z = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, (wPos.z + eps) * 0.3 - waveTime * 0.2, 0.0));
-      largeGradX = (lg1 - lg1x) * 0.3 * 0.8 * baseWaveLod;
-      largeGradZ = (lg1 - lg1z) * 0.3 * 0.8 * baseWaveLod;
-    }
-
-    float mediumGradX = 0.0;
-    float mediumGradZ = 0.0;
-    if (mediumWaveLod > 0.001) {
-      float roughNoise = snoise(vec3(wPos.x * 0.04 - waveTime * 0.08, wPos.z * 0.04 + waveTime * 0.06, -10.0));
-      float roughMul = 0.3 + 0.7 * (roughNoise * 0.5 + 0.5);
-
-      float md1 = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
-      float md1x = snoise(vec3((wPos.x + eps) * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
-      float md1z = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, (wPos.z + eps) * 1.5 - waveTime * 0.35, 5.0));
-
-      float mediumAmp = 0.6 * roughMul * 1.2 * mediumWaveLod;
-      mediumGradX = (md1 - md1x) * mediumAmp;
-      mediumGradZ = (md1 - md1z) * mediumAmp;
-    }
-
-    waterNormal = normalize(vec3(
-      swellTiltX + largeGradX + mediumGradX,
-      1.0,
-      swellTiltZ + largeGradZ + mediumGradZ
-    ));
+    vec2 waveDir0 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[0].direction.join(
+      ", ",
+    )}));
+    vec2 waveDir1 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[1].direction.join(
+      ", ",
+    )}));
+    vec2 waveDir2 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[2].direction.join(
+      ", ",
+    )}));
+    vec2 waterSlope =
+      waveDir0 * cos(dot(wPos.xz, waveDir0) * ${
+        WATER_OPTICS.surfaceNormalWaves[0].frequency
+      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[0].speed}) * ${
+        WATER_OPTICS.surfaceNormalWaves[0].slope
+      }
+      + waveDir1 * cos(dot(wPos.xz, waveDir1) * ${
+        WATER_OPTICS.surfaceNormalWaves[1].frequency
+      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[1].speed}) * ${
+        WATER_OPTICS.surfaceNormalWaves[1].slope
+      } * baseWaveLod
+      + waveDir2 * cos(dot(wPos.xz, waveDir2) * ${
+        WATER_OPTICS.surfaceNormalWaves[2].frequency
+      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[2].speed}) * ${
+        WATER_OPTICS.surfaceNormalWaves[2].slope
+      } * mediumWaveLod;
+    waterNormal = normalize(vec3(waterSlope.x, 1.0, waterSlope.y));
   }
 
   vec3 viewDir = normalize(cameraPosition - wPos);
@@ -868,7 +915,20 @@ if (vIsFluid > 0.5) {
   // Where the large octave has faded, its statistical effect on grazing
   // reflectivity is applied instead, so far water keeps the tint-dominant
   // shade it had when the octave was evaluated per fragment.
-  fresnel *= mix(${WATER_OPTICS.distantFresnelFactor.toFixed(4)}, 1.0, baseWaveLod);
+  fresnel *= mix(${WATER_OPTICS.distantFresnelFactor.toFixed(
+    4,
+  )}, 1.0, baseWaveLod);
+
+  // Head-on tank walls keep none of the lake-surface gloss; grazing
+  // waterfall sides keep most of it. NdotV is 1 looking straight at the
+  // pane and falls off at an angle.
+  float airSideWeight = airSideFace * NdotV;
+  float airSideGloss = mix(
+    1.0,
+    ${WATER_OPTICS.airSideFaceGlossScale.toFixed(4)},
+    airSideWeight
+  );
+  fresnel *= airSideGloss;
 
   vec3 reflectDir = reflect(-viewDir, waterNormal);
   float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -889,16 +949,37 @@ if (vIsFluid > 0.5) {
   spec32 *= spec32;
   float specMed = spec32 * spec32 * spec32 * uSunlightIntensity * 0.24;
   vec3 specularColor = uSunColor * (spec32 * uSunlightIntensity * (0.08 + topWaterFace * 0.14) + specMed);
+  float sunGlint = smoothstep(
+    ${WATER_OPTICS.sunGlintStartCos.toFixed(4)},
+    ${WATER_OPTICS.sunGlintFullCos.toFixed(4)},
+    max(dot(reflectDir, uSunDirection), 0.0)
+  );
+  sunGlint *= topWaterFace * (1.0 - uCameraSubmersion);
+  specularColor += uSunColor
+    * (sunGlint * uSunlightIntensity * ${WATER_OPTICS.sunGlintStrength.toFixed(
+      4,
+    )});
+  specularColor *= airSideGloss;
 ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   vec3 baseWater = outgoingLight.rgb;
 
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
-  float verticalDepthFactor = 1.0 - exp(-max(0.0, vWaterSurfaceY - wPos.y) * ${WATER_OPTICS.downwellingExtinction.green.toFixed(5)});
+  float verticalDepthFactor = 1.0 - exp(-max(0.0, vWaterSurfaceY - wPos.y) * ${WATER_OPTICS.downwellingExtinction.green.toFixed(
+    5,
+  )});
   vec3 shallowWater = mix(baseWater, uWaterTint, 0.1);
   vec3 deepWater = mix(baseWater, uWaterTint, 0.28);
   vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.72);
+  // Indoor lamps light the water texture like a solid; a tank wall then
+  // reads as frosted glass. Pull head-on air-side faces toward the tint
+  // so they stay a colored window instead of a washed-white pane.
+  waterColor = mix(
+    waterColor,
+    uWaterTint,
+    airSideWeight * ${WATER_OPTICS.airSideFaceTintMix.toFixed(4)}
+  );
 
-  float streakStrength = sideWaterFace * uWaterStreakStrength;
+  float streakStrength = sideWaterFace * uWaterStreakStrength * airSideGloss;
   if (streakStrength > 0.001) {
     float sideSelector = step(absWaterNormal.x, absWaterNormal.z);
     float sideCoord = mix(wPos.z, wPos.x, sideSelector);
@@ -914,8 +995,18 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   float surfaceRipple = 0.0;
   float rippleGate = topWaterFace * rippleLod;
   if (rippleGate > 0.001) {
-    rippleNoise = snoise(vec3(wPos.xz * 1.8 + vec2(waveTime * 0.9, -waveTime * 0.65), 31.0));
-    fineRippleNoise = snoise(vec3(wPos.xz * 4.8 + vec2(-waveTime * 1.2, waveTime * 0.8), 43.0));
+    vec2 rippleDir0 = normalize(vec2(${WATER_OPTICS.surfaceRippleWaves[0].direction.join(
+      ", ",
+    )}));
+    vec2 rippleDir1 = normalize(vec2(${WATER_OPTICS.surfaceRippleWaves[1].direction.join(
+      ", ",
+    )}));
+    rippleNoise = sin(dot(wPos.xz, rippleDir0) * ${
+      WATER_OPTICS.surfaceRippleWaves[0].frequency
+    } + waveTime * ${WATER_OPTICS.surfaceRippleWaves[0].speed});
+    fineRippleNoise = sin(dot(wPos.xz, rippleDir1) * ${
+      WATER_OPTICS.surfaceRippleWaves[1].frequency
+    } + waveTime * ${WATER_OPTICS.surfaceRippleWaves[1].speed});
     surfaceRipple = smoothstep(0.42, 0.92, rippleNoise * 0.65 + fineRippleNoise * 0.35) * rippleLod;
     vec3 surfaceHighlight = mix(waterColor, skyReflection, 0.34);
     waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
@@ -923,8 +1014,19 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
 
   float refractionFace = max(topWaterFace, sideWaterFace * 0.55);
   if (refractionFace > 0.01) {
-    diffuseColor.a = max(diffuseColor.a, 0.5 * refractionFace);
+    // Air-side walls keep the texture alpha (already ~0.26). Raising it
+    // toward 0.27 on every stacked face is what frosted the tank window.
+    float alphaFloor = 0.5 * refractionFace * (1.0 - airSideFace);
+    diffuseColor.a = max(diffuseColor.a, alphaFloor);
   }
+  diffuseColor.a *= mix(
+    1.0,
+    ${WATER_OPTICS.airSideFaceAlphaScale.toFixed(4)},
+    airSideWeight
+  );
+  float fresnelAlpha = fresnel * fresnel * topWaterFace
+    * ${WATER_OPTICS.fresnelAlphaStrength.toFixed(4)};
+  diffuseColor.a = mix(diffuseColor.a, 1.0, fresnelAlpha);
 
   if (uWaterRefractionReady > 0.5 && refractionFace > 0.01 && uCameraSubmersion < 0.5) {
     vec2 screenUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
@@ -1120,8 +1222,8 @@ export function createSwayShader(
   const rootScaleCode = !rooted
     ? "1.0"
     : baseShaders.vertex.includes("float stackIndexF")
-      ? "((stackIndexF + swayBlockPosition.y - floor(swayBlockPosition.y)) / stackHeight)"
-      : "(swayBlockPosition.y - floor(swayBlockPosition.y))";
+    ? "((stackIndexF + swayBlockPosition.y - floor(swayBlockPosition.y)) / stackHeight)"
+    : "(swayBlockPosition.y - floor(swayBlockPosition.y))";
 
   // Sway math runs in block space: quantized materials store `position` in
   // fixed-point counts, and both the fract-based root measure and the noise
@@ -1141,7 +1243,9 @@ transformed.x += rootScale * ${scale.toFixed(
   )} * swayNoise * 2.0 * ${amplitude.toFixed(2)} * POSITION_UNITS_PER_BLOCK;
 transformed.z += rootScale * ${scale.toFixed(
     2,
-  )} * swayNoise * ${amplitude.toFixed(2)} * uWindSpeed * 0.5 * POSITION_UNITS_PER_BLOCK;
+  )} * swayNoise * ${amplitude.toFixed(
+    2,
+  )} * uWindSpeed * 0.5 * POSITION_UNITS_PER_BLOCK;
 `;
 
   let vertexShader = baseShaders.vertex;

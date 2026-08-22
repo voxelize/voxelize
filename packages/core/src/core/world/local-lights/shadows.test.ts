@@ -501,9 +501,10 @@ describe("emissive-face anchors", () => {
       },
     ]);
     expect(anchor).not.toBeNull();
-    expect(anchor![0]).toBeCloseTo(0.5, 5);
-    expect(anchor![1]).toBeCloseTo(0.62, 5);
-    expect(anchor![2]).toBeCloseTo(0.5, 5);
+    if (!anchor) throw new Error("expected an emissive anchor");
+    expect(anchor[0]).toBeCloseTo(0.5, 5);
+    expect(anchor[1]).toBeCloseTo(0.62, 5);
+    expect(anchor[2]).toBeCloseTo(0.5, 5);
   });
 
   it("keeps a fully emissive cube anchored at its center, clamped inside", () => {
@@ -517,10 +518,12 @@ describe("emissive-face anchors", () => {
       { corners: corners(0), emissive: 2 },
       { corners: corners(1), emissive: 2 },
     ]);
-    expect(anchor![1]).toBeCloseTo(0.5, 5);
+    if (!anchor) throw new Error("expected a cube emissive anchor");
+    expect(anchor[1]).toBeCloseTo(0.5, 5);
 
     const top = deriveEmissiveAnchor([{ corners: corners(1), emissive: 2 }]);
-    expect(top![1]).toBeCloseTo(0.98, 5); // clamped inside the voxel
+    if (!top) throw new Error("expected a top-face emissive anchor");
+    expect(top[1]).toBeCloseTo(0.98, 5); // clamped inside the voxel
   });
 
   it("returns null when nothing is emissive", () => {
@@ -850,8 +853,8 @@ describe("moving-light shadow scheduling", () => {
   });
 });
 
-describe("fluid specular occlusion (shader source)", () => {
-  it("masks specular by the flood term and wires the flood through the call site", () => {
+describe("fluid local-light fallback (shader source)", () => {
+  it("uses the bounded strongest-light helper for fluid gloss", () => {
     expect(LOCAL_LIGHTS_FUNCTIONS).toContain(
       "vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)",
     );
@@ -863,6 +866,33 @@ describe("fluid specular occlusion (shader source)", () => {
     expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
       "localLightSpecular(wPos, waterNormal, viewDir, vLight.rgb)",
     );
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
+      "vIsFluid > 0.5",
+    );
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
+      "llHighResolution",
+    );
+  });
+
+  it("returns before cluster lookup when the fluid slot limit is zero", () => {
+    const surfaceBody = LOCAL_LIGHTS_FUNCTIONS.slice(
+      LOCAL_LIGHTS_FUNCTIONS.indexOf("vec3 localLightSurface"),
+      LOCAL_LIGHTS_FUNCTIONS.indexOf("vec3 localLightSpecular"),
+    );
+    expect(surfaceBody.indexOf("if (llSlotLimit == 0)")).toBeLessThan(
+      surfaceBody.indexOf("localLightCell(llPos)"),
+    );
+  });
+
+  it("uses analytic surface slopes instead of finite-difference simplex", () => {
+    const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
+    const fluidBody = fragment.slice(
+      fragment.indexOf("if (vIsFluid > 0.5)"),
+      fragment.indexOf("#include <fog_fragment>"),
+    );
+    expect(fluidBody).toContain("vec2 waterSlope");
+    expect(fluidBody).not.toContain("lg1x");
+    expect(fluidBody).not.toContain("md1x");
   });
 });
 

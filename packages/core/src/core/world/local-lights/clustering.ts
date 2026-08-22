@@ -573,6 +573,7 @@ export class LightClusterGrid {
       colors,
       intensities,
       priorityBiases,
+      shares,
     } = this.registry;
     const radius = this.analyticRadius;
     const limit = this.maxClusteredLights;
@@ -605,6 +606,12 @@ export class LightClusterGrid {
     for (let k = 0; k < aliveCount; k++) {
       const i = aliveIndices[k];
       if (!this.registry.isEnabledAt(i)) continue;
+      // Inert records (analyticShare 0) stay in the registry so a dense
+      // strip field does not fall back to per-block defaults, but they
+      // contribute no clustered energy. Selecting them still occupies a
+      // cell slot and a shader loop iteration — and a strip proxy's huge
+      // range then overflows every nearby cell, crowding out real lights.
+      if (shares[i] <= 0) continue;
       const px = positions[i * 3];
       const py = positions[i * 3 + 1];
       const pz = positions[i * 3 + 2];
@@ -749,7 +756,6 @@ export class LightClusterGrid {
       colors,
       intensities,
       shares,
-      flags,
       shapes,
       aux,
       flickers,

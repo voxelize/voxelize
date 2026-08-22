@@ -2,6 +2,8 @@ import { WATER_VIEW_EXTINCTION_GLSL } from "../water-optics";
 
 import { GRID_CELLS_PER_ROW, MAX_LIGHTS_PER_CELL } from "./clustering";
 
+export const FLUID_SPECULAR_LIGHTS_PER_CELL = 1;
+
 /**
  * The four strengths an emissive face can render at, indexed by the two AO
  * bits under the vertex emissive bit. Mirrors `EMISSIVE_LEVELS` in
@@ -182,9 +184,13 @@ float localLightShadow(
     ) * llCellPx + llClamped * llCellPx) / llAtlas;
     float llHits = 0.0;
     for (int t = 0; t < 4; t++) {
-      float llD01 = texture(uLocalShadowAtlas, llBaseUv + LL_PCF_TAPS[t] * llTexel).r;
+      float llD01 = texture(
+        uLocalShadowAtlas,
+        llBaseUv + LL_PCF_TAPS[t] * llTexel
+      ).r;
       float llZn = llD01 * 2.0 - 1.0;
-      float llStored = (2.0 * llFar * llNear) / (llFar + llNear - llZn * (llFar - llNear));
+      float llStored = (2.0 * llFar * llNear)
+        / (llFar + llNear - llZn * (llFar - llNear));
       llHits += (llW - llBias > llStored) ? 0.0 : 1.0;
     }
     llVis = min(llVis, llHits * 0.25);
@@ -236,9 +242,11 @@ float localLightWindowFade(vec3 llPos) {
 // scaled by uLocalOwnership (0 at the off/potato tiers, where the clustered
 // count is also 0: the exact legacy frame).
 vec3 localLightSurface(
-  vec3 llPos, vec3 llNormal, vec3 llFlood, out float llFloodRemainder
+  vec3 llPos, vec3 llNormal, vec3 llFlood, int llSlotLimit, int llUseShadows,
+  out float llFloodRemainder
 ) {
   llFloodRemainder = 1.0;
+  if (llSlotLimit == 0) return vec3(0.0);
   if (uClusteredLightCount == 0) return vec3(0.0);
   int llCell = localLightCell(llPos);
   if (llCell < 0) return vec3(0.0);
@@ -253,6 +261,7 @@ vec3 localLightSurface(
   float llClaim = 0.0;
   vec3 llTotal = vec3(0.0);
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
+    if (s >= llSlotLimit) break;
     int llRec = localLightSlot(llCell, s);
     if (llRec == 0) break;
     llRec -= 1;
@@ -297,7 +306,9 @@ vec3 localLightSurface(
     // light's unoccluded luminance claim at the fragment.
     llClaim += (llFall * llAngular) * dot(llT1.rgb, vec3(0.2126, 0.7152, 0.0722));
 
-    float llLambert = max(dot(llNormal, llL), 0.0) * ${(1 - LAMBERT_WRAP).toFixed(4)} + ${LAMBERT_WRAP.toFixed(4)};
+    float llLambert = max(dot(llNormal, llL), 0.0) * ${(
+      1 - LAMBERT_WRAP
+    ).toFixed(4)} + ${LAMBERT_WRAP.toFixed(4)};
 
     float llFlicker = 1.0;
     if ((llFlags & 2) != 0) {
@@ -315,7 +326,7 @@ vec3 localLightSurface(
     // across surfaces its flood provably cannot reach. The common
     // masked-point case costs the same select it did before shadows.
     float llOcclusion = (llFlags & 1) != 0 ? llMask : 1.0;
-    if ((llFlags & 4) != 0) {
+    if ((llFlags & 4) != 0 && llUseShadows != 0) {
       llOcclusion *= localLightShadow(llRec, llPos, llNormal, llShape, llT0.xyz, llSpotDir);
     }
 
@@ -324,9 +335,13 @@ vec3 localLightSurface(
     // block so a bobbing lantern does not pop. Gated on camera submersion
     // exactly like the terrain's downwelling attenuation: the nominal
     // waterline must not drown dry lights in below-sea-level terrain.
-    float llSubmersion =
-      clamp(uWaterLevel - llOrigin.y, 0.0, 1.0) * uCameraSubmersion;
-    vec3 llTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * llDist * llSubmersion);
+    vec3 llTransmit = vec3(1.0);
+    if (uCameraSubmersion > 0.001 && llOrigin.y < uWaterLevel) {
+      float llSubmersion = clamp(uWaterLevel - llOrigin.y, 0.0, 1.0);
+      llTransmit = exp(
+        -${WATER_VIEW_EXTINCTION_GLSL} * llDist * llSubmersion
+      );
+    }
 
     llTotal += llT1.rgb * (llFall * llAngular * llLambert * llFlicker * llOcclusion) * llTransmit;
   }
@@ -364,6 +379,9 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)
   float llWindowFade = localLightWindowFade(llPos);
   vec3 llTotal = vec3(0.0);
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
+    // Water already pays the diffuse clustered pass and screen refraction;
+    // only the strongest resident light needs a positional highlight.
+    if (s >= ${FLUID_SPECULAR_LIGHTS_PER_CELL}) break;
     int llRec = localLightSlot(llCell, s);
     if (llRec == 0) break;
     llRec -= 1;

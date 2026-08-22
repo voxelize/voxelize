@@ -356,11 +356,11 @@ export async function loadChunkMaterials(
       isFluid
         ? SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment
         : transparent
-          ? SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment
-          : undefined,
+        ? SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment
+        : undefined,
     );
 
-    mat.side = transparent ? DoubleSide : FrontSide;
+    mat.side = isFluid ? FrontSide : transparent ? DoubleSide : FrontSide;
     mat.transparent = transparent;
     if (transparent) {
       // Light-attenuating see-through solids are the leaf-like cutouts
@@ -380,6 +380,7 @@ export async function loadChunkMaterials(
     mat.uniforms.map.value = map;
     mat.userData.skipShadow =
       isFluid || (transparent && lightAttenuation === 0);
+    mat.userData.isFluid = isFluid;
 
     // Sorted-transparent meshes (the depth-non-writing ones the main-thread
     // sorter rewrites) keep full-float positions; everything else is

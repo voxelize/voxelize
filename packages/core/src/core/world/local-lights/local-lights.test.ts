@@ -302,6 +302,23 @@ describe("LightClusterGrid selection", () => {
     expect(grid.selectedIndices[0]).not.toBe(registry.resolve(tooHigh));
   });
 
+  it("skips zero-share lights so inert proxies do not occupy clustered slots", () => {
+    const registry = new LightSourceRegistry(8);
+    registry.add(
+      pointLight({ analyticShare: 0, intensity: 4, range: 20 }),
+      0,
+      0,
+      0,
+    );
+    const real = registry.add(pointLight({ range: 8 }), 4, 0, 0);
+    const grid = makeGrid(registry, { maxClusteredLights: 8 });
+    const stats = makeStats();
+    grid.update(0, 0, 0, stats);
+    expect(stats.candidates).toBe(1);
+    expect(grid.selectedCount).toBe(1);
+    expect(grid.selectedIndices[0]).toBe(registry.resolve(real));
+  });
+
   it("caps the clustered set at the tier limit", () => {
     const registry = new LightSourceRegistry(64);
     for (let i = 0; i < 40; i++) {

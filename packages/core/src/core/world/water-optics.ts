@@ -76,6 +76,18 @@ export const WATER_OPTICS = Object.freeze({
    */
   surfaceAbsorptionScale: 0.55,
 
+  /** Grazing-angle opacity added by the water's Fresnel reflection. */
+  fresnelAlphaStrength: 0.65,
+
+  /** Reflected-sun alignment where the cheap analytic glint begins. */
+  sunGlintStartCos: 0.985,
+
+  /** Reflected-sun alignment where the analytic glint reaches full strength. */
+  sunGlintFullCos: 0.9995,
+
+  /** Peak intensity of the analytic sun glint. */
+  sunGlintStrength: 0.8,
+
   /**
    * View-incidence cosine (geometric surface normal vs. view direction)
    * below which the surface's screen-space refraction distortion is fully
@@ -102,14 +114,11 @@ export const WATER_OPTICS = Object.freeze({
    * Drawing-buffer pixel count above which the refraction capture turns
    * itself off. The capture is a mid-render-pass framebuffer copy, which on
    * tile-based GPUs splits the pass and pays a full store + reload of the
-   * framebuffer; measured on Apple Silicon it fits the 60fps budget at 7.5M
-   * pixels (retina 1728p) and busts it at 14.7M (5K), so the line sits
-   * between. At the densities being cut off, the 0.08-strength displacement
-   * spans only a few physical pixels and water keeps its tint, waves,
-   * fresnel, and specular — losing the copy is far less visible than the
-   * frame drops it caused.
+   * framebuffer. The desktop renderer is capped just below this line, so
+   * ordinary high-resolution play keeps refraction against a bounded buffer;
+   * uncapped capture sessions skip the copy once it would scale with output.
    */
-  refractionMaxDrawingBufferPixels: 10_000_000,
+  refractionMaxDrawingBufferPixels: 3_800_000,
 
   /**
    * Distance band (blocks) over which the medium wave octave of the water
@@ -147,6 +156,40 @@ export const WATER_OPTICS = Object.freeze({
    */
   rippleFadeStartBlocks: 48,
   rippleFadeEndBlocks: 96,
+
+  /**
+   * Analytic directional slopes for the surface normal. Keeping these in
+   * data makes water style tunable without restoring the former per-pixel
+   * finite-difference simplex stack (eleven 3D noise evaluations).
+   */
+  surfaceNormalWaves: [
+    { direction: [0.8, 0.6], frequency: 0.32, speed: 0.25, slope: 0.11 },
+    { direction: [-0.6, 0.8], frequency: 0.58, speed: -0.18, slope: 0.07 },
+    { direction: [0.7, -0.7], frequency: 1.4, speed: 0.45, slope: 0.045 },
+  ],
+  surfaceRippleWaves: [
+    { direction: [1.0, 0.35], frequency: 1.8, speed: 0.9 },
+    { direction: [-0.4, 1.0], frequency: 4.8, speed: -1.2 },
+  ],
+
+  /**
+   * Vertical water faces seen from air (tank walls, the side of a column)
+   * are not a lake surface. Fluids draw DoubleSide and do not write depth,
+   * so the near face, its back, and the far wall of a volume otherwise
+   * stack into a milky pane. These scales fade that lake treatment at
+   * head-on incidence; grazing angles keep more of it so a waterfall edge
+   * still reads as water. Underwater viewing is untouched (`airSideFace`
+   * is 0 while submerged).
+   */
+  airSideFaceAlphaScale: 0.42,
+  airSideFaceGlossScale: 0.0,
+  airSideFaceTintMix: 0.85,
+  /**
+   * Head-on cosine above which an air-side vertical face is not drawn at
+   * all. A Barrier tank window is a wall you look straight at; a waterfall
+   * edge is seen at a graze and stays below this cutoff.
+   */
+  airSideFaceCullCos: 0.7,
 
   /** Max blocks scanned upward when measuring a water column's surface. */
   maxSurfaceScanBlocks: 96,
@@ -253,24 +296,16 @@ if (uCameraSubmersion > 0.001) {
  * reusing {@link WATER_VIEW_EXTINCTION} and `uUnderwaterAmbient` so the view
  * from above matches the view from below.
  *
- * Expects `outgoingLight`, `vWorldPosition`, `cameraPosition`, `uWaterLevel`,
- * `uCameraSubmersion`, `uUnderwaterAmbient`, and a `vWaterExposed` varying
- * (1.0 on faces in contact with fluid) in scope. `uWaterLevel` stands in for
- * the surface plane, matching the global waterline the rest of the chunk
- * shader assumes. Runs before sky/height fog so nearer air fog layers on top.
+ * Expects `outgoingLight`, `uCameraSubmersion`, `uUnderwaterAmbient`,
+ * `vWaterExposed`, and vertex-interpolated `vAboveSurfaceWaterTransmit` in
+ * scope. The vertex stage computes the expensive ray length and exponential;
+ * transmission varies smoothly enough across a voxel face to interpolate.
+ * Runs before sky/height fog so nearer air fog layers on top.
  */
 export const ABOVE_SURFACE_WATER_FOG_FRAGMENT = `
 if (vWaterExposed > 0.5 && uCameraSubmersion < 1.0 && cameraPosition.y > uWaterLevel) {
-  vec3 aswRay = vWorldPosition.xyz - cameraPosition;
-  float aswDist = max(length(aswRay), 1e-4);
-  float aswSubmergedFraction = clamp(
-    (uWaterLevel - vWorldPosition.y) / max(cameraPosition.y - vWorldPosition.y, 1e-4),
-    0.0,
-    1.0
-  );
-  float aswPath = aswDist * aswSubmergedFraction;
-  vec3 aswTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * aswPath);
-  vec3 aswColor = outgoingLight.rgb * aswTransmit + uUnderwaterAmbient * (1.0 - aswTransmit);
+  vec3 aswColor = outgoingLight.rgb * vAboveSurfaceWaterTransmit
+    + uUnderwaterAmbient * (1.0 - vAboveSurfaceWaterTransmit);
   outgoingLight.rgb = mix(outgoingLight.rgb, aswColor, 1.0 - uCameraSubmersion);
 }
 `;

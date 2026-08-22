@@ -14,6 +14,7 @@ import { raycast } from "@voxelize/raycast";
 import {
   Box3,
   BoxGeometry,
+  BackSide,
   BufferAttribute,
   BufferGeometry,
   Camera,
@@ -545,6 +546,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * {@link World.updateWaterOptics}.
    */
   public waterOptics = new WaterOptics();
+  private fluidMaterialsRenderBackSide = false;
 
   /**
    * Shared dynamic spot-cone lighting (flashlights, vehicle headlights).
@@ -744,10 +746,21 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Cache for block meshes created by makeBlockMesh with cached option. Each
    * entry copies the face materials' maps as they stood when it was built, so
-   * {@link retireBlockMeshCache} drops the lot whenever a block texture is
+   * {@link noteBlockTextureWritten} drops the lot whenever a block texture is
    * written rather than letting a stale snapshot keep being served.
    */
   private blockMeshCache = new Map<string, Group>();
+
+  /**
+   * How many times a block texture has been written, bumped by every texture
+   * API. Every atlas slot starts life as the magenta-and-black unknown
+   * checker, and painting is spread over the load (image loads resolve
+   * whenever they resolve), so anything that samples the atlas into its own
+   * table has to be able to tell that its table predates the paint. Compare
+   * this against the value read when the table was built; unequal means
+   * rebuild.
+   */
+  public blockTextureGeneration = 0;
 
   /**
    * The internal clock.
@@ -1084,7 +1097,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     console.warn(
       `[world] renderer memory pressure at ${heapMb}MB / ${limitMb}MB ` +
-        `(${(status.heapRatio * 100).toFixed(1)}%, shed #${status.shedCount}); ` +
+        `(${(status.heapRatio * 100).toFixed(1)}%, shed #${
+          status.shedCount
+        }); ` +
         `dropped ${droppedMeshJobs} queued mesh jobs, ${droppedLightJobs} queued ` +
         `light jobs, ${droppedPendingLightJobs} pending light jobs, ` +
         `${droppedVoxelHistory} voxel history entries`,
@@ -1468,7 +1483,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       mat.map.needsUpdate = true;
     });
 
-    this.retireBlockMeshCache();
+    this.noteBlockTextureWritten();
   }
 
   getIsolatedBlockMaterialAt(
@@ -1640,7 +1655,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       setOwnFaceTexture(ownMat, makeOwnFaceTexture(source));
     }
 
-    this.retireBlockMeshCache();
+    this.noteBlockTextureWritten();
   }
 
   async applyTextureGroups(
@@ -1725,7 +1740,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.animatedAtlasTextures.add(mat.map as AtlasTexture);
     });
 
-    this.retireBlockMeshCache();
+    this.noteBlockTextureWritten();
   }
 
   /**
@@ -2544,8 +2559,8 @@ export class World<T = any> extends Scene implements NetIntercept {
           type: isIsolated
             ? "isolated"
             : isIndependent
-              ? "independent"
-              : "shared",
+            ? "independent"
+            : "shared",
           canvas,
           range: face.range,
           materialKey,
@@ -3238,13 +3253,16 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
-   * Drop every cached {@link makeBlockMesh} group. Called by the texture APIs:
-   * a face whose material swaps its map — every own-texture face does — would
-   * otherwise leave the cached mesh showing whatever the map used to be.
-   * Meshes already handed out keep their textures; the next build is current.
+   * Record that a block texture was written: drop every cached
+   * {@link makeBlockMesh} group and advance
+   * {@link blockTextureGeneration}. A face whose material swaps its map —
+   * every own-texture face does — would otherwise leave the cached mesh
+   * showing whatever the map used to be. Meshes already handed out keep their
+   * textures; the next build is current.
    */
-  private retireBlockMeshCache() {
+  private noteBlockTextureWritten() {
     this.blockMeshCache.clear();
+    this.blockTextureGeneration += 1;
   }
 
   /**
@@ -4479,12 +4497,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.time < sunlightStartTime
         ? 0.0
         : this.time < sunlightStartTime + sunlightChangeSpanTime
-          ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
-          : this.time <= sunlightEndTime
-            ? 1.0
-            : this.time <= sunlightEndTime + sunlightChangeSpanTime
-              ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
-              : 0.0,
+        ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
+        : this.time <= sunlightEndTime
+        ? 1.0
+        : this.time <= sunlightEndTime + sunlightChangeSpanTime
+        ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
+        : 0.0,
     );
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
@@ -4723,6 +4741,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     uniforms.cameraSubmersion.value = this.waterOptics.submersion;
     uniforms.cameraWaterPlaneY.value = this.waterOptics.waterPlaneY;
     uniforms.underwaterAmbient.value.copy(this.waterOptics.ambientColor);
+
+    const renderFluidBackSides = this.waterOptics.submersion >= 0.5;
+    if (renderFluidBackSides !== this.fluidMaterialsRenderBackSide) {
+      this.fluidMaterialsRenderBackSide = renderFluidBackSides;
+      for (const material of this.chunkRenderer.materials.values()) {
+        if (!material.userData.isFluid) continue;
+        material.side = renderFluidBackSides ? BackSide : FrontSide;
+        material.needsUpdate = true;
+      }
+    }
 
     this.sky.uUnderwaterAmbient.value.copy(this.waterOptics.ambientColor);
     this.sky.uUnderwaterFade.value = this.waterOptics.skyFade;
@@ -5396,7 +5424,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       uUnderwaterAmbient:
         cloudsOptions.uUnderwaterAmbient ?? chunkUniforms.underwaterAmbient,
     });
-
     this.add(this.sky, this.clouds);
 
     this.physics = new PhysicsEngine(
@@ -5724,7 +5751,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             key,
             geometries: result?.geometries ?? null,
             connectivity: result?.connectivity ?? CONNECTIVITY_FULL,
-          }) as const,
+          } as const),
         (error) => {
           // A dispatch that throws (e.g. payload serialization failing an
           // array-buffer allocation under memory pressure) must still settle:

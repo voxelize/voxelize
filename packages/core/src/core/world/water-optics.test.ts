@@ -1,6 +1,7 @@
 import { Color } from "three";
 import { describe, expect, it } from "vitest";
 
+import { SHADER_LIGHTING_FLUID_CHUNK_SHADERS } from "./shaders";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   getDownwellingTransmittance,
@@ -62,21 +63,69 @@ describe("refraction incidence band", () => {
   });
 });
 
+describe("cheap analytic water gloss", () => {
+  it("keeps the sun glint band ordered and Fresnel opacity bounded", () => {
+    expect(WATER_OPTICS.sunGlintStartCos).toBeGreaterThanOrEqual(0);
+    expect(WATER_OPTICS.sunGlintStartCos).toBeLessThan(
+      WATER_OPTICS.sunGlintFullCos,
+    );
+    expect(WATER_OPTICS.sunGlintFullCos).toBeLessThanOrEqual(1);
+    expect(WATER_OPTICS.fresnelAlphaStrength).toBeGreaterThan(0);
+    expect(WATER_OPTICS.fresnelAlphaStrength).toBeLessThanOrEqual(1);
+  });
+
+  it("compiles reflected-sun and Fresnel-opacity terms into the fluid shader", () => {
+    const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
+    expect(fragment).toContain("float sunGlint = smoothstep(");
+    expect(fragment).toContain("max(dot(reflectDir, uSunDirection), 0.0)");
+    expect(fragment).toContain("float fresnelAlpha = fresnel * fresnel");
+  });
+});
+
+describe("air-side vertical water faces", () => {
+  it("keeps head-on scales inside (0, 1] with gloss at or below alpha", () => {
+    expect(WATER_OPTICS.airSideFaceAlphaScale).toBeGreaterThan(0);
+    expect(WATER_OPTICS.airSideFaceAlphaScale).toBeLessThanOrEqual(1);
+    expect(WATER_OPTICS.airSideFaceGlossScale).toBeGreaterThanOrEqual(0);
+    expect(WATER_OPTICS.airSideFaceGlossScale).toBeLessThan(
+      WATER_OPTICS.airSideFaceAlphaScale,
+    );
+    expect(WATER_OPTICS.airSideFaceTintMix).toBeGreaterThan(0);
+    expect(WATER_OPTICS.airSideFaceTintMix).toBeLessThanOrEqual(1);
+    expect(WATER_OPTICS.airSideFaceCullCos).toBeGreaterThan(0.5);
+    expect(WATER_OPTICS.airSideFaceCullCos).toBeLessThan(1);
+  });
+
+  it("compiles the air-side discard and gloss fade into the fluid shader", () => {
+    const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
+    expect(fragment).toContain("uCameraSubmersion < 0.5 && !gl_FrontFacing");
+    expect(fragment).toContain("airSideFace * airFacing >");
+    expect(fragment).toContain(WATER_OPTICS.airSideFaceCullCos.toFixed(4));
+    expect(fragment).toContain("float airSideWeight = airSideFace * NdotV");
+    expect(fragment).toContain(WATER_OPTICS.airSideFaceAlphaScale.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.airSideFaceGlossScale.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.airSideFaceTintMix.toFixed(4));
+  });
+});
+
 describe("ABOVE_SURFACE_WATER_FOG_FRAGMENT", () => {
   it("reuses the same view extinction as the underwater fog", () => {
     expect(UNDERWATER_FOG_FRAGMENT).toContain(WATER_VIEW_EXTINCTION_GLSL);
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.vertex).toContain(
       WATER_VIEW_EXTINCTION_GLSL,
     );
   });
 
   it("fades submerged terrain toward the shared in-scattered water color", () => {
     expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("uUnderwaterAmbient");
+    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
+      "vAboveSurfaceWaterTransmit",
+    );
   });
 
   it("only affects water-exposed faces viewed from above the surface", () => {
     expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("vWaterExposed > 0.5");
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.vertex).toContain(
       "cameraPosition.y > uWaterLevel",
     );
     expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("uCameraSubmersion");
