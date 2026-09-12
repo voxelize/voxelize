@@ -35,6 +35,7 @@ use metadata::WorldMetadata;
 use nanoid::nanoid;
 use profiler::Profiler;
 use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use serde_json::{json, Value};
 use specs::{
     shred::{Fetch, FetchMut, Resource},
@@ -43,7 +44,7 @@ use specs::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::{Mutex, RwLock};
+use std::sync::{Mutex, OnceLock, RwLock};
 use std::{
     fs::{self, File},
     time::{Duration, Instant},
@@ -187,6 +188,15 @@ pub struct World {
         HashMap<String, Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>>,
 
     extra_init_data: HashMap<String, serde_json::Value>,
+
+    /// The block registry exactly as the INIT packet carries it, serialized
+    /// once per world on its first join. The registry is fixed when the server
+    /// is built (`ServerBuilder::registry`) and cloned into every world, so the
+    /// string cannot go stale; before this, every join re-walked every block
+    /// definition into a `Value` tree and back into text - megabytes of
+    /// allocation on the world thread, per player, for an answer that never
+    /// changes.
+    init_blocks_json: OnceLock<Box<RawValue>>,
 
     items: Option<ItemRegistry>,
 
@@ -444,6 +454,7 @@ impl World {
             transport_handle: None,
             command_handle: None,
             extra_init_data: HashMap::default(),
+            init_blocks_json: OnceLock::new(),
             items: None,
             addr: None,
             server_addr: None,

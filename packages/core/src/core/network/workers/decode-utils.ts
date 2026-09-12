@@ -74,7 +74,7 @@ function decompressToFloat32Array(
   return result;
 }
 
-function tryParseJSON(str: string): unknown {
+export function tryParseJSON(str: string): unknown {
   if (typeof str !== "string" || str.length === 0) return str;
   const firstChar = str.charCodeAt(0);
   if (firstChar !== 123 && firstChar !== 91 && firstChar !== 34) return str;
@@ -82,6 +82,30 @@ function tryParseJSON(str: string): unknown {
     return JSON.parse(str);
   } catch {
     return str;
+  }
+}
+
+/**
+ * A `json` payload at least this long (UTF-16 units) is handed to the main
+ * thread still as a string instead of being parsed inside the decode worker.
+ *
+ * Structured-cloning a parsed object tree costs a serialize pass in the
+ * worker plus a deserialize pass on the receiver — for the INIT packet
+ * (~7 MB of block definitions) that is 3-4x the cost of one `JSON.parse`,
+ * and the receiver-side half lands on the main thread anyway. A string
+ * crosses the boundary as a memcpy, so the receiver pays exactly one parse.
+ * Small payloads keep parsing in the worker where it is free.
+ */
+export const RAW_JSON_HANDOFF_MIN_LENGTH = 1 << 20;
+
+/**
+ * Parse a `json` field that {@link decodeMessage} deliberately left as a
+ * string (see {@link RAW_JSON_HANDOFF_MIN_LENGTH}). Idempotent on already
+ * parsed payloads.
+ */
+export function finishRawJson(message: Record<string, unknown>): void {
+  if (typeof message.json === "string") {
+    message.json = tryParseJSON(message.json);
   }
 }
 
@@ -233,7 +257,10 @@ export function decodeMessage(
   }) as Record<string, unknown>;
   message.type = Message.Type[message.type as number];
 
-  if (message.json) {
+  if (
+    message.json &&
+    (message.json as string).length < RAW_JSON_HANDOFF_MIN_LENGTH
+  ) {
     message.json = tryParseJSON(message.json as string);
   }
 

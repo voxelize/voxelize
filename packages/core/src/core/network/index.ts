@@ -18,6 +18,7 @@ import {
 
 import { NetIntercept } from "./intercept";
 import { WebRTCConnection } from "./webrtc";
+import { finishRawJson } from "./workers/decode-utils";
 import DecodeWorker from "./workers/decode-worker.ts?worker&inline";
 
 export * from "./intercept";
@@ -761,6 +762,9 @@ export class Network {
 
   private onMessage = (message: MessageProtocol) => {
     const { type } = message;
+    // Oversized `json` (the INIT block registry) crosses the worker boundary
+    // as a string and is parsed exactly once, here.
+    finishRawJson(message as unknown as Record<string, unknown>);
     logIncomingMessage(message);
     if (type === "ERROR") {
       const { text } = message;

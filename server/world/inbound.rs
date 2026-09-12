@@ -346,7 +346,6 @@ impl World {
         let mut json = HashMap::new();
 
         json.insert("id".to_owned(), json!(id));
-        json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
         json.insert("options".to_owned(), json!(config));
         json.insert(
             "stats".to_owned(),
@@ -426,14 +425,42 @@ impl World {
         drop(etypes);
         drop(metadatas);
 
+        let blocks = self.init_blocks_json.get_or_init(|| {
+            let started = Instant::now();
+            let serialized = serde_json::to_string(&self.registry().blocks_by_name)
+                .expect("the block registry serializes to JSON");
+            info!(
+                "[{}] serialized {} block definitions for INIT once ({} bytes, {:?}); later joins reuse it",
+                self.name,
+                self.registry().blocks_by_name.len(),
+                serialized.len(),
+                started.elapsed()
+            );
+            RawValue::from_string(serialized).expect("serde_json output is valid JSON")
+        });
+
+        let payload = InitPayload {
+            blocks,
+            rest: &json,
+        };
+
         (
             Message::new(&MessageType::Init)
                 .world_name(&self.name)
-                .json(&serde_json::to_string(&json).unwrap())
+                .json(&serde_json::to_string(&payload).expect("the INIT payload serializes"))
                 .peers(&peers)
                 .entities(&entities)
                 .build(),
             entity_ids,
         )
     }
+}
+
+/// The INIT JSON object: the cached, pre-serialized block registry spliced in
+/// next to the per-join fields, without re-parsing or re-walking it.
+#[derive(Serialize)]
+struct InitPayload<'a> {
+    blocks: &'a RawValue,
+    #[serde(flatten)]
+    rest: &'a HashMap<String, Value>,
 }

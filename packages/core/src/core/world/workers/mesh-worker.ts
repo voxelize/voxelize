@@ -3,6 +3,7 @@ import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
 import { Coords3 } from "../../../types";
 import { type WorldOptions } from "../index";
 import { type SerializedChunkPayload } from "../raw-chunk";
+import { Registry } from "../registry";
 import {
   isMainThreadSortedBlock,
   POSITION_BLOCK_BIAS,
@@ -253,7 +254,9 @@ onmessage = async function (e) {
       wasmInitialized = true;
     }
 
-    const rawRegistry = e.data.registryData;
+    // Arrives as one JSON string (see Registry.serialize); parsing it here
+    // is what keeps the main thread out of the registry hand-off.
+    const rawRegistry = Registry.parseSerialized(e.data.registryData);
     const wasmRegistry = convertRegistryToWasm(rawRegistry);
     set_registry(wasmRegistry);
 

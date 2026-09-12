@@ -483,8 +483,32 @@ export type RenderStats = {
   };
   /** The twelve biggest material buckets among chunk meshes, largest first. */
   meshBuckets: { bucket: string; total: number; visible: number }[];
+  /**
+   * Everything past those twelve, summed, so the long tail of one-mesh
+   * buckets (a per-voxel isolated face is one bucket each) is not invisible
+   * in the report just because no single bucket is large.
+   */
+  meshBucketTail: {
+    buckets: number;
+    total: number;
+    visible: number;
+    /** Buckets keyed per voxel: one material and one draw per placed face. */
+    isolatedFaces: number;
+  };
+  /**
+   * Subtree node counts for every top-level scene child that was given a
+   * name, unconditionally: a named system (an effects group, a manager) can
+   * always be checked here even when it is too small for the list above.
+   */
+  namedSceneNodes: Record<string, number>;
   /** Non-terrain scene subtrees, worst visible-mesh count first. */
-  otherSceneNodes: { label: string; total: number; visibleMeshes: number }[];
+  otherSceneNodes: {
+    label: string;
+    total: number;
+    visibleMeshes: number;
+    /** Direct children by label, most numerous first, e.g. `ChestMesh x12`. */
+    children: string;
+  }[];
   loadedChunks: number;
   renderRadius: number;
   /**
