@@ -183,6 +183,42 @@ describe("standing water over ground", () => {
   });
 });
 
+describe("air-side walls", () => {
+  it("keeps the wall path inside the floor's absorption range", () => {
+    // A face exists only where its voxel holds fluid, so a wall always has
+    // at least that voxel behind it; more than the absorption cap is moot.
+    expect(WATER_OPTICS.wallPathBlocks).toBeGreaterThan(0);
+    expect(WATER_OPTICS.wallPathBlocks).toBeLessThanOrEqual(
+      WATER_OPTICS.floorAbsorptionMaxDepth,
+    );
+    // Under water a wall is lighter than the surface, never heavier.
+    expect(WATER_OPTICS.submergedWallAlphaScale).toBeGreaterThan(0);
+    expect(WATER_OPTICS.submergedWallAlphaScale).toBeLessThan(1);
+  });
+
+  it("looks through a wall's own water and gives it the surface's opacity", () => {
+    const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // The wall's refraction sample takes the floor absorption and in-scatter
+    // over its own voxel of water; a pane keeps its window treatment. A wall
+    // at zero depth composited the dry scene behind it untouched and read as
+    // a hole — a cascade drew as floating sheets with every riser missing.
+    expect(fragment).toContain(
+      `float wallDepth = sideWaterFace * (1.0 - vIsFluidPane)\n    * ${WATER_OPTICS.wallPathBlocks.toFixed(4)};`,
+    );
+    expect(fragment).toContain("vFluidDepthBelow * topWaterFace + wallDepth,");
+    // From the air, the same alpha floor as a top face, not a fraction of
+    // it; from under water the wall keeps its lighter floor so the view out
+    // of a tank stays clear, blended on the smoothed submersion.
+    expect(fragment).toContain(
+      `float wallOpacity = mix(\n    ${WATER_OPTICS.submergedWallAlphaScale.toFixed(4)},\n    1.0,\n    1.0 - uCameraSubmersion\n  );`,
+    );
+    expect(fragment).toContain(
+      "float refractionFace = max(topWaterFace, sideWaterFace * wallOpacity);",
+    );
+    expect(fragment).not.toMatch(/sideWaterFace \* 0\.\d+\)/);
+  });
+});
+
 describe("flow direction", () => {
   it("keeps the flow cue tunables inside physical bounds", () => {
     expect(WATER_OPTICS.fluidStageDropoff).toBeGreaterThan(0);

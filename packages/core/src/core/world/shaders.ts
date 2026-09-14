@@ -1136,13 +1136,20 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     );
   }
 
-  // The floor of this column, seen through the water above it. Top faces
-  // only: a wall shows what stands behind it, not a floor, and the depth
-  // varying is undefined on a wall's bottom row anyway.
+  // The water the refraction sample is seen through. On a top face it is
+  // the column under the surface, down to its floor. On an air-side wall
+  // it is what stands behind the face, seen through the wall's own voxel
+  // of water: a fluid face only exists where the voxel holds fluid, so
+  // that much path is always there, and without it the wall composited
+  // the scene behind it at zero depth and read as a hole in the water.
+  // The depth varying is undefined on a wall's bottom row, so a wall never
+  // reads it; a pane keeps its window treatment.
+  float wallDepth = sideWaterFace * (1.0 - vIsFluidPane)
+    * ${WATER_OPTICS.wallPathBlocks.toFixed(4)};
   float floorDepth = min(
-    vFluidDepthBelow,
+    vFluidDepthBelow * topWaterFace + wallDepth,
     ${WATER_OPTICS.floorAbsorptionMaxDepth.toFixed(4)}
-  ) * topWaterFace;
+  );
   vec3 floorTransmit = exp(
     -${WATER_DOWNWELLING_EXTINCTION_GLSL}
     * floorDepth
@@ -1162,10 +1169,21 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   // The refraction branch below composites the floor itself, so alpha left
   // to the blend only shows the dry ground through the water a second time.
   float refractionLive = uWaterRefractionReady * (1.0 - step(0.5, uCameraSubmersion));
-  float refractionFace = max(topWaterFace, sideWaterFace * 0.55);
+  // Seen from the air a wall is as much the water's surface as its top is,
+  // and takes the same opacity floor: at about half of it a spread's
+  // leading edge and a waterfall's face let most of the dry scene straight
+  // through. Seen from inside the water a wall is the way out — near normal
+  // incidence it transmits almost everything — so it keeps the lighter
+  // floor it always had, and the view out of a tank stays clear.
+  float wallOpacity = mix(
+    ${WATER_OPTICS.submergedWallAlphaScale.toFixed(4)},
+    1.0,
+    1.0 - uCameraSubmersion
+  );
+  float refractionFace = max(topWaterFace, sideWaterFace * wallOpacity);
   if (refractionFace > 0.01) {
-    // Air-side walls keep the texture alpha (already ~0.26). Raising it
-    // toward 0.27 on every stacked face is what frosted the tank window.
+    // Panes keep the texture alpha (already ~0.26). Raising it toward 0.27
+    // on every stacked face is what frosted the tank window.
     float alphaFloor = mix(
       ${WATER_OPTICS.surfaceAlphaFloor.toFixed(4)},
       ${WATER_OPTICS.refractedSurfaceAlphaFloor.toFixed(4)},

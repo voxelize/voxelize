@@ -214,6 +214,27 @@ export const WATER_OPTICS = Object.freeze({
   shallowScatterMaxMix: 0.35,
 
   /**
+   * An air-side wall — a waterfall's face, the front of a spread, a column
+   * pouring off a step — is looked at through water too: a fluid face only
+   * exists where its voxel holds fluid, so at least that voxel of water
+   * stands behind it. The wall's refraction sample takes this many blocks
+   * of the floor absorption and in-scatter above. Without it the wall
+   * composited the scene behind it untouched, at a depth of zero, and read
+   * as a hole: a cascade down a staircase drew as floating sheets with
+   * every riser missing. Panes keep their window treatment.
+   */
+  wallPathBlocks: 1.0,
+  /**
+   * Share of the surface's opacity floor a wall keeps while the camera is
+   * under water. Seen from inside, a wall is the way out — near normal
+   * incidence it transmits almost everything — so it stays lighter than the
+   * surface; raising it with the air-side walls veiled the view out of a
+   * tank. The blend follows the smoothed submersion, so the wall's opacity
+   * crosses over with everything else as the camera breaks the surface.
+   */
+  submergedWallAlphaScale: 0.55,
+
+  /**
    * Caustics on the floor: bright where the surface is locally flat and
    * acts as a lens, read off the same analytic slope field that shapes the
    * normal so the light moves with the ripples it belongs to. A slope of
@@ -257,11 +278,13 @@ export const WATER_OPTICS = Object.freeze({
   flowStreakStrength: 0.4,
 
   /**
-   * Opacity floor of a water face. With the refraction capture live the
-   * shader composites the floor itself, so whatever alpha leaves to the
-   * blend only shows the dry ground through the water again and dilutes
-   * every cue above. Without the capture the surface is a plain tinted
-   * layer and keeps more of the ground visible through it.
+   * Opacity floor of a water face, top or air-side wall alike. With the
+   * refraction capture live the shader composites the floor itself, so
+   * whatever alpha leaves to the blend only shows the dry ground through
+   * the water again and dilutes every cue above. Without the capture the
+   * surface is a plain tinted layer and keeps more of the ground visible
+   * through it. Walls used to take about half of this, which is the other
+   * half of why a spread's leading edge and a waterfall's face vanished.
    */
   surfaceAlphaFloor: 0.58,
   refractedSurfaceAlphaFloor: 0.8,
