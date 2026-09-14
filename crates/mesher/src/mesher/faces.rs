@@ -295,12 +295,16 @@ pub(super) fn process_face<S: VoxelAccess>(
     // shader needs from a water fragment is how much water stands above it,
     // and that run is defined by which voxels hold the fluid, not by a
     // registry grouping.
-    let fluid_stack_bits = if is_fluid {
-        let (index, count) = fluid_column_position(vx, vy, vz, voxel_id, registry, space);
-        with_stack(0, index, count)
+    let fluid_column = if is_fluid {
+        Some(fluid_column_position(vx, vy, vz, voxel_id, registry, space))
     } else {
-        0
+        None
     };
+    let fluid_stack_bits = fluid_column
+        .map(|(index, count)| with_stack(0, index, count))
+        .unwrap_or(0);
+    let fluid_surface_above =
+        is_fluid && has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space);
     let block_stack = if !is_fluid && block.stack_group != 0 {
         Some(stack_position(
             vx,
@@ -698,12 +702,27 @@ pub(super) fn process_face<S: VoxelAccess>(
         light = LightUtils::insert_blue_light(light, blue_light);
         light = LightUtils::insert_sunlight(light, sunlight);
         let fluid_bit = if is_fluid { FLUID_BIT } else { 0 };
-        let fluid_surface_above =
-            is_fluid && has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space);
-        let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
-            WAVE_BIT
-        } else {
-            0
+        let waves = is_fluid && dy == 1 && !fluid_surface_above;
+        let wave_bit = if waves { WAVE_BIT } else { 0 };
+        // A waving vertex sits on the fluid's surface, so its column count
+        // is its index plus one and the count field carries the surface
+        // flow at this corner instead. Read at the corner-grid point, so
+        // every face meeting there packs the same direction and the shader
+        // interpolates a continuous field across the sheet.
+        let stack_bits = match fluid_column {
+            Some((index, _)) if waves => {
+                let flow = surface_flow_at_corner(
+                    vx + pos[0].round() as i32,
+                    vy,
+                    vz + pos[2].round() as i32,
+                    voxel_id,
+                    block.is_waterlogging_fluid,
+                    space,
+                    registry,
+                );
+                with_surface_flow(0, index, flow_code(flow))
+            }
+            _ => stack_bits,
         };
         let water_exposed_bit = if is_water_exposed {
             WATER_EXPOSED_BIT

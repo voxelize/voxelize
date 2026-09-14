@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { SHADER_LIGHTING_FLUID_CHUNK_SHADERS } from "./shaders";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
+  FLOW_CREST_PHASE_PER_HEIGHT,
   getDownwellingTransmittance,
   getUnderwaterAmbientColor,
   measureWaterColumn,
@@ -179,6 +180,73 @@ describe("standing water over ground", () => {
     expect(fragment).toContain(
       "float causticLight = shadow * sunExposure * uSunlightIntensity;",
     );
+  });
+});
+
+describe("flow direction", () => {
+  it("keeps the flow cue tunables inside physical bounds", () => {
+    expect(WATER_OPTICS.fluidStageDropoff).toBeGreaterThan(0);
+    expect(WATER_OPTICS.flowCrestSpacingBlocks).toBeGreaterThan(0);
+    expect(WATER_OPTICS.flowBandSpeed).toBeGreaterThan(0);
+    expect(WATER_OPTICS.flowSlopeAmplitude).toBeGreaterThanOrEqual(0);
+    expect(WATER_OPTICS.flowStreakStrength).toBeGreaterThanOrEqual(0);
+    expect(WATER_OPTICS.flowStreakStrength).toBeLessThanOrEqual(1);
+    // One crest per spacing on a full-stage slope.
+    expect(
+      FLOW_CREST_PHASE_PER_HEIGHT *
+        WATER_OPTICS.fluidStageDropoff *
+        WATER_OPTICS.flowCrestSpacingBlocks,
+    ).toBeCloseTo(2 * Math.PI, 6);
+  });
+
+  it("decodes the mesher's per-vertex flow from the surface vertex's count field", () => {
+    const { vertex } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // Mirrors FLOW_DIRECTIONS in crates/mesher/src/mesher/vertex_light.rs:
+    // 15 directions in equal steps from +x toward +z, 0 for still water.
+    expect(vertex).toContain("#define FLOW_DIRECTIONS 15.0");
+    expect(vertex).toContain(
+      "#define FLOW_STEP_RADIANS (6.28318530718 / FLOW_DIRECTIONS)",
+    );
+    // Only a waving fluid vertex carries flow there; its count is rebuilt.
+    expect(vertex).toContain(
+      "int isSurfaceVertex = isFluid & ((light >> WAVE_SHIFT) & 0x1);",
+    );
+    expect(vertex).toContain(
+      "int flowCode = (light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS;",
+    );
+    expect(vertex).toContain("stackCount = stackIndex + 1;");
+    expect(vertex).toContain(
+      "float flowAngle = float(flowCode - 1) * FLOW_STEP_RADIANS;",
+    );
+    expect(vertex).toContain(
+      "vFluidFlow = vec2(cos(flowAngle), sin(flowAngle));",
+    );
+  });
+
+  it("draws the crests as contours of the rest surface", () => {
+    const { vertex, fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // The rest height is its own varying: the waved position would bend
+    // the contours with the swell, and the depth varying jumps by a whole
+    // block across a hole in the floor while the surface does not.
+    expect(vertex).toContain("vFluidRestY = restWorldPosition.y;");
+    expect(fragment).toContain(
+      `float flowPhase = -vFluidRestY * ${FLOW_CREST_PHASE_PER_HEIGHT.toFixed(4)}`,
+    );
+    expect(fragment).toContain(
+      `- waveTime * ${WATER_OPTICS.flowBandSpeed.toFixed(4)}`,
+    );
+    // No per-face slope anywhere in the flow: direction is the interpolated
+    // per-vertex field, and the crests tilt the normal along it.
+    expect(fragment).not.toContain("dFdx(restSurface)");
+    expect(fragment).toContain("flowTilt = vFluidFlow * flowWave;");
+    expect(fragment).toContain(
+      `+ flowTilt * ${WATER_OPTICS.flowSlopeAmplitude.toFixed(4)};`,
+    );
+    expect(fragment).toContain(
+      "flowCrest = flowWave * min(length(vFluidFlow), 1.0);",
+    );
+    expect(fragment).toContain(WATER_OPTICS.flowStreakStrength.toFixed(4));
+    expect(fragment).toContain("smoothstep(0.15, 0.95, flowCrest)");
   });
 });
 

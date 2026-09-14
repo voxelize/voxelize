@@ -1030,11 +1030,18 @@ impl VoxelAccess for FluidColumnSpace {
 /// stand above the voxel at the origin. Read off a side face, which is the
 /// one face that meshes at every depth — a submerged voxel's top face is
 /// culled against the water above it.
+/// Decodes the packed column the way the shader does: a waving fluid vertex
+/// sits on the surface, so its count is its index plus one and the count
+/// field carries the flow instead.
 fn fluid_blocks_above(space: &FluidColumnSpace, water: &Block, registry: &Registry) -> i32 {
     let face = water.faces[0].clone();
     let lights = mesh_single_face(water, &face, registry, space);
     let index = (lights[0] >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
-    let count = ((lights[0] >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
+    let count = if lights[0] & WAVE_BIT != 0 {
+        index + 1
+    } else {
+        ((lights[0] >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1
+    };
     count - 1 - index
 }
 
@@ -1320,6 +1327,121 @@ fn a_fluid_wall_is_a_pane_only_against_a_see_through_solid() {
         lights_of("py").iter().all(|l| l & FLUID_PANE_BIT == 0),
         "only vertical faces can be panes",
     );
+}
+
+/// The flow field a surface vertex carries points downhill along the
+/// rendered surface — away from the source of a spread — is still on a
+/// resting pool, and is read at the shared corner so neighbouring faces
+/// agree. A vertex with fluid above it keeps its column count instead.
+#[test]
+fn a_surface_vertex_carries_the_downhill_flow_of_its_corner() {
+    const WATER_ID: u32 = 2;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let mut registry = Registry::new(vec![(0, air), (WATER_ID, water.clone())]);
+    registry.build_cache();
+
+    // The surface vertices of the voxel at the origin, as (x, flow code).
+    let surface_flows = |space: &SparseSpace| -> Vec<(f32, u32)> {
+        let faces = create_fluid_faces(0, 0, 0, WATER_ID, space, &water.faces, &registry);
+        let top = faces.iter().find(|f| f.name == "py").expect("a top face");
+        let (positions, lights) = mesh_single_face_data_at_y(0, &water, top, &registry, space);
+        lights
+            .iter()
+            .enumerate()
+            .map(|(i, light)| {
+                assert_ne!(light & WAVE_BIT, 0, "a top-face vertex waves");
+                (
+                    positions[i * 3],
+                    ((light >> FLOW_SHIFT) & FLOW_FIELD_BITS) as u32,
+                )
+            })
+            .collect()
+    };
+
+    // A spread along x from a source at the origin: stage rises both ways.
+    let spread = SparseSpace::new(&[
+        ((-2, 0, 0), (WATER_ID, 2)),
+        ((-1, 0, 0), (WATER_ID, 1)),
+        ((0, 0, 0), (WATER_ID, 0)),
+        ((1, 0, 0), (WATER_ID, 1)),
+        ((2, 0, 0), (WATER_ID, 2)),
+    ]);
+    for (x, code) in surface_flows(&spread) {
+        let [dx, dz] = flow_direction(code).expect("a spread flows");
+        assert!(
+            dz.abs() < 0.25,
+            "a spread along x has no cross-flow, got ({dx}, {dz}) at x={x}"
+        );
+        if x > 0.5 {
+            assert!(dx > 0.95, "the +x corners run toward +x, got {dx}");
+        } else {
+            assert!(dx < -0.95, "the -x corners run toward -x, got {dx}");
+        }
+    }
+
+    // Neighbouring faces read the same corner: the +x corners of the source
+    // are the -x corners of the voxel beside it.
+    let beside = SparseSpace::new(&[
+        ((-3, 0, 0), (WATER_ID, 2)),
+        ((-2, 0, 0), (WATER_ID, 1)),
+        ((-1, 0, 0), (WATER_ID, 0)),
+        ((0, 0, 0), (WATER_ID, 1)),
+        ((1, 0, 0), (WATER_ID, 2)),
+    ]);
+    let source_px: Vec<u32> = surface_flows(&spread)
+        .into_iter()
+        .filter(|(x, _)| *x > 0.5)
+        .map(|(_, code)| code)
+        .collect();
+    let neighbour_nx: Vec<u32> = surface_flows(&beside)
+        .into_iter()
+        .filter(|(x, _)| *x < 0.5)
+        .map(|(_, code)| code)
+        .collect();
+    assert_eq!(
+        source_px, neighbour_nx,
+        "a shared corner packs one direction"
+    );
+
+    // The middle of a resting pool is still.
+    let mut pool = vec![];
+    for x in -1..=1 {
+        for z in -1..=1 {
+            pool.push(((x, 0, z), (WATER_ID, 0)));
+        }
+    }
+    let pool = SparseSpace::new(&pool);
+    for (x, code) in surface_flows(&pool) {
+        assert_eq!(code, FLOW_STILL, "still water at x={x}");
+    }
+
+    // Under more fluid a vertex does not wave, and the field is its count.
+    let submerged = SparseSpace::new(&[((0, 0, 0), (WATER_ID, 0)), ((0, 1, 0), (WATER_ID, 0))]);
+    let faces = create_fluid_faces(0, 0, 0, WATER_ID, &submerged, &water.faces, &registry);
+    let side = faces.iter().find(|f| f.name == "px").expect("a side face");
+    let lights = mesh_single_face(&water, side, &registry, &submerged);
+    assert!(!lights.is_empty());
+    for light in lights {
+        assert_eq!(light & WAVE_BIT, 0, "nothing waves under the surface");
+        assert_eq!(
+            ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1,
+            2,
+            "a two-block column reports its count"
+        );
+    }
 }
 
 /// A sparse world: any voxel not listed is air.

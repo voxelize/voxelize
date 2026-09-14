@@ -204,6 +204,93 @@ pub(super) fn calculate_fluid_corner_height<S: VoxelAccess>(
     total_height / count
 }
 
+/// Slope of the surface, in blocks per block, below which a corner counts
+/// as still water for the flow field. A plain spread falls a full stage
+/// (`FLUID_STAGE_DROPOFF`) per block; this only has to reject the noise of
+/// a resting surface, which is exactly flat.
+pub(super) const FLUID_FLOW_MIN_SLOPE: f32 = 0.015;
+
+/// The four voxels sharing the corner-grid point `(cx, cz)` — the point
+/// between voxels `cx - 1` and `cx` in x, and `cz - 1` and `cz` in z — each
+/// paired with the `[side, side, diagonal]` offsets that name this corner
+/// from that voxel, in the order `calculate_fluid_corner_height` expects.
+fn voxels_around_corner(cx: i32, cz: i32) -> [([i32; 2], [[i32; 2]; 3]); 4] {
+    [
+        ([cx - 1, cz - 1], [[1, 0], [0, 1], [1, 1]]),
+        ([cx, cz - 1], [[-1, 0], [0, 1], [-1, 1]]),
+        ([cx - 1, cz], [[1, 0], [0, -1], [1, -1]]),
+        ([cx, cz], [[-1, 0], [0, -1], [-1, -1]]),
+    ]
+}
+
+/// The rendered surface height at a corner-grid point, read from the first
+/// voxel around it that holds the fluid — so every face sharing the corner
+/// gets the same answer — or `None` where no fluid meets that point.
+pub(super) fn surface_corner_height<S: VoxelAccess>(
+    cx: i32,
+    vy: i32,
+    cz: i32,
+    fluid_id: u32,
+    is_waterlogging: bool,
+    space: &S,
+    registry: &Registry,
+) -> Option<f32> {
+    voxels_around_corner(cx, cz)
+        .into_iter()
+        .find(|([vx, vz], _)| voxel_holds_fluid(*vx, vy, *vz, fluid_id, is_waterlogging, space))
+        .map(|([vx, vz], offsets)| {
+            calculate_fluid_corner_height(
+                vx,
+                vy,
+                vz,
+                &offsets,
+                fluid_id,
+                is_waterlogging,
+                space,
+                registry,
+            )
+        })
+}
+
+/// Where the surface runs at a corner-grid point: the downhill direction of
+/// the rendered surface there, or `None` for still water.
+///
+/// The slope is a central difference between the neighbouring corners along
+/// each axis, falling back to a one-sided difference where the surface ends
+/// — the outer corner of a spread has no fluid beyond it, and the difference
+/// back toward the sheet still points the flow outward. Every quantity here
+/// depends only on the corner point, never on which face asked, so the four
+/// faces meeting at a corner agree and the field the shader interpolates
+/// from them is continuous.
+pub(super) fn surface_flow_at_corner<S: VoxelAccess>(
+    cx: i32,
+    vy: i32,
+    cz: i32,
+    fluid_id: u32,
+    is_waterlogging: bool,
+    space: &S,
+    registry: &Registry,
+) -> Option<[f32; 2]> {
+    let height = |x: i32, z: i32| {
+        surface_corner_height(x, vy, z, fluid_id, is_waterlogging, space, registry)
+    };
+    let here = height(cx, cz)?;
+    let slope_along = |before: Option<f32>, after: Option<f32>| match (before, after) {
+        (Some(b), Some(a)) => (a - b) * 0.5,
+        (Some(b), None) => here - b,
+        (None, Some(a)) => a - here,
+        (None, None) => 0.0,
+    };
+    let rise_x = slope_along(height(cx - 1, cz), height(cx + 1, cz));
+    let rise_z = slope_along(height(cx, cz - 1), height(cx, cz + 1));
+    let downhill = [-rise_x, -rise_z];
+    let slope = (downhill[0] * downhill[0] + downhill[1] * downhill[1]).sqrt();
+    if slope < FLUID_FLOW_MIN_SLOPE {
+        return None;
+    }
+    Some([downhill[0] / slope, downhill[1] / slope])
+}
+
 pub(super) fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
     faces.iter().any(|f| {
         let name_lower = f.name.to_lowercase();

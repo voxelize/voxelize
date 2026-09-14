@@ -25,7 +25,12 @@
 //! bits 22..=25  stack index: like blocks below this one in its vertical run
 //! bits 26..=29  stack count: length of that run, minus one
 //!               (a plant's run is its stack group read from the root; a
-//!                fluid's is its own column read from the surface)
+//!                fluid's is its own column read from the surface) — OR,
+//!               under bits 18 and 20 together, the surface flow direction
+//!               at this vertex: a vertex that waves has no fluid above it,
+//!               so its count is its index plus one and the field is free.
+//!               0 is still water; 1..=15 is a direction in 24° steps from
+//!               +x toward +z.
 //! bit  30       emissive face; reinterprets bits 16..=17 as an index into
 //!               EMISSIVE_LEVELS
 //! bit  31       sign; the attribute is read as a signed int, keep it clear
@@ -103,6 +108,54 @@ pub fn with_stack(light: i32, index: u32, count: u32) -> i32 {
     let index = index.min(STACK_MAX - 1) as i32;
     let count = count.clamp(1, STACK_MAX) as i32 - 1;
     light | (index << STACK_INDEX_SHIFT) | (count << STACK_COUNT_SHIFT)
+}
+
+/// The surface flow direction rides the stack-count field on a fluid vertex
+/// that waves. Such a vertex belongs to a voxel with none of its fluid above
+/// it, so the column count it would carry is the index plus one and the
+/// shader reconstructs it; the four bits carry the flow at that vertex
+/// instead, which the shader interpolates across the face. That per-vertex
+/// interpolation is what makes the flow field smooth: a slope read per face
+/// left a visible seam wherever two faces disagreed on direction.
+pub const FLOW_SHIFT: i32 = STACK_COUNT_SHIFT;
+pub const FLOW_FIELD_BITS: i32 = STACK_FIELD_BITS;
+/// Code for still water.
+pub const FLOW_STILL: u32 = 0;
+/// Directions the field can name besides still, in equal steps around the
+/// circle from +x toward +z. 15 gives 24° steps, which interpolation across
+/// a face smooths well below anything the eye reads on moving water.
+pub const FLOW_DIRECTIONS: u32 = 15;
+
+/// Quantize a downhill direction into a flow code. `None` is still water.
+#[inline]
+pub fn flow_code(direction: Option<[f32; 2]>) -> u32 {
+    let Some([dx, dz]) = direction else {
+        return FLOW_STILL;
+    };
+    let turn = dz.atan2(dx) / std::f32::consts::TAU;
+    let step = (turn * FLOW_DIRECTIONS as f32).round() as i32;
+    let step = step.rem_euclid(FLOW_DIRECTIONS as i32) as u32;
+    1 + step
+}
+
+/// The direction a flow code names, as a unit vector `[x, z]`; `None` for
+/// still water. The shader performs the same decode.
+#[inline]
+pub fn flow_direction(code: u32) -> Option<[f32; 2]> {
+    if code == FLOW_STILL || code > FLOW_DIRECTIONS {
+        return None;
+    }
+    let angle = (code - 1) as f32 * std::f32::consts::TAU / FLOW_DIRECTIONS as f32;
+    Some([angle.cos(), angle.sin()])
+}
+
+/// Pack a fluid surface vertex: its column index, and the flow code in place
+/// of the redundant count.
+#[inline]
+pub fn with_surface_flow(light: i32, index: u32, code: u32) -> i32 {
+    let index = index.min(STACK_MAX - 1) as i32;
+    let code = code.min(FLOW_DIRECTIONS) as i32;
+    light | (index << STACK_INDEX_SHIFT) | (code << FLOW_SHIFT)
 }
 
 #[cfg(test)]
@@ -191,6 +244,53 @@ mod tests {
             ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1,
             STACK_MAX as i32,
         );
+        assert_eq!(light >> (HIGHEST_ALLOCATED_BIT + 1), 0);
+    }
+
+    /// The flow field may only ever alias the count field: the shader
+    /// reconstructs a waving fluid vertex's count from its index and reads
+    /// these bits as flow, so giving flow its own bits would leave the
+    /// shader reading the wrong ones.
+    #[test]
+    fn the_flow_field_rides_the_stack_count() {
+        assert_eq!(FLOW_SHIFT, STACK_COUNT_SHIFT);
+        assert_eq!(FLOW_FIELD_BITS, STACK_FIELD_BITS);
+        assert!(FLOW_DIRECTIONS as i32 <= FLOW_FIELD_BITS);
+        assert_eq!(FLOW_STILL, 0);
+    }
+
+    /// Every direction round-trips through its code to within half a step,
+    /// still water is the zero code, and the packed word keeps the index
+    /// and the other fields intact.
+    #[test]
+    fn flow_codes_round_trip_and_pack_beside_the_index() {
+        assert_eq!(flow_code(None), FLOW_STILL);
+        assert_eq!(flow_direction(FLOW_STILL), None);
+        assert_eq!(flow_direction(FLOW_DIRECTIONS + 1), None);
+
+        let half_step = std::f32::consts::TAU / FLOW_DIRECTIONS as f32 / 2.0;
+        for degrees in (0..360).step_by(7) {
+            let angle = (degrees as f32).to_radians();
+            let direction = [angle.cos(), angle.sin()];
+            let code = flow_code(Some(direction));
+            assert!((1..=FLOW_DIRECTIONS).contains(&code), "{degrees}°");
+            let [x, z] = flow_direction(code).expect("a direction");
+            let error = (z.atan2(x) - angle).sin().abs();
+            assert!(
+                error <= half_step.sin() + 1e-4,
+                "{degrees}° drifted {error}"
+            );
+        }
+        // Exactly +x is code 1; a hair below the seam wraps to it too.
+        assert_eq!(flow_code(Some([1.0, 0.0])), 1);
+        assert_eq!(flow_code(Some([1.0, -1e-4])), 1);
+
+        let light = with_surface_flow(0x1234 | FLUID_BIT | WAVE_BIT, 9, 7);
+        assert_eq!((light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS, 9);
+        assert_eq!((light >> FLOW_SHIFT) & FLOW_FIELD_BITS, 7);
+        assert_eq!(light & LIGHT_MASK, 0x1234);
+        assert_ne!(light & FLUID_BIT, 0);
+        assert_ne!(light & WAVE_BIT, 0);
         assert_eq!(light >> (HIGHEST_ALLOCATED_BIT + 1), 0);
     }
 

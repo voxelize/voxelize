@@ -226,6 +226,37 @@ export const WATER_OPTICS = Object.freeze({
   causticDepthFalloff: 0.7,
 
   /**
+   * Flow. Water runs downhill along its own surface, and a fluid's top face
+   * is a bilinear patch through the mesher's corner heights, which step
+   * down one stage per block away from the source. That rest height is a
+   * potential for the flow: neighbouring faces share their corner heights,
+   * so it is continuous across the whole sheet, and it falls away from the
+   * source. Its contour lines are therefore the crests of a flow running
+   * downstream — smooth across every face by construction, spaced
+   * `flowCrestSpacingBlocks` apart where the sheet falls a full stage per
+   * block, wider where the fall is gentler, and absent on still water,
+   * whose surface is flat. Drawing crests off a per-face direction instead
+   * left a phase seam at every voxel edge.
+   *
+   * The crests tilt the normal downhill (`flowSlopeAmplitude`, so
+   * reflection, refraction and caustics travel with them) and catch a
+   * highlight on their tops (`flowStreakStrength`). Downhill is the flow
+   * the mesher packs at every surface vertex — the slope of the rendered
+   * surface at that corner, the same value for every face meeting there —
+   * interpolated across the face, so the direction field is continuous
+   * and the cue fades out across a face whose far corners sit on still
+   * water. (A slope read per face from screen derivatives left a visible
+   * seam wherever two faces disagreed on direction.) `flowBandSpeed` is in
+   * the shader's wave-time units, which advance 0.5/s: on a full-stage
+   * slope the crests run 6.5 × 0.5 / (2π / (0.1 × 1.5)) / 0.1 ≈ 0.8 blocks
+   * per second.
+   */
+  flowCrestSpacingBlocks: 1.5,
+  flowBandSpeed: 6.5,
+  flowSlopeAmplitude: 0.09,
+  flowStreakStrength: 0.4,
+
+  /**
    * Opacity floor of a water face. With the refraction capture live the
    * shader composites the floor itself, so whatever alpha leaves to the
    * blend only shows the dry ground through the water again and dilutes
@@ -264,7 +295,23 @@ export const WATER_OPTICS = Object.freeze({
    * rendered surface.
    */
   fluidSurfaceHeight: 0.875,
+
+  /**
+   * How far a flowing fluid's surface drops per stage of spread. Mirrors
+   * FLUID_STAGE_DROPOFF in the mesher; sets the crest spacing of the flow
+   * cue in blocks rather than in height.
+   */
+  fluidStageDropoff: 0.1,
 });
+
+/**
+ * Radians of flow-crest phase per block of rest height: one full crest every
+ * {@link WATER_OPTICS.flowCrestSpacingBlocks} blocks on a sheet falling a
+ * full stage per block.
+ */
+export const FLOW_CREST_PHASE_PER_HEIGHT =
+  (2 * Math.PI) /
+  (WATER_OPTICS.fluidStageDropoff * WATER_OPTICS.flowCrestSpacingBlocks);
 
 export const WATER_SURFACE_SCATTER_COLOR = new Color(
   WATER_OPTICS.surfaceScatterColor,

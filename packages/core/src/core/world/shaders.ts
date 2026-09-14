@@ -14,6 +14,7 @@ import {
 import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
+  FLOW_CREST_PHASE_PER_HEIGHT,
   VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
@@ -266,6 +267,10 @@ attribute int light;
 #define STACK_COUNT_SHIFT 26
 #define STACK_FIELD_BITS 0xF
 #define EMISSIVE_SHIFT 30
+// On a waving fluid vertex the count field is the surface flow: 0 still,
+// else one of FLOW_DIRECTIONS directions in equal steps from +x toward +z.
+#define FLOW_DIRECTIONS 15.0
+#define FLOW_STEP_RADIANS (6.28318530718 / FLOW_DIRECTIONS)
 
 uniform vec4 uEmissiveLevels;
 varying float vEmissive;
@@ -274,6 +279,8 @@ varying float vIsFluid;
 varying float vIsGreedy;
 varying float vIsFluidPane;
 varying float vFluidDepthBelow;
+varying float vFluidRestY;
+varying vec2 vFluidFlow;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -330,6 +337,22 @@ int isWaterExposed = (light >> WATER_EXPOSED_SHIFT) & 0x1;
 
 int stackIndex = (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
 int stackCount = ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
+
+// A fluid vertex that waves sits on its column's surface, so its count is
+// its index plus one and the count field carries the surface flow at this
+// corner instead: 0 for still water, else a direction in equal steps from
+// +x toward +z. Decoded here and interpolated, so the fragment stage sees
+// one continuous field across the sheet rather than a slope per face.
+int isSurfaceVertex = isFluid & ((light >> WAVE_SHIFT) & 0x1);
+vFluidFlow = vec2(0.0);
+if (isSurfaceVertex == 1) {
+  int flowCode = (light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS;
+  stackCount = stackIndex + 1;
+  if (flowCode > 0) {
+    float flowAngle = float(flowCode - 1) * FLOW_STEP_RADIANS;
+    vFluidFlow = vec2(cos(flowAngle), sin(flowAngle));
+  }
+}
 
 vAO = uAOTable[ao] / 255.0;
 vIsFluid = float(isFluid);
@@ -422,6 +445,7 @@ vec4 restWorldPosition = vec4(position, 1.0);
 restWorldPosition = modelMatrix * restWorldPosition;
 float fluidVoxelY = ceil(restWorldPosition.y - 1e-3) - 1.0;
 vFluidDepthBelow = float(isFluid) * (restWorldPosition.y - fluidVoxelY + stackIndexF);
+vFluidRestY = restWorldPosition.y;
 vAboveSurfaceWaterTransmit = vec3(1.0);
 if (
   isWaterExposed == 1
@@ -502,6 +526,8 @@ varying float vIsFluid;
 varying float vIsGreedy;
 varying float vIsFluidPane;
 varying float vFluidDepthBelow;
+varying float vFluidRestY;
+varying vec2 vFluidFlow;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -918,6 +944,39 @@ if (vIsFluid > 0.5) {
   // travel with the ripples they belong to instead of a second pattern.
   vec3 waterNormal = vWorldNormal;
   float causticLens = 0.0;
+  // Flow. Water runs downhill along its own surface, and the top face is a
+  // bilinear patch through the mesher's corner heights, which step down one
+  // stage per block away from the source. That rest height is a potential
+  // for the flow: neighbouring faces share their corners, so it is
+  // continuous across the whole sheet, and it falls away from the source.
+  // Its contours are the crests of a flow running downstream — smooth
+  // across every face by construction, dense where the fall is steep, and
+  // absent on still water, whose surface is flat. The wave displacement
+  // never enters: the varying is the rest height.
+  //
+  // Downhill, for tilting the normal, is the mesher's per-corner flow,
+  // interpolated across the face. Its length is the strength: unit inside
+  // a running sheet, shrinking to nothing across a face whose far corners
+  // sit on still water. (A slope read per face from screen derivatives
+  // left a visible seam wherever two faces disagreed on direction — the
+  // straight run through a spread's middle against its diagonal wings.)
+  // flowTilt is the crest wave along the flow vector (direction times
+  // strength); flowCrest is the same wave scaled by strength alone, for the
+  // highlight.
+  vec2 flowTilt = vec2(0.0);
+  float flowCrest = 0.0;
+  if (vWorldNormal.y >= 0.5) {
+    // A slow isotropic wobble bends the contours so they read as water,
+    // not as a survey map; continuous, so it cannot introduce a seam.
+    float flowWobble = sin(wPos.x * 1.7 + wPos.z * 1.1 + waveTime * 0.9) * 0.5
+      + sin(wPos.z * 2.3 - wPos.x * 0.7 - waveTime * 1.3) * 0.35;
+    float flowPhase = -vFluidRestY * ${FLOW_CREST_PHASE_PER_HEIGHT.toFixed(4)}
+      - waveTime * ${WATER_OPTICS.flowBandSpeed.toFixed(4)}
+      + flowWobble;
+    float flowWave = cos(flowPhase) * rippleLod;
+    flowTilt = vFluidFlow * flowWave;
+    flowCrest = flowWave * min(length(vFluidFlow), 1.0);
+  }
   if (vWorldNormal.y >= 0.5) {
     vec2 waveDir0 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[0].direction.join(
       ", ",
@@ -951,7 +1010,10 @@ if (vIsFluid > 0.5) {
         WATER_OPTICS.surfaceNormalWaves[3].frequency
       } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[3].speed}) * ${
         WATER_OPTICS.surfaceNormalWaves[3].slope
-      } * rippleLod;
+      } * rippleLod
+      // The flow crests tilt the normal too, so reflection, refraction and
+      // the caustics below all travel downstream with them.
+      + flowTilt * ${WATER_OPTICS.flowSlopeAmplitude.toFixed(4)};
     waterNormal = normalize(vec3(waterSlope.x, 1.0, waterSlope.y));
     causticLens = 1.0 - smoothstep(
       0.0,
@@ -1064,6 +1126,14 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     surfaceRipple = smoothstep(0.42, 0.92, rippleNoise * 0.65 + fineRippleNoise * 0.35) * rippleLod;
     vec3 surfaceHighlight = mix(waterColor, skyReflection, 0.34);
     waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
+    // Crest tops of the flow train catch the sky, broken up by the still
+    // ripple field so they read as water running, not bars scrolling.
+    float flowBand = smoothstep(0.15, 0.95, flowCrest) * (0.7 + 0.3 * rippleNoise);
+    waterColor = mix(
+      waterColor,
+      surfaceHighlight,
+      topWaterFace * flowBand * ${WATER_OPTICS.flowStreakStrength.toFixed(4)}
+    );
   }
 
   // The floor of this column, seen through the water above it. Top faces
