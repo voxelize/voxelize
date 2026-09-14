@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::{BlockUtils, Registry, Vec3, VoxelAccess, VoxelPacker};
@@ -9,6 +10,7 @@ pub struct FluidConfig {
     pub infinite_source: bool,
     pub infinite_source_count: u32,
     pub flows_down_as_source: bool,
+    pub slope_find_distance: u32,
 }
 
 impl Default for FluidConfig {
@@ -19,6 +21,7 @@ impl Default for FluidConfig {
             infinite_source: true,
             infinite_source_count: 2,
             flows_down_as_source: false,
+            slope_find_distance: 4,
         }
     }
 }
@@ -48,8 +51,15 @@ impl FluidConfig {
         self.flows_down_as_source = enabled;
         self
     }
+
+    pub fn slope_find_distance(mut self, distance: u32) -> Self {
+        self.slope_find_distance = distance;
+        self
+    }
 }
 
+/// Paired so that a direction's opposite is `index ^ 1`: the drop search
+/// never walks back the way it came.
 const HORIZONTAL_NEIGHBORS: [[i32; 2]; 4] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
 /// The fluid's view of one voxel. A waterlogged block is water as far as the
@@ -68,6 +78,22 @@ enum FluidTarget {
     Air,
     Waterloggable,
 }
+
+/// What the drop search needs to know about one cell on the spreading cell's
+/// level, remembered for the rest of that search: the search bends, so it
+/// reaches the same cell along several paths.
+///
+/// A cell the space does not hold — an unloaded chunk — reads back as air,
+/// which would make every seam of the loaded world look like a cliff to run
+/// to. Such a cell is `known: false`, and neither passable nor a drop.
+#[derive(Clone, Copy)]
+struct SlopeProbe {
+    known: bool,
+    passable: bool,
+    over_drop: bool,
+}
+
+type SlopeMemo = HashMap<(i32, i32), SlopeProbe>;
 
 impl FluidView<'_> {
     fn holds_fluid(&self, vx: i32, vy: i32, vz: i32) -> bool {
@@ -142,10 +168,13 @@ impl FluidView<'_> {
     /// it to run across. Sources run across standing fluid too, which is how
     /// a pool overflows onto land.
     ///
-    /// This is the one definition of horizontal spread. The spreading cell
-    /// asks it about itself to fill its neighbours, and a flowing cell asks
-    /// it about each neighbour to learn what it is being offered, so the two
-    /// can never disagree about a level.
+    /// This is the one definition of the level a spread hands over. The
+    /// spreading cell asks it about itself to fill its neighbours, and a
+    /// flowing cell asks it about each neighbour to learn what it is being
+    /// offered, so the two can never disagree about a level. Which sides a
+    /// spread actually creates water on is a separate gate,
+    /// [`FluidView::spread_directions`], applied to creation only: water
+    /// that already stands somewhere takes a fuller offer from any side.
     fn horizontal_offer_at(
         &self,
         vx: i32,
@@ -191,12 +220,12 @@ impl FluidView<'_> {
         Some(Self::falling_level(self.stage_at(vx, vy + 1, vz), config))
     }
 
-    /// The fullest level this cell's neighbours are offering it right now —
-    /// what it would be filled at were it air this tick. A cell's level was
-    /// once fixed the moment it was filled, so a source placed beside water
-    /// that had already spread from elsewhere left every neighbour at its old,
-    /// thinner level and spread nowhere itself; comparing against this each
-    /// tick is what lets standing water take a better offer.
+    /// The fullest level any of this cell's neighbours could hand it right
+    /// now. A cell's level was once fixed the moment it was filled, so a
+    /// source placed beside water that had already spread from elsewhere left
+    /// every neighbour at its old, thinner level and spread nowhere itself;
+    /// comparing against this each tick is what lets standing water take a
+    /// better offer.
     fn offered_level(&self, vx: i32, vy: i32, vz: i32, config: &FluidConfig) -> Option<u32> {
         let mut best = self.offer_from_above(vx, vy, vz, config);
         for [dx, dz] in HORIZONTAL_NEIGHBORS {
@@ -207,6 +236,128 @@ impl FluidView<'_> {
             };
         }
         best
+    }
+
+    /// Whether spreading fluid could run through this cell: air, a block that
+    /// would take the fluid alongside itself, or fluid that is not a source.
+    /// A source is a wall to the search — nothing flows into a full cell.
+    fn is_passable(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        if self.target_at(vx, vy, vz).is_some() {
+            return true;
+        }
+        self.holds_fluid(vx, vy, vz) && self.stage_at(vx, vy, vz) > 0
+    }
+
+    /// Whether fluid arriving in this cell would have somewhere to fall: the
+    /// cell below is open to it, or already holds fluid — a pool a course down
+    /// is a drop just as a dry pit is.
+    fn is_over_drop(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        vy > 0 && (self.target_at(vx, vy - 1, vz).is_some() || self.holds_fluid(vx, vy - 1, vz))
+    }
+
+    fn probe(&self, memo: &mut SlopeMemo, vx: i32, vy: i32, vz: i32) -> SlopeProbe {
+        *memo.entry((vx, vz)).or_insert_with(|| {
+            let known = self.space.contains(vx, vy, vz);
+            SlopeProbe {
+                known,
+                passable: known && self.is_passable(vx, vy, vz),
+                over_drop: known && self.is_over_drop(vx, vy, vz),
+            }
+        })
+    }
+
+    /// Steps from the passable cell at `(vx, vz)` to the nearest cell standing
+    /// over a drop, walking passable cells on this level and never straight
+    /// back the way it came, or `None` if there is none within `reach` steps.
+    /// `distance` is what a drop found among this cell's neighbours counts as.
+    #[allow(clippy::too_many_arguments)]
+    fn drop_distance(
+        &self,
+        memo: &mut SlopeMemo,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        came_from: usize,
+        distance: u32,
+        reach: u32,
+        origin: (i32, i32),
+    ) -> Option<u32> {
+        let mut nearest: Option<u32> = None;
+        for (dir, [dx, dz]) in HORIZONTAL_NEIGHBORS.iter().enumerate() {
+            if dir == came_from {
+                continue;
+            }
+            let (nx, nz) = (vx + dx, vz + dz);
+            if (nx, nz) == origin {
+                continue;
+            }
+            let probe = self.probe(memo, nx, vy, nz);
+            if !probe.passable {
+                continue;
+            }
+            if probe.over_drop {
+                return Some(distance);
+            }
+            if distance < reach {
+                if let Some(found) =
+                    self.drop_distance(memo, nx, vy, nz, dir ^ 1, distance + 1, reach, origin)
+                {
+                    nearest = Some(nearest.map_or(found, |n| n.min(found)));
+                }
+            }
+        }
+        nearest
+    }
+
+    /// Which of the four sides a cell spreading from `(vx, vy, vz)` creates
+    /// water on. Water runs to a drop before it pools: every passable side is
+    /// measured for its shortest path to a cell standing over a drop, and only
+    /// the side (or sides, on a tie) with the shortest path is taken. A
+    /// neighbour itself over a drop is distance 0; a drop `reach` steps past a
+    /// neighbour is the furthest that counts. With no drop in reach on any
+    /// side, water spreads to every passable side, as it always did.
+    fn spread_directions(&self, vx: i32, vy: i32, vz: i32, reach: u32) -> [bool; 4] {
+        let mut memo = SlopeMemo::new();
+        // Outer `None`: the side is a wall. Inner `None`: passable, no drop in reach.
+        let mut distances: [Option<Option<u32>>; 4] = [None; 4];
+        let mut nearest: Option<u32> = None;
+
+        for (dir, [dx, dz]) in HORIZONTAL_NEIGHBORS.iter().enumerate() {
+            let (nx, nz) = (vx + dx, vz + dz);
+            let probe = self.probe(&mut memo, nx, vy, nz);
+            if !probe.known {
+                // A side the world has not loaded is neither a wall nor a
+                // drop. It is taken when nothing better is in reach — the
+                // fill parks until its chunk is ready, as it always has —
+                // and is never searched through.
+                distances[dir] = Some(None);
+                continue;
+            }
+            if !probe.passable {
+                continue;
+            }
+            let distance = if probe.over_drop {
+                Some(0)
+            } else if reach >= 1 {
+                self.drop_distance(&mut memo, nx, vy, nz, dir ^ 1, 1, reach, (vx, vz))
+            } else {
+                None
+            };
+            distances[dir] = Some(distance);
+            if let Some(found) = distance {
+                nearest = Some(nearest.map_or(found, |n| n.min(found)));
+            }
+        }
+
+        let mut sides = [false; 4];
+        for (dir, side) in sides.iter_mut().enumerate() {
+            *side = match (distances[dir], nearest) {
+                (Some(_), None) => true,
+                (Some(Some(distance)), Some(shortest)) => distance == shortest,
+                _ => false,
+            };
+        }
+        sides
     }
 
     fn count_horizontal_source_neighbors(&self, vx: i32, vy: i32, vz: i32) -> u32 {
@@ -340,10 +491,16 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
             // Reaching here means the fluid could not fall, so something is
             // underfoot unless this is the world floor. Spread from the level
             // this cell is becoming, so a re-levelled cell feeds its
-            // neighbours this tick instead of next.
+            // neighbours this tick instead of next — and only toward the
+            // nearest drop, if one is in reach: water poured beside a pit
+            // runs into the pit rather than ringing itself first.
             if let Some(level) = view.horizontal_offer_at(vx, vy, vz, stage, config_clone.max_stage)
             {
-                for [dx, dz] in HORIZONTAL_NEIGHBORS {
+                let sides = view.spread_directions(vx, vy, vz, config_clone.slope_find_distance);
+                for (dir, [dx, dz]) in HORIZONTAL_NEIGHBORS.iter().enumerate() {
+                    if !sides[dir] {
+                        continue;
+                    }
                     let nx = vx + dx;
                     let nz = vz + dz;
                     if let Some(target) = view.target_at(nx, vy, nz) {
@@ -428,11 +585,27 @@ mod tests {
 
     impl Sim {
         fn new() -> Self {
-            let (_, updater) = create_fluid_active_fn(WATER_ID, FluidConfig::new());
+            Self::with_config(FluidConfig::new())
+        }
+
+        fn with_config(config: FluidConfig) -> Self {
+            let (_, updater) = create_fluid_active_fn(WATER_ID, config);
             Self {
                 chunk: flat_floor(),
                 registry: registry(),
                 updater,
+            }
+        }
+
+        /// Sink the floor one course across a band of x: the surface cells
+        /// there stand over a drop, and water that falls in lands on stone
+        /// at `FLOOR_Y - 1` where it can still spread.
+        fn carve_pit(&mut self, xs: std::ops::RangeInclusive<i32>) {
+            for x in xs {
+                for z in 0..16 {
+                    self.chunk.set_voxel(x, FLOOR_Y, z, 0);
+                    self.chunk.set_voxel(x, FLOOR_Y - 1, z, STONE_ID);
+                }
             }
         }
 
@@ -655,5 +828,81 @@ mod tests {
         // Re-levelling compares every wet cell against its neighbours each
         // tick; a spread that is already at its levels must not churn.
         assert_eq!(sim.tick(), 0);
+    }
+
+    #[test]
+    fn water_runs_to_a_drop_in_reach_instead_of_ringing_itself() {
+        let mut sim = Sim::new();
+        sim.carve_pit(11..=15);
+        // Two dry cells between the source and the rim: the rim cell at 11 is
+        // two steps past the source's +x neighbour, well inside reach.
+        sim.place_source(8, WATER_Y, ROW_Z);
+        sim.settle();
+
+        // A one-wide stream to the rim, over the edge, and down.
+        assert_eq!(sim.row(6, 11), ". . 0 1 2 3");
+        assert_eq!(sim.stage_at(11, WATER_Y - 1, ROW_Z), Some(3));
+        for (x, z) in [(7, ROW_Z), (8, ROW_Z - 1), (8, ROW_Z + 1), (9, ROW_Z + 1)] {
+            assert_eq!(
+                sim.stage_at(x, WATER_Y, z),
+                None,
+                "({x}, {z}) should have stayed dry; row: {}",
+                sim.row(0, 15)
+            );
+        }
+    }
+
+    #[test]
+    fn with_no_drop_in_reach_water_spreads_every_way() {
+        let mut sim = Sim::new();
+        // The rim at 15 is nine steps past the source's +x neighbour.
+        sim.carve_pit(15..=15);
+        sim.place_source(4, WATER_Y, ROW_Z);
+        sim.settle();
+
+        for (x, z) in [(1, ROW_Z), (7, ROW_Z), (4, ROW_Z - 3), (4, ROW_Z + 3)] {
+            assert_eq!(sim.stage_at(x, WATER_Y, z), Some(3), "({x}, {z})");
+        }
+    }
+
+    #[test]
+    fn the_nearer_of_two_drops_wins() {
+        let mut sim = Sim::new();
+        // West rim at 2: four steps past the -x neighbour. East rim at 11:
+        // three steps past the +x neighbour.
+        sim.carve_pit(0..=2);
+        sim.carve_pit(11..=15);
+        sim.place_source(7, WATER_Y, ROW_Z);
+        sim.settle();
+
+        assert_eq!(sim.row(5, 11), ". . 0 1 2 3 4");
+    }
+
+    #[test]
+    fn a_tie_between_drops_spreads_both_ways() {
+        let mut sim = Sim::new();
+        // Both rims three steps past their neighbour.
+        sim.carve_pit(0..=3);
+        sim.carve_pit(11..=15);
+        sim.place_source(7, WATER_Y, ROW_Z);
+        sim.settle();
+
+        assert_eq!(sim.row(3, 11), "4 3 2 1 0 1 2 3 4");
+        assert_eq!(sim.stage_at(7, WATER_Y, ROW_Z - 1), None);
+        assert_eq!(sim.stage_at(7, WATER_Y, ROW_Z + 1), None);
+    }
+
+    #[test]
+    fn reach_bounds_the_search() {
+        // With one step of reach the rim two steps past the neighbour is
+        // out of sight, and the water pools as if the pit were not there.
+        let mut sim = Sim::with_config(FluidConfig::new().slope_find_distance(1));
+        sim.carve_pit(11..=15);
+        sim.place_source(8, WATER_Y, ROW_Z);
+        sim.settle();
+
+        assert_eq!(sim.stage_at(7, WATER_Y, ROW_Z), Some(1));
+        assert_eq!(sim.stage_at(8, WATER_Y, ROW_Z + 1), Some(1));
+        assert_eq!(sim.stage_at(11, WATER_Y, ROW_Z), Some(3));
     }
 }
