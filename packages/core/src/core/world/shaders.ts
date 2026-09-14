@@ -15,7 +15,7 @@ import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   FLOW_CREST_PHASE_PER_HEIGHT,
-  VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK,
+  FLUID_SPILL_CORNER_MIN_HEIGHT,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
   WATER_SURFACE_SCATTER_GLSL,
@@ -391,13 +391,29 @@ if (shouldWave == 1) {
   wavePosition = batchingMatrix * wavePosition;
 #endif
   vec3 worldPosForWave = (modelMatrix * wavePosition).xyz;
-  float waveTime = uTime * 0.0006;
 
-  float wave1 = snoise(vec3(worldPosForWave.x * 0.15 + waveTime * 0.3, worldPosForWave.z * 0.15 - waveTime * 0.2, 0.0)) * 0.08;
-  float wave2 = snoise(vec3(worldPosForWave.x * 0.4 - waveTime * 0.5, worldPosForWave.z * 0.4 + waveTime * 0.4, 10.0)) * 0.04;
-  float wave3 = snoise(vec3(worldPosForWave.x * 0.8 + waveTime * 0.7, worldPosForWave.z * 0.8 - waveTime * 0.5, 20.0)) * 0.02;
+  // A surface vertex at the top of its voxel is a spill corner: the mesher
+  // raises a corner to the full block wherever fluid stands on a voxel
+  // sharing it, so a lower sheet meets the wall of the block pouring onto
+  // it. That wall's bottom edge sits on its voxel floor and never waves,
+  // so the corner welded to it must not either — bobbing it opened a slit
+  // between the two that showed the riser behind, at every step of a
+  // cascade. Height alone names the corner: a resting surface sits at
+  // fluidSurfaceHeight and every stage only lowers it, so nothing else
+  // reaches this high (calculate_fluid_corner_height in the mesher). A
+  // surface vertex sits at vy + h with h in (0, 1], so ceil(y) - 1 is its
+  // voxel, the same read the depth varying makes below.
+  float waveVoxelY = ceil(worldPosForWave.y - 1e-3) - 1.0;
+  float waveRestHeight = worldPosForWave.y - waveVoxelY;
+  if (waveRestHeight < ${FLUID_SPILL_CORNER_MIN_HEIGHT.toFixed(4)}) {
+    float waveTime = uTime * 0.0006;
 
-  transformed.y += (wave1 + wave2 + wave3) * POSITION_UNITS_PER_BLOCK;
+    float wave1 = snoise(vec3(worldPosForWave.x * 0.15 + waveTime * 0.3, worldPosForWave.z * 0.15 - waveTime * 0.2, 0.0)) * 0.08;
+    float wave2 = snoise(vec3(worldPosForWave.x * 0.4 - waveTime * 0.5, worldPosForWave.z * 0.4 + waveTime * 0.4, 10.0)) * 0.04;
+    float wave3 = snoise(vec3(worldPosForWave.x * 0.8 + waveTime * 0.7, worldPosForWave.z * 0.8 - waveTime * 0.5, 20.0)) * 0.02;
+
+    transformed.y += (wave1 + wave2 + wave3) * POSITION_UNITS_PER_BLOCK;
+  }
 }
 `,
     )
@@ -782,35 +798,41 @@ ${LOCAL_LIGHTS_OWNERSHIP_FRAGMENT}
 
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
 float sunVisibility = clamp(sunExposure, 0.0, 1.0);
-float isFragmentUnderwater = 0.0;
 vec3 downTransmit = vec3(1.0);
 vec3 underwaterFill = vec3(0.0);
-if (uCameraSubmersion > 0.001 && vWorldPosition.y < uWaterLevel) {
-  float fragmentWaterDepth = uWaterLevel - vWorldPosition.y;
-
-  // A fragment brighter than a full water column of its depth allows is a
-  // dry pocket, not seabed, and must not be shaded as submerged.
-  float expectedUnderwaterSun = exp(
-    -${VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK.toFixed(
-      5,
-    )} * fragmentWaterDepth
-  );
-  isFragmentUnderwater = 1.0 - smoothstep(
-    expectedUnderwaterSun + 0.04,
-    expectedUnderwaterSun + 0.18,
-    sunExposure
-  );
+// Seen from under water, terrain is lit by what the column above it lets
+// down. The column is measured from the surface of the water the camera is
+// in (uCameraWaterPlaneY), never from the world's nominal waterline:
+// uWaterLevel is a sea level, and a world without a sea keeps the default,
+// so a pool on flat ground at y=5 charged eighty blocks of extinction to
+// every fragment in view — black terrain fogged toward the ambient, the
+// whole scene a dark green. For a sea the two agree anyway.
+//
+// Only a face that touches water is under it. The mesher marks those
+// (vWaterExposed); a dry face below the plane — the ground past a pool's
+// wall, a lit pocket beside a flooded shaft — keeps its air lighting.
+// Sunlight cannot tell the two apart: water is light-invariant in the
+// light grid, so a seabed under open sky reads as bright as a beach.
+if (uCameraSubmersion > 0.001 && vWorldPosition.y < uCameraWaterPlaneY) {
+  float fragmentWaterDepth = uCameraWaterPlaneY - vWorldPosition.y;
+  float isFragmentUnderwater = max(vWaterExposed, vIsFluid);
 
   // The branch is camera-uniform and skips four exponentials on every dry
   // terrain pixel; mix() would evaluate the expensive argument eagerly.
-  downTransmit = exp(
-    -${WATER_DOWNWELLING_EXTINCTION_GLSL} * fragmentWaterDepth
+  // Inside it the blend rides the smoothed submersion, so the terrain
+  // crosses over with the fog and the water surface as the camera breaks
+  // the waterline instead of snapping at the first submerged frame.
+  float submergedShade = uCameraSubmersion * isFragmentUnderwater;
+  downTransmit = mix(
+    vec3(1.0),
+    exp(-${WATER_DOWNWELLING_EXTINCTION_GLSL} * fragmentWaterDepth),
+    submergedShade
   );
   underwaterFill = ${WATER_SURFACE_SCATTER_GLSL}
     * (${WATER_OPTICS.scatterFillSunStrength.toFixed(
       4,
     )} * uSunlightIntensity + ${WATER_OPTICS.scatterFillBase.toFixed(4)})
-    * downTransmit * isFragmentUnderwater;
+    * downTransmit * submergedShade;
 }
 vec3 globalAmbient =
   (vec3(0.025, 0.03, 0.04) * sunVisibility + uAmbientColor * ambientFloor) * downTransmit;

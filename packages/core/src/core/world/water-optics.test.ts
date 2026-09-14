@@ -5,6 +5,7 @@ import { SHADER_LIGHTING_FLUID_CHUNK_SHADERS } from "./shaders";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   FLOW_CREST_PHASE_PER_HEIGHT,
+  FLUID_SPILL_CORNER_MIN_HEIGHT,
   getDownwellingTransmittance,
   getUnderwaterAmbientColor,
   measureWaterColumn,
@@ -283,6 +284,88 @@ describe("flow direction", () => {
     );
     expect(fragment).toContain(WATER_OPTICS.flowStreakStrength.toFixed(4));
     expect(fragment).toContain("smoothstep(0.15, 0.95, flowCrest)");
+  });
+});
+
+describe("terrain seen from under water", () => {
+  it("measures depth from the camera's own water surface, not the nominal waterline", () => {
+    const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // uWaterLevel is a sea level; a world without a sea keeps the default,
+    // and a pool on flat ground then charged ~80 blocks of extinction to
+    // every fragment in view. The camera's measured column is right for a
+    // pool and agrees with the waterline for a sea.
+    expect(fragment).toContain(
+      "if (uCameraSubmersion > 0.001 && vWorldPosition.y < uCameraWaterPlaneY) {",
+    );
+    expect(fragment).toContain(
+      "float fragmentWaterDepth = uCameraWaterPlaneY - vWorldPosition.y;",
+    );
+    expect(fragment).not.toContain(
+      "float fragmentWaterDepth = uWaterLevel - vWorldPosition.y;",
+    );
+    // Submerged emitters take the same plane.
+    expect(fragment).toContain(
+      "if (uCameraSubmersion > 0.001 && llOrigin.y < uCameraWaterPlaneY) {",
+    );
+    expect(fragment).toContain(
+      "float llSubmersion = clamp(uCameraWaterPlaneY - llOrigin.y, 0.0, 1.0);",
+    );
+    expect(fragment).not.toContain("llOrigin.y < uWaterLevel");
+  });
+
+  it("tells submerged faces from dry ones by the mesher's water contact, not by sunlight", () => {
+    const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // Water is light-invariant in the light grid, so a seabed under open
+    // sky is as bright as a beach; the old sunlight heuristic declared every
+    // sunlit seabed a dry pocket and dropped its scatter fill.
+    expect(fragment).toContain(
+      "float isFragmentUnderwater = max(vWaterExposed, vIsFluid);",
+    );
+    expect(fragment).not.toContain("expectedUnderwaterSun");
+    // The darkening rides the smoothed submersion so the terrain crosses
+    // over with the fog and the surface at the waterline.
+    expect(fragment).toContain(
+      "float submergedShade = uCameraSubmersion * isFragmentUnderwater;",
+    );
+    expect(fragment).toContain(
+      `downTransmit = mix(\n    vec3(1.0),\n    exp(-${WATER_DOWNWELLING_EXTINCTION_GLSL} * fragmentWaterDepth),\n    submergedShade\n  );`,
+    );
+    expect(fragment).toContain("* downTransmit * submergedShade;");
+  });
+});
+
+describe("spill corners", () => {
+  it("names the corner by a height no resting surface reaches", () => {
+    // The threshold has to clear every stage of a flowing surface (all at
+    // or under the resting height) and sit under the full block.
+    expect(FLUID_SPILL_CORNER_MIN_HEIGHT).toBeGreaterThan(
+      WATER_OPTICS.fluidSurfaceHeight,
+    );
+    expect(FLUID_SPILL_CORNER_MIN_HEIGHT).toBeLessThan(1);
+  });
+
+  it("leaves a spill corner out of the wave so it stays welded to the wall above", () => {
+    const { vertex } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // The voxel read matches the depth varying's: a surface vertex sits at
+    // vy + h with h in (0, 1].
+    expect(vertex).toContain(
+      "float waveVoxelY = ceil(worldPosForWave.y - 1e-3) - 1.0;",
+    );
+    expect(vertex).toContain(
+      "float waveRestHeight = worldPosForWave.y - waveVoxelY;",
+    );
+    expect(vertex).toContain(
+      `if (waveRestHeight < ${FLUID_SPILL_CORNER_MIN_HEIGHT.toFixed(4)}) {`,
+    );
+    // The displacement itself lives inside that gate.
+    const gate = vertex.indexOf(
+      `if (waveRestHeight < ${FLUID_SPILL_CORNER_MIN_HEIGHT.toFixed(4)}) {`,
+    );
+    const displacement = vertex.indexOf(
+      "transformed.y += (wave1 + wave2 + wave3) * POSITION_UNITS_PER_BLOCK;",
+    );
+    expect(gate).toBeGreaterThan(-1);
+    expect(displacement).toBeGreaterThan(gate);
   });
 });
 

@@ -322,8 +322,23 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
         .get_block_by_id(fluid_id)
         .is_some_and(|block| block.is_waterlogging_fluid);
 
+    // A full corner sits on the plane of the voxel above, welded to whatever
+    // stands there: the bottom edge of the wall pouring onto it, or the base
+    // of the fluid stacked over it. Both of those sit exactly on the voxel
+    // boundary, so lowering the corner by the surface offset opened a slit
+    // along the shared edge — at every riser of a cascade, at every block
+    // seam of a falling column. The offset exists for one case only: a solid
+    // ceiling occupying that plane, which a coplanar surface would z-fight.
+    let ceiling_above = {
+        let above = space.get_voxel(vx, vy + 1, vz);
+        above != fluid_id
+            && registry
+                .get_block_by_id(above)
+                .is_some_and(|block| !block.is_empty)
+    };
+
     let corner_height = |offsets: &[[i32; 2]; 3]| {
-        calculate_fluid_corner_height(
+        let height = calculate_fluid_corner_height(
             vx,
             vy,
             vz,
@@ -332,7 +347,12 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             is_waterlogging,
             space,
             registry,
-        ) - FLUID_SURFACE_OFFSET
+        );
+        if height >= 1.0 && !ceiling_above {
+            height
+        } else {
+            height - FLUID_SURFACE_OFFSET
+        }
     };
 
     let h_nxnz = corner_height(&corner_nxnz);

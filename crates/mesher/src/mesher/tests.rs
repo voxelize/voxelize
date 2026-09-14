@@ -1505,7 +1505,9 @@ impl VoxelAccess for SparseSpace {
     }
 }
 
-/// The `+x +z` corner of the water surface at the origin, as meshed.
+/// The `+x +z` corner of the water surface at the origin, exactly as meshed:
+/// a partial corner sits `FLUID_SURFACE_OFFSET` under its computed height, a
+/// full corner on the voxel boundary unless a ceiling occupies it.
 fn water_pxpz_corner_height(space: &SparseSpace, water: &Block, registry: &Registry) -> f32 {
     let faces = create_fluid_faces(0, 0, 0, water.id, space, &water.faces, registry);
     let top = faces
@@ -1517,7 +1519,12 @@ fn water_pxpz_corner_height(space: &SparseSpace, water: &Block, registry: &Regis
         .iter()
         .find(|corner| corner.pos[0] == 1.0 && corner.pos[2] == 1.0)
         .expect("the top face has a +x +z corner");
-    corner.pos[1] + fluid::FLUID_SURFACE_OFFSET
+    corner.pos[1]
+}
+
+/// A partial corner as meshed: its computed height less the surface offset.
+fn resting(height: f32) -> f32 {
+    height - fluid::FLUID_SURFACE_OFFSET
 }
 
 /// The diagonal voxel across a corner only shares a vertical edge with this
@@ -1571,7 +1578,7 @@ fn a_fluid_corner_ignores_the_diagonal_walled_off_by_two_solid_sides() {
         ((1, 0, 1), (WATER_ID, shallow_stage)),
     ]);
     assert!(
-        (water_pxpz_corner_height(&walled_off, &water, &registry) - source).abs() < 1e-5,
+        (water_pxpz_corner_height(&walled_off, &water, &registry) - resting(source)).abs() < 1e-5,
         "two solid sides wall the diagonal off: the corner keeps this voxel's own height",
     );
 
@@ -1583,7 +1590,7 @@ fn a_fluid_corner_ignores_the_diagonal_walled_off_by_two_solid_sides() {
         ((1, 1, 1), (WATER_ID, 0)),
     ]);
     assert!(
-        (water_pxpz_corner_height(&deep_beyond, &water, &registry) - source).abs() < 1e-5,
+        (water_pxpz_corner_height(&deep_beyond, &water, &registry) - resting(source)).abs() < 1e-5,
         "a deeper pool past two solid sides must not hoist the corner to a full block",
     );
 
@@ -1593,8 +1600,9 @@ fn a_fluid_corner_ignores_the_diagonal_walled_off_by_two_solid_sides() {
         ((1, 0, 1), (WATER_ID, shallow_stage)),
     ]);
     assert!(
-        (water_pxpz_corner_height(&one_side_open, &water, &registry) - (source + shallow) / 2.0)
-            .abs()
+        (water_pxpz_corner_height(&one_side_open, &water, &registry)
+            - resting((source + shallow) / 2.0))
+        .abs()
             < 1e-5,
         "with a side open the diagonal is reachable and still averages in",
     );
@@ -1609,4 +1617,117 @@ fn a_fluid_corner_ignores_the_diagonal_walled_off_by_two_solid_sides() {
         (water_pxpz_corner_height(&spill_over_a_side, &water, &registry) - 1.0).abs() < 1e-5,
         "water standing on a side neighbour still spills onto the corner",
     );
+}
+
+/// The wall of a block pouring onto a lower sheet starts on its voxel floor,
+/// and the base of a block stacked on another sits there too. A full corner
+/// is welded to that plane, so it must be meshed exactly on it: lowering it
+/// by the surface offset opened a slit along every riser of a cascade and
+/// every block seam of a falling column. Only a solid ceiling on that plane,
+/// which a coplanar surface would z-fight, keeps the offset.
+#[test]
+fn a_full_corner_meets_the_wall_pouring_onto_it_unless_a_ceiling_takes_the_plane() {
+    const WATER_ID: u32 = 2;
+    const PLANKS_ID: u32 = 3;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let planks = Block {
+        is_opaque: true,
+        ..plain_block(PLANKS_ID, "Planks")
+    };
+
+    let mut registry = Registry::new(vec![
+        (0, air),
+        (WATER_ID, water.clone()),
+        (PLANKS_ID, planks),
+    ]);
+    registry.build_cache();
+
+    // A step: the lower sheet at the origin, a riser at +x with water on it.
+    let cascade_step = SparseSpace::new(&[
+        ((0, 0, 0), (WATER_ID, 2)),
+        ((1, 0, 0), (PLANKS_ID, 0)),
+        ((1, 1, 0), (WATER_ID, 1)),
+    ]);
+    let lower_faces = create_fluid_faces(0, 0, 0, WATER_ID, &cascade_step, &water.faces, &registry);
+    let lower_top = lower_faces
+        .iter()
+        .find(|face| face.name == "py")
+        .expect("the lower sheet has a top face");
+    let spill_corners: Vec<f32> = lower_top
+        .corners
+        .iter()
+        .filter(|corner| corner.pos[0] == 1.0)
+        .map(|corner| corner.pos[1])
+        .collect();
+    assert_eq!(
+        spill_corners.len(),
+        2,
+        "the lower sheet has two corners against the riser"
+    );
+    for height in &spill_corners {
+        assert!(
+            (height - 1.0).abs() < 1e-6,
+            "a spill corner under open air sits exactly on the voxel boundary, got {height}"
+        );
+    }
+
+    let upper_faces = create_fluid_faces(1, 1, 0, WATER_ID, &cascade_step, &water.faces, &registry);
+    let upper_wall = upper_faces
+        .iter()
+        .find(|face| face.name == "nx")
+        .expect("the pouring block has a wall toward the lower sheet");
+    // Local to (1, 1, 0): its floor is world y = 1, the lower sheet's boundary.
+    assert_eq!(
+        upper_wall
+            .corners
+            .iter()
+            .filter(|corner| corner.pos[1] == 0.0)
+            .count(),
+        2,
+        "the pouring wall's bottom edge sits on its voxel floor"
+    );
+
+    // The same corner under a ceiling keeps the offset off the ceiling plane.
+    let under_a_ceiling = SparseSpace::new(&[
+        ((0, 0, 0), (WATER_ID, 2)),
+        ((0, 1, 0), (PLANKS_ID, 0)),
+        ((1, 0, 0), (PLANKS_ID, 0)),
+        ((1, 1, 0), (WATER_ID, 1)),
+    ]);
+    assert!(
+        (water_pxpz_corner_height(&under_a_ceiling, &water, &registry) - resting(1.0)).abs() < 1e-6,
+        "a full corner under a solid ceiling stays the surface offset below its plane",
+    );
+
+    // Fluid stacked on fluid: the lower block's walls reach the upper's base.
+    let stacked = SparseSpace::new(&[((0, 0, 0), (WATER_ID, 0)), ((0, 1, 0), (WATER_ID, 0))]);
+    let stacked_faces = create_fluid_faces(0, 0, 0, WATER_ID, &stacked, &water.faces, &registry);
+    let stacked_wall = stacked_faces
+        .iter()
+        .find(|face| face.name == "px")
+        .expect("the stacked block has side walls");
+    for corner in stacked_wall
+        .corners
+        .iter()
+        .filter(|corner| corner.pos[1] > 0.5)
+    {
+        assert!(
+            (corner.pos[1] - 1.0).abs() < 1e-6,
+            "a wall under stacked fluid reaches the voxel boundary, got {}",
+            corner.pos[1]
+        );
+    }
 }

@@ -1,7 +1,5 @@
 import { Color, IUniform, MathUtils } from "three";
 
-import { LightUtils } from "../../utils/light-utils";
-
 /**
  * Per-channel coefficients for Beer-Lambert water extinction, expressed per
  * block (~meter) of water. All water rendering derives from this one table.
@@ -336,6 +334,18 @@ export const FLOW_CREST_PHASE_PER_HEIGHT =
   (2 * Math.PI) /
   (WATER_OPTICS.fluidStageDropoff * WATER_OPTICS.flowCrestSpacingBlocks);
 
+/**
+ * Rest height within its voxel above which a fluid surface vertex is a spill
+ * corner — one the mesher raised to the full block because fluid stands on
+ * a voxel sharing it, so the sheet meets the wall of the block pouring onto
+ * it. A resting surface sits at {@link WATER_OPTICS.fluidSurfaceHeight} and
+ * every flow stage only lowers it, so nothing else reaches past this
+ * midpoint. The vertex stage leaves these corners out of the wave: the wall
+ * edge they are welded to sits on its voxel floor and cannot move with them.
+ */
+export const FLUID_SPILL_CORNER_MIN_HEIGHT =
+  (WATER_OPTICS.fluidSurfaceHeight + 1) / 2;
+
 export const WATER_SURFACE_SCATTER_COLOR = new Color(
   WATER_OPTICS.surfaceScatterColor,
 );
@@ -381,17 +391,6 @@ export const WATER_VIEW_EXTINCTION_GLSL = coefficientsToGlslVec3(
 
 export const WATER_SURFACE_SCATTER_GLSL = colorToGlslVec3(
   WATER_SURFACE_SCATTER_COLOR,
-);
-
-/**
- * Extinction of the voxel sunlight encoding per water block, matching the
- * Beer-Lambert transmittance used by the light engine. The chunk shader uses
- * it to tell genuinely submerged fragments apart from dry ground that merely
- * sits below the nominal water level.
- */
-export const VOXEL_SUNLIGHT_EXTINCTION_PER_WATER_BLOCK = -Math.log(
-  LightUtils.BEER_LAMBERT_TRANSMITTANCE_NUM /
-    LightUtils.BEER_LAMBERT_TRANSMITTANCE_DEN,
 );
 
 export const UNDERWATER_FOG_UNIFORM_DECLARATIONS = `
