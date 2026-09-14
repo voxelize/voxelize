@@ -256,7 +256,10 @@ attribute int light;
 #define AO_SHIFT 16
 #define AO_BITS 0x3
 #define FLUID_SHIFT 18
+// Bit 19 is the greedy flag on a solid face and the pane flag on a fluid
+// face (water pressed against a see-through tank wall rather than air).
 #define GREEDY_SHIFT 19
+#define FLUID_PANE_SHIFT 19
 #define WAVE_SHIFT 20
 #define WATER_EXPOSED_SHIFT 21
 #define STACK_INDEX_SHIFT 22
@@ -269,6 +272,8 @@ varying float vEmissive;
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
+varying float vIsFluidPane;
+varying float vFluidDepthBelow;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -315,7 +320,12 @@ ${SIMPLEX_NOISE_GLSL}
 // must agree; that file is the reference for which field owns which bit.
 int ao = (light >> AO_SHIFT) & AO_BITS;
 int isFluid = (light >> FLUID_SHIFT) & 0x1;
-int isGreedy = (light >> GREEDY_SHIFT) & 0x1;
+// A fluid never comes off the greedy path, so on a fluid vertex bit 19 is
+// the pane flag instead: this vertical face presses against a see-through
+// solid (a tank window), not open air.
+int bit19 = (light >> GREEDY_SHIFT) & 0x1;
+int isGreedy = bit19 & (1 - isFluid);
+int isFluidPane = bit19 & isFluid;
 int isWaterExposed = (light >> WATER_EXPOSED_SHIFT) & 0x1;
 
 int stackIndex = (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
@@ -324,6 +334,7 @@ int stackCount = ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
 vAO = uAOTable[ao] / 255.0;
 vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
+vIsFluidPane = float(isFluidPane);
 vWaterExposed = float(isWaterExposed);
 vLight = unpackLight(light & LIGHT_MASK);
 
@@ -392,6 +403,25 @@ vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
 // the right answer for terrain sitting under a sea. Accurate to within a
 // block, which is far finer than an exponential falloff can show.
 vWaterSurfaceY = isFluid == 1 ? worldPosition.y + fluidAbove : uWaterLevel;
+
+// Water standing under a surface vertex, down to the column's floor: the
+// surface height inside its own voxel plus the whole blocks the mesher
+// counted below it. Measured from the rest position — the wave offset
+// above could carry a vertex near the top of its voxel into the next one
+// and jump the depth by a block. A surface vertex sits at vy + h with h in
+// (0, 1], so ceil(y) - 1 is its voxel. Meaningful on top faces only; a
+// side face's bottom row lands one voxel low, and the fragment stage
+// never reads it there.
+vec4 restWorldPosition = vec4(position, 1.0);
+#ifdef USE_BATCHING
+  restWorldPosition = batchingMatrix * restWorldPosition;
+#endif
+#ifdef USE_INSTANCING
+  restWorldPosition = instanceMatrix * restWorldPosition;
+#endif
+restWorldPosition = modelMatrix * restWorldPosition;
+float fluidVoxelY = ceil(restWorldPosition.y - 1e-3) - 1.0;
+vFluidDepthBelow = float(isFluid) * (restWorldPosition.y - fluidVoxelY + stackIndexF);
 vAboveSurfaceWaterTransmit = vec3(1.0);
 if (
   isWaterExposed == 1
@@ -470,6 +500,8 @@ uniform float uShadowDebugMode;
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
+varying float vIsFluidPane;
+varying float vFluidDepthBelow;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -841,10 +873,15 @@ if (vIsFluid > 0.5) {
   // underside of the surface would otherwise stack into a milky pane —
   // the thing a Barrier tank window is supposed to not be. Underwater
   // viewing keeps both sides so the surface is still visible from below.
-  float airSideFace = sideWaterFace * (1.0 - uCameraSubmersion);
   if (uCameraSubmersion < 0.5 && !gl_FrontFacing) {
     discard;
   }
+  // The window treatment below is only for a vertical face pressed against
+  // a see-through solid — the mesher flags those as panes. A vertical face
+  // against air is the water's own surface (the front of a spreading flow,
+  // a waterfall, a leak's edge) and keeps the lake shading: fading or
+  // culling it left a spread's edge walls missing under its floating top.
+  float airSideFace = sideWaterFace * (1.0 - uCameraSubmersion) * vIsFluidPane;
   // Head-on tank walls drop out entirely (Barrier windows are supposed to
   // be a hole). Geometric normal, not the waved one — sides never wave.
   float airFacing = max(dot(vWorldNormal, normalize(cameraPosition - vWorldPosition.xyz)), 0.0);
@@ -873,10 +910,14 @@ if (vIsFluid > 0.5) {
     distToCamera
   );
 
-  // Side and bottom faces keep their geometric normal. Top faces use three
+  // Side and bottom faces keep their geometric normal. Top faces use four
   // analytic directional slopes: the old finite-difference stack evaluated
   // 3D simplex eleven times per pixel, dominating high-resolution water.
+  // The lens term is where that slope field is locally flat — the surface
+  // focusing light onto the floor — and drives the caustics below, so they
+  // travel with the ripples they belong to instead of a second pattern.
   vec3 waterNormal = vWorldNormal;
+  float causticLens = 0.0;
   if (vWorldNormal.y >= 0.5) {
     vec2 waveDir0 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[0].direction.join(
       ", ",
@@ -885,6 +926,9 @@ if (vIsFluid > 0.5) {
       ", ",
     )}));
     vec2 waveDir2 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[2].direction.join(
+      ", ",
+    )}));
+    vec2 waveDir3 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[3].direction.join(
       ", ",
     )}));
     vec2 waterSlope =
@@ -902,8 +946,18 @@ if (vIsFluid > 0.5) {
         WATER_OPTICS.surfaceNormalWaves[2].frequency
       } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[2].speed}) * ${
         WATER_OPTICS.surfaceNormalWaves[2].slope
-      } * mediumWaveLod;
+      } * mediumWaveLod
+      + waveDir3 * cos(dot(wPos.xz, waveDir3) * ${
+        WATER_OPTICS.surfaceNormalWaves[3].frequency
+      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[3].speed}) * ${
+        WATER_OPTICS.surfaceNormalWaves[3].slope
+      } * rippleLod;
     waterNormal = normalize(vec3(waterSlope.x, 1.0, waterSlope.y));
+    causticLens = 1.0 - smoothstep(
+      0.0,
+      ${WATER_OPTICS.causticLensSlope.toFixed(4)},
+      length(waterSlope)
+    );
   }
 
   vec3 viewDir = normalize(cameraPosition - wPos);
@@ -1012,11 +1066,41 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
   }
 
+  // The floor of this column, seen through the water above it. Top faces
+  // only: a wall shows what stands behind it, not a floor, and the depth
+  // varying is undefined on a wall's bottom row anyway.
+  float floorDepth = min(
+    vFluidDepthBelow,
+    ${WATER_OPTICS.floorAbsorptionMaxDepth.toFixed(4)}
+  ) * topWaterFace;
+  vec3 floorTransmit = exp(
+    -${WATER_DOWNWELLING_EXTINCTION_GLSL}
+    * floorDepth
+    * ${WATER_OPTICS.floorAbsorptionPathScale.toFixed(4)}
+  );
+  float wetFloor = mix(1.0, ${WATER_OPTICS.wetFloorDarken.toFixed(4)}, topWaterFace);
+  float causticLight = shadow * sunExposure * uSunlightIntensity;
+  float caustic = causticLens * causticLens
+    * exp(-vFluidDepthBelow * ${WATER_OPTICS.causticDepthFalloff.toFixed(4)})
+    * causticLight * rippleLod * topWaterFace;
+  vec3 floorShade = floorTransmit * wetFloor
+    * (1.0 + ${WATER_OPTICS.causticStrength.toFixed(4)} * caustic);
+  float thicknessScatter = (1.0 - exp(
+    -floorDepth * ${WATER_OPTICS.shallowScatterDensity.toFixed(4)}
+  )) * ${WATER_OPTICS.shallowScatterMaxMix.toFixed(4)};
+
+  // The refraction branch below composites the floor itself, so alpha left
+  // to the blend only shows the dry ground through the water a second time.
+  float refractionLive = uWaterRefractionReady * (1.0 - step(0.5, uCameraSubmersion));
   float refractionFace = max(topWaterFace, sideWaterFace * 0.55);
   if (refractionFace > 0.01) {
     // Air-side walls keep the texture alpha (already ~0.26). Raising it
     // toward 0.27 on every stacked face is what frosted the tank window.
-    float alphaFloor = 0.5 * refractionFace * (1.0 - airSideFace);
+    float alphaFloor = mix(
+      ${WATER_OPTICS.surfaceAlphaFloor.toFixed(4)},
+      ${WATER_OPTICS.refractedSurfaceAlphaFloor.toFixed(4)},
+      refractionLive
+    ) * refractionFace * (1.0 - airSideFace);
     diffuseColor.a = max(diffuseColor.a, alphaFloor);
   }
   diffuseColor.a *= mix(
@@ -1053,9 +1137,15 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     vec2 refractionOffset =
       refractionSlope * uWaterRefractionStrength * topWaterFace * refractionIncidence;
     vec2 refractedUv = clamp(screenUv + refractionOffset, vec2(0.001), vec2(0.999));
-    vec3 refractedScene = texture2D(uSceneColor, refractedUv).rgb;
-    float tintAmount = 0.12 + fresnel * 0.28 + surfaceRipple * 0.08;
+    // The sample is the floor lit through the column: absorbed on the way
+    // down and back, wet, and lensed by the surface above it.
+    vec3 refractedScene = texture2D(uSceneColor, refractedUv).rgb * floorShade;
+    float tintAmount = 0.12 + fresnel * 0.28 + surfaceRipple * 0.08 + thicknessScatter;
     waterColor = mix(refractedScene, waterColor, tintAmount);
+  } else {
+    // No floor to shade: the caustics land on the surface layer instead,
+    // where they still read as light moving through water.
+    waterColor *= 1.0 + ${WATER_OPTICS.causticStrength.toFixed(4)} * 0.5 * caustic;
   }
 
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
@@ -1222,8 +1312,8 @@ export function createSwayShader(
   const rootScaleCode = !rooted
     ? "1.0"
     : baseShaders.vertex.includes("float stackIndexF")
-    ? "((stackIndexF + swayBlockPosition.y - floor(swayBlockPosition.y)) / stackHeight)"
-    : "(swayBlockPosition.y - floor(swayBlockPosition.y))";
+      ? "((stackIndexF + swayBlockPosition.y - floor(swayBlockPosition.y)) / stackHeight)"
+      : "(swayBlockPosition.y - floor(swayBlockPosition.y))";
 
   // Sway math runs in block space: quantized materials store `position` in
   // fixed-point counts, and both the fract-based root measure and the noise

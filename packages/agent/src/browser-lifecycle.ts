@@ -15,9 +15,10 @@ const CHROME_FOR_TESTING_MARKER = "Google Chrome for Testing";
  * Exit code the daemon uses when it shuts itself down because its idle TTL
  * expired. PM2 sessions are started with `--stop-exit-codes` set to this value
  * so the app lands in "stopped" (a visible tombstone) instead of being
- * restarted into a fresh idle browser. Mirrored as IDLE_TTL_EXIT_CODE in
- * town's scripts/agent-reap.mjs; the session-port smoke asserts the two agree
- * end to end.
+ * restarted into a fresh idle browser. A host repo's reaper tooling that
+ * inspects exit codes must mirror this value (import it from the `lifecycle`
+ * entry rather than restating it); a session-port smoke on the host side
+ * should assert the two agree end to end.
  */
 export const IDLE_TTL_EXIT_CODE = 66;
 

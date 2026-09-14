@@ -205,7 +205,7 @@ describe("Entities compact motion path", () => {
     );
 
     const probe = entities.getEntityById("a") as ProbeEntity;
-    expect(probe.metadata!.target).toMatchObject({
+    expect(probe.metadata?.target).toMatchObject({
       targetType: "Entities",
       position: [7, 7, 7],
     });
@@ -216,7 +216,7 @@ describe("Entities compact motion path", () => {
         target: { targetType: "Entities", position: [9, 9, 9] },
       }),
     );
-    expect(probe.metadata!.target).toMatchObject({ position: [9, 9, 9] });
+    expect(probe.metadata?.target).toMatchObject({ position: [9, 9, 9] });
   });
 
   it("nulls the target position when motion reports the target lost", () => {
@@ -233,7 +233,7 @@ describe("Entities compact motion path", () => {
     );
 
     const probe = entities.getEntityById("a") as ProbeEntity;
-    expect(probe.metadata!.target).toMatchObject({
+    expect(probe.metadata?.target).toMatchObject({
       targetType: "Players",
       position: null,
     });
@@ -252,8 +252,8 @@ describe("Entities compact motion path", () => {
   });
 });
 
-describe("Entities resilience with Town-like consumers", () => {
-  // Town-style entity classes destructure/iterate metadata fields directly
+describe("Entities resilience with consumers that destructure metadata", () => {
+  // Production entity classes destructure/iterate metadata fields directly
   // (`const [x, y, z] = data.position`), so handing them metadata missing
   // those keys throws "x is not iterable" — the live staging breakage.
   class DestructuringEntity extends Entity<ProbeData> {
@@ -281,16 +281,16 @@ describe("Entities resilience with Town-like consumers", () => {
     };
   }
 
-  function makeTownEntities(): Entities {
+  function makeDestructuringEntities(): Entities {
     const entities = new Entities();
     entities.setClass("probe", ProbeEntity);
-    entities.setClass("town", DestructuringEntity);
+    entities.setClass("villager", DestructuringEntity);
     entities.setClass("buggy", ThrowingEntity);
     return entities;
   }
 
   it("never constructs an entity from a partial metadata-lane update", () => {
-    const entities = makeTownEntities();
+    const entities = makeDestructuringEntities();
 
     // A compact metadata-lane payload (position stripped server-side)
     // arrives for an entity whose CREATE this client never processed.
@@ -301,7 +301,7 @@ describe("Entities resilience with Town-like consumers", () => {
           {
             operation: "UPDATE",
             id: "ghost",
-            type: "town",
+            type: "villager",
             metadata: { name: "partial-only" },
           },
         ],
@@ -317,7 +317,7 @@ describe("Entities resilience with Town-like consumers", () => {
         {
           operation: "UPDATE",
           id: "ghost",
-          type: "town",
+          type: "villager",
           metadata: { position: [1, 2, 3] },
         },
       ],
@@ -328,7 +328,7 @@ describe("Entities resilience with Town-like consumers", () => {
   });
 
   it("isolates a throwing entity so the rest of the batch still applies", () => {
-    const entities = makeTownEntities();
+    const entities = makeDestructuringEntities();
     entities.onMessage(
       entityMessage("CREATE", "healthy", { position: [0, 0, 0] }),
     );
@@ -358,52 +358,54 @@ describe("Entities resilience with Town-like consumers", () => {
 
     const healthy = entities.getEntityById("healthy") as ProbeEntity;
     expect(healthy.updateCount).toBe(1);
-    expect(healthy.metadata!.position).toEqual([9, 9, 9]);
+    expect(healthy.metadata?.position).toEqual([9, 9, 9]);
   });
 
   it("degrades an update whose motion failed to decode without ever losing position", () => {
-    const entities = makeTownEntities();
+    const entities = makeDestructuringEntities();
     entities.onMessage(
       entityMessage(
         "CREATE",
         "a",
         { position: [1, 2, 3], name: "keeper" },
-        { type: "town" },
+        { type: "villager" },
       ),
     );
-    const town = entities.getEntityById("a") as DestructuringEntity;
+    const villager = entities.getEntityById("a") as DestructuringEntity;
 
     // The decode worker strips undecodable motion, so the update arrives
     // with neither metadata nor motion: a keep-alive. Nothing applies.
     expect(() =>
-      entities.onMessage(entityMessage("UPDATE", "a", null, { type: "town" })),
+      entities.onMessage(
+        entityMessage("UPDATE", "a", null, { type: "villager" }),
+      ),
     ).not.toThrow();
-    expect(town.applied).toEqual([[1, 2, 3]]);
+    expect(villager.applied).toEqual([[1, 2, 3]]);
 
     // Same stripping with partial metadata attached: the merge keeps the
     // accumulated position; the consumer never sees an undefined position.
     entities.onMessage(
-      entityMessage("UPDATE", "a", { name: "renamed" }, { type: "town" }),
+      entityMessage("UPDATE", "a", { name: "renamed" }, { type: "villager" }),
     );
-    expect(town.applied).toEqual([
+    expect(villager.applied).toEqual([
       [1, 2, 3],
       [1, 2, 3],
     ]);
-    expect(town.metadata).toMatchObject({
+    expect(villager.metadata).toMatchObject({
       position: [1, 2, 3],
       name: "renamed",
     });
   });
 
   it("keeps iterable metadata fields iterable through merges and motion", () => {
-    const entities = makeTownEntities();
+    const entities = makeDestructuringEntities();
     entities.onMessage({
       type: "ENTITY",
       entities: [
         {
           operation: "CREATE",
           id: "a",
-          type: "town",
+          type: "villager",
           metadata: {
             position: [1, 2, 3],
             path: {
@@ -423,8 +425,8 @@ describe("Entities resilience with Town-like consumers", () => {
       entityMessage("UPDATE", "a", null, { motion: { position: [4, 5, 6] } }),
     );
 
-    const town = entities.getEntityById("a") as DestructuringEntity;
-    const metadata = town.metadata as unknown as {
+    const villager = entities.getEntityById("a") as DestructuringEntity;
+    const metadata = villager.metadata as unknown as {
       position: number[];
       path: { nodes: number[][] };
     };
@@ -434,7 +436,7 @@ describe("Entities resilience with Town-like consumers", () => {
       [1, 1, 1],
       [2, 2, 2],
     ]);
-    expect(town.applied).toContainEqual([4, 5, 6]);
+    expect(villager.applied).toContainEqual([4, 5, 6]);
   });
 });
 
@@ -451,7 +453,7 @@ describe("Entities out-of-order state protection", () => {
     );
 
     const probe = entities.getEntityById("a") as ProbeEntity;
-    expect(probe.metadata!.position).toEqual([10, 0, 0]);
+    expect(probe.metadata?.position).toEqual([10, 0, 0]);
     expect(probe.updateCount).toBe(1);
   });
 
@@ -485,7 +487,7 @@ describe("Entities out-of-order state protection", () => {
     );
     const probe = entities.getEntityById("a") as ProbeEntity;
     expect(probe).toBeDefined();
-    expect(probe.metadata!.name).toBeUndefined();
+    expect(probe.metadata?.name).toBeUndefined();
 
     // The CREATE (older tick, complete snapshot) must still apply — skipping
     // it would leave the entity permanently missing CREATE-only keys.
@@ -508,11 +510,11 @@ describe("Entities out-of-order state protection", () => {
     entities.onMessage(
       entityMessage("UPDATE", "a", { position: [1, 1, 1] }, { tick: 11 }),
     );
-    expect(probe.metadata!.position).toEqual([4, 0, 0]);
+    expect(probe.metadata?.position).toEqual([4, 0, 0]);
     entities.onMessage(
       entityMessage("UPDATE", "a", { position: [6, 0, 0] }, { tick: 13 }),
     );
-    expect(probe.metadata!.position).toEqual([6, 0, 0]);
+    expect(probe.metadata?.position).toEqual([6, 0, 0]);
   });
 
   it("keeps the release watermark monotonic so late lifecycle ticks cannot reopen resurrection", () => {

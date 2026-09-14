@@ -1,4 +1,4 @@
-import { Coords3 } from "../../../types";
+import { Coords2, Coords3 } from "../../../types";
 import { BlockUtils } from "../../../utils/block-utils";
 import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../../utils/light-utils";
@@ -64,9 +64,23 @@ type ModifiedChunk = {
   maxY: number;
 };
 
+/**
+ * A chunk whose light data this job did not touch but whose mesh reads a
+ * voxel it did: the light in a border column belongs to one chunk while the
+ * faces it shades can belong to the chunk next door (a wall's face is lit by
+ * the air in front of it). Only the coordinates and the y-range travel back;
+ * there are no lights to merge, the neighbour just needs remeshing.
+ */
+type BorderNeighbor = {
+  coords: Coords2;
+  minY: number;
+  maxY: number;
+};
+
 class BoundedSpace implements VoxelAccess {
   private chunkCache = new Map<number, RawChunk | null>();
   private modifiedChunks = new Map<number, ModifiedChunk>();
+  private borderNeighbors = new Map<number, BorderNeighbor>();
 
   constructor(
     private chunkGrid: (RawChunk | null)[][],
@@ -107,7 +121,13 @@ class BoundedSpace implements VoxelAccess {
     return chunk;
   }
 
-  private recordModifiedChunk(cx: number, cz: number, vy: number): void {
+  private recordModifiedChunk(
+    cx: number,
+    cz: number,
+    vx: number,
+    vy: number,
+    vz: number,
+  ): void {
     const chunk = this.getCachedChunk(cx, cz);
     if (!chunk) {
       return;
@@ -117,9 +137,36 @@ class BoundedSpace implements VoxelAccess {
     const existing = this.modifiedChunks.get(key);
     if (!existing) {
       this.modifiedChunks.set(key, { chunk, minY: vy, maxY: vy });
-      return;
+    } else {
+      existing.minY = Math.min(existing.minY, vy);
+      existing.maxY = Math.max(existing.maxY, vy);
     }
 
+    // A border voxel shades faces in the adjacent chunk (and, through
+    // vertex light averaging, the diagonal one at a corner). Those meshes
+    // must rebuild even though no light value of theirs moved — the classic
+    // symptom is a torch lighting the floor of its own chunk while the wall
+    // next door, one chunk over, stays black until a reload.
+    const lx = vx - cx * this.chunkSize;
+    const lz = vz - cz * this.chunkSize;
+    const dxs = lx === 0 ? [-1] : lx === this.chunkSize - 1 ? [1] : [];
+    const dzs = lz === 0 ? [-1] : lz === this.chunkSize - 1 ? [1] : [];
+    if (dxs.length === 0 && dzs.length === 0) return;
+    for (const dx of [...dxs, 0]) {
+      for (const dz of [...dzs, 0]) {
+        if (dx === 0 && dz === 0) continue;
+        this.recordBorderNeighbor(cx + dx, cz + dz, vy);
+      }
+    }
+  }
+
+  private recordBorderNeighbor(cx: number, cz: number, vy: number): void {
+    const key = this.hashChunkCoords(cx, cz);
+    const existing = this.borderNeighbors.get(key);
+    if (!existing) {
+      this.borderNeighbors.set(key, { coords: [cx, cz], minY: vy, maxY: vy });
+      return;
+    }
     existing.minY = Math.min(existing.minY, vy);
     existing.maxY = Math.max(existing.maxY, vy);
   }
@@ -164,7 +211,7 @@ class BoundedSpace implements VoxelAccess {
     const chunk = this.getCachedChunk(cx, cz);
     if (chunk) {
       chunk.setSunlight(vx, vy, vz, level);
-      this.recordModifiedChunk(cx, cz, vy);
+      this.recordModifiedChunk(cx, cz, vx, vy, vz);
     }
   }
 
@@ -179,12 +226,19 @@ class BoundedSpace implements VoxelAccess {
     const chunk = this.getCachedChunk(cx, cz);
     if (chunk) {
       chunk.setTorchLight(vx, vy, vz, level, color);
-      this.recordModifiedChunk(cx, cz, vy);
+      this.recordModifiedChunk(cx, cz, vx, vy, vz);
     }
   }
 
   getModifiedChunks(): ModifiedChunk[] {
     return Array.from(this.modifiedChunks.values());
+  }
+
+  /** Border-adjacent chunks to remesh, minus those already modified. */
+  getBorderNeighbors(): BorderNeighbor[] {
+    return Array.from(this.borderNeighbors.entries())
+      .filter(([key]) => !this.modifiedChunks.has(key))
+      .map(([, neighbor]) => neighbor);
   }
 }
 
@@ -628,6 +682,7 @@ onmessage = function (e) {
           minY: chunk.minY,
           maxY: chunk.maxY,
         })),
+        borderNeighbors: space.getBorderNeighbors(),
         appliedDeltas: { lastSequenceId },
       },
       {

@@ -119,6 +119,37 @@ fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
     !submerged.is_empty()
 }
 
+/// One chunk's share of pending writes, see
+/// `Chunks::pending_update_head_report`.
+#[derive(Clone, Debug)]
+pub struct PendingUpdateHeadEntry {
+    pub lane: UpdateLane,
+    /// Waiting in `Chunks::parked_updates` for the chunk's light footprint,
+    /// rather than queued on the lane itself.
+    pub is_parked: bool,
+    pub coords: Vec2<i32>,
+    pub count: usize,
+    /// `Debug` form of the chunk status, or `unloaded` when the chunk is not
+    /// in the map at all.
+    pub status: String,
+    /// Chunks in the light footprint that are not `Ready`; the updating pass
+    /// waits on all of them, not only the target.
+    pub unready_neighbors: usize,
+}
+
+/// A write popped off its lane whose chunk was not ready, waiting in
+/// `Chunks::parked_updates` with the lane it goes back to.
+pub type ParkedUpdate = (Vec3<i32>, u32, UpdateLane);
+
+/// Which queue a pending voxel update drains from. See `Chunks::active_updates`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum UpdateLane {
+    /// Writes from outside the simulation: player edits, methods, commands.
+    External,
+    /// Writes the simulation produced: fluid steps, growth, active tickers.
+    Active,
+}
+
 /// A manager for all chunks in the Voxelize world.
 #[derive(Default)]
 pub struct Chunks {
@@ -130,6 +161,29 @@ pub struct Chunks {
 
     /// Staging area for new voxel updates (deduplicates before flushing to queue).
     pub(crate) updates_staging: HashMap<Vec3<i32>, u32>,
+
+    /// Voxel updates the world's own simulation produced — fluid steps,
+    /// growth, active-block tickers — waiting to be processed. A separate
+    /// lane from `updates` so a spreading lake and a bulk player build each
+    /// drain under their own per-tick budget (`max_updates_per_tick` vs
+    /// `max_active_updates_per_tick`) instead of queueing behind one another:
+    /// on a world budgeted at 100 external writes a tick, one large fill used
+    /// to freeze every fluid in the world for seconds.
+    pub(crate) active_updates: VecDeque<VoxelUpdate>,
+
+    /// Staging area for `active_updates`, deduplicated before flushing.
+    pub(crate) active_updates_staging: HashMap<Vec3<i32>, u32>,
+
+    /// Writes popped for a chunk whose light footprint was not ready, keyed
+    /// by that chunk. They wait here instead of back at the head of their
+    /// lane: handed back to the head, a stuck set larger than the per-tick
+    /// budget is all a tick ever pops, and every write behind it starves for
+    /// as long as the chunk stays unloaded (a 13k-voxel fill straddling one
+    /// unloaded neighbor froze a 4000-a-tick lane outright). Re-admitted to
+    /// the front of their lane, in order, the tick the footprint is ready.
+    /// Counted by `pending_updates_count` and named by
+    /// `pending_update_head_report`, so a park that never empties is visible.
+    pub(crate) parked_updates: HashMap<Vec2<i32>, Vec<ParkedUpdate>>,
 
     /// A list of chunks that are done meshing and ready to be sent.
     pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
@@ -735,24 +789,114 @@ impl Chunks {
     /// committed before the half that depends on it. Random order let the
     /// dependent half commit first and watch its support "missing" for a tick.
     pub fn flush_staged_updates(&mut self) {
-        if self.updates_staging.is_empty() {
-            return;
+        if !self.updates_staging.is_empty() {
+            self.updates
+                .retain(|(v, _)| !self.updates_staging.contains_key(v));
+            // An external write to a voxel supersedes whatever the simulation
+            // still has queued for it: player intent wins, and the fluid or
+            // growth ticker that produced the stale write re-plans from the
+            // committed state on its next tick anyway.
+            self.active_updates
+                .retain(|(v, _)| !self.updates_staging.contains_key(v));
+            self.active_updates_staging
+                .retain(|v, _| !self.updates_staging.contains_key(v));
+            Self::retain_parked(&mut self.parked_updates, |(v, _, _)| {
+                !self.updates_staging.contains_key(v)
+            });
+
+            let mut staged: Vec<(Vec3<i32>, u32)> = self.updates_staging.drain().collect();
+            staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
+            self.updates.extend(staged);
         }
 
-        self.updates
-            .retain(|(v, _)| !self.updates_staging.contains_key(v));
+        if !self.active_updates_staging.is_empty() {
+            self.active_updates
+                .retain(|(v, _)| !self.active_updates_staging.contains_key(v));
+            Self::retain_parked(&mut self.parked_updates, |(v, _, lane)| {
+                *lane != UpdateLane::Active || !self.active_updates_staging.contains_key(v)
+            });
 
-        let mut staged: Vec<(Vec3<i32>, u32)> = self.updates_staging.drain().collect();
-        staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
-
-        for (voxel, val) in staged {
-            self.updates.push_back((voxel, val));
+            let mut staged: Vec<(Vec3<i32>, u32)> =
+                self.active_updates_staging.drain().collect();
+            staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
+            self.active_updates.extend(staged);
         }
+    }
+
+    fn retain_parked(
+        parked: &mut HashMap<Vec2<i32>, Vec<ParkedUpdate>>,
+        mut keep: impl FnMut(&ParkedUpdate) -> bool,
+    ) {
+        for updates in parked.values_mut() {
+            updates.retain(|update| keep(update));
+        }
+        parked.retain(|_, updates| !updates.is_empty());
+    }
+
+    /// Whether writes into `coords` can commit now: the chunk and every chunk
+    /// its light can spill into are `Ready`.
+    pub fn is_update_footprint_ready(&self, coords: &Vec2<i32>) -> bool {
+        self.is_chunk_ready(coords)
+            && self
+                .light_traversed_chunks(coords)
+                .iter()
+                .all(|n| self.is_chunk_ready(n))
+    }
+
+    /// Set aside writes popped for a chunk whose footprint is not ready. See
+    /// `parked_updates`.
+    pub(crate) fn park_updates(&mut self, coords: Vec2<i32>, updates: Vec<ParkedUpdate>) {
+        self.parked_updates
+            .entry(coords)
+            .or_default()
+            .extend(updates);
+    }
+
+    /// Hand parked writes whose chunk footprint has become ready back to the
+    /// front of their lanes, in their original order. Returns how many moved.
+    pub(crate) fn readmit_parked_updates(&mut self) -> usize {
+        let ready: Vec<Vec2<i32>> = self
+            .parked_updates
+            .keys()
+            .filter(|coords| self.is_update_footprint_ready(coords))
+            .cloned()
+            .collect();
+        let mut readmitted = 0;
+        for coords in ready {
+            let Some(updates) = self.parked_updates.remove(&coords) else {
+                continue;
+            };
+            readmitted += updates.len();
+            for (voxel, raw, lane) in updates.into_iter().rev() {
+                self.lane_queue(lane).push_front((voxel, raw));
+            }
+        }
+        readmitted
     }
 
     pub fn update_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {
         for (voxel, val) in voxels {
             self.update_voxel(voxel, *val);
+        }
+    }
+
+    /// Queue a write produced by the world's own simulation (an active
+    /// updater or random tick) on the simulation lane. See `active_updates`.
+    pub fn update_active_voxel(&mut self, voxel: &Vec3<i32>, val: u32) {
+        self.active_updates_staging.insert(voxel.to_owned(), val);
+    }
+
+    pub fn update_active_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {
+        for (voxel, val) in voxels {
+            self.update_active_voxel(voxel, *val);
+        }
+    }
+
+    /// The flushed queue of one lane.
+    pub(crate) fn lane_queue(&mut self, lane: UpdateLane) -> &mut VecDeque<VoxelUpdate> {
+        match lane {
+            UpdateLane::External => &mut self.updates,
+            UpdateLane::Active => &mut self.active_updates,
         }
     }
 
@@ -768,6 +912,12 @@ impl Chunks {
         let previous_count = self.pending_updates_count();
         self.updates_staging.retain(|voxel, _| !is_inside(voxel));
         self.updates.retain(|(voxel, _)| !is_inside(voxel));
+        self.active_updates_staging
+            .retain(|voxel, _| !is_inside(voxel));
+        self.active_updates.retain(|(voxel, _)| !is_inside(voxel));
+        Self::retain_parked(&mut self.parked_updates, |(voxel, _, _)| {
+            !is_inside(voxel)
+        });
         previous_count - self.pending_updates_count()
     }
 
@@ -785,6 +935,30 @@ impl Chunks {
                 && voxel.2 <= max.2
         };
         let mut pending = HashMap::new();
+        // Simulation lane first so an external write to the same voxel is the
+        // one reported, matching the precedence `flush_staged_updates` applies.
+        // Parked writes precede their lane's queue for the same reason: a
+        // later write to the voxel is what would have displaced them.
+        for (voxel, value, lane) in self.parked_updates.values().flatten() {
+            if *lane == UpdateLane::Active && is_inside(voxel) {
+                pending.insert(voxel.clone(), *value);
+            }
+        }
+        for (voxel, value) in &self.active_updates {
+            if is_inside(voxel) {
+                pending.insert(voxel.clone(), *value);
+            }
+        }
+        for (voxel, value) in &self.active_updates_staging {
+            if is_inside(voxel) {
+                pending.insert(voxel.clone(), *value);
+            }
+        }
+        for (voxel, value, lane) in self.parked_updates.values().flatten() {
+            if *lane == UpdateLane::External && is_inside(voxel) {
+                pending.insert(voxel.clone(), *value);
+            }
+        }
         for (voxel, value) in &self.updates {
             if is_inside(voxel) {
                 pending.insert(voxel.clone(), *value);
@@ -837,9 +1011,79 @@ impl Chunks {
         self.active_voxel_set.len()
     }
 
-    /// Number of voxel updates staged or queued but not yet committed.
+    /// Number of voxel updates staged or queued but not yet committed, on
+    /// both the external and the simulation lane.
     pub fn pending_updates_count(&self) -> usize {
-        self.updates.len() + self.updates_staging.len()
+        self.updates.len()
+            + self.updates_staging.len()
+            + self.active_updates.len()
+            + self.active_updates_staging.len()
+            + self.parked_updates_count()
+    }
+
+    /// Simulation-lane share of `pending_updates_count`.
+    pub fn pending_active_updates_count(&self) -> usize {
+        self.active_updates.len()
+            + self.active_updates_staging.len()
+            + self
+                .parked_updates
+                .values()
+                .flatten()
+                .filter(|(_, _, lane)| *lane == UpdateLane::Active)
+                .count()
+    }
+
+    /// Writes waiting in `parked_updates` for a chunk footprint to load.
+    pub fn parked_updates_count(&self) -> usize {
+        self.parked_updates.values().map(Vec::len).sum()
+    }
+
+    /// Where the head of each lane is waiting. The updating pass pops the
+    /// first `budget` entries per tick and hands back any whose chunk (or
+    /// light footprint) is not ready, so a queue whose depth never falls has
+    /// a reason at its head; this names it, per chunk, for the operator.
+    pub fn pending_update_head_report(&self, limit: usize) -> Vec<PendingUpdateHeadEntry> {
+        let mut groups: HashMap<(UpdateLane, bool, Vec2<i32>), usize> = HashMap::new();
+        for (lane, queue) in [
+            (UpdateLane::External, &self.updates),
+            (UpdateLane::Active, &self.active_updates),
+        ] {
+            for (voxel, _) in queue.iter().take(limit) {
+                let coords =
+                    ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, self.config.chunk_size);
+                *groups.entry((lane, false, coords)).or_insert(0) += 1;
+            }
+        }
+        for (coords, updates) in &self.parked_updates {
+            for (_, _, lane) in updates {
+                *groups.entry((*lane, true, coords.clone())).or_insert(0) += 1;
+            }
+        }
+
+        let mut report: Vec<PendingUpdateHeadEntry> = groups
+            .into_iter()
+            .map(|((lane, is_parked, coords), count)| {
+                let status = match self.raw(&coords) {
+                    None => "unloaded".to_owned(),
+                    Some(chunk) => format!("{:?}", chunk.status),
+                };
+                let unready_neighbors = self
+                    .light_traversed_chunks(&coords)
+                    .into_iter()
+                    .filter(|n| !self.is_chunk_ready(n))
+                    .count();
+                PendingUpdateHeadEntry {
+                    lane,
+                    is_parked,
+                    coords,
+                    count,
+                    status,
+                    unready_neighbors,
+                }
+            })
+            .collect();
+        report.sort_by(|a, b| b.count.cmp(&a.count));
+        report
     }
 
     /// Add a chunk to be saved. A world that does not save discards the request
@@ -1208,6 +1452,170 @@ mod pending_update_projection_tests {
         assert_eq!(pending.len(), 2);
         assert_eq!(pending.get(&Vec3(1, 1, 1)), Some(&0));
         assert_eq!(pending.get(&Vec3(2, 2, 2)), Some(&3));
+    }
+}
+
+#[cfg(test)]
+mod update_lane_tests {
+    use super::*;
+    use crate::WorldConfig;
+
+    fn empty_chunks() -> Chunks {
+        Chunks::new(&WorldConfig::new().build())
+    }
+
+    #[test]
+    fn simulation_writes_flush_onto_their_own_lane() {
+        let mut chunks = empty_chunks();
+        chunks.update_voxel(&Vec3(1, 1, 1), 2);
+        chunks.update_active_voxel(&Vec3(5, 1, 1), 7);
+        chunks.update_active_voxel(&Vec3(5, 0, 1), 7);
+        chunks.flush_staged_updates();
+
+        assert_eq!(chunks.updates.len(), 1);
+        assert_eq!(chunks.active_updates.len(), 2);
+        // Bottom-up like the external lane, so a cut batch never commits a
+        // dependent half before its support.
+        assert_eq!(chunks.active_updates.front(), Some(&(Vec3(5, 0, 1), 7)));
+        assert_eq!(chunks.pending_updates_count(), 3);
+        assert_eq!(chunks.pending_active_updates_count(), 2);
+    }
+
+    #[test]
+    fn an_external_write_supersedes_queued_simulation_writes_to_the_same_voxel() {
+        let mut chunks = empty_chunks();
+        chunks.update_active_voxel(&Vec3(1, 1, 1), 7);
+        chunks.flush_staged_updates();
+        chunks.update_active_voxel(&Vec3(2, 1, 1), 7);
+        chunks.update_voxel(&Vec3(1, 1, 1), 3);
+        chunks.update_voxel(&Vec3(2, 1, 1), 3);
+        chunks.flush_staged_updates();
+
+        assert!(chunks.active_updates.is_empty());
+        assert_eq!(chunks.updates.len(), 2);
+        let pending = chunks.pending_updates_in_bounds(&Vec3(0, 0, 0), &Vec3(5, 5, 5));
+        assert_eq!(pending.get(&Vec3(1, 1, 1)), Some(&3));
+        assert_eq!(pending.get(&Vec3(2, 1, 1)), Some(&3));
+    }
+
+    #[test]
+    fn a_newer_simulation_write_replaces_its_own_queued_predecessor_only() {
+        let mut chunks = empty_chunks();
+        chunks.update_voxel(&Vec3(1, 1, 1), 3);
+        chunks.update_active_voxel(&Vec3(1, 1, 1), 7);
+        chunks.flush_staged_updates();
+        chunks.update_active_voxel(&Vec3(1, 1, 1), 8);
+        chunks.flush_staged_updates();
+
+        assert_eq!(chunks.updates.front(), Some(&(Vec3(1, 1, 1), 3)));
+        assert_eq!(chunks.active_updates.len(), 1);
+        assert_eq!(chunks.active_updates.front(), Some(&(Vec3(1, 1, 1), 8)));
+        // The external word is the one reported: it commits last.
+        let pending = chunks.pending_updates_in_bounds(&Vec3(0, 0, 0), &Vec3(5, 5, 5));
+        assert_eq!(pending.get(&Vec3(1, 1, 1)), Some(&3));
+    }
+
+    #[test]
+    fn cancelling_a_region_clears_both_lanes() {
+        let mut chunks = empty_chunks();
+        chunks.update_active_voxel(&Vec3(1, 1, 1), 7);
+        chunks.update_active_voxel(&Vec3(10, 1, 1), 7);
+        chunks.flush_staged_updates();
+        chunks.update_active_voxel(&Vec3(2, 2, 2), 7);
+        chunks.update_voxel(&Vec3(3, 3, 3), 3);
+
+        let removed = chunks.cancel_pending_updates_in_bounds(&Vec3(0, 0, 0), &Vec3(5, 5, 5));
+
+        assert_eq!(removed, 3);
+        assert_eq!(chunks.pending_updates_count(), 1);
+        assert_eq!(chunks.active_updates.front(), Some(&(Vec3(10, 1, 1), 7)));
+    }
+
+    fn insert_ready_chunk(chunks: &mut Chunks, cx: i32, cz: i32) {
+        let config = chunks.config.clone();
+        let mut chunk = crate::Chunk::new(
+            "test",
+            cx,
+            cz,
+            &crate::ChunkOptions {
+                size: config.chunk_size,
+                max_height: config.max_height,
+                sub_chunks: config.sub_chunks,
+            },
+        );
+        chunk.status = ChunkStatus::Ready;
+        chunks.map.insert(Vec2(cx, cz), chunk);
+    }
+
+    #[test]
+    fn parked_writes_stay_counted_and_return_in_order_once_the_footprint_is_ready() {
+        let mut chunks = empty_chunks();
+        let parked = vec![
+            (Vec3(1, 0, 1), 2, UpdateLane::External),
+            (Vec3(1, 1, 1), 3, UpdateLane::External),
+            (Vec3(2, 0, 1), 7, UpdateLane::Active),
+        ];
+        chunks.park_updates(Vec2(0, 0), parked);
+        chunks.update_voxel(&Vec3(40, 1, 1), 5);
+        chunks.flush_staged_updates();
+
+        // Nothing in the lanes for chunk (0,0), so its writes cannot occupy
+        // a tick's budget; they are still pending and still visible.
+        assert_eq!(chunks.updates.len(), 1);
+        assert_eq!(chunks.pending_updates_count(), 4);
+        assert_eq!(chunks.pending_active_updates_count(), 1);
+        assert_eq!(chunks.parked_updates_count(), 3);
+        assert_eq!(chunks.readmit_parked_updates(), 0);
+        let report = chunks.pending_update_head_report(100);
+        let parked_entry = report
+            .iter()
+            .find(|entry| entry.is_parked && entry.lane == UpdateLane::External)
+            .expect("parked external writes are reported");
+        assert_eq!(parked_entry.count, 2);
+        assert_eq!(parked_entry.status, "unloaded");
+
+        // A newer external write to a parked voxel supersedes it, on either
+        // lane, exactly as it would a queued one.
+        chunks.update_voxel(&Vec3(2, 0, 1), 9);
+        chunks.flush_staged_updates();
+        assert_eq!(chunks.parked_updates_count(), 2);
+
+        let extended = (chunks.config.max_light_level as f32 / chunks.config.chunk_size as f32)
+            .ceil() as i32;
+        for cx in -extended..=extended {
+            for cz in -extended..=extended {
+                insert_ready_chunk(&mut chunks, cx, cz);
+            }
+        }
+        assert!(chunks.is_update_footprint_ready(&Vec2(0, 0)));
+        assert_eq!(chunks.readmit_parked_updates(), 2);
+        assert_eq!(chunks.parked_updates_count(), 0);
+        // Ahead of the write that was already queued, in their original order.
+        let queued: Vec<_> = chunks.updates.iter().cloned().collect();
+        assert_eq!(
+            queued,
+            vec![(Vec3(1, 0, 1), 2), (Vec3(1, 1, 1), 3), (Vec3(40, 1, 1), 5), (Vec3(2, 0, 1), 9)]
+        );
+    }
+
+    #[test]
+    fn cancelling_a_region_clears_parked_writes_too() {
+        let mut chunks = empty_chunks();
+        chunks.park_updates(
+            Vec2(0, 0),
+            vec![
+                (Vec3(1, 1, 1), 2, UpdateLane::External),
+                (Vec3(9, 1, 1), 2, UpdateLane::External),
+            ],
+        );
+
+        let removed = chunks.cancel_pending_updates_in_bounds(&Vec3(0, 0, 0), &Vec3(5, 5, 5));
+
+        assert_eq!(removed, 1);
+        assert_eq!(chunks.parked_updates_count(), 1);
+        let pending = chunks.pending_updates_in_bounds(&Vec3(0, 0, 0), &Vec3(20, 5, 5));
+        assert_eq!(pending.get(&Vec3(9, 1, 1)), Some(&2));
+        assert_eq!(pending.get(&Vec3(1, 1, 1)), None);
     }
 }
 

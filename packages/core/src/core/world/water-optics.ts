@@ -122,11 +122,14 @@ export const WATER_OPTICS = Object.freeze({
    * Drawing-buffer pixel count above which the refraction capture turns
    * itself off. The capture is a mid-render-pass framebuffer copy, which on
    * tile-based GPUs splits the pass and pays a full store + reload of the
-   * framebuffer. The desktop renderer is capped just below this line, so
-   * ordinary high-resolution play keeps refraction against a bounded buffer;
-   * uncapped capture sessions skip the copy once it would scale with output.
+   * framebuffer. Measured: fine at 7.5M pixels, 33ms frames at 14.7M. The
+   * line sits just above a native Retina laptop (1728x1080 at 2x = 7.5M) so
+   * ordinary high-density play keeps its refraction; 4K-at-2x and capture
+   * sessions skip the copy once it would scale with output. Evaluated
+   * against the live buffer every frame, so a render scale that steps a
+   * huge display down far enough brings the capture back.
    */
-  refractionMaxDrawingBufferPixels: 3_800_000,
+  refractionMaxDrawingBufferPixels: 8_000_000,
 
   /**
    * Distance band (blocks) over which the medium wave octave of the water
@@ -174,6 +177,10 @@ export const WATER_OPTICS = Object.freeze({
     { direction: [0.8, 0.6], frequency: 0.32, speed: 0.25, slope: 0.11 },
     { direction: [-0.6, 0.8], frequency: 0.58, speed: -0.18, slope: 0.07 },
     { direction: [0.7, -0.7], frequency: 1.4, speed: 0.45, slope: 0.045 },
+    // Fine ripple octave (~2-block wavelength). Fades with the ripple band:
+    // it exists to break the reflection up close, where a flat sheet over
+    // ground reads as a tint rather than a surface.
+    { direction: [-0.3, -0.95], frequency: 3.1, speed: -0.6, slope: 0.03 },
   ],
   surfaceRippleWaves: [
     { direction: [1.0, 0.35], frequency: 1.8, speed: 0.9 },
@@ -181,21 +188,70 @@ export const WATER_OPTICS = Object.freeze({
   ],
 
   /**
-   * Vertical water faces seen from air (tank walls, the side of a column)
-   * are not a lake surface. Fluids draw DoubleSide and do not write depth,
-   * so the near face, its back, and the far wall of a volume otherwise
-   * stack into a milky pane. These scales fade that lake treatment at
-   * head-on incidence; grazing angles keep more of it so a waterfall edge
-   * still reads as water. Underwater viewing is untouched (`airSideFace`
-   * is 0 while submerged).
+   * Standing water over ground, as seen from above through its surface.
+   * The refraction sample is the floor of the column, so it takes the
+   * floor's optics rather than reading as the dry ground it was a moment
+   * before the water arrived:
+   *
+   * - Beer-Lambert absorption over the down-and-back light path, as
+   *   `floorAbsorptionPathScale` blocks of extinction per block of water,
+   *   using the same per-channel table as everything else. Depth is capped
+   *   at `floorAbsorptionMaxDepth`: past that the water-exposed floor's own
+   *   fog already carries the deep look, and stacking both went black.
+   * - A flat wet-surface darkening (`wetFloorDarken`) so the shoreline
+   *   reads even under a film too thin to absorb anything — wet stone is
+   *   darker than dry stone, and that boundary is the strongest cue that
+   *   there is water here at all.
+   * - The water's own in-scatter growing with thickness, at
+   *   `shallowScatterDensity` per block up to `shallowScatterMaxMix` of the
+   *   surface color, so a two-block pool is visibly more water than a
+   *   spreading edge a tenth of a block deep.
+   */
+  floorAbsorptionPathScale: 1.6,
+  floorAbsorptionMaxDepth: 4,
+  wetFloorDarken: 0.8,
+  shallowScatterDensity: 0.5,
+  shallowScatterMaxMix: 0.35,
+
+  /**
+   * Caustics on the floor: bright where the surface is locally flat and
+   * acts as a lens, read off the same analytic slope field that shapes the
+   * normal so the light moves with the ripples it belongs to. A slope of
+   * `causticLensSlope` or more is fully dark. They fade with depth as real
+   * caustics blur (`causticDepthFalloff` per block), with sun and shadow,
+   * and with the ripple distance band.
+   */
+  causticStrength: 0.35,
+  causticLensSlope: 0.1,
+  causticDepthFalloff: 0.7,
+
+  /**
+   * Opacity floor of a water face. With the refraction capture live the
+   * shader composites the floor itself, so whatever alpha leaves to the
+   * blend only shows the dry ground through the water again and dilutes
+   * every cue above. Without the capture the surface is a plain tinted
+   * layer and keeps more of the ground visible through it.
+   */
+  surfaceAlphaFloor: 0.58,
+  refractedSurfaceAlphaFloor: 0.8,
+
+  /**
+   * A vertical water face pressed against a see-through solid (a Barrier or
+   * glass tank wall) is a window pane, not a lake surface. Fluids draw
+   * DoubleSide and do not write depth, so the near pane, its back, and the
+   * far wall of a tank otherwise stack into a milky sheet. These scales fade
+   * the lake treatment on panes at head-on incidence; grazing angles keep
+   * more of it. The mesher marks panes (`FLUID_PANE_BIT`); a vertical face
+   * against open air — the front of a spreading flow, a waterfall, a leak's
+   * edge — is the water's own surface and never takes this treatment.
+   * Underwater viewing is untouched (`airSideFace` is 0 while submerged).
    */
   airSideFaceAlphaScale: 0.42,
   airSideFaceGlossScale: 0.0,
   airSideFaceTintMix: 0.85,
   /**
-   * Head-on cosine above which an air-side vertical face is not drawn at
-   * all. A Barrier tank window is a wall you look straight at; a waterfall
-   * edge is seen at a graze and stays below this cutoff.
+   * Head-on cosine above which a pane is not drawn at all. A Barrier tank
+   * window is a wall you look straight at; it is supposed to be a hole.
    */
   airSideFaceCullCos: 0.7,
 

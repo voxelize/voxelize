@@ -107,6 +107,79 @@ describe("air-side vertical water faces", () => {
     expect(fragment).toContain(WATER_OPTICS.airSideFaceGlossScale.toFixed(4));
     expect(fragment).toContain(WATER_OPTICS.airSideFaceTintMix.toFixed(4));
   });
+
+  it("applies the window treatment only to faces the mesher flagged as panes", () => {
+    const { vertex, fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // Bit 19 is the greedy flag on a solid vertex and the pane flag on a
+    // fluid one; both decodes must come from the same bit.
+    expect(vertex).toContain("#define FLUID_PANE_SHIFT 19");
+    expect(vertex).toContain("#define GREEDY_SHIFT 19");
+    expect(vertex).toContain("int isGreedy = bit19 & (1 - isFluid);");
+    expect(vertex).toContain("int isFluidPane = bit19 & isFluid;");
+    // A wall against air keeps the lake shading: the fade, tint, and
+    // head-on discard all hang off airSideFace, which the pane flag gates.
+    expect(fragment).toContain(
+      "float airSideFace = sideWaterFace * (1.0 - uCameraSubmersion) * vIsFluidPane;",
+    );
+  });
+});
+
+describe("standing water over ground", () => {
+  it("keeps the floor optics inside physical bounds", () => {
+    expect(WATER_OPTICS.floorAbsorptionPathScale).toBeGreaterThan(0);
+    expect(WATER_OPTICS.floorAbsorptionMaxDepth).toBeGreaterThan(0);
+    expect(WATER_OPTICS.wetFloorDarken).toBeGreaterThan(0);
+    expect(WATER_OPTICS.wetFloorDarken).toBeLessThanOrEqual(1);
+    expect(WATER_OPTICS.shallowScatterDensity).toBeGreaterThan(0);
+    expect(WATER_OPTICS.shallowScatterMaxMix).toBeGreaterThanOrEqual(0);
+    expect(WATER_OPTICS.shallowScatterMaxMix).toBeLessThan(1);
+    expect(WATER_OPTICS.causticStrength).toBeGreaterThanOrEqual(0);
+    expect(WATER_OPTICS.causticLensSlope).toBeGreaterThan(0);
+    expect(WATER_OPTICS.causticDepthFalloff).toBeGreaterThan(0);
+    // The refracted composite owns the floor, so it may be more opaque than
+    // the plain tinted layer, never less.
+    expect(WATER_OPTICS.surfaceAlphaFloor).toBeGreaterThan(0);
+    expect(WATER_OPTICS.refractedSurfaceAlphaFloor).toBeGreaterThanOrEqual(
+      WATER_OPTICS.surfaceAlphaFloor,
+    );
+    expect(WATER_OPTICS.refractedSurfaceAlphaFloor).toBeLessThanOrEqual(1);
+    expect(WATER_OPTICS.surfaceNormalWaves).toHaveLength(4);
+  });
+
+  it("compiles the floor optics into the fluid shader from the shared table", () => {
+    const { vertex, fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // Thickness under the surface comes from the rest position plus the
+    // mesher's below-count, so the wave cannot jump it by a block.
+    expect(vertex).toContain(
+      "vFluidDepthBelow = float(isFluid) * (restWorldPosition.y - fluidVoxelY + stackIndexF);",
+    );
+    expect(fragment).toContain("vec3 floorTransmit = exp(");
+    expect(fragment).toContain(WATER_DOWNWELLING_EXTINCTION_GLSL);
+    expect(fragment).toContain(
+      WATER_OPTICS.floorAbsorptionPathScale.toFixed(4),
+    );
+    expect(fragment).toContain(WATER_OPTICS.floorAbsorptionMaxDepth.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.wetFloorDarken.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.shallowScatterDensity.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.shallowScatterMaxMix.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.causticStrength.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.causticLensSlope.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.causticDepthFalloff.toFixed(4));
+    expect(fragment).toContain(WATER_OPTICS.surfaceAlphaFloor.toFixed(4));
+    expect(fragment).toContain(
+      WATER_OPTICS.refractedSurfaceAlphaFloor.toFixed(4),
+    );
+    // The floor shading rides the refraction sample; caustics land on the
+    // surface layer when there is no capture to shade.
+    expect(fragment).toContain(
+      "texture2D(uSceneColor, refractedUv).rgb * floorShade;",
+    );
+    expect(fragment).toContain("causticLens = 1.0 - smoothstep(");
+    // Caustics only where the sun reaches the surface.
+    expect(fragment).toContain(
+      "float causticLight = shadow * sunExposure * uSunlightIntensity;",
+    );
+  });
 });
 
 describe("ABOVE_SURFACE_WATER_FOG_FRAGMENT", () => {

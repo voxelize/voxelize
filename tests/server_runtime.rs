@@ -380,10 +380,10 @@ async fn engine_routes_compose_with_custom_middleware_and_routes() {
 
     let app = test::init_service(
         App::new()
-            .wrap(middleware::DefaultHeaders::new().add(("x-town-middleware", "on")))
+            .wrap(middleware::DefaultHeaders::new().add(("x-host-middleware", "on")))
             .configure(handle.configure())
             .route(
-                "/town/profile",
+                "/host/profile",
                 web::get().to(|| async { HttpResponse::Ok().json(json!({ "profiling": true })) }),
             ),
     )
@@ -392,12 +392,12 @@ async fn engine_routes_compose_with_custom_middleware_and_routes() {
     // The custom route works and passes through the custom middleware.
     let response = test::call_service(
         &app,
-        test::TestRequest::get().uri("/town/profile").to_request(),
+        test::TestRequest::get().uri("/host/profile").to_request(),
     )
     .await;
     assert_eq!(response.status().as_u16(), 200);
     assert_eq!(
-        response.headers().get("x-town-middleware").unwrap(),
+        response.headers().get("x-host-middleware").unwrap(),
         "on",
         "custom middleware wraps custom routes"
     );
@@ -410,7 +410,7 @@ async fn engine_routes_compose_with_custom_middleware_and_routes() {
         test::call_service(&app, test::TestRequest::get().uri("/health").to_request()).await;
     assert_eq!(response.status().as_u16(), 503);
     assert_eq!(
-        response.headers().get("x-town-middleware").unwrap(),
+        response.headers().get("x-host-middleware").unwrap(),
         "on",
         "custom middleware wraps engine routes"
     );
@@ -423,10 +423,10 @@ async fn engine_routes_compose_with_custom_middleware_and_routes() {
 /// route, static asset, SPA index, and an unmatched path falling through to
 /// the static fallback — all through custom middleware.
 const COMPOSED_SURFACE: [(&str, u16, Option<&str>); 5] = [
-    ("/town/profile", 200, Some("profiling")),
+    ("/host/profile", 200, Some("profiling")),
     ("/health", 503, Some("\"ready\":false")),
     ("/assets/app.js", 200, Some("console.log")),
-    ("/", 200, Some("town spa")),
+    ("/", 200, Some("host spa")),
     // Unmatched non-file paths fall through to the static fallback and 404
     // (the SPA entry is served at "/"; no history-API fallback).
     ("/no/such/route", 404, None),
@@ -444,29 +444,29 @@ async fn static_fallback_never_shadows_engine_or_adapter_routes() {
         std::thread::current().id()
     ));
     std::fs::create_dir_all(dir.join("assets")).expect("temp static dir");
-    std::fs::write(dir.join("index.html"), "<html>town spa</html>").unwrap();
-    std::fs::write(dir.join("assets").join("app.js"), "console.log(\"town\");").unwrap();
+    std::fs::write(dir.join("index.html"), "<html>host spa</html>").unwrap();
+    std::fs::write(dir.join("assets").join("app.js"), "console.log(\"host\");").unwrap();
 
     let server = Server::new().debug(false).build();
     let handle =
         VoxelizeHandle::new(server.start()).with_serve(dir.to_str().expect("utf-8 temp path"));
 
-    let town_profile = || async { HttpResponse::Ok().json(json!({ "profiling": true })) };
+    let host_profile = || async { HttpResponse::Ok().json(json!({ "profiling": true })) };
 
     // Documented order: adapter route registered AFTER configure — the exact
     // arrangement a root-mounted static service would have shadowed. Then
     // the opposite order: the contract holds both ways.
     let route_after = test::init_service(
         App::new()
-            .wrap(middleware::DefaultHeaders::new().add(("x-town-middleware", "on")))
+            .wrap(middleware::DefaultHeaders::new().add(("x-host-middleware", "on")))
             .configure(handle.configure())
-            .route("/town/profile", web::get().to(town_profile)),
+            .route("/host/profile", web::get().to(host_profile)),
     )
     .await;
     let route_before = test::init_service(
         App::new()
-            .wrap(middleware::DefaultHeaders::new().add(("x-town-middleware", "on")))
-            .route("/town/profile", web::get().to(town_profile))
+            .wrap(middleware::DefaultHeaders::new().add(("x-host-middleware", "on")))
+            .route("/host/profile", web::get().to(host_profile))
             .configure(handle.configure()),
     )
     .await;
@@ -483,7 +483,7 @@ async fn static_fallback_never_shadows_engine_or_adapter_routes() {
                 order
             );
             assert_eq!(
-                response.headers().get("x-town-middleware").unwrap(),
+                response.headers().get("x-host-middleware").unwrap(),
                 "on",
                 "custom middleware must wrap {} (route registered {} configure)",
                 uri,

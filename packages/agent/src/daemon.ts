@@ -225,6 +225,11 @@ const actSchema = z.discriminatedUnion("type", [
     type: z.literal("break-voxel"),
     pos: vec3Schema,
   }),
+  z.object({
+    type: z.literal("place-voxel"),
+    pos: vec3Schema,
+    block: z.union([z.string(), z.number()]),
+  }),
   z.object({ type: z.literal("wait"), ms: z.number() }),
   z.object({
     type: z.literal("wait-for-chunks"),
@@ -381,8 +386,8 @@ export class AgentDaemon {
     const reason = isFresh
       ? null
       : snapshot === null
-      ? `bridge unreachable: ${failureMessage ?? "unknown"}`
-      : describeStaleConnection(snapshot);
+        ? `bridge unreachable: ${failureMessage ?? "unknown"}`
+        : describeStaleConnection(snapshot);
 
     if (isFresh && wasStale) {
       const staleForMs =
@@ -1643,6 +1648,8 @@ export class AgentDaemon {
         return this.agent.call(action.method, action.payload);
       case "break-voxel":
         return this.agent.breakVoxel(action.pos);
+      case "place-voxel":
+        return this.agent.placeVoxel(action.pos, action.block);
       case "wait":
         await new Promise((r) => setTimeout(r, action.ms));
         return { waited: action.ms };

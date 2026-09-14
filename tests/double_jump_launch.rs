@@ -1,7 +1,7 @@
 //! Regression test: two behavior drivers operating one brain in the same
 //! tick must charge at most one jump impulse.
 //!
-//! In the town dispatcher, `WalkTowardsSystem` and `WanderingSystem` both call
+//! In a game dispatcher, `WalkTowardsSystem` and `WanderingSystem` both call
 //! `brain.operate()` on the same land animal in the same tick, before
 //! `PhysicsSystem` integrates. Resting flags only update when physics runs, so
 //! the second call still reads the pre-takeoff ground contact. `operate()`

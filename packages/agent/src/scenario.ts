@@ -30,11 +30,45 @@ export type BlockInfo = {
   yRotation: number;
 };
 
+/**
+ * The server methods an arena drives. The SDK owns this contract: a host
+ * server implements these five methods under the default names, or maps
+ * them to its own through `ArenaOptions.methods`. Nothing here assumes a
+ * particular game's block set or world.
+ *
+ * - `fill`: `{ min, max, block, rotation?, yRotation?, stage? }` writes a box
+ *   of one block (name or "air").
+ * - `spawn`: `{ kind, position, scenarioId, metadata?, waterSeekChance? }`
+ *   creates a scenario-owned entity.
+ * - `despawn`: `{ scenarioId }` removes every entity the scenario spawned.
+ * - `forceWaterSeek`: `{ scenarioId }` pushes the scenario's entities into
+ *   their water-seeking behaviour.
+ * - `announce`: `{ name, arenaIndex, event }` broadcasts a scenario
+ *   lifecycle marker for observers.
+ */
+export type ArenaMethodNames = {
+  fill: string;
+  spawn: string;
+  despawn: string;
+  forceWaterSeek: string;
+  announce: string;
+};
+
+export const DEFAULT_ARENA_METHODS: ArenaMethodNames = {
+  fill: "test:fill",
+  spawn: "test:spawn",
+  despawn: "test:despawn",
+  forceWaterSeek: "test:force-water-seek",
+  announce: "test:announce",
+};
+
 export type ArenaOptions = {
   agentUrl?: string;
   index?: number;
   size?: Vec3Tuple;
   scenarioId?: string;
+  /** Host method names, when the server does not use the defaults. */
+  methods?: Partial<ArenaMethodNames>;
 };
 
 export type SpawnOptions = {
@@ -99,12 +133,14 @@ export class Arena {
   public readonly index: number;
   public readonly size: Vec3Tuple;
   public readonly scenarioId: string;
+  public readonly methods: ArenaMethodNames;
 
   constructor(opts: ArenaOptions = {}) {
     this.agentUrl = opts.agentUrl ?? DEFAULT_AGENT_URL;
     this.index = opts.index ?? 0;
     this.size = opts.size ?? DEFAULT_ARENA_SIZE;
     this.scenarioId = opts.scenarioId ?? randomScenarioId();
+    this.methods = { ...DEFAULT_ARENA_METHODS, ...opts.methods };
   }
 
   get origin(): Vec3Tuple {
@@ -139,7 +175,7 @@ export class Arena {
       stage?: number;
     } = {},
   ): Promise<void> {
-    await this.call("test:fill", {
+    await this.call(this.methods.fill, {
       min: this.worldPos(min),
       max: this.worldPos(max),
       block,
@@ -168,10 +204,11 @@ export class Arena {
     const max = MAX_ARENA_FOOTPRINT;
     // The ceiling must clear the tallest thing a scenario can build: a
     // cage() lid sits at rel size[1] - 1, which for tall arenas is above
-    // the flat WIPE_Y_ABOVE — leaving an invisible Barrier lid floating
-    // over the slot for every later scenario (found the hard way).
+    // the flat WIPE_Y_ABOVE — leaving a lid (invisible, when the cage block
+    // is see-through) floating over the slot for every later scenario
+    // (found the hard way).
     const wipeTop = Math.max(WIPE_Y_ABOVE, this.size[1] + 1);
-    await this.call("test:fill", {
+    await this.call(this.methods.fill, {
       min: [ox - WIPE_PAD, oy - WIPE_Y_BELOW, oz - WIPE_PAD],
       max: [ox + max + WIPE_PAD, oy + wipeTop, oz + max + WIPE_PAD],
       block: "air",
@@ -194,23 +231,25 @@ export class Arena {
     if (opts.waterSeekChance !== undefined) {
       payload.waterSeekChance = opts.waterSeekChance;
     }
-    await this.call("test:spawn", payload);
+    await this.call(this.methods.spawn, payload);
     return new EntityHandle(this, kind, rel);
   }
 
   async despawn(): Promise<void> {
-    await this.call("test:despawn", { scenarioId: this.scenarioId });
+    await this.call(this.methods.despawn, { scenarioId: this.scenarioId });
   }
 
   async forceWaterSeek(): Promise<void> {
-    await this.call("test:force-water-seek", { scenarioId: this.scenarioId });
+    await this.call(this.methods.forceWaterSeek, {
+      scenarioId: this.scenarioId,
+    });
   }
 
   async announce(
     name: string,
     event: "start" | "pass" | "fail",
   ): Promise<void> {
-    await this.call("test:announce", {
+    await this.call(this.methods.announce, {
       name,
       arenaIndex: this.index,
       event,

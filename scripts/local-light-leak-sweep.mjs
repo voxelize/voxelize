@@ -5,16 +5,16 @@
  * ratio, and quality tiers — the regression class where mounted lights
  * poured giant colored patches across roofs under top-down cameras.
  *
- * Geometry note, stated plainly: this engine repo cannot load Town's
- * `shaoruu` world, so the harness builds a deterministic EQUIVALENT — a
+ * Geometry note, stated plainly: this engine repo cannot load the reporting
+ * game's production world, so the harness builds a deterministic EQUIVALENT — a
  * fully sealed marble box (floor, four walls, roof) with ceiling-mounted
  * cyan and magenta shadow-requesting lamps inside — and reproduces the
  * reported camera RELATIVELY. The user repro was camera
  * (-0.654, 44.744, 1.867) looking at (-0.321, 28.751, 1.491): offset
  * (-0.333, +15.993, +0.376) from its focus, direction (0.021, -1, -0.024),
  * yaw -41.501°, pitch -88.2°. The harness anchors that exact offset and
- * direction at the box's interior focus. The Town companion MUST still run
- * the absolute camera against the real hub before rollout:
+ * direction at the box's interior focus. The game-side companion MUST still
+ * run the absolute camera against the real world before rollout:
  * `pnpm agent view -0.654 44.744 1.867 -0.321 28.751 1.491` at Off vs each
  * tier, and require the same bounded deltas asserted here.
  *
@@ -51,7 +51,9 @@ const cachedChrome = () => {
   }
   return globSync(
     join(homedir(), ".cache/puppeteer/chrome/*/chrome-linux64/chrome"),
-  ).sort().pop();
+  )
+    .sort()
+    .pop();
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -135,12 +137,18 @@ await settle();
 
 // Representative sealed mounted lights: pure cyan + magenta hero lamps.
 await bench("setProfile", "Azure Lamp", {
-  color: [0, 1, 1], intensity: 1.5, range: 14,
-  analyticShare: 0.85, shadowPolicy: "shadowMap",
+  color: [0, 1, 1],
+  intensity: 1.5,
+  range: 14,
+  analyticShare: 0.85,
+  shadowPolicy: "shadowMap",
 });
 await bench("setProfile", "Ember Lamp", {
-  color: [1, 0, 1], intensity: 1.5, range: 14,
-  analyticShare: 0.85, shadowPolicy: "shadowMap",
+  color: [1, 0, 1],
+  intensity: 1.5,
+  range: 14,
+  analyticShare: 0.85,
+  shadowPolicy: "shadowMap",
 });
 
 // Build the sealed box: floor, roof, four walls, two ceiling-mounted lamps.
@@ -186,47 +194,51 @@ const capture = async (name) => {
 // image-decoding dependency. ROI: central 60% x 55% band — sealed roof or
 // sealed exterior only, clear of the hotbar; the HUD panel is toggled off.
 const roiDelta = (base64A, base64B) =>
-  page.evaluate(async (a64, b64) => {
-    const decode = (b64src) =>
-      new Promise((resolve) => {
-        const image = new Image();
-        image.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = image.width;
-          canvas.height = image.height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(image, 0, 0);
-          resolve(ctx.getImageData(0, 0, image.width, image.height));
-        };
-        image.src = `data:image/png;base64,${b64src}`;
-      });
-    const a = await decode(a64);
-    const b = await decode(b64);
-    const x0 = Math.floor(a.width * 0.2);
-    const x1 = Math.floor(a.width * 0.8);
-    const y0 = Math.floor(a.height * 0.2);
-    const y1 = Math.floor(a.height * 0.75);
-    const deltas = [];
-    let sum = 0;
-    for (let y = y0; y < y1; y++) {
-      for (let x = x0; x < x1; x++) {
-        const i = (y * a.width + x) * 4;
-        const d =
-          (Math.abs(a.data[i] - b.data[i]) +
-            Math.abs(a.data[i + 1] - b.data[i + 1]) +
-            Math.abs(a.data[i + 2] - b.data[i + 2])) /
-          3;
-        deltas.push(d);
-        sum += d;
+  page.evaluate(
+    async (a64, b64) => {
+      const decode = (b64src) =>
+        new Promise((resolve) => {
+          const image = new Image();
+          image.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.width;
+            canvas.height = image.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(image, 0, 0);
+            resolve(ctx.getImageData(0, 0, image.width, image.height));
+          };
+          image.src = `data:image/png;base64,${b64src}`;
+        });
+      const a = await decode(a64);
+      const b = await decode(b64);
+      const x0 = Math.floor(a.width * 0.2);
+      const x1 = Math.floor(a.width * 0.8);
+      const y0 = Math.floor(a.height * 0.2);
+      const y1 = Math.floor(a.height * 0.75);
+      const deltas = [];
+      let sum = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * a.width + x) * 4;
+          const d =
+            (Math.abs(a.data[i] - b.data[i]) +
+              Math.abs(a.data[i + 1] - b.data[i + 1]) +
+              Math.abs(a.data[i + 2] - b.data[i + 2])) /
+            3;
+          deltas.push(d);
+          sum += d;
+        }
       }
-    }
-    deltas.sort((lhs, rhs) => lhs - rhs);
-    return {
-      mean: sum / deltas.length,
-      p99: deltas[Math.floor(deltas.length * 0.99)],
-      max: deltas[deltas.length - 1],
-    };
-  }, base64A, base64B);
+      deltas.sort((lhs, rhs) => lhs - rhs);
+      return {
+        mean: sum / deltas.length,
+        p99: deltas[Math.floor(deltas.length * 0.99)],
+        max: deltas[deltas.length - 1],
+      };
+    },
+    base64A,
+    base64B,
+  );
 
 const MEAN_LIMIT = 2.0;
 const P99_LIMIT = 6.0;
@@ -240,7 +252,11 @@ const runConfig = async ({ label, pitch, altitude, viewport, tier }) => {
     pitch === "user" ? USER_DIRECTION : directionForPitch(pitch);
   const camera =
     altitude === "user"
-      ? [FOCUS[0] + USER_OFFSET[0], FOCUS[1] + USER_OFFSET[1], FOCUS[2] + USER_OFFSET[2]]
+      ? [
+          FOCUS[0] + USER_OFFSET[0],
+          FOCUS[1] + USER_OFFSET[1],
+          FOCUS[2] + USER_OFFSET[2],
+        ]
       : [FOCUS[0], FOCUS[1] + altitude, FOCUS[2]];
   await bench("teleport", ...camera);
   await sleep(900);

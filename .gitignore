@@ -24,3 +24,6 @@ yarn-error.log
 # local perf capture output
 .artifacts/
 .staging/
+
+# vite writes a transient copy of its config next to the original while loading it
+*.timestamp-*.mjs

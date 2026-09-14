@@ -1258,3 +1258,233 @@ fn greedy_quads_carry_emissive_bits() {
     }
     assert!(packed_lights > 0, "the glowstone meshed nothing");
 }
+
+/// A vertical fluid face is drawn as a tank window only when it presses
+/// against a see-through solid. Against air it is the water's own surface
+/// and must carry no pane flag, or a spreading flow's edge walls fade and
+/// drop out head-on, leaving its top face floating unconnected. The pane
+/// flag rides the greedy bit, which a fluid face never otherwise sets.
+#[test]
+fn a_fluid_wall_is_a_pane_only_against_a_see_through_solid() {
+    const WATER_ID: u32 = 2;
+    const GLASS_ID: u32 = 3;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let glass = Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        transparent_standalone: true,
+        faces: six_faces(),
+        ..plain_block(GLASS_ID, "Glass")
+    };
+
+    let mut registry = Registry::new(vec![(0, air), (WATER_ID, water.clone()), (GLASS_ID, glass)]);
+    registry.build_cache();
+
+    // Water at the origin with glass on +x and air everywhere else.
+    let space = SparseSpace::new(&[((0, 0, 0), (WATER_ID, 0)), ((1, 0, 0), (GLASS_ID, 0))]);
+    let faces = create_fluid_faces(0, 0, 0, WATER_ID, &space, &water.faces, &registry);
+    let lights_of = |name: &str| {
+        let face = faces
+            .iter()
+            .find(|face| face.name == name)
+            .unwrap_or_else(|| panic!("fluid meshing emits a {name} face"));
+        mesh_single_face(&water, face, &registry, &space)
+    };
+
+    let against_glass = lights_of("px");
+    assert!(
+        !against_glass.is_empty() && against_glass.iter().all(|l| l & FLUID_PANE_BIT != 0),
+        "the wall against glass is a pane: {against_glass:?}",
+    );
+    for name in ["nx", "pz", "nz"] {
+        let against_air = lights_of(name);
+        assert!(
+            !against_air.is_empty() && against_air.iter().all(|l| l & FLUID_PANE_BIT == 0),
+            "the {name} wall against air is the water's own surface, not a pane: {against_air:?}",
+        );
+    }
+    assert!(
+        lights_of("py").iter().all(|l| l & FLUID_PANE_BIT == 0),
+        "only vertical faces can be panes",
+    );
+}
+
+/// A sparse world: any voxel not listed is air.
+struct SparseSpace {
+    voxels: HashMap<(i32, i32, i32), (u32, u32)>,
+}
+
+impl SparseSpace {
+    fn new(voxels: &[((i32, i32, i32), (u32, u32))]) -> Self {
+        Self {
+            voxels: voxels.iter().copied().collect(),
+        }
+    }
+}
+
+impl VoxelAccess for SparseSpace {
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.voxels.get(&(vx, vy, vz)).map_or(0, |(id, _)| *id)
+    }
+
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.get_voxel(vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+        BlockRotation::PY(0.0)
+    }
+
+    fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_voxel_waterlogged(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+        false
+    }
+
+    fn get_voxel_fluid_level(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.voxels
+            .get(&(vx, vy, vz))
+            .map_or(0, |(_, level)| *level)
+    }
+
+    fn get_sunlight(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        15
+    }
+
+    fn get_torch_light(&self, _vx: i32, _vy: i32, _vz: i32, _color: LightColor) -> u32 {
+        0
+    }
+
+    fn get_all_lights(&self, _vx: i32, _vy: i32, _vz: i32) -> (u32, u32, u32, u32) {
+        (15, 0, 0, 0)
+    }
+
+    fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+        4
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        vx.abs() <= 2 && vz.abs() <= 2 && (-1..=3).contains(&vy)
+    }
+}
+
+/// The `+x +z` corner of the water surface at the origin, as meshed.
+fn water_pxpz_corner_height(space: &SparseSpace, water: &Block, registry: &Registry) -> f32 {
+    let faces = create_fluid_faces(0, 0, 0, water.id, space, &water.faces, registry);
+    let top = faces
+        .iter()
+        .find(|face| face.name == "py")
+        .expect("fluid meshing emits a top face");
+    let corner = top
+        .corners
+        .iter()
+        .find(|corner| corner.pos[0] == 1.0 && corner.pos[2] == 1.0)
+        .expect("the top face has a +x +z corner");
+    corner.pos[1] + fluid::FLUID_SURFACE_OFFSET
+}
+
+/// The diagonal voxel across a corner only shares a vertical edge with this
+/// one; the surface reaches it through one of the two side voxels. With
+/// both sides solid the diagonal is walled off, and its water must not be
+/// read through the wall — that dragged a still pond's corner down toward a
+/// lower-stage pool on the far side of two placed planks, and pulled it up
+/// to a full block when a deeper pool stood there.
+#[test]
+fn a_fluid_corner_ignores_the_diagonal_walled_off_by_two_solid_sides() {
+    const WATER_ID: u32 = 2;
+    const PLANKS_ID: u32 = 3;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let planks = Block {
+        is_opaque: true,
+        ..plain_block(PLANKS_ID, "Planks")
+    };
+
+    let mut registry = Registry::new(vec![
+        (0, air),
+        (WATER_ID, water.clone()),
+        (PLANKS_ID, planks),
+    ]);
+    registry.build_cache();
+
+    let source = fluid::get_fluid_effective_height(0);
+    let shallow_stage = 3;
+    let shallow = fluid::get_fluid_effective_height(shallow_stage);
+    assert!(
+        shallow < source,
+        "the far pool has to sit lower for the pull to show"
+    );
+
+    let walled_off = SparseSpace::new(&[
+        ((0, 0, 0), (WATER_ID, 0)),
+        ((1, 0, 0), (PLANKS_ID, 0)),
+        ((0, 0, 1), (PLANKS_ID, 0)),
+        ((1, 0, 1), (WATER_ID, shallow_stage)),
+    ]);
+    assert!(
+        (water_pxpz_corner_height(&walled_off, &water, &registry) - source).abs() < 1e-5,
+        "two solid sides wall the diagonal off: the corner keeps this voxel's own height",
+    );
+
+    let deep_beyond = SparseSpace::new(&[
+        ((0, 0, 0), (WATER_ID, 0)),
+        ((1, 0, 0), (PLANKS_ID, 0)),
+        ((0, 0, 1), (PLANKS_ID, 0)),
+        ((1, 0, 1), (WATER_ID, 0)),
+        ((1, 1, 1), (WATER_ID, 0)),
+    ]);
+    assert!(
+        (water_pxpz_corner_height(&deep_beyond, &water, &registry) - source).abs() < 1e-5,
+        "a deeper pool past two solid sides must not hoist the corner to a full block",
+    );
+
+    let one_side_open = SparseSpace::new(&[
+        ((0, 0, 0), (WATER_ID, 0)),
+        ((1, 0, 0), (PLANKS_ID, 0)),
+        ((1, 0, 1), (WATER_ID, shallow_stage)),
+    ]);
+    assert!(
+        (water_pxpz_corner_height(&one_side_open, &water, &registry) - (source + shallow) / 2.0)
+            .abs()
+            < 1e-5,
+        "with a side open the diagonal is reachable and still averages in",
+    );
+
+    let spill_over_a_side = SparseSpace::new(&[
+        ((0, 0, 0), (WATER_ID, 0)),
+        ((1, 0, 0), (PLANKS_ID, 0)),
+        ((1, 1, 0), (WATER_ID, 0)),
+        ((0, 0, 1), (PLANKS_ID, 0)),
+    ]);
+    assert!(
+        (water_pxpz_corner_height(&spill_over_a_side, &water, &registry) - 1.0).abs() < 1e-5,
+        "water standing on a side neighbour still spills onto the corner",
+    );
+}

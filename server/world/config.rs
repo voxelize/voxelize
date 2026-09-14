@@ -51,6 +51,13 @@ pub struct WorldConfig {
     /// Maximum voxel updates to be processed per tick. Default is 1000 voxels.
     pub max_updates_per_tick: usize,
 
+    /// Maximum simulation-produced voxel updates (fluid steps, growth,
+    /// active-block tickers) to commit per tick. These drain on their own
+    /// lane, so a world that budgets external edits tightly (a shared world
+    /// throttling bulk builds) still lets its water flow at full cadence.
+    /// Default is 50000, i.e. effectively unbounded.
+    pub max_active_updates_per_tick: usize,
+
     /// Subchunk random-tick sampler rate: each loaded/interested
     /// 16x16x(section) subchunk samples this many random positions per world
     /// tick and, if the block is `is_random_tickable`, schedules its
@@ -234,6 +241,7 @@ const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 // written when the drain was unbounded, so nothing ever ran at 4.
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 64;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 50000;
+const DEFAULT_MAX_ACTIVE_UPDATES_PER_TICK: usize = 50000;
 /// Three random-tick samples per 16^3 subchunk section per world tick.
 const DEFAULT_RANDOM_TICK_SPEED: usize = 3;
 const DEFAULT_MAX_RANDOM_TICKS_PER_TICK: usize = 2048;
@@ -281,6 +289,7 @@ pub struct WorldConfigBuilder {
     max_light_level: u32,
     max_chunks_per_tick: usize,
     max_updates_per_tick: usize,
+    max_active_updates_per_tick: usize,
     random_tick_speed: usize,
     max_random_ticks_per_tick: usize,
     max_response_per_tick: usize,
@@ -334,6 +343,7 @@ impl WorldConfigBuilder {
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
             max_chunks_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
             max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
+            max_active_updates_per_tick: DEFAULT_MAX_ACTIVE_UPDATES_PER_TICK,
             random_tick_speed: DEFAULT_RANDOM_TICK_SPEED,
             max_random_ticks_per_tick: DEFAULT_MAX_RANDOM_TICKS_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
@@ -444,6 +454,14 @@ impl WorldConfigBuilder {
     /// Configure the maximum amount of voxel updates to be processed per tick. Default is 1000 voxel updates.
     pub fn max_updates_per_tick(mut self, max_updates_per_tick: usize) -> Self {
         self.max_updates_per_tick = max_updates_per_tick;
+        self
+    }
+
+    /// Configure the per-tick budget for simulation-produced voxel updates
+    /// (fluids, growth, active tickers), which drain on their own lane.
+    /// Default is 50000.
+    pub fn max_active_updates_per_tick(mut self, max_active_updates_per_tick: usize) -> Self {
+        self.max_active_updates_per_tick = max_active_updates_per_tick;
         self
     }
 
@@ -701,6 +719,7 @@ impl WorldConfigBuilder {
             max_light_level: self.max_light_level,
             max_chunks_per_tick: self.max_chunks_per_tick,
             max_updates_per_tick: self.max_updates_per_tick,
+            max_active_updates_per_tick: self.max_active_updates_per_tick,
             random_tick_speed: self.random_tick_speed,
             max_random_ticks_per_tick: self.max_random_ticks_per_tick,
             max_response_per_tick: self.max_response_per_tick,

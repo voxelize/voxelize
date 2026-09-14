@@ -4,7 +4,7 @@ mod saver;
 use crate::MetadataComp;
 
 /// Metadata key that marks an entity as owned by a test scenario (stamped by
-/// `test:spawn`-style methods). Scenario entities are live-only: they spawn
+/// a host's scenario spawn method). Scenario entities are live-only: they spawn
 /// and despawn normally, but persisting them would litter the world save
 /// with one orphaned JSON file per test run, so `spawn_entity_with_metadata`
 /// hands them a `DoNotPersistComp` and the saving system never sees them.

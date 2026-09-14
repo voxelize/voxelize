@@ -433,6 +433,10 @@ export type WorldMemoryCounters = {
   meshInFlightJobs: number;
   loadedChunks: number;
   lightJobHighWaterChunks: number;
+  /** Cumulative since world init; difference two reads for a window. */
+  blockUpdatesApplied: number;
+  lightSeedsAnalyzed: number;
+  lightJobsScheduled: number;
 };
 
 /**
@@ -512,6 +516,33 @@ export type RenderStats = {
   loadedChunks: number;
   renderRadius: number;
   /**
+   * The ratio the renderer is actually drawing at, against the display's
+   * own. When the two disagree the frame is being upscaled by the browser,
+   * which is what "the game looks soft" reduces to.
+   */
+  renderPixelRatio: number;
+  devicePixelRatio: number;
+  drawingBufferWidth: number;
+  drawingBufferHeight: number;
+  /**
+   * Rolling window (recent frames) of frame cost, read from the client's
+   * own frame loop: the interval between frames and the main-thread time
+   * each frame's JS took. `renderScale` is the adaptive multiplier the
+   * client is applying on top of the display's pixel ratio (1 = native).
+   * The interval is capped by the tab's refresh rate, so on a 60Hz display
+   * it reads ~16.7ms for a cheap frame too; main-thread time is the number
+   * that still says what the frame cost. Null when the client does not
+   * report it.
+   */
+  frameCost: {
+    samples: number;
+    frameIntervalAvgMs: number;
+    mainThreadAvgMs: number;
+    mainThreadP95Ms: number;
+    mainThreadMaxMs: number;
+    renderScale: number;
+  } | null;
+  /**
    * Cumulative main-thread cost of applying finished mesh results
    * (`World.buildChunkMesh`): call count, total/max milliseconds, and the
    * geometry attribute bytes applied. Difference two reads for a window.
@@ -590,6 +621,18 @@ export interface AgentBridge {
       afterId: number;
     } & CommandDispatch
   >;
+  /**
+   * The player's own placement path: an optimistic client-sourced
+   * `updateVoxels` (local relight + remesh, then the UPDATE packet the
+   * server echoes back), exactly what a right-click in creative does. A
+   * server-side fill method never exercises this path, so this is the one
+   * that reproduces prediction-side light and mesh bugs. `block` is a name
+   * or id.
+   */
+  placeVoxel(
+    pos: Vec3,
+    block: string | number,
+  ): Promise<{ beforeId: number; afterId: number; blockId: number }>;
   /**
    * Raw per-voxel light channels as the client currently holds them —
    * sunlight plus the three torch colors, with the voxel id for context.

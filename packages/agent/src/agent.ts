@@ -734,6 +734,19 @@ export class Agent {
     );
   }
 
+  async placeVoxel(
+    pos: Vec3,
+    block: string | number,
+  ): Promise<{ beforeId: number; afterId: number; blockId: number }> {
+    return this.withPageTimeout("placeVoxel", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(
+        (p, b) => window.__agentRequired__().placeVoxel(p, b),
+        pos,
+        block,
+      ),
+    );
+  }
+
   async lightAt(pos: Vec3): Promise<{
     sunlight: number;
     red: number;
@@ -1056,8 +1069,9 @@ export class Agent {
 
     // Resize only for the duration of this capture. Joining/loading at 4K
     // under software WebGL makes every frame so expensive that heavy worlds
-    // (e.g. large town hubs) starve the network/chunk pipeline and the agent
-    // stalls or disconnects. Loading at the lightweight default viewport and
+    // (dense builds, large render radii) starve the network/chunk pipeline
+    // and the agent stalls or disconnects. Loading at the lightweight default
+    // viewport and
     // paying for high resolution only inside this window avoids that.
     await this.setViewportAndAwaitPaint(captureViewport);
     try {

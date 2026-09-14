@@ -218,8 +218,8 @@ pub fn setup_methods(world: &mut World) {
     // The replication stress scenario: `count` deterministic wanderers
     // orbiting around the given position, moving smoothly every tick with
     // zero physics cost. Each carries ~700 bytes of static text metadata to
-    // mirror the incident shape (Town fauna carry heavy game JSON that the
-    // whole-map staging used to resend on every position change).
+    // mirror the incident shape (production fauna carry heavy game JSON that
+    // the whole-map staging used to resend on every position change).
     // Non-persistent by design so stress runs are repeatable.
     world.set_method_handle("spawn-fauna", |world, _, payload| {
         let data: SpawnFaunaPayload = serde_json::from_str(&payload).unwrap();

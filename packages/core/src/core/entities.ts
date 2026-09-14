@@ -372,8 +372,8 @@ export class Entities extends Group implements NetIntercept {
           // do. Constructing from a partial snapshot hands game
           // callbacks metadata missing the keys they iterate
           // (position, direction, ...) — the exact shape that broke
-          // Town clients. Partial state waits for the reliable
-          // CREATE.
+          // game clients in production. Partial state waits for the
+          // reliable CREATE.
           if (!metadata || metadata.position === undefined) {
             return;
           }

@@ -36,7 +36,8 @@ use smallvec::SmallVec;
 
 use crate::channels::{ChannelField, ChannelPoint, ChannelProfile};
 
-/// Town-authored geology: every knob that shapes the planet lives here.
+/// The generator's geology: every knob that shapes the planet lives here,
+/// authored by the game that ships the world rather than baked into stages.
 #[derive(Debug, Clone, Serialize)]
 pub struct GeologySpec {
     pub salt: SaltPath,

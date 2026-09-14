@@ -182,8 +182,8 @@ fn deterministic_world_accepts_exact_protocol() {
 
 #[test]
 fn non_deterministic_world_ignores_protocol() {
-    // Existing Town clients send no protocol field; a non-deterministic
-    // world must accept them exactly as before (opt-in only).
+    // Existing clients send no protocol field; a non-deterministic world
+    // must accept them exactly as before (opt-in only).
     actix::System::new().block_on(async {
         let mut server = build_server_with_world();
         let (sender, _rx) = fake_socket();

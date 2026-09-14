@@ -5,8 +5,9 @@ import path from "node:path";
 // reboots (/tmp does not). The daemon and the scenario runner both run with
 // the repo as their working directory (agent-session.mjs spawns the daemon
 // with cwd = repo root; scenarios run via `pnpm tsx tests/<name>.ts`).
-// Mirrored by resolveCaptureDir() in town's scripts/agent.mjs for the
-// CLI-side sc/screenshot writes.
+// A host CLI that writes captures of its own (screenshot commands outside
+// the daemon) should resolve the directory the same way so both land in one
+// place.
 export const CAPTURE_DIR_ENV_VAR = "AGENT_CAPTURE_DIR";
 
 export const DEFAULT_CAPTURE_BASE_SEGMENTS = ["screenshots", "dev"] as const;

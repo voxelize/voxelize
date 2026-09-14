@@ -5,10 +5,10 @@ use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect, WriteStorage};
 
 use crate::{
-    beer_lambert_transmit, sample_random_ticks, BlockUtils, ChunkInterests, ChunkUtils, Chunks,
-    ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode,
-    Lights, Mesher, Message, MessageQueues, MessageType, MetadataComp, Registry, Stats,
-    UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker, WaterloggingRules,
+    beer_lambert_transmit, record_profile, sample_random_ticks, BlockUtils, ChunkInterests,
+    ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp,
+    LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType, MetadataComp,
+    Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker,
     WorldConfig,
 };
 
@@ -210,67 +210,84 @@ fn schedule_active(chunks: &mut Chunks, voxel: &Vec3<i32>, delay: u64, current_t
     chunks.mark_voxel_active(voxel, delay.saturating_add(current_tick));
 }
 
-struct ActiveOverlay<'a> {
-    chunks: &'a Chunks,
-    updates: &'a HashMap<Vec3<i32>, u32>,
-}
+/// The writes one tick's worth of active updaters want to make, keyed by
+/// target voxel. Every updater reads the *pre-tick* world and proposes into
+/// this plan; nothing commits until the whole due list has run. See
+/// [`offer_planned_update`] for how two proposals to one cell are settled.
+type ActivePlan = HashMap<Vec3<i32>, u32>;
 
-impl VoxelAccess for ActiveOverlay<'_> {
-    fn waterlogging_rules(&self) -> Option<&WaterloggingRules> {
-        self.chunks.waterlogging_rules()
-    }
-
-    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        self.updates
-            .get(&Vec3(vx, vy, vz))
-            .copied()
-            .unwrap_or_else(|| self.chunks.get_raw_voxel(vx, vy, vz))
-    }
-
-    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        self.chunks.get_raw_light(vx, vy, vz)
-    }
-
-    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
-        self.chunks.get_max_height(vx, vz)
-    }
-
-    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        self.chunks.contains(vx, vy, vz)
-    }
-}
-
-fn apply_active_updates(
+/// Run the active updater(s) of `voxel` against the committed world and
+/// record what they propose.
+///
+/// Updaters used to read through an overlay of the tick's earlier writes,
+/// so an updater's result depended on where its cell sorted in the due
+/// list: a cell planned after its neighbor saw that neighbor's new level,
+/// a cell planned before it did not. Water ran a half-step ahead along one
+/// diagonal and behind along the other, and any bug reproduced only with
+/// the exact same due order. Reading committed state makes every updater
+/// in a tick see the same world, whatever order they run in.
+fn plan_active_updates(
     chunks: &Chunks,
-    overlay: &mut HashMap<Vec3<i32>, u32>,
+    plan: &mut ActivePlan,
     registry: &Registry,
     voxel: &Vec3<i32>,
 ) {
-    let updates = {
-        let space = ActiveOverlay {
-            chunks,
-            updates: overlay,
-        };
-        let id = space.get_voxel(voxel.0, voxel.1, voxel.2);
-        let block = registry.get_block_by_id(id);
-        let mut updates = Vec::new();
-        if let Some(updater) = &block.active_updater {
-            updates.extend(updater(voxel.clone(), &space, registry));
-        }
-        if space.get_voxel_waterlogged(voxel.0, voxel.1, voxel.2) {
-            if let Some(fluid) = registry.waterlogging_fluid() {
-                if fluid.id != id {
-                    if let Some(updater) = &fluid.active_updater {
-                        updates.extend(updater(voxel.clone(), &space, registry));
-                    }
+    let id = chunks.get_voxel(voxel.0, voxel.1, voxel.2);
+    let block = registry.get_block_by_id(id);
+    let mut updates = Vec::new();
+    if let Some(updater) = &block.active_updater {
+        updates.extend(updater(voxel.clone(), chunks, registry));
+    }
+    if chunks.get_voxel_waterlogged(voxel.0, voxel.1, voxel.2) {
+        if let Some(fluid) = registry.waterlogging_fluid() {
+            if fluid.id != id {
+                if let Some(updater) = &fluid.active_updater {
+                    updates.extend(updater(voxel.clone(), chunks, registry));
                 }
             }
         }
-        updates
-    };
+    }
 
     for (position, raw) in updates {
-        overlay.insert(position, raw);
+        offer_planned_update(plan, registry, position, raw);
+    }
+}
+
+/// Whether a voxel word carries fluid, either as a fluid block or as the
+/// waterlogged state of another block.
+fn holds_fluid(registry: &Registry, raw: u32) -> bool {
+    BlockUtils::extract_waterlogged(raw)
+        || registry
+            .get_block_by_id(BlockUtils::extract_id(raw))
+            .is_fluid
+}
+
+/// Settle a proposal against whatever the plan already holds for `position`.
+///
+/// Two updaters proposing into one cell in the same tick is the normal case
+/// for fluids: every wet neighbor of an air cell offers to fill it. With an
+/// overlay the last one in sort order silently won, so the fill level a cell
+/// received depended on the sort key rather than the physics. Here fluid
+/// keeps the fullest level offered (lowest stage: a source beside a trickle
+/// wins), which is also what the cell would converge to a tick later, so the
+/// commit is one step ahead instead of one step oscillated. Anything that is
+/// not a fluid-versus-fluid disagreement keeps the first proposal, which in
+/// (x, y, z) due order is deterministic.
+fn offer_planned_update(plan: &mut ActivePlan, registry: &Registry, position: Vec3<i32>, raw: u32) {
+    let Some(&existing) = plan.get(&position) else {
+        plan.insert(position, raw);
+        return;
+    };
+
+    if !holds_fluid(registry, existing) || !holds_fluid(registry, raw) {
+        return;
+    }
+    if BlockUtils::extract_id(existing) != BlockUtils::extract_id(raw) {
+        return;
+    }
+
+    if BlockUtils::extract_fluid_level(raw) < BlockUtils::extract_fluid_level(existing) {
+        plan.insert(position, raw);
     }
 }
 
@@ -367,36 +384,49 @@ fn process_pending_updates(
     registry: &Registry,
     current_tick: u64,
     max_updates: usize,
+    max_active_updates: usize,
 ) -> Vec<UpdateProtocol> {
     let mut results = vec![];
     let max_height = config.max_height as i32;
     let max_light_level = config.max_light_level;
 
     chunks.flush_staged_updates();
+    chunks.readmit_parked_updates();
 
-    if chunks.updates.is_empty() {
+    if chunks.updates.is_empty() && chunks.active_updates.is_empty() {
         return results;
     }
 
-    let total_updates = chunks.updates.len();
-    let num_to_process = max_updates.min(total_updates);
+    // Phase timings land in the generation profiler's 30s summary so a slow
+    // tick can be read off the log instead of guessed at.
+    let phase_started = std::time::Instant::now();
 
-    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> = HashMap::new();
+    // Each lane pops under its own budget. The simulation lane goes first so
+    // that when a player and the simulation both touch one voxel in the same
+    // tick, the player's word is the one committed last and therefore kept.
+    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, UpdateLane)>> =
+        HashMap::new();
+    let lanes = [
+        (UpdateLane::Active, max_active_updates),
+        (UpdateLane::External, max_updates),
+    ];
+    for (lane, budget) in lanes {
+        let num_to_process = budget.min(chunks.lane_queue(lane).len());
+        for _ in 0..num_to_process {
+            let (voxel, raw) = chunks.lane_queue(lane).pop_front().unwrap();
+            let Vec3(vx, vy, vz) = voxel;
 
-    for _ in 0..num_to_process {
-        let (voxel, raw) = chunks.updates.pop_front().unwrap();
-        let Vec3(vx, vy, vz) = voxel;
+            let updated_id = BlockUtils::extract_id(raw);
+            if vy < 0 || vy >= config.max_height as i32 || !registry.has_type(updated_id) {
+                continue;
+            }
 
-        let updated_id = BlockUtils::extract_id(raw);
-        if vy < 0 || vy >= config.max_height as i32 || !registry.has_type(updated_id) {
-            continue;
+            let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
+            updates_by_chunk
+                .entry(coords)
+                .or_insert_with(Vec::new)
+                .push((voxel, raw, lane));
         }
-
-        let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
-        updates_by_chunk
-            .entry(coords)
-            .or_insert_with(Vec::new)
-            .push((voxel, raw));
     }
 
     let mut removed_light_sources = Vec::new();
@@ -410,26 +440,17 @@ fn process_pending_updates(
     let mut neighbor_voxels: HashSet<Vec3<i32>> = HashSet::new();
 
     for (coords, chunk_updates) in updates_by_chunk {
-        if !chunks.is_chunk_ready(&coords) {
-            for (voxel, raw) in chunk_updates.into_iter().rev() {
-                chunks.updates.push_front((voxel, raw));
-            }
+        if !chunks.is_update_footprint_ready(&coords) {
+            // Parked, not pushed back to the head of the lane: a chunk that
+            // is still loading keeps its writes (in order, on their lane)
+            // without letting them eat the budget every tick and starve
+            // every write behind them. `readmit_parked_updates` at the top
+            // of this pass returns them the tick the footprint is ready.
+            chunks.park_updates(coords, chunk_updates);
             continue;
         }
 
-        let neighbors_ready = chunks
-            .light_traversed_chunks(&coords)
-            .iter()
-            .all(|n| chunks.is_chunk_ready(n));
-
-        if !neighbors_ready {
-            for (voxel, raw) in chunk_updates.into_iter().rev() {
-                chunks.updates.push_front((voxel, raw));
-            }
-            continue;
-        }
-
-        for (voxel, raw) in chunk_updates {
+        for (voxel, raw, _lane) in chunk_updates {
             let Vec3(vx, vy, vz) = voxel;
             let raw = resolve_waterlogging(&*chunks, registry, &voxel, raw);
             let updated_id = BlockUtils::extract_id(raw);
@@ -454,7 +475,7 @@ fn process_pending_updates(
                 removed_light_sources.push((voxel.clone(), current_type.clone()));
             }
 
-            processed_updates.push((voxel.clone(), raw, current_id, updated_id));
+            processed_updates.push((voxel.clone(), raw, current_raw, current_id, updated_id));
 
             let rotation = BlockUtils::extract_rotation(raw);
             let stage = BlockUtils::extract_stage(raw);
@@ -600,6 +621,9 @@ fn process_pending_updates(
         }
     }
 
+    record_profile("update: writes + tickers", phase_started.elapsed());
+    let phase_started = std::time::Instant::now();
+
     // Removals across the whole batch are collected first and executed as one
     // BFS per color. Removing per voxel re-floods each removal from neighbors
     // whose light is stale (they are later updates in the same batch), which
@@ -641,7 +665,7 @@ fn process_pending_updates(
     let mut blue_flood = VecDeque::new();
     let mut sun_flood = VecDeque::new();
 
-    for (voxel, raw, current_id, updated_id) in processed_updates {
+    for (voxel, raw, current_raw, current_id, updated_id) in processed_updates {
         let Vec3(vx, vy, vz) = voxel;
 
         let current_type = registry.get_block_by_id(current_id);
@@ -657,12 +681,31 @@ fn process_pending_updates(
         }
 
         let rotation = BlockUtils::extract_rotation(raw);
-        let current_transparency = current_type.get_rotated_transparency(&rotation);
+        let current_rotation = BlockUtils::extract_rotation(current_raw);
+        let current_transparency = current_type.get_rotated_transparency(&current_rotation);
         let updated_transparency = if updated_type.rotatable || updated_type.y_rotatable {
             updated_type.get_rotated_transparency(&rotation)
         } else {
             updated_type.is_transparent
         };
+
+        // Light only ever reads four things about a voxel: whether it is
+        // opaque, which faces let light through, how much it attenuates, and
+        // what it emits. When none of those changed, the light field is
+        // already exactly what a removal and reflood would recompute, so
+        // skip both. This is what makes fluids cheap: a level change, or
+        // air becoming non-attenuating water, used to tear down the cell's
+        // whole sunlight column and flood it back to the same values — one
+        // BFS per cell per step, the dominant cost of a spreading lake.
+        // The client light analysis (`analyzeLightOperations`) mirrors this.
+        let light_invariant = current_type.is_opaque == updated_type.is_opaque
+            && current_type.light_attenuation == updated_type.light_attenuation
+            && current_transparency == updated_transparency
+            && !current_is_light
+            && !updated_is_light;
+        if light_invariant {
+            continue;
+        }
 
         if updated_type.is_opaque || updated_type.light_attenuation > 0 {
             if chunks.get_sunlight(vx, vy, vz) != 0 {
@@ -979,6 +1022,9 @@ fn process_pending_updates(
         );
     }
 
+    record_profile("update: light", phase_started.elapsed());
+    let phase_started = std::time::Instant::now();
+
     if !chunks.cache.is_empty() {
         let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
 
@@ -1009,8 +1055,11 @@ fn process_pending_updates(
             let chunk = chunks.raw(&coords).unwrap().to_owned();
             processes.push((chunk, space));
         }
+        record_profile("update: build spaces", phase_started.elapsed());
+        let phase_started = std::time::Instant::now();
 
         mesher.process(processes, &MessageType::Update, registry, config);
+        record_profile("update: mesher.process", phase_started.elapsed());
     }
 
     results
@@ -1055,16 +1104,22 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         let current_tick = stats.tick as u64;
         let max_updates_per_tick = config.max_updates_per_tick;
+        let max_active_updates_per_tick = config.max_active_updates_per_tick;
 
         chunks.clear_cache();
 
-        // Active updaters run against a shared logical overlay: later
-        // updaters see earlier state changes (water cascade semantics), while
-        // lighting, persistence, replication, and remeshing flush once.
-        let mut active_overlay = HashMap::new();
+        // Plan, then commit. Every due updater reads the committed world and
+        // proposes into one plan; the plan is queued on the simulation lane
+        // and commits below, so lighting, persistence, replication, and
+        // remeshing still flush once per tick.
+        let plan_started = std::time::Instant::now();
+        let mut plan = ActivePlan::new();
         let due_voxels = collect_due_active_voxels(&mut chunks, current_tick);
         for voxel in &due_voxels {
-            apply_active_updates(&chunks, &mut active_overlay, &registry, voxel);
+            plan_active_updates(&chunks, &mut plan, &registry, voxel);
+        }
+        if !due_voxels.is_empty() {
+            record_profile("update: plan active", plan_started.elapsed());
         }
 
         // Subchunk random-tick sampler (plants). Runs AFTER the
@@ -1076,12 +1131,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         let random_due = collect_due_active_voxels(&mut chunks, current_tick);
         for voxel in &random_due {
-            apply_active_updates(&chunks, &mut active_overlay, &registry, voxel);
+            plan_active_updates(&chunks, &mut plan, &registry, voxel);
         }
 
-        let mut active_updates = active_overlay.into_iter().collect::<Vec<_>>();
+        let mut active_updates = plan.into_iter().collect::<Vec<_>>();
         active_updates.sort_by_key(|(voxel, _)| (voxel.0, voxel.1, voxel.2));
-        chunks.update_voxels(&active_updates);
+        chunks.update_active_voxels(&active_updates);
 
         let all_results = process_pending_updates(
             &mut chunks,
@@ -1093,6 +1148,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             &registry,
             current_tick,
             max_updates_per_tick,
+            max_active_updates_per_tick,
         );
 
         if !all_results.is_empty() {

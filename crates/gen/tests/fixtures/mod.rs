@@ -739,7 +739,7 @@ pub fn geology_fixture_spec() -> GeneratorSpec {
 }
 
 /// The heightfield fixture with walker rivers, a riparian flora set, and
-/// the ecology field — the lane-world composition Town's savannah and
+/// the ecology field — the lane-world composition a production savannah and
 /// coastline run.
 pub fn walker_fixture_spec() -> GeneratorSpec {
     let mut spec = fixture_spec();

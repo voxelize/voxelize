@@ -101,29 +101,75 @@ pub(super) fn get_fluid_height_at<S: VoxelAccess>(
     }
 }
 
+/// Whether the voxel at this horizontal offset walls a corner in: it holds
+/// none of the fluid and is not air, so the surface can neither continue
+/// through it nor be seen past it.
+fn walls_corner<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    [dx, dz]: [i32; 2],
+    fluid_id: u32,
+    is_waterlogging: bool,
+    space: &S,
+    registry: &Registry,
+) -> bool {
+    if voxel_holds_fluid(vx + dx, vy, vz + dz, fluid_id, is_waterlogging, space) {
+        return false;
+    }
+    registry
+        .get_block_by_id(space.get_voxel(vx + dx, vy, vz + dz))
+        .is_some_and(|block| !block.is_empty)
+}
+
+/// The height of one corner of a fluid voxel's surface. `corner_offsets` are
+/// the three other voxels sharing that corner, ordered `[side, side,
+/// diagonal]`.
+///
+/// The diagonal only meets this voxel along a vertical edge; the surface
+/// reaches it by wrapping around the corner through one of the two sides.
+/// When both sides are walled the diagonal is cut off, and it must drop out
+/// of every check here — otherwise a pool two blocks over, seen through two
+/// solid blocks, drags this corner down to its stage or hoists it up to a
+/// surface standing above it.
 pub(super) fn calculate_fluid_corner_height<S: VoxelAccess>(
     vx: i32,
     vy: i32,
     vz: i32,
-    corner_x: i32,
-    corner_z: i32,
     corner_offsets: &[[i32; 2]; 3],
     fluid_id: u32,
     is_waterlogging: bool,
     space: &S,
     registry: &Registry,
 ) -> f32 {
-    let upper_check_offsets: [[i32; 2]; 4] = [
-        [corner_x - 1, corner_z - 1],
-        [corner_x - 1, corner_z],
-        [corner_x, corner_z - 1],
-        [corner_x, corner_z],
-    ];
+    let [side_a, side_b, _diagonal] = *corner_offsets;
+    let walls = |offset: [i32; 2]| {
+        walls_corner(
+            vx,
+            vy,
+            vz,
+            offset,
+            fluid_id,
+            is_waterlogging,
+            space,
+            registry,
+        )
+    };
+    let diagonal_connected = !(walls(side_a) && walls(side_b));
+    let neighbors = if diagonal_connected {
+        &corner_offsets[..]
+    } else {
+        &corner_offsets[..2]
+    };
 
-    for [dx, dz] in upper_check_offsets {
-        if voxel_holds_fluid(vx + dx, vy + 1, vz + dz, fluid_id, is_waterlogging, space) {
-            return 1.0;
-        }
+    // Fluid standing on any voxel that shares this corner spills onto it, so
+    // the corner is a full block high regardless of the stages below.
+    if has_fluid_above(vx, vy, vz, fluid_id, is_waterlogging, space)
+        || neighbors
+            .iter()
+            .any(|[dx, dz]| has_fluid_above(vx + dx, vy, vz + dz, fluid_id, is_waterlogging, space))
+    {
+        return 1.0;
     }
 
     let self_height = get_fluid_effective_height(space.get_voxel_fluid_level(vx, vy, vz));
@@ -133,14 +179,11 @@ pub(super) fn calculate_fluid_corner_height<S: VoxelAccess>(
     let mut has_air_neighbor = false;
     let mut has_solid_neighbor = false;
 
-    for [dx, dz] in corner_offsets {
+    for [dx, dz] in neighbors {
         let nx = vx + dx;
         let nz = vz + dz;
 
-        if has_fluid_above(nx, vy, nz, fluid_id, is_waterlogging, space) {
-            total_height += 1.0;
-            count += 1.0;
-        } else if let Some(h) = get_fluid_height_at(nx, vy, nz, fluid_id, is_waterlogging, space) {
+        if let Some(h) = get_fluid_height_at(nx, vy, nz, fluid_id, is_waterlogging, space) {
             total_height += h;
             count += 1.0;
         } else {
@@ -182,6 +225,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
     original_faces: &[BlockFace],
     registry: &Registry,
 ) -> Vec<BlockFace> {
+    // Per corner: the two side neighbours, then the diagonal.
     let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
     let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
     let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
@@ -191,13 +235,11 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
         .get_block_by_id(fluid_id)
         .is_some_and(|block| block.is_waterlogging_fluid);
 
-    let corner_height = |corner_x: i32, corner_z: i32, offsets: &[[i32; 2]; 3]| {
+    let corner_height = |offsets: &[[i32; 2]; 3]| {
         calculate_fluid_corner_height(
             vx,
             vy,
             vz,
-            corner_x,
-            corner_z,
             offsets,
             fluid_id,
             is_waterlogging,
@@ -206,10 +248,10 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
         ) - FLUID_SURFACE_OFFSET
     };
 
-    let h_nxnz = corner_height(0, 0, &corner_nxnz);
-    let h_pxnz = corner_height(1, 0, &corner_pxnz);
-    let h_nxpz = corner_height(0, 1, &corner_nxpz);
-    let h_pxpz = corner_height(1, 1, &corner_pxpz);
+    let h_nxnz = corner_height(&corner_nxnz);
+    let h_pxnz = corner_height(&corner_pxnz);
+    let h_nxpz = corner_height(&corner_nxpz);
+    let h_pxpz = corner_height(&corner_pxpz);
 
     let mut uv_map: HashMap<String, (UV, f32)> = HashMap::new();
     for face in original_faces {

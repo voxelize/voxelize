@@ -6,7 +6,7 @@
 //! If the block at that position is `is_random_tickable` and has an
 //! `active_updater`, it is scheduled via [`Chunks::mark_voxel_active`] at the
 //! **current tick** (earliest-deadline upsert) so the existing active queue
-//! runs the updater -- no Town-side full plant scan.
+//! runs the updater -- no game-side full plant scan.
 //!
 //! Budget: total samples across all sections in one tick are capped by
 //! [`WorldConfig::max_random_ticks_per_tick`]. The scheduled

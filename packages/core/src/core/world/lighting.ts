@@ -39,6 +39,7 @@ export type LightJob = {
 export type LightBatchResult = {
   color: LightColor;
   modifiedChunks: LightWorkerModifiedChunk[];
+  borderNeighbors: LightWorkerBorderNeighbor[];
   boundingBox: BoundingBox;
 };
 
@@ -88,9 +89,22 @@ export type ProcessedUpdate = {
 export type LightWorkerResult = {
   jobId: string;
   modifiedChunks: LightWorkerModifiedChunk[];
+  /**
+   * Chunks the job did not write light into but whose meshes read a voxel
+   * it did: a light set in a chunk's border column shades the faces of the
+   * chunk next door (and the diagonal one at a corner). They carry no
+   * lights to merge — only the y-range to remesh.
+   */
+  borderNeighbors: LightWorkerBorderNeighbor[];
   appliedDeltas: {
     lastSequenceId: number;
   };
+};
+
+export type LightWorkerBorderNeighbor = {
+  coords: Coords2;
+  minY: number;
+  maxY: number;
 };
 
 export type LightWorkerModifiedChunk = {
@@ -693,6 +707,29 @@ export function analyzeLightOperations(
       newRotation,
     );
 
+    // Light only reads four things about a voxel: opacity, which faces let
+    // light through, attenuation, and emission. When none of those changed
+    // the field already holds what a removal + reflood would recompute, so
+    // skip both. A fluid changing level, or air becoming non-attenuating
+    // water, used to tear down the cell's whole sunlight column and flood
+    // it back to identical values — one BFS per cell per step, the dominant
+    // client cost of a spreading lake. Blocks with dynamic patterns may emit
+    // conditionally, so they keep the full analysis. Mirrors the server's
+    // `light_invariant` skip in `process_pending_updates`.
+    const lightInvariant =
+      !oldBlock.isLight &&
+      !newBlock.isLight &&
+      !oldBlock.dynamicPatterns &&
+      !newBlock.dynamicPatterns &&
+      oldBlock.isOpaque === newBlock.isOpaque &&
+      oldBlock.lightAttenuation === newBlock.lightAttenuation &&
+      currentTransparency.every(
+        (side, index) => side === updatedTransparency[index],
+      );
+    if (lightInvariant) {
+      continue;
+    }
+
     if (newBlock.isOpaque || newBlock.lightAttenuation > 0) {
       if (world.getSunlightAt(vx, vy, vz) > 0) {
         sunlightRemoval.push(voxel);
@@ -975,6 +1012,21 @@ export function analyzeLightOperations(
     },
     hasOperations,
   };
+}
+
+/** Every removal and flood seed across all colors — the work a batch buys. */
+export function countLightSeeds(ops: LightOperations): number {
+  const { removals, floods } = ops;
+  return (
+    removals.sunlight.length +
+    removals.red.length +
+    removals.green.length +
+    removals.blue.length +
+    floods.sunlight.length +
+    floods.red.length +
+    floods.green.length +
+    floods.blue.length
+  );
 }
 
 export function mergeLightOperations(

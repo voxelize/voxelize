@@ -163,6 +163,7 @@ import {
   ProcessedUpdate,
   analyzeLightOperations,
   buildLightJobs,
+  countLightSeeds,
   floodLight,
   mergeLightOperations,
   mergeSingleColorResult,
@@ -339,6 +340,15 @@ export type WorldMemoryCounters = {
   meshInFlightJobs: number;
   loadedChunks: number;
   lightJobHighWaterChunks: number;
+  /**
+   * Cumulative since world init, so a caller can difference two reads to
+   * charge a burst of activity (a water spread, a bulk fill) with exactly
+   * the voxel writes and light work it caused.
+   */
+  blockUpdatesApplied: number;
+  /** Removal + flood seeds handed to the light engine, all colors. */
+  lightSeedsAnalyzed: number;
+  lightJobsScheduled: number;
 };
 
 /**
@@ -483,6 +493,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       meshInFlightJobs: this.meshPipeline.inFlightJobCount(),
       loadedChunks: this.chunkPipeline.loadedCount,
       lightJobHighWaterChunks: this.lightJobHighWaterChunks,
+      blockUpdatesApplied: this.blockUpdatesApplied,
+      lightSeedsAnalyzed: this.lightSeedsAnalyzed,
+      lightJobsScheduled: this.lightJobIdCounter,
     };
   }
 
@@ -920,6 +933,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
   private lightBatchIdCounter = 0;
+  private blockUpdatesApplied = 0;
+  private lightSeedsAnalyzed = 0;
 
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
@@ -2559,8 +2574,8 @@ export class World<T = any> extends Scene implements NetIntercept {
           type: isIsolated
             ? "isolated"
             : isIndependent
-            ? "independent"
-            : "shared",
+              ? "independent"
+              : "shared",
           canvas,
           range: face.range,
           materialKey,
@@ -3193,27 +3208,41 @@ export class World<T = any> extends Scene implements NetIntercept {
     return blockUpdates;
   }
 
-  /** Bulk server echoes (agent fills and large direct edits) drain through the
-   * per-frame update queue so a 50k-voxel tick batch cannot freeze the
-   * main thread the way a synchronous relight would. */
-  private queueServerUpdates(updates: UpdateProtocol[]) {
+  /**
+   * Land a server UPDATE batch in the world.
+   *
+   * Order is the whole contract: the server commits writes in sequence, so
+   * two batches touching one voxel must apply in arrival order or the stale
+   * word wins. A small batch therefore never jumps a backlog that is still
+   * draining — it queues behind it. Small batches with nothing ahead of them
+   * apply now, but only under the per-frame budget; whatever the budget
+   * leaves spills into the same queue, so a burst of fluid ticks costs a
+   * bounded slice of each frame instead of one long one. Bulk echoes (agent
+   * fills, large direct edits) always take the queue so a 50k-voxel tick
+   * batch cannot freeze the main thread the way a synchronous relight would.
+   */
+  private ingestServerUpdates(updates: UpdateProtocol[]) {
     const blockUpdates = this.convertServerUpdates(updates);
     if (blockUpdates.length === 0) return;
 
-    this.blockUpdatesQueue.push(...blockUpdates);
-    this.processClientUpdates();
+    const backlogAhead =
+      this.blockUpdatesQueue.length > 0 || this.isTrackingChunks;
+    if (
+      backlogAhead ||
+      blockUpdates.length > this.options.maxImmediateServerUpdates
+    ) {
+      this.blockUpdatesQueue.push(...blockUpdates);
+      this.processClientUpdates();
+      return;
+    }
+
+    this.applyServerUpdatesImmediately(blockUpdates);
   }
 
-  private applyServerUpdatesImmediately(updates: UpdateProtocol[]) {
-    const blockUpdates = this.convertServerUpdates(updates);
-    if (blockUpdates.length === 0) return;
-
+  private applyServerUpdatesImmediately(blockUpdates: BlockUpdateWithSource[]) {
     this.isTrackingChunks = true;
 
-    let remaining = blockUpdates;
-    while (remaining.length > 0) {
-      remaining = this.processLightUpdates(remaining);
-    }
+    const remaining = this.processLightUpdates(blockUpdates);
 
     this.flushAccumulatedLightOps();
     this.isTrackingChunks = false;
@@ -3224,6 +3253,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     // spawned) but the chunk mesh never updated. Light completion still
     // remeshes again with corrected lighting via applyBatchResults.
     this.processDirtyChunks();
+
+    if (remaining.length > 0) {
+      // The budget ran out mid-batch. Nothing is queued (that is how this
+      // path was reached), so the tail lands at the head of the queue and
+      // continues next frame in order — deferred, because this frame has
+      // already spent its slice.
+      this.blockUpdatesQueue.push(...remaining);
+      this.processClientUpdates(true);
+    }
   }
 
   /**
@@ -3916,11 +3954,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { updates } = message;
 
         if (updates && updates.length > 0) {
-          if (updates.length > this.options.maxImmediateServerUpdates) {
-            this.queueServerUpdates(updates);
-          } else {
-            this.applyServerUpdatesImmediately(updates);
-          }
+          this.ingestServerUpdates(updates);
         }
 
         break;
@@ -4500,12 +4534,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.time < sunlightStartTime
         ? 0.0
         : this.time < sunlightStartTime + sunlightChangeSpanTime
-        ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
-        : this.time <= sunlightEndTime
-        ? 1.0
-        : this.time <= sunlightEndTime + sunlightChangeSpanTime
-        ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
-        : 0.0,
+          ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
+          : this.time <= sunlightEndTime
+            ? 1.0
+            : this.time <= sunlightEndTime + sunlightChangeSpanTime
+              ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
+              : 0.0,
     );
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
@@ -5534,12 +5568,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     let processedCount = 0;
 
     for (const update of updates) {
+      // Budget check before each write, never before the first: a slice
+      // always makes progress, and the tail is returned to the caller to
+      // continue next frame. Running out of budget is the design, not an
+      // anomaly, so it is not logged.
       if (performance.now() - startTime > maxLightsUpdateTime) {
-        if (Math.random() < 0.01) {
-          console.warn(
-            "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness",
-          );
-        }
         break;
       }
 
@@ -5605,6 +5638,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       processedCount++;
     }
     const lightOps = analyzeLightOperations(this, processedUpdates);
+    this.blockUpdatesApplied += processedUpdates.length;
+    this.lightSeedsAnalyzed += countLightSeeds(lightOps);
 
     if (this.options.useLightWorkers && lightOps.hasOperations) {
       if (!this.accumulatedLightOps) {
@@ -5627,7 +5662,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     return updates.slice(processedCount);
   };
 
-  private processClientUpdates = () => {
+  /**
+   * Drain `blockUpdatesQueue` one budgeted slice per frame. The first slice
+   * runs synchronously so an optimistic local edit shows up on the frame it
+   * was made; pass `deferFirstSlice` when the current frame has already
+   * spent its update budget.
+   */
+  private processClientUpdates = (deferFirstSlice = false) => {
     if (this.blockUpdatesQueue.length === 0 || this.isTrackingChunks) {
       return;
     }
@@ -5636,6 +5677,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const processUpdatesInIdleTime = () => {
       if (this.blockUpdatesQueue.length > 0) {
+        // One slice per frame: at most `maxUpdatesPerUpdate` writes, and
+        // `processLightUpdates` stops early once `maxLightsUpdateTime` is
+        // spent, so a deep backlog costs a bounded piece of every frame
+        // rather than one long frame.
         const updates = this.blockUpdatesQueue.splice(
           0,
           this.options.maxUpdatesPerUpdate,
@@ -5643,14 +5688,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const remainingUpdates = this.processLightUpdates(updates);
 
-        this.blockUpdatesQueue.push(...remainingUpdates);
+        // The unprocessed tail goes back to the FRONT. Appending it put
+        // older writes behind newer ones already queued for the same voxel,
+        // so the stale word committed last.
+        if (remainingUpdates.length > 0) {
+          this.blockUpdatesQueue.unshift(...remainingUpdates);
+        }
 
+        const processedCount = updates.length - remainingUpdates.length;
         this.blockUpdatesToEmit.push(
           ...updates
-            .slice(
-              0,
-              this.options.maxUpdatesPerUpdate - remainingUpdates.length,
-            )
+            .slice(0, processedCount)
             .filter(({ source }) => source === "client")
             .map(({ update }) => update),
         );
@@ -5669,7 +5717,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.processDirtyChunks();
     };
 
-    processUpdatesInIdleTime();
+    if (deferFirstSlice) {
+      requestAnimationFrame(processUpdatesInIdleTime);
+    } else {
+      processUpdatesInIdleTime();
+    }
   };
 
   private lastStuckMeshSweepMs = 0;
@@ -5754,7 +5806,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             key,
             geometries: result?.geometries ?? null,
             connectivity: result?.connectivity ?? CONNECTIVITY_FULL,
-          } as const),
+          }) as const,
         (error) => {
           // A dispatch that throws (e.g. payload serialization failing an
           // array-buffer allocation under memory pressure) must still settle:
@@ -6089,6 +6141,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       batch.results.push({
         color: job.color,
         modifiedChunks: result.modifiedChunks,
+        borderNeighbors: result.borderNeighbors ?? [],
         boundingBox: job.boundingBox,
       });
     }
@@ -6122,6 +6175,37 @@ export class World<T = any> extends Scene implements NetIntercept {
     >();
     const allChunkCoords = new Map<string, Coords2>();
     const modifiedYRanges = new Map<string, { minY: number; maxY: number }>();
+    const widenYRange = (
+      ranges: Map<string, { minY: number; maxY: number }>,
+      key: string,
+      minY: number,
+      maxY: number,
+    ) => {
+      const existing = ranges.get(key);
+      if (!existing) {
+        ranges.set(key, { minY, maxY });
+      } else {
+        existing.minY = Math.min(existing.minY, minY);
+        existing.maxY = Math.max(existing.maxY, maxY);
+      }
+    };
+    // Faces on a section's top or bottom row sample the light one voxel
+    // into the next section, so the remesh range reaches one voxel past the
+    // modified rows before it is mapped onto section levels.
+    const levelsFor = (range: { minY: number; maxY: number }) =>
+      [
+        Math.max(0, Math.floor((range.minY - 1) / subChunkHeight)),
+        Math.min(subChunks - 1, Math.floor((range.maxY + 1) / subChunkHeight)),
+      ] as const;
+
+    // Chunks whose light did not change but whose meshes read a border
+    // voxel that did. Without this, a torch lights the floor of its own
+    // chunk while the wall one chunk over stays black until a reload.
+    const borderNeighborCoords = new Map<string, Coords2>();
+    const borderNeighborYRanges = new Map<
+      string,
+      { minY: number; maxY: number }
+    >();
 
     for (const result of batch.results) {
       for (const { coords, lights, minY, maxY } of result.modifiedChunks) {
@@ -6138,13 +6222,12 @@ export class World<T = any> extends Scene implements NetIntercept {
           boundingBox: result.boundingBox,
         });
 
-        const existing = modifiedYRanges.get(key);
-        if (!existing) {
-          modifiedYRanges.set(key, { minY, maxY });
-        } else {
-          existing.minY = Math.min(existing.minY, minY);
-          existing.maxY = Math.max(existing.maxY, maxY);
-        }
+        widenYRange(modifiedYRanges, key, minY, maxY);
+      }
+      for (const { coords, minY, maxY } of result.borderNeighbors) {
+        const key = `${coords[0]},${coords[1]}`;
+        borderNeighborCoords.set(key, coords);
+        widenYRange(borderNeighborYRanges, key, minY, maxY);
       }
     }
 
@@ -6161,14 +6244,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       chunk.isDirty = true;
-      const minLevel = Math.max(
-        0,
-        Math.floor(modifiedYRange.minY / subChunkHeight),
-      );
-      const maxLevel = Math.min(
-        subChunks - 1,
-        Math.floor(modifiedYRange.maxY / subChunkHeight),
-      );
+      const [minLevel, maxLevel] = levelsFor(modifiedYRange);
+      this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
+    }
+
+    for (const [key, coords] of borderNeighborCoords) {
+      // A neighbour that also had its own light merged was remeshed above,
+      // over a range that already covers its border rows.
+      if (chunkResultsByColor.has(key)) continue;
+      if (!this.getChunkByCoords(coords[0], coords[1])) continue;
+      const range = borderNeighborYRanges.get(key);
+      if (!range) continue;
+      const [minLevel, maxLevel] = levelsFor(range);
       this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
     }
   }
@@ -6334,16 +6421,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     const subChunkHeight = maxHeight / subChunks;
     const level = Math.floor(vy / subChunkHeight);
 
-    const chunkCoordsList: Coords2[] = [];
-    chunkCoordsList.push([cx, cz]);
-
-    if (lcx === 0) chunkCoordsList.push([cx - 1, cz]);
-    if (lcz === 0) chunkCoordsList.push([cx, cz - 1]);
-    if (lcx === 0 && lcz === 0) chunkCoordsList.push([cx - 1, cz - 1]);
-    if (lcx === chunkSize - 1) chunkCoordsList.push([cx + 1, cz]);
-    if (lcz === chunkSize - 1) chunkCoordsList.push([cx, cz + 1]);
-    if (lcx === chunkSize - 1 && lcz === chunkSize - 1)
-      chunkCoordsList.push([cx + 1, cz + 1]);
+    // A border voxel is read by the meshes next door: the adjacent chunk on
+    // each border side it touches, and at a corner the diagonal one too
+    // (vertex light averaging reaches it). All four corners, not only the
+    // two on the main diagonal.
+    const chunkCoordsList: Coords2[] = [[cx, cz]];
+    const dxs = lcx === 0 ? [-1] : lcx === chunkSize - 1 ? [1] : [];
+    const dzs = lcz === 0 ? [-1] : lcz === chunkSize - 1 ? [1] : [];
+    for (const dx of [...dxs, 0]) {
+      for (const dz of [...dzs, 0]) {
+        if (dx === 0 && dz === 0) continue;
+        chunkCoordsList.push([cx + dx, cz + dz]);
+      }
+    }
 
     const levels: number[] = [];
 

@@ -15,7 +15,11 @@
 //!               when bit 30 is set (an emissive face bypasses the lighting
 //!               model, so it has no use for an occlusion value)
 //! bit  18       fluid
-//! bit  19       emitted by the greedy path
+//! bit  19       emitted by the greedy path — OR, under bit 18, a fluid pane:
+//!               a vertical fluid face pressed against a see-through solid
+//!               (a Barrier or glass tank wall) rather than open air. A
+//!               fluid never comes off the greedy path, so the bit is free
+//!               there, the same way the AO bits are free under bit 30.
 //! bit  20       surface that should wave
 //! bit  21       in contact with fluid
 //! bits 22..=25  stack index: like blocks below this one in its vertical run
@@ -35,6 +39,12 @@ pub const AO_BITS: i32 = 0x3;
 
 pub const FLUID_BIT: i32 = 1 << 18;
 pub const GREEDY_BIT: i32 = 1 << 19;
+/// A vertical fluid face whose neighbour is a see-through solid instead of
+/// air: the water pressed against a Barrier or glass tank wall. The shader
+/// draws a pane as a window — faded, matte, and dropped entirely when looked
+/// at head-on — and a wall against air as the water's own surface. Only
+/// meaningful under `FLUID_BIT`; on any other face this bit is `GREEDY_BIT`.
+pub const FLUID_PANE_BIT: i32 = GREEDY_BIT;
 pub const WAVE_BIT: i32 = 1 << 20;
 pub const WATER_EXPOSED_BIT: i32 = 1 << 21;
 
@@ -100,8 +110,10 @@ mod tests {
     use super::*;
 
     /// The point of this module: every allocated field occupies its own bits.
-    /// The emissive strength index is deliberately absent — it reuses the AO
-    /// bits under `EMISSIVE_BIT`, which is the one sanctioned overlap.
+    /// Two reuses are deliberately absent: the emissive strength index rides
+    /// the AO bits under `EMISSIVE_BIT`, and the fluid pane flag rides the
+    /// greedy bit under `FLUID_BIT`. Each is legal only because the field it
+    /// borrows is meaningless on the face that borrows it.
     #[test]
     fn no_field_overlaps_another() {
         let fields: [(&str, i32); 9] = [
@@ -132,6 +144,16 @@ mod tests {
             "a field reaches past the highest allocated bit",
         );
         assert!(claimed >= 0, "the sign bit must stay clear");
+    }
+
+    /// The pane flag may only ever alias the greedy bit: the shader decodes
+    /// bit 19 as "pane" on a fluid vertex and "greedy" on everything else,
+    /// so giving the pane its own bit would silently leave the shader
+    /// reading the wrong one.
+    #[test]
+    fn the_fluid_pane_flag_rides_the_greedy_bit() {
+        assert_eq!(FLUID_PANE_BIT, GREEDY_BIT);
+        assert_eq!(FLUID_PANE_BIT & FLUID_BIT, 0);
     }
 
     #[test]

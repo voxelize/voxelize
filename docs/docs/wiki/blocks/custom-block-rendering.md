@@ -312,7 +312,7 @@ class PictureFrameRenderer {
 3. **Cache textures** - Reuse textures for identical content when possible
 4. **Use `NearestFilter`** - For pixel-art style textures, prevents blurry scaling
 
-See the town project's `client/src/core/block-entities.ts` for a production implementation handling signs, picture frames, screens, and 3D model spawners.
+A production implementation of this pattern typically lives in one game-side module that handles signs, picture frames, screens, and 3D model spawners through the same hooks shown above.
 
 ## Related Pages
 
