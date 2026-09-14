@@ -69,6 +69,7 @@ import {
   BlockUtils,
   ChunkUtils,
   LightColor,
+  LightUtils,
   findSimilar,
   formatSuggestion,
 } from "../../utils";
@@ -165,6 +166,7 @@ import {
   buildLightJobs,
   countLightSeeds,
   floodLight,
+  foldLightJobsBack,
   mergeLightOperations,
   mergeSingleColorResult,
   removeLight,
@@ -1080,11 +1082,18 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The renderer's heap is shared with every web worker, and a worker that
    * runs out of V8 heap takes the whole tab down with it. When the watchdog
    * says the heap is close to its limit, drop every piece of pipeline state
-   * that can be rebuilt: queued worker payloads (the largest single
-   * allocations in the client), light work that has not been serialized yet,
-   * and the voxel history cache. Everything shed here is either retried
-   * automatically or is pure cache, so the world stays correct — it just
-   * catches up more slowly.
+   * that can be rebuilt or is pure cache: queued worker payloads (the largest
+   * single allocations in the client) and the voxel history cache. Mesh work
+   * comes back on its own through dirty chunks.
+   *
+   * Light work is deferred, never dropped. Every pending light job describes
+   * voxel changes that are already applied and already meshed with their old
+   * light — a pit cut into stone is black until its flood lands — and nothing
+   * else ever comes back for them: a shed used to null the accumulated ops
+   * and the pending jobs, and the pit stayed black until a reload while the
+   * log counted zero dropped. The seeds are coordinate lists and cost nothing
+   * to keep; the serialized chunk copies are what the shed is for, so those
+   * are dropped and the seeds folded back for the next flush to rebuild.
    */
   private onMemoryPressureVerdict(
     verdict: "shed" | "relieved",
@@ -1097,17 +1106,60 @@ export class World<T = any> extends Scene implements NetIntercept {
       console.warn(
         `[world] renderer memory pressure relieved at ${heapMb}MB / ${limitMb}MB`,
       );
+      // Light work the sheds deferred gets its turn now, even if no edit or
+      // batch completion comes along to flush it.
+      this.flushAccumulatedLightOps();
       return;
     }
 
     const droppedMeshJobs = this.meshWorkerPool.drainQueue();
-    const droppedLightJobs = this.lightWorkerPool.drainQueue();
-    const droppedPendingLightJobs = this.lightJobQueue.length;
-    const droppedVoxelHistory = this.oldBlocks.size;
+
+    const queuedPayloads = this.lightWorkerPool.queue
+      .map(
+        (job) =>
+          job.message as {
+            type?: string;
+            color?: LightColor;
+            lightOps?: LightJob["lightOps"];
+          },
+      )
+      .filter(
+        (message): message is Pick<LightJob, "color" | "lightOps"> =>
+          message.type === "batchOperations" &&
+          message.color !== undefined &&
+          message.lightOps !== undefined,
+      );
+    const pendingJobs = this.lightJobQueue;
+    const deferredJobs = [...pendingJobs, ...queuedPayloads];
+
+    const seedsBefore = this.accumulatedLightOps
+      ? countLightSeeds(this.accumulatedLightOps)
+      : 0;
+    this.accumulatedLightOps = foldLightJobsBack(
+      this.accumulatedLightOps,
+      deferredJobs,
+    );
+    const deferredSeeds =
+      (this.accumulatedLightOps
+        ? countLightSeeds(this.accumulatedLightOps)
+        : 0) - seedsBefore;
+
+    // The worker replays voxel deltas newer than the start id over its chunk
+    // snapshot, so the folded work keeps the earliest id it was built with.
+    const startSequenceIds = pendingJobs.map((job) => job.startSequenceId);
+    if (queuedPayloads.length > 0 && this.activeLightBatch) {
+      startSequenceIds.push(this.activeLightBatch.startSequenceId);
+    }
+    if (seedsBefore > 0) {
+      startSequenceIds.push(this.accumulatedStartSequenceId);
+    }
+    if (startSequenceIds.length > 0) {
+      this.accumulatedStartSequenceId = Math.min(...startSequenceIds);
+    }
 
     this.lightJobQueue = [];
-    this.accumulatedLightOps = null;
-    this.accumulatedStartSequenceId = 0;
+    const freedLightPayloads = this.lightWorkerPool.drainQueue();
+    const droppedVoxelHistory = this.oldBlocks.size;
     this.oldBlocks.clear();
 
     console.warn(
@@ -1115,13 +1167,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         `(${(status.heapRatio * 100).toFixed(1)}%, shed #${
           status.shedCount
         }); ` +
-        `dropped ${droppedMeshJobs} queued mesh jobs, ${droppedLightJobs} queued ` +
-        `light jobs, ${droppedPendingLightJobs} pending light jobs, ` +
-        `${droppedVoxelHistory} voxel history entries`,
+        `dropped ${droppedMeshJobs} queued mesh jobs and ${droppedVoxelHistory} ` +
+        `voxel history entries; deferred ${deferredJobs.length} light jobs ` +
+        `(${deferredSeeds} seeds kept, ${freedLightPayloads} serialized payloads freed) ` +
+        `to replay on the next flush`,
     );
 
-    // Dropped light jobs leave nothing to wait on when no batch is running;
-    // without this the waiters would hang until the next voxel edit.
+    // Deferred light work is not a running job, so a waiter has nothing to
+    // wait on when no batch is running; without this it would hang until the
+    // next voxel edit.
     this.settleLightJobWaitersIfIdle();
   }
 
@@ -6278,7 +6332,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     if (lightOps.floods.length > 0) {
-      this.floodLight(lightOps.floods, color);
+      // Deferred seeds read their neighbours here, where the light is
+      // current; the worker path does the same against its snapshot.
+      this.floodLight(
+        LightUtils.resolveDeferredSeeds(
+          this,
+          lightOps.floods,
+          color,
+          this.options.maxHeight,
+        ),
+        color,
+      );
     }
 
     const allVoxels = [

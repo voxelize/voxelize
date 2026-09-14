@@ -654,8 +654,18 @@ onmessage = function (e) {
       }
     }
 
-    if (lightOps.floods.length > 0) {
-      lightOps.floods.forEach((node) => {
+    // A deferred seed names an opened cell and asks for its neighbours' light
+    // as it stands in this snapshot — which already carries every earlier
+    // batch's result, unlike the main thread at analysis time.
+    const floods: LightNode[] = LightUtils.resolveDeferredSeeds(
+      space,
+      lightOps.floods,
+      color,
+      options.maxHeight,
+    );
+
+    if (floods.length > 0) {
+      floods.forEach((node) => {
         const [vx, vy, vz] = node.voxel;
         if (color === "SUNLIGHT") {
           space.setSunlightAt(vx, vy, vz, node.level);
@@ -664,7 +674,7 @@ onmessage = function (e) {
         }
       });
 
-      floodLight(space, lightOps.floods, color, min, maxCoords, options);
+      floodLight(space, floods, color, min, maxCoords, options);
     }
 
     const modifiedChunks = space.getModifiedChunks();

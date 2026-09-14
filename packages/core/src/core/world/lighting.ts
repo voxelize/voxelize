@@ -889,6 +889,20 @@ export function analyzeLightOperations(
         });
       }
     } else if (oldBlock.isOpaque && !newBlock.isOpaque) {
+      // The immediate seeds below read the neighbours' light as it stands on
+      // the main thread now. A neighbour opened by an earlier packet may be
+      // waiting on a flood that has not landed yet and read zero, and a cell
+      // seeded from nothing is never revisited — so the opened cell also
+      // carries a seed that the flood resolves against its own snapshot,
+      // where every earlier batch's light is already present.
+      const deferred = { level: LightUtils.LEVEL_FROM_NEIGHBORS };
+      sunFlood.push({ voxel: [vx, vy, vz], ...deferred });
+      if (!isRemovedLightSource) {
+        redFlood.push({ voxel: [vx, vy, vz], ...deferred });
+        greenFlood.push({ voxel: [vx, vy, vz], ...deferred });
+        blueFlood.push({ voxel: [vx, vy, vz], ...deferred });
+      }
+
       for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
         const nvy = vy + oy;
 
@@ -1027,6 +1041,54 @@ export function countLightSeeds(ops: LightOperations): number {
     floods.green.length +
     floods.blue.length
   );
+}
+
+const LIGHT_OPS_KEY: Record<LightColor, keyof LightOperations["removals"]> = {
+  SUNLIGHT: "sunlight",
+  RED: "red",
+  GREEN: "green",
+  BLUE: "blue",
+};
+
+/**
+ * Put built jobs back into an operation set — the inverse of
+ * {@link buildLightJobs}.
+ *
+ * A memory-pressure shed drops a job's serialized chunk copies, which is the
+ * allocation that matters, but it must not drop the seeds the job carried:
+ * they describe voxel changes that are already applied and already meshed
+ * with their old light, and nothing else ever comes back for them. A pit cut
+ * into stone under pressure used to stay black until a reload, because the
+ * shed nulled the pending ops and the log counted them as zero. Boxes and
+ * clusters are recomputed when the seeds are built into jobs again, so only
+ * the seeds need to survive.
+ */
+export function foldLightJobsBack(
+  accumulated: LightOperations | null,
+  jobs: Pick<LightJob, "color" | "lightOps">[],
+): LightOperations | null {
+  if (jobs.length === 0) return accumulated;
+
+  const folded: LightOperations = accumulated
+    ? mergeLightOperations(accumulated, {
+        removals: { sunlight: [], red: [], green: [], blue: [] },
+        floods: { sunlight: [], red: [], green: [], blue: [] },
+        hasOperations: accumulated.hasOperations,
+      })
+    : {
+        removals: { sunlight: [], red: [], green: [], blue: [] },
+        floods: { sunlight: [], red: [], green: [], blue: [] },
+        hasOperations: false,
+      };
+
+  for (const { color, lightOps } of jobs) {
+    const key = LIGHT_OPS_KEY[color];
+    folded.removals[key] = folded.removals[key].concat(lightOps.removals);
+    folded.floods[key] = folded.floods[key].concat(lightOps.floods);
+  }
+
+  folded.hasOperations = countLightSeeds(folded) > 0;
+  return folded.hasOperations ? folded : accumulated;
 }
 
 export function mergeLightOperations(

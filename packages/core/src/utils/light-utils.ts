@@ -295,10 +295,89 @@ export class LightUtils {
   static readonly BEER_LAMBERT_TRANSMITTANCE_NUM = 222;
   static readonly BEER_LAMBERT_TRANSMITTANCE_DEN = 256;
 
+  /**
+   * Marker level for a flood seed whose light is to be read where the flood
+   * runs, not where the edit was analysed.
+   *
+   * A cell opened out of an opaque block is lit by whatever stands around it,
+   * and the analysis used to seed the flood from the neighbours' light as it
+   * was on the main thread at that moment. Light lands a worker round-trip
+   * later, so a neighbour opened by the previous packet could still read
+   * zero: the cell then got no seed at all, and since nothing ever revisits
+   * a lit-looking-enough cell, a pit cut into stone stayed black until a
+   * reload. Seeded this way, the cell's neighbours are read from the flood's
+   * own snapshot, which already holds every earlier batch's result.
+   */
+  static readonly LEVEL_FROM_NEIGHBORS = -1;
+
+  /**
+   * Replace every deferred seed ({@link LightUtils.LEVEL_FROM_NEIGHBORS}) with
+   * ordinary seeds at its lit neighbours, read from `volume` now; other
+   * seeds pass through. Duplicates collapse, so a wall of opened cells does
+   * not seed the same lit neighbour a dozen times.
+   */
+  static resolveDeferredSeeds<TNode extends { voxel: Coords3; level: number }>(
+    volume: {
+      getSunlightAt(vx: number, vy: number, vz: number): number;
+      getTorchLightAt(
+        vx: number,
+        vy: number,
+        vz: number,
+        color: LightColor,
+      ): number;
+    },
+    seeds: TNode[],
+    color: LightColor,
+    maxHeight: number,
+  ): { voxel: Coords3; level: number }[] {
+    const isSunlight = color === SUNLIGHT;
+    const resolved: { voxel: Coords3; level: number }[] = [];
+    const seen = new Set<string>();
+
+    const push = (voxel: Coords3, level: number) => {
+      const key = `${voxel[0]},${voxel[1]},${voxel[2]},${level}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      resolved.push({ voxel, level });
+    };
+
+    for (const seed of seeds) {
+      if (seed.level !== LightUtils.LEVEL_FROM_NEIGHBORS) {
+        push(seed.voxel, seed.level);
+        continue;
+      }
+
+      const [vx, vy, vz] = seed.voxel;
+      for (const [ox, oy, oz] of LIGHT_NEIGHBOR_OFFSETS) {
+        const ny = vy + oy;
+        if (ny < 0 || ny >= maxHeight) continue;
+        const nx = vx + ox;
+        const nz = vz + oz;
+        const level = isSunlight
+          ? volume.getSunlightAt(nx, ny, nz)
+          : volume.getTorchLightAt(nx, ny, nz, color);
+        if (level > 0) {
+          push([nx, ny, nz], level);
+        }
+      }
+    }
+
+    return resolved;
+  }
+
   private constructor() {
     // NOTHING
   }
 }
+
+const LIGHT_NEIGHBOR_OFFSETS: readonly Coords3[] = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
 
 /**
  * The string representation of red light.
