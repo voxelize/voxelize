@@ -26,6 +26,7 @@ import {
   FrontSide,
   Frustum,
   Group,
+  Material,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
@@ -1070,6 +1071,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkPipeline.forEachLoaded((chunk) => chunk.dispose());
     this.regionArenas?.dispose();
     this.regionArenas = null;
+    this.sectionReveals.clear();
     this.sectionVisibility?.clear();
     this.chunkRenderer.materials.forEach((material) => {
       material.map?.dispose();
@@ -4485,6 +4487,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.regionArenas?.clearChunk(x, z);
         this.sectionVisibility?.removeChunk(x, z);
         this.localLights.handleChunkUnloaded(x, z);
+        for (const level of chunk.meshes.keys()) {
+          this.sectionReveals.delete(`${x},${z},${level}`);
+        }
         this.remove(chunk.group);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
@@ -5325,6 +5330,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     chunk.meshes.get(level)?.push(...meshes);
 
+    // A section remeshed mid-fade keeps its reveal: the arena slot carried
+    // it through the in-place rewrite, but fresh meshes (and a freshly
+    // allocated slot) start at 1 and would flash for a frame.
+    const pendingReveal = this.sectionReveals.get(`${cx},${cz},${level}`);
+    if (pendingReveal !== undefined) {
+      this.setSectionReveal(cx, cz, level, pendingReveal);
+    }
+
     this.csmRenderer?.markAllCascadesForRender();
     // Cached local shadow maps that reach into this chunk baked whatever
     // geometry existed when they rendered; a new mesh means new occluders.
@@ -5405,6 +5418,137 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   get sectionVisibilityStats() {
     return this.sectionVisibility?.stats ?? null;
+  }
+
+  /**
+   * Sections currently drawn partway through their own fog color, by
+   * `cx,cz,level`, so a remesh mid-fade lands at the same reveal instead of
+   * flashing to full for a frame. Entries leave at 1 or on chunk unload.
+   */
+  private sectionReveals = new Map<string, number>();
+
+  /**
+   * Draw a section partway through its own fog color: `0` is pure fog tint
+   * (the sky-dome gradient it would vanish into at distance), `1` is the
+   * section as itself. The terrain fade-in drives this per frame.
+   *
+   * Reaches both render paths of a section. Its shared-opaque geometry lives
+   * in a region arena slot, whose per-instance batching color carries the
+   * value into `vChunkReveal`; everything else is a per-section mesh on a
+   * shared material, which gets the value through a per-draw `uChunkReveal`
+   * that is reset after each draw so the same material draws every other
+   * chunk unrevealed. Returns whether the section had anything to draw.
+   */
+  setSectionReveal(cx: number, cz: number, level: number, reveal: number) {
+    const clamped = Math.min(1, Math.max(0, reveal));
+    const key = `${cx},${cz},${level}`;
+    if (clamped >= 1) {
+      this.sectionReveals.delete(key);
+    } else {
+      this.sectionReveals.set(key, clamped);
+    }
+
+    let isApplied =
+      this.regionArenas?.setSectionReveal(cx, cz, level, clamped) ?? false;
+    const meshes = this.getChunkByCoords(cx, cz)?.meshes.get(level);
+    if (meshes) {
+      for (const mesh of meshes) {
+        if (!mesh) continue;
+        World.applyMeshReveal(mesh, clamped);
+        isApplied = true;
+      }
+    }
+    return isApplied;
+  }
+
+  /**
+   * A section mesh shares its material with every other section of its
+   * bucket, so its reveal cannot live on the material. It is set per draw
+   * instead: `onBeforeRender` writes the uniform and forces a re-upload for
+   * this draw, `onAfterRender` puts 1 back and forces the next draw to
+   * re-upload too. Existing hooks (transparent sorting, water refraction
+   * capture) are chained, not replaced, and restored at 1.
+   */
+  private static applyMeshReveal(mesh: Mesh, reveal: number) {
+    const state = mesh.userData.chunkReveal as
+      | {
+          reveal: number;
+          onBeforeRender: Mesh["onBeforeRender"];
+          onAfterRender: Mesh["onAfterRender"];
+        }
+      | undefined;
+
+    if (reveal >= 1) {
+      if (!state) return;
+      mesh.onBeforeRender = state.onBeforeRender;
+      mesh.onAfterRender = state.onAfterRender;
+      delete mesh.userData.chunkReveal;
+      return;
+    }
+
+    if (state) {
+      state.reveal = reveal;
+      return;
+    }
+
+    const next = {
+      reveal,
+      onBeforeRender: mesh.onBeforeRender,
+      onAfterRender: mesh.onAfterRender,
+    };
+    mesh.userData.chunkReveal = next;
+
+    const revealUniformOf = (material: Material) =>
+      (material as ShaderMaterial).uniforms?.uChunkReveal as
+        | { value: number }
+        | undefined;
+
+    mesh.onBeforeRender = function (
+      renderer,
+      scene,
+      camera,
+      geometry,
+      material,
+      group,
+    ) {
+      next.onBeforeRender.call(
+        this,
+        renderer,
+        scene,
+        camera,
+        geometry,
+        material,
+        group,
+      );
+      // A depth or override material has no reveal uniform; leave it be.
+      const uniform = revealUniformOf(material);
+      if (!uniform) return;
+      uniform.value = next.reveal;
+      (material as ShaderMaterial).uniformsNeedUpdate = true;
+    };
+    mesh.onAfterRender = function (
+      renderer,
+      scene,
+      camera,
+      geometry,
+      material,
+      group,
+    ) {
+      const uniform = revealUniformOf(material);
+      if (uniform && uniform.value !== 1) {
+        uniform.value = 1;
+        (material as ShaderMaterial).uniformsNeedUpdate = true;
+      }
+      next.onAfterRender.call(
+        this,
+        renderer,
+        scene,
+        camera,
+        geometry,
+        material,
+        group,
+      );
+    };
   }
 
   private ensureRegionArenas() {

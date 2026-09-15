@@ -11,7 +11,7 @@ import {
   LOCAL_LIGHTS_FUNCTIONS,
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./local-lights/shader";
-import { SKY_FOG_FRAGMENT, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   FLOW_CREST_PHASE_PER_HEIGHT,
@@ -27,6 +27,14 @@ export const CHUNK_RENDER_QUALITY = {
   highResolutionPixelThreshold: 2_100_000,
   highResolutionLocalLightsPerCell: 2,
 } as const;
+
+// Chunk fog reveals through both channels at once: the material uniform (a
+// plain mesh's per-draw value) and the per-section varying (an arena slot's
+// batching color). Each is 1 where the other is in use.
+const CHUNK_SKY_FOG_FRAGMENT = createSkyFogFragment(
+  undefined,
+  "uChunkReveal * vChunkReveal",
+);
 
 // ── local-lights fragment insertions ─────────────────────────────────────
 // Each block below is interpolated into the composed fragment exactly once
@@ -308,6 +316,10 @@ uniform float uShadowNormalBias;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
+// Per-section terrain reveal, 0 (pure fog tint) to 1 (drawn as itself). An
+// arena section reads it from its batching color; a plain mesh has none and
+// relies on the material's uChunkReveal uniform instead.
+varying float vChunkReveal;
 
 vec4 unpackLight(int l) {
   vec4 lightValues = vec4(
@@ -327,7 +339,21 @@ ${SIMPLEX_NOISE_GLSL}
     .replace(
       "#include <color_vertex>",
       `
-#include <color_vertex>
+// Stands in for <color_vertex>. Chunk geometry carries no color attribute
+// (the material's default fills white), and the region arenas' per-instance
+// batching color is a data channel, not a tint: three's chunk would multiply
+// it into vColor and darken the section. Read the reveal factor out of it
+// here and keep vColor white. Leans on three's batching helpers
+// (getBatchingColor, getIndirectIndex) the same way the displacement code
+// below leans on its batchingMatrix.
+#if defined( USE_COLOR ) || defined( USE_COLOR_ALPHA ) || defined( USE_INSTANCING_COLOR ) || defined( USE_BATCHING_COLOR )
+  vColor = vec4( 1.0 );
+#endif
+#ifdef USE_BATCHING_COLOR
+  vChunkReveal = getBatchingColor( getIndirectIndex( gl_DrawID ) ).r;
+#else
+  vChunkReveal = 1.0;
+#endif
 
 // Mirrors the bit map in crates/mesher/src/mesher/vertex_light.rs. The two
 // must agree; that file is the reference for which field owns which bit.
@@ -513,6 +539,7 @@ vShadowCoord2 = uShadowMatrix2 * offsetPosition;
 ${SKY_FOG_UNIFORM_DECLARATIONS}
 ${LIGHT_CONES_UNIFORM_DECLARATIONS}
 ${LOCAL_LIGHTS_UNIFORM_DECLARATIONS}
+varying float vChunkReveal;
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
@@ -1303,7 +1330,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     .replace(
       "#include <fog_fragment>",
       `
-${SKY_FOG_FRAGMENT}
+${CHUNK_SKY_FOG_FRAGMENT}
 
 ${LIGHT_CONES_SCATTER_FRAGMENT}
 

@@ -1,6 +1,7 @@
 import {
   BatchedMesh,
   BufferGeometry,
+  Color,
   Matrix4,
   Object3D,
   Quaternion,
@@ -15,6 +16,13 @@ const _transform = new Matrix4();
 const _position = new Vector3();
 const _rotation = new Quaternion();
 const _scale = new Vector3();
+// The per-instance batching color is a data channel for the chunk shader,
+// not a tint: R carries the section's fog reveal (see vChunkReveal), the
+// rest stays 1 (setRGB in the working color space writes the raw values).
+// Written on every allocation, so every region owns a color texture from
+// its first section and the shader program variant is fixed at load instead
+// of recompiling mid-play the first time a fade fires.
+const _sectionColor = new Color(1, 1, 1);
 
 type SectionSlot = {
   regionKey: string;
@@ -108,6 +116,7 @@ export class ChunkRegionArenas {
       instanceId,
       this.sectionTransform(geometry, x, y, z),
     );
+    region.mesh.setColorAt(instanceId, _sectionColor.setRGB(1, 1, 1));
     region.usedVertexCount += reservedVertexCount;
     region.usedIndexCount += reservedIndexCount;
     region.slotCount += 1;
@@ -127,6 +136,24 @@ export class ChunkRegionArenas {
     this.regions
       .get(slot.regionKey)
       ?.mesh.setVisibleAt(slot.instanceId, isVisible);
+  }
+
+  /**
+   * How much of a section shows through its own fog color, 0 (pure fog
+   * tint) to 1 (drawn as itself). Rides the slot's batching color, so a
+   * remesh that rewrites the slot in place keeps the value; a slot
+   * allocated fresh starts at 1.
+   */
+  setSectionReveal(cx: number, cz: number, level: number, reveal: number) {
+    const slot = this.sections.get(`${cx},${cz},${level}`);
+    if (!slot) return false;
+    const region = this.regions.get(slot.regionKey);
+    if (!region) return false;
+    region.mesh.setColorAt(
+      slot.instanceId,
+      _sectionColor.setRGB(Math.min(1, Math.max(0, reveal)), 1, 1),
+    );
+    return true;
   }
 
   clearSection(cx: number, cz: number, level: number) {
