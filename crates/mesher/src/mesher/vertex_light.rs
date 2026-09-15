@@ -149,13 +149,36 @@ pub fn flow_direction(code: u32) -> Option<[f32; 2]> {
     Some([angle.cos(), angle.sin()])
 }
 
-/// Pack a fluid surface vertex: its column index, and the flow code in place
-/// of the redundant count.
+/// On a fluid surface vertex the index field is not its voxel's own column
+/// count but the fluid standing below the *corner*: the mean over the columns
+/// sharing that corner-grid point, in this many units per block. The shader
+/// (`SURFACE_DEPTH_UNITS_PER_BLOCK` in `shaders.ts`; change neither side
+/// alone) interpolates it across the face, so the floor shading ramps
+/// smoothly over a step in the bed instead of jumping at the voxel border
+/// — a per-column count drew every step as a hard rectangle on the surface,
+/// while the floor it shaded rippled underneath it. Four bits reach 3.75
+/// blocks, past the deepest floor the surface shading distinguishes.
+pub const SURFACE_DEPTH_UNITS_PER_BLOCK: f32 = 4.0;
+
+/// The deepest column the surface depth code can express; anything below
+/// it reads the same, so the walk that measures it stops there.
+pub const SURFACE_DEPTH_MAX_BLOCKS: f32 = (STACK_MAX - 1) as f32 / SURFACE_DEPTH_UNITS_PER_BLOCK;
+
+/// Quantize blocks of fluid below a surface corner into the index field.
 #[inline]
-pub fn with_surface_flow(light: i32, index: u32, code: u32) -> i32 {
-    let index = index.min(STACK_MAX - 1) as i32;
+pub fn surface_depth_code(depth_blocks: f32) -> u32 {
+    let units = (depth_blocks.max(0.0) * SURFACE_DEPTH_UNITS_PER_BLOCK).round();
+    (units as u32).min(STACK_MAX - 1)
+}
+
+/// Pack a fluid surface vertex: the depth code of its corner
+/// ({@link surface_depth_code}) in the index field, and the flow code in
+/// place of the redundant count.
+#[inline]
+pub fn with_surface_flow(light: i32, depth_code: u32, code: u32) -> i32 {
+    let depth_code = depth_code.min(STACK_MAX - 1) as i32;
     let code = code.min(FLOW_DIRECTIONS) as i32;
-    light | (index << STACK_INDEX_SHIFT) | (code << FLOW_SHIFT)
+    light | (depth_code << STACK_INDEX_SHIFT) | (code << FLOW_SHIFT)
 }
 
 #[cfg(test)]
@@ -292,6 +315,28 @@ mod tests {
         assert_ne!(light & FLUID_BIT, 0);
         assert_ne!(light & WAVE_BIT, 0);
         assert_eq!(light >> (HIGHEST_ALLOCATED_BIT + 1), 0);
+    }
+
+    /// The corner depth quantizes to the nearest unit, a mean of two whole
+    /// columns lands on a half-block exactly, and the field saturates at
+    /// its width rather than wrapping a deep column back to a shallow one.
+    #[test]
+    fn surface_depth_codes_quantize_and_saturate() {
+        assert_eq!(surface_depth_code(0.0), 0);
+        assert_eq!(surface_depth_code(1.0), 4);
+        assert_eq!(surface_depth_code(1.5), 6);
+        assert_eq!(surface_depth_code(0.25), 1);
+        assert_eq!(surface_depth_code(0.1), 0);
+        assert_eq!(surface_depth_code(3.75), STACK_MAX - 1);
+        assert_eq!(surface_depth_code(12.0), STACK_MAX - 1);
+        assert_eq!(surface_depth_code(-1.0), 0);
+        // Whole blocks keep exact codes at every unit up to the cap.
+        for blocks in 0..=3 {
+            assert_eq!(
+                surface_depth_code(blocks as f32),
+                blocks * SURFACE_DEPTH_UNITS_PER_BLOCK as u32
+            );
+        }
     }
 
     #[test]

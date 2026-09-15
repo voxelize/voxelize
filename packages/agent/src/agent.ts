@@ -177,6 +177,31 @@ function positiveEnvNumber(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+/**
+ * Extra Chromium switches from `AGENT_CHROME_ARGS`, whitespace-separated.
+ * The measurement escape hatch: `--disable-gpu-vsync --disable-frame-rate-limit`
+ * uncaps the frame rate so `fps` reports the frame the GPU actually takes
+ * instead of the display's refresh. Only well-formed switches pass, so a
+ * typo here can never keep the browser from launching.
+ */
+function extraChromeArgs(): string[] {
+  const raw = process.env.AGENT_CHROME_ARGS;
+  if (raw === undefined || raw.trim() === "") return [];
+  const args = raw
+    .split(/\s+/)
+    .filter((arg) => /^--[a-z0-9][a-z0-9-]*(=[^\s]*)?$/i.test(arg));
+  const dropped = raw.split(/\s+/).filter((a) => a !== "" && !args.includes(a));
+  if (dropped.length > 0) {
+    console.warn(
+      `[voxelize-agent] ignoring malformed AGENT_CHROME_ARGS entries: ${dropped.join(" ")}`,
+    );
+  }
+  if (args.length > 0) {
+    console.log(`[voxelize-agent] extra chrome args: ${args.join(" ")}`);
+  }
+  return args;
+}
+
 /** `video/mp4;codecs=avc1.42E01E` -> `mp4`. */
 function containerExtension(mimeType: string): string {
   const subtype = mimeType.split(";")[0]?.split("/")[1];
@@ -261,6 +286,7 @@ export class Agent {
         "--enable-webgl",
         "--ignore-gpu-blocklist",
         "--enable-logging=stderr",
+        ...extraChromeArgs(),
       ],
       defaultViewport: {
         width: positiveEnvNumber("AGENT_VIEWPORT_WIDTH", 1280),

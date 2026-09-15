@@ -291,6 +291,51 @@ pub(super) fn surface_flow_at_corner<S: VoxelAccess>(
     Some([downhill[0] / slope, downhill[1] / slope])
 }
 
+/// Blocks of fluid standing below the surface at a corner-grid point: the
+/// mean, over the voxels sharing the corner that hold the fluid at this
+/// level, of how many blocks of it stand under each. Every face meeting at
+/// the corner packs this same value, and the shader interpolates it across
+/// the face, so the depth the surface shades its floor by ramps smoothly
+/// over a step in the bed — one block up to one block past the step — where
+/// a per-voxel count jumped at the face border and drew the step as a
+/// hard-edged rectangle on the surface. Zero where no fluid meets the
+/// point, which no surface vertex ever asks about.
+pub(super) fn surface_depth_at_corner<S: VoxelAccess>(
+    cx: i32,
+    vy: i32,
+    cz: i32,
+    fluid_id: u32,
+    registry: &Registry,
+    space: &S,
+) -> f32 {
+    let is_waterlogging = registry
+        .get_block_by_id(fluid_id)
+        .is_some_and(|block| block.is_waterlogging_fluid);
+    // The packed code saturates a little under four blocks, so the walk
+    // stops there: a deeper column reads the same and costs nothing more.
+    let walk_limit = SURFACE_DEPTH_MAX_BLOCKS.ceil() as i32;
+    let mut total = 0.0f32;
+    let mut count = 0.0f32;
+    for ([vx, vz], _) in voxels_around_corner(cx, cz) {
+        if !voxel_holds_fluid(vx, vy, vz, fluid_id, is_waterlogging, space) {
+            continue;
+        }
+        let mut below = 0;
+        while below < walk_limit
+            && voxel_holds_fluid(vx, vy - below - 1, vz, fluid_id, is_waterlogging, space)
+        {
+            below += 1;
+        }
+        total += below as f32;
+        count += 1.0;
+    }
+    if count == 0.0 {
+        0.0
+    } else {
+        total / count
+    }
+}
+
 pub(super) fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
     faces.iter().any(|f| {
         let name_lower = f.name.to_lowercase();

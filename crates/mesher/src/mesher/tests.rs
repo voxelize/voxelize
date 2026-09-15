@@ -726,15 +726,28 @@ fn mesh_single_face_data_at_y(
     registry: &Registry,
     space: &impl VoxelAccess,
 ) -> (Vec<f32>, Vec<i32>) {
+    mesh_single_face_data_at([0, vy, 0], block, face, registry, space)
+}
+
+/// Positions come back in world coordinates (the mesh origin is the world
+/// origin), so a corner shared by two voxels reads the same position from
+/// either one's face.
+fn mesh_single_face_data_at(
+    [vx, vy, vz]: [i32; 3],
+    block: &Block,
+    face: &BlockFace,
+    registry: &Registry,
+    space: &impl VoxelAccess,
+) -> (Vec<f32>, Vec<i32>) {
     let mut positions = vec![];
     let mut indices = vec![];
     let mut uvs = vec![];
     let mut lights = vec![];
-    let neighbors = NeighborCache::populate(0, vy, 0, space);
+    let neighbors = NeighborCache::populate(vx, vy, vz, space);
     process_face(
-        0,
+        vx,
         vy,
-        0,
+        vz,
         block.id,
         &BlockRotation::PY(0.0),
         face,
@@ -1442,6 +1455,343 @@ fn a_surface_vertex_carries_the_downhill_flow_of_its_corner() {
             "a two-block column reports its count"
         );
     }
+}
+
+/// The depth a surface vertex carries is the mean over the columns sharing
+/// its corner, so the floor shading ramps across a step in the bed. A
+/// per-voxel count drew the pit under a pool as a hard-edged rectangle on
+/// the surface — the depth jumped at the face border while the floor it
+/// shaded rippled underneath.
+#[test]
+fn a_surface_vertex_carries_the_mean_depth_of_its_corner() {
+    const WATER_ID: u32 = 2;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let mut registry = Registry::new(vec![(0, air), (WATER_ID, water.clone())]);
+    registry.build_cache();
+
+    // A 3x3 pool one block deep at y=1, with a 2x2 pit under its -x/-z
+    // quadrant: the columns at x, z in {-1, 0} hold water at y=0 too.
+    let mut voxels = vec![];
+    for x in -1..=1 {
+        for z in -1..=1 {
+            voxels.push(((x, 1, z), (WATER_ID, 0)));
+            if x <= 0 && z <= 0 {
+                voxels.push(((x, 0, z), (WATER_ID, 0)));
+            }
+        }
+    }
+    let space = SparseSpace::new(&voxels);
+
+    // The origin's top face at y=1: its four corners each touch a different
+    // mix of pit (one block below) and shelf (nothing below) columns.
+    let faces = create_fluid_faces(0, 1, 0, WATER_ID, &space, &water.faces, &registry);
+    let top = faces.iter().find(|f| f.name == "py").expect("a top face");
+    let (positions, lights) = mesh_single_face_data_at_y(1, &water, top, &registry, &space);
+    assert_eq!(lights.len(), 4, "a top face has four vertices");
+
+    let units = SURFACE_DEPTH_UNITS_PER_BLOCK;
+    for (i, light) in lights.iter().enumerate() {
+        assert_ne!(light & WAVE_BIT, 0, "a top-face vertex waves");
+        let corner_x = positions[i * 3].round() as i32;
+        let corner_z = positions[i * 3 + 2].round() as i32;
+        // Columns around the corner point (cx, cz) are x in {cx-1, cx} and
+        // z in {cz-1, cz}; a column is over the pit when x <= 0 and z <= 0.
+        let mut pit_columns = 0;
+        for x in [corner_x - 1, corner_x] {
+            for z in [corner_z - 1, corner_z] {
+                if x <= 0 && z <= 0 {
+                    pit_columns += 1;
+                }
+            }
+        }
+        let expected_blocks = pit_columns as f32 / 4.0;
+        let code = ((light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS) as f32;
+        assert_eq!(
+            code,
+            (expected_blocks * units).round(),
+            "corner ({corner_x}, {corner_z}) over {pit_columns} pit column(s) carries their mean depth",
+        );
+    }
+
+    // The corner every one of the four pit columns shares reads a full
+    // block; the corner three shelf columns share reads a quarter.
+    let code_at = |cx: i32, cz: i32| -> Option<i32> {
+        lights.iter().enumerate().find_map(|(i, light)| {
+            (positions[i * 3].round() as i32 == cx && positions[i * 3 + 2].round() as i32 == cz)
+                .then(|| (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS)
+        })
+    };
+    assert_eq!(code_at(0, 0), Some(units as i32));
+    assert_eq!(code_at(1, 1), Some(1));
+
+    // The same corner from the neighbouring face packs the same depth.
+    let beside = create_fluid_faces(1, 1, 0, WATER_ID, &space, &water.faces, &registry);
+    let beside_top = beside.iter().find(|f| f.name == "py").expect("a top face");
+    let (beside_positions, beside_lights) =
+        mesh_single_face_data_at([1, 1, 0], &water, beside_top, &registry, &space);
+    let beside_code_at = |cx: i32, cz: i32| -> Option<i32> {
+        beside_lights.iter().enumerate().find_map(|(i, light)| {
+            (beside_positions[i * 3].round() as i32 == cx
+                && beside_positions[i * 3 + 2].round() as i32 == cz)
+                .then(|| (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS)
+        })
+    };
+    assert_eq!(
+        beside_code_at(1, 0),
+        code_at(1, 0),
+        "a shared corner packs one depth"
+    );
+    assert_eq!(
+        beside_code_at(1, 1),
+        code_at(1, 1),
+        "a shared corner packs one depth"
+    );
+}
+
+/// A dense 32x32 column of sea over a sloping stone bed, one voxel of
+/// margin all round, for timing the mesher on the worst case the surface
+/// walks meet: every top-level voxel is a water surface with four corners
+/// to read, and every column is deep.
+struct OceanSpace {
+    size: i32,
+    height: i32,
+    sea_level: i32,
+    voxels: Vec<u32>,
+    stone_id: u32,
+    water_id: u32,
+}
+
+impl OceanSpace {
+    fn new(size: i32, height: i32, sea_level: i32, stone_id: u32, water_id: u32) -> Self {
+        let span = size + 2;
+        let mut voxels = vec![0u32; (span * height * span) as usize];
+        for x in -1..=size {
+            for z in -1..=size {
+                // Bed falls from one block under the surface at the west edge
+                // to eight blocks under it at the east, in whole steps.
+                let bed = sea_level - 1 - ((x + 1) * 8 / (size + 2)).clamp(0, 7);
+                for y in 0..height {
+                    // `water_id == 0` drains the sea: the same bed under air.
+                    let id = if y <= bed {
+                        stone_id
+                    } else if y <= sea_level {
+                        water_id
+                    } else {
+                        0
+                    };
+                    let i = (((x + 1) * height + y) * span + (z + 1)) as usize;
+                    voxels[i] = id;
+                }
+            }
+        }
+        Self {
+            size,
+            height,
+            sea_level,
+            voxels,
+            stone_id,
+            water_id,
+        }
+    }
+
+    /// Raise the bed to one flat level everywhere, keeping the sea above it.
+    fn with_flat_bed(mut self, bed: i32) -> Self {
+        let span = self.size + 2;
+        for x in -1..=self.size {
+            for z in -1..=self.size {
+                for y in 0..self.height {
+                    let id = if y <= bed {
+                        self.stone_id
+                    } else if y <= self.sea_level {
+                        self.water_id
+                    } else {
+                        0
+                    };
+                    self.voxels[(((x + 1) * self.height + y) * span + (z + 1)) as usize] = id;
+                }
+            }
+        }
+        self
+    }
+}
+
+impl VoxelAccess for OceanSpace {
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return 0;
+        }
+        let span = self.size + 2;
+        self.voxels[(((vx + 1) * self.height + vy) * span + (vz + 1)) as usize]
+    }
+
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.get_voxel(vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+        BlockRotation::PY(0.0)
+    }
+
+    fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_voxel_waterlogged(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+        false
+    }
+
+    fn get_voxel_fluid_level(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_sunlight(&self, _vx: i32, vy: i32, _vz: i32) -> u32 {
+        if vy > self.sea_level {
+            15
+        } else {
+            (15 - (self.sea_level - vy)).max(0) as u32
+        }
+    }
+
+    fn get_torch_light(&self, _vx: i32, _vy: i32, _vz: i32, _color: LightColor) -> u32 {
+        0
+    }
+
+    fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
+        (self.get_sunlight(vx, vy, vz), 0, 0, 0)
+    }
+
+    fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+        (self.sea_level + 1) as u32
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        vx >= -1 && vx <= self.size && vz >= -1 && vz <= self.size && vy >= 0 && vy < self.height
+    }
+}
+
+fn ocean_registry(stone_id: u32, water_id: u32) -> (Registry, Block, Block) {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let stone = Block {
+        is_opaque: true,
+        faces: six_faces(),
+        ..plain_block(stone_id, "Stone")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(water_id, "Water")
+    };
+    let mut registry = Registry::new(vec![
+        (0, air),
+        (stone_id, stone.clone()),
+        (water_id, water.clone()),
+    ]);
+    registry.build_cache();
+    (registry, stone, water)
+}
+
+/// Timing, not a test: how long a 32x32 sea chunk takes to mesh, and how
+/// the two per-corner surface walks (flow, depth) split that. Run with
+/// `cargo test -p voxelize-mesher --release -- --ignored --nocapture
+/// bench_ocean`. Prints; asserts nothing, because a threshold would fail on
+/// a loaded machine and pass on an idle one without telling anyone anything.
+#[test]
+#[ignore]
+fn bench_ocean_chunk_meshing() {
+    const STONE_ID: u32 = 1;
+    const WATER_ID: u32 = 2;
+    let (registry, _stone, water) = ocean_registry(STONE_ID, WATER_ID);
+    let space = OceanSpace::new(32, 72, 63, STONE_ID, WATER_ID);
+    let min = [0, 0, 0];
+    let max = [32, 72, 32];
+
+    let time_mesh = |label: &str, space: &OceanSpace| {
+        let _ = mesh_space_greedy(&min, &max, space, &registry);
+        let rounds = 20;
+        let started = std::time::Instant::now();
+        let mut faces = 0usize;
+        for _ in 0..rounds {
+            let geometries = mesh_space_greedy(&min, &max, space, &registry);
+            faces += geometries
+                .iter()
+                .map(|g| g.indices.len() / 6)
+                .sum::<usize>();
+        }
+        println!(
+            "{label}: {:?} per mesh, {} faces",
+            started.elapsed() / rounds,
+            faces / rounds as usize
+        );
+    };
+    time_mesh("ocean chunk 32x32, sea up to 8 deep", &space);
+    time_mesh(
+        "same bed drained (air over stone)",
+        &OceanSpace::new(32, 72, 63, STONE_ID, 0),
+    );
+    time_mesh(
+        "sea one block deep over a flat bed",
+        &OceanSpace::new(32, 72, 63, STONE_ID, WATER_ID).with_flat_bed(62),
+    );
+
+    // The corner walks in isolation, over every surface corner in the chunk.
+    let rounds = 20u32;
+    let corners: Vec<(i32, i32)> = (0..=32)
+        .flat_map(|x| (0..=32).map(move |z| (x, z)))
+        .collect();
+    let started = std::time::Instant::now();
+    let mut acc = 0.0f32;
+    for _ in 0..rounds {
+        for &(cx, cz) in &corners {
+            acc += surface_depth_at_corner(cx, 63, cz, WATER_ID, &registry, &space);
+        }
+    }
+    let depth_per_corner = started.elapsed() / (rounds * corners.len() as u32);
+    let started = std::time::Instant::now();
+    let mut flows = 0usize;
+    for _ in 0..rounds {
+        for &(cx, cz) in &corners {
+            flows += surface_flow_at_corner(
+                cx,
+                63,
+                cz,
+                WATER_ID,
+                water.is_waterlogging_fluid,
+                &space,
+                &registry,
+            )
+            .is_some() as usize;
+        }
+    }
+    let flow_per_corner = started.elapsed() / (rounds * corners.len() as u32);
+    println!(
+        "per surface corner: depth {:?}, flow {:?} (checksums {acc:.1} {flows})",
+        depth_per_corner, flow_per_corner
+    );
+    println!(
+        "per chunk of 1024 surface faces x 4 corners: depth {:?}, flow {:?}",
+        depth_per_corner * 4096,
+        flow_per_corner * 4096
+    );
 }
 
 /// A sparse world: any voxel not listed is air.

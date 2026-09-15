@@ -1,5 +1,6 @@
 import {
   Color,
+  DataTexture,
   FramebufferTexture,
   LinearFilter,
   Matrix4,
@@ -12,6 +13,8 @@ import {
 } from "three";
 
 import { CustomChunkShaderMaterial } from "./chunk-materials";
+import { makeWaterNormalTexture } from "./water-normal-texture";
+import { WATER_OPTICS } from "./water-optics";
 
 export function makeSceneColorTexture(width = 1, height = 1, isSRGB = false) {
   const texture = new FramebufferTexture(width, height);
@@ -34,7 +37,19 @@ export function makeSceneColorTexture(width = 1, height = 1, isSRGB = false) {
 }
 
 export interface ShaderLightingUniforms {
+  /**
+   * The shading light: held above a minimum elevation, tilted off the sun's
+   * plane, and blended toward the moon through twilight, so terrain shading
+   * and shadows stay readable at every hour. Not where the sun is drawn.
+   */
   sunDirection: { value: Vector3 };
+  /**
+   * The celestial disc above the horizon as the sky box actually draws it
+   * (`getVisibleDiscDirection`): the sun by day, the moon by night, never
+   * clamped or tilted. Specular reflections read this, so the sun on the
+   * water sits under the sun in the sky.
+   */
+  celestialDirection: { value: Vector3 };
   sunColor: { value: Color };
   ambientColor: { value: Color };
   shadowMap0: { value: Texture | null };
@@ -98,6 +113,7 @@ export class ChunkRenderer {
     sceneTextureSize: { value: Vector2 };
     waterRefractionReady: { value: number };
     waterRefractionStrength: { value: number };
+    waterNormalMap: { value: DataTexture };
     cameraSubmersion: { value: number };
     cameraWaterPlaneY: { value: number };
     underwaterAmbient: { value: Color };
@@ -132,6 +148,11 @@ export class ChunkRenderer {
     sceneTextureSize: { value: new Vector2(1, 1) },
     waterRefractionReady: { value: 0 },
     waterRefractionStrength: { value: 0.08 },
+    // Baked once per world, at construction: measured 20-30ms of CPU, in
+    // the load phase, shared by every fluid material.
+    waterNormalMap: {
+      value: makeWaterNormalTexture(WATER_OPTICS.surfaceNormalTexture),
+    },
     cameraSubmersion: { value: 0 },
     cameraWaterPlaneY: { value: 0 },
     underwaterAmbient: { value: new Color(0, 0, 0) },
@@ -139,6 +160,7 @@ export class ChunkRenderer {
 
   public shaderLightingUniforms: ShaderLightingUniforms = {
     sunDirection: { value: new Vector3(0.5, 1.0, 0.3).normalize() },
+    celestialDirection: { value: new Vector3(0.5, 1.0, 0.0).normalize() },
     sunColor: { value: new Color(1.0, 0.98, 0.9) },
     ambientColor: { value: new Color(0.15, 0.17, 0.2) },
     shadowMap0: { value: null },

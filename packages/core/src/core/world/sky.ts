@@ -58,6 +58,46 @@ const defaultOptions: SkyOptions = {
 };
 
 /**
+ * Direction from the viewer to the centre of the painted sun disc for a
+ * time of day (0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset). The disc
+ * is the centre of the sky box's bottom face, and {@link Sky.update} spins
+ * the box about Z by one turn per day, so the sun points straight down at
+ * midnight, rises along +X, stands at the zenith at noon and sets along -X.
+ * The moon is the top face, diametrically opposite.
+ *
+ * This is where the disc is *drawn*. The shading light
+ * (`ShaderLightingUniforms.sunDirection`) is deliberately not this: it is
+ * held above a minimum elevation, tilted off the sun's plane, and blended
+ * toward the moon through twilight so terrain shading and shadows stay
+ * readable. Anything that has to line up with the disc the player sees — a
+ * reflection on water — reads this instead.
+ */
+export function getSunDiscDirection(
+  timeOfDay: number,
+  target: Vector3,
+): Vector3 {
+  const angle = timeOfDay * Math.PI * 2 - Math.PI / 2;
+  return target.set(Math.cos(angle), Math.sin(angle), 0);
+}
+
+/**
+ * The celestial disc above the horizon: the sun while it is up, the moon
+ * (its antipode) once it has set. The choice flips at the instant both sit
+ * on the horizon, and nothing shows it: a disc at zero elevation only
+ * mirrors into a ray that is itself horizontal.
+ */
+export function getVisibleDiscDirection(
+  timeOfDay: number,
+  target: Vector3,
+): Vector3 {
+  getSunDiscDirection(timeOfDay, target);
+  if (target.y < 0) {
+    target.negate();
+  }
+  return target;
+}
+
+/**
  * Sky consists of both a large dodecahedron used to render the 3-leveled sky gradient and a {@link CanvasBox} that renders custom sky textures (
  * for a sky box) within the dodecahedron sky.
  *

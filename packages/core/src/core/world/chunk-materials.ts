@@ -144,6 +144,8 @@ export function makeChunkShaderMaterial(
 
   const shaderLightingUniforms = {
     uSunDirection: world.chunkRenderer.shaderLightingUniforms.sunDirection,
+    uCelestialDirection:
+      world.chunkRenderer.shaderLightingUniforms.celestialDirection,
     uSunColor: world.chunkRenderer.shaderLightingUniforms.sunColor,
     uAmbientColor: world.chunkRenderer.shaderLightingUniforms.ambientColor,
     uShadowMap0: world.chunkRenderer.shaderLightingUniforms.shadowMap0,
@@ -211,6 +213,7 @@ export function makeChunkShaderMaterial(
       uSceneTextureSize: chunksUniforms.sceneTextureSize,
       uWaterRefractionReady: chunksUniforms.waterRefractionReady,
       uWaterRefractionStrength: chunksUniforms.waterRefractionStrength,
+      uWaterNormalMap: chunksUniforms.waterNormalMap,
       uCameraSubmersion: chunksUniforms.cameraSubmersion,
       uCameraWaterPlaneY: chunksUniforms.cameraWaterPlaneY,
       uUnderwaterAmbient: chunksUniforms.underwaterAmbient,
@@ -356,8 +359,8 @@ export async function loadChunkMaterials(
       isFluid
         ? SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment
         : transparent
-        ? SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment
-        : undefined,
+          ? SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment
+          : undefined,
     );
 
     mat.side = isFluid ? FrontSide : transparent ? DoubleSide : FrontSide;

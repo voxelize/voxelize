@@ -183,7 +183,7 @@ import {
   SectionVisibilityGraph,
 } from "./section-visibility";
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
-import { Sky } from "./sky";
+import { getVisibleDiscDirection, Sky } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
 import {
@@ -4716,6 +4716,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     sunDirection.value.set(lightX, lightY, 0.3);
     sunDirection.value.normalize();
+
+    // The disc the sky box draws, for anything that must line up with it.
+    // The shading light above is clamped, tilted, and moon-blended on
+    // purpose; a reflection built from it lands beside the sun, not under it.
+    getVisibleDiscDirection(
+      timeRatio,
+      this.chunkRenderer.shaderLightingUniforms.celestialDirection.value,
+    );
 
     const sunlightIntensity = Math.max(0, sunY);
 

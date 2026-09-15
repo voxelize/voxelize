@@ -291,33 +291,6 @@ pub(super) fn process_face<S: VoxelAccess>(
 ) {
     let [min_x, min_y, min_z] = *min;
 
-    // Fluids report their own column instead of a stack group: what the
-    // shader needs from a water fragment is how much water stands above it,
-    // and that run is defined by which voxels hold the fluid, not by a
-    // registry grouping.
-    let fluid_column = if is_fluid {
-        Some(fluid_column_position(vx, vy, vz, voxel_id, registry, space))
-    } else {
-        None
-    };
-    let fluid_stack_bits = fluid_column
-        .map(|(index, count)| with_stack(0, index, count))
-        .unwrap_or(0);
-    let fluid_surface_above =
-        is_fluid && has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space);
-    let block_stack = if !is_fluid && block.stack_group != 0 {
-        Some(stack_position(
-            vx,
-            vy,
-            vz,
-            block.stack_group,
-            registry,
-            space,
-        ))
-    } else {
-        None
-    };
-
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
     let rotatable = block.rotatable;
@@ -407,6 +380,37 @@ pub(super) fn process_face<S: VoxelAccess>(
     // spread edge got the window treatment and its walls vanished, leaving
     // the surface floating in unconnected sheets.
     let is_fluid_pane = is_fluid && dir[1] == 0 && !n_is_empty && !n_block_type.is_opaque;
+
+    // Column walks only for a face that will be emitted: they are the
+    // costliest thing here, and a culled face — every face of a submerged
+    // water voxel — never reads them.
+    //
+    // Fluids report their own column instead of a stack group: what the
+    // shader needs from a water fragment is how much water stands above it,
+    // and that run is defined by which voxels hold the fluid, not by a
+    // registry grouping.
+    let fluid_column = if is_fluid {
+        Some(fluid_column_position(vx, vy, vz, voxel_id, registry, space))
+    } else {
+        None
+    };
+    let fluid_stack_bits = fluid_column
+        .map(|(index, count)| with_stack(0, index, count))
+        .unwrap_or(0);
+    let fluid_surface_above =
+        is_fluid && has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space);
+    let block_stack = if !is_fluid && block.stack_group != 0 {
+        Some(stack_position(
+            vx,
+            vy,
+            vz,
+            block.stack_group,
+            registry,
+            space,
+        ))
+    } else {
+        None
+    };
 
     let UV {
         start_u,
@@ -706,21 +710,27 @@ pub(super) fn process_face<S: VoxelAccess>(
         let wave_bit = if waves { WAVE_BIT } else { 0 };
         // A waving vertex sits on the fluid's surface, so its column count
         // is its index plus one and the count field carries the surface
-        // flow at this corner instead. Read at the corner-grid point, so
-        // every face meeting there packs the same direction and the shader
-        // interpolates a continuous field across the sheet.
+        // flow at this corner instead; the index field carries the fluid
+        // standing below the corner rather than below this voxel alone.
+        // Both are read at the corner-grid point, so every face meeting
+        // there packs the same values and the shader interpolates continuous
+        // fields across the sheet — a depth per voxel drew a step in the bed
+        // as a hard rectangle on the surface above it.
         let stack_bits = match fluid_column {
-            Some((index, _)) if waves => {
+            Some(_) if waves => {
+                let cx = vx + pos[0].round() as i32;
+                let cz = vz + pos[2].round() as i32;
                 let flow = surface_flow_at_corner(
-                    vx + pos[0].round() as i32,
+                    cx,
                     vy,
-                    vz + pos[2].round() as i32,
+                    cz,
                     voxel_id,
                     block.is_waterlogging_fluid,
                     space,
                     registry,
                 );
-                with_surface_flow(0, index, flow_code(flow))
+                let depth = surface_depth_at_corner(cx, vy, cz, voxel_id, registry, space);
+                with_surface_flow(0, surface_depth_code(depth), flow_code(flow))
             }
             _ => stack_bits,
         };

@@ -282,13 +282,16 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: HashMap<(i32, i32), FaceData> =
         HashMap::with_capacity(slice_size * slice_size);
+    // The block is borrowed from the registry, not cloned: a `Block` owns
+    // several strings and vectors, and cloning one per face put tens of heap
+    // allocations behind every water voxel.
     let mut non_greedy_faces: Vec<(
         i32,
         i32,
         i32,
         u32,
         BlockRotation,
-        Block,
+        &Block,
         BlockFace,
         UV,
         bool,
@@ -378,7 +381,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                     vz,
                                     fluid_id,
                                     BlockRotation::PY(0.0),
-                                    fluid_block.clone(),
+                                    fluid_block,
                                     face,
                                     uv_range,
                                     fluid_block.is_see_through,
@@ -469,24 +472,67 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
 
-                    let faces: Vec<(BlockFace, bool)> =
-                        if is_fluid && has_standard_six_faces(&block.faces) {
-                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                                .into_iter()
-                                .map(|f| (f, false))
-                                .collect()
-                        } else if block.dynamic_patterns.is_some() {
-                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                        } else {
-                            block.faces.iter().cloned().map(|f| (f, false)).collect()
-                        };
-
+                    // A non-greedy voxel emits all its faces on the first of
+                    // the six sweeps that reaches it; the other five have
+                    // nothing to add, and must say so before building
+                    // anything — a fluid voxel's faces cost corner walks.
                     if processed_non_greedy.contains(&(vx, vy, vz)) {
                         continue;
                     }
                     processed_non_greedy.insert((vx, vy, vz));
 
-                    for (face, world_space) in faces.iter() {
+                    // Fluids never rotate and always carry the six axis
+                    // faces, so their culling can run before a face is
+                    // built, with the same rule `process_face` applies. A
+                    // submerged voxel — most of a sea — then emits nothing
+                    // and costs nothing; building its corner heights and six
+                    // faces only to drop every one of them in `process_face`
+                    // was most of what an ocean chunk cost to mesh.
+                    let is_standard_fluid = is_fluid && has_standard_six_faces(&block.faces);
+                    let fluid_face_renders: Option<[bool; 6]> = if is_standard_fluid {
+                        let mut renders = [false; 6];
+                        for (i, (fx, fy, fz)) in directions.iter().enumerate() {
+                            renders[i] = should_render_face(
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                [*fx, *fy, *fz],
+                                block,
+                                space,
+                                registry,
+                                is_see_through,
+                                is_fluid,
+                            );
+                        }
+                        if !renders.iter().any(|r| *r) {
+                            continue;
+                        }
+                        Some(renders)
+                    } else {
+                        None
+                    };
+
+                    let faces: Vec<(BlockFace, bool)> = if is_standard_fluid {
+                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                            .into_iter()
+                            .filter(|face| {
+                                fluid_face_renders.is_none_or(|renders| {
+                                    directions
+                                        .iter()
+                                        .position(|(fx, fy, fz)| face.dir == [*fx, *fy, *fz])
+                                        .is_none_or(|i| renders[i])
+                                })
+                            })
+                            .map(|f| (f, false))
+                            .collect()
+                    } else if block.dynamic_patterns.is_some() {
+                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                    } else {
+                        block.faces.iter().cloned().map(|f| (f, false)).collect()
+                    };
+
+                    for (face, world_space) in faces.into_iter() {
                         let uv_range = face.range.clone();
                         non_greedy_faces.push((
                             vx,
@@ -494,12 +540,12 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             vz,
                             voxel_id,
                             rotation.clone(),
-                            block.clone(),
-                            face.clone(),
+                            block,
+                            face,
                             uv_range,
                             is_see_through,
                             is_fluid,
-                            *world_space,
+                            world_space,
                         ));
                     }
                     continue;
@@ -588,7 +634,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     voxel_id,
                     &rotation,
                     &face,
-                    &block,
+                    block,
                     &uv_map,
                     registry,
                     space,

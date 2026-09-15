@@ -85,14 +85,36 @@ export const WATER_OPTICS = Object.freeze({
   /** Grazing-angle opacity added by the water's Fresnel reflection. */
   fresnelAlphaStrength: 0.65,
 
-  /** Reflected-sun alignment where the cheap analytic glint begins. */
-  sunGlintStartCos: 0.985,
+  /**
+   * The reflected sun. Up close the surface normal carries the full ripple
+   * field, so a tight disc around the mirror direction breaks into the
+   * glitter of a real sun path: every facet tilted onto the sun is one
+   * spark. Alignment cosines bound the disc; strength is its peak.
+   */
+  sunGlintStartCos: 0.996,
+  sunGlintFullCos: 0.9998,
+  sunGlintStrength: 0.9,
 
-  /** Reflected-sun alignment where the analytic glint reaches full strength. */
-  sunGlintFullCos: 0.9995,
+  /**
+   * The same glint on far water, blended in across the ripple fade band.
+   * Out there the slope map's mips have averaged the ripples flat, and the
+   * tight disc would focus back into one hard blob; a wider, dimmer disc
+   * reads as the soft sun path a calm distance shows instead.
+   */
+  sunGlintFarStartCos: 0.95,
+  sunGlintFarStrength: 0.3,
 
-  /** Peak intensity of the analytic sun glint. */
-  sunGlintStrength: 0.8,
+  /**
+   * The two Blinn-Phong lobes under the glint: a broad one (power 32) that
+   * is the sun's halo smeared across the ripples, and a medium one (power
+   * 96) between it and the disc. Strengths are the peak added on a facet
+   * aligned to the sun; the broad lobe takes its full strength on top faces
+   * and the base on walls. Low, because the disc carries the brightness —
+   * with strong lobes the whole sun path saturated into one white patch.
+   */
+  specularBroadBaseStrength: 0.04,
+  specularBroadTopStrength: 0.06,
+  specularMediumStrength: 0.12,
 
   /**
    * View-incidence cosine (geometric surface normal vs. view direction)
@@ -130,21 +152,10 @@ export const WATER_OPTICS = Object.freeze({
   refractionMaxDrawingBufferPixels: 8_000_000,
 
   /**
-   * Distance band (blocks) over which the medium wave octave of the water
-   * surface fades out. Beyond the end of the band its ~0.7-block wavelength
-   * is subpixel at typical resolutions, so evaluating it only costs ALU and
-   * reads as specular shimmer.
-   */
-  mediumWaveFadeStartBlocks: 64,
-  mediumWaveFadeEndBlocks: 128,
-
-  /**
-   * Distance band (blocks) over which the large wave octave (~3-block
-   * wavelength) fades out — the same subpixel argument as the other bands,
-   * one octave up. The low-frequency swell (20-block wavelength) is spared:
-   * it stays resolvable to the horizon, and without any normal variation
-   * distant water collapses into a flat mirror of the sky — a bright sheet
-   * that reads as an artifact behind shoreline foliage.
+   * Distance band (blocks) over which the largest ripple layer's share of
+   * the grazing reflectivity hands over to the statistical factor below.
+   * The slope map's mips flatten the normal on their own out here; what
+   * they cannot supply is the reflectivity a wavy surface has in aggregate.
    */
   baseWaveFadeStartBlocks: 144,
   baseWaveFadeEndBlocks: 256,
@@ -152,38 +163,129 @@ export const WATER_OPTICS = Object.freeze({
   /**
    * What grazing-angle fresnel decays toward across the base-wave fade
    * band. A wavy surface tilts half its normals toward the viewer, so its
-   * aggregate reflectivity sits well below a flat mirror's; once the large
-   * octave no longer supplies that variation per-fragment, this factor
-   * supplies it statistically, keeping far water the same tint-dominant
-   * shade it had when the octave was evaluated.
+   * aggregate reflectivity sits well below a flat mirror's; once the mips
+   * no longer supply that variation per-fragment, this factor supplies it
+   * statistically, keeping far water the same tint-dominant shade it had
+   * when the ripples were resolved.
    */
   distantFresnelFactor: 0.55,
 
   /**
-   * Distance band (blocks) over which the surface ripple/sparkle octaves
-   * fade out, for the same subpixel reason as the medium wave band.
+   * Distance band (blocks) over which the near-water treatments fade: crest
+   * highlights, caustics, the flow crests, and the tight sun glint. Beyond
+   * it the fine ripples are subpixel and those cues would only shimmer.
    */
   rippleFadeStartBlocks: 48,
   rippleFadeEndBlocks: 96,
 
   /**
-   * Analytic directional slopes for the surface normal. Keeping these in
-   * data makes water style tunable without restoring the former per-pixel
-   * finite-difference simplex stack (eleven 3D noise evaluations).
+   * The tileable slope map the surface normal is read from, baked once per
+   * world (`water-normal-texture.ts`). Ridged noise: every octave folds
+   * about zero so its zero crossings become sharp crests between smooth
+   * troughs — the silhouette wind ripples actually have. The former sum of
+   * four sinusoids had no creases anywhere, and a surface without them
+   * reads as gel: one smooth bulge of sun, one smooth wobble of floor.
+   * Texture lookups also replace the per-pixel trigonometry, and the mip
+   * chain calms far water for free where the old octaves had to be faded
+   * by hand.
    */
-  surfaceNormalWaves: [
-    { direction: [0.8, 0.6], frequency: 0.32, speed: 0.25, slope: 0.11 },
-    { direction: [-0.6, 0.8], frequency: 0.58, speed: -0.18, slope: 0.07 },
-    { direction: [0.7, -0.7], frequency: 1.4, speed: 0.45, slope: 0.045 },
-    // Fine ripple octave (~2-block wavelength). Fades with the ripple band:
-    // it exists to break the reflection up close, where a flat sheet over
-    // ground reads as a tint rather than a surface.
-    { direction: [-0.3, -0.95], frequency: 3.1, speed: -0.6, slope: 0.03 },
+  surfaceNormalTexture: {
+    size: 256,
+    latticePeriod: 4,
+    // Two octaves, not a fractal stack: each layer should be glassy facets
+    // with crests at one dominant scale, and the three layers between them
+    // cover the range. Crests at every octave in every layer read as grain.
+    octaves: 2,
+    gain: 0.5,
+    ridgeSharpness: 1.3,
+    seed: 1337,
+    // 4, not the device maximum: at grazing incidence the bump already
+    // fades toward flat, so the extra taps 8x or 16x would spend on the
+    // horizon band sharpen ripples the shader is suppressing anyway. Each
+    // level doubles the worst-case taps of every layer on every far pixel.
+    anisotropy: 4,
+  },
+
+  /**
+   * The slope map sampled at three world scales and summed into the
+   * surface normal, the way every shader-pack water does it: a swell, the
+   * ripples riding it, and the capillary texture riding those. `tileBlocks`
+   * is the world size of one repeat; `drift` is the pattern's velocity in
+   * blocks per second, each layer on its own heading so the sheet never
+   * reads as one texture sliding; `rotation` turns the tile so the three
+   * scales do not line up; `stretch` scales the tile along its rotated
+   * axes, so a layer's ridges run long across one direction the way wind
+   * ripples run across the wind instead of forming isotropic cells; `bump`
+   * is the slope the tile's steepest facet contributes, so the sum bounds
+   * the surface tilt. Most of the bump sits in the fine layer: that is the
+   * glitter, while a coarse layer with the same bump reads as marble veins.
+   */
+  surfaceNormalLayers: [
+    {
+      tileBlocks: 40,
+      drift: [0.5, 0.3],
+      rotation: 0.0,
+      stretch: [1.0, 1.0],
+      bump: 0.05,
+    },
+    {
+      tileBlocks: 10,
+      drift: [-0.25, 0.45],
+      rotation: 1.1,
+      stretch: [1.0, 1.8],
+      bump: 0.08,
+    },
+    {
+      tileBlocks: 2.8,
+      drift: [-0.3, -0.25],
+      rotation: 2.3,
+      stretch: [1.0, 1.6],
+      bump: 0.11,
+    },
   ],
-  surfaceRippleWaves: [
-    { direction: [1.0, 0.35], frequency: 1.8, speed: 0.9 },
-    { direction: [-0.4, 1.0], frequency: 4.8, speed: -1.2 },
-  ],
+
+  /**
+   * The fine layer's bump is modulated by the swell layer's height, so the
+   * capillary ripples come in patches — calm water between gusts, a
+   * roughened patch where one is passing, drifting with the swell. Below
+   * the floor share of its bump the fine layer never drops; without the
+   * modulation the whole surface carried the same grain everywhere and
+   * read as frosted glass.
+   */
+  ripplePatchFloor: 0.3,
+
+  /**
+   * Share of the ripple bump kept at grazing incidence (on the geometric
+   * normal). Near the horizon the ripples are subpixel and the slope map
+   * would only add noise to what should be a mirror of the sky.
+   */
+  grazingBumpKeep: 0.3,
+
+  /**
+   * A rippled normal can reflect the view ray back down into the water.
+   * Such a facet is pulled toward flat by up to this share, growing with
+   * the power below as the reflected ray dips toward the surface plane, so
+   * the reflection never samples the sky from under the horizon.
+   */
+  reflectionFoldbackStrength: 0.5,
+  reflectionFoldbackExponent: 8,
+
+  /**
+   * Crests of the medium and fine ripple layers (the slope map's height
+   * channel) catch the sky. Height is 0..1 across the tile; the band maps
+   * it onto the highlight's strength. Read off the same field the normal
+   * comes from, so a highlight sits on the ridge it belongs to.
+   */
+  crestHighlightStart: 0.62,
+  crestHighlightFull: 0.95,
+
+  /**
+   * Screen-space refraction displacement per unit of surface slope, before
+   * `uWaterRefractionStrength`. The floor bends where the surface tilts —
+   * the same ripples the reflection shows — instead of under a separate
+   * slow swell that wobbled the whole bed like a set gel.
+   */
+  refractionSlopeScale: 2.0,
 
   /**
    * Standing water over ground, as seen from above through its surface.
@@ -345,6 +447,49 @@ export const FLOW_CREST_PHASE_PER_HEIGHT =
  */
 export const FLUID_SPILL_CORNER_MIN_HEIGHT =
   (WATER_OPTICS.fluidSurfaceHeight + 1) / 2;
+
+/**
+ * Samples every {@link WATER_OPTICS.surfaceNormalLayers} entry of the slope
+ * map at the fragment's `wPos.xz` for `waterSeconds`, accumulating the
+ * decoded, bump-weighted slopes into `waterSlopeSum` (declared by the
+ * caller). Each layer's texel stays in scope as `waterTexel<i>` so the
+ * height channel can be read for crest highlights without a second lookup;
+ * the first layer's height also gates the last layer's bump into patches
+ * ({@link WATER_OPTICS.ripplePatchFloor}). The red and green channels
+ * decode `rg * 2 - 1` to -1..1, the tile's steepest facet at ±1 (see
+ * `water-normal-texture.ts`).
+ */
+export const WATER_SURFACE_NORMAL_LAYERS_GLSL = WATER_OPTICS.surfaceNormalLayers
+  .map((layer, index, layers) => {
+    const cos = Math.cos(layer.rotation).toFixed(6);
+    const sin = Math.sin(layer.rotation).toFixed(6);
+    const negSin = (-Math.sin(layer.rotation)).toFixed(6);
+    const [driftX, driftZ] = layer.drift;
+    // Tile size and stretch fold into one per-axis scale on the rotated
+    // position: the axis with the larger factor repeats sooner, so the
+    // ridges come out long along the other one.
+    const scaleX = (layer.stretch[0] / layer.tileBlocks).toFixed(6);
+    const scaleY = (layer.stretch[1] / layer.tileBlocks).toFixed(6);
+    const isSwell = index === 0;
+    const isFinest = index === layers.length - 1;
+    const patchGate = isFinest && !isSwell ? " * ripplePatch" : "";
+    const patchDefinition = isSwell
+      ? `
+  float ripplePatch = mix(
+    ${WATER_OPTICS.ripplePatchFloor.toFixed(4)},
+    1.0,
+    waterTexel0.b
+  );`
+      : "";
+    return `
+  vec2 waterUv${index} = mat2(${cos}, ${sin}, ${negSin}, ${cos})
+    * (wPos.xz + vec2(${driftX.toFixed(4)}, ${driftZ.toFixed(4)}) * waterSeconds)
+    * vec2(${scaleX}, ${scaleY});
+  vec4 waterTexel${index} = texture2D(uWaterNormalMap, waterUv${index});${patchDefinition}
+  waterSlopeSum += (waterTexel${index}.rg * 2.0 - 1.0)
+    * ${layer.bump.toFixed(4)}${patchGate};`;
+  })
+  .join("");
 
 export const WATER_SURFACE_SCATTER_COLOR = new Color(
   WATER_OPTICS.surfaceScatterColor,

@@ -18,6 +18,7 @@ import {
   FLUID_SPILL_CORNER_MIN_HEIGHT,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
+  WATER_SURFACE_NORMAL_LAYERS_GLSL,
   WATER_SURFACE_SCATTER_GLSL,
   WATER_VIEW_EXTINCTION_GLSL,
 } from "./water-optics";
@@ -271,6 +272,11 @@ attribute int light;
 // else one of FLOW_DIRECTIONS directions in equal steps from +x toward +z.
 #define FLOW_DIRECTIONS 15.0
 #define FLOW_STEP_RADIANS (6.28318530718 / FLOW_DIRECTIONS)
+// ...and its index field is the fluid standing below its corner — the mean
+// over the columns sharing the corner — in these units per block, so the
+// depth interpolates smoothly across a face instead of stepping per voxel.
+// Mirrors SURFACE_DEPTH_UNITS_PER_BLOCK in vertex_light.rs.
+#define SURFACE_DEPTH_UNITS_PER_BLOCK 4.0
 
 uniform vec4 uEmissiveLevels;
 varying float vEmissive;
@@ -444,13 +450,16 @@ vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
 vWaterSurfaceY = isFluid == 1 ? worldPosition.y + fluidAbove : uWaterLevel;
 
 // Water standing under a surface vertex, down to the column's floor: the
-// surface height inside its own voxel plus the whole blocks the mesher
-// counted below it. Measured from the rest position — the wave offset
-// above could carry a vertex near the top of its voxel into the next one
-// and jump the depth by a block. A surface vertex sits at vy + h with h in
-// (0, 1], so ceil(y) - 1 is its voxel. Meaningful on top faces only; a
-// side face's bottom row lands one voxel low, and the fragment stage
-// never reads it there.
+// surface height inside its own voxel plus the blocks the mesher counted
+// below the vertex's corner — the mean over the columns sharing it, in
+// SURFACE_DEPTH_UNITS_PER_BLOCK units, so a step in the bed ramps across
+// the faces on either side instead of jumping at the voxel border. A fluid
+// vertex under the surface keeps its own column's whole-block count.
+// Measured from the rest position — the wave offset above could carry a
+// vertex near the top of its voxel into the next one and jump the depth by
+// a block. A surface vertex sits at vy + h with h in (0, 1], so ceil(y) - 1
+// is its voxel. Meaningful on top faces only; a side face's bottom row
+// lands one voxel low, and the fragment stage never reads it there.
 vec4 restWorldPosition = vec4(position, 1.0);
 #ifdef USE_BATCHING
   restWorldPosition = batchingMatrix * restWorldPosition;
@@ -460,7 +469,10 @@ vec4 restWorldPosition = vec4(position, 1.0);
 #endif
 restWorldPosition = modelMatrix * restWorldPosition;
 float fluidVoxelY = ceil(restWorldPosition.y - 1e-3) - 1.0;
-vFluidDepthBelow = float(isFluid) * (restWorldPosition.y - fluidVoxelY + stackIndexF);
+float fluidBelowBlocks = isSurfaceVertex == 1
+  ? stackIndexF / SURFACE_DEPTH_UNITS_PER_BLOCK
+  : stackIndexF;
+vFluidDepthBelow = float(isFluid) * (restWorldPosition.y - fluidVoxelY + fluidBelowBlocks);
 vFluidRestY = restWorldPosition.y;
 vAboveSurfaceWaterTransmit = vec3(1.0);
 if (
@@ -528,6 +540,15 @@ uniform float uWaterAbsorption;
 uniform float uWaterLevel;
 uniform float uWaterStreakStrength;
 uniform float uWaterFresnelStrength;
+// The celestial disc as the sky box draws it (sun by day, moon by night),
+// never clamped or tilted the way the shading light uSunDirection is. The
+// water's specular mirrors this so the sun on the water sits under the sun
+// in the sky; diffuse shading and shadows keep the shading light.
+uniform vec3 uCelestialDirection;
+// The tileable ripple slope map (water-normal-texture.ts). Declared for every
+// chunk variant because the fluid branch below must parse even where it is
+// compiled out; inactive there, so it binds no unit on terrain materials.
+uniform sampler2D uWaterNormalMap;
 uniform sampler2D uSceneColor;
 uniform vec2 uSceneTextureSize;
 uniform float uWaterRefractionReady;
@@ -930,23 +951,20 @@ if (vIsFluid > 0.5) {
   // a waterfall, a leak's edge) and keeps the lake shading: fading or
   // culling it left a spread's edge walls missing under its floating top.
   float airSideFace = sideWaterFace * (1.0 - uCameraSubmersion) * vIsFluidPane;
+  vec3 viewDir = normalize(cameraPosition - wPos);
   // Head-on tank walls drop out entirely (Barrier windows are supposed to
   // be a hole). Geometric normal, not the waved one — sides never wave.
-  float airFacing = max(dot(vWorldNormal, normalize(cameraPosition - vWorldPosition.xyz)), 0.0);
-  if (airSideFace * airFacing > ${WATER_OPTICS.airSideFaceCullCos.toFixed(4)}) {
+  float geoNdotV = max(dot(vWorldNormal, viewDir), 0.0);
+  if (airSideFace * geoNdotV > ${WATER_OPTICS.airSideFaceCullCos.toFixed(4)}) {
     discard;
   }
 
   float distToCamera = length(cameraPosition - wPos);
 
-  // Subpixel-octave LOD: each detail octave fades out across its distance
-  // band from WATER_OPTICS, beyond which its wavelength is subpixel and the
-  // noise only cost ALU and aliased as sparkle.
-  float mediumWaveLod = 1.0 - smoothstep(
-    ${WATER_OPTICS.mediumWaveFadeStartBlocks.toFixed(1)},
-    ${WATER_OPTICS.mediumWaveFadeEndBlocks.toFixed(1)},
-    distToCamera
-  );
+  // Distance bands from WATER_OPTICS for the near-water cues (crests,
+  // caustics, flow, the tight glint) and the far handover of grazing
+  // reflectivity. The ripple normal itself needs no band: the slope map's
+  // mip chain averages it flat as its features go subpixel.
   float rippleLod = 1.0 - smoothstep(
     ${WATER_OPTICS.rippleFadeStartBlocks.toFixed(1)},
     ${WATER_OPTICS.rippleFadeEndBlocks.toFixed(1)},
@@ -958,14 +976,21 @@ if (vIsFluid > 0.5) {
     distToCamera
   );
 
-  // Side and bottom faces keep their geometric normal. Top faces use four
-  // analytic directional slopes: the old finite-difference stack evaluated
-  // 3D simplex eleven times per pixel, dominating high-resolution water.
-  // The lens term is where that slope field is locally flat — the surface
-  // focusing light onto the floor — and drives the caustics below, so they
-  // travel with the ripples they belong to instead of a second pattern.
+  // Side and bottom faces keep their geometric normal. Top faces read theirs
+  // from the tileable ripple slope map, sampled at three world scales and
+  // summed (WATER_OPTICS.surfaceNormalLayers): a swell, ripples on it, and
+  // capillary texture on those, each drifting on its own heading. Ridged
+  // noise gives the field sharp crests between smooth troughs, so the sun
+  // breaks into glitter on it and the sky reflection has grain — the four
+  // analytic sinusoids this replaces had no crease anywhere and rendered
+  // both as one smooth bulge. The lens term is where the slope field is
+  // locally flat — the surface focusing light onto the floor — and drives
+  // the caustics below, so they travel with the ripples they belong to.
   vec3 waterNormal = vWorldNormal;
   float causticLens = 0.0;
+  // Height channel of the medium and fine layers, for crest highlights.
+  float crestMed = 0.5;
+  float crestFine = 0.5;
   // Flow. Water runs downhill along its own surface, and the top face is a
   // bilinear patch through the mesher's corner heights, which step down one
   // stage per block away from the source. That rest height is a potential
@@ -1000,43 +1025,33 @@ if (vIsFluid > 0.5) {
     flowCrest = flowWave * min(length(vFluidFlow), 1.0);
   }
   if (vWorldNormal.y >= 0.5) {
-    vec2 waveDir0 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[0].direction.join(
-      ", ",
-    )}));
-    vec2 waveDir1 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[1].direction.join(
-      ", ",
-    )}));
-    vec2 waveDir2 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[2].direction.join(
-      ", ",
-    )}));
-    vec2 waveDir3 = normalize(vec2(${WATER_OPTICS.surfaceNormalWaves[3].direction.join(
-      ", ",
-    )}));
-    vec2 waterSlope =
-      waveDir0 * cos(dot(wPos.xz, waveDir0) * ${
-        WATER_OPTICS.surfaceNormalWaves[0].frequency
-      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[0].speed}) * ${
-        WATER_OPTICS.surfaceNormalWaves[0].slope
-      }
-      + waveDir1 * cos(dot(wPos.xz, waveDir1) * ${
-        WATER_OPTICS.surfaceNormalWaves[1].frequency
-      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[1].speed}) * ${
-        WATER_OPTICS.surfaceNormalWaves[1].slope
-      } * baseWaveLod
-      + waveDir2 * cos(dot(wPos.xz, waveDir2) * ${
-        WATER_OPTICS.surfaceNormalWaves[2].frequency
-      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[2].speed}) * ${
-        WATER_OPTICS.surfaceNormalWaves[2].slope
-      } * mediumWaveLod
-      + waveDir3 * cos(dot(wPos.xz, waveDir3) * ${
-        WATER_OPTICS.surfaceNormalWaves[3].frequency
-      } + waveTime * ${WATER_OPTICS.surfaceNormalWaves[3].speed}) * ${
-        WATER_OPTICS.surfaceNormalWaves[3].slope
-      } * rippleLod
+    float waterSeconds = uTime * 0.001;
+    vec2 waterSlopeSum = vec2(0.0);
+${WATER_SURFACE_NORMAL_LAYERS_GLSL}
+    crestMed = waterTexel1.b;
+    crestFine = waterTexel2.b;
+    // The bump eases off toward grazing incidence, on the geometric normal
+    // so the ripples cannot pump their own fade: at the horizon they are
+    // subpixel and would only add noise to what should mirror the sky.
+    float bumpScale = mix(
+      ${WATER_OPTICS.grazingBumpKeep.toFixed(4)},
+      1.0,
+      geoNdotV
+    );
+    vec2 waterSlope = waterSlopeSum * bumpScale
       // The flow crests tilt the normal too, so reflection, refraction and
       // the caustics below all travel downstream with them.
       + flowTilt * ${WATER_OPTICS.flowSlopeAmplitude.toFixed(4)};
     waterNormal = normalize(vec3(waterSlope.x, 1.0, waterSlope.y));
+    // A facet steep enough to reflect the view ray back down into the water
+    // is eased toward flat, so the reflection never samples the sky from
+    // under the horizon.
+    vec3 foldProbe = reflect(-viewDir, waterNormal);
+    float foldback = pow(
+      1.0 - max(dot(vWorldNormal, foldProbe), 0.0),
+      ${WATER_OPTICS.reflectionFoldbackExponent.toFixed(1)}
+    ) * ${WATER_OPTICS.reflectionFoldbackStrength.toFixed(4)};
+    waterNormal = normalize(mix(waterNormal, vWorldNormal, foldback));
     causticLens = 1.0 - smoothstep(
       0.0,
       ${WATER_OPTICS.causticLensSlope.toFixed(4)},
@@ -1044,7 +1059,6 @@ if (vIsFluid > 0.5) {
     );
   }
 
-  vec3 viewDir = normalize(cameraPosition - wPos);
   float NdotV = max(dot(waterNormal, viewDir), 0.0);
   float fresnelBase = mix(0.01, 0.04, topWaterFace);
   float fresnelMax = mix(0.22, 0.56, topWaterFace);
@@ -1069,8 +1083,17 @@ if (vIsFluid > 0.5) {
   fresnel *= airSideGloss;
 
   vec3 reflectDir = reflect(-viewDir, waterNormal);
-  float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
-  vec3 skyReflection = mix(uSkyMiddleColor, uSkyTopColor, skyBlend);
+  // The dome the sky shader draws, read along the reflected ray with the
+  // same offset and exponent: a bright horizon band climbing into the
+  // zenith color. A ripple that tips the ray toward the horizon picks up
+  // the horizon's light, which is the grain a water reflection has; the
+  // flat two-color ramp this replaces barely changed across a whole facet.
+  float skyH = normalize(reflectDir * uSkyFogDimension + uSkyFogOffset).y;
+  vec3 skyReflection = mix(
+    uSkyMiddleColor,
+    uSkyTopColor,
+    pow(max(skyH, 0.0), uSkyFogExponent)
+  );
 
   // Seen from below, the surface only transmits sky within the Snell window
   // overhead; grazing angles reflect the dark water body instead.
@@ -1078,25 +1101,43 @@ if (vIsFluid > 0.5) {
   vec3 belowSurfaceSky = mix(uUnderwaterAmbient, skyReflection, snellWindow);
   skyReflection = mix(skyReflection, belowSurfaceSky, uCameraSubmersion);
 
-  vec3 halfVec = normalize(uSunDirection + viewDir);
+  // Both the lobes and the glint mirror the drawn disc, not the shading
+  // light: that one is held above a minimum elevation and tilted off the
+  // sun's plane for terrain's sake, which put the reflection a good twenty
+  // degrees to one side of the sun and closer than its mirror point.
+  vec3 halfVec = normalize(uCelestialDirection + viewDir);
   float specAngle = max(dot(waterNormal, halfVec), 0.0);
   float spec32 = specAngle * specAngle;
   spec32 *= spec32;
   spec32 *= spec32;
   spec32 *= spec32;
   spec32 *= spec32;
-  float specMed = spec32 * spec32 * spec32 * uSunlightIntensity * 0.24;
-  vec3 specularColor = uSunColor * (spec32 * uSunlightIntensity * (0.08 + topWaterFace * 0.14) + specMed);
-  float sunGlint = smoothstep(
+  float specMed = spec32 * spec32 * spec32 * uSunlightIntensity
+    * ${WATER_OPTICS.specularMediumStrength.toFixed(4)};
+  vec3 specularColor = uSunColor * (
+    spec32 * uSunlightIntensity * (
+      ${WATER_OPTICS.specularBroadBaseStrength.toFixed(4)}
+      + topWaterFace * ${WATER_OPTICS.specularBroadTopStrength.toFixed(4)}
+    )
+    + specMed
+  );
+  // The reflected sun: a tight disc up close, where the rippled normal
+  // shatters it into glitter; wider and dimmer on far water, where the mips
+  // have calmed the normal and the tight disc would refocus into one blob.
+  float sunAlignment = max(dot(reflectDir, uCelestialDirection), 0.0);
+  float sunGlintNear = smoothstep(
     ${WATER_OPTICS.sunGlintStartCos.toFixed(4)},
     ${WATER_OPTICS.sunGlintFullCos.toFixed(4)},
-    max(dot(reflectDir, uSunDirection), 0.0)
-  );
+    sunAlignment
+  ) * ${WATER_OPTICS.sunGlintStrength.toFixed(4)};
+  float sunGlintFar = smoothstep(
+    ${WATER_OPTICS.sunGlintFarStartCos.toFixed(4)},
+    ${WATER_OPTICS.sunGlintFullCos.toFixed(4)},
+    sunAlignment
+  ) * ${WATER_OPTICS.sunGlintFarStrength.toFixed(4)};
+  float sunGlint = mix(sunGlintFar, sunGlintNear, rippleLod);
   sunGlint *= topWaterFace * (1.0 - uCameraSubmersion);
-  specularColor += uSunColor
-    * (sunGlint * uSunlightIntensity * ${WATER_OPTICS.sunGlintStrength.toFixed(
-      4,
-    )});
+  specularColor += uSunColor * (sunGlint * uSunlightIntensity);
   specularColor *= airSideGloss;
 ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   vec3 baseWater = outgoingLight.rgb;
@@ -1128,29 +1169,23 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     waterColor = mix(waterColor, streakColor, streakStrength);
   }
 
-  float rippleNoise = 0.0;
-  float fineRippleNoise = 0.0;
   float surfaceRipple = 0.0;
   float rippleGate = topWaterFace * rippleLod;
   if (rippleGate > 0.001) {
-    vec2 rippleDir0 = normalize(vec2(${WATER_OPTICS.surfaceRippleWaves[0].direction.join(
-      ", ",
-    )}));
-    vec2 rippleDir1 = normalize(vec2(${WATER_OPTICS.surfaceRippleWaves[1].direction.join(
-      ", ",
-    )}));
-    rippleNoise = sin(dot(wPos.xz, rippleDir0) * ${
-      WATER_OPTICS.surfaceRippleWaves[0].frequency
-    } + waveTime * ${WATER_OPTICS.surfaceRippleWaves[0].speed});
-    fineRippleNoise = sin(dot(wPos.xz, rippleDir1) * ${
-      WATER_OPTICS.surfaceRippleWaves[1].frequency
-    } + waveTime * ${WATER_OPTICS.surfaceRippleWaves[1].speed});
-    surfaceRipple = smoothstep(0.42, 0.92, rippleNoise * 0.65 + fineRippleNoise * 0.35) * rippleLod;
+    // Crests of the medium and fine ripple layers catch the sky — the same
+    // height field the normal was read from, so each highlight sits on the
+    // ridge it belongs to and moves with it.
+    float crest = crestMed * 0.6 + crestFine * 0.4;
+    surfaceRipple = smoothstep(
+      ${WATER_OPTICS.crestHighlightStart.toFixed(4)},
+      ${WATER_OPTICS.crestHighlightFull.toFixed(4)},
+      crest
+    ) * rippleLod;
     vec3 surfaceHighlight = mix(waterColor, skyReflection, 0.34);
     waterColor = mix(waterColor, surfaceHighlight, topWaterFace * surfaceRipple * uWaterStreakStrength * 1.8);
     // Crest tops of the flow train catch the sky, broken up by the still
     // ripple field so they read as water running, not bars scrolling.
-    float flowBand = smoothstep(0.15, 0.95, flowCrest) * (0.7 + 0.3 * rippleNoise);
+    float flowBand = smoothstep(0.15, 0.95, flowCrest) * (0.7 + 0.3 * (crestMed * 2.0 - 1.0));
     waterColor = mix(
       waterColor,
       surfaceHighlight,
@@ -1224,16 +1259,13 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
 
   if (uWaterRefractionReady > 0.5 && refractionFace > 0.01 && uCameraSubmersion < 0.5) {
     vec2 screenUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
-    float refractionTime = uTime * 0.001;
-    vec2 broadRipple = vec2(
-      sin(wPos.x * 0.7 + refractionTime * 1.6) + sin((wPos.x + wPos.z) * 0.42 - refractionTime * 1.1),
-      cos(wPos.z * 0.72 - refractionTime * 1.4) + sin((wPos.z - wPos.x) * 0.38 + refractionTime * 0.9)
-    ) * 0.5;
-    vec2 sideRipple = vec2(rippleNoise, fineRippleNoise) * 0.45;
-    // Displacement follows the animated slope field directly; normalizing it
-    // pinned every sample onto a fixed-radius orbit that flashed between
-    // unrelated dark and bright pixels each frame.
-    vec2 refractionSlope = broadRipple + sideRipple * 0.35 + waterNormal.xz * 0.6;
+    // Displacement follows the surface slope directly, so the floor bends
+    // under the same ripples the reflection shows. The separate slow swell
+    // this replaces wobbled the whole bed at once — the set-gel look — and
+    // normalizing the offset pinned every sample onto a fixed-radius orbit
+    // that flashed between unrelated pixels each frame.
+    vec2 refractionSlope = waterNormal.xz
+      * ${WATER_OPTICS.refractionSlopeScale.toFixed(4)};
     // Displaced sampling only holds up where the sample lands on geometry
     // behind the surface: up-facing water viewed from above. Vertical faces
     // sample undistorted (each crossed face would stamp its own ghost copy)
