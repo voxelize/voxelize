@@ -16,6 +16,7 @@ import { Arm, Character } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
+import { planAutoJump } from "./auto-jump";
 import { Inputs } from "./inputs";
 import { NetIntercept } from "./network";
 import { StepEyeSmoother } from "./step-smoothing";
@@ -188,12 +189,13 @@ export type RigidControlsOptions = {
   positionLerp: number;
 
   /**
-   * How long, in milliseconds, the eye takes to close 95% of an auto-step's
-   * height. The body itself climbs the step in a single physics tick; this
-   * eases only the eye (and what follows it: the streamed position, the
-   * third-person character) up after it on a critically damped spring, so
-   * the rise is an S-curve with no pop and no overshoot at any frame rate.
-   * `0` snaps the eye with the body. Defaults to `250`.
+   * How long, in milliseconds, the eye takes to close 95% of a one-block
+   * auto-step; smaller steps settle proportionally faster (a half slab in
+   * half the time). The body itself climbs the step in a single physics
+   * tick; this eases only the eye (and what follows it: the streamed
+   * position, the third-person character) up after it on a critically
+   * damped spring, so the rise is an S-curve with no pop and no overshoot at
+   * any frame rate. `0` snaps the eye with the body. Defaults to `250`.
    */
   stepSmoothTime: number;
 
@@ -345,6 +347,50 @@ export type RigidControlsOptions = {
   stepHeight: number;
 
   /**
+   * Jump automatically at a ledge too tall to step onto but low enough for
+   * a jump to clear, the way voxel games with an auto-jump option do. The
+   * jump is a real one through the normal jump path, started ahead of the
+   * ledge so the feet pass its top on the way up instead of bumping the face
+   * first. Off while crouching, swimming, climbing, flying, or walking
+   * backwards. Defaults to `true`.
+   */
+  autoJump: boolean;
+
+  /**
+   * Seconds of travel scanned ahead for a jumpable ledge. The jump fires as
+   * soon as a ledge enters this window, so it must exceed the time the jump
+   * takes to rise past the tallest auto-jumpable ledge (about 0.24 s for 1.2
+   * blocks at the default impulse and gravity). Defaults to `0.3`.
+   */
+  autoJumpLookahead: number;
+
+  /**
+   * Minimum scan distance in blocks, so a client standing against a ledge
+   * still hops the moment it starts walking into it. Defaults to `0.2`.
+   */
+  autoJumpMinLookahead: number;
+
+  /**
+   * Tallest rise auto-jump attempts, in blocks. Kept under what the jump
+   * actually clears (the apex from `jumpImpulse` against gravity, 1.29 at
+   * the defaults) so the landing has margin. Defaults to `1.2`.
+   */
+  autoJumpMaxHeight: number;
+
+  /**
+   * Cosine between the look direction and the travel direction below which
+   * auto-jump stays off, so walking backwards into a ledge never hops onto
+   * it blind. Pure strafing (cosine 0) still hops. Defaults to `-0.15`.
+   */
+  autoJumpFacingDot: number;
+
+  /**
+   * Milliseconds after an automatic jump before another may fire.
+   * Defaults to `100`.
+   */
+  autoJumpCooldown: number;
+
+  /**
    * The height of the client's avatar when crouching. Defaults to `bodyHeight * 0.83`.
    */
   crouchBodyHeight: number;
@@ -402,6 +448,13 @@ const defaultOptions: RigidControlsOptions = {
   airJumps: 0,
 
   stepHeight: 0.5,
+
+  autoJump: true,
+  autoJumpLookahead: 0.3,
+  autoJumpMinLookahead: 0.2,
+  autoJumpMaxHeight: 1.2,
+  autoJumpFacingDot: -0.15,
+  autoJumpCooldown: 100,
 
   crouchBodyHeight: 1.29,
   restoreFootSnapEpsilon: 1e-4,
@@ -563,6 +616,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * after it on a critically damped spring instead of popping.
    */
   private stepSmoother = new StepEyeSmoother();
+
+  /**
+   * Seconds left before auto-jump may fire again.
+   */
+  private _autoJumpCooldownLeft = 0;
 
   /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
@@ -1557,6 +1615,84 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   /**
+   * Whether the body should jump now at a ledge ahead of it. The geometry
+   * decision lives in {@link planAutoJump}; this gathers the state the
+   * decision needs and applies the input-side gates (moving, not crouching,
+   * facing roughly where it travels, grounded with gravity on).
+   */
+  private shouldAutoJump = (onGround: boolean): boolean => {
+    const {
+      autoJump,
+      autoJumpLookahead,
+      autoJumpMinLookahead,
+      autoJumpMaxHeight,
+      autoJumpFacingDot,
+      autoJumpCooldown,
+      jumpImpulse,
+      stepHeight,
+      stepGrazeRatio,
+    } = this.options;
+
+    if (!autoJump || !onGround || this._autoJumpCooldownLeft > 0) return false;
+    if (!this.state.running || this.state.crouching || this.state.isJumping) {
+      return false;
+    }
+    if (
+      this.ghostMode ||
+      this.body.gravityMultiplier <= 0 ||
+      jumpImpulse <= 0
+    ) {
+      return false;
+    }
+    if (this.body.onClimbable || this.body.inFluid) return false;
+
+    // What the jump can actually clear, from the same impulse and gravity
+    // the jump itself will use.
+    const gravityY = Math.abs(this.world.options.gravity?.[1] ?? 0);
+    if (gravityY <= 0) return false;
+    const launchSpeed = jumpImpulse / this.body.mass;
+    const apex =
+      (launchSpeed * launchSpeed) /
+      (2 * gravityY * this.body.gravityMultiplier);
+
+    // Travel direction: the body's own motion, or the input heading once
+    // the motion is too small to trust (standing against the ledge).
+    const [vx, , vz] = this.body.velocity;
+    const speed = Math.hypot(vx, vz);
+    const lookahead = Math.max(speed * autoJumpLookahead, autoJumpMinLookahead);
+    let dx: number;
+    let dz: number;
+    if (speed * autoJumpLookahead >= autoJumpMinLookahead) {
+      dx = vx / speed;
+      dz = vz / speed;
+    } else {
+      dx = Math.sin(this.state.heading);
+      dz = Math.cos(this.state.heading);
+    }
+
+    // Never hop onto something behind the player.
+    this._lookDirection.set(0, 0, -1).applyQuaternion(this.object.quaternion);
+    const lookLength = Math.hypot(this._lookDirection.x, this._lookDirection.z);
+    if (lookLength > 0) {
+      const facing =
+        (this._lookDirection.x * dx + this._lookDirection.z * dz) / lookLength;
+      if (facing < autoJumpFacingDot) return false;
+    }
+
+    const plan = planAutoJump(this.world.physics, this.body.aabb, [dx, dz], {
+      lookahead,
+      minHeight: stepHeight,
+      maxHeight: Math.min(autoJumpMaxHeight, apex),
+      apexHeight: apex,
+      grazeRatio: stepGrazeRatio,
+    });
+    if (!plan) return false;
+
+    this._autoJumpCooldownLeft = autoJumpCooldown / 1000;
+    return true;
+  };
+
+  /**
    * Update the rigid body by the physics engine.
    */
   private updateRigidBody = (dt: number) => {
@@ -1631,8 +1767,17 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           this.state.jumpCount = 0;
         }
 
+        // a ledge ahead that is too tall to step but low enough to clear
+        // presses jump for the player, the same jump they would have made
+        this._autoJumpCooldownLeft = Math.max(
+          0,
+          this._autoJumpCooldownLeft - dt,
+        );
+        const isAutoJumping =
+          !this.state.jumping && this.shouldAutoJump(onGround);
+
         // process jump input (skip if on climbable - handled above)
-        if (this.state.jumping && !this.body.onClimbable) {
+        if ((this.state.jumping || isAutoJumping) && !this.body.onClimbable) {
           if (this.state.isJumping) {
             // continue previous jump
             if (this.state.currentJumpTime > 0) {

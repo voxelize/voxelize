@@ -1,4 +1,5 @@
 use hashbrown::{HashMap, HashSet};
+use log::debug;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -30,6 +31,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
         for (id, requests) in (&ids, &mut requests).join() {
             let mut to_add_back_to_requested = HashSet::new();
+            let mut deferred_ready = 0usize;
+            let mut sent_to_pipeline = 0usize;
 
             for coords in requests.requests.drain(..) {
                 if chunks.is_chunk_ready(&coords) {
@@ -37,6 +40,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                     if clients_to_send.len() >= max_response_per_tick {
                         to_add_back_to_requested.insert(coords);
+                        deferred_ready += 1;
                         continue;
                     }
 
@@ -45,6 +49,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     continue;
                 }
 
+                sent_to_pipeline += 1;
                 interests.add(&id.0, &coords);
 
                 // Every request for a not-yet-ready chunk re-ensures the whole
@@ -91,6 +96,17 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         }
                     }
                 }
+            }
+
+            let ready_now = to_send.get(&id.0).map_or(0, |set| set.len());
+            if ready_now + deferred_ready + sent_to_pipeline > 0 {
+                // Whether a join's window is served from memory or has to be
+                // loaded and meshed is the first thing to know about a slow one.
+                debug!(
+                    "[chunk-requests] {}: {} ready now, {} ready but past max_response_per_tick \
+                     ({}), {} not ready (load/mesh)",
+                    id.0, ready_now, deferred_ready, max_response_per_tick, sent_to_pipeline
+                );
             }
 
             requests.requests.extend(to_add_back_to_requested);

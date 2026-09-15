@@ -172,6 +172,12 @@ export class Network {
   private joinReject: ((reason: string) => void) | null = null;
 
   private packetQueue: ArrayBuffer[] = [];
+  /**
+   * When each queued packet's bytes arrived, keyed by the buffer object. A
+   * buffer transferred to a decode worker is detached but keeps its identity,
+   * so the stamp survives to annotate the decoded message.
+   */
+  private packetArrivedAt = new WeakMap<ArrayBuffer, number>();
 
   private joinStartTime = 0;
 
@@ -341,6 +347,7 @@ export class Network {
 
   private enqueuePacket = (buffer: ArrayBuffer) => {
     this.packetQueue.push(buffer);
+    this.packetArrivedAt.set(buffer, performance.now());
 
     const excess = this.packetQueue.length - this.options.maxQueuedPackets;
     if (excess > 0) {
@@ -569,22 +576,25 @@ export class Network {
       const packets = intercept.packets;
       if (packets && packets.length) {
         const toSend = packets.splice(0, packets.length);
+        const sent: MessageProtocol[] = [];
         for (let j = 0; j < toSend.length; j++) {
-          this.dispatchOutgoingPacket(toSend[j]);
+          if (this.dispatchOutgoingPacket(toSend[j])) sent.push(toSend[j]);
         }
+        if (sent.length > 0) intercept.onPacketsSent?.(sent);
       }
     }
   };
 
-  private dispatchOutgoingPacket = (packet: MessageProtocol) => {
+  /** Returns whether the packet reached an open socket on this call. */
+  private dispatchOutgoingPacket = (packet: MessageProtocol): boolean => {
     if (this.send(packet)) {
-      return;
+      return true;
     }
     // State samples (PEER, LOAD, ...) re-converge after the rejoin
     // handshake; commands must never vanish silently, so they wait in a
     // bounded retry queue that the next successful flush drains first.
     if (!COMMAND_PACKET_TYPES.has(String(packet.type))) {
-      return;
+      return false;
     }
     this.pendingCommandPackets.push(packet);
     const excess =
@@ -598,6 +608,7 @@ export class Network {
           `${this.options.maxPendingCommandPackets} commands accumulated while the socket could not send.`,
       );
     }
+    return false;
   };
 
   register = (...intercepts: NetIntercept[]) => {
@@ -882,6 +893,9 @@ export class Network {
       const byteSizes = isPerfLogging()
         ? data.map((buffer) => buffer.byteLength)
         : null;
+      // Read before the transfer detaches the buffers; the WeakMap lookup
+      // itself would still work afterwards, but `byteLength` would not.
+      const arrivedAts = data.map((buffer) => this.packetArrivedAt.get(buffer));
       pool.addJob({
         message: data,
         buffers: data,
@@ -900,6 +914,12 @@ export class Network {
           if (byteSizes) {
             annotateIncomingMessages(messages, byteSizes);
           }
+          // One message per packet, in packet order - the same 1:1 the byte
+          // size annotation relies on.
+          messages.forEach((message, index) => {
+            const arrivedAt = arrivedAts[index];
+            if (arrivedAt !== undefined) message.perfArrivedAt = arrivedAt;
+          });
           resolve(messages);
         },
       });

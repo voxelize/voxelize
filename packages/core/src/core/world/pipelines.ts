@@ -6,14 +6,67 @@ import { ChunkUtils } from "../../utils";
 import { Chunk } from "./chunk";
 
 export type ChunkStage =
-  | { stage: "requested"; requestedAt: number }
-  | { stage: "processing"; source: "update" | "load"; data: ChunkProtocol }
-  | { stage: "loaded"; chunk: Chunk };
+  | {
+      stage: "requested";
+      /** When the LOAD packet was queued for the next flush. */
+      requestedAt: number;
+      /** When that packet was handed to the socket, once it has been. */
+      sentAt: number | null;
+    }
+  | {
+      stage: "processing";
+      source: "update" | "load";
+      data: ChunkProtocol;
+      requestedAt: number | null;
+      sentAt: number | null;
+      /** When the first payload's raw bytes reached the client, if known. */
+      arrivedAt: number | null;
+      /** When the first decoded payload for this chunk reached the main thread. */
+      receivedAt: number;
+    }
+  | {
+      stage: "loaded";
+      chunk: Chunk;
+      requestedAt: number | null;
+      sentAt: number | null;
+      arrivedAt: number | null;
+      receivedAt: number | null;
+      loadedAt: number;
+    };
 
 type StageType = ChunkStage["stage"];
 
+/**
+ * Where a chunk's time went on its way to being renderable, in
+ * `performance.now()` milliseconds. Request to sent is this client's own
+ * outbound queue (a flush the main thread had to get to); sent to arrive is
+ * the server's pipeline plus the wire; arrive to receive is the client's
+ * packet queue and worker decode; receive to loaded is its processing queue.
+ * A field is null for a stage the chunk never went through here (a chunk
+ * pushed by the server unasked has no request time; a payload whose
+ * transport did not stamp it has no arrival time).
+ */
+export interface ChunkLoadTiming {
+  requestedAt: number | null;
+  sentAt: number | null;
+  arrivedAt: number | null;
+  receivedAt: number | null;
+  loadedAt: number | null;
+}
+
+export interface ChunkRoundTrip {
+  sentAt: number;
+  wireMs: number;
+  loadMs: number;
+}
+
+/// Enough round trips to cover a teleport's worth of chunks without
+/// remembering a whole session.
+const RECENT_ROUND_TRIP_CAPACITY = 64;
+
 export class ChunkPipeline {
   private states = new Map<string, ChunkStage>();
+  private recentRoundTrips: ChunkRoundTrip[] = [];
   private indices: Record<StageType, Set<string>> = {
     requested: new Set(),
     processing: new Set(),
@@ -54,7 +107,22 @@ export class ChunkPipeline {
     this.setStage(name, {
       stage: "requested",
       requestedAt: performance.now(),
+      sentAt: null,
     });
+  }
+
+  /** How many send stamps were offered, and how many landed on a waiting request. */
+  public sentStampAttempts = 0;
+  public sentStampHits = 0;
+
+  /** The queued LOAD for this chunk reached the socket at `sentAt`. */
+  markSent(coords: Coords2, sentAt: number): void {
+    this.sentStampAttempts += 1;
+    const state = this.states.get(ChunkUtils.getChunkName(coords));
+    if (state?.stage === "requested" && state.sentAt === null) {
+      state.sentAt = sentAt;
+      this.sentStampHits += 1;
+    }
   }
 
   /**
@@ -72,6 +140,7 @@ export class ChunkPipeline {
     coords: Coords2,
     source: "update" | "load",
     data: ChunkProtocol,
+    arrivedAt: number | null = null,
   ): void {
     const name = ChunkUtils.getChunkName(coords);
     const existing = this.states.get(name);
@@ -87,15 +156,100 @@ export class ChunkPipeline {
         voxels: data.voxels ?? existing.data.voxels,
         lights: data.lights ?? existing.data.lights,
       };
-      this.setStage(name, { stage: "processing", source, data: merged });
+      this.setStage(name, {
+        stage: "processing",
+        source,
+        data: merged,
+        requestedAt: existing.requestedAt,
+        sentAt: existing.sentAt,
+        arrivedAt: existing.arrivedAt,
+        receivedAt: existing.receivedAt,
+      });
     } else {
-      this.setStage(name, { stage: "processing", source, data });
+      this.setStage(name, {
+        stage: "processing",
+        source,
+        data,
+        requestedAt:
+          existing?.stage === "requested" ? existing.requestedAt : null,
+        sentAt: existing?.stage === "requested" ? existing.sentAt : null,
+        arrivedAt,
+        receivedAt: performance.now(),
+      });
     }
   }
 
   markLoaded(coords: Coords2, chunk: Chunk): void {
     const name = ChunkUtils.getChunkName(coords);
-    this.setStage(name, { stage: "loaded", chunk });
+    const existing = this.states.get(name);
+    const carried =
+      existing?.stage === "requested" || existing?.stage === "processing"
+        ? existing
+        : null;
+    const loadedAt = performance.now();
+    const arrivedAt =
+      existing?.stage === "processing" ? existing.arrivedAt : null;
+    const sentAt = carried?.sentAt ?? null;
+    if (sentAt !== null && arrivedAt !== null) {
+      this.recentRoundTrips.push({
+        sentAt,
+        wireMs: arrivedAt - sentAt,
+        loadMs: loadedAt - arrivedAt,
+      });
+      if (this.recentRoundTrips.length > RECENT_ROUND_TRIP_CAPACITY) {
+        this.recentRoundTrips.shift();
+      }
+    }
+    this.setStage(name, {
+      stage: "loaded",
+      chunk,
+      requestedAt: carried?.requestedAt ?? null,
+      sentAt,
+      arrivedAt,
+      receivedAt: existing?.stage === "processing" ? existing.receivedAt : null,
+      loadedAt,
+    });
+  }
+
+  /**
+   * The last few chunk round trips this client completed: wire is socket send
+   * to raw arrival (server + transport + the main thread getting to the
+   * socket event), load is arrival to data applied. Lets a slow join window be
+   * compared against the same path during play, when the main thread is idle.
+   */
+  readRecentRoundTrips(): readonly ChunkRoundTrip[] {
+    return this.recentRoundTrips;
+  }
+
+  getTiming(name: string): ChunkLoadTiming | undefined {
+    const state = this.states.get(name);
+    if (!state) return undefined;
+    switch (state.stage) {
+      case "requested":
+        return {
+          requestedAt: state.requestedAt,
+          sentAt: state.sentAt,
+          arrivedAt: null,
+          receivedAt: null,
+          loadedAt: null,
+        };
+      case "processing":
+        return {
+          requestedAt: state.requestedAt,
+          sentAt: state.sentAt,
+          arrivedAt: state.arrivedAt,
+          receivedAt: state.receivedAt,
+          loadedAt: null,
+        };
+      case "loaded":
+        return {
+          requestedAt: state.requestedAt,
+          sentAt: state.sentAt,
+          arrivedAt: state.arrivedAt,
+          receivedAt: state.receivedAt,
+          loadedAt: state.loadedAt,
+        };
+    }
   }
 
   getLoadedChunk(name: string): Chunk | undefined {

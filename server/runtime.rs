@@ -29,7 +29,7 @@ use actix_web::{
 use actix_ws::AggregatedMessage;
 use futures_util::{future::poll_immediate, StreamExt};
 use hashbrown::HashMap;
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde_json::json;
 use tokio::sync::mpsc;
 
@@ -620,8 +620,31 @@ pub async fn run_ws_session(
                 }
             }
             Some(msg) = bulk_rx.recv() => {
+                let bytes = msg.len();
+                let write_started = std::time::Instant::now();
                 match tokio::time::timeout(policy.write_timeout, session.binary(msg)).await {
-                    Ok(Ok(())) => tx.mark_bulk_written(),
+                    Ok(Ok(())) => {
+                        let write_ms = write_started.elapsed().as_secs_f32() * 1000.0;
+                        let waited_ms = tx
+                            .mark_bulk_written()
+                            .map(|waited| waited.as_secs_f32() * 1000.0 - write_ms)
+                            .unwrap_or(f32::NAN);
+                        // Chunk data is what rides this lane, and it is what a
+                        // join waits on: say how long it sat behind control and
+                        // inbound traffic before the socket even saw it.
+                        if waited_ms > 100.0 {
+                            info!(
+                                "[WS] bulk message ({}KB) to {} waited {:.0}ms on the lane \
+                                 before its {:.0}ms socket write",
+                                bytes / 1024, session_id, waited_ms, write_ms
+                            );
+                        } else {
+                            debug!(
+                                "[WS] bulk message ({}KB) to {}: waited {:.1}ms, wrote in {:.1}ms",
+                                bytes / 1024, session_id, waited_ms, write_ms
+                            );
+                        }
+                    }
                     Ok(Err(_)) => break,
                     Err(_) => {
                         warn!("[WS] Bulk write stalled for {}; dropping connection", session_id);

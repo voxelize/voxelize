@@ -159,4 +159,10 @@ export type MessageProtocol<
   bulkUpdate?: BulkUpdateProtocol;
   perfByteSize?: number;
   perfTraceId?: string;
+  /**
+   * `performance.now()` when this message's raw bytes reached the client,
+   * before queueing and decode. Lets a chunk's timeline separate the server
+   * and wire from the client's own decode queue.
+   */
+  perfArrivedAt?: number;
 };

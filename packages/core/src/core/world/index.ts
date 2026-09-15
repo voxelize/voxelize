@@ -8,6 +8,7 @@ import {
   GeometryProtocol,
   MeshProtocol,
   MessageProtocol,
+  protocol,
   UpdateProtocol,
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
@@ -3932,6 +3933,40 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Stamps the moment each chunk request left for the server: `requestChunks`
+   * queues the LOAD packet, but the socket only sees it on the next flush the
+   * main thread gets to, and a slow chunk window has to be able to tell that
+   * wait apart from the server's.
+   *
+   * @hidden
+   */
+  onPacketsSent = (packets: MessageProtocol[]) => {
+    const sentAt = performance.now();
+    for (const packet of packets) {
+      // Encoding rewrites the packet in place on its way out: `type` becomes
+      // the wire enum and `json` a string, so a sent packet is judged by
+      // both spellings and its payload parsed back.
+      const type: unknown = packet.type;
+      if (type !== "LOAD" && type !== protocol.Message.Type.LOAD) continue;
+      const json: unknown = packet.json;
+      let chunks: number[][] | undefined;
+      if (typeof json === "string") {
+        try {
+          chunks = (JSON.parse(json) as { chunks?: number[][] }).chunks;
+        } catch {
+          continue;
+        }
+      } else {
+        chunks = (json as { chunks?: number[][] } | undefined)?.chunks;
+      }
+      if (!chunks) continue;
+      for (const coords of chunks) {
+        this.chunkPipeline.markSent(coords as Coords2, sentAt);
+      }
+    }
+  };
+
+  /**
    * The message interceptor.
    *
    * @hidden
@@ -3999,7 +4034,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { chunks } = message;
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
-          this.chunkPipeline.markProcessing([x, z], "load", chunk);
+          this.chunkPipeline.markProcessing(
+            [x, z],
+            "load",
+            chunk,
+            message.perfArrivedAt,
+          );
         });
 
         break;

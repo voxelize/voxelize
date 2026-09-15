@@ -72,7 +72,8 @@ pub struct WorldConfig {
     /// `ChunkUpdatingSystem`; the sampler only *queues* work for later pops.
     pub max_random_ticks_per_tick: usize,
 
-    /// Maximum responses to send to client per tick to prevent bottle-necking. Default is 4 chunks.
+    /// Maximum already-ready chunks answered to a client per tick, to keep one
+    /// client's burst from monopolising a tick. Default is 16 chunks.
     pub max_response_per_tick: usize,
 
     /// Maximum chunks saved per tick.
@@ -245,7 +246,12 @@ const DEFAULT_MAX_ACTIVE_UPDATES_PER_TICK: usize = 50000;
 /// Three random-tick samples per 16^3 subchunk section per world tick.
 const DEFAULT_RANDOM_TICK_SPEED: usize = 3;
 const DEFAULT_MAX_RANDOM_TICKS_PER_TICK: usize = 2048;
-const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
+// Ready chunks answered straight from memory, per client per tick. A
+// joining client asks for its 3x3 spawn window plus a few more in one packet;
+// at 4 the ninth chunk of that window went out on the third tick and a
+// twenty-chunk burst took five, each a separate ~1KB bulk message. 16 clears
+// the burst in two ticks and is what the production zoo world already ran.
+const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 16;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
 /// A chunk pushed back through the pipeline is readable again within a handful
 /// of ticks, so a save that still cannot read its chunk a full second later

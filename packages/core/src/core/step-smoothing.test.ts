@@ -49,6 +49,17 @@ describe("StepEyeSmoother", () => {
     expect(remaining).toBeGreaterThan(0.04);
   });
 
+  it("settles a half step in half the time, so small ledges do not float", () => {
+    const half = new StepEyeSmoother();
+    stepUp(half, STEP / 2);
+
+    const trace = run(half, SETTLE_TIME / 2, 1 / 120);
+
+    const remainingFraction = -trace[trace.length - 1] / (STEP / 2);
+    expect(remainingFraction).toBeLessThan(0.06);
+    expect(remainingFraction).toBeGreaterThan(0.04);
+  });
+
   it("is frame-rate independent", () => {
     const at120 = new StepEyeSmoother();
     const at24 = new StepEyeSmoother();

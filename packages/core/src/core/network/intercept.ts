@@ -36,4 +36,12 @@ export interface NetIntercept {
    * sent to the server after every `network.flush()` call.
    */
   packets?: MessageProtocol[];
+
+  /**
+   * Called by `network.flush()` with the packets from `packets` that were
+   * actually handed to an open socket, right after they were. A packet
+   * queued in `packets` may wait for the next flush and for the main thread
+   * to be free; this is where a sender learns when it truly left.
+   */
+  onPacketsSent?: (packets: MessageProtocol[]) => void;
 }

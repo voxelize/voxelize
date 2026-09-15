@@ -1650,6 +1650,12 @@ Parameters to initialize the Voxelize Controls.
 | `airJumps` | `number` | How many times can a client jump in the air. Defaults to `0`. |
 | `airMoveMult` | `number` | The factor applied to the movements of the client in air, such as while half-jump. Defaults to `0.7`. |
 | `alwaysSprint` | `boolean` | Sprint factor would be on always. Defaults to `false`. |
+| `autoJump` | `boolean` | Jump automatically at a ledge too tall to step onto but low enough for a jump to clear. A real jump through the normal jump path, started ahead of the ledge so the feet pass its top on the way up. Off while crouching, swimming, climbing, flying, or walking backwards. Defaults to `true`. |
+| `autoJumpCooldown` | `number` | Milliseconds after an automatic jump before another may fire. Defaults to `100`. |
+| `autoJumpFacingDot` | `number` | Cosine between the look direction and the travel direction below which auto-jump stays off, so walking backwards never hops blind. Defaults to `-0.15`. |
+| `autoJumpLookahead` | `number` | Seconds of travel scanned ahead for a jumpable ledge; must exceed the jump's rise time past the tallest auto-jumpable ledge. Defaults to `0.3`. |
+| `autoJumpMaxHeight` | `number` | Tallest rise auto-jump attempts, in blocks, kept under what `jumpImpulse` actually clears. Defaults to `1.2`. |
+| `autoJumpMinLookahead` | `number` | Minimum scan distance in blocks, so a client standing against a ledge still hops when it starts walking. Defaults to `0.2`. |
 | `bodyDepth` | `number` | The depth of the client's avatar. Defaults to `0.8` blocks. |
 | `bodyHeight` | `number` | The height of the client's avatar. Defaults to `1.55` blocks. |
 | `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
@@ -1684,7 +1690,7 @@ Parameters to initialize the Voxelize Controls.
 | `stepEyeClearance` | `number` | Height, in blocks, the eye always keeps above the top of a step it just climbed while easing up after the body. Caps how far the eye may trail on a staircase. Defaults to `0.25`. |
 | `stepGrazeRatio` | `number` | Along-face to into-face motion ratio above which contact with a ledge is a graze that slides along it rather than an approach that steps onto it. `0` steps on any blocked contact. Defaults to `4`. |
 | `stepHeight` | `number` | How tall a client can step up. Defaults to `0.5`. |
-| `stepSmoothTime` | `number` | Milliseconds for the eye to close 95% of an auto-step's height on a critically damped spring; the body itself climbs in one tick. `0` snaps. Defaults to `250`. |
+| `stepSmoothTime` | `number` | Milliseconds for the eye to close 95% of a one-block auto-step on a critically damped spring; smaller steps settle proportionally faster. The body itself climbs in one tick. `0` snaps. Defaults to `250`. |
 | `swimAABBLerp` | `number` | Lerp factor for the swim hitbox height transition. Defaults to `0.08`. |
 | `swimBodyHeight` | `number` | Collision height while swimming. Defaults to `0.4`. |
 | `swimForce` | `number` | Force applied while swimming. Defaults to `28`. |

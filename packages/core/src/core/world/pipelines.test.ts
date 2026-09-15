@@ -108,6 +108,86 @@ describe("ChunkPipeline.isRequestStale", () => {
   });
 });
 
+describe("ChunkPipeline.getTiming", () => {
+  it("carries the request time through receive and load", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([0, 0]);
+    pipeline.markRequested([0, 0]);
+    const requestedAt = pipeline.getTiming(name)?.requestedAt;
+    expect(requestedAt).not.toBeNull();
+
+    pipeline.markProcessing([0, 0], "load", protocolFor([0, 0]));
+    const afterReceive = pipeline.getTiming(name);
+    expect(afterReceive?.requestedAt).toBe(requestedAt);
+    expect(afterReceive?.receivedAt).not.toBeNull();
+    expect(afterReceive?.loadedAt).toBeNull();
+
+    pipeline.markLoaded([0, 0], makeChunk([0, 0]));
+    const afterLoad = pipeline.getTiming(name);
+    expect(afterLoad?.requestedAt).toBe(requestedAt);
+    expect(afterLoad?.receivedAt).toBe(afterReceive?.receivedAt);
+    expect(afterLoad?.loadedAt).not.toBeNull();
+    expect(afterLoad?.loadedAt ?? -Infinity).toBeGreaterThanOrEqual(
+      afterLoad?.receivedAt ?? Infinity,
+    );
+  });
+
+  it("keeps the first receive and arrival times when a second payload merges in", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([1, 0]);
+    pipeline.markProcessing([1, 0], "load", protocolFor([1, 0]), 41);
+    const first = pipeline.getTiming(name)?.receivedAt;
+
+    pipeline.markProcessing([1, 0], "load", protocolFor([1, 0]), 99);
+
+    expect(pipeline.getTiming(name)?.receivedAt).toBe(first);
+    expect(pipeline.getTiming(name)?.arrivedAt).toBe(41);
+    expect(pipeline.getTiming(name)?.requestedAt).toBeNull();
+
+    pipeline.markLoaded([1, 0], makeChunk([1, 0]));
+    expect(pipeline.getTiming(name)?.arrivedAt).toBe(41);
+  });
+
+  it("stamps the send once and carries it through to loaded", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([3, 0]);
+    pipeline.markRequested([3, 0]);
+    expect(pipeline.getTiming(name)?.sentAt).toBeNull();
+
+    pipeline.markSent([3, 0], 500);
+    pipeline.markSent([3, 0], 900);
+    expect(pipeline.getTiming(name)?.sentAt).toBe(500);
+
+    pipeline.markProcessing([3, 0], "load", protocolFor([3, 0]), 700);
+    pipeline.markLoaded([3, 0], makeChunk([3, 0]));
+    expect(pipeline.getTiming(name)?.sentAt).toBe(500);
+    expect(pipeline.getTiming(name)?.arrivedAt).toBe(700);
+  });
+
+  it("ignores a send stamp for a chunk that is no longer waiting", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([4, 0]);
+    pipeline.markProcessing([4, 0], "load", protocolFor([4, 0]));
+
+    pipeline.markSent([4, 0], 123);
+
+    expect(pipeline.getTiming(name)?.sentAt).toBeNull();
+  });
+
+  it("has no arrival time for a payload the transport did not stamp", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([2, 0]);
+    pipeline.markProcessing([2, 0], "load", protocolFor([2, 0]));
+
+    expect(pipeline.getTiming(name)?.arrivedAt).toBeNull();
+  });
+
+  it("knows nothing about a chunk it never saw", () => {
+    const pipeline = new ChunkPipeline();
+    expect(pipeline.getTiming(ChunkUtils.getChunkName([9, 9]))).toBeUndefined();
+  });
+});
+
 describe("MeshPipeline voxel-change remesh", () => {
   it("marks dirty immediately so remesh can run before light workers finish", () => {
     const pipeline = new MeshPipeline();

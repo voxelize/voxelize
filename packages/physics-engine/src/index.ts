@@ -42,6 +42,22 @@ export type EngineOptions = {
   fluidDensity: number;
 };
 
+/**
+ * The first voxel a box would touch travelling along a vector.
+ */
+export type SweepHit = {
+  /** Distance travelled before contact. */
+  distance: number;
+  /** Axis of the face hit: 0 = x, 1 = y, 2 = z. */
+  axis: number;
+  /** Sign of travel along that axis at contact. */
+  dir: number;
+  /** Voxel coordinates of the block hit. */
+  voxel: number[];
+  /** World-space top of the tallest collision box in that voxel. */
+  top: number;
+};
+
 export class Engine {
   public bodies: RigidBody[] = [];
 
@@ -618,6 +634,63 @@ export class Engine {
     }
   };
 
+  /**
+   * World-space top of the tallest collision box in a voxel, or `-Infinity`
+   * when the voxel has none.
+   */
+  voxelTop = (voxel: number[]): number => {
+    let top = -Infinity;
+    for (const a of this.getVoxel(voxel[0], voxel[1], voxel[2])) {
+      if (a.maxY > top) top = a.maxY;
+    }
+    return top;
+  };
+
+  /**
+   * The first voxel `box` would touch travelling along `vector`, or `null`
+   * when the path is clear. `box` is not moved. Look-ahead probes (auto-jump
+   * scanning for a ledge before the body reaches it) build on this.
+   */
+  sweepObstruction = (box: AABB, vector: number[]): SweepHit | null => {
+    let hit: SweepHit | null = null;
+
+    sweep(
+      this.getVoxel,
+      box.clone(),
+      vector,
+      (dist, axis, dir, _leftover, voxel) => {
+        if (voxel && voxel.length === 3) {
+          hit = { distance: dist, axis, dir, voxel, top: this.voxelTop(voxel) };
+        }
+        return true;
+      },
+      false,
+    );
+
+    return hit;
+  };
+
+  /**
+   * Whether `box` can travel the whole of `vector` without touching a voxel.
+   * `box` is not moved.
+   */
+  isSweepClear = (box: AABB, vector: number[]): boolean => {
+    let clear = true;
+
+    sweep(
+      this.getVoxel,
+      box.clone(),
+      vector,
+      () => {
+        clear = false;
+        return true;
+      },
+      false,
+    );
+
+    return clear;
+  };
+
   processCollisions = (
     box: AABB,
     velocity: number[],
@@ -713,10 +786,7 @@ export class Engine {
 
     // getVoxel hands back world-space boxes, so the tallest maxY of the
     // obstruction is the exact plane the feet have to reach
-    let obstructionTop = -Infinity;
-    for (const a of this.getVoxel(voxel[0], voxel[1], voxel[2])) {
-      if (a.maxY > obstructionTop) obstructionTop = a.maxY;
-    }
+    const obstructionTop = this.voxelTop(voxel);
     if (obstructionTop === -Infinity) return;
 
     const yDist = obstructionTop - y + Engine.EPSILON;

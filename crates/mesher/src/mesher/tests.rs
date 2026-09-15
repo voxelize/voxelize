@@ -1342,6 +1342,118 @@ fn a_fluid_wall_is_a_pane_only_against_a_see_through_solid() {
     );
 }
 
+/// A slab is non-opaque, but it is not a window: it leaves the upper half of
+/// the face it shares with the water open to air, so the water standing
+/// above it draws as the water's own surface. Flagging it a pane had the
+/// shader drop the face head-on, cutting a hole into a flow wherever it ran
+/// beside a slab. The same reading applies to a see-through block that only
+/// partly covers the shared plane; a see-through full cube stays a pane.
+#[test]
+fn a_fluid_wall_beside_a_partial_block_is_the_waters_own_surface() {
+    const WATER_ID: u32 = 2;
+    const SLAB_ID: u32 = 3;
+    const GLASS_SLAB_ID: u32 = 4;
+    const GLASS_ID: u32 = 5;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let bottom_half = vec![AABB {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: 1.0,
+        max_y: 0.5,
+        max_z: 1.0,
+    }];
+    // Slabs are registered transparent on every side but the one they rest
+    // on, so they are non-opaque without being see-through.
+    let slab = Block {
+        is_transparent: [true, true, true, true, false, true],
+        faces: six_faces(),
+        aabbs: bottom_half.clone(),
+        ..plain_block(SLAB_ID, "Stone Slab Bottom")
+    };
+    let glass_slab = Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        aabbs: bottom_half,
+        ..plain_block(GLASS_SLAB_ID, "Glass Slab Bottom")
+    };
+    let glass = Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        transparent_standalone: true,
+        faces: six_faces(),
+        ..plain_block(GLASS_ID, "Glass")
+    };
+
+    let mut registry = Registry::new(vec![
+        (0, air),
+        (WATER_ID, water.clone()),
+        (SLAB_ID, slab),
+        (GLASS_SLAB_ID, glass_slab),
+        (GLASS_ID, glass),
+    ]);
+    registry.build_cache();
+
+    // Spreading water (stage 2, so its surface stands above the slab tops)
+    // with a slab on +x, a glass slab on -x, glass on +z and air on -z.
+    let space = SparseSpace::new(&[
+        ((0, 0, 0), (WATER_ID, 2)),
+        ((1, 0, 0), (SLAB_ID, 0)),
+        ((-1, 0, 0), (GLASS_SLAB_ID, 0)),
+        ((0, 0, 1), (GLASS_ID, 0)),
+    ]);
+    let faces = create_fluid_faces(0, 0, 0, WATER_ID, &space, &water.faces, &registry);
+    let lights_of = |name: &str| {
+        let face = faces
+            .iter()
+            .find(|face| face.name == name)
+            .unwrap_or_else(|| panic!("fluid meshing emits a {name} face"));
+        mesh_single_face(&water, face, &registry, &space)
+    };
+
+    let beside_slab = lights_of("px");
+    assert!(
+        !beside_slab.is_empty(),
+        "the wall beside a slab is emitted: the slab covers only its lower half",
+    );
+    assert!(
+        beside_slab.iter().all(|l| l & FLUID_PANE_BIT == 0),
+        "the wall beside a slab is the water's own surface, not a pane: {beside_slab:?}",
+    );
+
+    let beside_glass_slab = lights_of("nx");
+    assert!(
+        !beside_glass_slab.is_empty() && beside_glass_slab.iter().all(|l| l & FLUID_PANE_BIT == 0),
+        "a see-through block covering half the shared face is not a window: {beside_glass_slab:?}",
+    );
+
+    let against_glass = lights_of("pz");
+    assert!(
+        !against_glass.is_empty() && against_glass.iter().all(|l| l & FLUID_PANE_BIT != 0),
+        "a see-through full cube is still a pane: {against_glass:?}",
+    );
+
+    let against_air = lights_of("nz");
+    assert!(
+        !against_air.is_empty() && against_air.iter().all(|l| l & FLUID_PANE_BIT == 0),
+        "the wall against air is unchanged: {against_air:?}",
+    );
+}
+
 /// The flow field a surface vertex carries points downhill along the
 /// rendered surface — away from the source of a spread — is still on a
 /// resting pool, and is read at the shared corner so neighbouring faces

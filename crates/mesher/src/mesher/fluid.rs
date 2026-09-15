@@ -45,6 +45,49 @@ pub(super) fn has_fluid_above<S: VoxelAccess>(
     voxel_holds_fluid(vx, vy + 1, vz, fluid_id, is_waterlogging, space)
 }
 
+/// Whether the block one step along `dir` from a fluid voxel is a window the
+/// fluid is pressed against: a see-through solid whose volume reaches the
+/// boundary plane the two voxels share and spans all of it — Glass, a Barrier
+/// tank wall. Only a fluid face against such a block is a pane for the shader
+/// to fade and drop head-on.
+///
+/// Being non-opaque is not enough, and that was the bug this replaces. A
+/// slab, a stair, or a fence is non-opaque too, but leaves part of the shared
+/// face open to air; the fluid face there is the water's own surface — the
+/// water standing above a slab, seen from the side — and dropping it head-on
+/// cut a hole into the flow. Whatever a partial block does cover writes depth
+/// and hides that part of the face on its own. A see-through block that only
+/// partly covers the plane is read the same way: the open part is surface,
+/// and a surface that draws where a pane should have faded is the smaller
+/// error.
+pub(super) fn is_fluid_window(neighbor: &Block, dir: [i32; 3]) -> bool {
+    if !neighbor.is_see_through {
+        return false;
+    }
+    let axis = if dir[0] != 0 {
+        0
+    } else if dir[1] != 0 {
+        1
+    } else {
+        2
+    };
+    neighbor.aabbs.iter().any(|aabb| {
+        let min = [aabb.min_x, aabb.min_y, aabb.min_z];
+        let max = [aabb.max_x, aabb.max_y, aabb.max_z];
+        // The shared plane is the neighbour's near side along `dir`: its
+        // local 0 when the fluid lies behind it, its local 1 when ahead.
+        let reaches_plane = if dir[axis] > 0 {
+            min[axis] <= f32::EPSILON
+        } else {
+            max[axis] >= 1.0 - f32::EPSILON
+        };
+        reaches_plane
+            && (0..3)
+                .filter(|a| *a != axis)
+                .all(|a| min[a] <= f32::EPSILON && max[a] >= 1.0 - f32::EPSILON)
+    })
+}
+
 /// Where this voxel sits in the column of its own fluid, as `(index from the
 /// bottom, length of the run)` — the encoding the packed stack fields already
 /// use for plants, so the shader can read how much fluid stands above a

@@ -374,12 +374,15 @@ pub(super) fn process_face<S: VoxelAccess>(
     // A vertical fluid face is one of two different things, and only the
     // mesher can tell which. Against air it is the water's own surface — the
     // front of a spreading flow, a waterfall, the side of a leak — and must
-    // draw as water. Against a see-through solid it is the water pressed on
-    // a tank window (Barrier, glass), which the shader fades and drops
-    // head-on so the window stays a window. Without the distinction every
-    // spread edge got the window treatment and its walls vanished, leaving
-    // the surface floating in unconnected sheets.
-    let is_fluid_pane = is_fluid && dir[1] == 0 && !n_is_empty && !n_block_type.is_opaque;
+    // draw as water. Against a see-through solid covering the whole shared
+    // face it is the water pressed on a tank window (Barrier, glass), which
+    // the shader fades and drops head-on so the window stays a window.
+    // Without the distinction every spread edge got the window treatment and
+    // its walls vanished, leaving the surface floating in unconnected sheets;
+    // and a partial block (a slab beside the flow) is not a window either —
+    // see `is_fluid_window`.
+    let is_fluid_pane =
+        is_fluid && dir[1] == 0 && !n_is_empty && is_fluid_window(n_block_type, dir);
 
     // Column walks only for a face that will be emitted: they are the
     // costliest thing here, and a culled face — every face of a submerged

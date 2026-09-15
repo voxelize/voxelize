@@ -1,4 +1,7 @@
+use std::time::Instant;
+
 use hashbrown::HashMap;
+use log::debug;
 use serde_json::{json, Map, Value};
 use specs::{ReadExpect, System, WriteExpect};
 use tokio::sync::mpsc::UnboundedSender;
@@ -249,11 +252,17 @@ impl<'a> System<'a> for BroadcastSystem {
             .map(|(message, filter)| {
                 let msg_type = message.r#type;
                 let outbound_perf = perf::outbound(&message);
+                let chunk_count = message.chunks.len();
+                let queued_at = Instant::now();
+                let data = encode_message(&message);
                 let encoded = EncodedMessage {
-                    data: encode_message(&message),
+                    data,
                     msg_type,
                     is_rtc_eligible: false,
                     perf: outbound_perf,
+                    chunk_count,
+                    queued_at,
+                    encode_ms: queued_at.elapsed().as_secs_f32() * 1000.0,
                 };
                 (encoded, filter)
             })
@@ -296,6 +305,22 @@ impl<'a> System<'a> for BroadcastSystem {
                                 continue;
                             }
                         }
+                    }
+                    if MessageType::try_from(encoded.msg_type) == Ok(MessageType::Load) {
+                        // The number a slow chunk window gets blamed on: how
+                        // long the chunks sat between the tick that decided
+                        // to send them and the tick that reached the socket.
+                        debug!(
+                            "[chunk-send] {} chunk(s), {}KB to {}: {:.1}ms from queue to \
+                             socket hand-off ({:.1}ms of it encoding), {} bulk message(s) \
+                             already waiting on the lane",
+                            encoded.chunk_count,
+                            encoded.data.len() / 1024,
+                            id,
+                            encoded.queued_at.elapsed().as_secs_f32() * 1000.0,
+                            encoded.encode_ms,
+                            client.sender.bulk_len(),
+                        );
                     }
                     send_lane_routed(client, encoded.msg_type, encoded.data.clone());
                     if is_entity_lifecycle {

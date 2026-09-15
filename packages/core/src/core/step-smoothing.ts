@@ -43,6 +43,14 @@ export class StepEyeSmoother {
   private _pendingRise = 0;
 
   /**
+   * Fraction of a block the eye was trailing when it last absorbed a rise.
+   * The settle time scales with it, so a half step eases in half the time
+   * of a full one: the eye climbs at a steady pace rather than floating up
+   * small ledges as slowly as big ones.
+   */
+  private _settleScale = 1;
+
+  /**
    * Vertical offset to add to the eye anchor this frame. Negative right after
    * a step up, decaying to zero.
    */
@@ -83,18 +91,22 @@ export class StepEyeSmoother {
     const cap = Math.max(0, maxLag);
     if (this._offset < -cap) this._offset = -cap;
     else if (this._offset > cap) this._offset = cap;
+
+    this._settleScale = Math.min(1, Math.abs(this._offset));
   };
 
   /**
    * Advance the spring by `dt` seconds.
    *
    * @param dt Frame time in seconds.
-   * @param settleTime Seconds for the eye to close 95% of a step. `0` or less
-   *   disables easing: the eye snaps to the anchor.
+   * @param settleTimePerBlock Seconds for the eye to close 95% of a
+   *   one-block rise; smaller rises settle proportionally faster. `0` or
+   *   less disables easing: the eye snaps to the anchor.
    */
-  advance = (dt: number, settleTime: number) => {
+  advance = (dt: number, settleTimePerBlock: number) => {
     if (this._offset === 0 && this._speed === 0) return;
 
+    const settleTime = settleTimePerBlock * this._settleScale;
     if (settleTime <= 0) {
       this._offset = 0;
       this._speed = 0;
@@ -130,5 +142,6 @@ export class StepEyeSmoother {
     this._offset = 0;
     this._speed = 0;
     this._pendingRise = 0;
+    this._settleScale = 1;
   };
 }

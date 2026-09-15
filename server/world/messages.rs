@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -13,6 +14,13 @@ pub struct EncodedMessage {
     pub msg_type: i32,
     pub is_rtc_eligible: bool,
     pub perf: Option<perf::OutboundPerf>,
+    /// Chunks carried, so the chunk-send log can name its payload.
+    pub chunk_count: usize,
+    /// When the message left the tick that produced it for the encoder. The
+    /// gap to the tick that hands the bytes to the socket is the encode
+    /// round trip a chunk load pays on top of its pipeline.
+    pub queued_at: Instant,
+    pub encode_ms: f32,
 }
 
 /// The RELIABLE ORDERED EVENTS channel of the state replication split (see
@@ -109,6 +117,7 @@ impl EncodedMessageQueue {
         }
 
         let sender = Arc::clone(&self.sender);
+        let queued_at = Instant::now();
         rayon::spawn_fifo(move || {
             let encoded: Vec<(EncodedMessage, ClientFilter)> = all_pending
                 .into_par_iter()
@@ -116,11 +125,17 @@ impl EncodedMessageQueue {
                     let msg_type = message.r#type;
                     let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                     let outbound_perf = perf::outbound(&message);
+                    let chunk_count = message.chunks.len();
+                    let started = Instant::now();
+                    let data = encode_message(&message);
                     let encoded = EncodedMessage {
-                        data: encode_message(&message),
+                        data,
                         msg_type,
                         is_rtc_eligible,
                         perf: outbound_perf,
+                        chunk_count,
+                        queued_at,
+                        encode_ms: started.elapsed().as_secs_f32() * 1000.0,
                     };
                     (encoded, filter)
                 })

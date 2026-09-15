@@ -75,6 +75,11 @@ pub struct WsSender {
     bulk: mpsc::UnboundedSender<Vec<u8>>,
     control_depth: Arc<AtomicUsize>,
     bulk_depth: Arc<AtomicUsize>,
+    /// When each unwritten bulk message was queued, oldest first. The lane
+    /// is FIFO with one writer, so the front entry is always the message the
+    /// write loop is about to (or just did) write; popping it on completion
+    /// yields how long chunk data waited behind control and inbound traffic.
+    bulk_queued_at: Arc<std::sync::Mutex<std::collections::VecDeque<Instant>>>,
     /// Requested WebSocket close code, or `0` for a normal close. Set when the
     /// server refuses a session terminally (e.g. a protocol-version mismatch,
     /// [`PROTOCOL_MISMATCH_CLOSE_CODE`]) so the transport can close with a code
@@ -92,6 +97,9 @@ impl WsSender {
             bulk,
             control_depth: Arc::new(AtomicUsize::new(0)),
             bulk_depth: Arc::new(AtomicUsize::new(0)),
+            bulk_queued_at: Arc::new(std::sync::Mutex::new(
+                std::collections::VecDeque::new(),
+            )),
             close_code: Arc::new(AtomicU16::new(0)),
         }
     }
@@ -123,10 +131,15 @@ impl WsSender {
     /// within the lane, but drained only when the control lane is empty.
     pub fn send_bulk(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
         self.bulk_depth.fetch_add(1, Ordering::Relaxed);
+        let queued_at = Instant::now();
         if let Err(error) = self.bulk.send(data) {
             self.bulk_depth.fetch_sub(1, Ordering::Relaxed);
             return Err(error);
         }
+        self.bulk_queued_at
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push_back(queued_at);
         Ok(())
     }
 
@@ -134,8 +147,21 @@ impl WsSender {
         self.control_depth.fetch_sub(1, Ordering::Relaxed);
     }
 
-    pub fn mark_bulk_written(&self) {
+    /// Returns how long the message just written had waited on the lane, or
+    /// `None` if the bookkeeping has nothing for it (a send that raced the
+    /// push above, which only costs one unmeasured message).
+    pub fn mark_bulk_written(&self) -> Option<Duration> {
         self.bulk_depth.fetch_sub(1, Ordering::Relaxed);
+        self.bulk_queued_at
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .pop_front()
+            .map(|queued_at| queued_at.elapsed())
+    }
+
+    /// Bulk-lane backlog (observability for the chunk-send log).
+    pub fn bulk_len(&self) -> usize {
+        self.bulk_depth.load(Ordering::Relaxed)
     }
 
     /// Control-lane backlog only: the signal the state-flush gate uses. Bulk
@@ -1056,9 +1082,11 @@ impl Server {
             .format(|out, message, record| {
                 let colors = ColoredLevelConfig::new().info(Color::Green);
 
+                // Milliseconds so a client's join timeline (ms since join)
+                // can be lined up against the server's chunk and socket logs.
                 out.finish(format_args!(
                     "{} [{}] [{}]: {}",
-                    chrono::Local::now().format("[%H:%M:%S]"),
+                    chrono::Local::now().format("[%H:%M:%S.%3f]"),
                     colors.color(record.level()),
                     record.target(),
                     message
