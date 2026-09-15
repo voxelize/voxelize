@@ -36,33 +36,11 @@ function rotateY(vector: number[], radians: number) {
   return [z * sin + x * cos, vector[1], z * cos - x * sin];
 }
 
-function createEngine() {
+type VoxelSource = (vx: number, vy: number, vz: number) => AABB[];
+
+function createWorldEngine(getVoxel: VoxelSource) {
   return new Engine(
-    (vx, vy, vz) => {
-      const boxes: AABB[] = [];
-
-      if (
-        vy === FLOOR_Y &&
-        vx >= WORLD_MIN &&
-        vx <= WORLD_MAX &&
-        vz >= WORLD_MIN &&
-        vz <= WORLD_MAX
-      ) {
-        boxes.push(new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1));
-      }
-
-      if (
-        vx === WALL_X &&
-        vy >= BODY_MIN_Y &&
-        vy <= BODY_MIN_Y + 3 &&
-        vz >= WORLD_MIN &&
-        vz <= WORLD_MAX
-      ) {
-        boxes.push(new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1));
-      }
-
-      return boxes;
-    },
+    getVoxel,
     () => false,
     () => [],
     () => 0,
@@ -77,17 +55,87 @@ function createEngine() {
   );
 }
 
-function createBody(engine: Engine, stepHeight: number) {
+function inWorld(vx: number, vz: number) {
+  return (
+    vx >= WORLD_MIN && vx <= WORLD_MAX && vz >= WORLD_MIN && vz <= WORLD_MAX
+  );
+}
+
+function fullBlock(vx: number, vy: number, vz: number) {
+  return new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1);
+}
+
+function createEngine() {
+  return createWorldEngine((vx, vy, vz) => {
+    const boxes: AABB[] = [];
+
+    if (vy === FLOOR_Y && inWorld(vx, vz)) {
+      boxes.push(fullBlock(vx, vy, vz));
+    }
+
+    if (
+      vx === WALL_X &&
+      vy >= BODY_MIN_Y &&
+      vy <= BODY_MIN_Y + 3 &&
+      vz >= WORLD_MIN &&
+      vz <= WORLD_MAX
+    ) {
+      boxes.push(fullBlock(vx, vy, vz));
+    }
+
+    return boxes;
+  });
+}
+
+/**
+ * Flat floor with a raised plateau starting at `x = WALL_X`. The plateau's
+ * top sits `plateauHeight` blocks above the floor, and an optional thin
+ * ceiling plate hangs over it (a world-space box inside the voxel above the
+ * standing body) to prove the rise is measured, not assumed.
+ */
+function createPlateauEngine(plateauHeight: number, ceilingBottom?: number) {
+  return createWorldEngine((vx, vy, vz) => {
+    const boxes: AABB[] = [];
+    if (!inWorld(vx, vz)) return boxes;
+
+    if (vy === FLOOR_Y) boxes.push(fullBlock(vx, vy, vz));
+
+    if (vx >= WALL_X) {
+      const plateauTop = FLOOR_Y + 1 + plateauHeight;
+      if (vy >= FLOOR_Y + 1 && vy < plateauTop) {
+        boxes.push(
+          new AABB(vx, vy, vz, vx + 1, Math.min(vy + 1, plateauTop), vz + 1),
+        );
+      }
+    }
+
+    if (ceilingBottom !== undefined && vy === Math.floor(ceilingBottom)) {
+      boxes.push(
+        new AABB(vx, ceilingBottom, vz, vx + 1, ceilingBottom + 0.2, vz + 1),
+      );
+    }
+
+    return boxes;
+  });
+}
+
+function createBody(
+  engine: Engine,
+  stepHeight: number,
+  startX = START_X,
+  stepGrazeRatio?: number,
+) {
   const body = engine.addBody({
     aabb: new AABB(
-      START_X - BODY_WIDTH / 2,
+      startX - BODY_WIDTH / 2,
       BODY_MIN_Y,
       -BODY_DEPTH / 2,
-      START_X + BODY_WIDTH / 2,
+      startX + BODY_WIDTH / 2,
       BODY_MIN_Y + BODY_HEIGHT,
       BODY_DEPTH / 2,
     ),
     stepHeight,
+    ...(stepGrazeRatio === undefined ? {} : { stepGrazeRatio }),
   });
 
   body.onStep = (newAABB) => {
@@ -97,8 +145,8 @@ function createBody(engine: Engine, stepHeight: number) {
   return body;
 }
 
-function applyMovement(body: RigidBody) {
-  const targetVelocity = rotateY([0, 0, MAX_SPEED], WALL_HEADING);
+function applyMovement(body: RigidBody, heading = WALL_HEADING) {
+  const targetVelocity = rotateY([0, 0, MAX_SPEED], heading);
   const push = [
     targetVelocity[0] - body.velocity[0],
     0,
@@ -176,6 +224,44 @@ function simulateSubmerged(gravityMultiplier: number) {
   return body.getPosition()[1];
 }
 
+const STEP_START_X = 2;
+const STEP_FRAMES = 120;
+const HEADING_PLUS_X = Math.PI / 2;
+const GRAZE_HEADING = (5 * Math.PI) / 180;
+const FULL_STEP_HEIGHT = 1;
+const HALF_STEP_HEIGHT = 0.5;
+const LOW_CEILING_BOTTOM = 3.3;
+
+function simulatePlateauApproach({
+  plateauHeight,
+  stepHeight,
+  heading,
+  ceilingBottom,
+  stepGrazeRatio,
+}: {
+  plateauHeight: number;
+  stepHeight: number;
+  heading: number;
+  ceilingBottom?: number;
+  stepGrazeRatio?: number;
+}) {
+  const engine = createPlateauEngine(plateauHeight, ceilingBottom);
+  const body = createBody(engine, stepHeight, STEP_START_X, stepGrazeRatio);
+  const rises: number[] = [];
+
+  body.onStep = (newAABB) => {
+    rises.push(newAABB.minY - body.aabb.minY);
+    body.aabb = newAABB.clone();
+  };
+
+  for (let frame = 0; frame < STEP_FRAMES; frame++) {
+    applyMovement(body, heading);
+    engine.update(DELTA_TIME);
+  }
+
+  return { body, rises };
+}
+
 describe("Engine", () => {
   it("does not add extra wall-slide movement through auto-step", () => {
     const withoutAutoStep = simulateWallSlide(0);
@@ -184,6 +270,80 @@ describe("Engine", () => {
     expect(withAutoStep[2]).toBeLessThanOrEqual(
       withoutAutoStep[2] + POSITION_EPSILON,
     );
+  });
+
+  describe("auto-stepping", () => {
+    it("climbs a full-block step in one tick and keeps its stride", () => {
+      const { body, rises } = simulatePlateauApproach({
+        plateauHeight: FULL_STEP_HEIGHT,
+        stepHeight: FULL_STEP_HEIGHT,
+        heading: HEADING_PLUS_X,
+      });
+
+      expect(rises).toHaveLength(1);
+      expect(rises[0]).toBeCloseTo(FULL_STEP_HEIGHT, 6);
+      expect(body.aabb.minY).toBeCloseTo(BODY_MIN_Y + FULL_STEP_HEIGHT, 6);
+      // Well past the riser: the step did not eat the horizontal motion.
+      expect(body.aabb.minX).toBeGreaterThan(WALL_X + 1);
+      expect(body.velocity[0]).toBeGreaterThan(MAX_SPEED * 0.9);
+    });
+
+    it("neither climbs nor reports a step at a wall taller than stepHeight", () => {
+      const { body, rises } = simulatePlateauApproach({
+        plateauHeight: 2,
+        stepHeight: FULL_STEP_HEIGHT,
+        heading: HEADING_PLUS_X,
+      });
+
+      expect(rises).toHaveLength(0);
+      expect(body.aabb.minY).toBeCloseTo(BODY_MIN_Y, 6);
+      expect(body.aabb.maxX).toBeLessThanOrEqual(WALL_X + POSITION_EPSILON);
+      expect(body.aabb.maxX).toBeGreaterThan(WALL_X - 1e-3);
+    });
+
+    it("rises only as far as the obstruction's top, so a half step fits under a low ceiling", () => {
+      // A full-height trial rise would put the head through the ceiling
+      // plate; measuring the ledge's actual top keeps the half step legal.
+      const { body, rises } = simulatePlateauApproach({
+        plateauHeight: HALF_STEP_HEIGHT,
+        stepHeight: FULL_STEP_HEIGHT,
+        heading: HEADING_PLUS_X,
+        ceilingBottom: LOW_CEILING_BOTTOM,
+      });
+
+      expect(rises).toHaveLength(1);
+      expect(rises[0]).toBeCloseTo(HALF_STEP_HEIGHT, 6);
+      expect(body.aabb.minY).toBeCloseTo(BODY_MIN_Y + HALF_STEP_HEIGHT, 6);
+      expect(body.aabb.minX).toBeGreaterThan(WALL_X + 1);
+    });
+
+    it("slides along a ledge it merely grazes instead of popping onto it", () => {
+      const grazing = simulatePlateauApproach({
+        plateauHeight: FULL_STEP_HEIGHT,
+        stepHeight: FULL_STEP_HEIGHT,
+        heading: GRAZE_HEADING,
+      });
+
+      expect(grazing.rises).toHaveLength(0);
+      expect(grazing.body.aabb.minY).toBeCloseTo(BODY_MIN_Y, 6);
+      expect(grazing.body.aabb.maxX).toBeLessThanOrEqual(
+        WALL_X + POSITION_EPSILON,
+      );
+      expect(grazing.body.aabb.minZ).toBeGreaterThan(1);
+
+      const committed = simulatePlateauApproach({
+        plateauHeight: FULL_STEP_HEIGHT,
+        stepHeight: FULL_STEP_HEIGHT,
+        heading: GRAZE_HEADING,
+        stepGrazeRatio: 0,
+      });
+
+      expect(committed.rises).toHaveLength(1);
+      expect(committed.body.aabb.minY).toBeCloseTo(
+        BODY_MIN_Y + FULL_STEP_HEIGHT,
+        6,
+      );
+    });
   });
 
   it("holds a zero-gravity body in place underwater", () => {

@@ -18,6 +18,7 @@ import { ChunkUtils } from "../utils";
 
 import { Inputs } from "./inputs";
 import { NetIntercept } from "./network";
+import { StepEyeSmoother } from "./step-smoothing";
 import { World } from "./world";
 
 const PI_2 = Math.PI / 2;
@@ -187,9 +188,31 @@ export type RigidControlsOptions = {
   positionLerp: number;
 
   /**
-   * The interpolation factor when the client is auto-stepping. Defaults to `0.6`.
+   * How long, in milliseconds, the eye takes to close 95% of an auto-step's
+   * height. The body itself climbs the step in a single physics tick; this
+   * eases only the eye (and what follows it: the streamed position, the
+   * third-person character) up after it on a critically damped spring, so
+   * the rise is an S-curve with no pop and no overshoot at any frame rate.
+   * `0` snaps the eye with the body. Defaults to `250`.
    */
-  stepLerp: number;
+  stepSmoothTime: number;
+
+  /**
+   * Height, in blocks, the eye always keeps above the top of a step it just
+   * climbed while it eases up after the body. Caps how far the eye may trail
+   * when a staircase stacks steps faster than they settle, so the camera
+   * never sinks into the tread it stands on. Defaults to `0.25`.
+   */
+  stepEyeClearance: number;
+
+  /**
+   * Along-face to into-face motion ratio above which contact with a ledge is
+   * a graze that slides along it rather than an approach that steps onto it.
+   * `4` ignores approaches shallower than ~14°, so brushing a block while
+   * walking past does not pop the client onto it. `0` steps on any blocked
+   * contact. Defaults to `4`.
+   */
+  stepGrazeRatio: number;
 
   /**
    * The width of the client's avatar. Defaults to `0.8` blocks.
@@ -337,7 +360,9 @@ const defaultOptions: RigidControlsOptions = {
   initialDirection: [0, 0, 0],
   rotationLerp: 0.9,
   positionLerp: 1.0,
-  stepLerp: 0.6,
+  stepSmoothTime: 250,
+  stepEyeClearance: 0.25,
+  stepGrazeRatio: 4,
 
   bodyWidth: 0.8,
   bodyHeight: 1.55,
@@ -527,6 +552,19 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private newPosition = new Vector3();
 
   /**
+   * `newPosition` with the auto-step eye offset applied: the point the
+   * camera group actually lerps toward each frame.
+   */
+  private eyeTarget = new Vector3();
+
+  /**
+   * Eases the eye up after the rigid body auto-steps. Physics climbs a step
+   * in one tick; this carries the camera (and everything anchored to it)
+   * after it on a critically damped spring instead of popping.
+   */
+  private stepSmoother = new StepEyeSmoother();
+
+  /**
    * Whether or not is the first movement back on lock. This is because Chrome has a bug where
    * movementX and movementY becomes 60+ on the first movement back.
    */
@@ -606,17 +644,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.body = world.physics.addBody({
       aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
       onStep: (newAABB) => {
-        const { positionLerp, stepLerp } = this.options;
-
-        this.options.positionLerp = stepLerp;
+        // The body commits the climb now, in one tick, so collision and the
+        // authoritative position are right immediately; the eye is told how
+        // far it now trails and glides up over the following frames.
+        this.stepSmoother.noteStep(newAABB.minY - this.body.aabb.minY);
         this.body.aabb = newAABB.clone();
-
-        const stepTimeout = setTimeout(() => {
-          this.options.positionLerp = positionLerp;
-          clearTimeout(stepTimeout);
-        }, 500);
       },
       stepHeight: this.options.stepHeight,
+      stepGrazeRatio: this.options.stepGrazeRatio,
     });
 
     this._smoothedBodyHeight = bodyHeight;
@@ -640,6 +675,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             case "vox-builtin:position": {
               this.body.setPosition(event.payload);
               this.body.velocity = [0, 0, 0];
+              this.stepSmoother.reset();
               break;
             }
 
@@ -688,7 +724,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const delta = Math.min(0.1, this.timer.getDelta());
 
     this.object.quaternion.slerp(this.quaternion, this.options.rotationLerp);
-    this.object.position.lerp(this.newPosition, this.options.positionLerp);
+
+    // Only the vertical axis eases over a step; X/Z stay 1:1 with the body
+    // so a step never costs horizontal responsiveness.
+    this.stepSmoother.advance(delta, this.options.stepSmoothTime / 1000);
+    this.eyeTarget.copy(this.newPosition);
+    this.eyeTarget.y += this.stepSmoother.offset;
+    this.object.position.lerp(this.eyeTarget, this.options.positionLerp);
 
     if (this.character) {
       const {
@@ -866,6 +908,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   teleport = (vx: number, vy: number, vz: number) => {
     const { bodyHeight, eyeHeight } = this.options;
     this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight + 1, vz + 0.5);
+    this.stepSmoother.reset();
 
     if (this.body) {
       this.body.resting = [0, 0, 0];
@@ -936,6 +979,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   teleportToExact = (x: number, y: number, z: number) => {
     this.newPosition.set(x, y, z);
     this.object.position.set(x, y, z);
+    this.stepSmoother.reset();
 
     if (this.body) {
       const { eyeHeight, bodyHeight, restoreFootSnapEpsilon } = this.options;
@@ -992,6 +1036,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const [x, y, z] = this.body.getPosition();
     const { eyeHeight } = this.options;
     this.newPosition.set(x, y + targetHeight * (eyeHeight - 0.5), z);
+    this.stepSmoother.reset();
     this.object.position.copy(this.newPosition);
   };
 
@@ -1796,11 +1841,18 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this._smoothedBodyHeight +=
         (targetHeight - this._smoothedBodyHeight) * 0.25;
     }
-    const { eyeHeight } = this.options;
+    const { eyeHeight, stepEyeClearance } = this.options;
     this.newPosition.set(
       x,
       y + this._smoothedBodyHeight * (eyeHeight - 0.5),
       z,
+    );
+
+    // The anchor now stands on any step the body climbed since last frame.
+    // Absorbing the rise here, in the same frame, is what keeps the eye from
+    // dipping or popping: it holds its height and the spring carries it up.
+    this.stepSmoother.absorbPending(
+      this._smoothedBodyHeight * eyeHeight - stepEyeClearance,
     );
   };
 

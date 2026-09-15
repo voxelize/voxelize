@@ -8,6 +8,13 @@ function approxEquals(a: number, b: number) {
   return Math.abs(a - b) < 1e-5;
 }
 
+/**
+ * Numeric slop granted on top of `stepHeight` when deciding whether an
+ * obstruction is climbable. Bodies rest an epsilon above surfaces, so a
+ * step exactly `stepHeight` tall measures a hair over it.
+ */
+const STEP_HEIGHT_SLOP = 1e-3;
+
 export type BodyOptions = {
   aabb: AABB;
   mass: number;
@@ -17,6 +24,14 @@ export type BodyOptions = {
   onStep: (newAABB: AABB, resting: number[]) => void;
   onCollide: (impacts?: number[]) => void;
   stepHeight: number;
+  /**
+   * Along-face to into-face motion ratio above which contact with an
+   * obstruction counts as grazing: the body slides along it instead of
+   * auto-stepping onto it. `4` skips approaches shallower than ~14°, so
+   * brushing a ledge while walking past it does not pop the body onto it.
+   * `0` disables the check and any blocked contact attempts a step.
+   */
+  stepGrazeRatio: number;
 };
 
 export type EngineOptions = {
@@ -49,6 +64,7 @@ export class Engine {
       restitution: 0,
       gravityMultiplier: 1,
       stepHeight: 0.0,
+      stepGrazeRatio: 4.0,
     };
 
     const {
@@ -58,6 +74,7 @@ export class Engine {
       restitution,
       gravityMultiplier,
       stepHeight,
+      stepGrazeRatio,
       onStep,
       onCollide,
     } = {
@@ -75,6 +92,7 @@ export class Engine {
       onStep,
       onCollide,
     );
+    b.stepGrazeRatio = stepGrazeRatio;
     this.bodies.push(b);
     return b;
   };
@@ -625,14 +643,36 @@ export class Engine {
     );
   };
 
+  /**
+   * Lift a grounded body onto the obstruction that just blocked its X/Z
+   * motion, when that obstruction is no taller than `body.stepHeight`.
+   *
+   * The trial runs on `oldBox`, a scratch copy of the pre-move box: sweep to
+   * the obstruction, rise to its top, replay the leftover X/Z motion up
+   * there, and drop back onto whatever is underneath. `body.aabb` stays at
+   * its post-collision position unless the step commits, and a committed
+   * step is reported through `onStep` (or applied directly without one).
+   */
   tryAutoStepping = (body: RigidBody, oldBox: AABB, dx: number[]) => {
     if (body.inFluid) return;
     if (body.resting[1] >= 0) return;
 
-    // // direction movement was blocked before trying a step
+    // direction movement was blocked before trying a step
     const xBlocked = body.resting[0] !== 0;
     const zBlocked = body.resting[2] !== 0;
     if (!(xBlocked || zBlocked)) return;
+
+    // grazing contact slides along the obstruction instead of stepping onto
+    // it: brushing a ledge while walking past must not pop the body up
+    if (body.stepGrazeRatio > 0) {
+      const ratio = Math.abs(dx[0] / dx[2]);
+      if (
+        (!xBlocked && ratio > body.stepGrazeRatio) ||
+        (!zBlocked && ratio < 1 / body.stepGrazeRatio)
+      ) {
+        return;
+      }
+    }
 
     // original target position before being obstructed
     const targetPos = [
@@ -665,19 +705,25 @@ export class Engine {
       },
     );
 
+    // the blocking came from something the re-sweep cannot see (a
+    // cliff-hang wall, for one), so there is nothing to step onto
+    if (voxel.length !== 3) return;
+
     const y = body.aabb.minY;
 
-    let maxStep = 0;
-
-    if (voxel) {
-      const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
-      aabbs.forEach((a) => {
-        if (a.maxY > maxStep) maxStep = a.maxY;
-      });
+    // getVoxel hands back world-space boxes, so the tallest maxY of the
+    // obstruction is the exact plane the feet have to reach
+    let obstructionTop = -Infinity;
+    for (const a of this.getVoxel(voxel[0], voxel[1], voxel[2])) {
+      if (a.maxY > obstructionTop) obstructionTop = a.maxY;
     }
+    if (obstructionTop === -Infinity) return;
 
-    const yDist = Math.floor(y) + maxStep - y + Engine.EPSILON;
-    const upVec = [0, Math.min(yDist, body.stepHeight + 0.001), 0];
+    const yDist = obstructionTop - y + Engine.EPSILON;
+    if (yDist <= Engine.EPSILON) return;
+    if (yDist > body.stepHeight + STEP_HEIGHT_SLOP) return;
+
+    const upVec = [0, yDist, 0];
     let collided = false;
 
     // sweep up, bailing on any obstruction
@@ -699,6 +745,13 @@ export class Engine {
     leftover[1] = 0;
     const tmpResting = [0, 0, 0];
     this.processCollisions(oldBox, leftover, tmpResting);
+
+    // bail unless the raised body actually got past the obstruction on a
+    // blocked axis: a wall taller than the step must not report a step at
+    // all, let alone lift the body against it
+    const xMoved = xBlocked && !approxEquals(oldBox.minX, body.aabb.minX);
+    const zMoved = zBlocked && !approxEquals(oldBox.minZ, body.aabb.minZ);
+    if (!xMoved && !zMoved) return;
 
     // move down a bit to avoid stepping too high, bail on collision
     const temp = oldBox.clone();

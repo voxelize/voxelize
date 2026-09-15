@@ -1681,8 +1681,10 @@ Parameters to initialize the Voxelize Controls.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `sprintFactor` | `number` | The factor to the movement speed when sprint is applied. Defaults to `1.4`. |
 | `standingFriction` | `number` | Default standing friction of a client. Defaults to `4`. |
+| `stepEyeClearance` | `number` | Height, in blocks, the eye always keeps above the top of a step it just climbed while easing up after the body. Caps how far the eye may trail on a staircase. Defaults to `0.25`. |
+| `stepGrazeRatio` | `number` | Along-face to into-face motion ratio above which contact with a ledge is a graze that slides along it rather than an approach that steps onto it. `0` steps on any blocked contact. Defaults to `4`. |
 | `stepHeight` | `number` | How tall a client can step up. Defaults to `0.5`. |
-| `stepLerp` | `number` | The interpolation factor when the client is auto-stepping. Defaults to `0.6`. |
+| `stepSmoothTime` | `number` | Milliseconds for the eye to close 95% of an auto-step's height on a critically damped spring; the body itself climbs in one tick. `0` snaps. Defaults to `250`. |
 | `swimAABBLerp` | `number` | Lerp factor for the swim hitbox height transition. Defaults to `0.08`. |
 | `swimBodyHeight` | `number` | Collision height while swimming. Defaults to `0.4`. |
 | `swimForce` | `number` | Force applied while swimming. Defaults to `28`. |

@@ -19,6 +19,13 @@ class RigidBody {
 
   public isSwimming = false;
 
+  /**
+   * Along-face to into-face motion ratio above which a blocked contact is
+   * grazing and slides along the obstruction instead of auto-stepping.
+   * `0` disables the check. See `BodyOptions.stepGrazeRatio`.
+   */
+  public stepGrazeRatio = 0;
+
   constructor(
     public aabb: AABB,
     public mass: number,
