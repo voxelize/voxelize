@@ -4,6 +4,14 @@ import { parseArgs } from "node:util";
 import { Agent } from "../src/agent";
 import { IDLE_TTL_EXIT_CODE, resolveIdleTtlMs } from "../src/browser-lifecycle";
 import { AgentDaemon } from "../src/daemon";
+import {
+  SESSION_META_ENV,
+  SESSION_ORIGIN_ENV,
+  applySessionMetaPatch,
+  parseSessionMetaAssignments,
+  parseSessionMetaEnv,
+  parseSessionOriginEnv,
+} from "../src/session-meta";
 
 const IDLE_CHECK_MIN_MS = 250;
 const IDLE_CHECK_MAX_MS = 30_000;
@@ -19,6 +27,7 @@ async function main(): Promise<void> {
       headed: { type: "boolean" },
       "idle-ttl-ms": { type: "string" },
       "lease-minutes": { type: "string" },
+      meta: { type: "string", multiple: true },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -40,13 +49,23 @@ async function main(): Promise<void> {
     values["lease-minutes"],
     process.env,
   );
+  // Labels and provenance are validated here too, before a browser exists:
+  // a malformed note is a launcher bug worth a loud exit, not a session that
+  // boots with half of what it was told.
+  const meta = applySessionMetaPatch(
+    parseSessionMetaEnv(process.env[SESSION_META_ENV]),
+    { set: parseSessionMetaAssignments(values.meta ?? []) },
+  );
+  const origin = parseSessionOriginEnv(process.env[SESSION_ORIGIN_ENV]);
 
   console.log(
-    `[voxelize-agent] launching agent world=${world} url=${url} port=${port} headless=${isHeadless} ${
+    `[voxelize-agent] launching agent world=${world} name=${name} url=${url} port=${port} headless=${isHeadless} ${
       idleTtlMs === 0
         ? "idle-ttl=disabled"
         : `idle-ttl=${Math.round(idleTtlMs / 1000)}s`
-    }${leaseMinutes > 0 ? ` lease=${leaseMinutes}m` : ""}`,
+    }${leaseMinutes > 0 ? ` lease=${leaseMinutes}m` : ""}${
+      Object.keys(meta).length > 0 ? ` meta=${JSON.stringify(meta)}` : ""
+    }${origin?.cursor?.conversationId ? ` cursor=${origin.cursor.conversationId}` : ""}`,
   );
 
   const agent = await Agent.launch({
@@ -62,7 +81,14 @@ async function main(): Promise<void> {
     agent.killBrowserSync();
   });
 
-  const daemon = new AgentDaemon({ agent, port, idleTtlMs, leaseMinutes });
+  const daemon = new AgentDaemon({
+    agent,
+    port,
+    idleTtlMs,
+    leaseMinutes,
+    meta,
+    origin,
+  });
 
   let isShuttingDown = false;
   const shutdown = async (reason: string, exitCode: number) => {
@@ -186,11 +212,18 @@ Options:
                          (env AGENT_LEASE_MINUTES). Reported in /status;
                          defers idle retirement while unexpired, and an
                          expired lease is reap evidence.
+      --meta <key=value> Session note (repeatable): label=, purpose=, owner=,
+                         tags=, or any key. Shown in /status and /meta;
+                         patchable later via PATCH /meta.
   -h, --help             Show this help
 
 Environment:
   AGENT_IDLE_TTL_MS        Same as --idle-ttl-ms (flag wins).
   AGENT_LEASE_MINUTES      Same as --lease-minutes (flag wins).
+  ${SESSION_META_ENV}       JSON object of initial session notes (--meta merges over it).
+  ${SESSION_ORIGIN_ENV}     JSON provenance captured by the launcher (cwd, user,
+                           terminal, parent processes, Cursor conversation);
+                           read-only once the daemon is up.
   AGENT_BROWSER_WATCHDOG   Set to 0 to skip the detached watchdog that kills
                            the browser if this process dies uncleanly. Only
                            for tests; disabling it re-enables orphan browsers.

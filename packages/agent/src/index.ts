@@ -33,9 +33,33 @@ export { AgentDaemon } from "./daemon";
 export type {
   DaemonEvent,
   DaemonLeaseStatus,
+  DaemonMetaResponse,
   DaemonOptions,
   DaemonStatus,
 } from "./daemon";
+export {
+  SESSION_LAUNCHER_ENV,
+  SESSION_META_ENV,
+  SESSION_META_KEY_PATTERN,
+  SESSION_META_MAX_KEYS,
+  SESSION_META_MAX_KEY_LENGTH,
+  SESSION_META_MAX_VALUE_LENGTH,
+  SESSION_META_WELL_KNOWN_KEYS,
+  SESSION_ORIGIN_ENV,
+  SessionMetaError,
+  applySessionMetaPatch,
+  normalizeSessionMeta,
+  parseSessionMetaAssignments,
+  parseSessionMetaEnv,
+  parseSessionOriginEnv,
+} from "./session-meta";
+export type {
+  SessionMeta,
+  SessionMetaPatch,
+  SessionOrigin,
+  SessionOriginCursor,
+  SessionOriginParent,
+} from "./session-meta";
 export {
   DEFAULT_IDLE_TTL_MS,
   IDLE_TTL_EXIT_CODE,

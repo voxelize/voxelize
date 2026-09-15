@@ -23,6 +23,13 @@ import {
   logAgentPerf,
 } from "./perf";
 import {
+  SessionMetaError,
+  applySessionMetaPatch,
+  normalizeSessionMeta,
+  type SessionMeta,
+  type SessionOrigin,
+} from "./session-meta";
+import {
   describeLastSeen,
   filterWaitCandidates,
   matchesPredicate,
@@ -48,6 +55,10 @@ export type DaemonOptions = {
    * active one defers idle retirement and protects against sweeps.
    */
   leaseMinutes?: number;
+  /** Worker-declared notes (label, purpose, owner, ...); patchable via /meta. */
+  meta?: SessionMeta;
+  /** Launch provenance captured by whatever started this daemon; read-only. */
+  origin?: SessionOrigin | null;
 };
 
 export type DaemonLeaseStatus = {
@@ -62,6 +73,8 @@ export type DaemonStatus = {
   pid: number;
   port: number;
   world: string;
+  /** In-game display name the agent joined with. */
+  name: string;
   browserPid: number | null;
   watchdogPid: number | null;
   startedAt: number;
@@ -81,12 +94,29 @@ export type DaemonStatus = {
    * the same place every other stuck resource is. */
   recordingForMs: number | null;
   lease: DaemonLeaseStatus | null;
+  meta: SessionMeta;
+  origin: SessionOrigin | null;
+};
+
+export type DaemonMetaResponse = {
+  port: number;
+  world: string;
+  name: string;
+  meta: SessionMeta;
+  origin: SessionOrigin | null;
 };
 
 // Liveness probes must not count as activity, or anything that watches the
 // fleet (session list, PM2 health checks, humans curling healthz) would reset
-// every idle clock and no session could ever expire.
-const PASSIVE_ROUTES = new Set(["/healthz", "/status"]);
+// every idle clock and no session could ever expire. Labeling is bookkeeping
+// about the session, not work done through it, so it is passive too: an
+// admin page renaming a forgotten session must not immortalize it.
+const PASSIVE_ROUTES = new Set(["/healthz", "/status", "/meta"]);
+
+const metaPatchSchema = z.object({
+  set: z.record(z.string(), z.string()).optional(),
+  unset: z.array(z.string()).optional(),
+});
 
 // A busy claim (in-flight command) defers idle expiry, but only for so long:
 // if the in-flight counter ever leaked, an unbounded claim would immortalize
@@ -247,6 +277,8 @@ export class AgentDaemon {
   private readonly port: number;
   private readonly idleTtlMs: number;
   private readonly leaseMinutes: number;
+  private meta: SessionMeta;
+  private readonly origin: SessionOrigin | null;
   private readonly startedAt = Date.now();
   private lastActivityAt = Date.now();
   private inflightCount = 0;
@@ -271,6 +303,8 @@ export class AgentDaemon {
     this.port = options.port;
     this.idleTtlMs = options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS;
     this.leaseMinutes = options.leaseMinutes ?? 0;
+    this.meta = normalizeSessionMeta(options.meta ?? {});
+    this.origin = options.origin ?? null;
     this.server = Fastify({ logger: false });
     this.registerActivityTracking();
     this.registerEventTaps();
@@ -325,11 +359,34 @@ export class AgentDaemon {
     };
   }
 
+  sessionMeta(): SessionMeta {
+    return { ...this.meta };
+  }
+
+  patchSessionMeta(patch: {
+    set?: Record<string, string>;
+    unset?: string[];
+  }): SessionMeta {
+    this.meta = applySessionMetaPatch(this.meta, patch);
+    return this.sessionMeta();
+  }
+
+  metaResponse(): DaemonMetaResponse {
+    return {
+      port: this.port,
+      world: this.agent.worldName,
+      name: this.agent.name,
+      meta: this.sessionMeta(),
+      origin: this.origin,
+    };
+  }
+
   status(): DaemonStatus {
     return {
       pid: process.pid,
       port: this.port,
       world: this.agent.worldName,
+      name: this.agent.name,
       browserPid: this.agent.browserPid() ?? null,
       watchdogPid: this.agent.watchdogPid() ?? null,
       startedAt: this.startedAt,
@@ -349,6 +406,8 @@ export class AgentDaemon {
       stalledPageCalls: this.agent.stalledPageCallLabels(),
       recordingForMs: this.agent.recordingForMs(),
       lease: this.leaseStatus(),
+      meta: this.sessionMeta(),
+      origin: this.origin,
     };
   }
 
@@ -647,6 +706,31 @@ export class AgentDaemon {
     // Lifecycle facts only, never the page: this must answer even when the
     // browser is wedged or dead, so reap/session-list can read the fleet.
     this.server.get("/status", async () => this.status());
+
+    // Who this session is for and what it is doing, editable by anyone who
+    // can reach the daemon (the CLI, a scenario, the local admin page). Like
+    // /status it never touches the page, so a wedged browser still answers.
+    this.server.get("/meta", async () => this.metaResponse());
+    this.server.patch("/meta", async (req, reply) => {
+      const parsed = metaPatchSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        reply.code(400);
+        return {
+          error: "meta patch must be { set?: {key: value}, unset?: [key] }",
+          issues: parsed.error.issues,
+        };
+      }
+      try {
+        this.patchSessionMeta(parsed.data);
+      } catch (error) {
+        if (error instanceof SessionMetaError) {
+          reply.code(400);
+          return { error: error.message };
+        }
+        throw error;
+      }
+      return this.metaResponse();
+    });
 
     this.server.get<{ Querystring: { allowStale?: string } }>(
       "/me",

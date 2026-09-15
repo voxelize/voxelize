@@ -16,6 +16,10 @@ export default defineConfig({
         // Puppeteer-free lifecycle constants/helpers, importable by a host
         // repo's node --test suites without pulling the whole agent SDK.
         lifecycle: path.resolve(__dirname, "src/browser-lifecycle.ts"),
+        // Same idea for session labels/provenance: the host CLI validates
+        // meta before spawning a daemon with the exact rules the daemon
+        // enforces, without importing puppeteer to do it.
+        "session-meta": path.resolve(__dirname, "src/session-meta.ts"),
         "bin/voxelize-agent": path.resolve(__dirname, "bin/voxelize-agent.ts"),
       },
       formats: ["es", "cjs"],

@@ -252,6 +252,8 @@ export class Agent {
     readyPromise: Promise<void>,
     pidFile: string,
     public readonly worldName: string,
+    /** In-game display name (`agentName` query param the client joined with). */
+    public readonly name: string,
   ) {
     this.browser = browser;
     this.page = page;
@@ -313,7 +315,14 @@ export class Agent {
       localStorage.setItem("VOXELIZE-playerId", `agent-${agentPort}`);
     }, port);
 
-    const agent = new Agent(browser, page, Promise.resolve(), pidFile, world);
+    const agent = new Agent(
+      browser,
+      page,
+      Promise.resolve(),
+      pidFile,
+      world,
+      name,
+    );
     agent.watchdogPidValue = watchdogPid;
     browser.on("disconnected", () => agent.handleBrowserDisconnected());
     agent.attachPageLogging(page);
