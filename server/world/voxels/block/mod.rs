@@ -1,4 +1,5 @@
 mod builder;
+mod coupled;
 mod faces;
 mod rules;
 
@@ -9,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{LightColor, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
 
 pub use builder::*;
+pub use coupled::*;
 pub use faces::*;
 pub use rules::*;
 
@@ -107,6 +109,23 @@ pub struct Block {
     /// Wired through [`BlockBuilder::requires_support`] into `active_fn`.
     #[serde(default)]
     pub requires_support: SupportRequirement,
+
+    /// The other voxels of the multi-voxel unit this block is one part of —
+    /// a door's other leaf, a tall flower's other half — each as an offset
+    /// from this voxel and the id it must hold. Empty for an ordinary block.
+    /// Every part of a unit lists every other part, so the unit can be
+    /// read whole from any of its voxels. Declared with
+    /// [`BlockBuilder::coupled_with`]; the engine keeps units whole at update
+    /// intake (see the `coupled` module).
+    #[serde(default)]
+    pub coupled_parts: Vec<CoupledPart>,
+
+    /// Whether this part is its unit's anchor: the part that is placed,
+    /// picked and dropped, that materialises the other parts when written,
+    /// and whose rotation and stage the other parts mirror. Exactly one part
+    /// of a unit is the anchor.
+    #[serde(default)]
+    pub is_coupled_anchor: bool,
 
     /// Is this block transparent from looking from all 6 sides?
     /// The order is: px, py, pz, nx, ny, nz.

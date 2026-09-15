@@ -48,6 +48,16 @@ export interface BlockDynamicPattern {
 }
 
 /**
+ * One other voxel a coupled block is stored together with: where it sits
+ * relative to this block's voxel, and the block id it must hold. Mirrors the
+ * server `CoupledPart`.
+ */
+export type CoupledPart = {
+  offset: Coords3;
+  id: number;
+};
+
+/**
  * A block type in the world. This is defined by the server.
  */
 export type Block = {
@@ -167,6 +177,21 @@ export type Block = {
    * Mirrors the server `stack_group` field.
    */
   stackGroup: number;
+
+  /**
+   * The other voxels of the multi-voxel unit this block is one part of — a
+   * door's other leaf, a tall flower's other half. Empty for an ordinary
+   * block. The server keeps such units whole at update intake; the client
+   * mirrors that in `World.updateVoxels` so predictions land on the same
+   * voxels. Mirrors the server `coupled_parts` field.
+   */
+  coupledParts: CoupledPart[];
+
+  /**
+   * Whether this part is its unit's anchor: the part that is placed, picked
+   * and dropped, and whose rotation and stage the other parts follow.
+   */
+  isCoupledAnchor: boolean;
 
   /**
    * A list of block face data that this block has.

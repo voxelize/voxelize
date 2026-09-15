@@ -3,8 +3,9 @@ use std::sync::Arc;
 use crate::{BlockFace, BlockFaces, FluidConfig, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
 
 use super::super::fluids::create_fluid_active_fn;
+use super::coupled::coupled_guard_fns;
 use super::rules::{attached_support_fns, solid_below_support_fns};
-use super::{Block, BlockDynamicPattern, SupportRequirement, YRotatableSegments};
+use super::{Block, BlockDynamicPattern, CoupledPart, SupportRequirement, YRotatableSegments};
 
 #[derive(Default)]
 pub struct BlockBuilder {
@@ -33,6 +34,8 @@ pub struct BlockBuilder {
     stack_group: u16,
     is_random_tickable: bool,
     requires_support: SupportRequirement,
+    coupled_parts: Vec<CoupledPart>,
+    is_coupled_anchor: bool,
     is_px_transparent: bool,
     is_py_transparent: bool,
     is_pz_transparent: bool,
@@ -187,6 +190,34 @@ impl BlockBuilder {
                 self.active_updater = Some(updater);
             }
         }
+        self
+    }
+
+    /// Couple this block to another voxel of the same unit: the block at
+    /// `offset` from any voxel holding this block must be `id`, and the two
+    /// live and die together. Call once per other part of the unit — a door
+    /// bottom couples to its top at `(0, 1, 0)`, the top couples back to the
+    /// bottom at `(0, -1, 0)` — and mark exactly one part with
+    /// [`Self::coupled_anchor`].
+    ///
+    /// What the engine then guarantees, for every write that goes through
+    /// the update queue: replacing any part clears the rest of the unit in
+    /// the same committed batch; writing the anchor materialises the other
+    /// parts into free voxels, mirroring its rotation and stage, or is
+    /// refused when one of them is occupied; a part written without its
+    /// anchor is refused. A block that also declares its own `active_fn`
+    /// keeps it; the orphan guard the engine installs runs first and defers
+    /// to it while the unit is whole.
+    pub fn coupled_with(mut self, offset: Vec3<i32>, id: u32) -> Self {
+        self.coupled_parts.push(CoupledPart { offset, id });
+        self
+    }
+
+    /// Mark this block as its unit's anchor — the part that is placed,
+    /// picked and dropped, and whose shape state the other parts follow.
+    /// Default is false; see [`Self::coupled_with`].
+    pub fn coupled_anchor(mut self, is_anchor: bool) -> Self {
+        self.is_coupled_anchor = is_anchor;
         self
     }
 
@@ -435,6 +466,20 @@ impl BlockBuilder {
             }
         }
 
+        // A coupled block is always active: the orphan guard wraps whatever
+        // the block declared for itself, so both can coexist (an iron door
+        // keeps its auto-close dwell and still heals as a unit).
+        let (active_ticker, active_updater) = if self.coupled_parts.is_empty() {
+            (self.active_ticker, self.active_updater)
+        } else {
+            let (ticker, updater) = coupled_guard_fns(
+                self.coupled_parts.clone(),
+                self.active_ticker,
+                self.active_updater,
+            );
+            (Some(ticker), Some(updater))
+        };
+
         Block {
             id: self.id,
             name: self.name,
@@ -469,6 +514,8 @@ impl BlockBuilder {
             is_plant: self.is_plant,
             stack_group: self.stack_group,
             requires_support: self.requires_support,
+            coupled_parts: self.coupled_parts,
+            is_coupled_anchor: self.is_coupled_anchor,
             is_transparent: [
                 self.is_px_transparent,
                 self.is_py_transparent,
@@ -481,9 +528,9 @@ impl BlockBuilder {
             is_dynamic: self.dynamic_fn.is_some() || self.dynamic_patterns.is_some(),
             dynamic_patterns: self.dynamic_patterns,
             dynamic_fn: self.dynamic_fn,
-            is_active: self.active_updater.is_some() && self.active_ticker.is_some(),
-            active_ticker: self.active_ticker,
-            active_updater: self.active_updater,
+            is_active: active_updater.is_some() && active_ticker.is_some(),
+            active_ticker,
+            active_updater,
             is_random_tickable: self.is_random_tickable,
             is_entity: self.is_entity,
             default_entity_json: self.default_entity_json,

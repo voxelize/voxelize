@@ -152,6 +152,7 @@ import {
   compareChunkRequestPriority,
 } from "./chunk-requests";
 import { Clouds } from "./clouds";
+import { expandCoupledUpdates as expandCoupledBatch } from "./coupled-blocks";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
@@ -208,6 +209,7 @@ export * from "./chunk-region-arenas";
 export * from "./chunk-renderer";
 export * from "./chunk-requests";
 export * from "./clouds";
+export * from "./coupled-blocks";
 export * from "./csm-renderer";
 export * from "./entity-shadow-uniforms";
 export * from "./items";
@@ -3096,6 +3098,28 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @param updates A list of updates to send to the server.
    */
   /**
+   * Expand a batch of updates so every coupled unit it touches changes
+   * whole — the mirror of the server's update intake, run on every batch
+   * `updateVoxels` receives. Exposed so a caller can learn the outcome of a
+   * placement before committing to it (an anchor whose partner voxel is
+   * occupied expands to nothing); the result is idempotent, so it can be
+   * handed straight back to {@link World.updateVoxels}. See
+   * {@link expandCoupledUpdates}.
+   */
+  expandCoupledUpdates = (updates: BlockUpdate[]): BlockUpdate[] => {
+    return expandCoupledBatch(
+      {
+        maxHeight: this.options.maxHeight,
+        getBlockById: (id) => this.getBlockByIdSafe(id) ?? undefined,
+        getVoxelAt: (vx, vy, vz) => this.getVoxelAt(vx, vy, vz),
+        getVoxelRotationAt: (vx, vy, vz) => this.getVoxelRotationAt(vx, vy, vz),
+        getVoxelStageAt: (vx, vy, vz) => this.getVoxelStageAt(vx, vy, vz),
+      },
+      updates,
+    );
+  };
+
+  /**
    * Mirror of the server's placement rule so the player who places a block
    * into water does not watch a block-shaped air pocket for a round trip.
    * The server's echo is authoritative and overwrites whatever this guessed.
@@ -3122,7 +3146,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     this.checkIsInitialized("update voxels", false);
 
-    const voxelUpdates = updates
+    // Coupled units (doors, tall plants) change whole, here exactly as they
+    // will on the server: breaking either half predicts both gone, placing
+    // the anchor predicts its partner too. Expanding before the send means
+    // the server receives the same unit-shaped batch it would have produced.
+    const voxelUpdates = this.expandCoupledUpdates(updates)
       .filter((update) => {
         if (update.vy < 0 || update.vy >= this.options.maxHeight) {
           return false;
@@ -3775,6 +3803,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (typeof block.stackGroup !== "number") {
         block.stackGroup = 0;
       }
+      if (!Array.isArray(block.coupledParts)) {
+        block.coupledParts = [];
+      }
+      block.isCoupledAnchor = block.isCoupledAnchor === true;
 
       block.faces.forEach((face) => {
         if (face.independent) {

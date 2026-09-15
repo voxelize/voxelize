@@ -5,11 +5,11 @@ use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect, WriteStorage};
 
 use crate::{
-    beer_lambert_transmit, record_profile, sample_random_ticks, BlockUtils, ChunkInterests,
-    ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp,
-    LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType, MetadataComp,
-    Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker,
-    WorldConfig,
+    beer_lambert_transmit, expand_coupled_updates, record_profile, sample_random_ticks, BlockUtils,
+    ChunkInterests, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag,
+    IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
+    MetadataComp, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp,
+    VoxelPacker, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -404,29 +404,40 @@ fn process_pending_updates(
     // Each lane pops under its own budget. The simulation lane goes first so
     // that when a player and the simulation both touch one voxel in the same
     // tick, the player's word is the one committed last and therefore kept.
-    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, UpdateLane)>> =
-        HashMap::new();
     let lanes = [
         (UpdateLane::Active, max_active_updates),
         (UpdateLane::External, max_updates),
     ];
+    let mut popped: Vec<(Vec3<i32>, u32, UpdateLane)> = Vec::new();
     for (lane, budget) in lanes {
         let num_to_process = budget.min(chunks.lane_queue(lane).len());
         for _ in 0..num_to_process {
             let (voxel, raw) = chunks.lane_queue(lane).pop_front().unwrap();
-            let Vec3(vx, vy, vz) = voxel;
 
             let updated_id = BlockUtils::extract_id(raw);
-            if vy < 0 || vy >= config.max_height as i32 || !registry.has_type(updated_id) {
+            if voxel.1 < 0 || voxel.1 >= max_height || !registry.has_type(updated_id) {
                 continue;
             }
 
-            let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
-            updates_by_chunk
-                .entry(coords)
-                .or_insert_with(Vec::new)
-                .push((voxel, raw, lane));
+            popped.push((voxel, raw, lane));
         }
+    }
+
+    // Coupled units (doors, tall plants) change whole: a write to any part
+    // brings the rest of its unit into this same batch, so the pair commits,
+    // relights, remeshes, and replicates as one. The partner writes ride
+    // outside the lane budgets — bounded by a unit's part count — because
+    // half a unit is not a state the world may be left in between ticks.
+    let popped = expand_coupled_updates(&*chunks, registry, max_height, popped);
+
+    let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32, UpdateLane)>> =
+        HashMap::new();
+    for (voxel, raw, lane) in popped {
+        let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, config.chunk_size);
+        updates_by_chunk
+            .entry(coords)
+            .or_insert_with(Vec::new)
+            .push((voxel, raw, lane));
     }
 
     let mut removed_light_sources = Vec::new();

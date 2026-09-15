@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BlockFace, Vec3, VoxelAccess, VoxelUpdate};
 
-use super::voxels::Block;
+use super::voxels::{assert_coupled_blocks_consistent, Block};
 
 /// Serializable struct representing a UV coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -84,6 +84,11 @@ pub struct Registry {
     /// The block waterlogged voxels are filled with, claimed by whichever
     /// block sets `is_waterlogging_fluid`.
     waterlogging_fluid_id: Option<u32>,
+
+    /// Whether any registered block declares `coupled_parts`, so the update
+    /// intake can skip the coupled-unit pass entirely for registries that
+    /// have none.
+    has_coupled_blocks: bool,
 }
 
 impl Registry {
@@ -122,7 +127,13 @@ impl Registry {
     }
 
     /// Generate the UV coordinates of the blocks. Call this before the server starts!
+    ///
+    /// Also the registry's last chance to refuse a mis-declared block set:
+    /// coupled units are checked here so a one-sided or anchorless pair
+    /// fails the server at startup rather than a player in the world.
     pub fn generate(&mut self) {
+        assert_coupled_blocks_consistent(self);
+
         let all_blocks = self.blocks_by_id.values_mut().collect::<Vec<_>>();
 
         let mut texture_groups: HashSet<String> = HashSet::new();
@@ -394,6 +405,28 @@ impl Registry {
         })
     }
 
+    /// Whether any registered block is part of a coupled unit.
+    pub fn has_coupled_blocks(&self) -> bool {
+        self.has_coupled_blocks
+    }
+
+    /// The anchor of the coupled unit `id` belongs to — the part that is
+    /// placed, picked and dropped. A block that is not coupled, or is the
+    /// anchor itself, resolves to its own id, so drop and item paths can
+    /// call this for every block.
+    pub fn coupled_anchor_id(&self, id: u32) -> u32 {
+        let block = self.get_block_by_id(id);
+        if block.is_coupled_anchor {
+            return id;
+        }
+        block
+            .coupled_parts
+            .iter()
+            .map(|part| part.id)
+            .find(|part_id| self.get_block_by_id(*part_id).is_coupled_anchor)
+            .unwrap_or(id)
+    }
+
     /// Get type map of all blocks.
     pub fn get_type_map(&self, blocks: &[&str]) -> HashMap<String, u32> {
         let mut type_map = HashMap::new();
@@ -461,6 +494,10 @@ impl Registry {
             self.waterlogging_fluid_id = Some(*id);
         } else if self.waterlogging_fluid_id == Some(*id) {
             self.waterlogging_fluid_id = None;
+        }
+
+        if !block.coupled_parts.is_empty() {
+            self.has_coupled_blocks = true;
         }
 
         for (idx, side) in faces.iter().enumerate() {
