@@ -260,6 +260,10 @@ const actSchema = z.discriminatedUnion("type", [
     pos: vec3Schema,
     block: z.union([z.string(), z.number()]),
   }),
+  z.object({
+    type: z.literal("interact"),
+    button: z.enum(["left", "right"]).optional(),
+  }),
   z.object({ type: z.literal("wait"), ms: z.number() }),
   z.object({
     type: z.literal("wait-for-chunks"),
@@ -1734,6 +1738,8 @@ export class AgentDaemon {
         return this.agent.breakVoxel(action.pos);
       case "place-voxel":
         return this.agent.placeVoxel(action.pos, action.block);
+      case "interact":
+        return this.agent.interact(action.button ?? "right");
       case "wait":
         await new Promise((r) => setTimeout(r, action.ms));
         return { waited: action.ms };

@@ -588,19 +588,38 @@ export class World<T = any> extends Scene implements NetIntercept {
   public csmRenderer: CSMRenderer | null = null;
 
   private aabbOverrides = new Map<string, AABB[]>();
+  /**
+   * For override cells that belong to a bigger block (a wall panel's upper
+   * row), the voxel of the block that owns them. The raycast keeps hitting
+   * the cell; interaction targets resolve to the owner.
+   */
+  private aabbOverrideOwners = new Map<string, Coords3>();
   private waterRefractionFrame = -1;
   private animatedAtlasTextures = new Set<AtlasTexture>();
 
-  setAABBOverride = (voxel: Coords3, aabbs: AABB[]) => {
-    this.aabbOverrides.set(ChunkUtils.getVoxelName(voxel), aabbs);
+  setAABBOverride = (voxel: Coords3, aabbs: AABB[], owner?: Coords3) => {
+    const key = ChunkUtils.getVoxelName(voxel);
+    this.aabbOverrides.set(key, aabbs);
+    if (owner) {
+      this.aabbOverrideOwners.set(key, [owner[0], owner[1], owner[2]]);
+    } else {
+      this.aabbOverrideOwners.delete(key);
+    }
   };
 
   removeAABBOverride = (voxel: Coords3) => {
-    this.aabbOverrides.delete(ChunkUtils.getVoxelName(voxel));
+    const key = ChunkUtils.getVoxelName(voxel);
+    this.aabbOverrides.delete(key);
+    this.aabbOverrideOwners.delete(key);
   };
 
   getAABBOverride = (voxel: Coords3): AABB[] | undefined => {
     return this.aabbOverrides.get(ChunkUtils.getVoxelName(voxel));
+  };
+
+  /** The block voxel an override cell answers for, when it has one. */
+  getAABBOverrideOwner = (voxel: Coords3): Coords3 | undefined => {
+    return this.aabbOverrideOwners.get(ChunkUtils.getVoxelName(voxel));
   };
 
   private syncSceneColorTexture(texture: Texture) {
@@ -4463,6 +4482,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         return this.isChunkReadyForEntityUpdates(chunk);
       },
       onApply: () => listener(updateData),
+      onDrop: (waitedMs) => {
+        console.warn(
+          `[world] block entity ${updateData.etype} ${updateData.operation} at ${updateData.voxel.join(",")} dropped: chunk ${chunkName} never became ready in ${Math.round(waitedMs / 1000)}s`,
+        );
+      },
       bindChunkInit: (onChunkReady) =>
         this.addChunkInitListener(chunkCoords, () => onChunkReady()),
     });

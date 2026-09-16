@@ -56,6 +56,7 @@ import {
   expectedBackingSize,
   resolveCaptureViewport,
 } from "./capture-viewport";
+import { composeClientUrl } from "./client-url";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
   createAgentPerfTraceId,
@@ -343,20 +344,16 @@ export class Agent {
       console.log(`[voxelize-agent] visited auth url: ${authUrl}`);
     }
 
-    const target = new URL(`${url.replace(/\/$/, "")}/${world}`);
-    target.searchParams.set("agent", "true");
-    target.searchParams.set("agentName", name);
-    if (process.env.AGENT_CAPTURE_MODE === "true") {
-      target.searchParams.set("capture", "true");
-    }
     // Visual tests of held items opt into rendering the first-person arm,
     // which agent screenshots otherwise omit (see client agent mode).
-    if (process.env.AGENT_ARM_VISIBLE === "true") {
-      target.searchParams.set("agentArm", "true");
-    }
-    agent.targetUrl = target.toString();
+    const targetUrl = composeClientUrl(url, world, {
+      agentName: name,
+      isCapture: process.env.AGENT_CAPTURE_MODE === "true",
+      isArmVisible: process.env.AGENT_ARM_VISIBLE === "true",
+    });
+    agent.targetUrl = targetUrl;
 
-    await page.goto(target.toString(), { waitUntil: "domcontentloaded" });
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
 
     const ready = Agent.waitForBridge(page, waitReadyTimeoutMs);
 
@@ -779,6 +776,16 @@ export class Agent {
         pos,
         block,
       ),
+    );
+  }
+
+  async interact(button: "left" | "right" = "right"): Promise<{
+    button: "left" | "right";
+    target: Vec3 | null;
+    block: string | null;
+  }> {
+    return this.withPageTimeout("interact", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate((b) => window.__agentRequired__().interact(b), button),
     );
   }
 

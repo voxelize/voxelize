@@ -58,6 +58,16 @@ export type RaycastHit = {
   entity: EntitySnapshot | null;
   position: Vec3;
   distance: number;
+  /**
+   * Clickable regions painted on the targeted block's face (tabs, buttons):
+   * which one the crosshair rests on, and where each one is in the world.
+   * `null` when the block registers no face surface.
+   */
+  faceRegions?: {
+    faceName: string;
+    hovered: string | null;
+    regions: { id: string; center: Vec3 }[];
+  } | null;
 };
 
 export type ChunkSnapshot = {
@@ -633,6 +643,18 @@ export interface AgentBridge {
     pos: Vec3,
     block: string | number,
   ): Promise<{ beforeId: number; afterId: number; blockId: number }>;
+  /**
+   * The player's own click on whatever the crosshair targets: a mouse press
+   * dispatched where the client's input layer listens, so every bound
+   * handler runs as it would for a person — placement, block-entity menus,
+   * clickable regions painted on a face. Reports the targeted voxel and
+   * block so a test can assert it aimed where it meant to.
+   */
+  interact(button?: "left" | "right"): {
+    button: "left" | "right";
+    target: Vec3 | null;
+    block: string | null;
+  };
   /**
    * Raw per-voxel light channels as the client currently holds them —
    * sunlight plus the three torch colors, with the voxel id for context.

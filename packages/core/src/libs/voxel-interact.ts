@@ -263,8 +263,8 @@ export class VoxelInteract extends Group {
     this.potentialGroup.visible = potentialVisuals;
   }
 
-  setAABBOverride = (voxel: Coords3, aabbs: AABB[]) => {
-    this.world.setAABBOverride(voxel, aabbs);
+  setAABBOverride = (voxel: Coords3, aabbs: AABB[], owner?: Coords3) => {
+    this.world.setAABBOverride(voxel, aabbs, owner);
   };
 
   removeAABBOverride = (voxel: Coords3) => {
@@ -332,11 +332,13 @@ export class VoxelInteract extends Group {
     const { voxel, normal, point } = result;
 
     const [nx, ny, nz] = normal;
-    const newTarget = ChunkUtils.mapWorldToVoxel(<Coords3>voxel);
+    const hitCell = ChunkUtils.mapWorldToVoxel(<Coords3>voxel);
 
-    // Pointing at air.
-    const newLookingID = this.world.getVoxelAt(...newTarget);
-    if (newLookingID === 0) {
+    // Pointing at air — unless that air cell is claimed by a bigger block's
+    // AABB override (a wall panel's upper half, a double chest's second
+    // half), in which case the hit stands.
+    const newLookingID = this.world.getVoxelAt(...hitCell);
+    if (newLookingID === 0 && !this.world.getAABBOverride(hitCell)) {
       this.visible = false;
       this.target = null;
       this.potential = null;
@@ -344,6 +346,11 @@ export class VoxelInteract extends Group {
     }
 
     this.visible = true;
+    // The target is the block being looked at: an override cell that names
+    // its owner resolves to that block's voxel, so every reader (HUD, right
+    // click, breaking) sees the panel rather than the air in front of its
+    // upper row. Placement still keys off the cell the ray actually hit.
+    const newTarget = this.world.getAABBOverrideOwner(hitCell) ?? hitCell;
     this.target = newTarget;
 
     const { lookingAt } = this;
@@ -403,11 +410,12 @@ export class VoxelInteract extends Group {
       this.newTargetPosition.set(union.minX, union.minY, union.minZ);
     }
 
-    // target block is look block summed with the normal
+    // The placement cell is the hit cell summed with the normal — the cell
+    // the ray entered from, not the owner's voxel.
     const targetVoxel = [
-      this.target[0] + nx,
-      this.target[1] + ny,
-      this.target[2] + nz,
+      hitCell[0] + nx,
+      hitCell[1] + ny,
+      hitCell[2] + nz,
     ] as Coords3;
 
     const rotation =
