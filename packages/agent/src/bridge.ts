@@ -67,6 +67,17 @@ export type RaycastHit = {
     faceName: string;
     hovered: string | null;
     regions: { id: string; center: Vec3 }[];
+    /**
+     * The client's own hover pane, as it is right now: which region it is
+     * laid over and where it sits. `hovered` above is the harness's math;
+     * this is what the player would see, so the two can be compared.
+     */
+    highlight: {
+      isVisible: boolean;
+      regionId: string | null;
+      center: Vec3;
+      size: { width: number; height: number };
+    } | null;
   } | null;
 };
 
@@ -456,6 +467,44 @@ export type WorldMemoryCounters = {
  * every node the per-frame matrix and culling traversals visit, and
  * `visibleChunkGroups` how many of the chunk subtrees survive culling.
  */
+/**
+ * One block surface not wearing its own art. `unknown` is the
+ * magenta-and-black checker; `default` an isolated face on its face's blank
+ * default while it waits for the voxel's paint; `fallback` a stand-in colour
+ * put there by `fillUnpaintedSurfaces`.
+ */
+export type UnpaintedSurface = {
+  kind: "atlas-slot" | "own-face" | "isolated-face";
+  state: "unknown" | "default" | "fallback";
+  blockId: number;
+  blockName: string;
+  faceName: string;
+  textureGroup: string | null;
+  voxel?: [number, number, number];
+  ageMs?: number;
+};
+
+export type SurfaceTally = {
+  total: number;
+  painted: number;
+  default: number;
+  fallback: number;
+  unknown: number;
+};
+
+export type TextureCensus = {
+  atlasSlots: SurfaceTally;
+  ownFaces: SurfaceTally;
+  isolatedFaces: SurfaceTally;
+  /** Worst first: checker, then fallbacks, then defaults still waiting. */
+  unpainted: UnpaintedSurface[];
+};
+
+export type TextureFillResult = {
+  color: string;
+  filled: { atlasSlots: number; ownFaces: number; isolatedFaces: number };
+};
+
 export type RenderStats = {
   drawCalls: number;
   /** The part of `drawCalls` spent filling the shadow cascades. */
@@ -706,6 +755,20 @@ export interface AgentBridge {
   memoryCounters(): WorldMemoryCounters;
   /** Per-frame renderer and scene-graph load; see {@link RenderStats}. */
   renderStats(): RenderStats;
+  /**
+   * What every block surface is wearing: atlas slots, own-texture face
+   * defaults, and each voxel's isolated face, with everything not yet in its
+   * own art listed worst first. `unpainted` empty of `unknown` entries is
+   * the "no magenta anywhere" assertion.
+   */
+  textureCensus(): TextureCensus;
+  /**
+   * Dress every surface still on the unknown checker — an isolated face in
+   * its default where that exists, everything else in the world's fallback
+   * colour — so a stage is presentable while its real textures are on the
+   * way. The census keeps reporting them as `fallback`.
+   */
+  fillUnpaintedSurfaces(options?: { color?: string }): TextureFillResult;
 
   position(): Vec3;
   facing(): YawPitch;

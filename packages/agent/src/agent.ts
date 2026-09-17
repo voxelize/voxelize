@@ -40,6 +40,8 @@ import type {
   WalkOptions,
   WalkToOptions,
   RenderStats,
+  TextureCensus,
+  TextureFillResult,
   WorldMemoryCounters,
   YawPitch,
 } from "./bridge";
@@ -915,6 +917,38 @@ export class Agent {
    */
   async renderStats(): Promise<RenderStats> {
     return this.page.evaluate(() => window.__agentRequired__().renderStats());
+  }
+
+  /**
+   * Every block surface's dress, with the ones not in their own art listed
+   * worst first. A census with no `unknown` entries after a load is the
+   * "no magenta checker anywhere" assertion.
+   */
+  async textureCensus(): Promise<TextureCensus> {
+    return this.withPageTimeout(
+      "textureCensus",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() => window.__agentRequired__().textureCensus()),
+    );
+  }
+
+  /**
+   * Dress every surface still on the checker in its default or the world's
+   * fallback colour; see the bridge's `fillUnpaintedSurfaces`.
+   */
+  async fillUnpaintedSurfaces(options?: {
+    color?: string;
+  }): Promise<TextureFillResult> {
+    return this.withPageTimeout(
+      "fillUnpaintedSurfaces",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(
+          (opts) => window.__agentRequired__().fillUnpaintedSurfaces(opts),
+          options ?? {},
+        ),
+    );
   }
 
   async position(): Promise<Vec3> {

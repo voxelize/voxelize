@@ -227,6 +227,14 @@ export type WorldClientOptions = {
   textureUnitDimension: number;
 
   /**
+   * The flat colour {@link World.fillUnpaintedSurfaces} paints over a
+   * surface still wearing the magenta-and-black unknown checker when there
+   * is no better default to give it. A quiet warm grey by default, so a
+   * stage with a missing texture reads as unfinished rather than broken.
+   */
+  unpaintedFallbackColor: string;
+
+  /**
    * The exponent applied to the ratio that chunks are loaded, which would then be used to determine whether an angle to a chunk is worth loading.
    * Defaults to `8`.
    */
@@ -406,6 +414,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   fogNearRenderRatio: 0.45,
   fogFarRenderRatio: 0.78,
   textureUnitDimension: 8,
+  unpaintedFallbackColor: "#8f8a84",
   chunkLoadExponent: 8,
   skyOptions: {},
   cloudsOptions: {},

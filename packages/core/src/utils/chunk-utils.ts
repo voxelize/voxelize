@@ -50,6 +50,15 @@ export class ChunkUtils {
   };
 
   /**
+   * Given a voxel representation from {@link getVoxelName}, parse the voxel
+   * coordinates back out.
+   */
+  static parseVoxelName = (name: string, concat = "|"): Coords3 => {
+    const [x, y, z] = name.split(concat).map((s: string) => parseInt(s, 10));
+    return [x, y, z];
+  };
+
+  /**
    * Scale and floor a 3D coordinate.
    *
    * @param coords The coordinates to scale and floor.

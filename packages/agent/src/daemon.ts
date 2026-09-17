@@ -918,6 +918,16 @@ export class AgentDaemon {
 
     this.server.get("/render-stats", async () => this.agent.renderStats());
 
+    this.server.get("/textures", async () => this.agent.textureCensus());
+
+    this.server.post<{ Body: { color?: string } }>(
+      "/textures/fill",
+      async (req) =>
+        this.agent.fillUnpaintedSurfaces(
+          req.body?.color ? { color: req.body.color } : undefined,
+        ),
+    );
+
     this.server.get("/mesh-transfer/status", async () =>
       this.agent.meshTransferStatus(),
     );

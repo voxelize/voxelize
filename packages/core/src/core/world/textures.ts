@@ -77,6 +77,45 @@ export class AtlasTexture extends CanvasTexture {
   >();
 
   /**
+   * Ranges something has drawn into since the atlas was built. Every slot
+   * starts as the unknown checker; a slot missing from this set is still
+   * wearing it, which is what {@link isRangePainted} answers for the texture
+   * census. Shared with clones, which share the pixels too.
+   */
+  private paintedRangeKeys = new Set<string>();
+
+  /**
+   * Ranges painted by a fallback fill rather than by their own art. Kept
+   * apart from {@link paintedRangeKeys} so the census can still report them
+   * as missing their real texture; a real draw clears the mark.
+   */
+  private fallbackRangeKeys = new Set<string>();
+
+  private static rangeKey(range: UV) {
+    return `${range.startU}|${range.startV}|${range.endU}|${range.endV}`;
+  }
+
+  /** Whether anything has been drawn into `range` since the atlas was built. */
+  isRangePainted(range: UV) {
+    return this.paintedRangeKeys.has(AtlasTexture.rangeKey(range));
+  }
+
+  /** Whether `range` wears a fallback fill instead of its own texture. */
+  isRangeFallback(range: UV) {
+    return this.fallbackRangeKeys.has(AtlasTexture.rangeKey(range));
+  }
+
+  /**
+   * Paint `range` with a stand-in colour and remember that it is one, so a
+   * later census still lists the slot as unpainted by its own art.
+   */
+  fillRangeAsFallback(range: UV, color: Color) {
+    this.drawImageToRange(range, color);
+    this.fallbackRangeKeys.add(AtlasTexture.rangeKey(range));
+    this.needsUpdate = true;
+  }
+
+  /**
    * Create a new texture this.
    *
    * @param textureMap A map that points a side name to a texture or color.
@@ -179,6 +218,8 @@ export class AtlasTexture extends CanvasTexture {
     this.atlasMargin = source.atlasMargin;
     this.atlasOffset = source.atlasOffset;
     this.atlasRatio = source.atlasRatio;
+    this.paintedRangeKeys = source.paintedRangeKeys;
+    this.fallbackRangeKeys = source.fallbackRangeKeys;
     return this;
   }
 
@@ -225,6 +266,10 @@ export class AtlasTexture extends CanvasTexture {
     if (!image2) {
       return;
     }
+
+    const rangeKey = AtlasTexture.rangeKey(range);
+    this.paintedRangeKeys.add(rangeKey);
+    this.fallbackRangeKeys.delete(rangeKey);
 
     const context = this.canvas.getContext("2d");
 
@@ -442,6 +487,12 @@ export class AtlasTexture extends CanvasTexture {
     const context = this.canvas.getContext("2d");
     context.clearRect(patch.x, patch.y, patch.size, patch.size);
     context.drawImage(patch.scratch, patch.x, patch.y);
+
+    // An animated slot is painted by its keyframes, never by
+    // drawImageToRange; the census must count it as dressed all the same.
+    const rangeKey = AtlasTexture.rangeKey(animation.range);
+    this.paintedRangeKeys.add(rangeKey);
+    this.fallbackRangeKeys.delete(rangeKey);
 
     this.pendingAnimationPatches.set(animation, patch);
   }

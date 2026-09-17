@@ -72,6 +72,7 @@ import {
   ChunkUtils,
   LightColor,
   LightUtils,
+  ThreeUtils,
   findSimilar,
   formatSuggestion,
 } from "../../utils";
@@ -131,6 +132,7 @@ import {
   BlockUpdateWithSource,
   PY_ROTATION,
 } from "./block";
+import { BlockEntityLedger } from "./block-entity-ledger";
 import { Chunk } from "./chunk";
 import {
   CustomChunkShaderMaterial,
@@ -154,7 +156,6 @@ import {
 import { Clouds } from "./clouds";
 import { expandCoupledUpdates as expandCoupledBatch } from "./coupled-blocks";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
-import { DeferredBlockEntityUpdateController } from "./deferred-block-entity-updates";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
@@ -187,6 +188,16 @@ import {
 } from "./section-visibility";
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { getVisibleDiscDirection, Sky } from "./sky";
+import {
+  emptyTally,
+  IsolatedFaceLedger,
+  sortUnpainted,
+  type SurfaceState,
+  tallyState,
+  type TextureCensus,
+  type TextureFillResult,
+  type UnpaintedSurface,
+} from "./texture-census";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
 import {
@@ -225,6 +236,7 @@ export * from "./shaders";
 export * from "./shadow-sampling";
 export * from "./sky";
 export * from "./sky-fog";
+export * from "./texture-census";
 export * from "./textures";
 export * from "./uv";
 export * from "./vertex-quantization";
@@ -814,16 +826,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     ((chunk: Chunk) => void)[]
   >();
 
-  private blockEntitiesMap: Map<
-    string,
-    {
-      id: string;
-      data: T | null;
-    }
-  > = new Map();
+  /**
+   * The client's only copy of the world's block entities; see
+   * {@link BlockEntityLedger} for why it is never pruned and why an update
+   * for a chunk without data waits rather than expiring.
+   */
+  private blockEntities = new BlockEntityLedger<T>();
   private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
-  private deferredBlockEntityUpdates =
-    new DeferredBlockEntityUpdateController();
+
+  /**
+   * Every per-voxel isolated-face material and what it wears, behind
+   * {@link textureCensus} and {@link fillUnpaintedSurfaces}.
+   */
+  private isolatedFaces = new IsolatedFaceLedger<CustomChunkShaderMaterial>();
+  /** Own-texture face defaults painted by a fallback fill, not their art. */
+  private fallbackOwnFaceKeys = new Set<string>();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
@@ -1100,6 +1117,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
     this.chunkRenderer.materials.clear();
     this.animatedAtlasTextures.clear();
+    this.blockEntities.clear();
+    this.isolatedFaces.clear();
+    this.fallbackOwnFaceKeys.clear();
   };
 
   /**
@@ -1565,6 +1585,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (isOwnTextureFace(face)) {
         setOwnFaceTexture(mat, makeOwnFaceTexture(data));
+        this.fallbackOwnFaceKeys.delete(
+          makeChunkMaterialKey(this, block.id, face.name),
+        );
+        if (face.isolated) {
+          this.dressUnknownIsolatedFaces(block.id, face.name, data);
+        }
         return;
       }
 
@@ -1577,6 +1603,42 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     this.noteBlockTextureWritten();
+  }
+
+  /**
+   * A texture of a surface's own that shows `source`'s picture. A source
+   * texture is never handed over as-is: whoever paints over the result
+   * disposes what it replaces, and that must never reach a texture that
+   * another material — a face default, the shared unknown — still wears.
+   */
+  private mintFaceTextureFrom(source: Color | HTMLImageElement | Texture) {
+    if (ThreeUtils.isTexture(source)) {
+      return source.image
+        ? makeOwnFaceTexture(source.image as HTMLImageElement)
+        : source;
+    }
+    return makeOwnFaceTexture(source);
+  }
+
+  /**
+   * The face's default just landed: every voxel of this face still on the
+   * unknown checker (its chunk meshed before the registry's textures did)
+   * puts the default on now, instead of waiting for a paint that may be a
+   * long way off or never coming.
+   */
+  private dressUnknownIsolatedFaces(
+    blockId: number,
+    faceName: string,
+    source: Color | HTMLImageElement | Texture,
+  ) {
+    for (const { entry } of this.isolatedFaces.entriesForFace(
+      blockId,
+      faceName,
+      "unknown",
+    )) {
+      setOwnFaceTexture(entry.material, this.mintFaceTextureFrom(source));
+      entry.state = "default";
+    }
   }
 
   getIsolatedBlockMaterialAt(
@@ -1593,22 +1655,39 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
   }
 
-  // Chunk meshing creates these while the game is still setting up its
-  // registry, so the face's default is not reliably painted yet; the voxel's
-  // own content lands here moments later either way.
+  /**
+   * The material a voxel's isolated face wears before its own content is
+   * painted onto it — the moment between the chunk meshing and the block
+   * entity's paint, or for good if that paint never comes.
+   *
+   * It starts as the face's default (the block's own art: a panel's blank
+   * paper, a screen's dark glass), so an unpainted face reads as an empty
+   * one. Only when the default itself has not been painted yet — chunk
+   * meshing can run while the registry is still setting up — does it fall
+   * back to the magenta-and-black unknown checker.
+   */
   private getOrCreateIsolatedBlockMaterial(
     blockId: number,
     position: Coords3,
     faceName: string,
     defaultDimension?: number,
   ) {
-    return this.applyBlockTextureAt(
+    const unknown = AtlasTexture.makeUnknownTexture(
+      defaultDimension ?? this.options.textureUnitDimension,
+    );
+    const defaultMap = this.getBlockFaceMaterial(blockId, faceName)?.map;
+    // A texture of its own, sharing only the default's image: the painter
+    // that replaces it disposes what it replaces, and that must never be
+    // the default itself.
+    const hasDefault =
+      !!defaultMap && defaultMap !== unknown && !!defaultMap.image;
+    const seed = hasDefault ? this.mintFaceTextureFrom(defaultMap) : unknown;
+    return this.paintIsolatedFace(
       blockId,
       faceName,
-      AtlasTexture.makeUnknownTexture(
-        defaultDimension ?? this.options.textureUnitDimension,
-      ),
+      seed,
       position,
+      hasDefault ? "default" : "unknown",
     );
   }
 
@@ -1617,6 +1696,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     faceName: string,
     source: string | Color | HTMLImageElement | Texture,
     voxel: Coords3,
+  ) {
+    return this.paintIsolatedFace(idOrName, faceName, source, voxel, "painted");
+  }
+
+  /**
+   * The one place a voxel's isolated-face material is made or repainted,
+   * so the ledger behind the texture census always knows what it wears.
+   */
+  private paintIsolatedFace(
+    idOrName: number | string,
+    faceName: string,
+    source: string | Color | HTMLImageElement | Texture,
+    voxel: Coords3,
+    state: SurfaceState,
   ) {
     const block = this.getBlockOf(idOrName);
     const faces = this.getBlockFacesByFaceNames(block.id, faceName);
@@ -1654,12 +1747,179 @@ export class World<T = any> extends Scene implements NetIntercept {
     isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
     isolatedMat.transparent = block.isSeeThrough;
 
+    const key = makeChunkMaterialKey(this, block.id, face.name, voxel);
     if (!mat) {
-      const key = makeChunkMaterialKey(this, block.id, face.name, voxel);
       this.chunkRenderer.materials.set(key, isolatedMat);
     }
+    this.isolatedFaces.note(
+      key,
+      {
+        blockId: block.id,
+        faceName: face.name,
+        voxel: [voxel[0], voxel[1], voxel[2]],
+        material: isolatedMat,
+      },
+      state,
+      performance.now(),
+    );
 
     return isolatedMat;
+  }
+
+  /**
+   * What every block surface is wearing right now: atlas slots, own-texture
+   * face defaults, and every voxel's isolated face, with the ones not yet
+   * in their own art listed worst first. The harness asserts on this after
+   * a load; a human would otherwise be hunting the scene for magenta.
+   */
+  textureCensus(): TextureCensus {
+    const unknown = AtlasTexture.makeUnknownTexture(
+      this.options.textureUnitDimension,
+    );
+    const atlasSlots = emptyTally();
+    const ownFaces = emptyTally();
+    const isolatedFaces = emptyTally();
+    const unpainted: UnpaintedSurface[] = [];
+    const seenAtlasRanges = new Set<string>();
+
+    for (const block of this.registry.blocksById.values()) {
+      // An empty block (air, a chest drawn by its own model) is never
+      // meshed, so its slots are never sampled and cannot show anything.
+      if (block.isEmpty) continue;
+      for (const face of block.faces) {
+        const surface = {
+          blockId: block.id,
+          blockName: block.name,
+          faceName: face.name,
+          textureGroup: face.textureGroup ?? null,
+        };
+
+        if (isOwnTextureFace(face)) {
+          const mat = this.getBlockFaceMaterial(block.id, face.name);
+          const state: SurfaceState = !mat?.map
+            ? "unknown"
+            : mat.map === unknown
+              ? "unknown"
+              : this.fallbackOwnFaceKeys.has(
+                    makeChunkMaterialKey(this, block.id, face.name),
+                  )
+                ? "fallback"
+                : "painted";
+          tallyState(ownFaces, state);
+          if (state !== "painted") {
+            unpainted.push({ kind: "own-face", state, ...surface });
+          }
+          continue;
+        }
+
+        const mat = this.getBlockFaceMaterial(block.id);
+        const atlas = mat?.map instanceof AtlasTexture ? mat.map : null;
+        if (!atlas) continue;
+        // Faces sharing a group share one slot; count the slot once.
+        const rangeKey = `${face.range.startU}|${face.range.startV}`;
+        const isFirstSight = !seenAtlasRanges.has(rangeKey);
+        seenAtlasRanges.add(rangeKey);
+        const state: SurfaceState = !atlas.isRangePainted(face.range)
+          ? "unknown"
+          : atlas.isRangeFallback(face.range)
+            ? "fallback"
+            : "painted";
+        if (isFirstSight) tallyState(atlasSlots, state);
+        if (state !== "painted") {
+          unpainted.push({ kind: "atlas-slot", state, ...surface });
+        }
+      }
+    }
+
+    const now = performance.now();
+    for (const { entry } of this.isolatedFaces.entries()) {
+      tallyState(isolatedFaces, entry.state);
+      if (entry.state === "painted") continue;
+      const block = this.getBlockByIdSafe(entry.blockId);
+      const face = block?.faces.find((f) => f.name === entry.faceName);
+      unpainted.push({
+        kind: "isolated-face",
+        state: entry.state,
+        blockId: entry.blockId,
+        blockName: block?.name ?? `#${entry.blockId}`,
+        faceName: entry.faceName,
+        textureGroup: face?.textureGroup ?? null,
+        voxel: entry.voxel,
+        ageMs: Math.round(now - entry.createdAt),
+      });
+    }
+
+    return {
+      atlasSlots,
+      ownFaces,
+      isolatedFaces,
+      unpainted: sortUnpainted(unpainted),
+    };
+  }
+
+  /**
+   * Dress every surface still on the unknown checker: an isolated face in
+   * its default if that has landed, everything else in
+   * `options.unpaintedFallbackColor`. The census keeps reporting them as
+   * `fallback`, so a stage made presentable this way does not pass for a
+   * finished one.
+   */
+  fillUnpaintedSurfaces(options: { color?: string } = {}): TextureFillResult {
+    const colorHex = options.color ?? this.options.unpaintedFallbackColor;
+    const color = new Color(colorHex);
+    const unknown = AtlasTexture.makeUnknownTexture(
+      this.options.textureUnitDimension,
+    );
+    const filled = { atlasSlots: 0, ownFaces: 0, isolatedFaces: 0 };
+    const filledRanges = new Set<string>();
+
+    for (const block of this.registry.blocksById.values()) {
+      if (block.isEmpty) continue;
+      for (const face of block.faces) {
+        if (isOwnTextureFace(face)) {
+          const mat = this.getBlockFaceMaterial(block.id, face.name);
+          if (!mat || (mat.map && mat.map !== unknown)) continue;
+          setOwnFaceTexture(mat, makeOwnFaceTexture(color));
+          this.fallbackOwnFaceKeys.add(
+            makeChunkMaterialKey(this, block.id, face.name),
+          );
+          filled.ownFaces += 1;
+          continue;
+        }
+        const mat = this.getBlockFaceMaterial(block.id);
+        const atlas = mat?.map instanceof AtlasTexture ? mat.map : null;
+        if (!atlas || atlas.isRangePainted(face.range)) continue;
+        const rangeKey = `${face.range.startU}|${face.range.startV}`;
+        if (filledRanges.has(rangeKey)) continue;
+        filledRanges.add(rangeKey);
+        atlas.fillRangeAsFallback(face.range, color);
+        filled.atlasSlots += 1;
+      }
+    }
+
+    for (const { entry } of this.isolatedFaces.entries()) {
+      if (entry.state !== "unknown") continue;
+      const defaultMap = this.getBlockFaceMaterial(
+        entry.blockId,
+        entry.faceName,
+      )?.map;
+      const hasDefault =
+        !!defaultMap && defaultMap !== unknown && !!defaultMap.image;
+      setOwnFaceTexture(
+        entry.material,
+        hasDefault
+          ? this.mintFaceTextureFrom(defaultMap)
+          : makeOwnFaceTexture(color),
+      );
+      entry.state = hasDefault ? "default" : "fallback";
+      filled.isolatedFaces += 1;
+    }
+
+    if (filled.atlasSlots + filled.ownFaces + filled.isolatedFaces > 0) {
+      this.noteBlockTextureWritten();
+    }
+
+    return { color: colorHex, filled };
   }
 
   /**
@@ -1746,6 +2006,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
       setOwnFaceTexture(ownMat, makeOwnFaceTexture(source));
+      this.fallbackOwnFaceKeys.delete(
+        makeChunkMaterialKey(this, blockId, face.name),
+      );
+      if (face.isolated) {
+        this.dressUnknownIsolatedFaces(blockId, face.name, source);
+      }
     }
 
     this.noteBlockTextureWritten();
@@ -2474,7 +2740,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vz = Math.floor(pz);
     const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
 
-    return this.blockEntitiesMap.get(voxelName)?.data || null;
+    return this.blockEntities.get(voxelName)?.data || null;
   }
 
   getBlockEntityIdAt(px: number, py: number, pz: number): string | null {
@@ -2485,7 +2751,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vz = Math.floor(pz);
     const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
 
-    return this.blockEntitiesMap.get(voxelName)?.id || null;
+    return this.blockEntities.get(voxelName)?.id || null;
   }
 
   setBlockEntityDataAt(
@@ -2502,7 +2768,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vz = Math.floor(pz);
     const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
 
-    const old = this.blockEntitiesMap.get(voxelName);
+    const old = this.blockEntities.get(voxelName);
     if (!old) {
       console.log("No entity found at:", px, py, pz);
       return;
@@ -4134,39 +4400,36 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const data: T | null = metadata.json ?? null;
 
-      const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
-      this.blockEntityUpdateListeners.forEach((listener) => {
-        const chunkCoords = ChunkUtils.mapVoxelToChunk(
-          [vx, vy, vz],
-          this.options.chunkSize,
+      const originalData = this.blockEntities.get(voxelId) ?? null;
+      const chunkCoords = ChunkUtils.mapVoxelToChunk(
+        [vx, vy, vz],
+        this.options.chunkSize,
+      );
+      const chunkName = ChunkUtils.getChunkName(chunkCoords);
+      const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
+      const isChunkReady = this.isChunkReadyForEntityUpdates(chunk);
+      const updateData: BlockEntityUpdateData<T> = {
+        id,
+        voxel: [vx, vy, vz],
+        oldValue: originalData?.data ?? null,
+        newValue: data as T | null,
+        operation,
+        etype: type,
+      };
+
+      // A delete is delivered whatever the chunk's state: the listeners own
+      // resources (materials, meshes, subscriptions) that must go now. A
+      // create or update for a chunk without data waits in the map for the
+      // chunk to land; `deliverBlockEntitiesForChunk` hands it over then.
+      if (operation === "DELETE" || isChunkReady) {
+        this.blockEntityUpdateListeners.forEach((listener) =>
+          listener(updateData),
         );
-        const chunkName = ChunkUtils.getChunkName(chunkCoords);
-        const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
-        const isChunkReady = this.isChunkReadyForEntityUpdates(chunk);
-        const updateData: BlockEntityUpdateData<T> = {
-          id,
-          voxel: [vx, vy, vz],
-          oldValue: originalData?.data ?? null,
-          newValue: data as T | null,
-          operation,
-          etype: type,
-        };
-
-        if (operation !== "DELETE" && !isChunkReady) {
-          this.deferBlockEntityUpdateUntilChunkReady(
-            listener,
-            chunkCoords,
-            updateData,
-          );
-          return;
-        }
-
-        listener(updateData);
-      });
+      }
 
       switch (operation) {
         case "DELETE": {
-          this.blockEntitiesMap.delete(voxelId);
+          this.blockEntities.delete(voxelId, chunkName);
           const block = this.getBlockByName(type.split("::")[1]);
           if (block) {
             for (const face of block.faces) {
@@ -4181,9 +4444,14 @@ export class World<T = any> extends Scene implements NetIntercept {
                   material.dispose();
                   material.map?.dispose();
                 }
-                this.chunkRenderer.materials.delete(
-                  makeChunkMaterialKey(this, block.id, face.name, voxel),
+                const materialKey = makeChunkMaterialKey(
+                  this,
+                  block.id,
+                  face.name,
+                  voxel,
                 );
+                this.chunkRenderer.materials.delete(materialKey);
+                this.isolatedFaces.remove(materialKey);
               }
             }
           }
@@ -4192,12 +4460,41 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         case "CREATE":
         case "UPDATE": {
-          this.blockEntitiesMap.set(voxelId, { id, data });
+          this.blockEntities.record(
+            voxelId,
+            chunkName,
+            { id, data, etype: type, operation },
+            isChunkReady,
+          );
           break;
         }
       }
     });
   };
+
+  /**
+   * Hand the listeners every block entity in `chunk` whose update arrived
+   * before the chunk had data. Runs when a chunk's data lands, so a panel
+   * whose chunk loads two minutes — or an hour — after the join is painted
+   * the moment its voxels exist, from the copy kept since the join.
+   */
+  private deliverBlockEntitiesForChunk(chunk: Chunk) {
+    for (const { voxelId, entry } of this.blockEntities.takePendingForChunk(
+      chunk.name,
+    )) {
+      const updateData: BlockEntityUpdateData<T> = {
+        id: entry.id,
+        voxel: ChunkUtils.parseVoxelName(voxelId),
+        oldValue: null,
+        newValue: entry.data,
+        operation: entry.operation,
+        etype: entry.etype,
+      };
+      this.blockEntityUpdateListeners.forEach((listener) =>
+        listener(updateData),
+      );
+    }
+  }
 
   get time() {
     return this._time;
@@ -4408,6 +4705,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkInitializeListeners.delete(chunk.name);
         listeners.slice().forEach((listener) => listener(chunk));
       }
+
+      this.deliverBlockEntitiesForChunk(chunk);
     };
 
     const toProcess = toProcessArray.slice(0, maxProcessesPerUpdate);
@@ -4461,51 +4760,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   }
 
+  /**
+   * A block entity update can be handed to listeners once its chunk has
+   * voxel data — that is what lets a painter find the block and key its
+   * material by voxel; the chunk's meshes pick the material up whenever they
+   * build, before or after.
+   */
   private isChunkReadyForEntityUpdates(
     chunk: Chunk | undefined,
   ): chunk is Chunk {
-    return !!chunk && chunk.meshes.size > 0;
-  }
-
-  private deferBlockEntityUpdateUntilChunkReady(
-    listener: BlockEntityUpdateListener<T>,
-    chunkCoords: Coords2,
-    updateData: BlockEntityUpdateData<T>,
-  ) {
-    const chunkName = ChunkUtils.getChunkName(chunkCoords);
-
-    this.deferredBlockEntityUpdates.defer({
-      chunkName,
-      timeoutMs: 3000,
-      shouldApplyOnTimeout: () => {
-        const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
-        return this.isChunkReadyForEntityUpdates(chunk);
-      },
-      onApply: () => listener(updateData),
-      onDrop: (waitedMs) => {
-        console.warn(
-          `[world] block entity ${updateData.etype} ${updateData.operation} at ${updateData.voxel.join(",")} dropped: chunk ${chunkName} never became ready in ${Math.round(waitedMs / 1000)}s`,
-        );
-      },
-      bindChunkInit: (onChunkReady) =>
-        this.addChunkInitListener(chunkCoords, () => onChunkReady()),
-    });
-  }
-
-  private pruneBlockEntitiesInChunk(chunkCoords: Coords2) {
-    const { chunkSize } = this.options;
-
-    for (const key of this.blockEntitiesMap.keys()) {
-      const parts = key.split("|");
-      const vx = parseInt(parts[0], 10);
-      const vz = parseInt(parts[2], 10);
-      const cx = Math.floor(vx / chunkSize);
-      const cz = Math.floor(vz / chunkSize);
-
-      if (cx === chunkCoords[0] && cz === chunkCoords[1]) {
-        this.blockEntitiesMap.delete(key);
-      }
-    }
+    return !!chunk && chunk.isReady;
   }
 
   private maintainChunks(center: Coords2) {
@@ -4539,7 +4803,8 @@ export class World<T = any> extends Scene implements NetIntercept {
           allMeshes: new Map(chunk.meshes),
         });
 
-        this.pruneBlockEntitiesInChunk(chunk.coords);
+        // Block entities are deliberately not pruned here: the server never
+        // re-sends them for a chunk that comes back, so the map keeps them.
         this.regionArenas?.clearChunk(x, z);
         this.sectionVisibility?.removeChunk(x, z);
         this.localLights.handleChunkUnloaded(x, z);
@@ -4582,7 +4847,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     deleted.forEach((coords) => {
       const name = ChunkUtils.getChunkName(coords);
       this.chunkInitializeListeners.delete(name);
-      this.deferredBlockEntityUpdates.cancelChunk(name);
     });
 
     if (deleted.length) {

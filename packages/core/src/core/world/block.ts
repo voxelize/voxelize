@@ -565,8 +565,13 @@ export class BlockRotation {
     this.rotateNode(min, yRotate, translate);
     this.rotateNode(max, yRotate, translate);
 
+    // Rotation leaves float dust (1e-17) where a coordinate should be exactly
+    // zero; snap only that. A genuinely negative bound is real geometry: a
+    // wall panel's box runs from -1 to 2 so it can span three voxels, and
+    // clamping its negative side to 0 silently cut a third off every rotated
+    // panel's raycast target, highlight, and footprint.
     const EPSILON = 0.0001;
-    const justify = (num: number) => (num < EPSILON ? 0 : num);
+    const justify = (num: number) => (Math.abs(num) < EPSILON ? 0 : num);
 
     min[0] = justify(min[0]);
     min[1] = justify(min[1]);
