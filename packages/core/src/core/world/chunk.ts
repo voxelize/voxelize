@@ -80,15 +80,16 @@ export class Chunk extends RawChunk {
       mesh.forEach((subMesh) => {
         if (!subMesh) return;
 
+        // The geometry is this chunk's alone. The material is not: every
+        // chunk mesh wears one of the world's shared block materials
+        // (`chunkRenderer.materials`), so disposing it here tore down the
+        // renderer's compiled program and cached uniforms for every other
+        // chunk still wearing it. The next frame then re-initialised the
+        // material, and where the program had no other user left — the
+        // fluid shader while only water was on screen — recompiled and
+        // relinked it from source: a hitch on every chunk unload, paid
+        // most often exactly where chunks churn fastest, out at sea.
         subMesh.geometry?.dispose();
-
-        if (subMesh.material) {
-          if (Array.isArray(subMesh.material)) {
-            subMesh.material.forEach((mat) => mat.dispose());
-          } else {
-            subMesh.material.dispose();
-          }
-        }
 
         if (subMesh.parent) {
           subMesh.parent.remove(subMesh);

@@ -596,28 +596,39 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let geo_key = if face.isolated {
-                    format!(
+                // An own-texture face (isolated per voxel, independent per
+                // block) keeps its face-keyed geometry so the client can find
+                // its material by face name. An animated block's faces are
+                // split per voxel on top of that: every voxel of it is a
+                // geometry the client can transform on its own, which is
+                // what lets a door leaf swing without the rest of the chunk.
+                let is_per_voxel = face.isolated || block.is_animated;
+                let is_per_face = face.isolated || face.independent;
+                let geo_key = match (is_per_voxel, is_per_face) {
+                    (true, true) => format!(
                         "{}::{}::{}-{}-{}",
                         block.get_name_lower(),
                         face.get_name_lower(),
                         vx,
                         vy,
                         vz
-                    )
-                } else if face.independent {
-                    format!("{}::{}", block.get_name_lower(), face.get_name_lower())
-                } else {
-                    block.get_name_lower().to_string()
+                    ),
+                    (true, false) => {
+                        format!("{}::{}-{}-{}", block.get_name_lower(), vx, vy, vz)
+                    }
+                    (false, true) => {
+                        format!("{}::{}", block.get_name_lower(), face.get_name_lower())
+                    }
+                    (false, false) => block.get_name_lower().to_string(),
                 };
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
                     g.voxel = voxel_id;
-                    if face.independent || face.isolated {
+                    if is_per_face {
                         g.face_name = Some(face.name.clone());
                     }
-                    if face.isolated {
+                    if is_per_voxel {
                         g.at = Some([vx, vy, vz]);
                     }
                     g

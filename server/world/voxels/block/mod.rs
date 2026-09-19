@@ -105,6 +105,25 @@ pub struct Block {
     /// run. Zero means the block never stacks.
     pub stack_group: u16,
 
+    /// Meshed as its own geometry per voxel, never merged into the chunk's
+    /// shared buffers, so the client can move that voxel's faces on their own
+    /// — a door leaf swinging on its hinge, a trapdoor lifting, a lever
+    /// tilting. The block's state (its `stage`, its rotation) stays the only
+    /// authority; this flag only keeps the geometry addressable so a state
+    /// change can be shown as a motion instead of a cut. The client declares
+    /// the motion itself (`World.blockAnimations`).
+    #[serde(default)]
+    pub is_animated: bool,
+
+    /// Whether this block's geometry is drawn into the sun's shadow maps.
+    /// `None` leaves it to the client's rule of thumb — solids and
+    /// light-attenuating cutouts (leaves) cast, fluids and clear see-through
+    /// blocks (glass, barriers) do not — which gets a solid-looking
+    /// see-through block wrong: a door is a plank slab, not a pane. Set it
+    /// where the rule of thumb is wrong.
+    #[serde(default)]
+    pub casts_shadow: Option<bool>,
+
     /// Declares whether this block auto-clears when its support is removed.
     /// Wired through [`BlockBuilder::requires_support`] into `active_fn`.
     #[serde(default)]
@@ -401,6 +420,7 @@ impl Block {
             occludes_fluid: self.occludes_fluid,
             is_plant: self.is_plant,
             stack_group: self.stack_group,
+            is_animated: self.is_animated,
             faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
             aabbs: self.aabbs.clone(),
             dynamic_patterns: self

@@ -91,6 +91,20 @@ export type NetworkConnectionOptions = {
   reconnectTimeout?: number;
   secret?: string;
   useWebRTC?: boolean;
+  /**
+   * Signed session ticket proving who this client is (id, name, role, ...).
+   * Sent as `?ticket=` on the socket upgrade and in the WebRTC offer. A
+   * server with session authentication derives the client id from it and
+   * ignores `client_id`; without one the client is admitted only where the
+   * server trusts client-chosen ids.
+   */
+  ticket?: string | null;
+  /**
+   * Fetch a fresh ticket right before each (re)connect. Preferred over a
+   * static `ticket`: tickets expire, and a long-lived tab that reconnects
+   * past the expiry would otherwise be refused.
+   */
+  getTicket?: () => Promise<string | null>;
 };
 
 const DEFAULT_RECONNECT_TIMEOUT_MS = 3000;
@@ -141,6 +155,9 @@ export class Network {
   private serverURL: string | null = null;
 
   private connectionOptions: NetworkConnectionOptions | null = null;
+
+  /** The ticket the current socket connected with; reused by the RTC offer. */
+  private sessionTicket: string | null = null;
 
   private lastConnectAttemptAt = Number.NEGATIVE_INFINITY;
 
@@ -245,6 +262,25 @@ export class Network {
     this.socket.searchParams.set("secret", options.secret || "");
     if (this.clientInfo.id) {
       this.socket.searchParams.set("client_id", this.clientInfo.id);
+    }
+
+    // Fresh on every connect: an expired ticket is a refused socket, and a
+    // reconnect after a long session is exactly when it would have expired.
+    let ticket: string | null = options.ticket ?? null;
+    if (options.getTicket) {
+      try {
+        ticket = await options.getTicket();
+      } catch (error) {
+        console.warn(
+          "[NETWORK] Session ticket fetch failed; connecting without one",
+          error,
+        );
+        ticket = null;
+      }
+    }
+    this.sessionTicket = ticket;
+    if (ticket) {
+      this.socket.searchParams.set("ticket", ticket);
     }
 
     if (this.ws) {
@@ -467,7 +503,11 @@ export class Network {
         this.rtc = null;
       };
 
-      await this.rtc.connect(this.url.toString(), this.clientInfo.id);
+      await this.rtc.connect(
+        this.url.toString(),
+        this.clientInfo.id,
+        this.sessionTicket,
+      );
       console.log("[NETWORK] WebRTC connected");
     } catch (e) {
       console.warn("[NETWORK] WebRTC connection failed:", e);

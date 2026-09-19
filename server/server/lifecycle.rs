@@ -732,8 +732,8 @@ mod runtime_lifecycle_tests {
     use tokio::sync::{mpsc, oneshot};
 
     use crate::{
-        ClientMessage, Connect, GetWorldStats, Message, MessageType, Server, World, WorldConfig,
-        WsSender,
+        ClientMessage, Connect, GetWorldStats, Message, MessageType, Server, SessionIdentity,
+        World, WorldConfig, WsSender,
     };
 
     /// Test harness: run arbitrary logic on the `Server` actor with its real
@@ -827,7 +827,7 @@ mod runtime_lifecycle_tests {
             let (sender, _rx) = fake_socket();
             let (id, token) = addr
                 .send(Connect {
-                    id: Some("bot".into()),
+                    identity: SessionIdentity::for_client("bot"),
                     is_transport: false,
                     sender,
                 })
@@ -933,7 +933,7 @@ mod runtime_lifecycle_tests {
             let (sender, _rx) = fake_socket();
             let (id, token) = addr
                 .send(Connect {
-                    id: Some("bot".into()),
+                    identity: SessionIdentity::for_client("bot"),
                     is_transport: false,
                     sender,
                 })
@@ -978,7 +978,7 @@ mod runtime_lifecycle_tests {
             let (sender, _rx) = fake_socket();
             let (id, token) = addr
                 .send(Connect {
-                    id: Some("bot".into()),
+                    identity: SessionIdentity::for_client("bot"),
                     is_transport: false,
                     sender,
                 })
@@ -1032,7 +1032,7 @@ mod runtime_lifecycle_tests {
             let (sender_a, _rx_a) = fake_socket();
             let (id_a, token_a) = addr
                 .send(Connect {
-                    id: Some("a".into()),
+                    identity: SessionIdentity::for_client("a"),
                     is_transport: false,
                     sender: sender_a,
                 })
@@ -1047,7 +1047,7 @@ mod runtime_lifecycle_tests {
             let (sender_b, _rx_b) = fake_socket();
             let (id_b, token_b) = addr
                 .send(Connect {
-                    id: Some("b".into()),
+                    identity: SessionIdentity::for_client("b"),
                     is_transport: false,
                     sender: sender_b,
                 })
@@ -1081,7 +1081,7 @@ mod runtime_lifecycle_tests {
             let (sender, _rx) = fake_socket();
             let (id, token) = addr
                 .send(Connect {
-                    id: Some("bot".into()),
+                    identity: SessionIdentity::for_client("bot"),
                     is_transport: false,
                     sender,
                 })
@@ -1208,7 +1208,7 @@ mod runtime_lifecycle_tests {
             let (sender, _rx) = fake_socket();
             let (id, token) = addr
                 .send(Connect {
-                    id: Some("bot".into()),
+                    identity: SessionIdentity::for_client("bot"),
                     is_transport: false,
                     sender,
                 })

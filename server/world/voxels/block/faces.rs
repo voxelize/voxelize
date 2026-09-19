@@ -564,6 +564,7 @@ pub struct SixFacesBuilder {
     independence: [bool; 6],
     isolation: [bool; 6],
     texture_groups: [Option<String>; 6],
+    mirror_u: [bool; 6],
     auto_uv_offset: bool,
     rotation: Option<BlockRotation>,
 }
@@ -590,6 +591,7 @@ impl SixFacesBuilder {
             independence: [false, false, false, false, false, false],
             isolation: [false, false, false, false, false, false],
             texture_groups: [None, None, None, None, None, None],
+            mirror_u: [false; 6],
             auto_uv_offset: false,
             rotation: None,
         }
@@ -735,6 +737,26 @@ impl SixFacesBuilder {
         self
     }
 
+    /// Flip the face at `index` horizontally: its texture reads mirrored
+    /// from outside, so its `u` axis runs the same way through world space
+    /// as the opposite face's does.
+    ///
+    /// Every face is laid out to read unmirrored from its own outside, so
+    /// the two broad faces of a thin slab that share one texture put a
+    /// painted feature on opposite edges of the slab — a door handle sits
+    /// beside the hinge from behind. Mirror one of the pair and the feature
+    /// lands on the same world edge from both sides. The face keeps the
+    /// slice of the texture its world extent selects (`auto_uv_offset`);
+    /// only the direction it is read in changes.
+    pub fn mirror_u_at(mut self, index: usize) -> Self {
+        if index >= self.mirror_u.len() {
+            return self;
+        }
+
+        self.mirror_u[index] = true;
+        self
+    }
+
     /// Create the six faces of a block.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -758,6 +780,7 @@ impl SixFacesBuilder {
             independence,
             isolation,
             texture_groups,
+            mirror_u,
         } = self;
 
         let make_name = |side: &str| {
@@ -1104,6 +1127,23 @@ impl SixFacesBuilder {
             },
         ]);
 
+        // Reflect `u` across the face's own range so a partial face keeps
+        // sampling its slice of the texture, read the other way.
+        for (face, mirror) in results.iter_mut().zip(mirror_u) {
+            if !mirror {
+                continue;
+            }
+            let (min_u, max_u) = face
+                .corners
+                .iter()
+                .fold((f32::MAX, f32::MIN), |(lo, hi), corner| {
+                    (lo.min(corner.uv[0]), hi.max(corner.uv[0]))
+                });
+            for corner in face.corners.iter_mut() {
+                corner.uv[0] = min_u + max_u - corner.uv[0];
+            }
+        }
+
         if let Some(rotation) = rotation {
             for face in results.iter_mut() {
                 for corner in face.corners.iter_mut() {
@@ -1113,6 +1153,102 @@ impl SixFacesBuilder {
         }
 
         results
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A corner's `u` as a function of its position along the given world
+    /// axis, for every corner of the face: the sign says which way the
+    /// texture is read through the world.
+    fn u_follows_axis(face: &BlockFace, axis: usize, sign: f32) {
+        for corner in &face.corners {
+            let expected = if sign > 0.0 {
+                corner.pos[axis]
+            } else {
+                1.0 - corner.pos[axis]
+            };
+            assert!(
+                (corner.uv[0] - expected).abs() < 1e-5,
+                "{}: expected u {} at pos {:?}, got uv {:?}",
+                face.name,
+                expected,
+                corner.pos,
+                corner.uv
+            );
+        }
+    }
+
+    /// The default: every face reads unmirrored from its own outside, so
+    /// the two faces of a pair read `u` in opposite world directions.
+    #[test]
+    fn opposite_faces_read_u_in_opposite_world_directions() {
+        let faces = BlockFaces::six_faces().build();
+        u_follows_axis(&faces[SIX_FACES_PZ], 0, 1.0);
+        u_follows_axis(&faces[SIX_FACES_NZ], 0, -1.0);
+        u_follows_axis(&faces[SIX_FACES_NX], 2, 1.0);
+        u_follows_axis(&faces[SIX_FACES_PX], 2, -1.0);
+    }
+
+    /// Mirroring one face of a pair makes both read `u` the same way
+    /// through the world, and touches nothing else.
+    #[test]
+    fn mirror_u_at_aligns_a_face_pair_through_the_world() {
+        let faces = BlockFaces::six_faces()
+            .mirror_u_at(SIX_FACES_NZ)
+            .mirror_u_at(SIX_FACES_PX)
+            .build();
+        u_follows_axis(&faces[SIX_FACES_PZ], 0, 1.0);
+        u_follows_axis(&faces[SIX_FACES_NZ], 0, 1.0);
+        u_follows_axis(&faces[SIX_FACES_NX], 2, 1.0);
+        u_follows_axis(&faces[SIX_FACES_PX], 2, 1.0);
+
+        let plain = BlockFaces::six_faces().build();
+        for (index, (mirrored, original)) in faces.iter().zip(plain.iter()).enumerate() {
+            let untouched = index != SIX_FACES_NZ && index != SIX_FACES_PX;
+            for (a, b) in mirrored.corners.iter().zip(original.corners.iter()) {
+                assert_eq!(a.pos, b.pos, "{}: positions never move", mirrored.name);
+                assert_eq!(a.uv[1], b.uv[1], "{}: v is untouched", mirrored.name);
+                if untouched {
+                    assert_eq!(a.uv[0], b.uv[0], "{}: u is untouched", mirrored.name);
+                }
+            }
+        }
+    }
+
+    /// A partial face under `auto_uv_offset` samples the slice of the
+    /// texture its world extent selects; mirroring reads that same slice
+    /// backwards rather than reaching for the slice across the block.
+    #[test]
+    fn mirror_u_at_keeps_a_partial_face_on_its_own_slice() {
+        let faces = BlockFaces::six_faces()
+            .scale_x(0.4)
+            .offset_x(0.2)
+            .auto_uv_offset(true)
+            .mirror_u_at(SIX_FACES_NZ)
+            .build();
+        let face = &faces[SIX_FACES_NZ];
+        for corner in &face.corners {
+            assert!(
+                (corner.uv[0] - corner.pos[0]).abs() < 1e-5,
+                "{}: u must equal x on the mirrored back face, got uv {:?} at pos {:?}",
+                face.name,
+                corner.uv,
+                corner.pos
+            );
+            assert!(corner.uv[0] >= 0.2 - 1e-5 && corner.uv[0] <= 0.6 + 1e-5);
+        }
+    }
+
+    #[test]
+    fn mirror_u_at_ignores_an_out_of_range_index() {
+        let faces = BlockFaces::six_faces().mirror_u_at(6).build();
+        let plain = BlockFaces::six_faces().build();
+        for (a, b) in faces.iter().zip(plain.iter()) {
+            assert_eq!(a.corners, b.corners);
+        }
     }
 }
 

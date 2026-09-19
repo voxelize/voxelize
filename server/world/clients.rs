@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 
 use specs::Entity;
 
-use crate::{server::WsSender, MotionProtocol};
+use crate::{server::WsSender, MotionProtocol, SessionIdentity};
 
 /// A client of the server.
 #[derive(Clone)]
@@ -25,3 +25,9 @@ pub struct Client {
 }
 
 pub type Clients = HashMap<String, Client>;
+
+/// World resource: the verified identity of every client currently in the
+/// world, keyed by client id. Written before the client entity is created
+/// (so `client_modifier` can read the session's claims) and removed when the
+/// client leaves. Game code reads it; the engine never interprets the claims.
+pub type SessionIdentities = HashMap<String, SessionIdentity>;

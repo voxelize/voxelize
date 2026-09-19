@@ -28,11 +28,28 @@ export { InputLagSampler } from "./input-lag-sampler";
 export type { InputLagSamplerOptions } from "./input-lag-sampler";
 
 export {
+  MemorySampler,
+  measureUserAgentSpecificMemory,
+  readPerformanceMemory,
+} from "./memory-sampler";
+export type {
+  DetailedMemoryMeasurer,
+  DetailedMemoryReading,
+  DetailedMemoryRealm,
+  HeapReader,
+  HeapReading,
+  MemorySamplerOptions,
+} from "./memory-sampler";
+
+export {
   DEFAULT_FRAME_THRESHOLDS,
   drawFrameGraph,
   frameTone,
 } from "./frame-graph";
 export type { FrameThresholds } from "./frame-graph";
+
+export { drawTrendGraph } from "./trend-graph";
+export type { TrendGraphOptions } from "./trend-graph";
 
 export { resolveToneColors } from "./tone";
 export type { Tone } from "./tone";

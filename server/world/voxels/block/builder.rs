@@ -32,6 +32,8 @@ pub struct BlockBuilder {
     occludes_fluid: bool,
     is_plant: bool,
     stack_group: u16,
+    is_animated: bool,
+    casts_shadow: Option<bool>,
     is_random_tickable: bool,
     requires_support: SupportRequirement,
     coupled_parts: Vec<CoupledPart>,
@@ -315,6 +317,26 @@ impl BlockBuilder {
         self
     }
 
+    /// Mesh every voxel of this block as its own geometry so the client can
+    /// animate a state change as a motion (a door swinging, a trapdoor
+    /// lifting) instead of a cut. The geometry per state still comes from
+    /// `dynamic_patterns`; the client pairs the block name with a
+    /// `World.blockAnimations` spec that says how one state's rest pose
+    /// moves into the next. Default is false.
+    pub fn is_animated(mut self, is_animated: bool) -> Self {
+        self.is_animated = is_animated;
+        self
+    }
+
+    /// Say outright whether this block casts a sun shadow, overriding the
+    /// client's rule of thumb (solids and leaf-like cutouts cast; fluids and
+    /// clear see-through blocks do not). A see-through block that is
+    /// nevertheless solid to the eye — a door, a fence — wants `true`.
+    pub fn casts_shadow(mut self, casts_shadow: bool) -> Self {
+        self.casts_shadow = Some(casts_shadow);
+        self
+    }
+
     /// Configure whether or not this block is transparent on all x,y,z axis.
     pub fn is_transparent(mut self, is_transparent: bool) -> Self {
         self.is_px_transparent = is_transparent;
@@ -513,6 +535,8 @@ impl BlockBuilder {
             occludes_fluid: self.occludes_fluid,
             is_plant: self.is_plant,
             stack_group: self.stack_group,
+            is_animated: self.is_animated,
+            casts_shadow: self.casts_shadow,
             requires_support: self.requires_support,
             coupled_parts: self.coupled_parts,
             is_coupled_anchor: self.is_coupled_anchor,

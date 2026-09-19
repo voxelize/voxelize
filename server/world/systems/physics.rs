@@ -125,11 +125,21 @@ impl<'a> System<'a> for PhysicsSystem {
                 position.0.set(px, py, pz);
             });
 
-        // Move the clients' rigid bodies to their positions
+        // Move the clients' rigid bodies to their positions. A body that has
+        // asked to sit out repulsion (an insect perched on a creature) has
+        // its collider disabled for the step, so the contact solver never
+        // pushes it — or what it sits on — apart; clients carry no body
+        // here and keep their collider as it is.
         (&entities, &interactors, &positions)
             .join()
             .for_each(|(ent, interactor, position)| {
                 physics.move_rapier_body(interactor.body_handle(), &position.0);
+                if let Some(body) = bodies.get(ent) {
+                    physics.set_collider_enabled(
+                        interactor.collider_handle(),
+                        !body.0.is_repulsion_exempt,
+                    );
+                }
                 collision_map.insert(interactor.collider_handle().clone(), ent);
             });
 
@@ -192,7 +202,7 @@ impl<'a> System<'a> for PhysicsSystem {
         )
             .join()
         {
-            if !chunks.is_chunk_ready(&curr_chunk.coords) {
+            if !chunks.is_chunk_ready(&curr_chunk.coords) || body.0.is_repulsion_exempt {
                 continue;
             }
 

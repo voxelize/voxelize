@@ -150,6 +150,19 @@ impl Physics {
         &mut self.body_set[body_handle.to_owned()]
     }
 
+    /// Turn a body's contact collider on or off without unregistering it. A
+    /// disabled collider takes part in no contact this step — the body is
+    /// neither shoved nor shoves — and re-enabling it is one flag, so a
+    /// perched insect can sit out repulsion for the length of its perch and
+    /// rejoin the moment it lifts off. No-op when already in that state.
+    pub fn set_collider_enabled(&mut self, collider_handle: &ColliderHandle, enabled: bool) {
+        if let Some(collider) = self.collider_set.get_mut(collider_handle.to_owned()) {
+            if collider.is_enabled() != enabled {
+                collider.set_enabled(enabled);
+            }
+        }
+    }
+
     pub fn move_rapier_body(&mut self, body_handle: &RapierBodyHandle, position: &Vec3<f32>) {
         let body = self.get_mut(body_handle);
         let &Vec3(px, py, pz) = position;

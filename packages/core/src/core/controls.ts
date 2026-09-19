@@ -783,6 +783,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     this.object.quaternion.slerp(this.quaternion, this.options.rotationLerp);
 
+    // The frame drawn now shows the body as the previous frame's physics
+    // step left it: one step behind, the minimum for a body integrated
+    // after the camera is posed. Deriving the anchor at the end of this
+    // method (before `world.update` integrates) and consuming it next frame
+    // made it two.
+    this.updateEyeAnchor();
+
     // Only the vertical axis eases over a step; X/Z stay 1:1 with the body
     // so a step never costs horizontal responsiveness.
     this.stepSmoother.advance(delta, this.options.stepSmoothTime / 1000);
@@ -1224,15 +1231,26 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * the norm players expect.
    *
    * @param character The {@link Character} to attach to this controls instance.
-   * @param newLerpFactor The new lerp factor to use for the character.
+   * @param newLerpFactor The position lerp factor to use for the character.
+   *   `1` pins the body to the eye, which is what the controls' own body
+   *   wants: its pose is local and known every frame, not a network sample.
+   * @param newRotationLerpFactor The rotation lerp factor for the character's
+   *   head and body; left as the character's own setting when omitted.
    */
-  attachCharacter = (character: Character, newLerpFactor = 1) => {
+  attachCharacter = (
+    character: Character,
+    newLerpFactor = 1,
+    newRotationLerpFactor?: number,
+  ) => {
     if (!(character instanceof Character)) {
       console.warn("Character not attached: not a default character.");
       return;
     }
 
     character.options.positionLerp = newLerpFactor;
+    if (newRotationLerpFactor !== undefined) {
+      character.options.rotationLerp = newRotationLerpFactor;
+    }
 
     const crouchRatio = this.options.crouchBodyHeight / this.options.bodyHeight;
 
@@ -1975,7 +1993,15 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     this.updateCrouchAABB();
     this.updateSwimAABB();
+  };
 
+  /**
+   * Re-derive the eye anchor (`newPosition`) from the rigid body as the last
+   * physics step left it. Runs at the top of `update`, before the eye lerps
+   * toward the anchor, so the pose drawn this frame is one physics step
+   * behind the body rather than two.
+   */
+  private updateEyeAnchor = () => {
     const [x, y, z] = this.body.getPosition();
     const targetHeight = this._crouching
       ? this.options.crouchBodyHeight
@@ -1995,7 +2021,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     // The anchor now stands on any step the body climbed since last frame.
     // Absorbing the rise here, in the same frame, is what keeps the eye from
-    // dipping or popping: it holds its height and the spring carries it up.
+    // dipping or popping: it holds its height and the spring carries it up
+    // (the spring advances right after this, so the climb starts this frame).
     this.stepSmoother.absorbPending(
       this._smoothedBodyHeight * eyeHeight - stepEyeClearance,
     );

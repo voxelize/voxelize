@@ -393,21 +393,23 @@ export const WATER_OPTICS = Object.freeze({
    * A vertical water face pressed against a see-through solid (a Barrier or
    * glass tank wall) is a window pane, not a lake surface. Fluids draw
    * DoubleSide and do not write depth, so the near pane, its back, and the
-   * far wall of a tank otherwise stack into a milky sheet. These scales fade
-   * the lake treatment on panes at head-on incidence; grazing angles keep
-   * more of it. The mesher marks panes (`FLUID_PANE_BIT`); a vertical face
-   * against open air — the front of a spreading flow, a waterfall, a leak's
-   * edge — is the water's own surface and never takes this treatment.
-   * Underwater viewing is untouched (`airSideFace` is 0 while submerged).
+   * far wall of a tank otherwise stack into a milky sheet; in air only the
+   * outward face draws, which leaves one layer. These scales fade the lake
+   * treatment on that layer at head-on incidence — no sky gloss, the color
+   * pulled toward the water tint, thinner — so a tank window is a tinted
+   * sheet of water you look through, at every angle; grazing angles keep
+   * more of the lake shading. A pane is never dropped for being looked at
+   * straight on: that read as a dry room with fish floating in it, and the
+   * per-pixel head-on test that did the dropping was a cone through the
+   * pane, which drew as a circle. The mesher marks panes (`FLUID_PANE_BIT`);
+   * a vertical face against open air — the front of a spreading flow, a
+   * waterfall, a leak's edge — is the water's own surface and never takes
+   * this treatment. Underwater viewing is untouched (`airSideFace` is 0
+   * while submerged).
    */
   airSideFaceAlphaScale: 0.42,
   airSideFaceGlossScale: 0.0,
   airSideFaceTintMix: 0.85,
-  /**
-   * Head-on cosine above which a pane is not drawn at all. A Barrier tank
-   * window is a wall you look straight at; it is supposed to be a hole.
-   */
-  airSideFaceCullCos: 0.7,
 
   /** Max blocks scanned upward when measuring a water column's surface. */
   maxSurfaceScanBlocks: 96,

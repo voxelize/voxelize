@@ -15,10 +15,12 @@ mod models;
 /// world bounds still finishes instead of leaving `preloading` true forever.
 #[cfg(test)]
 mod preload_tests;
+mod session_auth;
 
 pub use builder::*;
 pub use health::*;
 pub use messages::*;
+pub use session_auth::*;
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -409,6 +411,20 @@ pub struct Server {
     /// A secret to join the server.
     pub secret: Option<String>,
 
+    /// Secret transport servers must present instead of the join secret.
+    /// `None` checks transports against the join secret alone.
+    pub transport_secret: Option<String>,
+
+    /// Adapter hook deciding who a connecting socket is (see
+    /// [`SessionAuthenticator`]). `None` falls back to trusting the client's
+    /// requested id, which is only safe off the public internet.
+    pub session_authenticator: Option<SessionAuthenticator>,
+
+    /// Verified identity of every registered session (pre-join and in-world),
+    /// keyed by client id. Handed to the world on join so game code can read
+    /// the session's claims from the `SessionIdentities` resource.
+    identities: HashMap<String, SessionIdentity>,
+
     /// A map of all the worlds.
     pub worlds: HashMap<String, Addr<SyncWorld>>,
 
@@ -771,6 +787,13 @@ impl Server {
             .flat_preferences
             .merge(json.preferences.unwrap_or_default());
         let motion_protocol = MotionProtocol::negotiate(&json.capabilities);
+        // A verified display name outranks whatever the JOIN payload claims;
+        // an unverified session keeps the client's own username.
+        let identity = self.session_identity(id);
+        let username = identity
+            .username
+            .clone()
+            .unwrap_or_else(|| json.username.clone());
 
         if !self.worlds.contains_key(&json.world) {
             return Some(format!(
@@ -843,10 +866,11 @@ impl Server {
                 let world = self.worlds.get_mut(&json.world).unwrap();
                 world.do_send(ClientJoinRequest {
                     id: id.to_owned(),
-                    username: json.username,
+                    username,
                     sender,
                     preferences,
                     motion_protocol,
+                    identity,
                 });
                 return None;
             }
@@ -870,10 +894,11 @@ impl Server {
             let world = self.worlds.get_mut(&json.world).unwrap();
             world.do_send(ClientJoinRequest {
                 id: id.to_owned(),
-                username: json.username,
+                username,
                 sender: sender.clone(),
                 preferences,
                 motion_protocol,
+                identity,
             });
             self.connections
                 .insert(id.to_owned(), (sender, json.world, token));
@@ -891,13 +916,16 @@ impl Server {
     /// join cleanly). Returns (client_id, connection_token); the token
     /// authenticates this specific socket for the rest of its life so a
     /// superseded socket cannot act on the new session's registration.
+    ///
+    /// The identity comes from the session authenticator, never from the
+    /// client directly: an `identity.id` of `None` mints a fresh id.
     pub(crate) fn register_session(
         &mut self,
-        id: Option<String>,
+        identity: SessionIdentity,
         is_transport: bool,
         sender: WsSender,
     ) -> (String, String) {
-        let id = id.unwrap_or_else(|| nanoid!());
+        let id = identity.id.clone().unwrap_or_else(|| nanoid!());
         let token = nanoid!();
 
         if is_transport {
@@ -935,8 +963,25 @@ impl Server {
 
         self.lost_sessions
             .insert(id.to_owned(), (sender, token.clone()));
+        self.identities.insert(
+            id.to_owned(),
+            SessionIdentity {
+                id: Some(id.to_owned()),
+                ..identity
+            },
+        );
 
         (id, token)
+    }
+
+    /// The verified identity registered for a session, or an unverified
+    /// identity carrying just the id when the session predates registration
+    /// (tests driving `on_join` directly).
+    fn session_identity(&self, id: &str) -> SessionIdentity {
+        self.identities
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| SessionIdentity::for_client(id))
     }
 
     /// Deterministically release a disconnected session's registration and
@@ -946,6 +991,7 @@ impl Server {
         if let Some((_, _, current_token)) = self.connections.get(id) {
             if current_token == token {
                 let (_, world_name, _) = self.connections.remove(id).unwrap();
+                self.identities.remove(id);
                 if let Some(world) = self.worlds.get_mut(&world_name) {
                     world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
@@ -965,6 +1011,7 @@ impl Server {
         if let Some((_, current_token)) = self.lost_sessions.get(id) {
             if current_token == token {
                 self.lost_sessions.remove(id);
+                self.identities.remove(id);
             }
         }
     }

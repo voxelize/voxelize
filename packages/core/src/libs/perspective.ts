@@ -1,8 +1,16 @@
-import { Vector3 } from "three";
+import { Timer, Vector3 } from "three";
 
 import { RigidControls } from "../core/controls";
 import { Inputs } from "../core/inputs";
 import { World } from "../core/world";
+
+/**
+ * The frame rate the zoom lerp factors are authored at. Each factor is the
+ * fraction of the remaining distance closed per frame at this rate and is
+ * renormalized to the real frame time, so the camera settles at the same
+ * wall-clock speed on every display.
+ */
+const LERP_REFERENCE_FPS = 60;
 
 /**
  * Parameters to create a new {@link Perspective} instance.
@@ -26,9 +34,29 @@ export type PerspectiveOptions = {
   blockMargin: number;
 
   /**
-   * The lerping factor for the camera's position. Defaults to `0.5`.
+   * Per-frame factor (at 60 fps) the camera closes toward a *nearer*
+   * obstruction. High, so a wall swinging in behind the player never shows
+   * the inside of a block. Defaults to `0.85`.
    */
-  lerpFactor: number;
+  zoomInLerp: number;
+
+  /**
+   * Per-frame factor (at 60 fps) the camera eases back *out* once an
+   * obstruction clears. Low on purpose: the voxel raycast behind the player
+   * flips between hit and miss in discrete steps as they walk past posts,
+   * trunks, and canopy gaps, and a symmetric fast lerp turned every flip
+   * into a visible zoom pump. Snapping in and gliding out merges those into
+   * one dip. Defaults to `0.12`.
+   */
+  zoomOutLerp: number;
+
+  /**
+   * Seconds the view must stay clear before the camera starts easing back
+   * out. A gap in a fence or canopy shorter than this never moves the camera
+   * at all, so a row of posts behind the player reads as one obstruction
+   * rather than a pump per post. Defaults to `0.25`.
+   */
+  zoomOutDelay: number;
 
   /**
    * Whether or not should the camera ignore see-through block collisions. Defaults to `true`.
@@ -45,7 +73,9 @@ const defaultOptions: PerspectiveOptions = {
   maxDistance: 5,
   swimDistanceBonus: 3,
   blockMargin: 0.3,
-  lerpFactor: 0.5,
+  zoomInLerp: 0.85,
+  zoomOutLerp: 0.12,
+  zoomOutDelay: 0.25,
   ignoreSeeThrough: true,
   ignoreFluids: true,
 };
@@ -99,6 +129,22 @@ export class Perspective {
    * A cache to save the first person camera position.
    */
   private firstPersonPosition = new Vector3();
+
+  /**
+   * Frame clock for renormalizing the zoom lerps to the real frame time.
+   */
+  private timer = new Timer();
+
+  /**
+   * Seconds the unobstructed distance has been farther than the camera sits.
+   */
+  private _clearFor = 0;
+
+  private _rayDirection = new Vector3();
+
+  private _rayOrigin = new Vector3();
+
+  private _hitPoint = new Vector3();
 
   /**
    * This is the identifier that is used to bind the perspective's keyboard inputs
@@ -227,6 +273,9 @@ export class Perspective {
   update = () => {
     const { object, camera } = this.controls;
 
+    this.timer.update();
+    const delta = Math.min(0.1, this.timer.getDelta());
+
     if (this.controls.character) {
       if (this.state === "first" && this.controls.character.visible) {
         this.controls.character.visible = false;
@@ -243,56 +292,95 @@ export class Perspective {
       }
     }
 
-    const getDistance = () => {
-      const dir = new Vector3();
-      (this.state === "second" ? object : camera).getWorldDirection(dir);
-      dir.normalize();
-      dir.multiplyScalar(-1);
-
-      const pos = new Vector3();
-      object.getWorldPosition(pos);
-
-      pos.add(dir.clone().multiplyScalar(this.options.blockMargin));
-      const maxDistance =
-        this.options.maxDistance +
-        (this.controls.isSwimming ? this.options.swimDistanceBonus : 0);
-
-      const result = this.world.raycastVoxels(
-        pos.toArray(),
-        dir.toArray(),
-        maxDistance,
-        {
-          ignoreFluids: this.options.ignoreFluids,
-          ignoreSeeThrough: this.options.ignoreSeeThrough,
-        },
-      );
-
-      if (!result) {
-        return maxDistance;
-      }
-
-      return pos.distanceTo(new Vector3(...result.point));
-    };
-
     switch (this.state) {
       case "first": {
         break;
       }
       case "second": {
-        const newPos = camera.position.clone();
-        newPos.z = -getDistance();
-        camera.position.lerp(newPos, this.options.lerpFactor);
+        camera.position.z = -this.easeDistance(-camera.position.z, delta);
         camera.lookAt(object.position);
         break;
       }
       case "third": {
-        const newPos = camera.position.clone();
-        newPos.z = getDistance();
-        camera.position.lerp(newPos, this.options.lerpFactor);
+        camera.position.z = this.easeDistance(camera.position.z, delta);
         break;
       }
     }
   };
+
+  /**
+   * The unobstructed distance the camera may sit from the eye along the
+   * current view axis: the max distance, or up to the block margin short
+   * of the first solid voxel the backward raycast hits.
+   */
+  private getDistance = () => {
+    const { object, camera } = this.controls;
+    const dir = this._rayDirection;
+    (this.state === "second" ? object : camera).getWorldDirection(dir);
+    dir.normalize();
+    dir.multiplyScalar(-1);
+
+    const pos = this._rayOrigin;
+    object.getWorldPosition(pos);
+    pos.addScaledVector(dir, this.options.blockMargin);
+
+    const maxDistance =
+      this.options.maxDistance +
+      (this.controls.isSwimming ? this.options.swimDistanceBonus : 0);
+
+    const result = this.world.raycastVoxels(
+      pos.toArray(),
+      dir.toArray(),
+      maxDistance,
+      {
+        ignoreFluids: this.options.ignoreFluids,
+        ignoreSeeThrough: this.options.ignoreSeeThrough,
+      },
+    );
+
+    if (!result) {
+      return maxDistance;
+    }
+
+    const distance = pos.distanceTo(this._hitPoint.fromArray(result.point));
+    // A non-finite hit would put the camera — and with it the audio listener
+    // and everything else read off the camera — at NaN for good.
+    return Number.isFinite(distance)
+      ? Math.min(distance, maxDistance)
+      : maxDistance;
+  };
+
+  /**
+   * One frame of the camera distance easing toward the unobstructed
+   * distance: fast when the target is nearer (an obstruction must never be
+   * seen from inside); when it is farther, hold for `zoomOutDelay` and then
+   * glide, so a cleared obstruction eases away instead of pumping. Both
+   * factors are renormalized to `delta`.
+   */
+  private easeDistance = (current: number, delta: number) => {
+    const target = this.getDistance();
+
+    if (target < current) {
+      this._clearFor = 0;
+      return (
+        current +
+        (target - current) *
+          this.lerpFactorForDelta(this.options.zoomInLerp, delta)
+      );
+    }
+
+    this._clearFor += delta;
+    if (this._clearFor < this.options.zoomOutDelay) return current;
+
+    return (
+      current +
+      (target - current) *
+        this.lerpFactorForDelta(this.options.zoomOutLerp, delta)
+    );
+  };
+
+  private lerpFactorForDelta = (baseFactor: number, delta: number) =>
+    1 - Math.pow(1 - baseFactor, delta * LERP_REFERENCE_FPS);
 
   /**
    * Setter for the perspective's state. This will call {@link Perspective.onChangeState} if it is implemented.
@@ -300,18 +388,24 @@ export class Perspective {
   set state(state: "first" | "second" | "third") {
     const { camera } = this.controls;
 
-    if (state === "first") {
-      camera.position.copy(this.firstPersonPosition);
-    } else {
-      camera.position.set(0, 0, 0);
-    }
-
     camera.quaternion.set(0, 0, 0, 0);
 
     if (state !== this._state) {
       this.onChangeState?.(state);
       this._state = state;
     }
+
+    if (state === "first") {
+      camera.position.copy(this.firstPersonPosition);
+      return;
+    }
+
+    // Seat the camera at its unobstructed distance right away: the zoom-out
+    // ease is deliberately slow, and a toggle should not spend half a second
+    // pulling back from inside the player's head.
+    camera.position.set(0, 0, 0);
+    const distance = this.getDistance();
+    camera.position.z = state === "second" ? -distance : distance;
   }
 
   /**

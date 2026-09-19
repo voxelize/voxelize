@@ -14,17 +14,30 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 
 use super::datachannel::{fragment_message, FragmentAssembler};
-use crate::{decode_message, ClientMessage, RtcSenders, Server};
+use crate::{
+    decode_message, ClientMessage, RtcSenders, Server, SessionAuth, VoxelizeHandle,
+    CLIENT_ID_PARAM,
+};
 
 use actix::Addr;
 use hashbrown::HashMap;
 
 pub type WebRTCPeers = Arc<Mutex<HashMap<String, Arc<RTCPeerConnection>>>>;
 
+/// Query-style parameter name for the session ticket, shared with the `/ws/`
+/// upgrade so one authenticator serves both lanes.
+pub const SESSION_TICKET_PARAM: &str = "ticket";
+
 #[derive(Deserialize)]
 pub struct RtcOfferRequest {
     pub sdp: String,
     pub client_id: String,
+    /// The same credential the WebSocket upgrade carries as `?ticket=`. The
+    /// data channel delivers messages attributed to `client_id` with no
+    /// per-socket token, so the offer must prove that identity the same way
+    /// the socket did.
+    #[serde(default)]
+    pub ticket: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -46,8 +59,31 @@ pub async fn rtc_offer(
     peers: web::Data<WebRTCPeers>,
     rtc_senders: web::Data<RtcSenders>,
     server: web::Data<Addr<Server>>,
+    handle: web::Data<VoxelizeHandle>,
 ) -> Result<HttpResponse, Error> {
-    let client_id = body.client_id.clone();
+    // The data channel is a second inbound lane for an existing session, and
+    // every message on it is attributed to `client_id`. Resolve that id
+    // through the same authenticator as the socket: with a ticket installed
+    // the caller acts as the ticket's identity, never as the id it typed.
+    let mut params: HashMap<String, String> = HashMap::new();
+    params.insert(CLIENT_ID_PARAM.to_owned(), body.client_id.clone());
+    if let Some(ticket) = &body.ticket {
+        params.insert(SESSION_TICKET_PARAM.to_owned(), ticket.clone());
+    }
+    let client_id = match handle.authenticate(&params) {
+        SessionAuth::Accept(identity) => match identity.id {
+            Some(id) => id,
+            None => {
+                return Err(actix_web::error::ErrorUnauthorized(
+                    "WebRTC offers require an established session identity",
+                ));
+            }
+        },
+        SessionAuth::Reject(reason) => {
+            log::warn!("[WebRTC] Rejected offer: {}", reason);
+            return Err(actix_web::error::ErrorUnauthorized(reason));
+        }
+    };
 
     let pc = api
         .new_peer_connection(webrtc::peer_connection::configuration::RTCConfiguration {

@@ -977,14 +977,15 @@ if (vIsFluid > 0.5) {
   // against air is the water's own surface (the front of a spreading flow,
   // a waterfall, a leak's edge) and keeps the lake shading: fading or
   // culling it left a spread's edge walls missing under its floating top.
+  // A pane draws at every angle, as the tinted sheet of water it is. It
+  // used to be discarded when looked at head-on, so a tank read as a dry
+  // room with fish floating in it — and the head-on test was per fragment
+  // against the direction to the eye, a cone with its apex at the camera,
+  // which cut the pane along a circle.
   float airSideFace = sideWaterFace * (1.0 - uCameraSubmersion) * vIsFluidPane;
   vec3 viewDir = normalize(cameraPosition - wPos);
-  // Head-on tank walls drop out entirely (Barrier windows are supposed to
-  // be a hole). Geometric normal, not the waved one — sides never wave.
+  // Geometric normal, not the waved one — sides never wave.
   float geoNdotV = max(dot(vWorldNormal, viewDir), 0.0);
-  if (airSideFace * geoNdotV > ${WATER_OPTICS.airSideFaceCullCos.toFixed(4)}) {
-    discard;
-  }
 
   float distToCamera = length(cameraPosition - wPos);
 

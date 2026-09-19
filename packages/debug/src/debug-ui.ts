@@ -3,6 +3,7 @@ import { FrameSampler } from "./frame-sampler";
 import { InputLagSampler } from "./input-lag-sampler";
 import { LogPane } from "./log-pane";
 import { Logger } from "./logger";
+import { MemorySampler, type MemorySamplerOptions } from "./memory-sampler";
 import { StatusBar } from "./status-bar";
 import { DebugStorage, type StorageScope } from "./storage";
 
@@ -18,6 +19,7 @@ export type DebugUIOptions = {
   legacyStorageKeys?: string[];
   logger?: Logger;
   statusBarHeightPx?: number;
+  memory?: MemorySamplerOptions;
 };
 
 export class DebugUI {
@@ -25,6 +27,10 @@ export class DebugUI {
   readonly logger: Logger;
   readonly sampler: FrameSampler;
   readonly inputLag: InputLagSampler;
+  /** Sampled whether or not the bar is shown, like the frame sampler: a
+   * memory trend takes minutes to earn, and the moment the player opens the
+   * bar to ask about it is not the moment to start collecting. */
+  readonly memory: MemorySampler;
   readonly logs: LogPane;
   readonly statusBar: StatusBar;
 
@@ -50,6 +56,7 @@ export class DebugUI {
     this.logger = options.logger ?? new Logger({ maxEntries: 500 });
     this.sampler = new FrameSampler();
     this.inputLag = new InputLagSampler();
+    this.memory = new MemorySampler(options.memory);
 
     this.parent = options.parent ?? document.body;
 
@@ -111,6 +118,7 @@ export class DebugUI {
   update(): void {
     this.sampler.update();
     this.inputLag.sample();
+    this.memory.update();
     if (!this.isVisible) return;
     this.statusBar.update();
   }
@@ -122,10 +130,11 @@ export class DebugUI {
     }
     this.sampler.dispose();
     this.inputLag.dispose();
+    this.memory.dispose();
     this.publishStatusBarInset(false);
     this.logs.dispose();
     this.statusBar.dispose();
-    this.storage.flush();
+    this.storage.dispose();
     this.element.remove();
   }
 

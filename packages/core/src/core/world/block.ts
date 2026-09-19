@@ -179,6 +179,22 @@ export type Block = {
   stackGroup: number;
 
   /**
+   * Whether every voxel of this block is meshed as its own geometry (never
+   * merged into the chunk's shared buffers) so `World.blockAnimations` can
+   * move one voxel's faces on their own — a door leaf swinging on its hinge.
+   * Mirrors the server `is_animated` field.
+   */
+  isAnimated: boolean;
+
+  /**
+   * Whether this block is drawn into the sun's shadow maps. `null` defers
+   * to {@link blockCastsShadow}'s rule of thumb; a block the rule gets wrong
+   * (a door: see-through to the mesher, a plank slab to the eye) says so
+   * here. Mirrors the server `casts_shadow` field.
+   */
+  castsShadow: boolean | null;
+
+  /**
    * The other voxels of the multi-voxel unit this block is one part of — a
    * door's other leaf, a tall flower's other half. Empty for an ordinary
    * block. The server keeps such units whole at update intake; the client

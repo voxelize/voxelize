@@ -56,7 +56,8 @@ use crate::{
     perf::{self, WorldPerfMetrics},
     protocols::Peer,
     server::{Message, MessageType, WsSender},
-    EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Server, Vec2, Vec3,
+    EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Server, SessionIdentity, Vec2,
+    Vec3,
 };
 
 use super::common::ClientFilter;
@@ -282,6 +283,9 @@ pub(crate) struct ClientJoinRequest {
     pub sender: WsSender,
     pub preferences: ClientPreferencesPatch,
     pub motion_protocol: MotionProtocol,
+    /// Verified session identity, published to the world's
+    /// `SessionIdentities` resource before the client entity is built.
+    pub identity: SessionIdentity,
 }
 
 #[derive(ActixMessage)]
@@ -401,6 +405,7 @@ impl World {
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
         ecs.insert(Clients::new());
+        ecs.insert(SessionIdentities::new());
         ecs.insert(MessageQueues::new());
         ecs.insert(Physics::new());
         ecs.insert(Events::new());

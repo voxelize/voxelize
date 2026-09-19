@@ -215,15 +215,11 @@ describe("air-side vertical water faces", () => {
     );
     expect(WATER_OPTICS.airSideFaceTintMix).toBeGreaterThan(0);
     expect(WATER_OPTICS.airSideFaceTintMix).toBeLessThanOrEqual(1);
-    expect(WATER_OPTICS.airSideFaceCullCos).toBeGreaterThan(0.5);
-    expect(WATER_OPTICS.airSideFaceCullCos).toBeLessThan(1);
   });
 
-  it("compiles the air-side discard and gloss fade into the fluid shader", () => {
+  it("compiles the back-face discard and gloss fade into the fluid shader", () => {
     const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
     expect(fragment).toContain("uCameraSubmersion < 0.5 && !gl_FrontFacing");
-    expect(fragment).toContain("airSideFace * geoNdotV >");
-    expect(fragment).toContain(WATER_OPTICS.airSideFaceCullCos.toFixed(4));
     expect(fragment).toContain("float airSideWeight = airSideFace * NdotV");
     expect(fragment).toContain(WATER_OPTICS.airSideFaceAlphaScale.toFixed(4));
     expect(fragment).toContain(WATER_OPTICS.airSideFaceGlossScale.toFixed(4));
@@ -243,6 +239,21 @@ describe("air-side vertical water faces", () => {
     expect(fragment).toContain(
       "float airSideFace = sideWaterFace * (1.0 - uCameraSubmersion) * vIsFluidPane;",
     );
+  });
+
+  it("draws a pane at every angle: the only fluid discard is the back face", () => {
+    const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    // A pane used to be discarded when looked at head-on, so a tank read as
+    // a dry room with fish floating in it. The test was per fragment against
+    // the direction to the eye — a cone with its apex at the camera — and a
+    // cone through a plane is a circle: a large pane close up drew as a
+    // disc-shaped hole with a tinted rim. Now the tinted sheet always draws.
+    expect(fragment).not.toContain("airSideFace * geoNdotV >");
+    expect(fragment).not.toMatch(/paneCull|headOn|airFacing/);
+    const fluidBranch = fragment.slice(
+      fragment.indexOf("if (vIsFluid > 0.5) {"),
+    );
+    expect(fluidBranch.match(/discard;/g)).toHaveLength(1);
   });
 });
 

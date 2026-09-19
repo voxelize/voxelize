@@ -7,14 +7,16 @@ use serde_json::Value;
 use crate::{perf, GetInfo, GetWorldStats, SyncWorld, WorldStatsResponse};
 
 use super::health::{build_health_value, tick_stall_threshold_ms};
-use super::{Server, WsSender};
+use super::{Server, SessionIdentity, WsSender};
 use crate::Message;
 
 /// New chat session is created. Returns (client_id, connection_token).
 #[derive(ActixMessage)]
 #[rtype(result = "(String, String)")]
 pub struct Connect {
-    pub id: Option<String>,
+    /// Who the socket was authenticated as. `identity.id == None` asks the
+    /// server to mint a fresh client id.
+    pub identity: SessionIdentity,
     pub is_transport: bool,
     pub sender: WsSender,
 }
@@ -89,7 +91,7 @@ impl Handler<Connect> for Server {
     type Result = MessageResult<Connect>;
 
     fn handle(&mut self, msg: Connect, ctx: &mut Context<Self>) -> Self::Result {
-        let result = self.register_session(msg.id, msg.is_transport, msg.sender);
+        let result = self.register_session(msg.identity, msg.is_transport, msg.sender);
         self.reconcile_gc(ctx);
         MessageResult(result)
     }

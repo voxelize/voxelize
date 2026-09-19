@@ -39,6 +39,17 @@ export class DebugStorage {
     }
   }
 
+  /** Writes what is pending and stops listening for the page to unload. A
+   * storage that is dropped without this leaves its unload listener, and
+   * itself, behind for the life of the page. */
+  dispose(): void {
+    this.flush();
+    if (typeof window !== "undefined") {
+      window.removeEventListener("beforeunload", this.flush);
+    }
+    this.listeners.clear();
+  }
+
   get(path: string): StorageValue | undefined {
     const segments = path.split(".");
     let current: StorageValue | undefined = this.document;

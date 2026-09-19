@@ -88,6 +88,7 @@ fn full_block_diagonal_block() -> Block {
         occludes_fluid: false,
         is_plant: true,
         stack_group: 0,
+        is_animated: false,
         faces: vec![BlockFace::new(
             "one".to_string(),
             false,
@@ -512,6 +513,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         occludes_fluid: false,
         is_plant: false,
         stack_group: 0,
+        is_animated: false,
         faces: vec![],
         aabbs: stairs_aabbs(),
         dynamic_patterns: None,
@@ -534,6 +536,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         occludes_fluid: false,
         is_plant: false,
         stack_group: 0,
+        is_animated: false,
         faces: vec![],
         aabbs: vec![AABB {
             min_x: 0.0,
@@ -638,6 +641,7 @@ fn plain_block(id: u32, name: &str) -> Block {
         occludes_fluid: false,
         is_plant: false,
         stack_group: 0,
+        is_animated: false,
         faces: vec![],
         aabbs: full_cube_aabb(),
         dynamic_patterns: None,
@@ -1277,6 +1281,175 @@ fn greedy_quads_carry_emissive_bits() {
         }
     }
     assert!(packed_lights > 0, "the glowstone meshed nothing");
+}
+
+/// An animated block is meshed one geometry per voxel, each reporting the
+/// voxel it belongs to, so the client can move a single door leaf; the same
+/// shape without the flag still shares one geometry per block. Two leaves of
+/// one block id stacked in a column are what a door is, and what would have
+/// been merged.
+#[test]
+fn an_animated_block_meshes_each_voxel_as_its_own_geometry() {
+    const LEAF_ID: u32 = 7;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let leaf = Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        transparent_standalone: true,
+        faces: six_faces(),
+        aabbs: vec![AABB {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 1.0,
+            max_z: 0.0625,
+        }],
+        ..plain_block(LEAF_ID, "Leaf")
+    };
+    let animated_leaf = Block {
+        is_animated: true,
+        ..leaf.clone()
+    };
+
+    let column = SparseSpace::new(&[((0, 0, 0), (LEAF_ID, 0)), ((0, 1, 0), (LEAF_ID, 0))]);
+    let mesh_with = |leaf: Block| {
+        let mut registry = Registry::new(vec![(0, air.clone()), (LEAF_ID, leaf)]);
+        registry.build_cache();
+        mesh_space_greedy(&[0, 0, 0], &[1, 2, 1], &column, &registry)
+    };
+
+    let shared = mesh_with(leaf);
+    assert_eq!(shared.len(), 1, "an unflagged block shares one geometry");
+    assert_eq!(shared[0].at, None);
+
+    let mut per_voxel = mesh_with(animated_leaf);
+    per_voxel.sort_by_key(|geometry| geometry.at);
+    assert_eq!(per_voxel.len(), 2, "one geometry per animated voxel");
+    assert_eq!(per_voxel[0].at, Some([0, 0, 0]));
+    assert_eq!(per_voxel[1].at, Some([0, 1, 0]));
+    assert!(
+        per_voxel.iter().all(|geometry| geometry.face_name.is_none()),
+        "a plain face keeps the block's own material: no face name on the geometry",
+    );
+    assert_eq!(
+        per_voxel.iter().map(|g| g.indices.len()).sum::<usize>(),
+        shared[0].indices.len(),
+        "splitting per voxel changes the grouping, not the faces",
+    );
+}
+
+/// A see-through block's face pointing at an opaque neighbour is hidden only
+/// when it lies on the boundary between them. An open door leaf stands a
+/// sixteenth in from its jamb; culling its faces against the jamb drew the
+/// open door as nothing but its edges. A face flat against the wall behind
+/// it is still covered, and still culled.
+#[test]
+fn an_inset_see_through_face_survives_an_opaque_neighbour() {
+    const LEAF_ID: u32 = 7;
+    const WALL_ID: u32 = 8;
+
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let wall = Block {
+        is_opaque: true,
+        faces: six_faces(),
+        ..plain_block(WALL_ID, "Wall")
+    };
+    let leaf = Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        transparent_standalone: true,
+        aabbs: vec![],
+        ..plain_block(LEAF_ID, "Leaf")
+    };
+
+    let quad = |dir: [i32; 3], corners: [[f32; 3]; 4]| {
+        BlockFace::new(
+            "face".to_string(),
+            false,
+            false,
+            dir,
+            corners.map(|pos| CornerData { pos, uv: [0.0, 0.0] }),
+        )
+    };
+    // The open leaf's +x face, two sixteenths in from the +x jamb.
+    let inset_px = quad(
+        [1, 0, 0],
+        [
+            [0.125, 1.0, 1.0],
+            [0.125, 0.0, 1.0],
+            [0.125, 1.0, 0.0],
+            [0.125, 0.0, 0.0],
+        ],
+    );
+    // A closed leaf's -z face, flat against the wall behind it.
+    let flush_nz = quad(
+        [0, 0, -1],
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
+    );
+
+    let space = SparseSpace::new(&[
+        ((0, 0, 0), (LEAF_ID, 0)),
+        ((1, 0, 0), (WALL_ID, 0)),
+        ((0, 0, -1), (WALL_ID, 0)),
+    ]);
+    let mut registry = Registry::new(vec![(0, air), (LEAF_ID, leaf.clone()), (WALL_ID, wall)]);
+    registry.build_cache();
+
+    let emitted_indices = |face: &BlockFace| -> usize {
+        let mut positions = vec![];
+        let mut indices = vec![];
+        let mut uvs = vec![];
+        let mut lights = vec![];
+        let neighbors = NeighborCache::populate(0, 0, 0, &space);
+        process_face(
+            0,
+            0,
+            0,
+            LEAF_ID,
+            &BlockRotation::PY(0.0),
+            face,
+            &leaf,
+            &HashMap::new(),
+            &registry,
+            &space,
+            &neighbors,
+            true,
+            false,
+            &mut positions,
+            &mut indices,
+            &mut uvs,
+            &mut lights,
+            &[0, 0, 0],
+            false,
+        );
+        indices.len()
+    };
+
+    assert_eq!(
+        emitted_indices(&inset_px),
+        6,
+        "a face standing in from the jamb is visible beside it and must be drawn",
+    );
+    assert_eq!(
+        emitted_indices(&flush_nz),
+        0,
+        "a face flat against the wall behind it is covered and stays culled",
+    );
 }
 
 /// A vertical fluid face is drawn as a tank window only when it presses

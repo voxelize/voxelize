@@ -29,9 +29,15 @@ impl World {
         sender: &WsSender,
         preferences: ClientPreferencesPatch,
         motion_protocol: MotionProtocol,
+        identity: SessionIdentity,
     ) {
         let existing_ent = self.clients().get(id).map(|client| client.entity);
         let is_rejoin = existing_ent.is_some();
+
+        // Published before the entity exists so the client modifier can read
+        // the session's verified claims while it dresses the entity.
+        self.write_resource::<SessionIdentities>()
+            .insert(id.to_owned(), identity);
 
         let ent = if let Some(ent) = existing_ent {
             {
@@ -208,6 +214,7 @@ impl World {
     pub(crate) fn remove_client(&mut self, id: &str) {
         let removed = self.clients_mut().remove(id);
         self.entity_ids_mut().remove(id);
+        self.write_resource::<SessionIdentities>().remove(id);
         self.chunk_interest_mut().remove_client(id);
         self.bookkeeping_mut().remove_client(id);
         self.inbound_state.remove_client(id);

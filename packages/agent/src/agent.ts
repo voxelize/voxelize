@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import puppeteer, { Browser, Page } from "puppeteer";
@@ -16,6 +17,7 @@ import type {
   CommandDispatch,
   CommandResult,
   ConnectionSnapshot,
+  DrawThrottleStatus,
   EntitySnapshot,
   FaceInput,
   FollowOptions,
@@ -23,6 +25,7 @@ import type {
   FollowTarget,
   FrameRateMeasurement,
   FrameRateMeasurementOptions,
+  MemoryTrend,
   MeshTransferBenchmarkRequest,
   MeshTransferBenchmarkResult,
   MeshTransferStatus,
@@ -39,6 +42,7 @@ import type {
   WalkDirection,
   WalkOptions,
   WalkToOptions,
+  BlockAnimationsSnapshot,
   RenderStats,
   TextureCensus,
   TextureFillResult,
@@ -142,6 +146,15 @@ const DEFAULT_PAGE_CALL_TIMEOUT_MS = 10_000;
 // Rendering plus PNG encode under software WebGL is the slowest page call
 // that is still healthy, so captures get their own ceiling.
 const CAPTURE_PAGE_CALL_TIMEOUT_MS = 30_000;
+// How long a launch (or reset) waits for the client to finish initializing
+// and install `window.__agent__`. The bridge lands only after asset load and
+// world init, which on a saturated box (several sessions, a core rebuild)
+// takes minutes, not seconds — and a daemon that dies here can report
+// nothing at all. `AGENT_READY_TIMEOUT_MS` raises it for that machine.
+const DEFAULT_READY_TIMEOUT_MS = 60_000;
+// Puppeteer's stock CDP protocol timeout; kept as the floor so nothing gets
+// stricter than upstream when the ready wait is left at its default.
+const DEFAULT_PROTOCOL_TIMEOUT_MS = 180_000;
 // Read a finished take out of the page in slices: the whole clip in one
 // evaluate result is a payload with no upper bound, and base64 inflates it by
 // a third on the way across.
@@ -180,6 +193,54 @@ function positiveEnvNumber(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+// The bridge wait grows with machine load. Under a saturated box (several
+// agent sessions, a cargo build, the dev client recompiling) the client's
+// join legitimately takes minutes, and a fixed 60s made every start under
+// load a false "died while starting". An explicit AGENT_READY_TIMEOUT_MS is
+// taken literally; the default scales by load-per-core, capped so a runaway
+// load average cannot turn the wait into an hour.
+export const READY_TIMEOUT_MAX_LOAD_FACTOR = 6;
+
+export function loadFactor(
+  loadAverage = os.loadavg()[0],
+  cpuCount = os.cpus().length,
+): number {
+  if (!Number.isFinite(loadAverage) || cpuCount <= 0) return 1;
+  return Math.min(
+    READY_TIMEOUT_MAX_LOAD_FACTOR,
+    Math.max(1, loadAverage / cpuCount),
+  );
+}
+
+export function resolveReadyTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+  factor = loadFactor(),
+): { timeoutMs: number; isScaled: boolean; factor: number } {
+  const explicit = Number(env.AGENT_READY_TIMEOUT_MS);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return { timeoutMs: explicit, isScaled: false, factor: 1 };
+  }
+  return {
+    timeoutMs: Math.round(DEFAULT_READY_TIMEOUT_MS * factor),
+    isScaled: factor > 1,
+    factor,
+  };
+}
+
+// A page error's stack can embed the mesh worker's base64-inlined wasm (a
+// multi-megabyte `data:application/wasm;base64,...` frame per line); one
+// trap wrote megabytes, and a session that trapped repeatedly grew its log
+// past 2 GB. Enough of a line to act on is kept; the rest is counted.
+export const MAX_LOG_LINE_CHARS = 4_000;
+
+export function truncateLogText(
+  text: string,
+  maxChars = MAX_LOG_LINE_CHARS,
+): string {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)} …[truncated ${text.length - maxChars} chars]`;
+}
+
 /**
  * Extra Chromium switches from `AGENT_CHROME_ARGS`, whitespace-separated.
  * The measurement escape hatch: `--disable-gpu-vsync --disable-frame-rate-limit`
@@ -203,6 +264,29 @@ function extraChromeArgs(): string[] {
     console.log(`[voxelize-agent] extra chrome args: ${args.join(" ")}`);
   }
   return args;
+}
+
+/**
+ * Where a port's browser profile lives, or null for a throwaway temp
+ * profile. `AGENT_PROFILE_DIR` names the parent directory;
+ * `AGENT_EPHEMERAL_PROFILE=1` opts back into a fresh profile per launch
+ * (cold-cache measurements, e.g. join-timing from scratch).
+ */
+export function agentProfileDir(
+  port: number,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  if (
+    env.AGENT_EPHEMERAL_PROFILE === "1" ||
+    env.AGENT_EPHEMERAL_PROFILE === "true"
+  ) {
+    return null;
+  }
+  const base =
+    env.AGENT_PROFILE_DIR && env.AGENT_PROFILE_DIR.trim() !== ""
+      ? env.AGENT_PROFILE_DIR
+      : path.join(os.homedir(), ".cache", "town-agent", "profiles");
+  return path.join(base, `port-${port}`);
 }
 
 /** `video/mp4;codecs=avc1.42E01E` -> `mp4`. */
@@ -265,32 +349,51 @@ export class Agent {
   }
 
   static async launch(options: AgentLaunchOptions): Promise<Agent> {
+    const readyTimeout = resolveReadyTimeoutMs();
     const {
       url,
       world,
       name = "agent",
       isHeadless = true,
-      waitReadyTimeoutMs = 60_000,
+      waitReadyTimeoutMs = readyTimeout.timeoutMs,
       port = DEFAULT_DAEMON_PORT,
       authUrl,
     } = options;
+    if (options.waitReadyTimeoutMs === undefined && readyTimeout.isScaled) {
+      console.log(
+        `[voxelize-agent] bridge wait ${Math.round(waitReadyTimeoutMs / 1000)}s: default scaled x${readyTimeout.factor.toFixed(1)} for load ${os.loadavg()[0].toFixed(0)} on ${os.cpus().length} cores`,
+      );
+    }
 
     const pidFile = agentPidFile(port);
     reapStaleAgentBrowser(pidFile);
 
-    const browser = await puppeteer.launch({
+    const launchOptions = {
       headless: isHeadless,
       // Fatal renderer aborts (V8 OOM, mojo errors, sandbox CHECKs) only
       // surface on Chromium's stderr; dumpio pipes it into the daemon log so
       // a dead tab always leaves its reason behind.
       dumpio: true,
+      // A CDP call against a page whose main thread is starved for minutes
+      // (the same saturated-box case AGENT_READY_TIMEOUT_MS exists for)
+      // otherwise fails on puppeteer's own 180s protocol ceiling before the
+      // bridge wait gets to run its course.
+      protocolTimeout: Math.max(
+        DEFAULT_PROTOCOL_TIMEOUT_MS,
+        waitReadyTimeoutMs + DEFAULT_PAGE_CALL_TIMEOUT_MS,
+      ),
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--enable-webgl",
         "--ignore-gpu-blocklist",
+        // ERROR and FATAL only. Chromium's INFO level mirrors every console
+        // message to stderr, duplicating what attachPageLogging already
+        // records through CDP, plus per-packet socket chatter; one session
+        // log reached 3.2 GB that way.
         "--enable-logging=stderr",
+        "--log-level=2",
         ...extraChromeArgs(),
       ],
       defaultViewport: {
@@ -298,7 +401,40 @@ export class Agent {
         height: positiveEnvNumber("AGENT_VIEWPORT_HEIGHT", 720),
         deviceScaleFactor: positiveEnvNumber("AGENT_VIEWPORT_SCALE", 1),
       },
-    });
+    };
+
+    // The profile persists per port so the client's IndexedDB creature
+    // texture store (and its HTTP cache) survive from one session to the
+    // next: a fresh temp profile made every join re-bake the whole roster.
+    // A profile that will not open is wiped and retried once — a warm cache
+    // is a nicety, a session that cannot start is a defect.
+    const profileDir = agentProfileDir(port);
+    let browser: Browser;
+    if (profileDir === null) {
+      browser = await puppeteer.launch(launchOptions);
+    } else {
+      fs.mkdirSync(profileDir, { recursive: true });
+      try {
+        browser = await puppeteer.launch({
+          ...launchOptions,
+          userDataDir: profileDir,
+        });
+      } catch (error) {
+        console.error(
+          `[voxelize-agent] chromium refused the persistent profile at ${profileDir} (${
+            error instanceof Error
+              ? error.message.split("\n")[0]
+              : String(error)
+          }); wiping it and retrying with a fresh one`,
+        );
+        fs.rmSync(profileDir, { recursive: true, force: true });
+        fs.mkdirSync(profileDir, { recursive: true });
+        browser = await puppeteer.launch({
+          ...launchOptions,
+          userDataDir: profileDir,
+        });
+      }
+    }
     recordAgentBrowser(pidFile, browser.process()?.pid);
     // Guards the SIGKILL/crash path: signal handlers and exit hooks below
     // cover clean shutdowns, but only this outlives the daemon process itself.
@@ -528,7 +664,9 @@ export class Agent {
    * the daemon process or its port. If the renderer itself died (detached
    * main frame), a brand-new page is opened at the same URL instead.
    */
-  async reset(waitReadyTimeoutMs = 60_000): Promise<void> {
+  async reset(
+    waitReadyTimeoutMs = resolveReadyTimeoutMs().timeoutMs,
+  ): Promise<void> {
     try {
       await this.page.reload({ waitUntil: "domcontentloaded" });
     } catch (error) {
@@ -582,7 +720,7 @@ export class Agent {
             text = descriptions.join(" ");
           }
         }
-        console.error(`[agent-page] ${type}:`, text);
+        console.error(`[agent-page] ${type}:`, truncateLogText(text));
         return;
       }
       if (
@@ -590,11 +728,11 @@ export class Agent {
         text.startsWith("[NETWORK]") ||
         text.includes("GAMETEST")
       ) {
-        console.log(`[agent-page]`, text);
+        console.log(`[agent-page]`, truncateLogText(text));
       }
     });
     page.on("pageerror", (err) => {
-      console.error("[agent-page-error]", err.message);
+      console.error("[agent-page-error]", truncateLogText(err.message));
     });
   }
 
@@ -891,6 +1029,9 @@ export class Agent {
     heapUsedBytes: number;
     heapTotalBytes: number;
     counters: WorldMemoryCounters;
+    /** The debug bar's sampler: heap floor and leak trend. Null where the
+     * client has no debug UI or the browser exposes no heap counters. */
+    trend: MemoryTrend | null;
   }> {
     const metrics = await this.withPageTimeout(
       "pageMetrics",
@@ -903,10 +1044,24 @@ export class Agent {
       () =>
         this.page.evaluate(() => window.__agentRequired__().memoryCounters()),
     );
+    // Older bridges predate the method; a missing trend is reported as null,
+    // never as a failed read of the counters that are there.
+    const trend = await this.withPageTimeout(
+      "memoryTrend",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() => {
+          const bridge = window.__agentRequired__();
+          return typeof bridge.memoryTrend === "function"
+            ? bridge.memoryTrend()
+            : null;
+        }),
+    );
     return {
       heapUsedBytes: metrics.JSHeapUsedSize ?? 0,
       heapTotalBytes: metrics.JSHeapTotalSize ?? 0,
       counters,
+      trend,
     };
   }
 
@@ -917,6 +1072,43 @@ export class Agent {
    */
   async renderStats(): Promise<RenderStats> {
     return this.page.evaluate(() => window.__agentRequired__().renderStats());
+  }
+
+  /**
+   * Cap (or lift) how often the page draws. Resolves after the next drawn
+   * frame, so a capture that follows a lift never sees a stale frame. A
+   * client without the bridge method reports `isSupported: false` and is
+   * left alone.
+   */
+  async setDrawThrottle(
+    intervalMs: number | null,
+  ): Promise<DrawThrottleStatus> {
+    return this.withPageTimeout(
+      "setDrawThrottle",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate((ms) => {
+          const bridge = window.__agentRequired__();
+          if (typeof bridge.setDrawThrottle !== "function") {
+            return { intervalMs: null, isSupported: false };
+          }
+          return bridge.setDrawThrottle(ms);
+        }, intervalMs),
+    );
+  }
+
+  /**
+   * Every animated voxel the world tracks and the pose it shows right now.
+   * The check behind "did the door swing or cut": a voxel that changed
+   * state reports `isMoving` until its swing has run its course.
+   */
+  async blockAnimations(): Promise<BlockAnimationsSnapshot> {
+    return this.withPageTimeout(
+      "blockAnimations",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(() => window.__agentRequired__().blockAnimations()),
+    );
   }
 
   /**
@@ -1468,6 +1660,58 @@ export class Agent {
             }),
         ),
     );
+  }
+
+  /**
+   * A V8 heap snapshot of the page, streamed straight to `filePath` (a few
+   * hundred megabytes for a loaded world; never buffered in the daemon).
+   * A full collection runs first so the file holds the live set, not the
+   * garbage a collection would have taken. The page's main thread is held
+   * for the duration -- ten to twenty seconds on a busy world -- so this is
+   * a deliberate act, never something a poll does.
+   *
+   * The analysis lives outside the daemon (`pnpm heap census|diff|retainers`
+   * in the host repo): a census of object counts per class, a diff of two
+   * censuses to see what accumulates between them, and the retaining path
+   * from the GC root to any instance of a class.
+   */
+  async heapSnapshot(filePath: string): Promise<{
+    path: string;
+    bytes: number;
+    durationMs: number;
+    heapUsedBytes: number;
+    heapTotalBytes: number;
+  }> {
+    const startedAt = performance.now();
+    const client = await this.page.createCDPSession();
+    const fd = fs.openSync(filePath, "w");
+    let bytes = 0;
+    const onChunk = (event: { chunk: string }) => {
+      bytes += fs.writeSync(fd, event.chunk);
+    };
+    try {
+      await client.send("HeapProfiler.enable");
+      await client.send("HeapProfiler.collectGarbage");
+      const usage = await client.send("Runtime.getHeapUsage");
+      client.on("HeapProfiler.addHeapSnapshotChunk", onChunk);
+      // The protocol ceiling, not the page-call one: the page is expected
+      // to be unresponsive while V8 walks its heap.
+      await client.send("HeapProfiler.takeHeapSnapshot", {
+        reportProgress: false,
+        captureNumericValue: false,
+      });
+      return {
+        path: filePath,
+        bytes,
+        durationMs: Math.round(performance.now() - startedAt),
+        heapUsedBytes: usage.usedSize,
+        heapTotalBytes: usage.totalSize,
+      };
+    } finally {
+      client.off("HeapProfiler.addHeapSnapshotChunk", onChunk);
+      fs.closeSync(fd);
+      await client.detach().catch(() => {});
+    }
   }
 
   async measureFrameRate(

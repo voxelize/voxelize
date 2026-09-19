@@ -93,6 +93,8 @@ export type DaemonStatus = {
   /** Milliseconds a video take has been open, so a leaked one is visible in
    * the same place every other stuck resource is. */
   recordingForMs: number | null;
+  /** True while the idle draw cap is on the page (lifted by any command). */
+  isDrawThrottled: boolean;
   lease: DaemonLeaseStatus | null;
   meta: SessionMeta;
   origin: SessionOrigin | null;
@@ -123,6 +125,27 @@ const metaPatchSchema = z.object({
 // the daemon and recreate exactly the orphan problem the TTL exists to kill.
 const INFLIGHT_MAX_AGE_MS = 15 * 60_000;
 
+// An idle session draws slowly. A headless tab rendering a full scene at
+// 60fps costs about a core plus the GPU process whether or not anyone is
+// looking (two idle sessions measured 45% and 42% CPU on their renderer and
+// GPU processes alone), and five of them idling was most of a saturated box.
+// After this long without a command the daemon caps the page's draw rate;
+// the next command lifts the cap before it runs. `AGENT_IDLE_DRAW_AFTER_MS=0`
+// disables it (frame-rate measurements start with a command, so they are
+// never taken under the cap either way).
+const DEFAULT_IDLE_DRAW_AFTER_MS = 20_000;
+const IDLE_DRAW_INTERVAL_MS = 500;
+const IDLE_DRAW_CHECK_INTERVAL_MS = 5_000;
+
+function idleDrawAfterMs(): number {
+  const raw = process.env.AGENT_IDLE_DRAW_AFTER_MS;
+  if (raw === undefined || raw === "") return DEFAULT_IDLE_DRAW_AFTER_MS;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0
+    ? value
+    : DEFAULT_IDLE_DRAW_AFTER_MS;
+}
+
 const CONNECTION_WATCH_INTERVAL_MS = 2_000;
 // The in-page network layer retries on its own every ~3s; the daemon only
 // intervenes after this grace so it never races a reconnect already landing.
@@ -146,6 +169,9 @@ const FRAME_SETTLE_TIMEOUT_MS = 10_000;
 // leave a permanently frozen entity behind.
 const FRAME_FREEZE_SECONDS = 30;
 const FRAME_OUTPUT_SUBDIR = "agent-frames";
+/** Heap snapshots land beside the captures, in their own folder: each is a
+ * few hundred megabytes and nobody wants one mixed into a contact sheet. */
+const HEAP_SNAPSHOT_SUBDIR = "heap";
 
 // A take is filmed at the size it will be published at, so the default is a
 // social-media 1080p rather than the burst's thumbnail viewport. Motion is the
@@ -301,6 +327,9 @@ export class AgentDaemon {
   private recoveryAttemptCount = 0;
   private lastRecoveryAt = 0;
   private isRecoveryInFlight = false;
+  private idleDrawTimer: NodeJS.Timeout | null = null;
+  private isDrawThrottled = false;
+  private drawThrottleChange: Promise<void> | null = null;
 
   constructor(options: DaemonOptions) {
     this.agent = options.agent;
@@ -318,7 +347,10 @@ export class AgentDaemon {
     // promise means the process is exiting anyway.
     void this.agent
       .ready()
-      .then(() => this.startConnectionWatch())
+      .then(() => {
+        this.startConnectionWatch();
+        this.startIdleDrawWatch();
+      })
       .catch(() => undefined);
   }
 
@@ -331,7 +363,81 @@ export class AgentDaemon {
       clearInterval(this.connectionWatchTimer);
       this.connectionWatchTimer = null;
     }
+    if (this.idleDrawTimer) {
+      clearInterval(this.idleDrawTimer);
+      this.idleDrawTimer = null;
+    }
     await this.server.close();
+  }
+
+  private startIdleDrawWatch(): void {
+    if (this.idleDrawTimer || idleDrawAfterMs() === 0) return;
+    this.idleDrawTimer = setInterval(() => {
+      void this.idleDrawTick();
+    }, IDLE_DRAW_CHECK_INTERVAL_MS);
+    this.idleDrawTimer.unref();
+  }
+
+  private async idleDrawTick(): Promise<void> {
+    if (
+      this.isDrawThrottled ||
+      this.drawThrottleChange ||
+      this.freshness.isStale ||
+      this.inflightCount > 0 ||
+      // A take records whatever the loop draws; capping it mid-clip would
+      // turn a 30s shot into a 2fps flipbook.
+      this.agent.recordingForMs() !== null ||
+      this.idleMs() < idleDrawAfterMs()
+    ) {
+      return;
+    }
+    await this.changeDrawThrottle(IDLE_DRAW_INTERVAL_MS);
+  }
+
+  /**
+   * Serialized so a lift racing a cap cannot leave the page throttled while
+   * a command runs. Failures are logged and leave the flag honest: a page
+   * that never took the cap is not marked as throttled.
+   */
+  private changeDrawThrottle(intervalMs: number | null): Promise<void> {
+    if (this.drawThrottleChange) return this.drawThrottleChange;
+    const change = (async () => {
+      try {
+        const status = await this.agent.setDrawThrottle(intervalMs);
+        if (!status.isSupported) {
+          // No point re-trying every tick against a client that lacks it.
+          if (this.idleDrawTimer) {
+            clearInterval(this.idleDrawTimer);
+            this.idleDrawTimer = null;
+          }
+          return;
+        }
+        this.isDrawThrottled = status.intervalMs !== null;
+        console.log(
+          this.isDrawThrottled
+            ? `[agent-daemon] idle for ${Math.round(this.idleMs() / 1000)}s: drawing every ${status.intervalMs}ms until the next command`
+            : "[agent-daemon] command received: drawing every frame again",
+        );
+        this.appendEvent("draw-throttle", { intervalMs: status.intervalMs });
+      } catch (error) {
+        console.warn(
+          `[agent-daemon] draw throttle change failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      } finally {
+        this.drawThrottleChange = null;
+      }
+    })();
+    this.drawThrottleChange = change;
+    return change;
+  }
+
+  /** Lift the idle draw cap before a command touches the page. */
+  private async wakeForCommand(): Promise<void> {
+    if (this.drawThrottleChange) await this.drawThrottleChange;
+    if (!this.isDrawThrottled) return;
+    await this.changeDrawThrottle(null);
   }
 
   noteActivity(): void {
@@ -409,6 +515,7 @@ export class AgentDaemon {
         this.freshness.lastConnection?.droppedCommandCount ?? null,
       stalledPageCalls: this.agent.stalledPageCallLabels(),
       recordingForMs: this.agent.recordingForMs(),
+      isDrawThrottled: this.isDrawThrottled,
       lease: this.leaseStatus(),
       meta: this.sessionMeta(),
       origin: this.origin,
@@ -644,6 +751,12 @@ export class AgentDaemon {
       if (this.isActivityRequest(req)) {
         this.inflightCount += 1;
         this.noteActivity();
+        // A command against a throttled page waits for the cap to lift and
+        // one frame to draw, so what it reads or captures is current.
+        if (this.isDrawThrottled || this.drawThrottleChange) {
+          void this.wakeForCommand().finally(() => done());
+          return;
+        }
       }
       done();
     });
@@ -916,7 +1029,42 @@ export class AgentDaemon {
 
     this.server.get("/memory", async () => this.agent.memoryStatus());
 
+    // A V8 heap snapshot written under the capture dir (heap/), for the
+    // leak hunt the memory trend starts: two of these a few minutes apart,
+    // diffed by class, name what accumulates; the retaining path names who
+    // holds it. Several hundred megabytes and a 10-20 s main-thread hold,
+    // so it is a command, never a poll.
+    this.server.get<{ Querystring: { label?: string } }>(
+      "/heap-snapshot",
+      async (req, reply) => {
+        const label = sanitizeFileLabel(req.query.label ?? "heap");
+        const dir = ensureCaptureDir([HEAP_SNAPSHOT_SUBDIR]);
+        const filePath = path.join(
+          dir,
+          `agent-${Date.now()}_${label}.heapsnapshot`,
+        );
+        try {
+          return await this.agent.heapSnapshot(filePath);
+        } catch (error) {
+          reply.code(500);
+          return {
+            error: `heap snapshot failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          };
+        }
+      },
+    );
+
     this.server.get("/render-stats", async () => this.agent.renderStats());
+
+    this.server.get<{ Querystring: { allowStale?: string } }>(
+      "/block-animations",
+      async (req, reply) => {
+        if (!(await this.assertReadableWorld(req.query, reply))) return reply;
+        return this.agent.blockAnimations();
+      },
+    );
 
     this.server.get("/textures", async () => this.agent.textureCensus());
 

@@ -36,6 +36,7 @@ pub(super) fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> 
     !block.is_fluid
         && !block.rotatable
         && !block.y_rotatable
+        && !block.is_animated
         && block.dynamic_patterns.is_none()
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
         && block.is_full_cube()
@@ -105,6 +106,31 @@ pub(super) fn should_render_face<S: VoxelAccess>(
             && !n_block_type.is_fluid
             && !has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space)
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
+}
+
+/// Whether a face lies on its cell's boundary in the direction it points,
+/// after the voxel's rotation — the only position where an opaque neighbour
+/// on that side genuinely covers it. Corners are compared with the same
+/// tolerance the mesher uses to snap a rotated coordinate, so a leaf one
+/// sixteenth in from the jamb counts as inset and a pane in mid-cell too.
+pub(super) fn is_face_flush_with_boundary(
+    face: &BlockFace,
+    dir: [i32; 3],
+    rotation: &BlockRotation,
+    rotates: bool,
+    y_rotatable: bool,
+) -> bool {
+    let Some(axis) = (0..3).find(|&axis| dir[axis] != 0) else {
+        return false;
+    };
+    let boundary = if dir[axis] > 0 { 1.0 } else { 0.0 };
+    face.corners.iter().all(|corner| {
+        let mut pos = corner.pos;
+        if rotates {
+            rotation.rotate_node(&mut pos, y_rotatable, true);
+        }
+        (pos[axis] - boundary).abs() < 0.001
+    })
 }
 
 pub(super) fn rotate_offset_y(offset: &mut [f32; 3], rotation: &BlockRotation) {
@@ -333,7 +359,25 @@ pub(super) fn process_face<S: VoxelAccess>(
 
     let n_is_empty = n_is_void || n_block_type.is_empty;
 
+    // A see-through block's face pointing at an opaque neighbour is hidden
+    // only when it lies on the cell boundary between them. A door leaf
+    // standing a sixteenth in from its jamb, a pane in the middle of its
+    // cell, a fence post: their faces point at the wall without being
+    // against it. Culling those drew an open door as nothing but its edges.
+    let is_inset_from_opaque_neighbor = see_through
+        && !is_opaque
+        && !n_is_empty
+        && n_block_type.is_opaque
+        && !is_face_flush_with_boundary(
+            face,
+            dir,
+            rotation,
+            (rotatable || y_rotatable) && !world_space,
+            y_rotatable,
+        );
+
     let should_mesh = n_is_empty
+        || is_inset_from_opaque_neighbor
         || (see_through
             && !is_opaque
             && !n_block_type.is_opaque

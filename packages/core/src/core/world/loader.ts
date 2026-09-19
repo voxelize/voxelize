@@ -62,11 +62,35 @@ class Loader {
 
     const listenerCallback = () => {
       this.loadAudios();
-      window.removeEventListener("click", listenerCallback);
+      this.unbindFirstClick();
     };
-
+    // The audio decode waits for the first user gesture, and a page that
+    // never gets one (a headless client, a tab that hot-reloads before the
+    // player clicks) would otherwise keep one listener and one loader per
+    // world it ever made.
+    this.unbindFirstClick = () => {
+      window.removeEventListener("click", listenerCallback);
+      this.unbindFirstClick = () => {};
+    };
     window.addEventListener("click", listenerCallback);
   }
+
+  private unbindFirstClick: () => void = () => {};
+
+  /**
+   * Release everything the loader holds: the pending first-click audio
+   * gate, cached textures and images, and the decoded audio. The world
+   * calls this from its own dispose.
+   */
+  dispose = () => {
+    this.unbindFirstClick();
+    this.textures.forEach((texture) => texture.dispose());
+    this.textures.clear();
+    this.images.clear();
+    this.audioBuffers.clear();
+    this.assetPromises.clear();
+    this.audioCallbacks.clear();
+  };
 
   loadGifImages = (
     source: string,

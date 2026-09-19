@@ -458,6 +458,27 @@ export class Inputs<T extends string = any> extends EventEmitter {
   };
 
   /**
+   * Take the instance off the document for good: every key, click and
+   * scroll listener it installed is removed and every binding dropped.
+   *
+   * The listeners close over this instance, and through its bindings over
+   * whatever the callbacks reach -- the controls, the world, the scene. An
+   * `Inputs` that is simply let go of keeps hearing every keystroke and
+   * keeps all of that alive with it. A page that mounts a new `Inputs`
+   * (a hot-reload remount, a world switch without a page load) must
+   * dispose the old one first.
+   */
+  dispose = () => {
+    this.reset();
+    this.unbinds.length = 0;
+    this.keyBounds.clear();
+    this.keyPressCallbacks.clear();
+    this.clickCallbacks.clear();
+    this.scrollCallbacks.clear();
+    this.removeAllListeners();
+  };
+
+  /**
    * Make everything lower case.
    */
   private modifyKey = (key: string) => {
@@ -502,9 +523,15 @@ export class Inputs<T extends string = any> extends EventEmitter {
       if (codeBounds) runBounds(e, codeBounds);
     };
 
-    document.addEventListener("keydown", keyListener("keydown"));
-    document.addEventListener("keyup", keyListener("keyup"));
-    document.addEventListener("keypress", keyListener("keypress"));
+    (["keydown", "keyup", "keypress"] as InputOccasion[]).forEach(
+      (occasion) => {
+        const listener = keyListener(occasion);
+        document.addEventListener(occasion, listener);
+        this.unbinds.push(() =>
+          document.removeEventListener(occasion, listener),
+        );
+      },
+    );
   };
 
   /**

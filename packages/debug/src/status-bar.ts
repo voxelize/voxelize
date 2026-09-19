@@ -6,13 +6,31 @@ import {
 } from "./frame-graph";
 import type { FrameSampler } from "./frame-sampler";
 import type { Tone } from "./tone";
+import { drawTrendGraph } from "./trend-graph";
 
 export type StatusSide = "left" | "right";
 
 export type StatusAdornment =
+  /** The frame-time bar graph, fed by the bar's own frame sampler. */
   | { kind: "spark" }
   | { kind: "dot"; tone: () => Tone }
-  | { kind: "glyph"; glyph: string };
+  | { kind: "glyph"; glyph: string }
+  /**
+   * Any series drawn as bars between its own low and high, oldest first --
+   * a heap floor, a queue depth. Redrawn when `revision` changes, so a
+   * series that moves once a bucket costs one draw a bucket.
+   */
+  | {
+      kind: "trend";
+      series: () => readonly number[];
+      capacity: () => number;
+      revision: () => number;
+      tone?: () => Tone;
+      /** See {@link TrendGraphOptions.minSpanRatio}. */
+      minSpanRatio?: number;
+      /** The value still being measured; see {@link TrendGraphOptions.pending}. */
+      pending?: () => number | null;
+    };
 
 export type StatusItemOptions = {
   id: string;
@@ -113,12 +131,26 @@ export class StatusBar {
         className: "vxd-statusbar-dot",
         parent: element,
       });
-    } else if (options.adornment?.kind === "spark") {
+    } else if (
+      options.adornment?.kind === "spark" ||
+      options.adornment?.kind === "trend"
+    ) {
       sparkCanvas = createElement("canvas", {
         className: "vxd-statusbar-spark",
         attrs: { width: "68", height: "22" },
         parent: element,
       });
+      // A trend graph draws its empty slots at once; left to the first
+      // revision it would sit as a blank gap in the bar for minutes.
+      if (options.adornment.kind === "trend") {
+        const adornment = options.adornment;
+        drawTrendGraph(sparkCanvas, adornment.series(), {
+          capacity: adornment.capacity(),
+          minSpanRatio: adornment.minSpanRatio,
+          tone: adornment.tone?.(),
+          pending: adornment.pending?.() ?? null,
+        });
+      }
     } else if (options.adornment?.kind === "glyph") {
       createElement("span", {
         className: "vxd-statusbar-glyph",
@@ -252,6 +284,19 @@ export class StatusBar {
 
   private refreshSpark(item: StatusItem): void {
     if (!item.sparkCanvas) return;
+    const adornment = item.options.adornment;
+    if (adornment?.kind === "trend") {
+      const revision = adornment.revision();
+      if (item.lastSparkRevision === revision) return;
+      item.lastSparkRevision = revision;
+      drawTrendGraph(item.sparkCanvas, adornment.series(), {
+        capacity: adornment.capacity(),
+        minSpanRatio: adornment.minSpanRatio,
+        tone: adornment.tone?.(),
+        pending: adornment.pending?.() ?? null,
+      });
+      return;
+    }
     if (item.lastSparkRevision === this.sampler.revision) return;
     item.lastSparkRevision = this.sampler.revision;
     drawFrameGraph(

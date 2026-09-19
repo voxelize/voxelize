@@ -2,7 +2,14 @@ export type Vec3 = { x: number; y: number; z: number };
 
 export type ChunkCoord = { cx: number; cz: number };
 
-export type YawPitch = { yaw: number; pitch: number };
+export type YawPitch = {
+  yaw: number;
+  pitch: number;
+  /** Roll about the view axis in radians. Zero while alive; the
+   *  first-person death tip-over rolls the view onto its right side (a
+   *  negative roll) and rights it again on the wake. */
+  roll: number;
+};
 
 export type ChunkState = "loaded" | "pending" | "unloaded";
 
@@ -51,6 +58,12 @@ export type PeerSnapshot = {
   // False until this peer's role claim has replicated from its own client
   // through the server; the window where nametags render role-less.
   isRoleClaimed: boolean;
+  /** Roll of the death tip-over on this body in radians (0 upright, π/2
+   *  lying on its right side), or null while the body is alive. */
+  deathTipAngle: number | null;
+  /** Uniform render scale of the body: 1 standing, 0.4 as a spectator
+   *  ghost, shrinking to 0 as a dead body vanishes. */
+  renderScale: number;
 };
 
 export type RaycastHit = {
@@ -431,6 +444,29 @@ export type MemoryPressureStatus = {
   shedCount: number;
 };
 
+/**
+ * What the debug bar's `mem` segment shows, read from the same sampler:
+ * the JS heap, its post-collection floor, and the rate that floor is rising
+ * by (a Theil-Sen slope over the floors of the last few minutes; null until
+ * enough buckets have completed). `null` as a whole where the client has no
+ * debug UI installed or the browser exposes no heap counters.
+ */
+export type MemoryTrend = {
+  usedBytes: number;
+  totalBytes: number;
+  limitBytes: number;
+  /** used / limit, 0..1. */
+  pressure: number;
+  floorBytes: number;
+  growthBytesPerMinute: number | null;
+  trendSpanMs: number;
+  bucketMs: number;
+  /** Per-bucket floors, oldest first: the bars the debug bar draws. */
+  floorHistory: number[];
+  /** The browser's own page total incl. workers, when it offers one. */
+  detailed: { totalBytes: number; workerBytes: number; workers: number } | null;
+};
+
 export type WorldMemoryCounters = {
   blockUpdatesQueue: number;
   blockUpdatesToEmit: number;
@@ -503,6 +539,34 @@ export type TextureCensus = {
 export type TextureFillResult = {
   color: string;
   filled: { atlasSlots: number; ownFaces: number; isolatedFaces: number };
+};
+
+/**
+ * What `world.blockAnimations` knows: the block names with a declared
+ * motion, and every tracked animated voxel with the pose it is showing.
+ * `angle` is radians about the block's hinge from its stage-0 pose;
+ * `progress` is 1 at rest. Mirrors `BlockAnimationsSnapshot` in core.
+ */
+export type BlockAnimationsSnapshot = {
+  registered: string[];
+  trackedCount: number;
+  activeCount: number;
+  voxels: {
+    voxel: Vec3;
+    block: string;
+    stage: number;
+    angle: number;
+    restAngle: number;
+    progress: number;
+    isMoving: boolean;
+  }[];
+};
+
+export type DrawThrottleStatus = {
+  /** Minimum ms between drawn frames; null when drawing every frame. */
+  intervalMs: number | null;
+  /** False on a client whose frame loop predates the throttle. */
+  isSupported: boolean;
 };
 
 export type RenderStats = {
@@ -753,8 +817,29 @@ export interface AgentBridge {
   ): Promise<MeshTransferBenchmarkResult>;
   /** Pipeline queue/in-flight sizes from `World.getMemoryCounters`. */
   memoryCounters(): WorldMemoryCounters;
+  /** The debug bar's heap reading and leak trend; see {@link MemoryTrend}. */
+  memoryTrend(): MemoryTrend | null;
   /** Per-frame renderer and scene-graph load; see {@link RenderStats}. */
   renderStats(): RenderStats;
+  /**
+   * Cap how often the frame loop draws (shadows, composer, arm) while the
+   * world keeps updating every frame. `null` lifts the cap. The daemon
+   * applies it to a session nobody has spoken to for a while: an idle
+   * headless tab drawing at 60fps costs about a core plus the GPU process,
+   * and five of them was most of the box. Any command lifts it first, and
+   * the returned promise resolves after the next drawn frame so a capture
+   * issued right after waking never reads a frame from the throttled era.
+   */
+  setDrawThrottle(intervalMs: number | null): Promise<DrawThrottleStatus>;
+  drawThrottle(): DrawThrottleStatus;
+  /**
+   * Every animated voxel the world is tracking and the pose it shows right
+   * now; see {@link BlockAnimationsSnapshot}. A door that should be
+   * swinging and is not shows up here as `isMoving: false` at its new rest
+   * angle (the swing never started) or as a voxel missing altogether (the
+   * mesher did not split it out).
+   */
+  blockAnimations(): BlockAnimationsSnapshot;
   /**
    * What every block surface is wearing: atlas slots, own-texture face
    * defaults, and each voxel's isolated face, with everything not yet in its

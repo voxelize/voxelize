@@ -1,5 +1,30 @@
 import { AABB } from "@voxelize/aabb";
 
+/**
+ * Entry and exit distances of a ray through one slab (the region between two
+ * parallel planes on a single axis). A ray with no component along the axis
+ * either runs inside the slab forever or never enters it; dividing by that
+ * zero component would make `0 / 0 = NaN` whenever the origin sits exactly on
+ * a plane, and a NaN distance poisons every comparison downstream into a
+ * "hit" at a NaN point.
+ */
+function slabInterval(
+  min: number,
+  max: number,
+  origin: number,
+  component: number,
+): [number, number] {
+  if (component === 0) {
+    return origin >= min && origin <= max
+      ? [-Infinity, Infinity]
+      : [Infinity, -Infinity];
+  }
+  const inv = 1 / component;
+  const tNear = (min - origin) * inv;
+  const tFar = (max - origin) * inv;
+  return tNear < tFar ? [tNear, tFar] : [tFar, tNear];
+}
+
 export function raycastAABB(
   origin: number[],
   normal: number[],
@@ -8,25 +33,14 @@ export function raycastAABB(
 ): { axis: number; distance: number } | null {
   const [nx, ny, nz] = normal;
 
-  const t1 = (aabb.minX - origin[0]) / nx;
-  const t2 = (aabb.maxX - origin[0]) / nx;
-  const t3 = (aabb.minY - origin[1]) / ny;
-  const t4 = (aabb.maxY - origin[1]) / ny;
-  const t5 = (aabb.minZ - origin[2]) / nz;
-  const t6 = (aabb.maxZ - origin[2]) / nz;
+  const [xNear, xFar] = slabInterval(aabb.minX, aabb.maxX, origin[0], nx);
+  const [yNear, yFar] = slabInterval(aabb.minY, aabb.maxY, origin[1], ny);
+  const [zNear, zFar] = slabInterval(aabb.minZ, aabb.maxZ, origin[2], nz);
 
-  const tMin = Math.max(
-    Math.max(Math.min(t1, t2), Math.min(t3, t4)),
-    Math.min(t5, t6),
-  );
-  const tMinAxis =
-    tMin === t1 || tMin === t2 ? 0 : tMin === t3 || tMin === t4 ? 1 : 2;
-  const tMax = Math.min(
-    Math.min(Math.max(t1, t2), Math.max(t3, t4)),
-    Math.max(t5, t6),
-  );
-  const tMaxAxis =
-    tMin === t1 || tMin === t2 ? 0 : tMin === t3 || tMin === t4 ? 1 : 2;
+  const tMin = Math.max(xNear, yNear, zNear);
+  const tMinAxis = tMin === xNear ? 0 : tMin === yNear ? 1 : 2;
+  const tMax = Math.min(xFar, yFar, zFar);
+  const tMaxAxis = tMax === xFar ? 0 : tMax === yFar ? 1 : 2;
 
   // if tMax < 0, ray (line) is intersecting AABB, but whole AABB is behind us
   if (tMax < 0) {

@@ -14,7 +14,17 @@ export class WebRTCConnection {
     return this.dc?.readyState === "open";
   }
 
-  async connect(serverUrl: string, clientId: string): Promise<void> {
+  /**
+   * Open the data channel for an already-registered session. `ticket` is the
+   * same signed session credential the WebSocket upgrade carried; the server
+   * derives the acting client id from it, so without one the offer is only
+   * accepted on servers that trust client-chosen ids.
+   */
+  async connect(
+    serverUrl: string,
+    clientId: string,
+    ticket?: string | null,
+  ): Promise<void> {
     this.pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
@@ -55,6 +65,7 @@ export class WebRTCConnection {
       body: JSON.stringify({
         sdp: offer.sdp,
         client_id: clientId,
+        ...(ticket ? { ticket } : {}),
       }),
     });
 

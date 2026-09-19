@@ -77,6 +77,17 @@ export type CanvasBoxOptions = {
   depthSegments?: number;
 
   /**
+   * Texture pixels per world unit. When set, `widthSegments`,
+   * `heightSegments` and `depthSegments` are derived from the box's
+   * dimensions at this density (at least one texel each), so every face
+   * has square texels whatever the box's proportions. Without it a
+   * 0.3 x 0.14 x 0.06 box gets the same `widthSegments` along all three
+   * axes and its texture is squashed on every non-square face. Prefer this
+   * over hand-picked segment counts for anything that is not a cube.
+   */
+  texelsPerBlock?: number;
+
+  /**
    * The side of the box to render. Defaults to `THREE.FrontSide`.
    */
   side: Side;
@@ -131,6 +142,30 @@ const defaultOptions: CanvasBoxOptions = {
   transparent: false,
   receiveShadows: false,
 };
+
+/**
+ * Segment (texel) counts for a box painted at `texelsPerBlock` pixels per
+ * world unit: each axis gets as many texels as its length asks for, at
+ * least one, so every face has square texels whatever the box's
+ * proportions. This is what `CanvasBoxOptions.texelsPerBlock` resolves to.
+ */
+export function canvasBoxSegments(
+  dims: { width: number; height: number; depth: number },
+  texelsPerBlock: number,
+): { widthSegments: number; heightSegments: number; depthSegments: number } {
+  if (!(texelsPerBlock > 0)) {
+    throw new Error(
+      `CanvasBox texelsPerBlock must be positive, got ${texelsPerBlock}.`,
+    );
+  }
+  const texels = (size: number) =>
+    Math.max(1, Math.round(size * texelsPerBlock));
+  return {
+    widthSegments: texels(dims.width),
+    heightSegments: texels(dims.height),
+    depthSegments: texels(dims.depth),
+  };
+}
 
 /**
  * The six default faces of a canvas box.
@@ -605,13 +640,12 @@ export class CanvasBox extends Group {
       width,
       height,
       depth,
-      widthSegments,
-      heightSegments,
-      depthSegments,
+      texelsPerBlock,
       transparent,
       receiveShadows,
       underwaterFog,
     } = this.options;
+    let { widthSegments, heightSegments, depthSegments } = this.options;
 
     if (!width) {
       throw new Error("CanvasBox width must be specified.");
@@ -620,6 +654,13 @@ export class CanvasBox extends Group {
     this.width = width;
     this.height = height || width;
     this.depth = depth || width;
+
+    if (texelsPerBlock !== undefined) {
+      ({ widthSegments, heightSegments, depthSegments } = canvasBoxSegments(
+        { width: this.width, height: this.height, depth: this.depth },
+        texelsPerBlock,
+      ));
+    }
 
     for (let i = 0; i < layers; i++) {
       const newBoxLayer = new BoxLayer(

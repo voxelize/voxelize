@@ -88,6 +88,23 @@ export function isSharedOpaqueMaterialBlock(block: Block) {
 }
 
 /**
+ * Whether a block's geometry is drawn into the sun's shadow maps. The block
+ * may say so itself (`castsShadow`); otherwise the rule of thumb: solids
+ * and light-attenuating cutouts (leaves) cast, fluids and clear see-through
+ * blocks (glass, barriers) do not.
+ */
+export function blockCastsShadow(
+  block: Pick<
+    Block,
+    "castsShadow" | "isFluid" | "isSeeThrough" | "lightAttenuation"
+  >,
+) {
+  if (typeof block.castsShadow === "boolean") return block.castsShadow;
+  if (block.isFluid) return false;
+  return !block.isSeeThrough || block.lightAttenuation > 0;
+}
+
+/**
  * The shared bucket a depth-writing cutout block collapses into, or `null`
  * for blocks that keep a per-id material. Plants live apart from leaves so
  * the plant-radius culling can hide a section's plants without taking its
@@ -353,6 +370,7 @@ export async function loadChunkMaterials(
     isFluid: boolean,
     lightAttenuation: number,
     transparentStandalone: boolean,
+    castsShadow: boolean,
   ) => {
     const mat = makeChunkShaderMaterial(
       world,
@@ -381,8 +399,7 @@ export async function loadChunkMaterials(
     }
     mat.map = map;
     mat.uniforms.map.value = map;
-    mat.userData.skipShadow =
-      isFluid || (transparent && lightAttenuation === 0);
+    mat.userData.skipShadow = !castsShadow;
     mat.userData.isFluid = isFluid;
 
     // Sorted-transparent meshes (the depth-non-writing ones the main-thread
@@ -413,7 +430,7 @@ export async function loadChunkMaterials(
   const totalSlots = textureGroups.size + ungroupedFaces;
   const countPerSide = perSide(totalSlots);
   const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
-  const sharedOpaqueMaterial = make(false, atlas, false, 1, false);
+  const sharedOpaqueMaterial = make(false, atlas, false, 1, false, true);
   world.chunkRenderer.materials.set(
     SHARED_OPAQUE_MATERIAL_KEY,
     sharedOpaqueMaterial,
@@ -461,6 +478,7 @@ export async function loadChunkMaterials(
           block.isFluid,
           block.lightAttenuation,
           block.transparentStandalone,
+          blockCastsShadow(block),
         );
     // Keyed per id, not through makeChunkMaterialKey: a block that collapses
     // into a shared cutout bucket still needs its own material reachable so
@@ -481,6 +499,7 @@ export async function loadChunkMaterials(
         block.isFluid,
         block.lightAttenuation,
         block.transparentStandalone,
+        blockCastsShadow(block),
       );
       const ownTextureKey = makeChunkMaterialKey(world, block.id, face.name);
       world.chunkRenderer.materials.set(ownTextureKey, ownTextureMat);

@@ -34,8 +34,9 @@ use serde_json::json;
 use tokio::sync::mpsc;
 
 use crate::{
-    decode_message, encode_message, ClientMessage, Connect, Disconnect, Health, Info, Message,
-    MessageType, RunPreload, Server, SetStarted, WsSender, PROTOCOL_MISMATCH_REASON,
+    authenticate_session, decode_message, encode_message, ClientMessage, Connect, Disconnect,
+    Health, Info, Message, MessageType, RunPreload, Server, SessionAuth, SessionAuthenticator,
+    SessionIdentity, SetStarted, WsSender, PROTOCOL_MISMATCH_REASON,
 };
 
 /// How long to wait for the server actor to ack a client message before
@@ -243,17 +244,22 @@ where
 pub struct VoxelizeHandle {
     server: Addr<Server>,
     secret: Option<String>,
+    transport_secret: Option<String>,
+    session_authenticator: Option<SessionAuthenticator>,
     serve: String,
     session_policy: WsSessionPolicy,
 }
 
 impl VoxelizeHandle {
     /// Create a handle around a running [`Server`] actor with no join secret,
-    /// no static folder, and the default [`WsSessionPolicy`].
+    /// no session authenticator (permissive client ids), no static folder,
+    /// and the default [`WsSessionPolicy`].
     pub fn new(server: Addr<Server>) -> Self {
         Self {
             server,
             secret: None,
+            transport_secret: None,
+            session_authenticator: None,
             serve: String::new(),
             session_policy: WsSessionPolicy::default(),
         }
@@ -263,6 +269,40 @@ impl VoxelizeHandle {
     pub fn with_secret(mut self, secret: Option<String>) -> Self {
         self.secret = secret;
         self
+    }
+
+    /// Require this secret from transport sessions (`?is_transport`) in
+    /// place of the join secret. `None` checks them against the join secret.
+    pub fn with_transport_secret(mut self, secret: Option<String>) -> Self {
+        self.transport_secret = secret;
+        self
+    }
+
+    /// The secret a connection must present: transports answer to their own
+    /// secret when one is configured, everyone else to the join secret.
+    fn expected_secret(&self, is_transport: bool) -> Option<&String> {
+        if is_transport {
+            self.transport_secret.as_ref().or(self.secret.as_ref())
+        } else {
+            self.secret.as_ref()
+        }
+    }
+
+    /// Decide session identity with this hook on `/ws/` upgrades and WebRTC
+    /// offers. `None` keeps the permissive fallback (client-chosen ids).
+    pub fn with_session_authenticator(
+        mut self,
+        authenticator: Option<SessionAuthenticator>,
+    ) -> Self {
+        self.session_authenticator = authenticator;
+        self
+    }
+
+    /// Resolve who a request is, from its query-style parameters. Shared by
+    /// the WebSocket upgrade and the WebRTC signaling routes so both lanes
+    /// answer "which client id may this caller act as" the same way.
+    pub fn authenticate(&self, params: &HashMap<String, String>) -> SessionAuth {
+        authenticate_session(self.session_authenticator.as_ref(), params)
     }
 
     /// Serve a static client folder alongside the API routes.
@@ -398,34 +438,41 @@ pub async fn ws_route(
     handle: web::Data<VoxelizeHandle>,
     options: Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
-    if let Some(secret) = &handle.secret {
+    let is_transport = options.contains_key("is_transport");
+
+    if let Some(secret) = handle.expected_secret(is_transport) {
         let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!");
+        let kind = if is_transport { "transport" } else { "join" };
 
         if let Some(client_secret) = options.get("secret") {
             if client_secret != secret {
-                warn!(
-                    "An attempt to join with a wrong secret was made: {}",
-                    client_secret
-                );
+                // The presented value is never echoed: a wrong secret is
+                // still somebody's secret.
+                warn!("An attempt to {kind} with a wrong secret was made.");
                 return Err(error.into());
             }
         } else {
-            warn!("An attempt to join with no secret key was made.");
+            warn!("An attempt to {kind} with no secret key was made.");
             return Err(error.into());
         }
     }
 
-    let id = if let Some(id) = options.get("client_id") {
-        id.to_owned()
-    } else {
-        "".to_owned()
-    };
-
-    let is_transport = options.contains_key("is_transport");
-
-    if is_transport {
+    // Who is this? The adapter's authenticator decides from the query
+    // (a signed ticket, typically); the client's bare `client_id` is only
+    // honoured when no authenticator is installed. Transports authenticate
+    // by the join secret alone and never carry a player identity.
+    let identity = if is_transport {
         info!("A new transport server has connected.");
-    }
+        SessionIdentity::anonymous()
+    } else {
+        match handle.authenticate(&options) {
+            SessionAuth::Accept(identity) => identity,
+            SessionAuth::Reject(reason) => {
+                warn!("[WS] Rejected session: {}", reason);
+                return Err(actix_web::error::ErrorUnauthorized(reason));
+            }
+        }
+    };
 
     info!("[WS] New connection with 16MB continuation limit");
 
@@ -437,7 +484,7 @@ pub async fn ws_route(
         .max_continuation_size(16 * 1024 * 1024);
 
     actix_web::rt::spawn(run_ws_session(
-        id,
+        identity,
         is_transport,
         session,
         stream,
@@ -467,7 +514,7 @@ pub async fn ws_route(
 /// [`VoxelizeHandle::with_session_policy`], so this only rejects direct
 /// callers passing an unchecked policy.
 pub async fn run_ws_session(
-    initial_id: String,
+    identity: SessionIdentity,
     is_transport: bool,
     mut session: actix_ws::Session,
     mut stream: impl StreamExt<Item = Result<AggregatedMessage, actix_ws::ProtocolError>> + Unpin,
@@ -489,11 +536,7 @@ pub async fn run_ws_session(
 
     let (session_id, connection_token) = match server
         .send(Connect {
-            id: if initial_id.is_empty() {
-                None
-            } else {
-                Some(initial_id)
-            },
+            identity,
             is_transport,
             sender: tx.clone(),
         })
@@ -831,6 +874,8 @@ impl Voxelize {
         let port = server.port.to_owned();
         let serve = server.serve.to_owned();
         let secret = server.secret.to_owned();
+        let transport_secret = server.transport_secret.to_owned();
+        let session_authenticator = server.session_authenticator.clone();
 
         // Optional bind delay for probes that must observe "unbound" boot
         // (VOXELIZE_DELAY_BIND_MS). Production leaves this unset.
@@ -852,6 +897,8 @@ impl Voxelize {
 
         let mut handle = VoxelizeHandle::new(server_addr.clone())
             .with_secret(secret)
+            .with_transport_secret(transport_secret)
+            .with_session_authenticator(session_authenticator)
             .with_serve(&serve);
         handle.session_policy = session_policy;
         let factory_handle = handle.clone();
@@ -881,12 +928,26 @@ impl Voxelize {
         // Preload concurrently with request serving, so probes see live
         // preloadProgress on /health while chunks generate. Spawned strictly
         // after the accept loop is up: serve-before-preload by construction.
+        //
+        // `VOXELIZE_PRELOAD=0` skips boot preload entirely and marks the
+        // server started at once. A dev stack restarts its core on every
+        // Rust rebuild, and generating every world's spawn area up front cost
+        // 1-5 minutes per restart during which joins queued behind the
+        // generation; chunks generate on demand when a player joins anyway.
+        // Production leaves this unset.
+        let is_preload_skipped = std::env::var("VOXELIZE_PRELOAD")
+            .map(|value| value.trim() == "0" || value.eq_ignore_ascii_case("false"))
+            .unwrap_or(false);
         actix_web::rt::spawn(async move {
-            if let Err(err) = server_addr.send(RunPreload).await {
+            if is_preload_skipped {
+                info!("Boot preload skipped (VOXELIZE_PRELOAD=0); worlds generate chunks on demand");
+            } else if let Err(err) = server_addr.send(RunPreload).await {
                 warn!("RunPreload delivery failed: {:?}", err);
             }
             server_addr.do_send(SetStarted(true));
-            info!("Boot preload finished; server marked started");
+            if !is_preload_skipped {
+                info!("Boot preload finished; server marked started");
+            }
         });
 
         Ok(BoundVoxelize {

@@ -34,6 +34,12 @@ pub struct Block {
     /// column can span more than one block id.
     #[serde(default)]
     pub stack_group: u16,
+    /// Every voxel of this block gets a geometry of its own (keyed by its
+    /// position, reported through `GeometryProtocol::at`) instead of joining
+    /// the block's shared buffer, so the client can transform one voxel's
+    /// faces without touching the rest of the chunk. Never greedy-meshed.
+    #[serde(default)]
+    pub is_animated: bool,
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,

@@ -94,6 +94,7 @@ impl Handler<ClientJoinRequest> for SyncWorld {
             &msg.sender,
             msg.preferences,
             msg.motion_protocol,
+            msg.identity,
         );
     }
 }

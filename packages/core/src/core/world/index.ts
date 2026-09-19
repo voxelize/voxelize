@@ -132,6 +132,7 @@ import {
   BlockUpdateWithSource,
   PY_ROTATION,
 } from "./block";
+import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
 import { Chunk } from "./chunk";
 import {
@@ -214,6 +215,7 @@ import MeshWorker from "./workers/mesh-worker.ts?worker";
 import { WorldOptions, defaultWorldClientOptions } from "./world-options";
 
 export * from "./block";
+export * from "./block-animations";
 export * from "./chunk";
 export * from "./chunk-materials";
 export * from "./chunk-region-arenas";
@@ -595,6 +597,14 @@ export class World<T = any> extends Scene implements NetIntercept {
   public localLights: LocalLights;
 
   /**
+   * How animated blocks (`Block.isAnimated`: doors, and whatever else moves
+   * between its states) swing from one state's geometry into the next. The
+   * game registers a {@link BlockAnimation} per block name; the engine
+   * tracks each such voxel's mesh across remeshes and drives the motion.
+   */
+  public blockAnimations: BlockAnimations;
+
+  /**
    * The CSM (Cascaded Shadow Map) renderer for shader-based lighting.
    */
   public csmRenderer: CSMRenderer | null = null;
@@ -971,6 +981,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private cleanupDeltasInterval: number | null = null;
   private stopStatsSync: (() => void) | null = null;
   private isDisposed = false;
+  /** Callbacks that end with this world; see {@link onDispose}. */
+  private disposeCallbacks: (() => void)[] = [];
 
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
@@ -1082,9 +1094,52 @@ export class World<T = any> extends Scene implements NetIntercept {
     }, statsSyncInterval);
   }
 
+  /**
+   * Whether {@link dispose} has run. A disposed world is a corpse: its
+   * workers are gone and its chunks released, and anything still holding it
+   * is holding the whole scene graph in memory for nothing.
+   */
+  get disposed(): boolean {
+    return this.isDisposed;
+  }
+
+  /**
+   * Tie a resource to this world's lifetime: `callback` runs once when the
+   * world is disposed (at once, if it already has been). For timers, DOM
+   * listeners and other things that close over the world from outside the
+   * scene graph -- a texture repainted on an interval, a subscription -- and
+   * would otherwise outlive it. A page that mounts a second world (a
+   * hot-reload remount) keeps every such closure of the first alive, and the
+   * world behind it, until the tab is reloaded.
+   *
+   * @returns A function that unregisters the callback.
+   */
+  onDispose = (callback: () => void): (() => void) => {
+    if (this.isDisposed) {
+      callback();
+      return () => {};
+    }
+    this.disposeCallbacks.push(callback);
+    return () => {
+      const index = this.disposeCallbacks.indexOf(callback);
+      if (index !== -1) this.disposeCallbacks.splice(index, 1);
+    };
+  };
+
   dispose = () => {
     if (this.isDisposed) return;
     this.isDisposed = true;
+
+    // First, before the workers and chunks go: a callback may want to read
+    // the world it is letting go of.
+    const callbacks = this.disposeCallbacks.splice(0);
+    for (const callback of callbacks) {
+      try {
+        callback();
+      } catch (error) {
+        console.error("[world] dispose callback threw:", error);
+      }
+    }
 
     this.meshWorkerPool.terminate();
     this.urgentMeshWorkerPool.terminate();
@@ -1118,8 +1173,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.materials.clear();
     this.animatedAtlasTextures.clear();
     this.blockEntities.clear();
+    this.blockAnimations.clear();
     this.isolatedFaces.clear();
     this.fallbackOwnFaceKeys.clear();
+    this.loader.dispose();
+    // Drop the scene graph. Nothing renders a disposed world, and something
+    // usually still points at it for a while -- a stale closure, a dev-mode
+    // fiber -- so what it keeps reachable should be an empty scene, not
+    // every entity group, pool and effect that was ever added to it.
+    this.clear();
   };
 
   /**
@@ -2349,6 +2411,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
     return chunk.getVoxel(px, py, pz);
+  }
+
+  /**
+   * The whole packed voxel word at a 3D world position — id, rotation,
+   * stage and waterlogging together — or 0 where no chunk is loaded. For
+   * callers that compare voxel states as a unit; `getVoxelAt` and its
+   * siblings unpack one field each.
+   */
+  getRawVoxelAt(px: number, py: number, pz: number) {
+    this.checkIsInitialized("get raw voxel", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return 0;
+    return chunk.getRawValue(px, py, pz);
   }
 
   setVoxelAt(px: number, py: number, pz: number, voxel: number) {
@@ -4092,6 +4167,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         block.coupledParts = [];
       }
       block.isCoupledAnchor = block.isCoupledAnchor === true;
+      block.isAnimated = block.isAnimated === true;
+      if (typeof block.castsShadow !== "boolean") {
+        block.castsShadow = null;
+      }
 
       block.faces.forEach((face) => {
         if (face.independent) {
@@ -4216,6 +4295,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (camera) {
       this.updateChunkVisibility(camera);
     }
+
+    // After the chunk work above, which is what lands the meshes a swing
+    // starts on; before the render this frame, which draws the new pose.
+    this.blockAnimations.update(performance.now());
 
     const startUpdatePhysics = performance.now();
     this.updatePhysics(delta);
@@ -5452,17 +5535,30 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     chunk.meshes.delete(level);
 
+    // An animated block's voxel arrives as a geometry of its own (the mesher
+    // keys it by position) and stays one: never merged with its neighbours,
+    // never batched into the arena, so `blockAnimations` can move it alone.
+    const animatedGeometries: MeshProtocol["geometries"] = [];
+    const sharedGeometries: MeshProtocol["geometries"] = [];
+    for (const geo of geometries) {
+      if (this.isAnimatedGeometry(geo)) {
+        animatedGeometries.push(geo);
+      } else {
+        sharedGeometries.push(geo);
+      }
+    }
+
     const isArenaBucketed = this.options.regionArenas !== null;
     const meshGeometries = isArenaBucketed
-      ? geometries.filter((geo) => !this.isArenaGeometry(geo))
-      : geometries;
+      ? sharedGeometries.filter((geo) => !this.isArenaGeometry(geo))
+      : sharedGeometries;
 
     if (isArenaBucketed) {
       this.applyArenaSectionGeometry(
         cx,
         cz,
         level,
-        geometries.filter((geo) => this.isArenaGeometry(geo)),
+        sharedGeometries.filter((geo) => this.isArenaGeometry(geo)),
         heightPerSubChunk,
       );
     }
@@ -5574,62 +5670,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     } else {
       meshes = [];
       for (let i = 0; i < meshGeometries.length; i++) {
-        const geo = meshGeometries[i];
-        const { voxel, at, faceName } = geo;
-        const geometry = this.makeChunkBufferGeometry(geo);
-        if (geo.bsCenter && geo.bsRadius !== undefined) {
-          geometry.boundingSphere = new Sphere(
-            new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
-            geo.bsRadius,
-          );
-        } else {
-          geometry.computeBoundingSphere();
-        }
-
-        let material = this.getBlockFaceMaterial(
-          voxel,
-          faceName,
-          at && at.length ? at : undefined,
-        );
-        if (!material) {
-          const block = this.getBlockById(voxel);
-          const face = block.faces.find((face) => face.name === faceName);
-
-          if (!face?.isolated || !at) {
-            console.warn("Unlikely situation happened...");
-            continue;
-          }
-
-          try {
-            material = this.getOrCreateIsolatedBlockMaterial(
-              voxel,
-              at,
-              faceName,
-            );
-          } catch (e) {
-            console.error(e);
-            continue;
-          }
-        }
-        const mesh = new Mesh(geometry, material);
-        this.placeChunkMesh(mesh, cx, cz, level);
-        mesh.userData = {
-          isChunk: true,
-          voxel,
-          materialBucket: this.getChunkMaterialBucket(
-            voxel,
-            faceName,
-            at && at.length ? at : undefined,
-          ),
-          isPlant: this.isPlantVoxel(voxel),
-        };
-        if (material.transparent) {
-          this.configureTransparentChunkMesh(mesh, voxel, material);
-        }
-
+        const mesh = this.makeSingleChunkMesh(meshGeometries[i], cx, cz, level);
+        if (!mesh) continue;
         chunk.group.add(mesh);
         meshes.push(mesh);
       }
+    }
+
+    for (const geo of animatedGeometries) {
+      const mesh = this.makeSingleChunkMesh(geo, cx, cz, level);
+      if (!mesh || !geo.at) continue;
+      // The handle `blockAnimations` finds this voxel's mesh by.
+      mesh.userData.animatedAt = [geo.at[0], geo.at[1], geo.at[2]];
+      chunk.group.add(mesh);
+      meshes.push(mesh);
     }
 
     if (!this.children.includes(chunk.group)) {
@@ -5677,6 +5731,79 @@ export class World<T = any> extends Scene implements NetIntercept {
         allMeshes: chunk.meshes,
       });
     }
+  }
+
+  /**
+   * One mesh for one geometry, placed in the chunk: the non-merged path, and
+   * the only path for an animated block's per-voxel geometry. `null` when
+   * the geometry has no material to wear.
+   */
+  private makeSingleChunkMesh(
+    geo: MeshProtocol["geometries"][number],
+    cx: number,
+    cz: number,
+    level: number,
+  ): Mesh | null {
+    const { voxel, at, faceName } = geo;
+    const geometry = this.makeChunkBufferGeometry(geo);
+    if (geo.bsCenter && geo.bsRadius !== undefined) {
+      geometry.boundingSphere = new Sphere(
+        new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
+        geo.bsRadius,
+      );
+    } else {
+      geometry.computeBoundingSphere();
+    }
+
+    let material = this.getBlockFaceMaterial(
+      voxel,
+      faceName,
+      at && at.length ? at : undefined,
+    );
+    if (!material) {
+      const block = this.getBlockById(voxel);
+      const face = block.faces.find((face) => face.name === faceName);
+
+      if (!face?.isolated || !at) {
+        console.warn("Unlikely situation happened...");
+        geometry.dispose();
+        return null;
+      }
+
+      try {
+        material = this.getOrCreateIsolatedBlockMaterial(voxel, at, faceName);
+      } catch (e) {
+        console.error(e);
+        geometry.dispose();
+        return null;
+      }
+    }
+    const mesh = new Mesh(geometry, material);
+    this.placeChunkMesh(mesh, cx, cz, level);
+    mesh.userData = {
+      isChunk: true,
+      voxel,
+      materialBucket: this.getChunkMaterialBucket(
+        voxel,
+        faceName,
+        at && at.length ? at : undefined,
+      ),
+      isPlant: this.isPlantVoxel(voxel),
+    };
+    if (material.transparent) {
+      this.configureTransparentChunkMesh(mesh, voxel, material);
+    }
+    return mesh;
+  }
+
+  /**
+   * A per-voxel geometry of a block that animates. The mesher only keys a
+   * geometry by position for an isolated face or an animated block, so the
+   * flag on the block is what tells the two apart.
+   */
+  private isAnimatedGeometry(geo: MeshProtocol["geometries"][number]) {
+    if (!geo.at || geo.at.length !== 3) return false;
+    return this.getBlockByIdSafe(geo.voxel)?.isAnimated === true;
   }
 
   private isArenaGeometry(geo: MeshProtocol["geometries"][number]) {
@@ -5927,6 +6054,26 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
     this.localLights.getLoadedChunk = (cx, cz) =>
       this.getChunkByCoords(cx, cz) ?? null;
+
+    this.blockAnimations = new BlockAnimations({
+      getBlockByIdSafe: (id) => this.getBlockByIdSafe(id),
+      getRawVoxelAt: (vx, vy, vz) => this.getRawVoxelAt(vx, vy, vz),
+    });
+    // A landed section is compared against the one it replaces: an animated
+    // voxel that changed state between the two starts its swing here, one
+    // that did not carries its swing over onto the new mesh.
+    this.on("chunk-mesh-loaded", ({ coords: [cx, cz], level, meshes }) => {
+      this.blockAnimations.handleSectionMeshed(
+        cx,
+        cz,
+        level,
+        meshes,
+        performance.now(),
+      );
+    });
+    this.on("chunk-mesh-unloaded", ({ coords: [cx, cz], level }) => {
+      this.blockAnimations.handleSectionUnloaded(cx, cz, level);
+    });
     // Opacity oracle for mount-aware shadow-face skipping: a face buried in
     // an opaque neighbor (the wall behind a torch) never renders.
     this.localLights.getIsOpaqueAt = (vx, vy, vz) => {

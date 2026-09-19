@@ -36,6 +36,7 @@ type WasmBlock = {
   occludesFluid: boolean;
   isPlant: boolean;
   stackGroup: number;
+  isAnimated: boolean;
   faces: {
     name: string;
     independent: boolean;
@@ -144,6 +145,7 @@ type RawWasmBlock = {
   occludesFluid?: boolean;
   isPlant?: boolean;
   stackGroup?: number;
+  isAnimated?: boolean;
   faces: RawWasmFace[];
   aabbs: RawWasmAabb[];
   dynamicPatterns?: RawWasmDynamicPattern[] | null;
@@ -423,6 +425,7 @@ function convertRegistryToWasm(rawRegistry: {
         occludesFluid: block.occludesFluid ?? false,
         isPlant: block.isPlant ?? false,
         stackGroup: block.stackGroup ?? 0,
+        isAnimated: block.isAnimated ?? false,
         faces: convertFaces(block.faces),
         aabbs: convertAabbs(block.aabbs),
         dynamicPatterns: block.dynamicPatterns
