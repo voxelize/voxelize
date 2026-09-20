@@ -6,6 +6,9 @@ import type {
   FrameRateMeasurementOptions,
 } from "./bridge";
 import { ensureCaptureDir } from "./capture-dir";
+import type { ProfileSummary } from "./profile-summary";
+
+export type { ProfileSummary } from "./profile-summary";
 
 export type Vec3Tuple = [number, number, number];
 
@@ -374,6 +377,18 @@ export type AgentControls = {
   measureFrameRate(
     opts?: FrameRateMeasurementOptions,
   ): Promise<FrameRateMeasurement>;
+  /**
+   * GET /profile: main-thread time per function per rendered frame over a
+   * sampling window, optionally with allocation churn. `watch` is a regex
+   * (case-insensitive) over `functionName file:line` labels; the matching
+   * functions come back in `watch` so a gate can assert on exactly them.
+   */
+  profile(opts?: {
+    durationMs?: number;
+    isSamplingAllocations?: boolean;
+    watch?: string;
+    top?: number;
+  }): Promise<ProfileSummary>;
   screenshot(label: string, opts?: { isPure?: boolean }): Promise<string>;
 };
 
@@ -458,6 +473,34 @@ function createAgentControls(
         throw new Error(`frame-rate failed: ${res.status} ${await res.text()}`);
       }
       return (await res.json()) as FrameRateMeasurement;
+    },
+    async profile(opts = {}) {
+      const params = new URLSearchParams();
+      if (opts.durationMs !== undefined) {
+        params.set("durationMs", String(opts.durationMs));
+      }
+      if (opts.isSamplingAllocations) params.set("alloc", "1");
+      if (opts.watch) params.set("watch", opts.watch);
+      if (opts.top !== undefined) params.set("top", String(opts.top));
+      const query = params.size > 0 ? `?${params}` : "";
+      // The window itself plus the profiler's own start/stop overhead.
+      const timeoutMs = (opts.durationMs ?? 10_000) + 30_000;
+      const res = await fetch(`${agentUrl}/profile${query}`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) {
+        throw new Error(`profile failed: ${res.status} ${await res.text()}`);
+      }
+      const summary = (await res.json()) as ProfileSummary;
+      log(
+        `profile: ${summary.frames} frames, busy ${summary.busyMsPerFrame.toFixed(2)} ms/frame, ` +
+          `gc ${summary.gcMsPerFrame.toFixed(2)} ms/frame${
+            summary.allocation
+              ? `, alloc ${summary.allocation.totalMBPerSecond.toFixed(1)} MB/s`
+              : ""
+          }`,
+      );
+      return summary;
     },
     async screenshot(label, opts) {
       const safe = label.replace(/[^a-z0-9_-]/gi, "_");

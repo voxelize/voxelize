@@ -68,3 +68,9 @@ export {
   watchdogLogFile,
 } from "./browser-lifecycle";
 export * from "./bridge";
+export { formatProfileSummary, summarizeProfile } from "./profile-summary";
+export type {
+  ProfileAllocationCost,
+  ProfileFunctionCost,
+  ProfileSummary,
+} from "./profile-summary";

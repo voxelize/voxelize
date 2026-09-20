@@ -1,10 +1,13 @@
 import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
+import {
+  composeEntityLight,
+  EntityLightSample,
+} from "../../core/world/entity-light";
 import { blockLightFloodRemainder } from "../../core/world/local-lights";
 import {
   getDownwellingTransmittance,
-  measureWaterColumn,
   WATER_OPTICS,
   WATER_SURFACE_SCATTER_COLOR,
 } from "../../core/world/water-optics";
@@ -14,6 +17,24 @@ import { NameTag } from "../nametag";
 const position = new Vector3();
 const tempColor = new Color();
 const waterTransmittance = new Color();
+const underwaterFill = new Color();
+const lightSample: EntityLightSample = {
+  sunExposure: 0,
+  floodR: 0,
+  floodG: 0,
+  floodB: 0,
+  floodRemainder: 1,
+  clusterR: 0,
+  clusterG: 0,
+  clusterB: 0,
+  shadowFactor: 1,
+  sunlightIntensity: 1,
+  sunColor: new Color(1, 1, 1),
+  ambientColor: new Color(1, 1, 1),
+  ambientFloor: 0,
+  downTransmit: waterTransmittance,
+  underwaterFill,
+};
 const localLightSample = {
   color: [0, 0, 0] as [number, number, number],
   count: 0,
@@ -31,7 +52,11 @@ export type LightShinedOptions = {
    */
   lerpFactor: number;
   /**
-   * The maximum brightness cap for the light effect. Defaults to `2.5`.
+   * Cap on the composed light multiplier, applied after tone mapping. The
+   * composition already runs through the chunk shader's ACES curve, which
+   * tops out near `1.03`, so this only trims that asymptote: the materials
+   * under this effect are unlit and untonemapped, and any multiplier past
+   * `1` pushes their texture toward white. Defaults to `1`.
    */
   maxBrightness: number;
   /**
@@ -56,7 +81,7 @@ export type LightShinedOptions = {
 
 const defaultOptions: LightShinedOptions = {
   lerpFactor: 0.1,
-  maxBrightness: 2.5,
+  maxBrightness: 1,
   sampleIntervalFrames: 4,
   resampleDistance: 0.5,
 };
@@ -126,12 +151,6 @@ export class LightShined {
   private frameIndex = 0;
 
   private nextSamplePhase = 0;
-
-  private isFluidAt = (vx: number, vy: number, vz: number): boolean => {
-    if (this.world.getVoxelWaterloggedAt(vx, vy, vz)) return true;
-    const block = this.world.getBlockAt(vx, vy, vz);
-    return !!block && block.isFluid;
-  };
 
   /**
    * Construct a light shined effect manager.
@@ -370,75 +389,79 @@ export class LightShined {
     return sample.color;
   };
 
+  /**
+   * Gather the chunk shader's inputs at a point — flood light, sun
+   * exposure and shadow, the water column, the analytic lights in the cell
+   * and their flood-ownership claim — and compose them exactly the way the
+   * fragment program does (`composeEntityLight`), so the object and the
+   * block it stands on agree on brightness under any sky.
+   */
   private computeShaderBasedLight(pos: Vector3): Color {
-    const { sunlightIntensity } = this.world.chunkRenderer.uniforms;
+    const { sunlightIntensity, minLightLevel, baseAmbient } =
+      this.world.chunkRenderer.uniforms;
     const { sunColor, ambientColor } =
       this.world.chunkRenderer.shaderLightingUniforms;
     const maxLightLevel = this.world.options.maxLightLevel;
 
-    const shadowFactor = this.computeShadowFactor(pos);
-
     const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
     const lightValues = this.world.getLightValuesAt(...voxel);
 
-    const sunExposure = lightValues ? lightValues.sunlight / maxLightLevel : 0;
-    const sunVisibility = Math.min(Math.max(sunExposure, 0), 1);
-    const ambientFloor = Math.max(
-      this.world.chunkRenderer.uniforms.minLightLevel.value +
-        this.world.chunkRenderer.uniforms.baseAmbient.value,
+    lightSample.sunExposure = lightValues
+      ? lightValues.sunlight / maxLightLevel
+      : 0;
+    lightSample.floodR = lightValues ? lightValues.red / maxLightLevel : 0;
+    lightSample.floodG = lightValues ? lightValues.green / maxLightLevel : 0;
+    lightSample.floodB = lightValues ? lightValues.blue / maxLightLevel : 0;
+    lightSample.shadowFactor = this.computeShadowFactor(pos);
+    lightSample.sunlightIntensity = sunlightIntensity.value;
+    lightSample.sunColor.copy(sunColor.value);
+    lightSample.ambientColor.copy(ambientColor.value);
+    lightSample.ambientFloor = Math.max(
+      minLightLevel.value + baseAmbient.value,
       0,
     );
-    const tunnelDarkening = ambientFloor + (1 - ambientFloor) * sunVisibility;
 
-    const column = measureWaterColumn(this.isFluidAt, pos.x, pos.y, pos.z);
+    // The water column above the point attenuates every sun-path term and
+    // adds the surface's scattered fill, as `downTransmit` and
+    // `underwaterFill` do for a submerged fragment.
+    const column = this.world.measureWaterColumnAt(pos.x, pos.y, pos.z);
     getDownwellingTransmittance(column?.depth ?? 0, waterTransmittance);
-    const spectralR = waterTransmittance.r;
-    const spectralG = waterTransmittance.g;
-    const spectralB = waterTransmittance.b;
     const fillStrength = column
       ? WATER_OPTICS.scatterFillSunStrength * sunlightIntensity.value +
         WATER_OPTICS.scatterFillBase
       : 0;
-    const fillR = WATER_SURFACE_SCATTER_COLOR.r * fillStrength * spectralR;
-    const fillG = WATER_SURFACE_SCATTER_COLOR.g * fillStrength * spectralG;
-    const fillB = WATER_SURFACE_SCATTER_COLOR.b * fillStrength * spectralB;
-
-    const avgNdotL = 0.5;
-    const sunContrib =
-      sunlightIntensity.value * avgNdotL * shadowFactor * sunExposure;
-
-    let cpuTorchR = 0,
-      cpuTorchG = 0,
-      cpuTorchB = 0;
-    if (lightValues) {
-      cpuTorchR = (lightValues.red / maxLightLevel) ** 2;
-      cpuTorchG = (lightValues.green / maxLightLevel) ** 2;
-      cpuTorchB = (lightValues.blue / maxLightLevel) ** 2;
-    }
+    underwaterFill
+      .copy(WATER_SURFACE_SCATTER_COLOR)
+      .multiplyScalar(fillStrength)
+      .multiply(waterTransmittance);
 
     // Clustered local lights (held torches, projectiles, analytic block
     // emitters) shine on entities the same way they shine on the world —
     // including the flood-mask occlusion term, so a character behind a wall
     // stops picking up the tint of the torch the wall blocks.
-    let floodMask = 1;
-    if (lightValues) {
-      const floodLevel =
-        Math.max(lightValues.red, lightValues.green, lightValues.blue) /
-        maxLightLevel;
-      const knee = this.world.localLights.options.maskKnee;
-      const t = Math.min(Math.max(floodLevel / Math.max(knee, 1e-4), 0), 1);
-      floodMask = t * t * (3 - 2 * t);
-    }
+    const floodLevel = Math.max(
+      lightSample.floodR,
+      lightSample.floodG,
+      lightSample.floodB,
+    );
+    const knee = this.world.localLights.options.maskKnee;
+    const t = Math.min(Math.max(floodLevel / Math.max(knee, 1e-4), 0), 1);
     localLightSample.color[0] = 0;
     localLightSample.color[1] = 0;
     localLightSample.color[2] = 0;
-    localLightQueryOptions.floodMask = floodMask;
+    localLightSample.claim = 0;
+    localLightSample.windowFade = 1;
+    localLightQueryOptions.floodMask = t * t * (3 - 2 * t);
     localLightQueryOptions.timeMs = performance.now();
     this.world.localLights.queryLocalLights(
       pos,
       localLightSample,
       localLightQueryOptions,
     );
+    lightSample.clusterR = localLightSample.color[0];
+    lightSample.clusterG = localLightSample.color[1];
+    lightSample.clusterB = localLightSample.color[2];
+
     // Ownership blend, mirroring the chunk shader: where selected analytic
     // lights claim this entity, the baked flood tint yields in proportion
     // so the entity is never lit by both models; beyond their reach (or
@@ -448,53 +471,15 @@ export class LightShined {
     // much flood survives.
     floodRemainderArgs.scaledClaim =
       localLightSample.claim * this.world.localLights.blockLightOwnership;
-    floodRemainderArgs.floodLevel = lightValues
-      ? Math.max(lightValues.red, lightValues.green, lightValues.blue) /
-        maxLightLevel
-      : 0;
+    floodRemainderArgs.floodLevel = floodLevel;
     floodRemainderArgs.windowFade = localLightSample.windowFade;
-    const floodRemainder = blockLightFloodRemainder(floodRemainderArgs);
-    cpuTorchR = cpuTorchR * floodRemainder + localLightSample.color[0];
-    cpuTorchG = cpuTorchG * floodRemainder + localLightSample.color[1];
-    cpuTorchB = cpuTorchB * floodRemainder + localLightSample.color[2];
+    lightSample.floodRemainder = blockLightFloodRemainder(floodRemainderArgs);
 
-    const globalAmbientR =
-      (0.025 * sunVisibility + ambientColor.value.r * ambientFloor) * spectralR;
-    const globalAmbientG =
-      (0.03 * sunVisibility + ambientColor.value.g * ambientFloor) * spectralG;
-    const globalAmbientB =
-      (0.04 * sunVisibility + ambientColor.value.b * ambientFloor) * spectralB;
-
-    const skyAmbientR = ambientColor.value.r * tunnelDarkening * spectralR;
-    const skyAmbientG = ambientColor.value.g * tunnelDarkening * spectralG;
-    const skyAmbientB = ambientColor.value.b * tunnelDarkening * spectralB;
-
-    const sunBasedLight = skyAmbientR + sunColor.value.r * sunContrib;
-    const torchAttenuation = 1.0 - Math.min(sunBasedLight, 1.0) * 0.8;
-
-    const totalR =
-      globalAmbientR +
-      skyAmbientR +
-      sunColor.value.r * sunContrib * spectralR +
-      fillR +
-      cpuTorchR * torchAttenuation;
-    const totalG =
-      globalAmbientG +
-      skyAmbientG +
-      sunColor.value.g * sunContrib * spectralG +
-      fillG +
-      cpuTorchG * torchAttenuation;
-    const totalB =
-      globalAmbientB +
-      skyAmbientB +
-      sunColor.value.b * sunContrib * spectralB +
-      fillB +
-      cpuTorchB * torchAttenuation;
-
+    composeEntityLight(lightSample, tempColor);
     return tempColor.setRGB(
-      Math.min(totalR, this.options.maxBrightness),
-      Math.min(totalG, this.options.maxBrightness),
-      Math.min(totalB, this.options.maxBrightness),
+      Math.min(tempColor.r, this.options.maxBrightness),
+      Math.min(tempColor.g, this.options.maxBrightness),
+      Math.min(tempColor.b, this.options.maxBrightness),
     );
   }
 

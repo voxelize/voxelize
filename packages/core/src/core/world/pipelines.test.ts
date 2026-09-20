@@ -293,3 +293,26 @@ describe("MeshPipeline voxel-change remesh", () => {
     expect(pipeline.getDirtyKeys([0, 0])).toEqual(["50,50:0", "1,1:0"]);
   });
 });
+
+describe("ChunkPipeline.loadedGeneration", () => {
+  it("bumps only when a chunk enters or leaves the loaded stage", () => {
+    const pipeline = new ChunkPipeline();
+    const start = pipeline.loadedGeneration;
+
+    pipeline.markRequested([0, 0]);
+    pipeline.markProcessing([0, 0], "load", protocolFor([0, 0]), null);
+    expect(pipeline.loadedGeneration).toBe(start);
+
+    pipeline.markLoaded([0, 0], makeChunk([0, 0]));
+    expect(pipeline.loadedGeneration).toBe(start + 1);
+
+    pipeline.markRequested([1, 0]);
+    expect(pipeline.loadedGeneration).toBe(start + 1);
+
+    pipeline.remove(ChunkUtils.getChunkName([0, 0]));
+    expect(pipeline.loadedGeneration).toBe(start + 2);
+
+    pipeline.remove(ChunkUtils.getChunkName([1, 0]));
+    expect(pipeline.loadedGeneration).toBe(start + 2);
+  });
+});

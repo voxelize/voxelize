@@ -699,10 +699,12 @@ function expSmooth(
 }
 
 export type WaterOpticsFrameInput = {
-  isFluidAt: FluidQuery;
-  cameraX: number;
-  cameraY: number;
-  cameraZ: number;
+  /**
+   * The water column over the camera this frame (`null` in air), measured
+   * by the caller — `World.measureWaterColumnAt` resolves the chunk once
+   * and walks it directly, which is why the query is not taken here.
+   */
+  column: WaterColumnSample | null;
   sunStrength: number;
   deltaSeconds: number;
 };
@@ -728,11 +730,9 @@ export class WaterOptics {
   private readonly transmittanceScratch = new Color();
 
   update(input: WaterOpticsFrameInput): void {
-    const { isFluidAt, cameraX, cameraY, cameraZ, sunStrength, deltaSeconds } =
-      input;
+    const { column, sunStrength, deltaSeconds } = input;
     const delta = MathUtils.clamp(deltaSeconds, 0, 0.1);
 
-    const column = measureWaterColumn(isFluidAt, cameraX, cameraY, cameraZ);
     const targetSubmersion = column
       ? MathUtils.clamp(column.depth / WATER_OPTICS.waterlineFadeDepth, 0, 1)
       : 0;

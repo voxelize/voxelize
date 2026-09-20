@@ -15,9 +15,11 @@ export const EMISSIVE_LEVELS: [number, number, number, number] = [
 
 /**
  * Same diffuse wrap the cone lights use, so a surface grazing any local
- * light keeps the same rim response.
+ * light keeps the same rim response. Exported for the CPU entity mirror
+ * (`composeEntityLight`), which has no per-fragment normal and applies the
+ * wrap at an average N·L instead; change neither side alone.
  */
-const LAMBERT_WRAP = 0.25;
+export const LAMBERT_WRAP = 0.25;
 
 /**
  * Safety gain on the analytic claim when it suppresses the baked flood

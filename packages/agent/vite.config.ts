@@ -20,6 +20,9 @@ export default defineConfig({
         // meta before spawning a daemon with the exact rules the daemon
         // enforces, without importing puppeteer to do it.
         "session-meta": path.resolve(__dirname, "src/session-meta.ts"),
+        // The CPU/allocation profile summariser and its report formatter,
+        // so the host CLI prints exactly what the daemon computed.
+        profile: path.resolve(__dirname, "src/profile-summary.ts"),
         "bin/voxelize-agent": path.resolve(__dirname, "bin/voxelize-agent.ts"),
       },
       formats: ["es", "cjs"],

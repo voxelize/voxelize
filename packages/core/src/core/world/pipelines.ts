@@ -73,6 +73,13 @@ export class ChunkPipeline {
     loaded: new Set(),
   };
 
+  /**
+   * Bumps whenever a chunk enters or leaves the loaded stage. A caller that
+   * memoizes a loaded-chunk lookup (the world's by-coords getter) compares
+   * against it instead of re-resolving the name on every voxel read.
+   */
+  public loadedGeneration = 0;
+
   private setStage(name: string, stage: ChunkStage): void {
     const old = this.states.get(name);
     if (old) {
@@ -80,6 +87,9 @@ export class ChunkPipeline {
     }
     this.states.set(name, stage);
     this.indices[stage.stage].add(name);
+    if (old?.stage === "loaded" || stage.stage === "loaded") {
+      this.loadedGeneration++;
+    }
   }
 
   private removeStage(name: string): void {
@@ -87,6 +97,9 @@ export class ChunkPipeline {
     if (old) {
       this.indices[old.stage].delete(name);
       this.states.delete(name);
+      if (old.stage === "loaded") {
+        this.loadedGeneration++;
+      }
     }
   }
 

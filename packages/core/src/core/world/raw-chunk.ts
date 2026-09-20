@@ -217,11 +217,25 @@ export class RawChunk {
    * the chunk, this method returns `0`.
    */
   getRawValue(vx: number, vy: number, vz: number) {
-    if (!this.contains(vx, vy, vz)) {
+    // Inlined bounds check + local mapping: this is the hottest read in the
+    // client (every column walk, raycast step, and light sample lands here),
+    // and the tuple-returning helpers it used to call allocated two arrays
+    // per read. A water column walk of sixty blocks made a hundred and
+    // twenty of them per entity per frame.
+    const lx = (vx | 0) - this.min[0];
+    const ly = (vy | 0) - this.min[1];
+    const lz = (vz | 0) - this.min[2];
+    const { size, maxHeight } = this.options;
+    if (
+      lx < 0 ||
+      lx >= size ||
+      ly < 0 ||
+      ly >= maxHeight ||
+      lz < 0 ||
+      lz >= size
+    ) {
       return 0;
     }
-
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
     return this.voxels.get(lx, ly, lz);
   }
 
@@ -251,8 +265,22 @@ export class RawChunk {
    * @returns The raw light value at the given voxel coordinate.
    */
   getRawLight(vx: number, vy: number, vz: number) {
-    if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    // Same inlining as getRawValue: a light sample reads this four times
+    // (sun + three torch channels) per entity per frame.
+    const lx = (vx | 0) - this.min[0];
+    const ly = (vy | 0) - this.min[1];
+    const lz = (vz | 0) - this.min[2];
+    const { size, maxHeight } = this.options;
+    if (
+      lx < 0 ||
+      lx >= size ||
+      ly < 0 ||
+      ly >= maxHeight ||
+      lz < 0 ||
+      lz >= size
+    ) {
+      return 0;
+    }
     return this.lights.get(lx, ly, lz);
   }
 
@@ -711,7 +739,9 @@ export class RawChunk {
 
   private contains(vx: number, vy: number, vz: number) {
     const { size, maxHeight } = this.options;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const lx = (vx | 0) - this.min[0];
+    const ly = (vy | 0) - this.min[1];
+    const lz = (vz | 0) - this.min[2];
 
     return (
       lx >= 0 && lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size

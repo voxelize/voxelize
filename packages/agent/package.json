@@ -35,6 +35,11 @@
       "require": "./dist/session-meta.js",
       "import": "./dist/session-meta.mjs",
       "types": "./dist/src/session-meta.d.ts"
+    },
+    "./profile": {
+      "require": "./dist/profile.js",
+      "import": "./dist/profile.mjs",
+      "types": "./dist/src/profile-summary.d.ts"
     }
   },
   "bin": {

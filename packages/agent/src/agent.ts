@@ -70,6 +70,12 @@ import {
   logAgentPerf,
   writeClientPerfLine,
 } from "./perf";
+import {
+  CpuProfile,
+  ProfileSummary,
+  SamplingHeapProfile,
+  summarizeProfile,
+} from "./profile-summary";
 
 export type AgentLaunchOptions = {
   url: string;
@@ -1710,6 +1716,88 @@ export class Agent {
     } finally {
       client.off("HeapProfiler.addHeapSnapshotChunk", onChunk);
       fs.closeSync(fd);
+      await client.detach().catch(() => {});
+    }
+  }
+
+  /**
+   * Sample the page's main thread for a window and attribute it per function
+   * and per rendered frame: V8's CPU profiler at a 200us interval, plus an
+   * optional sampling heap profiler that keeps the objects the collector
+   * already reclaimed, so allocation churn is measured and not just what
+   * happened to be alive at the end. The page keeps running; the profiler
+   * costs a few percent while it samples.
+   *
+   * This is what turns "it feels slower under water" into a number with a
+   * function name on it. `watch` is a case-insensitive pattern over the
+   * `functionName file:line` labels, so a perf gate can ask for exactly the
+   * functions it is about.
+   */
+  async profile(opts: {
+    durationMs?: number;
+    isSamplingAllocations?: boolean;
+    watch?: string | null;
+    top?: number;
+  }): Promise<ProfileSummary> {
+    const durationMs = opts.durationMs ?? 10_000;
+    const watch =
+      opts.watch && opts.watch.trim() !== ""
+        ? new RegExp(opts.watch, "i")
+        : null;
+    const client = await this.page.createCDPSession();
+    const counterKey = "__voxelizeAgentProfileFrames";
+    try {
+      await client.send("Profiler.enable");
+      await client.send("Profiler.setSamplingInterval", { interval: 200 });
+      if (opts.isSamplingAllocations) {
+        await client.send("HeapProfiler.enable");
+        await client.send("HeapProfiler.startSampling", {
+          samplingInterval: 4096,
+          includeObjectsCollectedByMajorGC: true,
+          includeObjectsCollectedByMinorGC: true,
+        });
+      }
+      // Frames are counted by the page itself: per-frame cost only means
+      // something against the frames the page actually ran.
+      await this.page.evaluate((key) => {
+        const w = window as unknown as Record<string, unknown>;
+        const state = { frames: 0, handle: 0 };
+        const tick = (): void => {
+          state.frames += 1;
+          state.handle = requestAnimationFrame(tick);
+        };
+        state.handle = requestAnimationFrame(tick);
+        w[key] = state;
+      }, counterKey);
+      await client.send("Profiler.start");
+      const startedAt = performance.now();
+      await new Promise((resolve) => setTimeout(resolve, durationMs));
+      const { profile } = await client.send("Profiler.stop");
+      const wallMs = performance.now() - startedAt;
+      const frames = await this.page.evaluate((key) => {
+        const w = window as unknown as Record<string, unknown>;
+        const state = w[key] as { frames: number; handle: number } | undefined;
+        if (!state) return 0;
+        cancelAnimationFrame(state.handle);
+        delete w[key];
+        return state.frames;
+      }, counterKey);
+      let heap: SamplingHeapProfile | null = null;
+      if (opts.isSamplingAllocations) {
+        heap = (await client.send("HeapProfiler.stopSampling"))
+          .profile as SamplingHeapProfile;
+      }
+      return summarizeProfile(profile as CpuProfile, heap, {
+        durationMs: Math.round(wallMs),
+        frames,
+        top: opts.top,
+        watch,
+      });
+    } finally {
+      await client.send("Profiler.disable").catch(() => {});
+      if (opts.isSamplingAllocations) {
+        await client.send("HeapProfiler.disable").catch(() => {});
+      }
       await client.detach().catch(() => {});
     }
   }

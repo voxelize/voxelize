@@ -1,5 +1,5 @@
 import { EntityMotionProtocol, MessageProtocol } from "@voxelize/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { Entities, Entity } from "./entities";
 
@@ -545,5 +545,84 @@ describe("Entities out-of-order state protection", () => {
       entityMessage("CREATE", "a", { position: [7, 0, 0] }, { tick: 25 }),
     );
     expect(entities.getEntityById("a")).toBeDefined();
+  });
+});
+
+describe("Entities released watermark retention", () => {
+  const watermarkCount = (entities: Entities): number =>
+    (entities as unknown as { lastAppliedTick: Map<string, number> })
+      .lastAppliedTick.size;
+
+  it("forgets a released entity's watermark once the retention window has passed", () => {
+    const entities = new Entities({ releasedTickRetentionSeconds: 30 });
+    entities.setClass("probe", ProbeEntity);
+    const nowSpy = vi.spyOn(performance, "now");
+    try {
+      nowSpy.mockReturnValue(0);
+      // A shoal streams past: every fish leaves a watermark behind.
+      for (let i = 0; i < 50; i++) {
+        entities.onMessage(
+          entityMessage(
+            "CREATE",
+            `fish-${i}`,
+            { position: [i, 0, 0] },
+            {
+              tick: 1,
+            },
+          ),
+        );
+        entities.onMessage(
+          entityMessage("OUT_OF_RANGE", `fish-${i}`, null, { tick: 2 }),
+        );
+      }
+      // A lifecycle event for an entity never constructed here also leaves
+      // one, and has no release to hang the expiry on.
+      entities.onMessage(
+        entityMessage("OUT_OF_RANGE", "never-seen", null, { tick: 2 }),
+      );
+      expect(watermarkCount(entities)).toBe(51);
+
+      // Inside the window the watermarks hold and still block stale state.
+      nowSpy.mockReturnValue(10_000);
+      entities.update();
+      expect(watermarkCount(entities)).toBe(51);
+      entities.onMessage(
+        entityMessage("UPDATE", "fish-3", { position: [9, 9, 9] }, { tick: 1 }),
+      );
+      expect(entities.getEntityById("fish-3")).toBeUndefined();
+
+      // Past it they are gone; the map is bounded by what is live.
+      nowSpy.mockReturnValue(31_000);
+      entities.update();
+      expect(watermarkCount(entities)).toBe(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("keeps the watermark of an entity that streamed back in", () => {
+    const entities = new Entities({ releasedTickRetentionSeconds: 30 });
+    entities.setClass("probe", ProbeEntity);
+    const nowSpy = vi.spyOn(performance, "now");
+    try {
+      nowSpy.mockReturnValue(0);
+      entities.onMessage(
+        entityMessage("CREATE", "a", { position: [0, 0, 0] }, { tick: 1 }),
+      );
+      entities.onMessage(entityMessage("OUT_OF_RANGE", "a", null, { tick: 2 }));
+      nowSpy.mockReturnValue(5_000);
+      entities.onMessage(
+        entityMessage("CREATE", "a", { position: [1, 0, 0] }, { tick: 3 }),
+      );
+
+      // The re-entered entity is live: its watermark must outlive the
+      // window that would have expired the released one.
+      nowSpy.mockReturnValue(60_000);
+      entities.update();
+      expect(watermarkCount(entities)).toBe(1);
+      expect(entities.getEntityById("a")).toBeDefined();
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });

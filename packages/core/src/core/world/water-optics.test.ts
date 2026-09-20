@@ -567,10 +567,7 @@ describe("WaterOptics", () => {
   it("snaps submersion in quickly when the camera dives", () => {
     const optics = new WaterOptics();
     optics.update({
-      isFluidAt: () => true,
-      cameraX: 0.5,
-      cameraY: 50,
-      cameraZ: 0.5,
+      column: measureWaterColumn(() => true, 0.5, 50, 0.5),
       sunStrength: 1,
       deltaSeconds: 0.1,
     });
@@ -581,19 +578,13 @@ describe("WaterOptics", () => {
   it("clears submersion after surfacing", () => {
     const optics = new WaterOptics();
     optics.update({
-      isFluidAt: () => true,
-      cameraX: 0.5,
-      cameraY: 50,
-      cameraZ: 0.5,
+      column: measureWaterColumn(() => true, 0.5, 50, 0.5),
       sunStrength: 1,
       deltaSeconds: 0.1,
     });
     for (let frame = 0; frame < 20; frame += 1) {
       optics.update({
-        isFluidAt: () => false,
-        cameraX: 0.5,
-        cameraY: 90,
-        cameraZ: 0.5,
+        column: null,
         sunStrength: 1,
         deltaSeconds: 0.1,
       });

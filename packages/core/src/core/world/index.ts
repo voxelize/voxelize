@@ -209,7 +209,12 @@ import {
   quantizePositions,
   quantizeUvs,
 } from "./vertex-quantization";
-import { WATER_OPTICS, WaterOptics } from "./water-optics";
+import {
+  WATER_OPTICS,
+  WaterOptics,
+  measureWaterColumn,
+  type WaterColumnSample,
+} from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
 import { WorldOptions, defaultWorldClientOptions } from "./world-options";
@@ -224,6 +229,7 @@ export * from "./chunk-requests";
 export * from "./clouds";
 export * from "./coupled-blocks";
 export * from "./csm-renderer";
+export * from "./entity-light";
 export * from "./entity-shadow-uniforms";
 export * from "./items";
 export * from "./light-cones";
@@ -579,6 +585,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    * {@link World.updateWaterOptics}.
    */
   public waterOptics = new WaterOptics();
+
+  /** See {@link World.getChunkByCoords}. */
+  private loadedChunkMemo: {
+    cx: number;
+    cz: number;
+    generation: number;
+    chunk: Chunk | undefined;
+  } = { cx: NaN, cz: NaN, generation: -1, chunk: undefined };
   private fluidMaterialsRenderBackSide = false;
 
   /**
@@ -2377,8 +2391,22 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByCoords(cx: number, cz: number) {
     this.checkIsInitialized("get chunk by coords", false);
-    const name = ChunkUtils.getChunkName([cx, cz]);
-    return this.getChunkByName(name);
+    // One-entry memo keyed on the pipeline's loaded generation. Voxel reads
+    // arrive in runs against the same chunk (a water column walk, a raycast,
+    // a light sample and its neighbours), and each one used to build a
+    // fresh "cx|cz" string to hash. The generation bumps whenever a chunk
+    // loads or unloads, so a memoized chunk can never outlive its stage.
+    const memo = this.loadedChunkMemo;
+    const generation = this.chunkPipeline.loadedGeneration;
+    if (memo.cx === cx && memo.cz === cz && memo.generation === generation) {
+      return memo.chunk;
+    }
+    const chunk = this.getChunkByName(`${cx}|${cz}`);
+    memo.cx = cx;
+    memo.cz = cz;
+    memo.generation = generation;
+    memo.chunk = chunk;
+    return chunk;
   }
 
   /**
@@ -2391,11 +2419,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByPosition(px: number, py: number, pz: number) {
     this.checkIsInitialized("get chunk by position", false);
-    const coords = ChunkUtils.mapVoxelToChunk(
-      [px | 0, py | 0, pz | 0],
-      this.options.chunkSize,
+    // Same floor-of-scaled math as ChunkUtils.mapVoxelToChunk, without the
+    // three intermediate arrays it allocated per call: this sits under every
+    // getBlockAt / light read, the client's hottest path while submerged.
+    const scale = 1 / this.options.chunkSize;
+    return this.getChunkByCoords(
+      Math.floor((px | 0) * scale),
+      Math.floor((pz | 0) * scale),
     );
-    return this.getChunkByCoords(...coords);
   }
 
   /**
@@ -5268,18 +5299,63 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  /**
+   * Whether the voxel at a world position holds water: either it is a fluid
+   * block or a block waterlogged with the world's fluid. Reads the packed
+   * voxel word once off the chunk instead of resolving the chunk twice (once
+   * for the waterlogging bit, once for the block).
+   */
+  isFluidOrWaterloggedAt(vx: number, vy: number, vz: number) {
+    this.checkIsInitialized("is fluid or waterlogged", false);
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    if (chunk === undefined) return false;
+    return this.isRawVoxelFluid(chunk.getRawValue(vx, vy, vz));
+  }
+
+  private isRawVoxelFluid(raw: number) {
+    if (BlockUtils.extractWaterlogged(raw)) return true;
+    const block = this.registry.blocksById.get(BlockUtils.extractID(raw));
+    return block !== undefined && block.isFluid;
+  }
+
+  /**
+   * The water column standing over a point — its depth below the resting
+   * surface and where that surface sits — or `null` when the point is not
+   * in water. See {@link measureWaterColumn} for the walk itself.
+   *
+   * A column is one (x, z), so it lives in exactly one chunk: the chunk
+   * resolves once and every block of the walk is a raw read off it. The
+   * per-block `getBlockAt` walk this replaces paid a chunk name lookup and
+   * a registry lookup for every block between the point and the surface,
+   * so a fish forty blocks down cost forty of each, several times a second.
+   */
+  measureWaterColumnAt(
+    x: number,
+    y: number,
+    z: number,
+  ): WaterColumnSample | null {
+    this.checkIsInitialized("measure water column", false);
+    const vx = Math.floor(x);
+    const vz = Math.floor(z);
+    const chunk = this.getChunkByPosition(vx, Math.floor(y), vz);
+    if (chunk === undefined) return null;
+    return measureWaterColumn(
+      (cx, cy, cz) => this.isRawVoxelFluid(chunk.getRawValue(cx, cy, cz)),
+      x,
+      y,
+      z,
+    );
+  }
+
   updateWaterOptics(cameraPosition: Vector3, deltaSeconds: number) {
     if (!this.isInitialized) return;
 
     this.waterOptics.update({
-      isFluidAt: (vx, vy, vz) => {
-        if (this.getVoxelWaterloggedAt(vx, vy, vz)) return true;
-        const block = this.getBlockAt(vx, vy, vz);
-        return !!block && block.isFluid;
-      },
-      cameraX: cameraPosition.x,
-      cameraY: cameraPosition.y,
-      cameraZ: cameraPosition.z,
+      column: this.measureWaterColumnAt(
+        cameraPosition.x,
+        cameraPosition.y,
+        cameraPosition.z,
+      ),
       sunStrength: this.chunkRenderer.uniforms.sunlightIntensity.value,
       deltaSeconds,
     });

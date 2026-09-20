@@ -1029,6 +1029,48 @@ export class AgentDaemon {
 
     this.server.get("/memory", async () => this.agent.memoryStatus());
 
+    // Main-thread time per function per frame (and, with alloc=1, the
+    // garbage each function minted) over a sampling window. The measurement
+    // behind any "this costs X ms a frame" claim; `watch` is a regex over
+    // the function labels so a gate can name the functions it is about.
+    this.server.get<{
+      Querystring: {
+        durationMs?: string;
+        alloc?: string;
+        watch?: string;
+        top?: string;
+      };
+    }>("/profile", async (req, reply) => {
+      const durationMs =
+        req.query.durationMs !== undefined
+          ? Number(req.query.durationMs)
+          : undefined;
+      if (durationMs !== undefined && !(durationMs > 0)) {
+        reply.code(400);
+        return { ok: false, error: "durationMs must be a positive number" };
+      }
+      const top =
+        req.query.top !== undefined ? Number(req.query.top) : undefined;
+      try {
+        if (req.query.watch) new RegExp(req.query.watch, "i");
+      } catch (error) {
+        reply.code(400);
+        return {
+          ok: false,
+          error: `watch is not a valid regex: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        };
+      }
+      return this.agent.profile({
+        durationMs,
+        isSamplingAllocations:
+          req.query.alloc === "1" || req.query.alloc === "true",
+        watch: req.query.watch ?? null,
+        top,
+      });
+    });
+
     // A V8 heap snapshot written under the capture dir (heap/), for the
     // leak hunt the memory trend starts: two of these a few minutes apart,
     // diffed by class, name what accumulates; the retaining path names who

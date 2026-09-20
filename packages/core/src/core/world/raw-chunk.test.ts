@@ -57,3 +57,28 @@ describe("RawChunk.deserialize", () => {
     expect(sourceLights[1]).toBe(456);
   });
 });
+
+describe("RawChunk voxel reads", () => {
+  it("reads inside the chunk and returns 0 outside it, on every axis", () => {
+    const chunk = new RawChunk("chunk", [1, -1], options);
+    chunk.voxels.data = new Uint32Array(
+      options.size * options.maxHeight * options.size,
+    );
+    chunk.lights.data = new Uint32Array(chunk.voxels.data.length);
+    // Chunk [1, -1] with size 2 spans x 2..3, z -2..-1.
+    chunk.setRawValue(3, 1, -1, 77);
+    chunk.setRawLight(2, 0, -2, 9);
+
+    expect(chunk.getRawValue(3, 1, -1)).toBe(77);
+    expect(chunk.getRawValue(3.9, 1.2, -1.5)).toBe(77);
+    expect(chunk.getRawLight(2, 0, -2)).toBe(9);
+
+    expect(chunk.getRawValue(1, 1, -1)).toBe(0);
+    expect(chunk.getRawValue(4, 1, -1)).toBe(0);
+    expect(chunk.getRawValue(3, -1, -1)).toBe(0);
+    expect(chunk.getRawValue(3, 2, -1)).toBe(0);
+    expect(chunk.getRawValue(3, 1, -3)).toBe(0);
+    expect(chunk.getRawValue(3, 1, 0)).toBe(0);
+    expect(chunk.getRawLight(3, 1, 0)).toBe(0);
+  });
+});
