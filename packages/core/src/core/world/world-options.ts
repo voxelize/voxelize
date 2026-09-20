@@ -515,6 +515,13 @@ export type WorldServerOptions = {
    * The nominal water level of this world, in blocks.
    */
   waterLevel: number;
+
+  /**
+   * The server's world seed. Shared cosmetic randomness — the cloud deck, the
+   * shooting-star schedule — derives from it so every client of one world
+   * sees the same sky.
+   */
+  seed: number;
 };
 
 /**

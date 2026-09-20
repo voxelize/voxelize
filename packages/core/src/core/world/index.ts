@@ -217,6 +217,11 @@ import {
 } from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
+import {
+  advanceWorldClock,
+  elapsedSeconds,
+  isClockDriftBeyond,
+} from "./world-clock";
 import { WorldOptions, defaultWorldClientOptions } from "./world-options";
 
 export * from "./block";
@@ -249,6 +254,7 @@ export * from "./textures";
 export * from "./uv";
 export * from "./vertex-quantization";
 export * from "./water-optics";
+export * from "./world-clock";
 export * from "./world-options";
 
 const warnedUnknownBlockIds = new Set<number>();
@@ -885,6 +891,12 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The internal time in seconds.
    */
   private _time = 0;
+
+  /**
+   * Days the world clock has completed, from the server's stats. Absent
+   * from servers that predate it, which count as day zero.
+   */
+  private _day = 0;
 
   /**
    * The internal render radius in chunks.
@@ -4173,6 +4185,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.extraInitData = extra;
 
     this._time = stats.time;
+    this._day = stats.day ?? 0;
 
     // Loading the items registry
     if (items && Array.isArray(items)) {
@@ -4248,6 +4261,14 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.chunkPositionUnits = positionUnitsPerBlock(this.options);
 
+    // The cloud deck grows from the server's world seed, so every client of
+    // this world sees the same clouds; a seed named in cloudsOptions is a
+    // deliberate override and stays.
+    const isCloudSeedAutomatic = (this.options.cloudsOptions.seed ?? -1) === -1;
+    if (isCloudSeedAutomatic && typeof this.options.seed === "number") {
+      this.clouds.setSeed(this.options.seed);
+    }
+
     // Only now are the server's chunk dimensions known; a graph keyed with
     // the client defaults would never find the camera's own section.
     this.sectionVisibility = this.options.isCullingChunksByOcclusion
@@ -4297,7 +4318,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.options.chunkSize,
     );
     if (this.options.doesTickTime) {
-      this._time = (this.time + delta) % this.options.timePerDay;
+      const { day, time } = advanceWorldClock(
+        { day: this._day, time: this._time },
+        delta,
+        this.options.timePerDay,
+      );
+      this._day = day;
+      this._time = time;
     }
 
     const startOverall = performance.now();
@@ -4457,8 +4484,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       case "STATS": {
         const { json } = message;
 
-        if (Math.abs(json.time - this.time) > this.options.timeForceThreshold) {
-          this._time = json.time;
+        const server = { day: json.day ?? 0, time: json.time };
+        if (
+          isClockDriftBeyond(
+            { day: this._day, time: this._time },
+            server,
+            this.options.timePerDay,
+            this.options.timeForceThreshold,
+          )
+        ) {
+          this._time = server.time;
+          this._day = server.day;
         }
 
         break;
@@ -4628,6 +4664,37 @@ export class World<T = any> extends Scene implements NetIntercept {
         },
       });
     }
+  }
+
+  /**
+   * Days the world clock has completed. With {@link World.time} it forms
+   * {@link World.sharedClock}; on its own it is what a moon phase or a
+   * "day N" readout would count.
+   */
+  get day() {
+    return this._day;
+  }
+
+  /**
+   * Seconds since the world's clock began: `day * timePerDay + time`. Unlike
+   * {@link World.time} it never wraps at midnight, and every client of a
+   * world agrees on it to within the STATS sync threshold, which makes it
+   * the clock for cosmetic motion all players must see alike — cloud drift,
+   * the shooting-star schedule. A `/time` jump moves it within the current
+   * day, so those effects jump with the sky rather than diverging from it.
+   *
+   * A world whose clock is frozen (`doesTickTime` false) has no shared game
+   * clock at all, so the wall clock stands in: clients agree to within their
+   * NTP skew, which is all a cosmetic schedule needs.
+   */
+  get sharedClock() {
+    if (!this.options.doesTickTime) {
+      return Date.now() / 1000;
+    }
+    return elapsedSeconds(
+      { day: this._day, time: this._time },
+      this.options.timePerDay,
+    );
   }
 
   get renderRadius() {
@@ -5055,7 +5122,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     } = this.options;
 
     this.sky.update(position, this.time, timePerDay);
-    this.clouds.update(position);
+    this.clouds.update(position, this.sharedClock);
 
     // Update the sunlight intensity
     const sunlightStartTime = Math.floor(sunlightStartTimeFrac * timePerDay);

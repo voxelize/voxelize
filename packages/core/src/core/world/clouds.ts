@@ -78,7 +78,8 @@ export type CloudsOptions = {
   lerpFactor: number;
 
   /**
-   * The speed at which the clouds move. Defaults to `8`.
+   * The speed at which the clouds drift along `-z`, in blocks per second of
+   * the clock handed to {@link Clouds.update}. Defaults to `8`.
    */
   speedFactor: number;
 
@@ -111,7 +112,10 @@ export type CloudsOptions = {
   sunTint: number;
 
   /**
-   * The seed used to generate the clouds. Defaults to `-1`.
+   * The seed used to generate the clouds. Defaults to `-1`, which draws a
+   * random seed at construction. A `World` replaces that with the server's
+   * world seed once INIT delivers it ({@link Clouds.setSeed}), so every
+   * client of one world grows the same deck; name a seed here to override.
    */
   seed: number;
 
@@ -273,9 +277,9 @@ export class Clouds extends Group {
   public locatedCell: Coords2 = [0, 0];
 
   /**
-   * The new position to lerp the clouds.
+   * Where the drift wants the deck this frame; the group eases toward it.
    */
-  private newPosition = new Vector3();
+  private driftTarget = new Vector3();
 
   /**
    * The worker pool used to generate the clouds.
@@ -289,6 +293,18 @@ export class Clouds extends Group {
    * A inner THREE.JS clock used to determine the time delta between frames.
    */
   private timer = new Timer();
+
+  /**
+   * Cell generation runs serially through this chain: a reset that lands
+   * while the first build is still awaiting its workers must wait for it,
+   * or both builds push rows into `meshes` and the grid comes out doubled.
+   */
+  private generation: Promise<void> = Promise.resolve();
+
+  /** One reconcile waits in the chain at a time; it reads the latest cell. */
+  private isReconcileQueued = false;
+
+  private isDisposed = false;
 
   /**
    * Create a new {@link Clouds} instance, initializing it asynchronously automatically.
@@ -410,22 +426,24 @@ export class Clouds extends Group {
   }
 
   /**
-   * Reset the clouds to their initial state.
+   * Regrow the deck around the current cell, after any grid work already in
+   * flight has finished.
    */
-  reset = async () => {
-    this.children.forEach((child: Mesh) => {
-      if (child.parent) {
-        child.parent.remove(child);
-        child.geometry?.dispose();
-      }
-    });
+  reset = () => this.enqueueGridWork(() => this.rebuild());
 
-    this.meshes.length = 0;
+  /**
+   * Regrow the deck from a new seed. A `World` calls this with the server's
+   * world seed once INIT delivers it, so all of its clients see one deck.
+   */
+  setSeed = (seed: number) => {
+    if (this.options.seed === seed) return this.generation;
 
-    await this.initialize();
+    this.options.seed = seed;
+    return this.reset();
   };
 
   dispose = () => {
+    this.isDisposed = true;
     this.pool.terminate();
     this.children.forEach((child: Mesh) => {
       child.geometry?.dispose();
@@ -439,8 +457,12 @@ export class Clouds extends Group {
    * cells at any side, new clouds are generated.
    *
    * @param position The new position that this cloud should be centered around.
+   * @param driftClock Seconds on a clock every viewer of this deck shares
+   * (`World.sharedClock`). Given, the deck's drift is a pure function of it,
+   * so two clients looking up see the same cloud in the same place; without
+   * it the deck drifts by this instance's own frame time.
    */
-  update = (position: Vector3) => {
+  update = (position: Vector3, driftClock?: number) => {
     if (!this.isInitialized) return;
 
     // Normalize the delta
@@ -449,8 +471,23 @@ export class Clouds extends Group {
 
     const { speedFactor, count, dimensions } = this.options;
 
-    this.newPosition = this.position.clone();
-    this.newPosition.z -= speedFactor * delta;
+    this.driftTarget.copy(this.position);
+    if (driftClock === undefined) {
+      this.driftTarget.z -= speedFactor * delta;
+    } else {
+      this.driftTarget.z = -speedFactor * driftClock;
+    }
+
+    // A clock jump (a join, a `/time`, a reconnect) lands the target a long
+    // way from the deck. Easing across that gap would stream the deck
+    // through the frame and re-cut cells every step of the way, so snap,
+    // and let the cell bookkeeping below regrow it once.
+    if (
+      Math.abs(this.driftTarget.z - this.position.z) >
+      count * dimensions[2]
+    ) {
+      this.position.copy(this.driftTarget);
+    }
 
     const locatedCell: Coords2 = [
       Math.floor((position.x - this.position.x) / (count * dimensions[0])),
@@ -461,33 +498,91 @@ export class Clouds extends Group {
       this.locatedCell[0] !== locatedCell[0] ||
       this.locatedCell[1] !== locatedCell[1]
     ) {
-      const dx = locatedCell[0] - this.locatedCell[0];
-      const dz = locatedCell[1] - this.locatedCell[1];
-
       this.locatedCell = locatedCell;
-
-      if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
-        this.reset();
-      } else {
-        if (dx) {
-          this.shiftX(dx);
-        }
-
-        if (dz) {
-          this.shiftZ(dz);
-        }
-      }
+      this.reconcileGrid();
     }
 
-    this.position.lerp(this.newPosition, this.options.lerpFactor);
+    this.position.lerp(this.driftTarget, this.options.lerpFactor);
   };
 
   /**
    * Initialize the clouds asynchronously.
    */
-  private initialize = async () => {
+  private initialize = () => this.enqueueGridWork(() => this.buildCells());
+
+  /**
+   * Every mutation of the grid runs through here, one after another. A
+   * shift still awaiting its worker when a rebuild lands would otherwise
+   * push its row into the fresh grid, and two builds racing would double it.
+   */
+  private enqueueGridWork = (work: () => Promise<void>) => {
+    this.generation = this.generation.then(async () => {
+      if (this.isDisposed) return;
+      await work();
+    });
+
+    return this.generation;
+  };
+
+  /**
+   * Bring the grid to the located cell. The displacement is judged when the
+   * work runs, not when it was queued: a shift queued behind a rebuild that
+   * already grew the grid at the new cell would move it one cell too far.
+   */
+  private reconcileGrid = () => {
+    if (this.isReconcileQueued) return this.generation;
+    this.isReconcileQueued = true;
+
+    return this.enqueueGridWork(async () => {
+      this.isReconcileQueued = false;
+
+      const dx = this.locatedCell[0] - this.xOffset;
+      const dz = this.locatedCell[1] - this.zOffset;
+
+      if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
+        await this.rebuild();
+        return;
+      }
+
+      if (dx) {
+        await this.shiftX(dx);
+      }
+
+      if (dz) {
+        await this.shiftZ(dz);
+      }
+    });
+  };
+
+  /**
+   * Discard every cell and grow the grid again around the current cell.
+   */
+  private rebuild = async () => {
+    this.isInitialized = false;
+
+    // Removing while iterating `children` skips every other child.
+    for (const child of [...this.children] as Mesh[]) {
+      this.remove(child);
+      child.geometry?.dispose();
+    }
+
+    this.meshes.length = 0;
+
+    await this.buildCells();
+  };
+
+  /**
+   * Grow every cell of the grid around the current cell.
+   */
+  private buildCells = async () => {
     const { width } = this.options;
     const [lx, lz] = this.locatedCell;
+
+    // The shift bookkeeping names cells relative to these; a grid grown
+    // around a cell other than the origin without moving them would shift
+    // in cells it already holds and leave a gap where the new ones belong.
+    this.xOffset = lx;
+    this.zOffset = lz;
 
     for (let x = 0; x < width; x++) {
       const arr = [];
@@ -512,9 +607,12 @@ export class Clouds extends Group {
 
     const arr = direction > 0 ? this.meshes.shift() : this.meshes.pop();
 
+    // The grid holds cells `[offset, offset + width)`: the row that enters
+    // ahead is `offset + width`, the one that enters behind is `offset - 1`.
+    // Regrowing `offset` itself duplicated the first row and left a gap.
     for (let z = 0; z < width; z++) {
       await this.makeCell(
-        this.xOffset + (direction > 0 ? width : 0),
+        this.xOffset + (direction > 0 ? width : -1),
         z + this.zOffset,
         arr[z],
       );
@@ -562,7 +660,7 @@ export class Clouds extends Group {
       // Generate new cell
       const newCell = await this.makeCell(
         x + this.xOffset,
-        this.zOffset + (direction > 0 ? width : 0),
+        this.zOffset + (direction > 0 ? width : -1),
         cell,
       );
 

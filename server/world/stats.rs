@@ -14,6 +14,10 @@ pub struct StatsJson {
     pub tick: u64,
     pub time: f32,
     pub delta: f32,
+    /// Days completed since the world's clock began. Absent from stats files
+    /// written before it existed, which count as day zero.
+    #[serde(default)]
+    pub day: u64,
 }
 
 /// A general statistical manager of Voxelize.
@@ -37,6 +41,13 @@ pub struct Stats {
     /// A number between 0 to config.time_per_day
     pub time: f32,
 
+    /// How many times `time` has wrapped past `time_per_day`. Together they
+    /// give clients a clock that never runs backwards, which is what lets
+    /// every client agree on cosmetic motion that must look the same to all
+    /// of them: cloud drift, shooting stars, a moon phase. `set_time` moves
+    /// `time` alone, so a `/time` jump is a jump within the current day.
+    pub day: u64,
+
     /// The time of the last tick.
     pub prev_time: SystemTime,
 
@@ -55,22 +66,22 @@ impl Stats {
         path.push("stats.json");
 
         // Try to load existing stats if saving is enabled and file exists
-        let (loaded_tick, loaded_time) = if saving && path.exists() {
+        let (loaded_tick, loaded_time, loaded_day) = if saving && path.exists() {
             match fs::read_to_string(&path) {
                 Ok(contents) => match serde_json::from_str::<StatsJson>(&contents) {
-                    Ok(stats_json) => (stats_json.tick, stats_json.time),
+                    Ok(stats_json) => (stats_json.tick, stats_json.time, stats_json.day),
                     Err(e) => {
                         warn!("Failed to parse stats.json: {}", e);
-                        (0, default_time)
+                        (0, default_time, 0)
                     }
                 },
                 Err(e) => {
                     warn!("Failed to read stats.json: {}", e);
-                    (0, default_time)
+                    (0, default_time, 0)
                 }
             }
         } else {
-            (0, default_time)
+            (0, default_time, 0)
         };
 
         Self {
@@ -80,10 +91,21 @@ impl Stats {
             start_time: Instant::now(),
             prev_time: SystemTime::now(),
             time: loaded_time,
+            day: loaded_day,
             preloading: false,
             path,
             saving,
         }
+    }
+
+    /// Advance the clock by `delta` seconds, wrapping `time` at `time_per_day`
+    /// and counting the wrap as a completed day.
+    pub fn advance_time(&mut self, delta: f32, time_per_day: f32) {
+        let next = self.time + delta;
+        if next >= time_per_day {
+            self.day += 1;
+        }
+        self.time = next % time_per_day;
     }
 
     /// Get how long this server has been running.
@@ -108,6 +130,7 @@ impl Stats {
             tick: self.tick,
             time: self.time,
             delta: self.delta,
+            day: self.day,
         }
     }
 

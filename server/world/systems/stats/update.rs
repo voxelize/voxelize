@@ -38,7 +38,8 @@ impl<'a> System<'a> for UpdateStatsSystem {
             stats.tick += 1;
 
             if config.time_per_day > 0 {
-                stats.time = (stats.time + stats.delta) % (config.time_per_day as f32);
+                let delta = stats.delta;
+                stats.advance_time(delta, config.time_per_day as f32);
             }
         }
     }
