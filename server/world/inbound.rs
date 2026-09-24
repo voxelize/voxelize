@@ -196,50 +196,60 @@ impl World {
     /// Handler for `Update` type messages.
     pub(super) fn on_update(&mut self, client_id: &str, data: Message) {
         let chunk_size = self.config().chunk_size;
-        let mut chunks = self.chunks_mut();
 
-        if let Some(bulk) = data.bulk_update {
-            let lengths = [
-                bulk.vx.len(),
-                bulk.vy.len(),
-                bulk.vz.len(),
-                bulk.voxels.len(),
-            ];
-            if lengths.iter().any(|length| *length != lengths[0]) {
-                warn!(
-                    "Ignoring malformed bulk voxel update from {client_id}: \
-                     vx/vy/vz/voxel lengths were {:?}",
-                    lengths
-                );
-                return;
-            }
+        let writes: Vec<(Vec3<i32>, u32)> = {
+            let chunks = self.chunks();
+            let is_within = |vx: i32, vy: i32, vz: i32| {
+                chunks.is_within_world(&ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size))
+            };
 
-            for (((vx, vy), vz), voxel) in bulk
-                .vx
-                .into_iter()
-                .zip(bulk.vy)
-                .zip(bulk.vz)
-                .zip(bulk.voxels)
-            {
-                let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
-
-                if !chunks.is_within_world(&coords) {
-                    continue;
-                }
-
-                chunks.update_voxel(&Vec3(vx, vy, vz), voxel);
-            }
-        } else {
-            data.updates.into_iter().for_each(|update| {
-                let coords =
-                    ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
-
-                if !chunks.is_within_world(&coords) {
+            if let Some(bulk) = data.bulk_update {
+                let lengths = [
+                    bulk.vx.len(),
+                    bulk.vy.len(),
+                    bulk.vz.len(),
+                    bulk.voxels.len(),
+                ];
+                if lengths.iter().any(|length| *length != lengths[0]) {
+                    warn!(
+                        "Ignoring malformed bulk voxel update from {client_id}: \
+                         vx/vy/vz/voxel lengths were {:?}",
+                        lengths
+                    );
                     return;
                 }
 
-                chunks.update_voxel(&Vec3(update.vx, update.vy, update.vz), update.voxel);
-            });
+                bulk.vx
+                    .into_iter()
+                    .zip(bulk.vy)
+                    .zip(bulk.vz)
+                    .zip(bulk.voxels)
+                    .filter(|(((vx, vy), vz), _)| is_within(*vx, *vy, *vz))
+                    .map(|(((vx, vy), vz), voxel)| (Vec3(vx, vy, vz), voxel))
+                    .collect()
+            } else {
+                data.updates
+                    .into_iter()
+                    .filter(|update| is_within(update.vx, update.vy, update.vz))
+                    .map(|update| (Vec3(update.vx, update.vy, update.vz), update.voxel))
+                    .collect()
+            }
+        };
+
+        // The game may refuse or prepare for some writes first (see
+        // `set_raw_update_guard`).
+        let guard = self
+            .ecs()
+            .try_fetch::<super::handles::RawUpdateGuard>()
+            .map(|guard| guard.0.clone());
+        let writes = match guard {
+            Some(guard) if !writes.is_empty() => guard(self, client_id, writes),
+            _ => writes,
+        };
+
+        let mut chunks = self.chunks_mut();
+        for (voxel, raw) in writes {
+            chunks.update_voxel(&voxel, raw);
         }
     }
 
