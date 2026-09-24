@@ -45,6 +45,46 @@ const FACE_ROW_BITS = (() => {
   return rows;
 })();
 
+/**
+ * Distance from the eye to the farthest corner of a perspective camera's
+ * near plane: how far into the scene the eye itself can clip.
+ */
+export const nearPlaneReach = (
+  fovDegrees: number,
+  aspect: number,
+  near: number,
+) => {
+  const tan = Math.tan((fovDegrees * Math.PI) / 360);
+  return near * Math.sqrt(1 + tan * tan * (1 + aspect * aspect));
+};
+
+/**
+ * Whether any voxel within `reach` of the eye (per axis) is opaque: the eight
+ * corners of that cube. Below one voxel of width the cube spans at most two
+ * voxels per axis, so its corners visit every voxel it touches. This is the
+ * test for "the near plane is in rock", where unmeshed interior faces let
+ * the camera see through what connectivity calls sealed.
+ */
+export const isEyeInOpaqueVoxel = (
+  position: { x: number; y: number; z: number },
+  reach: number,
+  isOpaqueAt: (vx: number, vy: number, vz: number) => boolean,
+) => {
+  const r = Math.min(Math.max(reach, 0), 0.49);
+  for (let corner = 0; corner < 8; corner++) {
+    if (
+      isOpaqueAt(
+        Math.floor(position.x + (corner & 1 ? r : -r)),
+        Math.floor(position.y + (corner & 2 ? r : -r)),
+        Math.floor(position.z + (corner & 4 ? r : -r)),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 type SectionNode = {
   cx: number;
   cz: number;
@@ -194,17 +234,21 @@ export class SectionVisibilityGraph {
    * "an air path exists" answer that shadow-safe chunks can trust. `fogFar`
    * (in blocks, horizontal) is the fully-fogged distance; `Infinity` disables
    * fog culling.
+   *
+   * `isSuspended` is the caller saying the air-path proof does not hold for
+   * this view: a noclip camera inside rock sees through the unmeshed faces
+   * between solid voxels, so connectivity is no evidence that anything is
+   * hidden. The walk then reports incomplete and callers fall back to
+   * frustum-only culling. A noclip camera in open air is not suspended; it
+   * sees exactly what a walking player at the same eye would.
    */
   walk(
     cameraPosition: Vector3,
     projectionScreenMatrix: Parameters<Frustum["setFromProjectionMatrix"]>[0],
     fogFar: number,
-    isSpectating = false,
+    isSuspended = false,
   ) {
-    // A noclip camera can cross sealed rock and disconnected air pockets.
-    // Their connectivity is not evidence that distant surfaces are hidden
-    // from this view. Keep frustum culling, but suspend the air-path proof.
-    if (isSpectating) {
+    if (isSuspended) {
       this.isLastWalkComplete = false;
       this.lastReachedCount = 0;
       this.lastVisibleCount = 0;

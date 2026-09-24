@@ -290,13 +290,6 @@ export class Sky extends CanvasBox {
 
     this.rotation.z = Math.PI * 2 * (time / timePerDay);
 
-    ["top", "right", "left", "front", "back"].forEach((face) => {
-      const mat = this.boxMaterials.get(face);
-      if (mat) {
-        // Update sky opacity to hide stars when the sun is up.
-      }
-    });
-
     this.position.copy(position);
 
     if (this.shadingData.length <= 1) {

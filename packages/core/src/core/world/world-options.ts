@@ -162,6 +162,18 @@ export type WorldClientOptions = {
   isOcclusionOpenAtPendingChunks: boolean;
 
   /**
+   * Whether the occlusion walk keeps running for a spectating (noclip)
+   * camera. A noclip camera can sit inside rock, where faces between solid
+   * voxels are never meshed and it sees straight through to whatever the
+   * walk would call hidden; so while any voxel the near plane can touch is
+   * opaque the walk steps aside for frustum-only culling, and everywhere
+   * else (open air, a cave it flew into) it culls exactly as it does for a
+   * walking player. `false` suspends occlusion for the whole flight, the
+   * old behaviour. Read every frame, so it can be flipped for A/B timing.
+   */
+  isCullingSpectatorByOcclusion: boolean;
+
+  /**
    * Whether the occlusion walk also prunes sections past the fog's far edge,
    * where every fragment already resolves to pure fog color.
    */
@@ -423,6 +435,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   chunkCullShadowSafeDistance: 160,
   isCullingChunksByOcclusion: true,
   isOcclusionOpenAtPendingChunks: true,
+  isCullingSpectatorByOcclusion: true,
   isCullingChunksByFog: true,
   fogCullSlack: 16,
   plantDetailDistance: null,

@@ -901,7 +901,12 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
   // moment of every render call — the exact instant a caster would rasterize
   // into a cached cell.
   const makeVisibilityRenderer = (watch: Object3D[]) => {
-    const renders: { scene: unknown; visibleAtRender: boolean[] }[] = [];
+    const renders: {
+      scene: unknown;
+      visibleAtRender: boolean[];
+      parentsAtRender: (Object3D | null)[];
+      childrenAtRender: Object3D[];
+    }[] = [];
     let target: unknown = null;
     const renderer = {
       getRenderTarget: () => target,
@@ -909,10 +914,12 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
         target = t;
       },
       clear: () => {},
-      render: (scene: unknown) => {
+      render: (scene: Object3D) => {
         renders.push({
           scene,
           visibleAtRender: watch.map((object) => object.visible),
+          parentsAtRender: watch.map((object) => object.parent),
+          childrenAtRender: [...scene.children],
         });
       },
     } as unknown as WebGLRenderer;
@@ -947,16 +954,50 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     for (const pass of worldPasses) {
       expect(pass.visibleAtRender).toEqual([false, false]);
     }
-    // The overlay pass still renders the caster (reparented, visible).
-    const overlayPasses = renders.filter(
-      (r) => r.scene !== scene && r.scene !== pool,
-    );
-    expect(overlayPasses.length).toBe(1);
+    // The overlay still draws the caster, visible, then the pool: two
+    // borrowed lists, and neither ever leaves the world scene.
+    const overlayPasses = renders.filter((r) => r.scene !== scene);
+    expect(overlayPasses.length).toBe(2);
+    expect(overlayPasses[0].childrenAtRender).toEqual([caster]);
     expect(overlayPasses[0].visibleAtRender[0]).toBe(true);
+    expect(overlayPasses[1].childrenAtRender).toEqual([pool]);
+    for (const pass of renders) {
+      expect(pass.parentsAtRender).toEqual([scene, scene]);
+    }
 
     // Exact scene state restored afterward.
     expect(caster.visible).toBe(true);
     expect(pool.visible).toBe(true);
+    expect(caster.parent).toBe(scene);
+    expect(scene.children).toEqual([caster, pool]);
+  });
+
+  it("keeps the old reparenting overlay behind the A/B switch", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    scheduler.isBorrowingCasters = false;
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const scene = new Scene();
+    const caster = new Object3D();
+    caster.position.set(8, 60, 4);
+    scene.add(caster);
+    const pool = new Group();
+    scene.add(pool);
+
+    const { renders, renderer } = makeVisibilityRenderer([caster, pool]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, scene, ledger, [caster], [pool], [], stats);
+
+    const overlayPasses = renders.filter(
+      (r) => r.scene !== scene && r.scene !== pool,
+    );
+    expect(overlayPasses.length).toBe(1);
+    expect(overlayPasses[0].parentsAtRender[0]).not.toBe(scene);
+    expect(renders.filter((r) => r.scene === pool).length).toBe(1);
     expect(caster.parent).toBe(scene);
   });
 

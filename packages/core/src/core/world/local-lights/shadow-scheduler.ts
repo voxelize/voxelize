@@ -11,6 +11,7 @@ import {
 import type { Material, Mesh } from "three";
 
 import { boundsIntersectSphere } from "../dynamic-caster-bounds";
+import { BorrowedCasterScene } from "../shadow-casters";
 
 import {
   LIGHT_FLAG_SHADOW_REQUEST,
@@ -154,6 +155,17 @@ export class LocalShadowScheduler {
   /** Called whenever packed shadow texels must be rewritten. */
   onShadowDataChanged: (() => void) | null = null;
 
+  /**
+   * Draw an overlay face's casters from borrowed lists (on by default):
+   * the near entities in one call without reparenting them, and the slot's
+   * pools in one more, instead of moving each entity into a scratch scene
+   * and back (a `childremoved`/`childadded` pair on its real parent every
+   * time) and rendering each pool as its own root (a matrix walk and a
+   * render call per pool per face). Off restores the old path for A/B
+   * timing; the world flips it with the cascades' single caster pass.
+   */
+  isBorrowingCasters = true;
+
   private frame = 0;
   private challengerIndex = -1;
   private challengerGeneration = 0;
@@ -162,6 +174,8 @@ export class LocalShadowScheduler {
   private readonly depthMaterial: MeshDepthMaterial;
   private readonly faceCamera = new PerspectiveCamera();
   private readonly casterScene = new Scene();
+  private readonly casterBatch = new BorrowedCasterScene();
+  private readonly borrowedCasters: Object3D[] = [];
   private readonly hiddenObjects: { object: Object3D; visible: boolean }[] = [];
   private readonly reparentedCasters: {
     object: Object3D;
@@ -1079,7 +1093,32 @@ export class LocalShadowScheduler {
       }
     }
 
-    if (casters.entities && casters.entities.length > 0) {
+    // Nothing walked the graph this frame unless the world's automatic
+    // update is off (the frame loop's single walk); a caster drawn on its
+    // own then brings its matrices up to date first, as it always has.
+    const isGraphStale = scene.matrixWorldAutoUpdate;
+
+    if (
+      this.isBorrowingCasters &&
+      casters.entities &&
+      casters.entities.length > 0
+    ) {
+      const near = this.borrowedCasters;
+      near.length = 0;
+      for (const entity of casters.entities) {
+        if (entity.userData.castsShadow === false) continue;
+        if (!this.isEntityNearSlot(slot, entity)) continue;
+        near.push(entity);
+      }
+      this.casterBatch.render(
+        renderer,
+        camera,
+        near,
+        this.depthMaterial,
+        isGraphStale,
+      );
+      near.length = 0;
+    } else if (casters.entities && casters.entities.length > 0) {
       const reparented = this.reparentedCasters;
       reparented.length = 0;
       for (const entity of casters.entities) {
@@ -1107,8 +1146,18 @@ export class LocalShadowScheduler {
     // `render()` (lazily, on the first face that has pools to draw), so a
     // face render is just the draws.
     if (casters.instancePools && casters.instancePools.length > 0) {
-      for (const pool of casters.instancePools) {
-        renderer.render(pool, camera);
+      if (this.isBorrowingCasters) {
+        this.casterBatch.render(
+          renderer,
+          camera,
+          casters.instancePools,
+          null,
+          isGraphStale,
+        );
+      } else {
+        for (const pool of casters.instancePools) {
+          renderer.render(pool, camera);
+        }
       }
     }
   }

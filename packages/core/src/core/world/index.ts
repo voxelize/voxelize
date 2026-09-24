@@ -33,6 +33,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  type PerspectiveCamera,
   SRGBColorSpace,
   Scene,
   ShaderMaterial,
@@ -190,6 +191,8 @@ import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
 import {
   CONNECTIVITY_FULL,
+  isEyeInOpaqueVoxel,
+  nearPlaneReach,
   SectionVisibilityGraph,
 } from "./section-visibility";
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
@@ -5610,23 +5613,35 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.csmRenderer.markCascadesForEntityRender();
     }
 
-    this.csmRenderer.render(
-      renderer,
-      this,
-      entities,
-      ENTITY_SHADOW_DISTANCE,
-      instancePools,
-      poolBounds,
-    );
+    // See-through scene effects and registered exclusions leave the graph
+    // for both depth consumers at once, so a torch's atlas and the sun's
+    // cascades can never disagree about them.
+    this.csmRenderer.hideNonCasters(this);
+    // Torch faces borrow their casters exactly when the cascades do, so one
+    // A/B switch covers every depth pass.
+    this.localLights.shadows.isBorrowingCasters =
+      this.csmRenderer.singleCasterPass;
+    try {
+      this.csmRenderer.render(
+        renderer,
+        this,
+        entities,
+        ENTITY_SHADOW_DISTANCE,
+        instancePools,
+        poolBounds,
+      );
 
-    this.localLights.renderShadows(
-      renderer,
-      this,
-      entities,
-      instancePools,
-      this.csmRenderer.skipShadowObjects,
-      poolBounds,
-    );
+      this.localLights.renderShadows(
+        renderer,
+        this,
+        entities,
+        instancePools,
+        this.csmRenderer.skipShadowObjects,
+        poolBounds,
+      );
+    } finally {
+      this.csmRenderer.restoreNonCasters();
+    }
 
     // The cascade matrices move inside render(), atomically with the maps,
     // so the copies taken during update() are one write behind. Re-copy
@@ -7721,6 +7736,25 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  /**
+   * Whether the camera's near plane touches an opaque voxel, by the
+   * mesher's connectivity meaning of opaque (a camera inside leaves or glass
+   * still counts as in the open).
+   */
+  private isNearPlaneInOpaqueVoxel(camera: Camera, position: Vector3) {
+    const perspective = camera as PerspectiveCamera;
+    const reach = perspective.isPerspectiveCamera
+      ? nearPlaneReach(perspective.fov, perspective.aspect, perspective.near)
+      : 0;
+    return isEyeInOpaqueVoxel(position, reach, this.isOpaqueVoxelAt);
+  }
+
+  private isOpaqueVoxelAt = (vx: number, vy: number, vz: number) => {
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    if (!chunk) return false;
+    return this.getBlockByIdSafe(chunk.getVoxel(vx, vy, vz))?.isOpaque === true;
+  };
+
   private updateChunkVisibility(camera: Camera, isSpectating = false) {
     const {
       isCullingChunksByFrustum,
@@ -7749,11 +7783,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       const fogFar = isCullingChunksByFog
         ? this.chunkRenderer.uniforms.fogFar.value + fogCullSlack
         : Infinity;
+      // A noclip camera in open air sees exactly what a walking one would,
+      // so the walk keeps culling; only a camera whose near plane is in
+      // rock (where unmeshed interior faces let it see through) falls back.
+      const isOcclusionSuspended =
+        isSpectating &&
+        (!this.options.isCullingSpectatorByOcclusion ||
+          this.isNearPlaneInOpaqueVoxel(camera, this.chunkCullCameraPosition));
       this.sectionVisibility.walk(
         this.chunkCullCameraPosition,
         this.chunkCullMatrix,
         fogFar,
-        isSpectating,
+        isOcclusionSuspended,
       );
       // A walk that could not start (camera outside the loaded disc) proves
       // nothing; fall back to frustum-only culling rather than hide the world.

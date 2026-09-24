@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONNECTIVITY_FULL,
+  isEyeInOpaqueVoxel,
+  nearPlaneReach,
   SectionVisibilityGraph,
 } from "./section-visibility";
 
@@ -83,7 +85,7 @@ describe("SectionVisibilityGraph", () => {
     expect(graph.isSectionVisible(3, 0, 0)).toBe(false);
   });
 
-  it("does not use air-path occlusion for a spectator crossing sealed rock", () => {
+  it("steps aside for frustum-only culling while suspended (a noclip eye in rock)", () => {
     const graph = makeGraph();
     for (let cx = 0; cx <= 4; cx++) {
       graph.addChunk(cx, 0);
@@ -95,7 +97,10 @@ describe("SectionVisibilityGraph", () => {
       camera.position.set(x, 8, 8);
       camera.lookAt(80, 8, 8);
       camera.updateMatrixWorld();
-      const matrix = new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      const matrix = new Matrix4().multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
+      );
       graph.walk(camera.position, matrix, Infinity, true);
       expect(graph.isComplete).toBe(false);
       expect(graph.isSectionVisible(4, 0, 0)).toBe(true);
@@ -204,5 +209,65 @@ describe("SectionVisibilityGraph", () => {
 
     // Unknown sections must never be claimed hidden.
     expect(graph.isSectionVisible(1, 0, 0)).toBe(true);
+  });
+});
+
+describe("noclip eye probe", () => {
+  // A 3-wide wall of rock at voxel x = 5..7, everything else air.
+  const isRock = (vx: number) => vx >= 5 && vx <= 7;
+  const isOpaqueAt = (vx: number) => isRock(vx);
+
+  it("measures the near plane's farthest corner", () => {
+    // 90 deg vertical fov at 16:9 and near 0.1: half extents 0.1 x 0.178.
+    const reach = nearPlaneReach(90, 16 / 9, 0.1);
+    expect(reach).toBeCloseTo(0.1 * Math.sqrt(1 + 1 + (16 / 9) ** 2), 6);
+  });
+
+  it("calls an eye in open air clear, even a noclip one", () => {
+    const reach = nearPlaneReach(90, 16 / 9, 0.1);
+    expect(isEyeInOpaqueVoxel({ x: 2.5, y: 8, z: 8 }, reach, isOpaqueAt)).toBe(
+      false,
+    );
+  });
+
+  it("flags an eye inside rock", () => {
+    const reach = nearPlaneReach(90, 16 / 9, 0.1);
+    expect(isEyeInOpaqueVoxel({ x: 6.5, y: 8, z: 8 }, reach, isOpaqueAt)).toBe(
+      true,
+    );
+  });
+
+  it("flags an eye in air whose near plane clips into the wall", () => {
+    const reach = nearPlaneReach(90, 16 / 9, 0.1);
+    // 0.1 blocks from the wall face at x = 5: the near plane reaches in.
+    expect(isEyeInOpaqueVoxel({ x: 4.9, y: 8, z: 8 }, reach, isOpaqueAt)).toBe(
+      true,
+    );
+    // 0.5 blocks off it does not.
+    expect(isEyeInOpaqueVoxel({ x: 4.5, y: 8, z: 8 }, reach, isOpaqueAt)).toBe(
+      false,
+    );
+  });
+
+  it("floors negative coordinates onto the right voxel", () => {
+    const probed: number[] = [];
+    isEyeInOpaqueVoxel({ x: -0.5, y: 0.5, z: 0.5 }, 0, (vx) => {
+      probed.push(vx);
+      return false;
+    });
+    expect(new Set(probed)).toEqual(new Set([-1]));
+  });
+
+  it("keeps culling behind a sealed wall for an unsuspended noclip walk", () => {
+    const graph = makeGraph();
+    for (let cx = 0; cx <= 4; cx++) graph.addChunk(cx, 0);
+    for (let level = 0; level < SUB_CHUNKS; level++) {
+      graph.setConnectivity(2, 0, level, 0);
+    }
+    // The eye is in open air (the probe says so), so the world passes
+    // isSuspended = false even though the player is noclipping.
+    walk(graph, new Vector3(8, 8, 8));
+    expect(graph.isComplete).toBe(true);
+    expect(graph.isSectionVisible(3, 0, 0)).toBe(false);
   });
 });
