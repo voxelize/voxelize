@@ -6,7 +6,6 @@ import {
   localLightFalloff,
   setBlockLightTuning,
 } from "../block-light-transfer";
-
 import {
   SHADER_LIGHTING_CHUNK_SHADERS,
   SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
@@ -69,6 +68,9 @@ const makeStats = (): LocalLightStats => ({
   scanMsPeak: 0,
   sectionsPendingScan: 0,
   selectionChurn: 0,
+  fadingSlots: 0,
+  fadingLights: 0,
+  highResolution: 0,
   gridTextureUploads: 0,
   dataTextureUploads: 0,
   shadowed: 0,
@@ -92,6 +94,7 @@ const makeGrid = (
     maxClusteredLights: number;
     maxLightsPerCell: number;
     analyticRadius: number;
+    temporalStability: boolean;
   }> = {},
 ) =>
   new LightClusterGrid(registry, {
@@ -103,7 +106,36 @@ const makeGrid = (
     selectionHysteresis: 1.2,
     maskKnee: 2 / 15,
     fluidSpecularStrength: 1,
+    temporalStability: overrides.temporalStability ?? true,
+    slotFadeMs: 320,
   });
+
+type GridInternals = {
+  gridData: Uint16Array;
+  storageIndex(cellX: number, cellY: number, cellZ: number): number;
+  gridBaseOf(cell: number): number;
+};
+
+/** The lights a world cell's slot list holds, with their weight bytes. */
+const cellSlots = (
+  grid: LightClusterGrid,
+  cellX: number,
+  cellY: number,
+  cellZ: number,
+) => {
+  const internals = grid as unknown as GridInternals;
+  const base = internals.gridBaseOf(
+    internals.storageIndex(cellX, cellY, cellZ),
+  );
+  const slots: { index: number; weight: number }[] = [];
+  for (let s = 0; s < 8; s++) {
+    const value = internals.gridData[base + s];
+    const row = value & 0xff;
+    if (row === 0) break;
+    slots.push({ index: grid.packedIndices[row - 1], weight: value >> 8 });
+  }
+  return slots;
+};
 
 describe("LightSourceRegistry", () => {
   it("issues stable generation-checked handles", () => {
@@ -440,12 +472,12 @@ describe("block-light ownership", () => {
     // tint on top of unsuppressed flood: exactly the double-lighting the
     // ownership blend removes.
     const registry = new LightSourceRegistry(8);
-    registry.add(pointLight({ range: 10 }), 90, 4, 4);
+    registry.add(pointLight({ range: 16 }), 90, 4, 4);
     const grid = makeGrid(registry, { analyticRadius: 96 });
     grid.update(0, 0, 0, makeStats());
 
     const inside = makeSample();
-    grid.sampleIrradiance([88, 4, 4], inside);
+    grid.sampleIrradiance([76, 4, 4], inside);
     expect(inside.color[0]).toBeGreaterThan(0);
 
     const outside = makeSample();
@@ -466,11 +498,11 @@ describe("block-light ownership", () => {
     grid.update(0, 0, 0, makeStats());
 
     const deep = makeSample();
-    grid.sampleIrradiance([60, 4, 4], deep); // edge distance 4.5 cells: fade 1
+    grid.sampleIrradiance([60, 4, 4], deep); // 28 inside the 88 half: fade 1
     const rim = makeSample();
-    grid.sampleIrradiance([88, 4, 4], rim); // 1 cell from the +X edge: fade 0.5
+    grid.sampleIrradiance([80, 4, 4], rim); // 8 inside, 16-block band: 0.5
 
-    const dist = 28;
+    const dist = 20;
     const norm = dist / 32;
     const falloff = (1 - norm * norm) ** 2;
     expect(deep.windowFade).toBe(1);
@@ -1104,5 +1136,361 @@ describe("block-light transfer (new model)", () => {
       expect(f).toBeLessThanOrEqual(previous);
       previous = f;
     }
+  });
+});
+
+describe("temporal stability (lights never pop as the camera moves)", () => {
+  const FRAME_MS = 16;
+
+  // Six equal lamps around one 8-block cell, more than its four slots: the
+  // corner of a lantern-lit room.
+  const crowdCell = (registry: LightSourceRegistry) => {
+    const spots: [number, number, number][] = [
+      [1, 4, 1],
+      [7, 4, 1],
+      [1, 4, 7],
+      [7, 4, 7],
+      [4, 4, -5],
+      [4, 4, 13],
+    ];
+    return spots.map(([x, y, z]) =>
+      registry.add(pointLight({ range: 12, isStatic: true }), x, y, z),
+    );
+  };
+
+  const walk = (
+    grid: LightClusterGrid,
+    fromX: number,
+    toX: number,
+    onFrame: (frame: number) => void,
+  ) => {
+    const stats = makeStats();
+    let now = 0;
+    const steps = Math.abs(toX - fromX) * 4;
+    for (let n = 0; n <= steps; n++) {
+      now += FRAME_MS;
+      const x = fromX + ((toX - fromX) * n) / steps;
+      grid.update(x, 4, 4, stats, now);
+      onFrame(n);
+    }
+  };
+
+  const fullWeightSet = (grid: LightClusterGrid) =>
+    cellSlots(grid, 0, 0, 0)
+      .filter((slot) => slot.weight === 255)
+      .map((slot) => slot.index)
+      .sort((a, b) => a - b)
+      .join(",");
+
+  it("keeps a crowded cell's lights while the camera walks past", () => {
+    const registry = new LightSourceRegistry(16);
+    crowdCell(registry);
+    const grid = makeGrid(registry, { maxLightsPerCell: 4 });
+    const seen = new Set<string>();
+    walk(grid, -40, 40, () => seen.add(fullWeightSet(grid)));
+    expect(seen.size).toBe(1);
+    expect([...seen][0].split(",")).toHaveLength(4);
+  });
+
+  it("reproduces the legacy pop: camera-ranked cells change as it walks", () => {
+    const registry = new LightSourceRegistry(16);
+    crowdCell(registry);
+    const grid = makeGrid(registry, {
+      maxLightsPerCell: 4,
+      temporalStability: false,
+    });
+    const seen = new Set<string>();
+    walk(grid, -40, 40, () => seen.add(fullWeightSet(grid)));
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it("fades a light out of the selection instead of dropping it", () => {
+    const registry = new LightSourceRegistry(8);
+    const near = registry.add(
+      pointLight({ range: 12, isStatic: true }),
+      4,
+      4,
+      4,
+    );
+    registry.add(pointLight({ range: 12, isStatic: true }), 60, 4, 4);
+    const nearIndex = registry.resolve(near);
+    const weightOfNear = (grid: LightClusterGrid) =>
+      cellSlots(grid, 0, 0, 0).find((slot) => slot.index === nearIndex)
+        ?.weight ?? 0;
+
+    const stable = makeGrid(registry, { maxClusteredLights: 1 });
+    let previous = -1;
+    let largestStep = 0;
+    let sawPartial = false;
+    walk(stable, -10, 90, () => {
+      const weight = weightOfNear(stable);
+      if (previous >= 0) {
+        largestStep = Math.max(largestStep, Math.abs(weight - previous));
+      }
+      if (weight > 0 && weight < 255) sawPartial = true;
+      previous = weight;
+    });
+    expect(sawPartial).toBe(true);
+    // A 320 ms fade at 16 ms frames, smoothstepped: well under a fifth of
+    // the range in any one frame — never 255 to 0.
+    expect(largestStep).toBeLessThan(40);
+
+    const legacy = makeGrid(registry, {
+      maxClusteredLights: 1,
+      temporalStability: false,
+    });
+    previous = -1;
+    largestStep = 0;
+    walk(legacy, -10, 90, () => {
+      const weight = weightOfNear(legacy);
+      if (previous >= 0) {
+        largestStep = Math.max(largestStep, Math.abs(weight - previous));
+      }
+      previous = weight;
+    });
+    expect(largestStep).toBe(255);
+  });
+
+  it("crossfades the lights a cell sheds when the resolution gate engages", () => {
+    const registry = new LightSourceRegistry(16);
+    crowdCell(registry);
+    const grid = makeGrid(registry, { maxLightsPerCell: 4 });
+    const stats = makeStats();
+    let now = 0;
+    const frame = () => grid.update(4, 4, 4, stats, (now += FRAME_MS));
+    frame();
+    expect(cellSlots(grid, 0, 0, 0)).toHaveLength(4);
+
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+    const claimAt = () => {
+      grid.sampleIrradiance([4, 4, 4], sample);
+      return sample.claim;
+    };
+    let previousClaim = claimAt();
+    const fullClaim = previousClaim;
+
+    // A Retina buffer, well past the gate's hysteresis band.
+    grid.setRenderPixels(5_000_000);
+    frame();
+    const shedding = cellSlots(grid, 0, 0, 0);
+    expect(shedding.filter((slot) => slot.weight === 255)).toHaveLength(2);
+    expect(shedding.filter((slot) => slot.weight < 255)).toHaveLength(2);
+    let largestClaimStep = 0;
+    for (let n = 0; n < 40; n++) {
+      frame();
+      const claim = claimAt();
+      largestClaimStep = Math.max(
+        largestClaimStep,
+        Math.abs(claim - previousClaim),
+      );
+      previousClaim = claim;
+    }
+    expect(cellSlots(grid, 0, 0, 0)).toHaveLength(2);
+    expect(largestClaimStep).toBeLessThan(fullClaim * 0.15);
+
+    // Hovering just under the threshold does not flip it back.
+    grid.setRenderPixels(2_000_000);
+    frame();
+    expect(grid.isHighResolutionGate).toBe(true);
+    grid.setRenderPixels(1_000_000);
+    frame();
+    expect(grid.isHighResolutionGate).toBe(false);
+  });
+
+  it("carries a moving light into new cells without fading it in", () => {
+    // A held torch walks with its holder: the cells it reaches must light
+    // at once, or its leading edge would lag a fade behind it.
+    const registry = new LightSourceRegistry(8);
+    const held = registry.add(pointLight({ range: 6 }), 4, 4, 4);
+    const heldIndex = registry.resolve(held);
+    const grid = makeGrid(registry);
+    const stats = makeStats();
+    let now = 0;
+    grid.update(0, 4, 0, stats, (now += FRAME_MS));
+    for (let x = 4; x <= 40; x += 1) {
+      registry.setPosition(held, x, 4, 4);
+      grid.update(0, 4, 0, stats, (now += FRAME_MS));
+      const cellX = Math.floor(x / 8);
+      const slot = cellSlots(grid, cellX, 0, 0).find(
+        (entry) => entry.index === heldIndex,
+      );
+      expect(slot?.weight).toBe(255);
+    }
+  });
+
+  it("never steps the window rim when the window scrolls a cell", () => {
+    const registry = new LightSourceRegistry(8);
+    registry.add(pointLight({ range: 32 }), 80, 4, 4);
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+    const largestFadeStep = (temporalStability: boolean) => {
+      const grid = makeGrid(registry, {
+        analyticRadius: 96,
+        temporalStability,
+      });
+      const stats = makeStats();
+      let previous = -1;
+      let largest = 0;
+      // A quarter block per frame, across the camera-cell boundary at x=8,
+      // sampling a point in the rim band.
+      for (let x = 4; x <= 12; x += 0.25) {
+        grid.update(x, 4, 4, stats);
+        grid.sampleIrradiance([88, 4, 4], sample);
+        if (previous >= 0) {
+          largest = Math.max(largest, Math.abs(sample.windowFade - previous));
+        }
+        previous = sample.windowFade;
+      }
+      return largest;
+    };
+    expect(largestFadeStep(true)).toBeLessThanOrEqual(0.25 / 16 + 1e-9);
+    expect(largestFadeStep(false)).toBeGreaterThanOrEqual(0.4);
+  });
+});
+
+describe("switching the stable layer on and off", () => {
+  it("leaves no texel behind that a later pass would hand to another light", () => {
+    // Legacy then stable (and back): every nonzero slot after a switch must
+    // be one this layer wrote for a cell the light really reaches.
+    const registry = new LightSourceRegistry(64);
+    for (let i = 0; i < 24; i++) {
+      registry.add(
+        pointLight({ range: 10 + (i % 4) * 4, isStatic: true }),
+        (i % 6) * 9 - 20,
+        4,
+        Math.floor(i / 6) * 9 - 10,
+      );
+    }
+    const grid = makeGrid(registry, { maxLightsPerCell: 4 });
+    const stats = makeStats();
+    const internals = grid as unknown as {
+      gridData: Uint16Array;
+    } & GridInternals;
+    const assertEveryTexelReaches = () => {
+      const { positions, ranges } = registry;
+      const origin = grid.uniforms.gridOrigin.value;
+      const originCell = [origin.x / 8, origin.y / 8, origin.z / 8];
+      for (let rx = 0; rx < 24; rx++) {
+        for (let ry = 0; ry < 12; ry++) {
+          for (let rz = 0; rz < 24; rz++) {
+            const cx = originCell[0] + rx;
+            const cy = originCell[1] + ry;
+            const cz = originCell[2] + rz;
+            for (const slot of cellSlots(grid, cx, cy, cz)) {
+              const i = slot.index;
+              const dx = Math.max(
+                cx * 8 - positions[i * 3],
+                0,
+                positions[i * 3] - cx * 8 - 8,
+              );
+              const dy = Math.max(
+                cy * 8 - positions[i * 3 + 1],
+                0,
+                positions[i * 3 + 1] - cy * 8 - 8,
+              );
+              const dz = Math.max(
+                cz * 8 - positions[i * 3 + 2],
+                0,
+                positions[i * 3 + 2] - cz * 8 - 8,
+              );
+              expect(Math.hypot(dx, dy, dz)).toBeLessThan(ranges[i] + 1e-6);
+            }
+          }
+        }
+      }
+      expect(internals.gridData.length).toBeGreaterThan(0);
+    };
+    let now = 0;
+    const walk = (fromX: number, toX: number) => {
+      for (let x = fromX; x <= toX; x += 2) {
+        grid.update(x, 4, 0, stats, (now += 16));
+      }
+    };
+    grid.setTemporalStability(false);
+    walk(-60, 0);
+    grid.setTemporalStability(true);
+    walk(0, 60);
+    assertEveryTexelReaches();
+    grid.setTemporalStability(false);
+    walk(60, 120);
+    assertEveryTexelReaches();
+  });
+});
+
+describe("toroidal cell storage", () => {
+  it("finds the packed slots from the shader's integer lookup, anywhere", () => {
+    // localLightCell: in-window cell + the origin's storage offset, wrapped
+    // once. It must land on the storage cell the packer wrote for the same
+    // world cell, at negative coordinates and after the window scrolls.
+    const registry = new LightSourceRegistry(8);
+    const spots: Vec3Tuple[] = [
+      [-205.5, -3.5, -77.25],
+      [-199.5, 12.25, -90.5],
+      [-212.75, 4.5, -70.5],
+    ];
+    for (const [x, y, z] of spots) {
+      registry.add(pointLight({ range: 6, isStatic: true }), x, y, z);
+    }
+    const grid = makeGrid(registry);
+    const stats = makeStats();
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+    for (const camera of [
+      [-190, 2, -60],
+      [-205, 4, -80],
+      [-230, -10, -95],
+    ] as Vec3Tuple[]) {
+      grid.update(camera[0], camera[1], camera[2], stats);
+      for (const [x, y, z] of spots) {
+        grid.sampleIrradiance([x + 0.5, y, z], sample);
+        expect(sample.count).toBeGreaterThan(0);
+        expect(sample.claim).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+type Vec3Tuple = [number, number, number];
+
+describe("SectionTracker proxy identity", () => {
+  it("keeps a rescanned proxy's handle when nothing about it changed", () => {
+    const registry = new LightSourceRegistry(64);
+    const tracker = new SectionTracker(registry, CHUNK_SIZE, MAX_HEIGHT, 2);
+    const table = makeTable();
+    const chunk = makeChunk(0, 0);
+    // A dense lava field in one corner: aggregated into proxies.
+    for (let x = 0; x < 6; x++) {
+      for (let z = 0; z < 6; z++) setVoxel(chunk, x, 2, z, LAVA.id);
+    }
+    const key = tracker.sectionKey(0, 0, 0);
+    tracker.rescanSection(key, chunk, 0, table);
+    const handles = () =>
+      [...registry.aliveIndices.slice(0, registry.aliveCount)]
+        .map((i) => registry.handleAt(i))
+        .sort((a, b) => a - b);
+    const before = handles();
+    expect(before.length).toBeGreaterThan(0);
+
+    // Re-arrived, unchanged: every proxy is the same light.
+    tracker.rescanSection(key, chunk, 0, table);
+    expect(handles()).toEqual(before);
+
+    // An edit far from the field leaves its proxies alone too.
+    setVoxel(chunk, 12, 2, 12, STONE.id);
+    tracker.rescanSection(key, chunk, 0, table);
+    expect(handles()).toEqual(before);
   });
 });

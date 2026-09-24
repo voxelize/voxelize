@@ -1,7 +1,12 @@
 import { BlockRotation } from "../block";
 
 import { LightSourceRegistry } from "./registry";
-import { BlockLightProfile, LightHandle, LocalLightDescriptor } from "./types";
+import {
+  BlockLightProfile,
+  INVALID_LIGHT_HANDLE,
+  LightHandle,
+  LocalLightDescriptor,
+} from "./types";
 
 /**
  * The slice of a block face the anchor derivation needs: authored corner
@@ -236,6 +241,8 @@ export class SectionTracker {
   private readonly groupKeys = new Map<number, number[]>();
   private readonly scanSignatures = new Map<number, number>();
   private readonly rotatedOffset: [number, number, number] = [0, 0, 0];
+  /** A rescanned section's previous proxies, until matched or released. */
+  private readonly reusableProxies: LightHandle[] = [];
 
   constructor(
     registry: LightSourceRegistry,
@@ -408,16 +415,27 @@ export class SectionTracker {
       record.singleIds.set(localKey, signature);
     }
 
-    // Proxies rebuild wholesale: membership defines them, so any edit in an
-    // aggregated field re-derives that field's few records. Deterministic by
-    // construction (scan order, ascending subcells, fixed partition).
-    for (const handle of record.proxies) this.registry.remove(handle);
+    // Proxies re-derive wholesale: membership defines them, so any edit in
+    // an aggregated field recomputes that field's few records. Deterministic
+    // by construction (scan order, ascending subcells, fixed partition). A
+    // recomputed proxy identical to one already registered keeps that handle
+    // — to the renderer it is the same light, with its selection and fades
+    // intact, instead of one light vanishing and another fading in.
+    const reusable = this.reusableProxies;
+    reusable.length = 0;
+    if (!isProfileTableChanged) {
+      for (const handle of record.proxies) reusable.push(handle);
+    } else {
+      for (const handle of record.proxies) this.registry.remove(handle);
+    }
     record.proxies.length = 0;
     for (const [id, group] of groups) {
       const profile = table.profileFor(id);
       if (!profile) continue;
       this.buildProxies(record.proxies, group, profile, minX, yStart, minZ);
     }
+    for (const handle of reusable) this.registry.remove(handle);
+    reusable.length = 0;
 
     if (
       record.singles.size === 0 &&
@@ -523,18 +541,56 @@ export class SectionTracker {
         }
       }
 
+      const intensity =
+        base.intensity * Math.min(memberCount, PROXY_INTENSITY_CAP);
+      const kept = this.takeReusableProxy(cx, cy, cz, range, intensity);
+      if (kept !== INVALID_LIGHT_HANDLE) {
+        out.push(kept);
+        continue;
+      }
       const handle = this.registry.add(
-        {
-          ...base,
-          intensity:
-            base.intensity * Math.min(memberCount, PROXY_INTENSITY_CAP),
-          range,
-        },
+        { ...base, intensity, range },
         cx,
         cy,
         cz,
       );
       out.push(handle);
     }
+  }
+
+  /** A still-registered proxy with exactly these parameters, claimed. */
+  private takeReusableProxy(
+    x: number,
+    y: number,
+    z: number,
+    range: number,
+    intensity: number,
+  ): LightHandle {
+    const reusable = this.reusableProxies;
+    const { positions, ranges, intensities } = this.registry;
+    // The registry stores float32: compare what a fresh add would store.
+    const fx = Math.fround(x);
+    const fy = Math.fround(y);
+    const fz = Math.fround(z);
+    const fRange = Math.fround(range);
+    const fIntensity = Math.fround(intensity);
+    for (let n = 0; n < reusable.length; n++) {
+      const i = this.registry.resolve(reusable[n]);
+      if (
+        i < 0 ||
+        positions[i * 3] !== fx ||
+        positions[i * 3 + 1] !== fy ||
+        positions[i * 3 + 2] !== fz ||
+        ranges[i] !== fRange ||
+        intensities[i] !== fIntensity
+      ) {
+        continue;
+      }
+      const handle = reusable[n];
+      reusable[n] = reusable[reusable.length - 1];
+      reusable.length--;
+      return handle;
+    }
+    return INVALID_LIGHT_HANDLE;
   }
 }

@@ -8,6 +8,10 @@ import {
 const GENERATION_BITS = 12;
 const GENERATION_MASK = (1 << GENERATION_BITS) - 1;
 
+/** Registry slot index of a handle, without checking it is still live. */
+export const lightHandleIndex = (handle: LightHandle): number =>
+  handle >>> GENERATION_BITS;
+
 export const LIGHT_FLAG_STATIC = 1;
 export const LIGHT_FLAG_MASKED = 2;
 export const LIGHT_FLAG_FLICKER = 4;
@@ -241,6 +245,11 @@ export class LightSourceRegistry {
    */
   generationAt(index: number): number {
     return this.generations[index];
+  }
+
+  /** The handle a live slot answers to (meaningless for a free slot). */
+  handleAt(index: number): LightHandle {
+    return ((index << GENERATION_BITS) | this.generations[index]) >>> 0;
   }
 
   isEnabledAt(index: number): boolean {

@@ -1,7 +1,12 @@
 import { blockLightCurve } from "../block-light-transfer";
 import { WATER_VIEW_EXTINCTION_GLSL } from "../water-optics";
 
-import { GRID_CELLS_PER_ROW, MAX_LIGHTS_PER_CELL } from "./clustering";
+import {
+  GRID_CELLS_PER_ROW,
+  MAX_LIGHTS_PER_CELL,
+  SLOT_ROW_MASK,
+  SLOT_WEIGHT_SHIFT,
+} from "./clustering";
 
 export const FLUID_SPECULAR_LIGHTS_PER_CELL = 1;
 
@@ -64,6 +69,14 @@ uniform sampler2D uLightData;
 uniform vec3 uLightGridOrigin;
 uniform vec3 uLightGridDims;
 uniform float uLightGridCellSize;
+// The window origin's cell mod the dims: its storage cell, per axis.
+uniform vec3 uLightGridStorageOffset;
+// Window centre (xyz, moves every frame) and rim fade width in blocks (w).
+uniform vec4 uLightGridCenter;
+// Half extent the window covers around its centre on every frame.
+uniform vec3 uLightGridHalf;
+// 1: temporally stable layer; 0: the legacy frame (A/B captures).
+uniform float uLocalLightStable;
 uniform int uClusteredLightCount;
 uniform float uLocalMaskKnee;
 uniform float uLocalSpecularStrength;
@@ -92,7 +105,11 @@ uniform vec4 uLocalShadowParams2;
  *   t2 = spot [dir.xyz, cosOuter] / capsule [end offset.xyz, 0]
  *   t3 = [flickerSpeed, flickerAmplitude, flickerPhase, spotInvCosDelta]
  *   t4 = [shadow slot (-1 none), static face mask, dynamic face mask, near]
- *   t5 = [far, guard tanHalf, 0, 0]
+ *   t5 = [far, guard tanHalf, shadow fade weight, 0]
+ *
+ * Grid slots (R16UI): data row + 1 in the low byte (0 ends the cell's list),
+ * the slot's fade weight in the high byte — a light fading into or out of a
+ * cell scales both its light and its flood claim by it.
  *
  * Shadow lookup mirrors the camera construction in `shadow-atlas.ts`
  * (face bases, guard FOV, GL perspective depth); change neither side alone.
@@ -197,24 +214,34 @@ float localLightShadow(
     }
     llVis = min(llVis, llHits * 0.25);
   }
-  return mix(1.0, llVis, uLocalShadowParams2.y);
+  // t5.z fades a shadow in once its faces exist and out before its slot is
+  // handed to another light.
+  return mix(1.0, llVis, uLocalShadowParams2.y * llT5.z);
 }
 
+// Toroidal storage: a world cell keeps its storage cell (and its slots'
+// fades) while the window scrolls around it. Integer math on purpose: a
+// float mod() can return the modulus itself at exact multiples on GPUs that
+// divide by reciprocal, which would read a neighbouring cell's lights.
 int localLightCell(vec3 llPos) {
   vec3 llRel = (llPos - uLightGridOrigin) / uLightGridCellSize;
   if (any(lessThan(llRel, vec3(0.0))) || any(greaterThanEqual(llRel, uLightGridDims))) {
     return -1;
   }
-  ivec3 llCell = ivec3(llRel);
-  return (llCell.z * int(uLightGridDims.y) + llCell.y) * int(uLightGridDims.x) + llCell.x;
+  ivec3 llDims = ivec3(uLightGridDims);
+  ivec3 llCell = ivec3(llRel) + ivec3(uLightGridStorageOffset);
+  llCell -= llDims * ivec3(greaterThanEqual(llCell, llDims));
+  return (llCell.z * llDims.y + llCell.y) * llDims.x + llCell.x;
 }
 
-int localLightSlot(int llCell, int llSlot) {
+int localLightSlot(int llCell, int llSlot, out float llWeight) {
   ivec2 llCoord = ivec2(
     (llCell % ${GRID_CELLS_PER_ROW}) * ${MAX_LIGHTS_PER_CELL} + llSlot,
     llCell / ${GRID_CELLS_PER_ROW}
   );
-  return int(texelFetch(uLightGrid, llCoord, 0).r);
+  uint llValue = texelFetch(uLightGrid, llCoord, 0).r;
+  llWeight = float(llValue >> ${SLOT_WEIGHT_SHIFT}u) * ${(1 / 255).toFixed(8)};
+  return int(llValue & ${SLOT_ROW_MASK}u);
 }
 
 float localLightFlicker(vec4 llT3) {
@@ -224,12 +251,18 @@ float localLightFlicker(vec4 llT3) {
 }
 
 // Window-rim fade shared by the analytic output and its flood claim: the
-// grid window's edge steps with the camera in whole cells, so both fade
-// over the outer two cells — the analytic light hands its coverage back to
-// the flood term in lockstep, and the combined visible block light stays
-// continuous across the rim instead of stacking full analytic on top of a
-// partially returned flood.
+// analytic light hands its coverage back to the flood term in lockstep, and
+// the combined visible block light stays continuous across the rim instead
+// of stacking full analytic on top of a partially returned flood. It is
+// measured from the window's centre, which moves smoothly, and reaches 0
+// inside the extent the window always covers — so the fade never steps when
+// the window scrolls a cell. (The legacy fade is measured from the window's
+// cell-snapped edge and steps by half at every scroll.)
 float localLightWindowFade(vec3 llPos) {
+  if (uLocalLightStable > 0.5) {
+    vec3 llEdge = uLightGridHalf - abs(llPos - uLightGridCenter.xyz);
+    return clamp(min(min(llEdge.x, llEdge.y), llEdge.z) / uLightGridCenter.w, 0.0, 1.0);
+  }
   vec3 llCellPos = (llPos - uLightGridOrigin) / uLightGridCellSize;
   vec3 llEdge = min(llCellPos, uLightGridDims - llCellPos);
   return clamp(min(min(llEdge.x, llEdge.y), llEdge.z) * 0.5, 0.0, 1.0);
@@ -264,7 +297,8 @@ vec3 localLightSurface(
   vec3 llTotal = vec3(0.0);
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
     if (s >= llSlotLimit) break;
-    int llRec = localLightSlot(llCell, s);
+    float llSlotWeight;
+    int llRec = localLightSlot(llCell, s, llSlotWeight);
     if (llRec == 0) break;
     llRec -= 1;
 
@@ -305,8 +339,9 @@ vec3 localLightSurface(
     }
 
     // llT1.rgb is color pre-multiplied by intensity × share, so this is the
-    // light's unoccluded luminance claim at the fragment.
-    llClaim += (llFall * llAngular) * dot(llT1.rgb, vec3(0.2126, 0.7152, 0.0722));
+    // light's unoccluded luminance claim at the fragment; a light fading in
+    // or out of the cell claims in proportion, handing the flood back.
+    llClaim += (llFall * llAngular * llSlotWeight) * dot(llT1.rgb, vec3(0.2126, 0.7152, 0.0722));
 
     float llLambert = max(dot(llNormal, llL), 0.0) * ${(
       1 - LAMBERT_WRAP
@@ -348,7 +383,7 @@ vec3 localLightSurface(
       );
     }
 
-    llTotal += llT1.rgb * (llFall * llAngular * llLambert * llFlicker * llOcclusion) * llTransmit;
+    llTotal += llT1.rgb * (llFall * llAngular * llLambert * llFlicker * llOcclusion * llSlotWeight) * llTransmit;
   }
 
   // A true crossfade between the two complete compositions: the owned
@@ -387,7 +422,8 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)
     // Water already pays the diffuse clustered pass and screen refraction;
     // only the strongest resident light needs a positional highlight.
     if (s >= ${FLUID_SPECULAR_LIGHTS_PER_CELL}) break;
-    int llRec = localLightSlot(llCell, s);
+    float llSlotWeight;
+    int llRec = localLightSlot(llCell, s, llSlotWeight);
     if (llRec == 0) break;
     llRec -= 1;
 
@@ -417,7 +453,7 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)
     // copy of the atlas sampler into the water branch.
     int llFlags = int(llT1.w + 0.5);
     float llOcclusion = (llFlags & 1) != 0 ? llMask : 1.0;
-    llTotal += llT1.rgb * (llSpec * llFall * llOcclusion);
+    llTotal += llT1.rgb * (llSpec * llFall * llOcclusion * llSlotWeight);
   }
   // The same rim fade the diffuse response rides: highlights from a light
   // whose coverage is handing back to the flood must dim in lockstep.
@@ -496,8 +532,9 @@ vec3 localLightDebugColor(
     // Cell occupancy heatmap: black 0, green 1-2, yellow 3-5, red 6+.
     if (llCell < 0) return llBase * 0.2;
     int llCount = 0;
+    float llCountWeight;
     for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
-      if (localLightSlot(llCell, s) == 0) break;
+      if (localLightSlot(llCell, s, llCountWeight) == 0) break;
       llCount++;
     }
     vec3 llRamp = llCount == 0
@@ -522,8 +559,9 @@ vec3 localLightDebugColor(
   if (llCell < 0) return uLocalLightDebugMode < 4.5 ? llBase * 0.2 : vec3(1.0);
   vec3 llTint = llBase * 0.15;
   float llVisAll = 1.0;
+  float llDebugWeight;
   for (int s = 0; s < ${MAX_LIGHTS_PER_CELL}; s++) {
-    int llRec = localLightSlot(llCell, s);
+    int llRec = localLightSlot(llCell, s, llDebugWeight);
     if (llRec == 0) break;
     llRec -= 1;
     vec4 llT1d = texelFetch(uLightData, ivec2(1, llRec), 0);

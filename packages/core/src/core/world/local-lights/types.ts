@@ -108,6 +108,39 @@ export interface LocalLightsOptions {
   maxSectionScansPerFrame: number;
   /** Multiplier a light's score gets while selected, against churn. */
   selectionHysteresis: number;
+  /**
+   * Temporal stability of the clustered layer (default on): cells keep the
+   * lights that matter most to them rather than the ones nearest the
+   * camera, every change of a cell's lights fades over `slotFadeMs`, the
+   * window rim fades continuously, and invalidated shadow faces keep
+   * sampling their last map until the re-render lands. Off is the legacy
+   * frame, kept only for A/B captures.
+   */
+  temporalStability: boolean;
+  /** How long a light takes to fade into or out of a cell, in ms. */
+  slotFadeMs: number;
+  /** How long a light's shadow takes to fade in or out, in ms. */
+  shadowFadeMs: number;
+  /**
+   * Data rows kept free for lights fading out of the selection, so the
+   * selection never has to cut one off mid-fade.
+   */
+  fadingRowReserve: number;
+  /** Width of the window-rim fade, in blocks. */
+  windowFadeBlocks: number;
+  /**
+   * Drawing-buffer pixels at and above which a cell keeps at most
+   * `highResolutionLightsPerCell` steady lights: the per-fragment loop is
+   * paid per pixel, so large buffers trade light count for frame time.
+   */
+  highResolutionPixels: number;
+  highResolutionLightsPerCell: number;
+  /**
+   * Fractional band around `highResolutionPixels` the gate must cross to
+   * flip, so an adaptive render scale hovering at the threshold does not
+   * toggle it every step.
+   */
+  highResolutionHysteresis: number;
   /** Initial quality tier. */
   qualityTier: LightQualityTier;
   /** Strength of local specular on fluids; 0 disables. */
@@ -150,6 +183,14 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   gridDims: [24, 12, 24],
   maxSectionScansPerFrame: 16,
   selectionHysteresis: 1.2,
+  temporalStability: true,
+  slotFadeMs: 320,
+  shadowFadeMs: 320,
+  fadingRowReserve: 32,
+  windowFadeBlocks: 16,
+  highResolutionPixels: 2_100_000,
+  highResolutionLightsPerCell: 2,
+  highResolutionHysteresis: 0.15,
   qualityTier: "high",
   fluidSpecularStrength: 1,
   maskKnee: 2 / 15,
@@ -280,6 +321,12 @@ export interface LocalLightStats {
   scanMsPeak: number;
   sectionsPendingScan: number;
   selectionChurn: number;
+  /** Cell slots mid-fade after the last update. */
+  fadingSlots: number;
+  /** Lights still packed only to finish fading out of the selection. */
+  fadingLights: number;
+  /** 1 while the drawing buffer is past the high-resolution gate. */
+  highResolution: number;
   gridTextureUploads: number;
   dataTextureUploads: number;
   /** Lights currently holding a shadow slot. */

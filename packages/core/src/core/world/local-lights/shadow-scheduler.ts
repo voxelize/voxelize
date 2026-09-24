@@ -28,7 +28,7 @@ import {
   SPOT_GUARD_SCALE,
 } from "./shadow-atlas";
 import { ShadowFrameLedger } from "./shadow-ledger";
-import { LocalLightStats } from "./types";
+import { defaultLocalLightsOptions, LocalLightStats } from "./types";
 
 const LUMA_R = 0.2126;
 const LUMA_G = 0.7152;
@@ -86,6 +86,8 @@ export interface ShadowTexelRecord {
   near: number;
   far: number;
   tanHalf: number;
+  /** 0..1: how much of the shadow shows while it fades in or out. */
+  weight: number;
 }
 
 interface ShadowSlot {
@@ -124,6 +126,16 @@ interface ShadowSlot {
    * full overlay budget every frame forever.
    */
   overlayHashes: Int32Array;
+  /**
+   * 0..1 share of the shadow shown: it rises once every face the light may
+   * render has a map, and falls before the slot changes hands, so a torch's
+   * shadows fade rather than appear face by face or vanish in one frame.
+   */
+  shadowWeight: number;
+  /** Fading out, to be handed to `successor` once the weight reaches 0. */
+  isRetiring: boolean;
+  successor: number;
+  successorGeneration: number;
 }
 
 /**
@@ -232,6 +244,22 @@ export class LocalShadowScheduler {
   private cachedSlotFrames = 0;
   private activeSlotFrames = 0;
 
+  /** Fades shadows and keeps stale faces sampled (see setTemporalStability). */
+  private isStable: boolean;
+  private readonly shadowFadeMs: number;
+  private readonly now: () => number;
+  private lastUpdateAt = Number.NaN;
+  /** Reused by recordForIndex: callers read it at once and keep nothing. */
+  private readonly recordScratch: ShadowTexelRecord = {
+    slot: -1,
+    staticMask: 0,
+    dynamicMask: 0,
+    near: SHADOW_NEAR,
+    far: 1,
+    tanHalf: POINT_FACE_GUARD_TAN_HALF,
+    weight: 0,
+  };
+
   constructor(
     registry: LightSourceRegistry,
     options: {
@@ -239,9 +267,18 @@ export class LocalShadowScheduler {
       shadowAtlasSize: number;
       shadowSlotSize: number;
       shadowEvictionHysteresis: { ratio: number; frames: number };
+      temporalStability?: boolean;
+      shadowFadeMs?: number;
+      /** Clock for the shadow fades; tests inject one. */
+      now?: () => number;
     },
   ) {
     this.registry = registry;
+    this.isStable =
+      options.temporalStability ?? defaultLocalLightsOptions.temporalStability;
+    this.shadowFadeMs =
+      options.shadowFadeMs ?? defaultLocalLightsOptions.shadowFadeMs;
+    this.now = options.now ?? (() => performance.now());
     this.atlas = new LocalShadowAtlas(
       options.shadowAtlasSize,
       options.shadowSlotSize,
@@ -314,6 +351,25 @@ export class LocalShadowScheduler {
     this.invalidateAll("contextRestore");
   }
 
+  /**
+   * On (default): shadows fade in once their faces exist and fade out
+   * before a slot changes hands, and an invalidated face keeps sampling its
+   * last map until the re-render lands. Off: the legacy behaviour, where an
+   * invalidation blanks every face of the light (fully lit) until the
+   * budgeted re-render, and a swap is instant.
+   */
+  setTemporalStability(isStable: boolean): void {
+    if (this.isStable === isStable) return;
+    this.isStable = isStable;
+    for (const slot of this.slots) {
+      if (slot.index < 0) continue;
+      slot.shadowWeight = 1;
+      slot.isRetiring = false;
+      slot.successor = -1;
+    }
+    this.onShadowDataChanged?.();
+  }
+
   invalidateAll(cause: ShadowInvalidationCause): void {
     let changed = false;
     for (let s = 0; s < this.slots.length; s++) {
@@ -322,6 +378,8 @@ export class LocalShadowScheduler {
       slot.staticMask = 0;
       slot.dynamicMask = 0;
       slot.staticPending = slot.allowedMask;
+      // The atlas itself is gone: the shadow fades back in once re-rendered.
+      if (this.isStable) slot.shadowWeight = 0;
       this.logInvalidation(s, cause);
       changed = true;
     }
@@ -394,7 +452,11 @@ export class LocalShadowScheduler {
       const dy = Math.max(minY - slot.y, 0, slot.y - maxY);
       const dz = Math.max(minZ - slot.z, 0, slot.z - maxZ);
       if (dx * dx + dy * dy + dz * dz > slot.far * slot.far) continue;
-      slot.staticMask = 0;
+      // The stale map is this same light's, a few blocks of geometry out of
+      // date at worst, and it keeps sampling until the re-render replaces
+      // it. Blanking it lights every shadowed corner of the room until the
+      // budgeted FIFO gets round to it — a flash on every nearby remesh.
+      if (!this.isStable) slot.staticMask = 0;
       slot.staticPending = slot.allowedMask;
       this.logInvalidation(s, cause);
       this.statsInvalidations++;
@@ -415,6 +477,13 @@ export class LocalShadowScheduler {
     cameraY: number,
     cameraZ: number,
     stats: LocalLightStats,
+    /**
+     * Lights still rendered while they fade out of the clustered set: a
+     * holder among them keeps its slot (and its shadow) until it is gone,
+     * but they never take or challenge for one.
+     */
+    retainedIndices?: Uint32Array,
+    retainedCount = 0,
   ): void {
     this.frame++;
     const registry = this.registry;
@@ -459,6 +528,9 @@ export class LocalShadowScheduler {
             break;
           }
         }
+        for (let r = 0; !isCandidate && r < retainedCount; r++) {
+          if (retainedIndices?.[r] === slot.index) isCandidate = true;
+        }
       }
       if (!isCandidate) {
         this.releaseSlot(s);
@@ -470,6 +542,7 @@ export class LocalShadowScheduler {
       changed = this.reconcileSelection(candidateCount) || changed;
       changed = this.refreshSlotGeometry() || changed;
     }
+    changed = this.advanceShadowFades(candidateCount) || changed;
 
     if (changed) this.onShadowDataChanged?.();
 
@@ -541,6 +614,14 @@ export class LocalShadowScheduler {
       changed = true;
     }
 
+    // One handover at a time: while a holder fades out for its successor,
+    // nobody else is challenged.
+    for (let s = 0; s < this.slots.length; s++) {
+      if (this.slots[s].index >= 0 && this.slots[s].isRetiring) {
+        return changed;
+      }
+    }
+
     // Eviction: the single best unheld candidate challenges the weakest
     // holder; it must out-score it by `ratio` for `frames` consecutive
     // frames before the swap happens.
@@ -590,10 +671,19 @@ export class LocalShadowScheduler {
         this.challengerFrames = 1;
       }
       if (this.challengerFrames >= this.evictionFrames) {
-        this.releaseSlot(weakestSlot);
-        this.logInvalidation(weakestSlot, "eviction");
-        this.statsEvictions++;
-        this.assignSlot(weakestSlot, challenger);
+        if (this.isStable) {
+          // The holder's shadow fades out first; advanceShadowFades hands
+          // the slot over once it is gone.
+          const slot = this.slots[weakestSlot];
+          slot.isRetiring = true;
+          slot.successor = challenger;
+          slot.successorGeneration = generation;
+        } else {
+          this.releaseSlot(weakestSlot);
+          this.logInvalidation(weakestSlot, "eviction");
+          this.statsEvictions++;
+          this.assignSlot(weakestSlot, challenger);
+        }
         this.challengerIndex = -1;
         this.challengerFrames = 0;
         changed = true;
@@ -603,6 +693,61 @@ export class LocalShadowScheduler {
       this.challengerFrames = 0;
     }
 
+    return changed;
+  }
+
+  /**
+   * One frame of shadow fades: a holder whose faces all exist fades its
+   * shadow in; a retiring holder fades out and then hands its slot to the
+   * challenger that won it (if that light still wants one).
+   */
+  private advanceShadowFades(candidateCount: number): boolean {
+    const now = this.now();
+    const elapsed = Number.isFinite(this.lastUpdateAt)
+      ? Math.max(now - this.lastUpdateAt, 0)
+      : 0;
+    this.lastUpdateAt = now;
+    if (!this.isStable) return false;
+    const step = this.shadowFadeMs > 0 ? elapsed / this.shadowFadeMs : 1;
+    let changed = false;
+    for (let s = 0; s < this.slots.length; s++) {
+      const slot = this.slots[s];
+      if (slot.index < 0) continue;
+      if (slot.isRetiring) {
+        slot.shadowWeight = Math.max(slot.shadowWeight - step, 0);
+        changed = true;
+        if (slot.shadowWeight > 0) continue;
+        const successor = slot.successor;
+        const generation = slot.successorGeneration;
+        this.releaseSlot(s);
+        this.logInvalidation(s, "eviction");
+        this.statsEvictions++;
+        let isWanted = false;
+        for (let c = 0; c < candidateCount; c++) {
+          if (this.candidateIndices[c] === successor) {
+            isWanted = true;
+            break;
+          }
+        }
+        if (
+          isWanted &&
+          this.registry.generationAt(successor) === generation &&
+          this.holderSlotOf(successor) < 0
+        ) {
+          this.assignSlot(s, successor);
+        }
+        continue;
+      }
+      // Faces render over a few frames through the budgeted FIFO; the
+      // shadow waits for all of them rather than appearing face by face.
+      if (
+        slot.shadowWeight < 1 &&
+        (slot.staticPending === 0 || slot.isMovingLight)
+      ) {
+        slot.shadowWeight = Math.min(slot.shadowWeight + step, 1);
+        changed = true;
+      }
+    }
     return changed;
   }
 
@@ -698,6 +843,9 @@ export class LocalShadowScheduler {
     slot.dynamicMask = 0;
     slot.staticPending = slot.allowedMask;
     slot.overlayHashes.fill(0);
+    slot.shadowWeight = this.isStable ? 0 : 1;
+    slot.isRetiring = false;
+    slot.successor = -1;
   }
 
   private releaseSlot(s: number): void {
@@ -713,6 +861,9 @@ export class LocalShadowScheduler {
     slot.dirZ = 0;
     slot.cosOuter = 0;
     slot.overlayHashes.fill(0);
+    slot.shadowWeight = 0;
+    slot.isRetiring = false;
+    slot.successor = -1;
   }
 
   /**
@@ -737,20 +888,24 @@ export class LocalShadowScheduler {
     return mask === 0 ? FULL_FACE_MASK : mask;
   }
 
-  /** Texel provider for the clustered packer. */
+  /**
+   * Texel provider for the clustered packer. The record is scratch reused
+   * by the next call (the packer runs every frame a shadow fades).
+   */
   recordForIndex(index: number): ShadowTexelRecord | null {
     for (let s = 0; s < this.slots.length; s++) {
       const slot = this.slots[s];
       if (slot.index !== index) continue;
       if (this.registry.generationAt(index) !== slot.generation) return null;
-      return {
-        slot: s,
-        staticMask: slot.staticMask,
-        dynamicMask: slot.dynamicMask,
-        near: SHADOW_NEAR,
-        far: slot.far,
-        tanHalf: slot.tanHalf,
-      };
+      const record = this.recordScratch;
+      record.slot = s;
+      record.staticMask = slot.staticMask;
+      record.dynamicMask = slot.dynamicMask;
+      record.near = SHADOW_NEAR;
+      record.far = slot.far;
+      record.tanHalf = slot.tanHalf;
+      record.weight = this.isStable ? slot.shadowWeight : 1;
+      return record;
     }
     return null;
   }
@@ -1291,6 +1446,10 @@ function makeEmptySlot(): ShadowSlot {
     dynamicMask: 0,
     staticPending: 0,
     overlayHashes: new Int32Array(6),
+    shadowWeight: 0,
+    isRetiring: false,
+    successor: -1,
+    successorGeneration: 0,
   };
 }
 

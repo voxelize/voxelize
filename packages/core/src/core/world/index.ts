@@ -1131,11 +1131,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Fires at the start of every scene render (shadow cascades included),
     // which is the earliest point with a renderer in hand: animated atlas
     // frames queued since the last flush upload as small sub-rectangle
-    // patches before any material binds the texture.
+    // patches before any material binds the texture. The drawing buffer's
+    // size (independent of whichever target this render draws into) sizes
+    // the local lights' per-cell budget for the frames that follow.
+    const drawingBuffer = new Vector2();
     this.onBeforeRender = (renderer) => {
       this.animatedAtlasTextures.forEach((texture) =>
         texture.flushAnimationPatches(renderer),
       );
+      renderer.getDrawingBufferSize(drawingBuffer);
+      this.localLights.setRenderPixels(drawingBuffer.x * drawingBuffer.y);
     };
 
     this.stopStatsSync = setWorkerInterval(() => {

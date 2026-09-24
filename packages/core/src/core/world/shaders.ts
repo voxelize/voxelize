@@ -1,6 +1,10 @@
 import { ShaderLib } from "three";
 
 import {
+  BLOCK_LIGHT_TRANSFER_GLSL,
+  BLOCK_LIGHT_TRANSFER_UNIFORMS_GLSL,
+} from "./block-light-transfer";
+import {
   LIGHT_CONES_FUNCTIONS,
   LIGHT_CONES_SCATTER_FRAGMENT,
   LIGHT_CONES_UNIFORM_DECLARATIONS,
@@ -11,10 +15,7 @@ import {
   LOCAL_LIGHTS_FUNCTIONS,
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./local-lights/shader";
-import {
-  BLOCK_LIGHT_TRANSFER_GLSL,
-  BLOCK_LIGHT_TRANSFER_UNIFORMS_GLSL,
-} from "./block-light-transfer";
+import { defaultLocalLightsOptions } from "./local-lights/types";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
@@ -29,8 +30,9 @@ import {
 } from "./water-optics";
 
 export const CHUNK_RENDER_QUALITY = {
-  highResolutionPixelThreshold: 2_100_000,
-  highResolutionLocalLightsPerCell: 2,
+  highResolutionPixelThreshold: defaultLocalLightsOptions.highResolutionPixels,
+  highResolutionLocalLightsPerCell:
+    defaultLocalLightsOptions.highResolutionLightsPerCell,
 } as const;
 
 // Chunk fog reveals through both channels at once: the material uniform (a
@@ -60,7 +62,10 @@ const LOCAL_LIGHTS_OWNERSHIP_FRAGMENT = `
 // below is an IEEE identity at remainder 1 and clusterLight 0. Sunlight is
 // composed separately and never touched by either model.
 float llFloodRemainder = 1.0;
-bool llHighResolution =
+// The stable layer sizes each cell's list on the CPU from the real drawing
+// buffer (every packed slot is meant to be read). The legacy frame gates here
+// on uSceneTextureSize, which only water frames write.
+bool llHighResolution = uLocalLightStable < 0.5 &&
   uSceneTextureSize.x * uSceneTextureSize.y >= ${CHUNK_RENDER_QUALITY.highResolutionPixelThreshold}.0;
 vec3 clusterLight = localLightSurface(
   vWorldPosition.xyz,

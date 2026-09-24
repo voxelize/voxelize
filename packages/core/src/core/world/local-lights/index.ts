@@ -131,6 +131,9 @@ export class LocalLights {
     scanMsPeak: 0,
     sectionsPendingScan: 0,
     selectionChurn: 0,
+    fadingSlots: 0,
+    fadingLights: 0,
+    highResolution: 0,
     gridTextureUploads: 0,
     dataTextureUploads: 0,
     shadowed: 0,
@@ -232,6 +235,10 @@ export class LocalLights {
       uLightGridOrigin: u.gridOrigin,
       uLightGridDims: u.gridDims,
       uLightGridCellSize: u.gridCellSize,
+      uLightGridStorageOffset: u.gridStorageOffset,
+      uLightGridCenter: u.gridCenter,
+      uLightGridHalf: u.gridHalf,
+      uLocalLightStable: u.stable,
       uClusteredLightCount: u.clusteredCount,
       uLocalMaskKnee: u.maskKnee,
       uLocalSpecularStrength: u.specularStrength,
@@ -380,6 +387,29 @@ export class LocalLights {
 
   getQualityTier(): LightQualityTier {
     return this.tier;
+  }
+
+  /**
+   * The drawing buffer's pixel count; the world feeds it every rendered
+   * frame. Past `highResolutionPixels` (with hysteresis) cells keep fewer
+   * steady lights, and the ones they drop fade out.
+   */
+  setRenderPixels(pixels: number): void {
+    this.grid.setRenderPixels(pixels);
+  }
+
+  /**
+   * On by default. Off renders the legacy frame — camera-ranked cells,
+   * popping selection, stepped window rim, shadows that blank on every
+   * nearby remesh — and exists only for A/B captures and measurements.
+   */
+  setTemporalStability(isStable: boolean): void {
+    this.grid.setTemporalStability(isStable);
+    this.shadows.setTemporalStability(isStable);
+  }
+
+  get isTemporallyStable(): boolean {
+    return this.grid.isTemporallyStable;
   }
 
   /**
@@ -538,6 +568,8 @@ export class LocalLights {
       position.y,
       position.z,
       stats,
+      this.grid.packedIndices,
+      this.grid.packedCount,
     );
     this.debugOverlay?.update();
   }
