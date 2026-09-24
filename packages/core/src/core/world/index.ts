@@ -1,4 +1,3 @@
-import { biomeTintAttribute } from "./biome-tint";
 import { EventEmitter } from "events";
 
 import { AABB } from "@voxelize/aabb";
@@ -126,6 +125,7 @@ function computeFlatNormals(geometry: BufferGeometry) {
   );
 }
 
+import { biomeTintAttribute } from "./biome-tint";
 import {
   Block,
   BlockDynamicPattern,
@@ -1476,7 +1476,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     const name = ChunkUtils.getChunkName([cx, cz]);
-    if (this.chunkPipeline.isInStage(name, "processing")) {
+    if (this.chunkPipeline.isAwaitingData(name)) {
       return null;
     }
 
@@ -1517,7 +1517,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
     }
 
-    if (this.chunkPipeline.isInStage(name, "processing")) {
+    if (this.chunkPipeline.isAwaitingData(name)) {
       return null;
     }
 
@@ -4958,7 +4958,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private processChunks(center: Coords2) {
     const processingSet = this.chunkPipeline.getInStage("processing");
-    if (processingSet.size === 0) return;
+    const reloads = this.chunkPipeline.getReloads();
+    if (processingSet.size === 0 && reloads.size === 0) return;
 
     const toProcessArray: Array<{
       name: string;
@@ -4970,6 +4971,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (procData) {
         toProcessArray.push({ name, ...procData });
       }
+    }
+    // A loaded chunk's new data is applied to that same chunk below: the
+    // by-coords lookup still finds it, so no second chunk is built.
+    for (const [name, reload] of reloads) {
+      toProcessArray.push({ name, ...reload });
     }
 
     toProcessArray.sort((a, b) => {

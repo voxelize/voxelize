@@ -73,6 +73,77 @@ describe("ChunkPipeline.resyncForRejoin", () => {
   });
 });
 
+describe("ChunkPipeline data for a loaded chunk", () => {
+  it("keeps the chunk loaded and queues the data for that same chunk", () => {
+    const pipeline = new ChunkPipeline();
+    const loaded = makeChunk([0, 0]);
+    const name = ChunkUtils.getChunkName([0, 0]);
+    pipeline.markLoaded([0, 0], loaded);
+
+    pipeline.markProcessing([0, 0], "load", protocolFor([0, 0]));
+
+    expect(pipeline.getStage(name)).toBe("loaded");
+    expect(pipeline.getLoadedChunk(name)).toBe(loaded);
+    expect(pipeline.getReloads().get(name)?.data.x).toBe(0);
+    expect(pipeline.isAwaitingData(name)).toBe(true);
+    expect(pipeline.processingCount).toBe(1);
+
+    pipeline.markLoaded([0, 0], loaded);
+
+    expect(pipeline.getReloads().size).toBe(0);
+    expect(pipeline.isAwaitingData(name)).toBe(false);
+    expect(pipeline.processingCount).toBe(0);
+  });
+
+  it("layers the voxel message over the mesh message it follows", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([0, 0]);
+    pipeline.markLoaded([0, 0], makeChunk([0, 0]));
+    const meshes = [{ level: 0, geometries: [] }] as ChunkProtocol["meshes"];
+    const voxels = new Uint32Array([7]);
+
+    pipeline.markProcessing([0, 0], "load", {
+      ...protocolFor([0, 0]),
+      meshes,
+      voxels: undefined,
+      lights: undefined,
+    });
+    pipeline.markProcessing([0, 0], "load", {
+      ...protocolFor([0, 0]),
+      meshes: [],
+      voxels,
+    });
+
+    const data = pipeline.getReloads().get(name)?.data;
+    expect(data?.meshes).toBe(meshes);
+    expect(data?.voxels).toBe(voxels);
+  });
+
+  it("drops queued data when the chunk is removed", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([0, 0]);
+    pipeline.markLoaded([0, 0], makeChunk([0, 0]));
+    pipeline.markProcessing([0, 0], "load", protocolFor([0, 0]));
+
+    pipeline.remove(name);
+
+    expect(pipeline.getReloads().size).toBe(0);
+    expect(pipeline.getStage(name)).toBeNull();
+  });
+
+  it("still sends a chunk it has no data for through processing", () => {
+    const pipeline = new ChunkPipeline();
+    const name = ChunkUtils.getChunkName([1, 0]);
+    pipeline.markRequested([1, 0]);
+
+    pipeline.markProcessing([1, 0], "load", protocolFor([1, 0]));
+
+    expect(pipeline.getStage(name)).toBe("processing");
+    expect(pipeline.getReloads().size).toBe(0);
+    expect(pipeline.isAwaitingData(name)).toBe(true);
+  });
+});
+
 describe("ChunkPipeline.isRequestStale", () => {
   it("presumes a request lost once its own elapsed time passes the threshold", () => {
     const pipeline = new ChunkPipeline();

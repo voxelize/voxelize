@@ -64,6 +64,24 @@ export interface ChunkRoundTrip {
 /// remembering a whole session.
 const RECENT_ROUND_TRIP_CAPACITY = 64;
 
+type PendingChunkData = { source: "update" | "load"; data: ChunkProtocol };
+
+/**
+ * A later payload for a chunk layered over an earlier one not yet applied:
+ * the server sends a chunk's meshes and its voxels as separate messages.
+ */
+const mergeChunkData = (
+  earlier: ChunkProtocol,
+  later: ChunkProtocol,
+): ChunkProtocol => ({
+  ...earlier,
+  ...later,
+  meshes:
+    later.meshes && later.meshes.length > 0 ? later.meshes : earlier.meshes,
+  voxels: later.voxels ?? earlier.voxels,
+  lights: later.lights ?? earlier.lights,
+});
+
 export class ChunkPipeline {
   private states = new Map<string, ChunkStage>();
   private recentRoundTrips: ChunkRoundTrip[] = [];
@@ -79,6 +97,18 @@ export class ChunkPipeline {
    * against it instead of re-resolving the name on every voxel read.
    */
   public loadedGeneration = 0;
+
+  /**
+   * Data that arrived for a chunk that is already loaded (a rejoin refresh,
+   * a server re-mesh, the answer to a re-issued request), waiting to be
+   * applied to that same chunk. The chunk stays loaded meanwhile, so
+   * lookups, culling, the terrain fade and unloading keep reaching it.
+   * Sending it back to `processing` dropped the only reference to it: the
+   * world built a second chunk for the same coordinates and the first one's
+   * meshes stayed in the scene for good, drawn over the new ones, with any
+   * section caught mid-fade frozen in its fog colour.
+   */
+  private reloads = new Map<string, PendingChunkData>();
 
   private setStage(name: string, stage: ChunkStage): void {
     const old = this.states.get(name);
@@ -158,21 +188,20 @@ export class ChunkPipeline {
     const name = ChunkUtils.getChunkName(coords);
     const existing = this.states.get(name);
 
+    if (existing?.stage === "loaded") {
+      const pending = this.reloads.get(name);
+      this.reloads.set(name, {
+        source,
+        data: pending ? mergeChunkData(pending.data, data) : data,
+      });
+      return;
+    }
+
     if (existing?.stage === "processing") {
-      const merged: ChunkProtocol = {
-        ...existing.data,
-        ...data,
-        meshes:
-          data.meshes && data.meshes.length > 0
-            ? data.meshes
-            : existing.data.meshes,
-        voxels: data.voxels ?? existing.data.voxels,
-        lights: data.lights ?? existing.data.lights,
-      };
       this.setStage(name, {
         stage: "processing",
         source,
-        data: merged,
+        data: mergeChunkData(existing.data, data),
         requestedAt: existing.requestedAt,
         sentAt: existing.sentAt,
         arrivedAt: existing.arrivedAt,
@@ -194,6 +223,7 @@ export class ChunkPipeline {
 
   markLoaded(coords: Coords2, chunk: Chunk): void {
     const name = ChunkUtils.getChunkName(coords);
+    this.reloads.delete(name);
     const existing = this.states.get(name);
     const carried =
       existing?.stage === "requested" || existing?.stage === "processing"
@@ -279,9 +309,20 @@ export class ChunkPipeline {
       : undefined;
   }
 
+  /** Data waiting for chunks that stay loaded; see {@link reloads}. */
+  getReloads(): ReadonlyMap<string, PendingChunkData> {
+    return this.reloads;
+  }
+
+  /** Whether data for this chunk is still waiting to be applied. */
+  isAwaitingData(name: string): boolean {
+    return this.indices.processing.has(name) || this.reloads.has(name);
+  }
+
   remove(name: string): Chunk | undefined {
     const chunk = this.getLoadedChunk(name);
     this.removeStage(name);
+    this.reloads.delete(name);
     return chunk;
   }
 
@@ -317,7 +358,7 @@ export class ChunkPipeline {
   }
 
   get processingCount(): number {
-    return this.indices.processing.size;
+    return this.indices.processing.size + this.reloads.size;
   }
 
   get totalCount(): number {
