@@ -76,7 +76,11 @@ export interface ShaderLightingUniforms {
   waterFresnelStrength: { value: number };
   /** 0..1 scale on the caustic net seen on submerged faces from below. */
   bedCausticScale: { value: number };
-  /** 1 draws the surface's underside as Snell's window + caustic web. */
+  /**
+   * The surface's underside while submerged: 0 off, 1 a clear Snell window
+   * onto the scene above over a calm mirror of the water, 2 the previous
+   * texel-stepped window and caustic web (kept for A/B captures).
+   */
   surfaceUndersideScale: { value: number };
   skyTopColor: { value: Color };
   skyMiddleColor: { value: Color };

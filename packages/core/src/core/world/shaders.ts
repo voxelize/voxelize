@@ -1207,7 +1207,11 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
 
   // Seen from below, the surface only transmits sky within the Snell window
   // overhead; grazing angles reflect the dark water body instead.
-  float snellWindow = smoothstep(0.55, 0.78, abs(dot(waterNormal, viewDir)));
+  // Only a surface overhead has a window: a vertical face seen head-on
+  // (a wall at a chunk border, a waterfall's back) is not one, and taking
+  // it for one painted it sky-bright — a pale sheet with a hard edge.
+  float snellWindow = smoothstep(0.55, 0.78, abs(dot(waterNormal, viewDir)))
+    * mix(topWaterFace, 1.0, step(1.5, uSurfaceUndersideScale));
   vec3 belowSurfaceSky = mix(uUnderwaterAmbient, skyReflection, snellWindow);
   skyReflection = mix(skyReflection, belowSurfaceSky, uCameraSubmersion);
 
@@ -1422,12 +1426,54 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;
 
-  // From below, the surface is a moving ceiling of light: Snell's window
-  // overhead shows the sky and the sun, total internal reflection mirrors
-  // the water body outside it, and the bed's caustic web plays across it.
-  // Evaluated at the centre of the 1/16-block texel, like the block art, so
-  // the window's rim and the web step instead of smearing.
-  if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && uSurfaceUndersideScale > 0.5) {
+  // From below, the surface is clear water looking up: Snell's window
+  // overhead shows the scene above through the ripples, and total internal
+  // reflection outside it is a calm mirror of the water's own colour. The
+  // caustic web belongs to the bed; the ceiling keeps a faint shimmer.
+  if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && uSurfaceUndersideScale > 0.5 && uSurfaceUndersideScale < 1.5) {
+    vec3 ceilRay = normalize(wPos - cameraPosition);
+    vec3 ceilNormal = normalize(mix(
+      vec3(0.0, 1.0, 0.0),
+      waterNormal,
+      rippleLod * ${WATER_OPTICS.undersideRippleKeep.toFixed(4)}
+    ));
+    float ceilCosI = clamp(dot(ceilRay, ceilNormal), 0.0, 1.0);
+    float ceilSinT = ${WATER_OPTICS.refractiveIndex.toFixed(4)}
+      * sqrt(max(1.0 - ceilCosI * ceilCosI, 0.0));
+    float ceilWindow = 1.0 - smoothstep(
+      1.0 - ${WATER_OPTICS.undersideCleanSoftness.toFixed(4)},
+      1.0,
+      ceilSinT
+    );
+    vec3 ceilMirror = uUnderwaterAmbient * ${WATER_OPTICS.undersideMirrorScale.toFixed(4)};
+    vec3 ceilAbove;
+    float ceilAlpha;
+    if (uWaterRefractionReady > 0.5) {
+      // The frame drawn before water, shifted by the surface slope: the
+      // same displacement the top side uses, calmer.
+      vec2 ceilUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0))
+        + ceilNormal.xz
+          * ${(WATER_OPTICS.refractionSlopeScale * WATER_OPTICS.undersideDistortion).toFixed(4)}
+          * uWaterRefractionStrength;
+      ceilAbove = texture2D(uSceneColor, clamp(ceilUv, vec2(0.001), vec2(0.999))).rgb;
+      ceilAlpha = 1.0;
+    } else {
+      // No capture (refraction off, or a buffer past its pixel budget):
+      // the sky dome along the refracted ray, and the real scene showing
+      // through the window unbent.
+      vec3 ceilOut = refract(ceilRay, -ceilNormal, ${WATER_OPTICS.refractiveIndex.toFixed(4)});
+      ceilAbove = mix(uSkyMiddleColor, uSkyTopColor, sqrt(clamp(ceilOut.y, 0.0, 1.0)));
+      ceilAlpha = mix(${WATER_OPTICS.undersideMirrorOpacity.toFixed(4)}, 0.5, ceilWindow);
+    }
+    float ceilShimmer = waterCausticWeb(wPos.xz, uTime * 0.001) * ceilWindow
+      * uSunlightIntensity * ${WATER_OPTICS.undersideShimmerStrength.toFixed(4)};
+    outgoingLight.rgb = mix(ceilMirror, ceilAbove, ceilWindow) + uSunColor * ceilShimmer;
+    diffuseColor.a = ceilAlpha;
+  }
+
+  // The previous underside (surfaceUndersideScale 2, A/B only): the
+  // window, mirror and caustic web evaluated per 1/16-block texel.
+  if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && uSurfaceUndersideScale > 1.5) {
     vec2 ceilXZ = (floor(wPos.xz * 16.0) + 0.5) / 16.0;
     vec3 ceilRay = normalize(vec3(ceilXZ.x, wPos.y, ceilXZ.y) - cameraPosition);
     vec3 ceilNormal = normalize(mix(vec3(0.0, 1.0, 0.0), waterNormal, rippleLod));

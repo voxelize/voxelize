@@ -19,6 +19,14 @@ void main() {
   float h2 = normalize(skyPosition + uVoidOffset).y;
   vec3 color = mix(uMiddleColor, uTopColor, max(pow(max(h, 0.0), uExponent), 0.0));
   color = mix(color, uBottomColor, max(pow(max(-h2, 0.0), uExponent2), 0.0));
-  color = mix(color, uUnderwaterAmbient, uUnderwaterFade);
+  // From under water, sky reaches the eye only through Snell's window, the
+  // cone ~48.6 degrees about straight up (cos = 0.661). Any other ray that
+  // meets no geometry runs through water forever — past the loaded surface,
+  // over a drop-off — and must read as the water, not as a pale band of
+  // horizon with a hard edge where the surface mesh ends. The fade is only
+  // non-zero while submerged, so a sliver of it stands in for "under water".
+  float submerged = clamp(uUnderwaterFade * 40.0, 0.0, 1.0);
+  float outsideWindow = 1.0 - smoothstep(0.58, 0.72, normalize(skyPosition).y);
+  color = mix(color, uUnderwaterAmbient, max(uUnderwaterFade, outsideWindow * submerged));
   gl_FragColor = vec4(color, 1.0);
 }

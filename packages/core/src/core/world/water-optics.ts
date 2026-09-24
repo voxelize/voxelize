@@ -379,6 +379,30 @@ export const WATER_OPTICS = Object.freeze({
   undersideMirrorOpacity: 0.95,
 
   /**
+   * The clean underside (`surfaceUndersideScale` 1). Inside the window the
+   * surface shows the frame captured before water drew — the sky, the sun,
+   * the shore above — shifted by the ripples, so it reads as looking up
+   * through clear water. Outside it, total internal reflection is a calm
+   * mirror of the water's own scatter colour. Nothing is snapped to texels
+   * and the caustic web stays on the bed, leaving the ceiling a faint
+   * shimmer at most; the view-path fog dims all of it with depth and the
+   * scatter colour carries the night.
+   *
+   * `undersideRippleKeep` is the share of the ripple normal the window and
+   * the shift see (calmer than the top side), `undersideDistortion` scales
+   * the refraction slope for the shift, `undersideCleanSoftness` widens the
+   * window's rim in sin units, `undersideMirrorScale` sets the mirror
+   * against the scatter the fog fades toward (just above it, so the
+   * ceiling reads without going grey), and `undersideShimmerStrength` is
+   * the web's peak on the window.
+   */
+  undersideRippleKeep: 0.45,
+  undersideDistortion: 0.55,
+  undersideCleanSoftness: 0.22,
+  undersideMirrorScale: 1.15,
+  undersideShimmerStrength: 0.05,
+
+  /**
    * Flow. Water runs downhill along its own surface, and a fluid's top face
    * is a bilinear patch through the mesher's corner heights, which step
    * down one stage per block away from the source. That rest height is a

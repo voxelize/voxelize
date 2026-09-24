@@ -89,6 +89,7 @@ export class ParticleSystem {
   private readonly scratchAxisA = new Vector3();
   private readonly scratchAxisB = new Vector3();
   private readonly viewAxis = new Vector3(0, 0, 1);
+  private readonly cameraQuaternion = new Quaternion();
 
   constructor(
     private readonly world: ParticleWorld,
@@ -251,7 +252,10 @@ export class ParticleSystem {
 
   update(deltaSec: number, camera: Camera): void {
     const dt = Math.min(deltaSec, 0.05);
-    for (const layer of this.layers.values()) this.stepLayer(layer, dt, camera);
+    // World space: a player camera is parented under its controls' rig,
+    // whose rotation its local quaternion never sees.
+    camera.getWorldQuaternion(this.cameraQuaternion);
+    for (const layer of this.layers.values()) this.stepLayer(layer, dt);
     this.stepFlashes(dt);
   }
 
@@ -328,7 +332,7 @@ export class ParticleSystem {
     return out;
   }
 
-  private stepLayer(layer: ParticleLayer, dt: number, camera: Camera): void {
+  private stepLayer(layer: ParticleLayer, dt: number): void {
     const bodies = layer.bodies;
     for (let i = layer.alive - 1; i >= 0; i -= 1) {
       layer.age[i] += dt;
@@ -393,7 +397,7 @@ export class ParticleSystem {
         // Face the camera, then spin in the plane of the screen.
         this.scratchSpinQuaternion.setFromAxisAngle(this.viewAxis, spin);
         this.scratchQuaternion
-          .copy(camera.quaternion)
+          .copy(this.cameraQuaternion)
           .multiply(this.scratchSpinQuaternion);
       } else if (layer.isSettled[i]) {
         // Spun about its own normal first, then tipped flat, so a landed

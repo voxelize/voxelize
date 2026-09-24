@@ -724,9 +724,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    // The refraction shader path is disabled while submerged, so skip the
-    // framebuffer copy entirely; the threshold mirrors the shader's gate.
-    if (cameraSubmersion.value >= 0.5) {
+    // Submerged, only the underside's Snell window reads the capture (the
+    // scene above, bent by the ripples); with it off or on the legacy look
+    // the copy is skipped. Thresholds mirror the shader's gates.
+    const undersideStyle =
+      this.chunkRenderer.shaderLightingUniforms.surfaceUndersideScale.value;
+    const isUndersideWindowReading =
+      undersideStyle > 0.5 && undersideStyle < 1.5;
+    if (cameraSubmersion.value >= 0.5 && !isUndersideWindowReading) {
       return;
     }
 
