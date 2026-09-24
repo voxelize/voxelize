@@ -45,6 +45,44 @@ const walk = (
 };
 
 describe("SectionVisibilityGraph", () => {
+  it("hides the whole wedge behind a chunk with no node, even across open air", () => {
+    // Three open rows along +X; chunk (2, 0) has no node. A walk never turns
+    // back, so no path reaches (4, 0) around the gap: open terrain in plain
+    // view is culled until the hole's own chunk arrives.
+    const graph = makeGraph();
+    for (let cx = 0; cx <= 4; cx++) {
+      for (let cz = -1; cz <= 1; cz++) {
+        if (cx === 2 && cz === 0) continue;
+        graph.addChunk(cx, cz);
+      }
+    }
+    walk(graph, new Vector3(8, 8, 8));
+    expect(graph.isComplete).toBe(true);
+    expect(graph.isSectionVisible(4, 0, 0)).toBe(false);
+    expect(graph.isSectionVisible(3, 0, 0)).toBe(false);
+
+    // A placeholder for the requested chunk (a node with no connectivity
+    // yet) is walked through like air, so nothing behind a hole is hidden.
+    graph.addChunk(2, 0);
+    walk(graph, new Vector3(8, 8, 8));
+    expect(graph.isSectionVisible(3, 0, 0)).toBe(true);
+    expect(graph.isSectionVisible(4, 0, 0)).toBe(true);
+  });
+
+  it("keeps a placeholder open until the chunk's real connectivity lands", () => {
+    const graph = makeGraph();
+    for (let cx = 0; cx <= 3; cx++) graph.addChunk(cx, 0);
+    walk(graph, new Vector3(8, 8, 8));
+    expect(graph.isSectionVisible(3, 0, 0)).toBe(true);
+
+    // Once meshed, a sealed section does occlude what is behind it.
+    for (let level = 0; level < SUB_CHUNKS; level++) {
+      graph.setConnectivity(1, 0, level, 0);
+    }
+    walk(graph, new Vector3(8, 8, 8));
+    expect(graph.isSectionVisible(3, 0, 0)).toBe(false);
+  });
+
   it("does not use air-path occlusion for a spectator crossing sealed rock", () => {
     const graph = makeGraph();
     for (let cx = 0; cx <= 4; cx++) {

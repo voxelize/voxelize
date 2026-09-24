@@ -219,6 +219,18 @@ describe("MeshPipeline voxel-change remesh", () => {
     expect(pipeline.getDirtyKeys()).toEqual(["1,1:0"]);
   });
 
+  it("knows whether a section has ever shown a mesh", () => {
+    const pipeline = new MeshPipeline();
+    expect(pipeline.hasDisplayed("0,0:0")).toBe(false);
+    pipeline.onVoxelChange(0, 0, 0);
+    const generation = pipeline.startJob("0,0:0");
+    expect(pipeline.hasDisplayed("0,0:0")).toBe(false);
+    expect(pipeline.onJobComplete("0,0:0", generation)).toBe(true);
+    // Still true while a newer mesh is pending: the old one is on screen.
+    pipeline.onVoxelChange(0, 0, 0);
+    expect(pipeline.hasDisplayed("0,0:0")).toBe(true);
+  });
+
   it("failJob requeues remesh after a null mesh-worker result", () => {
     const pipeline = new MeshPipeline();
     pipeline.onVoxelChange(2, 2, 0, true);

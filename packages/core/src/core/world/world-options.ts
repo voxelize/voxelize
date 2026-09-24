@@ -56,6 +56,17 @@ export type WorldClientOptions = {
   maxMeshesPerUpdate: number;
 
   /**
+   * How long, in milliseconds, a finished re-mesh of a section already on
+   * screen may wait for a ready neighbour to draw before it swaps in. The
+   * re-mesh removes the wall the section drew against that neighbour while
+   * it was missing, so swapping it in first opened a gap along the border.
+   * `0` swaps every re-mesh in on arrival, the old behaviour. Read on every
+   * apply, so it can be flipped for A/B timing. Defaults to `20000`, below
+   * the 30 s mesh-job watchdog the held job still counts against.
+   */
+  borderSwapHoldMs: number;
+
+  /**
    * Dedicated mesh workers reserved for client-originated voxel edits.
    */
   maxUrgentMeshWorkers: number;
@@ -139,6 +150,16 @@ export type WorldClientOptions = {
    * carries the frustum test.
    */
   isCullingChunksByOcclusion: boolean;
+
+  /**
+   * Whether a chunk joins the occlusion walk as open air from the moment it
+   * is requested, until its own connectivity lands. A chunk with no node
+   * blocks every path through it (the walk never turns back), so without
+   * this the open terrain behind each still-loading chunk was culled and
+   * popped in when the hole filled. `false` is the old behaviour; read when
+   * each request is issued.
+   */
+  isOcclusionOpenAtPendingChunks: boolean;
 
   /**
    * Whether the occlusion walk also prunes sections past the fog's far edge,
@@ -396,10 +417,12 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   meshJobTimeoutMs: 30000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
+  borderSwapHoldMs: 20000,
   maxUrgentMeshWorkers: 4,
   isCullingChunksByFrustum: true,
   chunkCullShadowSafeDistance: 160,
   isCullingChunksByOcclusion: true,
+  isOcclusionOpenAtPendingChunks: true,
   isCullingChunksByFog: true,
   fogCullSlack: 16,
   plantDetailDistance: null,

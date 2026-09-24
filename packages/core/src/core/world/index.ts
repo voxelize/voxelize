@@ -135,6 +135,7 @@ import {
 } from "./block";
 import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
+import { BorderSwapHold } from "./border-swap-hold";
 import { HeldServerUpdates } from "./held-server-updates";
 import { Chunk } from "./chunk";
 import {
@@ -1017,6 +1018,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   /** Replayed through the normal ingest path when each chunk's data lands. */
   private heldServerUpdates = new HeldServerUpdates();
 
+  private borderSwapHold = new BorderSwapHold<GeometryProtocol[]>();
+
   private voxelDeltas = new Map<string, VoxelDelta[]>();
 
   /** Largest chunk count any single light job has serialized this session. */
@@ -1210,6 +1213,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.regionArenas = null;
     this.sectionReveals.clear();
     this.sectionVisibility?.clear();
+    this.borderSwapHold.clear();
     this.chunkRenderer.materials.forEach((material) => {
       material.map?.dispose();
       material.dispose();
@@ -1572,8 +1576,31 @@ export class World<T = any> extends Scene implements NetIntercept {
     geometries: GeometryProtocol[],
     connectivity: number,
     generation?: number,
+    canHold = true,
   ) {
     const key = MeshPipeline.makeKey(cx, cz, level);
+    // The section keeps its old mesh (and its job stays in flight, so it is
+    // not dispatched again) until no neighbour it was meshed against is
+    // missing its geometry; see BorderSwapHold.
+    if (
+      canHold &&
+      generation !== undefined &&
+      this.options.borderSwapHoldMs > 0 &&
+      this.meshPipeline.hasDisplayed(key) &&
+      this.hasUndrawnNeighbor(cx, cz)
+    ) {
+      this.borderSwapHold.hold({
+        cx,
+        cz,
+        level,
+        geometries,
+        connectivity,
+        generation,
+        heldAt: performance.now(),
+      });
+      return;
+    }
+    const wasDrawn = this.isChunkDrawn(cx, cz);
     const accepted =
       generation === undefined ||
       this.meshPipeline.onJobComplete(key, generation);
@@ -1588,6 +1615,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     this.buildChunkMesh(cx, cz, mesh);
+
+    if (!wasDrawn && this.isChunkDrawn(cx, cz)) {
+      this.releaseBorderSwaps(cx, cz);
+    }
 
     const chunk = this.getChunkByCoords(cx, cz);
     if (chunk) {
@@ -4796,6 +4827,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Held against the previous server process; the refresh snapshots the
     // rejoin requests supersede them.
     this.heldServerUpdates.clear();
+    // Requested chunks are dropped and reissued; their walk placeholders go
+    // with them and come back with the new request.
+    this.chunkPipeline.forEach("requested", (name) => {
+      const [x, z] = ChunkUtils.parseChunkName(name);
+      this.sectionVisibility?.removeChunk(x, z);
+    });
     for (const name of this.chunkPipeline.resyncForRejoin()) {
       this.chunkRefreshQueue.add(name);
     }
@@ -4905,6 +4942,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       toRequest.forEach((coords) => {
         this.chunkPipeline.markRequested(coords as Coords2);
+        // Open in the occlusion walk from the moment it is asked for: a
+        // chunk with no node blocks every path through it (the walk never
+        // turns back), which culled the open terrain behind each hole and
+        // popped it in when the hole filled.
+        if (this.options.isOcclusionOpenAtPendingChunks) {
+          this.sectionVisibility?.addChunk(coords[0], coords[1]);
+        }
       });
     }
   }
@@ -5068,6 +5112,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.remove(chunk.group);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
+        this.borderSwapHold.dropChunk(x, z);
         this.chunkDetailFloor.delete(name);
         this.culledChunks.delete(name);
         toRemove.push(name);
@@ -5076,12 +5121,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     toRemove.forEach((name) => this.chunkPipeline.remove(name));
+    // An unloaded chunk no longer waits to be drawn, so nothing it held back
+    // needs to wait for it.
+    toRemove.forEach((name) => {
+      const [x, z] = ChunkUtils.parseChunkName(name);
+      this.releaseBorderSwaps(x, z);
+    });
 
     this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
         this.chunkPipeline.remove(name);
+        this.sectionVisibility?.removeChunk(x, z);
         deleted.push([x, z]);
       }
     });
@@ -5093,6 +5145,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { x, z } = procData.data;
         if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
           processingToRemove.push(name);
+          this.sectionVisibility?.removeChunk(x, z);
         }
       }
     });
@@ -6692,6 +6745,33 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (nowMs - this.lastStuckMeshSweepMs < 5_000) return;
     this.lastStuckMeshSweepMs = nowMs;
 
+    // A held border swap outliving its bound means a neighbour never drew:
+    // swap it in anyway (a brief gap beats a stale border) and say so.
+    const overdue = this.borderSwapHold.takeOlderThan(
+      nowMs,
+      this.options.borderSwapHoldMs,
+    );
+    if (overdue.length > 0) {
+      console.warn(
+        `[world] ${overdue.length} re-mesh(es) waited over ` +
+          `${this.options.borderSwapHoldMs}ms for a neighbour to draw and were ` +
+          `swapped in without it: ${overdue
+            .map((held) => `${held.cx},${held.cz}:${held.level}`)
+            .join(", ")}`,
+      );
+      for (const held of overdue) {
+        this.applyMeshResult(
+          held.cx,
+          held.cz,
+          held.level,
+          held.geometries,
+          held.connectivity,
+          held.generation,
+          false,
+        );
+      }
+    }
+
     const expired = this.meshPipeline.expireStuckJobs(nowMs, 30_000);
     if (expired.length === 0) return;
 
@@ -7496,6 +7576,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       // chunk now, and invalidate these same neighbors when data arrives so
       // shared faces, AO and fluid corners are rebuilt. Dirty keys coalesce
       // in MeshPipeline; no extra world-generation requests are needed.
+      // Those rebuilds swap in only once the arriving chunk is drawn (see
+      // BorderSwapHold).
       const floorY = this.detailFloorYFor(nx, nz);
       const heightPerSubChunk = Math.floor(
         this.options.maxHeight / subChunks,
@@ -7521,6 +7603,58 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     this.scheduleDirtyChunkProcessing();
+  }
+
+  /**
+   * Whether every section of a ready chunk above its detail floor has some
+   * mesh on screen. A chunk that has not arrived is not drawn but is not
+   * missing either: nothing borders it with a mesh that assumed it.
+   */
+  private isChunkDrawn(cx: number, cz: number) {
+    const chunk = this.getChunkByCoords(cx, cz);
+    if (!chunk || !chunk.isReady) return true;
+    const { subChunks, maxHeight } = this.options;
+    const heightPerSubChunk = Math.floor(maxHeight / subChunks);
+    const floor =
+      this.chunkDetailFloor.get(ChunkUtils.getChunkName([cx, cz])) ??
+      this.detailFloorYFor(cx, cz);
+    for (let level = 0; level < subChunks; level++) {
+      if (heightPerSubChunk * (level + 1) <= floor) continue;
+      const key = MeshPipeline.makeKey(cx, cz, level);
+      if (!this.meshPipeline.hasDisplayed(key)) return false;
+    }
+    return true;
+  }
+
+  private hasUndrawnNeighbor(cx: number, cz: number) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        if (dx === 0 && dz === 0) continue;
+        if (!this.isChunkDrawn(cx + dx, cz + dz)) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Hands the held re-meshes around (cx, cz) back to the budgeted apply
+   * queue, where each one either swaps in or, while another neighbour is
+   * still undrawn, goes back on hold.
+   */
+  private releaseBorderSwaps(cx: number, cz: number) {
+    const released = this.borderSwapHold.takeAround(cx, cz);
+    if (released.length === 0) return;
+    for (const held of released) {
+      this.pendingMeshResults.push({
+        cx: held.cx,
+        cz: held.cz,
+        level: held.level,
+        geometries: held.geometries,
+        connectivity: held.connectivity,
+        generation: held.generation,
+      });
+    }
+    this.scheduleMeshResultDrain();
   }
 
   /**

@@ -470,6 +470,11 @@ export class MeshPipeline {
     return expired;
   }
 
+  /** Whether some mesh of this section, current or not, has been applied. */
+  hasDisplayed(key: string): boolean {
+    return (this.states.get(key)?.displayedGeneration ?? 0) > 0;
+  }
+
   needsRemesh(key: string): boolean {
     const state = this.states.get(key);
     if (!state) return false;
