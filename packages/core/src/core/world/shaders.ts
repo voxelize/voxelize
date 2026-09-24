@@ -1045,6 +1045,15 @@ if (vIsFluid > 0.5) {
   if (uCameraSubmersion < 0.5 && !gl_FrontFacing) {
     discard;
   }
+  // Under water, a vertical fluid face below the local surface is a seam
+  // between two water voxels (the mesher leaves them on some chunk borders),
+  // not a boundary the eye can meet. Drawn from inside it was a pale plane
+  // through the water whose top edge ran across the view as a hard straight
+  // line. Panes against glass or barriers keep drawing.
+  if (uCameraSubmersion >= 0.5 && sideWaterFace > 0.5 && vIsFluidPane < 0.5
+      && vWaterSurfaceY - wPos.y > 0.02) {
+    discard;
+  }
   // The window treatment below is only for a vertical face pressed against
   // a see-through solid — the mesher flags those as panes. A vertical face
   // against air is the water's own surface (the front of a spreading flow,

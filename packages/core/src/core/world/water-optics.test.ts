@@ -243,7 +243,7 @@ describe("air-side vertical water faces", () => {
     );
   });
 
-  it("draws a pane at every angle: the only fluid discard is the back face", () => {
+  it("draws a pane at every angle: panes are never discarded", () => {
     const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
     // A pane used to be discarded when looked at head-on, so a tank read as
     // a dry room with fish floating in it. The test was per fragment against
@@ -255,7 +255,12 @@ describe("air-side vertical water faces", () => {
     const fluidBranch = fragment.slice(
       fragment.indexOf("if (vIsFluid > 0.5) {"),
     );
-    expect(fluidBranch.match(/discard;/g)).toHaveLength(1);
+    // Two discards: the back face in air, and (under water only) the seam
+    // between two water voxels below the surface, which excludes panes.
+    expect(fluidBranch.match(/discard;/g)).toHaveLength(2);
+    expect(fluidBranch).toContain(
+      "if (uCameraSubmersion >= 0.5 && sideWaterFace > 0.5 && vIsFluidPane < 0.5",
+    );
   });
 });
 

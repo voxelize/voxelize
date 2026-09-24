@@ -78,8 +78,12 @@ skyColor = mix(skyColor, uSkyFogBottomColor, max(pow(max(-sfH2, 0.0), uSkyFogExp
 
 vec3 fogTint = mix(uFogColor, skyColor, uSkyFogStrength);
 
+// The sun's halo in the haze belongs to open air: under rock (the same
+// cover that switches the fog to true 3D distance) there is no sun to see
+// through the walls, and the halo lit far cave walls pale blue-white.
 float sunAlignment = pow(max(0.0, dot(fogRay, uSunDirection)), 6.0);
-fogTint += uSunColor * sunAlignment * uSunlightIntensity * uSkyFogStrength * 0.35;
+fogTint += uSunColor * sunAlignment * uSunlightIntensity * uSkyFogStrength * 0.35
+  * (1.0 - uFogVerticalBlend);
 
 float effectiveFogFactor = mix(1.0, fogFactor * (1.0 - uCameraSubmersion), ${revealExpression});
 gl_FragColor.rgb = ${isEmission ? "gl_FragColor.rgb * (1.0 - effectiveFogFactor)" : "mix(gl_FragColor.rgb, fogTint, effectiveFogFactor)"};

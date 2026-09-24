@@ -375,7 +375,7 @@ export const WATER_OPTICS = Object.freeze({
   refractiveIndex: 1.333,
   undersideWindowSoftness: 0.12,
   undersideWebStrength: 0.55,
-  undersideWindowOpacity: 0.8,
+  undersideWindowOpacity: 0.93,
   undersideMirrorOpacity: 0.95,
 
   /**
