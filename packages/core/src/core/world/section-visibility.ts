@@ -199,7 +199,17 @@ export class SectionVisibilityGraph {
     cameraPosition: Vector3,
     projectionScreenMatrix: Parameters<Frustum["setFromProjectionMatrix"]>[0],
     fogFar: number,
+    isSpectating = false,
   ) {
+    // A noclip camera can cross sealed rock and disconnected air pockets.
+    // Their connectivity is not evidence that distant surfaces are hidden
+    // from this view. Keep frustum culling, but suspend the air-path proof.
+    if (isSpectating) {
+      this.isLastWalkComplete = false;
+      this.lastReachedCount = 0;
+      this.lastVisibleCount = 0;
+      return;
+    }
     const { chunkSize } = this.options;
     const heightPerSubChunk = this.heightPerSubChunk();
 

@@ -44,6 +44,12 @@ export type EntitySnapshot = {
 };
 
 export type PeerSnapshot = {
+  /** Replicated rope state, for multiplayer traversal checks. */
+  grappleAnchor?: [number, number, number] | null;
+  grappleLatched?: boolean;
+  holdingObjectId?: number;
+  /** Actual rendered hook socket, including the character's animated arm. */
+  heldHookTip?: Vec3 | null;
   id: string;
   username: string;
   position: Vec3;
@@ -100,6 +106,8 @@ export type ChunkSnapshot = {
 };
 
 export type Snapshot = {
+  /** Local hotbar selection, zero-based; absent on clients without a hotbar. */
+  activeSlot?: number;
   position: Vec3;
   facing: YawPitch;
   world: string;
@@ -281,6 +289,8 @@ export type FaceInput =
 export type WalkDirection = "forward" | "back" | "left" | "right";
 
 export type WalkOptions = {
+  /** Hold jump/swim-up through ordinary movement physics. */
+  isJumping?: boolean;
   durationMs?: number;
   isSprinting?: boolean;
 };
@@ -579,6 +589,15 @@ export type RenderStats = {
   textures: number;
   sceneObjects: number;
   chunkGroups: number;
+  /** Loaded columns that have produced terrain geometry, including arenas.
+   * Missing columns may be truly empty; useful alongside drained mesh queues
+   * to diagnose terrain that was loaded but never scheduled for meshing. */
+  chunkGeometry?: {
+    columns: number;
+    missingCount: number;
+    /** At most 32 coordinates, regardless of missingCount. */
+    missing: ChunkCoord[];
+  };
   visibleChunkGroups: number;
   chunkMeshes: number;
   visibleChunkMeshes: number;
@@ -762,12 +781,19 @@ export interface AgentBridge {
    * handler runs as it would for a person — placement, block-entity menus,
    * clickable regions painted on a face. Reports the targeted voxel and
    * block so a test can assert it aimed where it meant to.
+   * `holdMs` (0..15000, default 0) exercises sustained input such as mining.
+   * Always releases the mouse button before resolving.
    */
-  interact(button?: "left" | "right"): {
+  /** Select hotbar slot 0..8 through the normal local focus/change path. */
+  selectHotbar(slot: number): void;
+  interact(
+    button?: "left" | "right",
+    holdMs?: number,
+  ): Promise<{
     button: "left" | "right";
     target: Vec3 | null;
     block: string | null;
-  };
+  }>;
   /**
    * Raw per-voxel light channels as the client currently holds them —
    * sunlight plus the three torch colors, with the voxel id for context.

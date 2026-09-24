@@ -46,6 +46,7 @@ type WasmBlock = {
     corners: { pos: [number, number, number]; uv: [number, number] }[];
     range: { startU: number; endU: number; startV: number; endV: number };
     emissive: number;
+    stageTintMask: number;
   }[];
   aabbs: {
     minX: number;
@@ -73,6 +74,7 @@ type WasmBlock = {
               endV: number;
             };
             emissive: number;
+            stageTintMask: number;
           }[];
           aabbs: {
             minX: number;
@@ -107,6 +109,7 @@ type RawWasmFace = {
     endV?: number;
   };
   emissive?: number;
+  stageTintMask?: number;
 };
 
 type RawWasmAabb = {
@@ -452,6 +455,7 @@ function convertFaces(faces: RawWasmFace[] | undefined): WasmBlock["faces"] {
       uv: corner.uv,
     })),
     emissive: face.emissive ?? 0,
+    stageTintMask: face.stageTintMask ?? 0,
     range: {
       startU: face.range?.startU ?? 0,
       endU: face.range?.endU ?? 1,

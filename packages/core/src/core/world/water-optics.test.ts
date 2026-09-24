@@ -28,9 +28,11 @@ describe("getDownwellingTransmittance", () => {
     expect(out.b).toBeCloseTo(1);
   });
 
-  it("absorbs red within ten blocks and lets blue outlast green", () => {
+  it("keeps shallow reef color and loses red before green and blue", () => {
     const out = getDownwellingTransmittance(10, new Color());
-    expect(out.r).toBeLessThan(0.05);
+    expect(out.r).toBeGreaterThan(0.2);
+    expect(out.r).toBeLessThan(0.3);
+    expect(getDownwellingTransmittance(30, new Color()).r).toBeLessThan(0.02);
     expect(out.b).toBeGreaterThan(out.g);
     expect(out.g).toBeGreaterThan(out.r);
   });

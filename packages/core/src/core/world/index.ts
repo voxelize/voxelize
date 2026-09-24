@@ -1,3 +1,4 @@
+import { biomeTintAttribute } from "./biome-tint";
 import { EventEmitter } from "events";
 
 import { AABB } from "@voxelize/aabb";
@@ -134,12 +135,14 @@ import {
 } from "./block";
 import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
+import { HeldServerUpdates } from "./held-server-updates";
 import { Chunk } from "./chunk";
 import {
   CustomChunkShaderMaterial,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
   applyQuantizedPositionDefine,
+  forkChunkMaterial,
   isOwnTextureFace,
   loadChunkMaterials,
   makeChunkMaterialKey,
@@ -149,6 +152,7 @@ import {
   sharedCutoutMaterialKeyFor,
 } from "./chunk-materials";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
+import { worldDefinitionSignature } from "./definition-signature";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
   ChunkRequestCandidate,
@@ -254,6 +258,7 @@ export * from "./textures";
 export * from "./uv";
 export * from "./vertex-quantization";
 export * from "./water-optics";
+export * from "./block-light-transfer";
 export * from "./world-clock";
 export * from "./world-options";
 
@@ -299,6 +304,7 @@ export type ChunkDataEventData = {
 };
 
 export type WorldChunkEvents = {
+  "world-definition-changed": (data: { previous: string; next: string }) => void;
   "chunk-data-loaded": (data: ChunkDataEventData) => void;
   "chunk-mesh-loaded": (data: ChunkMeshEventData) => void;
   "chunk-mesh-unloaded": (data: ChunkMeshEventData) => void;
@@ -592,6 +598,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   public waterOptics = new WaterOptics();
 
+  /**
+   * Which fluid blocks count as water for the camera's underwater optics.
+   * `null` (the default) treats every fluid as water. A game with other
+   * fluids (lava) returns false for them, so a camera inside one does not
+   * get water fog, sky fade and the backside water surface.
+   */
+  public waterOpticsFluidFilter: ((block: Block) => boolean) | null = null;
+
   /** See {@link World.getChunkByCoords}. */
   private loadedChunkMemo: {
     cx: number;
@@ -806,6 +820,8 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   public isInitialized = false;
 
+  private definitionSignature: string | null = null;
+
   /**
    * The network packets to be sent to the server.
    * @hidden
@@ -998,6 +1014,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private blockUpdatesQueue: BlockUpdateWithSource[] = [];
   private blockUpdatesToEmit: BlockUpdate[] = [];
+  /** Replayed through the normal ingest path when each chunk's data lands. */
+  private heldServerUpdates = new HeldServerUpdates();
 
   private voxelDeltas = new Map<string, VoxelDelta[]>();
 
@@ -1404,11 +1422,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     ];
     const subChunkMax = [max[0], heightPerSubChunk * (level + 1), max[2]];
 
-    if (subChunkMin[1] >= subChunkMax[1]) {
+    if (
+      subChunkMin[1] >= subChunkMax[1] ||
+      (centerChunk.isReady &&
+        this.registry.blocksById.get(0)?.isEmpty === true &&
+        centerChunk.isAirRange(subChunkMin[1], subChunkMax[1]))
+    ) {
+      // The WASM mesher returns exactly this for an all-air section. Avoid
+      // serializing/copying nine full-height columns just to discover it.
+      // Still apply the empty result through the ordinary generation path:
+      // removing the last block must clear its old mesh and open visibility.
       return {
         geometries: [],
         connectivity: CONNECTIVITY_FULL,
-        serializeMs: 0,
+        serializeMs: performance.now() - serializeStart,
         workerMs: 0,
         inputBytes: 0,
         outputBytes: 0,
@@ -3637,18 +3664,29 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (vy < 0 || vy >= this.options.maxHeight) continue;
 
-      // Server updates are broadcast world-wide, including for chunks this
-      // client has not loaded. There is nothing to write into yet (the chunk
-      // snapshot will arrive with the update baked in), and running light
-      // analysis against missing chunks would dereference null blocks.
-      if (this.getChunkByPosition(vx, vy, vz) === undefined) {
+      // The server routes an update to every client interested in its chunk
+      // or in a chunk its light can spill into, and interest starts at the
+      // request, so updates reach chunks with no voxel data here yet. There
+      // is nothing to write into (and light analysis against a missing chunk
+      // would dereference null blocks), but dropping one is only safe when
+      // the snapshot this client applies later is newer than it.
+      if (!this.getChunkByPosition(vx, vy, vz)?.isReady) {
         const chunkName = ChunkUtils.getChunkName(
           ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.options.chunkSize),
         );
-        if (!warnedUnloadedUpdateChunks.has(chunkName)) {
+        if (this.chunkPipeline.getStage(chunkName) !== null) {
+          // Requested, or its snapshot is waiting to be applied: that
+          // snapshot can predate this update (the server sends LOAD then
+          // UPDATE in order, and a received chunk sits in the processing
+          // queue for frames at a join), so the update is replayed once the
+          // chunk's data lands instead of being lost to it.
+          this.heldServerUpdates.hold(chunkName, update);
+        } else if (!warnedUnloadedUpdateChunks.has(chunkName)) {
+          // Not asked for (a light-spill neighbour of an interested chunk):
+          // any snapshot requested later is taken after this update.
           warnedUnloadedUpdateChunks.add(chunkName);
-          console.warn(
-            `[world] Skipping server block update at (${vx}, ${vy}, ${vz}): chunk ${chunkName} is not loaded.`,
+          console.debug(
+            `[world] Skipping server block update at (${vx}, ${vy}, ${vz}): chunk ${chunkName} is outside this client's chunks.`,
           );
         }
         continue;
@@ -4129,12 +4167,23 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.customMaterialBlockIds.add(this.getBlockOf(idOrName).id);
     }
 
-    const mat = this.getBlockFaceMaterial(idOrName, faceName);
+    let mat = this.getBlockFaceMaterial(idOrName, faceName);
 
     if (!mat) {
       throw new Error(
         `Could not find material for block ${idOrName} and face ${faceName}`,
       );
+    }
+
+    // Shared solid shapes retain a per-id alias until a caller customizes
+    // one. Detach at that boundary so a bespoke shader cannot mutate the
+    // atlas material used by every ordinary terrain section.
+    if (
+      faceName === null &&
+      mat === this.chunkRenderer.materials.get(SHARED_OPAQUE_MATERIAL_KEY)
+    ) {
+      mat = forkChunkMaterial(mat);
+      this.chunkRenderer.materials.set(`${this.getBlockOf(idOrName).id}`, mat);
     }
 
     mat.vertexShader = vertexShader;
@@ -4305,6 +4354,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     position: Vector3 = new Vector3(),
     direction: Vector3 = new Vector3(),
     camera?: Camera,
+    isSpectating = false,
   ) {
     if (!this.isInitialized) {
       return;
@@ -4351,7 +4401,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.refineNearbyChunkDetail();
 
     if (camera) {
-      this.updateChunkVisibility(camera);
+      this.updateChunkVisibility(camera, isSpectating);
     }
 
     // After the chunk work above, which is what lands the meshes a swing
@@ -4446,6 +4496,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     switch (type) {
       case "INIT": {
         const { json, entities } = message;
+
+        const signature = worldDefinitionSignature(json);
+        if (this.isInitialized && this.definitionSignature !== signature) {
+          // Existing worker registries and texture atlases cannot interpret
+          // a new block schema. Do not mix old local meshes with new voxels.
+          this.emitChunkEvent("world-definition-changed", {
+            previous: this.definitionSignature ?? "",
+            next: signature,
+          });
+          return;
+        }
+        this.definitionSignature = signature;
 
         this.initialData = json;
 
@@ -4731,6 +4793,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private resyncChunkStagesAfterRejoin() {
     this.chunkRefreshQueue.clear();
+    // Held against the previous server process; the refresh snapshots the
+    // rejoin requests supersede them.
+    this.heldServerUpdates.clear();
     for (const name of this.chunkPipeline.resyncForRejoin()) {
       this.chunkRefreshQueue.add(name);
     }
@@ -4879,6 +4944,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       clientOnlyMeshing,
     } = this.options;
 
+    const heldUpdates: UpdateProtocol[] = [];
+
     const triggerInitListener = (chunk: Chunk) => {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
 
@@ -4888,6 +4955,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       this.deliverBlockEntitiesForChunk(chunk);
+      heldUpdates.push(...this.heldServerUpdates.take(chunk.name));
     };
 
     const toProcess = toProcessArray.slice(0, maxProcessesPerUpdate);
@@ -4939,6 +5007,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
       }
     });
+
+    // After the whole batch, so an update on a chunk edge finds whichever
+    // neighbours landed alongside it; ingest compares against the voxel it
+    // finds, so one the snapshot already carries changes nothing.
+    if (heldUpdates.length > 0) this.ingestServerUpdates(heldUpdates);
   }
 
   /**
@@ -5029,6 +5102,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       const name = ChunkUtils.getChunkName(coords);
       this.chunkInitializeListeners.delete(name);
     });
+    this.heldServerUpdates.prune(
+      (name) => this.chunkPipeline.getStage(name) !== null,
+    );
 
     if (deleted.length) {
       this.packets.push({
@@ -5417,12 +5493,22 @@ export class World<T = any> extends Scene implements NetIntercept {
   updateWaterOptics(cameraPosition: Vector3, deltaSeconds: number) {
     if (!this.isInitialized) return;
 
+    let column = this.measureWaterColumnAt(
+      cameraPosition.x,
+      cameraPosition.y,
+      cameraPosition.z,
+    );
+    if (column && this.waterOpticsFluidFilter) {
+      const block = this.getBlockAt(
+        Math.floor(cameraPosition.x),
+        Math.floor(cameraPosition.y),
+        Math.floor(cameraPosition.z),
+      );
+      if (block?.isFluid && !this.waterOpticsFluidFilter(block)) column = null;
+    }
+
     this.waterOptics.update({
-      column: this.measureWaterColumnAt(
-        cameraPosition.x,
-        cameraPosition.y,
-        cameraPosition.z,
-      ),
+      column,
       sunStrength: this.chunkRenderer.uniforms.sunlightIntensity.value,
       deltaSeconds,
     });
@@ -5586,12 +5672,22 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private makeChunkBufferGeometry(
     geo: MeshProtocol["geometries"][number],
+    cx: number,
+    cz: number,
   ): BufferGeometry {
     const isQuantized = geo.positions instanceof Uint16Array;
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(geo.positions, 3));
     geometry.setAttribute("uv", new BufferAttribute(geo.uvs, 2, isQuantized));
     geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
+    const biomeTints = this.getChunkByCoords(cx, cz)?.biomeTints;
+    if (biomeTints) {
+      geometry.setAttribute("biomeTint", biomeTintAttribute(
+        geo.positions, geo.lights, biomeTints, this.options.chunkSize,
+        isQuantized ? this.chunkPositionUnits : 1,
+        isQuantized ? POSITION_BLOCK_BIAS : 0,
+      ));
+    }
     geometry.setIndex(new BufferAttribute(geo.indices, 1));
     if (geo.normals && geo.normals.length > 0) {
       geometry.setAttribute(
@@ -5726,7 +5822,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       for (const geo of meshGeometries) {
         const { voxel, at, faceName } = geo;
-        const geometry = this.makeChunkBufferGeometry(geo);
+        const geometry = this.makeChunkBufferGeometry(geo, cx, cz);
 
         let material = this.getBlockFaceMaterial(
           voxel,
@@ -5888,7 +5984,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     level: number,
   ): Mesh | null {
     const { voxel, at, faceName } = geo;
-    const geometry = this.makeChunkBufferGeometry(geo);
+    const geometry = this.makeChunkBufferGeometry(geo, cx, cz);
     if (geo.bsCenter && geo.bsRadius !== undefined) {
       geometry.boundingSphere = new Sphere(
         new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
@@ -5975,7 +6071,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const parts: BufferGeometry[] = [];
     for (const geo of geometries) {
-      parts.push(this.makeChunkBufferGeometry(geo));
+      parts.push(this.makeChunkBufferGeometry(geo, cx, cz));
     }
 
     const merged =
@@ -6632,57 +6728,55 @@ export class World<T = any> extends Scene implements NetIntercept {
     // that queue grew without bound and OOMed the renderer.
     const targetPool =
       urgentKeys.length > 0 ? this.urgentMeshWorkerPool : this.meshWorkerPool;
-    const freeWorkerSlots = Math.max(
-      0,
-      targetPool.options.maxWorker -
-        targetPool.workingCount -
-        targetPool.queue.length,
-    );
-    const keysToProcess = candidateKeys.slice(
-      0,
-      Math.min(maxConcurrentMeshJobs, freeWorkerSlots),
-    );
-    if (keysToProcess.length === 0) {
-      this.scheduleDirtyChunkProcessing();
-      return;
-    }
-
-    const workerPromises = keysToProcess.map((key) => {
+    const workerPromises = [];
+    for (const key of candidateKeys) {
+      // Dispatch reserves a worker synchronously only when it actually
+      // needs one. Air sections complete locally, so they must not consume
+      // an imaginary worker slot and stall the rest of this bounded batch.
+      if (
+        workerPromises.length >= maxConcurrentMeshJobs ||
+        targetPool.workingCount + targetPool.queue.length >=
+          targetPool.options.maxWorker
+      ) {
+        break;
+      }
       const { cx, cz, level } = MeshPipeline.parseKey(key);
       const isPriority = this.meshPipeline.isUrgent(key);
       const generation = this.meshPipeline.startJob(key);
 
-      return this.dispatchMeshWorker(cx, cz, level, isPriority).then(
-        (result) =>
-          ({
-            cx,
-            cz,
-            level,
-            generation,
-            key,
-            geometries: result?.geometries ?? null,
-            connectivity: result?.connectivity ?? CONNECTIVITY_FULL,
-          }) as const,
-        (error) => {
-          // A dispatch that throws (e.g. payload serialization failing an
-          // array-buffer allocation under memory pressure) must still settle:
-          // an unhandled rejection here escapes Promise.all, skips every
-          // failJob in the batch, and leaves those generations in flight
-          // forever — wedging the whole mesh pipeline on chunks that will
-          // never be retried.
-          console.error(`[world] mesh dispatch failed for ${key}`, error);
-          return {
-            cx,
-            cz,
-            level,
-            generation,
-            key,
-            geometries: null,
-            connectivity: CONNECTIVITY_FULL,
-          } as const;
-        },
+      workerPromises.push(
+        this.dispatchMeshWorker(cx, cz, level, isPriority).then(
+          (result) =>
+            ({
+              cx,
+              cz,
+              level,
+              generation,
+              key,
+              geometries: result?.geometries ?? null,
+              connectivity: result?.connectivity ?? CONNECTIVITY_FULL,
+            }) as const,
+          (error) => {
+            // A dispatch that throws (e.g. payload serialization failing an
+            // array-buffer allocation under memory pressure) must still settle:
+            // an unhandled rejection here escapes Promise.all, skips every
+            // failJob in the batch, and leaves those generations in flight
+            // forever — wedging the whole mesh pipeline on chunks that will
+            // never be retried.
+            console.error(`[world] mesh dispatch failed for ${key}`, error);
+            return {
+              cx,
+              cz,
+              level,
+              generation,
+              key,
+              geometries: null,
+              connectivity: CONNECTIVITY_FULL,
+            } as const;
+          },
+        ),
       );
-    });
+    }
 
     const results = await Promise.all(workerPromises);
     const isUrgentBatch = urgentKeys.length > 0;
@@ -7395,37 +7489,34 @@ export class World<T = any> extends Scene implements NetIntercept {
         continue;
       }
 
-      const allNeighborsReady = neighborOffsets.every(([ddx, ddz]) => {
-        const nnx = nx + ddx;
-        const nnz = nz + ddz;
-        if (!this.isWithinWorld(nnx, nnz)) return true;
-        const nn = this.getChunkByCoords(nnx, nnz);
-        return nn && nn.isReady;
-      });
+      // The loaded disc has no outer halo. Requiring a complete 3x3
+      // stencil strands its perimeter forever: an inner chunk can show a
+      // canopy overhang while the chunk holding its trunk never meshes.
+      // The worker already accepts null neighbors as air. Mesh every ready
+      // chunk now, and invalidate these same neighbors when data arrives so
+      // shared faces, AO and fluid corners are rebuilt. Dirty keys coalesce
+      // in MeshPipeline; no extra world-generation requests are needed.
+      const floorY = this.detailFloorYFor(nx, nz);
+      const heightPerSubChunk = Math.floor(
+        this.options.maxHeight / subChunks,
+      );
+      const name = ChunkUtils.getChunkName([nx, nz]);
+      // A chunk already meshed to the ground keeps that depth even once it
+      // is distant again, so the levels queued below have to be chosen by
+      // the depth the chunk actually holds and not by the one its distance
+      // asks for. Filtering on the latter skips levels the chunk still owns,
+      // leaving them stale with nothing left to queue them: the refinement
+      // pass takes this floor as proof they are already up to date.
+      const effectiveFloor = Math.min(
+        this.chunkDetailFloor.get(name) ?? Infinity,
+        floorY,
+      );
 
-      if (allNeighborsReady) {
-        const floorY = this.detailFloorYFor(nx, nz);
-        const heightPerSubChunk = Math.floor(
-          this.options.maxHeight / subChunks,
-        );
-        const name = ChunkUtils.getChunkName([nx, nz]);
-        // A chunk already meshed to the ground keeps that depth even once it
-        // is distant again, so the levels queued below have to be chosen by
-        // the depth the chunk actually holds and not by the one its distance
-        // asks for. Filtering on the latter skips levels the chunk still owns,
-        // leaving them stale with nothing left to queue them: the refinement
-        // pass takes this floor as proof they are already up to date.
-        const effectiveFloor = Math.min(
-          this.chunkDetailFloor.get(name) ?? Infinity,
-          floorY,
-        );
+      this.setDetailFloor(nx, nz, effectiveFloor);
 
-        this.setDetailFloor(nx, nz, effectiveFloor);
-
-        for (let level = 0; level < subChunks; level++) {
-          if (heightPerSubChunk * (level + 1) <= effectiveFloor) continue;
-          this.meshPipeline.onVoxelChange(nx, nz, level);
-        }
+      for (let level = 0; level < subChunks; level++) {
+        if (heightPerSubChunk * (level + 1) <= effectiveFloor) continue;
+        this.meshPipeline.onVoxelChange(nx, nz, level);
       }
     }
 
@@ -7496,7 +7587,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
-  private updateChunkVisibility(camera: Camera) {
+  private updateChunkVisibility(camera: Camera, isSpectating = false) {
     const {
       isCullingChunksByFrustum,
       isCullingChunksByOcclusion,
@@ -7528,6 +7619,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkCullCameraPosition,
         this.chunkCullMatrix,
         fogFar,
+        isSpectating,
       );
       // A walk that could not start (camera outside the loaded disc) proves
       // nothing; fall back to frustum-only culling rather than hide the world.

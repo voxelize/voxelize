@@ -8,6 +8,7 @@ import {
   expandCoupledUpdates,
   isCoupledPart,
   resolveCoupledAnchor,
+  rotateCoupledOffset,
 } from "./coupled-blocks";
 
 const WATER_ID = 10;
@@ -16,6 +17,8 @@ const DOOR_ID = 700;
 const DOOR_TOP_ID = 701;
 const BUSH_ID = 1004;
 const BUSH_TOP_ID = 1005;
+const BED_ID = 800;
+const BED_FOOT_ID = 801;
 const MAX_HEIGHT = 64;
 
 function block(
@@ -59,6 +62,17 @@ const blocks = new Map<number, Block>(
       name: "Bush Top",
       coupledParts: [{ offset: [0, -1, 0], id: BUSH_ID }],
     }),
+    block({
+      id: BED_ID,
+      name: "Bed",
+      isCoupledAnchor: true,
+      coupledParts: [{ offset: [0, 0, 1], id: BED_FOOT_ID }],
+    }),
+    block({
+      id: BED_FOOT_ID,
+      name: "Bed Foot",
+      coupledParts: [{ offset: [0, 0, -1], id: BED_ID }],
+    }),
   ].map((b) => [b.id, b] as const),
 );
 
@@ -101,6 +115,59 @@ function at(
 }
 
 describe("expandCoupledUpdates", () => {
+  it("places and breaks horizontal units in all facings at negative chunk borders", () => {
+    const base: Coords3 = [-16, 10, -16];
+    for (const yRotation of [0, 4, 8, 12]) {
+      const offset = rotateCoupledOffset(
+        [0, 0, 1],
+        BlockRotation.encode(0, yRotation),
+      )!;
+      const foot = base.map((v, i) => v + offset[i]) as Coords3;
+      const head = at(base, BED_ID, { rotation: 0, yRotation, stage: 0 });
+      const part = at(foot, BED_FOOT_ID, { rotation: 0, yRotation, stage: 0 });
+      expect(expandCoupledUpdates(view({}), [head])).toEqual([head, part]);
+      const world = view({
+        [key(base)]: { id: BED_ID, yRotation },
+        [key(foot)]: { id: BED_FOOT_ID, yRotation },
+      });
+      expect(expandCoupledUpdates(world, [at(foot, 0)])).toEqual([
+        at(foot, 0),
+        at(base, 0),
+      ]);
+    }
+  });
+
+  it("moves the old part on rotation, refuses blockers and never adopts another unit", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const foot: Coords3 = [4, 10, 5];
+    const next: Coords3 = [5, 10, 4];
+    const voxels = {
+      [key(BASE)]: { id: BED_ID },
+      [key(foot)]: { id: BED_FOOT_ID },
+    };
+    const rotated = at(BASE, BED_ID, { yRotation: 4 });
+    expect(expandCoupledUpdates(view(voxels), [rotated])).toEqual([
+      rotated,
+      at(next, BED_FOOT_ID, { rotation: 0, yRotation: 4, stage: 0 }),
+      at(foot, 0),
+    ]);
+    expect(
+      expandCoupledUpdates(view({ ...voxels, [key(next)]: { id: STONE_ID } }), [
+        rotated,
+      ]),
+    ).toEqual([]);
+    expect(
+      expandCoupledUpdates(view({}), [at(BASE, BED_ID, { yRotation: 2 })]),
+    ).toEqual([]);
+    const foreign = view({ [key(foot)]: { id: BED_FOOT_ID, yRotation: 4 } });
+    expect(expandCoupledUpdates(foreign, [at(BASE, BED_ID)])).toEqual([]);
+    const orphan = view({
+      ...voxels,
+      [key(foot)]: { id: BED_FOOT_ID, yRotation: 4 },
+    });
+    expect(expandCoupledUpdates(orphan, [at(BASE, 0)])).toEqual([at(BASE, 0)]);
+    warn.mockRestore();
+  });
   it("breaking the anchor clears the partner in the same batch", () => {
     const world = view({
       [key(BASE)]: { id: BUSH_ID },

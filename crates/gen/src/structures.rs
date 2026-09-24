@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use hashbrown::HashMap;
 use serde::Serialize;
+use voxelize::{BlockRotation, VoxelPacker};
 
 use crate::spec::GenError;
 use crate::stream::{cell_id, mix64, stream_seed, HashStream, SaltPath, Subsystem};
@@ -66,12 +67,35 @@ pub struct Socket {
     pub accepts: &'static str,
 }
 
+/// Authored state in piece space. Quarter turns follow the footprint transform
+/// (north -> east); the packed engine rotation has the opposite sign.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct PieceCellState {
+    pub quarter_turns: u8,
+    pub stage: u8,
+}
+
+impl PieceCellState {
+    pub fn pack(self, id: u32, piece_rotation: u8) -> u32 {
+        let turns = (self.quarter_turns + piece_rotation) % 4;
+        let angle = ((4 - turns) % 4) as f32 * std::f32::consts::FRAC_PI_2;
+        VoxelPacker::new()
+            .with_id(id)
+            .with_rotation(BlockRotation::PY(angle))
+            .with_stage(self.stage as u32)
+            .pack()
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PieceDef {
     pub key: &'static str,
     pub size: (u16, u16, u16),
     /// Palette index per cell (x-major, then y, then z); 0 = untouched.
     pub cells: Vec<u16>,
+    /// Optional state per cell; empty preserves legacy, unrotated block IDs.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub states: Vec<Option<PieceCellState>>,
     pub palette: Vec<&'static str>,
     pub sockets: Vec<Socket>,
     /// Local-space cell that lands on the growth anchor (ground contact).
@@ -82,6 +106,7 @@ pub struct PieceBuilder {
     key: &'static str,
     size: (u16, u16, u16),
     cells: Vec<u16>,
+    states: Vec<Option<PieceCellState>>,
     palette: Vec<&'static str>,
     sockets: Vec<Socket>,
     anchor: (u16, u16, u16),
@@ -93,6 +118,7 @@ impl PieceBuilder {
             key,
             size: (w, h, d),
             cells: vec![0; w as usize * h as usize * d as usize],
+            states: Vec::new(),
             palette: vec!["<air>"],
             sockets: Vec::new(),
             anchor: (w / 2, 0, d / 2),
@@ -115,6 +141,38 @@ impl PieceBuilder {
         let index = self.palette_index(block);
         let slot = self.cell_slot(x, y, z);
         self.cells[slot] = index;
+        self.clear_state(slot);
+        self
+    }
+
+    fn clear_state(&mut self, slot: usize) {
+        if !self.states.is_empty() {
+            self.states[slot] = None;
+        }
+    }
+
+    /// Place a directional or staged block. Subsequent set/fill/clear calls
+    /// replace its state as well as its material; stale door/crop bits cannot leak.
+    pub fn set_state(
+        mut self,
+        x: u16,
+        y: u16,
+        z: u16,
+        block: &'static str,
+        quarter_turns: u8,
+        stage: u8,
+    ) -> Self {
+        assert!(stage <= 15, "piece stage must fit the voxel's four bits");
+        let index = self.palette_index(block);
+        let slot = self.cell_slot(x, y, z);
+        if self.states.is_empty() {
+            self.states.resize(self.cells.len(), None);
+        }
+        self.cells[slot] = index;
+        self.states[slot] = Some(PieceCellState {
+            quarter_turns: quarter_turns % 4,
+            stage,
+        });
         self
     }
 
@@ -125,6 +183,7 @@ impl PieceBuilder {
                 for z in from.2..=to.2 {
                     let slot = self.cell_slot(x, y, z);
                     self.cells[slot] = index;
+                    self.clear_state(slot);
                 }
             }
         }
@@ -145,6 +204,7 @@ impl PieceBuilder {
                     if is_shell {
                         let slot = self.cell_slot(x, y, z);
                         self.cells[slot] = index;
+                        self.clear_state(slot);
                     }
                 }
             }
@@ -158,6 +218,7 @@ impl PieceBuilder {
                 for z in from.2..=to.2 {
                     let slot = self.cell_slot(x, y, z);
                     self.cells[slot] = 0;
+                    self.clear_state(slot);
                 }
             }
         }
@@ -190,6 +251,7 @@ impl PieceBuilder {
             key: self.key,
             size: self.size,
             cells: self.cells,
+            states: self.states,
             palette: self.palette,
             sockets: self.sockets,
             anchor: self.anchor,
@@ -413,7 +475,13 @@ impl CompiledStructures {
                 });
             }
             let expected = piece.size.0 as usize * piece.size.1 as usize * piece.size.2 as usize;
-            if piece.cells.len() != expected {
+            if piece.cells.len() != expected
+                || (!piece.states.is_empty() && piece.states.len() != expected)
+                || piece
+                    .cells
+                    .iter()
+                    .any(|&slot| slot as usize >= piece.palette.len())
+            {
                 return Err(GenError::PieceShapeMismatch {
                     key: piece.key.to_string(),
                 });
@@ -1065,6 +1133,32 @@ impl CompiledStructures {
         max: (i32, i32, i32),
         set_block: &mut dyn FnMut(i32, i32, i32, u32),
     ) {
+        self.apply_cells(plan, min, max, &mut |x, y, z, id, _, _| {
+            set_block(x, y, z, id)
+        });
+    }
+
+    /// Like apply_slice, but emits complete packed voxels, preserving authored
+    /// crop/door stages and rotating directional geometry with the footprint.
+    pub fn apply_packed_slice(
+        &self,
+        plan: &StructurePlan,
+        min: (i32, i32, i32),
+        max: (i32, i32, i32),
+        set_voxel: &mut dyn FnMut(i32, i32, i32, u32),
+    ) {
+        self.apply_cells(plan, min, max, &mut |x, y, z, id, state, rotation| {
+            set_voxel(x, y, z, state.map_or(id, |state| state.pack(id, rotation)));
+        });
+    }
+
+    fn apply_cells(
+        &self,
+        plan: &StructurePlan,
+        min: (i32, i32, i32),
+        max: (i32, i32, i32),
+        set_block: &mut dyn FnMut(i32, i32, i32, u32, Option<PieceCellState>, u8),
+    ) {
         for placed in &plan.pieces {
             let compiled = &self.pieces[placed.piece];
             let (w, h, d) = compiled.def.size;
@@ -1094,6 +1188,8 @@ impl CompiledStructures {
                                 world.1,
                                 world.2,
                                 compiled.palette_blocks[palette_slot as usize],
+                                compiled.def.states.get(slot).copied().flatten(),
+                                placed.rotation,
                             );
                         }
                     }
@@ -1154,5 +1250,110 @@ impl CompiledStructures {
         });
         results.truncate(max_results);
         results
+    }
+}
+
+#[cfg(test)]
+mod cell_state_tests {
+    use super::*;
+    use voxelize::BlockUtils;
+
+    #[test]
+    fn stateful_slices_rotate_with_the_footprint_and_reassemble() {
+        let piece = PieceBuilder::new("oriented", 3, 3, 5)
+            .set_state(0, 1, 1, "Door", 0, 1)
+            .set_state(0, 2, 1, "Door Top", 0, 1)
+            .set_state(2, 1, 4, "Crop", 1, 3)
+            .build();
+        let resolver = |name: &str| {
+            Ok(match name {
+                "Door" => 1,
+                "Door Top" => 2,
+                _ => 3,
+            })
+        };
+        let grammar = CompiledStructures::compile(
+            &[piece],
+            &[],
+            &[],
+            &resolver,
+            123,
+            "test",
+            16,
+            &mut Default::default(),
+        )
+        .unwrap();
+        for rotation in 0..4 {
+            let plan = StructurePlan {
+                set: 0,
+                member: "oriented",
+                site: (0, 0),
+                anchor: (15, 4, -2),
+                bbox_min: (15, 4, -2),
+                bbox_max: (20, 7, 3),
+                ground_patch: None,
+                pieces: vec![PlacedPiece {
+                    piece: 0,
+                    rotation,
+                    min: (15, 4, -2),
+                }],
+            };
+            let mut whole = std::collections::BTreeMap::new();
+            grammar.apply_packed_slice(&plan, (0, 0, -16), (32, 16, 16), &mut |x, y, z, raw| {
+                whole.insert((x, y, z), raw);
+            });
+            let mut sliced = std::collections::BTreeMap::new();
+            for x in [0, 16] {
+                for z in [-16, 0] {
+                    grammar.apply_packed_slice(
+                        &plan,
+                        (x, 0, z),
+                        (x + 16, 16, z + 16),
+                        &mut |x, y, z, raw| {
+                            sliced.insert((x, y, z), raw);
+                        },
+                    );
+                }
+            }
+            assert_eq!(whole, sliced);
+            assert_eq!(whole.len(), 3);
+            for (&(x, y, z), &raw) in &whole {
+                let id = BlockUtils::extract_id(raw);
+                assert_eq!(BlockUtils::extract_stage(raw), if id == 3 { 3 } else { 1 });
+                let mut face = [0.5, 0.5, 0.0];
+                BlockUtils::extract_rotation(raw).rotate_node(&mut face, true, true);
+                let turn = (rotation + u8::from(id == 3)) % 4;
+                let expected = match turn {
+                    0 => [0.5, 0.5, 0.0],
+                    1 => [1.0, 0.5, 0.5],
+                    2 => [0.5, 0.5, 1.0],
+                    _ => [0.0, 0.5, 0.5],
+                };
+                assert!(face.iter().zip(expected).all(|(a, b)| (a - b).abs() < 1e-5));
+                if id == 1 {
+                    assert_eq!(
+                        whole
+                            .get(&(x, y + 1, z))
+                            .map(|r| BlockUtils::extract_id(*r)),
+                        Some(2)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn replacing_an_authored_cell_clears_its_old_state() {
+        let p = PieceBuilder::new("replace", 4, 1, 1)
+            .set_state(0, 0, 0, "Crop", 3, 3)
+            .set(0, 0, 0, "Stone")
+            .set_state(1, 0, 0, "Crop", 3, 3)
+            .fill((1, 0, 0), (1, 0, 0), "Stone")
+            .set_state(2, 0, 0, "Crop", 3, 3)
+            .walls((2, 0, 0), (2, 0, 0), "Stone")
+            .set_state(3, 0, 0, "Crop", 3, 3)
+            .clear((3, 0, 0), (3, 0, 0))
+            .build();
+        assert!(p.states.iter().all(Option::is_none));
     }
 }

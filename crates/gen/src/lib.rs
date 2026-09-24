@@ -74,8 +74,8 @@ pub use stream::{
     cell_id, fnv1a_64, hash_unit, mix64, stream_seed, HashStream, SaltPath, Subsystem,
 };
 pub use structures::{
-    AdaptationSpec, Dir4, PieceBuilder, PieceDef, PlacementConstraint, PlacementPolicy, Pool,
-    PopulatePhase, RejectionReason, RejectionStats, Socket, StructureMember, StructurePlan,
-    StructureSetSpec, StructureSource, TerrainView,
+    AdaptationSpec, Dir4, PieceBuilder, PieceCellState, PieceDef, PlacementConstraint,
+    PlacementPolicy, Pool, PopulatePhase, RejectionReason, RejectionStats, Socket, StructureMember,
+    StructurePlan, StructureSetSpec, StructureSource, TerrainView,
 };
 pub use surface::{SurfaceCond, SurfaceRule, SurfaceSpec, SurfaceTable};

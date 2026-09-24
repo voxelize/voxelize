@@ -1,3 +1,4 @@
+import { blockLightCurve } from "../block-light-transfer";
 import { WATER_VIEW_EXTINCTION_GLSL } from "../water-optics";
 
 import { GRID_CELLS_PER_ROW, MAX_LIGHTS_PER_CELL } from "./clustering";
@@ -48,8 +49,7 @@ export function blockLightFloodRemainder(args: {
   floodLevel: number;
   windowFade: number;
 }): number {
-  const level = Math.min(Math.max(args.floodLevel, 0), 1);
-  const floodSmooth = level * level * (3 - 2 * level);
+  const floodSmooth = blockLightCurve(args.floodLevel);
   const ratio =
     (args.scaledClaim * BLOCK_LIGHT_OWNERSHIP_GAIN) /
     Math.max(floodSmooth, 1e-3);
@@ -291,9 +291,9 @@ vec3 localLightSurface(
     float llDist = sqrt(max(llD2, 1e-6));
     vec3 llL = llToLight / llDist;
 
-    float llNorm = llDist / llRange;
-    float llFall = 1.0 - llNorm * llNorm;
-    llFall *= llFall;
+    // Windowed inverse square (legacy (1 - n^2)^2 behind the kernel switch):
+    // a hot core that fades evenly, instead of a plateau with a hard rim.
+    float llFall = blockLightKernelFalloff(llDist, llD2, llRange);
 
     float llAngular = 1.0;
     if (llShape == 1) {
@@ -358,7 +358,7 @@ vec3 localLightSurface(
   // rim; mixing the remainder toward 1 by the same fade the analytic rides
   // keeps the combined block light continuous across the whole band.
   float llFloodLum = max(max(llFlood.r, llFlood.g), llFlood.b);
-  float llFloodSmooth = llFloodLum * llFloodLum * (3.0 - 2.0 * llFloodLum);
+  float llFloodSmooth = blockLightCurve1(llFloodLum);
   float llRemainderOwned = 1.0 - clamp(
     (llClaim * uLocalOwnership * ${BLOCK_LIGHT_OWNERSHIP_GAIN.toFixed(2)})
       / max(llFloodSmooth, 1e-3),
@@ -398,9 +398,9 @@ vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)
     if (llD2 >= llRange * llRange) continue;
     float llDist = sqrt(max(llD2, 1e-6));
 
-    float llNorm = llDist / llRange;
-    float llFall = 1.0 - llNorm * llNorm;
-    llFall *= llFall;
+    // Windowed inverse square (legacy (1 - n^2)^2 behind the kernel switch):
+    // a hot core that fades evenly, instead of a plateau with a hard rim.
+    float llFall = blockLightKernelFalloff(llDist, llD2, llRange);
 
     vec3 llHalf = normalize(llToLight / llDist + llViewDir);
     float llSpec = max(dot(llNormal, llHalf), 0.0);

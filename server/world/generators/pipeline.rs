@@ -27,6 +27,13 @@ impl MetaStage {
 }
 
 impl ChunkStage for MetaStage {
+    fn restore(&self, mut chunk: Chunk, resources: Resources) -> Chunk {
+        for stage in &self.stages {
+            chunk = stage.restore(chunk, resources.clone());
+        }
+        chunk
+    }
+
     fn name(&self) -> String {
         self.stages
             .iter()
@@ -59,6 +66,14 @@ impl ChunkStage for MetaStage {
 pub trait ChunkStage {
     /// The name of the stage, e.g. "Soiling"
     fn name(&self) -> String;
+
+    /// Optional idempotent migration of an existing save, before meshing.
+    /// Defaults to preserving the save. Never rerun generation here: player
+    /// construction and block state must survive. Runs on the loading worker;
+    /// neighbor space and ECS resources are intentionally unavailable.
+    fn restore(&self, chunk: Chunk, _: Resources) -> Chunk {
+        chunk
+    }
 
     /// The radius neighbor from the center chunk that are required before
     /// being processed in this chunk. Defaults to 0 blocks.
@@ -503,5 +518,62 @@ impl Pipeline {
         }
 
         self.stages = new_stages;
+    }
+}
+
+#[cfg(test)]
+mod restore_tests {
+    use super::*;
+    use crate::{BlockUtils, ChunkOptions};
+
+    struct SavedAppearance;
+    impl ChunkStage for SavedAppearance {
+        fn name(&self) -> String {
+            "saved appearance".into()
+        }
+        fn process(&self, _: Chunk, _: Resources, _: Option<Space>) -> Chunk {
+            panic!("loading a save must never run generation");
+        }
+        fn restore(&self, mut chunk: Chunk, _: Resources) -> Chunk {
+            let raw = chunk.get_raw_voxel(0, 2, 0);
+            chunk.set_raw_voxel(0, 2, 0, BlockUtils::insert_stage(raw, 8));
+            chunk
+        }
+    }
+
+    #[test]
+    fn merged_stages_restore_only_opted_in_metadata() {
+        let mut pipeline = Pipeline::new();
+        // This would destroy the player's stone if process ran while loading.
+        pipeline.add_stage(FlatlandStage::new().add_soiling(1, 12));
+        pipeline.add_stage(SavedAppearance);
+        pipeline.merge_stages();
+        let registry = Registry::new();
+        let config = WorldConfig::default();
+        let mut chunk = Chunk::new(
+            "saved",
+            0,
+            0,
+            &ChunkOptions {
+                size: 16,
+                max_height: 32,
+                sub_chunks: 2,
+            },
+        );
+        chunk.set_voxel(0, 2, 0, 7);
+        chunk.set_voxel(1, 2, 0, 11);
+        for stage in &pipeline.stages {
+            chunk = stage.restore(
+                chunk,
+                Resources {
+                    registry: &registry,
+                    config: &config,
+                },
+            );
+        }
+        assert_eq!(chunk.get_voxel(0, 2, 0), 7);
+        assert_eq!(chunk.get_voxel_stage(0, 2, 0), 8);
+        assert_eq!(chunk.get_raw_voxel(1, 2, 0), 11);
+        assert_eq!(chunk.get_voxel(0, 3, 0), 0);
     }
 }

@@ -494,7 +494,15 @@ fn process_pending_updates(
             let waterlog_level = BlockUtils::extract_waterlog_level(raw);
             let height = chunks.get_max_height(vx, vz);
 
-            let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
+            // State-only updates (fill level, lit state, waterlogging) must
+            // preserve the block entity and its contents. A real replacement
+            // or reorientation still follows the unlink/recreate lifecycle.
+            let preserve_entity = current_id == updated_id
+                && BlockUtils::extract_rotation(current_raw) == rotation
+                && chunks.block_entities.contains_key(&voxel);
+            let existing_entity = if preserve_entity { None } else {
+                chunks.block_entities.remove(&voxel)
+            };
             if let Some(existing_entity) = existing_entity {
                 if current_type.name == "Chest" {
                     try_unlink_partner(&*chunks, json_storage, existing_entity);
@@ -506,7 +514,7 @@ fn process_pending_updates(
                 });
             }
 
-            if updated_type.is_entity {
+            if updated_type.is_entity && !preserve_entity {
                 let entity = entities.create();
                 chunks.block_entities.insert(voxel.clone(), entity);
                 lazy.insert(entity, IDComp::new(&nanoid!()));

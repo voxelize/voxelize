@@ -253,6 +253,7 @@ pub(super) struct FaceKey {
     pub(super) face_name: String,
     pub(super) independent: bool,
     pub(super) is_water_exposed: bool,
+    pub(super) tint_bits: i32,
     pub(super) ao: [i32; 4],
     pub(super) light: [i32; 4],
     pub(super) uv_start_u: u32,

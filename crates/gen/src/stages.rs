@@ -433,12 +433,12 @@ impl ChunkStage for GenPopulateStage {
         let Vec3(max_x, max_y, max_z) = chunk.max;
 
         for plan in &ctx.plans {
-            generator.structures().apply_slice(
+            generator.structures().apply_packed_slice(
                 plan,
                 (min_x, min_y, min_z),
                 (max_x, max_y, max_z),
                 &mut |x, y, z, block| {
-                    chunk.set_voxel(x, y, z, block);
+                    chunk.set_raw_voxel(x, y, z, block);
                 },
             );
         }

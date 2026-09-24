@@ -112,6 +112,7 @@ pub struct ChunkProtocol {
     pub meshes: Vec<MeshProtocol>,
     pub voxels: Option<Ndarray<u32>>,
     pub lights: Option<Ndarray<u32>>,
+    pub biome_tints: Vec<u8>,
 }
 
 /// Protocol buffer compatible peer data structure.
@@ -329,6 +330,7 @@ impl MessageBuilder {
                         })
                         .collect(),
                     lights: compress_u32_array(&chunk.lights.unwrap_or_default().data),
+                    biome_tints: chunk.biome_tints,
                     voxels: compress_u32_array(&chunk.voxels.unwrap_or_default().data),
                     x: chunk.x,
                     z: chunk.z,

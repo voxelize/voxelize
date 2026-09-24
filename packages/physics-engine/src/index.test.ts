@@ -273,6 +273,45 @@ describe("Engine", () => {
   });
 
   describe("auto-stepping", () => {
+    it.each([
+      { grounded: true, rise: 0.5, climbs: true },
+      { grounded: false, rise: 0.5, climbs: false },
+      { grounded: true, rise: 1, climbs: false },
+    ])("handles a wet bank with footing=$grounded and rise=$rise", ({ grounded, rise, climbs }) => {
+      const shelfTop = 1.5;
+      const engine = new Engine(
+        (x, y, z) => {
+          if (y === 1 && (x >= WALL_X || grounded)) {
+            return [new AABB(x, y, z, x + 1, x >= WALL_X ? shelfTop + rise : shelfTop, z + 1)];
+          }
+          return [];
+        },
+        (x, y) => x < WALL_X && y === 1,
+        () => [], () => 0, () => 0,
+        { gravity: [0, -28, 0], minBounceImpulse: 0, airDrag: 0, fluidDrag: 0, fluidDensity: 1 },
+      );
+      const body = createBody(engine, 0.6, STEP_START_X);
+      body.aabb.translate([0, 0.5, 0]);
+      if (!grounded) body.gravityMultiplier = 0;
+      let stepped = false;
+      let wasWet = false;
+      body.onStep = box => { stepped = true; body.aabb = box.clone(); };
+      for (let frame = 0; frame < STEP_FRAMES; frame++) {
+        applyMovement(body, HEADING_PLUS_X);
+        engine.update(DELTA_TIME);
+        wasWet ||= body.inFluid;
+      }
+      expect(wasWet).toBe(true);
+      expect(stepped).toBe(climbs);
+      if (climbs) {
+        expect(body.aabb.minX).toBeGreaterThan(WALL_X + 1);
+        expect(body.aabb.minY).toBeCloseTo(shelfTop + rise);
+      } else {
+        expect(body.aabb.maxX).toBeLessThanOrEqual(WALL_X + POSITION_EPSILON);
+        expect(body.aabb.minY).toBeCloseTo(shelfTop);
+      }
+    });
+
     it("climbs a full-block step in one tick and keeps its stride", () => {
       const { body, rises } = simulatePlateauApproach({
         plateauHeight: FULL_STEP_HEIGHT,

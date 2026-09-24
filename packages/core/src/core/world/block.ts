@@ -49,7 +49,7 @@ export interface BlockDynamicPattern {
 
 /**
  * One other voxel a coupled block is stored together with: where it sits
- * relative to this block's voxel, and the block id it must hold. Mirrors the
+ * in this block's unrotated local frame, and the block id it must hold. Mirrors the
  * server `CoupledPart`.
  */
 export type CoupledPart = {
@@ -225,6 +225,7 @@ export type Block = {
      * with the block and rendered full-bright by the chunk shader.
      */
     emissive?: number;
+    stageTintMask?: number;
   }[];
 
   /**
@@ -268,6 +269,9 @@ export type Block = {
   isolatedFaces: Set<string>;
 
   isEntity: boolean;
+
+  /** Server-authored initial data for this block's entity. */
+  defaultEntityJson?: string | null;
 };
 
 /**

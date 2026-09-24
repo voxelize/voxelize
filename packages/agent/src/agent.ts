@@ -925,13 +925,38 @@ export class Agent {
     );
   }
 
-  async interact(button: "left" | "right" = "right"): Promise<{
+  async selectHotbar(slot: number): Promise<void> {
+    if (!Number.isInteger(slot) || slot < 0 || slot > 8) {
+      throw new Error("selectHotbar slot must be an integer from 0 to 8");
+    }
+    await this.withPageTimeout("selectHotbar", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(
+        (index) => window.__agentRequired__().selectHotbar(index),
+        slot,
+      ),
+    );
+  }
+
+  async interact(
+    button: "left" | "right" = "right",
+    holdMs = 0,
+  ): Promise<{
     button: "left" | "right";
     target: Vec3 | null;
     block: string | null;
   }> {
-    return this.withPageTimeout("interact", this.defaultPageTimeoutMs, () =>
-      this.page.evaluate((b) => window.__agentRequired__().interact(b), button),
+    if (!Number.isFinite(holdMs) || holdMs < 0 || holdMs > 15_000) {
+      throw new Error("interact holdMs must be between 0 and 15000");
+    }
+    return this.withPageTimeout(
+      "interact",
+      Math.max(this.defaultPageTimeoutMs, holdMs + PAGE_CALL_GRACE_MS),
+      () =>
+        this.page.evaluate(
+          (b, ms) => window.__agentRequired__().interact(b, ms),
+          button,
+          holdMs,
+        ),
     );
   }
 

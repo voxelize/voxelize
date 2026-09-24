@@ -244,6 +244,7 @@ const actSchema = z.discriminatedUnion("type", [
     direction: walkDirectionSchema,
     durationMs: z.number().optional(),
     isSprinting: z.boolean().optional(),
+    isJumping: z.boolean().optional(),
   }),
   z.object({
     type: z.literal("walk-to"),
@@ -287,8 +288,13 @@ const actSchema = z.discriminatedUnion("type", [
     block: z.union([z.string(), z.number()]),
   }),
   z.object({
+    type: z.literal("select-hotbar"),
+    slot: z.number().int().min(0).max(8),
+  }),
+  z.object({
     type: z.literal("interact"),
     button: z.enum(["left", "right"]).optional(),
+    holdMs: z.number().min(0).max(15_000).optional(),
   }),
   z.object({ type: z.literal("wait"), ms: z.number() }),
   z.object({
@@ -1896,6 +1902,7 @@ export class AgentDaemon {
         await this.agent.walk(action.direction, {
           durationMs: action.durationMs,
           isSprinting: action.isSprinting,
+          isJumping: action.isJumping,
         });
         return { walked: true };
       case "walk-to":
@@ -1938,8 +1945,11 @@ export class AgentDaemon {
         return this.agent.breakVoxel(action.pos);
       case "place-voxel":
         return this.agent.placeVoxel(action.pos, action.block);
+      case "select-hotbar":
+        await this.agent.selectHotbar(action.slot);
+        return { selectedSlot: action.slot };
       case "interact":
-        return this.agent.interact(action.button ?? "right");
+        return this.agent.interact(action.button ?? "right", action.holdMs);
       case "wait":
         await new Promise((r) => setTimeout(r, action.ms));
         return { waited: action.ms };

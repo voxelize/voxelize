@@ -20,17 +20,17 @@ export type WaterChannelCoefficients = {
 export const WATER_OPTICS = Object.freeze({
   /**
    * Beer-Lambert downwelling extinction per channel, per block of depth.
-   * Tuned slightly steeper than clear-ocean measurements so the full spectral
-   * curve unfolds within the game's ~40-block ocean depths: red dies within
-   * ~8 blocks, green by ~30, and blue carries past 60 before fading to black.
+   * A clear-water exploration profile: shallow reef colors remain legible,
+   * red fades first through the shelf, and blue still dies away in the abyss.
+   * These are authored game coefficients, not measured optical properties.
    */
-  downwellingExtinction: { red: 0.38, green: 0.1, blue: 0.048 },
+  downwellingExtinction: { red: 0.14, green: 0.055, blue: 0.038 },
 
   /**
    * Scale from downwelling extinction to extinction along the camera's view
    * ray, which drives the exponential in-scattering fog while submerged.
    */
-  viewExtinctionScale: 0.85,
+  viewExtinctionScale: 0.35,
 
   /**
    * Fraction of downwelling extinction applied to the in-scattered color for
@@ -309,6 +309,14 @@ export const WATER_OPTICS = Object.freeze({
    */
   floorAbsorptionPathScale: 1.6,
   floorAbsorptionMaxDepth: 4,
+  /** Local-column haze above water, including elevated lakes. Shores retain
+   * their existing clarity; deep beds fade even without refraction capture. */
+  deepSurfaceClearDepth: 3,
+  deepSurfaceExtinction: 0.08,
+  /** Surface-return light is weaker than the ambient seen while submerged.
+   * Filtering it separately avoids a milky cyan sheet over deep oceans. */
+  deepSurfaceScatterScale: { red: 0.35, green: 0.42, blue: 0.62 },
+
   wetFloorDarken: 0.8,
   shallowScatterDensity: 0.5,
   shallowScatterMaxMix: 0.35,
@@ -345,6 +353,30 @@ export const WATER_OPTICS = Object.freeze({
   causticStrength: 0.35,
   causticLensSlope: 0.1,
   causticDepthFalloff: 0.7,
+
+  /**
+   * The same light seen from below: while the camera is submerged, sunlit
+   * submerged faces carry a slow caustic net projected down the sun
+   * direction, brightening the lit colour by up to `bedCausticStrength`.
+   * Gated by the direct sun on the face, so it vanishes in shadow, at night
+   * and in the deep (`bedCausticDepthFalloff` per block).
+   */
+  bedCausticStrength: 2.4,
+  bedCausticDepthFalloff: 0.08,
+
+  /**
+   * The surface seen from below. Inside Snell's window (the cone overhead
+   * whose rays refract out to the sky) it shows the sky and the sun; outside
+   * it, total internal reflection mirrors the water body. The same caustic
+   * web as the bed rides on top, so the surface reads as a moving ceiling of
+   * light. `undersideWindowSoftness` widens the window's rim (in sin units),
+   * the opacities keep the dry world from showing through unrefracted.
+   */
+  refractiveIndex: 1.333,
+  undersideWindowSoftness: 0.12,
+  undersideWebStrength: 0.55,
+  undersideWindowOpacity: 0.8,
+  undersideMirrorOpacity: 0.95,
 
   /**
    * Flow. Water runs downhill along its own surface, and a fluid's top face
@@ -461,6 +493,33 @@ export const FLUID_SPILL_CORNER_MIN_HEIGHT =
  * decode `rg * 2 - 1` to -1..1, the tile's steepest facet at ±1 (see
  * `water-normal-texture.ts`).
  */
+/**
+ * A tileable caustic web (after Dave Hoskins' water caustic): bright where
+ * an iterated warp's focus lines meet, repeating every three blocks. Shared
+ * by the seabed caustics, the surface underside and the client's light
+ * shafts, so all three show one pattern on one clock. Returns 0..1.
+ */
+export const WATER_CAUSTIC_WEB_GLSL = `
+float waterCausticWeb(vec2 cwPos, float cwSeconds) {
+  vec2 cwP = mod(cwPos * (6.28318 / 3.0), 6.28318) - 250.0;
+  vec2 cwI = cwP;
+  float cwSum = 1.0;
+  for (int cwN = 0; cwN < 4; cwN++) {
+    float cwT = cwSeconds * 0.45 * (1.0 - 3.5 / float(cwN + 1));
+    cwI = cwP + vec2(
+      cos(cwT - cwI.x) + sin(cwT + cwI.y),
+      sin(cwT - cwI.y) + cos(cwT + cwI.x)
+    );
+    cwSum += 1.0 / length(vec2(
+      cwP.x / (sin(cwI.x + cwT) / 0.005),
+      cwP.y / (cos(cwI.y + cwT) / 0.005)
+    ));
+  }
+  cwSum = 1.17 - pow(cwSum / 4.0, 1.4);
+  return clamp(pow(abs(cwSum), 8.0), 0.0, 1.0);
+}
+`;
+
 export const WATER_SURFACE_NORMAL_LAYERS_GLSL = WATER_OPTICS.surfaceNormalLayers
   .map((layer, index, layers) => {
     const cos = Math.cos(layer.rotation).toFixed(6);
@@ -552,7 +611,8 @@ uniform vec3 uUnderwaterAmbient;
  * in scope. The path is clamped at the waterline plane so geometry above the
  * surface only receives fog for the submerged segment of the ray.
  */
-export const UNDERWATER_FOG_FRAGMENT = `
+/** Emission loses light along the ray but does not add ambient water light. */
+export const createUnderwaterFogFragment = (isEmission = false) => `
 if (uCameraSubmersion > 0.001) {
   vec3 uwRay = vWorldPosition.xyz - cameraPosition;
   float uwDist = max(length(uwRay), 1e-4);
@@ -562,10 +622,12 @@ if (uCameraSubmersion > 0.001) {
     uwPath = min(uwPath, max(uwToPlane, 0.0));
   }
   vec3 uwTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * uwPath);
-  vec3 uwColor = gl_FragColor.rgb * uwTransmit + uUnderwaterAmbient * (1.0 - uwTransmit);
+  vec3 uwColor = gl_FragColor.rgb * uwTransmit${isEmission ? "" : " + uUnderwaterAmbient * (1.0 - uwTransmit)"};
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uwColor, uCameraSubmersion);
 }
 `;
+
+export const UNDERWATER_FOG_FRAGMENT = createUnderwaterFogFragment();
 
 /**
  * The above-surface counterpart of {@link UNDERWATER_FOG_FRAGMENT}: the same

@@ -1,5 +1,11 @@
 import { Vector3 } from "three";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  blockLightCurve,
+  localLightFalloff,
+  setBlockLightTuning,
+} from "../block-light-transfer";
 
 import {
   SHADER_LIGHTING_CHUNK_SHADERS,
@@ -344,6 +350,15 @@ describe("LightClusterGrid selection", () => {
 });
 
 describe("block-light ownership", () => {
+  // These pin the legacy model's numbers (smoothstep flood, 1.2 gain,
+  // (1 - n^2)^2 kernel); the new transfer has its own suite below.
+  beforeEach(() =>
+    setBlockLightTuning({ curve: false, toneMap: false, kernel: false }),
+  );
+  afterEach(() =>
+    setBlockLightTuning({ curve: true, toneMap: true, kernel: true }),
+  );
+
   const makeSample = () => ({
     color: [0, 0, 0] as [number, number, number],
     count: 0,
@@ -694,8 +709,10 @@ describe("block-light ownership", () => {
     // unscaled legacy expression must be gone: covered fragments cannot
     // receive both the flood term and the analytic term.
     const fragment = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
-    expect(fragment).toContain("smoothTorch * (1.2 * llFloodRemainder)");
-    expect(fragment).not.toContain("smoothTorch * 1.2;");
+    expect(fragment).toContain(
+      "smoothTorch * (uBlockLightGain * llFloodRemainder)",
+    );
+    expect(fragment).not.toContain("smoothTorch * uBlockLightGain;");
     // The cluster blend is guarded for bit-exactness at zero lights:
     // 1.0 - (1.0 - t) is not an IEEE identity, so the blend must not run
     // at all when nothing is clustered.
@@ -723,7 +740,9 @@ describe("block-light ownership", () => {
     for (const [name, variant] of Object.entries(variants)) {
       const stripped = stripLocalLightsFromFragment(variant.fragment);
       expect(stripped, name).not.toMatch(forbidden);
-      expect(stripped, name).toContain("vec3 torchLight = smoothTorch * 1.2;");
+      expect(stripped, name).toContain(
+        "vec3 torchLight = smoothTorch * uBlockLightGain;",
+      );
       expect(stripped, name).toContain(
         "float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);",
       );
@@ -1014,5 +1033,76 @@ describe("setBlockProfile timing", () => {
       LIGHT_FLAG_SHADOW_REQUEST,
     );
     lights.dispose();
+  });
+});
+
+describe("block-light transfer (new model)", () => {
+  const makeSample = () => ({
+    color: [0, 0, 0] as [number, number, number],
+    count: 0,
+    claim: 0,
+    windowFade: 1,
+  });
+
+  it("keeps the rim seamless and hands back exactly the flood outside", () => {
+    const registry = new LightSourceRegistry(8);
+    registry.add(pointLight({ range: 32, intensity: 1 }), 80, 4, 4);
+    const grid = makeGrid(registry, { analyticRadius: 96 });
+    grid.update(0, 0, 0, makeStats());
+    const floodLevel = 0.6;
+    const floodVisible = blockLightCurve(floodLevel);
+    const combinedAt = (x: number) => {
+      const sample = makeSample();
+      grid.sampleIrradiance([x, 4, 4], sample);
+      const remainder = blockLightFloodRemainder({
+        scaledClaim: sample.claim,
+        floodLevel,
+        windowFade: sample.windowFade,
+      });
+      const lum =
+        0.2126 * sample.color[0] +
+        0.7152 * sample.color[1] +
+        0.0722 * sample.color[2];
+      return lum + remainder * floodVisible;
+    };
+    // The hard window boundary, and the pure-flood far side.
+    expect(Math.abs(combinedAt(95.9) - combinedAt(96.1))).toBeLessThan(0.02);
+    expect(combinedAt(100)).toBeCloseTo(floodVisible, 6);
+    // And the analytic light never rises moving away from its source.
+    const line = [80, 84, 88, 92, 95.9];
+    const combined = line.map(combinedAt);
+    for (let n = 1; n < combined.length; n++)
+      expect(combined[n]).toBeLessThanOrEqual(combined[n - 1] + 1e-9);
+  });
+
+  it("decays geometrically per flood level, so a coloured light keeps its hue", () => {
+    // Glowberry R12 G7 B2: the G/R ratio stays put while both channels live.
+    const ratioAt = (d: number) =>
+      blockLightCurve((7 - d) / 15) / blockLightCurve((12 - d) / 15);
+    // Modelled in the plan: G/R .35, .31, .25 at d = 0, 2, 4 (legacy .59,
+    // .37, .14) — the hue walk is roughly halved.
+    expect(ratioAt(2) / ratioAt(0)).toBeGreaterThan(0.85);
+    expect(ratioAt(4) / ratioAt(0)).toBeGreaterThan(0.65);
+    setBlockLightTuning({ curve: false });
+    const legacyWalk = ratioAt(4) / ratioAt(0);
+    setBlockLightTuning({ curve: true });
+    expect(ratioAt(4) / ratioAt(0)).toBeGreaterThan(legacyWalk * 1.6);
+    // Even steps: no plateau then cliff. Each level loses a similar share.
+    const levels = [15, 13, 11, 9, 7, 5].map((l) => blockLightCurve(l / 15));
+    for (let n = 1; n < levels.length; n++)
+      expect(levels[n] / levels[n - 1]).toBeGreaterThan(0.55);
+    expect(blockLightCurve(0)).toBe(0);
+    expect(blockLightCurve(1)).toBeCloseTo(1, 9);
+  });
+
+  it("gives the analytic kernel a hot core and the same zero at range", () => {
+    expect(localLightFalloff(0, 12)).toBeGreaterThan(1.5);
+    expect(localLightFalloff(12, 12)).toBe(0);
+    let previous = Infinity;
+    for (let d = 0; d < 12; d += 0.5) {
+      const f = localLightFalloff(d, 12);
+      expect(f).toBeLessThanOrEqual(previous);
+      previous = f;
+    }
   });
 });

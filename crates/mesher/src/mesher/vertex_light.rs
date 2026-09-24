@@ -33,7 +33,10 @@
 //!               +x toward +z.
 //! bit  30       emissive face; reinterprets bits 16..=17 as an index into
 //!               EMISSIVE_LEVELS
-//! bit  31       sign; the attribute is read as a signed int, keep it clear
+//! bit  31       stage tint; on a non-fluid face, bits 22..=25 hold a
+//!               palette index. Bits 26..=29 jointly encode count/index
+//!               for runs up to four blocks (see `with_stage_tint`).
+//!               Signed storage preserves the full bit pattern (wire bytes).
 //! ```
 
 /// Mask of the light nibbles.
@@ -78,9 +81,38 @@ pub const EMISSIVE_BIT: i32 = 1 << 30;
 /// strengths quantize to the nearest entry.
 pub const EMISSIVE_LEVELS: [f32; 4] = [1.0, 1.75, 2.5, 3.5];
 
-/// Highest bit any field above may touch. Bit 31 is the sign of the signed
-/// int the attribute is uploaded as, so it stays clear.
-pub const HIGHEST_ALLOCATED_BIT: i32 = 30;
+/// Highest allocated bit. The signed attribute carries opaque bits; its
+/// sign is the tint tag, not a negative light intensity.
+pub const HIGHEST_ALLOCATED_BIT: i32 = 31;
+
+/// Marks a face eligible for regional color, including the neutral palette.
+pub const STAGE_TINT_BIT: i32 = i32::MIN;
+#[inline]
+pub fn stage_tint_bits(stage: u32) -> i32 {
+    with_stage_tint(0, stage)
+}
+
+/// Share the existing stack byte with the palette, without adding a vertex
+/// attribute or losing the seam/tip positions used by a tall plant's sway.
+/// The high nibble enumerates (count, index), including the upper boundary:
+/// count 1 => codes 0..1, 2 => 2..4, 3 => 5..8, 4 => 9..13.
+/// Fluids and longer runs retain their original encoding and are untinted.
+/// Keep the inverse in the client's vertex shader in sync.
+#[inline]
+pub fn with_stage_tint(light: i32, stage: u32) -> i32 {
+    let palette = (stage & 15) as i32;
+    let index = (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
+    let count = ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
+    if light & FLUID_BIT != 0 || count > 4 || index > count {
+        return light;
+    }
+    let code = (count - 1) * (count + 2) / 2 + index;
+    let fields = (STACK_FIELD_BITS << STACK_INDEX_SHIFT) | (STACK_FIELD_BITS << STACK_COUNT_SHIFT);
+    (light & !fields)
+        | STAGE_TINT_BIT
+        | (palette << STACK_INDEX_SHIFT)
+        | (code << STACK_COUNT_SHIFT)
+}
 
 /// The AO-field bits a face should carry: the emissive flag plus the
 /// quantized strength index for an emissive face, or the plain occlusion
@@ -185,6 +217,46 @@ pub fn with_surface_flow(light: i32, depth_code: u32, code: u32) -> i32 {
 mod tests {
     use super::*;
 
+    #[test]
+    fn tint_preserves_short_stack_seams_and_all_other_attributes() {
+        let base = 0xabcd | (2 << AO_SHIFT) | EMISSIVE_BIT | WAVE_BIT | WATER_EXPOSED_BIT;
+        for palette in 0..=15 {
+            for count in 1..=4 {
+                for index in 0..=count {
+                    let packed = with_stage_tint(with_stack(base, index, count), palette);
+                    assert!(packed < 0);
+                    assert_eq!((packed >> STACK_INDEX_SHIFT) & 15, palette as i32);
+                    let code = (packed >> STACK_COUNT_SHIFT) & 15;
+                    // Same inverse as the shader, expressed independently.
+                    let (decoded_count, offset) = match code {
+                        0..=1 => (1, 0),
+                        2..=4 => (2, 2),
+                        5..=8 => (3, 5),
+                        _ => (4, 9),
+                    };
+                    assert_eq!((decoded_count, code - offset), (count as i32, index as i32));
+                    assert_eq!(
+                        packed & ((1 << STACK_INDEX_SHIFT) - 1),
+                        base & ((1 << STACK_INDEX_SHIFT) - 1)
+                    );
+                    assert_eq!(packed & EMISSIVE_BIT, EMISSIVE_BIT);
+                    assert_eq!(i32::from_le_bytes(packed.to_le_bytes()), packed);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tint_leaves_fluids_and_long_stacks_unchanged() {
+        for count in 1..=16 {
+            let word = with_stack(0x1234, count - 1, count);
+            assert_eq!(with_stage_tint(word | FLUID_BIT, 4), word | FLUID_BIT);
+            if count > 4 {
+                assert_eq!(with_stage_tint(word, 8), word);
+            }
+        }
+    }
+
     /// The point of this module: every allocated field occupies its own bits.
     /// Two reuses are deliberately absent: the emissive strength index rides
     /// the AO bits under `EMISSIVE_BIT`, and the fluid pane flag rides the
@@ -192,7 +264,7 @@ mod tests {
     /// borrows is meaningless on the face that borrows it.
     #[test]
     fn no_field_overlaps_another() {
-        let fields: [(&str, i32); 9] = [
+        let fields: [(&str, i32); 10] = [
             ("light", LIGHT_MASK),
             ("ao", AO_BITS << AO_SHIFT),
             ("fluid", FLUID_BIT),
@@ -202,6 +274,7 @@ mod tests {
             ("stack_index", STACK_FIELD_BITS << STACK_INDEX_SHIFT),
             ("stack_count", STACK_FIELD_BITS << STACK_COUNT_SHIFT),
             ("emissive", EMISSIVE_BIT),
+            ("stage_tint", STAGE_TINT_BIT),
         ];
 
         let mut claimed = 0i32;
@@ -215,11 +288,11 @@ mod tests {
         }
 
         assert_eq!(
-            claimed >> (HIGHEST_ALLOCATED_BIT + 1),
+            (claimed as u32 as u64) >> (HIGHEST_ALLOCATED_BIT + 1),
             0,
             "a field reaches past the highest allocated bit",
         );
-        assert!(claimed >= 0, "the sign bit must stay clear");
+        assert_eq!(claimed as u32, u32::MAX);
     }
 
     /// The pane flag may only ever alias the greedy bit: the shader decodes
@@ -267,7 +340,7 @@ mod tests {
             ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1,
             STACK_MAX as i32,
         );
-        assert_eq!(light >> (HIGHEST_ALLOCATED_BIT + 1), 0);
+        assert_eq!((light as u32 as u64) >> (HIGHEST_ALLOCATED_BIT + 1), 0);
     }
 
     /// The flow field may only ever alias the count field: the shader
@@ -314,7 +387,7 @@ mod tests {
         assert_eq!(light & LIGHT_MASK, 0x1234);
         assert_ne!(light & FLUID_BIT, 0);
         assert_ne!(light & WAVE_BIT, 0);
-        assert_eq!(light >> (HIGHEST_ALLOCATED_BIT + 1), 0);
+        assert_eq!((light as u32 as u64) >> (HIGHEST_ALLOCATED_BIT + 1), 0);
     }
 
     /// The corner depth quantizes to the nearest unit, a mean of two whole
@@ -373,7 +446,7 @@ mod tests {
                 expected_index,
                 "strength {strength}",
             );
-            assert_eq!(bits >> (HIGHEST_ALLOCATED_BIT + 1), 0);
+            assert_eq!((bits as u32 as u64) >> (HIGHEST_ALLOCATED_BIT + 1), 0);
             assert!(bits >= 0, "the sign bit must stay clear");
         }
     }

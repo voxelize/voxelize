@@ -240,6 +240,8 @@ export type RigidControlsOptions = {
    * The maximum level of speed of a client. Default is `6` .
    */
   maxSpeed: number;
+  /** Server-provided temporary effects; applies only to ordinary ground walking. */
+  statusSpeedFactor: number;
 
   /**
    * The level of force of which the client can move at. Default is `30`.
@@ -416,6 +418,7 @@ const defaultOptions: RigidControlsOptions = {
   eyeHeight: 0.9193548387096774,
 
   maxSpeed: 6,
+  statusSpeedFactor: 1,
   moveForce: 30,
   responsiveness: 240,
   runningFriction: 0.1,
@@ -1826,7 +1829,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         let m = [0, 0, 0];
         let push = [0, 0, 0];
         if (this.state.running) {
-          let speed = maxSpeed;
+          let speed = maxSpeed * (this.body.gravityMultiplier === 0 ? 1 : this.options.statusSpeedFactor);
           // todo: add crouch/sprint modifiers if needed
           if (this.state.sprinting) speed *= sprintFactor;
           if (this.state.crouching && this.body.resting[1] === -1)

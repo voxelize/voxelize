@@ -1,5 +1,5 @@
 import {
-  UNDERWATER_FOG_FRAGMENT,
+  createUnderwaterFogFragment,
   UNDERWATER_FOG_UNIFORM_DECLARATIONS,
 } from "./water-optics";
 
@@ -24,6 +24,9 @@ uniform float uSkyFogExponent2;
 uniform float uSkyFogDimension;
 uniform float uSkyFogStrength;
 uniform float uChunkReveal;
+// 0 outdoors (fog by horizontal distance), rising to 1 under deep cover so a
+// tall cave ceiling hazes with its true distance like the walls do.
+uniform float uFogVerticalBlend;
 ${UNDERWATER_FOG_UNIFORM_DECLARATIONS}
 `;
 
@@ -45,13 +48,19 @@ ${SKY_FOG_SUN_UNIFORM_DECLARATIONS}
  * sky-dome gradient it would vanish into), 1 applies fog normally. Chunk
  * shaders multiply the material uniform by a per-section varying so the
  * terrain fade-in can address one section at a time.
+ * @param isEmission Additive effects attenuate without adding sky color.
  */
-export const createSkyFogFragment = (
+export const createSkyAtmosphereFragment = (
   depthExpression = "sqrt(dot(fogDiff, fogDiff))",
   revealExpression = "uChunkReveal",
+  isEmission = false,
 ) => `
 vec2 fogDiff = vWorldPosition.xz - cameraPosition.xz;
-float depth = ${depthExpression};
+float depth = mix(
+  ${depthExpression},
+  length(vWorldPosition.xyz - cameraPosition),
+  uFogVerticalBlend
+);
 float distFog = smoothstep(uFogNear, uFogFar, depth);
 float heightFog = 1.0 - exp(-uFogHeightDensity * max(0.0, uFogHeightOrigin - vWorldPosition.y));
 float heightDistScale = smoothstep(uFogNear * 0.3, uFogFar * 0.6, depth);
@@ -73,8 +82,14 @@ float sunAlignment = pow(max(0.0, dot(fogRay, uSunDirection)), 6.0);
 fogTint += uSunColor * sunAlignment * uSunlightIntensity * uSkyFogStrength * 0.35;
 
 float effectiveFogFactor = mix(1.0, fogFactor * (1.0 - uCameraSubmersion), ${revealExpression});
-gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint, effectiveFogFactor);
-${UNDERWATER_FOG_FRAGMENT}
+gl_FragColor.rgb = ${isEmission ? "gl_FragColor.rgb * (1.0 - effectiveFogFactor)" : "mix(gl_FragColor.rgb, fogTint, effectiveFogFactor)"};
 `;
+
+export const createSkyFogFragment = (
+  depthExpression?: string,
+  revealExpression?: string,
+  isEmission = false,
+) => `${createSkyAtmosphereFragment(depthExpression, revealExpression, isEmission)}
+${createUnderwaterFogFragment(isEmission)}`;
 
 export const SKY_FOG_FRAGMENT = createSkyFogFragment();

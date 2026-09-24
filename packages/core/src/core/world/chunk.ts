@@ -32,6 +32,7 @@ export class StaticGroup extends Group {
 }
 
 export class Chunk extends RawChunk {
+  public biomeTints: Uint8Array | undefined;
   public meshes = new Map<number, Mesh[]>();
 
   public added = false;
@@ -71,6 +72,8 @@ export class Chunk extends RawChunk {
 
     const { voxels, lights } = data;
 
+    if (data.biomeTints?.length === 12) this.biomeTints = data.biomeTints;
+
     if (lights && lights.byteLength) this.lights.data = lights;
     if (voxels && voxels.byteLength) this.voxels.data = voxels;
   }
@@ -100,5 +103,6 @@ export class Chunk extends RawChunk {
     ChunkSharedPool.getInstance().releaseChunk(this.name);
     this.voxels.data = new Uint32Array(0);
     this.lights.data = new Uint32Array(0);
+    this.biomeTints = undefined;
   }
 }

@@ -17,6 +17,17 @@ const { version } = require("./package.json");
 
 export default defineConfig({
   plugins: [
+    {
+      name: "watch-mesher-worker-assets",
+      buildStart() {
+        // Worker dependencies are built by a nested Rollup instance. Vite's
+        // library watcher otherwise misses wasm-pack output and keeps serving
+        // an older embedded mesher until an unrelated client source edit.
+        for (const file of ["voxelize_wasm_mesher.js", "voxelize_wasm_mesher_bg.wasm"]) {
+          this.addWatchFile(path.resolve(__dirname, "../../crates/wasm-mesher/pkg", file));
+        }
+      },
+    },
     wasm(),
     topLevelAwait(),
     glsl(),

@@ -265,6 +265,11 @@ pub struct BlockFace {
     /// fragment shader bypasses the lighting model with the level's value.
     #[serde(default)]
     pub emissive: f32,
+    /// Use the voxel stage (0..15) as a shared material palette index.
+    /// Non-fluid faces only. Runs up to four blocks retain their stack sway;
+    /// longer runs keep their original encoding and remain untinted.
+    #[serde(default)]
+    pub stage_tint_mask: u32,
 }
 
 fn default_corners() -> [CornerData; 4] {
@@ -294,6 +299,7 @@ impl BlockFace {
             corners,
             range: UV::default(),
             emissive: 0.0,
+            stage_tint_mask: 0,
         }
     }
 
@@ -356,6 +362,26 @@ impl BlockRotation {
             BlockRotation::NY(rot) => (1, convert_y_rot(*rot)),
             BlockRotation::PZ(rot) => (4, convert_y_rot(*rot)),
             BlockRotation::NZ(rot) => (5, convert_y_rot(*rot)),
+        }
+    }
+
+    /// Rotate a direction about the origin. Unlike a voxel corner, a face
+    /// normal must never receive the half-block pivot offset or translation.
+    pub fn rotate_direction(&self, direction: &mut [f32; 3], y_rotate: bool) {
+        let angle = match self {
+            Self::PX(angle) | Self::NX(angle) | Self::PY(angle)
+            | Self::NY(angle) | Self::PZ(angle) | Self::NZ(angle) => *angle,
+        };
+        if y_rotate && angle.abs() > f32::EPSILON {
+            self.rotate_y(direction, angle);
+        }
+        match self {
+            Self::PX(_) => self.rotate_z(direction, -PI_2),
+            Self::NX(_) => self.rotate_z(direction, PI_2),
+            Self::PY(_) => {},
+            Self::NY(_) => self.rotate_x(direction, PI_2 * 2.0),
+            Self::PZ(_) => self.rotate_x(direction, PI_2),
+            Self::NZ(_) => self.rotate_x(direction, -PI_2),
         }
     }
 
@@ -608,6 +634,35 @@ pub struct BlockDynamicPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rotated_directions_match_vertex_differences_without_pivot_translation() {
+        let directions = [
+            [1.0, 0.0, 0.0], [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0], [0.0, -1.0, 0.0],
+            [0.0, 0.0, 1.0], [0.0, 0.0, -1.0],
+        ];
+        for axis in 0..6 {
+            for yaw in 0..Y_ROT_SEGMENTS {
+                let rotation = BlockRotation::encode(axis, yaw);
+                for y_rotate in [false, true] {
+                    for direction in directions {
+                        let mut actual = direction;
+                        rotation.rotate_direction(&mut actual, y_rotate);
+                        assert!((actual.iter().map(|v| v * v).sum::<f32>() - 1.0).abs() < 1e-5);
+                        let mut start = [0.25, 0.5, 0.75];
+                        let mut end = [start[0] + direction[0], start[1] + direction[1], start[2] + direction[2]];
+                        rotation.rotate_node(&mut start, y_rotate, true);
+                        rotation.rotate_node(&mut end, y_rotate, true);
+                        for i in 0..3 {
+                            assert!((actual[i] - (end[i] - start[i])).abs() < 1e-5,
+                                "{rotation:?}, y_rotate={y_rotate}, direction={direction:?}");
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_aabb_union() {

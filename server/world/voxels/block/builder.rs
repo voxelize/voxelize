@@ -48,6 +48,7 @@ pub struct BlockBuilder {
     default_entity_json: Option<String>,
     light_attenuation: u8,
     emissive: f32,
+    stage_tint_mask: u32,
     face_emissives: Vec<(String, f32)>,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     dynamic_fn: Option<
@@ -196,7 +197,7 @@ impl BlockBuilder {
     }
 
     /// Couple this block to another voxel of the same unit: the block at
-    /// `offset` from any voxel holding this block must be `id`, and the two
+    /// local-frame `offset` (rotated with the block) must hold `id`, and the two
     /// live and die together. Call once per other part of the unit — a door
     /// bottom couples to its top at `(0, 1, 0)`, the top couples back to the
     /// bottom at `(0, -1, 0)` — and mark exactly one part with
@@ -255,11 +256,16 @@ impl BlockBuilder {
         self
     }
 
-    /// Render every face of this block emissive at `strength` (tonemapped-
-    /// scene-relative; quantized to the mesher's shared level table). Emissive
-    /// faces bypass the lighting model — a lava surface stays bright at night.
-    /// This declares how the block *looks*; light cast onto neighbors still
-    /// comes from the flood levels (`torch_light_level` and friends).
+    /// Shade faces through the shared 16-entry stage palette. Stage zero
+    /// remains the unmodified material. Supports non-fluid vertical stacks
+    /// up to four blocks; longer runs keep their sway and remain untinted.
+    pub fn stage_tint(mut self, mask: u32) -> Self {
+        self.stage_tint_mask = mask & 15;
+        self
+    }
+
+    /// Render every face emissive at this quantized strength. This declares
+    /// appearance; light cast onto neighbors still comes from flood levels.
     pub fn emissive(mut self, strength: f32) -> Self {
         self.emissive = strength;
         self
@@ -477,6 +483,12 @@ impl BlockBuilder {
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
         let mut faces = self.faces;
+        if self.stage_tint_mask != 0 {
+            assert!(!self.is_fluid, "stage tint cannot share a fluid field");
+            for face in &mut faces {
+                face.stage_tint_mask = self.stage_tint_mask;
+            }
+        }
         if self.emissive > 0.0 {
             for face in faces.iter_mut() {
                 face.emissive = self.emissive;

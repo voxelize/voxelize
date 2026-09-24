@@ -181,9 +181,9 @@ pub(super) fn process_greedy_quad(
         } else {
             ao << AO_SHIFT
         };
-        geometry
-            .lights
-            .push(light | ao_bits | fluid_bit | greedy_bit | water_exposed_bit);
+        geometry.lights.push(
+            light | ao_bits | fluid_bit | greedy_bit | water_exposed_bit | quad.data.key.tint_bits,
+        );
     }
 
     let face_aos = quad.data.key.ao;
@@ -397,7 +397,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
                             registry
                                 .get_block_by_id(id)
-                                .map(|b| b.is_opaque)
+                                .map(|b| b.is_opaque && !b.is_fluid)
                                 .unwrap_or(false)
                         });
                         if all_neighbors_opaque {
@@ -451,6 +451,16 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             face_name: face.name.clone(),
                             independent: face.independent,
                             is_water_exposed,
+                            tint_bits: if face.stage_tint_mask != 0
+                                && !is_fluid
+                                && block.stack_group == 0
+                            {
+                                stage_tint_bits(
+                                    space.get_voxel_stage(vx, vy, vz) & face.stage_tint_mask,
+                                )
+                            } else {
+                                0
+                            },
                             ao: aos,
                             light: lights,
                             uv_start_u: (uv_range.start_u * 1000000.0) as u32,

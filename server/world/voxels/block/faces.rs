@@ -22,6 +22,10 @@ pub struct BlockFace {
     /// shared level table and the client renders the face full-bright.
     #[serde(default)]
     pub emissive: f32,
+    /// Use the voxel stage (0..15) as a shared material palette index.
+    /// Only valid on non-fluid blocks without a vertical stack group.
+    #[serde(default)]
+    pub stage_tint_mask: u32,
 }
 
 impl BlockFace {
@@ -41,6 +45,7 @@ impl BlockFace {
             corners,
             range: UV::default(),
             emissive: 0.0,
+            stage_tint_mask: 0,
         }
     }
 
@@ -89,6 +94,7 @@ impl BlockFace {
                 end_v: self.range.end_v,
             },
             emissive: self.emissive,
+            stage_tint_mask: self.stage_tint_mask,
         }
     }
 }
@@ -319,6 +325,7 @@ impl DiagonalFacesBuilder {
                     texture_group: texture_group.clone(),
                     range: UV::default(),
                     emissive: 0.0,
+                    stage_tint_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -358,6 +365,7 @@ impl DiagonalFacesBuilder {
                     texture_group: texture_group.clone(),
                     range: UV::default(),
                     emissive: 0.0,
+                    stage_tint_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -397,6 +405,7 @@ impl DiagonalFacesBuilder {
                     texture_group: texture_group.clone(),
                     range: UV::default(),
                     emissive: 0.0,
+                    stage_tint_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -436,6 +445,7 @@ impl DiagonalFacesBuilder {
                     texture_group: texture_group.clone(),
                     range: UV::default(),
                     emissive: 0.0,
+                    stage_tint_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -478,6 +488,7 @@ impl DiagonalFacesBuilder {
                     texture_group: texture_group.clone(),
                     range: UV::default(),
                     emissive: 0.0,
+                    stage_tint_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -513,6 +524,7 @@ impl DiagonalFacesBuilder {
                     texture_group,
                     range: UV::default(),
                     emissive: 0.0,
+                    stage_tint_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -845,6 +857,7 @@ impl SixFacesBuilder {
                 texture_group: px_group,
                 range: UV::default(),
                 emissive: 0.0,
+                stage_tint_mask: 0,
                 corners: [
                     CornerData {
                         pos: [
@@ -895,6 +908,7 @@ impl SixFacesBuilder {
                 texture_group: py_group,
                 range: UV::default(),
                 emissive: 0.0,
+                stage_tint_mask: 0,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
@@ -945,6 +959,7 @@ impl SixFacesBuilder {
                 texture_group: pz_group,
                 range: UV::default(),
                 emissive: 0.0,
+                stage_tint_mask: 0,
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -995,6 +1010,7 @@ impl SixFacesBuilder {
                 texture_group: nx_group,
                 range: UV::default(),
                 emissive: 0.0,
+                stage_tint_mask: 0,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
@@ -1041,6 +1057,7 @@ impl SixFacesBuilder {
                 texture_group: ny_group,
                 range: UV::default(),
                 emissive: 0.0,
+                stage_tint_mask: 0,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -1087,6 +1104,7 @@ impl SixFacesBuilder {
                 texture_group: nz_group,
                 range: UV::default(),
                 emissive: 0.0,
+                stage_tint_mask: 0,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],

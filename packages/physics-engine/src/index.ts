@@ -727,7 +727,8 @@ export class Engine {
    * step is reported through `onStep` (or applied directly without one).
    */
   tryAutoStepping = (body: RigidBody, oldBox: AABB, dx: number[]) => {
-    if (body.inFluid) return;
+    // Wading on solid footing still permits a normal step. The grounding
+    // check below prevents swimming bodies from climbing an underwater wall.
     if (body.resting[1] >= 0) return;
 
     // direction movement was blocked before trying a step

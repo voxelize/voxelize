@@ -107,6 +107,9 @@ impl Physics {
             .additional_mass(body.mass)
             .translation(vector![px, py, pz])
             .gravity_scale(0.0)
+            // This Rapier body resolves entity overlap only. The separate
+            // voxel body retains its full vertical motion and collision.
+            .enabled_translations(true, !body.horizontal_repulsion, true)
             .lock_rotations()
             .build();
         let mut collider = ColliderBuilder::capsule_y(

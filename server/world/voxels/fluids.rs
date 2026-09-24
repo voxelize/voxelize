@@ -10,6 +10,8 @@ pub struct FluidConfig {
     pub infinite_source: bool,
     pub infinite_source_count: u32,
     pub flows_down_as_source: bool,
+    /// A falling sheet regains horizontal reach, but remains source-dependent.
+    pub renews_reach_on_fall: bool,
     pub slope_find_distance: u32,
 }
 
@@ -21,6 +23,7 @@ impl Default for FluidConfig {
             infinite_source: true,
             infinite_source_count: 2,
             flows_down_as_source: false,
+            renews_reach_on_fall: false,
             slope_find_distance: 4,
         }
     }
@@ -49,6 +52,11 @@ impl FluidConfig {
 
     pub fn flows_down_as_source(mut self, enabled: bool) -> Self {
         self.flows_down_as_source = enabled;
+        self
+    }
+
+    pub fn renews_reach_on_fall(mut self, enabled: bool) -> Self {
+        self.renews_reach_on_fall = enabled;
         self
     }
 
@@ -206,6 +214,8 @@ impl FluidView<'_> {
     fn falling_level(stage: u32, config: &FluidConfig) -> u32 {
         if config.flows_down_as_source {
             0
+        } else if config.renews_reach_on_fall {
+            1
         } else {
             1.max(stage)
         }
@@ -817,6 +827,50 @@ mod tests {
         sim.settle();
 
         assert_eq!(sim.wet_count(), 0, "row: {}", sim.row(0, 15));
+    }
+
+    #[test]
+    fn renewed_falls_feed_a_long_cascade_without_creating_sources() {
+        let cascade = |renew| {
+            let mut sim = Sim::with_config(FluidConfig::new().renews_reach_on_fall(renew));
+            for x in 0..16 {
+                for z in 7..=9 {
+                    let top = if z != 8 || x == 0 || x == 15 {
+                        30
+                    } else {
+                        20 - x / 4
+                    };
+                    for y in 0..=top {
+                        sim.chunk.set_voxel(x, y, z, STONE_ID);
+                    }
+                }
+            }
+            sim.place_source(1, 21, 8);
+            sim.settle();
+            sim
+        };
+        let legacy = cascade(false);
+        assert_eq!(legacy.stage_at(14, 18, 8), None);
+        let mut sim = cascade(true);
+        assert!(sim.stage_at(14, 18, 8).is_some());
+        assert_eq!(sim.stage_at(12, 18, 8), Some(1));
+        assert_eq!(sim.tick(), 0, "settled cascades do no continuing work");
+        for x in 2..15 {
+            for y in 17..=21 {
+                assert_ne!(
+                    sim.stage_at(x, y, 8),
+                    Some(0),
+                    "a fall minted an immortal source"
+                );
+            }
+        }
+        sim.chunk.set_voxel(1, 21, 8, STONE_ID);
+        sim.settle();
+        assert_eq!(
+            sim.wet_count(),
+            0,
+            "dammed headwater must drain all downstream reaches"
+        );
     }
 
     #[test]

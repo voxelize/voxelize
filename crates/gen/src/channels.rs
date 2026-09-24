@@ -16,6 +16,9 @@ pub struct ChannelPoint {
     pub water_y: f64,
     pub half_width: f64,
     pub depth: f64,
+    /// Signed bend influence: positive on an inside bend (deposition),
+    /// negative on the outside bank (erosion), zero along a straight reach.
+    pub bend: f64,
 }
 
 /// Per-vertex channel profile along one polyline.
@@ -37,6 +40,9 @@ struct Segment {
     half_width_b: f64,
     depth_a: f64,
     depth_b: f64,
+    curve_a: f64,
+    curve_b: f64,
+    inverse_length: f64,
 }
 
 #[derive(Default)]
@@ -55,6 +61,15 @@ impl ChannelField {
         let mut segments = Vec::new();
         for (line, profiles) in lines {
             debug_assert_eq!(line.len(), profiles.len());
+            let curvature = |i: usize| {
+                if i == 0 || i + 1 >= line.len() {
+                    return 0.0;
+                }
+                let (a, b, c) = (line[i - 1], line[i], line[i + 1]);
+                let (ux, uz, vx, vz) = (b.0 - a.0, b.1 - a.1, c.0 - b.0, c.1 - b.1);
+                ((ux * vz - uz * vx) / (ux.hypot(uz) * vx.hypot(vz)).max(1e-9) * 3.0)
+                    .clamp(-1.0, 1.0)
+            };
             for index in 0..line.len().saturating_sub(1) {
                 let a = line[index];
                 let b = line[index + 1];
@@ -71,6 +86,9 @@ impl ChannelField {
                     half_width_b: pb.half_width,
                     depth_a: pa.depth,
                     depth_b: pb.depth,
+                    curve_a: curvature(index),
+                    curve_b: curvature(index + 1),
+                    inverse_length: 1.0 / (b.0 - a.0).hypot(b.1 - a.1).max(1e-9),
                 });
             }
         }
@@ -107,16 +125,29 @@ impl ChannelField {
 
     /// Nearest channel sample within `reach` of the query point.
     pub fn sample(&self, x: i32, z: i32, reach: f64) -> Option<ChannelPoint> {
-        let bucket = (x.div_euclid(BUCKET), z.div_euclid(BUCKET));
-        let indices = self.buckets.get(&bucket)?;
         let mut best: Option<ChannelPoint> = None;
-        for &index in indices {
-            let point = project(&self.segments[index as usize], x as f64, z as f64);
-            if point.dist <= reach && best.map(|b| point.dist < b.dist).unwrap_or(true) {
+        self.visit_samples(x, z, reach, |point| {
+            if best.map(|b| point.dist < b.dist).unwrap_or(true) {
                 best = Some(point);
             }
-        }
+        });
         best
+    }
+
+    /// Visit nearby reaches without allocating. Valley composition needs
+    /// all overlapping influences, so a nearest-segment Voronoi boundary
+    /// cannot create a wall between two tributaries at different heights.
+    pub fn visit_samples(&self, x: i32, z: i32, reach: f64, mut visit: impl FnMut(ChannelPoint)) {
+        let bucket = (x.div_euclid(BUCKET), z.div_euclid(BUCKET));
+        let Some(indices) = self.buckets.get(&bucket) else {
+            return;
+        };
+        for &index in indices {
+            let point = project(&self.segments[index as usize], x as f64, z as f64);
+            if point.dist <= reach {
+                visit(point);
+            }
+        }
     }
 }
 
@@ -135,5 +166,31 @@ fn project(segment: &Segment, px: f64, pz: f64) -> ChannelPoint {
         water_y: segment.ay + (segment.by - segment.ay) * t,
         half_width: segment.half_width_a + (segment.half_width_b - segment.half_width_a) * t,
         depth: segment.depth_a + (segment.depth_b - segment.depth_a) * t,
+        bend: ((vx * dz - vz * dx) * segment.inverse_length).clamp(-1.0, 1.0)
+            * (segment.curve_a + (segment.curve_b - segment.curve_a) * t),
+    }
+}
+
+#[cfg(test)]
+mod bend_tests {
+    use super::*;
+    #[test]
+    fn inner_and_outer_banks_follow_turn_direction_and_reversing_flow() {
+        let line = vec![(0.0, 0.0, 20.0), (10.0, 0.0, 20.0), (10.0, 10.0, 20.0)];
+        let profile = vec![
+            ChannelProfile {
+                half_width: 4.0,
+                depth: 3.0
+            };
+            3
+        ];
+        for points in [line.clone(), line.into_iter().rev().collect()] {
+            let field = ChannelField::from_polylines(&[(points, profile.clone())], 8.0);
+            let inner = field.sample(5, 1, 8.0).unwrap();
+            let outer = field.sample(5, -1, 8.0).unwrap();
+            assert!(inner.bend > 0.0 && outer.bend < 0.0);
+            assert_eq!(inner.dist, outer.dist);
+            assert_eq!(inner.half_width, outer.half_width);
+        }
     }
 }

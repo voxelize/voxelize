@@ -54,6 +54,35 @@ function isSameShape(a: ShapeState, b: ShapeState): boolean {
   );
 }
 
+/** Local-frame offsets use the geometry transform, without its pivot shift.
+ * Reject non-lattice rotations instead of rounding a unit into other cells. */
+export function rotateCoupledOffset(
+  offset: Coords3,
+  rotation: BlockRotation,
+): Coords3 | null {
+  const origin: Coords3 = [0, 0, 0];
+  const end: Coords3 = [...offset];
+  rotation.rotateNode(origin);
+  rotation.rotateNode(end);
+  const delta = end.map((v, i) => v - origin[i]);
+  if (
+    delta.some(
+      (v) => !Number.isFinite(v) || Math.abs(v - Math.round(v)) > 0.0001,
+    )
+  )
+    return null;
+  return delta.map((v) => Math.round(v) || 0) as Coords3;
+}
+
+function pointsBack(
+  offset: Coords3,
+  rotation: BlockRotation,
+  delta: Coords3,
+): boolean {
+  const back = rotateCoupledOffset(offset.map((v) => -v) as Coords3, rotation);
+  return !!back && back.every((v, i) => v === -delta[i]);
+}
+
 /**
  * Whether a partner voxel holding `holding` may be taken by a part of a unit
  * being placed: air always, and the waterlogging fluid when the part can
@@ -142,9 +171,17 @@ export function expandCoupledUpdates(
       let rejection: string | null = null;
 
       for (const part of updatedBlock.coupledParts) {
-        const px = vx + part.offset[0];
-        const py = vy + part.offset[1];
-        const pz = vz + part.offset[2];
+        const delta = rotateCoupledOffset(
+          part.offset,
+          BlockRotation.encode(update.rotation ?? 0, update.yRotation ?? 0),
+        );
+        if (!delta) {
+          rejection = "partner rotation is not grid aligned";
+          break;
+        }
+        const px = vx + delta[0];
+        const py = vy + delta[1];
+        const pz = vz + delta[2];
         if (py < 0 || py >= view.maxHeight) {
           rejection = "partner outside the world";
           break;
@@ -157,6 +194,16 @@ export function expandCoupledUpdates(
           : view.getVoxelAt(px, py, pz);
 
         if (partnerId === part.id) {
+          const partnerRotation = plannedThere
+            ? BlockRotation.encode(
+                plannedThere.rotation ?? 0,
+                plannedThere.yRotation ?? 0,
+              )
+            : view.getVoxelRotationAt(px, py, pz);
+          if (!pointsBack(part.offset, partnerRotation, delta)) {
+            rejection = "partner voxel occupied";
+            break;
+          }
           if (plannedThere || !dictatesShape) continue;
           const shape = shapeOf(update);
           if (isSameShape(shape, committedShapeAt(view, px, py, pz))) continue;
@@ -201,13 +248,33 @@ export function expandCoupledUpdates(
     }
 
     const currentBlock = view.getBlockById(currentId);
-    if (update.type !== currentId && currentBlock) {
+    const currentRotation = view.getVoxelRotationAt(vx, vy, vz);
+    const nextRotation = BlockRotation.encode(
+      update.rotation ?? 0,
+      update.yRotation ?? 0,
+    );
+    if (
+      currentBlock &&
+      (update.type !== currentId ||
+        currentRotation.value !== nextRotation.value ||
+        currentRotation.yRotation !== nextRotation.yRotation)
+    ) {
       for (const part of currentBlock.coupledParts ?? []) {
-        const px = vx + part.offset[0];
-        const py = vy + part.offset[1];
-        const pz = vz + part.offset[2];
+        const delta = rotateCoupledOffset(part.offset, currentRotation);
+        if (!delta) continue;
+        const px = vx + delta[0];
+        const py = vy + delta[1];
+        const pz = vz + delta[2];
         if (planned.has(voxelKey(px, py, pz))) continue;
-        if (view.getVoxelAt(px, py, pz) === part.id) {
+        const stillUsed = updatedBlock?.coupledParts?.some((next) => {
+          const offset = rotateCoupledOffset(next.offset, nextRotation);
+          return next.id === part.id && offset?.every((v, i) => v === delta[i]);
+        });
+        if (
+          !stillUsed &&
+          view.getVoxelAt(px, py, pz) === part.id &&
+          pointsBack(part.offset, view.getVoxelRotationAt(px, py, pz), delta)
+        ) {
           partnerWrites.push({ vx: px, vy: py, vz: pz, type: 0 });
         }
       }

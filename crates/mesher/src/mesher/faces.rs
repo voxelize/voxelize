@@ -64,7 +64,10 @@ pub(super) fn should_render_face<S: VoxelAccess>(
     let n_is_void = !space.contains(nvx, nvy, nvz);
 
     if !n_is_void && !registry.has_type(neighbor_id) {
-        return false;
+        // An unknown decoration cannot prove that it covers this face.
+        // Hiding its neighbors turns a registry mismatch into holes through
+        // otherwise valid terrain, rather than just a missing decoration.
+        return true;
     }
 
     let n_block_type = match registry.get_block_by_id(neighbor_id) {
@@ -75,7 +78,7 @@ pub(super) fn should_render_face<S: VoxelAccess>(
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
 
-    if is_fluid && space.get_voxel_waterlogged(nvx, nvy, nvz) {
+    if is_fluid && block.is_waterlogging_fluid && space.get_voxel_waterlogged(nvx, nvy, nvz) {
         return false;
     }
 
@@ -84,6 +87,9 @@ pub(super) fn should_render_face<S: VoxelAccess>(
     }
 
     (n_is_void || n_block_type.is_empty)
+        // An opaque fluid still has a lowered, sloped surface. It cannot
+        // cover a whole neighbouring stone face (lava leaves an air strip).
+        || (!is_fluid && n_block_type.is_fluid)
         || (see_through
             && !is_opaque
             && !n_block_type.is_opaque
@@ -324,7 +330,7 @@ pub(super) fn process_face<S: VoxelAccess>(
 
     let mut dir = [face.dir[0] as f32, face.dir[1] as f32, face.dir[2] as f32];
     if (rotatable || y_rotatable) && !world_space {
-        rotation.rotate_node(&mut dir, y_rotatable, false);
+        rotation.rotate_direction(&mut dir, y_rotatable);
     }
 
     let dir = [
@@ -349,7 +355,7 @@ pub(super) fn process_face<S: VoxelAccess>(
         None => return,
     };
 
-    if is_fluid && space.get_voxel_waterlogged(nvx, nvy, nvz) {
+    if is_fluid && block.is_waterlogging_fluid && space.get_voxel_waterlogged(nvx, nvy, nvz) {
         return;
     }
 
@@ -377,6 +383,7 @@ pub(super) fn process_face<S: VoxelAccess>(
         );
 
     let should_mesh = n_is_empty
+        || (!is_fluid && n_block_type.is_fluid)
         || is_inset_from_opaque_neighbor
         || (see_through
             && !is_opaque
@@ -787,15 +794,21 @@ pub(super) fn process_face<S: VoxelAccess>(
             0
         };
         let pane_bit = if is_fluid_pane { FLUID_PANE_BIT } else { 0 };
-        lights.push(
-            light as i32
-                | ao_or_emissive_bits(ao, face.emissive)
-                | fluid_bit
-                | pane_bit
-                | wave_bit
-                | water_exposed_bit
-                | stack_bits,
-        );
+        let packed = light as i32
+            | ao_or_emissive_bits(ao, face.emissive)
+            | fluid_bit
+            | pane_bit
+            | wave_bit
+            | water_exposed_bit
+            | stack_bits;
+        lights.push(if face.stage_tint_mask != 0 && !is_fluid {
+            with_stage_tint(
+                packed,
+                space.get_voxel_stage(vx, vy, vz) & face.stage_tint_mask,
+            )
+        } else {
+            packed
+        });
 
         four_red_lights[corner_idx] = red_light;
         four_green_lights[corner_idx] = green_light;

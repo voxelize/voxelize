@@ -74,6 +74,10 @@ export interface ShaderLightingUniforms {
   waterLevel: { value: number };
   waterStreakStrength: { value: number };
   waterFresnelStrength: { value: number };
+  /** 0..1 scale on the caustic net seen on submerged faces from below. */
+  bedCausticScale: { value: number };
+  /** 1 draws the surface's underside as Snell's window + caustic web. */
+  surfaceUndersideScale: { value: number };
   skyTopColor: { value: Color };
   skyMiddleColor: { value: Color };
   shadowDebugMode: { value: number };
@@ -87,6 +91,7 @@ export class ChunkRenderer {
     fogNear: { value: number };
     fogFar: { value: number };
     ao: { value: Vector4 };
+    stageTints: { value: Float32Array };
     faceShades: { value: Vector4 };
     minLightLevel: { value: number };
     baseAmbient: { value: number };
@@ -97,6 +102,8 @@ export class ChunkRenderer {
     showGreedyDebug: { value: number };
     fogHeightOrigin: { value: number };
     fogHeightDensity: { value: number };
+    /** 0..1 blend from horizontal to true 3D fog distance (caves). */
+    fogVerticalBlend: { value: number };
     windDirection: { value: Vector2 };
     windOffset: { value: Vector2 };
     windSpeed: { value: number };
@@ -123,10 +130,12 @@ export class ChunkRenderer {
     fogFar: { value: 200 },
     fogHeightOrigin: { value: 80 },
     fogHeightDensity: { value: 0.005 },
+    fogVerticalBlend: { value: 0 },
     windDirection: { value: new Vector2(0.7, 0.7) },
     windOffset: { value: new Vector2(0, 0) },
     windSpeed: { value: 1.0 },
     ao: { value: new Vector4(45.0, 105.0, 180.0, 255.0) },
+    stageTints: { value: new Float32Array(16 * 3).fill(1) },
     faceShades: { value: new Vector4(0.7, 0.85, 0.62, 1.0) },
     minLightLevel: { value: 0.04 },
     baseAmbient: { value: 0.005 },
@@ -185,6 +194,8 @@ export class ChunkRenderer {
     waterLevel: { value: 86 },
     waterStreakStrength: { value: 0.1 },
     waterFresnelStrength: { value: 0.5 },
+    bedCausticScale: { value: 1 },
+    surfaceUndersideScale: { value: 1 },
     skyTopColor: { value: new Color(0.4, 0.6, 0.9) },
     skyMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
     shadowDebugMode: { value: 0 },

@@ -132,6 +132,36 @@ export class RawChunk {
     ];
   }
 
+  /**
+   * Whether a full-width, half-open vertical range contains only raw air.
+   * Used before serializing a meshing stencil: empty sky needs no worker.
+   * Reads current storage every time, so bulk loads, edits and shared-buffer
+   * replacement cannot leave a stale occupancy cache. Nonzero metadata is
+   * conservatively sent to the mesher too.
+   */
+  isAirRange(minY: number, maxY: number): boolean {
+    const { size, maxHeight } = this.options;
+    const data = this.voxels.data;
+    if (
+      !Number.isInteger(minY) ||
+      !Number.isInteger(maxY) ||
+      minY < 0 ||
+      maxY > maxHeight ||
+      minY >= maxY ||
+      data.length !== size * maxHeight * size
+    ) {
+      return false;
+    }
+    for (let x = 0; x < size; x++) {
+      const start = (x * maxHeight + minY) * size;
+      const end = (x * maxHeight + maxY) * size;
+      for (let i = start; i < end; i++) {
+        if (data[i] !== 0) return false;
+      }
+    }
+    return true;
+  }
+
   private static makeUint32View(
     buffer: ArrayBufferLike,
     byteOffset?: number,

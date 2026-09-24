@@ -9,6 +9,8 @@ import {
   Vector4,
 } from "three";
 
+import { localLightFalloff } from "../block-light-transfer";
+
 import {
   LIGHT_FLAG_FLICKER,
   LIGHT_FLAG_MASKED,
@@ -406,9 +408,7 @@ export class LightClusterGrid {
       const d2 = dx * dx + dy * dy + dz * dz;
       if (d2 >= range * range) continue;
       const dist = Math.sqrt(Math.max(d2, 1e-6));
-      const norm = dist / range;
-      let falloff = 1 - norm * norm;
-      falloff *= falloff;
+      const falloff = localLightFalloff(dist, range);
 
       let angular = 1;
       if (shapes[i] === LIGHT_SHAPE_SPOT) {

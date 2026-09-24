@@ -133,6 +133,9 @@ export interface ParticleConfig {
   turbulence: number;
   /** Tumble speed. */
   spinRadPerSec: number;
+  /** Initial angle in the particle plane. Omit for a random orientation;
+   * use zero for upright directional sprites such as flame tongues. */
+  initialSpinRad?: number;
   /**
    * Hard-edged particles made of opaque texels — a leaf, a chip of stone —
    * as opposed to soft ones like smoke.

@@ -279,6 +279,12 @@ impl Registry {
         if self.blocks_by_id.contains_key(&block.id) {
             panic!("Duplicated key: {}-{}", block.name, block.id);
         }
+        if let Some(existing) = self.blocks_by_name.get(&block.name.to_lowercase()) {
+            panic!(
+                "Duplicated block name: {} (ids {} and {}); the name-keyed client registry would lose one block",
+                block.name, existing.id, block.id
+            );
+        }
 
         self.record_block(&block);
     }

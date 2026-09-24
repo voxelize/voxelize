@@ -204,7 +204,10 @@ pub struct Chunks {
 
     pub(crate) freshly_created: HashSet<Vec2<i32>>,
 
-    pub newly_generated: Vec<Vec2<i32>>,
+    /// Optional application work before an unobserved chunk becomes visible.
+    /// Kept separate from voxel readiness: physics can read a ready chunk while
+    /// its residents or other application state are still being initialized.
+    pub activation: ChunkActivation,
 
     config: WorldConfig,
 
@@ -212,6 +215,49 @@ pub struct Chunks {
     folder: Option<PathBuf>,
 
     waterlogging_rules: Option<Arc<WaterloggingRules>>,
+}
+
+/// A delivery barrier shared by generated, disk-loaded and cached chunks.
+/// Applications opt in and acknowledge each activation after their state is
+/// replicated. Worlds without activation hooks retain ordinary streaming.
+#[derive(Default)]
+pub struct ChunkActivation {
+    pub enabled: bool,
+    pending: Vec<Vec2<i32>>,
+    delivery: HashMap<Vec2<i32>, u64>,
+}
+impl ChunkActivation {
+    pub fn request(&mut self, coords: &Vec2<i32>) {
+        if self.enabled && !self.delivery.contains_key(coords) {
+            self.delivery.insert(coords.clone(), u64::MAX);
+            self.pending.push(coords.clone());
+        }
+    }
+    pub fn take_pending(&mut self) -> Vec<Vec2<i32>> {
+        std::mem::take(&mut self.pending)
+    }
+    pub fn complete(&mut self, coords: &Vec2<i32>, ready_dispatch: u64) {
+        if let Some(ready) = self.delivery.get_mut(coords) {
+            *ready = ready_dispatch;
+        }
+    }
+    pub fn blocks_delivery(&self, coords: &Vec2<i32>, dispatch: u64) -> bool {
+        self.enabled
+            && self
+                .delivery
+                .get(coords)
+                .is_some_and(|ready| dispatch < *ready)
+    }
+    pub fn release_completed(&mut self, dispatch: u64) {
+        self.delivery.retain(|_, ready| *ready > dispatch);
+    }
+    pub fn cancel(&mut self, coords: &Vec2<i32>) {
+        self.delivery.remove(coords);
+    }
+    pub fn clear(&mut self) {
+        self.pending.clear();
+        self.delivery.clear();
+    }
 }
 
 impl Chunks {
@@ -272,7 +318,7 @@ impl Chunks {
         self.listeners.clear();
         self.cache.clear();
         self.freshly_created.clear();
-        self.newly_generated.clear();
+        self.activation.clear();
         self.block_entities.clear();
 
         if let Some(folder) = &self.folder {
@@ -816,8 +862,7 @@ impl Chunks {
                 *lane != UpdateLane::Active || !self.active_updates_staging.contains_key(v)
             });
 
-            let mut staged: Vec<(Vec3<i32>, u32)> =
-                self.active_updates_staging.drain().collect();
+            let mut staged: Vec<(Vec3<i32>, u32)> = self.active_updates_staging.drain().collect();
             staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
             self.active_updates.extend(staged);
         }
@@ -915,9 +960,7 @@ impl Chunks {
         self.active_updates_staging
             .retain(|voxel, _| !is_inside(voxel));
         self.active_updates.retain(|(voxel, _)| !is_inside(voxel));
-        Self::retain_parked(&mut self.parked_updates, |(voxel, _, _)| {
-            !is_inside(voxel)
-        });
+        Self::retain_parked(&mut self.parked_updates, |(voxel, _, _)| !is_inside(voxel));
         previous_count - self.pending_updates_count()
     }
 
@@ -1049,8 +1092,12 @@ impl Chunks {
             (UpdateLane::Active, &self.active_updates),
         ] {
             for (voxel, _) in queue.iter().take(limit) {
-                let coords =
-                    ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, self.config.chunk_size);
+                let coords = ChunkUtils::map_voxel_to_chunk(
+                    voxel.0,
+                    voxel.1,
+                    voxel.2,
+                    self.config.chunk_size,
+                );
                 *groups.entry((lane, false, coords)).or_insert(0) += 1;
             }
         }
@@ -1580,8 +1627,8 @@ mod update_lane_tests {
         chunks.flush_staged_updates();
         assert_eq!(chunks.parked_updates_count(), 2);
 
-        let extended = (chunks.config.max_light_level as f32 / chunks.config.chunk_size as f32)
-            .ceil() as i32;
+        let extended =
+            (chunks.config.max_light_level as f32 / chunks.config.chunk_size as f32).ceil() as i32;
         for cx in -extended..=extended {
             for cz in -extended..=extended {
                 insert_ready_chunk(&mut chunks, cx, cz);
@@ -1594,7 +1641,12 @@ mod update_lane_tests {
         let queued: Vec<_> = chunks.updates.iter().cloned().collect();
         assert_eq!(
             queued,
-            vec![(Vec3(1, 0, 1), 2), (Vec3(1, 1, 1), 3), (Vec3(40, 1, 1), 5), (Vec3(2, 0, 1), 9)]
+            vec![
+                (Vec3(1, 0, 1), 2),
+                (Vec3(1, 1, 1), 3),
+                (Vec3(40, 1, 1), 5),
+                (Vec3(2, 0, 1), 9)
+            ]
         );
     }
 

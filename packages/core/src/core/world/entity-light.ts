@@ -1,5 +1,13 @@
 import { Color } from "three";
 
+import {
+  acesFit,
+  BLOCK_LIGHT_TRANSFER,
+  BLOCK_LIGHT_TUNING,
+  blockLightCurve,
+  blockLightToneMap,
+  blockLightWarmTint,
+} from "./block-light-transfer";
 import { LAMBERT_WRAP } from "./local-lights/shader";
 
 /**
@@ -54,8 +62,9 @@ export type EntityLightSample = {
 // Each mirrors a literal in the block after `#include <envmap_fragment>` in
 // shaders.ts. The shader is the source of truth; change neither side alone.
 
-/** `vec3 torchLight = smoothTorch * 1.2` */
-export const TORCH_GAIN = 1.2;
+/** Legacy `vec3 torchLight = smoothTorch * 1.2`; the live gain follows
+ * {@link BLOCK_LIGHT_TUNING} (block-light-transfer.ts). */
+export const TORCH_GAIN = BLOCK_LIGHT_TRANSFER.legacyGain;
 /** `vec3(0.025, 0.03, 0.04) * sunVisibility` */
 const GLOBAL_AMBIENT_SUN: readonly [number, number, number] = [
   0.025, 0.03, 0.04,
@@ -66,14 +75,10 @@ const SHADOWED_SKY_OCCLUSION = 0.72;
 const BOUNCE_STRENGTH = 0.04;
 /** `vec3 groundColor = uAmbientColor * 0.4` */
 const GROUND_AMBIENT_SCALE = 0.4;
-/** `vec3 warmTint = vec3(1.05, 0.92, 0.75)` */
-const WARM_TINT: readonly [number, number, number] = [1.05, 0.92, 0.75];
 /** `vec3 coolTint = vec3(0.92, 0.95, 1.05)` */
 const COOL_TINT: readonly [number, number, number] = [0.92, 0.95, 1.05];
 /** `mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility)` under the floor */
 const DARKNESS_FLOOR_TINT: readonly [number, number, number] = [0.8, 0.88, 1.0];
-/** `torchDominance = torchBrightness / (torchBrightness + sunLuma + 0.01)` */
-const DOMINANCE_EPSILON = 0.01;
 /** `dot(sunContribution, vec3(0.33))` */
 const SUN_LUMA_WEIGHT = 0.33;
 
@@ -99,9 +104,6 @@ export const ENTITY_HEMISPHERE_BLEND = 0.5;
 
 const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
 
-/** `x * x * (3 - 2x)`: the flood light's hermite curve. */
-const hermite = (x: number) => x * x * (3 - 2 * x);
-
 /** `1 - (1 - a)(1 - b)` — how the shader stacks its light terms. */
 const screen = (a: number, b: number) => 1 - (1 - a) * (1 - b);
 
@@ -109,8 +111,10 @@ const screen = (a: number, b: number) => 1 - (1 - a) * (1 - b);
  * The ACES fit the chunk fragment tone-maps its light through. Tops out
  * near 1.03, so a level-15 emitter and open noon sun both land displayable.
  */
-export const acesToneMap = (x: number) =>
-  (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+export const acesToneMap = acesFit;
+
+const warmScratch: [number, number, number] = [0, 0, 0];
+const toneScratch: [number, number, number] = [0, 0, 0];
 
 /**
  * CPU mirror of the chunk fragment's light composition, for objects lit as
@@ -184,10 +188,10 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
       dtB +
     s.underwaterFill.b;
 
-  // `vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);`
-  const smoothR = hermite(clamp01(s.floodR));
-  const smoothG = hermite(clamp01(s.floodG));
-  const smoothB = hermite(clamp01(s.floodB));
+  // `vec3 smoothTorch = blockLightCurve(cpuTorchLight);`
+  const smoothR = blockLightCurve(s.floodR);
+  const smoothG = blockLightCurve(s.floodG);
+  const smoothB = blockLightCurve(s.floodB);
 
   // Daylight washes analytic block light and hands the washed share back to
   // the flood term: `clusterLight *= llSunWash; llFloodRemainder = mix(1.0,
@@ -202,10 +206,11 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
   const clusterG = Math.max(s.clusterG, 0) * clusterLambert * sunWash;
   const clusterB = Math.max(s.clusterB, 0) * clusterLambert * sunWash;
 
-  // `vec3 torchLight = smoothTorch * (1.2 * llFloodRemainder);`
-  const torchR = smoothR * TORCH_GAIN * floodRemainder;
-  const torchG = smoothG * TORCH_GAIN * floodRemainder;
-  const torchB = smoothB * TORCH_GAIN * floodRemainder;
+  // `vec3 torchLight = smoothTorch * (uBlockLightGain * llFloodRemainder);`
+  const gain = BLOCK_LIGHT_TUNING.gain.value;
+  const torchR = smoothR * gain * floodRemainder;
+  const torchG = smoothG * gain * floodRemainder;
+  const torchB = smoothB * gain * floodRemainder;
   const torchBrightness = Math.max(
     Math.max(smoothR, smoothG, smoothB) * floodRemainder,
     Math.min(Math.max(clusterR, clusterG, clusterB), 1),
@@ -227,14 +232,14 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
   // `temperatureShift = mix(coolTint, warmTint, torchDominance)`
   const sunLuma = (sunR + sunG + sunB) * SUN_LUMA_WEIGHT;
   const torchDominance =
-    torchBrightness / (torchBrightness + sunLuma + DOMINANCE_EPSILON);
-  r *= COOL_TINT[0] + (WARM_TINT[0] - COOL_TINT[0]) * torchDominance;
-  g *= COOL_TINT[1] + (WARM_TINT[1] - COOL_TINT[1]) * torchDominance;
-  b *= COOL_TINT[2] + (WARM_TINT[2] - COOL_TINT[2]) * torchDominance;
+    torchBrightness /
+    (torchBrightness + sunLuma + BLOCK_LIGHT_TUNING.dominanceKnee.value);
+  const warm = blockLightWarmTint(torchR, torchG, torchB, warmScratch);
+  r *= COOL_TINT[0] + (warm[0] - COOL_TINT[0]) * torchDominance;
+  g *= COOL_TINT[1] + (warm[1] - COOL_TINT[1]) * torchDominance;
+  b *= COOL_TINT[2] + (warm[2] - COOL_TINT[2]) * torchDominance;
 
-  r = acesToneMap(r);
-  g = acesToneMap(g);
-  b = acesToneMap(b);
+  [r, g, b] = blockLightToneMap(r, g, b, torchDominance, toneScratch);
 
   // `darknessFloor = ambientFloor * mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit`
   const floorR =

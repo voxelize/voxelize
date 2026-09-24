@@ -47,6 +47,8 @@ export type ChunkProtocol = {
   meshes: MeshProtocol[];
   voxels: Uint32Array;
   lights: Uint32Array;
+  /** Four x-fast RGB corner multipliers, byte / 128.0; absent on older worlds. */
+  biomeTints?: Uint8Array;
 };
 
 export type PeerProtocol<T> = {

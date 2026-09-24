@@ -45,6 +45,27 @@ const walk = (
 };
 
 describe("SectionVisibilityGraph", () => {
+  it("does not use air-path occlusion for a spectator crossing sealed rock", () => {
+    const graph = makeGraph();
+    for (let cx = 0; cx <= 4; cx++) {
+      graph.addChunk(cx, 0);
+      for (let level = 0; level < SUB_CHUNKS; level++)
+        graph.setConnectivity(cx, 0, level, 0);
+    }
+    const camera = new PerspectiveCamera(90, 1, 0.1, 1000);
+    for (const x of [8, 15.9, 16.1, 31.9, 32.1]) {
+      camera.position.set(x, 8, 8);
+      camera.lookAt(80, 8, 8);
+      camera.updateMatrixWorld();
+      const matrix = new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      graph.walk(camera.position, matrix, Infinity, true);
+      expect(graph.isComplete).toBe(false);
+      expect(graph.isSectionVisible(4, 0, 0)).toBe(true);
+    }
+    walk(graph, new Vector3(8, 8, 8));
+    expect(graph.isComplete).toBe(true);
+    expect(graph.isSectionVisible(4, 0, 0)).toBe(false);
+  });
   it("matches the Rust pair-bit layout: all fifteen pairs fill 0x7FFF", () => {
     let all = 0;
     for (let a = 0; a < 6; a++) {

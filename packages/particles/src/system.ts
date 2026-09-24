@@ -210,7 +210,7 @@ export class ParticleSystem {
     layer.dragPerSec[i] = config.dragPerSec;
     layer.turbulence[i] = config.turbulence;
     layer.spinRate[i] = config.spinRadPerSec;
-    layer.spinPhase[i] = Math.random() * TAU;
+    layer.spinPhase[i] = config.initialSpinRad ?? Math.random() * TAU;
 
     const swayAngle = Math.random() * TAU;
     const swaySpeed = config.sway?.speed ?? 0;

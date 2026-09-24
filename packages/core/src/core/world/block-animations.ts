@@ -4,6 +4,7 @@ import { Coords3 } from "../../types";
 import { BlockUtils } from "../../utils";
 
 import { Block, BlockRotation } from "./block";
+import { rotateCoupledOffset } from "./coupled-blocks";
 
 /**
  * Block animations: a block whose voxel state changed moves from the pose it
@@ -417,11 +418,16 @@ export class BlockAnimations {
   private syncWithPartners(entry: AnimatedVoxel, nowMs: number) {
     if (!entry.motion) return;
     for (const part of entry.block.coupledParts ?? []) {
+      const offset = rotateCoupledOffset(
+        part.offset,
+        BlockUtils.extractRotation(entry.raw),
+      );
+      if (!offset) continue;
       const partner = this.byVoxel.get(
         voxelKey(
-          entry.voxel[0] + part.offset[0],
-          entry.voxel[1] + part.offset[1],
-          entry.voxel[2] + part.offset[2],
+          entry.voxel[0] + offset[0],
+          entry.voxel[1] + offset[1],
+          entry.voxel[2] + offset[2],
         ),
       );
       const motion = partner?.motion;

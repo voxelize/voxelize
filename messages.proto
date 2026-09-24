@@ -27,6 +27,10 @@ message Chunk {
   repeated Mesh meshes = 4;
   bytes voxels = 5;
   bytes lights = 6;
+  // Optional RGB climate multipliers at the four horizontal chunk corners,
+  // x-fast order: (0,0), (size,0), (0,size), (size,size). Each byte / 128.0.
+  // Adjacent chunks share edge samples. Absent means use the stage palette.
+  bytes biome_tints = 7;
 }
 
 message Peer {

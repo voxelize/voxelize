@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use crate::{
     ChunkInterests, ChunkProtocol, Chunks, ClientFilter, Message, MessageQueues, MessageType,
-    WorldConfig,
+    Stats, WorldConfig,
 };
 
 #[derive(Default)]
@@ -19,13 +19,14 @@ impl ChunkSendingSystem {
 impl<'a> System<'a> for ChunkSendingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
+        ReadExpect<'a, Stats>,
         ReadExpect<'a, ChunkInterests>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, MessageQueues>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, interests, mut chunks, mut queue) = data;
+        let (config, stats, interests, mut chunks, mut queue) = data;
 
         if chunks.to_send.is_empty() {
             return;
@@ -40,6 +41,14 @@ impl<'a> System<'a> for ChunkSendingSystem {
         let mut client_update_data: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
 
         while let Some((coords, msg_type)) = to_send.pop_front() {
+            if msg_type == MessageType::Load
+                && chunks
+                    .activation
+                    .blocks_delivery(&coords, stats.dispatch_count())
+            {
+                chunks.to_send.push_back((coords, msg_type));
+                continue;
+            }
             let chunk = match chunks.get_mut(&coords) {
                 Some(c) => c,
                 None => panic!("Something went wrong with sending chunks..."),

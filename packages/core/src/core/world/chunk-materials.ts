@@ -17,6 +17,7 @@ import { Coords3 } from "../../types";
 import { ThreeUtils } from "../../utils";
 
 import { Block } from "./block";
+import { BLOCK_LIGHT_TUNING } from "./block-light-transfer";
 import { ChunkRenderer } from "./chunk-renderer";
 import { LightCones } from "./light-cones";
 import { LocalLights } from "./local-lights";
@@ -84,7 +85,18 @@ export interface ChunkMaterialHost {
 }
 
 export function isSharedOpaqueMaterialBlock(block: Block) {
-  return block.isOpaque && !block.isFluid && !block.isSeeThrough;
+  // isOpaque describes voxel-face occlusion, not material transparency.
+  // A stair, fence or dripstone spike leaves air in its voxel but its
+  // actual surfaces use the very same atlas shader as a solid cube.
+  return !block.isFluid && !block.isSeeThrough && blockCastsShadow(block);
+}
+
+/** Detach a customized block without cloning the world's live uniforms/atlas. */
+export function forkChunkMaterial(material: CustomChunkShaderMaterial) {
+  const own = material.clone() as CustomChunkShaderMaterial;
+  own.map = material.map;
+  own.uniforms = { ...material.uniforms };
+  return own;
 }
 
 /**
@@ -135,8 +147,8 @@ export function makeChunkMaterialKey(
 
   if (voxel) return `${id}-${faceName}-${voxel.join("-")}`;
   if (faceName) return `${id}-${faceName}`;
-  if (isSharedOpaqueMaterialBlock(block)) return SHARED_OPAQUE_MATERIAL_KEY;
   if (!world.hasCustomBlockMaterial(id)) {
+    if (isSharedOpaqueMaterialBlock(block)) return SHARED_OPAQUE_MATERIAL_KEY;
     const sharedCutoutKey = sharedCutoutMaterialKeyFor(block);
     if (sharedCutoutKey) return sharedCutoutKey;
   }
@@ -194,6 +206,17 @@ export function makeChunkShaderMaterial(
       world.chunkRenderer.shaderLightingUniforms.waterStreakStrength,
     uWaterFresnelStrength:
       world.chunkRenderer.shaderLightingUniforms.waterFresnelStrength,
+    uBedCausticScale:
+      world.chunkRenderer.shaderLightingUniforms.bedCausticScale,
+    uSurfaceUndersideScale:
+      world.chunkRenderer.shaderLightingUniforms.surfaceUndersideScale,
+    // Block-light model switches and their derived constants, shared with
+    // the CPU mirrors (block-light-transfer.ts).
+    uBlockLightCurve: BLOCK_LIGHT_TUNING.curve,
+    uBlockLightToneMap: BLOCK_LIGHT_TUNING.toneMap,
+    uBlockLightKernel: BLOCK_LIGHT_TUNING.kernel,
+    uBlockLightGain: BLOCK_LIGHT_TUNING.gain,
+    uBlockLightDominanceKnee: BLOCK_LIGHT_TUNING.dominanceKnee,
     uSkyTopColor: world.chunkRenderer.shaderLightingUniforms.skyTopColor,
     uSkyMiddleColor: world.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
     uShadowDebugMode:
@@ -209,6 +232,7 @@ export function makeChunkShaderMaterial(
       uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
       uSunlightIntensity: chunksUniforms.sunlightIntensity,
       uAOTable: chunksUniforms.ao,
+      uStageTints: chunksUniforms.stageTints,
       uFaceShades: chunksUniforms.faceShades,
       uMinLightLevel: chunksUniforms.minLightLevel,
       uBaseAmbient: chunksUniforms.baseAmbient,
@@ -217,6 +241,7 @@ export function makeChunkShaderMaterial(
       uFogColor: chunksUniforms.fogColor,
       uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
       uFogHeightDensity: chunksUniforms.fogHeightDensity,
+      uFogVerticalBlend: chunksUniforms.fogVerticalBlend,
       uSkyFogTopColor: chunksUniforms.skyFogTopColor,
       uSkyFogMiddleColor: chunksUniforms.skyFogMiddleColor,
       uSkyFogBottomColor: chunksUniforms.skyFogBottomColor,
@@ -263,6 +288,7 @@ export function makeChunkShaderMaterial(
   );
   material.uniforms.map = { value: material.map };
 
+  Object.assign(material.defaultAttributeValues, { biomeTint: [0, 0, 0] });
   return material;
 }
 

@@ -24,13 +24,13 @@ use hashbrown::HashMap;
 use log::warn;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockUtils, Registry, Vec3, VoxelAccess, VoxelPacker, VoxelUpdate};
+use crate::{BlockRotation, BlockUtils, Registry, Vec3, VoxelAccess, VoxelPacker, VoxelUpdate};
 
 /// One other voxel a block is stored together with.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CoupledPart {
-    /// Where the partner sits, relative to this voxel.
+    /// Where the partner sits in this block's unrotated local frame.
     pub offset: Vec3<i32>,
     /// The block the partner voxel must hold.
     pub id: u32,
@@ -45,6 +45,8 @@ pub enum CoupledRejection {
     Blocked { at: Vec3<i32>, holding: u32 },
     /// A non-anchor part was written where its anchor is not.
     Orphan { at: Vec3<i32>, missing: u32 },
+    /// This orientation would put a partner between voxel cells.
+    OffGrid,
 }
 
 impl CoupledRejection {
@@ -53,15 +55,54 @@ impl CoupledRejection {
             Self::OutOfWorld { .. } => "partner outside the world",
             Self::Blocked { .. } => "partner voxel occupied",
             Self::Orphan { .. } => "written without its anchor",
+            Self::OffGrid => "partner rotation is not grid aligned",
         }
     }
 }
 
+/// Rotate an offset as a vector, using the same transform as block geometry.
+/// Subtracting the transformed origin removes the geometry's pivot translation.
+/// A multi-voxel object must land on cells; never round a diagonal into a
+/// different object footprint.
+pub fn rotate_coupled_offset(offset: &Vec3<i32>, rotation: &BlockRotation) -> Option<Vec3<i32>> {
+    let mut origin = [0.0; 3];
+    let mut end = [offset.0 as f32, offset.1 as f32, offset.2 as f32];
+    rotation.rotate_node(&mut origin, true, true);
+    rotation.rotate_node(&mut end, true, true);
+    let delta = [end[0] - origin[0], end[1] - origin[1], end[2] - origin[2]];
+    if delta
+        .iter()
+        .any(|v| !v.is_finite() || (v - v.round()).abs() > 0.0001)
+    {
+        return None;
+    }
+    Some(Vec3(
+        delta[0].round() as i32,
+        delta[1].round() as i32,
+        delta[2].round() as i32,
+    ))
+}
+
+fn partner_position(pos: &Vec3<i32>, part: &CoupledPart, raw: u32) -> Option<Vec3<i32>> {
+    rotate_coupled_offset(&part.offset, &BlockUtils::extract_rotation(raw))
+        .map(|offset| pos + &offset)
+}
+
+fn points_back(pos: &Vec3<i32>, partner: &Vec3<i32>, part: &CoupledPart, partner_raw: u32) -> bool {
+    let inverse = Vec3(-part.offset.0, -part.offset.1, -part.offset.2);
+    rotate_coupled_offset(&inverse, &BlockUtils::extract_rotation(partner_raw))
+        .is_some_and(|back| partner + &back == *pos)
+}
+
 /// Whether a coupled block at `pos` is missing any of its partners.
 pub fn is_coupled_orphan(pos: &Vec3<i32>, parts: &[CoupledPart], space: &dyn VoxelAccess) -> bool {
+    let raw = space.get_raw_voxel(pos.0, pos.1, pos.2);
     parts.iter().any(|part| {
-        let partner = pos + &part.offset;
-        space.get_voxel(partner.0, partner.1, partner.2) != part.id
+        let Some(partner) = partner_position(pos, part, raw) else {
+            return true;
+        };
+        let other = space.get_raw_voxel(partner.0, partner.1, partner.2);
+        BlockUtils::extract_id(other) != part.id || !points_back(pos, &partner, part, other)
     })
 }
 
@@ -111,7 +152,7 @@ fn plan_unit_writes(
 
     let mut writes = Vec::new();
     for part in &block.coupled_parts {
-        let partner = voxel + &part.offset;
+        let partner = partner_position(voxel, part, raw).ok_or(CoupledRejection::OffGrid)?;
         if partner.1 < 0 || partner.1 >= max_height {
             return Err(CoupledRejection::OutOfWorld { at: partner });
         }
@@ -124,6 +165,14 @@ fn plan_unit_writes(
         let partner_id = BlockUtils::extract_id(partner_raw);
 
         if partner_id == part.id {
+            // Same block id can belong to an adjacent, differently facing
+            // unit. It may not be adopted or rotated out from under it.
+            if !points_back(voxel, &partner, part, partner_raw) {
+                return Err(CoupledRejection::Blocked {
+                    at: partner,
+                    holding: partner_id,
+                });
+            }
             if is_planned || !dictates_shape {
                 continue;
             }
@@ -227,13 +276,29 @@ pub fn expand_coupled_updates<L: Copy>(
         }
 
         let current = registry.get_block_by_id(current_id);
-        if updated_id != current_id {
+        if updated_id != current_id
+            || BlockUtils::extract_rotation(raw) != BlockUtils::extract_rotation(current_raw)
+        {
             for part in &current.coupled_parts {
-                let partner = &voxel + &part.offset;
+                let Some(partner) = partner_position(&voxel, part, current_raw) else {
+                    continue;
+                };
                 if planned.contains_key(&partner) {
                     continue;
                 }
-                if space.get_voxel(partner.0, partner.1, partner.2) == part.id {
+                let still_used = registry
+                    .get_block_by_id(updated_id)
+                    .coupled_parts
+                    .iter()
+                    .any(|next| {
+                        next.id == part.id
+                            && partner_position(&voxel, next, raw).as_ref() == Some(&partner)
+                    });
+                let partner_raw = space.get_raw_voxel(partner.0, partner.1, partner.2);
+                if !still_used
+                    && BlockUtils::extract_id(partner_raw) == part.id
+                    && points_back(&voxel, &partner, part, partner_raw)
+                {
                     partner_writes.push((partner, 0));
                 }
             }
@@ -393,6 +458,8 @@ mod tests {
     const DOOR_TOP_ID: u32 = 701;
     const BUSH_ID: u32 = 1004;
     const BUSH_TOP_ID: u32 = 1005;
+    const BED_ID: u32 = 800;
+    const BED_FOOT_ID: u32 = 801;
 
     const MAX_HEIGHT: i32 = 64;
 
@@ -455,6 +522,15 @@ mod tests {
                 .id(BUSH_TOP_ID)
                 .coupled_with(Vec3(0, -1, 0), BUSH_ID)
                 .build(),
+            Block::new("Bed")
+                .id(BED_ID)
+                .coupled_with(Vec3(0, 0, 1), BED_FOOT_ID)
+                .coupled_anchor(true)
+                .build(),
+            Block::new("Bed Foot")
+                .id(BED_FOOT_ID)
+                .coupled_with(Vec3(0, 0, -1), BED_ID)
+                .build(),
         ]);
         registry
     }
@@ -485,6 +561,90 @@ mod tests {
 
     const BASE: Vec3<i32> = Vec3(4, 10, 4);
     const ABOVE: Vec3<i32> = Vec3(4, 11, 4);
+
+    #[test]
+    fn horizontal_units_place_and_break_whole_in_every_facing_across_negative_borders() {
+        let registry = registry();
+        let base = Vec3(-16, 10, -16);
+        for turn in [0, 4, 8, 12] {
+            let rotation = BlockRotation::encode(0, turn);
+            let raw = packed(BED_ID, rotation.clone(), 0);
+            let delta = rotate_coupled_offset(&Vec3(0, 0, 1), &rotation).unwrap();
+            let foot = &base + &delta;
+            let part_raw = packed(BED_FOOT_ID, rotation, 0);
+            assert_eq!(
+                expand(
+                    &SparseSpace::default(),
+                    &registry,
+                    vec![(base.clone(), raw)]
+                ),
+                vec![(base.clone(), raw), (foot.clone(), part_raw)]
+            );
+            let space = SparseSpace::default()
+                .with(base.clone(), raw)
+                .with(foot.clone(), part_raw);
+            assert!(!is_coupled_orphan(
+                &base,
+                &registry.get_block_by_id(BED_ID).coupled_parts,
+                &space
+            ));
+            assert!(!is_coupled_orphan(
+                &foot,
+                &registry.get_block_by_id(BED_FOOT_ID).coupled_parts,
+                &space
+            ));
+            assert_eq!(
+                expand(&space, &registry, vec![(foot.clone(), 0)]),
+                vec![(foot, 0), (base.clone(), 0)]
+            );
+        }
+    }
+
+    #[test]
+    fn rotating_a_horizontal_unit_moves_its_part_atomically_or_refuses_whole() {
+        let registry = registry();
+        let old = packed(BED_ID, BlockRotation::encode(0, 0), 0);
+        let rotated = packed(BED_ID, BlockRotation::encode(0, 4), 0);
+        let foot = Vec3(4, 10, 5);
+        let next = Vec3(5, 10, 4);
+        let space = SparseSpace::default()
+            .with(BASE, old)
+            .with(foot.clone(), BED_FOOT_ID);
+        assert_eq!(
+            expand(&space, &registry, vec![(BASE, rotated)]),
+            vec![
+                (BASE, rotated),
+                (
+                    next.clone(),
+                    packed(BED_FOOT_ID, BlockRotation::encode(0, 4), 0)
+                ),
+                (foot, 0)
+            ]
+        );
+        let blocked = space.with(next, STONE_ID);
+        assert!(expand(&blocked, &registry, vec![(BASE, rotated)]).is_empty());
+        assert!(expand(
+            &blocked,
+            &registry,
+            vec![(BASE, packed(BED_ID, BlockRotation::encode(0, 2), 0))]
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn adjacent_units_cannot_adopt_or_destroy_each_others_parts() {
+        let registry = registry();
+        let foreign = packed(BED_FOOT_ID, BlockRotation::encode(0, 4), 0);
+        let space = SparseSpace::default().with(Vec3(4, 10, 5), foreign);
+        assert!(expand(&space, &registry, vec![(BASE, BED_ID)]).is_empty());
+        let orphan = space.with(BASE, BED_ID);
+        assert!(is_coupled_orphan(
+            &BASE,
+            &registry.get_block_by_id(BED_ID).coupled_parts,
+            &orphan
+        ));
+        assert_eq!(expand(&orphan, &registry, vec![(BASE, 0)]), vec![(BASE, 0)]);
+    }
 
     #[test]
     fn breaking_the_anchor_clears_the_partner_in_the_same_batch() {

@@ -11,12 +11,17 @@ import {
   LOCAL_LIGHTS_FUNCTIONS,
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./local-lights/shader";
+import {
+  BLOCK_LIGHT_TRANSFER_GLSL,
+  BLOCK_LIGHT_TRANSFER_UNIFORMS_GLSL,
+} from "./block-light-transfer";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   FLOW_CREST_PHASE_PER_HEIGHT,
   FLUID_SPILL_CORNER_MIN_HEIGHT,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
+  WATER_CAUSTIC_WEB_GLSL,
   WATER_OPTICS,
   WATER_SURFACE_NORMAL_LAYERS_GLSL,
   WATER_SURFACE_SCATTER_GLSL,
@@ -89,12 +94,12 @@ float torchBrightness = max(
   max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b) * llFloodRemainder,
   min(max(max(clusterLight.r, clusterLight.g), clusterLight.b), 1.0)
 );
-vec3 torchLight = smoothTorch * (1.2 * llFloodRemainder);
+vec3 torchLight = smoothTorch * (uBlockLightGain * llFloodRemainder);
 `;
 
 const LEGACY_BLOCK_LIGHT_FRAGMENT = `
 float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
-vec3 torchLight = smoothTorch * 1.2;
+vec3 torchLight = smoothTorch * uBlockLightGain;
 `;
 
 const LOCAL_LIGHTS_BLEND_FRAGMENT = `
@@ -251,6 +256,7 @@ const FULL_CHUNK_SHADERS = {
       "#include <common>",
       `
 attribute int light;
+attribute vec3 biomeTint;
 
 // Quantized-position materials define this to the fixed-point scale
 // (counts per block); the mesh matrix owns dequantization, so the shader
@@ -296,6 +302,7 @@ varying float vFluidDepthBelow;
 varying float vFluidRestY;
 varying vec2 vFluidFlow;
 varying vec4 vLight;
+varying vec3 vStageTint;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
 varying float vViewDepth;
@@ -303,6 +310,7 @@ varying float vWaterExposed;
 varying float vWaterSurfaceY;
 varying vec3 vAboveSurfaceWaterTransmit;
 uniform vec4 uAOTable;
+uniform vec3 uStageTints[16];
 uniform float uWaterLevel;
 uniform float uCameraSubmersion;
 uniform float uTime;
@@ -369,6 +377,20 @@ int isWaterExposed = (light >> WATER_EXPOSED_SHIFT) & 0x1;
 
 int stackIndex = (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
 int stackCount = ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
+// The sign bit is an explicit tag, never a numerical light value.
+vStageTint = vec3(1.0);
+if (light < 0) {
+  // Byte-normalized RGB is a multiplier /128. Old worlds and non-chunk
+  // previews carry zero and keep their stage palette. The varying blends
+  // continuously within each face, including greedy and batched geometry.
+  vStageTint = biomeTint.r > 0.0 ? biomeTint * (255.0 / 128.0) : uStageTints[stackIndex];
+  // Short plant runs share four bits: count/index codes 0..1, 2..4,
+  // 5..8, 9..13. Include the upper boundary so coupled halves bend together.
+  // Mirrors with_stage_tint in the mesher; fluid encoding is unchanged.
+  int stackCode = stackCount - 1;
+  stackCount = stackCode < 2 ? 1 : stackCode < 5 ? 2 : stackCode < 9 ? 3 : 4;
+  stackIndex = stackCode - (stackCount - 1) * (stackCount + 2) / 2;
+}
 
 // A fluid vertex that waves sits on its column's surface, so its count is
 // its index plus one and the count field carries the surface flow at this
@@ -539,6 +561,7 @@ vShadowCoord2 = uShadowMatrix2 * offsetPosition;
 ${SKY_FOG_UNIFORM_DECLARATIONS}
 ${LIGHT_CONES_UNIFORM_DECLARATIONS}
 ${LOCAL_LIGHTS_UNIFORM_DECLARATIONS}
+${BLOCK_LIGHT_TRANSFER_UNIFORMS_GLSL}
 varying float vChunkReveal;
 uniform float uTime;
 uniform float uAtlasSize;
@@ -566,6 +589,8 @@ uniform vec3 uWaterTint;
 uniform float uWaterAbsorption;
 uniform float uWaterLevel;
 uniform float uWaterStreakStrength;
+uniform float uBedCausticScale;
+uniform float uSurfaceUndersideScale;
 uniform float uWaterFresnelStrength;
 // The celestial disc as the sky box draws it (sun by day, moon by night),
 // never clamped or tilted the way the shading light uSunDirection is. The
@@ -593,6 +618,7 @@ varying float vFluidDepthBelow;
 varying float vFluidRestY;
 varying vec2 vFluidFlow;
 varying vec4 vLight;
+varying vec3 vStageTint;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
 varying float vViewDepth;
@@ -606,7 +632,11 @@ varying vec4 vShadowCoord2;
 
 ${SIMPLEX_NOISE_GLSL}
 
+${WATER_CAUSTIC_WEB_GLSL}
+
 ${LIGHT_CONES_FUNCTIONS}
+
+${BLOCK_LIGHT_TRANSFER_GLSL}
 
 ${LOCAL_LIGHTS_FUNCTIONS}
 
@@ -824,6 +854,7 @@ float getShadow() {
   }
   
   diffuseColor *= sampledDiffuseColor;
+  diffuseColor.rgb *= vStageTint;
 #endif
 `,
     )
@@ -841,13 +872,16 @@ float sunExposure = vLight.a;
 vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity * sunExposure;
 
 vec3 cpuTorchLight = vLight.rgb;
-vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
+// Flood level to light (block-light-transfer.ts): a geometric per-level
+// decay that keeps a coloured light's hue while its channels are alive.
+vec3 smoothTorch = blockLightCurve(cpuTorchLight);
 ${LOCAL_LIGHTS_OWNERSHIP_FRAGMENT}
 
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
 float sunVisibility = clamp(sunExposure, 0.0, 1.0);
 vec3 downTransmit = vec3(1.0);
 vec3 underwaterFill = vec3(0.0);
+float underwaterCaustic = 0.0;
 // Seen from under water, terrain is lit by what the column above it lets
 // down. The column is measured from the surface of the water the camera is
 // in (uCameraWaterPlaneY), never from the world's nominal waterline:
@@ -881,6 +915,19 @@ if (uCameraSubmersion > 0.001 && vWorldPosition.y < uCameraWaterPlaneY) {
       4,
     )} * uSunlightIntensity + ${WATER_OPTICS.scatterFillBase.toFixed(4)})
     * downTransmit * submergedShade;
+
+  // Caustic net on the bed, projected down the sun so walls and floors
+  // share one pattern: an iterated, tileable warp whose focus lines form
+  // the familiar web (after Dave Hoskins' tileable water caustic), about a
+  // block per cell. Evaluated at the centre of the 1/16-block texel, so it
+  // steps like the block art instead of smearing.
+  float causticSeconds = uTime * 0.001;
+  vec3 causticTexel = (floor(vWorldPosition.xyz * 16.0 + vWorldNormal * 0.5) + 0.5) / 16.0;
+  vec2 causticPos = causticTexel.xz
+    - uSunDirection.xz / max(uSunDirection.y, 0.3) * (causticTexel.y - uCameraWaterPlaneY);
+  underwaterCaustic = waterCausticWeb(causticPos, causticSeconds)
+    * exp(-fragmentWaterDepth * ${WATER_OPTICS.bedCausticDepthFalloff.toFixed(4)})
+    * submergedShade * (1.0 - vIsFluid);
 }
 vec3 globalAmbient =
   (vec3(0.025, 0.03, 0.04) * sunVisibility + uAmbientColor * ambientFloor) * downTransmit;
@@ -896,7 +943,7 @@ float texLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 float isBrightTex = smoothstep(0.75, 0.95, texLuma);
 
 float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
-float torchDominance = torchBrightness / (torchBrightness + dot(sunContribution, vec3(0.33)) + 0.01);
+float torchDominance = torchBrightness / (torchBrightness + dot(sunContribution, vec3(0.33)) + uBlockLightDominanceKnee);
 float torchAOReduction = torchDominance * 0.03;
 float enhancedAO = mix(aoFactor, 1.0, torchAOReduction);
 
@@ -932,6 +979,13 @@ totalLight = 1.0 - (1.0 - totalLight) * (1.0 - coneLight);
 ${LOCAL_LIGHTS_BLEND_FRAGMENT}
 
 vec3 warmTint = vec3(1.05, 0.92, 0.75);
+// A saturated emitter keeps its own hue: the warm push fades toward white
+// with the flood light's saturation (glowberry stays amber, lichen cyan).
+float torchPeak = max(max(torchLight.r, torchLight.g), torchLight.b);
+float torchSaturation = torchPeak > 0.0
+  ? 1.0 - min(min(torchLight.r, torchLight.g), torchLight.b) / torchPeak
+  : 0.0;
+warmTint = mix(warmTint, vec3(1.0), torchSaturation * uBlockLightCurve);
 vec3 coolTint = vec3(0.92, 0.95, 1.05);
 vec3 temperatureShift = mix(coolTint, warmTint, torchDominance);
 totalLight *= temperatureShift;
@@ -939,8 +993,18 @@ totalLight *= temperatureShift;
 totalLight *= enhancedAO;
 totalLight *= faceShade;
 
+// Block-lit fragments keep their light's hue through the tone map: the
+// per-channel fit bleaches a warm or coloured light toward cream as it
+// saturates. The hue-preserving result is rescaled to the per-channel
+// fit's luminance, so a room's brightness is unchanged and only its colour
+// returns. Daylight (torchDominance 0) keeps the per-channel fit exactly.
+float toneMapPeak = max(max(totalLight.r, totalLight.g), totalLight.b);
+vec3 toneMapHue = totalLight * (blockLightAcesFit1(toneMapPeak) / max(toneMapPeak, 1e-4));
 totalLight = (totalLight * (2.51 * totalLight + 0.03))
            / (totalLight * (2.43 * totalLight + 0.59) + 0.14);
+toneMapHue *= dot(totalLight, vec3(0.2126, 0.7152, 0.0722))
+  / max(dot(toneMapHue, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+totalLight = mix(totalLight, toneMapHue, torchDominance * uBlockLightToneMap);
 vec3 darknessFloor = vec3(ambientFloor) *
   mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit;
 totalLight = max(totalLight, darknessFloor * faceShade);
@@ -953,6 +1017,15 @@ if (vEmissive > 0.0) {
   outgoingLight.rgb = diffuseColor.rgb * vEmissive;
 } else {
   outgoingLight.rgb *= totalLight;
+}
+
+// Bed caustics ride on the lit colour, gated by the direct sun that reaches
+// the face (shadow, night, facing). Added before the tone curve they were
+// swallowed by the highlight shoulder of pale sand.
+if (underwaterCaustic > 0.0) {
+  float causticSun = smoothstep(0.02, 0.2, dot(sunContribution * downTransmit, vec3(0.3333)));
+  outgoingLight.rgb *= 1.0
+    + ${WATER_OPTICS.bedCausticStrength.toFixed(4)} * uBedCausticScale * underwaterCaustic * causticSun;
 }
 
 ${ABOVE_SURFACE_WATER_FOG_FRAGMENT}
@@ -1318,8 +1391,68 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     waterColor *= 1.0 + ${WATER_OPTICS.causticStrength.toFixed(4)} * 0.5 * caustic;
   }
 
+  // The four-block floor tint cap is for shallow refraction, not ocean
+  // visibility. Fade the bed using the measured local column, never sea
+  // level or camera distance (which made high lakes stay glass-clear).
+  if (topWaterFace > 0.5 && uCameraSubmersion < 0.5) {
+    float deepPath = max(vFluidDepthBelow - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0);
+    float deepTransmit = exp(-deepPath * ${WATER_OPTICS.deepSurfaceExtinction.toFixed(4)});
+    vec3 deepScatter = uUnderwaterAmbient * vec3(
+      ${WATER_OPTICS.deepSurfaceScatterScale.red.toFixed(4)},
+      ${WATER_OPTICS.deepSurfaceScatterScale.green.toFixed(4)},
+      ${WATER_OPTICS.deepSurfaceScatterScale.blue.toFixed(4)}
+    ) * exp(
+      -${WATER_DOWNWELLING_EXTINCTION_GLSL}
+      * min(vFluidDepthBelow, 16.0)
+      * ${WATER_OPTICS.aboveSurfaceScatterDepthScale.toFixed(4)}
+    );
+    waterColor = mix(deepScatter, waterColor, deepTransmit);
+    diffuseColor.a = 1.0 - (1.0 - diffuseColor.a) * deepTransmit;
+  }
+
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;
+
+  // From below, the surface is a moving ceiling of light: Snell's window
+  // overhead shows the sky and the sun, total internal reflection mirrors
+  // the water body outside it, and the bed's caustic web plays across it.
+  // Evaluated at the centre of the 1/16-block texel, like the block art, so
+  // the window's rim and the web step instead of smearing.
+  if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && uSurfaceUndersideScale > 0.5) {
+    vec2 ceilXZ = (floor(wPos.xz * 16.0) + 0.5) / 16.0;
+    vec3 ceilRay = normalize(vec3(ceilXZ.x, wPos.y, ceilXZ.y) - cameraPosition);
+    vec3 ceilNormal = normalize(mix(vec3(0.0, 1.0, 0.0), waterNormal, rippleLod));
+    float ceilCosI = clamp(dot(ceilRay, ceilNormal), 0.0, 1.0);
+    float ceilSinT = ${WATER_OPTICS.refractiveIndex.toFixed(4)}
+      * sqrt(max(1.0 - ceilCosI * ceilCosI, 0.0));
+    float ceilWindow = 1.0 - smoothstep(
+      1.0 - ${WATER_OPTICS.undersideWindowSoftness.toFixed(4)},
+      1.0,
+      ceilSinT
+    );
+    vec3 ceilOut = refract(ceilRay, -ceilNormal, ${WATER_OPTICS.refractiveIndex.toFixed(
+      4,
+    )});
+    float ceilUp = clamp(ceilOut.y, 0.0, 1.0);
+    vec3 ceilSky = mix(uSkyMiddleColor, uSkyTopColor, sqrt(ceilUp));
+    float ceilSun = smoothstep(
+      0.992,
+      0.9985,
+      dot(ceilOut, uCelestialDirection) / max(length(ceilOut), 1e-4)
+    );
+    ceilSky += uSunColor * ceilSun * uSunlightIntensity * 1.4;
+    vec3 ceilMirror = uUnderwaterAmbient * 0.85;
+    float ceilWeb = waterCausticWeb(ceilXZ, uTime * 0.001);
+    vec3 ceilColor = mix(ceilMirror, ceilSky, ceilWindow);
+    ceilColor += uSunColor * ceilWeb * uSunlightIntensity
+      * ${WATER_OPTICS.undersideWebStrength.toFixed(4)} * mix(0.45, 1.0, ceilWindow);
+    outgoingLight.rgb = mix(outgoingLight.rgb, ceilColor, 0.88);
+    diffuseColor.a = max(diffuseColor.a, mix(
+      ${WATER_OPTICS.undersideMirrorOpacity.toFixed(4)},
+      ${WATER_OPTICS.undersideWindowOpacity.toFixed(4)},
+      ceilWindow
+    ));
+  }
 
   float waterDepth = max(0.0, vWaterSurfaceY - vWorldPosition.y);
   vec3 fluidMu = ${WATER_DOWNWELLING_EXTINCTION_GLSL}

@@ -2,13 +2,14 @@ use hashbrown::HashMap;
 use log::info;
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
-use specs::{ReadExpect, ReadStorage, System, WriteExpect};
+use specs::{Entities, LazyUpdate, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::world::profiler::Profiler;
 use crate::{
     BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRenewal, ChunkRequestsComp, ChunkStatus,
-    ChunkUtils, Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Stats,
-    Vec2, Vec3, VoxelAccess, WorldConfig,
+    ChunkUtils, Chunks, Clients, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, Mesher,
+    MessageType, MetadataComp, Pipeline, PositionComp, Registry, Resources, Stats, Vec2, Vec3,
+    VoxelAccess, VoxelComp, WorldConfig,
 };
 
 #[derive(Default)]
@@ -26,6 +27,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         WriteExpect<'a, Mesher>,
         WriteExpect<'a, Profiler>,
         ReadStorage<'a, ChunkRequestsComp>,
+        Entities<'a>,
+        ReadExpect<'a, LazyUpdate>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -40,6 +43,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             mut mesher,
             mut profiler,
             requests,
+            entities,
+            lazy,
         ) = data;
 
         let chunk_size = config.chunk_size;
@@ -278,9 +283,24 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         // parallelize loading
+        let restore_stages = pipeline.stages.clone();
         let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> = to_load
             .into_par_iter()
-            .map(|coords| (coords.to_owned(), chunks.try_load(&coords, &registry)))
+            .map(|coords| {
+                let loaded = chunks.try_load(&coords, &registry).map(|mut chunk| {
+                    for stage in &restore_stages {
+                        chunk = stage.restore(
+                            chunk,
+                            Resources {
+                                registry: &registry,
+                                config: &config,
+                            },
+                        );
+                    }
+                    chunk
+                });
+                (coords, loaded)
+            })
             .collect();
 
         for (coords, loaded_chunk) in loaded_chunks.into_iter() {
@@ -343,8 +363,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 r#type == MessageType::Load && chunks.freshly_created.remove(&coords);
 
             if is_freshly_generated {
-                chunks.newly_generated.push(coords.to_owned());
-
                 // Duplicated onto the live chunk after the renew below —
                 // this copy only matters when no live chunk exists and the
                 // result is inserted whole.
@@ -383,6 +401,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if let Some(live) = chunks.map.get_mut(&coords) {
                     live.is_save_dirty = false;
                 }
+                seed_generated_entities(&mut chunks, &coords, &registry, &entities, &lazy);
             }
         }
 
@@ -530,5 +549,250 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 mesher.process(processes, &MessageType::Load, &registry, &config);
             }
         }
+    }
+}
+
+/// Seed once after the final generation stage and initial mesh. A later
+/// structure may have replaced a seeded voxel, and a saved (even empty)
+/// inventory always wins over the deterministic generation recipe.
+fn seed_generated_entities(
+    chunks: &mut Chunks,
+    coords: &Vec2<i32>,
+    registry: &Registry,
+    entities: &Entities<'_>,
+    lazy: &LazyUpdate,
+) {
+    let seeds = chunks
+        .raw_mut(coords)
+        .map(|chunk| std::mem::take(&mut chunk.block_entity_seeds))
+        .unwrap_or_default();
+    let mut created = false;
+    for (voxel, (block_id, json)) in seeds {
+        let block = registry.get_block_by_id(block_id);
+        if chunks.block_entities.contains_key(&voxel)
+            || chunks.get_voxel(voxel.0, voxel.1, voxel.2) != block_id
+            || !block.is_entity
+        {
+            continue;
+        }
+        if serde_json::from_str::<serde_json::Value>(&json).is_err() {
+            log::error!("Invalid generated entity JSON at {:?}", voxel);
+            continue;
+        }
+        let entity = entities.create();
+        chunks.block_entities.insert(voxel.clone(), entity);
+        lazy.insert(entity, IDComp::new(&nanoid!()));
+        lazy.insert(entity, EntityFlag::default());
+        lazy.insert(
+            entity,
+            ETypeComp::new(&format!("block::{}", block.name.to_lowercase()), true),
+        );
+        lazy.insert(entity, CurrentChunkComp::default());
+        lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
+        // Populate metadata immediately as well as through the normal meta
+        // system, so the first save/create packet already contains the loot.
+        let mut metadata = MetadataComp::new();
+        metadata.set("voxel", &VoxelComp::new(voxel.0, voxel.1, voxel.2));
+        metadata.set("json", &JsonComp::new(&json));
+        lazy.insert(entity, metadata);
+        lazy.insert(entity, JsonComp::new(&json));
+        created = true;
+    }
+    if created {
+        // Keep the chest's surrounding generated chunk once its contents
+        // become mutable, even when other pristine chunks regenerate.
+        chunks.add_chunk_to_save(coords, true);
+    }
+}
+
+#[cfg(test)]
+mod generated_entity_tests {
+    use super::*;
+    use crate::{Block, ChunkStage, DataSavingSystem, EntitiesMetaSystem, Space, World};
+    use specs::{RunNow, WorldExt};
+    use std::{
+        path::Path,
+        time::{Duration, Instant},
+    };
+
+    const CHEST: u32 = 8;
+    const LOOT: &str = r#"{"type":"chest","slots":[{"type":"block","id":1,"count":3}]}"#;
+    const EMPTY: &str = r#"{"type":"chest","slots":[]}"#;
+    struct ChestStage;
+    impl ChunkStage for ChestStage {
+        fn name(&self) -> String {
+            "seeded test chest".into()
+        }
+        fn process(&self, mut c: Chunk, _: Resources, _: Option<Space>) -> Chunk {
+            for x in c.min.0..c.max.0 {
+                for z in c.min.2..c.max.2 {
+                    c.set_voxel(x, 0, z, 1);
+                }
+            }
+            if c.contains(3, 1, 3) {
+                c.set_voxel(3, 1, 3, CHEST);
+                c.block_entity_seeds
+                    .insert(Vec3(3, 1, 3), (CHEST, LOOT.into()));
+                // A later feature overwrote this seed; it must not create a
+                // floating entity or resurrect its old block.
+                c.block_entity_seeds
+                    .insert(Vec3(4, 1, 3), (CHEST, LOOT.into()));
+            }
+            c
+        }
+    }
+    fn wait(world: &mut World, label: &str, condition: impl Fn(&World) -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            world.tick();
+            if condition(world) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "{label}");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+    fn open(dir: &Path) -> World {
+        let config = WorldConfig::new()
+            .min_chunk([-1, -1])
+            .max_chunk([1, 1])
+            .max_height(32)
+            .sub_chunks(1)
+            .preload_radius(1)
+            .saving(true)
+            .save_dir(dir.to_str().unwrap())
+            .save_interval(1)
+            .save_pristine_chunks(false)
+            .build();
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Ground").id(1).build());
+        registry.register_block(
+            &Block::new("Chest")
+                .id(CHEST)
+                .is_entity(true)
+                .default_entity_json(EMPTY)
+                .build(),
+        );
+        let mut w = World::new("generated-entity-persistence", &config);
+        w.ecs_mut().insert(registry);
+        w.pipeline_mut().add_stage(ChestStage);
+        w.prepare();
+        w.preload();
+        wait(&mut w, "chest chunk ready", |w| {
+            w.chunks().is_chunk_ready(&Vec2(0, 0))
+        });
+        w
+    }
+    fn chest_json(w: &World) -> String {
+        let entity = w.chunks().block_entities[&Vec3(3, 1, 3)];
+        w.ecs()
+            .read_storage::<JsonComp>()
+            .get(entity)
+            .unwrap()
+            .0
+            .clone()
+    }
+    #[test]
+    fn stage_only_update_preserves_entity_identity_and_contents() {
+        let dir = std::env::temp_dir().join(format!("block-state-{}-{:?}",std::process::id(),std::thread::current().id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let mut w = open(&dir);
+        let p = Vec3(3,1,3);
+        let entity = w.chunks().block_entities[&p];
+        let next = crate::BlockUtils::insert_stage(CHEST,1);
+        w.chunks_mut().update_voxel(&p,next);
+        wait(&mut w,"stage update committed",|w| w.chunks().get_raw_voxel(3,1,3)==next);
+        assert_eq!(w.chunks().block_entities[&p],entity);
+        assert_eq!(chest_json(&w),LOOT);
+        w.chunks_mut().update_voxel(&p,1);
+        wait(&mut w,"replacement removed entity",|w| w.chunks().get_voxel(3,1,3)==1);
+        assert!(!w.chunks().block_entities.contains_key(&p));
+        drop(w); std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn generated_chest_keeps_taken_loot_across_regeneration_and_restart() {
+        let dir = std::env::temp_dir().join(format!(
+            "generated-chest-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::remove_dir_all(&dir).ok();
+        let mut w = open(&dir);
+        assert_eq!(chest_json(&w), LOOT);
+        assert!(!w.chunks().block_entities.contains_key(&Vec3(4, 1, 3)));
+        assert!(w
+            .chunks()
+            .raw(&Vec2(0, 0))
+            .unwrap()
+            .block_entity_seeds
+            .is_empty());
+        let entity = w.chunks().block_entities[&Vec3(3, 1, 3)];
+        let id = w
+            .ecs()
+            .read_storage::<IDComp>()
+            .get(entity)
+            .unwrap()
+            .0
+            .clone();
+        w.ecs_mut()
+            .write_storage::<JsonComp>()
+            .insert(entity, JsonComp::new(EMPTY))
+            .unwrap();
+        // Replaying a new generation result while the existing inventory is
+        // empty must preserve the empty entity, not refill it.
+        w.chunks_mut()
+            .raw_mut(&Vec2(0, 0))
+            .unwrap()
+            .block_entity_seeds
+            .insert(Vec3(3, 1, 3), (CHEST, LOOT.into()));
+        {
+            let entities = w.ecs().entities();
+            let lazy = w.ecs().read_resource::<LazyUpdate>();
+            seed_generated_entities(
+                &mut w.ecs().write_resource::<Chunks>(),
+                &Vec2(0, 0),
+                &w.ecs().read_resource::<Registry>(),
+                &entities,
+                &lazy,
+            );
+        }
+        w.ecs_mut().maintain();
+        assert_eq!(chest_json(&w), EMPTY);
+        EntitiesMetaSystem.run_now(w.ecs());
+        DataSavingSystem.run_now(w.ecs());
+        let file = dir.join("entities").join(format!("block-chest-{id}.json"));
+        wait(
+            &mut w,
+            "empty chest reaches durable native entity save",
+            |_| {
+                std::fs::read_to_string(&file)
+                    .is_ok_and(|s| s.contains("slots") && !s.contains("count"))
+            },
+        );
+        wait(&mut w, "chest terrain reaches native chunk save", |_| {
+            dir.join("chunks/0|0.json").exists()
+        });
+        drop(w);
+        let mut w = open(&dir);
+        assert_eq!(chest_json(&w), EMPTY);
+        assert_eq!(w.chunks().get_voxel(3, 1, 3), CHEST);
+        w.chunks_mut().update_voxel(&Vec3(3, 1, 3), 0);
+        wait(&mut w, "broken chest is removed", |w| {
+            w.chunks().get_voxel(3, 1, 3) == 0
+                && !w.chunks().block_entities.contains_key(&Vec3(3, 1, 3))
+                && !file.exists()
+        });
+        wait(&mut w, "broken chest terrain is saved", |w| {
+            w.chunks()
+                .try_load(&Vec2(0, 0), &w.registry())
+                .is_some_and(|c| c.get_voxel(3, 1, 3) == 0)
+        });
+        drop(w);
+        let w = open(&dir);
+        assert_eq!(w.chunks().get_voxel(3, 1, 3), 0);
+        assert!(!w.chunks().block_entities.contains_key(&Vec3(3, 1, 3)));
+        drop(w);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -59,6 +59,11 @@ pub struct Chunk {
     pub lights: Arc<Ndarray<u32>>,
     pub height_map: Arc<Ndarray<u32>>,
 
+    /// Optional climate tint at the four horizontal corners, x-fast RGB.
+    /// A byte represents a linear multiplier in 0..1.9921875. Generation/restoration
+    /// owns this small derived field; player voxel edits never change it.
+    pub biome_tints: Option<[u8; 12]>,
+
     pub meshes: Option<HashMap<u32, MeshProtocol>>,
 
     pub min: Vec3<i32>,
@@ -67,6 +72,10 @@ pub struct Chunk {
     pub options: ChunkOptions,
 
     pub extra_changes: Vec<VoxelUpdate>,
+    /// One-time entity contents authored by generation stages. These travel
+    /// with the chunk until it becomes ready; saved entity JSON subsequently
+    /// owns the contents. Ordinary chunks leave this map empty.
+    pub block_entity_seeds: HashMap<Vec3<i32>, (u32, String)>,
     pub updated_levels: HashSet<u32>,
 
     /// Highest y that may hold a nonzero voxel, maintained by `set_raw_voxel`
@@ -178,6 +187,10 @@ impl Chunk {
             z: self.coords.1,
             id: self.id.clone(),
             meshes,
+            biome_tints: self
+                .biome_tints
+                .map(|tints| tints.to_vec())
+                .unwrap_or_default(),
             voxels: if data {
                 Some((*self.voxels).clone())
             } else {

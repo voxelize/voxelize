@@ -6,6 +6,107 @@ use voxelize_core::{
     BlockFace, BlockRotation, CornerData, LightColor, LightUtils, VoxelAccess, AABB, UV,
 };
 
+#[test]
+fn opaque_lava_does_not_erase_the_stone_wall_above_its_lowered_surface() {
+    let (mut registry, stone, mut lava) = ocean_registry(1, 2);
+    lava.is_opaque = true;
+    lava.is_transparent = [false; 6];
+    lava.is_waterlogging_fluid = false;
+    registry = Registry::new(vec![
+        (0, registry.get_block_by_id(0).unwrap().clone()),
+        (1, stone.clone()),
+        (2, lava),
+    ]);
+    registry.build_cache();
+    for dir in [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]] {
+        let space = SparseSpace::new(&[
+            ((0, 0, 0), (1, 0)),
+            ((dir[0], dir[1], dir[2]), (2, 0)),
+        ]);
+        let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
+        assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36,
+            "lava must not cull stone at {dir:?}");
+        // The real failure occurs below an overhanging lip: every other
+        // neighbour is solid, so the whole-voxel shortcut also needs to
+        // recognize the air strip above the fluid surface.
+        let mut cells = vec![((0, 0, 0), (1, 0))];
+        for side in [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] {
+            cells.push(((side[0], side[1], side[2]), (if side == dir { 2 } else { 1 }, 0)));
+        }
+        let enclosed = SparseSpace::new(&cells);
+        let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &enclosed, &registry);
+        assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 6,
+            "buried bank still needs its exposed face at {dir:?}");
+    }
+}
+
+#[test]
+fn rotated_solid_keeps_exposed_faces_and_culls_only_its_actual_neighbors() {
+    let mut solid = plain_block(1, "Rotating hearth");
+    solid.is_opaque = true;
+    solid.y_rotatable = true;
+    solid.faces = six_faces();
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (1, solid)]);
+    registry.build_cache();
+    for quarter in 0..4 {
+        let rotation = BlockRotation::PY(quarter as f32 * std::f32::consts::FRAC_PI_2);
+        let mut space = SparseSpace::new(&[((0, 0, 0), (1, 0))]);
+        space.rotation = rotation.clone();
+        let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
+        assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36,
+            "quarter turn {quarter} must retain all six exposed faces");
+        // Only one neighbor is air. A translated normal can point at self
+        // or a diagonal, either erasing that face or leaking a buried one.
+        for opening in [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] {
+            let mut cells = vec![((0, 0, 0), (1, 0))];
+            for side in [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] {
+                if side != opening {
+                    cells.push(((side[0], side[1], side[2]), (1, 0)));
+                }
+            }
+            let mut space = SparseSpace::new(&cells);
+            space.rotation = rotation.clone();
+            let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
+            assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 6,
+                "quarter turn {quarter} must leave only its {opening:?} face exposed");
+        }
+    }
+}
+
+#[test]
+fn an_unknown_decoration_does_not_erase_the_ground_under_it() {
+    let mut ground = plain_block(1, "Ground");
+    ground.is_opaque = true;
+    ground.faces = six_faces();
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (1, ground.clone())]);
+    registry.build_cache();
+    let space = SparseSpace::new(&[((0, 0, 0), (1, 0)), ((0, 1, 0), (34204, 0))]);
+    assert!(should_render_face(
+        0,
+        0,
+        0,
+        1,
+        [0, 1, 0],
+        &ground,
+        &space,
+        &registry,
+        false,
+        false
+    ));
+    let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
+    assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36);
+}
+
 struct SingleVoxelSpace {
     voxel_id: u32,
     is_waterlogged: bool,
@@ -649,6 +750,7 @@ fn plain_block(id: u32, name: &str) -> Block {
 }
 
 struct ColumnSpace {
+    tint: u32,
     bottom_id: u32,
     top_id: u32,
     is_bottom_waterlogged: bool,
@@ -672,7 +774,7 @@ impl VoxelAccess for ColumnSpace {
     }
 
     fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
-        0
+        self.tint
     }
 
     fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
@@ -818,6 +920,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     };
 
     let submerged = ColumnSpace {
+        tint: 0,
         bottom_id: 1,
         top_id: 2,
         is_bottom_waterlogged: false,
@@ -832,6 +935,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     );
 
     let dry = ColumnSpace {
+        tint: 0,
         bottom_id: 1,
         top_id: 0,
         is_bottom_waterlogged: false,
@@ -846,6 +950,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     );
 
     let planted = ColumnSpace {
+        tint: 0,
         bottom_id: 3,
         top_id: 2,
         is_bottom_waterlogged: true,
@@ -860,6 +965,7 @@ fn water_exposed_bit_marks_faces_touching_fluid_or_waterlogged_blocks() {
     );
 
     let emerged = ColumnSpace {
+        tint: 0,
         bottom_id: 3,
         top_id: 0,
         is_bottom_waterlogged: false,
@@ -913,6 +1019,7 @@ fn a_vertical_run_is_grouped_by_stack_group_not_block_id() {
         ]);
         registry.build_cache();
         let space = ColumnSpace {
+            tint: 0,
             bottom_id: LOWER_ID,
             top_id,
             is_bottom_waterlogged: false,
@@ -1170,6 +1277,7 @@ fn an_ungrouped_block_writes_no_stack_bits() {
     registry.build_cache();
 
     let space = ColumnSpace {
+        tint: 0,
         bottom_id: 1,
         top_id: 1,
         is_bottom_waterlogged: false,
@@ -1211,6 +1319,7 @@ fn emissive_faces_pack_the_bit_and_strength_index() {
     registry.build_cache();
 
     let space = ColumnSpace {
+        tint: 0,
         bottom_id: 1,
         top_id: 0,
         is_bottom_waterlogged: false,
@@ -1334,7 +1443,9 @@ fn an_animated_block_meshes_each_voxel_as_its_own_geometry() {
     assert_eq!(per_voxel[0].at, Some([0, 0, 0]));
     assert_eq!(per_voxel[1].at, Some([0, 1, 0]));
     assert!(
-        per_voxel.iter().all(|geometry| geometry.face_name.is_none()),
+        per_voxel
+            .iter()
+            .all(|geometry| geometry.face_name.is_none()),
         "a plain face keeps the block's own material: no face name on the geometry",
     );
     assert_eq!(
@@ -1378,7 +1489,10 @@ fn an_inset_see_through_face_survives_an_opaque_neighbour() {
             false,
             false,
             dir,
-            corners.map(|pos| CornerData { pos, uv: [0.0, 0.0] }),
+            corners.map(|pos| CornerData {
+                pos,
+                uv: [0.0, 0.0],
+            }),
         )
     };
     // The open leaf's +x face, two sixteenths in from the +x jamb.
@@ -2082,12 +2196,14 @@ fn bench_ocean_chunk_meshing() {
 /// A sparse world: any voxel not listed is air.
 struct SparseSpace {
     voxels: HashMap<(i32, i32, i32), (u32, u32)>,
+    rotation: BlockRotation,
 }
 
 impl SparseSpace {
     fn new(voxels: &[((i32, i32, i32), (u32, u32))]) -> Self {
         Self {
             voxels: voxels.iter().copied().collect(),
+            rotation: BlockRotation::default(),
         }
     }
 }
@@ -2102,7 +2218,7 @@ impl VoxelAccess for SparseSpace {
     }
 
     fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
-        BlockRotation::PY(0.0)
+        self.rotation.clone()
     }
 
     fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
@@ -2363,6 +2479,257 @@ fn a_full_corner_meets_the_wall_pouring_onto_it_unless_a_ceiling_takes_the_plane
             (corner.pos[1] - 1.0).abs() < 1e-6,
             "a wall under stacked fluid reaches the voxel boundary, got {}",
             corner.pos[1]
+        );
+    }
+}
+
+/// Same block/material, two climates. The packed bits survive both mesh
+/// paths and prevent greedy merging across differently colored columns.
+#[test]
+fn stage_palette_preserves_decay_bits_and_greedy_boundaries() {
+    struct TintedSpace;
+    impl VoxelAccess for TintedSpace {
+        fn get_voxel(&self, x: i32, y: i32, z: i32) -> u32 {
+            if (0..=1).contains(&x) && y == 0 && z == 0 {
+                1
+            } else {
+                0
+            }
+        }
+        fn get_raw_voxel(&self, x: i32, y: i32, z: i32) -> u32 {
+            self.get_voxel(x, y, z)
+        }
+        fn get_voxel_rotation(&self, _: i32, _: i32, _: i32) -> BlockRotation {
+            BlockRotation::PY(0.0)
+        }
+        fn get_voxel_stage(&self, x: i32, _: i32, _: i32) -> u32 {
+            if x == 0 {
+                6
+            } else {
+                13
+            }
+        }
+        fn get_voxel_waterlogged(&self, _: i32, _: i32, _: i32) -> bool {
+            false
+        }
+        fn get_voxel_fluid_level(&self, _: i32, _: i32, _: i32) -> u32 {
+            0
+        }
+        fn get_sunlight(&self, _: i32, _: i32, _: i32) -> u32 {
+            15
+        }
+        fn get_torch_light(&self, _: i32, _: i32, _: i32, _: LightColor) -> u32 {
+            0
+        }
+        fn get_all_lights(&self, _: i32, _: i32, _: i32) -> (u32, u32, u32, u32) {
+            (15, 0, 0, 0)
+        }
+        fn get_max_height(&self, _: i32, _: i32) -> u32 {
+            1
+        }
+        fn contains(&self, x: i32, y: i32, z: i32) -> bool {
+            (-1..=2).contains(&x) && (-1..=1).contains(&y) && (-1..=1).contains(&z)
+        }
+    }
+    let mut leaf = plain_block(1, "Tinted leaf");
+    leaf.is_opaque = true;
+    leaf.faces = six_faces();
+    for face in &mut leaf.faces {
+        face.stage_tint_mask = 12;
+    }
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (1, leaf.clone())]);
+    registry.build_cache();
+    let meshes = mesh_space_greedy(&[0, 0, 0], &[2, 1, 1], &TintedSpace, &registry);
+    let codes: std::collections::HashSet<_> = meshes
+        .iter()
+        .flat_map(|g| g.lights.iter())
+        .map(|&bits| {
+            assert!(bits < 0);
+            assert_eq!(bits & LIGHT_MASK, 0xf000);
+            let wire = i32::from_le_bytes(bits.to_le_bytes());
+            assert_eq!(wire, bits);
+            (bits >> STACK_INDEX_SHIFT) & 15
+        })
+        .collect();
+    assert_eq!(codes, std::collections::HashSet::from([4, 12]));
+    let top = leaf.faces.iter().find(|f| f.name == "py").unwrap();
+    for bits in mesh_single_face(&leaf, top, &registry, &TintedSpace) {
+        assert!(bits < 0);
+        assert_eq!((bits >> STACK_INDEX_SHIFT) & 15, 4);
+    }
+}
+
+#[test]
+fn a_non_water_fluid_keeps_its_surface_next_to_waterlogged_decoration() {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let hot = Block {
+        is_fluid: true,
+        is_see_through: true,
+        faces: six_faces(),
+        ..plain_block(2, "Hot fluid")
+    };
+    let plant = Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        ..plain_block(3, "Wet decoration")
+    };
+    let mut registry = Registry::new(vec![(0, air), (2, hot.clone()), (3, plant)]);
+    registry.build_cache();
+    let space = FluidColumnSpace {
+        fluid_id: 2,
+        plant_id: 3,
+        above: 1,
+        below: 0,
+        waterlogged_offset: Some(1),
+    };
+    assert!(should_render_face(
+        0,
+        0,
+        0,
+        2,
+        [0, 1, 0],
+        &hot,
+        &space,
+        &registry,
+        true,
+        true
+    ));
+    let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
+    assert!(
+        meshes
+            .iter()
+            .any(|m| m.face_name.as_deref() == Some("py") && m.indices.len() == 6),
+        "hot fluid surface vanished under unrelated waterlogging"
+    );
+}
+
+#[test]
+fn all_fluids_share_the_same_stage_slopes_across_a_chunk_seam() {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(2, "Water")
+    };
+    let hot = Block {
+        is_fluid: true,
+        is_see_through: true,
+        faces: six_faces(),
+        ..plain_block(4, "Hot fluid")
+    };
+    let stone = Block {
+        is_opaque: true,
+        ..plain_block(1, "Stone")
+    };
+    let mut registry = Registry::new(vec![
+        (0, air),
+        (1, stone),
+        (2, water.clone()),
+        (4, hot.clone()),
+    ]);
+    registry.build_cache();
+    let mut signatures = Vec::new();
+    for (id, b) in [(2, &water), (4, &hot)] {
+        let space = SparseSpace::new(&[
+            ((15, 3, 0), (id, 0)),
+            ((16, 3, 0), (id, 1)),
+            ((17, 3, 0), (id, 2)),
+            ((15, 2, 0), (1, 0)),
+            ((16, 2, 0), (1, 0)),
+        ]);
+        let mut geometry = Vec::new();
+        let mut shared = Vec::new();
+        for x in [15, 16] {
+            let faces = create_fluid_faces(x, 3, 0, id, &space, &b.faces, &registry);
+            let top = faces.iter().find(|f| f.name == "py").unwrap();
+            let edge: Vec<_> = top
+                .corners
+                .iter()
+                .filter(|c| (x as f32 + c.pos[0] - 16.0).abs() < 1e-5)
+                .map(|c| (c.pos[2], c.pos[1]))
+                .collect();
+            shared.push(edge);
+            geometry.push(top.corners.iter().map(|c| c.pos).collect::<Vec<_>>());
+        }
+        shared[0].sort_by(|a, b| a.0.total_cmp(&b.0));
+        shared[1].sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert_eq!(shared[0], shared[1], "fluid seam does not meet");
+        signatures.push(geometry);
+    }
+    assert_eq!(
+        signatures[0], signatures[1],
+        "fluid material changed its surface geometry"
+    );
+}
+
+#[test]
+fn a_tinted_tall_plant_keeps_its_shared_seam_and_tip() {
+    let mut lower = Block {
+        stack_group: 7,
+        ..full_block_diagonal_block()
+    };
+    for face in &mut lower.faces {
+        face.stage_tint_mask = 12;
+    }
+    let upper = Block {
+        id: 3,
+        ..lower.clone()
+    };
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (1, lower.clone()), (3, upper.clone())]);
+    registry.build_cache();
+    for tint in [4, 8, 12] {
+        let space = ColumnSpace {
+            tint: tint | 3,
+            bottom_id: 1,
+            top_id: 3,
+            is_bottom_waterlogged: false,
+        };
+        let (base_positions, base_lights) =
+            mesh_single_face_data_at_y(0, &lower, &lower.faces[0], &registry, &space);
+        let (tip_positions, tip_lights) =
+            mesh_single_face_data_at_y(1, &upper, &upper.faces[0], &registry, &space);
+        for (lights, expected) in [(&base_lights, [1, 0, 1, 0]), (&tip_lights, [2, 1, 2, 1])] {
+            for (&bits, index) in lights.iter().zip(expected) {
+                assert!(bits < 0);
+                assert_eq!((bits >> STACK_INDEX_SHIFT) & 15, tint as i32);
+                // Count two uses codes 2..4, including the upper tip.
+                assert_eq!((bits >> STACK_COUNT_SHIFT) & 15, 2 + index);
+            }
+        }
+        assert_eq!(
+            [
+                base_positions[0],
+                base_positions[2],
+                base_positions[6],
+                base_positions[8]
+            ],
+            [
+                tip_positions[3],
+                tip_positions[5],
+                tip_positions[9],
+                tip_positions[11]
+            ]
         );
     }
 }

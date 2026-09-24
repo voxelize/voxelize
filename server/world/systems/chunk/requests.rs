@@ -4,14 +4,15 @@ use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
-    Mesher, Message, MessageQueues, MessageType, Pipeline, Vec2, WorldConfig,
+    Mesher, Message, MessageQueues, MessageType, Pipeline, Stats, Vec2, WorldConfig,
 };
 
 pub struct ChunkRequestsSystem;
 
 impl<'a> System<'a> for ChunkRequestsSystem {
     type SystemData = (
-        ReadExpect<'a, Chunks>,
+        WriteExpect<'a, Chunks>,
+        ReadExpect<'a, Stats>,
         ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
@@ -22,8 +23,17 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (chunks, config, mut interests, mut pipeline, mut mesher, mut queue, ids, mut requests) =
-            data;
+        let (
+            mut chunks,
+            stats,
+            config,
+            mut interests,
+            mut pipeline,
+            mut mesher,
+            mut queue,
+            ids,
+            mut requests,
+        ) = data;
 
         let max_response_per_tick = config.max_response_per_tick;
 
@@ -35,7 +45,20 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             let mut sent_to_pipeline = 0usize;
 
             for coords in requests.requests.drain(..) {
+                // A new observer activates dormant terrain before either LOAD
+                // path can publish it. Additional observers share that work.
+                if !interests.has_interests(&coords) {
+                    chunks.activation.request(&coords);
+                }
                 if chunks.is_chunk_ready(&coords) {
+                    if chunks
+                        .activation
+                        .blocks_delivery(&coords, stats.dispatch_count())
+                    {
+                        interests.add(&id.0, &coords);
+                        to_add_back_to_requested.insert(coords);
+                        continue;
+                    }
                     let clients_to_send = to_send.entry(id.0.clone()).or_default();
 
                     if clients_to_send.len() >= max_response_per_tick {

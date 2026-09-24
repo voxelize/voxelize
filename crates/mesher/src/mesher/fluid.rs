@@ -472,6 +472,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             texture_group: None,
             range: get_range("py"),
             emissive: get_emissive("py"),
+            stage_tint_mask: 0,
             corners: [
                 CornerData {
                     pos: [0.0, h_nxpz, 1.0],
@@ -500,6 +501,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             texture_group: None,
             range: get_range("ny"),
             emissive: get_emissive("ny"),
+            stage_tint_mask: 0,
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 1.0],
@@ -528,6 +530,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             texture_group: None,
             range: get_range("px"),
             emissive: get_emissive("px"),
+            stage_tint_mask: 0,
             corners: [
                 CornerData {
                     pos: [1.0, h_pxpz, 1.0],
@@ -556,6 +559,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             texture_group: None,
             range: get_range("nx"),
             emissive: get_emissive("nx"),
+            stage_tint_mask: 0,
             corners: [
                 CornerData {
                     pos: [0.0, h_nxnz, 0.0],
@@ -584,6 +588,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             texture_group: None,
             range: get_range("pz"),
             emissive: get_emissive("pz"),
+            stage_tint_mask: 0,
             corners: [
                 CornerData {
                     pos: [0.0, 0.0, 1.0],
@@ -612,6 +617,7 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
             texture_group: None,
             range: get_range("nz"),
             emissive: get_emissive("nz"),
+            stage_tint_mask: 0,
             corners: [
                 CornerData {
                     pos: [1.0, 0.0, 0.0],
