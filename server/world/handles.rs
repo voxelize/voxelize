@@ -40,6 +40,17 @@ impl World {
             .insert(method.to_lowercase(), Arc::new(handle));
     }
 
+    /// The handler currently registered for `method`, if any. A game uses it
+    /// to put its own checks in front of a builtin (read the old handler,
+    /// then `set_method_handle` a wrapper that calls it) instead of copying
+    /// the builtin's body.
+    pub fn method_handle(
+        &self,
+        method: &str,
+    ) -> Option<Arc<dyn Fn(&mut World, &str, &str) + Send + Sync>> {
+        self.method_handles.get(&method.to_lowercase()).cloned()
+    }
+
     pub fn set_event_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
         &mut self,
         event: &str,
