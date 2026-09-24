@@ -56,7 +56,7 @@ import {
   recordAgentBrowser,
   spawnBrowserWatchdog,
 } from "./browser-lifecycle";
-import { lowPriorityBrowser } from "./browser-priority";
+import { describeLaunchError, lowPriorityBrowser } from "./browser-priority";
 import {
   CaptureViewport,
   RequestedCaptureViewport,
@@ -428,11 +428,9 @@ export class Agent {
         });
       } catch (error) {
         console.error(
-          `[voxelize-agent] low-priority browser launch failed (${
-            error instanceof Error
-              ? error.message.split("\n")[0]
-              : String(error)
-          }); launching at default priority`,
+          `[voxelize-agent] low-priority browser launch failed (${describeLaunchError(
+            error,
+          )}); launching at default priority`,
         );
         return puppeteer.launch(options);
       }

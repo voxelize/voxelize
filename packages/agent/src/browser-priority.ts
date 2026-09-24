@@ -95,13 +95,39 @@ export function lowPriorityBrowser(
     fs.chmodSync(executablePath, 0o755);
   } catch (error) {
     console.error(
-      `[voxelize-agent] could not write the low-priority browser wrapper at ${executablePath} (${
-        error instanceof Error ? error.message : String(error)
-      }); launching at default priority`,
+      `[voxelize-agent] could not write the low-priority browser wrapper at ${executablePath} (${describeLaunchError(
+        error,
+      )}); launching at default priority`,
     );
     return null;
   }
   return { executablePath, tier: exec.tier };
+}
+
+/**
+ * One readable line for whatever a failed launch threw. Puppeteer can reject
+ * with a plain object (a socket error event) rather than an `Error`, which
+ * `String()` turns into "[object Object]".
+ */
+export function describeLaunchError(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as { code?: unknown }).code;
+    const message = error.message.split("\n")[0];
+    return code !== undefined ? `${message} (code ${String(code)})` : message;
+  }
+  if (typeof error === "object" && error !== null) {
+    const { message, code } = error as { message?: unknown; code?: unknown };
+    if (typeof message === "string" && message !== "") {
+      const line = message.split("\n")[0];
+      return code !== undefined ? `${line} (code ${String(code)})` : line;
+    }
+    try {
+      return JSON.stringify(error) ?? String(error);
+    } catch {
+      return `unserializable ${error.constructor?.name ?? "object"}`;
+    }
+  }
+  return String(error);
 }
 
 function hashOf(value: string): string {

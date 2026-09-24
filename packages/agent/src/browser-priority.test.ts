@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  describeLaunchError,
   browserPriorityExec,
   isBrowserPriorityLowered,
   lowPriorityBrowser,
@@ -120,4 +121,28 @@ describe("lowPriorityBrowser", () => {
       expect(pri).toBe(20);
     },
   );
+});
+
+describe("describeLaunchError", () => {
+  it("keeps an Error's first line and code", () => {
+    const error = Object.assign(new Error("spawn EACCES\nstack"), {
+      code: "EACCES",
+    });
+    expect(describeLaunchError(error)).toBe("spawn EACCES (code EACCES)");
+  });
+
+  it("reads a plain object instead of printing [object Object]", () => {
+    expect(describeLaunchError({ message: "socket hang up", code: 1 })).toBe(
+      "socket hang up (code 1)",
+    );
+    expect(describeLaunchError({ type: "error", target: "ws" })).toBe(
+      '{"type":"error","target":"ws"}',
+    );
+  });
+
+  it("survives an object that cannot be serialized", () => {
+    const loop: Record<string, unknown> = {};
+    loop.self = loop;
+    expect(describeLaunchError(loop)).toBe("unserializable Object");
+  });
 });
