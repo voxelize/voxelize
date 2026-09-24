@@ -56,6 +56,7 @@ import {
   recordAgentBrowser,
   spawnBrowserWatchdog,
 } from "./browser-lifecycle";
+import { lowPriorityBrowser } from "./browser-priority";
 import {
   CaptureViewport,
   RequestedCaptureViewport,
@@ -409,6 +410,34 @@ export class Agent {
       },
     };
 
+    // The browser runs below the server and the player's browser. Like the
+    // profile below, it is a nicety: a wrapped launch that fails falls back
+    // to a plain one rather than costing the session.
+    const priority = lowPriorityBrowser(puppeteer.executablePath());
+    console.log(
+      `[voxelize-agent] browser priority: ${priority?.tier ?? "default"}`,
+    );
+    const launch = async (
+      options: typeof launchOptions & { userDataDir?: string },
+    ) => {
+      if (!priority) return puppeteer.launch(options);
+      try {
+        return await puppeteer.launch({
+          ...options,
+          executablePath: priority.executablePath,
+        });
+      } catch (error) {
+        console.error(
+          `[voxelize-agent] low-priority browser launch failed (${
+            error instanceof Error
+              ? error.message.split("\n")[0]
+              : String(error)
+          }); launching at default priority`,
+        );
+        return puppeteer.launch(options);
+      }
+    };
+
     // The profile persists per port so the client's IndexedDB creature
     // texture store (and its HTTP cache) survive from one session to the
     // next: a fresh temp profile made every join re-bake the whole roster.
@@ -417,11 +446,11 @@ export class Agent {
     const profileDir = agentProfileDir(port);
     let browser: Browser;
     if (profileDir === null) {
-      browser = await puppeteer.launch(launchOptions);
+      browser = await launch(launchOptions);
     } else {
       fs.mkdirSync(profileDir, { recursive: true });
       try {
-        browser = await puppeteer.launch({
+        browser = await launch({
           ...launchOptions,
           userDataDir: profileDir,
         });
@@ -435,7 +464,7 @@ export class Agent {
         );
         fs.rmSync(profileDir, { recursive: true, force: true });
         fs.mkdirSync(profileDir, { recursive: true });
-        browser = await puppeteer.launch({
+        browser = await launch({
           ...launchOptions,
           userDataDir: profileDir,
         });
