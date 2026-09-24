@@ -232,11 +232,11 @@ mod tests {
     #[test]
     fn method_names_lists_every_handler_under_its_dispatch_key() {
         let mut world = world("method-guard-names");
-        world.set_method_handle("Zoo:Place", |_, _, _| {});
+        world.set_method_handle("Garden:Place", |_, _, _| {});
 
         let names = world.method_names();
 
-        assert!(names.contains(&"zoo:place".to_owned()), "{names:?}");
+        assert!(names.contains(&"garden:place".to_owned()), "{names:?}");
         assert!(
             names.contains(&"vox-builtin:set-time".to_owned()),
             "{names:?}"

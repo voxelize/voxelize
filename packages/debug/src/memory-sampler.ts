@@ -118,7 +118,7 @@ export const measureUserAgentSpecificMemory: DetailedMemoryMeasurer | null =
  * The median rather than a least-squares line because the heap moves in
  * steps that are not leaks: the minute after a join fills in chunks and
  * creatures (+200 MB), the next few minutes give load scaffolding back
- * (-300 MB), and flying into a town steps the live set up once and holds.
+ * (-300 MB), and flying into a dense build steps the live set up once and holds.
  * A fitted line reports every one of those as a rate for as long as the step
  * is inside the window -- a fresh session read +20 MB/min at one minute and
  * -166 MB/min at three. The median of pairwise slopes reads a step as zero
@@ -228,8 +228,8 @@ export class MemorySampler {
 
   /** Bytes per minute the floor is rising by, or null until enough buckets
    * have completed to tell a rise from a collection that has not happened
-   * yet. Negative when the live set is shrinking. A one-off step -- a town
-   * flown into, a join's fill-in -- reads as zero once it is a small part
+   * yet. Negative when the live set is shrinking. A one-off step -- a dense
+   * build flown into, a join's fill-in -- reads as zero once it is a small part
    * of the window and the floors since have held. */
   get growthBytesPerMinute(): number | null {
     return this.publishedGrowthBytesPerMinute;

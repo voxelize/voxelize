@@ -11,7 +11,7 @@ export const LIGHT_CONES = Object.freeze({
   /**
    * Hard cap on simultaneous cones. Eight covers the intended loadout: the
    * local player's flashlight plus a scene's worth of mounted fixtures — or
-   * nearby players' flashlights and one submarine's two headlights. Emitters
+   * nearby players' flashlights and one vehicle's two headlights. Emitters
    * beyond the budget are dropped farthest-first by the game driver. Raising
    * this is not free — the shader breaks out at the live cone count, so
    * empty scenes cost nothing extra, but every scattering cone adds

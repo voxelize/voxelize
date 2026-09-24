@@ -1,0 +1,16 @@
+---
+description: Voxelize is the engine; it never knows what a game built on it contains
+alwaysApply: true
+---
+
+# The Engine Knows No Game
+
+Voxelize is a published engine. Games use and extend it; the engine never knows what they contain: which blocks, items, creatures or worlds exist, what a game calls its features, or where a consumer keeps its files.
+
+- never name a consumer's blocks, items, creatures, worlds or game terms — not in code, tests, fixtures, comments or docs. Neutral fixtures (`walker`, `scoreboard`, `Crate`) test the same thing.
+- never branch on a literal block name in engine source (`block.name == "Chest"`, `getBlockByName("Water")`). Engine logic reads block properties; a behaviour only one game wants becomes a property or a hook the game registers.
+- never import, include or path into a consumer's tree (`../core`, `../client`, `@/`). The dependency points one way.
+- tuning that suits one game's content (water colour, fog, sky, budgets, env var names) is a default the consumer can override, never a frozen constant or a name borrowed from the consumer.
+- the fix is always one of two: move it to the consumer, or turn it into an extension point (config, hook, registry) the consumer fills in.
+
+`node scripts/engine-boundary/check.mjs` enforces this, in voxelize CI against the consumer's hashed vocabulary and in the consumer's CI against its live one. A legitimate hit (attribution, a module's own neutrality test) goes in `scripts/engine-boundary/excuses.json` with a reason; debt carries an `until` naming the work that removes it. Workflow, patterns and the periodic pass: the `voxelize-engine-boundary` skill.

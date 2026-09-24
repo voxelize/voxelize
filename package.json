@@ -24,6 +24,8 @@
     "bench:gen": "cargo bench -p voxelize-gen --bench gen_bench",
     "bench:report": "open target/criterion/report/index.html",
     "check": "cargo check --workspace --all-targets",
+    "check:boundary": "node scripts/engine-boundary/check.mjs",
+    "test:boundary": "node --test scripts/engine-boundary/check.test.mjs",
     "lint": "eslint --fix --ext js,ts,tsx .",
     "docs": "cd docs && pnpm run start",
     "proto": "cd packages/protocol && pnpm run proto",

@@ -10,8 +10,8 @@ const VOXEL = "188|66|-404";
 
 const ticker = (symbol: string) => ({
   id: "ticker-1",
-  data: { type: "stock-ticker", symbol } as Payload,
-  etype: "block::stock ticker",
+  data: { type: "scoreboard", symbol } as Payload,
+  etype: "block::scoreboard",
   operation: "UPDATE" as const,
 });
 

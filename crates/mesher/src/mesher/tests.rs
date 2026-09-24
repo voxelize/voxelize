@@ -42,7 +42,7 @@ fn opaque_lava_does_not_erase_the_stone_wall_above_its_lowered_surface() {
 
 #[test]
 fn rotated_solid_keeps_exposed_faces_and_culls_only_its_actual_neighbors() {
-    let mut solid = plain_block(1, "Rotating hearth");
+    let mut solid = plain_block(1, "Rotating block");
     solid.is_opaque = true;
     solid.y_rotatable = true;
     solid.faces = six_faces();

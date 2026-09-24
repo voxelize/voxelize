@@ -407,7 +407,7 @@ fn set_current_thread_priority(request: PriorityRequest) -> Result<(), String> {
 /* -------------------------------------------------------------------------- */
 
 /// Engine jobs queued or running on the worker pools. Rayon exposes no queue
-/// depth, so each engine spawn site counts its own jobs in and out. Town's
+/// depth, so each engine spawn site counts its own jobs in and out. A host's
 /// own planners that spawn onto the global pool are not counted.
 pub(crate) static WORLDGEN_INFLIGHT: AtomicUsize = AtomicUsize::new(0);
 pub(crate) static ENCODE_INFLIGHT: AtomicUsize = AtomicUsize::new(0);

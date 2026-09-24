@@ -1,0 +1,25 @@
+---
+description: A texture is drawn at one density on both axes of every face — block builders and entity painters alike
+globs: server/world/voxels/**,crates/core/**,crates/mesher/**,packages/core/src/libs/**
+alwaysApply: false
+---
+
+# Uniform Texel Density
+
+a texture is drawn at one density — texels per world block — and every face shows that density on both of its axes. a face 0.7 x 0.12 blocks shows an 11 x 2 texel slice of its texture; a 0.3-wide culm shows five columns, not sixteen crushed into five. the whole image squashed over a partial face reads as a smear or a stripe and gets called out on sight.
+
+## blocks
+
+- any `six_faces()` builder that scales or offsets a face takes `auto_uv_offset(true)` (or an explicit `uv_scale_*`/`uv_offset_*`). it makes the face's UVs equal its world extents, so it samples the matching sub-rectangle. cross quads (`diagonal_faces`) scale the whole sprite uniformly and are exempt.
+- author those textures in world position: sides `img_x = 16·world_x`, `img_row = 16 − 16·world_y`; ends `img_x = 16·world_x`, `img_row = 16 − 16·world_z`. fill the tile with the material, put rims/creases/seams where the face's window is.
+- two parts of one block overlap by a few hundredths — coplanar faces z-fight.
+- solid faces are opaque; a transparent texel on the opaque chunk material renders black.
+- a consumer's registry-wide test (UV span vs world span per axis) is the enforcement; a face whose texture is drawn for exactly that face (a screen, a painting) is the only honest excuse.
+
+## entities
+
+- instanced parts paint with `paintPartFacesAtDensity` / `faceTexelSize` (`packages/core/src/libs/instancing/face-density.ts`) under one `TexelDensity` for the whole roster: each face's texel count follows its world size. a fixed-cell painter that stretches one square cell over every face squashes every non-cube part.
+- `CanvasBox` takes `texelsPerBlock` (`libs/canvas-box.ts`), which derives all three segment counts from the box's dimensions; without it every axis gets `widthSegments` pixels and a non-cube box is squashed. every new `new CanvasBox({...})` passes `texelsPerBlock` or all of `widthSegments`/`heightSegments`/`depthSegments`.
+- paint all six faces of every part; an unpainted face renders white.
+
+when a density test fails, the fix is the builder flag or the density painter, not a wider tolerance and not a new excuse — unless the texture really is drawn for that one face.

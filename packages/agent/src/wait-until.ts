@@ -3,7 +3,7 @@ export type WaitOp = "eq" | "ne" | "gt" | "lt" | "contains";
 export type WaitValue = string | number | boolean | null;
 
 export type WaitPredicate = {
-  /** Dot path resolved from the snapshot root, e.g. `metadata.swimComp.state.type`. */
+  /** Dot path resolved from the snapshot root, e.g. `metadata.moveComp.state.type`. */
   path: string;
   op: WaitOp;
   value: WaitValue;

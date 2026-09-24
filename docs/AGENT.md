@@ -129,15 +129,15 @@ When documenting a class or feature:
 
 ### Key Source Locations
 
-| Feature    | Typical host-game module        | Source Code                             |
-| ---------- | ------------------------------- | --------------------------------------- |
-| Characters | `client/src/core/peers.ts`      | `packages/core/src/libs/character.ts`   |
-| Entities   | `client/src/core/entities/*.ts` | `packages/core/src/libs/entities.ts`    |
-| Peers      | `client/src/core/peers.ts`      | `packages/core/src/libs/peers.ts`       |
-| World      | N/A                             | `packages/core/src/core/world/index.ts` |
-| Blocks     | `client/src/core/blocks.ts`     | `packages/core/src/core/world/`         |
-| Events     | Used in components              | `packages/core/src/libs/events.ts`      |
-| Methods    | Used in components              | `packages/core/src/libs/method.ts`      |
+| Feature    | Where a host game uses it           | Source Code                             |
+| ---------- | ----------------------------------- | --------------------------------------- |
+| Characters | its peer and player setup           | `packages/core/src/libs/character.ts`   |
+| Entities   | one class per entity type           | `packages/core/src/core/entities.ts`    |
+| Peers      | its peer and player setup           | `packages/core/src/core/peers.ts`       |
+| World      | N/A                                 | `packages/core/src/core/world/index.ts` |
+| Blocks     | its block texture registration      | `packages/core/src/core/world/`         |
+| Events     | UI and gameplay components          | `packages/core/src/core/events.ts`      |
+| Methods    | UI and gameplay components          | `packages/core/src/core/method.ts`      |
 
 ## Updating Documentation
 
@@ -146,7 +146,7 @@ When documenting a class or feature:
 The API reference is auto-generated but often lacks good examples. To improve:
 
 1. Read the source in `packages/core/src/`
-2. Find real usage in `client/src/core/` or `client/src/components/`
+2. Find real usage in a host game's client, if you are writing from inside one
 3. Add a practical example to the class's JSDoc in the source file
 4. The TypeDoc plugin will include it in the generated docs
 

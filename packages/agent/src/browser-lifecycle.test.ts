@@ -40,8 +40,8 @@ describe("resolveIdleTtlMs", () => {
   });
 
   it("pins the idle exit code the pm2 session wiring depends on", () => {
-    // scripts/agent-reap.mjs mirrors this value for --stop-exit-codes; the
-    // session-port smoke asserts the end-to-end behavior.
+    // A host's reaper mirrors this value for its supervisor's stop-exit-codes,
+    // and its session smoke asserts the end-to-end behavior.
     expect(IDLE_TTL_EXIT_CODE).toBe(66);
   });
 });

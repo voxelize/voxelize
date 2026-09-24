@@ -144,7 +144,7 @@ describe("MemorySampler trend", () => {
     expect(sampler.trendSpanMs).toBe(60_000);
   });
 
-  /** Flying into a town: +200 MB over 30 s starting at 10 s, then flat. */
+  /** Flying into a dense build: +200 MB over 30 s starting at 10 s, then flat. */
   const stepUp = (nowMs: number) =>
     Math.min(200 * MB, Math.max(0, nowMs - 10_000) * ((200 * MB) / 30_000));
 

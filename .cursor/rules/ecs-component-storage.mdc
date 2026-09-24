@@ -1,0 +1,17 @@
+---
+description: specs storage classes are a per-entity memory decision, and VecStorage is the wrong default for most components
+globs: server/**/*.rs,examples/server/**/*.rs
+alwaysApply: false
+---
+
+# Component Storage Is A Memory Decision
+
+`#[storage(...)]` is not boilerplate to copy off the component above. `VecStorage<T>` reserves `size_of::<T>()` for **every entity index in the world**, not for the entities that actually carry the component — so a 528-byte behavior component on one creature family also costs 528 bytes on every arrow, every dropped item, and every player. copied downward file by file, that default once totalled about 10 KB of dead space per entity slot across the roster.
+
+choose by size, because size decides the crossover:
+
+- **`DenseVecStorage` for anything above roughly 24 bytes.** dense pays a 4-byte lookup slot per entity plus packed data per holder, so it wins whenever a component sits on fewer than `(S-4)/(S+4)` of all entity slots. at 528 bytes that break-even is 98.5% — no creature component comes close. behavior, state, config, and debug components are all dense.
+- **`VecStorage` at 8 bytes or under.** scalar newtypes and small enums stay sparse: dense's index table costs as much as the data it points at, so packing buys nothing and adds an indirection.
+- **`NullStorage` for marker flags, always, and never delete one.** a zero-sized flag is the cheapest join filter that exists — `(&flags, &mut bodies).join()` visits only flagged entities. folding a flag into a bool field on some other component forces every system to visit every entity and reject most of them, and costs a byte per entity slot for the privilege.
+
+a component that nothing reads still costs its storage slot on every entity, and reads to the next author as though the data were live, so delete it rather than leaving it registered. a consumer can make that a test (every registered component has a reader).

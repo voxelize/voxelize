@@ -11,6 +11,7 @@ import {
   isBrowserPriorityLowered,
   lowPriorityBrowser,
 } from "./browser-priority";
+import { agentCacheDir } from "./cache-dir";
 
 const scratchDirs: string[] = [];
 function scratchDir(): string {
@@ -26,20 +27,25 @@ afterEach(() => {
 });
 
 describe("isBrowserPriorityLowered", () => {
-  it("lowers by default and honours either opt-out", () => {
+  it("lowers by default and honours the opt-out", () => {
     expect(isBrowserPriorityLowered({})).toBe(true);
-    expect(isBrowserPriorityLowered({ AGENT_BROWSER_PRIORITY: "normal" })).toBe(
-      false,
-    );
-    expect(isBrowserPriorityLowered({ TOWN_DEV_PRIORITY: " Normal " })).toBe(
-      false,
-    );
     expect(
-      isBrowserPriorityLowered({
-        AGENT_BROWSER_PRIORITY: "low",
-        TOWN_DEV_PRIORITY: "normal",
-      }),
-    ).toBe(true);
+      isBrowserPriorityLowered({ AGENT_BROWSER_PRIORITY: " Normal " }),
+    ).toBe(false);
+    expect(isBrowserPriorityLowered({ AGENT_BROWSER_PRIORITY: "low" })).toBe(
+      true,
+    );
+  });
+});
+
+describe("agentCacheDir", () => {
+  it("defaults under the home cache and honours AGENT_CACHE_DIR", () => {
+    expect(agentCacheDir({})).toBe(
+      path.join(os.homedir(), ".cache", "voxelize-agent"),
+    );
+    expect(agentCacheDir({ AGENT_CACHE_DIR: " /tmp/agents " })).toBe(
+      "/tmp/agents",
+    );
   });
 });
 

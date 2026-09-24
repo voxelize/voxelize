@@ -1,0 +1,18 @@
+---
+description: The headless agent (packages/agent) is production-critical infrastructure; lifecycle invariants and measurement honesty
+globs: packages/agent/**
+alwaysApply: false
+---
+
+# Agent Harness Hardening
+
+the headless agent is the only way most defects get seen at all, so it is production-critical infrastructure, not a test toy.
+
+- a nonessential failure must never block the bridge from installing. a missing texture, a failed cosmetic load, a dead optional endpoint — none of those may take down startup or observation, because an agent that cannot start cannot report why anything else is broken.
+- ship a smoke test or a measurement script for any new capability, and run it against a real client and server. never mock world state, entity rendering, or frame-rate measurement; a mocked measurement is worse than none because it reports a number.
+- preserve exact repro inputs in the test: world name, camera position, lookAt, warmup time, duration, pass/fail thresholds. a smoke test that has drifted off its repro no longer tests the bug it was written for.
+- session lifecycle invariant: a browser must never outlive its daemon (a detached watchdog covers `kill -9`, tested exactly that way in the smoke), and an idle daemon expires after its ttl (default 30m; `AGENT_IDLE_TTL_MS=0` is the deliberate long-lived escape hatch, exempt from reap). a host's reaper is cleanup for machinery that broke, not the design; every expiry, watchdog kill and reap logs what died and why.
+- sessions run as plain detached processes — never register a daemon in pm2 or any auto-restarting supervisor. supervision inverts the lifecycle tie into a browser-resurrection machine: kill the browser and the daemon exits, the supervisor relaunches the daemon, a fresh browser appears, indefinitely (pm2's restart counter resets on slow boots, so `--max-restarts` never trips; one port logged 123 restarts this way). kill ordering is daemon-first, always: signal the daemon and let it (or its watchdog) take the browser down — a daemon must never resurrect a browser it did not deliberately restart, and killing the browser of a live daemon is never correct.
+- the package names nothing about its host: cache paths come from `AGENT_CACHE_DIR`, priority from `AGENT_BROWSER_PRIORITY`, the arena's server methods from `ArenaOptions.methods`, and anything game-specific goes through `Arena.call` or a spawn `payload`.
+
+when reporting an agent failure, give the operator what they need to act: the world, the command that starts the daemon, the observed page error, the screenshot path, and FPS/frame-time numbers where they exist. the `voxelize-agent-harness` skill covers the daemon, bridge and scenario SDK.

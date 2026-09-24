@@ -1,0 +1,25 @@
+---
+description: The server is authoritative and clients render replicated state; the engine's replication lanes and when to use each
+globs: server/**,packages/core/src/core/**,examples/**
+alwaysApply: false
+---
+
+# Server Authority And The Replication Lanes
+
+authoritative state lives on the server in ECS components/resources — never only in client memory. a feature that exists in one browser session but is invisible in a second session does not exist.
+
+replicate through the engine's lanes:
+
+- **continuous per-entity state**: a server component projected into `MetadataComp` by a metadata system; clients read it off the entity's replicated metadata. per-player state rides peer metadata the same way.
+- **one-shot effects (VFX/SFX)**: server systems dispatch `Event`s with a `ClientFilter` (`All`, `Direct`, `Include`, `Exclude`); clients subscribe with `events.on(name, handler)`.
+- **simulated objects**: server-owned entities built by a loader (`world.set_entity_loader`), streamed as entity messages; the client registers one class per type (`entities.setClass`).
+- **intent**: state-machine inputs and transactional flows go up as methods (`method.call(name, payload)` → `world.set_method_handle`); the server validates and drives the outcome. every inbound method passes the world's method guard first.
+- **terrain edits**: clients write through `world.updateVoxel` / `world.updateVoxels`; their `UPDATE` packets enter the server's chunk-update queue, then persist and replicate. server systems write through `Chunks::update_voxel`.
+
+the client is a renderer of replicated state. client-only code is for the local player's own prediction and feel (reconciled against server state), purely cosmetic effects derived from replicated events, and UI.
+
+do not pair a client voxel update with a method that writes the same voxel: that creates two competing mutations. use a method instead when the mutation must commit atomically with other gameplay state (payment, drops, damage, permissions), with any local prediction marked as server-sourced so it is not sent twice.
+
+definition of done: two simultaneous sessions (two browsers, or the headless agent plus a browser). if the second session cannot see the feature, it is not done.
+
+server-side code follows ECS: logic in systems, data in components, shared state in resources; no entity creation or state mutation outside the dispatcher cycle (`LazyUpdate` defers creation inside a system). tunables live in component fields, config structs or constructor parameters, never as magic numbers in a system.

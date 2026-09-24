@@ -1,0 +1,15 @@
+---
+description: Server meshing (crates/mesher) and client remeshing (mesh-worker.ts over the wasm mesher) must agree exactly
+globs: crates/mesher/**,crates/wasm-mesher/**,packages/core/src/core/world/workers/mesh-worker.ts,server/world/voxels/block/**
+alwaysApply: false
+---
+
+# Mesher Parity
+
+on load a client receives chunk meshes computed by the server's mesher (`crates/mesher`); after an edit it remeshes locally: mesh-worker is the client-side worker that handles remeshing (`packages/core/src/core/world/workers/mesh-worker.ts`), and on reload we load in the server-side mesh computed by the mesher. if the two disagree, a chunk changes appearance the moment it is re-meshed locally, which reads as a rendering bug rather than a parity bug.
+
+the worker meshes through the wasm build of the same crate (`@voxelize/wasm-mesher`, `mesh_chunk_fast`), so parity has two halves:
+
+- **the wasm mesher must be rebuilt** when the Rust mesher changes (`pnpm build:wasm`, or `pnpm watch:wasm` while iterating). a stale `pkg/` meshes with last week's rules while the server uses today's.
+- **every block field the mesher reads must reach the worker.** `convertRegistryToWasm` in `mesh-worker.ts` hand-copies the registry into `WasmBlock`; a field added to the Rust block that is not copied there defaults on the client (`?? false`, `?? 0`), and the local remesh silently ignores it. add the field on both sides in the same change.
+- anything the worker does around the wasm call (packing, lights, fluid runs) mirrors the server's path. change one, change the other, and test the edge in `crates/mesher/src/mesher/tests.rs`.

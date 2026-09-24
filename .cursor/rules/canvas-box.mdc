@@ -1,0 +1,38 @@
+---
+description: CanvasBox dimension mapping gotcha - width/depth are swapped from intuition
+globs:
+  - "packages/core/src/libs/**/*.ts"
+  - "examples/client/src/**/*.ts"
+---
+
+# VOXELIZE.CanvasBox Dimension Mapping
+
+`CanvasBox` constructor parameters map to local axes **counterintuitively**:
+
+| Parameter | Actual Local Axis |
+| --------- | ----------------- |
+| `width`   | Z (depth/length)  |
+| `height`  | Y (vertical)      |
+| `depth`   | X (thickness)     |
+
+authored from intuition, the box comes out rotated a quarter turn about Y and every face painter lands on the wrong side — which reads as a broken texture rather than as swapped dimensions, so it gets debugged in the painter for a while first.
+
+## Example
+
+a fish body that is thin on X (side to side), medium on Y, long on Z (front to back):
+
+```typescript
+new VOXELIZE.CanvasBox({
+  width: 0.3, // maps to Z (length)
+  height: 0.14, // maps to Y (height)
+  depth: 0.06, // maps to X (thickness)
+});
+```
+
+## Face painting
+
+face names (`px`, `nx`, `py`, `ny`, `pz`, `nz`) refer to the **actual** local axes after the swap:
+
+- `px`/`nx`: left/right sides (perpendicular to X)
+- `py`/`ny`: top/bottom (perpendicular to Y)
+- `pz`/`nz`: front/back (perpendicular to Z)

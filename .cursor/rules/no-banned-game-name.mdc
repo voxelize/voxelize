@@ -1,0 +1,14 @@
+---
+description: The name of the block-building game every voxel engine gets compared to must never appear in this repo
+alwaysApply: true
+---
+
+# The Banned Game Name
+
+the name of the block-building game every voxel engine gets compared to must not appear anywhere in this repo — not in code, type names, comments, docs prose, changelog copy, asset briefs, or commit messages. this is legal exposure, not style: this is a published package, and a match inside it gets the project banned.
+
+there is no attribution exception here. TypeDoc bakes the engine README into the generated API pages, so a link that looks like it sits in an unpublished README ships anyway.
+
+say "voxel game", "voxel engines", or "Voxelize" instead, and name the mechanic instead of the game it came from: "subchunk random-tick sampler", not "<that game>-style random ticks". a struct named after the game is the same violation as a comment, and a worse one, because renaming a public type later is a breaking change nobody wants to make under pressure.
+
+the engine-boundary gate (`node scripts/engine-boundary/check.mjs`) carries the name as a digest and fails on it as a whole word, in any casing, in voxelize's own CI; a consumer's CI can also scan the submodule for it as a substring. check inherited code you are about to touch: any hit is a defect. fix it if it is in your reach, and say so out loud if it is not — a violation somebody else introduced is still a violation once you have seen it.

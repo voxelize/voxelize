@@ -1,0 +1,41 @@
+---
+description: How entities, instanced pools and particles take voxel light, and the flat-bone chaining instanced skeletons need
+globs: packages/core/src/core/world/entity-light*.ts,packages/core/src/libs/**,packages/particles/**
+alwaysApply: false
+---
+
+# Entity And Particle Lighting Paths
+
+every lit thing that is not chunk geometry samples the voxel light field at its own position and composes it the same way the chunk shader does, or it glows in caves and stays bright at dusk.
+
+- **meshes the engine owns** (characters, arms, name tags, props): `LightShined` scales a mesh by the voxel light where it stands. `markSelfIlluminated(material)` opts an emitter out, so a lamp lens or screen is not dimmed by the dark it lights.
+- **instanced pools**: sample per instance with the entity light path (`packages/core/src/core/world/entity-light.ts`: the sample shape and `composeEntityLight`) and write the colour into the pool's per-instance light attribute. never add instanced entities to `LightShined`: it walks mesh materials, not instances.
+- **particles**: `packages/particles/src/block-light.ts` computes the same composition on the CPU (sun, torch channels, water extinction) because particles are unlit. its constants mirror `WATER_OPTICS` and the chunk shader; change one, change the other, and keep a parity test on both.
+- shadows and fog: instanced materials take the shared entity shadow and fog uniform blocks rather than one copy per variant, so a frame's lighting is copied once.
+
+## instanced skeletons use flat bones
+
+instanced skeletons (`BoneTextureManager` + an instanced skinned material) use FLAT bones: the shader applies each bone's matrix independently about that bone's `pivotOffset` (`out = pivot + M * (v - pivot)`). there is NO parent-child inheritance.
+
+any bone that is anatomically attached to an animated parent bone MUST be chained manually, or it will detach visually when the parent moves (head accessories under a head-look, multi-segment limbs, segment chains). For a child bone carried by a parent rotation, the child's bone matrix is:
+
+```
+M_child = T(parentPivot - childPivot) * R_parent * T(childPivot - parentPivot) * R_childLocal
+```
+
+In THREE:
+
+```typescript
+this.tempMatrix2.makeRotationX(childLocalAngle);
+this.tempMatrix3.makeTranslation(dx, dy, dz); // parentPivot - childPivot
+this.tempMatrix3.multiply(parentRotMatrix);
+this.tempMatrix4.makeTranslation(-dx, -dy, -dz);
+this.tempMatrix3.multiply(this.tempMatrix4);
+this.tempMatrix3.multiply(this.tempMatrix2);
+pool.setBoneMatrix(slot, childBone, this.tempMatrix3);
+```
+
+- Keep the parent's rotation matrix in a dedicated field (e.g. `headRotMatrix`) instead of a reused temp, so child chaining reads the exact matrix that was uploaded.
+- Compute pivot offsets from the builder's layout, not from re-derived constants. Export a helper from the builder so geometry and animation can never drift apart, and account for size variants.
+- For longer chains (3+ segments), use an accumulated matrix multiplied segment by segment.
+- When adding a new attached part to an existing entity, check every parent animation channel (head-look, body sway, hip swing) and chain under all of them that move the attachment point.

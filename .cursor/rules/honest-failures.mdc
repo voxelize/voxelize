@@ -1,0 +1,26 @@
+---
+description: Work queues never drop entries silently, and APIs never return plausible-but-meaningless values
+alwaysApply: true
+---
+
+# Fail Loudly, Never Plausibly
+
+two defect shapes cost far more to find than to prevent, because both produce output that looks correct.
+
+## a work queue must never drop an entry in silence
+
+`ChunkSavingSystem` popped a coordinate off the save queue, found the chunk was not `Ready`, and discarded it — no retry, no log. purely generated chunks therefore never persisted at all, indefinitely, and nothing anywhere said so. the ordering bug that stranded them was one defect; the silence was a second, independent one, and it is the reason the first survived so long.
+
+when you pop work you cannot complete right now, pick one of these out loud:
+
+- **don't enqueue it** — if it was never meant to be written, keep it out of the queue in the first place;
+- **put it back**, with a bounded attempt count;
+- **drop it and `error!`**, naming the entry and what was lost.
+
+there is no fourth option. an entry that can vanish without a trace is a defect on its own terms, whatever ordering bug put it there. the chunk pipeline's queues (generation, meshing, lighting, updates, saves) are where this matters most.
+
+## an api must not return a plausible-but-meaningless value
+
+a value that is well-formed, in range, and computed from nothing (a default standing in for "unknown", a ratio over a zero volume) is a lie a test can sit red on for a long time while it looks like a stale threshold.
+
+make the wrong thing unrepresentable instead of defaulting past it: prefer `Option`/`Result` to a sentinel, and two types to one type with a field that is sometimes garbage, so a caller that lacks the input cannot be handed an answer.

@@ -35,17 +35,17 @@ export type BlockInfo = {
 
 /**
  * The server methods an arena drives. The SDK owns this contract: a host
- * server implements these five methods under the default names, or maps
+ * server implements these four methods under the default names, or maps
  * them to its own through `ArenaOptions.methods`. Nothing here assumes a
- * particular game's block set or world.
+ * particular game's block set or world; anything game-specific goes through
+ * `Arena.call`.
  *
  * - `fill`: `{ min, max, block, rotation?, yRotation?, stage? }` writes a box
  *   of one block (name or "air").
- * - `spawn`: `{ kind, position, scenarioId, metadata?, waterSeekChance? }`
- *   creates a scenario-owned entity.
+ * - `spawn`: `{ kind, position, scenarioId, metadata?, ...payload }` creates
+ *   a scenario-owned entity; `SpawnOptions.payload` carries host-defined
+ *   fields.
  * - `despawn`: `{ scenarioId }` removes every entity the scenario spawned.
- * - `forceWaterSeek`: `{ scenarioId }` pushes the scenario's entities into
- *   their water-seeking behaviour.
  * - `announce`: `{ name, arenaIndex, event }` broadcasts a scenario
  *   lifecycle marker for observers.
  */
@@ -53,7 +53,6 @@ export type ArenaMethodNames = {
   fill: string;
   spawn: string;
   despawn: string;
-  forceWaterSeek: string;
   announce: string;
 };
 
@@ -61,7 +60,6 @@ export const DEFAULT_ARENA_METHODS: ArenaMethodNames = {
   fill: "test:fill",
   spawn: "test:spawn",
   despawn: "test:despawn",
-  forceWaterSeek: "test:force-water-seek",
   announce: "test:announce",
 };
 
@@ -76,7 +74,8 @@ export type ArenaOptions = {
 
 export type SpawnOptions = {
   metadata?: Record<string, boolean | number | string | null>;
-  waterSeekChance?: number;
+  /** Extra host-defined fields merged into the spawn payload. */
+  payload?: Record<string, boolean | number | string | null>;
 };
 
 // Match the CLI's daemon resolution: explicit AGENT_URL beats AGENT_PORT
@@ -224,6 +223,7 @@ export class Arena {
     opts: SpawnOptions = {},
   ): Promise<EntityHandle> {
     const payload: Record<string, unknown> = {
+      ...opts.payload,
       kind,
       position: this.worldPos(rel),
       scenarioId: this.scenarioId,
@@ -231,21 +231,12 @@ export class Arena {
     if (opts.metadata) {
       payload.metadata = opts.metadata;
     }
-    if (opts.waterSeekChance !== undefined) {
-      payload.waterSeekChance = opts.waterSeekChance;
-    }
     await this.call(this.methods.spawn, payload);
     return new EntityHandle(this, kind, rel);
   }
 
   async despawn(): Promise<void> {
     await this.call(this.methods.despawn, { scenarioId: this.scenarioId });
-  }
-
-  async forceWaterSeek(): Promise<void> {
-    await this.call(this.methods.forceWaterSeek, {
-      scenarioId: this.scenarioId,
-    });
   }
 
   async announce(

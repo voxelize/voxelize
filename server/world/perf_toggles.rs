@@ -4,7 +4,7 @@
 //! these, on by default, so its cost can be A/B tested inside one running
 //! core: flip it, measure, flip it back, under the same host load and the
 //! same world state. A switch is read with one relaxed atomic load per use.
-//! Town exposes them at `GET/POST /perf/toggles`.
+//! A host can expose them over HTTP (e.g. `GET/POST /perf/toggles`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

@@ -10,22 +10,22 @@ import {
 describe("resolvePath", () => {
   const entity = {
     id: "e1",
-    kind: "penguin",
+    kind: "wader",
     metadata: {
-      swimComp: { state: { type: "swimming", target: [1, 2, 3] } },
+      moveComp: { state: { type: "swimming", target: [1, 2, 3] } },
       depthPref: ["middle"],
       health: { current: 6, max: 6 },
     },
   };
 
   it("resolves nested dot paths", () => {
-    expect(resolvePath(entity, "metadata.swimComp.state.type")).toBe(
+    expect(resolvePath(entity, "metadata.moveComp.state.type")).toBe(
       "swimming",
     );
   });
 
   it("indexes arrays with numeric segments", () => {
-    expect(resolvePath(entity, "metadata.swimComp.state.target.1")).toBe(2);
+    expect(resolvePath(entity, "metadata.moveComp.state.target.1")).toBe(2);
     expect(resolvePath(entity, "metadata.depthPref.0")).toBe("middle");
   });
 
@@ -93,20 +93,20 @@ describe("matchesPredicate", () => {
 
 describe("filterWaitCandidates", () => {
   const entities = [
-    { id: "a", kind: "penguin" },
-    { id: "b", kind: "emperor-penguin" },
-    { id: "c", kind: "shark" },
+    { id: "a", kind: "wader" },
+    { id: "b", kind: "giant-wader" },
+    { id: "c", kind: "diver" },
   ];
 
   it("matches kind as case-insensitive substring", () => {
-    expect(filterWaitCandidates(entities, { kind: "PENGUIN" })).toHaveLength(2);
-    expect(filterWaitCandidates(entities, { kind: "shark" })).toHaveLength(1);
+    expect(filterWaitCandidates(entities, { kind: "WADER" })).toHaveLength(2);
+    expect(filterWaitCandidates(entities, { kind: "diver" })).toHaveLength(1);
   });
 
   it("matches entityId exactly and combines with kind", () => {
     expect(filterWaitCandidates(entities, { entityId: "b" })).toHaveLength(1);
     expect(
-      filterWaitCandidates(entities, { entityId: "c", kind: "penguin" }),
+      filterWaitCandidates(entities, { entityId: "c", kind: "wader" }),
     ).toHaveLength(0);
   });
 });

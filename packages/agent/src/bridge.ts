@@ -28,9 +28,9 @@ export type BlockInfo = {
   yRotation: number;
   sunlight: number;
   torchLight: number;
-  /** Replicated block-entity JSON for `is_entity` blocks (signs, baskets,
-   * wave makers), null when the voxel carries none. Lets tests assert on
-   * replicated state (e.g. a basketball basket's scores). */
+  /** Replicated block-entity JSON for `is_entity` blocks (signs, scoreboards,
+   * machines), null when the voxel carries none. Lets tests assert on
+   * replicated state (e.g. a scoreboard's scores). */
   entityData?: Record<string, string | number | boolean | object | null> | null;
 };
 

@@ -1,0 +1,88 @@
+{
+  "$comment": "Engine-boundary hits that are legitimate, one entry per path (a trailing slash covers a directory). \"terms\" lists the phrases excused there (omit it to excuse every term, rarely right); \"rule\" names a non-term rule. Every entry needs a reason. An entry marked \"until\" is debt: it names the work that removes it, and the gate lists it on every run. An entry that stops matching anything fails the gate, so delete it the moment its hits are gone.",
+  "excuses": [
+    {
+      "path": "README.md",
+      "terms": ["town", "create town", "hub2", "axolotl", "dragon", "capybara", "golem", "mars"],
+      "reason": "the showcase section credits the production world built on the engine and captions its screenshots; attribution, not engine behaviour"
+    },
+    {
+      "path": "assets/",
+      "terms": ["town", "hub2", "zoo", "axolotl", "dragon", "capybara", "golem", "mars", "ashvulture"],
+      "reason": "file names of the README showcase screenshots, which depict the production world"
+    },
+    {
+      "path": "docs/src/pages/index.tsx",
+      "terms": ["town", "create town"],
+      "reason": "the docs landing page links the live showcase world"
+    },
+    {
+      "path": "notes/",
+      "terms": ["town"],
+      "reason": "engine design notes that record which production consumer drove a design and what it measured; history, never shipped in a package"
+    },
+    {
+      "path": "server/world/fixed_step.rs",
+      "terms": ["nightfall", "matchmaking"],
+      "reason": "the module's own engine-neutrality test lists the game concepts it must never contain"
+    },
+    {
+      "path": "server/world/lag_comp.rs",
+      "terms": ["nightfall", "matchmaking"],
+      "reason": "the module's own engine-neutrality test lists the game concepts it must never contain"
+    },
+    {
+      "path": "server/world/registry.rs",
+      "rule": "block-name-literal",
+      "reason": "Air is the engine's own built-in block (id 0), registered by the engine itself"
+    },
+    {
+      "path": "server/world/systems/chunk/updating.rs",
+      "rule": "block-name-literal",
+      "until": "the chunk-updating workstream lands; then chest pairing becomes a registry hook",
+      "reason": "double-chest pairing is keyed on the block named Chest; it becomes a pairing rule the consumer registers (see the voxelize-engine-boundary skill)"
+    },
+    {
+      "path": "server/perf.rs",
+      "terms": ["town"],
+      "until": "the perf A/B workstream finishes; then VOXELIZE_PERF_LOG / VOXELIZE_PERF_DIR and perfTraceId replace the consumer-named contract",
+      "reason": "perf tracing reads consumer-named env vars and a consumer-named trace key; renaming them mid-measurement would silently stop a live perf run"
+    },
+    {
+      "path": "server/world/systems/broadcast.rs",
+      "terms": ["town"],
+      "until": "the perf A/B workstream finishes (perfTraceId rename)",
+      "reason": "writes the consumer-named perf trace key"
+    },
+    {
+      "path": "server/world/systems/entity/sending.rs",
+      "terms": ["town"],
+      "until": "the perf A/B workstream finishes (perfTraceId rename)",
+      "reason": "writes the consumer-named perf trace key"
+    },
+    {
+      "path": "server/world/replication/mod.rs",
+      "terms": ["town"],
+      "until": "the perf A/B workstream finishes (VOXELIZE_PERF_LOG rename)",
+      "reason": "a doc comment names the consumer-named perf env var"
+    },
+    {
+      "path": "packages/core/src/core/perf.ts",
+      "terms": ["town"],
+      "until": "the perf A/B workstream finishes (perfTraceId rename)",
+      "reason": "reads the consumer-named perf trace key"
+    },
+    {
+      "path": "packages/agent/src/perf.ts",
+      "terms": ["town"],
+      "until": "the perf A/B workstream finishes (VOXELIZE_PERF_LOG rename)",
+      "reason": "reads the consumer-named perf env vars"
+    },
+    {
+      "path": "scripts/analyze-replication-perf.mjs",
+      "terms": ["town"],
+      "until": "the perf A/B workstream finishes (VOXELIZE_PERF_LOG rename)",
+      "reason": "a comment names the consumer-named perf env var"
+    }
+  ]
+}

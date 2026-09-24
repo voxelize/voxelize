@@ -1,0 +1,25 @@
+---
+description: Chunk pipeline invariants — saved chunks short-circuit worldgen, edits commit over ticks, and every queue accounts for what it drops
+globs: server/world/**,crates/gen/**,examples/server/**
+alwaysApply: false
+---
+
+# Chunk Pipeline Invariants
+
+## a saved chunk short-circuits worldgen forever
+
+`try_load` wins over generation. a chunk that exists on disk is read back verbatim and the pipeline never runs for it, so a worldgen change only ever affects ground nobody has visited yet. a consumer once shipped a world whose spawn was void for 17 months because its saves predated a worldgen stage: every fresh world looked right, and the one people actually played did not.
+
+so when you touch worldgen or the pipeline's stages:
+
+- verify in a **saved** world that has already been walked through, not only in a fresh one.
+- state in your report that existing saves will not pick the change up, and name what would have to be regenerated or deleted for them to.
+- never conclude a stage is broken from a saved world alone. check whether the save predates the stage before you go looking for the bug in the stage.
+
+## edits commit over ticks
+
+bulk voxel updates drain at `max_updates_per_tick` per world tick, so an acknowledged fill is not yet a landed fill. tests and tools gate on reading the voxel back, never on the send.
+
+## queues account for everything they pop
+
+generation, lighting, meshing, update and save queues follow `honest-failures`: an entry that cannot be completed now is kept out, put back with a bounded count, or dropped with an `error!` naming it. a silent drop is a defect even when it is "only" a cache.

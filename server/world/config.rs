@@ -257,7 +257,7 @@ const DEFAULT_MAX_RANDOM_TICKS_PER_TICK: usize = 2048;
 // joining client asks for its 3x3 spawn window plus a few more in one packet;
 // at 4 the ninth chunk of that window went out on the third tick and a
 // twenty-chunk burst took five, each a separate ~1KB bulk message. 16 clears
-// the burst in two ticks and is what the production zoo world already ran.
+// the burst in two ticks and is what a production world already ran.
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 16;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
 /// A chunk pushed back through the pipeline is readable again within a handful

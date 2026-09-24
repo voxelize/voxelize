@@ -14,8 +14,8 @@ import {
 describe("normalizeSessionMeta", () => {
   it("lower-cases keys, trims values, and drops empty values", () => {
     expect(
-      normalizeSessionMeta({ Label: "  butterfly roam ", purpose: "   " }),
-    ).toEqual({ label: "butterfly roam" });
+      normalizeSessionMeta({ Label: "  flock roam ", purpose: "   " }),
+    ).toEqual({ label: "flock roam" });
   });
 
   it("treats a missing map as empty", () => {

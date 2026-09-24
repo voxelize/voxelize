@@ -86,7 +86,7 @@ export interface ChunkMaterialHost {
 
 export function isSharedOpaqueMaterialBlock(block: Block) {
   // isOpaque describes voxel-face occlusion, not material transparency.
-  // A stair, fence or dripstone spike leaves air in its voxel but its
+  // A stair, fence or thin spike leaves air in its voxel but its
   // actual surfaces use the very same atlas shader as a solid cube.
   return !block.isFluid && !block.isSeeThrough && blockCastsShadow(block);
 }

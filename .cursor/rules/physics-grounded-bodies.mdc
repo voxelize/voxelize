@@ -1,0 +1,15 @@
+---
+description: Never push a grounded body downward — the engine charges it back as friction and silently pins the entity
+globs: server/world/physics/**,server/world/systems/**,server/world/components/**,examples/server/**
+alwaysApply: false
+---
+
+# Never Push A Grounded Body Downward
+
+a hand-applied downward force (settle, floor-hug, ground-stick) is not free on a body that already has ground contact: the engine charges that tick's downward velocity change back as lateral friction in `Physics::apply_friction_by_axis`. past a threshold it silently pins the entity — friction annihilates its drive every tick, so it sits perfectly still while its behavior code keeps picking new destinations and looks brain-dead when it is actually paralyzed.
+
+gate any downward force on the body genuinely having nothing underfoot (`at_rest_y() < 0`), never on a probe reading empty space below. a single-column probe under the entity's centre misses ledges and decor the body is really resting on: probe depth and actual contact are different questions, and only contact is authoritative. a sense answers the question it measures, not the question you wanted answered.
+
+it pinned three entities before anyone noticed, because a paralyzed entity and an idle one look identical from outside. when an entity "won't move", check whether its drive is being cancelled before you go looking at its decision-making.
+
+behavior systems also keep their tunables (probe ranges, perception radii, speeds, refractory durations) in component fields, and perceive only through bounded senses from the entity's own position — never through privileged world knowledge.

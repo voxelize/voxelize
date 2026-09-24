@@ -37,3 +37,17 @@ caveats for building, running, and testing it in the cloud VM.
 - Rust type check: `pnpm check` (or `cargo check --workspace --all-targets`).
 - Rust tests: `pnpm test:rust` (or `pnpm test:rust:all`).
 - TypeScript tests: `pnpm test`.
+
+### Engine guidance (rules and skills)
+
+Voxelize is the engine; games built on it are consumers. `.cursor/rules/engine-boundary.mdc`
+(always on) keeps it that way, and `node scripts/engine-boundary/check.mjs` enforces it in CI.
+The rest of the shared "how to use Voxelize" guidance lives next to the code it governs:
+
+- Rules (`.cursor/rules/`): `engine-boundary`, `no-banned-game-name`, `honest-failures` (always on);
+  `mesher-parity`, `frame-budget`, `uniform-texel-density`, `canvas-box`, `block-textures`,
+  `server-authority`, `chunk-pipeline`, `ecs-component-storage`, `entity-lighting`,
+  `physics-grounded-bodies`, `agent-harness` (attached by path).
+- Skills (`.cursor/skills/`): `voxelize-engine-boundary` (the gate, excuses, extension points, the
+  periodic pass), `voxelize-instanced-entities` (roster, warmup, bone textures, density painting),
+  `voxelize-agent-harness` (daemon, bridge contract, scenario SDK, measurement honesty).

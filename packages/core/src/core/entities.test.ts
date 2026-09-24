@@ -284,7 +284,7 @@ describe("Entities resilience with consumers that destructure metadata", () => {
   function makeDestructuringEntities(): Entities {
     const entities = new Entities();
     entities.setClass("probe", ProbeEntity);
-    entities.setClass("villager", DestructuringEntity);
+    entities.setClass("walker", DestructuringEntity);
     entities.setClass("buggy", ThrowingEntity);
     return entities;
   }
@@ -301,7 +301,7 @@ describe("Entities resilience with consumers that destructure metadata", () => {
           {
             operation: "UPDATE",
             id: "ghost",
-            type: "villager",
+            type: "walker",
             metadata: { name: "partial-only" },
           },
         ],
@@ -317,7 +317,7 @@ describe("Entities resilience with consumers that destructure metadata", () => {
         {
           operation: "UPDATE",
           id: "ghost",
-          type: "villager",
+          type: "walker",
           metadata: { position: [1, 2, 3] },
         },
       ],
@@ -368,30 +368,30 @@ describe("Entities resilience with consumers that destructure metadata", () => {
         "CREATE",
         "a",
         { position: [1, 2, 3], name: "keeper" },
-        { type: "villager" },
+        { type: "walker" },
       ),
     );
-    const villager = entities.getEntityById("a") as DestructuringEntity;
+    const walker = entities.getEntityById("a") as DestructuringEntity;
 
     // The decode worker strips undecodable motion, so the update arrives
     // with neither metadata nor motion: a keep-alive. Nothing applies.
     expect(() =>
       entities.onMessage(
-        entityMessage("UPDATE", "a", null, { type: "villager" }),
+        entityMessage("UPDATE", "a", null, { type: "walker" }),
       ),
     ).not.toThrow();
-    expect(villager.applied).toEqual([[1, 2, 3]]);
+    expect(walker.applied).toEqual([[1, 2, 3]]);
 
     // Same stripping with partial metadata attached: the merge keeps the
     // accumulated position; the consumer never sees an undefined position.
     entities.onMessage(
-      entityMessage("UPDATE", "a", { name: "renamed" }, { type: "villager" }),
+      entityMessage("UPDATE", "a", { name: "renamed" }, { type: "walker" }),
     );
-    expect(villager.applied).toEqual([
+    expect(walker.applied).toEqual([
       [1, 2, 3],
       [1, 2, 3],
     ]);
-    expect(villager.metadata).toMatchObject({
+    expect(walker.metadata).toMatchObject({
       position: [1, 2, 3],
       name: "renamed",
     });
@@ -405,7 +405,7 @@ describe("Entities resilience with consumers that destructure metadata", () => {
         {
           operation: "CREATE",
           id: "a",
-          type: "villager",
+          type: "walker",
           metadata: {
             position: [1, 2, 3],
             path: {
@@ -425,8 +425,8 @@ describe("Entities resilience with consumers that destructure metadata", () => {
       entityMessage("UPDATE", "a", null, { motion: { position: [4, 5, 6] } }),
     );
 
-    const villager = entities.getEntityById("a") as DestructuringEntity;
-    const metadata = villager.metadata as unknown as {
+    const walker = entities.getEntityById("a") as DestructuringEntity;
+    const metadata = walker.metadata as unknown as {
       position: number[];
       path: { nodes: number[][] };
     };
@@ -436,7 +436,7 @@ describe("Entities resilience with consumers that destructure metadata", () => {
       [1, 1, 1],
       [2, 2, 2],
     ]);
-    expect(villager.applied).toContainEqual([4, 5, 6]);
+    expect(walker.applied).toContainEqual([4, 5, 6]);
   });
 });
 

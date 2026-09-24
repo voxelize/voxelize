@@ -1,0 +1,53 @@
+---
+description: Share block textures with texture groups, and give every dynamic-pattern block its faces so the atlas resolves
+globs: server/world/voxels/**,examples/server/**,packages/core/src/core/world/**
+alwaysApply: false
+---
+
+# Block Textures: Groups and Face Registration
+
+every unique face texture consumes atlas space, and the atlas is a fixed budget shared by the whole block set. two mistakes eat it: duplicating identical textures across faces and parts, and failing to register the faces a block actually has.
+
+## share with `texture_group`
+
+give faces that draw the same image the same group, and the registry stores it once.
+
+```rust
+let faces = BlockFaces::six_faces().texture_group("oak_planks").build();
+
+// every part of a multi-part block shares the group
+let rail = BlockFaces::six_faces().scale_x(0.1).prefix("rail").texture_group("oak_planks").build();
+let rung = BlockFaces::six_faces().scale_y(0.08).prefix("rung").texture_group("oak_planks").build();
+```
+
+override one face when it differs:
+
+```rust
+let mut faces = BlockFaces::six_faces().texture_group("display").build();
+faces[SIX_FACES_PZ].texture_group = Some("screen_display".to_string());
+```
+
+the client registers each group's source once through `world.applyTextureGroups([...])` (an image or a `Color`); a leftover per-block `applyBlockTexture` for the same faces applies the texture twice.
+
+group when all faces share one texture, when a multi-part block reuses one texture across parts, when dynamic-pattern states share textures, or when the texture is generated programmatically. do not group when variants genuinely differ (oak vs birch doors), when a face needs a runtime-generated unique texture (entity displays, canvas textures), or when the texture animates per block (water flow, portals).
+
+## `dynamic_patterns` requires `.faces()`
+
+a block with `dynamic_patterns` must ALSO be built with `.faces()` carrying every face from every pattern part. `.faces()` is what tells the texture system which face names exist; without it the block renders the entire texture atlas — colorful stripes and noise — and every client `applyBlockTexture` call for it fails silently, so nothing points at the cause.
+
+```rust
+let closed_faces = BlockFaces::six_faces().scale_z(thickness).prefix("closed").concat("-").build();
+let open_faces = BlockFaces::six_faces().scale_x(thickness).prefix("open").concat("-").build();
+let all_faces = BlockFaces::from_faces(closed_faces.clone())
+    .join(BlockFaces::from_faces(open_faces.clone()));
+
+Block::new("Gate")
+    .id(id)
+    .faces(&all_faces) // required, even though dynamic_patterns also lists them
+    .dynamic_patterns(&[my_dynamic_pattern])
+    .build();
+```
+
+`BlockFaces::from_faces()` wraps a `Vec<BlockFace>`; `.join()` combines them.
+
+any face scaled or offset inside the voxel also takes `.auto_uv_offset(true)` (see `uniform-texel-density`).

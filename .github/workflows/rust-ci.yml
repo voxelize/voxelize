@@ -10,6 +10,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The engine must not know what any game built on it contains. Node
+  # builtins only, so it needs no install; well under a second.
+  engine-boundary:
+    name: engine boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Gate tests
+        run: node --test scripts/engine-boundary/check.test.mjs
+
+      - name: Engine boundary
+        run: node scripts/engine-boundary/check.mjs
+
   test:
     name: cargo test --lib
     runs-on: ubuntu-latest
@@ -28,6 +46,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       # Authoritative Voxelize library test command, run from the workspace root
-      # so it exercises the `voxelize` crate whose lib Town pins and consumes.
+      # so it exercises the `voxelize` crate whose lib downstream consumers pin.
       - name: Run library tests
         run: cargo test --lib

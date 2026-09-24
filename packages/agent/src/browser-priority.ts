@@ -1,6 +1,7 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+
+import { agentCacheDir } from "./cache-dir";
 
 /**
  * The agent's browser runs below the game it observes. A headless tab costs
@@ -12,8 +13,8 @@ import path from "node:path";
  * puppeteer records (and the lifecycle watchdog kills) is the browser's own,
  * and its helpers (renderer, GPU, network) inherit the priority as children.
  *
- * `AGENT_BROWSER_PRIORITY=normal` (or `TOWN_DEV_PRIORITY=normal`) launches at
- * the default priority, for A/B timing on the same machine.
+ * `AGENT_BROWSER_PRIORITY=normal` launches at the default priority, for A/B
+ * timing on the same machine.
  */
 
 const TASKPOLICY = "/usr/sbin/taskpolicy";
@@ -36,7 +37,7 @@ export type BrowserPriorityOptions = {
 export function isBrowserPriorityLowered(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  const raw = env.AGENT_BROWSER_PRIORITY ?? env.TOWN_DEV_PRIORITY ?? "";
+  const raw = env.AGENT_BROWSER_PRIORITY ?? "";
   return raw.trim().toLowerCase() !== "normal";
 }
 
@@ -79,8 +80,7 @@ export function lowPriorityBrowser(
   const exec = browserPriorityExec(browserPath, options);
   if (!exec) return null;
   const dir =
-    options.wrapperDir ??
-    path.join(os.homedir(), ".cache", "town-agent", "browser-priority");
+    options.wrapperDir ?? path.join(agentCacheDir(env), "browser-priority");
   const name = `${path.basename(browserPath).replace(/[^A-Za-z0-9._-]/g, "_")}-${hashOf(browserPath)}.sh`;
   const executablePath = path.join(dir, name);
   const script = `#!/bin/sh\n${exec.line}\n`;

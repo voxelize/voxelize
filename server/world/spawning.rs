@@ -124,7 +124,7 @@ impl World {
             .to_owned();
 
         // The loader must see the spawn position: loaders derive spawn-time
-        // memory from it (a golem anchors its home at the position it was
+        // memory from it (a creature anchors its home at the position it was
         // raised), and without this stamp an absent "position" key reads as
         // the origin even though the body is placed correctly afterwards.
         let mut metadata = metadata;
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn the_loader_stamps_the_spawn_position_into_loader_metadata() {
-        // Loaders derive spawn-time memory (e.g. a golem's home anchor)
+        // Loaders derive spawn-time memory (e.g. a creature's home anchor)
         // from the "position" metadata key. Before the stamp, a summon
         // without an explicit key read the origin and anchored there.
         let config = WorldConfig::new()

@@ -57,6 +57,7 @@ import {
   spawnBrowserWatchdog,
 } from "./browser-lifecycle";
 import { describeLaunchError, lowPriorityBrowser } from "./browser-priority";
+import { agentCacheDir } from "./cache-dir";
 import {
   CaptureViewport,
   RequestedCaptureViewport,
@@ -275,9 +276,10 @@ function extraChromeArgs(): string[] {
 
 /**
  * Where a port's browser profile lives, or null for a throwaway temp
- * profile. `AGENT_PROFILE_DIR` names the parent directory;
- * `AGENT_EPHEMERAL_PROFILE=1` opts back into a fresh profile per launch
- * (cold-cache measurements, e.g. join-timing from scratch).
+ * profile. `AGENT_PROFILE_DIR` names the parent directory (default
+ * `profiles` under {@link agentCacheDir}); `AGENT_EPHEMERAL_PROFILE=1` opts
+ * back into a fresh profile per launch (cold-cache measurements, e.g.
+ * join-timing from scratch).
  */
 export function agentProfileDir(
   port: number,
@@ -292,7 +294,7 @@ export function agentProfileDir(
   const base =
     env.AGENT_PROFILE_DIR && env.AGENT_PROFILE_DIR.trim() !== ""
       ? env.AGENT_PROFILE_DIR
-      : path.join(os.homedir(), ".cache", "town-agent", "profiles");
+      : path.join(agentCacheDir(env), "profiles");
   return path.join(base, `port-${port}`);
 }
 
