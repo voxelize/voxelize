@@ -246,33 +246,7 @@ impl World {
     /// Handler for `Method` type messages.
     pub(super) fn on_method(&mut self, client_id: &str, data: Message) {
         if let Some(method) = data.method {
-            let key = method.name.to_lowercase();
-            let Some(handle) = self.method_handles.get(&key).map(|h| h.to_owned()) else {
-                warn!(
-                    "`Method` type messages received of name {}, but no method handler set.",
-                    method.name
-                );
-                return;
-            };
-
-            // Method payloads are client-supplied input. A panicking handler
-            // (e.g. an unknown block name lookup) must not unwind through the
-            // actor and take the whole world down with it.
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                handle(self, client_id, &method.payload);
-            }));
-
-            if let Err(panic) = result {
-                let reason = panic
-                    .downcast_ref::<String>()
-                    .map(|s| s.as_str())
-                    .or_else(|| panic.downcast_ref::<&str>().copied())
-                    .unwrap_or("unknown panic");
-                warn!(
-                    "Method handler '{}' panicked in world '{}': {}. Continuing.",
-                    method.name, self.name, reason
-                );
-            }
+            self.dispatch_method(client_id, &method.name, &method.payload);
         }
     }
 

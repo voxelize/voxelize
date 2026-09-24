@@ -43,8 +43,8 @@ use crate::{
     errors::AddWorldError,
     perf,
     world::{
-        check_protocol, Chunks, ClientPreferencesPatch, InboundStateBuffer, MotionProtocol,
-        Registry, World, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_VERSION,
+        check_protocol, Chunks, ClientPreferencesPatch, InboundStateBuffer, MethodGuard,
+        MotionProtocol, Registry, World, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_VERSION,
     },
     ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, Preload, Prepare, RtcSenders,
     SyncWorld, Tick, TransportJoinRequest, TransportLeaveRequest,
@@ -419,6 +419,11 @@ pub struct Server {
     /// requested id, which is only safe off the public internet.
     pub session_authenticator: Option<SessionAuthenticator>,
 
+    /// The game's check on every inbound `Method` call (see [`MethodGuard`]),
+    /// installed in and audited against each world this server adds. `None`
+    /// hands every call to its handler unchecked.
+    pub method_guard: Option<Arc<dyn MethodGuard>>,
+
     /// Verified identity of every registered session (pre-join and in-world),
     /// keyed by client id. Handed to the world on join so game code can read
     /// the session's claims from the `SessionIdentities` resource.
@@ -546,6 +551,11 @@ impl Server {
             .insert(name.clone(), world.inbound_state_handle());
 
         let entry = WorldEntry::static_world(&world.config().make_copy());
+
+        if let Some(guard) = &self.method_guard {
+            guard.audit(&world);
+            world.set_method_guard(Arc::clone(guard));
+        }
 
         let addr = world.start();
 

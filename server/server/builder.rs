@@ -145,6 +145,7 @@ impl ServerBuilder {
             connections: HashMap::default(),
             lost_sessions: HashMap::default(),
             transport_sessions: HashMap::default(),
+            method_guard: None,
             pending_world_ticks: HashSet::default(),
             last_tick_at: None,
             actor_started_at: None,

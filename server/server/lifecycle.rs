@@ -431,6 +431,10 @@ impl Server {
                 if let Some(rtc_senders) = &self.rtc_senders {
                     world.ecs_mut().insert(rtc_senders.clone());
                 }
+                if let Some(guard) = &self.method_guard {
+                    guard.audit(&world);
+                    world.set_method_guard(Arc::clone(guard));
+                }
                 let inbound_state = world.inbound_state_handle();
                 let addr = world.start();
                 (addr, inbound_state, false)

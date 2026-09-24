@@ -109,12 +109,14 @@ mod lag_comp_wiring_tests;
 mod lifecycle;
 #[cfg(test)]
 mod mesher_readiness_tests;
+mod method_guard;
 mod sessions;
 mod spawning;
 mod sync;
 
 pub use client_body::*;
 use dispatcher::dispatcher;
+pub use method_guard::{MethodGuard, MethodVerdict};
 pub use sync::*;
 
 #[derive(Debug, Serialize, Deserialize)]
