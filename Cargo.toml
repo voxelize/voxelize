@@ -67,6 +67,7 @@ pathfinding = "4.9.1"
 chrono = "0.4.19"
 fern = { version = "0.6.2", features = ["colored"] }
 lazy_static = "1.4"
+libc = "0.2"
 log = "0.4.21"
 thiserror = "1"
 webrtc = "0.11"

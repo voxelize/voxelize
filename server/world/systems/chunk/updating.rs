@@ -8,8 +8,8 @@ use crate::{
     beer_lambert_transmit, expand_coupled_updates, record_profile, sample_random_ticks, BlockUtils,
     ChunkInterests, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag,
     IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
-    MetadataComp, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp,
-    VoxelPacker, WorldConfig,
+    MetadataComp, PerfToggle, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3,
+    VoxelAccess, VoxelComp, VoxelPacker, WorldConfig, perf_toggle,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -1056,6 +1056,11 @@ fn process_pending_updates(
             }
         }
 
+        // Under client-only meshing the remesh job would only clear meshes
+        // that are already empty and hand the chunk back a tick later, so the
+        // chunk goes straight onto this tick's send queue instead.
+        let is_sending_directly = config.client_only_meshing
+            && perf_toggle(PerfToggle::SkipNoopRemesh);
         let mut processes = Vec::new();
         for coords in cache {
             if !chunks.is_chunk_ready(&coords) {
@@ -1063,6 +1068,10 @@ fn process_pending_updates(
             }
             if mesher.has_chunk(&coords) {
                 mesher.mark_for_remesh(&coords);
+                continue;
+            }
+            if is_sending_directly {
+                chunks.add_chunk_to_send(&coords, &MessageType::Update, false);
                 continue;
             }
             let space = chunks
@@ -1074,11 +1083,17 @@ fn process_pending_updates(
             let chunk = chunks.raw(&coords).unwrap().to_owned();
             processes.push((chunk, space));
         }
-        record_profile("update: build spaces", phase_started.elapsed());
-        let phase_started = std::time::Instant::now();
+        if is_sending_directly {
+            record_profile("update: direct send", phase_started.elapsed());
+        } else {
+            record_profile("update: build spaces", phase_started.elapsed());
+        }
 
-        mesher.process(processes, &MessageType::Update, registry, config);
-        record_profile("update: mesher.process", phase_started.elapsed());
+        if !processes.is_empty() {
+            let phase_started = std::time::Instant::now();
+            mesher.process(processes, &MessageType::Update, registry, config);
+            record_profile("update: mesher.process", phase_started.elapsed());
+        }
     }
 
     results

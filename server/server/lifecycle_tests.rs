@@ -380,7 +380,7 @@ fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
             let world_addr = world_addr.clone();
             async move {
                 for _ in 0..n {
-                    world_addr.send(crate::Tick).await.unwrap();
+                    world_addr.send(crate::Tick::now()).await.unwrap();
                 }
             }
         };

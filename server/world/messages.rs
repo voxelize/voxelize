@@ -5,7 +5,11 @@ use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
-    common::ClientFilter, encode_message, perf, server::Message, EntityOperation, MessageType,
+    common::ClientFilter,
+    encode_message, perf,
+    server::Message,
+    world::shared_pools::{encode_pool, InflightJob, ENCODE_INFLIGHT},
+    EntityOperation, MessageType,
 };
 
 #[derive(Clone)]
@@ -118,7 +122,9 @@ impl EncodedMessageQueue {
 
         let sender = Arc::clone(&self.sender);
         let queued_at = Instant::now();
-        rayon::spawn_fifo(move || {
+        InflightJob::queue(&ENCODE_INFLIGHT, 1);
+        encode_pool().spawn_fifo(move || {
+            let _inflight = InflightJob::adopt(&ENCODE_INFLIGHT);
             let encoded: Vec<(EncodedMessage, ClientFilter)> = all_pending
                 .into_par_iter()
                 .map(|(message, filter)| {

@@ -25,7 +25,6 @@ pub use session_auth::*;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use actix::{fut::wrap_future, Actor, ActorFutureExt, Addr, AsyncContext, Context};
-use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
 use hashbrown::{HashMap, HashSet};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -1090,7 +1089,7 @@ impl Server {
                     continue;
                 }
 
-                let _ = world.try_send(Tick);
+                let _ = world.try_send(Tick::now());
 
                 let at = (info.preload_progress * 100.0) as u64;
 
@@ -1118,40 +1117,17 @@ impl Server {
 
     /// Tick every world on this server.
     pub(crate) fn tick(&mut self) {
+        let period = Duration::from_millis(self.interval);
+        let scheduled_at = Instant::now();
         for world in self.worlds.values_mut() {
-            let _ = world.try_send(Tick);
+            let _ = world.try_send(Tick::scheduled(scheduled_at, period));
         }
     }
 
-    /// Setup Fern for debug logging.
+    /// Install the process logger (see [`crate::logging`]): Info by default,
+    /// `VOXELIZE_LOG` / `RUST_LOG` to override, written off the world threads.
     fn setup_logger() {
-        fern::Dispatch::new()
-            .format(|out, message, record| {
-                let colors = ColoredLevelConfig::new().info(Color::Green);
-
-                // Milliseconds so a client's join timeline (ms since join)
-                // can be lined up against the server's chunk and socket logs.
-                out.finish(format_args!(
-                    "{} [{}] [{}]: {}",
-                    chrono::Local::now().format("[%H:%M:%S.%3f]"),
-                    colors.color(record.level()),
-                    record.target(),
-                    message
-                ))
-            })
-            .level(log::LevelFilter::Debug)
-            .level_for("tungstenite", log::LevelFilter::Info)
-            .level_for("webrtc", log::LevelFilter::Warn)
-            .level_for("webrtc_ice", log::LevelFilter::Warn)
-            .level_for("webrtc_sctp", log::LevelFilter::Warn)
-            .level_for("webrtc_dtls", log::LevelFilter::Warn)
-            .level_for("webrtc_srtp", log::LevelFilter::Warn)
-            .level_for("webrtc_data", log::LevelFilter::Warn)
-            .level_for("webrtc_mdns", log::LevelFilter::Warn)
-            .level_for("webrtc_util", log::LevelFilter::Warn)
-            .chain(std::io::stdout())
-            .apply()
-            .expect("Fern did not run successfully");
+        crate::logging::setup_logger();
     }
 
     pub fn set_action_handle<F: Fn(Value, &mut Server) + 'static>(
@@ -1193,6 +1169,10 @@ impl Actor for Server {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        // This thread (the System arbiter) runs the tick timer below and
+        // forwards every world's Tick, so it gets the same OS priority as the
+        // world threads; a tick that leaves late starts late.
+        crate::world::shared_pools::raise_to_tick_tier();
         self.actor_started_at = Some(Instant::now());
         if debug_pause_ticks_from_env() {
             self.debug_pause_ticks = true;
@@ -1201,7 +1181,13 @@ impl Actor for Server {
             self.debug_pause_ticks_after = Some(after);
         }
 
-        ctx.run_interval(Duration::from_millis(self.interval), |act, ctx| {
+        let period = Duration::from_millis(self.interval);
+        // actix re-arms the interval from its previous deadline, so its slots
+        // sit on a fixed grid starting one period after this instant. Each
+        // Tick carries the slot it was sent for; the world measures its
+        // lateness (timer delay + actor hop + mailbox wait) against it.
+        let grid_origin = Instant::now();
+        ctx.run_interval(period, move |act, ctx| {
             if let Some(after) = act.debug_pause_ticks_after {
                 if let Some(started_at) = act.actor_started_at {
                     if started_at.elapsed() >= after {
@@ -1225,23 +1211,70 @@ impl Actor for Server {
                 })
                 .collect();
 
+            let now = Instant::now();
+            let period_nanos = period.as_nanos().max(1);
+            let slots = now.saturating_duration_since(grid_origin).as_nanos() / period_nanos;
+            let scheduled_at = grid_origin
+                + Duration::from_nanos((slots * period_nanos).min(u64::MAX as u128) as u64);
+
             for (world_name, world) in worlds_to_tick {
-                act.pending_world_ticks.insert(world_name.clone());
-                ctx.spawn(
-                    wrap_future(world.send(Tick)).map(move |result, act: &mut Server, _| {
-                        act.pending_world_ticks.remove(&world_name);
-                        match result {
-                            Ok(()) => {
-                                act.last_tick_at = Some(Instant::now());
-                            }
-                            Err(error) => {
-                                warn!("World tick failed for {}: {:?}", world_name, error);
-                            }
-                        }
-                    }),
-                );
+                act.send_world_tick(ctx, world_name, world, scheduled_at, period);
             }
         });
+    }
+}
+
+impl Server {
+    /// Send one world its Tick for `scheduled_at`. When the tick comes back
+    /// after its next slot has already passed, the next one goes out at once
+    /// rather than waiting for the timer's next slot: a 17 ms tick is
+    /// followed after 17 ms, not after 32.
+    fn send_world_tick(
+        &mut self,
+        ctx: &mut Context<Self>,
+        world_name: String,
+        world: Addr<SyncWorld>,
+        scheduled_at: Instant,
+        period: Duration,
+    ) {
+        self.pending_world_ticks.insert(world_name.clone());
+        ctx.spawn(
+            wrap_future(world.send(Tick::scheduled(scheduled_at, period))).map(
+                move |result, act: &mut Server, ctx: &mut Context<Server>| {
+                    act.pending_world_ticks.remove(&world_name);
+                    match result {
+                        Ok(()) => {
+                            act.last_tick_at = Some(Instant::now());
+                        }
+                        Err(error) => {
+                            warn!("World tick failed for {}: {:?}", world_name, error);
+                            return;
+                        }
+                    }
+                    let now = Instant::now();
+                    let is_behind = now >= scheduled_at + period;
+                    if !is_behind
+                        || act.debug_pause_ticks
+                        || !crate::world::perf_toggles::perf_toggle(
+                            crate::world::perf_toggles::PerfToggle::CatchUpLateTicks,
+                        )
+                    {
+                        return;
+                    }
+                    // Only a world still registered under this name is
+                    // re-ticked; a torn-down or replaced one is left alone.
+                    let Some(current) = act.worlds.get(&world_name).cloned() else {
+                        return;
+                    };
+                    if current != world {
+                        return;
+                    }
+                    // Due now: its lateness is then the hop alone, not the
+                    // overrun that made it late.
+                    act.send_world_tick(ctx, world_name, current, now, period);
+                },
+            ),
+        );
     }
 }
 

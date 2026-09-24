@@ -173,6 +173,8 @@ impl World {
         *self.write_resource::<String>() = new_name.to_owned();
         self.write_resource::<WorldMetadata>().world_name = new_name.to_owned();
         *self.write_resource::<WorldTimingContext>() = WorldTimingContext::new(new_name);
+        self.tick_recorder.rename(new_name);
+        self.hibernation = super::tick_stats::Hibernation::default();
     }
 
     /// Prepare to start.
@@ -317,17 +319,68 @@ impl World {
         (dispatch_time, maintain_time)
     }
 
+    /// Run one tick now, judged against the default period, and always
+    /// dispatch: a direct call (tests, tools) is asking for a sim step. The
+    /// Server's timer goes through [`Self::tick_scheduled`] instead.
     pub(crate) fn tick(&mut self) {
+        self.run_tick(
+            Instant::now(),
+            super::tick_stats::DEFAULT_TICK_PERIOD,
+            false,
+        );
+    }
+
+    /// Run one tick that the Server scheduled for `scheduled_at` at the given
+    /// `period`, recording it in the world's tick statistics. A world nobody
+    /// is in may skip it (see `WorldConfig::hibernation_interval_ms`).
+    pub(crate) fn tick_scheduled(&mut self, scheduled_at: Instant, period: Duration) {
+        self.run_tick(scheduled_at, period, true);
+    }
+
+    fn run_tick(&mut self, scheduled_at: Instant, period: Duration, allow_hibernation: bool) {
         if !self.started {
             self.started = true;
         }
+
+        // Nobody is in the world: dispatch at the hibernation interval, not
+        // every tick. The mailbox keeps draining between ticks either way,
+        // and the first tick after a client joins dispatches at once.
+        let hibernation_interval = Duration::from_millis(self.config().hibernation_interval_ms);
+        let may_hibernate = allow_hibernation
+            && !hibernation_interval.is_zero()
+            && !self.preloading
+            && self.config().fixed_timestep.is_none()
+            && super::perf_toggles::perf_toggle(super::perf_toggles::PerfToggle::HibernateEmptyWorlds)
+            && self.clients().is_empty();
+        let (hibernating, expected_interval) =
+            match self
+                .hibernation
+                .step(Instant::now(), may_hibernate, hibernation_interval)
+            {
+                super::tick_stats::HibernationStep::Dispatch {
+                    hibernating,
+                    expected_interval,
+                } => (hibernating, expected_interval),
+                super::tick_stats::HibernationStep::Skip => {
+                    self.tick_recorder.note_hibernated_skip();
+                    return;
+                }
+            };
+
+        // Started before anything else that dispatching does, so inbound
+        // packet parsing and the preload bookkeeping below are inside
+        // `tick-total`.
+        let recording = self.tick_recorder.begin(scheduled_at, period);
+        let tick_timer = SystemTimer::new("tick-total");
 
         // Inbound state replication: apply every peer position packet that
         // arrived before this tick began, so every system in the dispatch
         // below (entity observe, pathfinding, walking) reads current-tick
         // player positions instead of positions from a packet still queued
         // in an actor mailbox.
+        let inbound_started = Instant::now();
         self.apply_inbound_state();
+        let inbound_time = inbound_started.elapsed();
 
         if self.preloading {
             let light_padding = (self.config().max_light_level as f32
@@ -382,8 +435,6 @@ impl World {
 
         self.stats_mut().preloading = self.preloading;
 
-        let tick_timer = SystemTimer::new("tick-total");
-
         // A non-deterministic world (the default) runs exactly one dispatch per
         // delivered tick — identical to before this feature existed. An
         // opted-in deterministic world instead drives dispatches through the
@@ -400,6 +451,11 @@ impl World {
         record_timing(&self.name, "tick-total", total_time);
         record_timing(&self.name, "dispatcher-dispatch", dispatch_time);
         record_timing(&self.name, "ecs-maintain", maintain_time);
+        record_timing(
+            &self.name,
+            "inbound-state",
+            inbound_time.as_secs_f64() * 1000.0,
+        );
 
         if perf::is_enabled() {
             let (messages_this_tick, messages_since_sample) =
@@ -454,5 +510,18 @@ impl World {
                 );
             }
         }
+
+        let clients = self.clients().len();
+        self.tick_recorder.finish(
+            recording,
+            super::tick_stats::TickParts {
+                inbound: inbound_time,
+                dispatch_ms: dispatch_time,
+                maintain_ms: maintain_time,
+                clients,
+                hibernating,
+                expected_interval,
+            },
+        );
     }
 }

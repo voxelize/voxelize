@@ -12,15 +12,14 @@ impl<'a> System<'a> for CurrentChunkSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::Join;
 
         let (config, positions, mut curr_chunks) = data;
 
         let chunk_size = config.chunk_size;
 
         (&positions, &mut curr_chunks)
-            .par_join()
+            .join()
             .for_each(|(position, curr_chunk)| {
                 let Vec3(vx, vy, vz) = position.0;
                 let coords =

@@ -8,44 +8,41 @@ use std::time::Instant;
 
 const MAX_SAMPLES: usize = 100;
 
+/// A timed sample as it used to be stored. Kept for API compatibility; the
+/// profiler now stores bare durations (no per-sample wall-clock read).
 #[derive(Clone, Serialize)]
 pub struct SystemSample {
     pub duration_ms: f64,
     pub timestamp: u64,
 }
 
+// TODO(server-tick doc §6.2): replace the last-100-samples window with
+// per-system log-bucket histograms over 10 s / 60 s windows (p95/p99/max).
 #[derive(Default)]
 pub struct SystemTimings {
-    samples: HashMap<String, VecDeque<SystemSample>>,
+    samples: HashMap<String, VecDeque<f64>>,
 }
 
 impl SystemTimings {
     pub fn record(&mut self, name: &str, duration_ms: f64) {
         // Hot path: every system of every world lands here every tick, so a
-        // hit must not allocate. The double lookup on a miss is paid once
-        // per system name for the life of the process.
-        if !self.samples.contains_key(name) {
-            self.samples
-                .insert(name.to_string(), VecDeque::with_capacity(MAX_SAMPLES));
-        }
-        let samples = self.samples.get_mut(name).unwrap();
+        // hit must not allocate; `entry_ref` only builds the key `String`
+        // on the first sample of each system name.
+        let samples = self
+            .samples
+            .entry_ref(name)
+            .or_insert_with(|| VecDeque::with_capacity(MAX_SAMPLES));
         if samples.len() >= MAX_SAMPLES {
             samples.pop_front();
         }
-        samples.push_back(SystemSample {
-            duration_ms,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64,
-        });
+        samples.push_back(duration_ms);
     }
 
     pub fn get_summary(&self) -> HashMap<String, SystemStats> {
         self.samples
             .iter()
             .map(|(name, samples)| {
-                let durations: Vec<f64> = samples.iter().map(|s| s.duration_ms).collect();
+                let durations: Vec<f64> = samples.iter().copied().collect();
                 let avg = durations.iter().sum::<f64>() / durations.len() as f64;
                 let max = durations.iter().cloned().fold(0.0, f64::max);
                 let min = durations.iter().cloned().fold(f64::MAX, f64::min);
@@ -107,19 +104,23 @@ pub fn record_timing(world_name: &str, system_name: &str, duration_ms: f64) {
 #[derive(Clone)]
 pub struct WorldTimingContext {
     pub world_name: Arc<String>,
+    /// This world's timings, resolved once so a system's timer does not go
+    /// through the global map on every drop.
+    timings: Arc<Mutex<SystemTimings>>,
 }
 
 impl WorldTimingContext {
     pub fn new(world_name: &str) -> Self {
         Self {
             world_name: Arc::new(world_name.to_string()),
+            timings: world_timings(world_name),
         }
     }
 
     pub fn timer(&self, name: &'static str) -> WorldSystemTimer {
         WorldSystemTimer {
             name,
-            world_name: self.world_name.clone(),
+            timings: self.timings.clone(),
             start: Instant::now(),
         }
     }
@@ -127,7 +128,7 @@ impl WorldTimingContext {
 
 pub struct WorldSystemTimer {
     name: &'static str,
-    world_name: Arc<String>,
+    timings: Arc<Mutex<SystemTimings>>,
     start: Instant,
 }
 
@@ -139,8 +140,13 @@ impl WorldSystemTimer {
 
 impl Drop for WorldSystemTimer {
     fn drop(&mut self) {
-        let duration_ms = self.start.elapsed().as_secs_f64() * 1000.0;
-        record_timing(&self.world_name, self.name, duration_ms);
+        let elapsed = self.start.elapsed();
+        // Feeds the slow-tick flight recorder's "costliest systems this tick".
+        super::tick_stats::note_system_time(self.name, elapsed);
+        self.timings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .record(self.name, elapsed.as_secs_f64() * 1000.0);
     }
 }
 

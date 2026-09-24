@@ -103,7 +103,7 @@ impl Stats {
     pub fn advance_time(&mut self, delta: f32, time_per_day: f32) {
         let next = self.time + delta;
         if next >= time_per_day {
-            self.day += 1;
+            self.day += (next / time_per_day).floor() as u64;
         }
         self.time = next % time_per_day;
     }

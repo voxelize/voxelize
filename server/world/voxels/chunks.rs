@@ -422,10 +422,11 @@ impl Chunks {
             Ok(data)
         };
 
-        let (voxels_result, height_map_result) = rayon::join(
-            || decode_base64(&data.voxels),
-            || decode_base64(&data.height_map),
-        );
+        // Sequential: the height map is a few KB, so splitting it off saved
+        // nothing, and from the world thread a `rayon::join` waited on the
+        // global pool.
+        let voxels_result = decode_base64(&data.voxels);
+        let height_map_result = decode_base64(&data.height_map);
 
         let voxels = match voxels_result {
             Ok(voxels) => voxels,

@@ -13,6 +13,7 @@ pub mod items;
 mod lag_comp;
 mod messages;
 mod metadata;
+pub mod perf_toggles;
 mod physics;
 mod profiler;
 mod registry;
@@ -21,6 +22,7 @@ pub(crate) mod shared_pools;
 mod stats;
 pub mod system_profiler;
 mod systems;
+pub(crate) mod tick_stats;
 mod types;
 mod utils;
 mod voxels;
@@ -76,12 +78,21 @@ pub use interests::*;
 pub use items::*;
 pub use lag_comp::*;
 pub use messages::*;
+pub use perf_toggles::{perf_toggle, perf_toggles, set_perf_toggle, PerfToggle, PerfToggleState};
 pub use physics::*;
 pub use registry::*;
 pub use replication::*;
 pub use stats::*;
 pub use system_profiler::*;
+pub use shared_pools::{
+    pool_inflight, run_on_tick_pool, tick_split, PoolInflight, TICK_SPLIT_MIN_BODIES,
+    TICK_SPLIT_MIN_SEARCHES,
+};
 pub use systems::*;
+pub use tick_stats::{
+    get_tick_stats, get_tick_stats_all, thread_cpu_time, Percentiles, TickStatsBrief,
+    TickStatsReport, TickWindowReport, TICK_STATS_CAPACITY,
+};
 pub use types::*;
 pub use utils::*;
 pub use voxels::*;
@@ -217,12 +228,43 @@ pub struct World {
     /// a sim-state input: the sim's time is `step_count * DT`. `None` until the
     /// first tick, and unused entirely when `fixed_timestep` is `None`.
     last_fixed_tick_at: Option<Instant>,
+
+    /// Per-tick timing ring and slow-tick flight recorder, served at
+    /// `/tick/stats`. Touched only by this world's thread.
+    tick_recorder: tick_stats::TickRecorder,
+
+    /// Paces dispatches while no client is in the world
+    /// (`WorldConfig::hibernation_interval_ms`).
+    hibernation: tick_stats::Hibernation,
 }
 
 // Define messages for the World actor
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
-pub(crate) struct Tick;
+pub(crate) struct Tick {
+    /// The timer slot this tick was scheduled for; the world measures its
+    /// lateness against it.
+    pub(crate) scheduled_at: Instant,
+    /// The Server's tick period, the budget slow ticks are judged against.
+    pub(crate) period: Duration,
+}
+
+impl Tick {
+    /// A tick due now at the default period (tests, preload nudges).
+    pub(crate) fn now() -> Self {
+        Self {
+            scheduled_at: Instant::now(),
+            period: tick_stats::DEFAULT_TICK_PERIOD,
+        }
+    }
+
+    pub(crate) fn scheduled(scheduled_at: Instant, period: Duration) -> Self {
+        Self {
+            scheduled_at,
+            period,
+        }
+    }
+}
 
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
@@ -465,6 +507,8 @@ impl World {
             server_addr: None,
             inbound_state: Arc::new(InboundStateBuffer::new()),
             last_fixed_tick_at: None,
+            tick_recorder: tick_stats::TickRecorder::new(name),
+            hibernation: tick_stats::Hibernation::default(),
         };
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
@@ -631,8 +675,19 @@ impl World {
         // self.prepare();
         // self.preload();
 
+        // One named thread per world, raised to the tick tier as it starts
+        // (the factory runs on the new thread) so it is not queued behind
+        // background work for a core.
+        let thread_name = format!("world-{}", self.name);
         let world = Arc::new(RwLock::new(self));
-        let addr = SyncArbiter::start(1, move || SyncWorld(world.clone()));
+        let addr = SyncArbiter::start_with_thread_builder(
+            1,
+            move || std::thread::Builder::new().name(thread_name.clone()),
+            move || {
+                shared_pools::raise_to_tick_tier();
+                SyncWorld(world.clone())
+            },
+        );
 
         addr
     }

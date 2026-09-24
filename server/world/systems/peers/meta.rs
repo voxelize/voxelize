@@ -14,14 +14,13 @@ impl<'a> System<'a> for PeersMetaSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::Join;
 
         let (flag, positions, directions, names, mut metadatas) = data;
 
-        // Combine all updates into a single parallel iteration to optimize performance
+        // All three keys in one pass over the peers.
         (&positions, &directions, &names, &mut metadatas, &flag)
-            .par_join()
+            .join()
             .for_each(|(position, direction, name, metadata, _)| {
                 metadata.set("position", position);
                 metadata.set("direction", direction);

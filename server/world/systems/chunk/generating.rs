@@ -1,7 +1,7 @@
 use hashbrown::HashMap;
 use log::info;
 use nanoid::nanoid;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{Entities, LazyUpdate, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::world::profiler::Profiler;
@@ -11,6 +11,12 @@ use crate::{
     MessageType, MetadataComp, Pipeline, PositionComp, Registry, Resources, Stats, Vec2, Vec3,
     VoxelAccess, VoxelComp, WorldConfig,
 };
+use crate::{perf_toggle, run_on_tick_pool, tick_split, PerfToggle};
+
+/// Saved-chunk loads split across the tick pool from this many per tick. One
+/// load reads, parses and inflates a chunk file (milliseconds), so two
+/// already pay for the handoff.
+const SPLIT_MIN_LOADS: usize = 2;
 
 #[derive(Default)]
 pub struct ChunkGeneratingSystem;
@@ -282,26 +288,32 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
         }
 
-        // parallelize loading
+        // Loads split across the tick pool when there are several, and run
+        // inline otherwise. Never on the global pool, where the tick waited
+        // behind worldgen.
         let restore_stages = pipeline.stages.clone();
-        let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> = to_load
-            .into_par_iter()
-            .map(|coords| {
-                let loaded = chunks.try_load(&coords, &registry).map(|mut chunk| {
-                    for stage in &restore_stages {
-                        chunk = stage.restore(
-                            chunk,
-                            Resources {
-                                registry: &registry,
-                                config: &config,
-                            },
-                        );
-                    }
-                    chunk
-                });
-                (coords, loaded)
-            })
-            .collect();
+        let load_one = |coords: Vec2<i32>| -> (Vec2<i32>, Option<Chunk>) {
+            let loaded = chunks.try_load(&coords, &registry).map(|mut chunk| {
+                for stage in &restore_stages {
+                    chunk = stage.restore(
+                        chunk,
+                        Resources {
+                            registry: &registry,
+                            config: &config,
+                        },
+                    );
+                }
+                chunk
+            });
+            (coords, loaded)
+        };
+        let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> =
+            if tick_split(to_load.len(), SPLIT_MIN_LOADS) {
+                let loads = to_load.into_par_iter().map(&load_one);
+                run_on_tick_pool(move || loads.collect())
+            } else {
+                to_load.into_iter().map(&load_one).collect()
+            };
 
         for (coords, loaded_chunk) in loaded_chunks.into_iter() {
             if let Some(chunk) = loaded_chunk {
@@ -407,6 +419,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let pending_remesh_coords = mesher.drain_pending_remesh();
         if !pending_remesh_coords.is_empty() {
+            // As in chunk-updating: under client-only meshing a remesh job
+            // changes nothing but the send delay, so the chunk is sent now.
+            let is_sending_directly =
+                config.client_only_meshing && perf_toggle(PerfToggle::SkipNoopRemesh);
             let mut remesh_processes = Vec::new();
             for coords in pending_remesh_coords {
                 if !chunks.is_chunk_ready(&coords) {
@@ -414,6 +430,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
                 if mesher.has_chunk(&coords) {
                     mesher.mark_for_remesh(&coords);
+                    continue;
+                }
+                if is_sending_directly {
+                    if chunks.is_chunk_save_dirty(&coords) {
+                        chunks.add_chunk_to_save(&coords, true);
+                    }
+                    chunks.add_chunk_to_send(&coords, &MessageType::Update, false);
                     continue;
                 }
                 let space = chunks

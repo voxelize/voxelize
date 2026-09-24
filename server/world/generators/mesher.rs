@@ -5,6 +5,7 @@ use hashbrown::{HashMap, HashSet};
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool};
 
 use crate::{
+    world::shared_pools::{InflightJob, MESHING_INFLIGHT},
     Chunk, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry, Space, Vec2, Vec3,
     VoxelAccess, WorldConfig,
 };
@@ -108,10 +109,12 @@ impl Mesher {
         let registry = Arc::new(registry.clone());
         let config = Arc::new(config.clone());
 
+        InflightJob::queue(&MESHING_INFLIGHT, processes.len());
         self.pool.spawn(move || {
             processes
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
+                    let _inflight = InflightJob::adopt(&MESHING_INFLIGHT);
                     let chunk_size = config.chunk_size as i32;
                     let coords = space.coords.to_owned();
                     let min = space.min.to_owned();

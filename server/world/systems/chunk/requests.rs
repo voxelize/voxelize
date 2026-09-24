@@ -1,10 +1,11 @@
 use hashbrown::{HashMap, HashSet};
-use log::debug;
+use log::{debug, log_enabled, Level};
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
-    Mesher, Message, MessageQueues, MessageType, Pipeline, Stats, Vec2, WorldConfig,
+    LogRateLimiter, Mesher, Message, MessageQueues, MessageType, Pipeline, Stats, Vec2,
+    WorldConfig,
 };
 
 pub struct ChunkRequestsSystem;
@@ -122,14 +123,24 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
 
             let ready_now = to_send.get(&id.0).map_or(0, |set| set.len());
-            if ready_now + deferred_ready + sent_to_pipeline > 0 {
+            if log_enabled!(Level::Debug) && ready_now + deferred_ready + sent_to_pipeline > 0 {
                 // Whether a join's window is served from memory or has to be
                 // loaded and meshed is the first thing to know about a slow one.
-                debug!(
-                    "[chunk-requests] {}: {} ready now, {} ready but past max_response_per_tick \
-                     ({}), {} not ready (load/mesh)",
-                    id.0, ready_now, deferred_ready, max_response_per_tick, sent_to_pipeline
-                );
+                // Fires per client per tick while streaming, so rate-limited.
+                static CHUNK_REQUESTS_LOG: LogRateLimiter = LogRateLimiter::new();
+                if let Some(suppressed) = CHUNK_REQUESTS_LOG.allow(250) {
+                    debug!(
+                        "[chunk-requests] {}: {} ready now, {} ready but past \
+                         max_response_per_tick ({}), {} not ready (load/mesh) \
+                         (+{} similar line(s) suppressed)",
+                        id.0,
+                        ready_now,
+                        deferred_ready,
+                        max_response_per_tick,
+                        sent_to_pipeline,
+                        suppressed
+                    );
+                }
             }
 
             requests.requests.extend(to_add_back_to_requested);

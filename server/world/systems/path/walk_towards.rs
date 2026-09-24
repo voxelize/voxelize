@@ -18,15 +18,14 @@ impl<'a> System<'a> for WalkTowardsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::Join;
 
         let (stats, paths, mut bodies, mut brains) = data;
 
         let delta = stats.delta;
 
         (&paths, &mut bodies, &mut brains)
-            .par_join()
+            .join()
             .for_each(|(path, body, brain)| {
                 if let Some(nodes) = &path.path {
                     if nodes.is_empty() {

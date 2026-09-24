@@ -29,14 +29,14 @@ use actix_web::{
 use actix_ws::AggregatedMessage;
 use futures_util::{future::poll_immediate, StreamExt};
 use hashbrown::HashMap;
-use log::{debug, info, warn};
+use log::{debug, info, log_enabled, warn, Level};
 use serde_json::json;
 use tokio::sync::mpsc;
 
 use crate::{
     authenticate_session, decode_message, encode_message, ClientMessage, Connect, Disconnect,
-    Health, Info, Message, MessageType, RunPreload, Server, SessionAuth, SessionAuthenticator,
-    SessionIdentity, SetStarted, WsSender, PROTOCOL_MISMATCH_REASON,
+    Health, Info, LogRateLimiter, Message, MessageType, RunPreload, Server, SessionAuth,
+    SessionAuthenticator, SessionIdentity, SetStarted, WsSender, PROTOCOL_MISMATCH_REASON,
 };
 
 /// How long to wait for the server actor to ack a client message before
@@ -675,17 +675,27 @@ pub async fn run_ws_session(
                         // Chunk data is what rides this lane, and it is what a
                         // join waits on: say how long it sat behind control and
                         // inbound traffic before the socket even saw it.
+                        // Both lines fire per bulk message, so both are
+                        // rate-limited (per call site, across sessions).
+                        static BULK_WAIT_LOG: LogRateLimiter = LogRateLimiter::new();
+                        static BULK_WRITE_LOG: LogRateLimiter = LogRateLimiter::new();
                         if waited_ms > 100.0 {
-                            info!(
-                                "[WS] bulk message ({}KB) to {} waited {:.0}ms on the lane \
-                                 before its {:.0}ms socket write",
-                                bytes / 1024, session_id, waited_ms, write_ms
-                            );
-                        } else {
-                            debug!(
-                                "[WS] bulk message ({}KB) to {}: waited {:.1}ms, wrote in {:.1}ms",
-                                bytes / 1024, session_id, waited_ms, write_ms
-                            );
+                            if let Some(suppressed) = BULK_WAIT_LOG.allow(500) {
+                                info!(
+                                    "[WS] bulk message ({}KB) to {} waited {:.0}ms on the lane \
+                                     before its {:.0}ms socket write (+{} similar line(s) \
+                                     suppressed)",
+                                    bytes / 1024, session_id, waited_ms, write_ms, suppressed
+                                );
+                            }
+                        } else if log_enabled!(Level::Debug) {
+                            if let Some(suppressed) = BULK_WRITE_LOG.allow(250) {
+                                debug!(
+                                    "[WS] bulk message ({}KB) to {}: waited {:.1}ms, wrote in \
+                                     {:.1}ms (+{} similar line(s) suppressed)",
+                                    bytes / 1024, session_id, waited_ms, write_ms, suppressed
+                                );
+                            }
                         }
                     }
                     Ok(Err(_)) => break,

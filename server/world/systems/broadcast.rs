@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use hashbrown::HashMap;
-use log::debug;
+use log::{debug, log_enabled, Level};
 use serde_json::{json, Map, Value};
 use specs::{ReadExpect, System, WriteExpect};
 use tokio::sync::mpsc::UnboundedSender;
@@ -17,7 +17,7 @@ use crate::{
         Stats, WorldConfig,
     },
     EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, ReplicatedStateBuffer,
-    RtcSenders, Transports,
+    LogRateLimiter, RtcSenders, Transports,
 };
 
 /// How often (wall-clock ms) each client's motion-gap distribution is
@@ -306,21 +306,28 @@ impl<'a> System<'a> for BroadcastSystem {
                             }
                         }
                     }
-                    if MessageType::try_from(encoded.msg_type) == Ok(MessageType::Load) {
+                    if log_enabled!(Level::Debug)
+                        && MessageType::try_from(encoded.msg_type) == Ok(MessageType::Load)
+                    {
                         // The number a slow chunk window gets blamed on: how
                         // long the chunks sat between the tick that decided
                         // to send them and the tick that reached the socket.
-                        debug!(
-                            "[chunk-send] {} chunk(s), {}KB to {}: {:.1}ms from queue to \
-                             socket hand-off ({:.1}ms of it encoding), {} bulk message(s) \
-                             already waiting on the lane",
-                            encoded.chunk_count,
-                            encoded.data.len() / 1024,
-                            id,
-                            encoded.queued_at.elapsed().as_secs_f32() * 1000.0,
-                            encoded.encode_ms,
-                            client.sender.bulk_len(),
-                        );
+                        // One line per client per chunk batch, so rate-limited.
+                        static CHUNK_SEND_LOG: LogRateLimiter = LogRateLimiter::new();
+                        if let Some(suppressed) = CHUNK_SEND_LOG.allow(250) {
+                            debug!(
+                                "[chunk-send] {} chunk(s), {}KB to {}: {:.1}ms from queue to \
+                                 socket hand-off ({:.1}ms of it encoding), {} bulk message(s) \
+                                 already waiting on the lane (+{} similar line(s) suppressed)",
+                                encoded.chunk_count,
+                                encoded.data.len() / 1024,
+                                id,
+                                encoded.queued_at.elapsed().as_secs_f32() * 1000.0,
+                                encoded.encode_ms,
+                                client.sender.bulk_len(),
+                                suppressed,
+                            );
+                        }
                     }
                     send_lane_routed(client, encoded.msg_type, encoded.data.clone());
                     if is_entity_lifecycle {

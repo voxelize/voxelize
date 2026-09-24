@@ -14,16 +14,14 @@ impl<'a> System<'a> for UpdateStatsSystem {
 
         let now = SystemTime::now();
 
-        stats.delta = now
+        let elapsed = now
             .duration_since(stats.prev_time)
             .unwrap_or_default()
             .as_nanos() as f32
             / 1000000000.0;
 
         // Clamp delta to a reasonable range to prevent extremely large physics steps.
-        if stats.delta > 0.05 {
-            stats.delta = 0.05; // corresponds to a minimum of ~20 FPS
-        }
+        stats.delta = elapsed.min(0.05); // corresponds to a minimum of ~20 FPS
 
         // Advance the monotonic dispatch counter UNCONDITIONALLY, every run,
         // regardless of `does_tick_time`. Permanent-night worlds freeze
@@ -38,8 +36,10 @@ impl<'a> System<'a> for UpdateStatsSystem {
             stats.tick += 1;
 
             if config.time_per_day > 0 {
-                let delta = stats.delta;
-                stats.advance_time(delta, config.time_per_day as f32);
+                // The day clock follows the wall clock, not the clamped
+                // physics step: a world dispatching slowly (a loaded host, or
+                // hibernating with nobody in it) keeps its day length.
+                stats.advance_time(elapsed, config.time_per_day as f32);
             }
         }
     }

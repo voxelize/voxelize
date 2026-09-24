@@ -19,25 +19,24 @@ impl<'a> System<'a> for EntitiesMetaSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::Join;
 
         let (flag, positions, directions, rigid_bodies, voxels, jsons, mut metadatas) = data;
 
         (&positions, &mut metadatas, &flag)
-            .par_join()
+            .join()
             .for_each(|(position, metadata, _)| {
                 metadata.set("position", position);
             });
 
         (&directions, &mut metadatas, &flag)
-            .par_join()
+            .join()
             .for_each(|(direction, metadata, _)| {
                 metadata.set("direction", direction);
             });
 
         (&rigid_bodies, &mut metadatas, &flag)
-            .par_join()
+            .join()
             .for_each(|(body, metadata, _)| {
                 metadata.set_value(
                     "rigidBody",
@@ -49,7 +48,7 @@ impl<'a> System<'a> for EntitiesMetaSystem {
             });
 
         (&voxels, &jsons, &mut metadatas, &flag)
-            .par_join()
+            .join()
             .for_each(|(voxel, json, metadata, _)| {
                 metadata.set("voxel", voxel);
                 metadata.set("json", json);

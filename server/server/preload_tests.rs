@@ -28,7 +28,7 @@ fn bounded_world_preload_completes_with_oversize_radius() {
 
         let mut preloading = true;
         for _ in 0..2000 {
-            world.send(Tick).await.expect("tick should run");
+            world.send(Tick::now()).await.expect("tick should run");
             let info = world.send(GetInfo).await.expect("info should be readable");
             if !info.preloading {
                 preloading = false;

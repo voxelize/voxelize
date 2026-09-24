@@ -102,6 +102,13 @@ pub struct WorldConfig {
 
     pub does_tick_time: bool,
 
+    /// While no client is in the world, it dispatches its systems once per
+    /// this many milliseconds instead of every tick, and the day clock
+    /// catches up by the real time that passed. `0` never hibernates.
+    /// Deterministic (fixed-step) worlds and preloading worlds never
+    /// hibernate. Default is 500 (2 Hz).
+    pub hibernation_interval_ms: u64,
+
     pub default_time: f32,
 
     /// Drag of the fluid in the voxelize world.
@@ -268,6 +275,9 @@ const DEFAULT_FLUID_DENSITY: f32 = 0.8;
 const DEFAULT_COLLISION_REPULSION: f32 = 2.3;
 const DEFAULT_CLIENT_COLLISION_REPULSION: f32 = 0.0;
 const DEFAULT_DOES_TICK_TIME: bool = true;
+/// 2 Hz: an empty world still drains its queues, saves, and moves its clocks,
+/// at a thirtieth of the cost of ticking at 60 Hz.
+const DEFAULT_HIBERNATION_INTERVAL_MS: u64 = 500;
 const DEFAULT_TIME: f32 = 0.0;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
@@ -307,6 +317,7 @@ pub struct WorldConfigBuilder {
     gravity: [f32; 3],
     min_bounce_impulse: f32,
     does_tick_time: bool,
+    hibernation_interval_ms: u64,
     default_time: f32,
     air_drag: f32,
     fluid_drag: f32,
@@ -341,6 +352,7 @@ impl WorldConfigBuilder {
             min_chunk: DEFAULT_MIN_CHUNK,
             max_chunk: DEFAULT_MAX_CHUNK,
             does_tick_time: DEFAULT_DOES_TICK_TIME,
+            hibernation_interval_ms: DEFAULT_HIBERNATION_INTERVAL_MS,
             default_time: DEFAULT_TIME,
             preload: DEFAULT_PRELOAD,
             preload_radius: DEFAULT_PRELOAD_RADIUS,
@@ -488,6 +500,13 @@ impl WorldConfigBuilder {
 
     pub fn does_tick_time(mut self, does_tick_time: bool) -> Self {
         self.does_tick_time = does_tick_time;
+        self
+    }
+
+    /// How often a world with no clients dispatches, in milliseconds. `0`
+    /// keeps it ticking at full rate. Default is 500.
+    pub fn hibernation_interval_ms(mut self, hibernation_interval_ms: u64) -> Self {
+        self.hibernation_interval_ms = hibernation_interval_ms;
         self
     }
 
@@ -762,6 +781,7 @@ impl WorldConfigBuilder {
             min_bounce_impulse: self.min_bounce_impulse,
             collision_repulsion: self.collision_repulsion,
             does_tick_time: self.does_tick_time,
+            hibernation_interval_ms: self.hibernation_interval_ms,
             client_collision_repulsion: self.client_collision_repulsion,
             terrain: self.terrain,
             saving: self.saving,

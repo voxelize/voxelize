@@ -2,15 +2,17 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::{
-    find_path, Chunks, PathComp, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
-    WorldConfig,
+    find_path, run_on_tick_pool, tick_split, Chunks, PathComp, Registry, RigidBodyComp,
+    TargetComp, Vec3, VoxelAccess, WorldConfig, TICK_SPLIT_MIN_SEARCHES,
 };
-use specs::{ReadExpect, ReadStorage, System, WriteStorage};
+use log::warn;
+use specs::{BitSet, Entities, ReadExpect, ReadStorage, System, WriteStorage};
 
 pub struct PathFindingSystem;
 
 impl<'a> System<'a> for PathFindingSystem {
     type SystemData = (
+        Entities<'a>,
         ReadExpect<'a, Chunks>,
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
@@ -21,166 +23,185 @@ impl<'a> System<'a> for PathFindingSystem {
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::{Join, ParJoin};
 
-        let (chunks, registry, _config, bodies, targets, mut paths) = data;
+        let (entities, chunks, registry, _config, bodies, targets, mut paths) = data;
 
-        (&bodies, &targets, &mut paths)
-            .par_join()
-            .for_each(|(body, target, entity_path)| {
-                let Some(target_position) = target.position.to_owned() else {
-                    return;
-                };
+        // Which entities search this tick, decided inline. A* over voxels is
+        // a pure function of the (seeker, target) voxel pair, so until one of
+        // them crosses a voxel boundary the answer cannot change and the
+        // search is skipped. The age ceiling is what lets terrain edits under
+        // an unmoved pair heal instead of being pathed through forever.
+        let mut searches = BitSet::new();
+        let mut search_count = 0usize;
+        for (entity, body, target, entity_path) in (&entities, &bodies, &targets, &mut paths).join()
+        {
+            let Some(target_position) = target.position.as_ref() else {
+                continue;
+            };
+            let body_vpos = body.0.get_voxel_position();
+            let target_vpos = Vec3(
+                target_position.0.floor() as i32,
+                target_position.1.floor() as i32,
+                target_position.2.floor() as i32,
+            );
 
-                // Per-entity voxel passability cache: local and lock-free, so
-                // parallel searches never contend on a shared lock.
-                let voxel_cache: RefCell<HashMap<(i32, i32, i32), bool>> =
-                    RefCell::new(HashMap::new());
-                let is_passable = |vx: i32, vy: i32, vz: i32| -> bool {
-                    *voxel_cache
-                        .borrow_mut()
-                        .entry((vx, vy, vz))
-                        .or_insert_with(|| {
-                            let voxel = chunks.get_voxel(vx, vy, vz);
-                            let block = registry.get_block_by_id(voxel);
-                            block.is_passable || block.is_fluid
-                        })
-                };
+            let pair = (body_vpos, target_vpos);
+            if entity_path.computed_for.as_ref() == Some(&pair)
+                && entity_path.ticks_since_computed < entity_path.repath_max_age_ticks
+            {
+                entity_path.ticks_since_computed += 1;
+                continue;
+            }
+            entity_path.computed_for = Some(pair);
+            entity_path.ticks_since_computed = 0;
+            searches.add(entity.id());
+            search_count += 1;
+        }
 
-                // Lenient start check: allow standing on edges and non-full blocks.
-                let is_position_supported = |pos: &Vec3<i32>, aabb_width: f32| -> bool {
-                    let half_width = (aabb_width / 2.0).ceil() as i32;
+        // The searches themselves: two or more split across the tick pool,
+        // so the tick waits for the slowest rather than their sum. One runs
+        // inline.
+        let search = |(_, body, entity_path): (u32, &RigidBodyComp, &mut PathComp)| {
+            let Some((body_vpos, target_vpos)) = entity_path.computed_for.clone() else {
+                warn!("[path-finding] a search was scheduled without its voxel pair; skipped");
+                return;
+            };
 
-                    let check_points = [
-                        (-half_width, -half_width),
-                        (half_width, -half_width),
-                        (-half_width, half_width),
-                        (half_width, half_width),
-                        (0, -half_width),
-                        (0, half_width),
-                        (-half_width, 0),
-                        (half_width, 0),
-                    ];
+            // Per-entity voxel passability cache: local and lock-free, so
+            // parallel searches never contend on a shared lock.
+            let voxel_cache: RefCell<HashMap<(i32, i32, i32), bool>> =
+                RefCell::new(HashMap::new());
+            let is_passable = |vx: i32, vy: i32, vz: i32| -> bool {
+                *voxel_cache
+                    .borrow_mut()
+                    .entry((vx, vy, vz))
+                    .or_insert_with(|| {
+                        let voxel = chunks.get_voxel(vx, vy, vz);
+                        let block = registry.get_block_by_id(voxel);
+                        block.is_passable || block.is_fluid
+                    })
+            };
 
-                    check_points
-                        .iter()
-                        .any(|&(dx, dz)| !is_passable(pos.0 + dx, pos.1 - 1, pos.2 + dz))
-                };
+            // Lenient start check: allow standing on edges and non-full blocks.
+            let is_position_supported = |pos: &Vec3<i32>, aabb_width: f32| -> bool {
+                let half_width = (aabb_width / 2.0).ceil() as i32;
 
-                let get_standable_voxel = |voxel: &Vec3<i32>, max_drop: i32| -> Vec3<i32> {
-                    let mut voxel = voxel.clone();
-                    let min_y = 0;
-                    let original_y = voxel.1;
+                let check_points = [
+                    (-half_width, -half_width),
+                    (half_width, -half_width),
+                    (-half_width, half_width),
+                    (half_width, half_width),
+                    (0, -half_width),
+                    (0, half_width),
+                    (-half_width, 0),
+                    (half_width, 0),
+                ];
 
-                    if voxel.1 < min_y {
-                        voxel.1 = min_y;
-                    }
+                check_points
+                    .iter()
+                    .any(|&(dx, dz)| !is_passable(pos.0 + dx, pos.1 - 1, pos.2 + dz))
+            };
 
-                    if !is_passable(voxel.0, voxel.1, voxel.2) {
-                        return voxel;
-                    }
+            let get_standable_voxel = |voxel: &Vec3<i32>, max_drop: i32| -> Vec3<i32> {
+                let mut voxel = voxel.clone();
+                let min_y = 0;
+                let original_y = voxel.1;
 
-                    let min_allowed_y = (original_y - max_drop).max(min_y);
-
-                    while voxel.1 > min_allowed_y {
-                        if is_passable(voxel.0, voxel.1 - 1, voxel.2) {
-                            voxel.1 -= 1;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    voxel
-                };
-
-                let body_vpos = body.0.get_voxel_position();
-                let height = body.0.aabb.height();
-
-                let target_vpos = Vec3(
-                    target_position.0.floor() as i32,
-                    target_position.1.floor() as i32,
-                    target_position.2.floor() as i32,
-                );
-
-                // A* over voxels is a pure function of the (seeker, target)
-                // voxel pair, so until one of them crosses a voxel boundary
-                // the answer cannot change and the search is skipped. The
-                // age ceiling is what lets terrain edits under an unmoved
-                // pair heal instead of being pathed through forever.
-                let pair = (body_vpos.clone(), target_vpos.clone());
-                if entity_path.computed_for.as_ref() == Some(&pair)
-                    && entity_path.ticks_since_computed < entity_path.repath_max_age_ticks
-                {
-                    entity_path.ticks_since_computed += 1;
-                    return;
-                }
-                entity_path.computed_for = Some(pair);
-                entity_path.ticks_since_computed = 0;
-
-                if !is_passable(target_vpos.0, target_vpos.1, target_vpos.2) {
-                    entity_path.path = None;
-                    return;
+                if voxel.1 < min_y {
+                    voxel.1 = min_y;
                 }
 
-                let max_distance_allowed = entity_path.max_distance;
-                let distance = (((body_vpos.0 - target_vpos.0).pow(2)
-                    + (body_vpos.1 - target_vpos.1).pow(2)
-                    + (body_vpos.2 - target_vpos.2).pow(2)) as f64)
-                    .sqrt();
-                if distance > max_distance_allowed {
-                    entity_path.path = None;
-                    return;
+                if !is_passable(voxel.0, voxel.1, voxel.2) {
+                    return voxel;
                 }
 
-                let aabb_width = (body.0.aabb.max_x - body.0.aabb.min_x)
-                    .max(body.0.aabb.max_z - body.0.aabb.min_z);
+                let min_allowed_y = (original_y - max_drop).max(min_y);
 
-                let start =
-                    if body.0.at_rest_y() < 0 || is_position_supported(&body_vpos, aabb_width) {
-                        body_vpos.clone()
+                while voxel.1 > min_allowed_y {
+                    if is_passable(voxel.0, voxel.1 - 1, voxel.2) {
+                        voxel.1 -= 1;
                     } else {
-                        get_standable_voxel(&body_vpos, 3)
-                    };
-
-                let goal = get_standable_voxel(&target_vpos, 2);
-
-                if !is_passable(goal.0, goal.1, goal.2) {
-                    entity_path.path = None;
-                    return;
-                }
-
-                let start_goal_distance = (((start.0 - goal.0).pow(2)
-                    + (start.1 - goal.1).pow(2)
-                    + (start.2 - goal.2).pow(2)) as f64)
-                    .sqrt();
-                if start_goal_distance > max_distance_allowed {
-                    entity_path.path = None;
-                    return;
-                }
-
-                let path = find_path(
-                    &start,
-                    &goal,
-                    height,
-                    entity_path.max_depth_search,
-                    entity_path.max_pathfinding_time,
-                    &is_passable,
-                );
-
-                match path {
-                    Some((nodes, count)) if count <= entity_path.max_nodes as u32 => {
-                        let mut path_nodes = nodes
-                            .iter()
-                            .map(|p| Vec3(p.0, p.1, p.2))
-                            .collect::<Vec<_>>();
-                        smooth_path(&mut path_nodes, &chunks, &registry, height);
-                        entity_path.path = Some(path_nodes);
-                    }
-                    _ => {
-                        entity_path.path = None;
+                        break;
                     }
                 }
-            });
+
+                voxel
+            };
+
+            let height = body.0.aabb.height();
+
+            if !is_passable(target_vpos.0, target_vpos.1, target_vpos.2) {
+                entity_path.path = None;
+                return;
+            }
+
+            let max_distance_allowed = entity_path.max_distance;
+            let distance = (((body_vpos.0 - target_vpos.0).pow(2)
+                + (body_vpos.1 - target_vpos.1).pow(2)
+                + (body_vpos.2 - target_vpos.2).pow(2)) as f64)
+                .sqrt();
+            if distance > max_distance_allowed {
+                entity_path.path = None;
+                return;
+            }
+
+            let aabb_width = (body.0.aabb.max_x - body.0.aabb.min_x)
+                .max(body.0.aabb.max_z - body.0.aabb.min_z);
+
+            let start =
+                if body.0.at_rest_y() < 0 || is_position_supported(&body_vpos, aabb_width) {
+                    body_vpos.clone()
+                } else {
+                    get_standable_voxel(&body_vpos, 3)
+                };
+
+            let goal = get_standable_voxel(&target_vpos, 2);
+
+            if !is_passable(goal.0, goal.1, goal.2) {
+                entity_path.path = None;
+                return;
+            }
+
+            let start_goal_distance = (((start.0 - goal.0).pow(2)
+                + (start.1 - goal.1).pow(2)
+                + (start.2 - goal.2).pow(2)) as f64)
+                .sqrt();
+            if start_goal_distance > max_distance_allowed {
+                entity_path.path = None;
+                return;
+            }
+
+            let path = find_path(
+                &start,
+                &goal,
+                height,
+                entity_path.max_depth_search,
+                entity_path.max_pathfinding_time,
+                &is_passable,
+            );
+
+            match path {
+                Some((nodes, count)) if count <= entity_path.max_nodes as u32 => {
+                    let mut path_nodes = nodes
+                        .iter()
+                        .map(|p| Vec3(p.0, p.1, p.2))
+                        .collect::<Vec<_>>();
+                    smooth_path(&mut path_nodes, &chunks, &registry, height);
+                    entity_path.path = Some(path_nodes);
+                }
+                _ => {
+                    entity_path.path = None;
+                }
+            }
+        };
+
+        if tick_split(search_count, TICK_SPLIT_MIN_SEARCHES) {
+            let work = (&searches, &bodies, &mut paths).par_join();
+            run_on_tick_pool(move || work.for_each(&search));
+        } else {
+            (&searches, &bodies, &mut paths).join().for_each(&search);
+        }
     }
 }
 

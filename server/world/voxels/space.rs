@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use hashbrown::{HashMap, HashSet};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
-
 use crate::{ndarray, BlockUtils, ChunkUtils, LightUtils, Ndarray, Vec2, Vec3};
 
 use super::{
@@ -148,67 +146,41 @@ impl SpaceBuilder<'_> {
 
         let width = chunk_size + margin * 2;
 
-        let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) = self
-            .chunks
-            .light_traversed_chunks(&self.coords)
-            .into_par_iter()
-            .filter_map(|n_coords| {
-                if !self.chunks.is_within_world(&n_coords) {
-                    return None;
-                }
+        // Serial on purpose: this runs on the world thread, once per chunk
+        // that needs a space, over nine neighbors. A parallel iterator here
+        // put a rayon barrier (and a wait for the pool) into the tick for
+        // every such chunk.
+        let mut voxels = HashMap::new();
+        let mut lights = HashMap::new();
+        let mut height_maps = HashMap::new();
 
-                if let Some(chunk) = self.chunks.raw(&n_coords) {
-                    let voxels = if self.needs_voxels {
-                        Some((n_coords.clone(), Arc::clone(&chunk.voxels)))
-                    } else {
-                        None
-                    };
+        for n_coords in self.chunks.light_traversed_chunks(&self.coords) {
+            if !self.chunks.is_within_world(&n_coords) {
+                continue;
+            }
 
-                    let lights = if self.needs_lights {
-                        Some((n_coords.clone(), (*chunk.lights).clone()))
-                    } else {
-                        Some((n_coords.clone(), ndarray(&chunk.lights.shape, 0)))
-                    };
-
-                    let height_maps = if self.needs_height_maps {
-                        Some((n_coords.clone(), Arc::clone(&chunk.height_map)))
-                    } else {
-                        None
-                    };
-
-                    Some((voxels, lights, height_maps))
-                } else if self.strict {
+            let Some(chunk) = self.chunks.raw(&n_coords) else {
+                if self.strict {
                     panic!("Space incomplete in strict mode: {:?}", n_coords);
-                } else {
-                    None
                 }
-            })
-            .fold(
-                || (HashMap::new(), HashMap::new(), HashMap::new()),
-                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
-                 (voxels, lights, height_maps)| {
-                    if let Some(voxel) = voxels {
-                        voxels_acc.insert(voxel.0, voxel.1);
-                    }
-                    if let Some(light) = lights {
-                        lights_acc.insert(light.0, light.1);
-                    }
-                    if let Some(height_map) = height_maps {
-                        height_maps_acc.insert(height_map.0, height_map.1);
-                    }
-                    (voxels_acc, lights_acc, height_maps_acc)
-                },
-            )
-            .reduce(
-                || (HashMap::new(), HashMap::new(), HashMap::new()),
-                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
-                 (voxels, lights, height_maps)| {
-                    voxels_acc.extend(voxels);
-                    lights_acc.extend(lights);
-                    height_maps_acc.extend(height_maps);
-                    (voxels_acc, lights_acc, height_maps_acc)
-                },
-            );
+                continue;
+            };
+
+            if self.needs_voxels {
+                voxels.insert(n_coords.clone(), Arc::clone(&chunk.voxels));
+            }
+
+            let chunk_lights = if self.needs_lights {
+                (*chunk.lights).clone()
+            } else {
+                ndarray(&chunk.lights.shape, 0)
+            };
+            lights.insert(n_coords.clone(), chunk_lights);
+
+            if self.needs_height_maps {
+                height_maps.insert(n_coords, Arc::clone(&chunk.height_map));
+            }
+        }
 
         let min = Vec3(
             cx * chunk_size as i32 - margin as i32,

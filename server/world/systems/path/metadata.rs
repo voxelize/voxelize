@@ -7,13 +7,12 @@ impl<'a> System<'a> for PathMetadataSystem {
     type SystemData = (ReadStorage<'a, PathComp>, WriteStorage<'a, MetadataComp>);
 
     fn run(&mut self, data: Self::SystemData) {
-        use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::Join;
 
         let (paths, mut metadatas) = data;
 
         (&paths, &mut metadatas)
-            .par_join()
+            .join()
             .for_each(|(path, metadata)| {
                 metadata.set("path", path);
             });

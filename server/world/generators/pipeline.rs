@@ -5,6 +5,7 @@ use hashbrown::{HashMap, HashSet};
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use crate::{
+    world::shared_pools::{worldgen_pool, InflightJob, WORLDGEN_INFLIGHT},
     Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, VoxelUpdate,
     WorldConfig,
 };
@@ -432,19 +433,27 @@ impl Pipeline {
             .collect();
 
         let sender = Arc::clone(&self.sender);
-        let registry = registry.to_owned();
-        let config = config.to_owned();
+        // One copy per batch, shared by its stage jobs: each job used to
+        // deep-clone the whole Registry and config for itself.
+        let registry = Arc::new(registry.to_owned());
+        let config = Arc::new(config.to_owned());
 
-        rayon::spawn(move || {
+        // Stage jobs run on the worldgen pool, never on the global pool the
+        // tick path once shared: a tick must not queue behind this backlog.
+        let pool = worldgen_pool();
+        let stage_pool = Arc::clone(&pool);
+        InflightJob::queue(&WORLDGEN_INFLIGHT, processes.len());
+        pool.spawn(move || {
             processes
                 .into_par_iter()
                 .enumerate()
                 .for_each(|(_, (chunk, space, stage))| {
                     let sender = Arc::clone(&sender);
-                    let registry = registry.clone();
-                    let config = config.clone();
+                    let registry = Arc::clone(&registry);
+                    let config = Arc::clone(&config);
 
-                    rayon::spawn_fifo(move || {
+                    stage_pool.spawn_fifo(move || {
+                        let _inflight = InflightJob::adopt(&WORLDGEN_INFLIGHT);
                         let mut changes = vec![];
 
                         let started = std::time::Instant::now();

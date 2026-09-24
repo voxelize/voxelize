@@ -13,13 +13,12 @@ impl<'a> System<'a> for EntityObserveSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use rayon::prelude::*;
-        use specs::ParJoin;
+        use specs::Join;
 
         let (tree, positions, ids, mut targets) = data;
 
         (&positions, &mut targets)
-            .par_join()
+            .join()
             .for_each(|(position, target)| {
                 let closest_arr = if target.target_type == TargetType::All {
                     tree.search(&position.0, 1)
