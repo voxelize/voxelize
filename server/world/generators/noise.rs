@@ -1,4 +1,4 @@
-use noise::{Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, Seedable};
+use noise::{Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti};
 use serde::Serialize;
 use splines::interpolate::Interpolator;
 use std::f64;
@@ -15,17 +15,23 @@ pub struct SeededNoise {
 impl SeededNoise {
     /// Create a new seeded simplex noise.
     pub fn new(seed: u32, options: &NoiseOptions) -> Self {
-        let regular = HybridMulti::new(seed)
+        // Built at the default seed and then given octave sources seeded here:
+        // `new(seed)` and `set_octaves` would seed them inside `noise`.
+        let regular = HybridMulti::<Perlin>::default()
             .set_frequency(options.frequency)
             .set_lacunarity(options.lacunarity)
             .set_persistence(options.persistence)
             .set_octaves(options.octaves);
-        let ridged = RidgedMulti::new(seed)
+        let regular_octaves = regular.octaves;
+        let regular = regular.set_sources(octave_sources(seed, regular_octaves));
+        let ridged = RidgedMulti::<Perlin>::default()
             .set_frequency(options.frequency)
             .set_lacunarity(options.lacunarity)
             .set_persistence(options.persistence)
             .set_attenuation(options.attenuation)
             .set_octaves(options.octaves);
+        let ridged_octaves = ridged.octaves;
+        let ridged = ridged.set_sources(octave_sources(seed, ridged_octaves));
 
         Self {
             regular,
@@ -63,10 +69,29 @@ impl SeededNoise {
 
     /// Set the noise of this seeded noise as a whole.
     pub fn set_seed(&mut self, seed: u32) -> &mut Self {
-        self.regular = self.regular.clone().set_seed(seed + self.options.seed);
-        self.ridged = self.ridged.clone().set_seed(seed + self.options.seed);
+        let seed = seed.wrapping_add(self.options.seed);
+        let regular_octaves = self.regular.octaves;
+        let ridged_octaves = self.ridged.octaves;
+        self.regular = self
+            .regular
+            .clone()
+            .set_sources(octave_sources(seed, regular_octaves));
+        self.ridged = self
+            .ridged
+            .clone()
+            .set_sources(octave_sources(seed, ridged_octaves));
         self
     }
+}
+
+/// One Perlin source per octave, seeded `seed`, `seed + 1`, ... with wrapping
+/// arithmetic. `noise` seeds its octaves with a plain `+`, which wraps in
+/// release but panics in overflow-checked builds for any seed within `octaves`
+/// of `u32::MAX`; seeding them here gives every build release's sequence.
+fn octave_sources(seed: u32, octaves: usize) -> Vec<Perlin> {
+    (0..octaves)
+        .map(|octave| Perlin::new(seed.wrapping_add(octave as u32)))
+        .collect()
 }
 
 #[cfg(test)]
