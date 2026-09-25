@@ -546,6 +546,10 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     } else {
                         block.faces.iter().cloned().map(|f| (f, false)).collect()
                     };
+                    let faces = match &block.connected {
+                        Some(frame) => connect_faces(frame, [vx, vy, vz], faces, space, registry),
+                        None => faces,
+                    };
 
                     for (face, world_space) in faces.into_iter() {
                         let uv_range = face.range.clone();

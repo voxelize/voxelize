@@ -5,7 +5,9 @@ use crate::{BlockFace, BlockFaces, FluidConfig, Registry, Vec3, VoxelAccess, Vox
 use super::super::fluids::create_fluid_active_fn;
 use super::coupled::coupled_guard_fns;
 use super::rules::{attached_support_fns, solid_below_support_fns};
-use super::{Block, BlockDynamicPattern, CoupledPart, SupportRequirement, YRotatableSegments};
+use super::{
+    Block, BlockDynamicPattern, ConnectedFrame, CoupledPart, SupportRequirement, YRotatableSegments,
+};
 
 #[derive(Default)]
 pub struct BlockBuilder {
@@ -52,6 +54,7 @@ pub struct BlockBuilder {
     face_pigments: Vec<(String, u32)>,
     face_emissives: Vec<(String, f32)>,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
+    connected: Option<ConnectedFrame>,
     dynamic_fn: Option<
         Arc<
             dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -444,6 +447,16 @@ impl BlockBuilder {
         self
     }
 
+    /// Join this block's faces with the coplanar faces of neighbours declaring
+    /// the same frame: the frame drawn in its texture border then outlines
+    /// the joined sheet instead of every block, and faces inside the sheet
+    /// are dropped. Faces must carry their texture at `texels_per_block`
+    /// (`auto_uv_offset` on partial faces) for the frame to be found.
+    pub fn connected_frame(mut self, frame: ConnectedFrame) -> Self {
+        self.connected = Some(frame);
+        self
+    }
+
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
         F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -526,6 +539,20 @@ impl BlockBuilder {
                 face.emissive = *strength;
             }
         }
+        if let Some(frame) = &self.connected {
+            assert!(
+                !self.rotatable && !self.y_rotatable,
+                "{}: a connected frame joins faces in world space and cannot rotate",
+                self.name
+            );
+            let reach = frame.frame_texels + frame.corner_texels;
+            assert!(
+                frame.texels_per_block > 0 && 3 * reach < frame.texels_per_block,
+                "{}: a frame reaching {reach} texels into each corner leaves no glass to reflect in a {}-texel face",
+                self.name,
+                frame.texels_per_block
+            );
+        }
 
         // A coupled block is always active: the orphan guard wraps whatever
         // the block declared for itself, so both can coexist (an iron door
@@ -590,6 +617,7 @@ impl BlockBuilder {
             light_attenuation: self.light_attenuation,
             is_dynamic: self.dynamic_fn.is_some() || self.dynamic_patterns.is_some(),
             dynamic_patterns: self.dynamic_patterns,
+            connected: self.connected,
             dynamic_fn: self.dynamic_fn,
             is_active: active_updater.is_some() && active_ticker.is_some(),
             active_ticker,

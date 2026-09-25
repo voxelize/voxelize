@@ -91,6 +91,19 @@ type WasmBlock = {
         }[];
       }[]
     | null;
+  connected: ConnectedFrame | null;
+};
+
+// Mirrors `ConnectedFrame` in crates/mesher/src/mesher/types.rs. Dropping it
+// here would mesh joined glass with every frame on the moment a chunk
+// re-meshes locally, while the server's meshes drew only the outline.
+type ConnectedFrame = {
+  key: number;
+  frameTexels: number;
+  cornerTexels: number;
+  texelsPerBlock: number;
+  clearInterior: boolean;
+  interiorOneIn?: number;
 };
 
 type WasmRegistry = {
@@ -155,6 +168,7 @@ type RawWasmBlock = {
   faces: RawWasmFace[];
   aabbs: RawWasmAabb[];
   dynamicPatterns?: RawWasmDynamicPattern[] | null;
+  connected?: ConnectedFrame | null;
 };
 
 type GeometryProtocol = {
@@ -409,7 +423,7 @@ onmessage = async function (e) {
   postMessage(payload, arrayBuffers);
 };
 
-function convertRegistryToWasm(rawRegistry: {
+export function convertRegistryToWasm(rawRegistry: {
   blocksById: [number, RawWasmBlock][];
   blocksByName: [string, RawWasmBlock][];
 }): WasmRegistry {
@@ -437,6 +451,7 @@ function convertRegistryToWasm(rawRegistry: {
         dynamicPatterns: block.dynamicPatterns
           ? convertDynamicPatterns(block.dynamicPatterns)
           : null,
+        connected: block.connected ?? null,
       };
       return [id, wasmBlock];
     },

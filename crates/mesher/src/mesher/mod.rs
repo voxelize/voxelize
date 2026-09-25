@@ -1,3 +1,6 @@
+mod connected;
+#[cfg(test)]
+mod connected_tests;
 mod connectivity;
 mod faces;
 mod fluid;
@@ -17,6 +20,7 @@ pub use greedy::mesh_space_greedy;
 pub use types::*;
 pub use vertex_light::*;
 
+use connected::*;
 use connectivity::*;
 use faces::*;
 use fluid::*;

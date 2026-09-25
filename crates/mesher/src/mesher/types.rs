@@ -43,6 +43,40 @@ pub struct Block {
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
+    /// Joins this block's faces with coplanar faces of neighbours that share
+    /// the key, so the frame in its texture border is drawn only around the
+    /// outline of the joined sheet. Never greedy-meshed. See `connected`.
+    #[serde(default)]
+    pub connected: Option<ConnectedFrame>,
+}
+
+/// A frame baked into the border of a block's face texture, drawn only where
+/// the face is not joined to the face of a neighbour sharing `key`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedFrame {
+    /// Blocks sharing a key join; different glass kinds keep their frames.
+    pub key: u32,
+    /// Width of the frame in the texture border, in texels.
+    pub frame_texels: u32,
+    /// How far into each end of a frame band the texture shades toward its
+    /// corner. A band carried across a join samples past these texels, so a
+    /// long frame reads as one line instead of a row of block-long dashes.
+    #[serde(default)]
+    pub corner_texels: u32,
+    /// Texels per block the face texture is drawn at.
+    pub texels_per_block: u32,
+    /// The texture is clear inside its frame, so a joined border is left
+    /// undrawn instead of reflecting the glass beside it: a face joined on
+    /// every side is one quad rather than nine.
+    #[serde(default)]
+    pub clear_interior: bool,
+    /// With a clear interior, one joined face in this many keeps what its
+    /// texture draws inside the frame (glass glints), picked by world
+    /// position so a large sheet is not the same speck on every block. 0 or
+    /// 1 keeps every face's.
+    #[serde(default)]
+    pub interior_one_in: u32,
 }
 
 impl Block {

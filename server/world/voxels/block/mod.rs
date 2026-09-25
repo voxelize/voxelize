@@ -1,4 +1,6 @@
 mod builder;
+#[cfg(test)]
+mod connected_parity_tests;
 mod coupled;
 mod faces;
 mod rules;
@@ -18,6 +20,7 @@ pub use voxelize_core::{
     BlockRotation, CornerData, NX_ROTATION, NY_ROTATION, NZ_ROTATION, PX_ROTATION, PY_ROTATION,
     PZ_ROTATION, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
 };
+pub use voxelize_mesher::ConnectedFrame;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -166,6 +169,12 @@ pub struct Block {
     pub is_dynamic: bool,
 
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
+
+    /// Joins this block's faces with coplanar faces of neighbours sharing the
+    /// frame, so the frame in its texture border outlines the joined sheet
+    /// instead of every block. Declared with [`BlockBuilder::connected_frame`].
+    #[serde(default)]
+    pub connected: Option<ConnectedFrame>,
 
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
@@ -427,6 +436,7 @@ impl Block {
                 .dynamic_patterns
                 .as_ref()
                 .map(|patterns| patterns.iter().map(|p| p.to_mesher_pattern()).collect()),
+            connected: self.connected.clone(),
         }
     }
 }
