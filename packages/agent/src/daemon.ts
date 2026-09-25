@@ -19,6 +19,11 @@ import {
 import type { ClientUpdateMode } from "./client-updates";
 import { computeFramePose } from "./frame-pose";
 import {
+  describeDrawInterval,
+  idleDrawIntervalFor,
+  resolveIdleDrawAfterMs,
+} from "./idle-draw";
+import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
   logAgentPerf,
@@ -110,8 +115,10 @@ export type DaemonStatus = {
   /** Milliseconds a video take has been open, so a leaked one is visible in
    * the same place every other stuck resource is. */
   recordingForMs: number | null;
-  /** True while the idle draw cap is on the page (lifted by any command). */
+  /** True while an idle draw cap is on the page (lifted by any command). */
   isDrawThrottled: boolean;
+  /** The cap's ms between drawn frames, or null when drawing every frame. */
+  drawIntervalMs: number | null;
   lease: DaemonLeaseStatus | null;
   meta: SessionMeta;
   origin: SessionOrigin | null;
@@ -171,26 +178,12 @@ const metaPatchSchema = z.object({
 // the daemon and recreate exactly the orphan problem the TTL exists to kill.
 const INFLIGHT_MAX_AGE_MS = 15 * 60_000;
 
-// An idle session draws slowly. A headless tab rendering a full scene at
-// 60fps costs about a core plus the GPU process whether or not anyone is
-// looking (two idle sessions measured 45% and 42% CPU on their renderer and
-// GPU processes alone), and five of them idling was most of a saturated box.
-// After this long without a command the daemon caps the page's draw rate;
-// the next command lifts the cap before it runs. `AGENT_IDLE_DRAW_AFTER_MS=0`
-// disables it (frame-rate measurements start with a command, so they are
-// never taken under the cap either way).
-const DEFAULT_IDLE_DRAW_AFTER_MS = 20_000;
-const IDLE_DRAW_INTERVAL_MS = 500;
+// An idle session draws slowly, in two steps (idle-draw.ts): a few frames a
+// second after a short idle, a frame every few seconds after a long one. The
+// next command lifts the cap before it runs. `AGENT_IDLE_DRAW_AFTER_MS=0`
+// disables both, `AGENT_IDLE_DEEP_AFTER_MS=0` the second (frame-rate
+// measurements start with a command, so they are never taken under a cap).
 const IDLE_DRAW_CHECK_INTERVAL_MS = 5_000;
-
-function idleDrawAfterMs(): number {
-  const raw = process.env.AGENT_IDLE_DRAW_AFTER_MS;
-  if (raw === undefined || raw === "") return DEFAULT_IDLE_DRAW_AFTER_MS;
-  const value = Number(raw);
-  return Number.isFinite(value) && value >= 0
-    ? value
-    : DEFAULT_IDLE_DRAW_AFTER_MS;
-}
 
 const CONNECTION_WATCH_INTERVAL_MS = 2_000;
 // The page document and its held hot updates are read on their own timer,
@@ -396,6 +389,10 @@ export class AgentDaemon {
   private isRecoveryInFlight = false;
   private idleDrawTimer: NodeJS.Timeout | null = null;
   private isDrawThrottled = false;
+  private drawIntervalMs: number | null = null;
+  // The page document the cap was put on: a reload or page reset starts a
+  // document drawing every frame, whatever the daemon last asked of the old.
+  private drawThrottleDocumentId: number | null = null;
   private drawThrottleChange: Promise<void> | null = null;
 
   private pageWatchTimer: NodeJS.Timeout | null = null;
@@ -476,7 +473,7 @@ export class AgentDaemon {
   }
 
   private startIdleDrawWatch(): void {
-    if (this.idleDrawTimer || idleDrawAfterMs() === 0) return;
+    if (this.idleDrawTimer || resolveIdleDrawAfterMs() === 0) return;
     this.idleDrawTimer = setInterval(() => {
       void this.idleDrawTick();
     }, IDLE_DRAW_CHECK_INTERVAL_MS);
@@ -485,18 +482,26 @@ export class AgentDaemon {
 
   private async idleDrawTick(): Promise<void> {
     if (
-      this.isDrawThrottled ||
+      this.isDrawThrottled &&
+      this.drawThrottleDocumentId !== this.clientStatus.documentId
+    ) {
+      this.isDrawThrottled = false;
+      this.drawIntervalMs = null;
+    }
+    const wanted = idleDrawIntervalFor(this.idleMs());
+    if (
+      wanted === null ||
+      (this.drawIntervalMs !== null && wanted <= this.drawIntervalMs) ||
       this.drawThrottleChange ||
       this.freshness.isStale ||
       this.inflightCount > 0 ||
       // A take records whatever the loop draws; capping it mid-clip would
       // turn a 30s shot into a 2fps flipbook.
-      this.agent.recordingForMs() !== null ||
-      this.idleMs() < idleDrawAfterMs()
+      this.agent.recordingForMs() !== null
     ) {
       return;
     }
-    await this.changeDrawThrottle(IDLE_DRAW_INTERVAL_MS);
+    await this.changeDrawThrottle(wanted);
   }
 
   /**
@@ -518,9 +523,11 @@ export class AgentDaemon {
           return;
         }
         this.isDrawThrottled = status.intervalMs !== null;
+        this.drawIntervalMs = status.intervalMs;
+        this.drawThrottleDocumentId = this.clientStatus.documentId;
         console.log(
           this.isDrawThrottled
-            ? `[agent-daemon] idle for ${Math.round(this.idleMs() / 1000)}s: drawing every ${status.intervalMs}ms until the next command`
+            ? `[agent-daemon] idle for ${Math.round(this.idleMs() / 1000)}s: drawing every ${status.intervalMs}ms (${describeDrawInterval(status.intervalMs)}) until the next command`
             : "[agent-daemon] command received: drawing every frame again",
         );
         this.appendEvent("draw-throttle", { intervalMs: status.intervalMs });
@@ -621,6 +628,7 @@ export class AgentDaemon {
       stalledPageCalls: this.agent.stalledPageCallLabels(),
       recordingForMs: this.agent.recordingForMs(),
       isDrawThrottled: this.isDrawThrottled,
+      drawIntervalMs: this.drawIntervalMs,
       lease: this.leaseStatus(),
       meta: this.sessionMeta(),
       origin: this.origin,
