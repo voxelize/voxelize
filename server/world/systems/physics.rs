@@ -265,15 +265,15 @@ impl<'a> System<'a> for PhysicsSystem {
             // Check if the entity is a client, and if so, apply the impulse to the client's body.
             if client_flag.get(entity).is_some() {
                 if let Some(id) = ids.get(entity) {
-                    let event = EventBuilder::new("vox-builtin:impulse")
-                        .payload(vec![
-                            dx * config.client_collision_repulsion,
-                            dy * config.client_collision_repulsion,
-                            dz * config.client_collision_repulsion,
-                        ])
-                        .filter(ClientFilter::Direct(id.0.to_owned()))
-                        .build();
-                    events.dispatch(event);
+                    if let Some(impulse) =
+                        client_repulsion_impulse([dx, dy, dz], config.client_collision_repulsion)
+                    {
+                        let event = EventBuilder::new("vox-builtin:impulse")
+                            .payload(impulse.to_vec())
+                            .filter(ClientFilter::Direct(id.0.to_owned()))
+                            .build();
+                        events.dispatch(event);
+                    }
                     continue;
                 }
             }
@@ -285,5 +285,37 @@ impl<'a> System<'a> for PhysicsSystem {
                 (dz * config.collision_repulsion).min(3.0),
             );
         }
+    }
+}
+
+/// The impulse that pushes an overlapping client along `direction`, or
+/// `None` when it would change nothing. With a repulsion of zero (the
+/// default) overlapping players are never pushed apart, so without this a
+/// zero impulse went to each of them every tick, and each one woke the
+/// receiving body.
+fn client_repulsion_impulse(direction: [f32; 3], strength: f32) -> Option<[f32; 3]> {
+    let impulse = direction.map(|component| component * strength);
+    impulse
+        .iter()
+        .any(|component| component.abs() > f32::EPSILON)
+        .then_some(impulse)
+}
+
+#[cfg(test)]
+mod client_repulsion_tests {
+    use super::client_repulsion_impulse;
+
+    #[test]
+    fn a_zero_repulsion_sends_no_impulse() {
+        assert_eq!(client_repulsion_impulse([0.01, -1.0, 0.0], 0.0), None);
+        assert_eq!(client_repulsion_impulse([0.0, 0.0, 0.0], 0.4), None);
+    }
+
+    #[test]
+    fn a_real_repulsion_pushes_along_the_overlap() {
+        assert_eq!(
+            client_repulsion_impulse([1.0, 0.0, -0.5], 0.4),
+            Some([0.4, 0.0, -0.2])
+        );
     }
 }
