@@ -97,6 +97,9 @@ pub use types::*;
 pub use utils::*;
 pub use voxels::*;
 
+mod client_events;
+pub use client_events::VOXELIZE_BUILTIN_ARM_SWING_EVENT;
+
 pub type Transports = HashMap<String, WsSender>;
 
 mod accessors;

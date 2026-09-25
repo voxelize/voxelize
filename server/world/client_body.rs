@@ -66,6 +66,10 @@ pub fn apply_client_swim_pose_state(
     set_client_body_height(body, target_height);
 }
 
+/// Max plausible movement per peer packet (dash/knockback/lag margin). Far
+/// beyond this is treated as a cheat teleport and clamped.
+pub const MAX_PEER_POS_DELTA: f32 = 24.0;
+
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
 /// Position updates are clamped to a maximum per-message delta so clients cannot
 /// teleport past server reach checks (mine/place/stations).
@@ -79,9 +83,6 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
     };
 
     if let Some(position) = peer_update.position {
-        // Max plausible movement per peer packet (dash/knockback/lag margin).
-        // Far beyond this is treated as a cheat teleport and clamped.
-        const MAX_PEER_POS_DELTA: f32 = 24.0;
         let mut clamped = [position.0, position.1, position.2];
         {
             let positions = world.read_component::<PositionComp>();

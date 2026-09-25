@@ -263,34 +263,49 @@ impl World {
     /// Handler for `Event` type messages.
     pub(super) fn on_event(&mut self, client_id: &str, data: Message) {
         let client_ent = self.clients().get(client_id).map(|c| c.entity.to_owned());
+        let is_transport = self.read_resource::<Transports>().contains_key(client_id);
 
         data.events.into_iter().for_each(|event| {
-            if !self.event_handles.contains_key(&event.name.to_lowercase()) {
-                let location = client_ent.and_then(|ent| {
-                    self.read_component::<CurrentChunkComp>()
-                        .get(ent)
-                        .map(|c| c.coords.clone())
-                });
-
-                let mut event_builder = if event.name == VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT {
-                    let Ok(payload) = serde_json::from_str::<SoundEffectEvent>(&event.payload)
-                    else {
-                        return;
-                    };
-                    Event::sound_effect(payload.source_client_id(client_id))
-                        .filter(ClientFilter::Exclude(vec![client_id.to_owned()]))
-                } else {
-                    Event::new(&event.name).payload(event.payload)
-                };
-                if let Some(loc) = location {
-                    event_builder = event_builder.location(loc);
-                }
-                self.events_mut().dispatch(event_builder.build());
+            let key = event.name.to_lowercase();
+            if let Some(handle) = self.event_handles.get(&key).cloned() {
+                handle(self, client_id, &event.payload);
                 return;
             }
 
-            let handle = self.event_handles.get(&event.name).unwrap().to_owned();
-            handle(self, client_id, &event.payload);
+            if !is_transport && !self.is_relayed_client_event(&key) {
+                warn!(
+                    "[event-relay] refused {} from {} in world {}: clients may only relay {:?}; nothing sent",
+                    event.name,
+                    client_id,
+                    self.name,
+                    self.relayed_client_events()
+                );
+                return;
+            }
+
+            let location = client_ent.and_then(|ent| {
+                self.read_component::<CurrentChunkComp>()
+                    .get(ent)
+                    .map(|c| c.coords.clone())
+            });
+
+            let mut event_builder = if key == VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT {
+                let Ok(payload) = serde_json::from_str::<SoundEffectEvent>(&event.payload) else {
+                    return;
+                };
+                Event::sound_effect(payload.source_client_id(client_id))
+                    .filter(ClientFilter::Exclude(vec![client_id.to_owned()]))
+            } else if is_transport {
+                Event::new(&event.name).payload(event.payload)
+            } else if key == VOXELIZE_BUILTIN_ARM_SWING_EVENT {
+                Event::new(&key).payload(client_id.to_owned())
+            } else {
+                Event::new(&key).payload(event.payload)
+            };
+            if let Some(loc) = location {
+                event_builder = event_builder.location(loc);
+            }
+            self.events_mut().dispatch(event_builder.build());
         });
     }
 
