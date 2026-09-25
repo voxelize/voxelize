@@ -164,6 +164,7 @@ import { Clouds } from "./clouds";
 import { expandCoupledUpdates as expandCoupledBatch } from "./coupled-blocks";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
+import { forwardDraws } from "./forward-draws";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
 import {
@@ -3961,6 +3962,15 @@ export class World<T = any> extends Scene implements NetIntercept {
           material === "basic"
             ? new MeshBasicMaterial(matOptions)
             : new MeshStandardMaterial(matOptions);
+
+        // An own-texture face may animate lazily off its face material's
+        // draws; a display copy of the block on screen counts as one.
+        if (
+          chunkMat &&
+          (block.independentFaces.has(name) || block.isolatedFaces.has(name))
+        ) {
+          forwardDraws(mat, chunkMat);
+        }
 
         geometry = {
           identifier,
