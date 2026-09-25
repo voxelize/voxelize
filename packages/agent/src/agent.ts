@@ -50,6 +50,7 @@ import type {
   YawPitch,
 } from "./bridge";
 import {
+  DEFAULT_MOUNT_SELECTOR,
   agentPidFile,
   clearAgentPidFile,
   reapStaleAgentBrowser,
@@ -321,6 +322,17 @@ export class Agent {
   private targetUrl = "";
   /** Read once: a session holds or follows hot updates for its whole life. */
   readonly clientUpdateMode: ClientUpdateMode = resolveClientUpdateMode();
+  /**
+   * Extra page console prefixes worth keeping in the session log
+   * (AGENT_PAGE_LOG_PREFIXES, comma-separated), on top of the agent's own
+   * and error/warning output.
+   */
+  private readonly pageLogPrefixes: string[] = (
+    process.env.AGENT_PAGE_LOG_PREFIXES ?? ""
+  )
+    .split(",")
+    .map((prefix) => prefix.trim())
+    .filter((prefix) => prefix.length > 0);
   private readonly pidFile: string;
   private eventListeners: Map<AgentEventName, Set<(data: unknown) => void>> =
     new Map();
@@ -778,14 +790,24 @@ export class Agent {
     url: string;
     title: string;
     clientUpdates: ClientUpdateState | null;
+    /** The client rendered its mount element or installed the bridge. */
+    isMounted: boolean;
   }> {
+    const mountSelector =
+      process.env.AGENT_MOUNT_SELECTOR || DEFAULT_MOUNT_SELECTOR;
     return this.withPageTimeout("pageDocument", this.defaultPageTimeoutMs, () =>
-      this.page.evaluate(() => ({
-        documentId: performance.timeOrigin,
-        url: window.location.href,
-        title: document.title,
-        clientUpdates: window.__agentClientUpdates__ ?? null,
-      })),
+      this.page.evaluate(
+        (selector) => ({
+          documentId: performance.timeOrigin,
+          url: window.location.href,
+          title: document.title,
+          clientUpdates: window.__agentClientUpdates__ ?? null,
+          isMounted:
+            Boolean(window.__agent__) ||
+            document.querySelector(selector) !== null,
+        }),
+        mountSelector,
+      ),
     );
   }
 
@@ -840,7 +862,8 @@ export class Agent {
       if (
         text.startsWith("[agent") ||
         text.startsWith("[NETWORK]") ||
-        text.includes("GAMETEST")
+        text.includes("GAMETEST") ||
+        this.pageLogPrefixes.some((prefix) => text.startsWith(prefix))
       ) {
         console.log(`[agent-page]`, truncateLogText(text));
       }

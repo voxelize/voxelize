@@ -72,6 +72,10 @@ export type DaemonOptions = {
   meta?: SessionMeta;
   /** Launch provenance captured by whatever started this daemon; read-only. */
   origin?: SessionOrigin | null;
+  /** How long the first page may take to mount; 0 disables. */
+  mountTimeoutMs?: number;
+  /** Called once when the first page never mounted in time. */
+  onMountFailed?: (reason: string) => void;
 };
 
 export type DaemonLeaseStatus = {
@@ -419,6 +423,10 @@ export class AgentDaemon {
   private isNextRestoreSkipped = false;
   private pageStalledSinceAt: number | null = null;
   private isStallNoted = false;
+  private readonly mountTimeoutMs: number;
+  private readonly onMountFailed: ((reason: string) => void) | null;
+  private hasMounted = false;
+  private isMountFailureReported = false;
 
   constructor(options: DaemonOptions) {
     this.agent = options.agent;
@@ -427,6 +435,8 @@ export class AgentDaemon {
     this.leaseMinutes = options.leaseMinutes ?? 0;
     this.meta = normalizeSessionMeta(options.meta ?? {});
     this.origin = options.origin ?? null;
+    this.mountTimeoutMs = options.mountTimeoutMs ?? 0;
+    this.onMountFailed = options.onMountFailed ?? null;
     this.server = Fastify({ logger: false });
     this.registerActivityTracking();
     this.registerEventTaps();
@@ -659,14 +669,35 @@ export class AgentDaemon {
     }
   }
 
+  /** A first page that never mounts ends the session instead of holding it. */
+  private checkMountDeadline(isMounted: boolean): void {
+    if (this.hasMounted || this.isMountFailureReported) return;
+    if (isMounted) {
+      this.hasMounted = true;
+      return;
+    }
+    const waitedMs = Date.now() - this.startedAt;
+    if (this.mountTimeoutMs <= 0 || waitedMs < this.mountTimeoutMs) return;
+    this.isMountFailureReported = true;
+    const reason = `page never mounted: no client after ${Math.round(waitedMs / 1000)}s (limit ${Math.round(this.mountTimeoutMs / 1000)}s)`;
+    console.error(
+      `[agent-daemon] ${new Date().toISOString()} ${reason}; ending the session so it stops holding a browser`,
+    );
+    this.appendEvent("mount-failed", { waitedMs });
+    this.onMountFailed?.(reason);
+  }
+
   private async pageWatchTick(): Promise<void> {
     let page: Awaited<ReturnType<Agent["pageDocument"]>>;
     try {
       page = await this.agent.pageDocument();
     } catch {
-      // Mid-navigation or wedged: the connection watcher owns that story.
+      // Mid-navigation or wedged: the connection watcher owns that story,
+      // but a page that never answers still counts against its mount time.
+      this.checkMountDeadline(false);
       return;
     }
+    this.checkMountDeadline(page.isMounted);
     const status = this.clientStatus;
     status.title = page.title;
     if (page.documentId !== status.documentId) {

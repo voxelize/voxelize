@@ -2,7 +2,12 @@
 import { parseArgs } from "node:util";
 
 import { Agent } from "../src/agent";
-import { IDLE_TTL_EXIT_CODE, resolveIdleTtlMs } from "../src/browser-lifecycle";
+import {
+  IDLE_TTL_EXIT_CODE,
+  MOUNT_FAILED_EXIT_CODE,
+  resolveIdleTtlMs,
+  resolveMountTimeoutMs,
+} from "../src/browser-lifecycle";
 import { AgentDaemon } from "../src/daemon";
 import {
   SESSION_META_ENV,
@@ -88,6 +93,8 @@ async function main(): Promise<void> {
     leaseMinutes,
     meta,
     origin,
+    mountTimeoutMs: resolveMountTimeoutMs(process.env),
+    onMountFailed: (reason) => void shutdown(reason, MOUNT_FAILED_EXIT_CODE),
   });
 
   let isShuttingDown = false;

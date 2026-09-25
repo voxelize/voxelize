@@ -23,6 +23,35 @@ const CHROME_FOR_TESTING_MARKER = "Google Chrome for Testing";
 export const IDLE_TTL_EXIT_CODE = 66;
 
 /**
+ * Exit code of a daemon whose page never mounted (see
+ * DEFAULT_MOUNT_TIMEOUT_MS): a session with no page holds a browser and
+ * gives nothing back, so it ends itself and says why. Host tooling mirrors
+ * this value the same way as IDLE_TTL_EXIT_CODE.
+ */
+export const MOUNT_FAILED_EXIT_CODE = 67;
+
+/**
+ * How long a freshly launched page may take to mount (its client renders
+ * the element AGENT_MOUNT_SELECTOR names, or installs the bridge) before the
+ * daemon gives up on it. Separate from the bridge wait, which a loaded box
+ * legitimately stretches: this only catches a page whose code never runs.
+ * AGENT_MOUNT_TIMEOUT_MS overrides it; 0 disables.
+ */
+export const DEFAULT_MOUNT_TIMEOUT_MS = 10 * 60_000;
+export const DEFAULT_MOUNT_SELECTOR = "canvas";
+
+export function resolveMountTimeoutMs(
+  env: Record<string, string | undefined>,
+): number {
+  const raw = env.AGENT_MOUNT_TIMEOUT_MS;
+  if (raw === undefined || raw === "") return DEFAULT_MOUNT_TIMEOUT_MS;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0
+    ? value
+    : DEFAULT_MOUNT_TIMEOUT_MS;
+}
+
+/**
  * A daemon that has received no commands for this long shuts itself down,
  * browser included. Long enough that a worker pausing between tasks keeps its
  * session, short enough that a forgotten session cannot hold a browser

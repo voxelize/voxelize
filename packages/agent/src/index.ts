@@ -63,6 +63,7 @@ export type {
 export {
   DEFAULT_IDLE_TTL_MS,
   IDLE_TTL_EXIT_CODE,
+  MOUNT_FAILED_EXIT_CODE,
   agentPidFile,
   resolveIdleTtlMs,
   watchdogLogFile,

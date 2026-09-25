@@ -32,6 +32,10 @@ export default defineConfig({
       formats: ["es", "cjs"],
     },
     rollupOptions: {},
-    emptyOutDir: process.env.NODE_ENV === "production",
+    // Never empty: `vite build` sets NODE_ENV=production itself when it is
+    // unset, and an emptied dist loses the declarations the `types -w`
+    // watcher will not re-emit (it only emits what changed) and the bin every
+    // new session starts from. `pnpm build` runs `clean` first for a wipe.
+    emptyOutDir: false,
   },
 });
