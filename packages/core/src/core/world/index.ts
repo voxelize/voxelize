@@ -138,6 +138,7 @@ import { BlockEntityLedger } from "./block-entity-ledger";
 import { BorderSwapHold } from "./border-swap-hold";
 import { HeldServerUpdates } from "./held-server-updates";
 import { Chunk } from "./chunk";
+import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
   CustomChunkShaderMaterial,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
@@ -903,6 +904,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   // must be re-established after a rejoin, drained through the paced
   // chunk-request flow.
   private chunkRefreshQueue = new Set<string>();
+
+  // Loaded chunks answered under a new server id (a restarted server's
+  // refresh), logged as one count per burst.
+  private chunkIdReplacements = new ChunkIdReplacementReport();
 
   public extraInitData: Record<string, unknown> = {};
 
@@ -4754,6 +4759,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private resyncChunkStagesAfterRejoin() {
+    this.reportChunkIdReplacements(true);
     this.chunkRefreshQueue.clear();
     // Held against the previous server process; the refresh snapshots the
     // rejoin requests supersede them.
@@ -4884,7 +4890,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  private reportChunkIdReplacements(force = false) {
+    const count = this.chunkIdReplacements.take(performance.now(), force);
+    if (count === null) return;
+    console.info(
+      `[voxelize] ${count} loaded chunk(s) came back from the server under new ids (a restarted server re-mints ids for chunks it regenerates); replaced their data in place`,
+    );
+  }
+
   private processChunks(center: Coords2) {
+    this.reportChunkIdReplacements();
+
     const processingSet = this.chunkPipeline.getInStage("processing");
     const reloads = this.chunkPipeline.getReloads();
     if (processingSet.size === 0 && reloads.size === 0) return;
@@ -4955,7 +4971,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
       }
 
-      chunk.setData(item.data);
+      if (chunk.setData(item.data)) {
+        this.chunkIdReplacements.note(performance.now());
+      }
       chunk.isDirty = false;
 
       this.chunkPipeline.markLoaded([x, z], chunk);

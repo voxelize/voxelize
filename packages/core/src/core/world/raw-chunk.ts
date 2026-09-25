@@ -220,21 +220,29 @@ export class RawChunk {
     return chunk;
   }
 
-  setData(data: ChunkProtocol) {
+  /**
+   * Takes a server payload for this chunk's coordinates. Returns whether it
+   * came under a different id: a server process mints ids for the chunks it
+   * generates, so after a restart it answers for the same place under a new
+   * one. The chunk is still that place, so it adopts the id and the data;
+   * throwing here wedged the per-frame chunk step on the first such payload.
+   */
+  setData(data: ChunkProtocol): boolean {
     const { id, x, z } = data;
-
-    if (this.id !== id) {
-      throw new Error("Chunk id mismatch");
-    }
 
     if (this.coords[0] !== x || this.coords[1] !== z) {
       throw new Error("Chunk coords mismatch");
     }
 
+    const idChanged = this.id !== id;
+    this.id = id;
+
     const { voxels, lights } = data;
 
     if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
     if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
+
+    return idChanged;
   }
 
   /**

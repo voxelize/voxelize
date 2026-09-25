@@ -59,16 +59,16 @@ export class Chunk extends RawChunk {
     super(id, coords, options);
   }
 
-  setData(data: ChunkProtocol) {
+  /** See {@link RawChunk.setData}: adopts a new server id for the same coordinates. */
+  override setData(data: ChunkProtocol): boolean {
     const { id, x, z } = data;
-
-    if (this.id !== id) {
-      throw new Error("Chunk id mismatch");
-    }
 
     if (this.coords[0] !== x || this.coords[1] !== z) {
       throw new Error("Chunk coords mismatch");
     }
+
+    const idChanged = this.id !== id;
+    this.id = id;
 
     const { voxels, lights } = data;
 
@@ -76,6 +76,8 @@ export class Chunk extends RawChunk {
 
     if (lights && lights.byteLength) this.lights.data = lights;
     if (voxels && voxels.byteLength) this.voxels.data = voxels;
+
+    return idChanged;
   }
 
   dispose() {
