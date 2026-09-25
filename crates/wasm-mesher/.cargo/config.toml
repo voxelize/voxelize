@@ -1,0 +1,5 @@
+# This crate is its own workspace; keep its builds in its own `target/`, as
+# cargo does by default, rather than inheriting the engine's (or a parent
+# project's) `target-dir` from a config file further up.
+[build]
+target-dir = "target"

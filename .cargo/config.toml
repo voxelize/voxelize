@@ -4,6 +4,14 @@
 # each other's cache and force full rebuilds.
 
 [build]
+# Cargo's own default, spelled out so it holds when this repo is a submodule:
+# cargo merges every config file above the working directory, and a parent
+# project's `target-dir` would otherwise send the engine's builds into the
+# parent's directory. There the engine's workspace shares nothing with the
+# parent's (different lockfile and profiles), yet waits on the same cargo
+# build lock behind every one of the parent's compiles.
+target-dir = "target"
+
 # Opt-in: shared compilation cache across checkouts (e.g. this repo and a
 # parent project consuming it as a submodule). Requires `cargo install sccache`.
 # rustc-wrapper = "sccache"
