@@ -450,6 +450,7 @@ impl World {
         ));
 
         ecs.insert(Mesher::new());
+        ecs.insert(RandomTickCatchUp::new());
         ecs.insert(Pipeline::new());
         ecs.insert(Clients::new());
         ecs.insert(SessionIdentities::new());

@@ -54,9 +54,53 @@ pub struct Stats {
     /// Whether the world is currently preloading chunks.
     pub preloading: bool,
 
+    /// How many world steps (`WorldConfig::world_step_ms` each) the last
+    /// dispatch stood for, and so how far `tick` advanced. 1 at full rate; more
+    /// when dispatches are slower than a step (a loaded host, or a hibernating
+    /// world), so tick-counted timers keep real time. Countdowns subtract it.
+    pub steps: u64,
+
+    /// World time the last dispatch covered, in seconds: `steps` steps. The
+    /// clock for timers that accumulate seconds (growth, cooldowns, regrowth);
+    /// physics keeps the clamped `delta`.
+    pub world_delta: f32,
+
+    /// Real time not yet turned into steps, carried across dispatches so a
+    /// stall pays back over several of them instead of in one.
+    catch_up_debt: f64,
+
     path: PathBuf,
 
     saving: bool,
+}
+
+/// One dispatch's share of world time, from [`plan_world_steps`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldSteps {
+    pub steps: u64,
+    /// Real time still owed after these steps. It can be slightly negative
+    /// (at most one step): a dispatch always advances at least one step.
+    pub debt: f64,
+}
+
+/// Turn the real time since the last dispatch (plus what earlier dispatches
+/// still owe) into whole world steps: at least one, at most `max_steps`,
+/// with the rest carried and the carry capped at `max_debt_secs`.
+pub fn plan_world_steps(
+    debt: f64,
+    elapsed_secs: f64,
+    step_secs: f64,
+    max_steps: u64,
+    max_debt_secs: f64,
+) -> WorldSteps {
+    if step_secs <= 0.0 {
+        return WorldSteps { steps: 1, debt: 0.0 };
+    }
+    let owed = (debt + elapsed_secs.max(0.0)).min(max_debt_secs.max(step_secs));
+    let whole = (owed / step_secs).floor().max(0.0) as u64;
+    let steps = whole.clamp(1, max_steps.max(1));
+    let debt = (owed - steps as f64 * step_secs).max(-step_secs);
+    WorldSteps { steps, debt }
 }
 
 impl Stats {
@@ -93,9 +137,52 @@ impl Stats {
             time: loaded_time,
             day: loaded_day,
             preloading: false,
+            steps: 1,
+            world_delta: 0.0,
+            catch_up_debt: 0.0,
             path,
             saving,
         }
+    }
+
+    /// Advance `tick` by the world steps the real time since the last
+    /// dispatch stands for (see [`plan_world_steps`]), and set `steps` and
+    /// `world_delta` to match.
+    pub fn advance_world_steps(
+        &mut self,
+        elapsed_secs: f64,
+        step_secs: f64,
+        max_steps: u64,
+        max_debt_secs: f64,
+    ) {
+        let plan = plan_world_steps(
+            self.catch_up_debt,
+            elapsed_secs,
+            step_secs,
+            max_steps,
+            max_debt_secs,
+        );
+        self.catch_up_debt = plan.debt;
+        self.steps = plan.steps;
+        self.world_delta = (plan.steps as f64 * step_secs) as f32;
+        self.tick += plan.steps;
+    }
+
+    /// How many multiples of `interval` the last advance of `tick` crossed.
+    /// The stepping-safe form of `tick % interval == 0`: with one step per
+    /// dispatch it is 1 exactly when that would be true, and a dispatch that
+    /// jumps several steps never skips a window.
+    pub fn multiples_crossed(&self, interval: u64) -> u64 {
+        if interval == 0 {
+            return 0;
+        }
+        let before = self.tick.saturating_sub(self.steps.max(1));
+        self.tick / interval - before / interval
+    }
+
+    /// Whether the last advance of `tick` crossed a multiple of `interval`.
+    pub fn crossed_multiple(&self, interval: u64) -> bool {
+        self.multiples_crossed(interval) > 0
     }
 
     /// Advance the clock by `delta` seconds, wrapping `time` at `time_per_day`
@@ -156,6 +243,74 @@ impl Stats {
             let j = serde_json::to_string(&self.get_stats()).unwrap();
             file.write_all(j.as_bytes())
                 .expect("Unable to write stats file.");
+        }
+    }
+}
+
+#[cfg(test)]
+mod world_step_tests {
+    use super::*;
+
+    const STEP: f64 = 0.016;
+
+    #[test]
+    fn a_hibernated_dispatch_stands_for_the_half_second_that_passed() {
+        let plan = plan_world_steps(0.0, 0.5, STEP, 64, 600.0);
+        assert_eq!(plan.steps, 31);
+        assert!((plan.debt - 0.004).abs() < 1e-9, "the 4 ms remainder carries");
+    }
+
+    #[test]
+    fn a_stall_pays_back_a_capped_amount_per_dispatch() {
+        let mut stats = Stats::new(false, "", 0.0);
+        // 10 s and half a step, clear of the float edge at exactly 625 steps.
+        stats.advance_world_steps(10.0 + STEP / 2.0, STEP, 64, 600.0);
+        assert_eq!(stats.steps, 64);
+        let mut total = stats.steps;
+        let mut dispatches = 1;
+        while total < 625 {
+            stats.advance_world_steps(0.0, STEP, 64, 600.0);
+            total += stats.steps;
+            dispatches += 1;
+        }
+        // 10 s is 625 steps; at 64 a dispatch that takes 10 dispatches.
+        assert_eq!(dispatches, 10);
+        assert_eq!(stats.tick, total);
+        stats.advance_world_steps(0.0, STEP, 64, 600.0);
+        assert_eq!(stats.steps, 1, "once repaid, a dispatch is one step again");
+    }
+
+    #[test]
+    fn the_carry_is_capped_so_a_long_sleep_does_not_race_the_world_for_hours() {
+        let plan = plan_world_steps(0.0, 8.0 * 3600.0, STEP, 64, 600.0);
+        assert!(plan.debt <= 600.0);
+    }
+
+    #[test]
+    fn full_rate_dispatches_track_real_time_within_one_step() {
+        let mut stats = Stats::new(false, "", 0.0);
+        // 1000 dispatches at 60 Hz: 16.67 s of real time.
+        for _ in 0..1000 {
+            stats.advance_world_steps(1.0 / 60.0, STEP, 64, 600.0);
+        }
+        let expected = (1000.0 / 60.0 / STEP) as i64;
+        assert!((stats.tick as i64 - expected).abs() <= 1, "tick {} vs {expected}", stats.tick);
+    }
+
+    #[test]
+    fn multiples_crossed_never_skips_a_window_when_ticks_jump() {
+        let mut stats = Stats::new(false, "", 0.0);
+        let mut fired = 0;
+        for _ in 0..100 {
+            stats.advance_world_steps(0.512, STEP, 64, 600.0);
+            fired += stats.multiples_crossed(40);
+        }
+        assert_eq!(fired, stats.tick / 40);
+        // One step per dispatch: identical to `tick % n == 0`.
+        let mut single = Stats::new(false, "", 0.0);
+        for _ in 0..200 {
+            single.advance_world_steps(STEP, STEP, 64, 600.0);
+            assert_eq!(single.crossed_multiple(40), single.tick % 40 == 0);
         }
     }
 }

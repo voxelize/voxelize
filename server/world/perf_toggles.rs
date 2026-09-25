@@ -27,6 +27,11 @@ pub enum PerfToggle {
     /// soon as it finishes. Off waits for the Server timer's next 16 ms slot,
     /// which turns a 17 ms tick into a 32 ms interval.
     CatchUpLateTicks,
+    /// A dispatch advances `stats.tick` by the world steps the real time since
+    /// the last one covers, and chunks players return to are paid the random
+    /// ticks they missed. Off advances one tick per dispatch, so a slow or
+    /// hibernating world's timers fall behind real time.
+    CatchUpWorldTime,
 }
 
 struct ToggleSlot {
@@ -36,7 +41,7 @@ struct ToggleSlot {
     enabled: AtomicBool,
 }
 
-static SLOTS: [ToggleSlot; 3] = [
+static SLOTS: [ToggleSlot; 4] = [
     ToggleSlot {
         toggle: PerfToggle::SkipNoopRemesh,
         name: "skipNoopRemesh",
@@ -56,6 +61,13 @@ static SLOTS: [ToggleSlot; 3] = [
         name: "catchUpLateTicks",
         description: "A world whose tick overran its next slot is ticked again as soon \
                       as it finishes, instead of at the timer's next 16 ms slot",
+        enabled: AtomicBool::new(true),
+    },
+    ToggleSlot {
+        toggle: PerfToggle::CatchUpWorldTime,
+        name: "catchUpWorldTime",
+        description: "Ticks advance by the real time since the last dispatch, and chunks \
+                      players return to catch up on the random ticks they missed",
         enabled: AtomicBool::new(true),
     },
 ];
@@ -120,6 +132,7 @@ mod tests {
             PerfToggle::SkipNoopRemesh,
             PerfToggle::HibernateEmptyWorlds,
             PerfToggle::CatchUpLateTicks,
+            PerfToggle::CatchUpWorldTime,
         ] {
             assert_eq!(SLOTS.iter().filter(|s| s.toggle == toggle).count(), 1);
         }
@@ -135,5 +148,6 @@ mod tests {
         assert!(err.contains("skipNoopRemesh"));
         assert!(err.contains("hibernateEmptyWorlds"));
         assert!(err.contains("catchUpLateTicks"));
+        assert!(err.contains("catchUpWorldTime"));
     }
 }

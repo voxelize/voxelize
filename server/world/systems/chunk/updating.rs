@@ -8,7 +8,7 @@ use crate::{
     beer_lambert_transmit, expand_coupled_updates, record_profile, sample_random_ticks, BlockUtils,
     ChunkInterests, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag,
     IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
-    MetadataComp, PerfToggle, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3,
+    MetadataComp, PerfToggle, RandomTickCatchUp, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3,
     VoxelAccess, VoxelComp, VoxelPacker, WorldConfig, perf_toggle,
 };
 
@@ -1120,6 +1120,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         ReadExpect<'a, LazyUpdate>,
         Entities<'a>,
         WriteStorage<'a, JsonComp>,
+        WriteExpect<'a, RandomTickCatchUp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -1134,6 +1135,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             lazy,
             entities,
             mut json_storage,
+            mut random_catch_up,
         ) = data;
 
         let current_tick = stats.tick as u64;
@@ -1162,6 +1164,24 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         // advance on the same world tick when budget allows.
         let _random_samples =
             sample_random_ticks(&mut chunks, &registry, &interests, &config, current_tick);
+        // What the sampler missed: the extra world steps of a slow dispatch,
+        // and chunks players came back to (see `random_tick_catch_up.rs`).
+        if perf_toggle(PerfToggle::CatchUpWorldTime) {
+            random_catch_up.observe(
+                &interests,
+                current_tick,
+                config.max_random_tick_catch_up_ticks,
+            );
+            random_catch_up.pay(
+                &mut chunks,
+                &registry,
+                &interests,
+                &config,
+                current_tick,
+                stats.steps.saturating_sub(1),
+                config.max_random_tick_catch_up_per_tick,
+            );
+        }
 
         let random_due = collect_due_active_voxels(&mut chunks, current_tick);
         for voxel in &random_due {

@@ -24,7 +24,7 @@ impl<'a> System<'a> for DataSavingSystem {
             return;
         }
 
-        if stats.tick % config.save_interval as u64 != 0 {
+        if !stats.crossed_multiple(config.save_interval as u64) {
             return;
         }
 

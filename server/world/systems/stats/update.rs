@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use specs::{ReadExpect, System, WriteExpect};
 
-use crate::{world::stats::Stats, WorldConfig};
+use crate::{perf_toggle, world::stats::Stats, PerfToggle, WorldConfig};
 
 pub struct UpdateStatsSystem;
 
@@ -33,7 +33,20 @@ impl<'a> System<'a> for UpdateStatsSystem {
         if config.does_tick_time {
             stats.prev_time = now;
 
-            stats.tick += 1;
+            // Fixed-step worlds own their clock; everyone else advances by
+            // the world steps the real time since the last dispatch covers.
+            if config.fixed_timestep.is_none() && perf_toggle(PerfToggle::CatchUpWorldTime) {
+                stats.advance_world_steps(
+                    elapsed as f64,
+                    config.world_step_ms as f64 / 1000.0,
+                    config.max_catch_up_steps,
+                    config.max_catch_up_debt_secs as f64,
+                );
+            } else {
+                stats.tick += 1;
+                stats.steps = 1;
+                stats.world_delta = stats.delta;
+            }
 
             if config.time_per_day > 0 {
                 // The day clock follows the wall clock, not the clamped
@@ -41,6 +54,10 @@ impl<'a> System<'a> for UpdateStatsSystem {
                 // hibernating with nobody in it) keeps its day length.
                 stats.advance_time(elapsed, config.time_per_day as f32);
             }
+        } else {
+            // A frozen-clock world keeps per-dispatch timers on the physics step.
+            stats.steps = 1;
+            stats.world_delta = stats.delta;
         }
     }
 }

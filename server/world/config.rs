@@ -109,6 +109,31 @@ pub struct WorldConfig {
     /// hibernate. Default is 500 (2 Hz).
     pub hibernation_interval_ms: u64,
 
+    /// The length of one world step in milliseconds: how much world time one
+    /// `stats.tick` stands for. A dispatch advances `tick` by the steps the
+    /// real time since the last one covers, so tick-counted timers keep real
+    /// time however often the world dispatches. Default is 16 (the Server's
+    /// tick period).
+    pub world_step_ms: u64,
+
+    /// The most steps one dispatch advances; the rest carries to the next
+    /// dispatches, so recovering from a stall never spikes. Default is 64.
+    pub max_catch_up_steps: u64,
+
+    /// The most real time a world carries as unpaid steps, in seconds. Past
+    /// it (a machine that slept for hours) the world resumes rather than
+    /// racing to catch up. Default is 600.
+    pub max_catch_up_debt_secs: u64,
+
+    /// How many ticks of random-tick sampling a chunk is owed when players
+    /// come back to it, at most (crops and saplings that grew while nobody
+    /// watched). Default is 75000, 20 minutes of steps.
+    pub max_random_tick_catch_up_ticks: u64,
+
+    /// Random-tick samples per dispatch spent paying chunks back, on top of
+    /// `max_random_ticks_per_tick`. Default is 1024.
+    pub max_random_tick_catch_up_per_tick: usize,
+
     pub default_time: f32,
 
     /// Drag of the fluid in the voxelize world.
@@ -278,6 +303,11 @@ const DEFAULT_DOES_TICK_TIME: bool = true;
 /// 2 Hz: an empty world still drains its queues, saves, and moves its clocks,
 /// at a thirtieth of the cost of ticking at 60 Hz.
 const DEFAULT_HIBERNATION_INTERVAL_MS: u64 = 500;
+const DEFAULT_WORLD_STEP_MS: u64 = 16;
+const DEFAULT_MAX_CATCH_UP_STEPS: u64 = 64;
+const DEFAULT_MAX_CATCH_UP_DEBT_SECS: u64 = 600;
+const DEFAULT_MAX_RANDOM_TICK_CATCH_UP_TICKS: u64 = 75_000;
+const DEFAULT_MAX_RANDOM_TICK_CATCH_UP_PER_TICK: usize = 1024;
 const DEFAULT_TIME: f32 = 0.0;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
@@ -318,6 +348,11 @@ pub struct WorldConfigBuilder {
     min_bounce_impulse: f32,
     does_tick_time: bool,
     hibernation_interval_ms: u64,
+    world_step_ms: u64,
+    max_catch_up_steps: u64,
+    max_catch_up_debt_secs: u64,
+    max_random_tick_catch_up_ticks: u64,
+    max_random_tick_catch_up_per_tick: usize,
     default_time: f32,
     air_drag: f32,
     fluid_drag: f32,
@@ -353,6 +388,11 @@ impl WorldConfigBuilder {
             max_chunk: DEFAULT_MAX_CHUNK,
             does_tick_time: DEFAULT_DOES_TICK_TIME,
             hibernation_interval_ms: DEFAULT_HIBERNATION_INTERVAL_MS,
+            world_step_ms: DEFAULT_WORLD_STEP_MS,
+            max_catch_up_steps: DEFAULT_MAX_CATCH_UP_STEPS,
+            max_catch_up_debt_secs: DEFAULT_MAX_CATCH_UP_DEBT_SECS,
+            max_random_tick_catch_up_ticks: DEFAULT_MAX_RANDOM_TICK_CATCH_UP_TICKS,
+            max_random_tick_catch_up_per_tick: DEFAULT_MAX_RANDOM_TICK_CATCH_UP_PER_TICK,
             default_time: DEFAULT_TIME,
             preload: DEFAULT_PRELOAD,
             preload_radius: DEFAULT_PRELOAD_RADIUS,
@@ -507,6 +547,35 @@ impl WorldConfigBuilder {
     /// keeps it ticking at full rate. Default is 500.
     pub fn hibernation_interval_ms(mut self, hibernation_interval_ms: u64) -> Self {
         self.hibernation_interval_ms = hibernation_interval_ms;
+        self
+    }
+
+    /// World time one tick stands for, in milliseconds. Default is 16.
+    pub fn world_step_ms(mut self, world_step_ms: u64) -> Self {
+        self.world_step_ms = world_step_ms;
+        self
+    }
+
+    pub fn max_catch_up_steps(mut self, max_catch_up_steps: u64) -> Self {
+        self.max_catch_up_steps = max_catch_up_steps;
+        self
+    }
+
+    pub fn max_catch_up_debt_secs(mut self, max_catch_up_debt_secs: u64) -> Self {
+        self.max_catch_up_debt_secs = max_catch_up_debt_secs;
+        self
+    }
+
+    pub fn max_random_tick_catch_up_ticks(mut self, max_random_tick_catch_up_ticks: u64) -> Self {
+        self.max_random_tick_catch_up_ticks = max_random_tick_catch_up_ticks;
+        self
+    }
+
+    pub fn max_random_tick_catch_up_per_tick(
+        mut self,
+        max_random_tick_catch_up_per_tick: usize,
+    ) -> Self {
+        self.max_random_tick_catch_up_per_tick = max_random_tick_catch_up_per_tick;
         self
     }
 
@@ -782,6 +851,11 @@ impl WorldConfigBuilder {
             collision_repulsion: self.collision_repulsion,
             does_tick_time: self.does_tick_time,
             hibernation_interval_ms: self.hibernation_interval_ms,
+            world_step_ms: self.world_step_ms,
+            max_catch_up_steps: self.max_catch_up_steps,
+            max_catch_up_debt_secs: self.max_catch_up_debt_secs,
+            max_random_tick_catch_up_ticks: self.max_random_tick_catch_up_ticks,
+            max_random_tick_catch_up_per_tick: self.max_random_tick_catch_up_per_tick,
             client_collision_repulsion: self.client_collision_repulsion,
             terrain: self.terrain,
             saving: self.saving,
