@@ -189,6 +189,21 @@ export interface ParticleConfig {
    * and leave this off.
    */
   isLit?: boolean;
+  /**
+   * Keep this look out of a post-process bloom. Its layer's mesh joins
+   * {@link ParticleSystemOptions.bloomExemptLayer} and is flagged
+   * `userData.isBloomExempt`, so a selective bloom can mask it out: pixel
+   * art that must stay crisp next to a light that is allowed its halo.
+   * Part of the layer's identity, like the blend.
+   */
+  isBloomExempt?: boolean;
+  /**
+   * A layer group of the config's own. Configs share a layer (one draw call,
+   * one capacity) only when their groups match too, so a feature that
+   * bursts hundreds of particles at once can take its own pool instead of
+   * starving every other effect of the same blend and shape.
+   */
+  layerGroup?: string;
 }
 
 export interface SpawnMotion {
@@ -250,4 +265,10 @@ export interface ParticleSystemOptions {
   capacityPerLayer: number;
   /** Pooled point lights for explosion flashes (lights are precious). */
   maxFlashLights: number;
+  /**
+   * The three.js layer channel every bloom-exempt particle mesh joins (see
+   * {@link ParticleConfig.isBloomExempt}). The meshes stay on layer 0 as
+   * well, so they still draw in the main pass.
+   */
+  bloomExemptLayer: number;
 }

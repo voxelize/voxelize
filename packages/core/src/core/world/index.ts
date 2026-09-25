@@ -262,6 +262,7 @@ export * from "./texture-census";
 export * from "./textures";
 export * from "./uv";
 export * from "./vertex-quantization";
+export * from "./voxel-native-shading";
 export * from "./water-optics";
 export * from "./block-light-transfer";
 export * from "./world-clock";

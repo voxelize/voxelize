@@ -29,7 +29,15 @@ export type LayerSpec = {
   map: Texture | null;
   physics: ParticlePhysics | null;
   isCutout: boolean;
+  /**
+   * The three.js layer channel to join so a selective bloom can mask this
+   * layer out, or null when bloom may take it.
+   */
+  bloomExemptLayer: number | null;
 };
+
+/** The default channel bloom-exempt particle meshes join. */
+export const PARTICLE_BLOOM_EXEMPT_LAYER = 30;
 
 /** Below this the silhouette is a hole, above it the texel is the particle. */
 const CUTOUT_ALPHA_TEST = 0.5;
@@ -169,6 +177,12 @@ export class ParticleLayer {
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
+    if (spec.bloomExemptLayer !== null) {
+      // Joined, not moved: the mesh still draws in the main pass on layer
+      // 0, and a selective bloom that renders this channel finds it there.
+      this.mesh.layers.enable(spec.bloomExemptLayer);
+      this.mesh.userData.isBloomExempt = true;
+    }
     // Touch instanceColor into existence so the material compiles with
     // per-instance color support from the first frame.
     for (let i = 0; i < capacity; i += 1) {

@@ -11,7 +11,11 @@ import {
 
 import { computeVoxelLightColor } from "./block-light";
 import { ParticleEmitter } from "./emitter";
-import { ParticleLayer, relaunchBody } from "./layer";
+import {
+  PARTICLE_BLOOM_EXEMPT_LAYER,
+  ParticleLayer,
+  relaunchBody,
+} from "./layer";
 import type {
   BurstOptions,
   EmitterOptions,
@@ -26,6 +30,7 @@ import type {
 const DEFAULT_OPTIONS: ParticleSystemOptions = {
   capacityPerLayer: 768,
   maxFlashLights: 4,
+  bloomExemptLayer: PARTICLE_BLOOM_EXEMPT_LAYER,
 };
 
 const TAU = Math.PI * 2;
@@ -78,6 +83,7 @@ export class ParticleSystem {
   private readonly flashes: FlashSlot[] = [];
   private flashCursor = 0;
   private readonly capacityPerLayer: number;
+  private readonly bloomExemptLayer: number;
 
   private readonly scratchColor = new Color();
   private readonly scratchPosition = new Vector3();
@@ -97,11 +103,12 @@ export class ParticleSystem {
     private readonly world: ParticleWorld,
     options: Partial<ParticleSystemOptions> = {},
   ) {
-    const { capacityPerLayer, maxFlashLights } = {
+    const { capacityPerLayer, maxFlashLights, bloomExemptLayer } = {
       ...DEFAULT_OPTIONS,
       ...options,
     };
     this.capacityPerLayer = capacityPerLayer;
+    this.bloomExemptLayer = bloomExemptLayer;
     for (let i = 0; i < maxFlashLights; i += 1) {
       const light = new PointLight(WHITE, 0, 0);
       light.visible = false;
@@ -130,6 +137,8 @@ export class ParticleSystem {
         texture: config.texture,
         physics: config.physics,
         isCutout: config.isCutout,
+        isBloomExempt: config.isBloomExempt,
+        layerGroup: config.layerGroup,
       },
       this.scratchPosition,
       { speed: { min: 0, max: 0 } },
@@ -271,6 +280,19 @@ export class ParticleSystem {
     this.stepFlashes(dt);
   }
 
+  /**
+   * Every layer mesh a selective bloom should leave out, for bloom setups
+   * that take objects rather than a layer channel. Layers are built as
+   * configs are prewarmed, so read this after the load phase.
+   */
+  getBloomExemptMeshes(): ParticleLayer["mesh"][] {
+    const meshes: ParticleLayer["mesh"][] = [];
+    for (const layer of this.layers.values()) {
+      if (layer.spec.bloomExemptLayer !== null) meshes.push(layer.mesh);
+    }
+    return meshes;
+  }
+
   dispose(): void {
     for (const layer of this.layers.values()) layer.dispose();
     this.layers.clear();
@@ -284,9 +306,12 @@ export class ParticleSystem {
   ): ParticleLayer {
     const shape = config.shape ?? "cube";
     const isCutout = config.isCutout === true;
+    const isBloomExempt = config.isBloomExempt === true;
     const key = `${config.blend}|${shape}|${config.texture?.key ?? ""}|${physicsKey(
       config.physics,
-    )}|${isCutout ? "cutout" : "soft"}`;
+    )}|${isCutout ? "cutout" : "soft"}${isBloomExempt ? "|no-bloom" : ""}${
+      config.layerGroup ? `|group:${config.layerGroup}` : ""
+    }`;
     const existing = this.layers.get(key);
     if (existing) return existing;
 
@@ -303,6 +328,7 @@ export class ParticleSystem {
       map: config.texture?.map ?? null,
       physics: config.physics ?? null,
       isCutout,
+      bloomExemptLayer: isBloomExempt ? this.bloomExemptLayer : null,
     });
     this.layers.set(key, layer);
     this.group.add(layer.mesh);

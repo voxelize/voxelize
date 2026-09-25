@@ -4,6 +4,7 @@ export * from "./block-light";
 export * from "./block-texture";
 export * from "./emitter";
 export * from "./layer";
+export * from "./pixel-sprite";
 export * from "./random";
 export * from "./system";
 export * from "./types";
