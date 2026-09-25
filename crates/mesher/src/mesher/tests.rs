@@ -2483,6 +2483,96 @@ fn a_full_corner_meets_the_wall_pouring_onto_it_unless_a_ceiling_takes_the_plane
     }
 }
 
+/// A tinted voxel packs its colour-table entry under the pigment code on both mesh paths:
+/// two neighbours in different colours stay two quads, the same colour
+/// merges, and an untinted voxel carries no tag at all.
+#[test]
+fn a_tinted_voxel_packs_its_table_entry_and_never_merges_across_colours() {
+    struct TintedSpace([u32; 2]);
+    impl VoxelAccess for TintedSpace {
+        fn get_voxel(&self, x: i32, y: i32, z: i32) -> u32 {
+            if (0..=1).contains(&x) && y == 0 && z == 0 {
+                1
+            } else {
+                0
+            }
+        }
+        fn get_raw_voxel(&self, x: i32, y: i32, z: i32) -> u32 {
+            self.get_voxel(x, y, z)
+        }
+        fn get_voxel_rotation(&self, _: i32, _: i32, _: i32) -> BlockRotation {
+            BlockRotation::PY(0.0)
+        }
+        fn get_voxel_stage(&self, x: i32, _: i32, _: i32) -> u32 {
+            self.0[x.clamp(0, 1) as usize]
+        }
+        fn get_voxel_waterlogged(&self, _: i32, _: i32, _: i32) -> bool {
+            false
+        }
+        fn get_voxel_fluid_level(&self, _: i32, _: i32, _: i32) -> u32 {
+            0
+        }
+        fn get_sunlight(&self, _: i32, _: i32, _: i32) -> u32 {
+            15
+        }
+        fn get_torch_light(&self, _: i32, _: i32, _: i32, _: LightColor) -> u32 {
+            0
+        }
+        fn get_all_lights(&self, _: i32, _: i32, _: i32) -> (u32, u32, u32, u32) {
+            (15, 0, 0, 0)
+        }
+        fn get_max_height(&self, _: i32, _: i32) -> u32 {
+            1
+        }
+        fn contains(&self, x: i32, y: i32, z: i32) -> bool {
+            (-1..=2).contains(&x) && (-1..=1).contains(&y) && (-1..=1).contains(&z)
+        }
+    }
+    let mut slab = plain_block(1, "Tinted slab");
+    slab.is_opaque = true;
+    slab.faces = six_faces();
+    for face in &mut slab.faces {
+        face.pigment_mask = 15;
+    }
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (1, slab.clone())]);
+    registry.build_cache();
+    // Two cubes side by side: unmerged they show ten quads (the face between
+    // them is culled), merged along x they show six.
+    let quads = |space: &TintedSpace| -> (usize, std::collections::HashSet<Option<u32>>) {
+        let meshes = mesh_space_greedy(&[0, 0, 0], &[2, 1, 1], space, &registry);
+        let pigments = meshes
+            .iter()
+            .flat_map(|g| g.lights.iter())
+            .map(|&bits| pigment_of(bits))
+            .collect();
+        let quads = meshes.iter().map(|m| m.indices.len()).sum::<usize>() / 6;
+        (quads, pigments)
+    };
+
+    let (count, pigments) = quads(&TintedSpace([6, 13]));
+    assert_eq!(count, 10, "two colours must never share a quad");
+    assert_eq!(pigments, std::collections::HashSet::from([Some(6), Some(13)]));
+
+    let (count, pigments) = quads(&TintedSpace([9, 9]));
+    assert_eq!(count, 6, "one colour merges like any other face");
+    assert_eq!(pigments, std::collections::HashSet::from([Some(9)]));
+
+    let (count, pigments) = quads(&TintedSpace([0, 0]));
+    assert_eq!(count, 6);
+    assert_eq!(pigments, std::collections::HashSet::from([None]));
+
+    let top_face = slab.faces.iter().find(|f| f.name == "py").unwrap();
+    for bits in mesh_single_face(&slab, top_face, &registry, &TintedSpace([6, 13])) {
+        assert_eq!(pigment_of(bits), Some(6));
+        assert_eq!((bits >> STACK_COUNT_SHIFT) & 15, PIGMENT_CODE);
+    }
+}
+
 /// Same block/material, two climates. The packed bits survive both mesh
 /// paths and prevent greedy merging across differently colored columns.
 #[test]

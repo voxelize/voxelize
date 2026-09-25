@@ -96,6 +96,9 @@ export class ChunkRenderer {
     fogFar: { value: number };
     ao: { value: Vector4 };
     stageTints: { value: Float32Array };
+    /** The colour table: 16 linear RGB multipliers a face with a pigment
+     * mask takes by its voxel stage. Entry 0 is the untinted material. */
+    pigmentTints: { value: Float32Array };
     faceShades: { value: Vector4 };
     minLightLevel: { value: number };
     baseAmbient: { value: number };
@@ -140,6 +143,7 @@ export class ChunkRenderer {
     windSpeed: { value: 1.0 },
     ao: { value: new Vector4(45.0, 105.0, 180.0, 255.0) },
     stageTints: { value: new Float32Array(16 * 3).fill(1) },
+    pigmentTints: { value: new Float32Array(16 * 3).fill(1) },
     faceShades: { value: new Vector4(0.7, 0.85, 0.62, 1.0) },
     minLightLevel: { value: 0.04 },
     baseAmbient: { value: 0.005 },

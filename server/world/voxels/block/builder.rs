@@ -49,6 +49,7 @@ pub struct BlockBuilder {
     light_attenuation: u8,
     emissive: f32,
     stage_tint_mask: u32,
+    face_pigments: Vec<(String, u32)>,
     face_emissives: Vec<(String, f32)>,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     dynamic_fn: Option<
@@ -261,6 +262,20 @@ impl BlockBuilder {
     /// up to four blocks; longer runs keep their sway and remain untinted.
     pub fn stage_tint(mut self, mask: u32) -> Self {
         self.stage_tint_mask = mask & 15;
+        self
+    }
+
+    /// Colour every face through the colour table by the voxel stage.
+    /// Stage zero stays the untinted material.
+    pub fn pigment(self, mask: u32) -> Self {
+        self.face_pigment("", mask)
+    }
+
+    /// Colour only the faces whose name starts with `prefix` through the
+    /// colour table (an inset panel, say, but not the trim around it). Later calls
+    /// override earlier ones for the faces they both name.
+    pub fn face_pigment(mut self, prefix: &str, mask: u32) -> Self {
+        self.face_pigments.push((prefix.to_owned(), mask & 15));
         self
     }
 
@@ -487,6 +502,18 @@ impl BlockBuilder {
             assert!(!self.is_fluid, "stage tint cannot share a fluid field");
             for face in &mut faces {
                 face.stage_tint_mask = self.stage_tint_mask;
+            }
+        }
+        if !self.face_pigments.is_empty() {
+            assert!(!self.is_fluid, "a pigment cannot share a fluid field");
+            assert!(
+                self.stack_group == 0,
+                "a pigment cannot share a plant's stack field"
+            );
+        }
+        for (prefix, mask) in &self.face_pigments {
+            for face in faces.iter_mut().filter(|face| face.name.starts_with(prefix)) {
+                face.pigment_mask = *mask;
             }
         }
         if self.emissive > 0.0 {

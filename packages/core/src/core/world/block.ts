@@ -226,6 +226,11 @@ export type Block = {
      */
     emissive?: number;
     stageTintMask?: number;
+    /**
+     * Stage bits that pick this face's colour-table entry. `0` (or
+     * absent) means the face is never tinted from the table.
+     */
+    pigmentMask?: number;
   }[];
 
   /**

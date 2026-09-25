@@ -26,6 +26,11 @@ pub struct BlockFace {
     /// Only valid on non-fluid blocks without a vertical stack group.
     #[serde(default)]
     pub stage_tint_mask: u32,
+    /// Use the voxel stage (0..15) as a colour-table index. Set through
+    /// [`BlockBuilder::pigment`] or
+    /// [`BlockBuilder::face_pigment`]; never regional.
+    #[serde(default)]
+    pub pigment_mask: u32,
 }
 
 impl BlockFace {
@@ -46,6 +51,7 @@ impl BlockFace {
             range: UV::default(),
             emissive: 0.0,
             stage_tint_mask: 0,
+            pigment_mask: 0,
         }
     }
 
@@ -95,6 +101,7 @@ impl BlockFace {
             },
             emissive: self.emissive,
             stage_tint_mask: self.stage_tint_mask,
+            pigment_mask: self.pigment_mask,
         }
     }
 }
@@ -326,6 +333,7 @@ impl DiagonalFacesBuilder {
                     range: UV::default(),
                     emissive: 0.0,
                     stage_tint_mask: 0,
+                    pigment_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -366,6 +374,7 @@ impl DiagonalFacesBuilder {
                     range: UV::default(),
                     emissive: 0.0,
                     stage_tint_mask: 0,
+                    pigment_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -406,6 +415,7 @@ impl DiagonalFacesBuilder {
                     range: UV::default(),
                     emissive: 0.0,
                     stage_tint_mask: 0,
+                    pigment_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -446,6 +456,7 @@ impl DiagonalFacesBuilder {
                     range: UV::default(),
                     emissive: 0.0,
                     stage_tint_mask: 0,
+                    pigment_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -489,6 +500,7 @@ impl DiagonalFacesBuilder {
                     range: UV::default(),
                     emissive: 0.0,
                     stage_tint_mask: 0,
+                    pigment_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -525,6 +537,7 @@ impl DiagonalFacesBuilder {
                     range: UV::default(),
                     emissive: 0.0,
                     stage_tint_mask: 0,
+                    pigment_mask: 0,
                     corners: [
                         CornerData {
                             pos: [
@@ -858,6 +871,7 @@ impl SixFacesBuilder {
                 range: UV::default(),
                 emissive: 0.0,
                 stage_tint_mask: 0,
+                pigment_mask: 0,
                 corners: [
                     CornerData {
                         pos: [
@@ -909,6 +923,7 @@ impl SixFacesBuilder {
                 range: UV::default(),
                 emissive: 0.0,
                 stage_tint_mask: 0,
+                pigment_mask: 0,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
@@ -960,6 +975,7 @@ impl SixFacesBuilder {
                 range: UV::default(),
                 emissive: 0.0,
                 stage_tint_mask: 0,
+                pigment_mask: 0,
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -1011,6 +1027,7 @@ impl SixFacesBuilder {
                 range: UV::default(),
                 emissive: 0.0,
                 stage_tint_mask: 0,
+                pigment_mask: 0,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
@@ -1058,6 +1075,7 @@ impl SixFacesBuilder {
                 range: UV::default(),
                 emissive: 0.0,
                 stage_tint_mask: 0,
+                pigment_mask: 0,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -1105,6 +1123,7 @@ impl SixFacesBuilder {
                 range: UV::default(),
                 emissive: 0.0,
                 stage_tint_mask: 0,
+                pigment_mask: 0,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],

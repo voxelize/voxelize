@@ -217,6 +217,7 @@ import {
   quantizePositions,
   quantizeUvs,
 } from "./vertex-quantization";
+import type { VoxelDelta } from "./voxel-delta";
 import {
   WATER_OPTICS,
   WaterOptics,
@@ -345,17 +346,7 @@ export type BlockEntityUpdateListener<T> = (
   args: BlockEntityUpdateData<T>,
 ) => void;
 
-export type VoxelDelta = {
-  coords: Coords3;
-  oldVoxel: number;
-  newVoxel: number;
-  oldRotation?: BlockRotation;
-  newRotation?: BlockRotation;
-  oldStage?: number;
-  newStage?: number;
-  timestamp: number;
-  sequenceId: number;
-};
+export type { VoxelDelta } from "./voxel-delta";
 
 /**
  * A snapshot of every queue and in-flight set in the voxel update ->
@@ -6561,6 +6552,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         waterlogLevel,
       );
       this.attemptBlockCache(vx, vy, vz, newValue, source);
+      const oldRaw = this.getRawVoxelAt(vx, vy, vz);
 
       this.activeBlockUpdateSource = source;
       try {
@@ -6571,6 +6563,22 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (newBlock.rotatable || newBlock.yRotatable) {
           this.setVoxelRotationAt(vx, vy, vz, newRotation);
+        }
+
+        // setVoxelAt rewrites the whole word, so a field going back to zero
+        // (a stage field returning to 0, a rotation back to 0) reads as
+        // unchanged to the setter after it: nothing remeshed and the light
+        // workers kept the old word. Compare the words instead.
+        if (this.getRawVoxelAt(vx, vy, vz) !== oldRaw) {
+          this.recordVoxelDelta(vx, vy, vz, {
+            oldVoxel: currentId,
+            newVoxel: type,
+            oldRotation: currentRotation,
+            newRotation: this.getVoxelRotationAt(vx, vy, vz),
+            oldStage: currentStage,
+            newStage: stage,
+          });
+          this.trackChunkAt(vx, vy, vz);
         }
       } finally {
         this.activeBlockUpdateSource = null;
@@ -7453,7 +7461,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     px: number,
     py: number,
     pz: number,
-    deltaData: Partial<Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId">>,
+    deltaData: Partial<
+      Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId" | "newRaw">
+    >,
   ) {
     const chunkName = ChunkUtils.getChunkName(
       ChunkUtils.mapVoxelToChunk(
@@ -7470,6 +7480,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       newRotation: deltaData.newRotation,
       oldStage: deltaData.oldStage,
       newStage: deltaData.newStage,
+      newRaw: this.getRawVoxelAt(px, py, pz),
       timestamp: performance.now(),
       sequenceId: this.deltaSequenceCounter++,
     };

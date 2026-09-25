@@ -35,7 +35,11 @@
 //!               EMISSIVE_LEVELS
 //! bit  31       stage tint; on a non-fluid face, bits 22..=25 hold a
 //!               palette index. Bits 26..=29 jointly encode count/index
-//!               for runs up to four blocks (see `with_stage_tint`).
+//!               for runs up to four blocks (see `with_stage_tint`), codes
+//!               0..=13 — OR code 15 (`PIGMENT_CODE`): a colour-table
+//!               face, whose index names a table entry instead of a regional
+//!               palette entry, and which never bends or takes the biome
+//!               colour (see `with_pigment`).
 //!               Signed storage preserves the full bit pattern (wire bytes).
 //! ```
 
@@ -112,6 +116,51 @@ pub fn with_stage_tint(light: i32, stage: u32) -> i32 {
         | STAGE_TINT_BIT
         | (palette << STACK_INDEX_SHIFT)
         | (code << STACK_COUNT_SHIFT)
+}
+
+/// Highest count/index code `with_stage_tint` can write: a four-block run
+/// at its upper boundary.
+pub const STAGE_TINT_MAX_CODE: i32 = 13;
+
+/// The count code under `STAGE_TINT_BIT` that marks a colour-table face. Tinted runs
+/// never reach it (`STAGE_TINT_MAX_CODE`), so the shader can tell a pigment
+/// from a plant's palette entry without a new vertex attribute. Mirrored by
+/// `PIGMENT_CODE` in the client's `shaders.ts` and `biome-tint.ts`.
+pub const PIGMENT_CODE: i32 = 15;
+
+/// Mark a face with colour-table entry `pigment` (the voxel stage under the
+/// face's pigment mask). The stack fields are replaced: a table-coloured face
+/// is never a swaying plant, so it has no run to keep. Fluids stay unchanged.
+#[inline]
+pub fn with_pigment(light: i32, pigment: u32) -> i32 {
+    if light & FLUID_BIT != 0 {
+        return light;
+    }
+    let fields = (STACK_FIELD_BITS << STACK_INDEX_SHIFT) | (STACK_FIELD_BITS << STACK_COUNT_SHIFT);
+    (light & !fields)
+        | STAGE_TINT_BIT
+        | (((pigment & 15) as i32) << STACK_INDEX_SHIFT)
+        | (PIGMENT_CODE << STACK_COUNT_SHIFT)
+}
+
+#[inline]
+pub fn pigment_bits(pigment: u32) -> i32 {
+    with_pigment(0, pigment)
+}
+
+/// The table entry a face shows at `stage`: none at stage zero under the
+/// mask, so an untinted voxel meshes exactly as a block without a mask.
+#[inline]
+pub fn face_pigment(stage: u32, pigment_mask: u32) -> Option<u32> {
+    let pigment = stage & pigment_mask;
+    (pigment != 0).then_some(pigment)
+}
+
+/// Whether a packed word is a colour-table face, and with which entry.
+#[inline]
+pub fn pigment_of(light: i32) -> Option<u32> {
+    (light < 0 && (light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS == PIGMENT_CODE)
+        .then(|| ((light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS) as u32)
 }
 
 /// The AO-field bits a face should carry: the emissive flag plus the
@@ -244,6 +293,63 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The pigment marker is only sound if no tinted run can produce its
+    /// code: every (palette, count, index) the tint accepts lands at or
+    /// below `STAGE_TINT_MAX_CODE`, and everything it refuses keeps the sign
+    /// bit clear. Exhaustive over the whole stack field.
+    #[test]
+    fn tinted_runs_never_reach_the_pigment_code() {
+        assert!(STAGE_TINT_MAX_CODE < PIGMENT_CODE);
+        assert!(PIGMENT_CODE <= STACK_FIELD_BITS);
+        let bases = [0, 0xabcd | (3 << AO_SHIFT), EMISSIVE_BIT | WAVE_BIT, GREEDY_BIT];
+        for base in bases {
+            for palette in 0..=15 {
+                for count in 1..=STACK_MAX {
+                    for index in 0..STACK_MAX {
+                        let packed = with_stage_tint(with_stack(base, index, count), palette);
+                        if packed < 0 {
+                            let code = (packed >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS;
+                            assert!(code <= STAGE_TINT_MAX_CODE, "{count}/{index} -> {code}");
+                            assert_eq!(pigment_of(packed), None);
+                        } else {
+                            assert_eq!(pigment_of(packed), None);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_pigment_round_trips_and_keeps_every_other_field() {
+        let base = 0x1234 | (2 << AO_SHIFT) | GREEDY_BIT | WATER_EXPOSED_BIT | EMISSIVE_BIT;
+        for pigment in 1..=15 {
+            let packed = with_pigment(with_stack(base, 3, 4), pigment);
+            assert_eq!(pigment_of(packed), Some(pigment));
+            assert_eq!(
+                packed & ((1 << STACK_INDEX_SHIFT) - 1),
+                base & ((1 << STACK_INDEX_SHIFT) - 1)
+            );
+            assert_eq!(packed & EMISSIVE_BIT, EMISSIVE_BIT);
+            assert_eq!(i32::from_le_bytes(packed.to_le_bytes()), packed);
+            assert_eq!(pigment_bits(pigment) | base, with_pigment(base, pigment));
+        }
+        // Different pigments never share a word, so greedy never merges them.
+        let words: std::collections::HashSet<i32> = (1..=15).map(pigment_bits).collect();
+        assert_eq!(words.len(), 15);
+    }
+
+    #[test]
+    fn untinted_faces_and_fluids_carry_no_pigment() {
+        assert_eq!(face_pigment(0, 15), None);
+        assert_eq!(face_pigment(7, 0), None);
+        assert_eq!(face_pigment(0b1000, 0b0111), None);
+        assert_eq!(face_pigment(5, 15), Some(5));
+        assert_eq!(face_pigment(13, 7), Some(5));
+        let fluid = with_stack(0x1234 | FLUID_BIT, 2, 3);
+        assert_eq!(with_pigment(fluid, 9), fluid);
     }
 
     #[test]

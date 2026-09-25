@@ -451,15 +451,20 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             face_name: face.name.clone(),
                             independent: face.independent,
                             is_water_exposed,
-                            tint_bits: if face.stage_tint_mask != 0
-                                && !is_fluid
-                                && block.stack_group == 0
-                            {
-                                stage_tint_bits(
-                                    space.get_voxel_stage(vx, vy, vz) & face.stage_tint_mask,
-                                )
-                            } else {
-                                0
+                            tint_bits: match face_pigment(
+                                space.get_voxel_stage(vx, vy, vz),
+                                face.pigment_mask,
+                            ) {
+                                Some(pigment) if !is_fluid => pigment_bits(pigment),
+                                _ if face.stage_tint_mask != 0
+                                    && !is_fluid
+                                    && block.stack_group == 0 =>
+                                {
+                                    stage_tint_bits(
+                                        space.get_voxel_stage(vx, vy, vz) & face.stage_tint_mask,
+                                    )
+                                }
+                                _ => 0,
                             },
                             ao: aos,
                             light: lights,

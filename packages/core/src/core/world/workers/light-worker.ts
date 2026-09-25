@@ -3,9 +3,10 @@ import { BlockUtils } from "../../../utils/block-utils";
 import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../../utils/light-utils";
 import { Block, BlockRotation } from "../block";
-import type { LightNode, VoxelDelta, WorldOptions } from "../index";
+import type { LightNode, WorldOptions } from "../index";
 import { RawChunk } from "../raw-chunk";
 import { Registry } from "../registry";
+import { applyVoxelDelta, type VoxelDelta } from "../voxel-delta";
 
 let registry: Registry;
 
@@ -605,13 +606,8 @@ onmessage = function (e) {
       if (!chunk) return;
 
       (deltas as VoxelDelta[]).forEach((delta) => {
-        const { coords, newVoxel, newRotation, newStage, sequenceId } = delta;
-        chunk.setVoxel(coords[0], coords[1], coords[2], newVoxel);
-        if (newRotation)
-          chunk.setVoxelRotation(coords[0], coords[1], coords[2], newRotation);
-        if (newStage !== undefined)
-          chunk.setVoxelStage(coords[0], coords[1], coords[2], newStage);
-        lastSequenceId = Math.max(lastSequenceId, sequenceId);
+        applyVoxelDelta(chunk, delta);
+        lastSequenceId = Math.max(lastSequenceId, delta.sequenceId);
       });
     });
 

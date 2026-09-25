@@ -270,6 +270,12 @@ pub struct BlockFace {
     /// longer runs keep their original encoding and remain untinted.
     #[serde(default)]
     pub stage_tint_mask: u32,
+    /// Use the voxel stage (0..15) as an index into the colour table.
+    /// Stage zero is the untinted material.
+    /// Never regional, so a face with this set ignores the biome colour
+    /// field; takes precedence over `stage_tint_mask`.
+    #[serde(default)]
+    pub pigment_mask: u32,
 }
 
 fn default_corners() -> [CornerData; 4] {
@@ -300,6 +306,7 @@ impl BlockFace {
             range: UV::default(),
             emissive: 0.0,
             stage_tint_mask: 0,
+            pigment_mask: 0,
         }
     }
 

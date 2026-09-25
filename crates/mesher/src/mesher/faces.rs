@@ -801,7 +801,14 @@ pub(super) fn process_face<S: VoxelAccess>(
             | wave_bit
             | water_exposed_bit
             | stack_bits;
-        lights.push(if face.stage_tint_mask != 0 && !is_fluid {
+        let pigment = if is_fluid {
+            None
+        } else {
+            face_pigment(space.get_voxel_stage(vx, vy, vz), face.pigment_mask)
+        };
+        lights.push(if let Some(pigment) = pigment {
+            with_pigment(packed, pigment)
+        } else if face.stage_tint_mask != 0 && !is_fluid {
             with_stage_tint(
                 packed,
                 space.get_voxel_stage(vx, vy, vz) & face.stage_tint_mask,

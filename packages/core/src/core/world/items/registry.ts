@@ -155,7 +155,11 @@ export class ItemRegistry {
       const bData = b.data;
       const aHasData = aData && Object.keys(aData).length > 0;
       const bHasData = bData && Object.keys(bData).length > 0;
-      if (aHasData || bHasData) return false;
+      // Worn items never stack; otherwise equal data stacks, the way the
+      // server merges pickups (two items with the same data share a stack).
+      if (aHasData || bHasData) {
+        return !("durability" in (aData ?? {})) && dataEqual(aData, bData);
+      }
       return true;
     }
     return false;

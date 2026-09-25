@@ -286,6 +286,10 @@ attribute vec3 biomeTint;
 #define STACK_INDEX_SHIFT 22
 #define STACK_COUNT_SHIFT 26
 #define STACK_FIELD_BITS 0xF
+// Under the sign bit, this stack-count code marks a colour-table face: its
+// index field names a table entry. Tinted plant runs stop at code 13.
+// Mirrors PIGMENT_CODE in vertex_light.rs and biome-tint.ts.
+#define PIGMENT_CODE 15
 #define EMISSIVE_SHIFT 30
 // On a waving fluid vertex the count field is the surface flow: 0 still,
 // else one of FLOW_DIRECTIONS directions in equal steps from +x toward +z.
@@ -316,6 +320,7 @@ varying float vWaterSurfaceY;
 varying vec3 vAboveSurfaceWaterTransmit;
 uniform vec4 uAOTable;
 uniform vec3 uStageTints[16];
+uniform vec3 uPigmentTints[16];
 uniform float uWaterLevel;
 uniform float uCameraSubmersion;
 uniform float uTime;
@@ -384,7 +389,13 @@ int stackIndex = (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS;
 int stackCount = ((light >> STACK_COUNT_SHIFT) & STACK_FIELD_BITS) + 1;
 // The sign bit is an explicit tag, never a numerical light value.
 vStageTint = vec3(1.0);
-if (light < 0) {
+if (light < 0 && stackCount - 1 == PIGMENT_CODE) {
+  // A colour-table face: the index names its table entry. Never
+  // regional and never a plant, so no biome colour and no run to bend.
+  vStageTint = uPigmentTints[stackIndex];
+  stackCount = 1;
+  stackIndex = 0;
+} else if (light < 0) {
   // Byte-normalized RGB is a multiplier /128. Old worlds and non-chunk
   // previews carry zero and keep their stage palette. The varying blends
   // continuously within each face, including greedy and batched geometry.

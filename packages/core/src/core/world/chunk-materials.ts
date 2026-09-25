@@ -233,6 +233,7 @@ export function makeChunkShaderMaterial(
       uSunlightIntensity: chunksUniforms.sunlightIntensity,
       uAOTable: chunksUniforms.ao,
       uStageTints: chunksUniforms.stageTints,
+      uPigmentTints: chunksUniforms.pigmentTints,
       uFaceShades: chunksUniforms.faceShades,
       uMinLightLevel: chunksUniforms.minLightLevel,
       uBaseAmbient: chunksUniforms.baseAmbient,
