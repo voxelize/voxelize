@@ -1,4 +1,8 @@
 import { BlockRotation } from "../block";
+import {
+  analyticColorFromLevels,
+  BLOCK_LIGHT_TUNING,
+} from "../block-light-transfer";
 
 import { LightSourceRegistry } from "./registry";
 import {
@@ -158,7 +162,7 @@ function resolveProfile(
       declared?.color ??
       (declared?.colorTemperatureK !== undefined
         ? undefined
-        : [r / maxLevel, g / maxLevel, b / maxLevel]),
+        : analyticColorFromLevels(r, g, b)),
     colorTemperatureK: declared?.colorTemperatureK,
     intensity: declared?.intensity ?? maxLevel / maxLightLevel,
     range: declared?.range ?? maxLevel,
@@ -541,8 +545,16 @@ export class SectionTracker {
         }
       }
 
+      // A proxy stands for its members spread over `range`, not stacked at
+      // its centroid: its energy spreads over the wider range's area, so
+      // it no longer peaks where no emitter is (a glowberry ceiling's
+      // cream plateau).
+      const spread =
+        BLOCK_LIGHT_TUNING.proxyEnergy.value === 1
+          ? (base.range / range) ** 2
+          : 1;
       const intensity =
-        base.intensity * Math.min(memberCount, PROXY_INTENSITY_CAP);
+        base.intensity * Math.min(memberCount, PROXY_INTENSITY_CAP) * spread;
       const kept = this.takeReusableProxy(cx, cy, cz, range, intensity);
       if (kept !== INVALID_LIGHT_HANDLE) {
         out.push(kept);

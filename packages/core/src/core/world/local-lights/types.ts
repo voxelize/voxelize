@@ -193,7 +193,7 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   highResolutionHysteresis: 0.15,
   qualityTier: "high",
   fluidSpecularStrength: 1,
-  maskKnee: 2 / 15,
+  maskKnee: 5 / 15,
   maxShadowedLights: 3,
   shadowAtlasSize: 2048,
   shadowSlotSize: 256,

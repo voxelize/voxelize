@@ -93,6 +93,9 @@ vec3 clusterLight = localLightSurface(
 // at dusk. At night (intensity → 0) the wash is an identity.
 float llSunWash = 1.0 - clamp(sunExposure * uSunlightIntensity, 0.0, 1.0);
 clusterLight *= llSunWash;
+// A ceiling keeps the same share of lamp light as of flood (see the
+// smoothTorch line), so both models agree on down-facing faces.
+clusterLight *= mix(1.0, uBlockLightCeilingWeight, max(-vWorldNormal.y, 0.0));
 llFloodRemainder = mix(1.0, llFloodRemainder, llSunWash);
 
 float torchBrightness = max(
@@ -122,6 +125,12 @@ if (uClusteredLightCount != 0) {
 }
 `;
 
+const LOCAL_LIGHTS_ROOM_FILL_FRAGMENT = `
+// Room fill: the lamps the camera sees lift sky-less surfaces past their
+// flood's reach, like bounce light (zero with no air-light set).
+sunTotal += localLightRoomFill(vWorldPosition.xyz, vWorldNormal, sunExposure, vLight.rgb);
+`;
+
 const LOCAL_LIGHTS_SPECULAR_FRAGMENT = `
   // Torch sparkle on water: the clustered lights are the only local sources
   // with a position to reflect, so fluids are where local specular lives.
@@ -146,8 +155,8 @@ if (uLocalLightDebugMode > 0.5) {
 /**
  * Compile the local-lights layer entirely out of a composed chunk fragment:
  * the uniform/function/debug sources vanish, the ownership block becomes
- * the legacy flood expressions, and the guarded cluster blend, fluid
- * specular add, and debug tail disappear. The result is the
+ * the legacy flood expressions, and the guarded cluster blend, room fill,
+ * fluid specular add, and debug tail disappear. The result is the
  * "local lights never existed" program the render-diff harness compares
  * against the shipped program at the off tier — byte-identical output is
  * the contract (see scripts/render-off-parity.mjs).
@@ -159,6 +168,7 @@ export function stripLocalLightsFromFragment(fragment: string): string {
     .replace(LOCAL_LIGHTS_DEBUG_FUNCTIONS, "")
     .replace(LOCAL_LIGHTS_OWNERSHIP_FRAGMENT, LEGACY_BLOCK_LIGHT_FRAGMENT)
     .replace(LOCAL_LIGHTS_BLEND_FRAGMENT, "\n")
+    .replace(LOCAL_LIGHTS_ROOM_FILL_FRAGMENT, "\n")
     .replace(LOCAL_LIGHTS_SPECULAR_FRAGMENT, "\n")
     .replace(LOCAL_LIGHTS_DEBUG_TAIL_FRAGMENT, "\n");
 }
@@ -898,6 +908,10 @@ vec3 cpuTorchLight = vLight.rgb;
 // Flood level to light (block-light-transfer.ts): a geometric per-level
 // decay that keeps a coloured light's hue while its channels are alive.
 vec3 smoothTorch = blockLightCurve(cpuTorchLight);
+// Lamp light on a face that looks down keeps ceilingWeight of itself
+// (block-light-transfer.ts): the flood has no direction, and a lamp's
+// ceiling otherwise reads as the lit surface of the room.
+smoothTorch *= mix(1.0, uBlockLightCeilingWeight, max(-vWorldNormal.y, 0.0));
 ${LOCAL_LIGHTS_OWNERSHIP_FRAGMENT}
 
 float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
@@ -990,7 +1004,7 @@ bounceLight *= downTransmit;
 sunTotal += bounceLight;
 sunTotal += globalAmbient;
 sunTotal += underwaterFill;
-
+${LOCAL_LIGHTS_ROOM_FILL_FRAGMENT}
 vec3 totalLight = 1.0 - (1.0 - sunTotal) * (1.0 - torchLight);
 
 // Dynamic cones (flashlight, headlights) screen-blend in like torch light,
@@ -1000,6 +1014,10 @@ vec3 coneLight = lightConeSurface(vWorldPosition.xyz, vWorldNormal);
 totalLight = 1.0 - (1.0 - totalLight) * (1.0 - coneLight);
 
 ${LOCAL_LIGHTS_BLEND_FRAGMENT}
+
+// Lamplight white balance: the eye adapts to a flame, so block light
+// reads warm (the tint below) rather than a saturated orange cast.
+totalLight = blockLightAdapt(totalLight, torchDominance);
 
 vec3 warmTint = vec3(1.05, 0.92, 0.75);
 // A saturated emitter keeps its own hue: the warm push fades toward white
@@ -1030,6 +1048,16 @@ toneMapHue *= dot(totalLight, vec3(0.2126, 0.7152, 0.0722))
 totalLight = mix(totalLight, toneMapHue, torchDominance * uBlockLightToneMap);
 vec3 darknessFloor = vec3(ambientFloor) *
   mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility) * downTransmit;
+// The floor warms with the lamp that takes the fragment over: a cool floor
+// under a faint warm light kept its blue while the light lifted red, so
+// the edge of every lamp's pool turned pink (block-light-transfer.ts
+// warmFloor). It is fully warm once the lamp is a third of the light, so
+// the faintest tail of a lamp's pool is warm too. No lamp, no change.
+darknessFloor = mix(
+  darknessFloor,
+  vec3(ambientFloor) * warmTint * downTransmit,
+  clamp(torchDominance * 3.0, 0.0, 1.0) * uBlockLightWarmFloor
+);
 totalLight = max(totalLight, darknessFloor * faceShade);
 
 // An emissive face is its own light source: it bypasses the lighting model

@@ -2,8 +2,13 @@ import { Vector3 } from "three";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  BLOCK_LIGHT_TRANSFER,
+  BLOCK_LIGHT_TUNING,
+  blockLightAdapt,
   blockLightCurve,
+  blockLightCurveRGB,
   localLightFalloff,
+  maskedWindowDistance,
   setBlockLightTuning,
 } from "../block-light-transfer";
 import {
@@ -768,7 +773,7 @@ describe("block-light ownership", () => {
       cross: SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
     };
     const forbidden =
-      /uLightGrid|uLightData|uLocalOwnership|uLocalMaskKnee|uLocalShadow|uLocalSpecularStrength|uLocalLightDebugMode|uClusteredLightCount|localLight|llFlood|llClaim|llWindowFade|clusterLight/;
+      /uLightGrid|uLightData|uLocalOwnership|uLocalMaskKnee|uLocalShadow|uLocalSpecularStrength|uLocalLightDebugMode|uClusteredLightCount|uAir|uRoomFill|localLight|llFlood|llClaim|llWindowFade|clusterLight/;
     for (const [name, variant] of Object.entries(variants)) {
       const stripped = stripLocalLightsFromFragment(variant.fragment);
       expect(stripped, name).not.toMatch(forbidden);
@@ -832,6 +837,68 @@ const makeTable = (profiles: [number, BlockLightProfile][] = []) =>
     MAX_LIGHT_LEVEL,
   );
 
+describe("tight analytic kernel", () => {
+  afterEach(() => setBlockLightTuning({ tightKernel: true }));
+
+  it("falls off across a small room instead of lighting it evenly", () => {
+    // A warm fixed light of range 14: the floor beside it against a far
+    // corner of a small room.
+    const near = localLightFalloff(1, 14);
+    const far = localLightFalloff(6, 14);
+    setBlockLightTuning({ tightKernel: false });
+    const wideNear = localLightFalloff(1, 14);
+    const wideFar = localLightFalloff(6, 14);
+    expect(near / far).toBeGreaterThan(1.5 * (wideNear / wideFar));
+    // Darker across the room, with no hot disc beside the source.
+    expect(far).toBeLessThan(wideFar);
+    expect(near).toBeLessThan(wideNear * 1.05);
+  });
+});
+
+describe("lamplight white balance", () => {
+  afterEach(() => setBlockLightTuning({ adaptation: true }));
+
+  it("leaves daylight alone and turns a flame's orange toward warm", () => {
+    const out: [number, number, number] = [0, 0, 0];
+    expect(blockLightAdapt(1, 0.485, 0, 0, out)).toEqual([1, 0.485, 0]);
+    const [r, g, b] = blockLightAdapt(1, 0.485, 0, 1, out);
+    // A light touch: warm amber, not grey (0.485 -> about 0.52).
+    expect(g / r).toBeGreaterThan(0.5);
+    expect(g / r).toBeLessThan(0.56);
+    expect(b / r).toBeGreaterThan(0.05);
+    // Luminance is kept: only the colour moves.
+    expect(0.2126 * r + 0.7152 * g + 0.0722 * b).toBeCloseTo(
+      0.2126 + 0.7152 * 0.485,
+      5,
+    );
+    setBlockLightTuning({ adaptation: false });
+    expect(blockLightAdapt(1, 0.485, 0, 1, out)).toEqual([1, 0.485, 0]);
+  });
+});
+
+describe("masked window distance", () => {
+  it("reaches the flood's L1 diamond, not the Euclidean sphere", () => {
+    // (6, 6, 0): 8.49 blocks away but 12 flood steps — the flood's edge
+    // for a 12-level light, so the window must already be zero there.
+    const dist = Math.hypot(6, 6);
+    expect(maskedWindowDistance(dist, 6, -6, 0)).toBeCloseTo(12);
+    expect(localLightFalloff(maskedWindowDistance(dist, 6, 6, 0), 12)).toBe(0);
+    // Along an axis the two distances agree and nothing changes.
+    expect(maskedWindowDistance(5, 0, 5, 0)).toBe(5);
+  });
+
+  it("falls back to the Euclidean window behind the diamond switch", () => {
+    setBlockLightTuning({ diamond: false });
+    try {
+      expect(maskedWindowDistance(Math.hypot(6, 6), 6, 6, 0)).toBeCloseTo(
+        Math.hypot(6, 6),
+      );
+    } finally {
+      setBlockLightTuning({ diamond: true });
+    }
+  });
+});
+
 describe("BlockProfileTable", () => {
   it("derives a default profile from flood levels", () => {
     const table = makeTable();
@@ -846,7 +913,38 @@ describe("BlockProfileTable", () => {
     const color = profile.descriptor.color;
     if (!color) throw new Error("expected a derived color");
     expect(color[0]).toBeCloseTo(1);
-    expect(color[1]).toBeCloseTo(9 / 14);
+    // The flood's own hue (see hueLevels), so the core's hue matches
+    // the flood's: green sits five levels under red.
+    expect(color[1]).toBeCloseTo(1 - 5 / BLOCK_LIGHT_TRANSFER.hueLevels);
+  });
+
+  it("gives the flood a light's hue from its level gaps, brightness from its peak", () => {
+    const out: [number, number, number] = [0, 0, 0];
+    // A red-heavy 12/7/2 colour at its source: amber, not salmon.
+    blockLightCurveRGB(12 / 15, 7 / 15, 2 / 15, out);
+    expect(out[0]).toBeCloseTo(blockLightCurve(12 / 15), 5);
+    expect(out[1] / out[0]).toBeCloseTo(7 / 12, 3);
+    expect(out[2] / out[0]).toBeCloseTo(2 / 12, 3);
+    // A dead channel stays dead.
+    blockLightCurveRGB(5 / 15, 0, 0, out);
+    expect(out[1]).toBe(0);
+    // The per-channel curve behind the switch.
+    setBlockLightTuning({});
+    BLOCK_LIGHT_TUNING.hueLevels.value = 0;
+    blockLightCurveRGB(12 / 15, 7 / 15, 2 / 15, out);
+    expect(out[1]).toBeCloseTo(blockLightCurve(7 / 15), 5);
+    BLOCK_LIGHT_TUNING.hueLevels.value = BLOCK_LIGHT_TRANSFER.hueLevels;
+  });
+
+  it("keeps the legacy channel ratio behind the analyticHue switch", () => {
+    setBlockLightTuning({ analyticHue: false });
+    try {
+      const color = makeTable().profileFor(TORCH.id)?.descriptor.color;
+      if (!color) throw new Error("expected a derived color");
+      expect(color[1]).toBeCloseTo(9 / 14);
+    } finally {
+      setBlockLightTuning({ analyticHue: true });
+    }
   });
 
   it("lets a declared profile override the defaults", () => {

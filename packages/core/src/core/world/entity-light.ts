@@ -4,7 +4,8 @@ import {
   acesFit,
   BLOCK_LIGHT_TRANSFER,
   BLOCK_LIGHT_TUNING,
-  blockLightCurve,
+  blockLightCurveRGB,
+  blockLightAdapt,
   blockLightToneMap,
   blockLightWarmTint,
 } from "./block-light-transfer";
@@ -115,6 +116,8 @@ export const acesToneMap = acesFit;
 
 const warmScratch: [number, number, number] = [0, 0, 0];
 const toneScratch: [number, number, number] = [0, 0, 0];
+const adaptScratch: [number, number, number] = [0, 0, 0];
+const curveScratch: [number, number, number] = [0, 0, 0];
 
 /**
  * CPU mirror of the chunk fragment's light composition, for objects lit as
@@ -189,9 +192,12 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
     s.underwaterFill.b;
 
   // `vec3 smoothTorch = blockLightCurve(cpuTorchLight);`
-  const smoothR = blockLightCurve(s.floodR);
-  const smoothG = blockLightCurve(s.floodG);
-  const smoothB = blockLightCurve(s.floodB);
+  const [smoothR, smoothG, smoothB] = blockLightCurveRGB(
+    s.floodR,
+    s.floodG,
+    s.floodB,
+    curveScratch,
+  );
 
   // Daylight washes analytic block light and hands the washed share back to
   // the flood term: `clusterLight *= llSunWash; llFloodRemainder = mix(1.0,
@@ -234,6 +240,8 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
   const torchDominance =
     torchBrightness /
     (torchBrightness + sunLuma + BLOCK_LIGHT_TUNING.dominanceKnee.value);
+  // `totalLight = blockLightAdapt(totalLight, torchDominance);`
+  [r, g, b] = blockLightAdapt(r, g, b, torchDominance, adaptScratch);
   const warm = blockLightWarmTint(torchR, torchG, torchB, warmScratch);
   r *= COOL_TINT[0] + (warm[0] - COOL_TINT[0]) * torchDominance;
   g *= COOL_TINT[1] + (warm[1] - COOL_TINT[1]) * torchDominance;
@@ -255,9 +263,14 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
     (DARKNESS_FLOOR_TINT[2] + (1 - DARKNESS_FLOOR_TINT[2]) * sunVisibility) *
     dtB;
 
+  // The floor warms with the lamp: `darknessFloor = mix(darknessFloor,
+  // ambientFloor * warmTint * downTransmit, torchDominance * warmFloor)`.
+  const warmth =
+    Math.min(Math.max(torchDominance * 3, 0), 1) *
+    BLOCK_LIGHT_TUNING.warmFloor.value;
   return out.setRGB(
-    Math.max(r, floorR),
-    Math.max(g, floorG),
-    Math.max(b, floorB),
+    Math.max(r, floorR + (ambientFloor * warm[0] * dtR - floorR) * warmth),
+    Math.max(g, floorG + (ambientFloor * warm[1] * dtG - floorG) * warmth),
+    Math.max(b, floorB + (ambientFloor * warm[2] * dtB - floorB) * warmth),
   );
 }

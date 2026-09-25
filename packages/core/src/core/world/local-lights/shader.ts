@@ -1,6 +1,7 @@
 import { blockLightCurve } from "../block-light-transfer";
 import { WATER_VIEW_EXTINCTION_GLSL } from "../water-optics";
 
+import { AIRLIGHT_UNIFORMS_GLSL } from "./airlight";
 import {
   GRID_CELLS_PER_ROW,
   MAX_LIGHTS_PER_CELL,
@@ -88,6 +89,13 @@ uniform sampler2D uLocalShadowAtlas;
 uniform vec4 uLocalShadowParams;
 // [pcf radius (texels), shadow strength, unused, unused]
 uniform vec4 uLocalShadowParams2;
+${AIRLIGHT_UNIFORMS_GLSL}
+uniform float uRoomFillStrength;
+uniform float uRoomFillRangeScale;
+uniform float uRoomFillCoreScale;
+// 1: fill only where the fragment's own flood reaches (walls stop it); 0:
+// unmasked, reaching past the flood and through walls.
+uniform float uRoomFillFloodMask;
 `;
 
 /**
@@ -325,9 +333,29 @@ vec3 localLightSurface(
     float llDist = sqrt(max(llD2, 1e-6));
     vec3 llL = llToLight / llDist;
 
+    // A masked light's flood ends on the L1 diamond of its range, and the
+    // mask cuts it there. Windowing by the larger of the two distances
+    // brings the light to zero on that diamond instead of leaving it bright
+    // along the diagonals right up to the cut.
+    float llWindowDist = llDist;
+    if ((llFlags & 1) != 0) {
+      vec3 llAbs = abs(llToLight);
+      llWindowDist = mix(llDist, max(llDist, llAbs.x + llAbs.y + llAbs.z), uBlockLightDiamond);
+      if (llWindowDist >= llRange) continue;
+    }
+
     // Windowed inverse square (legacy (1 - n^2)^2 behind the kernel switch):
     // a hot core that fades evenly, instead of a plateau with a hard rim.
-    float llFall = blockLightKernelFalloff(llDist, llD2, llRange);
+    // On a ceiling the light hangs just under, the falloff is flat across
+    // its core: a cluster of hanging emitters lights its ceiling evenly
+    // instead of painting a bright pool round itself.
+    float llMountCore = (1.0 - blockLightMountFade(llToLight, llNormal))
+      * uBlockLightKernelCore * llRange;
+    float llFall = blockLightKernelFalloff(
+      llWindowDist,
+      max(llD2, llMountCore * llMountCore),
+      llRange
+    );
 
     float llAngular = 1.0;
     if (llShape == 1) {
@@ -403,6 +431,39 @@ vec3 localLightSurface(
   llFloodRemainder = mix(1.0, llRemainderOwned, llWindowFade);
 
   return llTotal * llWindowFade;
+}
+
+// Room fill (block-light plan step 8): the few lights nearest the camera,
+// as a weak half-Lambert bounce on surfaces the sky does not reach — the
+// side of a pillar facing away from a lamp is not black. Masked by the
+// fragment's own flood, which cannot pass a wall, so it never lights the
+// room next door; zero wherever the sky lights the fragment. The set
+// carries its own fades and daylight dimmer, so the fill never pops.
+vec3 localLightRoomFill(vec3 llPos, vec3 llNormal, float llSkyExposure, vec3 llFlood) {
+  if (uAirCount == 0 || llSkyExposure >= 0.999) return vec3(0.0);
+  float llFillMask = mix(
+    1.0,
+    // Eased in over the flood's outer eight levels: a two-level ramp cut
+    // the fill off along the flood's ragged diamond edge, leaving a warm
+    // band with a red fringe and specks on the floor.
+    smoothstep(0.0, 8.0 / 15.0, max(max(llFlood.r, llFlood.g), llFlood.b)),
+    uRoomFillFloodMask
+  );
+  if (llFillMask <= 0.0) return vec3(0.0);
+  vec3 llFill = vec3(0.0);
+  for (int i = 0; i < AIRLIGHT_SLOTS; i++) {
+    if (i >= uAirCount) break;
+    vec3 llToLight = uAirPos[i].xyz - llPos;
+    float llD2 = dot(llToLight, llToLight);
+    float llReach = uAirPos[i].w * uRoomFillRangeScale;
+    if (llD2 >= llReach * llReach) continue;
+    float llFacing = dot(llNormal, llToLight * inversesqrt(max(llD2, 1e-4))) * 0.5 + 0.5;
+    float llN2 = llD2 / (llReach * llReach);
+    float llCore = uAirColor[i].w * uRoomFillCoreScale;
+    llFill += uAirColor[i].rgb
+      * (llFacing * (1.0 - llN2) * (1.0 - llN2) / (1.0 + llD2 / (llCore * llCore)));
+  }
+  return llFill * (uRoomFillStrength * (1.0 - llSkyExposure) * llFillMask);
 }
 
 vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood) {

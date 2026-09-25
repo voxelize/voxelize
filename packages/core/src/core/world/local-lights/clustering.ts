@@ -9,7 +9,10 @@ import {
   Vector4,
 } from "three";
 
-import { localLightFalloff } from "../block-light-transfer";
+import {
+  localLightFalloff,
+  maskedWindowDistance,
+} from "../block-light-transfer";
 
 import {
   LIGHT_FLAG_FLICKER,
@@ -146,7 +149,7 @@ export class LightClusterGrid {
     /** 1: the temporally stable layer. 0: the legacy frame, for A/B. */
     stable: { value: 1 },
     clusteredCount: { value: 0 },
-    maskKnee: { value: 2 / 15 },
+    maskKnee: { value: 5 / 15 },
     specularStrength: { value: 1 },
     /** 0..1: how strongly analytic claims suppress the baked flood term. */
     ownership: { value: 1 },
@@ -641,7 +644,13 @@ export class LightClusterGrid {
       const d2 = dx * dx + dy * dy + dz * dz;
       if (d2 >= range * range) continue;
       const dist = Math.sqrt(Math.max(d2, 1e-6));
-      const falloff = localLightFalloff(dist, range);
+      // Masked lights window by their flood's L1 diamond, like the shader.
+      const windowDist =
+        flags[i] & LIGHT_FLAG_MASKED
+          ? maskedWindowDistance(dist, dx, dy, dz)
+          : dist;
+      if (windowDist >= range) continue;
+      const falloff = localLightFalloff(windowDist, range, d2);
 
       let angular = 1;
       if (shapes[i] === LIGHT_SHAPE_SPOT) {
@@ -1150,6 +1159,7 @@ export class LightClusterGrid {
       // Cells the sphere misses entirely are skipped: they would spend a
       // slot on a light that contributes nothing there.
       const isReachTested = isStable && !isCapsule;
+      const isMasked = (registry.flags[i] & LIGHT_FLAG_MASKED) !== 0;
       const rangeSq = range * range;
       const legacyImportance = MAX_CLUSTERED_LIGHTS - rank;
 
@@ -1163,6 +1173,11 @@ export class LightClusterGrid {
             const dx = spanDistance(px, cx * cellSize, cellSize);
             const d2 = dx * dx + dy * dy + dz * dz;
             if (isReachTested && d2 >= rangeSq) continue;
+            // A masked light reaches no further than its flood's diamond.
+            const windowDist = isMasked
+              ? maskedWindowDistance(Math.sqrt(d2), dx, dy, dz)
+              : Math.sqrt(d2);
+            if (isReachTested && windowDist >= range) continue;
             const cell = (sz * dimY + sy) * dimX + positiveMod(cx, dimX);
             if (cellStamps[cell] !== stamp) {
               cellStamps[cell] = stamp;
@@ -1170,7 +1185,7 @@ export class LightClusterGrid {
               this.touchedCells[touchedCount++] = cell;
             }
             const importance = isStable
-              ? energy * localLightFalloff(Math.sqrt(d2), range)
+              ? energy * localLightFalloff(windowDist, range, d2)
               : legacyImportance;
             overflowed += this.offerToCell(cell, i, importance, slotCap);
           }
