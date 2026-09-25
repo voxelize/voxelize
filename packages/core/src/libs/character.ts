@@ -19,10 +19,14 @@ import {
 } from "../core/world/entity-shadow-uniforms";
 import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
-import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
+import { BoxLayer, CanvasBox, CanvasBoxOptions } from "./canvas-box";
 import { NameTag, NameTagOptions } from "./nametag";
+import { SpriteText } from "./sprite-text";
 
 const CHARACTER_SCALE = 0.9;
+
+// The name `setArmHoldingObject` gives a held object, so `dispose` can skip it.
+const HELD_OBJECT_NAME = "armObject";
 
 // The frame rate the lerp option factors (positionLerp, rotationLerp) are
 // defined against. update() renormalizes them to the real frame delta so
@@ -1269,6 +1273,25 @@ export class Character extends Group {
   };
 
   /**
+   * Free the GPU resources this character owns: every canvas box layer
+   * under it (its six body parts and any hat, cape or extra hung on them)
+   * and every sprite label (the nametag, a speech bubble). Objects held in
+   * the hands are left alone: they are usually clones of cached block
+   * meshes that share geometry and materials with the rest of the world.
+   * Call once, after the character has left the scene for good.
+   */
+  dispose() {
+    const visit = (object: Object3D) => {
+      if (object.name === HELD_OBJECT_NAME) return;
+      if (object instanceof BoxLayer || object instanceof SpriteText) {
+        object.dispose();
+      }
+      for (const child of object.children) visit(child);
+    };
+    visit(this);
+  }
+
+  /**
    * Set the character's arm holding object.
    *
    * @param object The object to set as the arm holding object.
@@ -1277,7 +1300,7 @@ export class Character extends Group {
     object: Object3D | undefined,
     side: "left" | "right" = "right",
   ) => {
-    const objectName = "armObject";
+    const objectName = HELD_OBJECT_NAME;
 
     let armGroup = this.rightArmGroup;
     if (side === "left") {

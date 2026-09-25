@@ -493,4 +493,14 @@ export class SpriteText extends Sprite {
       this.textHeight * lines.length + border[1] * 2 + padding[1] * 2;
     this.scale.set((yScale * canvas.width) / canvas.height, yScale, 0);
   };
+
+  /**
+   * Free the label's GPU texture and material. The quad geometry is three's
+   * shared sprite geometry and stays. Call once the sprite has left the
+   * scene for good.
+   */
+  dispose() {
+    this.material.map?.dispose();
+    this.material.dispose();
+  }
 }

@@ -32,6 +32,9 @@ pub enum PerfToggle {
     /// ticks they missed. Off advances one tick per dispatch, so a slow or
     /// hibernating world's timers fall behind real time.
     CatchUpWorldTime,
+    /// Due A* searches queue FIFO and run until the tick's node budget is
+    /// spent, carrying the rest. Off runs every due search this tick.
+    PathfindingBudget,
 }
 
 struct ToggleSlot {
@@ -41,7 +44,7 @@ struct ToggleSlot {
     enabled: AtomicBool,
 }
 
-static SLOTS: [ToggleSlot; 4] = [
+static SLOTS: [ToggleSlot; 5] = [
     ToggleSlot {
         toggle: PerfToggle::SkipNoopRemesh,
         name: "skipNoopRemesh",
@@ -68,6 +71,13 @@ static SLOTS: [ToggleSlot; 4] = [
         name: "catchUpWorldTime",
         description: "Ticks advance by the real time since the last dispatch, and chunks \
                       players return to catch up on the random ticks they missed",
+        enabled: AtomicBool::new(true),
+    },
+    ToggleSlot {
+        toggle: PerfToggle::PathfindingBudget,
+        name: "pathfindingBudget",
+        description: "Due A* searches queue and run oldest first until the tick's node \
+                      budget is spent; the rest wait for the next tick",
         enabled: AtomicBool::new(true),
     },
 ];
@@ -133,6 +143,7 @@ mod tests {
             PerfToggle::HibernateEmptyWorlds,
             PerfToggle::CatchUpLateTicks,
             PerfToggle::CatchUpWorldTime,
+            PerfToggle::PathfindingBudget,
         ] {
             assert_eq!(SLOTS.iter().filter(|s| s.toggle == toggle).count(), 1);
         }
@@ -149,5 +160,6 @@ mod tests {
         assert!(err.contains("hibernateEmptyWorlds"));
         assert!(err.contains("catchUpLateTicks"));
         assert!(err.contains("catchUpWorldTime"));
+        assert!(err.contains("pathfindingBudget"));
     }
 }

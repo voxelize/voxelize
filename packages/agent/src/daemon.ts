@@ -349,6 +349,7 @@ const actSchema = z.discriminatedUnion("type", [
     type: z.literal("interact"),
     button: z.enum(["left", "right"]).optional(),
     holdMs: z.number().min(0).max(15_000).optional(),
+    isShift: z.boolean().optional(),
   }),
   z.object({ type: z.literal("wait"), ms: z.number() }),
   z.object({
@@ -2422,7 +2423,11 @@ export class AgentDaemon {
         await this.agent.selectHotbar(action.slot);
         return { selectedSlot: action.slot };
       case "interact":
-        return this.agent.interact(action.button ?? "right", action.holdMs);
+        return this.agent.interact(
+          action.button ?? "right",
+          action.holdMs,
+          action.isShift,
+        );
       case "wait":
         await new Promise((r) => setTimeout(r, action.ms));
         return { waited: action.ms };

@@ -1071,6 +1071,7 @@ export class Agent {
   async interact(
     button: "left" | "right" = "right",
     holdMs = 0,
+    isShift = false,
   ): Promise<{
     button: "left" | "right";
     target: Vec3 | null;
@@ -1084,9 +1085,10 @@ export class Agent {
       Math.max(this.defaultPageTimeoutMs, holdMs + PAGE_CALL_GRACE_MS),
       () =>
         this.page.evaluate(
-          (b, ms) => window.__agentRequired__().interact(b, ms),
+          (b, ms, shift) => window.__agentRequired__().interact(b, ms, shift),
           button,
           holdMs,
+          isShift,
         ),
     );
   }

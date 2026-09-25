@@ -178,8 +178,7 @@ impl World {
         });
         if let (Some(at), Some(from)) = (request.position, sender_at) {
             let reach = RELAY_POSITION_REACH;
-            let d2 =
-                (at[0] - from[0]).powi(2) + (at[1] - from[1]).powi(2) + (at[2] - from[2]).powi(2);
+            let d2 = (at[0] - from[0]).powi(2) + (at[1] - from[1]).powi(2) + (at[2] - from[2]).powi(2);
             if !d2.is_finite() || d2 > reach * reach {
                 warn!(
                     "[event-relay] refused relay of {} from {} in world {}: its position {:?} is more than {} blocks from the sender; nothing sent",
@@ -419,14 +418,8 @@ mod tests {
             &mut world,
             "guest",
             &[
-                (
-                    VOXELIZE_BUILTIN_RELAY_EVENT,
-                    r#"{"name":"world-reset","payload":{}}"#,
-                ),
-                (
-                    VOXELIZE_BUILTIN_RELAY_EVENT,
-                    r#"{"name":"vox-builtin:position","payload":[0,500,0]}"#,
-                ),
+                (VOXELIZE_BUILTIN_RELAY_EVENT, r#"{"name":"world-reset","payload":{}}"#),
+                (VOXELIZE_BUILTIN_RELAY_EVENT, r#"{"name":"vox-builtin:position","payload":[0,500,0]}"#),
                 (
                     VOXELIZE_BUILTIN_RELAY_EVENT,
                     r#"{"name":"crumbs","payload":{},"position":[500.0,64.0,0.0]}"#,
@@ -494,12 +487,7 @@ mod tests {
         world.relay_client_event("crumbs");
         add_client_at(&mut world, "guest", [0.0, 64.0, 0.0]);
         let flood: Vec<(&str, &str)> = (0..100)
-            .map(|_| {
-                (
-                    VOXELIZE_BUILTIN_RELAY_EVENT,
-                    r#"{"name":"crumbs","payload":{}}"#,
-                )
-            })
+            .map(|_| (VOXELIZE_BUILTIN_RELAY_EVENT, r#"{"name":"crumbs","payload":{}}"#))
             .collect();
 
         send(&mut world, "guest", &flood);
