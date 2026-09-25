@@ -272,6 +272,13 @@ impl World {
                 return;
             }
 
+            if key == VOXELIZE_BUILTIN_RELAY_EVENT && !is_transport {
+                if let Some(relayed) = self.relay_request(client_id, &event.payload) {
+                    self.events_mut().dispatch(relayed);
+                }
+                return;
+            }
+
             if !is_transport && !self.is_relayed_client_event(&key) {
                 warn!(
                     "[event-relay] refused {} from {} in world {}: clients may only relay {:?}; nothing sent",
@@ -300,7 +307,10 @@ impl World {
             } else if key == VOXELIZE_BUILTIN_ARM_SWING_EVENT {
                 Event::new(&key).payload(client_id.to_owned())
             } else {
-                Event::new(&key).payload(event.payload)
+                // The sender drew its own copy; peers get this one.
+                Event::new(&key)
+                    .payload(event.payload)
+                    .filter(ClientFilter::Exclude(vec![client_id.to_owned()]))
             };
             if let Some(loc) = location {
                 event_builder = event_builder.location(loc);

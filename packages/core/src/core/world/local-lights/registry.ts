@@ -22,8 +22,23 @@ export const LIGHT_SHAPE_SPOT = 1;
 export const LIGHT_SHAPE_CAPSULE = 2;
 
 const MIN_COS_DELTA = 1e-3;
-/** Golden-angle stride keys a deterministic, well-spread flicker phase to the slot. */
-const FLICKER_PHASE_STRIDE = 2.399963;
+
+/**
+ * A light's flicker phase, from the voxel it sits in: every client puts the
+ * same torch at the same point of its flicker, whatever order each one
+ * registered its lights in. (Keyed to the registry slot, the same torch
+ * flickered out of step from one screen to the next.)
+ */
+export const flickerPhaseAt = (x: number, y: number, z: number): number => {
+  let h = 0x811c9dc5;
+  for (const part of [Math.floor(x), Math.floor(y), Math.floor(z)]) {
+    h = Math.imul(h ^ (part | 0), 0x01000193);
+    h ^= h >>> 15;
+    h = Math.imul(h, 0x2c1b3c6d);
+    h ^= h >>> 12;
+  }
+  return ((h >>> 0) / 4294967296) * Math.PI * 2;
+};
 
 const warnDev = (message: string) => {
   if (process.env.NODE_ENV !== "production") {
@@ -198,8 +213,7 @@ export class LightSourceRegistry {
         Math.max(flicker.amplitude, 0),
         1,
       );
-      this.flickers[index * 4 + 2] =
-        (index * FLICKER_PHASE_STRIDE) % (Math.PI * 2);
+      this.flickers[index * 4 + 2] = flickerPhaseAt(x, y, z);
     } else {
       this.flickers[index * 4] = 0;
       this.flickers[index * 4 + 1] = 0;

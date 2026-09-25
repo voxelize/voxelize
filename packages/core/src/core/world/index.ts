@@ -14,7 +14,6 @@ import {
 import { raycast } from "@voxelize/raycast";
 import {
   Box3,
-  BoxGeometry,
   BackSide,
   BufferAttribute,
   BufferGeometry,
@@ -195,6 +194,7 @@ import {
   nearPlaneReach,
   SectionVisibilityGraph,
 } from "./section-visibility";
+import { ShaderClock, windAt } from "./shader-clock";
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { getVisibleDiscDirection, Sky } from "./sky";
 import {
@@ -253,6 +253,7 @@ export * from "./memory-pressure";
 export * from "./pipelines";
 export * from "./registry";
 export * from "./section-visibility";
+export * from "./shader-clock";
 export * from "./shaders";
 export * from "./shadow-sampling";
 export * from "./sky";
@@ -1048,11 +1049,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
   private static readonly nightColor = new Color(0.15, 0.18, 0.25);
-  private static readonly MAX_SHADER_DELTA_SECONDS = 0.1;
-  private static readonly WIND_DIRECTION_TIME_SCALE = 0.01;
-  private static readonly WIND_DIRECTION_VARIATION_TIME_SCALE = 0.003;
-  private static readonly WIND_DIRECTION_VARIATION_AMOUNT = 0.5;
-  private static readonly WIND_OFFSET_UNITS_PER_SECOND = 0.05;
 
   private static readonly dayAmbient = new Color(0.42, 0.42, 0.43);
   private static readonly nightAmbient = new Color(0.12, 0.15, 0.22);
@@ -1062,7 +1058,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private accumulatedLightOps: LightOperations | null = null;
   private accumulatedStartSequenceId = 0;
-  private shaderTimeSeconds = 0;
+  /**
+   * The clock chunk shaders animate on (waves, sway, flicker, animated
+   * atlas frames): the shared clock, slewed and wrapped for the GPU, so
+   * every player sees the same wave at the same moment.
+   */
+  readonly shaderClock = new ShaderClock();
 
   /**
    * Create a new Voxelize world.
@@ -2249,13 +2250,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
 
-      // Register the animation. This will start the animation.
-      (mat.map as AtlasTexture).registerAnimation(
-        face.range,
-        realKeyframes,
-        fadeFrames,
-      );
-      this.animatedAtlasTextures.add(mat.map as AtlasTexture);
+      // Register the animation. Its frames follow the shared shader clock,
+      // so every client shows the same frame at the same moment.
+      const atlas = mat.map as AtlasTexture;
+      atlas.animationClock = () => this.shaderClock.seconds;
+      atlas.registerAnimation(face.range, realKeyframes, fadeFrames);
+      this.animatedAtlasTextures.add(atlas);
     });
 
     this.noteBlockTextureWritten();
@@ -4035,81 +4035,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     return group;
   };
 
-  makeBlockFragments = (idOrName: number | string, count: number): Group[] => {
-    this.checkIsInitialized("make block fragments", false);
-
-    if (!idOrName) return [];
-
-    const block = this.getBlockOf(idOrName);
-    if (!block) return [];
-
-    let { faces } = block;
-    const { dynamicPatterns } = block;
-
-    if (dynamicPatterns && dynamicPatterns.length > 0) {
-      faces = this.getBlockFacesForDynamicPatterns(block.id, dynamicPatterns);
-    }
-
-    if (faces.length === 0) return [];
-
-    const fragments: Group[] = [];
-
-    for (let i = 0; i < count; i++) {
-      const face = faces[Math.floor(Math.random() * faces.length)];
-      const { range, name } = face;
-
-      const chunkMat = this.getBlockFaceMaterial(block.id, name);
-
-      const uRange = range.endU - range.startU;
-      const vRange = range.endV - range.startV;
-      const patchFraction = 0.25;
-      const patchU = uRange * patchFraction;
-      const patchV = vRange * patchFraction;
-      const u0 = range.startU + Math.random() * (uRange - patchU);
-      const v0 = range.startV + Math.random() * (vRange - patchV);
-      const u1 = u0 + patchU;
-      const v1 = v0 + patchV;
-
-      const w = 0.04 + Math.random() * 0.08;
-      const h = 0.04 + Math.random() * 0.08;
-      const d = 0.04 + Math.random() * 0.08;
-      const geo = new BoxGeometry(w, h, d);
-
-      const uvAttr = geo.getAttribute("uv") as BufferAttribute;
-      for (let j = 0; j < uvAttr.count; j++) {
-        uvAttr.setXY(
-          j,
-          u0 + uvAttr.getX(j) * (u1 - u0),
-          v0 + uvAttr.getY(j) * (v1 - v0),
-        );
-      }
-      uvAttr.needsUpdate = true;
-
-      const posAttr = geo.getAttribute("position") as BufferAttribute;
-      const jitter = 0.015;
-      for (let j = 0; j < posAttr.count; j++) {
-        posAttr.setXYZ(
-          j,
-          posAttr.getX(j) + (Math.random() - 0.5) * jitter,
-          posAttr.getY(j) + (Math.random() - 0.5) * jitter,
-          posAttr.getZ(j) + (Math.random() - 0.5) * jitter,
-        );
-      }
-      posAttr.needsUpdate = true;
-
-      geo.computeVertexNormals();
-      geo.computeBoundingSphere();
-
-      const mat = new MeshBasicMaterial({ map: chunkMat?.map });
-      const mesh = new Mesh(geo, mat);
-      const group = new Group();
-      group.add(mesh);
-      fragments.push(group);
-    }
-
-    return fragments;
-  };
-
   hasCustomBlockMaterial = (id: number) => {
     return this.customMaterialBlockIds.has(id);
   };
@@ -5336,26 +5261,17 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Update the uniform values.
    */
   private updateUniforms = (delta: number) => {
-    const shaderDelta = Math.min(delta, World.MAX_SHADER_DELTA_SECONDS);
-    this.shaderTimeSeconds += shaderDelta;
-
-    const t = this.shaderTimeSeconds;
-    this.chunkRenderer.uniforms.time.value = t * 1000;
-
-    const windAngle =
-      t * World.WIND_DIRECTION_TIME_SCALE +
-      Math.sin(t * World.WIND_DIRECTION_VARIATION_TIME_SCALE) *
-        World.WIND_DIRECTION_VARIATION_AMOUNT;
-    this.chunkRenderer.uniforms.windDirection.value.set(
-      Math.cos(windAngle),
-      Math.sin(windAngle),
+    const seconds = this.shaderClock.advance(this.sharedClock, delta);
+    this.animatedAtlasTextures.forEach((texture) =>
+      texture.tickAnimations(seconds),
     );
-
-    this.chunkRenderer.uniforms.windOffset.value.addScaledVector(
-      this.chunkRenderer.uniforms.windDirection.value,
-      this.chunkRenderer.uniforms.windSpeed.value *
-        shaderDelta *
-        World.WIND_OFFSET_UNITS_PER_SECOND,
+    const uniforms = this.chunkRenderer.uniforms;
+    uniforms.time.value = this.shaderClock.wrappedSeconds * 1000;
+    windAt(
+      seconds,
+      uniforms.windSpeed.value,
+      uniforms.windDirection.value,
+      uniforms.windOffset.value,
     );
   };
 

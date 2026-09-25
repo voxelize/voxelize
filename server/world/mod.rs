@@ -98,7 +98,10 @@ pub use utils::*;
 pub use voxels::*;
 
 mod client_events;
-pub use client_events::VOXELIZE_BUILTIN_ARM_SWING_EVENT;
+pub use client_events::{
+    RelayedEvent, RELAY_BURST, RELAY_PER_SECOND, RELAY_POSITION_REACH,
+    VOXELIZE_BUILTIN_ARM_SWING_EVENT, VOXELIZE_BUILTIN_RELAY_EVENT,
+};
 
 pub type Transports = HashMap<String, WsSender>;
 

@@ -4,8 +4,8 @@ use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
     encode_message, world::metadata::WorldMetadata, ChunkInterests, ChunkRequestsComp,
-    ClientFilter, Clients, Event, EventProtocol, Events, IDComp, Message, MessageType, Transports,
-    Vec2,
+    ClientFilter, Clients, Event, EventProtocol, Events, IDComp, Message, MessageType,
+    PositionComp, Transports, Vec2,
 };
 
 pub struct EventsSystem;
@@ -19,10 +19,12 @@ impl<'a> System<'a> for EventsSystem {
         WriteExpect<'a, Events>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ChunkRequestsComp>,
+        ReadStorage<'a, PositionComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, interests, world_metadata, mut events, ids, requests) = data;
+        let (transports, clients, interests, world_metadata, mut events, ids, requests, positions) =
+            data;
 
         if events.queue.is_empty() {
             return;
@@ -55,7 +57,16 @@ impl<'a> System<'a> for EventsSystem {
                 payload,
                 filter,
                 location,
+                near,
             } = event;
+
+            // A body that has no position yet is not near anything.
+            let is_near = |entity: Entity| match &near {
+                None => true,
+                Some(near) => positions
+                    .get(entity)
+                    .is_some_and(|p| near.reaches([p.0 .0, p.0 .1, p.0 .2])),
+            };
 
             let serialized = serialize_payload(name, payload);
 
@@ -66,6 +77,9 @@ impl<'a> System<'a> for EventsSystem {
             // Checks if location is required, otherwise just sends.
             let mut send_to_id = |id: &str| {
                 if let Some(client) = clients.get(id) {
+                    if !is_near(client.entity) {
+                        return;
+                    }
                     let mut queue = dispatch_map.remove(id).unwrap_or_default();
                     if let Some(location) = &location {
                         if is_interested(location, client.entity.to_owned()) {
@@ -105,15 +119,18 @@ impl<'a> System<'a> for EventsSystem {
             }
             // No filter, but a location is set.
             else if let Some(location) = &location {
-                for (id, _) in clients.iter() {
-                    if interests.is_interested(id, location) {
+                for (id, client) in clients.iter() {
+                    if interests.is_interested(id, location) && is_near(client.entity) {
                         let mut queue = dispatch_map.remove(id).unwrap_or_default();
                         queue.push(serialized.clone());
                         dispatch_map.insert(id.to_owned(), queue);
                     }
                 }
             } else {
-                clients.iter().for_each(|(id, _)| {
+                clients.iter().for_each(|(id, client)| {
+                    if !is_near(client.entity) {
+                        return;
+                    }
                     let mut queue = dispatch_map.remove(id).unwrap_or_default();
                     queue.push(serialized.clone());
                     dispatch_map.insert(id.to_owned(), queue);

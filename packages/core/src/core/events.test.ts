@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { Events } from "./events";
+import { Events, VOXELIZE_BUILTIN_RELAY_EVENT } from "./events";
 
 describe("Events multi-handler", () => {
   it("invokes every listener registered for the same name", () => {
@@ -33,5 +33,57 @@ describe("Events multi-handler", () => {
     events.on("game-data", () => {});
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("relayed peer effects", () => {
+  it("sends the effect wrapped for the server to stamp", () => {
+    const events = new Events();
+    events.emitRelayed("crumbs", { item: 7 }, [1, 2, 3]);
+    expect(events.packets).toHaveLength(1);
+    const [sent] = events.packets[0].events ?? [];
+    expect(sent.name).toBe(VOXELIZE_BUILTIN_RELAY_EVENT);
+    expect(JSON.parse(sent.payload as string)).toEqual({
+      name: "crumbs",
+      payload: { item: 7 },
+      position: [1, 2, 3],
+    });
+  });
+
+  it("hands a peer's effect to its listeners with the stamped sender", () => {
+    const events = new Events();
+    const seen: unknown[] = [];
+    const handler = (payload: unknown, meta: unknown) =>
+      seen.push([payload, meta]);
+    events.onRelayed("Crumbs", handler);
+    events.onRelayed("other", () => seen.push("wrong listener"));
+    events.handle(VOXELIZE_BUILTIN_RELAY_EVENT, {
+      name: "crumbs",
+      payload: { item: 7 },
+      senderId: "peer-1",
+      position: [1, 2, 3],
+    });
+    expect(seen).toEqual([
+      [{ item: 7 }, { senderId: "peer-1", position: [1, 2, 3] }],
+    ]);
+
+    events.offRelayed("crumbs", handler);
+    events.handle(VOXELIZE_BUILTIN_RELAY_EVENT, {
+      name: "crumbs",
+      payload: {},
+      senderId: "peer-1",
+    });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("ignores an envelope with no server-stamped sender", () => {
+    const events = new Events();
+    const seen: unknown[] = [];
+    events.onRelayed("crumbs", (payload) => seen.push(payload));
+    events.handle(VOXELIZE_BUILTIN_RELAY_EVENT, {
+      name: "crumbs",
+      payload: {},
+    });
+    expect(seen).toEqual([]);
   });
 });

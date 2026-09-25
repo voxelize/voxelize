@@ -35,6 +35,19 @@ export interface ParticleWorld {
   chunkRenderer: { uniforms: ParticleLightUniforms };
   options: { maxLightLevel: number };
   physics: Engine;
+  /**
+   * Seconds on a clock every client of the world agrees on. Ambient sites
+   * count their beats on it, so every player sees the same emission at the
+   * same moment. Optional: without it beats run on local time.
+   */
+  readonly sharedClock?: number;
+  /**
+   * Called on every voxel change, so ambient sites can recheck themselves
+   * the moment a block is placed or broken. Returns the unsubscribe.
+   */
+  addBlockUpdateListener?(
+    listener: (args: { voxel: [number, number, number] }) => void,
+  ): () => void;
 }
 
 export interface ParticleBlock {
@@ -201,6 +214,15 @@ export interface SpawnMotion {
    * also making the scatter bigger.
    */
   velocityBias?: { x: number; y: number; z: number };
+  /**
+   * Where the spawn's choices come from: jitter, direction, speed, lifetime,
+   * size, palette pick, spin, sway axis and texture patch. Omitted, they use
+   * `Math.random` and every client scatters differently. Pass a seeded
+   * source (`seededRandom(hashSeed(...))`) for an effect every client must
+   * draw alike. Turbulence is per-frame wander and stays unseeded: configs
+   * for shared effects set it to 0.
+   */
+  random?: () => number;
 }
 
 export interface BurstOptions extends SpawnMotion {

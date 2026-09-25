@@ -59,12 +59,31 @@ impl SoundEffectEvent {
     }
 }
 
+/// Delivery only to clients whose body is within `radius` of `position`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EventNear {
+    pub position: [f32; 3],
+    pub radius: f32,
+}
+
+impl EventNear {
+    /// Whether a body at `at` is close enough to receive the event.
+    pub fn reaches(&self, at: [f32; 3]) -> bool {
+        let dx = at[0] - self.position[0];
+        let dy = at[1] - self.position[1];
+        let dz = at[2] - self.position[2];
+        dx * dx + dy * dy + dz * dz <= self.radius * self.radius
+    }
+}
+
 #[derive(Default, Clone, Debug)]
 pub struct Event {
     pub name: String,
     pub payload: Option<String>,
     pub filter: Option<ClientFilter>,
     pub location: Option<Vec2<i32>>,
+    /// Narrows delivery to clients near a point, on top of `filter`.
+    pub near: Option<EventNear>,
 }
 
 impl Event {
@@ -83,6 +102,7 @@ pub struct EventBuilder {
     payload: Option<String>,
     filter: Option<ClientFilter>,
     location: Option<Vec2<i32>>,
+    near: Option<EventNear>,
 }
 
 impl EventBuilder {
@@ -109,12 +129,21 @@ impl EventBuilder {
         self
     }
 
+    /// Only clients whose body is within `radius` blocks of `position`
+    /// receive it: a cosmetic effect for the players who can see it,
+    /// without every system building its own nearby-client list.
+    pub fn near(mut self, position: [f32; 3], radius: f32) -> Self {
+        self.near = Some(EventNear { position, radius });
+        self
+    }
+
     pub fn build(self) -> Event {
         Event {
             name: self.name,
             payload: self.payload,
             filter: self.filter,
             location: self.location,
+            near: self.near,
         }
     }
 }
@@ -130,6 +159,13 @@ impl Events {
     }
 
     pub fn dispatch(&mut self, event: Event) {
+        self.queue.push(event);
+    }
+
+    /// Queues `event` for the clients within `radius` blocks of `position`
+    /// (and within its filter, if it has one).
+    pub fn dispatch_near(&mut self, mut event: Event, position: [f32; 3], radius: f32) {
+        event.near = Some(EventNear { position, radius });
         self.queue.push(event);
     }
 }

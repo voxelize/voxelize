@@ -112,6 +112,24 @@ impl SlotContent {
         }
     }
 
+    /// The part of this slot's data other players may see: only `keys`,
+    /// and only those it has. `None` when there is nothing to show, so a
+    /// peer's held object carries no data unless its look depends on some.
+    /// A held item's id says what it is; this says which one (a colour, a
+    /// variant, a size), without shipping the rest of the slot.
+    pub fn peer_data(&self, keys: &[&str]) -> Option<serde_json::Map<String, Value>> {
+        let SlotContent::Item { data, .. } = self else {
+            return None;
+        };
+        let mut shown = serde_json::Map::new();
+        for key in keys {
+            if let Some(value) = data.get(*key) {
+                shown.insert((*key).to_owned(), value.clone());
+            }
+        }
+        (!shown.is_empty()).then_some(shown)
+    }
+
     pub fn has_data(&self, key: &str) -> bool {
         match self {
             SlotContent::Item { data, .. } => data.contains_key(key),
@@ -265,6 +283,18 @@ mod tests {
 
         assert!(!SlotContent::Empty.can_stack_with(&block_a, 64));
         assert!(!block_a.can_stack_with(&SlotContent::Empty, 64));
+    }
+
+    #[test]
+    fn peer_data_shows_only_the_keys_a_game_names() {
+        let mut slot = SlotContent::item(9, 1);
+        assert_eq!(slot.peer_data(&["color"]), None);
+        slot.set_data("color", 3);
+        slot.set_data("durability", 40);
+        let shown = slot.peer_data(&["color", "variant"]).unwrap();
+        assert_eq!(shown.len(), 1);
+        assert_eq!(shown["color"], 3);
+        assert_eq!(SlotContent::block(1, 1).peer_data(&["color"]), None);
     }
 
     #[test]

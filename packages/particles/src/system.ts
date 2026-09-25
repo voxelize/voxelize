@@ -180,22 +180,23 @@ export class ParticleSystem {
     const i = layer.alive;
     layer.alive += 1;
 
+    const random = motion.random ?? Math.random;
     const jitter = motion.jitterRadius ?? 0;
-    layer.posX[i] = position.x + (Math.random() - 0.5) * 2 * jitter;
-    layer.posY[i] = position.y + (Math.random() - 0.5) * 2 * jitter;
-    layer.posZ[i] = position.z + (Math.random() - 0.5) * 2 * jitter;
+    layer.posX[i] = position.x + (random() - 0.5) * 2 * jitter;
+    layer.posY[i] = position.y + (random() - 0.5) * 2 * jitter;
+    layer.posZ[i] = position.z + (random() - 0.5) * 2 * jitter;
 
-    const speed = sample(motion.speed);
-    const dir = this.pickDirection(motion);
+    const speed = sample(motion.speed, random);
+    const dir = this.pickDirection(motion, random);
     const bias = motion.velocityBias;
     layer.velX[i] = dir.x * speed + (bias?.x ?? 0);
     layer.velY[i] = dir.y * speed + (bias?.y ?? 0);
     layer.velZ[i] = dir.z * speed + (bias?.z ?? 0);
 
     layer.age[i] = 0;
-    layer.life[i] = sample(config.lifetimeSec);
+    layer.life[i] = sample(config.lifetimeSec, random);
 
-    const size = sample(config.size) * (motion.sizeScale ?? 1);
+    const size = sample(config.size, random) * (motion.sizeScale ?? 1);
     layer.sizeStart[i] = size * config.sizeOverLife.from;
     layer.sizeEnd[i] = size * config.sizeOverLife.to;
     layer.alphaStart[i] = config.alphaOverLife.from;
@@ -204,7 +205,7 @@ export class ParticleSystem {
 
     const start = this.scratchColor.set(
       motion.color ??
-        config.palette[Math.floor(Math.random() * config.palette.length)],
+        config.palette[Math.floor(random() * config.palette.length)],
     );
     if (light) start.multiply(light);
     layer.colStartR[i] = start.r;
@@ -222,9 +223,9 @@ export class ParticleSystem {
     layer.dragPerSec[i] = config.dragPerSec;
     layer.turbulence[i] = config.turbulence;
     layer.spinRate[i] = config.spinRadPerSec;
-    layer.spinPhase[i] = config.initialSpinRad ?? Math.random() * TAU;
+    layer.spinPhase[i] = config.initialSpinRad ?? random() * TAU;
 
-    const swayAngle = Math.random() * TAU;
+    const swayAngle = random() * TAU;
     const swaySpeed = config.sway?.speed ?? 0;
     layer.swayVelX[i] = Math.cos(swayAngle) * swaySpeed;
     layer.swayVelZ[i] = Math.sin(swayAngle) * swaySpeed;
@@ -253,8 +254,8 @@ export class ParticleSystem {
       const patchV = vSpan * config.texture.patchFraction;
       layer.writeUvRect(
         i,
-        region.startU + Math.random() * (uSpan - patchU),
-        region.startV + Math.random() * (vSpan - patchV),
+        region.startU + random() * (uSpan - patchU),
+        region.startV + random() * (vSpan - patchV),
         patchU,
         patchV,
       );
@@ -318,7 +319,7 @@ export class ParticleSystem {
     );
   }
 
-  private pickDirection(motion: SpawnMotion): Vector3 {
+  private pickDirection(motion: SpawnMotion, random: () => number): Vector3 {
     const out = this.scratchDir;
     if (motion.direction) {
       // Cone around the axis: axis + tangent jitter scaled by the half-angle.
@@ -330,16 +331,16 @@ export class ParticleSystem {
       if (a.lengthSq() < 1e-6) a.set(0, -axis.z, axis.y);
       a.normalize();
       b.set(axis.x, axis.y, axis.z).cross(a);
-      const angle = Math.random() * TAU;
-      const radial = Math.random() * spread;
+      const angle = random() * TAU;
+      const radial = random() * spread;
       out
         .set(axis.x, axis.y, axis.z)
         .addScaledVector(a, Math.cos(angle) * radial)
         .addScaledVector(b, Math.sin(angle) * radial);
       return out.normalize();
     }
-    const theta = Math.random() * TAU;
-    const phi = Math.acos(2 * Math.random() - 1);
+    const theta = random() * TAU;
+    const phi = Math.acos(2 * random() - 1);
     out.set(
       Math.sin(phi) * Math.cos(theta),
       Math.cos(phi),
@@ -499,6 +500,9 @@ function physicsKey(physics: ParticlePhysics | undefined): string {
   return `${physics.bodySize}:${physics.friction}:${physics.restitution}:${physics.gravityMultiplier}`;
 }
 
-function sample(range: { min: number; max: number }): number {
-  return range.min + Math.random() * (range.max - range.min);
+function sample(
+  range: { min: number; max: number },
+  random: () => number,
+): number {
+  return range.min + random() * (range.max - range.min);
 }

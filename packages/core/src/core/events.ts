@@ -5,6 +5,12 @@ import { NetIntercept } from "./network";
 export const VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT =
   "vox-builtin:sound-effect" as const;
 
+/**
+ * The lane for peer effects: see {@link Events.emitRelayed}. The server must
+ * open each name with `World::relay_client_event`.
+ */
+export const VOXELIZE_BUILTIN_RELAY_EVENT = "vox-builtin:relay" as const;
+
 type JsonPrimitive = string | number | boolean | null;
 export type EventPayload =
   | JsonPrimitive
@@ -23,6 +29,25 @@ export type SoundEffectEventPayload = {
 export type SoundEffectEventHandler = (
   payload: SoundEffectEventPayload,
 ) => void;
+
+/** Who a relayed effect came from and where it happens, stamped by the server. */
+export type RelayedEventMeta = {
+  /** The sender's client id, set by the server: a payload cannot forge it. */
+  senderId: string;
+  position?: [number, number, number];
+};
+
+export type RelayedEventHandler<TPayload = EventPayload> = (
+  payload: TPayload,
+  meta: RelayedEventMeta,
+) => void;
+
+type RelayedEnvelope = {
+  name?: string;
+  payload?: EventPayload;
+  senderId?: string;
+  position?: [number, number, number];
+};
 
 /**
  * A Voxelize event from the server.
@@ -85,6 +110,9 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * name that fans out to every entry in the matching bucket.
    */
   private buckets = new Map<string, EventHandler[]>();
+
+  /** Relayed-effect listeners by lowercase name. */
+  private relayed = new Map<string, RelayedEventHandler[]>();
 
   /**
    * A list of packets that will be sent to the server.
@@ -199,6 +227,92 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
 
   emitSoundEffect = (payload: SoundEffectEventPayload) => {
     this.emit(VOXELIZE_BUILTIN_SOUND_EFFECT_EVENT, payload);
+  };
+
+  /**
+   * Show a cosmetic effect you caused to the players around you: your own
+   * client draws it locally, and this sends it to peers. The server stamps
+   * your client id on it (so a payload can never claim to be someone else),
+   * leaves you out, refuses a `position` implausibly far from you, and
+   * delivers it to the clients that have the chunk it happens in. Peers
+   * receive it through {@link onRelayed}.
+   *
+   * The server must open `name` with `World::relay_client_event`; anything
+   * else is refused there, with a warning.
+   *
+   * @param name The effect's name. Case-insensitive.
+   * @param payload What peers need to draw it. Keep it small.
+   * @param position Where it happens, in world coordinates.
+   */
+  emitRelayed = (
+    name: string,
+    payload: EventPayload = {},
+    position?: [number, number, number],
+  ) => {
+    this.emit(VOXELIZE_BUILTIN_RELAY_EVENT, {
+      name,
+      payload,
+      ...(position ? { position } : {}),
+    });
+  };
+
+  /**
+   * Draw a peer's relayed effect. The handler gets the payload the peer
+   * sent and the server-stamped sender id and position.
+   *
+   * @param name The effect's name. Case-insensitive.
+   */
+  onRelayed = <TPayload = EventPayload>(
+    name: string,
+    handler: RelayedEventHandler<TPayload>,
+  ) => {
+    const key = name.toLowerCase();
+    if (this.relayed.size === 0) {
+      this.on<RelayedEnvelope>(
+        VOXELIZE_BUILTIN_RELAY_EVENT,
+        this.dispatchRelayed,
+      );
+    }
+    let list = this.relayed.get(key);
+    if (!list) {
+      list = [];
+      this.relayed.set(key, list);
+    }
+    list.push(handler as RelayedEventHandler);
+  };
+
+  /** Remove a listener added with {@link onRelayed}. */
+  offRelayed = <TPayload = EventPayload>(
+    name: string,
+    handler: RelayedEventHandler<TPayload>,
+  ) => {
+    const key = name.toLowerCase();
+    const list = this.relayed.get(key);
+    if (!list) return;
+    const index = list.indexOf(handler as RelayedEventHandler);
+    if (index < 0) return;
+    list.splice(index, 1);
+    if (list.length === 0) this.relayed.delete(key);
+    if (this.relayed.size === 0) {
+      this.off<RelayedEnvelope>(
+        VOXELIZE_BUILTIN_RELAY_EVENT,
+        this.dispatchRelayed,
+      );
+    }
+  };
+
+  private dispatchRelayed = (envelope: RelayedEnvelope) => {
+    if (!envelope || typeof envelope.name !== "string") return;
+    if (typeof envelope.senderId !== "string") return;
+    const handlers = this.relayed.get(envelope.name.toLowerCase());
+    if (!handlers) return;
+    const meta: RelayedEventMeta = {
+      senderId: envelope.senderId,
+      ...(envelope.position ? { position: envelope.position } : {}),
+    };
+    for (const handler of handlers.slice()) {
+      handler(envelope.payload ?? {}, meta);
+    }
   };
 
   /**

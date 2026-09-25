@@ -794,6 +794,18 @@ const drawMoon =
     context.restore();
   };
 
+/** mulberry32: the same stars from the same seed on every client. */
+const starRandom = (seed: number) => {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
 const drawStars =
   (
     starCount = 100,
@@ -811,22 +823,28 @@ const drawStars =
       "#8589FF",
       "#FF8585",
     ],
+    /**
+     * Seed the starfield from something every client shares (the world's
+     * seed), so every player sees the same stars. Omitted, each draw is
+     * its own.
+     */
+    seed?: number,
   ) =>
   (context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+    const random = seed === undefined ? Math.random : starRandom(seed);
     const alpha = context.globalAlpha;
     for (let i = 0; i < starCount; i++) {
-      context.globalAlpha = Math.random() * 1 + 0.5;
+      context.globalAlpha = random() * 1 + 0.5;
       context.beginPath();
       context.arc(
-        Math.random() * canvas.width,
-        Math.random() * canvas.height,
-        Math.random() * 0.5,
+        random() * canvas.width,
+        random() * canvas.height,
+        random() * 0.5,
         0,
         2 * Math.PI,
         false,
       );
-      context.fillStyle =
-        starColors[Math.floor(Math.random() * starColors.length)];
+      context.fillStyle = starColors[Math.floor(random() * starColors.length)];
       context.fill();
     }
 

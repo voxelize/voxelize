@@ -11,6 +11,10 @@ import {
 
 import { ThreeUtils } from "../../utils";
 
+import {
+  type FaceAnimationFrame,
+  faceAnimationFrameAt,
+} from "./face-animation-frame";
 import { UV } from "./uv";
 
 type AtlasAnimationPatch = {
@@ -69,7 +73,28 @@ export class AtlasTexture extends CanvasTexture {
   /**
    * The list of block animations that are being used by this texture atlas.
    */
-  public animations: { animation: FaceAnimation; timer: any }[] = [];
+  public animations: {
+    animation: FaceAnimation;
+    /** Unused: frames come from {@link animationClock}, not timers. */
+    timer: null;
+    patch: AtlasAnimationPatch;
+    durationsMs: number[];
+    /** The frame last drawn, as index * (fades + 1) + step; -1 for none. */
+    drawnFrame: number;
+  }[] = [];
+
+  /**
+   * Seconds the animated faces read their frame from. The world points it
+   * at its shared shader clock, so every client shows the same frame of the
+   * same water at the same moment; on its own it runs on local time.
+   */
+  public animationClock: () => number = () => performance.now() / 1000;
+
+  private readonly scratchFrame: FaceAnimationFrame = {
+    index: 0,
+    next: 0,
+    fadeStep: 0,
+  };
 
   private pendingAnimationPatches = new Map<
     FaceAnimation,
@@ -348,69 +373,63 @@ export class AtlasTexture extends CanvasTexture {
   ) {
     const animation = new FaceAnimation(range, keyframes, fadeFrames);
 
-    const entry = { animation, timer: null };
+    // Animation frames never set `needsUpdate` on this texture: doing so
+    // re-uploads the entire atlas canvas to the GPU every frame change,
+    // which for a fading animation means a multi-megabyte texSubImage2D
+    // stall on nearly every frame. Frames are composited on a per-animation
+    // scratch canvas instead, mirrored onto the atlas canvas (so full
+    // uploads stay coherent), and queued as a small sub-rectangle GPU patch
+    // that the world flushes before rendering.
+    const entry = {
+      animation,
+      timer: null as null,
+      patch: this.makeAnimationPatch(animation),
+      durationsMs: animation.keyframes.map(([duration]) => duration),
+      drawnFrame: -1,
+    };
+    this.animations.push(entry);
+    this.tickAnimation(entry, this.animationClock());
+  }
 
-    // Animation ticks never set `needsUpdate` on this texture: doing so
-    // re-uploads the entire atlas canvas to the GPU every tick, which for a
-    // fading animation means a multi-megabyte texSubImage2D stall on nearly
-    // every frame. Frames are composited on a per-animation scratch canvas
-    // instead, mirrored onto the atlas canvas (so full uploads stay
-    // coherent), and queued as a small sub-rectangle GPU patch that the
-    // world flushes before rendering.
-    const patch = this.makeAnimationPatch(animation);
+  /**
+   * Draws whichever animated faces changed frame since the last call, read
+   * off {@link animationClock}. Called once a frame by the world; a face
+   * whose frame has not changed costs a lookup and nothing else.
+   */
+  tickAnimations(seconds = this.animationClock()) {
+    for (const entry of this.animations) this.tickAnimation(entry, seconds);
+  }
 
-    const start = (index = 0) => {
-      const keyframe = animation.keyframes[index];
+  private tickAnimation(
+    entry: AtlasTexture["animations"][number],
+    seconds: number,
+  ) {
+    const { animation, patch } = entry;
+    const fades = animation.fadeFrames;
+    const frame = faceAnimationFrameAt(
+      entry.durationsMs,
+      fades,
+      seconds * 1000,
+      this.scratchFrame,
+    );
+    const drawn = frame.index * (fades + 1) + frame.fadeStep;
+    if (drawn === entry.drawnFrame) return;
+    entry.drawnFrame = drawn;
 
+    const current = animation.keyframes[frame.index][1];
+    if (frame.fadeStep === 0) {
+      this.drawAnimationKeyframe(patch, current, this.countPerSide !== 1, 1);
+    } else {
+      const fraction = frame.fadeStep / (fades + 1);
       this.drawAnimationKeyframe(
         patch,
-        keyframe[1],
-        this.countPerSide !== 1,
-        1,
+        animation.keyframes[frame.next][1],
+        true,
+        fraction,
       );
-      this.commitAnimationPatch(animation, patch);
-
-      entry.timer = setTimeout(() => {
-        clearTimeout(entry.timer);
-
-        const nextIndex = (index + 1) % animation.keyframes.length;
-
-        if (fadeFrames > 0) {
-          const nextKeyframe = animation.keyframes[nextIndex];
-
-          const fade = (fraction = 0) => {
-            if (fraction > fadeFrames) {
-              start(nextIndex);
-              return;
-            }
-
-            requestAnimationFrame(() => fade(fraction + 1));
-
-            this.drawAnimationKeyframe(
-              patch,
-              nextKeyframe[1],
-              true,
-              fraction / fadeFrames,
-            );
-            this.drawAnimationKeyframe(
-              patch,
-              keyframe[1],
-              false,
-              1 - fraction / fadeFrames,
-            );
-            this.commitAnimationPatch(animation, patch);
-          };
-
-          fade();
-        } else {
-          start(nextIndex);
-        }
-      }, keyframe[0]);
-    };
-
-    this.animations.push(entry);
-
-    start();
+      this.drawAnimationKeyframe(patch, current, false, 1 - fraction);
+    }
+    this.commitAnimationPatch(animation, patch);
   }
 
   private makeAnimationPatch(animation: FaceAnimation): AtlasAnimationPatch {
