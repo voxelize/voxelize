@@ -738,7 +738,13 @@ export class ItemSlots<T = number> {
     // visibility observer repaints once layout comes back.
     if (width === 0 || height === 0) return;
 
-    if (this.canvas.width !== width || this.canvas.height !== height) {
+    // The drawing buffer is CSS size times the renderer's pixel ratio;
+    // comparing against CSS size alone would reallocate it every frame.
+    const ratio = this.renderer.getPixelRatio();
+    if (
+      this.canvas.width !== Math.floor(width * ratio) ||
+      this.canvas.height !== Math.floor(height * ratio)
+    ) {
       this.renderer.setSize(width, height, false);
     }
 
