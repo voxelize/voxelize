@@ -945,7 +945,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @param callback - Callback to be run once done.
    */
   lock = (callback?: () => void) => {
-    this.domElement.requestPointerLock();
+    // Refused requests (the browser's cooldown right after an exit) also
+    // fire `pointerlockerror`, which is where they are reported.
+    const request = this.domElement.requestPointerLock() as unknown;
+    if (request instanceof Promise) request.catch(() => {});
 
     if (callback) {
       this.lockCallback = callback;
@@ -1829,7 +1832,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         let m = [0, 0, 0];
         let push = [0, 0, 0];
         if (this.state.running) {
-          let speed = maxSpeed * (this.body.gravityMultiplier === 0 ? 1 : this.options.statusSpeedFactor);
+          let speed =
+            maxSpeed *
+            (this.body.gravityMultiplier === 0
+              ? 1
+              : this.options.statusSpeedFactor);
           // todo: add crouch/sprint modifiers if needed
           if (this.state.sprinting) speed *= sprintFactor;
           if (this.state.crouching && this.body.resting[1] === -1)
