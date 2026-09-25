@@ -12,6 +12,18 @@ const NEIGHBOR_OFFSETS: [number, number, number][] = [
 ];
 
 /**
+ * Beer-Lambert downwelling extinction per channel, per block of water above
+ * the point. Mirrors `WATER_OPTICS.downwellingExtinction` in
+ * `@voxelize/core`, which this package cannot import (core will one day
+ * depend on it); the host app's parity test fails if the two drift.
+ */
+export const PARTICLE_WATER_EXTINCTION = Object.freeze({
+  red: 0.14,
+  green: 0.055,
+  blue: 0.038,
+});
+
+/**
  * Particles are unlit, so without a tint a leaf falling at dusk keeps full
  * daylight brightness while the canopy it came off darkens, and a chip
  * knocked off a block in a cave comes out glowing.
@@ -20,7 +32,8 @@ const NEIGHBOR_OFFSETS: [number, number, number][] = [
  *
  * Sampled from the six neighbours rather than the voxel itself: a solid
  * block holds no light, so the brightest neighbour is what the surface
- * being broken was actually lit by.
+ * being broken was actually lit by. The water column is measured there too,
+ * since the block itself is not water.
  */
 export function computeBlockLightColor(
   world: ParticleWorld,
@@ -33,25 +46,38 @@ export function computeBlockLightColor(
   let red = 0;
   let green = 0;
   let blue = 0;
+  let litDx = 0;
+  let litDy = 1;
+  let litDz = 0;
 
   for (const [dx, dy, dz] of NEIGHBOR_OFFSETS) {
     const light = world.getLightValuesAt(vx + dx, vy + dy, vz + dz);
     if (!light) continue;
-    if (light.sunlight > sunlight) sunlight = light.sunlight;
+    if (light.sunlight > sunlight) {
+      sunlight = light.sunlight;
+      litDx = dx;
+      litDy = dy;
+      litDz = dz;
+    }
     if (light.red > red) red = light.red;
     if (light.green > green) green = light.green;
     if (light.blue > blue) blue = light.blue;
   }
 
-  return toLightColor(world, { sunlight, red, green, blue }, out);
+  return toLightColor(
+    world,
+    { sunlight, red, green, blue },
+    waterDepthAt(world, vx + litDx, vy + litDy, vz + litDz),
+    out,
+  );
 }
 
 /**
  * The light a particle drifting through this voxel should be tinted by.
  *
- * Open air carries its own light, so this reads the voxel directly. Taking
- * the brightest neighbour instead — the right answer for a solid block —
- * would hand a leaf under a canopy the unshaded sky beside it.
+ * Open air (or open water) carries its own light, so this reads the voxel
+ * directly. Taking the brightest neighbour instead — the right answer for a
+ * solid block — would hand a leaf under a canopy the unshaded sky beside it.
  *
  * Unlit voxels are left untinted rather than painted black: the only way
  * to get here without light data is an unloaded chunk, which a probe-driven
@@ -67,13 +93,27 @@ export function computeVoxelLightColor(
 ): Color {
   const light = world.getLightValuesAt(vx, vy, vz);
   if (!light) return out.setRGB(1, 1, 1);
-  return toLightColor(world, light, out);
+  return toLightColor(world, light, waterDepthAt(world, vx, vy, vz), out);
 }
 
-/** The shading chunk meshes get, applied to a particle's flat color. */
+function waterDepthAt(
+  world: ParticleWorld,
+  vx: number,
+  vy: number,
+  vz: number,
+): number {
+  return world.measureWaterColumnAt(vx + 0.5, vy + 0.5, vz + 0.5)?.depth ?? 0;
+}
+
+/**
+ * The shading chunk meshes get, applied to a particle's flat color. Under
+ * water the sun term rides the column's downwelling transmittance, as it
+ * does for a submerged fragment; block light does not.
+ */
 function toLightColor(
   world: ParticleWorld,
   light: ParticleLightValues,
+  waterDepth: number,
   out: Color,
 ): Color {
   const { sunlightIntensity, minLightLevel, baseAmbient } =
@@ -88,9 +128,13 @@ function toLightColor(
   );
 
   const torchAttenuation = 1 - sun * 0.8;
+  const depth = Math.max(waterDepth, 0);
   return out.setRGB(
-    sun + (light.red / maxLightLevel) ** 2 * torchAttenuation,
-    sun + (light.green / maxLightLevel) ** 2 * torchAttenuation,
-    sun + (light.blue / maxLightLevel) ** 2 * torchAttenuation,
+    sun * Math.exp(-PARTICLE_WATER_EXTINCTION.red * depth) +
+      (light.red / maxLightLevel) ** 2 * torchAttenuation,
+    sun * Math.exp(-PARTICLE_WATER_EXTINCTION.green * depth) +
+      (light.green / maxLightLevel) ** 2 * torchAttenuation,
+    sun * Math.exp(-PARTICLE_WATER_EXTINCTION.blue * depth) +
+      (light.blue / maxLightLevel) ** 2 * torchAttenuation,
   );
 }

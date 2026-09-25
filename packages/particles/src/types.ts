@@ -22,6 +22,15 @@ export interface ParticleWorld {
     vy: number,
     vz: number,
   ): ParticleLightValues | null;
+  /**
+   * The water column over a point, or null out of water. Water does not dim
+   * the light grid, so this is where a particle learns how deep it is.
+   */
+  measureWaterColumnAt(
+    x: number,
+    y: number,
+    z: number,
+  ): { depth: number } | null;
   registry: { blocksById: Map<number, ParticleBlock> };
   chunkRenderer: { uniforms: ParticleLightUniforms };
   options: { maxLightLevel: number };
@@ -159,6 +168,14 @@ export interface ParticleConfig {
    */
   isSettlingOnGround?: boolean;
   physics?: ParticlePhysics;
+  /**
+   * Matter, not light: tint each spawn's color by the light where it is
+   * released (`computeVoxelLightColor` — sun, block light, and the water
+   * column above), so smoke at night is dark and dust in a cave is dim.
+   * Sampled once per burst. Flames, sparks and embers are their own light
+   * and leave this off.
+   */
+  isLit?: boolean;
 }
 
 export interface SpawnMotion {

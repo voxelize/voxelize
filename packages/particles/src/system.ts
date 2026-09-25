@@ -9,6 +9,7 @@ import {
   Vector3,
 } from "three";
 
+import { computeVoxelLightColor } from "./block-light";
 import { ParticleEmitter } from "./emitter";
 import { ParticleLayer, relaunchBody } from "./layer";
 import type {
@@ -90,6 +91,7 @@ export class ParticleSystem {
   private readonly scratchAxisB = new Vector3();
   private readonly viewAxis = new Vector3(0, 0, 1);
   private readonly cameraQuaternion = new Quaternion();
+  private readonly scratchLight = new Color();
 
   constructor(
     private readonly world: ParticleWorld,
@@ -135,8 +137,10 @@ export class ParticleSystem {
   }
 
   burst(config: ParticleConfig, options: BurstOptions): void {
+    // One light sample for the whole burst: it leaves from one point.
+    const light = config.isLit ? this.lightAt(options.position) : null;
     for (let i = 0; i < options.count; i += 1) {
-      this.spawnOne(config, options.position, options);
+      this.spawnOne(config, options.position, options, light);
     }
   }
 
@@ -161,10 +165,15 @@ export class ParticleSystem {
     slot.peakIntensity = options.intensity;
   }
 
+  /**
+   * `light` is the tint a lit config takes, sampled by the caller for a
+   * burst; omitted, a lit config samples its own spawn point.
+   */
   spawnOne(
     config: ParticleConfig,
     position: { x: number; y: number; z: number },
     motion: SpawnMotion,
+    light: Color | null = config.isLit ? this.lightAt(position) : null,
   ): void {
     const layer = this.resolveLayer(config, false);
     if (layer.alive >= layer.capacity) return;
@@ -197,12 +206,14 @@ export class ParticleSystem {
       motion.color ??
         config.palette[Math.floor(Math.random() * config.palette.length)],
     );
+    if (light) start.multiply(light);
     layer.colStartR[i] = start.r;
     layer.colStartG[i] = start.g;
     layer.colStartB[i] = start.b;
     const end = config.fadeToColor
       ? this.scratchColor.set(config.fadeToColor)
       : start;
+    if (light && config.fadeToColor) end.multiply(light);
     layer.colEndR[i] = end.r;
     layer.colEndG[i] = end.g;
     layer.colEndB[i] = end.b;
@@ -295,6 +306,16 @@ export class ParticleSystem {
     this.layers.set(key, layer);
     this.group.add(layer.mesh);
     return layer;
+  }
+
+  private lightAt(position: { x: number; y: number; z: number }): Color {
+    return computeVoxelLightColor(
+      this.world,
+      Math.floor(position.x),
+      Math.floor(position.y),
+      Math.floor(position.z),
+      this.scratchLight,
+    );
   }
 
   private pickDirection(motion: SpawnMotion): Vector3 {

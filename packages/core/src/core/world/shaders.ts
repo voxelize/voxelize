@@ -1372,6 +1372,16 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     ${WATER_OPTICS.airSideFaceAlphaScale.toFixed(4)},
     airSideWeight
   );
+  // Seen from inside, a side face that is not a pane is either the way out
+  // of the water (which transmits nearly everything near normal incidence)
+  // or the wall the mesher draws along a chunk whose neighbour is not
+  // loaded (it reads a missing neighbour as air). The second is permanent
+  // at the edge of the loaded disc and drew a hard-edged sheet across open
+  // water; neither is something to see, so both clear.
+  float submergedSideClear = uCameraSubmersion * sideWaterFace
+    * (1.0 - vIsFluidPane)
+    * step(0.5, uSurfaceUndersideScale) * (1.0 - step(1.5, uSurfaceUndersideScale));
+  diffuseColor.a *= 1.0 - submergedSideClear;
   float fresnelAlpha = fresnel * fresnel * topWaterFace
     * ${WATER_OPTICS.fresnelAlphaStrength.toFixed(4)};
   diffuseColor.a = mix(diffuseColor.a, 1.0, fresnelAlpha);
