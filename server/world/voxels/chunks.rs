@@ -24,6 +24,7 @@ use super::{
     background_chunk_saver::{ChunkSaveData, CHUNK_FILE_VERSION},
     chunk::{Chunk, ChunkRenewal},
     space::{SpaceBuilder, SpaceOptions},
+    watch::VoxelWatch,
 };
 
 #[derive(Eq, PartialEq, Clone)]
@@ -209,6 +210,9 @@ pub struct Chunks {
     /// its residents or other application state are still being initialized.
     pub activation: ChunkActivation,
 
+    /// Writes and random-tick samples of the block ids a game system follows.
+    pub watch: VoxelWatch,
+
     config: WorldConfig,
 
     /// The folder to store the chunks.
@@ -320,6 +324,7 @@ impl Chunks {
         self.freshly_created.clear();
         self.activation.clear();
         self.block_entities.clear();
+        self.watch.clear();
 
         if let Some(folder) = &self.folder {
             match fs::read_dir(folder) {

@@ -487,6 +487,7 @@ fn process_pending_updates(
             }
 
             processed_updates.push((voxel.clone(), raw, current_raw, current_id, updated_id));
+            chunks.watch.note_write(&voxel, current_id, updated_id);
 
             let rotation = BlockUtils::extract_rotation(raw);
             let stage = BlockUtils::extract_stage(raw);

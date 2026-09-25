@@ -5,6 +5,7 @@ mod chunk;
 mod chunks;
 mod fluids;
 mod space;
+mod watch;
 mod waterlogging;
 
 pub use access::VoxelAccess;
@@ -14,4 +15,5 @@ pub use chunk::*;
 pub use chunks::{Chunks, ParkedUpdate, PendingUpdateHeadEntry, UpdateLane};
 pub use fluids::*;
 pub use space::*;
+pub use watch::*;
 pub use waterlogging::WaterloggingRules;

@@ -96,6 +96,7 @@ pub fn sample_random_ticks(
                 if id == 0 {
                     continue;
                 }
+                chunks.watch.note_sample(&Vec3(vx, vy, vz), id);
                 let block = registry.get_block_by_id(id);
                 if !block.is_random_tickable || !block.is_active {
                     continue;
@@ -277,6 +278,43 @@ mod tests {
 
         let taken = sample_random_ticks(&mut chunks, &registry, &interests, &config, 1);
         assert_eq!(taken, 7);
+    }
+
+    #[test]
+    fn random_tick_reports_samples_of_watched_ids_even_on_inert_blocks() {
+        let config = WorldConfig::new()
+            .chunk_size(16)
+            .max_height(16)
+            .sub_chunks(1)
+            .random_tick_speed(16 * 16 * 16)
+            .max_random_ticks_per_tick(16 * 16 * 16)
+            .seed(1)
+            .build();
+
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Inert").id(55).build());
+
+        let mut chunks = Chunks::new(&config);
+        let mut chunk = ready_chunk(0, 0, 16, 16, 1);
+        assert!(chunk.set_raw_voxel(4, 4, 4, BlockUtils::insert_id(0, 55)));
+        chunks.add(chunk);
+        chunks.watch.follow_samples(55);
+        let mut interests = ChunkInterests::new();
+        interests.add("tester", &Vec2(0, 0));
+
+        // Samples land with replacement, so give the cell a few passes.
+        let mut is_reported = false;
+        for tick in 1..=16 {
+            sample_random_ticks(&mut chunks, &registry, &interests, &config, tick);
+            is_reported |= chunks.watch.take().changes.iter().any(|c| {
+                c.voxel == Vec3(4, 4, 4) && c.change == crate::WatchedChange::Sampled { id: 55 }
+            });
+        }
+        assert!(is_reported);
+        assert!(
+            chunks.active_voxel_deadline(&Vec3(4, 4, 4)).is_none(),
+            "watching a block never schedules it"
+        );
     }
 
     #[test]
