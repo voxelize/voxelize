@@ -23,6 +23,10 @@ export default defineConfig({
         // The CPU/allocation profile summariser and its report formatter,
         // so the host CLI prints exactly what the daemon computed.
         profile: path.resolve(__dirname, "src/profile-summary.ts"),
+        // The hot-update guard and the pose-restore rules, so the host
+        // repo's tests exercise the exact code agent pages run.
+        "client-updates": path.resolve(__dirname, "src/client-updates.ts"),
+        "pose-memory": path.resolve(__dirname, "src/pose-memory.ts"),
         "bin/voxelize-agent": path.resolve(__dirname, "bin/voxelize-agent.ts"),
       },
       formats: ["es", "cjs"],

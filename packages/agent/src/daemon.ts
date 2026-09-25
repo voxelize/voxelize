@@ -8,7 +8,7 @@ import Fastify, {
 } from "fastify";
 import { z } from "zod";
 
-import { Agent, PageStallError } from "./agent";
+import { Agent, PageStallError, resolveReadyTimeoutMs } from "./agent";
 import type { AgentEventMap, ConnectionSnapshot } from "./bridge";
 import { DEFAULT_IDLE_TTL_MS } from "./browser-lifecycle";
 import { ensureCaptureDir } from "./capture-dir";
@@ -16,12 +16,25 @@ import {
   CaptureViewportError,
   parseCaptureViewportQuery,
 } from "./capture-viewport";
+import type { ClientUpdateMode } from "./client-updates";
 import { computeFramePose } from "./frame-pose";
 import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
   logAgentPerf,
 } from "./perf";
+import {
+  EMPTY_POSE_INTENT,
+  describePose,
+  isNewJoin,
+  mergePoseIntent,
+  rememberPose,
+  resolvePoseRestore,
+  type JoinIdentity,
+  type PoseIntent,
+  type PoseRestoreRecord,
+  type RememberedPose,
+} from "./pose-memory";
 import {
   SessionMetaError,
   applySessionMetaPatch,
@@ -98,6 +111,35 @@ export type DaemonStatus = {
   lease: DaemonLeaseStatus | null;
   meta: SessionMeta;
   origin: SessionOrigin | null;
+  client: DaemonClientStatus;
+  pose: DaemonPoseStatus;
+};
+
+/** Why a page document loaded: the daemon asked for it, or the page did. */
+export type DocumentCause = "launch" | "reset" | "reload" | "page";
+
+export type DaemonClientStatus = {
+  /** `hold`: dev-server hot updates are held back; `live`: they apply. */
+  updates: ClientUpdateMode;
+  documentId: number | null;
+  documentLoadedAt: number | null;
+  title: string | null;
+  /** Documents this session has loaded, by cause (launch counts once). */
+  documentsByCause: Record<DocumentCause, number>;
+  /** Hot updates held back from the loaded document; a reload picks them up. */
+  updatesBehind: number;
+  lastHeldUpdateAt: number | null;
+  lastHeldUpdateTypes: string[];
+  devServerRestarts: number;
+  isHmrConnected: boolean | null;
+};
+
+export type DaemonPoseStatus = {
+  isRestoreEnabled: boolean;
+  remembered: RememberedPose | null;
+  intent: PoseIntent;
+  restoreCount: number;
+  lastRestore: PoseRestoreRecord | null;
 };
 
 export type DaemonMetaResponse = {
@@ -147,6 +189,20 @@ function idleDrawAfterMs(): number {
 }
 
 const CONNECTION_WATCH_INTERVAL_MS = 2_000;
+// The page document and its held hot updates are read on their own timer,
+// from launch on: a page that never installs a bridge still reloads.
+const PAGE_WATCH_INTERVAL_MS = 2_000;
+// A new document seen within this long of a daemon-requested navigation is
+// that navigation; anything else the page did on its own.
+const EXPECTED_NAVIGATION_WINDOW_MS = 10 * 60_000;
+const POSE_CHANGING_ACTIONS = new Set([
+  "teleport",
+  "face",
+  "walk",
+  "walk-to",
+  "view",
+  "follow",
+]);
 // The in-page network layer retries on its own every ~3s; the daemon only
 // intervenes after this grace so it never races a reconnect already landing.
 const RECOVERY_GRACE_MS = 10_000;
@@ -155,6 +211,7 @@ const RECOVERY_BACKOFF_MAX_MS = 60_000;
 // In-page reconnects are attempted this many times before escalating to a
 // page reset (which also refreshes an outdated client build).
 const IN_PAGE_RECONNECT_ATTEMPTS = 2;
+const STALLED_PAGE_RESET_AFTER_MS = 180_000;
 
 const WAIT_DEFAULT_TIMEOUT_MS = 30_000;
 const WAIT_MAX_TIMEOUT_MS = 300_000;
@@ -337,6 +394,32 @@ export class AgentDaemon {
   private isDrawThrottled = false;
   private drawThrottleChange: Promise<void> | null = null;
 
+  private pageWatchTimer: NodeJS.Timeout | null = null;
+  private expectedNavigation: { cause: DocumentCause; at: number } | null =
+    null;
+  private clientStatus: DaemonClientStatus = {
+    updates: "hold",
+    documentId: null,
+    documentLoadedAt: null,
+    title: null,
+    documentsByCause: { launch: 0, reset: 0, reload: 0, page: 0 },
+    updatesBehind: 0,
+    lastHeldUpdateAt: null,
+    lastHeldUpdateTypes: [],
+    devServerRestarts: 0,
+    isHmrConnected: null,
+  };
+  private readonly isPoseRestoreEnabled = resolvePoseRestore();
+  private pose: RememberedPose | null = null;
+  private poseIntent: PoseIntent = EMPTY_POSE_INTENT;
+  private poseRestoreCount = 0;
+  private lastPoseRestore: PoseRestoreRecord | null = null;
+  private poseSync: Promise<void> | null = null;
+  private lastPoseCommandAt = 0;
+  private isNextRestoreSkipped = false;
+  private pageStalledSinceAt: number | null = null;
+  private isStallNoted = false;
+
   constructor(options: DaemonOptions) {
     this.agent = options.agent;
     this.port = options.port;
@@ -349,6 +432,8 @@ export class AgentDaemon {
     this.registerEventTaps();
     this.registerErrorMapping();
     this.registerRoutes();
+    this.clientStatus.updates = this.agent.clientUpdateMode;
+    this.startPageWatch();
     // The watcher only makes sense once the bridge exists; a rejected ready
     // promise means the process is exiting anyway.
     void this.agent
@@ -372,6 +457,10 @@ export class AgentDaemon {
     if (this.idleDrawTimer) {
       clearInterval(this.idleDrawTimer);
       this.idleDrawTimer = null;
+    }
+    if (this.pageWatchTimer) {
+      clearInterval(this.pageWatchTimer);
+      this.pageWatchTimer = null;
     }
     await this.server.close();
   }
@@ -525,7 +614,248 @@ export class AgentDaemon {
       lease: this.leaseStatus(),
       meta: this.sessionMeta(),
       origin: this.origin,
+      client: {
+        ...this.clientStatus,
+        documentsByCause: { ...this.clientStatus.documentsByCause },
+      },
+      pose: this.poseStatus(),
     };
+  }
+
+  private poseStatus(): DaemonPoseStatus {
+    return {
+      isRestoreEnabled: this.isPoseRestoreEnabled,
+      remembered: this.pose,
+      intent: this.poseIntent,
+      restoreCount: this.poseRestoreCount,
+      lastRestore: this.lastPoseRestore,
+    };
+  }
+
+  private startPageWatch(): void {
+    if (this.pageWatchTimer) return;
+    void this.pageWatchTick();
+    this.pageWatchTimer = setInterval(() => {
+      void this.pageWatchTick();
+    }, PAGE_WATCH_INTERVAL_MS);
+    this.pageWatchTimer.unref();
+  }
+
+  /**
+   * Every page reset or reload the daemon itself asks for goes through here.
+   * Recovery holds off while it runs, and the new page gets the full grace
+   * to join before recovery may touch it.
+   */
+  private async resetPage(cause: "reset" | "reload"): Promise<void> {
+    this.expectedNavigation = { cause, at: Date.now() };
+    const wasRecoveryInFlight = this.isRecoveryInFlight;
+    this.isRecoveryInFlight = true;
+    try {
+      await this.agent.reset();
+    } finally {
+      if (!wasRecoveryInFlight) this.isRecoveryInFlight = false;
+      this.pageStalledSinceAt = null;
+      if (this.freshness.isStale) this.freshness.staleSinceAt = Date.now();
+    }
+  }
+
+  private async pageWatchTick(): Promise<void> {
+    let page: Awaited<ReturnType<Agent["pageDocument"]>>;
+    try {
+      page = await this.agent.pageDocument();
+    } catch {
+      // Mid-navigation or wedged: the connection watcher owns that story.
+      return;
+    }
+    const status = this.clientStatus;
+    status.title = page.title;
+    if (page.documentId !== status.documentId) {
+      const isFirst = status.documentId === null;
+      const expected = this.expectedNavigation;
+      const cause: DocumentCause = isFirst
+        ? "launch"
+        : expected && Date.now() - expected.at < EXPECTED_NAVIGATION_WINDOW_MS
+          ? expected.cause
+          : "page";
+      if (!isFirst) this.expectedNavigation = null;
+      const heldBefore = status.updatesBehind;
+      status.documentId = page.documentId;
+      status.documentLoadedAt = Date.now();
+      status.documentsByCause[cause] += 1;
+      status.updatesBehind = 0;
+      status.lastHeldUpdateAt = null;
+      status.lastHeldUpdateTypes = [];
+      status.devServerRestarts = 0;
+      if (!isFirst) {
+        const loads = Object.values(status.documentsByCause).reduce(
+          (sum, count) => sum + count,
+          0,
+        );
+        const message =
+          cause === "page"
+            ? "the page reloaded itself (not requested by the daemon)"
+            : `page ${cause} loaded a new document`;
+        console.log(
+          `[agent-daemon] ${new Date().toISOString()} ${message}; now running current client code` +
+            `${heldBefore > 0 ? ` (${heldBefore} held update(s) picked up)` : ""}; ${loads} document(s) since launch, ${status.documentsByCause.page} self-initiated`,
+        );
+        this.appendEvent("page-document", {
+          cause,
+          documents: loads,
+          pickedUpUpdates: heldBefore,
+        });
+      }
+    }
+    const held = page.clientUpdates;
+    status.isHmrConnected = held ? held.isConnected : null;
+    if (held && held.updates > status.updatesBehind) {
+      console.log(
+        `[agent-daemon] ${new Date().toISOString()} held client update #${held.updates} (${held.lastUpdateTypes.join(", ") || "update"}): ` +
+          "this page keeps the client code it loaded; `reload` picks it up",
+      );
+      this.appendEvent("client-update-held", {
+        updatesBehind: held.updates,
+        types: held.lastUpdateTypes,
+      });
+    }
+    if (held && held.serverRestarts > status.devServerRestarts) {
+      console.log(
+        `[agent-daemon] ${new Date().toISOString()} dev server restarted under this page; the page keeps its code (held, not reloaded)`,
+      );
+    }
+    if (held) {
+      status.updatesBehind = held.updates;
+      status.lastHeldUpdateAt = held.lastUpdateAt;
+      status.lastHeldUpdateTypes = held.lastUpdateTypes;
+      status.devServerRestarts = held.serverRestarts;
+    }
+  }
+
+  private currentJoin(snapshot: ConnectionSnapshot | null): JoinIdentity {
+    return {
+      documentId: this.clientStatus.documentId,
+      joinGeneration: snapshot?.joinGeneration ?? null,
+    };
+  }
+
+  /**
+   * Remember the live pose; on the first fresh tick of a new join, put the
+   * remembered one back first. Serialized: the timer, /healthz and /reload
+   * all reach it.
+   */
+  private syncPose(snapshot: ConnectionSnapshot): Promise<void> {
+    if (this.poseSync) return this.poseSync;
+    this.poseSync = (async () => {
+      let sample;
+      try {
+        sample = await this.agent.poseSample();
+      } catch {
+        return;
+      }
+      const join: JoinIdentity = {
+        documentId: sample.documentId,
+        joinGeneration: snapshot.joinGeneration ?? null,
+      };
+      if (this.pose && isNewJoin(this.pose, join)) {
+        const detectedAt = Date.now();
+        const previous = this.pose;
+        if (!this.isPoseRestoreEnabled || this.isNextRestoreSkipped) {
+          console.log(
+            `[agent-daemon] ${new Date().toISOString()} rejoined; not restoring the pose (${
+              this.isNextRestoreSkipped
+                ? "reload asked not to"
+                : "AGENT_RESTORE_POSE=0"
+            })`,
+          );
+          this.isNextRestoreSkipped = false;
+        } else {
+          await this.restorePose(previous, join, detectedAt);
+        }
+        try {
+          sample = await this.agent.poseSample();
+        } catch {
+          return;
+        }
+      }
+      this.pose = rememberPose(
+        sample,
+        { documentId: sample.documentId, joinGeneration: join.joinGeneration },
+        this.poseIntent,
+        Date.now(),
+      );
+    })().finally(() => {
+      this.poseSync = null;
+    });
+    return this.poseSync;
+  }
+
+  private async restorePose(
+    pose: RememberedPose,
+    to: JoinIdentity,
+    detectedAt: number,
+  ): Promise<void> {
+    const record: PoseRestoreRecord = {
+      at: detectedAt,
+      pose,
+      from: pose.join,
+      to,
+      error: null,
+    };
+    const isOverridden = () => this.lastPoseCommandAt > detectedAt;
+    try {
+      // Flying first, so a pose staged in mid-air does not start to fall.
+      if (pose.isFlying !== null) await this.agent.setFlying(pose.isFlying);
+      if (!isOverridden()) await this.agent.teleport(pose.position);
+      if (!isOverridden()) await this.agent.face({ ...pose.facing });
+      if (pose.renderRadius !== null) {
+        await this.agent.setRenderRadius(pose.renderRadius);
+      }
+      if (isOverridden()) {
+        record.error = "a command moved the agent first; left where it put it";
+      }
+    } catch (error) {
+      record.error = error instanceof Error ? error.message : String(error);
+    }
+    this.lastPoseRestore = record;
+    if (record.error === null) this.poseRestoreCount += 1;
+    const age = Math.round((detectedAt - pose.sampledAt) / 1000);
+    console.log(
+      `[agent-daemon] ${new Date().toISOString()} ${
+        record.error === null ? "restored pose" : "pose restore incomplete"
+      } after rejoin (join generation ${pose.join.joinGeneration} -> ${to.joinGeneration}${
+        pose.join.documentId !== to.documentId ? ", new page document" : ""
+      }): ${describePose(pose)}, remembered ${age}s before${
+        record.error ? ` — ${record.error}` : ""
+      }`,
+    );
+    this.appendEvent("pose-restored", {
+      isRestored: record.error === null,
+      error: record.error,
+      position: pose.position,
+      facing: pose.facing,
+      isFlying: pose.isFlying,
+      renderRadius: pose.renderRadius,
+    });
+  }
+
+  /** A command that moves the agent: remember where it ended up at once. */
+  private async notePoseCommand(): Promise<void> {
+    this.lastPoseCommandAt = Date.now();
+    const snapshot = this.freshness.lastConnection;
+    if (this.freshness.isStale || !snapshot || !this.pose) return;
+    try {
+      const sample = await this.agent.poseSample();
+      this.pose = rememberPose(
+        sample,
+        this.pose.join.documentId === sample.documentId
+          ? this.pose.join
+          : this.currentJoin(snapshot),
+        this.poseIntent,
+        Date.now(),
+      );
+    } catch {
+      // the next watch tick samples it
+    }
   }
 
   private startConnectionWatch(): void {
@@ -544,12 +874,20 @@ export class AgentDaemon {
     let failureMessage: string | null = null;
     try {
       snapshot = await this.agent.connection();
+      this.pageStalledSinceAt = null;
     } catch (error) {
       failureMessage = error instanceof Error ? error.message : String(error);
+      if (error instanceof PageStallError) {
+        this.pageStalledSinceAt ??= Date.now();
+      } else {
+        this.pageStalledSinceAt = null;
+      }
     }
     this.updateFreshness(snapshot, failureMessage);
     if (this.freshness.isStale) {
       await this.maybeRecoverConnection(snapshot);
+    } else if (snapshot) {
+      await this.syncPose(snapshot);
     }
   }
 
@@ -616,6 +954,25 @@ export class AgentDaemon {
       return;
     }
 
+    // A page whose calls time out is busy (a bulk remesh on a loaded box),
+    // not gone: resetting it throws away its join and makes the next one
+    // just as slow. Only a stall that outlasts this is treated as wedged.
+    if (
+      snapshot === null &&
+      this.pageStalledSinceAt !== null &&
+      Date.now() - this.pageStalledSinceAt < STALLED_PAGE_RESET_AFTER_MS
+    ) {
+      if (!this.isStallNoted) {
+        console.log(
+          `[agent-daemon] ${new Date().toISOString()} page is busy (its calls time out); waiting up to ${Math.round(
+            STALLED_PAGE_RESET_AFTER_MS / 1000,
+          )}s before treating it as wedged`,
+        );
+        this.isStallNoted = true;
+      }
+      return;
+    }
+    this.isStallNoted = false;
     this.isRecoveryInFlight = true;
     this.recoveryAttemptCount += 1;
     this.lastRecoveryAt = Date.now();
@@ -642,7 +999,7 @@ export class AgentDaemon {
     });
     try {
       if (isResetting) {
-        await this.agent.reset();
+        await this.resetPage("reset");
         console.log(
           `[agent-daemon] recovery attempt ${attempt}: page reset completed, awaiting rejoin`,
         );
@@ -1157,8 +1514,67 @@ export class AgentDaemon {
     });
 
     this.server.post("/reset", async () => {
-      await this.agent.reset();
+      await this.resetPage("reset");
       return { ok: true };
+    });
+
+    // Fresh client code on request: the page reloads (picking up every held
+    // hot update), rejoins, and is put back where it stood unless asked not
+    // to. Answers once the world is fresh and the pose is back, or when the
+    // bridge wait runs out.
+    const reloadBodySchema = z
+      .object({ isRestoringPose: z.boolean().optional() })
+      .nullish();
+    this.server.post("/reload", async (req, reply) => {
+      const parsed = reloadBodySchema.safeParse(req.body ?? null);
+      if (!parsed.success) {
+        reply.code(400);
+        return { ok: false, error: parsed.error.flatten() };
+      }
+      const isRestoringPose = parsed.data?.isRestoringPose !== false;
+      const pickedUp = this.clientStatus.updatesBehind;
+      const before = this.clientStatus.documentId;
+      console.log(
+        `[agent-daemon] ${new Date().toISOString()} reload requested: picking up ${pickedUp} held client update(s)${
+          isRestoringPose ? "" : "; the pose will not be restored"
+        }`,
+      );
+      if (!isRestoringPose) this.isNextRestoreSkipped = true;
+      // A page that never installed a bridge gets a plain reload: waiting
+      // for a bridge would hang, and its connection is not ours to recover.
+      const isBridgeSession = this.connectionWatchTimer !== null;
+      if (isBridgeSession) {
+        await this.resetPage("reload");
+      } else {
+        this.expectedNavigation = { cause: "reload", at: Date.now() };
+        await this.agent.reloadDocument();
+      }
+      const deadline = Date.now() + resolveReadyTimeoutMs().timeoutMs;
+      let isFresh = false;
+      while (Date.now() < deadline) {
+        await this.pageWatchTick();
+        if (isBridgeSession) await this.watchConnectionTick();
+        const isNewDocument = this.clientStatus.documentId !== before;
+        if (isNewDocument && (!isBridgeSession || !this.freshness.isStale)) {
+          if (this.poseSync) await this.poseSync;
+          isFresh = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      return {
+        ok: isFresh,
+        pickedUpUpdates: pickedUp,
+        isFresh,
+        client: this.status().client,
+        pose: this.poseStatus(),
+        ...(isFresh
+          ? {}
+          : {
+              error:
+                "reloaded, but the world did not rejoin before the bridge wait ran out",
+            }),
+      };
     });
 
     const freezeBodySchema = z.object({
@@ -1804,7 +2220,7 @@ export class AgentDaemon {
       }
       if (parsed.data?.isResetting) {
         console.log("[agent-daemon] manual /reconnect with reset requested");
-        await this.agent.reset();
+        await this.resetPage("reset");
         return { ok: true, action: "reset" };
       }
       let connection: ConnectionSnapshot | null = null;
@@ -1815,7 +2231,7 @@ export class AgentDaemon {
           "[agent-daemon] manual /reconnect: bridge unreachable, resetting page:",
           e instanceof Error ? e.message : e,
         );
-        await this.agent.reset();
+        await this.resetPage("reset");
         return { ok: true, action: "reset", reason: "bridge unreachable" };
       }
       if (isLiveConnection(connection)) {
@@ -1825,7 +2241,7 @@ export class AgentDaemon {
         console.log(
           "[agent-daemon] manual /reconnect: client build outdated, resetting page",
         );
-        await this.agent.reset();
+        await this.resetPage("reset");
         return { ok: true, action: "reset", reason: "client outdated" };
       }
       const isTriggered = await this.agent.reconnectInPage();
@@ -1883,6 +2299,24 @@ export class AgentDaemon {
   private async executeAction(
     action: z.infer<typeof actSchema>,
   ): Promise<unknown> {
+    const result = await this.runAction(action);
+    // Flying and the view radius cannot be read back from the page, so the
+    // commands that set them are what a restore replays.
+    if (action.type === "set-flying" || action.type === "set-render-radius") {
+      this.poseIntent = mergePoseIntent(
+        this.poseIntent,
+        action.type === "set-flying"
+          ? { isFlying: action.isFlying }
+          : { renderRadius: (result as { renderRadius: number }).renderRadius },
+      );
+      if (this.pose) this.pose = { ...this.pose, ...this.poseIntent };
+    } else if (POSE_CHANGING_ACTIONS.has(action.type)) {
+      await this.notePoseCommand();
+    }
+    return result;
+  }
+
+  private async runAction(action: z.infer<typeof actSchema>): Promise<unknown> {
     switch (action.type) {
       case "chat":
         return this.agent.chat(action.text);

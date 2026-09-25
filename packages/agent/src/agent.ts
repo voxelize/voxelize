@@ -64,6 +64,13 @@ import {
   expectedBackingSize,
   resolveCaptureViewport,
 } from "./capture-viewport";
+import {
+  ClientUpdateMode,
+  ClientUpdateState,
+  clientUpdateGuardSource,
+  resolveClientUpdateMode,
+  resolveHmrUrlPatterns,
+} from "./client-updates";
 import { composeClientUrl } from "./client-url";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
@@ -72,6 +79,7 @@ import {
   logAgentPerf,
   writeClientPerfLine,
 } from "./perf";
+import type { PoseSample } from "./pose-memory";
 import {
   CpuProfile,
   ProfileSummary,
@@ -311,6 +319,8 @@ export class Agent {
   private browser: Browser;
   private page: Page;
   private targetUrl = "";
+  /** Read once: a session holds or follows hot updates for its whole life. */
+  readonly clientUpdateMode: ClientUpdateMode = resolveClientUpdateMode();
   private readonly pidFile: string;
   private eventListeners: Map<AgentEventName, Set<(data: unknown) => void>> =
     new Map();
@@ -500,6 +510,7 @@ export class Agent {
     agent.watchdogPidValue = watchdogPid;
     browser.on("disconnected", () => agent.handleBrowserDisconnected());
     agent.attachPageLogging(page);
+    await agent.installClientUpdateGuard(page);
     await agent.installChatCapture();
 
     // Registered on every navigation (dev-server reloads included), so the
@@ -712,6 +723,7 @@ export class Agent {
       const stale = this.page;
       const page = await this.browser.newPage();
       this.attachPageLogging(page);
+      await this.installClientUpdateGuard(page);
       this.page = page;
       await this.installChatCapture();
       await page.evaluateOnNewDocument(() => {
@@ -731,6 +743,73 @@ export class Agent {
     const ready = Agent.waitForBridge(this.page, waitReadyTimeoutMs);
     this.trackReadyPromise(ready);
     await ready;
+  }
+
+  /**
+   * Hold dev-server hot updates back from this page (client-updates.ts).
+   * A nicety like the priority wrapper: if it cannot be installed the page
+   * follows the dev server as it always did, and the log says so.
+   */
+  private async installClientUpdateGuard(page: Page): Promise<void> {
+    if (this.clientUpdateMode === "live") {
+      console.log(
+        "[voxelize-agent] client updates: live (dev-server hot updates apply to this page)",
+      );
+      return;
+    }
+    const patterns = resolveHmrUrlPatterns();
+    try {
+      await page.evaluateOnNewDocument(clientUpdateGuardSource(patterns));
+      console.log(
+        `[voxelize-agent] client updates: hold (hot updates on ${patterns.join(", ")} are held; the page keeps the code it loaded until a reload)`,
+      );
+    } catch (error) {
+      console.error(
+        `[voxelize-agent] could not install the client-update guard (${
+          error instanceof Error ? error.message : String(error)
+        }); this page will follow dev-server hot updates`,
+      );
+    }
+  }
+
+  /** The loaded document and the hot updates held back from it; no bridge needed. */
+  async pageDocument(): Promise<{
+    documentId: number;
+    url: string;
+    title: string;
+    clientUpdates: ClientUpdateState | null;
+  }> {
+    return this.withPageTimeout("pageDocument", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => ({
+        documentId: performance.timeOrigin,
+        url: window.location.href,
+        title: document.title,
+        clientUpdates: window.__agentClientUpdates__ ?? null,
+      })),
+    );
+  }
+
+  /** Position, facing, and the document they were read from, in one call. */
+  async poseSample(): Promise<PoseSample> {
+    return this.withPageTimeout("poseSample", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => {
+        const bridge = window.__agentRequired__();
+        const facing = bridge.facing();
+        return {
+          position: bridge.position(),
+          facing: { yaw: facing.yaw, pitch: facing.pitch },
+          documentId: performance.timeOrigin,
+        };
+      }),
+    );
+  }
+
+  /** Reload without waiting for the bridge, for pages that may never install one. */
+  async reloadDocument(): Promise<void> {
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+    this.trackReadyPromise(
+      Agent.waitForBridge(this.page, resolveReadyTimeoutMs().timeoutMs),
+    );
   }
 
   private attachPageLogging(page: Page): void {
