@@ -93,12 +93,13 @@ impl ItemRegistry {
         self.items_by_id.is_empty()
     }
 
+    /// Items in id order: the list ships in INIT, and a reconnecting client
+    /// compares it in order, so hash-map order would read as a new world
+    /// after every server restart.
     pub fn to_client_json(&self) -> Value {
-        let items: Vec<Value> = self
-            .items_by_id
-            .values()
-            .map(|def| def.to_client_json())
-            .collect();
+        let mut defs: Vec<&ItemDef> = self.items_by_id.values().collect();
+        defs.sort_unstable_by_key(|def| def.id);
+        let items: Vec<Value> = defs.iter().map(|def| def.to_client_json()).collect();
         serde_json::json!(items)
     }
 
@@ -113,5 +114,26 @@ impl std::fmt::Debug for ItemRegistry {
             .field("count", &self.count())
             .field("items", &self.items_by_id.keys().collect::<Vec<_>>())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod client_json_tests {
+    use super::*;
+
+    #[test]
+    fn client_json_lists_items_in_id_order() {
+        let mut registry = ItemRegistry::new();
+        for id in (1..=64).rev() {
+            registry.register_with_id(id, &format!("Item {id}"), |b| b);
+        }
+        let ids: Vec<u64> = registry
+            .to_client_json()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["id"].as_u64().unwrap())
+            .collect();
+        assert_eq!(ids, (1..=64).collect::<Vec<u64>>());
     }
 }

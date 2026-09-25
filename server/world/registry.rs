@@ -134,9 +134,15 @@ impl Registry {
     pub fn generate(&mut self) {
         assert_coupled_blocks_consistent(self);
 
-        let all_blocks = self.blocks_by_id.values_mut().collect::<Vec<_>>();
+        // Slots are handed out in block-id order, faces in declared order and
+        // groups by first use, so every process lays out the same atlas. The
+        // ranges ship in INIT, and a reconnecting client compares them against
+        // the ones it already drew its atlas with.
+        let mut all_blocks = self.blocks_by_id.values_mut().collect::<Vec<_>>();
+        all_blocks.sort_unstable_by_key(|block| block.id);
 
-        let mut texture_groups: HashSet<String> = HashSet::new();
+        let mut texture_groups: Vec<String> = Vec::new();
+        let mut seen_groups: HashSet<String> = HashSet::new();
         let mut ungrouped_faces = 0;
 
         for block in all_blocks.iter() {
@@ -146,7 +152,9 @@ impl Registry {
                 }
 
                 if let Some(group) = &face.texture_group {
-                    texture_groups.insert(group.clone());
+                    if seen_groups.insert(group.clone()) {
+                        texture_groups.push(group.clone());
+                    }
                 } else {
                     ungrouped_faces += 1;
                 }
@@ -555,5 +563,89 @@ impl Registry {
             .collect();
 
         voxelize_mesher::Registry::new(blocks_by_id)
+    }
+}
+
+#[cfg(test)]
+mod atlas_layout_tests {
+    use super::*;
+    use crate::BlockFaces;
+
+    const SHARED_GROUP: &str = "shared";
+    const GROUPED_IDS: [u32; 2] = [7, 31];
+    const BLOCK_COUNT: u32 = 40;
+
+    fn blocks() -> Vec<Block> {
+        (1..=BLOCK_COUNT)
+            .map(|id| {
+                let faces = if GROUPED_IDS.contains(&id) {
+                    BlockFaces::six_faces().texture_group(SHARED_GROUP).build()
+                } else {
+                    BlockFaces::six_faces().build()
+                };
+                Block::new(&format!("Block {id}"))
+                    .id(id)
+                    .faces(&faces)
+                    .build()
+            })
+            .collect()
+    }
+
+    fn generated(reverse: bool) -> Registry {
+        let mut blocks = blocks();
+        if reverse {
+            blocks.reverse();
+        }
+        let mut registry = Registry::new();
+        registry.register_blocks(&blocks);
+        registry.generate();
+        registry
+    }
+
+    fn layout(registry: &Registry) -> Vec<(u32, String, UV)> {
+        let mut ids = registry.blocks_by_id.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
+        ids.into_iter()
+            .flat_map(|id| {
+                let block = registry.get_block_by_id(id);
+                block
+                    .faces
+                    .iter()
+                    .map(move |face| (id, face.name.clone(), face.range.clone()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn two_generations_lay_out_the_same_atlas() {
+        let first = generated(false);
+        let second = generated(true);
+        assert_eq!(layout(&first), layout(&second));
+
+        for block in first.blocks_by_name.values() {
+            let by_id = first.get_block_by_id(block.id);
+            for (named, keyed) in block.faces.iter().zip(by_id.faces.iter()) {
+                assert_eq!(named.range, keyed.range, "{} {}", block.name, named.name);
+            }
+        }
+    }
+
+    #[test]
+    fn groups_come_first_then_faces_in_block_id_order() {
+        let registry = generated(true);
+        let slot = |uv: &UV| (uv.start_v.to_bits(), uv.start_u.to_bits());
+        let faces = layout(&registry);
+        let first_slot = faces.iter().map(|(_, _, uv)| slot(uv)).min().unwrap();
+        let mut previous = first_slot;
+
+        for (id, face, range) in faces {
+            if GROUPED_IDS.contains(&id) {
+                assert_eq!(slot(&range), first_slot, "block {id} {face} left its group");
+                continue;
+            }
+            let current = slot(&range);
+            assert!(current > previous, "block {id} {face} was allocated out of order");
+            previous = current;
+        }
     }
 }
