@@ -210,6 +210,10 @@ export function makeChunkShaderMaterial(
       world.chunkRenderer.shaderLightingUniforms.bedCausticScale,
     uSurfaceUndersideScale:
       world.chunkRenderer.shaderLightingUniforms.surfaceUndersideScale,
+    uSurfaceUndersideTuning:
+      world.chunkRenderer.shaderLightingUniforms.surfaceUndersideTuning,
+    uWaterSurfaceCrisp:
+      world.chunkRenderer.shaderLightingUniforms.waterSurfaceCrisp,
     // Block-light model switches and their derived constants, shared with
     // the CPU mirrors (block-light-transfer.ts).
     uBlockLightCurve: BLOCK_LIGHT_TUNING.curve,
@@ -260,6 +264,7 @@ export function makeChunkShaderMaterial(
       uCameraSubmersion: chunksUniforms.cameraSubmersion,
       uCameraWaterPlaneY: chunksUniforms.cameraWaterPlaneY,
       uUnderwaterAmbient: chunksUniforms.underwaterAmbient,
+      uUnderwaterViewScale: chunksUniforms.underwaterViewScale,
       uWindDirection: chunksUniforms.windDirection,
       uWindOffset: chunksUniforms.windOffset,
       uWindSpeed: chunksUniforms.windSpeed,

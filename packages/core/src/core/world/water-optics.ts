@@ -29,8 +29,11 @@ export const WATER_OPTICS = Object.freeze({
   /**
    * Scale from downwelling extinction to extinction along the camera's view
    * ray, which drives the exponential in-scattering fog while submerged.
+   * 0.22 lets shallow daylight water carry about 1.6 times as far as the
+   * earlier 0.35 did (read as murk); depth, night and caves still close in
+   * through the scatter colour the fog fades toward.
    */
-  viewExtinctionScale: 0.35,
+  viewExtinctionScale: 0.22,
 
   /**
    * Fraction of downwelling extinction applied to the in-scattered color for
@@ -403,6 +406,24 @@ export const WATER_OPTICS = Object.freeze({
   undersideShimmerStrength: 0.05,
 
   /**
+   * The continuous ceiling (`surfaceUndersideScale` 1, the default). No
+   * window: the whole underside is one lit film, `undersideFilmScale` times
+   * the scatter colour the fog fades toward (a little lighter, so the
+   * ceiling reads as the bright side of the water without going grey). The
+   * scene above shows through it as `undersideTransmitOverhead` times the
+   * cosine to straight up raised to `undersideTransmitFalloff` — brightest
+   * above and nothing at grazing (where a real surface mirrors the water,
+   * and where the shore above would otherwise hang in the water as dark
+   * ghosts), with no edge anywhere for a disc to form on. `undersideRippleShade` is the ripples'
+   * light and shade on the film. Live-tunable through the
+   * `surfaceUndersideTuning` uniform.
+   */
+  undersideFilmScale: 1.3,
+  undersideTransmitOverhead: 0.55,
+  undersideTransmitFalloff: 2,
+  undersideRippleShade: 0.08,
+
+  /**
    * Flow. Water runs downhill along its own surface, and a fluid's top face
    * is a bilinear patch through the mesher's corner heights, which step
    * down one stage per block away from the source. That rest height is a
@@ -508,7 +529,8 @@ export const FLUID_SPILL_CORNER_MIN_HEIGHT =
 
 /**
  * Samples every {@link WATER_OPTICS.surfaceNormalLayers} entry of the slope
- * map at the fragment's `wPos.xz` for `waterSeconds`, accumulating the
+ * map at `waterRippleXZ` (declared by the caller: the fragment's `wPos.xz`,
+ * or its 1/16-block texel centre) for `waterSeconds`, accumulating the
  * decoded, bump-weighted slopes into `waterSlopeSum` (declared by the
  * caller). Each layer's texel stays in scope as `waterTexel<i>` so the
  * height channel can be read for crest highlights without a second lookup;
@@ -568,7 +590,7 @@ export const WATER_SURFACE_NORMAL_LAYERS_GLSL = WATER_OPTICS.surfaceNormalLayers
       : "";
     return `
   vec2 waterUv${index} = mat2(${cos}, ${sin}, ${negSin}, ${cos})
-    * (wPos.xz + vec2(${driftX.toFixed(4)}, ${driftZ.toFixed(4)}) * waterSeconds)
+    * (waterRippleXZ + vec2(${driftX.toFixed(4)}, ${driftZ.toFixed(4)}) * waterSeconds)
     * vec2(${scaleX}, ${scaleY});
   vec4 waterTexel${index} = texture2D(uWaterNormalMap, waterUv${index});${patchDefinition}
   waterSlopeSum += (waterTexel${index}.rg * 2.0 - 1.0)
@@ -627,6 +649,7 @@ export const UNDERWATER_FOG_UNIFORM_DECLARATIONS = `
 uniform float uCameraSubmersion;
 uniform float uCameraWaterPlaneY;
 uniform vec3 uUnderwaterAmbient;
+uniform float uUnderwaterViewScale;
 `;
 
 /**
@@ -645,7 +668,9 @@ if (uCameraSubmersion > 0.001) {
     float uwToPlane = (uCameraWaterPlaneY - cameraPosition.y) * uwDist / uwRay.y;
     uwPath = min(uwPath, max(uwToPlane, 0.0));
   }
-  vec3 uwTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * uwPath);
+  // A material that never set the A/B scale reads 0: the baked extinction.
+  float uwScale = uUnderwaterViewScale > 0.0 ? uUnderwaterViewScale : 1.0;
+  vec3 uwTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * uwPath * uwScale);
   vec3 uwColor = gl_FragColor.rgb * uwTransmit${isEmission ? "" : " + uUnderwaterAmbient * (1.0 - uwTransmit)"};
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uwColor, uCameraSubmersion);
 }
@@ -687,12 +712,15 @@ export interface UnderwaterFogUniforms {
   uCameraSubmersion: IUniform<number>;
   uCameraWaterPlaneY: IUniform<number>;
   uUnderwaterAmbient: IUniform<Color>;
+  /** A/B scale on the view extinction; 0 or absent means the baked one. */
+  uUnderwaterViewScale?: IUniform<number>;
 }
 
 export interface UnderwaterFogSource {
   submersion: number;
   waterPlaneY: number;
   ambientColor: Color;
+  viewExtinctionScale?: number;
 }
 
 export function createUnderwaterFogUniforms(): UnderwaterFogUniforms {
@@ -700,6 +728,7 @@ export function createUnderwaterFogUniforms(): UnderwaterFogUniforms {
     uCameraSubmersion: { value: 0 },
     uCameraWaterPlaneY: { value: 0 },
     uUnderwaterAmbient: { value: new Color(0, 0, 0) },
+    uUnderwaterViewScale: { value: 1 },
   };
 }
 
@@ -710,6 +739,9 @@ export function updateUnderwaterFogUniforms(
   target.uCameraSubmersion.value = source.submersion;
   target.uCameraWaterPlaneY.value = source.waterPlaneY;
   target.uUnderwaterAmbient.value.copy(source.ambientColor);
+  if (target.uUnderwaterViewScale) {
+    target.uUnderwaterViewScale.value = source.viewExtinctionScale ?? 1;
+  }
 }
 
 export function getDownwellingTransmittance(depth: number, out: Color): Color {
@@ -808,6 +840,13 @@ export class WaterOptics {
   public waterPlaneY = 0;
 
   public skyFade = 0;
+
+  /**
+   * A/B knob on the underwater view extinction, relative to the baked
+   * `viewExtinctionScale`: 1 is the shipped clarity, 0.35 / 0.22 the
+   * earlier, murkier water.
+   */
+  public viewExtinctionScale = 1;
 
   public readonly ambientColor = new Color(0, 0, 0);
 

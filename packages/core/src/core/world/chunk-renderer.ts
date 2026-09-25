@@ -77,11 +77,25 @@ export interface ShaderLightingUniforms {
   /** 0..1 scale on the caustic net seen on submerged faces from below. */
   bedCausticScale: { value: number };
   /**
-   * The surface's underside while submerged: 0 off, 1 a clear Snell window
-   * onto the scene above over a calm mirror of the water, 2 the previous
-   * texel-stepped window and caustic web (kept for A/B captures).
+   * The surface's underside while submerged: 0 off, 1 one continuous
+   * rippled ceiling the scene above shows through most straight up, 2 the
+   * texel-stepped window and caustic web, 3 the clear Snell window over a
+   * calm mirror (2 and 3 kept for A/B captures).
    */
   surfaceUndersideScale: { value: number };
+  /**
+   * Style 1's ceiling, live-tunable: x film brightness against the water's
+   * scatter colour, y the share of the scene above shown straight up, z the
+   * power of the cosine it falls off with toward grazing, w the ripples'
+   * light-and-shade on the film. Defaults are `WATER_OPTICS.underside*`.
+   */
+  surfaceUndersideTuning: { value: Vector4 };
+  /**
+   * 1 draws the water surface per 1/16-block texel (ripples sampled at
+   * texel centres, fresnel and glint in three flat steps); 0 the earlier
+   * smooth surface, for A/B.
+   */
+  waterSurfaceCrisp: { value: number };
   skyTopColor: { value: Color };
   skyMiddleColor: { value: Color };
   shadowDebugMode: { value: number };
@@ -131,6 +145,7 @@ export class ChunkRenderer {
     cameraSubmersion: { value: number };
     cameraWaterPlaneY: { value: number };
     underwaterAmbient: { value: Color };
+    underwaterViewScale: { value: number };
   } = {
     fogColor: { value: new Color("#B1CCFD") },
     fogNear: { value: 100 },
@@ -173,6 +188,7 @@ export class ChunkRenderer {
     cameraSubmersion: { value: 0 },
     cameraWaterPlaneY: { value: 0 },
     underwaterAmbient: { value: new Color(0, 0, 0) },
+    underwaterViewScale: { value: 1 },
   };
 
   public shaderLightingUniforms: ShaderLightingUniforms = {
@@ -204,6 +220,15 @@ export class ChunkRenderer {
     waterFresnelStrength: { value: 0.5 },
     bedCausticScale: { value: 1 },
     surfaceUndersideScale: { value: 1 },
+    waterSurfaceCrisp: { value: 1 },
+    surfaceUndersideTuning: {
+      value: new Vector4(
+        WATER_OPTICS.undersideFilmScale,
+        WATER_OPTICS.undersideTransmitOverhead,
+        WATER_OPTICS.undersideTransmitFalloff,
+        WATER_OPTICS.undersideRippleShade,
+      ),
+    },
     skyTopColor: { value: new Color(0.4, 0.6, 0.9) },
     skyMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
     shadowDebugMode: { value: 0 },

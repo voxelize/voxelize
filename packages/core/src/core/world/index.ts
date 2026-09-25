@@ -717,13 +717,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    // Submerged, only the underside's Snell window reads the capture (the
-    // scene above, bent by the ripples); with it off or on the legacy look
-    // the copy is skipped. Thresholds mirror the shader's gates.
+    // Submerged, only the underside reads the capture (the scene above,
+    // bent by the ripples: the continuous ceiling or the Snell window); with
+    // it off or on the legacy look the copy is skipped. Thresholds mirror
+    // the shader's gates.
     const undersideStyle =
       this.chunkRenderer.shaderLightingUniforms.surfaceUndersideScale.value;
     const isUndersideWindowReading =
-      undersideStyle > 0.5 && undersideStyle < 1.5;
+      (undersideStyle > 0.5 && undersideStyle < 1.5) || undersideStyle > 2.5;
     if (cameraSubmersion.value >= 0.5 && !isUndersideWindowReading) {
       return;
     }
@@ -5497,6 +5498,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     uniforms.cameraSubmersion.value = this.waterOptics.submersion;
     uniforms.cameraWaterPlaneY.value = this.waterOptics.waterPlaneY;
     uniforms.underwaterAmbient.value.copy(this.waterOptics.ambientColor);
+    uniforms.underwaterViewScale.value = this.waterOptics.viewExtinctionScale;
 
     const renderFluidBackSides = this.waterOptics.submersion >= 0.5;
     if (renderFluidBackSides !== this.fluidMaterialsRenderBackSide) {
