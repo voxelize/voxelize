@@ -46,6 +46,15 @@ const floodRemainderArgs = { scaledClaim: 0, floodLevel: 0, windowFade: 1 };
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
+const isMesh = (object: Object3D): object is Mesh => object instanceof Mesh;
+
+/** Whether `object`'s ancestor chain ends in a Scene, i.e. it can be drawn. */
+const isUnderScene = (object: Object3D): boolean => {
+  let root = object;
+  while (root.parent) root = root.parent;
+  return (root as { isScene?: boolean }).isScene === true;
+};
+
 export type LightShinedOptions = {
   /**
    * The lerping factor of the brightness of each mesh. Defaults to `0.1`.
@@ -77,6 +86,28 @@ export type LightShinedOptions = {
    * samples. Defaults to `0.5`.
    */
   resampleDistance: number;
+  /**
+   * Notice children added under a shined object by wrapping every
+   * `children` array and mesh material in its subtree in a Proxy, the old
+   * path, kept only to A/B measure its cost. A Proxy puts a slow path in
+   * every scene-graph walk over those nodes (matrix updates, culling,
+   * traversals) and in every material read three makes per draw, and a
+   * sibling removal re-wrapped the shifted children in nested Proxies. The
+   * default listens for three's `childadded` events instead. Defaults to
+   * `false`.
+   */
+  useProxyChangeDetection: boolean;
+  /**
+   * Skip a registered object whose ancestors do not end in a `Scene`. The
+   * entity manager releases an entity by detaching its root, so an object
+   * lit below that root (a character inside its entity) keeps a parent and
+   * would otherwise be traversed, resampled and lerped every frame although
+   * nothing draws it. Registering and removing in pairs is still the rule;
+   * this only bounds the cost of a missed remove. Needs every lit object to
+   * live under a real `Scene` (the world, an overlay scene), so it is off
+   * by default. Defaults to `false`.
+   */
+  skipDetached: boolean;
 };
 
 const defaultOptions: LightShinedOptions = {
@@ -84,6 +115,8 @@ const defaultOptions: LightShinedOptions = {
   maxBrightness: 1,
   sampleIntervalFrames: 4,
   resampleDistance: 0.5,
+  useProxyChangeDetection: false,
+  skipDetached: false,
 };
 
 type LightSample = {
@@ -153,6 +186,12 @@ export class LightShined {
   private nextSamplePhase = 0;
 
   /**
+   * The shined root a hooked node sets new materials up for. Weak, so a
+   * dropped subtree is not kept alive by the effect.
+   */
+  private owners = new WeakMap<Object3D, Object3D>();
+
+  /**
    * Construct a light shined effect manager.
    *
    * @param world The world that the effect is applied to.
@@ -185,6 +224,7 @@ export class LightShined {
   remove = (obj: Object3D) => {
     this.list.delete(obj);
     this.samples.delete(obj);
+    if (!this.options.useProxyChangeDetection) this.unhookSubtree(obj, obj);
   };
 
   /**
@@ -214,102 +254,154 @@ export class LightShined {
     });
   };
 
-  private setupLightMaterials = (obj: Object3D) => {
-    const setupMaterial = (material: Material) => {
-      if (
-        ThreeUtils.isShaderMaterial(material) ||
-        material.userData.lightEffectSetup ||
-        material.userData.heldObjectLighting === true ||
-        isSelfIlluminated(material)
-      )
-        return;
+  private setupMaterial = (root: Object3D, material: Material) => {
+    if (
+      ThreeUtils.isShaderMaterial(material) ||
+      material.userData.lightEffectSetup ||
+      material.userData.heldObjectLighting === true ||
+      isSelfIlluminated(material)
+    )
+      return;
 
-      const lightUniform = { value: new Color(1, 1, 1) };
-      const oldOnBeforeCompile = material.onBeforeCompile;
-      material.onBeforeCompile = (shader, renderer) => {
-        if (oldOnBeforeCompile) {
-          oldOnBeforeCompile(shader, renderer);
-        }
+    const lightUniform = { value: new Color(1, 1, 1) };
+    const oldOnBeforeCompile = material.onBeforeCompile;
+    material.onBeforeCompile = (shader, renderer) => {
+      if (oldOnBeforeCompile) {
+        oldOnBeforeCompile(shader, renderer);
+      }
 
-        shader.uniforms.lightEffect = lightUniform;
-        shader.vertexShader = shader.vertexShader.replace(
-          "void main() {",
-          `
+      shader.uniforms.lightEffect = lightUniform;
+      shader.vertexShader = shader.vertexShader.replace(
+        "void main() {",
+        `
           uniform vec3 lightEffect;
           void main() {
           `,
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "void main() {",
-          `
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "void main() {",
+        `
           uniform vec3 lightEffect;
           void main() {
           `,
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "#include <color_fragment>",
-          `
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <color_fragment>",
+        `
           #include <color_fragment>
           diffuseColor.rgb *= lightEffect;
           `,
-        );
-      };
-      material.needsUpdate = true;
-      if (!obj.userData.lightUniforms) {
-        obj.userData.lightUniforms = [];
-      }
-      obj.userData.lightUniforms.push(lightUniform);
-      material.userData.lightEffectSetup = true;
+      );
     };
+    material.needsUpdate = true;
+    if (!root.userData.lightUniforms) {
+      root.userData.lightUniforms = [];
+    }
+    root.userData.lightUniforms.push(lightUniform);
+    material.userData.lightEffectSetup = true;
+  };
 
-    const isMesh = (object: Object3D): object is Mesh => {
-      return object instanceof Mesh;
-    };
-
-    const setupObjectAndChildren = (object: Object3D) => {
-      if (isMesh(object)) {
-        if (Array.isArray(object.material)) {
-          object.material.forEach(setupMaterial);
-        } else {
-          setupMaterial(object.material);
+  private setupObjectAndChildren = (root: Object3D, object: Object3D) => {
+    if (isMesh(object)) {
+      if (Array.isArray(object.material)) {
+        for (const material of object.material) {
+          this.setupMaterial(root, material);
         }
+      } else {
+        this.setupMaterial(root, object.material);
       }
-      object.children.forEach(setupObjectAndChildren);
-    };
+    }
+    for (const child of object.children) {
+      this.setupObjectAndChildren(root, child);
+    }
+  };
 
+  private setupLightMaterials = (obj: Object3D) => {
     // Setup initial materials
-    setupObjectAndChildren(obj);
+    this.setupObjectAndChildren(obj, obj);
 
-    // Setup proxies to detect changes
-    const setupProxies = (object: Object3D) => {
-      if (isMesh(object)) {
-        object.material = new Proxy(object.material, {
-          set: (target, prop, value) => {
-            target[prop] = value;
-            if (prop === "needsUpdate" && value === true) {
-              setupObjectAndChildren(object);
-            }
-            return true;
-          },
-        });
-        obj.userData.justChanged = true;
-      }
+    if (this.options.useProxyChangeDetection) {
+      this.setupProxies(obj, obj);
+      return;
+    }
 
-      object.children = new Proxy(object.children, {
+    if (this.hookSubtree(obj, obj)) {
+      obj.userData.justChanged = true;
+    }
+  };
+
+  /**
+   * Listen on every node of a shined subtree for children added later
+   * (equipment, hats, bubbles), so their materials are set up before their
+   * first draw. One shared listener pair for every node; returns whether
+   * the subtree holds a mesh, which is when the first update snaps the
+   * light instead of easing into it.
+   */
+  private hookSubtree = (root: Object3D, object: Object3D): boolean => {
+    let hasMesh = false;
+    object.traverse((node) => {
+      if (isMesh(node)) hasMesh = true;
+      // A node another shined root already hooks keeps that owner: its
+      // new children's lights ride with the root that registered first.
+      if (this.owners.has(node)) return;
+      this.owners.set(node, root);
+      node.addEventListener("childadded", this.onChildAdded);
+      node.addEventListener("childremoved", this.onChildRemoved);
+    });
+    return hasMesh;
+  };
+
+  private unhookSubtree = (root: Object3D, object: Object3D) => {
+    object.traverse((node) => {
+      if (this.owners.get(node) !== root) return;
+      this.owners.delete(node);
+      node.removeEventListener("childadded", this.onChildAdded);
+      node.removeEventListener("childremoved", this.onChildRemoved);
+    });
+  };
+
+  private onChildAdded = (event: { child: Object3D; target: Object3D }) => {
+    const root = this.owners.get(event.target);
+    if (!root) return;
+    this.setupObjectAndChildren(root, event.child);
+    if (this.hookSubtree(root, event.child)) {
+      root.userData.justChanged = true;
+    }
+  };
+
+  private onChildRemoved = (event: { child: Object3D; target: Object3D }) => {
+    const root = this.owners.get(event.target);
+    if (!root) return;
+    this.unhookSubtree(root, event.child);
+  };
+
+  /** The old change detection; see `useProxyChangeDetection`. */
+  private setupProxies = (obj: Object3D, object: Object3D) => {
+    if (isMesh(object)) {
+      object.material = new Proxy(object.material, {
         set: (target, prop, value) => {
           target[prop] = value;
-          if (typeof prop === "string" && !isNaN(Number(prop))) {
-            setupObjectAndChildren(value);
-            setupProxies(value);
+          if (prop === "needsUpdate" && value === true) {
+            this.setupObjectAndChildren(obj, object);
           }
           return true;
         },
       });
+      obj.userData.justChanged = true;
+    }
 
-      object.children.forEach(setupProxies);
-    };
+    object.children = new Proxy(object.children, {
+      set: (target, prop, value) => {
+        target[prop as unknown as number] = value;
+        if (typeof prop === "string" && !isNaN(Number(prop))) {
+          this.setupObjectAndChildren(obj, value);
+          this.setupProxies(obj, value);
+        }
+        return true;
+      },
+    });
 
-    setupProxies(obj);
+    object.children.forEach((child) => this.setupProxies(obj, child));
   };
 
   private updateObject = (obj: Object3D, color: Color) => {
@@ -335,6 +427,7 @@ export class LightShined {
 
   private recursiveUpdate = (obj: Object3D, color: Color | null = null) => {
     if (!obj.parent) return;
+    if (this.options.skipDetached && !isUnderScene(obj)) return;
 
     for (const type of this.ignored) {
       if (obj instanceof type) return;

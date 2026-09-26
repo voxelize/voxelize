@@ -4,6 +4,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   Object3D,
+  Scene,
   Vector3,
 } from "three";
 import { describe, expect, it } from "vitest";
@@ -179,5 +180,122 @@ describe("LightShined brightness", () => {
     });
     const lit = litColorOf(new LightShined(world, { maxBrightness: 0.5 }));
     expect(Math.max(lit.r, lit.g, lit.b)).toBeLessThanOrEqual(0.5);
+  });
+});
+
+describe("LightShined change detection", () => {
+  const lightUniformsOf = (obj: Object3D) =>
+    (obj.userData.lightUniforms ?? []) as { value: Color }[];
+
+  it("sets up equipment added after registration, before its first draw", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const parent = new Object3D();
+    const character = new Object3D();
+    parent.add(character);
+    shined.add(character);
+    shined.update();
+    expect(lightUniformsOf(character)).toHaveLength(0);
+
+    const hat = new Object3D();
+    const brim = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    hat.add(brim);
+    character.add(hat);
+    expect(brim.material.userData.lightEffectSetup).toBe(true);
+    expect(lightUniformsOf(character)).toHaveLength(1);
+    expect(character.userData.justChanged).toBe(true);
+
+    // A grandchild added under the late child is covered too.
+    const feather = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    hat.add(feather);
+    expect(lightUniformsOf(character)).toHaveLength(2);
+  });
+
+  it("leaves children arrays and materials as plain objects", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const parent = new Object3D();
+    const material = new MeshBasicMaterial();
+    const mesh = new Mesh(new BoxGeometry(), material);
+    const children = mesh.children;
+    parent.add(mesh);
+    shined.add(mesh);
+    expect(mesh.material).toBe(material);
+    expect(mesh.children).toBe(children);
+  });
+
+  it("stops setting up a subtree once removed from the shined object", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const parent = new Object3D();
+    const character = new Object3D();
+    const cape = new Object3D();
+    character.add(cape);
+    parent.add(character);
+    shined.add(character);
+    character.remove(cape);
+    cape.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    expect(lightUniformsOf(character)).toHaveLength(0);
+
+    shined.remove(character);
+    character.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    expect(lightUniformsOf(character)).toHaveLength(0);
+  });
+
+  it("keeps the old Proxy path available for A/B measurement", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world, { useProxyChangeDetection: true });
+    const parent = new Object3D();
+    const character = new Object3D();
+    parent.add(character);
+    shined.add(character);
+    character.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    expect(lightUniformsOf(character)).toHaveLength(1);
+  });
+});
+
+describe("LightShined detached subtrees", () => {
+  /**
+   * The entity manager releases an entity by detaching its root, so a lit
+   * character inside it keeps a parent. With `skipDetached` the effect stops
+   * paying for it (perf audit fix 1); without it the old cost remains.
+   */
+  const releasedCharacter = (shined: LightShined) => {
+    const scene = new Scene();
+    const entity = new Object3D();
+    const character = new Object3D();
+    entity.add(character);
+    scene.add(entity);
+    shined.add(character);
+    return { scene, entity, character };
+  };
+
+  it("skips a lit child once its root is detached from the scene", () => {
+    const { counter, world } = makeWorld();
+    const shined = new LightShined(world, {
+      sampleIntervalFrames: 1,
+      skipDetached: true,
+    });
+    const { scene, entity } = releasedCharacter(shined);
+    shined.update();
+    expect(counter.raycasts).toBe(1);
+
+    scene.remove(entity);
+    for (let i = 0; i < 5; i++) shined.update();
+    expect(counter.raycasts).toBe(1);
+
+    // Streamed back in under a scene: lit again.
+    scene.add(entity);
+    shined.update();
+    expect(counter.raycasts).toBe(2);
+  });
+
+  it("keeps the old per-frame cost when off", () => {
+    const { counter, world } = makeWorld();
+    const shined = new LightShined(world, { sampleIntervalFrames: 1 });
+    const { scene, entity } = releasedCharacter(shined);
+    scene.remove(entity);
+    for (let i = 0; i < 5; i++) shined.update();
+    expect(counter.raycasts).toBe(5);
   });
 });

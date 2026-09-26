@@ -374,6 +374,20 @@ export class BoxLayer extends Mesh {
   };
 
   /**
+   * Free this layer's GPU resources: its geometry, and each face's canvas
+   * texture and material. The canvases themselves are left intact, so a
+   * consumer that still borrows a face (a portrait) re-uploads it instead of
+   * drawing garbage. Call once the layer has left the scene for good.
+   */
+  dispose() {
+    this.geometry.dispose();
+    for (const material of this.materials.values()) {
+      material.map?.dispose();
+      material.dispose();
+    }
+  }
+
+  /**
    * Create a canvas material for a given side of the box layer.
    */
   private createCanvasMaterial = (face: BoxSides) => {
@@ -624,6 +638,14 @@ export class CanvasBox extends Group {
 
     this.boxLayers[layer].paint(side, art);
   };
+
+  /**
+   * Free every layer's geometry, face textures and materials. Call once the
+   * box has left the scene for good.
+   */
+  dispose() {
+    for (const layer of this.boxLayers) layer.dispose();
+  }
 
   /**
    * The first layer of the canvas box.
