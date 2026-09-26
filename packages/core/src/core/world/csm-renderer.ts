@@ -1060,6 +1060,15 @@ export class CSMRenderer {
     return this.cascades.length;
   }
 
+  /**
+   * The depth material every cascade draws its casters with. A load-time
+   * shader warmup compiles it against each kind of caster (plain, instanced,
+   * batched) so no depth program is built on a frame the player sees.
+   */
+  get casterDepthMaterial(): MeshDepthMaterial {
+    return this.depthMaterial;
+  }
+
   getDebugState(): {
     isCameraStill: boolean;
     cascadeDirty: boolean[];
