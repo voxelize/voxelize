@@ -35,6 +35,12 @@ pub enum PerfToggle {
     /// Due A* searches queue FIFO and run until the tick's node budget is
     /// spent, carrying the rest. Off runs every due search this tick.
     PathfindingBudget,
+    /// A grounded body that auto-step would lift onto a one-block ledge gets
+    /// an upward velocity sized to clear it (keeping its horizontal intent)
+    /// and rises over several ticks under normal gravity. Off restores the
+    /// old instant step: the body's AABB is teleported onto the ledge in the
+    /// same tick it hits it.
+    LedgeHopStep,
 }
 
 struct ToggleSlot {
@@ -44,7 +50,7 @@ struct ToggleSlot {
     enabled: AtomicBool,
 }
 
-static SLOTS: [ToggleSlot; 5] = [
+static SLOTS: [ToggleSlot; 6] = [
     ToggleSlot {
         toggle: PerfToggle::SkipNoopRemesh,
         name: "skipNoopRemesh",
@@ -78,6 +84,14 @@ static SLOTS: [ToggleSlot; 5] = [
         name: "pathfindingBudget",
         description: "Due A* searches queue and run oldest first until the tick's node \
                       budget is spent; the rest wait for the next tick",
+        enabled: AtomicBool::new(true),
+    },
+    ToggleSlot {
+        toggle: PerfToggle::LedgeHopStep,
+        name: "ledgeHopStep",
+        description: "A grounded body auto-stepping onto a one-block ledge is launched \
+                      upward and keeps its horizontal intent, instead of having its AABB \
+                      teleported onto the ledge in one tick",
         enabled: AtomicBool::new(true),
     },
 ];
@@ -144,6 +158,7 @@ mod tests {
             PerfToggle::CatchUpLateTicks,
             PerfToggle::CatchUpWorldTime,
             PerfToggle::PathfindingBudget,
+            PerfToggle::LedgeHopStep,
         ] {
             assert_eq!(SLOTS.iter().filter(|s| s.toggle == toggle).count(), 1);
         }
@@ -161,5 +176,6 @@ mod tests {
         assert!(err.contains("catchUpLateTicks"));
         assert!(err.contains("catchUpWorldTime"));
         assert!(err.contains("pathfindingBudget"));
+        assert!(err.contains("ledgeHopStep"));
     }
 }

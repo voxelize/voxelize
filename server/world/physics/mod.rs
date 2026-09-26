@@ -14,7 +14,7 @@ use rapier3d::{
 };
 use specs::Entity;
 
-use crate::{approx_equals, BlockRotation, Vec3, VoxelAccess};
+use crate::{approx_equals, perf_toggle, BlockRotation, PerfToggle, Vec3, VoxelAccess};
 
 use super::{registry::Registry, WorldConfig};
 
@@ -373,7 +373,11 @@ impl Physics {
         // if autostep, and on ground, run collisions again with stepped up aabb
         if body.auto_step {
             let mut tmp_box = tmp_box.unwrap();
-            Physics::try_auto_stepping(space, registry, body, &mut tmp_box, &dx);
+            // `gravity_mag_sq` is already computed above for every tick
+            // (the `no_gravity` check); passing it through costs nothing
+            // extra here; the `.sqrt()` a hop needs is taken lazily, only
+            // on the tick a hop actually launches.
+            Physics::try_auto_stepping(space, registry, body, &mut tmp_box, &dx, gravity_mag_sq);
         }
 
         let mut impacts: Vec3<f32> = Vec3::default();
@@ -772,10 +776,22 @@ impl Physics {
         body: &mut RigidBody,
         old_aabb: &mut AABB,
         dx: &Vec3<f32>,
+        gravity_mag_sq: f32,
     ) {
         // No grounded/in-fluid requirement: auto-stepping bodies may catch a
         // ledge mid-flight, e.g. a swimmer hopping out of water onto a bank
         // one block above the surface.
+
+        // A body already rising under its own velocity — mid-arc from a
+        // ledge hop launched below, or any other upward jump — is left
+        // alone. Gravity-driven integration is already carrying it up;
+        // running the trial below again here would either relaunch a
+        // second hop mid-air, or, once it has risen enough to have
+        // headroom, instant-teleport the rest of the climb — quietly
+        // reintroducing the very teleport the hop exists to avoid.
+        if body.velocity[1] > 1e-4 {
+            return;
+        }
 
         // direction movement was blocked before trying a step
         let x_blocked = body.resting[0] != 0;
@@ -862,6 +878,38 @@ impl Physics {
 
         // stepping must end at or above the current position
         if old_aabb.min_y < body.aabb.min_y {
+            return;
+        }
+
+        // Engine-generic hop: a grounded body under real gravity is launched
+        // upward instead of having its AABB teleported onto the ledge in one
+        // tick. `v = sqrt(2*g*h)` (plus a small margin) is exactly the
+        // takeoff speed a projectile needs to rise `h` blocks against
+        // gravity `g`, so normal gravity-driven integration carries the body
+        // up and over across several ticks — an actual jump arc, not a lift.
+        // Horizontal resting is cleared from the trial sweep above (like the
+        // instant step does) so the body's horizontal intent survives the
+        // tick instead of stopping dead against the ledge face.
+        //
+        // A body already mid-flight (not grounded) or in a zero-gravity
+        // world has no meaningful hop to launch — e.g. a swimmer cresting a
+        // bank keeps the old instant step, and so does a ceiling-limited
+        // step too tight to bother hopping (`step_height` collapses to ~0
+        // once `old_aabb`'s trial sweep above already found the headroom).
+        let step_height = old_aabb.min_y - body.aabb.min_y;
+        let grounded = body.resting[1] < 0;
+        if grounded
+            && step_height > 1e-4
+            && gravity_mag_sq > 1e-4
+            && perf_toggle(PerfToggle::LedgeHopStep)
+        {
+            const HOP_HEIGHT_MARGIN: f32 = 0.1;
+            let gravity_mag = gravity_mag_sq.sqrt();
+            body.velocity[1] = (2.0 * gravity_mag * (step_height + HOP_HEIGHT_MARGIN)).sqrt();
+            body.resting[0] = tmp_resting[0];
+            body.resting[1] = 0;
+            body.resting[2] = tmp_resting[2];
+            body.stepped = true;
             return;
         }
 
@@ -1175,5 +1223,125 @@ mod contact_response_tests {
             body.contact_response.is_none(),
             "a contact response is one-shot: consumed whether or not a contact happened"
         );
+    }
+}
+
+#[cfg(test)]
+mod ledge_hop_tests {
+    use super::*;
+    use crate::{set_perf_toggle, Block, Chunk, ChunkOptions, Registry, WorldConfig};
+
+    // A 1-block ledge: a stone floor at floor_y everywhere, plus an extra
+    // layer at floor_y + 1 for x >= 12 — the walkable surface steps from
+    // floor_y + 1 (west) to floor_y + 2 (east), the auto-step's one-block
+    // case. Open air above, so headroom is never the limiting factor.
+    fn ledge_chunk(floor_y: i32) -> (Chunk, Registry) {
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Stone").id(5).build());
+        let opts = ChunkOptions {
+            size: 16,
+            max_height: 64,
+            sub_chunks: 4,
+        };
+        let mut chunk = Chunk::new("ledge", 0, 0, &opts);
+        for x in 0..16 {
+            for z in 0..16 {
+                chunk.set_voxel(x, floor_y, z, 5);
+                if x >= 12 {
+                    chunk.set_voxel(x, floor_y + 1, z, 5);
+                }
+            }
+        }
+        (chunk, registry)
+    }
+
+    // Standing on the lower floor, a bit west of the ledge face at x=12,
+    // driven east — auto-stepping on, frictionless so the horizontal drive
+    // below is the only thing setting velocity.x.
+    fn walking_body(floor_y: i32) -> RigidBody {
+        let aabb = AABB::new().scale_x(0.6).scale_y(1.8).scale_z(0.6).build();
+        let mut body = RigidBody::new(&aabb).auto_step(true).friction(0.0).build();
+        body.air_drag = 0.0;
+        body.set_position(11.0, floor_y as f32 + 1.0 + 0.9, 8.5);
+        body.velocity = Vec3(2.0, 0.0, 0.0);
+        body
+    }
+
+    // `PerfToggle::LedgeHopStep` is a process-wide atomic shared by every
+    // test in this binary, and `cargo test` runs test *functions* in
+    // parallel by default — a separate test toggling it mid-run would make
+    // this one flaky. Both halves of the A/B live in one test function so
+    // the toggle's value is never contended across threads; nothing else in
+    // the suite reads or writes it.
+    #[test]
+    fn ledge_hop_toggle_changes_the_climb_from_a_hop_to_an_instant_step() {
+        let floor_y = 10;
+        let config = WorldConfig::new().build();
+
+        // Hop mode (default: on) rises gradually and ends on top.
+        {
+            let (chunk, registry) = ledge_chunk(floor_y);
+            let mut body = walking_body(floor_y);
+
+            let mut stepped_tick_lift: Option<f32> = None;
+            let mut landed = false;
+            for _ in 0..300 {
+                // A driven creature reapplies its forward intent every tick,
+                // exactly like a brain holding `running = true`.
+                body.velocity.0 = 2.0;
+                let y_before = body.aabb.min_y;
+                Physics::iterate_body(&mut body, 1.0 / 60.0, &chunk, &registry, &config);
+                if body.stepped && stepped_tick_lift.is_none() {
+                    stepped_tick_lift = Some(body.aabb.min_y - y_before);
+                }
+                if body.at_rest_y() < 0 && body.aabb.min_y > floor_y as f32 + 1.5 {
+                    landed = true;
+                    break;
+                }
+            }
+
+            let lift = stepped_tick_lift.expect("the ledge must still trigger an auto-step");
+            assert!(
+                lift < 0.3,
+                "a hop rises gradually — the triggering tick must not itself cover \
+                 the ledge height, got a {lift} rise"
+            );
+            assert!(landed, "the body must come to rest within the test window");
+            assert!(
+                body.aabb.min_y > floor_y as f32 + 1.9,
+                "the body must end resting on top of the ledge, min_y={}",
+                body.aabb.min_y
+            );
+        }
+
+        // Toggled off: the old instant step, a full block in one tick.
+        set_perf_toggle("ledgeHopStep", false).ok();
+        let result = std::panic::catch_unwind(|| {
+            let (chunk, registry) = ledge_chunk(floor_y);
+            let mut body = walking_body(floor_y);
+
+            let mut stepped_tick_lift: Option<f32> = None;
+            for _ in 0..120 {
+                body.velocity.0 = 2.0;
+                let y_before = body.aabb.min_y;
+                Physics::iterate_body(&mut body, 1.0 / 60.0, &chunk, &registry, &config);
+                if body.stepped {
+                    stepped_tick_lift = Some(body.aabb.min_y - y_before);
+                    break;
+                }
+            }
+
+            let lift = stepped_tick_lift
+                .expect("the old instant step must still fire when toggled off");
+            assert!(
+                lift > 0.9,
+                "toggled off, the ledge must still teleport the full block height \
+                 in one tick, got {lift}"
+            );
+        });
+        // Restore the default before propagating any failure, so a panic
+        // here can't leak the toggle's off state into the rest of the suite.
+        set_perf_toggle("ledgeHopStep", true).ok();
+        result.unwrap();
     }
 }
