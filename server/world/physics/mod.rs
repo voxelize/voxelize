@@ -1344,4 +1344,82 @@ mod ledge_hop_tests {
         set_perf_toggle("ledgeHopStep", true).ok();
         result.unwrap();
     }
+
+    /// `Physics::iterate_body`'s per-tick cost, A/B in one process: a field
+    /// of 20 auto-stepping bodies walking into the same ledge (the busiest
+    /// path: every body still mid-hop or approaching it) with
+    /// `PerfToggle::LedgeHopStep` on (the real jump arc) versus off (the old
+    /// instant step), three interleaved pairs. Timed on this thread's CPU
+    /// clock like `chicken_coop_tick_cost_at_the_flock_cap`, so a busy
+    /// host's descheduling does not count; run by hand on a quiet machine
+    /// for the wall-clock load figure to mean anything. The toggle is a
+    /// process-wide atomic (see the test above), so both halves of every
+    /// pair run in this one test function, never split across parallel
+    /// tests.
+    ///   pnpm cargo:test --bin main -- ledge_hop_step_tick_cost --ignored --nocapture
+    #[test]
+    #[ignore = "timing proof; run by hand on a quiet machine"]
+    fn ledge_hop_step_tick_cost_on_vs_off() {
+        const BODIES: usize = 20;
+        const TICKS: usize = 200;
+        let floor_y = 10;
+        let config = WorldConfig::new().build();
+
+        fn window(floor_y: i32, config: &WorldConfig, hop: bool) -> Vec<f64> {
+            set_perf_toggle("ledgeHopStep", hop).ok();
+            let (chunk, registry) = ledge_chunk(floor_y);
+            let mut bodies: Vec<_> = (0..BODIES)
+                .map(|i| {
+                    let mut b = walking_body(floor_y);
+                    // Spread across z so BODIES independent bodies approach
+                    // and climb the same ledge face without ever sharing a
+                    // position (iterate_body never sees other bodies).
+                    b.set_position(11.0, floor_y as f32 + 1.0 + 0.9, 1.0 + i as f32 * 0.7);
+                    b
+                })
+                .collect();
+            let mut ms = Vec::with_capacity(TICKS);
+            for _ in 0..TICKS {
+                let started = crate::thread_cpu_time().unwrap();
+                for body in bodies.iter_mut() {
+                    // A driven creature reapplies its forward intent every
+                    // tick, exactly like a brain holding `running = true`.
+                    body.velocity.0 = 2.0;
+                    Physics::iterate_body(body, 1.0 / 60.0, &chunk, &registry, config);
+                }
+                let spent = crate::thread_cpu_time().unwrap() - started;
+                ms.push(spent.as_secs_f64() * 1000.0);
+            }
+            ms
+        }
+        fn stats(ms: &mut [f64]) -> (f64, f64, f64) {
+            ms.sort_by(|a, b| a.total_cmp(b));
+            let at = |q: f64| ms[((ms.len() - 1) as f64 * q).round() as usize];
+            (ms.iter().sum::<f64>() / ms.len() as f64, at(0.95), at(0.99))
+        }
+        let (mut off, mut on) = (Vec::new(), Vec::new());
+        for pair in 0..3 {
+            let (mut a, mut b) = (
+                window(floor_y, &config, false),
+                window(floor_y, &config, true),
+            );
+            let (sa, sb) = (stats(&mut a.clone()), stats(&mut b.clone()));
+            println!(
+                "pair {pair}: instant-step mean {:.4} p95 {:.4} p99 {:.4} | hop mean {:.4} p95 {:.4} p99 {:.4} ms",
+                sa.0, sa.1, sa.2, sb.0, sb.1, sb.2
+            );
+            off.append(&mut a);
+            on.append(&mut b);
+        }
+        // Restore the default the whole rest of the suite expects.
+        set_perf_toggle("ledgeHopStep", true).ok();
+        let (a, b) = (stats(&mut off), stats(&mut on));
+        println!(
+            "Physics::iterate_body CPU per tick, {BODIES} bodies on one ledge, 3 x {TICKS} ticks:\n  \
+             instant step (toggle off): mean {:.4} p95 {:.4} p99 {:.4} ms\n  \
+             hop arc (toggle on):       mean {:.4} p95 {:.4} p99 {:.4} ms\n  \
+             delta:                     mean {:+.4} p95 {:+.4} p99 {:+.4} ms",
+            a.0, a.1, a.2, b.0, b.1, b.2, b.0 - a.0, b.1 - a.1, b.2 - a.2
+        );
+    }
 }
