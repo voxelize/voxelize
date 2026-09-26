@@ -328,6 +328,10 @@ const actSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("set-flying"), isFlying: z.boolean() }),
   z.object({ type: z.literal("set-render-radius"), radius: z.number() }),
   z.object({
+    type: z.literal("set-fog-distance"),
+    blocks: z.number().nullable(),
+  }),
+  z.object({
     type: z.literal("call"),
     method: z.string(),
     payload: z.unknown(),
@@ -2412,6 +2416,10 @@ export class AgentDaemon {
       case "set-render-radius":
         return {
           renderRadius: await this.agent.setRenderRadius(action.radius),
+        };
+      case "set-fog-distance":
+        return {
+          fogDistance: await this.agent.setFogDistance(action.blocks),
         };
       case "call":
         return this.agent.call(action.method, action.payload);

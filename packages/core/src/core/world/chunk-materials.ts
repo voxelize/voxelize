@@ -28,7 +28,7 @@ import {
   SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
   SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
 } from "./shaders";
-import { AtlasTexture } from "./textures";
+import { AtlasTexture, type AtlasFilteringMode } from "./textures";
 import { positionUnitsPerBlock } from "./vertex-quantization";
 
 export const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
@@ -81,6 +81,7 @@ export interface ChunkMaterialHost {
     maxHeight: number;
     subChunks: number;
     swayProfileCapacity: number;
+    blockTextureFiltering: AtlasFilteringMode;
   };
 }
 
@@ -469,7 +470,12 @@ export async function loadChunkMaterials(
   }
   const totalSlots = textureGroups.size + ungroupedFaces;
   const countPerSide = perSide(totalSlots);
-  const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
+  const atlas = new AtlasTexture(
+    countPerSide,
+    textureUnitDimension,
+    undefined,
+    world.options.blockTextureFiltering,
+  );
   const sharedOpaqueMaterial = make(false, atlas, false, 1, false, true);
   world.chunkRenderer.materials.set(
     SHARED_OPAQUE_MATERIAL_KEY,

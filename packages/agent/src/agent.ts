@@ -1022,6 +1022,18 @@ export class Agent {
     );
   }
 
+  async setFogDistance(blocks: number | null): Promise<number | null> {
+    return this.withPageTimeout(
+      "setFogDistance",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(
+          (b) => window.__agentRequired__().setFogDistance(b),
+          blocks,
+        ),
+    );
+  }
+
   async call(method: string, payload: unknown): Promise<unknown> {
     return this.withPageTimeout("call", this.defaultPageTimeoutMs, () =>
       this.page.evaluate(

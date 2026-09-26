@@ -163,6 +163,7 @@ import { expandCoupledUpdates as expandCoupledBatch } from "./coupled-blocks";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { worldDefinitionSignature } from "./definition-signature";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
+import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
 import { HeldServerUpdates } from "./held-server-updates";
 import { ItemDef, ItemRegistry } from "./items";
@@ -326,10 +327,7 @@ export type WorldChunkEvents = {
   "chunk-updated": (data: ChunkUpdateEventData) => void;
 };
 
-export type WorldFogRange = {
-  near: number;
-  far: number;
-};
+export type { WorldFogRange };
 
 export type BlockUpdateListener = (args: {
   oldValue: number;
@@ -4757,18 +4755,86 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.fogFar.value = fogRange.far;
   }
 
-  getBaseFogRange(): WorldFogRange {
-    const { chunkSize, fogNearRenderRatio, fogFarRenderRatio } = this.options;
-    const renderDistance = this._renderRadius * chunkSize;
+  /**
+   * A fixed fog distance in blocks, independent of `renderRadius`; `null`
+   * when fog is still derived from the radius. See
+   * `WorldOptions.fogDistance`.
+   */
+  get fogDistance(): number | null {
+    return this.options.fogDistance ?? null;
+  }
 
-    return {
-      near: renderDistance * fogNearRenderRatio,
-      far: renderDistance * fogFarRenderRatio,
-    };
+  set fogDistance(distance: number | null) {
+    this.options.fogDistance = distance;
+
+    if (!this.isInitialized) return;
+
+    const fogRange = this.getBaseFogRange();
+    this.chunkRenderer.uniforms.fogNear.value = fogRange.near;
+    this.chunkRenderer.uniforms.fogFar.value = fogRange.far;
+  }
+
+  getBaseFogRange(): WorldFogRange {
+    const { chunkSize, fogNearRenderRatio, fogFarRenderRatio, fogDistance } =
+      this.options;
+
+    return computeFogRange({
+      chunkSize,
+      renderRadius: this._renderRadius,
+      fogNearRenderRatio,
+      fogFarRenderRatio,
+      fogDistance,
+    });
   }
 
   get deleteRadius() {
     return this._deleteRadius;
+  }
+
+  /**
+   * GPU context restored: every chunk atlas already mirrors its animated
+   * patches onto its own backing canvas as they draw (`AtlasTexture.
+   * commitAnimationPatch`), so re-uploading it is just `needsUpdate = true`
+   * on the texture three.js already holds — nothing to rebuild from
+   * scratch. Local lights pack their own GPU-resident grids and shadow
+   * atlas outside three's texture pipeline, so they get their own hook.
+   * Wire this to the canvas's `webglcontextrestored` event (after calling
+   * `preventDefault()` in a `webglcontextlost` listener — without it the
+   * browser never attempts to restore the context at all).
+   */
+  onContextRestored(): void {
+    this.forEachUniqueAtlasMap((map) => {
+      map.needsUpdate = true;
+    });
+    this.localLights.onContextRestored();
+  }
+
+  /**
+   * Flips how every chunk atlas samples at glancing angles, live: no world
+   * rebuild, no chunk remesh, just the texture's filter/mip state (see
+   * `AtlasTexture.applyFiltering`, `WorldOptions.blockTextureFiltering`).
+   * Meant for an A/B run — flip it, hold a pose, measure, flip it back.
+   */
+  setBlockTextureFiltering(mode: WorldOptions["blockTextureFiltering"]): void {
+    this.options.blockTextureFiltering = mode;
+    this.forEachUniqueAtlasMap((map) => {
+      if (map instanceof AtlasTexture) {
+        map.applyFiltering(mode);
+      }
+    });
+  }
+
+  /** Every distinct texture bound to a chunk material's `map`, deduplicated
+   * (many blocks share one shared-opaque/cutout atlas). */
+  private forEachUniqueAtlasMap(fn: (map: Texture) => void): void {
+    const seen = new Set<Texture>();
+    for (const material of this.chunkRenderer.materials.values()) {
+      const map = material.map;
+      if (map && !seen.has(map)) {
+        seen.add(map);
+        fn(map);
+      }
+    }
   }
 
   private resyncChunkStagesAfterRejoin() {

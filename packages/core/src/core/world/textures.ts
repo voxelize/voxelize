@@ -3,6 +3,7 @@ import {
   ClampToEdgeWrapping,
   Color,
   NearestFilter,
+  NearestMipmapNearestFilter,
   SRGBColorSpace,
   Texture,
   Vector3,
@@ -24,6 +25,36 @@ type AtlasAnimationPatch = {
   size: number;
   dstPosition: Vector3;
 };
+
+/** See `WorldOptions.blockTextureFiltering`. */
+export type AtlasFilteringMode = "nearest" | "mip-aniso";
+
+/** The glancing-angle fix's anisotropy: enough to kill the streak without
+ * paying for the GPU's full max (8 or 16 on most hardware). */
+const MIP_ANISO_LEVEL = 4;
+
+/**
+ * The filter/mip/anisotropy settings for a mode, pulled out of
+ * `AtlasTexture.applyFiltering` so the mapping is testable without a
+ * canvas or a GL context.
+ */
+export function resolveAtlasFiltering(mode: AtlasFilteringMode): {
+  minFilter: typeof NearestFilter | typeof NearestMipmapNearestFilter;
+  magFilter: typeof NearestFilter;
+  generateMipmaps: boolean;
+  anisotropy: number;
+} {
+  const isMipAniso = mode === "mip-aniso";
+  return {
+    minFilter: isMipAniso ? NearestMipmapNearestFilter : NearestFilter,
+    // Magnification (up close) is untouched either way: nearest-only, so a
+    // texel stays a hard-edged square right in front of the camera. Only
+    // minification (a wall far off axis) ever reaches a lower mip level.
+    magFilter: NearestFilter,
+    generateMipmaps: isMipAniso,
+    anisotropy: isMipAniso ? MIP_ANISO_LEVEL : 1,
+  };
+}
 
 /**
  * A texture atlas is a collection of textures that are packed into a single texture.
@@ -158,6 +189,7 @@ export class AtlasTexture extends CanvasTexture {
     countPerSide = 1,
     dimension = 1,
     canvas = document.createElement("canvas"),
+    filtering: AtlasFilteringMode = "nearest",
   ) {
     super(canvas);
 
@@ -207,9 +239,7 @@ export class AtlasTexture extends CanvasTexture {
     this.makeCanvasPowerOfTwo(this.canvas);
     this.wrapS = ClampToEdgeWrapping;
     this.wrapT = ClampToEdgeWrapping;
-    this.minFilter = NearestFilter;
-    this.magFilter = NearestFilter;
-    this.generateMipmaps = false;
+    this.applyFiltering(filtering);
     this.needsUpdate = true;
     this.colorSpace = SRGBColorSpace;
 
@@ -226,6 +256,21 @@ export class AtlasTexture extends CanvasTexture {
         );
       }
     }
+  }
+
+  /**
+   * Switches how this atlas samples at glancing angles. Safe to call on a
+   * live atlas already bound to chunk materials (sets `needsUpdate` so the
+   * next upload carries the new filter/mip settings) — an A/B run can flip
+   * this without rebuilding the world. See `WorldOptions.blockTextureFiltering`.
+   */
+  applyFiltering(mode: AtlasFilteringMode): void {
+    const settings = resolveAtlasFiltering(mode);
+    this.minFilter = settings.minFilter;
+    this.magFilter = settings.magFilter;
+    this.generateMipmaps = settings.generateMipmaps;
+    this.anisotropy = settings.anisotropy;
+    this.needsUpdate = true;
   }
 
   /**
@@ -557,6 +602,17 @@ export class AtlasTexture extends CanvasTexture {
       );
     });
     this.pendingAnimationPatches.clear();
+
+    // texSubImage2D only ever touches mip level 0. With mips on
+    // (`mip-aniso`), every level above it would otherwise keep whatever
+    // frame was baked in at the last full upload forever — a flowing lava
+    // or water tile the moment it is more than a few blocks off would show
+    // a stuck frame while everything up close animated normally. The whole
+    // point of the sub-rect patch is to skip a full re-upload, so this
+    // regenerates the chain only when one is actually in use.
+    if (this.generateMipmaps) {
+      gl.generateMipmap(gl.TEXTURE_2D);
+    }
 
     renderer.state.unbindTexture();
   }

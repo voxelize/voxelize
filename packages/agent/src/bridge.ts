@@ -752,6 +752,14 @@ export interface AgentBridge {
   following(): FollowStatus | null;
   setFlying(isFlying: boolean): Promise<void>;
   setRenderRadius(radius: number): Promise<number>;
+  /**
+   * Overrides the world's fog distance in blocks, independent of render
+   * radius (`World.fogDistance`) — a vista capture can raise the render
+   * radius without fog being pushed out to match. `null` reverts to fog
+   * derived from the radius. Returns the value actually applied (clamped to
+   * the current render distance).
+   */
+  setFogDistance(blocks: number | null): Promise<number | null>;
   call(method: string, payload: unknown): Promise<unknown>;
   /**
    * Local break prediction plus one transactional `break-block` command.

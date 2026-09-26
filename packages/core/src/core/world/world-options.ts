@@ -254,6 +254,32 @@ export type WorldClientOptions = {
   fogFarRenderRatio: number;
 
   /**
+   * A fixed fog distance in blocks, independent of `renderRadius`. `null`
+   * (the default) derives fog from `fogNearRenderRatio`/`fogFarRenderRatio`
+   * as before, so fog moves every time the radius changes. Set it to hold
+   * fog steady across radius changes — for example raising `renderRadius`
+   * for a vista capture without paying for fog pushed out to match. Always
+   * clamped to at most the current render distance (`world.fogDistance`,
+   * `World.getBaseFogRange`).
+   */
+  fogDistance: number | null;
+
+  /**
+   * How the block atlas samples at glancing angles. `"nearest"` (the
+   * default) is the original path: no mips, so a steep wall far from
+   * straight-on aliases into streaks because there is no lower-resolution
+   * level to fall back to. `"mip-aniso"` builds a full mip chain
+   * (`NearestMipmapNearestFilter` — each level stays hard-edged, only the
+   * level picked changes, so up-close texels stay exactly as crisp) plus
+   * anisotropy 4 for the glancing-angle case specifically. Costs a mip
+   * chain build per atlas upload and `gl.generateMipmap` after every
+   * animated-tile patch (`AtlasTexture.flushAnimationPatches`); A/B before
+   * defaulting a consumer to it. `World.setBlockTextureFiltering` flips it
+   * live for an A/B run without rebuilding the world.
+   */
+  blockTextureFiltering: "nearest" | "mip-aniso";
+
+  /**
    * The default dimension to a single unit of a block face texture. If any texture loaded is greater, it will be downscaled to this resolution.
    * Defaults to `8` pixels.
    */
@@ -449,6 +475,8 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   defaultRenderRadius: 6,
   fogNearRenderRatio: 0.45,
   fogFarRenderRatio: 0.78,
+  fogDistance: null,
+  blockTextureFiltering: "nearest",
   textureUnitDimension: 8,
   unpaintedFallbackColor: "#8f8a84",
   chunkLoadExponent: 8,
