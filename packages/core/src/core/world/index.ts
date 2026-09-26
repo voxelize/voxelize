@@ -136,7 +136,6 @@ import {
 import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
 import { BorderSwapHold } from "./border-swap-hold";
-import { HeldServerUpdates } from "./held-server-updates";
 import { Chunk } from "./chunk";
 import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
@@ -154,7 +153,6 @@ import {
   sharedCutoutMaterialKeyFor,
 } from "./chunk-materials";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
-import { worldDefinitionSignature } from "./definition-signature";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
   ChunkRequestCandidate,
@@ -163,8 +161,10 @@ import {
 import { Clouds } from "./clouds";
 import { expandCoupledUpdates as expandCoupledBatch } from "./coupled-blocks";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
+import { worldDefinitionSignature } from "./definition-signature";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
 import { forwardDraws } from "./forward-draws";
+import { HeldServerUpdates } from "./held-server-updates";
 import { ItemDef, ItemRegistry } from "./items";
 import { LightCones } from "./light-cones";
 import {
@@ -313,7 +313,10 @@ export type ChunkDataEventData = {
 };
 
 export type WorldChunkEvents = {
-  "world-definition-changed": (data: { previous: string; next: string }) => void;
+  "world-definition-changed": (data: {
+    previous: string;
+    next: string;
+  }) => void;
   "chunk-data-loaded": (data: ChunkDataEventData) => void;
   "chunk-mesh-loaded": (data: ChunkMeshEventData) => void;
   "chunk-mesh-unloaded": (data: ChunkMeshEventData) => void;
@@ -5704,11 +5707,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
     const biomeTints = this.getChunkByCoords(cx, cz)?.biomeTints;
     if (biomeTints) {
-      geometry.setAttribute("biomeTint", biomeTintAttribute(
-        geo.positions, geo.lights, biomeTints, this.options.chunkSize,
-        isQuantized ? this.chunkPositionUnits : 1,
-        isQuantized ? POSITION_BLOCK_BIAS : 0,
-      ));
+      geometry.setAttribute(
+        "biomeTint",
+        biomeTintAttribute(
+          geo.positions,
+          geo.lights,
+          biomeTints,
+          this.options.chunkSize,
+          isQuantized ? this.chunkPositionUnits : 1,
+          isQuantized ? POSITION_BLOCK_BIAS : 0,
+        ),
+      );
     }
     geometry.setIndex(new BufferAttribute(geo.indices, 1));
     if (geo.normals && geo.normals.length > 0) {
@@ -7568,9 +7577,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       // Those rebuilds swap in only once the arriving chunk is drawn (see
       // BorderSwapHold).
       const floorY = this.detailFloorYFor(nx, nz);
-      const heightPerSubChunk = Math.floor(
-        this.options.maxHeight / subChunks,
-      );
+      const heightPerSubChunk = Math.floor(this.options.maxHeight / subChunks);
       const name = ChunkUtils.getChunkName([nx, nz]);
       // A chunk already meshed to the ground keeps that depth even once it
       // is distant again, so the levels queued below have to be chosen by

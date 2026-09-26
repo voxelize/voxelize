@@ -782,6 +782,8 @@ export interface AgentBridge {
    * clickable regions painted on a face. Reports the targeted voxel and
    * block so a test can assert it aimed where it meant to.
    * `holdMs` (0..15000, default 0) exercises sustained input such as mining.
+   * `isShift` holds Shift through the click (the deliberate modifier:
+   * forced placement, a creature's staff panel or hat trade).
    * Always releases the mouse button before resolving.
    */
   /** Select hotbar slot 0..8 through the normal local focus/change path. */
@@ -789,6 +791,7 @@ export interface AgentBridge {
   interact(
     button?: "left" | "right",
     holdMs?: number,
+    isShift?: boolean,
   ): Promise<{
     button: "left" | "right";
     target: Vec3 | null;
