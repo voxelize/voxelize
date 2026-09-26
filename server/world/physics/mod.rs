@@ -1350,7 +1350,7 @@ mod ledge_hop_tests {
     /// path: every body still mid-hop or approaching it) with
     /// `PerfToggle::LedgeHopStep` on (the real jump arc) versus off (the old
     /// instant step), three interleaved pairs. Timed on this thread's CPU
-    /// clock like `chicken_coop_tick_cost_at_the_flock_cap`, so a busy
+    /// clock like the other tick-cost proofs, so a busy
     /// host's descheduling does not count; run by hand on a quiet machine
     /// for the wall-clock load figure to mean anything. The toggle is a
     /// process-wide atomic (see the test above), so both halves of every
