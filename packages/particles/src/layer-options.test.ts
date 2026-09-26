@@ -101,3 +101,35 @@ describe("layer groups", () => {
     expect(counts).toContain(3);
   });
 });
+
+describe("single-pass quads", () => {
+  const materialOf = (mesh: Object3D) =>
+    (mesh as unknown as { material: { forceSinglePass: boolean } }).material;
+
+  it("draw double-sided quads in one pass, and leave cubes alone", () => {
+    const { world } = stubWorld();
+    const system = new ParticleSystem(world, { maxFlashLights: 0 });
+    system.prewarm({ ...CUBE, shape: "quad" });
+    system.prewarm(CUBE);
+    const isQuad = (mesh: Object3D) =>
+      (mesh as unknown as { geometry: { type: string } }).geometry.type ===
+      "PlaneGeometry";
+    const meshes = layerMeshes(system);
+    const quad = meshes.find(isQuad);
+    const cube = meshes.find((mesh) => !isQuad(mesh));
+    expect(quad && materialOf(quad).forceSinglePass).toBe(true);
+    expect(cube && materialOf(cube).forceSinglePass).toBe(false);
+  });
+
+  it("keep three's two-pass draw when asked (the A/B path)", () => {
+    const { world } = stubWorld();
+    const system = new ParticleSystem(world, {
+      maxFlashLights: 0,
+      isQuadSinglePass: false,
+    });
+    system.prewarm({ ...CUBE, shape: "quad" });
+    for (const mesh of layerMeshes(system)) {
+      expect(materialOf(mesh).forceSinglePass).toBe(false);
+    }
+  });
+});

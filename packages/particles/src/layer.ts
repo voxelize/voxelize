@@ -34,6 +34,11 @@ export type LayerSpec = {
    * layer out, or null when bloom may take it.
    */
   bloomExemptLayer: number | null;
+  /**
+   * A double-sided quad layer draws in one pass instead of three's
+   * back-then-front pair (see `ParticleSystemOptions.isQuadSinglePass`).
+   */
+  isSinglePass?: boolean;
 };
 
 /** The default channel bloom-exempt particle meshes join. */
@@ -127,6 +132,12 @@ export class ParticleLayer {
       side: spec.shape === "cube" ? FrontSide : DoubleSide,
       blending: spec.blend === "additive" ? AdditiveBlending : NormalBlending,
     });
+    // A flat quad cannot cover itself, so three's two-pass draw of
+    // transparent double-sided materials buys nothing here and costs a
+    // second draw plus a material update (program parameters rebuilt) per
+    // pass, every frame, even with no particle alive.
+    material.forceSinglePass =
+      spec.shape !== "cube" && (spec.isSinglePass ?? false);
     material.onBeforeCompile = (shader) => {
       shader.vertexShader = injectChunk(
         shader.vertexShader,

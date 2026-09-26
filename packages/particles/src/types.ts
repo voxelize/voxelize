@@ -271,4 +271,13 @@ export interface ParticleSystemOptions {
    * well, so they still draw in the main pass.
    */
   bloomExemptLayer: number;
+  /**
+   * Draw double-sided quads in one pass (true), or let three draw every
+   * transparent double-sided layer twice, back faces then front faces
+   * (false). The two-pass trick orders a closed shape's own faces; a flat
+   * quad cannot cover itself, so for quads it only doubles the draw calls
+   * and makes three rebuild each layer's program parameters twice a frame,
+   * idle layers included (a material update per pass).
+   */
+  isQuadSinglePass: boolean;
 }
