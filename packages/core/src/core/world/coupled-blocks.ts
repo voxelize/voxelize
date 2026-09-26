@@ -221,7 +221,15 @@ export function expandCoupledUpdates(
           rejection = "written without its anchor";
           break;
         }
-        if (plannedThere || !isFreeFor(view, partnerId, part.id)) {
+        // `partnerId` already reflects the batch's own word for this cell
+        // when one exists (line above): a planned write of air, or of a
+        // waterlogging fluid the part can hold, is exactly as free as the
+        // committed voxel would be. Treating "something is planned there"
+        // as occupied on its own — regardless of what it plans — dropped a
+        // click-placed coupled block whenever the same expansion pass had
+        // already queued that cell (a re-expansion of its own prior output,
+        // as `World.updateVoxels` does for a batch handed back to it).
+        if (!isFreeFor(view, partnerId, part.id)) {
           rejection = "partner voxel occupied";
           break;
         }

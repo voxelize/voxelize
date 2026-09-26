@@ -326,6 +326,39 @@ describe("expandCoupledUpdates", () => {
     expect(expandCoupledUpdates(world, batch)).toEqual(batch);
   });
 
+  it("re-expanding an anchor's own already-expanded placement changes nothing, at every facing", () => {
+    // `buildPlacementUpdates` (the click path) expands once to learn the
+    // outcome before swinging, then hands the expanded batch straight to
+    // `World.updateVoxels`, which expands it again — the pattern the
+    // top-of-file doc comment promises is safe. Re-processing must not
+    // treat the batch's own partner write as if the cell were occupied.
+    const base: Coords3 = [4, 10, 4];
+    for (const yRotation of [0, 4, 8, 12]) {
+      const head = at(base, BED_ID, { rotation: 0, yRotation, stage: 0 });
+      const world = view({});
+      const once = expandCoupledUpdates(world, [head]);
+      expect(once).toHaveLength(2);
+      expect(expandCoupledUpdates(world, once)).toEqual(once);
+    }
+  });
+
+  it("a planned write of air frees a cell for a partner in the same batch", () => {
+    // The batch's own word for a cell wins even when that word is a break:
+    // clearing what was there and placing a new anchor whose partner needs
+    // that same cell, in one batch, should land the whole unit — not read
+    // "something is already planned for this cell" as occupied regardless
+    // of what that plan is.
+    const foot: Coords3 = [4, 10, 5];
+    const world = view({ [key(foot)]: { id: STONE_ID } });
+    const clearFoot = at(foot, 0);
+    const placeAnchor = at(BASE, BED_ID);
+    expect(expandCoupledUpdates(world, [clearFoot, placeAnchor])).toEqual([
+      clearFoot,
+      placeAnchor,
+      at(foot, BED_FOOT_ID, { rotation: 0, yRotation: 0, stage: 0 }),
+    ]);
+  });
+
   it("is idempotent", () => {
     const world = view({
       [key(BASE)]: { id: DOOR_ID },
