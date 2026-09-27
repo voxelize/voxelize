@@ -245,6 +245,7 @@ export * from "./chunk-renderer";
 export * from "./chunk-requests";
 export * from "./clouds";
 export * from "./coupled-blocks";
+export * from "./crusted-fluid-shader";
 export * from "./csm-renderer";
 export * from "./entity-light";
 export * from "./entity-shadow-uniforms";
