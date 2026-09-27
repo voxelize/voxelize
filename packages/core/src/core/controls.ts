@@ -242,6 +242,8 @@ export type RigidControlsOptions = {
   maxSpeed: number;
   /** Server-provided temporary effects; applies only to ordinary ground walking. */
   statusSpeedFactor: number;
+  /** Server-provided temporary effects; applies only to swimming. */
+  statusSwimFactor: number;
 
   /**
    * The level of force of which the client can move at. Default is `30`.
@@ -419,6 +421,7 @@ const defaultOptions: RigidControlsOptions = {
 
   maxSpeed: 6,
   statusSpeedFactor: 1,
+  statusSwimFactor: 1,
   moveForce: 30,
   responsiveness: 240,
   runningFriction: 0.1,
@@ -1616,7 +1619,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.state.isJumping = false;
 
     if (this.state.running && (fb !== 0 || side !== 0)) {
-      let speed = swimSpeed * this.getSwimSpeedMultiplier();
+      let speed =
+        swimSpeed *
+        this.getSwimSpeedMultiplier() *
+        this.options.statusSwimFactor;
       if (this.state.sprinting) speed *= sprintFactor;
       if (this.state.crouching) speed *= crouchFactor;
 
