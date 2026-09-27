@@ -1043,6 +1043,14 @@ export class World<T = any> extends Scene implements NetIntercept {
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
   private lightBatchIdCounter = 0;
+  /**
+   * Cap on how many times one light job's leftover nodes (see
+   * `LightWorkerResult.pendingFloods` / `pendingRemovals`) get resubmitted
+   * as a follow-up job on the same bounding box. A healthy region converges
+   * in one or two follow-ups; this only guards against a genuinely
+   * pathological one looping forever.
+   */
+  private static readonly LIGHT_JOB_MAX_CONTINUATIONS = 8;
   private blockUpdatesApplied = 0;
   private lightSeedsAnalyzed = 0;
 
@@ -7236,6 +7244,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         boundingBox: job.boundingBox,
       });
     }
+
+    this.scheduleLightJobContinuationIfNeeded(batch, job, result);
     batch.completedJobs++;
 
     if (batch.completedJobs < batch.totalJobs) {
@@ -7254,6 +7264,69 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.settleLightJobWaitersIfIdle();
       this.processDirtyChunks();
     }
+  }
+
+  /**
+   * A light job that hit the worker's node budget (see `light-worker.ts`)
+   * reports the unvisited tail of its BFS in `pendingFloods` /
+   * `pendingRemovals` instead of dropping it. This resubmits that tail as a
+   * follow-up job on the same bounding box, so a pathological region (a
+   * long open sunlight shaft under a floating island, say) ends up fully
+   * lit over a few jobs instead of shipping with a permanently partial
+   * light.
+   *
+   * The follow-up job's worker will re-serialize this chunk's CURRENT light
+   * data from the live world, so this job's own contribution is merged into
+   * the live chunks right now — not deferred to `applyBatchResults` at
+   * batch end — otherwise the follow-up would start from data that does not
+   * yet know about this job's partial progress and could overwrite it.
+   */
+  private scheduleLightJobContinuationIfNeeded(
+    batch: LightBatch,
+    job: LightJob,
+    result: LightWorkerResult | null,
+  ) {
+    const pendingFloods = result?.pendingFloods ?? [];
+    const pendingRemovals = result?.pendingRemovals ?? [];
+    if (pendingFloods.length === 0 && pendingRemovals.length === 0) {
+      return;
+    }
+
+    if (job.retryCount >= World.LIGHT_JOB_MAX_CONTINUATIONS) {
+      console.warn(
+        `[world] light job ${job.jobId} still has ${pendingFloods.length} ` +
+          `flood and ${pendingRemovals.length} removal node(s) left after ` +
+          `${World.LIGHT_JOB_MAX_CONTINUATIONS} follow-up job(s); leaving ` +
+          `this region partially lit`,
+      );
+      return;
+    }
+
+    if (result?.modifiedChunks) {
+      for (const { coords, lights } of result.modifiedChunks) {
+        const chunk = this.getChunkByCoords(coords[0], coords[1]);
+        if (!chunk) continue;
+        mergeSingleColorResult(chunk, lights, job.color, job.boundingBox);
+      }
+    }
+
+    const continuationJob: LightJob = {
+      jobId: `${job.jobId}+${job.retryCount + 1}`,
+      color: job.color,
+      lightOps: {
+        removals: [],
+        floods: pendingFloods,
+        pendingRemovals,
+      },
+      boundingBox: job.boundingBox,
+      startSequenceId: job.startSequenceId,
+      retryCount: job.retryCount + 1,
+      batchId: job.batchId,
+    };
+
+    batch.totalJobs++;
+    batch.jobs.push(continuationJob);
+    batch.pendingDispatch.push(continuationJob);
   }
 
   private applyBatchResults(batch: LightBatch) {

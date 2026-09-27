@@ -268,6 +268,16 @@ function nodeBudgetFor(min: Coords3 | undefined, max: Coords3 | undefined) {
   return volume * MAX_NODES_PER_VOLUME;
 }
 
+/**
+ * Floods light outward from `queue` up to `nodeBudgetFor(min, max)` visits.
+ * A healthy flood always drains its queue; a pathological one (e.g. a long
+ * open sunlight shaft under a floating island) can exceed the budget before
+ * draining it. Returns the still-unvisited tail of the queue in that case —
+ * every node in it already has its OWN light value committed to `space`
+ * (see the `setSunlightAt`/`setTorchLightAt` calls below, which run before
+ * a node is pushed), so the caller can resume the BFS from exactly this
+ * frontier in a follow-up job instead of leaving it half-lit forever.
+ */
 function floodLight(
   space: VoxelAccess,
   queue: LightNode[],
@@ -275,7 +285,7 @@ function floodLight(
   min: Coords3 | undefined,
   max: Coords3 | undefined,
   options: WorldOptions,
-) {
+): LightNode[] {
   const { maxHeight, minChunk, maxChunk, maxLightLevel, chunkSize } = options;
 
   const [startCX, startCZ] = minChunk;
@@ -321,15 +331,14 @@ function floodLight(
   let processedNodes = 0;
 
   let head = 0;
+  let budgetExceeded = false;
   while (head < queue.length) {
     if (head >= QUEUE_COMPACT_INTERVAL) {
       queue.splice(0, head);
       head = 0;
     }
     if (++processedNodes > nodeBudget) {
-      console.warn(
-        `[light-worker] flood exceeded node budget (${nodeBudget}); bailing with partial light`,
-      );
+      budgetExceeded = true;
       break;
     }
     const { voxel, level } = queue[head++];
@@ -417,8 +426,28 @@ function floodLight(
       queue.push({ voxel: nextVoxel, level: nextLevel });
     }
   }
+
+  if (!budgetExceeded) {
+    return [];
+  }
+
+  const pending = queue.slice(head);
+  console.warn(
+    `[light-worker] flood exceeded node budget (${nodeBudget}); deferring ` +
+      `${pending.length} unvisited node(s) to a follow-up job instead of ` +
+      `leaving them unlit`,
+  );
+  return pending;
 }
 
+/**
+ * Removes light from `voxels` (or resumes an in-progress removal seeded by
+ * `continuation`, see `floodLight`'s doc comment for why a resumed node
+ * needs no re-zeroing) and returns the boundary `fill` nodes that must be
+ * re-flooded, plus any removal-BFS nodes still unvisited when the node
+ * budget was hit — the caller resumes those in a follow-up job rather than
+ * dropping them, which would leave stale light behind.
+ */
 function removeLightsBatch(
   space: VoxelAccess,
   voxels: Coords3[],
@@ -426,13 +455,14 @@ function removeLightsBatch(
   min: Coords3 | undefined,
   max: Coords3 | undefined,
   options: WorldOptions,
-): LightNode[] {
-  if (!voxels.length) return [];
+  continuation: LightNode[] = [],
+): { fill: LightNode[]; pendingRemovals: LightNode[] } {
+  if (!voxels.length && !continuation.length) return { fill: [], pendingRemovals: [] };
 
   const { maxHeight, maxLightLevel } = options;
 
   const fill: LightNode[] = [];
-  const queue: LightNode[] = [];
+  const queue: LightNode[] = [...continuation];
 
   const isSunlight = color === "SUNLIGHT";
 
@@ -454,15 +484,14 @@ function removeLightsBatch(
   let processedNodes = 0;
 
   let head = 0;
+  let budgetExceeded = false;
   while (head < queue.length) {
     if (head >= QUEUE_COMPACT_INTERVAL) {
       queue.splice(0, head);
       head = 0;
     }
     if (++processedNodes > nodeBudget) {
-      console.warn(
-        `[light-worker] removal exceeded node budget (${nodeBudget}); bailing with partial light`,
-      );
+      budgetExceeded = true;
       break;
     }
     const { voxel, level } = queue[head++];
@@ -550,7 +579,16 @@ function removeLightsBatch(
       : space.getTorchLightAt(vx, vy, vz, color),
   );
 
-  return LightUtils.dedupeFillQueue(liveFill);
+  const pendingRemovals = budgetExceeded ? queue.slice(head) : [];
+  if (budgetExceeded) {
+    console.warn(
+      `[light-worker] removal exceeded node budget (${nodeBudget}); deferring ` +
+        `${pendingRemovals.length} unvisited node(s) to a follow-up job instead of ` +
+        `leaving stale light behind`,
+    );
+  }
+
+  return { fill: LightUtils.dedupeFillQueue(liveFill), pendingRemovals };
 }
 
 onmessage = function (e) {
@@ -627,15 +665,28 @@ onmessage = function (e) {
       min[2] + shape[2],
     ];
 
-    if (lightOps.removals.length > 0) {
-      const fillQueue = removeLightsBatch(
-        space,
-        lightOps.removals,
-        color,
-        min,
-        maxCoords,
-        options,
-      );
+    // Nodes a prior job on this same box couldn't finish before hitting its
+    // node budget. Gathered here and sent back again (as `pendingFloods` /
+    // `pendingRemovals`) if this job bails too, so a pathological region
+    // (e.g. a long open sunlight shaft under a floating island) converges
+    // over a few follow-up jobs instead of shipping with a permanently
+    // half-lit hole.
+    const pendingFloods: LightNode[] = [];
+    let pendingRemovals: LightNode[] = [];
+
+    if (lightOps.removals.length > 0 || lightOps.pendingRemovals?.length) {
+      const { fill: fillQueue, pendingRemovals: stillPendingRemovals } =
+        removeLightsBatch(
+          space,
+          lightOps.removals,
+          color,
+          min,
+          maxCoords,
+          options,
+          lightOps.pendingRemovals ?? [],
+        );
+      pendingRemovals = stillPendingRemovals;
+
       if (fillQueue.length > 0) {
         for (const node of fillQueue) {
           const [vx, vy, vz] = node.voxel;
@@ -646,13 +697,17 @@ onmessage = function (e) {
           }
         }
 
-        floodLight(space, fillQueue, color, min, maxCoords, options);
+        pendingFloods.push(
+          ...floodLight(space, fillQueue, color, min, maxCoords, options),
+        );
       }
     }
 
     // A deferred seed names an opened cell and asks for its neighbours' light
     // as it stands in this snapshot — which already carries every earlier
-    // batch's result, unlike the main thread at analysis time.
+    // batch's result, unlike the main thread at analysis time. A leftover
+    // flood node from a prior bailed-out job is already fully resolved (a
+    // concrete level, not a deferred lookup), so it passes through as-is.
     const floods: LightNode[] = LightUtils.resolveDeferredSeeds(
       space,
       lightOps.floods,
@@ -670,7 +725,9 @@ onmessage = function (e) {
         }
       });
 
-      floodLight(space, floods, color, min, maxCoords, options);
+      pendingFloods.push(
+        ...floodLight(space, floods, color, min, maxCoords, options),
+      );
     }
 
     const modifiedChunks = space.getModifiedChunks();
@@ -690,6 +747,9 @@ onmessage = function (e) {
         })),
         borderNeighbors: space.getBorderNeighbors(),
         appliedDeltas: { lastSequenceId },
+        pendingFloods: pendingFloods.length > 0 ? pendingFloods : undefined,
+        pendingRemovals:
+          pendingRemovals.length > 0 ? pendingRemovals : undefined,
       },
       {
         transfer: transferBuffers,

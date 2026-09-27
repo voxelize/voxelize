@@ -29,6 +29,13 @@ export type LightJob = {
   lightOps: {
     removals: Coords3[];
     floods: LightNode[];
+    /**
+     * Removal-BFS nodes left over from a prior job that hit the worker's
+     * node budget (see `light-worker.ts`'s `removeLightsBatch`). Unlike
+     * `removals`, these already had their own light zeroed and must not be
+     * re-read/re-zeroed — only their neighbours still need visiting.
+     */
+    pendingRemovals?: LightNode[];
   };
   boundingBox: BoundingBox;
   startSequenceId: number;
@@ -99,6 +106,15 @@ export type LightWorkerResult = {
   appliedDeltas: {
     lastSequenceId: number;
   };
+  /**
+   * Set when the worker hit its node budget mid-flood (e.g. a long open
+   * sunlight shaft under a floating island) and deferred the rest of the
+   * BFS rather than dropping it. The caller resubmits these as a follow-up
+   * job on the same bounding box so the region ends up fully lit instead of
+   * permanently partial.
+   */
+  pendingFloods?: LightNode[];
+  pendingRemovals?: LightNode[];
 };
 
 export type LightWorkerBorderNeighbor = {
