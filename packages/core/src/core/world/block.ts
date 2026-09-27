@@ -120,6 +120,13 @@ export type Block = {
   groundFrictionMultiplier: number;
 
   /**
+   * Multiplier applied to an entity's swim speed while this block is the
+   * fluid at its feet. 1 is normal swim speed; a viscous fluid (lava) should
+   * be lower.
+   */
+  swimSpeedMultiplier: number;
+
+  /**
    * Whether this block can hold the world's waterlogging fluid alongside
    * itself. Whether a given voxel actually does is per-voxel state, read with
    * `World.getVoxelWaterloggedAt`.

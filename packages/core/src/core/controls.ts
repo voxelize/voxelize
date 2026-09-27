@@ -1453,6 +1453,26 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       : 1;
   };
 
+  /**
+   * Reads `swimSpeedMultiplier` off the fluid block at the body's center, so
+   * a viscous fluid (lava) slows swimming without either side of the engine
+   * boundary knowing the other's name for it (this is the same extension
+   * point as `getGroundFrictionMultiplier`).
+   */
+  private getSwimSpeedMultiplier = (): number => {
+    const { aabb } = this.body;
+    const vx = Math.floor(aabb.minX + aabb.width / 2);
+    const vy = Math.floor(aabb.minY + aabb.height / 2);
+    const vz = Math.floor(aabb.minZ + aabb.depth / 2);
+
+    const block = this.world.getBlockAt(vx, vy, vz);
+    if (!block) {
+      return 1;
+    }
+
+    return block.swimSpeedMultiplier > 0 ? block.swimSpeedMultiplier : 1;
+  };
+
   private isSubmergedForSwimming = (): boolean => {
     return (
       this.body.gravityMultiplier > 0 &&
@@ -1596,7 +1616,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.state.isJumping = false;
 
     if (this.state.running && (fb !== 0 || side !== 0)) {
-      let speed = swimSpeed;
+      let speed = swimSpeed * this.getSwimSpeedMultiplier();
       if (this.state.sprinting) speed *= sprintFactor;
       if (this.state.crouching) speed *= crouchFactor;
 

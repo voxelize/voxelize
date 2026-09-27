@@ -53,6 +53,13 @@ pub struct Block {
     #[serde(default = "default_ground_friction_multiplier")]
     pub ground_friction_multiplier: f32,
 
+    /// Multiplier applied to an entity's swim speed while this block is the
+    /// fluid at its feet. 1.0 is normal swim speed; lower values are thicker
+    /// / more viscous (e.g. lava). Read client-side by the local player's
+    /// swim controls, the same extension point as `ground_friction_multiplier`.
+    #[serde(default = "default_swim_speed_multiplier")]
+    pub swim_speed_multiplier: f32,
+
     /// Can this block hold the world's waterlogging fluid alongside itself?
     ///
     /// This is a capability, not a state: whether a given voxel actually holds
@@ -455,5 +462,9 @@ impl Default for YRotatableSegments {
 }
 
 fn default_ground_friction_multiplier() -> f32 {
+    1.0
+}
+
+fn default_swim_speed_multiplier() -> f32 {
     1.0
 }

@@ -20,6 +20,7 @@ pub struct BlockBuilder {
     is_fluid: bool,
     fluid_flow_force: f32,
     ground_friction_multiplier: f32,
+    swim_speed_multiplier: f32,
     is_waterloggable: bool,
     is_waterlogging_fluid: bool,
     is_passable: bool,
@@ -77,6 +78,7 @@ impl BlockBuilder {
             faces: BlockFaces::six_faces().build().to_vec(),
             aabbs: vec![AABB::new().build()],
             ground_friction_multiplier: 1.0,
+            swim_speed_multiplier: 1.0,
             ..Default::default()
         }
     }
@@ -128,6 +130,14 @@ impl BlockBuilder {
 
     pub fn ground_friction_multiplier(mut self, ground_friction_multiplier: f32) -> Self {
         self.ground_friction_multiplier = ground_friction_multiplier;
+        self
+    }
+
+    /// Configure the multiplier applied to an entity's swim speed while this
+    /// block is the fluid at its feet. Default is 1.0; a viscous fluid (lava)
+    /// should be lower.
+    pub fn swim_speed_multiplier(mut self, swim_speed_multiplier: f32) -> Self {
+        self.swim_speed_multiplier = swim_speed_multiplier;
         self
     }
 
@@ -578,6 +588,7 @@ impl BlockBuilder {
             is_fluid: self.is_fluid,
             fluid_flow_force: self.fluid_flow_force,
             ground_friction_multiplier: self.ground_friction_multiplier,
+            swim_speed_multiplier: self.swim_speed_multiplier,
             is_waterloggable: self.is_waterloggable,
             is_waterlogging_fluid: self.is_waterlogging_fluid,
             is_light: self.red_light_level > 0
