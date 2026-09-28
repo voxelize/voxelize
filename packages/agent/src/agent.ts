@@ -425,6 +425,10 @@ export class Agent {
         // log reached 3.2 GB that way.
         "--enable-logging=stderr",
         "--log-level=2",
+        // A headless session has no listener: its game audio only kept the
+        // host's audio mixer busy (about one core with a few sessions up).
+        // In-page WebAudio still runs; AGENT_AUDIO=1 plays it out.
+        ...(process.env.AGENT_AUDIO === "1" ? [] : ["--mute-audio"]),
         ...extraChromeArgs(),
       ],
       defaultViewport: {
