@@ -626,3 +626,51 @@ describe("Entities released watermark retention", () => {
     }
   });
 });
+
+describe("Entities server-frozen entities", () => {
+  class FrameProbe extends Entity<ProbeData & { frozen?: boolean }> {
+    public frames = 0;
+    public frozenFrames = 0;
+    public snaps = 0;
+    onCreate = () => {};
+    onUpdate = () => {};
+    onDelete = () => {};
+    update = () => {
+      this.frames += 1;
+    };
+    updateFrozen = () => {
+      this.frozenFrames += 1;
+    };
+    snapToTarget = () => {
+      this.snaps += 1;
+    };
+  }
+
+  it("holds a frozen entity's pose but keeps its world-driven refresh running", () => {
+    const entities = new Entities();
+    entities.setClass("probe", FrameProbe);
+    entities.onMessage(
+      entityMessage("CREATE", "a", {
+        position: [0, 0, 0],
+        frozen: true,
+      } as Partial<ProbeData>),
+    );
+    const probe = entities.getEntityById("a") as unknown as FrameProbe;
+
+    entities.update();
+    entities.update();
+    expect(probe.frames).toBe(0);
+    expect(probe.frozenFrames).toBe(2);
+    expect(probe.snaps).toBe(2);
+
+    entities.onMessage(
+      entityMessage("UPDATE", "a", {
+        position: [0, 0, 0],
+        frozen: false,
+      } as Partial<ProbeData>),
+    );
+    entities.update();
+    expect(probe.frames).toBe(1);
+    expect(probe.frozenFrames).toBe(2);
+  });
+});

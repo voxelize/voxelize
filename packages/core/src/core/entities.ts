@@ -121,6 +121,16 @@ export class Entity<T = any> extends Group {
 
   update?: () => void;
 
+  /**
+   * Called each frame in place of `update` while the server holds the
+   * entity frozen. The pose holds, but state that belongs to the world
+   * rather than the pose — the voxel light an instance is shaded with —
+   * should keep tracking it, or a creature frozen at dusk stays lit as
+   * it was when it froze (or as the pool's default, if it streamed in
+   * frozen).
+   */
+  updateFrozen?: () => void;
+
   setHidden?: (hidden: boolean) => void;
 
   snapToTarget?: () => void;
@@ -490,9 +500,11 @@ export class Entities extends Group implements NetIntercept {
       // A server-frozen entity holds whatever pose it last rendered: its
       // class update (animation clocks, interpolation, bone writes) is
       // skipped, while position bookkeeping stays pinned to the replicated
-      // transform so hitboxes and nametags sit at server truth.
+      // transform so hitboxes and nametags sit at server truth, and its
+      // world-driven state (lighting) keeps up through `updateFrozen`.
       if (isEntityMetadataFrozen(entity.metadata as MutableMetadata | null)) {
         entity.snapToTarget?.();
+        entity.updateFrozen?.();
         return;
       }
 
