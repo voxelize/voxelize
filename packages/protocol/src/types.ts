@@ -30,6 +30,12 @@ export type GeometryProtocol = {
   indices: Uint32Array;
   lights: Uint32Array;
   normals?: Float32Array | Int8Array;
+  /**
+   * Per-vertex quad light twist, four bytes per vertex, derived on the
+   * client from `lights` and `indices` (see the core's quad-light.ts).
+   * Absent on the wire; the mesh worker fills it in.
+   */
+  lightTwist?: Uint8Array;
   bsCenter?: [number, number, number];
   bsRadius?: number;
 };

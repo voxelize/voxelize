@@ -83,6 +83,13 @@ export const BLOCK_LIGHT_TRANSFER = Object.freeze({
   mountFar: 2.5,
 });
 
+/**
+ * One flood level (0..1 units): a channel below the peak fades its hue share
+ * in over this much of its own level (`hueRamp`), or over the peak itself
+ * when the peak is fainter, so the peak channel is never dimmed.
+ */
+const HUE_RAMP_LEVEL = 1 / 15;
+
 const LOG2_RATIO = 15 * Math.log2(BLOCK_LIGHT_TRANSFER.ratio);
 /** `ratio^15`, subtracted so level 0 maps to exactly 0. */
 const TAIL = BLOCK_LIGHT_TRANSFER.ratio ** 15;
@@ -126,6 +133,21 @@ export const BLOCK_LIGHT_TUNING = {
   adaptation: { value: BLOCK_LIGHT_TRANSFER.adaptation as number },
   /** Flood hue: levels for a channel gap to reach 0 (0 = per-channel). */
   hueLevels: { value: BLOCK_LIGHT_TRANSFER.hueLevels as number },
+  /**
+   * 1: a channel below the peak fades its hue share in over its first
+   * flood level, so a coloured light's weaker channels thin out where its
+   * flood ends; 0: the share snaps on at any trace of the channel (legacy).
+   * Identical at every whole level and for the peak channel; between a lit
+   * corner and a dark one the legacy snap drew the patch's edge as a hard
+   * line.
+   */
+  hueRamp: { value: 1 },
+  /**
+   * 1: the voxel light blends bilinearly across each quad (quad-light.ts);
+   * 0: per triangle (legacy), which creased along the quad diagonal and
+   * cut a light's reach into triangles.
+   */
+  bilinear: { value: 1 },
   /** 1: a light lights the ceiling it hangs under evenly (0 = legacy). */
   mountFade: { value: 1 },
   /**
@@ -153,6 +175,10 @@ export type BlockLightTuningFlags = {
   tightKernel?: boolean;
   /** Lamplight white balance on (its default amount) or off. */
   adaptation?: boolean;
+  /** A channel's hue share fades in over its first level (false: snaps on). */
+  hueRamp?: boolean;
+  /** Bilinear voxel light across each quad (false: per triangle). */
+  bilinear?: boolean;
 };
 
 export function setBlockLightTuning(flags: BlockLightTuningFlags): void {
@@ -180,6 +206,10 @@ export function setBlockLightTuning(flags: BlockLightTuningFlags): void {
     BLOCK_LIGHT_TUNING.adaptation.value = flags.adaptation
       ? BLOCK_LIGHT_TRANSFER.adaptation
       : 0;
+  if (flags.hueRamp !== undefined)
+    BLOCK_LIGHT_TUNING.hueRamp.value = flags.hueRamp ? 1 : 0;
+  if (flags.bilinear !== undefined)
+    BLOCK_LIGHT_TUNING.bilinear.value = flags.bilinear ? 1 : 0;
   const curve = BLOCK_LIGHT_TUNING.curve.value;
   BLOCK_LIGHT_TUNING.gain.value =
     BLOCK_LIGHT_TRANSFER.legacyGain +
@@ -228,9 +258,15 @@ export function blockLightCurveRGB(
   const peak = Math.max(r, g, b);
   const bright = blockLightCurve(peak);
   const curve = BLOCK_LIGHT_TUNING.curve.value;
+  const ramp = BLOCK_LIGHT_TUNING.hueRamp.value;
+  const rampSpan = Math.max(Math.min(clamp01(peak), HUE_RAMP_LEVEL), 1e-6);
+  // A channel's share of the peak, faded in over its first level (see
+  // `hueRamp`): the legacy share snapped from 0 to its full value at any
+  // trace of the channel.
   const hue = (level: number) =>
     level > 0
-      ? clamp01(1 - (15 * (clamp01(peak) - clamp01(level))) / hueLevels)
+      ? clamp01(1 - (15 * (clamp01(peak) - clamp01(level))) / hueLevels) *
+        (1 + (Math.min(clamp01(level) / rampSpan, 1) - 1) * ramp)
       : 0;
   const mixed = (level: number) => {
     const legacy = legacyBlockLightCurve(level);
@@ -419,6 +455,8 @@ uniform float uBlockLightCeilingWeight;
 uniform float uBlockLightWarmFloor;
 uniform float uBlockLightHueLevels;
 uniform float uBlockLightMountFade;
+uniform float uBlockLightHueRamp;
+uniform float uBlockLightBilinear;
 `;
 
 /** GLSL twins of the TS functions above; declared before the local lights. */
@@ -430,11 +468,18 @@ vec3 blockLightCurve(vec3 blLevel) {
     6,
   )}, 0.0) * ${(1 / (1 - TAIL)).toFixed(6)};
   if (uBlockLightHueLevels > 0.0) {
-    // Brightness from the brightest channel, hue from the level gaps.
+    // Brightness from the brightest channel, hue from the level gaps. A
+    // channel's share fades in over its first level (uBlockLightHueRamp):
+    // snapped on at any trace of it, the share drew a hard edge wherever a
+    // lit corner met a dark one.
     float blPeak = max(max(blX.r, blX.g), blX.b);
     float blBright = max(max(blGeometric.r, blGeometric.g), blGeometric.b);
     vec3 blHue = clamp(1.0 - 15.0 * (blPeak - blX) / uBlockLightHueLevels, 0.0, 1.0)
-      * step(vec3(1e-4), blX);
+      * mix(
+        step(vec3(1e-4), blX),
+        min(blX / max(min(blPeak, ${HUE_RAMP_LEVEL.toFixed(6)}), 1e-6), 1.0),
+        uBlockLightHueRamp
+      );
     blGeometric = blBright * blHue;
   }
   return mix(blLegacy, blGeometric, uBlockLightCurve);

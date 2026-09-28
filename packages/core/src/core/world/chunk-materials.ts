@@ -21,6 +21,7 @@ import { BLOCK_LIGHT_TUNING } from "./block-light-transfer";
 import { ChunkRenderer } from "./chunk-renderer";
 import { LightCones } from "./light-cones";
 import { LocalLights } from "./local-lights";
+import { QUAD_LIGHT_TWIST_NEUTRAL } from "./quad-light";
 import { Registry } from "./registry";
 import {
   createSwayTableShader,
@@ -230,6 +231,8 @@ export function makeChunkShaderMaterial(
     uBlockLightWarmFloor: BLOCK_LIGHT_TUNING.warmFloor,
     uBlockLightHueLevels: BLOCK_LIGHT_TUNING.hueLevels,
     uBlockLightMountFade: BLOCK_LIGHT_TUNING.mountFade,
+    uBlockLightHueRamp: BLOCK_LIGHT_TUNING.hueRamp,
+    uBlockLightBilinear: BLOCK_LIGHT_TUNING.bilinear,
     uSkyTopColor: world.chunkRenderer.shaderLightingUniforms.skyTopColor,
     uSkyMiddleColor: world.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
     uShadowDebugMode:
@@ -303,7 +306,12 @@ export function makeChunkShaderMaterial(
   );
   material.uniforms.map = { value: material.map };
 
-  Object.assign(material.defaultAttributeValues, { biomeTint: [0, 0, 0] });
+  // A geometry without a light twist (a held block, a preview) keeps the
+  // per-triangle light: the neutral bytes carry no twist and no corner.
+  Object.assign(material.defaultAttributeValues, {
+    biomeTint: [0, 0, 0],
+    lightTwist: [...QUAD_LIGHT_TWIST_NEUTRAL],
+  });
   return material;
 }
 

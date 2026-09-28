@@ -11,7 +11,8 @@
  * UVs store as normalized u16 (the atlas keeps every vertex UV inside
  * [0, 1]; greedy tiling reconstructs its repeat from world position in the
  * fragment shader). Normals store as normalized i8. Together with the i32
- * packed light this is 17 bytes of attributes per vertex, down from 36.
+ * packed light this is 17 bytes of attributes per vertex, down from 36;
+ * the four-byte light twist (quad-light.ts) brings it to 21.
  *
  * The dequantization scale and bias live in the mesh (or arena instance)
  * matrix, never in the shader: the CSM depth pass renders the whole scene

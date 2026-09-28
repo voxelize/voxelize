@@ -2827,3 +2827,88 @@ fn a_tinted_tall_plant_keeps_its_shared_seam_and_tip() {
         );
     }
 }
+
+/// The client blends each quad's corner light bilinearly, and it finds the
+/// quads from the index buffer (`quad-light.ts` in the core package): four
+/// vertices per quad, emitted quad by quad, indexed `0 1 3 3 2 0` or
+/// `0 1 2 2 1 3` from the quad's first vertex. Every emitting path — the
+/// greedy quads, per-voxel faces, fluid faces, diagonal crosses — must keep
+/// that shape, or its quads silently fall back to per-triangle light.
+#[test]
+fn every_quad_keeps_the_index_shape_the_client_light_blend_reads() {
+    fn assert_quad_shape(scene: &str, geometries: &[GeometryProtocol]) {
+        assert!(
+            geometries.iter().any(|g| !g.indices.is_empty()),
+            "{scene} meshed nothing"
+        );
+        for geometry in geometries {
+            let vertex_count = geometry.positions.len() / 3;
+            assert_eq!(geometry.lights.len(), vertex_count, "{scene}");
+            assert_eq!(vertex_count % 4, 0, "{scene}: loose vertices");
+            assert_eq!(geometry.indices.len(), vertex_count / 4 * 6, "{scene}");
+            for (quad, group) in geometry.indices.chunks_exact(6).enumerate() {
+                let first = (quad * 4) as i32;
+                let shape: Vec<i32> = group.iter().map(|i| i - first).collect();
+                assert!(
+                    shape == [0, 1, 3, 3, 2, 0] || shape == [0, 1, 2, 2, 1, 3],
+                    "{scene}: quad {quad} is indexed {shape:?}"
+                );
+            }
+        }
+    }
+
+    let (registry, _, _) = ocean_registry(1, 2);
+    let mut cells = vec![];
+    for x in 0..4 {
+        for z in 0..4 {
+            cells.push(((x, 0, z), (1, 0)));
+        }
+    }
+    cells.push(((1, 1, 1), (1, 0)));
+    let floor = SparseSpace::new(&cells);
+    assert_quad_shape(
+        "stone floor with a step",
+        &mesh_space_greedy(&[0, 0, 0], &[4, 2, 4], &floor, &registry),
+    );
+
+    cells.retain(|(pos, _)| pos.1 == 0);
+    cells.push(((1, 1, 1), (2, 0)));
+    cells.push(((2, 1, 1), (2, 0)));
+    let pool = SparseSpace::new(&cells);
+    assert_quad_shape(
+        "water on stone",
+        &mesh_space_greedy(&[0, 0, 0], &[4, 2, 4], &pool, &registry),
+    );
+
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(2, "Water")
+    };
+    let plant = Block {
+        is_waterloggable: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        ..full_block_diagonal_block()
+    };
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut plants = Registry::new(vec![(0, air), (1, plant), (2, water)]);
+    plants.build_cache();
+    for (scene, is_waterlogged) in [("diagonal plant", false), ("waterlogged plant", true)] {
+        let space = SingleVoxelSpace {
+            voxel_id: 1,
+            is_waterlogged,
+        };
+        assert_quad_shape(
+            scene,
+            &mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &plants),
+        );
+    }
+}

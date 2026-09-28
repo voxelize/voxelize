@@ -2,6 +2,7 @@ import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
 
 import { Coords3 } from "../../../types";
 import { type WorldOptions } from "../index";
+import { computeQuadLightTwist } from "../quad-light";
 import { type SerializedChunkPayload } from "../raw-chunk";
 import { Registry } from "../registry";
 import {
@@ -384,9 +385,11 @@ onmessage = async function (e) {
       const bs = workerComputeBoundingSphere(positions);
 
       const isQuantized = !sortedBlockIds.has(geometry.voxel);
+      const lights = new Int32Array(geometry.lights);
       const packedGeometry = {
         indices,
-        lights: new Int32Array(geometry.lights),
+        lights,
+        lightTwist: computeQuadLightTwist(lights, indices),
         positions: isQuantized
           ? quantizePositions(positions, positionUnits)
           : positions,
@@ -407,6 +410,7 @@ onmessage = async function (e) {
 
       arrayBuffers.push(packedGeometry.indices.buffer);
       arrayBuffers.push(packedGeometry.lights.buffer);
+      arrayBuffers.push(packedGeometry.lightTwist.buffer as ArrayBuffer);
       arrayBuffers.push(packedGeometry.positions.buffer as ArrayBuffer);
       arrayBuffers.push(packedGeometry.uvs.buffer as ArrayBuffer);
       arrayBuffers.push(packedGeometry.normals.buffer as ArrayBuffer);

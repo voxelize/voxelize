@@ -967,7 +967,7 @@ describe("fluid local-light fallback (shader source)", () => {
     expect(specularBody).toContain("uLocalMaskKnee");
     expect(specularBody).toContain("llOcclusion");
     expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
-      "localLightSpecular(wPos, waterNormal, viewDir, vLight.rgb)",
+      "localLightSpecular(wPos, waterNormal, viewDir, voxelLight.rgb)",
     );
     expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
       "vIsFluid > 0.5",

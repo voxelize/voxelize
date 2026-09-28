@@ -16,6 +16,7 @@ import {
   LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./local-lights/shader";
 import { defaultLocalLightsOptions } from "./local-lights/types";
+import { QUAD_LIGHT_VERTEX_GLSL } from "./quad-light";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
@@ -70,7 +71,7 @@ bool llHighResolution = uLocalLightStable < 0.5 &&
 vec3 clusterLight = localLightSurface(
   vWorldPosition.xyz,
   vWorldNormal,
-  vLight.rgb,
+  voxelLight.rgb,
   vIsFluid > 0.5
     ? 0
     : (llHighResolution
@@ -128,7 +129,7 @@ if (uClusteredLightCount != 0) {
 const LOCAL_LIGHTS_ROOM_FILL_FRAGMENT = `
 // Room fill: the lamps the camera sees lift sky-less surfaces past their
 // flood's reach, like bounce light (zero with no air-light set).
-sunTotal += localLightRoomFill(vWorldPosition.xyz, vWorldNormal, sunExposure, vLight.rgb);
+sunTotal += localLightRoomFill(vWorldPosition.xyz, vWorldNormal, sunExposure, voxelLight.rgb);
 `;
 
 const LOCAL_LIGHTS_SPECULAR_FRAGMENT = `
@@ -136,7 +137,7 @@ const LOCAL_LIGHTS_SPECULAR_FRAGMENT = `
   // with a position to reflect, so fluids are where local specular lives.
   // The flood field rides along for the same leak masking the diffuse path
   // applies — an occluded lamp must not glint through its wall.
-  specularColor += localLightSpecular(wPos, waterNormal, viewDir, vLight.rgb);
+  specularColor += localLightSpecular(wPos, waterNormal, viewDir, voxelLight.rgb);
 `;
 
 const LOCAL_LIGHTS_DEBUG_TAIL_FRAGMENT = `
@@ -145,7 +146,7 @@ if (uLocalLightDebugMode > 0.5) {
     vWorldPosition.xyz,
     gl_FragColor.rgb,
     vWorldNormal,
-    vLight.rgb,
+    voxelLight.rgb,
     clusterLight,
     llFloodRemainder
   );
@@ -272,6 +273,10 @@ const FULL_CHUNK_SHADERS = {
       `
 attribute int light;
 attribute vec3 biomeTint;
+// Per-quad light twist and diagonal-corner flags (quad-light.ts). A
+// geometry without it reads a zero or neutral default: no twist, and the
+// light stays the per-triangle blend.
+attribute vec4 lightTwist;
 
 // Quantized-position materials define this to the fixed-point scale
 // (counts per block); the mesh matrix owns dequantization, so the shader
@@ -321,6 +326,10 @@ varying float vFluidDepthBelow;
 varying float vFluidRestY;
 varying vec2 vFluidFlow;
 varying vec4 vLight;
+// The two factors of the bilinear correction (quad-light.ts): the quad's
+// twist weighted by the head corner, and the tail corner's weight.
+varying vec4 vLightTwist;
+varying float vQuadLightTail;
 varying vec3 vStageTint;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -440,7 +449,7 @@ vIsGreedy = float(isGreedy);
 vIsFluidPane = float(isFluidPane);
 vWaterExposed = float(isWaterExposed);
 vLight = unpackLight(light & LIGHT_MASK);
-
+${QUAD_LIGHT_VERTEX_GLSL}
 // Under the emissive bit the AO bits are a strength index, not occlusion —
 // the face bypasses the lighting model, so its vAO is never read.
 vEmissive = float((light >> EMISSIVE_SHIFT) & 0x1) * uEmissiveLevels[ao];
@@ -651,6 +660,8 @@ varying float vFluidDepthBelow;
 varying float vFluidRestY;
 varying vec2 vFluidFlow;
 varying vec4 vLight;
+varying vec4 vLightTwist;
+varying float vQuadLightTail;
 varying vec3 vStageTint;
 varying vec4 vWorldPosition;
 varying vec3 vWorldNormal;
@@ -662,6 +673,15 @@ varying float vEmissive;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
+
+// The voxel light (red, green, blue, sun; 0..1) blended bilinearly across
+// the quad instead of linearly across each of its triangles: the
+// per-triangle value minus twist x head weight x tail weight (quad-light.ts).
+// The two agree on every quad edge and wherever the corners are planar;
+// switched by uBlockLightBilinear (0: the per-triangle blend, bit for bit).
+vec4 bilinearVoxelLight() {
+  return max(vLight - vLightTwist * (vQuadLightTail * uBlockLightBilinear), 0.0);
+}
 
 ${SIMPLEX_NOISE_GLSL}
 
@@ -780,7 +800,7 @@ float getShadow() {
     return 1.0;
   }
 
-  float sunExposure = vLight.a;
+  float sunExposure = bilinearVoxelLight().a;
   if (sunExposure < 0.05) {
     return mix(1.0, 0.0, uShadowStrength);
   }
@@ -896,15 +916,16 @@ float getShadow() {
       `
 #include <envmap_fragment>
 
+vec4 voxelLight = bilinearVoxelLight();
 float shadow = getShadow();
 
 float rawNdotL = dot(vWorldNormal, uSunDirection);
 float NdotL = max(rawNdotL * 0.85 + 0.15, 0.0);
-float sunExposure = vLight.a;
+float sunExposure = voxelLight.a;
 
 vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity * sunExposure;
 
-vec3 cpuTorchLight = vLight.rgb;
+vec3 cpuTorchLight = voxelLight.rgb;
 // Flood level to light (block-light-transfer.ts): a geometric per-level
 // decay that keeps a coloured light's hue while its channels are alive.
 vec3 smoothTorch = blockLightCurve(cpuTorchLight);

@@ -190,6 +190,7 @@ import { Loader } from "./loader";
 import { LocalLights } from "./local-lights";
 import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
+import { computeQuadLightTwist } from "./quad-light";
 import { Registry } from "./registry";
 import {
   CONNECTIVITY_FULL,
@@ -256,6 +257,7 @@ export * from "./local-lights";
 export * from "./loader";
 export * from "./memory-pressure";
 export * from "./pipelines";
+export * from "./quad-light";
 export * from "./registry";
 export * from "./section-visibility";
 export * from "./shader-clock";
@@ -1562,6 +1564,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uvs?: ArrayBufferView;
         lights?: ArrayBufferView;
         normals?: ArrayBufferView;
+        lightTwist?: ArrayBufferView;
       };
       for (const key of [
         "positions",
@@ -1569,6 +1572,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         "uvs",
         "lights",
         "normals",
+        "lightTwist",
       ] as const) {
         const view = record[key];
         if (view?.buffer) {
@@ -5780,6 +5784,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     geometry.setAttribute("position", new BufferAttribute(geo.positions, 3));
     geometry.setAttribute("uv", new BufferAttribute(geo.uvs, 2, isQuantized));
     geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
+    // Server meshes arrive without the twist (it never crosses the wire);
+    // worker meshes bring it. One derivation either way (quad-light.ts).
+    geometry.setAttribute(
+      "lightTwist",
+      new BufferAttribute(
+        geo.lightTwist ?? computeQuadLightTwist(geo.lights, geo.indices),
+        4,
+      ),
+    );
     const biomeTints = this.getChunkByCoords(cx, cz)?.biomeTints;
     if (biomeTints) {
       geometry.setAttribute(
