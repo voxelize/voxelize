@@ -255,6 +255,14 @@ export type CharacterOptions = {
    * Whether this character should receive shadows. Defaults to `false`.
    */
   receiveShadows?: boolean;
+
+  /**
+   * Draw each body part in one call instead of six (`CanvasBoxOptions.mergeFaces`).
+   * Painting is unchanged; a consumer that swaps or re-reads the parts'
+   * per-face materials as draw state needs the per-face path. Defaults to
+   * `false`.
+   */
+  mergeBoxFaces?: boolean;
 };
 
 export const defaultCharacterOptions: CharacterOptions = {
@@ -865,12 +873,14 @@ export class Character extends Group {
    */
   private createModel = () => {
     const receiveShadows = this.options.receiveShadows ?? false;
+    const merged = this.options.mergeBoxFaces ? { mergeFaces: true } : {};
 
     const head = new CanvasBox({
       ...defaultHeadOptions,
       ...(this.options.head ? this.options.head : {}),
       receiveShadows,
       underwaterFog: true,
+      ...merged,
     });
 
     const body = new CanvasBox({
@@ -878,6 +888,7 @@ export class Character extends Group {
       ...(this.options.body ? this.options.body : {}),
       receiveShadows,
       underwaterFog: true,
+      ...merged,
     });
 
     const leftArm = new CanvasBox({
@@ -885,6 +896,7 @@ export class Character extends Group {
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
       underwaterFog: true,
+      ...merged,
     });
 
     const rightArm = new CanvasBox({
@@ -892,6 +904,7 @@ export class Character extends Group {
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
       underwaterFog: true,
+      ...merged,
     });
 
     const leftLeg = new CanvasBox({
@@ -899,6 +912,7 @@ export class Character extends Group {
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
       underwaterFog: true,
+      ...merged,
     });
 
     const rightLeg = new CanvasBox({
@@ -906,6 +920,7 @@ export class Character extends Group {
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
       underwaterFog: true,
+      ...merged,
     });
 
     this.headGroup = new Group();

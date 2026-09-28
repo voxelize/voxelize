@@ -1,6 +1,9 @@
 import {
   BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
   CanvasTexture,
+  ClampToEdgeWrapping,
   Color,
   FrontSide,
   Group,
@@ -108,6 +111,17 @@ export type CanvasBoxOptions = {
    * Defaults to `false`.
    */
   underwaterFog?: boolean;
+
+  /**
+   * Draw each layer in one call instead of six. The six face canvases stay
+   * the paintable source (`paint`, `materials` and every face canvas work as
+   * before), and each paint is copied into one atlas texture the layer draws
+   * with through a single material, at the same texel density, filtering and
+   * shader hooks. Opt-in: a consumer that swaps a face material, or edits a
+   * face canvas without `paint` (then call `BoxLayer.syncAtlas`), needs the
+   * per-face path. Defaults to `false`.
+   */
+  mergeFaces?: boolean;
 };
 
 /**
@@ -178,6 +192,153 @@ export const BOX_SIDES: BoxSides[] = [
   "left",
   "right",
 ];
+
+type BoxFace = "back" | "front" | "top" | "bottom" | "left" | "right";
+
+/**
+ * The face each `BoxGeometry` group draws, by group index (px, nx, py, ny,
+ * pz, nz): the order of a layer's per-face material array.
+ */
+export const CANVAS_BOX_GROUP_FACES: readonly BoxFace[] = [
+  "front",
+  "back",
+  "top",
+  "bottom",
+  "left",
+  "right",
+];
+
+/**
+ * Texels of the face's own repeat kept round each face in a merged layer's
+ * atlas. Face origins and cell edges land on multiples of it too, so for a
+ * face whose size is a multiple of eight the first three mip levels hold
+ * exactly the texels its own wrapping texture's mips did.
+ */
+export const CANVAS_BOX_ATLAS_GUTTER = 8;
+
+/** One face's place in a merged layer's atlas, in atlas pixels. */
+export type CanvasBoxAtlasRect = {
+  /** The face canvas's top-left corner. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** The face's cell: the face plus the edge copies around it. */
+  cellX: number;
+  cellWidth: number;
+};
+
+export type CanvasBoxAtlasLayout = {
+  width: number;
+  height: number;
+  rects: Record<BoxFace, CanvasBoxAtlasRect>;
+};
+
+/**
+ * Lay a layer's six face canvases out in one row: each face sits in a cell
+ * whose every texel is the face or its repeat, so the atlas has no empty
+ * texel for a distant mip level to average in.
+ */
+export function canvasBoxAtlasLayout(
+  sizes: Record<BoxFace, { width: number; height: number }>,
+): CanvasBoxAtlasLayout {
+  const gutter = CANVAS_BOX_ATLAS_GUTTER;
+  const align = (value: number) => Math.ceil(value / gutter) * gutter;
+  let tallest = 0;
+  for (const face of CANVAS_BOX_GROUP_FACES) {
+    tallest = Math.max(tallest, sizes[face].height);
+  }
+  const height = align(tallest + gutter * 2);
+  const rects = {} as Record<BoxFace, CanvasBoxAtlasRect>;
+  let cellX = 0;
+  for (const face of CANVAS_BOX_GROUP_FACES) {
+    const { width: w, height: h } = sizes[face];
+    const cellWidth = align(w + gutter * 2);
+    rects[face] = {
+      x: cellX + gutter,
+      y: gutter,
+      width: w,
+      height: h,
+      cellX,
+      cellWidth,
+    };
+    cellX += cellWidth;
+  }
+  return { width: cellX, height, rects };
+}
+
+/**
+ * Point each `BoxGeometry` group's UVs at its face's rect in the atlas, so a
+ * fragment samples the same face texel it did from the face's own texture
+ * (both upload flipped: the canvas top is v = 1). `source` is the geometry's
+ * original per-face UV array; `target` receives the atlas UVs.
+ */
+export function remapCanvasBoxUVs(
+  source: ArrayLike<number>,
+  target: { [index: number]: number },
+  index: ArrayLike<number> | null,
+  groups: readonly { start: number; count: number; materialIndex?: number }[],
+  layout: CanvasBoxAtlasLayout,
+): void {
+  for (const group of groups) {
+    const face = CANVAS_BOX_GROUP_FACES[group.materialIndex ?? 0];
+    if (!face) continue;
+    const rect = layout.rects[face];
+    for (let i = group.start; i < group.start + group.count; i++) {
+      const vertex = index ? index[i] : i;
+      const u = source[vertex * 2];
+      const v = source[vertex * 2 + 1];
+      target[vertex * 2] = (rect.x + u * rect.width) / layout.width;
+      target[vertex * 2 + 1] =
+        1 - (rect.y + (1 - v) * rect.height) / layout.height;
+    }
+  }
+}
+
+/**
+ * Fill a face's atlas cell with the face repeated on its own period, the
+ * face itself at its rect. A face's own texture wraps (RepeatWrapping), so
+ * a filtered sample across its edge, or a whole mip texel near it, reads
+ * the opposite edge; the repeats around the face give the atlas the same
+ * neighbours. The cell is cleared first: the face canvas already holds
+ * everything painted on it.
+ */
+function blitFaceToAtlas(
+  context: CanvasRenderingContext2D,
+  face: HTMLCanvasElement,
+  rect: CanvasBoxAtlasRect,
+  atlasHeight: number,
+) {
+  const { x, y, width: w, height: h, cellX, cellWidth } = rect;
+  context.clearRect(cellX, 0, cellWidth, atlasHeight);
+  if (w <= 0 || h <= 0) return;
+  const cellRight = cellX + cellWidth;
+  for (let tileY = y - Math.ceil(y / h) * h; tileY < atlasHeight; tileY += h) {
+    for (
+      let tileX = x - Math.ceil((x - cellX) / w) * w;
+      tileX < cellRight;
+      tileX += w
+    ) {
+      // The part of this repeat inside the cell.
+      const left = Math.max(tileX, cellX);
+      const top = Math.max(tileY, 0);
+      const right = Math.min(tileX + w, cellRight);
+      const bottom = Math.min(tileY + h, atlasHeight);
+      if (right <= left || bottom <= top) continue;
+      context.drawImage(
+        face,
+        left - tileX,
+        top - tileY,
+        right - left,
+        bottom - top,
+        left,
+        top,
+        right - left,
+        bottom - top,
+      );
+    }
+  }
+}
 
 /**
  * A layer of a canvas box. This is a group of six canvases that are rendered as a single mesh.
@@ -252,6 +413,23 @@ export class BoxLayer extends Mesh {
   private underwaterFog: boolean;
 
   /**
+   * The one atlas this layer draws with when its faces are merged
+   * (`CanvasBoxOptions.mergeFaces`), else `null` and the layer draws each
+   * face with its own material.
+   */
+  public atlas: {
+    canvas: HTMLCanvasElement;
+    texture: CanvasTexture;
+    material: MeshBasicMaterial;
+    layout: CanvasBoxAtlasLayout | null;
+  } | null = null;
+
+  /** The geometry whose UVs point into the atlas, and its per-face UVs. */
+  private atlasGeometry: BufferGeometry | null = null;
+  private faceUVs: Float32Array | null = null;
+  private atlasSignature = "";
+
+  /**
    * Create a six-sided canvas box layer.
    *
    * @param width The width of the box layer.
@@ -264,6 +442,7 @@ export class BoxLayer extends Mesh {
    * @param transparent Whether or not should this canvas box be rendered as transparent.
    * @param receiveShadows Whether or not should this canvas box receive shadows.
    * @param underwaterFog Whether or not should this canvas box tint underwater.
+   * @param mergeFaces Whether to draw the six faces in one call through an atlas.
    */
   constructor(
     width: number,
@@ -276,6 +455,7 @@ export class BoxLayer extends Mesh {
     transparent: boolean,
     receiveShadows = false,
     underwaterFog = false,
+    mergeFaces = false,
   ) {
     super(new BoxGeometry(width, height, depth));
 
@@ -303,15 +483,98 @@ export class BoxLayer extends Mesh {
       this.materials.set(face, this.createCanvasMaterial(face));
     }
 
-    const materials = Array.from(this.materials.values());
-    const temp = materials[0];
-    materials[0] = materials[1];
-    materials[1] = temp;
+    if (mergeFaces) {
+      const canvas = document.createElement("canvas");
+      const texture = new CanvasTexture(canvas);
+      const material = this.createMaterial(texture, "atlas");
+      // Faces meet in the atlas, and the repeats round each already stand
+      // in for the wrap a face's own texture did.
+      texture.wrapS = ClampToEdgeWrapping;
+      texture.wrapT = ClampToEdgeWrapping;
+      this.atlas = { canvas, texture, material, layout: null };
+      this.material = material;
+      this.syncAtlas();
+    } else {
+      const materials = Array.from(this.materials.values());
+      const temp = materials[0];
+      materials[0] = materials[1];
+      materials[1] = temp;
 
-    this.material = materials;
+      this.material = materials;
+    }
 
     this.rotation.y = Math.PI / 2;
   }
+
+  /**
+   * Bring a merged layer's atlas up to date with its face canvases: relay
+   * the atlas out and re-point the UVs when a face canvas was resized or the
+   * geometry replaced, then copy the given faces (every face after a
+   * relayout) into it. `paint` calls this; call it after editing a face
+   * canvas directly. A no-op on a per-face layer.
+   */
+  syncAtlas = (faces: readonly BoxSides[] = BOX_SIDES) => {
+    const atlas = this.atlas;
+    if (!atlas) return;
+
+    const sizes = {} as Record<BoxFace, { width: number; height: number }>;
+    for (const face of CANVAS_BOX_GROUP_FACES) {
+      const canvas = this.materials.get(face)?.map?.image as
+        | HTMLCanvasElement
+        | undefined;
+      sizes[face] = { width: canvas?.width ?? 0, height: canvas?.height ?? 0 };
+    }
+    const signature = `${this.geometry.uuid}:${CANVAS_BOX_GROUP_FACES.map(
+      (face) => `${sizes[face].width}x${sizes[face].height}`,
+    ).join(",")}`;
+
+    let targets = faces;
+    if (signature !== this.atlasSignature || !atlas.layout) {
+      const layout = canvasBoxAtlasLayout(sizes);
+      atlas.layout = layout;
+      if (
+        atlas.canvas.width !== layout.width ||
+        atlas.canvas.height !== layout.height
+      ) {
+        atlas.canvas.width = layout.width;
+        atlas.canvas.height = layout.height;
+        // A texture's GPU storage keeps its first size; a resized canvas
+        // needs a fresh one.
+        atlas.texture.dispose();
+      }
+
+      const uv = this.geometry.getAttribute("uv") as BufferAttribute;
+      if (this.atlasGeometry !== this.geometry || !this.faceUVs) {
+        this.atlasGeometry = this.geometry;
+        this.faceUVs = new Float32Array(uv.array as ArrayLike<number>);
+      }
+      remapCanvasBoxUVs(
+        this.faceUVs,
+        uv.array as Float32Array,
+        this.geometry.getIndex()?.array ?? null,
+        this.geometry.groups,
+        layout,
+      );
+      uv.needsUpdate = true;
+
+      this.atlasSignature = signature;
+      targets = BOX_SIDES;
+    }
+
+    const layout = atlas.layout;
+    const context = atlas.canvas.getContext("2d");
+    if (!context) return;
+    context.imageSmoothingEnabled = false;
+    for (const face of targets) {
+      const rect = layout.rects[face as BoxFace];
+      const canvas = this.materials.get(face)?.map?.image as
+        | HTMLCanvasElement
+        | undefined;
+      if (!rect || !canvas) continue;
+      blitFaceToAtlas(context, canvas, rect, layout.height);
+    }
+    atlas.texture.needsUpdate = true;
+  };
 
   /**
    * Add art to the canvas(s) of this box layer.
@@ -371,19 +634,26 @@ export class BoxLayer extends Mesh {
       material.needsUpdate = true;
       material.map.needsUpdate = true;
     }
+
+    this.syncAtlas(actualSides);
   };
 
   /**
    * Free this layer's GPU resources: its geometry, and each face's canvas
-   * texture and material. The canvases themselves are left intact, so a
-   * consumer that still borrows a face (a portrait) re-uploads it instead of
-   * drawing garbage. Call once the layer has left the scene for good.
+   * texture and material (and a merged layer's atlas). The canvases
+   * themselves are left intact, so a consumer that still borrows a face (a
+   * portrait) re-uploads it instead of drawing garbage. Call once the layer
+   * has left the scene for good.
    */
   dispose() {
     this.geometry.dispose();
     for (const material of this.materials.values()) {
       material.map?.dispose();
       material.dispose();
+    }
+    if (this.atlas) {
+      this.atlas.texture.dispose();
+      this.atlas.material.dispose();
     }
   }
 
@@ -397,14 +667,21 @@ export class BoxLayer extends Mesh {
     canvas.width = width;
     canvas.height = height;
 
-    const texture = new CanvasTexture(canvas);
+    return this.createMaterial(new CanvasTexture(canvas), face);
+  };
+
+  /**
+   * The material a face (or a merged layer's atlas) draws with: unlit,
+   * nearest-magnified, with this layer's shadow and underwater hooks.
+   */
+  private createMaterial = (texture: CanvasTexture, name: string) => {
     texture.colorSpace = SRGBColorSpace;
 
     const material = new MeshBasicMaterial({
       side: this.side,
       map: texture,
       transparent: this.transparent,
-      name: face,
+      name,
     });
 
     material.toneMapped = false;
@@ -666,6 +943,7 @@ export class CanvasBox extends Group {
       transparent,
       receiveShadows,
       underwaterFog,
+      mergeFaces,
     } = this.options;
     let { widthSegments, heightSegments, depthSegments } = this.options;
 
@@ -696,6 +974,7 @@ export class CanvasBox extends Group {
         transparent,
         receiveShadows,
         underwaterFog,
+        mergeFaces,
       );
       this.boxLayers.push(newBoxLayer);
       this.add(newBoxLayer);
