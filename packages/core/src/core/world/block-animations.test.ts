@@ -315,6 +315,40 @@ describe("BlockAnimations", () => {
     expect(animations.activeCount).toBe(0);
   });
 
+  it("rattles a shut door and its other leaf back to rest without a state change", () => {
+    const bottom: Coords3 = [3, 15, 3];
+    const top: Coords3 = [3, 16, 3];
+    const host = new Host();
+    const animations = new BlockAnimations(host);
+    animations.register(["Oak Door", "Oak Door Top"], doorHinge);
+    host.set(bottom, pack(DOOR_ID, 4, 0));
+    host.set(top, pack(DOOR_TOP_ID, 4, 0));
+    const bottomMesh = placedMesh(bottom);
+    const topMesh = placedMesh(top);
+    const bottomRest = bottomMesh.matrix.clone();
+    const topRest = topMesh.matrix.clone();
+    animations.handleSectionMeshed(0, 0, 0, [bottomMesh], 0);
+    animations.handleSectionMeshed(0, 0, 1, [topMesh], 0);
+    expect(animations.activeCount).toBe(0);
+
+    expect(animations.nudge(bottom, 0.1, 240, 1000)).toBe(true);
+    expect(animations.activeCount).toBe(2);
+    expect(bottomMesh.matrix.equals(bottomRest)).toBe(false);
+    expect(topMesh.matrix.equals(topRest)).toBe(false);
+    const snapshot = animations.snapshot(1000);
+    for (const voxel of snapshot.voxels) {
+      expect(voxel.stage).toBe(0);
+      expect(voxel.angle).toBeCloseTo(0.1, 5);
+    }
+
+    animations.update(1240);
+    expect(animations.activeCount).toBe(0);
+    expect(bottomMesh.matrix.equals(bottomRest)).toBe(true);
+    expect(topMesh.matrix.equals(topRest)).toBe(true);
+    // Nothing tracked there: nothing to rattle.
+    expect(animations.nudge([90, 15, 90], 0.1, 240, 2000)).toBe(false);
+  });
+
   it("forgets a section's voxels when it unloads", () => {
     const voxel: Coords3 = [3, 10, 3];
     const host = new Host();

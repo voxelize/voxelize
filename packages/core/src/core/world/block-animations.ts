@@ -290,6 +290,52 @@ export class BlockAnimations {
     this.sections.delete(section);
   }
 
+  /**
+   * Knock a tracked voxel `angle` radians off the pose it shows, about its
+   * hinge, and let it ease back over `durationMs` with no change of state:
+   * a leaf rattled by a blow from the other side. Its coupled parts (the
+   * other leaf of a two-voxel unit) are knocked with it, so the pair moves
+   * as one. Purely cosmetic, like every motion here. Returns whether a
+   * voxel is tracked there.
+   */
+  nudge(
+    voxel: Coords3,
+    angle: number,
+    durationMs: number,
+    nowMs: number,
+  ): boolean {
+    const entry = this.byVoxel.get(voxelKey(voxel[0], voxel[1], voxel[2]));
+    if (!entry) return false;
+    const parts = [entry];
+    for (const part of entry.block.coupledParts ?? []) {
+      const offset = rotateCoupledOffset(
+        part.offset,
+        BlockUtils.extractRotation(entry.raw),
+      );
+      if (!offset) continue;
+      const partner = this.byVoxel.get(
+        voxelKey(
+          entry.voxel[0] + offset[0],
+          entry.voxel[1] + offset[1],
+          entry.voxel[2] + offset[2],
+        ),
+      );
+      if (partner) parts.push(partner);
+    }
+    for (const part of parts) {
+      const pose = this.poseAt(part, nowMs);
+      part.motion = {
+        fromAngle: pose.angle + angle,
+        fromOffset: pose.offset.clone(),
+        startMs: nowMs,
+        durationMs,
+      };
+      this.active.add(part);
+      this.applyPoseAt(part, nowMs);
+    }
+    return true;
+  }
+
   /** Advance every moving voxel to `nowMs`. Called once per frame. */
   update(nowMs: number) {
     if (this.active.size === 0) return;
