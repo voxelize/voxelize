@@ -82,6 +82,60 @@ let config = WorldConfig::new()
     .build();
 ```
 
+### Chat History
+
+Every world remembers its public chat: the lines players send (commands are
+never kept) and whatever the server posts with `world.post_chat`. Each line is
+stamped with a `seq` (its position in the log) and a `sentAt` time, and a
+client that joins or reloads receives the newest 100 lines in its INIT, ahead
+of any live line. A saved world also writes the log to
+`<save_dir>/chat/chat.jsonl` on a background thread, so it survives restarts;
+the file is capped at twice the capacity and rewritten down to it.
+
+```rust title="Chat History"
+let config = WorldConfig::new()
+    .chat_history_capacity(2000)    // lines kept; 0 turns history off
+    .chat_log_dir("runtime/chat")   // persist even when the world isn't saved
+    .build();
+
+// A public line from the server, kept in the history like a player's.
+world.post_chat("system", "", "", ChatMessageProtocol {
+    r#type: "SYSTEM".to_owned(),
+    body: "The gates open at dusk.".to_owned(),
+    ..Default::default()
+});
+```
+
+On the client, history never passes through `onChat` (so nothing a live line
+triggers runs twice); it arrives through `onHistory`, and older pages are one
+call away:
+
+```ts title="Showing History"
+chat.onHistory = ({ entries, hasMore, isJoin }) => {
+  // entries are oldest first; merge them by `seq` with the live lines
+  prependToUI(entries);
+};
+if (chat.joinHistory) chat.onHistory(chat.joinHistory); // INIT came first
+
+// Scrolled to the top: ask for the 50 lines before the oldest one shown.
+chat.requestHistory(oldestSeqShown, 50);
+```
+
+### Chat Guard
+
+A game can look at every public line before it is logged and broadcast. The
+guard gets the sender's id and the line, may rewrite it, and returns `false`
+to drop it (a dropped line is neither kept nor sent). Commands never reach it.
+
+```rust title="Chat Guard"
+world.set_chat_guard(|world, sender_id, chat| {
+    if chat.body.to_lowercase().contains("@helper") {
+        // Answer the mention later, e.g. by posting a reply with post_chat.
+    }
+    !chat.body.trim().is_empty()
+});
+```
+
 ## Colored Text
 
 ### ColorText Utility

@@ -1,4 +1,9 @@
-import { ChatProtocol, MessageProtocol } from "@voxelize/protocol";
+import {
+  ChatHistoryEntry,
+  ChatHistoryPage,
+  ChatProtocol,
+  MessageProtocol,
+} from "@voxelize/protocol";
 import { z, ZodError, ZodObject, ZodOptional, ZodTypeAny } from "zod";
 
 import { DOMUtils } from "../utils/dom-utils";
@@ -69,6 +74,45 @@ export type ArgMetadata = {
   tabComplete?: (currentValue: string, context: TabCompleteContext) => string[];
 };
 
+/** Method a client calls for an older page of the world's chat history. */
+export const CHAT_HISTORY_METHOD = "vox-builtin:chat-history";
+
+/** Lines one history page asks for by default (the server caps it at 100). */
+export const CHAT_HISTORY_PAGE_SIZE = 50;
+
+/** How long an unanswered page request blocks the next one. */
+const CHAT_HISTORY_RETRY_MS = 8000;
+
+/**
+ * A page of the world's chat history as the chat hands it to `onHistory`.
+ * `isJoin` marks the replay that came with a (re)join; the rest answer
+ * `requestHistory`.
+ */
+export type ChatHistoryUpdate = ChatHistoryPage & {
+  isJoin: boolean;
+  /** The line the page was asked to end before; absent on a join replay. */
+  before?: number;
+};
+
+const readHistoryPage = (value: unknown): ChatHistoryPage | null => {
+  if (!value || typeof value !== "object") return null;
+  const { entries, hasMore } = value as {
+    entries?: unknown;
+    hasMore?: unknown;
+  };
+  if (!Array.isArray(entries)) return null;
+  return {
+    entries: entries.filter(
+      (entry): entry is ChatHistoryEntry =>
+        !!entry &&
+        typeof entry === "object" &&
+        typeof (entry as ChatHistoryEntry).seq === "number" &&
+        typeof (entry as ChatHistoryEntry).body === "string",
+    ),
+    hasMore: hasMore === true,
+  };
+};
+
 /**
  * Schema for commands that take a free-form string input.
  * Use this for commands that need the raw rest string.
@@ -130,6 +174,55 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private _commandSymbolCode: string;
 
   private fallbackCommand: ((rest: string) => void) | null = null;
+
+  /**
+   * The history replay of the latest (re)join, kept so a listener attached
+   * after the INIT arrived can still read it.
+   */
+  public joinHistory: ChatHistoryUpdate | null = null;
+
+  /** The `before` of the page request in flight, if any, and when it left. */
+  private pendingHistoryBefore: number | null = null;
+  private pendingHistoryAt = 0;
+
+  /**
+   * Called with every page of the world's chat history: the replay a
+   * (re)join brings, then each page `requestHistory` asks for. Those lines
+   * never pass through `onChat`, so nothing a live line triggers (speech
+   * bubbles, client actions in its metadata) runs again for them.
+   */
+  public onHistory?: (update: ChatHistoryUpdate) => void;
+
+  /**
+   * Ask the server for up to `limit` lines older than `before` (a line's
+   * `seq`). One request is in flight at a time; returns whether this one was
+   * queued.
+   */
+  public requestHistory(before: number, limit = CHAT_HISTORY_PAGE_SIZE) {
+    if (before <= 1) return false;
+    // A request lost with its connection stops blocking after a while.
+    if (
+      this.pendingHistoryBefore !== null &&
+      Date.now() - this.pendingHistoryAt < CHAT_HISTORY_RETRY_MS
+    ) {
+      return false;
+    }
+    this.pendingHistoryBefore = before;
+    this.pendingHistoryAt = Date.now();
+    this.packets.push({
+      type: "METHOD",
+      method: {
+        name: CHAT_HISTORY_METHOD,
+        payload: JSON.stringify({ before, limit }),
+      },
+    });
+    return true;
+  }
+
+  /** Whether a history page request is waiting for its answer. */
+  get isHistoryPending() {
+    return this.pendingHistoryBefore !== null;
+  }
 
   /**
    * Send a chat to the server.
@@ -451,11 +544,47 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         const { commandSymbol } = message.json.options;
         this._commandSymbol = commandSymbol;
         this._commandSymbolCode = DOMUtils.mapKeyToCode(commandSymbol);
+        // A rejoin drops whatever page request the old session left open.
+        this.pendingHistoryBefore = null;
+        const page = readHistoryPage(message.json.chatHistory);
+        if (page) {
+          this.joinHistory = { ...page, isJoin: true };
+          this.onHistory?.(this.joinHistory);
+        }
         break;
       }
       case "CHAT": {
         const { chat } = message;
         this.onChat?.(chat as T);
+        break;
+      }
+      case "METHOD": {
+        if (message.method?.name !== CHAT_HISTORY_METHOD) break;
+        let payload: unknown = message.method.payload;
+        if (typeof payload === "string") {
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            payload = null;
+          }
+        }
+        const before = (payload as { before?: unknown } | null)?.before;
+        if (
+          typeof before === "number" &&
+          before !== this.pendingHistoryBefore
+        ) {
+          // An answer to a request this session no longer waits on.
+          break;
+        }
+        this.pendingHistoryBefore = null;
+        const page = readHistoryPage(payload);
+        if (page) {
+          this.onHistory?.({
+            ...page,
+            isJoin: false,
+            before: typeof before === "number" ? before : undefined,
+          });
+        }
         break;
       }
     }

@@ -319,8 +319,11 @@ impl World {
         });
     }
 
-    /// Handler for `Chat` type messages.
-    pub(super) fn on_chat(&mut self, id: &str, data: Message) {
+    /// Handler for `Chat` type messages. Commands go to the command handler
+    /// and are never logged; every other line is public, so it joins the
+    /// world's chat history (stamped with its position) before it is
+    /// broadcast.
+    pub(super) fn on_chat(&mut self, id: &str, mut data: Message) {
         if let Some(chat) = data.chat.clone() {
             let sender = chat.sender.clone();
             let body = chat.body.clone();
@@ -336,6 +339,20 @@ impl World {
                     warn!("Clients are sending commands, but no command handler set.");
                 }
             } else {
+                // The game may read, rewrite or drop the line first (see
+                // `set_chat_guard`).
+                let guard = self
+                    .ecs()
+                    .try_fetch::<super::handles::ChatGuard>()
+                    .map(|guard| guard.0.clone());
+                if let (Some(guard), Some(chat)) = (guard, data.chat.as_mut()) {
+                    if !guard(self, id, chat) {
+                        return;
+                    }
+                }
+                if let Some(chat) = data.chat.as_mut() {
+                    self.log_inbound_chat(id, chat);
+                }
                 self.broadcast(data, ClientFilter::All);
             }
         }
@@ -383,6 +400,14 @@ impl World {
 
         for (key, value) in &self.extra_init_data {
             json.insert(key.clone(), value.clone());
+        }
+
+        // The chat said before this client arrived, in the same message as
+        // everything else it joins with: it lands ahead of any live line.
+        if !is_for_transport {
+            if let Some(history) = self.chat_history_for_init() {
+                json.insert(CHAT_HISTORY_INIT_KEY.to_owned(), history);
+            }
         }
 
         /* ------------------------ Loading other the clients ----------------------- */

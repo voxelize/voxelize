@@ -94,6 +94,12 @@ message ChatMessage {
   string metadata = 4;
   string trace_id = 5;
   double t_send_ms = 6;
+  // Position in the world's chat log (server/world/chat_log.rs); zero for a
+  // line the log does not keep. Lets a client merge the history it joined
+  // with and the live lines after it without showing one twice.
+  uint64 seq = 7;
+  // Unix milliseconds the server logged the line at; zero when unlogged.
+  double sent_at = 8;
 }
 
 message Message {

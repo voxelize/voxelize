@@ -160,6 +160,10 @@ impl World {
         *self.write_resource::<KdTree>() = KdTree::new();
         *self.write_resource::<Physics>() = Physics::new();
         *self.write_resource::<Mesher>() = Mesher::new();
+        // Close the old log (its writer drains to disk) before the new one
+        // reads the same file back.
+        *self.write_resource::<ChatLog>() = ChatLog::open(None, 0);
+        *self.write_resource::<ChatLog>() = ChatLog::from_config(&config);
 
         self.inbound_state.reset();
         self.ecs.maintain();

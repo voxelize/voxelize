@@ -1,4 +1,5 @@
 mod bookkeeping;
+mod chat_log;
 mod clients;
 mod components;
 mod config;
@@ -65,6 +66,7 @@ use crate::{
 use super::common::ClientFilter;
 
 pub use bookkeeping::*;
+pub use chat_log::*;
 pub use clients::*;
 pub use components::*;
 pub use config::*;
@@ -452,6 +454,7 @@ impl World {
             config.default_time,
         ));
 
+        ecs.insert(ChatLog::from_config(config));
         ecs.insert(Mesher::new());
         ecs.insert(RandomTickCatchUp::new());
         ecs.insert(Pipeline::new());
@@ -540,6 +543,12 @@ impl World {
                     .build(),
                 ClientFilter::Direct(client_id.to_owned()),
             ));
+        });
+
+        // `CHAT_HISTORY_METHOD`, spelled out so a source scan of registered
+        // method names can read it.
+        world.set_method_handle("vox-builtin:chat-history", |world, client_id, payload| {
+            world.reply_chat_history(client_id, payload);
         });
 
         world.set_method_handle("vox-builtin:set-time", |world, _, payload| {

@@ -121,6 +121,38 @@ export type ChatProtocol = {
   metadata?: string;
   traceId?: string;
   tSendMs?: number;
+  /**
+   * Position in the world's chat log, stamped by the server on every public
+   * line it keeps; zero (or absent) for a line it does not.
+   */
+  seq?: number;
+  /** Unix milliseconds the server logged the line at; zero when unlogged. */
+  sentAt?: number;
+};
+
+/**
+ * One line of a world's chat history, as the server replays it on join (the
+ * INIT `chatHistory` key) and pages it (`vox-builtin:chat-history`).
+ */
+export type ChatHistoryEntry = {
+  seq: number;
+  sentAt: number;
+  /** Who spoke as the server knows it: "player", "system", or a game kind. */
+  kind: string;
+  senderId: string;
+  senderName: string;
+  /** The chat protocol type the line was broadcast with. */
+  type: string;
+  sender: string;
+  body: string;
+  metadata: string;
+};
+
+/** A page of chat history, oldest first. */
+export type ChatHistoryPage = {
+  entries: ChatHistoryEntry[];
+  /** Whether the server holds lines older than the first entry. */
+  hasMore: boolean;
 };
 
 export type MessageProtocol<

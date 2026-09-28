@@ -153,6 +153,10 @@ pub struct ChatMessageProtocol {
     pub metadata: String,
     pub trace_id: String,
     pub t_send_ms: f64,
+    /// Position in the world's chat log; zero for a line it does not keep.
+    pub seq: u64,
+    /// Unix milliseconds the server logged the line at; zero when unlogged.
+    pub sent_at: f64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -366,6 +370,8 @@ impl MessageBuilder {
                 metadata: chat.metadata,
                 trace_id: chat.trace_id,
                 t_send_ms: chat.t_send_ms,
+                seq: chat.seq,
+                sent_at: chat.sent_at,
             });
         }
 

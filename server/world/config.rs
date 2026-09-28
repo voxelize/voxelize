@@ -167,6 +167,18 @@ pub struct WorldConfig {
     /// Prefix for all commands.
     pub command_symbol: String,
 
+    /// Public chat lines the world remembers and replays to every client that
+    /// joins (see [`ChatLog`](super::ChatLog)). `0` keeps no history. Default
+    /// is 2000.
+    pub chat_history_capacity: usize,
+
+    /// Directory the chat history persists to. `None` (default) uses
+    /// `<save_dir>/chat` on a saved world and keeps an unsaved world's history
+    /// in memory only; set it to keep chat across restarts of a world whose
+    /// terrain is not saved.
+    #[serde(skip)]
+    pub chat_log_dir: Option<String>,
+
     /// Whether entities should be saved. Only applies if `saving` is true.
     pub save_entities: bool,
 
@@ -314,6 +326,7 @@ const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_SAVE_PRISTINE_CHUNKS: bool = false;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
+const DEFAULT_CHAT_HISTORY_CAPACITY: usize = 2000;
 const DEFAULT_CLIENT_ONLY_MESHING: bool = true;
 const DEFAULT_ENTITY_VISIBLE_RADIUS_CHUNKS: f32 = 24.0;
 const DEFAULT_ENTITY_RELEASE_RADIUS_RATIO: f32 = 1.125;
@@ -364,6 +377,8 @@ pub struct WorldConfigBuilder {
     save_dir: String,
     save_interval: usize,
     command_symbol: String,
+    chat_history_capacity: usize,
+    chat_log_dir: Option<String>,
     save_entities: bool,
     save_pristine_chunks: bool,
     client_only_meshing: bool,
@@ -422,6 +437,8 @@ impl WorldConfigBuilder {
             save_interval: DEFAULT_SAVE_INTERVAL,
             terrain: NoiseOptions::default(),
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
+            chat_history_capacity: DEFAULT_CHAT_HISTORY_CAPACITY,
+            chat_log_dir: None,
             save_entities: true,
             save_pristine_chunks: DEFAULT_SAVE_PRISTINE_CHUNKS,
             client_only_meshing: DEFAULT_CLIENT_ONLY_MESHING,
@@ -667,6 +684,20 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure how many public chat lines the world remembers and replays
+    /// to joining clients. `0` keeps no history. Default is 2000.
+    pub fn chat_history_capacity(mut self, capacity: usize) -> Self {
+        self.chat_history_capacity = capacity;
+        self
+    }
+
+    /// Persist the chat history to `dir` even when the world itself is not
+    /// saved. By default a saved world keeps it in `<save_dir>/chat`.
+    pub fn chat_log_dir(mut self, dir: &str) -> Self {
+        self.chat_log_dir = Some(dir.to_owned());
+        self
+    }
+
     /// Configure whether entities should be saved. Only applies if `saving` is true.
     pub fn save_entities(mut self, save_entities: bool) -> Self {
         self.save_entities = save_entities;
@@ -862,6 +893,8 @@ impl WorldConfigBuilder {
             save_dir: self.save_dir,
             save_interval: self.save_interval,
             command_symbol: self.command_symbol,
+            chat_history_capacity: self.chat_history_capacity,
+            chat_log_dir: self.chat_log_dir,
             save_entities: self.save_entities,
             save_pristine_chunks: self.save_pristine_chunks,
             client_only_meshing: self.client_only_meshing,

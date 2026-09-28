@@ -9,7 +9,31 @@ pub(crate) struct RawUpdateGuard(
     >,
 );
 
+/// A game's look at every public chat line before it goes out, set with
+/// [`World::set_chat_guard`]. It is handed the sender's id and the line, may
+/// rewrite the line, and returns whether it is broadcast at all.
+pub(crate) struct ChatGuard(
+    pub(crate) Arc<dyn Fn(&mut World, &str, &mut crate::protocols::ChatMessage) -> bool + Send + Sync>,
+);
+
 impl World {
+    /// Puts a check in front of public chat. Every line that is not a
+    /// command (a client's, or a transport's speaking for the server) passes
+    /// through the guard before it is logged and broadcast: a game can read
+    /// it (to answer a mention, count words, relay it elsewhere), rewrite it
+    /// (a sender label the speaker may not use, a filtered word), or return
+    /// `false` to drop it, in which case it is neither logged nor sent. The
+    /// guard runs on the world thread, once per line, with the sender's id.
+    /// Commands never reach it; they go to the command handler.
+    pub fn set_chat_guard<
+        F: Fn(&mut World, &str, &mut crate::protocols::ChatMessage) -> bool + Send + Sync + 'static,
+    >(
+        &mut self,
+        guard: F,
+    ) {
+        self.ecs_mut().insert(ChatGuard(Arc::new(guard)));
+    }
+
     /// Puts a check in front of raw client voxel writes. The engine applies
     /// an `Update` message from any client as it stands; a game whose blocks
     /// own state (a container's contents live in its block entity, which a
