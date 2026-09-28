@@ -200,6 +200,7 @@ import {
 } from "./section-visibility";
 import { ShaderClock, windAt } from "./shader-clock";
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
+import { singlePassWhenOneFacing } from "./single-pass-sides";
 import { getVisibleDiscDirection, Sky } from "./sky";
 import {
   emptyTally,
@@ -4036,6 +4037,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       geometry.setIndex(indices);
       computeFlatNormals(geometry);
       geometry.computeBoundingSphere();
+      singlePassWhenOneFacing(
+        material,
+        geometry.getAttribute("normal")?.array,
+      );
       const mesh = new Mesh(geometry, material);
       mesh.name = identifier;
       group.add(mesh);
