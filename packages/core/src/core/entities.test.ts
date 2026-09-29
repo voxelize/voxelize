@@ -441,6 +441,24 @@ describe("Entities resilience with consumers that destructure metadata", () => {
 });
 
 describe("Entities out-of-order state protection", () => {
+  it("reports the tick of the newest state it applied for an entity", () => {
+    const entities = makeEntities();
+    expect(entities.appliedTick("a")).toBeUndefined();
+    entities.onMessage(
+      entityMessage("CREATE", "a", { position: [0, 0, 0] }, { tick: 5 }),
+    );
+    expect(entities.appliedTick("a")).toBe(5);
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { position: [1, 0, 0] }, { tick: 9 }),
+    );
+    // A late, older frame is dropped and never lowers the reported tick.
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { position: [2, 0, 0] }, { tick: 7 }),
+    );
+    expect(entities.appliedTick("a")).toBe(9);
+    expect(entities.appliedTick("b")).toBeUndefined();
+  });
+
   it("never rewinds an entity to an older tick's state", () => {
     const entities = makeEntities();
     entities.onMessage(entityMessage("CREATE", "a", { position: [0, 0, 0] }));

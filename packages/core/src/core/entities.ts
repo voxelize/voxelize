@@ -246,6 +246,17 @@ export class Entities extends Group implements NetIntercept {
   };
 
   /**
+   * The server tick stamp of the newest state applied for entity `id`, or
+   * `undefined` before any stamped message reached it. A client can name it
+   * in a request that acts on what it sees, so an authoritative server can
+   * tell how old that view was, however long the message queue held it,
+   * and resolve the request against the entity as the client saw it.
+   */
+  appliedTick = (id: string): number | undefined => {
+    return this.lastAppliedTick.get(id);
+  };
+
+  /**
    * The network intercept implementation for entities.
    *
    * DO NOT CALL THIS METHOD OR CHANGE IT UNLESS YOU KNOW WHAT YOU ARE DOING.
