@@ -133,3 +133,34 @@ describe("single-pass quads", () => {
     }
   });
 });
+
+describe("soft layer render order", () => {
+  const depthWrites = (mesh: Object3D) =>
+    (mesh as unknown as { material: { depthWrite: boolean } }).material
+      .depthWrite;
+
+  it("puts soft layers at the given order and keeps cutouts at 0", () => {
+    const { world } = stubWorld();
+    const system = new ParticleSystem(world, {
+      maxFlashLights: 0,
+      softLayerRenderOrder: 100000.5,
+    });
+    system.prewarm(CUBE);
+    system.prewarm({ ...CUBE, isCutout: true });
+    const meshes = layerMeshes(system);
+    const soft = meshes.filter((mesh) => !depthWrites(mesh));
+    const cutout = meshes.filter(depthWrites);
+    expect(soft.length).toBeGreaterThan(0);
+    expect(cutout.length).toBeGreaterThan(0);
+    for (const mesh of soft) expect(mesh.renderOrder).toBe(100000.5);
+    for (const mesh of cutout) expect(mesh.renderOrder).toBe(0);
+  });
+
+  it("defaults every layer to 0", () => {
+    const { world } = stubWorld();
+    const system = new ParticleSystem(world, { maxFlashLights: 0 });
+    system.prewarm(CUBE);
+    system.prewarm({ ...CUBE, isCutout: true });
+    for (const mesh of layerMeshes(system)) expect(mesh.renderOrder).toBe(0);
+  });
+});

@@ -280,4 +280,13 @@ export interface ParticleSystemOptions {
    * idle layers included (a material update per pass).
    */
   isQuadSinglePass: boolean;
+  /**
+   * The render order of every soft (non-depth-writing) layer. Transparent
+   * objects draw in render-order order before distance, so at 0 a soft
+   * layer draws before any higher-ordered see-through geometry that writes
+   * depth (a host's leaf-like cutouts, say), which then paints over
+   * particles in front of it. Set it just above those. Cutout layers write
+   * depth themselves and keep 0.
+   */
+  softLayerRenderOrder: number;
 }

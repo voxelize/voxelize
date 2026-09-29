@@ -39,6 +39,8 @@ export type LayerSpec = {
    * back-then-front pair (see `ParticleSystemOptions.isQuadSinglePass`).
    */
   isSinglePass?: boolean;
+  /** The layer mesh's render order (see `softLayerRenderOrder`). */
+  renderOrder?: number;
 };
 
 /** The default channel bloom-exempt particle meshes join. */
@@ -187,6 +189,7 @@ export class ParticleLayer {
     this.mesh = new InstancedMesh(geometry, material, capacity);
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = spec.renderOrder ?? 0;
     this.mesh.count = 0;
     if (spec.bloomExemptLayer !== null) {
       // Joined, not moved: the mesh still draws in the main pass on layer

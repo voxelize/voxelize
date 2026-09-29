@@ -32,6 +32,7 @@ const DEFAULT_OPTIONS: ParticleSystemOptions = {
   maxFlashLights: 4,
   bloomExemptLayer: PARTICLE_BLOOM_EXEMPT_LAYER,
   isQuadSinglePass: true,
+  softLayerRenderOrder: 0,
 };
 
 const TAU = Math.PI * 2;
@@ -86,6 +87,7 @@ export class ParticleSystem {
   private readonly capacityPerLayer: number;
   private readonly bloomExemptLayer: number;
   private readonly isQuadSinglePass: boolean;
+  private readonly softLayerRenderOrder: number;
 
   private readonly scratchColor = new Color();
   private readonly scratchPosition = new Vector3();
@@ -110,6 +112,7 @@ export class ParticleSystem {
       maxFlashLights,
       bloomExemptLayer,
       isQuadSinglePass,
+      softLayerRenderOrder,
     } = {
       ...DEFAULT_OPTIONS,
       ...options,
@@ -117,6 +120,7 @@ export class ParticleSystem {
     this.capacityPerLayer = capacityPerLayer;
     this.bloomExemptLayer = bloomExemptLayer;
     this.isQuadSinglePass = isQuadSinglePass;
+    this.softLayerRenderOrder = softLayerRenderOrder;
     for (let i = 0; i < maxFlashLights; i += 1) {
       const light = new PointLight(WHITE, 0, 0);
       light.visible = false;
@@ -338,6 +342,7 @@ export class ParticleSystem {
       isCutout,
       bloomExemptLayer: isBloomExempt ? this.bloomExemptLayer : null,
       isSinglePass: this.isQuadSinglePass,
+      renderOrder: isCutout ? 0 : this.softLayerRenderOrder,
     });
     this.layers.set(key, layer);
     this.group.add(layer.mesh);
