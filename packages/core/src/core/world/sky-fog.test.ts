@@ -23,3 +23,24 @@ describe("camera-relative sky sampling", () => {
     );
   });
 });
+
+describe("the sky from under water", () => {
+  it("shows the sky only through the Snell window, refracted, with the in-scatter elsewhere", () => {
+    expect(SkyFragmentShader).toContain(
+      "vec3 airDir = refract(viewDir, vec3(0.0, -1.0, 0.0), 1.333);",
+    );
+    expect(SkyFragmentShader).toContain(
+      "vec3 inScatter = uUnderwaterAmbient * (1.0 + uUnderwaterInScatterTilt * viewDir.y);",
+    );
+    expect(SkyFragmentShader).toContain(
+      "color = mix(underColor, inScatter, uUnderwaterFade);",
+    );
+  });
+
+  it("draws the refracted sun as a pixel disc inside the window", () => {
+    expect(SkyFragmentShader).toContain(
+      "floor(vec2(dot(airDir, sunSide), dot(airDir, sunUp)) / SNELL_SUN_PIXEL)",
+    );
+    expect(SkyFragmentShader).not.toContain("outsideWindow");
+  });
+});

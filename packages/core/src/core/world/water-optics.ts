@@ -424,6 +424,50 @@ export const WATER_OPTICS = Object.freeze({
   undersideRippleShade: 0.08,
 
   /**
+   * The Snell window (`surfaceUndersideScale` 1, the default; the film
+   * above is style 4). Seen from below, the surface transmits only within
+   * the critical angle of straight up (48.6 degrees for water); beyond it,
+   * it reflects everything. The underside is evaluated per 1/16-block
+   * texel: each texel's ray meets the ripple-tilted surface, and whether
+   * it is inside the window is decided per texel, so the window's rim is a
+   * ragged, pixel-stepped edge the ripples keep moving rather than a soft
+   * halo. Inside, the frame drawn before water shows (the sky dome maps the
+   * whole sky into the window by refraction, sky.ts), scaled by
+   * `undersideWindowGain` and by the Fresnel transmission, so the window is
+   * the brightest thing in view; it falls off toward the rim, where the
+   * surface turns into a mirror. Outside, the surface mirrors the water
+   * below: the in-scatter looking down, lifted toward the lit bed in
+   * shallow water (`undersideReflectionScale`, `undersideShallowBedLift`
+   * over `undersideShallowBedDepth` blocks), and broken by the sun's
+   * glitter where a ripple facet turns a texel's ray onto it.
+   *
+   * `undersideWindowRippleKeep` is the share of the ripple normal the
+   * window test sees (most of it: the rim should shiver),
+   * `undersideReflectionRipple` the ripples' flat light-and-shade steps on
+   * the mirror (so the band past the rim moves instead of sitting flat),
+   * `undersideGlitterCos` the cosine to the sun inside which a texel
+   * glints, and `undersideGlitterStrength` its peak against the sun
+   * colour.
+   */
+  undersideWindowRippleKeep: 0.8,
+  undersideWindowGain: 1.25,
+  undersideReflectionScale: 1.35,
+  undersideReflectionRipple: 0.14,
+  undersideShallowBedLift: 0.55,
+  undersideShallowBedDepth: 4,
+  undersideGlitterCos: 0.9985,
+  undersideGlitterStrength: 1.6,
+
+  /**
+   * The underwater fog's in-scatter brightens looking up and darkens
+   * looking down: the light arrives from the surface, so a ray toward it
+   * scatters more of it into the eye than a ray into the depths. The
+   * target is the scatter colour times `1 + underwaterInScatterTilt * y`
+   * for the ray's unit direction y: unchanged looking level.
+   */
+  underwaterInScatterTilt: 0.35,
+
+  /**
    * Flow. Water runs downhill along its own surface, and a fluid's top face
    * is a bilinear patch through the mesher's corner heights, which step
    * down one stage per block away from the source. That rest height is a
@@ -671,12 +715,40 @@ if (uCameraSubmersion > 0.001) {
   // A material that never set the A/B scale reads 0: the baked extinction.
   float uwScale = uUnderwaterViewScale > 0.0 ? uUnderwaterViewScale : 1.0;
   vec3 uwTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * uwPath * uwScale);
-  vec3 uwColor = gl_FragColor.rgb * uwTransmit${isEmission ? "" : " + uUnderwaterAmbient * (1.0 - uwTransmit)"};
+  // In-scatter from the surface side: brighter looking up, darker down.
+  vec3 uwInScatter = uUnderwaterAmbient
+    * (1.0 + ${WATER_OPTICS.underwaterInScatterTilt.toFixed(4)} * uwRay.y / uwDist);
+  vec3 uwColor = gl_FragColor.rgb * uwTransmit${isEmission ? "" : " + uwInScatter * (1.0 - uwTransmit)"};
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uwColor, uCameraSubmersion);
 }
 `;
 
 export const UNDERWATER_FOG_FRAGMENT = createUnderwaterFogFragment();
+
+/**
+ * The underwater in-scatter's brightness, against the scatter colour, for
+ * a ray whose unit direction has vertical component `dirY` (mirrors the
+ * fog fragment and the sky dome's reflection band).
+ */
+export function underwaterInScatterScale(dirY: number): number {
+  const y = Math.min(1, Math.max(-1, dirY));
+  return 1 + WATER_OPTICS.underwaterInScatterTilt * y;
+}
+
+/**
+ * The share of light the surface passes from above to a ray meeting it
+ * from below at `cosIncidence` to its normal (mirrors the Snell-window
+ * underside): none beyond the critical angle, where the surface reflects
+ * everything, and Schlick's Fresnel on the air-side angle inside it.
+ */
+export function undersideTransmission(cosIncidence: number): number {
+  const cosI = Math.min(1, Math.max(0, cosIncidence));
+  const n = WATER_OPTICS.refractiveIndex;
+  const sinT2 = n * n * (1 - cosI * cosI);
+  if (sinT2 >= 1) return 0;
+  const cosT = Math.sqrt(1 - sinT2);
+  return 1 - (0.02 + 0.98 * Math.pow(1 - cosT, 5));
+}
 
 /**
  * The above-surface counterpart of {@link UNDERWATER_FOG_FRAGMENT}: the same

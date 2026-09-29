@@ -626,8 +626,8 @@ uniform float uWaterLevel;
 uniform float uWaterStreakStrength;
 uniform float uBedCausticScale;
 uniform float uSurfaceUndersideScale;
-// The underside's continuous ceiling (style 1): film brightness against the
-// water's scatter, scene shown straight up and at grazing, ripple shading.
+// The underside's continuous ceiling (style 4, A/B): film brightness against
+// the water's scatter, scene shown straight up and at grazing, ripple shading.
 uniform vec4 uSurfaceUndersideTuning;
 uniform float uWaterFresnelStrength;
 // 1: the surface is drawn per 1/16-block texel — ripples sampled at texel
@@ -1527,14 +1527,86 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;
 
-  // From below, the surface is one continuous, gently rippled ceiling
-  // (style 1): a lit film a little brighter than the water, through which
-  // the scene above shows most straight up and least at grazing, on a
-  // smooth slope with no window edge — so no disc of clear water follows
-  // the camera over murk. Style 3 keeps the Snell window (A/B only):
-  // the scene above inside it, a calm mirror of the water outside. The
-  // caustic web belongs to the bed; the ceiling keeps a faint shimmer.
-  if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && ((uSurfaceUndersideScale > 0.5 && uSurfaceUndersideScale < 1.5) || uSurfaceUndersideScale > 2.5)) {
+  // From below, the surface is a Snell window (style 1, the default),
+  // evaluated per 1/16-block texel: inside the critical angle of the
+  // ripple-tilted surface, the frame drawn before water (the sky dome maps
+  // the whole sky into the window, sky.ts), brighter than anything else in
+  // view and dimming toward the rim by Fresnel; beyond it, a mirror of the
+  // water below, lifted toward the lit bed in shallow water and broken by
+  // the sun's glitter. The rim is decided per texel, so it is a ragged
+  // pixel edge the ripples keep moving, never a soft halo. The caustic web
+  // stays on the bed.
+  if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && uSurfaceUndersideScale > 0.5 && uSurfaceUndersideScale < 1.5) {
+    vec2 snellXZ = (floor(wPos.xz * 16.0) + 0.5) / 16.0;
+    vec3 snellRay = normalize(vec3(snellXZ.x, wPos.y, snellXZ.y) - cameraPosition);
+    vec3 snellNormal = normalize(mix(
+      vec3(0.0, 1.0, 0.0),
+      waterNormal,
+      rippleLod * ${WATER_OPTICS.undersideWindowRippleKeep.toFixed(4)}
+    ));
+    float snellCosI = clamp(dot(snellRay, snellNormal), 0.0, 1.0);
+    float snellSinT2 = ${(WATER_OPTICS.refractiveIndex * WATER_OPTICS.refractiveIndex).toFixed(4)}
+      * (1.0 - snellCosI * snellCosI);
+    float snellInside = step(snellSinT2, 1.0);
+    float snellCosT = sqrt(max(1.0 - snellSinT2, 0.0));
+    float snellT = snellInside * (1.0 - (0.02 + 0.98 * pow(1.0 - snellCosT, 5.0)));
+
+    // Beyond the window the surface mirrors the water below: the
+    // in-scatter along the reflected ray (darker the steeper it dives),
+    // lifted toward the lit bed where the water under the surface is
+    // shallow.
+    vec3 snellDown = reflect(snellRay, snellNormal);
+    vec3 snellMirror = uUnderwaterAmbient
+      * (1.0 + ${WATER_OPTICS.underwaterInScatterTilt.toFixed(4)} * snellDown.y)
+      * ${WATER_OPTICS.undersideReflectionScale.toFixed(4)};
+    float snellShallow = ${WATER_OPTICS.undersideShallowBedLift.toFixed(4)}
+      * (1.0 - smoothstep(0.0, ${WATER_OPTICS.undersideShallowBedDepth.toFixed(4)}, vFluidDepthBelow));
+    snellMirror = mix(snellMirror, uUnderwaterAmbient * vec3(1.18, 1.12, 0.98), snellShallow);
+    // The ripples as three flat steps of light and shade on the mirror.
+    float snellRipple = floor(clamp(
+      dot(waterNormal.xz, normalize(uCelestialDirection.xz + vec2(1e-4))) * 6.0,
+      -1.0,
+      1.0
+    ) + 0.5);
+    snellMirror *= 1.0 + ${WATER_OPTICS.undersideReflectionRipple.toFixed(4)} * snellRipple;
+
+    // The sun through a ripple facet: a texel whose ray leaves the water
+    // toward the sun glints, inside the window and at its shivering rim.
+    vec3 snellOut = refract(snellRay, -snellNormal, ${WATER_OPTICS.refractiveIndex.toFixed(4)});
+    float snellGlint = snellInside * step(
+      ${WATER_OPTICS.undersideGlitterCos.toFixed(5)},
+      dot(snellOut, uCelestialDirection) / max(length(snellOut), 1e-4)
+    ) * uSunlightIntensity;
+
+    vec3 snellAbove;
+    float snellAlpha = 1.0;
+    if (uWaterRefractionReady > 0.5) {
+      // The frame drawn before water, shifted along the ripple slope more
+      // toward the rim, where the surface bends the view most.
+      vec2 snellUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0))
+        + snellNormal.xz * (1.0 - snellCosI)
+          * ${(WATER_OPTICS.refractionSlopeScale * WATER_OPTICS.undersideDistortion).toFixed(4)}
+          * uWaterRefractionStrength;
+      snellAbove = texture2D(uSceneColor, clamp(snellUv, vec2(0.001), vec2(0.999))).rgb
+        * ${WATER_OPTICS.undersideWindowGain.toFixed(4)};
+      outgoingLight.rgb = mix(snellMirror, snellAbove, snellT);
+    } else {
+      // No capture: the scene behind (the dome's window and whatever stands
+      // above the water) shows through the blend in the window's share.
+      snellAlpha = 1.0 - snellT;
+      outgoingLight.rgb = snellMirror;
+    }
+    outgoingLight.rgb += uSunColor * snellGlint
+      * ${WATER_OPTICS.undersideGlitterStrength.toFixed(4)} / max(snellAlpha, 0.05);
+    diffuseColor.a = snellAlpha;
+  }
+
+  // Style 4 keeps the continuous ceiling (A/B): a lit film a little
+  // brighter than the water, through which the scene above shows most
+  // straight up and least at grazing, with no window edge. Style 3 keeps
+  // the earlier soft Snell window (A/B): the scene above inside it, a calm
+  // mirror of the water outside.
+  if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && uSurfaceUndersideScale > 2.5) {
     vec3 ceilRay = normalize(wPos - cameraPosition);
     vec3 ceilNormal = normalize(mix(
       vec3(0.0, 1.0, 0.0),
@@ -1551,7 +1623,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     );
     vec3 ceilMirror = uUnderwaterAmbient * ${WATER_OPTICS.undersideMirrorScale.toFixed(4)};
     vec2 ceilShimmerXZ = wPos.xz;
-    if (uSurfaceUndersideScale < 1.5) {
+    if (uSurfaceUndersideScale > 3.5) {
       // The continuous ceiling, evaluated per 1/16-block texel: the share
       // of the scene above falls off as a power of the cosine to straight
       // up, to nothing at grazing where the surface mirrors the water (no
@@ -1591,7 +1663,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
       vec3 ceilOut = refract(ceilRay, -ceilNormal, ${WATER_OPTICS.refractiveIndex.toFixed(4)});
       ceilAbove = mix(uSkyMiddleColor, uSkyTopColor, sqrt(clamp(ceilOut.y, 0.0, 1.0)));
       ceilAlpha = mix(${WATER_OPTICS.undersideMirrorOpacity.toFixed(4)}, 0.5, ceilWindow);
-      if (uSurfaceUndersideScale < 1.5) {
+      if (uSurfaceUndersideScale > 3.5) {
         // The ceiling's own share is the film; the real scene behind it
         // makes up the rest through the blend, on the same slope.
         ceilAbove = ceilMirror;

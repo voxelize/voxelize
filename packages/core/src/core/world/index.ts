@@ -621,6 +621,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   private fluidMaterialsRenderBackSide = false;
 
   /**
+   * Whether the cloud layer is hidden because the camera is under water:
+   * the sky dome then shows the sky refracted into the Snell window, where
+   * unrefracted clouds would hang at the wrong place.
+   */
+  private cloudsHiddenUnderwater = false;
+
+  /**
    * Shared dynamic spot-cone lighting (flashlights, vehicle headlights).
    * The game rebuilds the cone list every frame; chunk materials bind these
    * uniforms at creation.
@@ -5627,6 +5634,19 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.sky.uUnderwaterAmbient.value.copy(this.waterOptics.ambientColor);
     this.sky.uUnderwaterFade.value = this.waterOptics.skyFade;
+    this.sky.uUnderwaterSubmerged.value =
+      this.waterOptics.submersion >= 0.5 ? 1 : 0;
+    const lighting = this.chunkRenderer.shaderLightingUniforms;
+    this.sky.uCelestialDirection.value.copy(lighting.celestialDirection.value);
+    this.sky.uSunColor.value.copy(lighting.sunColor.value);
+    this.sky.uSunlightIntensity.value =
+      this.chunkRenderer.uniforms.sunlightIntensity.value;
+
+    const hideClouds = this.waterOptics.submersion >= 0.5;
+    if (hideClouds !== this.cloudsHiddenUnderwater && this.clouds) {
+      this.cloudsHiddenUnderwater = hideClouds;
+      this.clouds.visible = !hideClouds;
+    }
   }
 
   renderShadowMaps(

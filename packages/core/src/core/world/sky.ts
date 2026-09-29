@@ -12,6 +12,8 @@ import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
+import { WATER_OPTICS } from "./water-optics";
+
 export type SkyShadingCycleData = {
   start: number;
   name: string;
@@ -172,6 +174,19 @@ export class Sky extends CanvasBox {
    * driven by camera depth.
    */
   public uUnderwaterFade = { value: 0 };
+
+  /**
+   * 1 while the camera is under water: the dome then shows the sky only
+   * through the Snell window, refracted, and the water's in-scatter
+   * everywhere else.
+   */
+  public uUnderwaterSubmerged = { value: 0 };
+
+  /** The celestial disc's direction, colour and light, for the refracted
+   * disc the dome draws inside the Snell window. */
+  public uCelestialDirection = { value: new Vector3(0, 1, 0) };
+  public uSunColor = { value: new Color(1, 1, 1) };
+  public uSunlightIntensity = { value: 1 };
 
   public shadingData: SkyShadingCycleData[] = [];
 
@@ -452,6 +467,13 @@ export class Sky extends CanvasBox {
         uExponent2: { value: 1.2 },
         uUnderwaterAmbient: this.uUnderwaterAmbient,
         uUnderwaterFade: this.uUnderwaterFade,
+        uUnderwaterSubmerged: this.uUnderwaterSubmerged,
+        uUnderwaterInScatterTilt: {
+          value: WATER_OPTICS.underwaterInScatterTilt,
+        },
+        uCelestialDirection: this.uCelestialDirection,
+        uSunColor: this.uSunColor,
+        uSunlightIntensity: this.uSunlightIntensity,
       },
       vertexShader: SkyVertexShader,
       fragmentShader: SkyFragmentShader,

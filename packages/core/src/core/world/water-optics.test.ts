@@ -13,6 +13,8 @@ import {
   getUnderwaterAmbientColor,
   measureWaterColumn,
   UNDERWATER_FOG_FRAGMENT,
+  underwaterInScatterScale,
+  undersideTransmission,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
   WATER_SURFACE_NORMAL_LAYERS_GLSL,
@@ -598,5 +600,75 @@ describe("WaterOptics", () => {
     }
     expect(optics.submersion).toBe(0);
     expect(optics.lightFilter.r).toBeCloseTo(1);
+  });
+});
+
+describe("the Snell window underside", () => {
+  it("passes nearly everything straight up and nothing past the critical angle", () => {
+    const critical = Math.asin(1 / WATER_OPTICS.refractiveIndex);
+    expect(undersideTransmission(1)).toBeCloseTo(0.98, 3);
+    expect(undersideTransmission(Math.cos(critical - 0.01))).toBeGreaterThan(0);
+    expect(undersideTransmission(Math.cos(critical + 0.01))).toBe(0);
+    expect(undersideTransmission(0)).toBe(0);
+  });
+
+  it("dims monotonically toward the rim, then drops to a mirror", () => {
+    let previous = Infinity;
+    for (let degrees = 0; degrees <= 60; degrees += 2) {
+      const t = undersideTransmission(Math.cos((degrees * Math.PI) / 180));
+      expect(t).toBeLessThanOrEqual(previous);
+      previous = t;
+    }
+  });
+
+  it("lifts the window above the sky it shows and keeps the band past the rim near the fog", () => {
+    expect(WATER_OPTICS.undersideWindowGain).toBeGreaterThan(1);
+    // The mirror scales the water's scatter colour (as the film did at
+    // 1.3): about the fog's own brightness once the reflected ray's dive
+    // darkens it, so the window is the bright feature without the rest of
+    // the surface turning murkier than the ceiling it replaces.
+    expect(WATER_OPTICS.undersideReflectionScale).toBeGreaterThan(0.9);
+    expect(WATER_OPTICS.undersideReflectionScale).toBeLessThanOrEqual(
+      WATER_OPTICS.undersideFilmScale + 0.1,
+    );
+    expect(WATER_OPTICS.undersideWindowRippleKeep).toBeGreaterThan(0.5);
+    expect(WATER_OPTICS.undersideWindowRippleKeep).toBeLessThanOrEqual(1);
+  });
+
+  it("is the default underside and compiles per texel, with the film kept as style 4", () => {
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
+      "vec2 snellXZ = (floor(wPos.xz * 16.0) + 0.5) / 16.0;",
+    );
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
+      "uSurfaceUndersideScale > 0.5 && uSurfaceUndersideScale < 1.5) {\n    vec2 snellXZ",
+    );
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
+      "if (uSurfaceUndersideScale > 3.5) {",
+    );
+  });
+});
+
+describe("underwater in-scatter", () => {
+  it("is brighter looking up than down and unchanged looking level", () => {
+    expect(underwaterInScatterScale(1)).toBeGreaterThan(
+      underwaterInScatterScale(0),
+    );
+    expect(underwaterInScatterScale(0)).toBe(1);
+    expect(underwaterInScatterScale(-1)).toBeLessThan(1);
+    expect(underwaterInScatterScale(-1)).toBeGreaterThan(0.4);
+  });
+
+  it("darkens with depth, since its colour is the depth-filtered scatter", () => {
+    const shallow = getUnderwaterAmbientColor(2, 1, new Color());
+    const deep = getUnderwaterAmbientColor(20, 1, new Color());
+    for (const y of [-1, 0, 1]) {
+      const scale = underwaterInScatterScale(y);
+      expect(deep.g * scale).toBeLessThan(shallow.g * scale);
+      expect(deep.b * scale).toBeLessThan(shallow.b * scale);
+    }
+  });
+
+  it("tilts the fog toward the ray's direction", () => {
+    expect(UNDERWATER_FOG_FRAGMENT).toContain("uwRay.y / uwDist");
   });
 });
