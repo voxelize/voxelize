@@ -39,6 +39,7 @@ const VOXEL_NEIGHBORS = [
 const ALL_TRANSPARENT = [true, true, true, true, true, true];
 
 interface VoxelAccess {
+  hasChunkAt(vx: number, vz: number): boolean;
   getVoxelAt(vx: number, vy: number, vz: number): number;
   getVoxelRotationAt(vx: number, vy: number, vz: number): BlockRotation;
   getVoxelStageAt(vx: number, vy: number, vz: number): number;
@@ -78,8 +79,23 @@ type BorderNeighbor = {
   maxY: number;
 };
 
+/**
+ * Exact map keys for chunk and voxel coordinates. These caches used to key
+ * on a 32-bit XOR hash, and distinct cells share one: chunk (-1,-1) and
+ * (1,1) hash alike, so a job around the origin wrote one chunk's light into
+ * the other, and voxel collisions handed a flood the wrong block (stone
+ * read as air). Unique while |cz| < 2^21 and |vx| < 2^19, far past any
+ * world's extent, and y < 4096.
+ */
+function chunkKey(cx: number, cz: number): number {
+  return cx * 4194304 + cz;
+}
+
+function voxelKey(vx: number, vy: number, vz: number): number {
+  return (vx * 4194304 + vz) * 4096 + vy;
+}
+
 class BoundedSpace implements VoxelAccess {
-  private chunkCache = new Map<number, RawChunk | null>();
   private modifiedChunks = new Map<number, ModifiedChunk>();
   private borderNeighbors = new Map<number, BorderNeighbor>();
 
@@ -91,10 +107,6 @@ class BoundedSpace implements VoxelAccess {
     private gridOffsetZ: number,
     private chunkSize: number,
   ) {}
-
-  private hashChunkCoords(cx: number, cz: number): number {
-    return ((cx * 73856093) ^ (cz * 83492791)) >>> 0;
-  }
 
   private getChunkByCoords(cx: number, cz: number): RawChunk | null {
     const localX = cx - this.gridOffsetX;
@@ -112,14 +124,20 @@ class BoundedSpace implements VoxelAccess {
     return this.chunkGrid[localX][localZ];
   }
 
-  private getCachedChunk(cx: number, cz: number): RawChunk | null {
-    const key = this.hashChunkCoords(cx, cz);
-    let chunk = this.chunkCache.get(key);
-    if (chunk === undefined) {
-      chunk = this.getChunkByCoords(cx, cz);
-      this.chunkCache.set(key, chunk);
-    }
-    return chunk;
+  /**
+   * Whether the chunk holding this column was sent with the job. A chunk
+   * that is not loaded or not ready arrives as null and reads as air with
+   * no light; a flood must stop at it rather than pass through that phantom
+   * air and come back into a loaded chunk where real terrain would have
+   * blocked it. The chunk brings its own light when it arrives.
+   */
+  hasChunkAt(vx: number, vz: number): boolean {
+    return (
+      this.getChunkByCoords(
+        Math.floor(vx / this.chunkSize),
+        Math.floor(vz / this.chunkSize),
+      ) !== null
+    );
   }
 
   private recordModifiedChunk(
@@ -129,12 +147,12 @@ class BoundedSpace implements VoxelAccess {
     vy: number,
     vz: number,
   ): void {
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     if (!chunk) {
       return;
     }
 
-    const key = this.hashChunkCoords(cx, cz);
+    const key = chunkKey(cx, cz);
     const existing = this.modifiedChunks.get(key);
     if (!existing) {
       this.modifiedChunks.set(key, { chunk, minY: vy, maxY: vy });
@@ -162,7 +180,7 @@ class BoundedSpace implements VoxelAccess {
   }
 
   private recordBorderNeighbor(cx: number, cz: number, vy: number): void {
-    const key = this.hashChunkCoords(cx, cz);
+    const key = chunkKey(cx, cz);
     const existing = this.borderNeighbors.get(key);
     if (!existing) {
       this.borderNeighbors.set(key, { coords: [cx, cz], minY: vy, maxY: vy });
@@ -174,25 +192,25 @@ class BoundedSpace implements VoxelAccess {
 
   getVoxelAt(vx: number, vy: number, vz: number): number {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     return chunk?.getVoxel(vx, vy, vz) ?? 0;
   }
 
   getVoxelRotationAt(vx: number, vy: number, vz: number): BlockRotation {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     return chunk?.getVoxelRotation(vx, vy, vz) ?? new BlockRotation();
   }
 
   getVoxelStageAt(vx: number, vy: number, vz: number): number {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     return chunk?.getVoxelStage(vx, vy, vz) ?? 0;
   }
 
   getSunlightAt(vx: number, vy: number, vz: number): number {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     return chunk?.getSunlight(vx, vy, vz) ?? 0;
   }
 
@@ -203,13 +221,13 @@ class BoundedSpace implements VoxelAccess {
     color: LightColor,
   ): number {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     return chunk?.getTorchLight(vx, vy, vz, color) ?? 0;
   }
 
   setSunlightAt(vx: number, vy: number, vz: number, level: number): void {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     if (chunk) {
       chunk.setSunlight(vx, vy, vz, level);
       this.recordModifiedChunk(cx, cz, vx, vy, vz);
@@ -224,7 +242,7 @@ class BoundedSpace implements VoxelAccess {
     color: LightColor,
   ): void {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk([vx, vy, vz], this.chunkSize);
-    const chunk = this.getCachedChunk(cx, cz);
+    const chunk = this.getChunkByCoords(cx, cz);
     if (chunk) {
       chunk.setTorchLight(vx, vy, vz, level, color);
       this.recordModifiedChunk(cx, cz, vx, vy, vz);
@@ -296,12 +314,8 @@ function floodLight(
   const blockCache = new Map<number, Block | null>();
   const rotationCache = new Map<number, BlockRotation>();
 
-  const hashCoords = (vx: number, vy: number, vz: number): number => {
-    return ((vx * 73856093) ^ (vy * 19349663) ^ (vz * 83492791)) >>> 0;
-  };
-
   const getCachedBlock = (vx: number, vy: number, vz: number): Block | null => {
-    const key = hashCoords(vx, vy, vz);
+    const key = voxelKey(vx, vy, vz);
     let block = blockCache.get(key);
     if (block === undefined) {
       const id = space.getVoxelAt(vx, vy, vz);
@@ -317,7 +331,7 @@ function floodLight(
     vy: number,
     vz: number,
   ): BlockRotation => {
-    const key = hashCoords(vx, vy, vz);
+    const key = voxelKey(vx, vy, vz);
     let rotation = rotationCache.get(key);
     if (!rotation) {
       rotation = space.getVoxelRotationAt(vx, vy, vz);
@@ -383,6 +397,10 @@ function floodLight(
         (min && (nvx < min[0] || nvz < min[2])) ||
         (max && (nvx >= max[0] || nvz >= max[2]))
       ) {
+        continue;
+      }
+
+      if (!space.hasChunkAt(nvx, nvz)) {
         continue;
       }
 
@@ -457,11 +475,13 @@ function removeLightsBatch(
   options: WorldOptions,
   continuation: LightNode[] = [],
 ): { fill: LightNode[]; pendingRemovals: LightNode[] } {
-  if (!voxels.length && !continuation.length) return { fill: [], pendingRemovals: [] };
+  if (!voxels.length && !continuation.length)
+    return { fill: [], pendingRemovals: [] };
 
   const { maxHeight, maxLightLevel } = options;
 
   const fill: LightNode[] = [];
+  const emitters: LightNode[] = [];
   const queue: LightNode[] = [...continuation];
 
   const isSunlight = color === "SUNLIGHT";
@@ -536,6 +556,14 @@ function removeLightsBatch(
 
       if (nl === 0) continue;
 
+      // A remaining emitter the front crosses shines again at its own level,
+      // whichever branch it lands in below: one lit brighter by the removed
+      // light (a dim lamp beside a bright one) is zeroed like any cell, and
+      // the liveness filter cannot keep it as fill once its value is gone.
+      if (!isSunlight && dynamicTorchLightLevel > 0) {
+        emitters.push({ voxel: nVoxel, level: dynamicTorchLightLevel });
+      }
+
       if (
         nl < level ||
         (isSunlight &&
@@ -550,25 +578,12 @@ function removeLightsBatch(
           space.setTorchLightAt(nvx, nvy, nvz, 0, color);
         }
       } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
-        if (isSunlight) {
-          fill.push({ voxel: [nvx, nvy, nvz], level: nl });
-          continue;
-        }
-
-        const emissionLevel = dynamicTorchLightLevel;
-        if (typeof emissionLevel !== "number" || emissionLevel <= 0) {
-          queue.push({ voxel: [nvx, nvy, nvz], level: nl });
-          space.setTorchLightAt(nvx, nvy, nvz, 0, color);
-          continue;
-        }
-
-        if (nl === emissionLevel) {
-          fill.push({ voxel: [nvx, nvy, nvz], level: emissionLevel });
-          continue;
-        }
-
-        queue.push({ voxel: [nvx, nvy, nvz], level: nl });
-        space.setTorchLightAt(nvx, nvy, nvz, 0, color);
+        // Light at or above the front came from somewhere else: it is the
+        // boundary to reflood from, never something to zero. Zeroing it too
+        // chased every connected field of this colour back to its emitters,
+        // far past the job box the result is merged through, and cut the
+        // surviving light off in a straight line on the box edge.
+        fill.push({ voxel: [nvx, nvy, nvz], level: nl });
       }
     }
   }
@@ -577,7 +592,7 @@ function removeLightsBatch(
     isSunlight
       ? space.getSunlightAt(vx, vy, vz)
       : space.getTorchLightAt(vx, vy, vz, color),
-  );
+  ).concat(emitters);
 
   const pendingRemovals = budgetExceeded ? queue.slice(head) : [];
   if (budgetExceeded) {
@@ -716,11 +731,17 @@ onmessage = function (e) {
     );
 
     if (floods.length > 0) {
+      // A seed only ever raises its cell. The removal's refill above may
+      // already have brought brighter light back into it — a dim lamp placed
+      // inside a torch's glow — and writing the seed over that left the
+      // lamp's own cell darker than the server's, which keeps the max too.
       floods.forEach((node) => {
         const [vx, vy, vz] = node.voxel;
         if (color === "SUNLIGHT") {
-          space.setSunlightAt(vx, vy, vz, node.level);
-        } else {
+          if (space.getSunlightAt(vx, vy, vz) < node.level) {
+            space.setSunlightAt(vx, vy, vz, node.level);
+          }
+        } else if (space.getTorchLightAt(vx, vy, vz, color) < node.level) {
           space.setTorchLightAt(vx, vy, vz, node.level, color);
         }
       });

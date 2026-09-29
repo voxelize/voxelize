@@ -446,6 +446,7 @@ export function removeLightsBatch(
 
   const queue: LightNode[] = [];
   const fill: LightNode[] = [];
+  const emitters: LightNode[] = [];
 
   // Initialise the queue with all voxels to be cleared.
   voxels.forEach(([vx, vy, vz]) => {
@@ -485,13 +486,17 @@ export function removeLightsBatch(
         rotation,
       );
 
+      const emissionLevel = isSunlight
+        ? 0
+        : BlockUtils.getBlockTorchLightLevelAt(nBlock, color, [nvx, nvy, nvz], {
+            getVoxelAt: (x, y, z) => world.getVoxelAt(x, y, z),
+            getVoxelRotationAt: (x, y, z) => world.getVoxelRotationAt(x, y, z),
+            getVoxelStageAt: (x, y, z) => world.getVoxelStageAt(x, y, z),
+          });
+
       if (
         !isSunlight &&
-        BlockUtils.getBlockTorchLightLevelAt(nBlock, color, [nvx, nvy, nvz], {
-          getVoxelAt: (x, y, z) => world.getVoxelAt(x, y, z),
-          getVoxelRotationAt: (x, y, z) => world.getVoxelRotationAt(x, y, z),
-          getVoxelStageAt: (x, y, z) => world.getVoxelStageAt(x, y, z),
-        }) === 0 &&
+        emissionLevel === 0 &&
         !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
       ) {
         continue;
@@ -501,6 +506,13 @@ export function removeLightsBatch(
         ? world.getSunlightAt(nvx, nvy, nvz)
         : world.getTorchLightAt(nvx, nvy, nvz, color);
       if (nl === 0) continue;
+
+      // Mirrors the light worker's removeLightsBatch: a remaining emitter the
+      // front crosses is reseeded at its own level, and light at or above the
+      // front is refill boundary, never zeroed.
+      if (emissionLevel > 0) {
+        emitters.push({ voxel: [nvx, nvy, nvz], level: emissionLevel });
+      }
 
       if (
         nl < level ||
@@ -516,34 +528,7 @@ export function removeLightsBatch(
           world.setTorchLightAt(nvx, nvy, nvz, 0, color);
         }
       } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
-        if (isSunlight) {
-          fill.push({ voxel: [nvx, nvy, nvz], level: nl });
-          continue;
-        }
-
-        const emissionLevel = BlockUtils.getBlockTorchLightLevelAt(
-          nBlock,
-          color,
-          [nvx, nvy, nvz],
-          {
-            getVoxelAt: (x, y, z) => world.getVoxelAt(x, y, z),
-            getVoxelRotationAt: (x, y, z) => world.getVoxelRotationAt(x, y, z),
-            getVoxelStageAt: (x, y, z) => world.getVoxelStageAt(x, y, z),
-          },
-        );
-        if (typeof emissionLevel !== "number" || emissionLevel <= 0) {
-          queue.push({ voxel: [nvx, nvy, nvz], level: nl });
-          world.setTorchLightAt(nvx, nvy, nvz, 0, color);
-          continue;
-        }
-
-        if (nl === emissionLevel) {
-          fill.push({ voxel: [nvx, nvy, nvz], level: emissionLevel });
-          continue;
-        }
-
-        queue.push({ voxel: [nvx, nvy, nvz], level: nl });
-        world.setTorchLightAt(nvx, nvy, nvz, 0, color);
+        fill.push({ voxel: [nvx, nvy, nvz], level: nl });
       }
     }
   }
@@ -553,7 +538,7 @@ export function removeLightsBatch(
       ? world.getSunlightAt(vx, vy, vz)
       : world.getTorchLightAt(vx, vy, vz, color),
   );
-  const dedupedFill = LightUtils.dedupeFillQueue(liveFill);
+  const dedupedFill = LightUtils.dedupeFillQueue(liveFill.concat(emitters));
   for (const node of dedupedFill) {
     const [vx, vy, vz] = node.voxel;
     if (isSunlight) {
