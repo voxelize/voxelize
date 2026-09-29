@@ -213,6 +213,13 @@ export class LightClusterGrid {
   private readonly desiredLights: Int32Array;
   private readonly desiredImportances: Float32Array;
   private readonly desiredCounts: Uint8Array;
+  /**
+   * Per cell, the most important light reaching it that is not static (a
+   * held torch, a lantern on a creature): -1 when none does. It keeps a slot
+   * past the cap, see `reserveDynamicSlots`.
+   */
+  private readonly reservedLights: Int32Array;
+  private readonly reservedImportances: Float32Array;
   private readonly cellStamps: Uint32Array;
   private readonly cellVisits: Uint32Array;
   private readonly touchedCells: Int32Array;
@@ -351,6 +358,8 @@ export class LightClusterGrid {
     this.desiredLights = new Int32Array(slotCount);
     this.desiredImportances = new Float32Array(slotCount);
     this.desiredCounts = new Uint8Array(this.cellCount);
+    this.reservedLights = new Int32Array(this.cellCount).fill(-1);
+    this.reservedImportances = new Float32Array(this.cellCount);
     this.cellStamps = new Uint32Array(this.cellCount);
     this.cellVisits = new Uint32Array(this.cellCount);
     this.touchedCells = new Int32Array(this.cellCount);
@@ -1098,6 +1107,8 @@ export class LightClusterGrid {
     const slotCap = this.slotCap();
     const cellStamps = this.cellStamps;
     const desiredCounts = this.desiredCounts;
+    const reservedLights = this.reservedLights;
+    const reservedImportances = this.reservedImportances;
     let touchedCount = 0;
     let overflowed = 0;
 
@@ -1160,6 +1171,7 @@ export class LightClusterGrid {
       // slot on a light that contributes nothing there.
       const isReachTested = isStable && !isCapsule;
       const isMasked = (registry.flags[i] & LIGHT_FLAG_MASKED) !== 0;
+      const isDynamic = (registry.flags[i] & LIGHT_FLAG_STATIC) === 0;
       const rangeSq = range * range;
       const legacyImportance = MAX_CLUSTERED_LIGHTS - rank;
 
@@ -1182,16 +1194,31 @@ export class LightClusterGrid {
             if (cellStamps[cell] !== stamp) {
               cellStamps[cell] = stamp;
               desiredCounts[cell] = 0;
+              reservedLights[cell] = -1;
               this.touchedCells[touchedCount++] = cell;
             }
             const importance = isStable
               ? energy * localLightFalloff(windowDist, range, d2)
               : legacyImportance;
             overflowed += this.offerToCell(cell, i, importance, slotCap);
+            if (isDynamic) {
+              const held = reservedLights[cell];
+              const heldImportance = reservedImportances[cell];
+              if (
+                held < 0 ||
+                importance > heldImportance ||
+                (importance === heldImportance && i < held)
+              ) {
+                reservedLights[cell] = i;
+                reservedImportances[cell] = importance;
+              }
+            }
           }
         }
       }
     }
+
+    if (slotCap > 0) overflowed -= this.reserveDynamicSlots(touchedCount);
 
     // 2. Reconcile every cell touched this pass or holding slots from the
     // last one against its desired membership.
@@ -1301,6 +1328,43 @@ export class LightClusterGrid {
     this.dataTexture.needsUpdate = true;
     stats.gridTextureUploads++;
     stats.dataTextureUploads++;
+  }
+
+  /**
+   * Gives each touched cell's most important non-static light a slot past
+   * the cap when the cap's ranking left it out. A static light that loses
+   * its slot still shows through its flood; a dynamic one (the torch in the
+   * player's hand) has no flood, so losing the slot blacked its light out
+   * across the whole 8-block cell, a hard line on the cell border. Nothing
+   * is evicted to make room: an evicted static would fall back to its flood,
+   * which the dynamic light's claim then dims. The shader and the CPU sample
+   * read up to `MAX_LIGHTS_PER_CELL` and stop at the first empty slot, so a
+   * cap-plus-one list needs nothing else. Returns how many lights it placed.
+   */
+  private reserveDynamicSlots(touchedCount: number): number {
+    const lights = this.desiredLights;
+    let placed = 0;
+    for (let t = 0; t < touchedCount; t++) {
+      const cell = this.touchedCells[t];
+      const reserved = this.reservedLights[cell];
+      if (reserved < 0) continue;
+      const base = cell * MAX_LIGHTS_PER_CELL;
+      const count = this.desiredCounts[cell];
+      if (count >= MAX_LIGHTS_PER_CELL) continue;
+      let isListed = false;
+      for (let k = 0; k < count; k++) {
+        if (lights[base + k] === reserved) {
+          isListed = true;
+          break;
+        }
+      }
+      if (isListed) continue;
+      lights[base + count] = reserved;
+      this.desiredImportances[base + count] = this.reservedImportances[cell];
+      this.desiredCounts[cell] = count + 1;
+      placed++;
+    }
+    return placed;
   }
 
   /**

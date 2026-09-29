@@ -1592,3 +1592,91 @@ describe("SectionTracker proxy identity", () => {
     expect(handles()).toEqual(before);
   });
 });
+
+describe("a dynamic light keeps a slot past the cell cap", () => {
+  // A held torch is a dynamic light with no flood behind it: a cell whose
+  // capped list leaves it out gets none of its light at all, a hard line on
+  // the 8-block cell border. On a Retina buffer the high tier keeps two
+  // lights a cell, so two placed torches were enough.
+  const FRAME_MS = 16;
+  const HELD: [number, number, number] = [4.3, 4.5, 4.3];
+  // Placed torches shine red and the held one blue, so the held torch's
+  // own light reads straight off the blue channel.
+  const placedTorch = () =>
+    pointLight({ isStatic: true, intensity: 1.1, range: 13, color: [1, 0, 0] });
+  const heldTorch = () =>
+    pointLight({ intensity: 1, range: 12, color: [0, 0, 1] });
+
+  const settle = (placed: [number, number, number][], withHeld: boolean) => {
+    const registry = new LightSourceRegistry(16);
+    for (const [x, y, z] of placed) registry.add(placedTorch(), x, y, z);
+    const held = withHeld ? registry.add(heldTorch(), ...HELD) : null;
+    const grid = makeGrid(registry, { maxLightsPerCell: 4 });
+    grid.setRenderPixels(5_000_000);
+    const stats = makeStats();
+    let now = 0;
+    for (let n = 0; n < 40; n++) {
+      grid.update(HELD[0], HELD[1] + 1, HELD[2], stats, (now += FRAME_MS));
+    }
+    return { grid, heldIndex: held === null ? -1 : registry.resolve(held) };
+  };
+
+  /** The held torch's own light on the floor at x. */
+  const heldLightAlong = (placed: [number, number, number][]) => {
+    const { grid } = settle(placed, true);
+    return (x: number) => {
+      const sample = {
+        color: [0, 0, 0] as [number, number, number],
+        count: 0,
+        claim: 0,
+        windowFade: 1,
+      };
+      grid.sampleIrradiance([x, 4.01, 4.5], sample);
+      return sample.color[2];
+    };
+  };
+
+  /** Its light along the floor must not care who else lights the cells. */
+  const expectUncrowded = (placed: [number, number, number][]) => {
+    const held = heldLightAlong(placed);
+    const alone = heldLightAlong([]);
+    for (const x of [2.5, 4.5, 7.5, 8.5, 9.5, 12.5]) {
+      expect(alone(x)).toBeGreaterThan(0);
+      expect(held(x), `held light at x=${x}`).toBeCloseTo(alone(x), 4);
+    }
+  };
+
+  it("crosses into a cell two placed torches fill", () => {
+    expectUncrowded([
+      [12.5, 5.7, 2.5],
+      [13.5, 5.7, 6.5],
+    ]);
+  });
+
+  it("lights its own cell when placed torches share it", () => {
+    // Inside one cell every light's falloff is 1, so a placed torch (1.1)
+    // outranked the held one (1.0) however far away it stood.
+    expectUncrowded([
+      [1.5, 5.7, 1.5],
+      [6.5, 5.7, 6.5],
+    ]);
+  });
+
+  it("takes an extra slot instead of evicting a placed light", () => {
+    const placed: [number, number, number][] = [
+      [12.5, 5.7, 2.5],
+      [13.5, 5.7, 6.5],
+    ];
+    const { grid, heldIndex } = settle(placed, true);
+    const slots = cellSlots(grid, 1, 0, 0);
+    expect(slots).toHaveLength(3);
+    expect(slots.every((slot) => slot.weight === 255)).toBe(true);
+    expect(slots.map((slot) => slot.index)).toContain(heldIndex);
+
+    // Static lights alone still keep the cap.
+    const alone = settle(placed.concat([[10.5, 5.7, 1.5]]), false).grid;
+    expect(
+      cellSlots(alone, 1, 0, 0).filter((slot) => slot.weight === 255),
+    ).toHaveLength(2);
+  });
+});
