@@ -2,7 +2,27 @@ import { Mesh, Object3D, Vector3 } from "three";
 
 export const TRANSPARENT_RENDER_ORDER = 100000;
 export const TRANSPARENT_FLUID_RENDER_ORDER = 100001;
+/**
+ * See-through chunk meshes that write depth (alpha-tested cutouts such as
+ * foliage) draw before the blended ones that do not (glass-like blocks).
+ * A cutout hides what is behind its painted texels either way, so this
+ * costs the pair nothing, and a no-depth layer drawn between the two
+ * orders (soft particles) is hidden behind cutouts yet still covered, as a
+ * blended layer, by the glass in front of it.
+ */
+export const TRANSPARENT_CUTOUT_RENDER_ORDER = TRANSPARENT_RENDER_ORDER - 1;
 export const OPAQUE_RENDER_ORDER = 100;
+
+/** The render order of a see-through chunk mesh. */
+export const transparentChunkRenderOrder = (
+  isFluid: boolean,
+  depthWrite: boolean,
+) =>
+  isFluid
+    ? TRANSPARENT_FLUID_RENDER_ORDER
+    : depthWrite
+      ? TRANSPARENT_CUTOUT_RENDER_ORDER
+      : TRANSPARENT_RENDER_ORDER;
 
 const _worldPos = new Vector3();
 const _localCamPos = new Vector3();

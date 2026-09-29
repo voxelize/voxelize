@@ -45,10 +45,7 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import {
-  TRANSPARENT_FLUID_RENDER_ORDER,
-  TRANSPARENT_RENDER_ORDER,
-} from "../../common";
+import { transparentChunkRenderOrder } from "../../common";
 import { NetIntercept } from "../../core/network";
 import {
   prepareTransparentMesh,
@@ -810,9 +807,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const sortableData =
       sortData && sortData.classification !== "single-plane" ? sortData : null;
 
-    mesh.renderOrder = isFluid
-      ? TRANSPARENT_FLUID_RENDER_ORDER
-      : TRANSPARENT_RENDER_ORDER;
+    mesh.renderOrder = transparentChunkRenderOrder(
+      isFluid,
+      material.depthWrite,
+    );
 
     if (sortableData) {
       mesh.userData.transparentSortData = sortableData;
@@ -4044,10 +4042,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       geometry.setIndex(indices);
       computeFlatNormals(geometry);
       geometry.computeBoundingSphere();
-      singlePassWhenOneFacing(
-        material,
-        geometry.getAttribute("normal")?.array,
-      );
+      singlePassWhenOneFacing(material, geometry.getAttribute("normal")?.array);
       const mesh = new Mesh(geometry, material);
       mesh.name = identifier;
       group.add(mesh);
