@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   Color,
+  type Material,
   Mesh,
   MeshBasicMaterial,
   Object3D,
@@ -332,6 +333,79 @@ describe("LightShined shared materials", () => {
     expect((shader.uniforms as Record<string, unknown>).lightEffect).toBe(
       uniformsOf(second)[0],
     );
+  });
+
+  it("makes one copy per root however many of its meshes share the material", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const material = new MeshBasicMaterial();
+    const { first, second, secondMesh } = twoRootsSharing(material);
+    const secondTwin = new Mesh(new BoxGeometry(), material);
+    second.add(secondTwin);
+    shined.add(first);
+    shined.add(second);
+
+    expect(secondMesh.material).not.toBe(material);
+    expect(secondTwin.material).toBe(secondMesh.material);
+    expect(uniformsOf(second)).toHaveLength(1);
+  });
+
+  it("lets go of a removed root, and the next root adopts its material", () => {
+    const light = { red: 0, green: 0, blue: 0, sunlight: 15 };
+    const { world } = makeWorld({ light });
+    const shined = new LightShined(world, { sampleIntervalFrames: 1 });
+    const owners = (
+      shined as unknown as {
+        materialOwners: WeakMap<Material, { root: Object3D | null }>;
+      }
+    ).materialOwners;
+    const material = new MeshBasicMaterial();
+    const { first, second, secondMesh } = twoRootsSharing(material);
+    shined.add(first);
+    const firstUniform = uniformsOf(first)[0];
+    shined.remove(first);
+    expect(owners.get(material)?.root).toBeNull();
+
+    // A later root meets the released material: no copy, one uniform.
+    shined.add(second);
+    expect(secondMesh.material).toBe(material);
+    expect(uniformsOf(second)).toEqual([firstUniform]);
+    expect(owners.get(material)?.root).toBe(second);
+    light.sunlight = 0;
+    second.position.set(10, 0, 0);
+    for (let i = 0; i < 4; i++) shined.update();
+    expect(firstUniform.value.r).toBeLessThan(0.5);
+
+    // While that root lives, another still gets its own copy.
+    const scene = second.parent as Scene;
+    const third = new Object3D();
+    const thirdMesh = new Mesh(new BoxGeometry(), material);
+    third.add(thirdMesh);
+    scene.add(third);
+    shined.add(third);
+    expect(thirdMesh.material).not.toBe(material);
+  });
+
+  it("disposes a root's copy on remove and reuses it if the root returns", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const material = new MeshBasicMaterial();
+    const { first, second, secondMesh } = twoRootsSharing(material);
+    shined.add(first);
+    shined.add(second);
+    const copy = secondMesh.material as MeshBasicMaterial;
+    let disposed = 0;
+    copy.addEventListener("dispose", () => {
+      disposed += 1;
+    });
+
+    shined.remove(second);
+    expect(disposed).toBe(1);
+    shined.add(second);
+    expect(secondMesh.material).toBe(copy);
+    expect(uniformsOf(second)).toHaveLength(1);
+    shined.remove(second);
+    expect(disposed).toBe(2);
   });
 
   it("keeps sharing inside the owning root's own subtree", () => {

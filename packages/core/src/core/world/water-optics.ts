@@ -368,12 +368,14 @@ export const WATER_OPTICS = Object.freeze({
   bedCausticDepthFalloff: 0.08,
 
   /**
-   * The surface seen from below. Inside Snell's window (the cone overhead
-   * whose rays refract out to the sky) it shows the sky and the sun; outside
-   * it, total internal reflection mirrors the water body. The same caustic
-   * web as the bed rides on top, so the surface reads as a moving ceiling of
-   * light. `undersideWindowSoftness` widens the window's rim (in sin units),
-   * the opacities keep the dry world from showing through unrefracted.
+   * The older per-texel underside (`surfaceUndersideScale` 2, A/B only).
+   * Inside Snell's window (the cone overhead whose rays refract out to the
+   * sky) it shows the sky and the sun; outside it, total internal reflection
+   * mirrors the water body. The same caustic web as the bed rides on top,
+   * so the surface reads as a moving ceiling of light.
+   * `undersideWindowSoftness` widens the window's rim (in sin units), the
+   * opacities keep the dry world from showing through unrefracted.
+   * `refractiveIndex` is shared by every style.
    */
   refractiveIndex: 1.333,
   undersideWindowSoftness: 0.12,
@@ -382,9 +384,10 @@ export const WATER_OPTICS = Object.freeze({
   undersideMirrorOpacity: 0.95,
 
   /**
-   * The clean underside (`surfaceUndersideScale` 1). Inside the window the
-   * surface shows the frame captured before water drew — the sky, the sun,
-   * the shore above — shifted by the ripples, so it reads as looking up
+   * The soft Snell window (`surfaceUndersideScale` 3, A/B only; the
+   * default is style 1 below). Inside the window the surface shows the
+   * frame captured before water drew — the sky, the sun, the shore above —
+   * shifted by the ripples, so it reads as looking up
    * through clear water. Outside it, total internal reflection is a calm
    * mirror of the water's own scatter colour. Nothing is snapped to texels
    * and the caustic web stays on the bed, leaving the ceiling a faint
@@ -392,9 +395,11 @@ export const WATER_OPTICS = Object.freeze({
    * scatter colour carries the night.
    *
    * `undersideRippleKeep` is the share of the ripple normal the window and
-   * the shift see (calmer than the top side), `undersideDistortion` scales
-   * the refraction slope for the shift, `undersideCleanSoftness` widens the
-   * window's rim in sin units, `undersideMirrorScale` sets the mirror
+   * the shift see (calmer than the top side; styles 3 and 4),
+   * `undersideDistortion` scales the refraction slope for the shift (every
+   * style that samples the capture, the default included),
+   * `undersideCleanSoftness` widens the window's rim in sin units,
+   * `undersideMirrorScale` sets the mirror
    * against the scatter the fog fades toward (just above it, so the
    * ceiling reads without going grey), and `undersideShimmerStrength` is
    * the web's peak on the window.
@@ -406,7 +411,7 @@ export const WATER_OPTICS = Object.freeze({
   undersideShimmerStrength: 0.05,
 
   /**
-   * The continuous ceiling (`surfaceUndersideScale` 1, the default). No
+   * The continuous ceiling (`surfaceUndersideScale` 4, A/B only). No
    * window: the whole underside is one lit film, `undersideFilmScale` times
    * the scatter colour the fog fades toward (a little lighter, so the
    * ceiling reads as the bright side of the water without going grey). The

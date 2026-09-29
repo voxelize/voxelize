@@ -46,6 +46,13 @@ const floodRemainderArgs = { scaledClaim: 0, floodLevel: 0, windowFade: 1 };
 
 type IgnoredType = abstract new (...args: never[]) => object;
 
+type MaterialOwner = {
+  root: Object3D | null;
+  lightUniform: { value: Color };
+  baseOnBeforeCompile: Material["onBeforeCompile"] | undefined;
+  copyOf: Material | null;
+};
+
 const isMesh = (object: Object3D): object is Mesh => object instanceof Mesh;
 
 const isWithin = (object: Object3D, ancestor: Object3D) => {
@@ -200,19 +207,22 @@ export class LightShined {
 
   /**
    * Every material this effect has set up: the shined root whose light
-   * uniform it carries, and the `onBeforeCompile` it had before the effect
-   * wrapped it, so a copy made for another root starts from that hook.
+   * uniform it carries (null once that root is removed, so the entry does
+   * not keep it alive and the next root to meet the material adopts it),
+   * that uniform, the `onBeforeCompile` it had before the effect wrapped
+   * it, so a copy made for another root starts from that hook, and, for a
+   * copy, the material it was copied from.
    */
-  private materialOwners = new WeakMap<
-    Material,
-    {
-      root: Object3D;
-      baseOnBeforeCompile: Material["onBeforeCompile"] | undefined;
-    }
-  >();
+  private materialOwners = new WeakMap<Material, MaterialOwner>();
 
-  /** Materials copied for a root, disposed when that root is removed. */
-  private ownedCopies = new WeakMap<Object3D, Material[]>();
+  /** The materials set up for each root, released when it is removed. */
+  private rootMaterials = new WeakMap<Object3D, Material[]>();
+
+  /**
+   * The copies made for each root, by the material copied, so every mesh
+   * of one root shares one copy; disposed when the root is removed.
+   */
+  private ownedCopies = new WeakMap<Object3D, Map<Material, Material>>();
 
   /**
    * Construct a light shined effect manager.
@@ -248,10 +258,18 @@ export class LightShined {
     this.list.delete(obj);
     this.samples.delete(obj);
     if (!this.options.useProxyChangeDetection) this.unhookSubtree(obj, obj);
+    const materials = this.rootMaterials.get(obj);
+    if (materials) {
+      for (const material of materials) {
+        const owner = this.materialOwners.get(material);
+        if (owner?.root === obj) owner.root = null;
+      }
+      this.rootMaterials.delete(obj);
+    }
     const copies = this.ownedCopies.get(obj);
     if (copies) {
       // Only the copied material: its map and program stay shared.
-      for (const copy of copies) copy.dispose();
+      for (const copy of copies.values()) copy.dispose();
       this.ownedCopies.delete(obj);
     }
   };
@@ -296,13 +314,16 @@ export class LightShined {
     const oldOnBeforeCompile = material.onBeforeCompile;
     this.materialOwners.set(material, {
       root,
+      lightUniform,
       baseOnBeforeCompile: Object.prototype.hasOwnProperty.call(
         material,
         "onBeforeCompile",
       )
         ? oldOnBeforeCompile
         : undefined,
+      copyOf: null,
     });
+    this.trackRootMaterial(root, material);
     material.onBeforeCompile = (shader, renderer) => {
       if (oldOnBeforeCompile) {
         oldOnBeforeCompile(shader, renderer);
@@ -344,8 +365,11 @@ export class LightShined {
    * one light uniform, so one another shined root already set up (every
    * pot of one plant shares the cached block mesh's materials, for
    * instance) would show that root's light here, or a frozen value once
-   * it is gone: this mesh gets its own copy, set up for `root`. A mesh
-   * inside the owning root's own subtree keeps sharing, lit as part of it.
+   * it is gone: this mesh gets a copy set up for `root`, one per root and
+   * material however many of the root's meshes share it. A mesh inside the
+   * owning root's own subtree keeps sharing, lit as part of it. A material
+   * whose root was removed is adopted by the next root that meets it (its
+   * uniform joins that root's), so churn does not pile up copies.
    */
   private claimMaterial = (
     root: Object3D,
@@ -353,20 +377,60 @@ export class LightShined {
     material: Material,
   ): Material => {
     const owner = this.materialOwners.get(material);
-    if (!owner || owner.root === root || isWithin(mesh, owner.root)) {
+    if (!owner) {
       this.setupMaterial(root, material);
       return material;
     }
+    if (owner.root === null) {
+      this.adoptMaterial(root, material, owner);
+      return material;
+    }
+    if (owner.root === root || isWithin(mesh, owner.root)) return material;
+
+    let copies = this.ownedCopies.get(root);
+    const existing = copies?.get(material);
+    if (existing) return existing;
     const copy = material.clone();
     if (owner.baseOnBeforeCompile) {
       copy.onBeforeCompile = owner.baseOnBeforeCompile;
     }
     delete copy.userData.lightEffectSetup;
     this.setupMaterial(root, copy);
-    const copies = this.ownedCopies.get(root);
-    if (copies) copies.push(copy);
-    else this.ownedCopies.set(root, [copy]);
+    const copyOwner = this.materialOwners.get(copy);
+    if (copyOwner) copyOwner.copyOf = material;
+    if (!copies) {
+      copies = new Map();
+      this.ownedCopies.set(root, copies);
+    }
+    copies.set(material, copy);
     return copy;
+  };
+
+  private adoptMaterial = (
+    root: Object3D,
+    material: Material,
+    owner: MaterialOwner,
+  ) => {
+    owner.root = root;
+    if (!root.userData.lightUniforms) root.userData.lightUniforms = [];
+    const uniforms = root.userData.lightUniforms as { value: Color }[];
+    if (!uniforms.includes(owner.lightUniform))
+      uniforms.push(owner.lightUniform);
+    this.trackRootMaterial(root, material);
+    if (owner.copyOf) {
+      let copies = this.ownedCopies.get(root);
+      if (!copies) {
+        copies = new Map();
+        this.ownedCopies.set(root, copies);
+      }
+      copies.set(owner.copyOf, material);
+    }
+  };
+
+  private trackRootMaterial = (root: Object3D, material: Material) => {
+    const materials = this.rootMaterials.get(root);
+    if (materials) materials.push(material);
+    else this.rootMaterials.set(root, [material]);
   };
 
   private setupObjectAndChildren = (root: Object3D, object: Object3D) => {
