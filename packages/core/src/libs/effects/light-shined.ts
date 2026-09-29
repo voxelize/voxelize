@@ -48,6 +48,13 @@ type IgnoredType = abstract new (...args: never[]) => object;
 
 const isMesh = (object: Object3D): object is Mesh => object instanceof Mesh;
 
+const isWithin = (object: Object3D, ancestor: Object3D) => {
+  for (let node: Object3D | null = object; node; node = node.parent) {
+    if (node === ancestor) return true;
+  }
+  return false;
+};
+
 /** Whether `object`'s ancestor chain ends in a Scene, i.e. it can be drawn. */
 const isUnderScene = (object: Object3D): boolean => {
   let root = object;
@@ -192,6 +199,22 @@ export class LightShined {
   private owners = new WeakMap<Object3D, Object3D>();
 
   /**
+   * Every material this effect has set up: the shined root whose light
+   * uniform it carries, and the `onBeforeCompile` it had before the effect
+   * wrapped it, so a copy made for another root starts from that hook.
+   */
+  private materialOwners = new WeakMap<
+    Material,
+    {
+      root: Object3D;
+      baseOnBeforeCompile: Material["onBeforeCompile"] | undefined;
+    }
+  >();
+
+  /** Materials copied for a root, disposed when that root is removed. */
+  private ownedCopies = new WeakMap<Object3D, Material[]>();
+
+  /**
    * Construct a light shined effect manager.
    *
    * @param world The world that the effect is applied to.
@@ -225,6 +248,12 @@ export class LightShined {
     this.list.delete(obj);
     this.samples.delete(obj);
     if (!this.options.useProxyChangeDetection) this.unhookSubtree(obj, obj);
+    const copies = this.ownedCopies.get(obj);
+    if (copies) {
+      // Only the copied material: its map and program stay shared.
+      for (const copy of copies) copy.dispose();
+      this.ownedCopies.delete(obj);
+    }
   };
 
   /**
@@ -265,6 +294,15 @@ export class LightShined {
 
     const lightUniform = { value: new Color(1, 1, 1) };
     const oldOnBeforeCompile = material.onBeforeCompile;
+    this.materialOwners.set(material, {
+      root,
+      baseOnBeforeCompile: Object.prototype.hasOwnProperty.call(
+        material,
+        "onBeforeCompile",
+      )
+        ? oldOnBeforeCompile
+        : undefined,
+    });
     material.onBeforeCompile = (shader, renderer) => {
       if (oldOnBeforeCompile) {
         oldOnBeforeCompile(shader, renderer);
@@ -301,14 +339,46 @@ export class LightShined {
     material.userData.lightEffectSetup = true;
   };
 
+  /**
+   * The material `mesh` should draw with under `root`. A material carries
+   * one light uniform, so one another shined root already set up (every
+   * pot of one plant shares the cached block mesh's materials, for
+   * instance) would show that root's light here, or a frozen value once
+   * it is gone: this mesh gets its own copy, set up for `root`. A mesh
+   * inside the owning root's own subtree keeps sharing, lit as part of it.
+   */
+  private claimMaterial = (
+    root: Object3D,
+    mesh: Mesh,
+    material: Material,
+  ): Material => {
+    const owner = this.materialOwners.get(material);
+    if (!owner || owner.root === root || isWithin(mesh, owner.root)) {
+      this.setupMaterial(root, material);
+      return material;
+    }
+    const copy = material.clone();
+    if (owner.baseOnBeforeCompile) {
+      copy.onBeforeCompile = owner.baseOnBeforeCompile;
+    }
+    delete copy.userData.lightEffectSetup;
+    this.setupMaterial(root, copy);
+    const copies = this.ownedCopies.get(root);
+    if (copies) copies.push(copy);
+    else this.ownedCopies.set(root, [copy]);
+    return copy;
+  };
+
   private setupObjectAndChildren = (root: Object3D, object: Object3D) => {
     if (isMesh(object)) {
       if (Array.isArray(object.material)) {
-        for (const material of object.material) {
-          this.setupMaterial(root, material);
+        const materials = object.material;
+        for (let i = 0; i < materials.length; i++) {
+          materials[i] = this.claimMaterial(root, object, materials[i]);
         }
       } else {
-        this.setupMaterial(root, object.material);
+        const claimed = this.claimMaterial(root, object, object.material);
+        if (claimed !== object.material) object.material = claimed;
       }
     }
     for (const child of object.children) {

@@ -254,6 +254,103 @@ describe("LightShined change detection", () => {
   });
 });
 
+describe("LightShined shared materials", () => {
+  const uniformsOf = (obj: Object3D) =>
+    (obj.userData.lightUniforms ?? []) as { value: Color }[];
+
+  /** Two display copies of one cached block mesh: meshes sharing a material. */
+  const twoRootsSharing = (material: MeshBasicMaterial) => {
+    const scene = new Scene();
+    const first = new Object3D();
+    const second = new Object3D();
+    const firstMesh = new Mesh(new BoxGeometry(), material);
+    const secondMesh = new Mesh(new BoxGeometry(), material);
+    first.add(firstMesh);
+    second.add(secondMesh);
+    scene.add(first, second);
+    return { first, second, firstMesh, secondMesh };
+  };
+
+  it("gives a second root sharing a material its own light", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const material = new MeshBasicMaterial();
+    const { first, second, firstMesh, secondMesh } = twoRootsSharing(material);
+    shined.add(first);
+    shined.add(second);
+
+    expect(firstMesh.material).toBe(material);
+    expect(secondMesh.material).not.toBe(material);
+    expect(uniformsOf(first)).toHaveLength(1);
+    expect(uniformsOf(second)).toHaveLength(1);
+    expect(uniformsOf(second)[0]).not.toBe(uniformsOf(first)[0]);
+    expect(
+      (secondMesh.material as MeshBasicMaterial).userData.lightEffectSetup,
+    ).toBe(true);
+  });
+
+  it("keeps lighting the second root after the first is removed", () => {
+    const light = { red: 0, green: 0, blue: 0, sunlight: 15 };
+    const { world } = makeWorld({ light });
+    const shined = new LightShined(world, { sampleIntervalFrames: 1 });
+    const { first, second } = twoRootsSharing(new MeshBasicMaterial());
+    shined.add(first);
+    shined.add(second);
+    shined.update();
+    const frozen = uniformsOf(first)[0].value.clone();
+
+    shined.remove(first);
+    light.sunlight = 0;
+    second.position.set(10, 0, 0);
+    for (let i = 0; i < 4; i++) shined.update();
+
+    expect(uniformsOf(first)[0].value.equals(frozen)).toBe(true);
+    expect(uniformsOf(second)[0].value.r).toBeLessThan(frozen.r);
+  });
+
+  it("starts the copy from the material's own compile hook", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const material = new MeshBasicMaterial();
+    const calls: string[] = [];
+    material.onBeforeCompile = () => {
+      calls.push("own");
+    };
+    const { first, second, secondMesh } = twoRootsSharing(material);
+    shined.add(first);
+    shined.add(second);
+
+    const shader = {
+      uniforms: {},
+      vertexShader: "void main() {}",
+      fragmentShader: "void main() {\n#include <color_fragment>\n}",
+    };
+    const copy = secondMesh.material as MeshBasicMaterial;
+    copy.onBeforeCompile(shader as never, {} as never);
+    expect(calls).toEqual(["own"]);
+    expect(shader.fragmentShader).toContain("diffuseColor.rgb *= lightEffect");
+    expect((shader.uniforms as Record<string, unknown>).lightEffect).toBe(
+      uniformsOf(second)[0],
+    );
+  });
+
+  it("keeps sharing inside the owning root's own subtree", () => {
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const material = new MeshBasicMaterial();
+    const scene = new Scene();
+    const outer = new Object3D();
+    const inner = new Object3D();
+    const mesh = new Mesh(new BoxGeometry(), material);
+    inner.add(mesh);
+    outer.add(inner);
+    scene.add(outer);
+    shined.add(outer);
+    shined.add(inner);
+    expect(mesh.material).toBe(material);
+  });
+});
+
 describe("LightShined detached subtrees", () => {
   /**
    * The entity manager releases an entity by detaching its root, so a lit

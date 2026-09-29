@@ -162,6 +162,7 @@ import { Clouds } from "./clouds";
 import { expandCoupledUpdates as expandCoupledBatch } from "./coupled-blocks";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { worldDefinitionSignature } from "./definition-signature";
+import { displayCopyMaterialOptions } from "./display-copy-material";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
 import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
@@ -3967,11 +3968,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (!geometry) {
         const chunkMat = this.getBlockFaceMaterial(block.id, name);
 
-        const matOptions = {
-          transparent: isSeeThrough,
-          map: chunkMat?.map,
-          side: isSeeThrough ? DoubleSide : FrontSide,
-        };
+        const matOptions = displayCopyMaterialOptions(
+          { isSeeThrough },
+          chunkMat?.map,
+        );
 
         const mat =
           material === "basic"
