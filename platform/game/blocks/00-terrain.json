@@ -1,0 +1,318 @@
+[
+  {
+    "id": 1,
+    "key": "bedrock",
+    "name": "Bedrock",
+    "material": "rock",
+    "hardness": -1,
+    "resistance": 3600000,
+    "texture": {
+      "all": "bedrock"
+    }
+  },
+  {
+    "id": 2,
+    "key": "stone",
+    "name": "Stone",
+    "material": "rock",
+    "hardness": 1.5,
+    "resistance": 6,
+    "texture": {
+      "all": "stone"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "drops": [
+      {
+        "item": "rubble"
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "key": "rubble",
+    "name": "Rubble",
+    "material": "rock",
+    "hardness": 2.0,
+    "resistance": 6,
+    "texture": {
+      "all": "rubble"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "drops": [
+      {
+        "item": "rubble"
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "key": "dirt",
+    "name": "Dirt",
+    "material": "soil",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "dirt"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "drops": [
+      {
+        "item": "dirt"
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "key": "turf",
+    "name": "Meadow Turf",
+    "material": "soil",
+    "hardness": 0.6,
+    "resistance": 0.6,
+    "texture": {
+      "all": "dirt",
+      "top": "turf_top",
+      "side": "turf_side"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "drops": [
+      {
+        "item": "dirt"
+      }
+    ],
+    "behaviors": [
+      "spreads"
+    ]
+  },
+  {
+    "id": 6,
+    "key": "sand",
+    "name": "Sand",
+    "material": "sand",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "sand"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "gravity": true,
+    "drops": [
+      {
+        "item": "sand"
+      }
+    ],
+    "behaviors": [
+      "falls"
+    ]
+  },
+  {
+    "id": 7,
+    "key": "gravel",
+    "name": "Gravel",
+    "material": "sand",
+    "hardness": 0.6,
+    "resistance": 0.6,
+    "texture": {
+      "all": "gravel"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "gravity": true,
+    "drops": [
+      {
+        "item": "gravel"
+      }
+    ],
+    "behaviors": [
+      "falls"
+    ]
+  },
+  {
+    "id": 8,
+    "key": "water",
+    "name": "Water",
+    "material": "fluid",
+    "hardness": -1,
+    "resistance": 100,
+    "texture": {
+      "all": "water"
+    },
+    "transparent": true,
+    "collision": false,
+    "fluid": "water"
+  },
+  {
+    "id": 9,
+    "key": "lava",
+    "name": "Lava",
+    "material": "fluid",
+    "hardness": -1,
+    "resistance": 100,
+    "texture": {
+      "all": "lava"
+    },
+    "collision": false,
+    "fluid": "lava",
+    "lightEmission": 15
+  },
+  {
+    "id": 20,
+    "key": "clay",
+    "name": "Clay",
+    "material": "soil",
+    "hardness": 0.6,
+    "resistance": 0.6,
+    "texture": {
+      "all": "clay"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "drops": [
+      {
+        "item": "clay_ball",
+        "min": 4,
+        "max": 4
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "key": "sandstone",
+    "name": "Sandstone",
+    "material": "rock",
+    "hardness": 0.8,
+    "resistance": 0.8,
+    "texture": {
+      "all": "sandstone_side",
+      "top": "sandstone_top",
+      "bottom": "sandstone_top"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "drops": [
+      {
+        "item": "sandstone"
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "key": "red_sand",
+    "name": "Rust Sand",
+    "material": "sand",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "red_sand"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "gravity": true,
+    "drops": [
+      {
+        "item": "red_sand"
+      }
+    ],
+    "behaviors": [
+      "falls"
+    ]
+  },
+  {
+    "id": 32,
+    "key": "fired_clay",
+    "name": "Fired Clay",
+    "material": "rock",
+    "hardness": 1.25,
+    "resistance": 4.2,
+    "texture": {
+      "all": "fired_clay"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "drops": [
+      {
+        "item": "fired_clay"
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "key": "snowpack",
+    "name": "Snowpack",
+    "material": "snow",
+    "hardness": 0.2,
+    "resistance": 0.2,
+    "texture": {
+      "all": "snowpack"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "drops": [
+      {
+        "item": "snowpack"
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "key": "ice",
+    "name": "Ice",
+    "material": "ice",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "ice"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "required": false
+    },
+    "transparent": true,
+    "behaviors": [
+      "melts"
+    ]
+  },
+  {
+    "id": 26,
+    "key": "farmland",
+    "name": "Tilled Soil",
+    "material": "soil",
+    "hardness": 0.6,
+    "resistance": 0.6,
+    "texture": {
+      "all": "dirt",
+      "top": "farmland_top"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "drops": [
+      {
+        "item": "dirt"
+      }
+    ]
+  }
+]

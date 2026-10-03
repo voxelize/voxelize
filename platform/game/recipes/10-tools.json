@@ -1,0 +1,242 @@
+[
+  {
+    "type": "shaped",
+    "key": "wooden_pickaxe",
+    "pattern": [
+      "###",
+      " s ",
+      " s "
+    ],
+    "symbols": {
+      "#": "planks",
+      "s": "stick"
+    },
+    "result": {
+      "item": "wooden_pickaxe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "wooden_axe",
+    "pattern": [
+      "##",
+      "#s",
+      " s"
+    ],
+    "symbols": {
+      "#": "planks",
+      "s": "stick"
+    },
+    "result": {
+      "item": "wooden_axe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "wooden_shovel",
+    "pattern": [
+      "#",
+      "s",
+      "s"
+    ],
+    "symbols": {
+      "#": "planks",
+      "s": "stick"
+    },
+    "result": {
+      "item": "wooden_shovel"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "wooden_hoe",
+    "pattern": [
+      "##",
+      " s",
+      " s"
+    ],
+    "symbols": {
+      "#": "planks",
+      "s": "stick"
+    },
+    "result": {
+      "item": "wooden_hoe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "wooden_sword",
+    "pattern": [
+      "#",
+      "#",
+      "s"
+    ],
+    "symbols": {
+      "#": "planks",
+      "s": "stick"
+    },
+    "result": {
+      "item": "wooden_sword"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "stone_pickaxe",
+    "pattern": [
+      "###",
+      " s ",
+      " s "
+    ],
+    "symbols": {
+      "#": "rubble",
+      "s": "stick"
+    },
+    "result": {
+      "item": "stone_pickaxe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "stone_axe",
+    "pattern": [
+      "##",
+      "#s",
+      " s"
+    ],
+    "symbols": {
+      "#": "rubble",
+      "s": "stick"
+    },
+    "result": {
+      "item": "stone_axe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "stone_shovel",
+    "pattern": [
+      "#",
+      "s",
+      "s"
+    ],
+    "symbols": {
+      "#": "rubble",
+      "s": "stick"
+    },
+    "result": {
+      "item": "stone_shovel"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "stone_hoe",
+    "pattern": [
+      "##",
+      " s",
+      " s"
+    ],
+    "symbols": {
+      "#": "rubble",
+      "s": "stick"
+    },
+    "result": {
+      "item": "stone_hoe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "stone_sword",
+    "pattern": [
+      "#",
+      "#",
+      "s"
+    ],
+    "symbols": {
+      "#": "rubble",
+      "s": "stick"
+    },
+    "result": {
+      "item": "stone_sword"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_pickaxe",
+    "pattern": [
+      "###",
+      " s ",
+      " s "
+    ],
+    "symbols": {
+      "#": "iron_ingot",
+      "s": "stick"
+    },
+    "result": {
+      "item": "iron_pickaxe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_axe",
+    "pattern": [
+      "##",
+      "#s",
+      " s"
+    ],
+    "symbols": {
+      "#": "iron_ingot",
+      "s": "stick"
+    },
+    "result": {
+      "item": "iron_axe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_shovel",
+    "pattern": [
+      "#",
+      "s",
+      "s"
+    ],
+    "symbols": {
+      "#": "iron_ingot",
+      "s": "stick"
+    },
+    "result": {
+      "item": "iron_shovel"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_hoe",
+    "pattern": [
+      "##",
+      " s",
+      " s"
+    ],
+    "symbols": {
+      "#": "iron_ingot",
+      "s": "stick"
+    },
+    "result": {
+      "item": "iron_hoe"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_sword",
+    "pattern": [
+      "#",
+      "#",
+      "s"
+    ],
+    "symbols": {
+      "#": "iron_ingot",
+      "s": "stick"
+    },
+    "result": {
+      "item": "iron_sword"
+    }
+  }
+]

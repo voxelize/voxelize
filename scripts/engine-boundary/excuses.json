@@ -2,6 +2,10 @@
   "$comment": "Engine-boundary hits that are legitimate, one entry per path (a trailing slash covers a directory). \"terms\" lists the phrases excused there (omit it to excuse every term, rarely right); \"rule\" names a non-term rule. Every entry needs a reason. An entry marked \"until\" is debt: it names the work that removes it, and the gate lists it on every run. An entry that stops matching anything fails the gate, so delete it the moment its hits are gone.",
   "excuses": [
     {
+      "path": "platform/",
+      "reason": "platform/ is a game built on the engine, housed in this fork as its own Cargo and Composer workspace; it is consumer code by definition, so naming its own content is its job. The dependency points one way: engine code never imports or paths into platform/, and the gate still checks engine files for that"
+    },
+    {
       "path": "README.md",
       "terms": ["town", "create town", "hub2", "axolotl", "dragon", "capybara", "golem", "mars"],
       "reason": "the showcase section credits the production world built on the engine and captions its screenshots; attribution, not engine behaviour"

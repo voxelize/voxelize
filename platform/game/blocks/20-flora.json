@@ -1,0 +1,148 @@
+[
+  {
+    "id": 10,
+    "key": "oak_log",
+    "name": "Oak Log",
+    "material": "wood",
+    "hardness": 2.0,
+    "resistance": 2,
+    "texture": {
+      "all": "oak_log_side",
+      "top": "oak_log_top",
+      "bottom": "oak_log_top"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "orientation": "full",
+    "flammable": true,
+    "drops": [
+      {
+        "item": "oak_log"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "key": "oak_leaves",
+    "name": "Oak Leaves",
+    "material": "foliage",
+    "hardness": 0.2,
+    "resistance": 0.2,
+    "texture": {
+      "all": "oak_leaves"
+    },
+    "tool": {
+      "kind": "shears"
+    },
+    "transparent": true,
+    "flammable": true,
+    "behaviors": [
+      "decays"
+    ]
+  },
+  {
+    "id": 33,
+    "key": "spruce_log",
+    "name": "Spruce Log",
+    "material": "wood",
+    "hardness": 2.0,
+    "resistance": 2,
+    "texture": {
+      "all": "spruce_log_side",
+      "top": "spruce_log_top",
+      "bottom": "spruce_log_top"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "orientation": "full",
+    "flammable": true,
+    "drops": [
+      {
+        "item": "spruce_log"
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "key": "spruce_leaves",
+    "name": "Spruce Needles",
+    "material": "foliage",
+    "hardness": 0.2,
+    "resistance": 0.2,
+    "texture": {
+      "all": "spruce_leaves"
+    },
+    "tool": {
+      "kind": "shears"
+    },
+    "transparent": true,
+    "flammable": true,
+    "behaviors": [
+      "decays"
+    ]
+  },
+  {
+    "id": 28,
+    "key": "tall_grass",
+    "name": "Tall Grass",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "tall_grass"
+    },
+    "transparent": true,
+    "collision": false,
+    "flammable": true,
+    "drops": [
+      {
+        "item": "wheat_seeds",
+        "chance": 0.125
+      }
+    ]
+  },
+  {
+    "id": 27,
+    "key": "wheat_crop",
+    "name": "Wheat Crop",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "wheat_stage"
+    },
+    "transparent": true,
+    "collision": false,
+    "behaviors": [
+      "grows"
+    ],
+    "stages": 8,
+    "drops": [
+      {
+        "item": "wheat_seeds"
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "key": "cactus",
+    "name": "Cactus",
+    "material": "plant",
+    "hardness": 0.4,
+    "resistance": 0.4,
+    "texture": {
+      "all": "cactus_side",
+      "top": "cactus_top",
+      "bottom": "cactus_top"
+    },
+    "drops": [
+      {
+        "item": "cactus"
+      }
+    ]
+  }
+]

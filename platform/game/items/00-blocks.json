@@ -1,0 +1,146 @@
+[
+  {
+    "id": 1,
+    "key": "stone",
+    "name": "Stone",
+    "type": "block",
+    "placesBlock": "stone",
+    "value": 1
+  },
+  {
+    "id": 2,
+    "key": "rubble",
+    "name": "Rubble",
+    "type": "block",
+    "placesBlock": "rubble",
+    "value": 1
+  },
+  {
+    "id": 3,
+    "key": "dirt",
+    "name": "Dirt",
+    "type": "block",
+    "placesBlock": "dirt",
+    "value": 1
+  },
+  {
+    "id": 4,
+    "key": "sand",
+    "name": "Sand",
+    "type": "block",
+    "placesBlock": "sand",
+    "value": 1
+  },
+  {
+    "id": 5,
+    "key": "gravel",
+    "name": "Gravel",
+    "type": "block",
+    "placesBlock": "gravel",
+    "value": 1
+  },
+  {
+    "id": 6,
+    "key": "oak_log",
+    "name": "Oak Log",
+    "type": "block",
+    "placesBlock": "oak_log",
+    "value": 1
+  },
+  {
+    "id": 7,
+    "key": "spruce_log",
+    "name": "Spruce Log",
+    "type": "block",
+    "placesBlock": "spruce_log",
+    "value": 1
+  },
+  {
+    "id": 8,
+    "key": "planks",
+    "name": "Timber Planks",
+    "type": "block",
+    "placesBlock": "planks",
+    "value": 1
+  },
+  {
+    "id": 9,
+    "key": "glass",
+    "name": "Glass",
+    "type": "block",
+    "placesBlock": "glass",
+    "value": 1
+  },
+  {
+    "id": 10,
+    "key": "torch",
+    "name": "Torch",
+    "type": "block",
+    "placesBlock": "torch",
+    "value": 1
+  },
+  {
+    "id": 11,
+    "key": "crafting_table",
+    "name": "Workbench",
+    "type": "block",
+    "placesBlock": "crafting_table",
+    "value": 1
+  },
+  {
+    "id": 12,
+    "key": "furnace",
+    "name": "Furnace",
+    "type": "block",
+    "placesBlock": "furnace",
+    "value": 1
+  },
+  {
+    "id": 13,
+    "key": "chest",
+    "name": "Storage Chest",
+    "type": "block",
+    "placesBlock": "chest",
+    "value": 1
+  },
+  {
+    "id": 14,
+    "key": "sandstone",
+    "name": "Sandstone",
+    "type": "block",
+    "placesBlock": "sandstone",
+    "value": 1
+  },
+  {
+    "id": 15,
+    "key": "red_sand",
+    "name": "Rust Sand",
+    "type": "block",
+    "placesBlock": "red_sand",
+    "value": 1
+  },
+  {
+    "id": 16,
+    "key": "fired_clay",
+    "name": "Fired Clay",
+    "type": "block",
+    "placesBlock": "fired_clay",
+    "value": 1
+  },
+  {
+    "id": 17,
+    "key": "cactus",
+    "name": "Cactus",
+    "type": "block",
+    "placesBlock": "cactus",
+    "value": 1
+  },
+  {
+    "id": 18,
+    "key": "snowpack",
+    "name": "Snowpack",
+    "type": "block",
+    "placesBlock": "snowpack",
+    "value": 1
+  }
+]

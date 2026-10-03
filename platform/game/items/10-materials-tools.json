@@ -1,0 +1,338 @@
+[
+  {
+    "id": 19,
+    "key": "clay_ball",
+    "name": "Clay Lump",
+    "type": "material",
+    "value": 2
+  },
+  {
+    "id": 20,
+    "key": "coal",
+    "name": "Coal",
+    "type": "material",
+    "value": 4
+  },
+  {
+    "id": 21,
+    "key": "raw_iron",
+    "name": "Raw Iron",
+    "type": "material",
+    "value": 8
+  },
+  {
+    "id": 22,
+    "key": "raw_copper",
+    "name": "Raw Copper",
+    "type": "material",
+    "value": 5
+  },
+  {
+    "id": 23,
+    "key": "raw_gold",
+    "name": "Raw Gold",
+    "type": "material",
+    "value": 20,
+    "rarity": "uncommon"
+  },
+  {
+    "id": 24,
+    "key": "iron_ingot",
+    "name": "Iron Ingot",
+    "type": "material",
+    "value": 12
+  },
+  {
+    "id": 25,
+    "key": "copper_ingot",
+    "name": "Copper Ingot",
+    "type": "material",
+    "value": 7
+  },
+  {
+    "id": 26,
+    "key": "gold_ingot",
+    "name": "Gold Ingot",
+    "type": "material",
+    "value": 30,
+    "rarity": "uncommon"
+  },
+  {
+    "id": 27,
+    "key": "lumen_shard",
+    "name": "Lumen Shard",
+    "type": "material",
+    "value": 120,
+    "rarity": "rare"
+  },
+  {
+    "id": 28,
+    "key": "stick",
+    "name": "Stick",
+    "type": "material",
+    "value": 1
+  },
+  {
+    "id": 29,
+    "key": "wheat_seeds",
+    "name": "Wheat Seeds",
+    "type": "seed",
+    "placesBlock": "wheat_crop",
+    "value": 1
+  },
+  {
+    "id": 30,
+    "key": "wheat",
+    "name": "Wheat",
+    "type": "material",
+    "value": 2
+  },
+  {
+    "id": 31,
+    "key": "bread",
+    "name": "Bread",
+    "type": "food",
+    "food": 5,
+    "value": 8
+  },
+  {
+    "id": 32,
+    "key": "wooden_pickaxe",
+    "name": "Wooden Pickaxe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 60,
+    "value": 3,
+    "tool": {
+      "kind": "pickaxe",
+      "tier": 0,
+      "speed": 2.0,
+      "attackDamage": 2
+    }
+  },
+  {
+    "id": 33,
+    "key": "wooden_axe",
+    "name": "Wooden Axe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 60,
+    "value": 3,
+    "tool": {
+      "kind": "axe",
+      "tier": 0,
+      "speed": 2.0,
+      "attackDamage": 3
+    }
+  },
+  {
+    "id": 34,
+    "key": "wooden_shovel",
+    "name": "Wooden Shovel",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 60,
+    "value": 3,
+    "tool": {
+      "kind": "shovel",
+      "tier": 0,
+      "speed": 2.0,
+      "attackDamage": 1
+    }
+  },
+  {
+    "id": 35,
+    "key": "wooden_hoe",
+    "name": "Wooden Hoe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 60,
+    "value": 3,
+    "tool": {
+      "kind": "hoe",
+      "tier": 0,
+      "speed": 2.0,
+      "attackDamage": 1
+    }
+  },
+  {
+    "id": 36,
+    "key": "wooden_sword",
+    "name": "Wooden Sword",
+    "type": "weapon",
+    "stackSize": 1,
+    "durability": 60,
+    "value": 3,
+    "tool": {
+      "kind": "sword",
+      "tier": 0,
+      "speed": 1.5,
+      "attackDamage": 4
+    }
+  },
+  {
+    "id": 37,
+    "key": "stone_pickaxe",
+    "name": "Stone Pickaxe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 132,
+    "value": 6,
+    "tool": {
+      "kind": "pickaxe",
+      "tier": 1,
+      "speed": 4.0,
+      "attackDamage": 3
+    }
+  },
+  {
+    "id": 38,
+    "key": "stone_axe",
+    "name": "Stone Axe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 132,
+    "value": 6,
+    "tool": {
+      "kind": "axe",
+      "tier": 1,
+      "speed": 4.0,
+      "attackDamage": 4
+    }
+  },
+  {
+    "id": 39,
+    "key": "stone_shovel",
+    "name": "Stone Shovel",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 132,
+    "value": 6,
+    "tool": {
+      "kind": "shovel",
+      "tier": 1,
+      "speed": 4.0,
+      "attackDamage": 2
+    }
+  },
+  {
+    "id": 40,
+    "key": "stone_hoe",
+    "name": "Stone Hoe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 132,
+    "value": 6,
+    "tool": {
+      "kind": "hoe",
+      "tier": 1,
+      "speed": 4.0,
+      "attackDamage": 1
+    }
+  },
+  {
+    "id": 41,
+    "key": "stone_sword",
+    "name": "Stone Sword",
+    "type": "weapon",
+    "stackSize": 1,
+    "durability": 132,
+    "value": 6,
+    "tool": {
+      "kind": "sword",
+      "tier": 1,
+      "speed": 1.5,
+      "attackDamage": 5
+    }
+  },
+  {
+    "id": 42,
+    "key": "iron_pickaxe",
+    "name": "Iron Pickaxe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 251,
+    "value": 40,
+    "tool": {
+      "kind": "pickaxe",
+      "tier": 2,
+      "speed": 6.0,
+      "attackDamage": 4
+    }
+  },
+  {
+    "id": 43,
+    "key": "iron_axe",
+    "name": "Iron Axe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 251,
+    "value": 40,
+    "tool": {
+      "kind": "axe",
+      "tier": 2,
+      "speed": 6.0,
+      "attackDamage": 5
+    }
+  },
+  {
+    "id": 44,
+    "key": "iron_shovel",
+    "name": "Iron Shovel",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 251,
+    "value": 40,
+    "tool": {
+      "kind": "shovel",
+      "tier": 2,
+      "speed": 6.0,
+      "attackDamage": 3
+    }
+  },
+  {
+    "id": 45,
+    "key": "iron_hoe",
+    "name": "Iron Hoe",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 251,
+    "value": 40,
+    "tool": {
+      "kind": "hoe",
+      "tier": 2,
+      "speed": 6.0,
+      "attackDamage": 1
+    }
+  },
+  {
+    "id": 46,
+    "key": "iron_sword",
+    "name": "Iron Sword",
+    "type": "weapon",
+    "stackSize": 1,
+    "durability": 251,
+    "value": 40,
+    "tool": {
+      "kind": "sword",
+      "tier": 2,
+      "speed": 1.5,
+      "attackDamage": 6
+    }
+  },
+  {
+    "id": 47,
+    "key": "shears",
+    "name": "Shears",
+    "type": "tool",
+    "stackSize": 1,
+    "durability": 238,
+    "value": 24,
+    "tool": {
+      "kind": "shears",
+      "tier": 0,
+      "speed": 5.0,
+      "attackDamage": 0
+    }
+  }
+]

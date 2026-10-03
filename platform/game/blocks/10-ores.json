@@ -1,0 +1,105 @@
+[
+  {
+    "id": 15,
+    "key": "coal_ore",
+    "name": "Coal Seam",
+    "material": "rock",
+    "hardness": 3.0,
+    "resistance": 3,
+    "texture": {
+      "all": "coal_ore"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "drops": [
+      {
+        "item": "coal"
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "key": "iron_ore",
+    "name": "Iron Vein",
+    "material": "rock",
+    "hardness": 3.0,
+    "resistance": 3,
+    "texture": {
+      "all": "iron_ore"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 1
+    },
+    "drops": [
+      {
+        "item": "raw_iron"
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "key": "copper_ore",
+    "name": "Copper Vein",
+    "material": "rock",
+    "hardness": 3.0,
+    "resistance": 3,
+    "texture": {
+      "all": "copper_ore"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 1
+    },
+    "drops": [
+      {
+        "item": "raw_copper",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "key": "gold_ore",
+    "name": "Gold Vein",
+    "material": "rock",
+    "hardness": 3.0,
+    "resistance": 3,
+    "texture": {
+      "all": "gold_ore"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 2
+    },
+    "drops": [
+      {
+        "item": "raw_gold"
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "key": "lumenite_ore",
+    "name": "Lumenite Vein",
+    "material": "crystal",
+    "hardness": 3.0,
+    "resistance": 3,
+    "texture": {
+      "all": "lumenite_ore"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 2
+    },
+    "lightEmission": 7,
+    "drops": [
+      {
+        "item": "lumen_shard",
+        "max": 2
+      }
+    ]
+  }
+]

@@ -1,0 +1,51 @@
+[
+  {
+    "key": "coal",
+    "block": "coal_ore",
+    "minY": 5,
+    "maxY": 140,
+    "veinsPerChunk": 12,
+    "veinSize": 10
+  },
+  {
+    "key": "iron",
+    "block": "iron_ore",
+    "minY": 5,
+    "maxY": 72,
+    "veinsPerChunk": 8,
+    "veinSize": 7
+  },
+  {
+    "key": "copper",
+    "block": "copper_ore",
+    "minY": 24,
+    "maxY": 100,
+    "veinsPerChunk": 7,
+    "veinSize": 8
+  },
+  {
+    "key": "gold",
+    "block": "gold_ore",
+    "minY": 5,
+    "maxY": 36,
+    "veinsPerChunk": 3,
+    "veinSize": 6
+  },
+  {
+    "key": "lumenite",
+    "block": "lumenite_ore",
+    "minY": 3,
+    "maxY": 20,
+    "veinsPerChunk": 1,
+    "veinSize": 3
+  },
+  {
+    "key": "clay_pocket",
+    "block": "clay",
+    "replaces": "dirt",
+    "minY": 50,
+    "maxY": 70,
+    "veinsPerChunk": 2,
+    "veinSize": 12
+  }
+]

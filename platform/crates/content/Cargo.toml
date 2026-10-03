@@ -1,0 +1,12 @@
+[package]
+name = "platform-content"
+description = "Data-driven game content: loading, validation, mining and crafting rules."
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

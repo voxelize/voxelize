@@ -1,0 +1,140 @@
+[
+  {
+    "type": "shapeless",
+    "key": "planks_from_oak",
+    "ingredients": [
+      "oak_log"
+    ],
+    "result": {
+      "item": "planks",
+      "count": 4
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "planks_from_spruce",
+    "ingredients": [
+      "spruce_log"
+    ],
+    "result": {
+      "item": "planks",
+      "count": 4
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "stick",
+    "pattern": [
+      "#",
+      "#"
+    ],
+    "symbols": {
+      "#": "planks"
+    },
+    "result": {
+      "item": "stick",
+      "count": 4
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "crafting_table",
+    "pattern": [
+      "##",
+      "##"
+    ],
+    "symbols": {
+      "#": "planks"
+    },
+    "result": {
+      "item": "crafting_table"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "torch",
+    "pattern": [
+      "c",
+      "s"
+    ],
+    "symbols": {
+      "c": "coal",
+      "s": "stick"
+    },
+    "result": {
+      "item": "torch",
+      "count": 4
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "furnace",
+    "pattern": [
+      "###",
+      "# #",
+      "###"
+    ],
+    "symbols": {
+      "#": "rubble"
+    },
+    "result": {
+      "item": "furnace"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "chest",
+    "pattern": [
+      "###",
+      "# #",
+      "###"
+    ],
+    "symbols": {
+      "#": "planks"
+    },
+    "result": {
+      "item": "chest"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "sandstone",
+    "pattern": [
+      "##",
+      "##"
+    ],
+    "symbols": {
+      "#": "sand"
+    },
+    "result": {
+      "item": "sandstone"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "bread",
+    "pattern": [
+      "www"
+    ],
+    "symbols": {
+      "w": "wheat"
+    },
+    "result": {
+      "item": "bread"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "shears",
+    "pattern": [
+      " i",
+      "i "
+    ],
+    "symbols": {
+      "i": "iron_ingot"
+    },
+    "result": {
+      "item": "shears"
+    }
+  }
+]

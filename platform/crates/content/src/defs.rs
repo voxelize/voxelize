@@ -1,0 +1,388 @@
+//! Serialized shapes of every content kind. These are the on-disk schema of
+//! `platform/game/**.json`; field names are camelCase in JSON.
+
+use serde::{Deserialize, Serialize};
+
+/// Tool families a block can require and an item can be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolKind {
+    Pickaxe,
+    Axe,
+    Shovel,
+    Hoe,
+    Sword,
+    Shears,
+}
+
+/// How a placed block may be oriented.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Orientation {
+    #[default]
+    None,
+    /// Four horizontal facings (doors, furnaces, stairs).
+    Horizontal,
+    /// Six facings (logs, pistons).
+    Full,
+}
+
+/// Which fluid a block is, if any.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FluidKind {
+    Water,
+    Lava,
+}
+
+/// Server-side behaviours a block can opt into. Each one is implemented once
+/// by the game server and enabled per block by data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BlockBehavior {
+    /// Falls when nothing supports it (sand, gravel).
+    Falls,
+    /// Spreads onto adjacent soil when lit (turf).
+    Spreads,
+    /// Decays when no log is near (leaves).
+    Decays,
+    /// Advances growth stages on random ticks (crops, saplings).
+    Grows,
+    /// Melts near light sources (ice).
+    Melts,
+    /// Burns and spreads to flammable neighbours (fire).
+    Burns,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ToolRequirement {
+    pub kind: ToolKind,
+    /// Minimum tool tier able to harvest the block (0 = any tool of the kind).
+    #[serde(default)]
+    pub min_tier: u8,
+    /// Whether drops need the tool. `false` makes the tool only a speed-up
+    /// (soil dug by hand still drops).
+    #[serde(default = "yes")]
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DropDef {
+    pub item: String,
+    #[serde(default = "one_u32")]
+    pub min: u32,
+    #[serde(default = "one_u32")]
+    pub max: u32,
+    /// Probability in (0, 1].
+    #[serde(default = "one_f32")]
+    pub chance: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BlockTextures {
+    /// Texture used for every face not overridden below.
+    pub all: String,
+    #[serde(default)]
+    pub top: Option<String>,
+    #[serde(default)]
+    pub bottom: Option<String>,
+    #[serde(default)]
+    pub side: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BlockDef {
+    /// Numeric voxel id. 0 is air and reserved by the engine.
+    pub id: u32,
+    /// Stable machine key, `snake_case`. Referenced by every other content kind.
+    pub key: String,
+    /// Display name.
+    pub name: String,
+    pub material: String,
+    /// Seconds-scale hardness. Negative means unbreakable.
+    pub hardness: f32,
+    /// Blast resistance.
+    pub resistance: f32,
+    pub texture: BlockTextures,
+    #[serde(default)]
+    pub transparent: bool,
+    #[serde(default = "yes")]
+    pub collision: bool,
+    #[serde(default)]
+    pub gravity: bool,
+    /// Emitted block light, 0..=15.
+    #[serde(default)]
+    pub light_emission: u32,
+    #[serde(default)]
+    pub tool: Option<ToolRequirement>,
+    #[serde(default)]
+    pub drops: Vec<DropDef>,
+    #[serde(default)]
+    pub orientation: Orientation,
+    #[serde(default)]
+    pub flammable: bool,
+    #[serde(default)]
+    pub fluid: Option<FluidKind>,
+    #[serde(default)]
+    pub behaviors: Vec<BlockBehavior>,
+    /// Number of growth stages for `grows` blocks (0 when the block has none).
+    #[serde(default)]
+    pub stages: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ItemType {
+    Block,
+    Material,
+    Tool,
+    Weapon,
+    Armor,
+    Food,
+    Seed,
+    Misc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Rarity {
+    Common,
+    Uncommon,
+    Rare,
+    Epic,
+    Legendary,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ToolStats {
+    pub kind: ToolKind,
+    pub tier: u8,
+    /// Mining speed multiplier against blocks of the matching tool kind.
+    pub speed: f32,
+    #[serde(default)]
+    pub attack_damage: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ItemDef {
+    pub id: u32,
+    pub key: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub item_type: ItemType,
+    #[serde(default = "default_stack")]
+    pub stack_size: u32,
+    /// Uses before breaking; absent for items that never wear.
+    #[serde(default)]
+    pub durability: Option<u32>,
+    #[serde(default = "common")]
+    pub rarity: Rarity,
+    /// Reference value in soft currency minor units, used by NPC traders and
+    /// analytics. Never a price players are bound to.
+    #[serde(default)]
+    pub value: u64,
+    #[serde(default)]
+    pub tool: Option<ToolStats>,
+    /// Block key placed when this item is used on a face.
+    #[serde(default)]
+    pub places_block: Option<String>,
+    /// Hunger points restored when eaten.
+    #[serde(default)]
+    pub food: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ItemStack {
+    pub item: String,
+    #[serde(default = "one_u32")]
+    pub count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase", deny_unknown_fields)]
+pub enum RecipeDef {
+    Shaped {
+        key: String,
+        /// Rows of single-character symbols; a space is an empty slot.
+        pattern: Vec<String>,
+        /// Symbol -> item key.
+        symbols: std::collections::BTreeMap<char, String>,
+        result: ItemStack,
+        /// Whether the horizontally mirrored pattern also matches.
+        #[serde(default = "yes")]
+        mirrored: bool,
+    },
+    Shapeless {
+        key: String,
+        ingredients: Vec<String>,
+        result: ItemStack,
+    },
+}
+
+impl RecipeDef {
+    pub fn key(&self) -> &str {
+        match self {
+            RecipeDef::Shaped { key, .. } | RecipeDef::Shapeless { key, .. } => key,
+        }
+    }
+
+    pub fn result(&self) -> &ItemStack {
+        match self {
+            RecipeDef::Shaped { result, .. } | RecipeDef::Shapeless { result, .. } => result,
+        }
+    }
+}
+
+/// A recipe run by a processing station (furnace, smelter, crusher...).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProcessingRecipeDef {
+    pub key: String,
+    /// Station kind key, declared in `stations`.
+    pub station: String,
+    pub input: ItemStack,
+    pub output: ItemStack,
+    /// Processing time in game ticks.
+    pub ticks: u32,
+    #[serde(default)]
+    pub experience: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StationDef {
+    pub key: String,
+    pub name: String,
+    /// Block that hosts the station in the world.
+    pub block: String,
+    /// Whether the station consumes fuel.
+    #[serde(default)]
+    pub fueled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FuelDef {
+    pub item: String,
+    /// Ticks of burn time one item provides.
+    pub ticks: u32,
+}
+
+/// The terrain shape a biome asks the generator for.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TerrainParams {
+    /// Height offset added to the continental base height.
+    #[serde(default)]
+    pub height_offset: f64,
+    /// Amplitude of local hills.
+    pub roughness: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BiomeDef {
+    pub key: String,
+    pub name: String,
+    /// Climate point the biome is centred on; each axis in [-1, 1].
+    pub temperature: f64,
+    pub humidity: f64,
+    pub continentalness: f64,
+    pub erosion: f64,
+    pub terrain: TerrainParams,
+    /// Top block of a dry column.
+    pub surface: String,
+    /// Block under the surface down to `subsurfaceDepth`.
+    pub subsurface: String,
+    #[serde(default = "default_subsurface_depth")]
+    pub subsurface_depth: u32,
+    /// Surface block used below sea level (lake and ocean floors).
+    #[serde(default)]
+    pub underwater_surface: Option<String>,
+    /// Weather kinds this biome can have; empty means clear only.
+    #[serde(default)]
+    pub weather: Vec<String>,
+    #[serde(default)]
+    pub vegetation: VegetationDef,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VegetationDef {
+    #[serde(default)]
+    pub trees: Option<TreeDef>,
+    /// Single blocks placed on top of the surface (grass, cacti...).
+    #[serde(default)]
+    pub ground_cover: Vec<GroundCoverDef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TreeDef {
+    pub log: String,
+    pub leaves: String,
+    /// Chance per surface column, in [0, 1].
+    pub density: f64,
+    pub min_height: u32,
+    pub max_height: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GroundCoverDef {
+    pub block: String,
+    /// Chance per surface column, in [0, 1].
+    pub density: f64,
+    /// Surface block the cover may grow on; any dry surface when absent.
+    #[serde(default)]
+    pub on: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OreDef {
+    pub key: String,
+    pub block: String,
+    /// Block the ore may replace.
+    #[serde(default = "default_ore_host")]
+    pub replaces: String,
+    pub min_y: i32,
+    pub max_y: i32,
+    pub veins_per_chunk: u32,
+    pub vein_size: u32,
+}
+
+fn one_u32() -> u32 {
+    1
+}
+
+fn one_f32() -> f32 {
+    1.0
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn default_stack() -> u32 {
+    64
+}
+
+fn common() -> Rarity {
+    Rarity::Common
+}
+
+fn default_subsurface_depth() -> u32 {
+    3
+}
+
+fn default_ore_host() -> String {
+    "stone".to_owned()
+}
