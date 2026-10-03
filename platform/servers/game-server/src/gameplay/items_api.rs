@@ -177,6 +177,21 @@ pub(super) fn close_window(world: &mut World, id: &str) {
 }
 
 pub(super) fn block_removed(world: &mut World, voxel: [i32; 3], drops: &[(u32, u32)]) {
+    // Writes are staged until the next tick, so the broken block is still
+    // readable here.
+    let loot_stage = {
+        let chunks = world.chunks();
+        let raw = voxelize::VoxelAccess::get_raw_voxel(&*chunks, voxel[0], voxel[1], voxel[2]);
+        let id = raw & 0xFFFF;
+        let g = world.ecs().read_resource::<Gameplay>();
+        let is_chest = g
+            .rules
+            .content()
+            .block_by_id(id)
+            .is_some_and(|b| b.key == "chest");
+        let stage = (raw >> 24) & 0xF;
+        (is_chest && stage > 0).then_some(stage)
+    };
     let center = [
         voxel[0] as f32 + 0.5,
         voxel[1] as f32 + 0.5,
@@ -197,6 +212,16 @@ pub(super) fn block_removed(world: &mut World, voxel: [i32; 3], drops: &[(u32, u
             })
             .collect();
         let mut closed = Vec::new();
+        if !g.containers.map.contains_key(&voxel) {
+            // An unopened structure chest still holds its loot.
+            if let Some(stage) = loot_stage {
+                stacks.extend(
+                    super::containers::structure_loot(g.rules.content(), stage, voxel)
+                        .into_iter()
+                        .flatten(),
+                );
+            }
+        }
         if let Some(mut container) = g.containers.map.remove(&voxel) {
             stacks.extend(container.take_all());
             g.containers.dirty = true;
@@ -347,6 +372,7 @@ pub(super) fn install(world: &mut World) {
         };
         close_window(world, id);
         let position = client_position(world, id);
+        let mut loot_opened = false;
         let opened = {
             let mut g = world.ecs().write_resource::<Gameplay>();
             let reach = g.rules.reach;
@@ -405,6 +431,22 @@ pub(super) fn install(world: &mut World) {
                 }
             }
         };
+        if let (true, Some(voxel)) = (loot_opened, p.voxel) {
+            // The loot now lives in the container: clear the marker so it
+            // can never be rolled again, and save.
+            let id_only = {
+                let chunks = world.chunks();
+                voxelize::VoxelAccess::get_voxel(&*chunks, voxel[0], voxel[1], voxel[2])
+            };
+            world
+                .chunks_mut()
+                .update_voxel(&voxelize::Vec3(voxel[0], voxel[1], voxel[2]), id_only);
+            let mut g = world.ecs().write_resource::<Gameplay>();
+            let dir = g.world_dir.clone();
+            if let Err(e) = g.containers.save(&dir) {
+                log::error!("could not save containers: {e}");
+            }
+        }
         match opened {
             Err(None) => not_joined(world, id, INTENT),
             Err(Some(e)) => reply(world, id, INTENT, Err(e)),

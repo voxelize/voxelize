@@ -143,6 +143,53 @@ impl Furnace {
     }
 }
 
+/// Loot for a chest generated inside structure number `stage - 1`,
+/// deterministic for its position so it cannot be re-rolled.
+pub fn structure_loot(content: &Content, stage: u32, at: [i32; 3]) -> Vec<Option<Stack>> {
+    let mut slots = vec![None; CHEST_SIZE];
+    let Some(st) = stage
+        .checked_sub(1)
+        .and_then(|i| content.structures().get(i as usize))
+    else {
+        return slots;
+    };
+    let mut h = (at[0] as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        ^ (at[1] as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
+        ^ (at[2] as u64).wrapping_mul(0x1656_67B1_9E37_79F9);
+    let mut next = || {
+        h = h.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = h;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    };
+    for drop in &st.loot {
+        if (next() >> 11) as f64 / (1u64 << 53) as f64 >= drop.chance as f64 {
+            continue;
+        }
+        let Some(item) = content.item(&drop.item) else {
+            continue;
+        };
+        let count = drop.min + (next() % (drop.max - drop.min + 1) as u64) as u32;
+        if count == 0 {
+            continue;
+        }
+        // A random free slot, so chests do not all look alike.
+        for _ in 0..CHEST_SIZE {
+            let slot = (next() % CHEST_SIZE as u64) as usize;
+            if slots[slot].is_none() {
+                slots[slot] = Some(Stack {
+                    item: item.id,
+                    count: count.min(item.stack_size),
+                    durability: item.durability,
+                });
+                break;
+            }
+        }
+    }
+    slots
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Container {
@@ -328,6 +375,37 @@ mod tests {
         }
         assert_eq!(f.slots[FURNACE_INPUT], st(&c, "raw_iron", 2));
         assert_eq!(f.slots[FURNACE_FUEL], st(&c, "coal", 1));
+    }
+
+    #[test]
+    fn structure_loot_is_fixed_per_position_and_respects_the_table() {
+        let c = content();
+        let hut = c
+            .structures()
+            .iter()
+            .position(|s| s.key == "wayfarer_hut")
+            .unwrap() as u32
+            + 1;
+        let a = structure_loot(&c, hut, [10, 70, -4]);
+        assert_eq!(a, structure_loot(&c, hut, [10, 70, -4]));
+        let allowed: Vec<u32> = c.structures()[hut as usize - 1]
+            .loot
+            .iter()
+            .map(|d| c.item(&d.item).unwrap().id)
+            .collect();
+        assert!(a.iter().flatten().all(|s| allowed.contains(&s.item)));
+        let filled = (0..40)
+            .filter(|i| {
+                structure_loot(&c, hut, [*i, 70, 0])
+                    .iter()
+                    .any(Option::is_some)
+            })
+            .count();
+        assert!(filled > 30, "most chests hold something: {filled}/40");
+        assert!(
+            structure_loot(&c, 0, [0, 0, 0]).iter().all(Option::is_none),
+            "stage 0 is not loot"
+        );
     }
 
     #[test]

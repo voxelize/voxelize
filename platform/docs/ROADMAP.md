@@ -34,8 +34,9 @@ Done: data-driven content pack (34 blocks, 47 items, 25 recipes, 14 biomes,
 6 ores); deterministic climate → height → biome → layers → caves/lava → ores →
 vegetation; engine stage; tests for determinism, ore bands, biome variety,
 cliff-free borders, trees.
-Remaining: rivers, ravines, aquifers/underground lakes, dungeons and rare
-chambers (with structures, phase 11), biome tints sent to clients.
+Done since: rivers, ravines, five data-driven structures with loot
+(see WORLD_GENERATION.md). Remaining: aquifers/underground lakes, villages,
+biome tints sent to clients.
 
 ## Phase 3 — Player controller and web client 🟡
 
@@ -159,7 +160,7 @@ farmland, eight wheat stages that need light and grow faster near water,
 ripe crops drop wheat and seeds; saplings grow into trees. Unit tests for
 every behaviour and `tests/bots/nature.mjs` on a live server (a felled tree's
 leaves decay and drop saplings).
-Remaining: animals (feeding, breeding, growth, drops), structures, bone-meal
+Animals and structures are done (phases 10 and 2). Remaining: bone-meal
 style fertiliser, more crops.
 
 ## Phase 12 — Automation ⬜

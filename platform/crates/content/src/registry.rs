@@ -40,6 +40,7 @@ pub struct ContentSource {
     pub biomes: Vec<BiomeDef>,
     pub ores: Vec<OreDef>,
     pub mobs: Vec<MobDef>,
+    pub structures: Vec<StructureDef>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -124,6 +125,7 @@ impl ContentSource {
             biomes: read_kind(root, "biomes")?,
             ores: read_kind(root, "ores")?,
             mobs: read_kind(root, "mobs")?,
+            structures: read_kind(root, "structures")?,
             ..Default::default()
         };
         for file in read_files::<ProcessingFile>(root, "processing")? {
@@ -227,6 +229,7 @@ impl Content {
         index_unique(&source.ores, "ore", |o| &o.key, &mut errors);
         let biome_keys = index_unique(&source.biomes, "biome-ref", |b| &b.key, &mut ValidationErrors::default());
         index_unique(&source.mobs, "mob", |m| &m.key, &mut errors);
+        index_unique(&source.structures, "structure", |s| &s.key, &mut errors);
 
         let has_block = |key: &str| blocks_by_key.contains_key(key);
         let has_item = |key: &str| items_by_key.contains_key(key);
@@ -538,6 +541,50 @@ impl Content {
             }
         }
 
+        for st in &source.structures {
+            let who = format!("structure {:?}", st.key);
+            let (w, h, d) = st.size();
+            if w == 0 || h == 0 || d == 0 || w > 32 || h > 48 || d > 32 {
+                errors.push(format!("{who} must be 1..=32 wide/deep and 1..=48 tall"));
+            }
+            for (y, layer) in st.layers.iter().enumerate() {
+                if layer.len() != d {
+                    errors.push(format!("{who} layer {y} has {} rows, expected {d}", layer.len()));
+                }
+                for row in layer {
+                    if row.chars().count() != w {
+                        errors.push(format!("{who} layer {y} has a row of the wrong width"));
+                    }
+                    for c in row.chars() {
+                        if c != ' ' && c != '.' && !st.palette.contains_key(&c) {
+                            errors.push(format!("{who} uses undefined symbol {c:?}"));
+                        }
+                    }
+                }
+            }
+            for (symbol, block) in &st.palette {
+                if !has_block(block) {
+                    errors.push(format!("{who} symbol {symbol:?} names unknown block {block:?}"));
+                }
+            }
+            for key in &st.biomes {
+                if !biome_keys.contains_key(key) {
+                    errors.push(format!("{who} appears in unknown biome {key:?}"));
+                }
+            }
+            for drop in &st.loot {
+                if !has_item(&drop.item) {
+                    errors.push(format!("{who} loot names unknown item {:?}", drop.item));
+                }
+            }
+            if st.spacing < 2 || !(st.chance > 0.0 && st.chance <= 1.0) {
+                errors.push(format!("{who} needs spacing >= 2 and chance in (0, 1]"));
+            }
+            if st.placement == StructurePlacement::Underground && st.min_y >= st.max_y {
+                errors.push(format!("{who} underground needs minY < maxY"));
+            }
+        }
+
         if !errors.0.is_empty() {
             return Err(errors);
         }
@@ -588,6 +635,10 @@ impl Content {
 
     pub fn mobs(&self) -> &[MobDef] {
         &self.source.mobs
+    }
+
+    pub fn structures(&self) -> &[StructureDef] {
+        &self.source.structures
     }
 
     pub fn mob(&self, key: &str) -> Option<&MobDef> {
@@ -641,6 +692,7 @@ impl Content {
             ("biomes", self.source.biomes.len()),
             ("ores", self.source.ores.len()),
             ("mobs", self.source.mobs.len()),
+            ("structures", self.source.structures.len()),
         ])
     }
 }

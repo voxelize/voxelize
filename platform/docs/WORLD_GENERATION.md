@@ -55,9 +55,10 @@ Taiga, Mountains, Beach, Ocean, Deep Ocean, Badlands.
 
 | Stage | Phase | Design |
 | --- | --- | --- |
-| Rivers and ravines | 11 | ridged noise channels carved before caves, flooded to sea level |
-| Underground lakes, aquifers | 11 | flood cave pockets below a per-region water table |
-| Structures | 11 | data-driven templates (villages, ruins, temples, mines, dungeons, towers, shipwrecks) placed on a seeded region grid; multi-chunk structures are placed through the engine's `exceeded_changes` mechanism so neighbours receive their part |
+| Rivers and ravines | ✅ | rivers where a 700-block noise field crosses zero on land: terrain sinks smoothly to a flat bed 3 below sea level and fills with water; ravines are narrow cuts up to 40 deep inside masked regions |
+| Structures | ✅ | data-driven templates (`platform/game/structures`): Wayfarer's Hut, Old Ruin, Sand Obelisk, Deep Vault, Lookout Tower. One per seeded grid cell (`spacing` chunks, `chance`), biome- and water-aware. Each chunk computes every structure whose footprint touches it and draws its part, so chunks stay independent and structures are whole across borders. Chests carry their structure in the voxel stage bits; the server fills them from the structure's loot table on first opening (deterministic per position) or spills that loot if broken unopened |
+| Underground lakes, aquifers | later | flood cave pockets below a per-region water table |
+| Villages | later | groups of buildings with paths and NPCs (NPC civilisation phase) |
 | Dimensions | 18 | each dimension is a world with its own generator config (underworld: inverted cavern generator, lava sea; sky: floating islands from 3D density) |
 
 ## Changing a live world's generator

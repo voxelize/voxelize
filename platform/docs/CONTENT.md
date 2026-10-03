@@ -96,6 +96,17 @@ weather kinds and vegetation (`trees`: log, leaves, density, height range;
 `groundCover`: block, density, optional host block). Ores declare block,
 host block, height band, veins per chunk and vein size.
 
+## mobs/ and structures/
+
+Creatures declare kind (`passive`, `neutral`, `hostile`), health, speed,
+damage, size, spawn rules (light, ground blocks, biomes, weight, group
+size), drops, breed item, daylight burning, sight and a box model (parts
+with size, offset, colour; legs swing). Structures declare placement
+(`surface` with `yOffset`, or `underground` between `minY` and `maxY`),
+biomes, grid `spacing` and `chance`, a character `palette`, `layers` (bottom
+to top, rows along z, characters along x; space keeps terrain, `.` is air)
+and a `loot` table for their chests.
+
 ## Adding a content kind
 
 1. Schema structs in `crates/content/src/defs.rs` (`deny_unknown_fields`).

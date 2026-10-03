@@ -488,3 +488,57 @@ fn default_attack_cooldown() -> f32 {
 fn default_sight() -> f32 {
     16.0
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StructurePlacement {
+    /// Floor level with the terrain surface.
+    Surface,
+    /// Buried between `minY` and `maxY`.
+    Underground,
+}
+
+/// A building placed by world generation, drawn as layers of characters.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StructureDef {
+    pub key: String,
+    pub name: String,
+    pub placement: StructurePlacement,
+    /// Biomes it appears in; every biome when empty.
+    #[serde(default)]
+    pub biomes: Vec<String>,
+    /// Size of the placement grid cell, in chunks; at most one per cell.
+    pub spacing: u32,
+    /// Chance that a cell holds one, in (0, 1].
+    pub chance: f64,
+    /// Floor offset from the surface (surface placement).
+    #[serde(default)]
+    pub y_offset: i32,
+    #[serde(default)]
+    pub min_y: i32,
+    #[serde(default)]
+    pub max_y: i32,
+    /// Character -> block key. A space keeps whatever is there; `.` is air.
+    pub palette: std::collections::BTreeMap<char, String>,
+    /// Bottom to top; each layer is rows along z of characters along x.
+    pub layers: Vec<Vec<String>>,
+    /// Filled into chests of this structure the first time they open.
+    #[serde(default)]
+    pub loot: Vec<DropDef>,
+}
+
+impl StructureDef {
+    /// Width (x), height (y), depth (z).
+    pub fn size(&self) -> (usize, usize, usize) {
+        let height = self.layers.len();
+        let depth = self.layers.first().map(|l| l.len()).unwrap_or(0);
+        let width = self
+            .layers
+            .first()
+            .and_then(|l| l.first())
+            .map(|r| r.chars().count())
+            .unwrap_or(0);
+        (width, height, depth)
+    }
+}

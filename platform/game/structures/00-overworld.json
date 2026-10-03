@@ -1,0 +1,532 @@
+[
+ {
+  "key": "wayfarer_hut",
+  "name": "Wayfarer's Hut",
+  "placement": "surface",
+  "biomes": [
+   "plains",
+   "forest",
+   "savanna",
+   "taiga",
+   "snowy_plains"
+  ],
+  "spacing": 8,
+  "chance": 0.45,
+  "yOffset": 0,
+  "palette": {
+   "P": "planks",
+   "L": "oak_log",
+   "G": "glass",
+   "W": "crafting_table",
+   "C": "chest",
+   "T": "torch",
+   "R": "rubble"
+  },
+  "layers": [
+   [
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR"
+   ],
+   [
+    "LPPPPPL",
+    "P.....P",
+    "P.....P",
+    "P.....P",
+    "P.....P",
+    "PW...CP",
+    "LPP.PPL"
+   ],
+   [
+    "LPGPGPL",
+    "P.....P",
+    "G.....G",
+    "P.....P",
+    "G.....G",
+    "P....TP",
+    "LPP.PPL"
+   ],
+   [
+    "LPPPPPL",
+    "P.....P",
+    "P.....P",
+    "P.....P",
+    "P.....P",
+    "P.....P",
+    "LPPPPPL"
+   ],
+   [
+    "PPPPPPP",
+    "PPPPPPP",
+    "PPPPPPP",
+    "PPPPPPP",
+    "PPPPPPP",
+    "PPPPPPP",
+    "PPPPPPP"
+   ],
+   [
+    "       ",
+    " PPPPP ",
+    " PPPPP ",
+    " PPPPP ",
+    " PPPPP ",
+    " PPPPP ",
+    "       "
+   ]
+  ],
+  "loot": [
+   {
+    "item": "bread",
+    "min": 1,
+    "max": 3,
+    "chance": 0.8
+   },
+   {
+    "item": "wheat_seeds",
+    "min": 2,
+    "max": 6,
+    "chance": 0.7
+   },
+   {
+    "item": "torch",
+    "min": 2,
+    "max": 6,
+    "chance": 0.6
+   },
+   {
+    "item": "iron_ingot",
+    "min": 1,
+    "max": 2,
+    "chance": 0.3
+   },
+   {
+    "item": "oak_sapling",
+    "min": 1,
+    "max": 2,
+    "chance": 0.5
+   }
+  ]
+ },
+ {
+  "key": "stone_ruin",
+  "name": "Old Ruin",
+  "placement": "surface",
+  "spacing": 7,
+  "chance": 0.35,
+  "yOffset": 0,
+  "biomes": [
+   "plains",
+   "forest",
+   "dark_forest",
+   "savanna",
+   "taiga",
+   "mountains",
+   "jungle",
+   "swamp",
+   "snowy_plains"
+  ],
+  "palette": {
+   "R": "rubble",
+   "C": "chest"
+  },
+  "layers": [
+   [
+    "RRR RRR",
+    "R     R",
+    "R     R",
+    "       ",
+    "R     R",
+    "R  C  R",
+    "RR RRRR"
+   ],
+   [
+    "R R  RR",
+    "R     .",
+    "       ",
+    "       ",
+    "      R",
+    "R.....R",
+    "R  R  R"
+   ],
+   [
+    "R    R ",
+    "       ",
+    "       ",
+    "       ",
+    "      R",
+    "       ",
+    "R     R"
+   ]
+  ],
+  "loot": [
+   {
+    "item": "coal",
+    "min": 1,
+    "max": 5,
+    "chance": 0.7
+   },
+   {
+    "item": "raw_iron",
+    "min": 1,
+    "max": 3,
+    "chance": 0.5
+   },
+   {
+    "item": "stone_pickaxe",
+    "chance": 0.2
+   },
+   {
+    "item": "apple",
+    "min": 1,
+    "max": 2,
+    "chance": 0.5
+   }
+  ]
+ },
+ {
+  "key": "sand_obelisk",
+  "name": "Sand Obelisk",
+  "placement": "surface",
+  "biomes": [
+   "desert",
+   "badlands"
+  ],
+  "spacing": 12,
+  "chance": 0.6,
+  "yOffset": 0,
+  "palette": {
+   "S": "sandstone",
+   "C": "chest",
+   "T": "torch"
+  },
+  "layers": [
+   [
+    "SSSSSSSSS",
+    "SSSSSSSSS",
+    "SSSSSSSSS",
+    "SSSSSSSSS",
+    "SSSSSSSSS",
+    "SSSSSSSSS",
+    "SSSSSSSSS",
+    "SSSSSSSSS",
+    "SSSSSSSSS"
+   ],
+   [
+    "         ",
+    " SSSSSSS ",
+    " S.....S ",
+    " S.....S ",
+    " S..C..S ",
+    " S.....S ",
+    " S.....S ",
+    " SSSSSSS ",
+    "         "
+   ],
+   [
+    "         ",
+    "         ",
+    "  T....  ",
+    "  .....  ",
+    "  .....  ",
+    "  .....  ",
+    "  .....  ",
+    "         ",
+    "         "
+   ],
+   [
+    "         ",
+    "         ",
+    "         ",
+    "   SSS   ",
+    "   SSS   ",
+    "   SSS   ",
+    "         ",
+    "         ",
+    "         "
+   ],
+   [
+    "         ",
+    "         ",
+    "         ",
+    "         ",
+    "    S    ",
+    "         ",
+    "         ",
+    "         ",
+    "         "
+   ],
+   [
+    "         ",
+    "         ",
+    "         ",
+    "         ",
+    "    S    ",
+    "         ",
+    "         ",
+    "         ",
+    "         "
+   ],
+   [
+    "         ",
+    "         ",
+    "         ",
+    "         ",
+    "    S    ",
+    "         ",
+    "         ",
+    "         ",
+    "         "
+   ]
+  ],
+  "loot": [
+   {
+    "item": "gold_ingot",
+    "min": 1,
+    "max": 4,
+    "chance": 0.8
+   },
+   {
+    "item": "lumen_shard",
+    "min": 1,
+    "max": 2,
+    "chance": 0.35
+   },
+   {
+    "item": "iron_ingot",
+    "min": 1,
+    "max": 3,
+    "chance": 0.6
+   },
+   {
+    "item": "cactus",
+    "min": 1,
+    "max": 3,
+    "chance": 0.4
+   }
+  ]
+ },
+ {
+  "key": "deep_vault",
+  "name": "Deep Vault",
+  "placement": "underground",
+  "spacing": 6,
+  "chance": 0.5,
+  "minY": 14,
+  "maxY": 40,
+  "palette": {
+   "R": "rubble",
+   "C": "chest",
+   "T": "torch"
+  },
+  "layers": [
+   [
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR"
+   ],
+   [
+    "RRRRRRR",
+    "R.....R",
+    "R.....R",
+    "R..C..R",
+    "R.....R",
+    "R.....R",
+    "RRRRRRR"
+   ],
+   [
+    "RRRRRRR",
+    "R.....R",
+    "R.....R",
+    "R.....R",
+    "R.....R",
+    "R.....R",
+    "RRRRRRR"
+   ],
+   [
+    "RRRRRRR",
+    "RT....R",
+    "R.....R",
+    "R.....R",
+    "R.....R",
+    "R....TR",
+    "RRRRRRR"
+   ],
+   [
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR",
+    "RRRRRRR"
+   ]
+  ],
+  "loot": [
+   {
+    "item": "iron_ingot",
+    "min": 2,
+    "max": 5,
+    "chance": 0.8
+   },
+   {
+    "item": "gold_ingot",
+    "min": 1,
+    "max": 3,
+    "chance": 0.5
+   },
+   {
+    "item": "lumen_shard",
+    "min": 1,
+    "max": 3,
+    "chance": 0.4
+   },
+   {
+    "item": "iron_pickaxe",
+    "chance": 0.15
+   },
+   {
+    "item": "bread",
+    "min": 1,
+    "max": 3,
+    "chance": 0.5
+   }
+  ]
+ },
+ {
+  "key": "lookout_tower",
+  "name": "Lookout Tower",
+  "placement": "surface",
+  "biomes": [
+   "forest",
+   "taiga",
+   "mountains",
+   "dark_forest"
+  ],
+  "spacing": 14,
+  "chance": 0.5,
+  "yOffset": 0,
+  "palette": {
+   "R": "rubble",
+   "P": "planks",
+   "C": "chest"
+  },
+  "layers": [
+   [
+    "RRRRR",
+    "RRRRR",
+    "RRRRR",
+    "RRRRR",
+    "RRRRR"
+   ],
+   [
+    "RR.RR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "RR.RR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "RRRRR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "RRRRR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "RRRRR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "RRRRR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "RRRRR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "RRRRR",
+    "R...R",
+    "R...R",
+    "R...R",
+    "RRRRR"
+   ],
+   [
+    "PPPPP",
+    "PPPPP",
+    "PPPPP",
+    "PPPPP",
+    "PPPPP"
+   ],
+   [
+    "R R R",
+    " ... ",
+    "R.C.R",
+    " ... ",
+    "R R R"
+   ],
+   [
+    "R R R",
+    " ... ",
+    "R...R",
+    " ... ",
+    "R R R"
+   ]
+  ],
+  "loot": [
+   {
+    "item": "iron_sword",
+    "chance": 0.25
+   },
+   {
+    "item": "torch",
+    "min": 4,
+    "max": 8,
+    "chance": 0.8
+   },
+   {
+    "item": "cooked_meat",
+    "min": 1,
+    "max": 3,
+    "chance": 0.6
+   },
+   {
+    "item": "stick",
+    "min": 2,
+    "max": 6,
+    "chance": 0.5
+   }
+  ]
+ }
+]

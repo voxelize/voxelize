@@ -16,7 +16,9 @@
 //! ordering to get wrong.
 
 use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex};
-use platform_content::{BiomeDef, Content};
+use std::collections::HashMap;
+
+use platform_content::{BiomeDef, Content, StructurePlacement};
 
 /// Voxel id of air.
 pub const AIR: u32 = 0;
@@ -77,6 +79,25 @@ struct BiomeSpec {
     underwater_surface: u32,
     trees: Option<TreeSpec>,
     cover: Vec<CoverSpec>,
+}
+
+/// Stage value carried by a chest generated inside a structure: the
+/// structure's index plus one (loot chests are found by the server).
+pub const LOOT_STAGE_SHIFT: u32 = 24;
+
+#[derive(Debug, Clone)]
+struct StructureSpec {
+    key: String,
+    placement: StructurePlacement,
+    biomes: Vec<usize>,
+    spacing: i32,
+    chance: f64,
+    y_offset: i32,
+    min_y: i32,
+    max_y: i32,
+    size: (i32, i32, i32),
+    /// [y][z][x] -> block to write (None keeps the terrain).
+    cells: Vec<Vec<Vec<Option<u32>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -181,8 +202,12 @@ pub struct Generator {
     cheese: Fbm<OpenSimplex>,
     tunnel_a: Fbm<OpenSimplex>,
     tunnel_b: Fbm<OpenSimplex>,
+    river: Fbm<OpenSimplex>,
+    ravine: Fbm<OpenSimplex>,
+    ravine_mask: Fbm<OpenSimplex>,
     biomes: Vec<BiomeSpec>,
     ores: Vec<OreSpec>,
+    structures: Vec<StructureSpec>,
     stone: u32,
     water: u32,
     lava: u32,
@@ -261,8 +286,67 @@ impl Generator {
             })
             .collect();
 
+        let chest = content.block("chest").map(|b| b.id);
+        let biome_index: HashMap<&str, usize> = content
+            .biomes()
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (b.key.as_str(), i))
+            .collect();
+        let structures = content
+            .structures()
+            .iter()
+            .enumerate()
+            .map(|(index, st)| {
+                let (w, h, d) = st.size();
+                let marker = ((index as u32 + 1).min(15)) << LOOT_STAGE_SHIFT;
+                let cells = st
+                    .layers
+                    .iter()
+                    .map(|layer| {
+                        layer
+                            .iter()
+                            .map(|row| {
+                                row.chars()
+                                    .map(|c| match c {
+                                        ' ' => None,
+                                        '.' => Some(AIR),
+                                        c => st.palette.get(&c).map(|key| {
+                                            let id = block(key);
+                                            if Some(id) == chest {
+                                                id | marker
+                                            } else {
+                                                id
+                                            }
+                                        }),
+                                    })
+                                    .collect()
+                            })
+                            .collect()
+                    })
+                    .collect();
+                StructureSpec {
+                    key: st.key.clone(),
+                    placement: st.placement,
+                    biomes: st
+                        .biomes
+                        .iter()
+                        .filter_map(|b| biome_index.get(b.as_str()).copied())
+                        .collect(),
+                    spacing: st.spacing as i32,
+                    chance: st.chance,
+                    y_offset: st.y_offset,
+                    min_y: st.min_y,
+                    max_y: st.max_y,
+                    size: (w as i32, h as i32, d as i32),
+                    cells,
+                }
+            })
+            .collect();
+
         let s = config.seed;
         Ok(Self {
+            structures,
             config,
             temperature: fbm(s.wrapping_add(1), 4, 1.0 / 1400.0),
             humidity: fbm(s.wrapping_add(2), 4, 1.0 / 1200.0),
@@ -272,6 +356,9 @@ impl Generator {
             cheese: fbm(s.wrapping_add(6), 3, 1.0 / 90.0),
             tunnel_a: fbm(s.wrapping_add(7), 2, 1.0 / 70.0),
             tunnel_b: fbm(s.wrapping_add(8), 2, 1.0 / 70.0),
+            river: fbm(s.wrapping_add(9), 3, 1.0 / 700.0),
+            ravine: fbm(s.wrapping_add(10), 2, 1.0 / 160.0),
+            ravine_mask: fbm(s.wrapping_add(11), 2, 1.0 / 500.0),
             biomes,
             ores,
             stone,
@@ -351,7 +438,17 @@ impl Generator {
             roughness /= weight_sum;
         }
         let detail = self.detail.get([x as f64, z as f64]);
-        let height = self.config.sea_level as f64 + 2.0 + offset + roughness * detail;
+        let mut height = self.config.sea_level as f64 + 2.0 + offset + roughness * detail;
+        // Rivers: where the river field crosses zero on land, the terrain
+        // sinks smoothly to a bed below sea level, so water fills it.
+        let river = self.river_strength(x, z, climate.continentalness);
+        if river > 0.0 {
+            let bed = self.config.sea_level as f64 - 3.0;
+            // A flat bed over the inner part, smooth banks outside it.
+            let k = (river * 1.6).min(1.0);
+            let t = k * k * (3.0 - 2.0 * k);
+            height = height + (height.min(bed) - height) * t;
+        }
         let height = height.round() as i32;
         (
             height.clamp(2, self.config.max_height - 20),
@@ -359,9 +456,43 @@ impl Generator {
         )
     }
 
+    /// 0 away from rivers, rising to 1 at a river's centre line.
+    fn river_strength(&self, x: i32, z: i32, continentalness: f64) -> f64 {
+        if continentalness < -0.15 {
+            return 0.0; // the sea needs no rivers
+        }
+        const WIDTH: f64 = 0.06;
+        let r = self.river.get([x as f64, z as f64]).abs();
+        (1.0 - r / WIDTH).max(0.0)
+    }
+
+    /// Whether a column lies on a river's bed (its flat inner part).
+    pub fn is_river(&self, x: i32, z: i32) -> bool {
+        let climate = self.climate(x, z);
+        self.river_strength(x, z, climate.continentalness) > 0.65
+    }
+
+    /// Ravines: narrow, deep cuts from the surface in some regions.
+    fn is_ravine(&self, x: i32, y: i32, z: i32, surface: i32) -> bool {
+        if surface < self.config.sea_level + 2 || y < 12 || y < surface - 40 {
+            return false;
+        }
+        let p = [x as f64, z as f64];
+        if self.ravine_mask.get(p) < 0.35 {
+            return false;
+        }
+        // Narrower towards the bottom.
+        let depth = (surface - y) as f64 / 40.0;
+        let width = 0.03 * (1.0 - depth * 0.7);
+        self.ravine.get(p).abs() < width
+    }
+
     fn is_cave(&self, x: i32, y: i32, z: i32, surface: i32) -> bool {
         if y <= 4 {
             return false;
+        }
+        if self.is_ravine(x, y, z, surface) {
+            return true;
         }
         // Keep a roof under seas and lakes so water never drains into caves.
         let roof = if surface < self.config.sea_level {
@@ -446,7 +577,83 @@ impl Generator {
 
         self.place_ores(&mut chunk);
         self.place_vegetation(&mut chunk);
+        self.place_structures(&mut chunk);
         chunk
+    }
+
+    /// Where a structure stands in a grid cell, if it has one there:
+    /// `(min x, floor y, min z)`.
+    fn structure_origin(&self, index: usize, gx: i32, gz: i32) -> Option<[i32; 3]> {
+        let st = &self.structures[index];
+        let h = hash(self.config.seed, gx as i64, gz as i64, 0x5757 + index as u64);
+        if unit(h) >= st.chance {
+            return None;
+        }
+        let cell = st.spacing * 16;
+        let (w, _, d) = st.size;
+        let x = gx * cell + ((h >> 8) % (cell - w).max(1) as u64) as i32;
+        let z = gz * cell + ((h >> 24) % (cell - d).max(1) as u64) as i32;
+        let (cx, cz) = (x + w / 2, z + d / 2);
+        let (surface, biome) = self.column(cx, cz);
+        if !st.biomes.is_empty() && !st.biomes.contains(&biome) {
+            return None;
+        }
+        let y = match st.placement {
+            StructurePlacement::Surface => {
+                if surface < self.config.sea_level || self.is_river(cx, cz) {
+                    return None;
+                }
+                surface + st.y_offset
+            }
+            StructurePlacement::Underground => {
+                st.min_y + ((h >> 40) % (st.max_y - st.min_y).max(1) as u64) as i32
+            }
+        };
+        Some([x, y, z])
+    }
+
+    /// Every structure placed in the world whose footprint touches the
+    /// given chunk: `(structure key, origin)`.
+    pub fn structures_touching(&self, cx: i32, cz: i32, size: usize) -> Vec<(String, [i32; 3])> {
+        let mut out = Vec::new();
+        let (x0, z0) = (cx * size as i32, cz * size as i32);
+        let (x1, z1) = (x0 + size as i32, z0 + size as i32);
+        for (index, st) in self.structures.iter().enumerate() {
+            let cell = st.spacing * 16;
+            let (w, _, d) = st.size;
+            for gx in (x0 - w).div_euclid(cell)..=x1.div_euclid(cell) {
+                for gz in (z0 - d).div_euclid(cell)..=z1.div_euclid(cell) {
+                    let Some(o) = self.structure_origin(index, gx, gz) else { continue };
+                    if o[0] < x1 && o[0] + w > x0 && o[2] < z1 && o[2] + d > z0 {
+                        out.push((st.key.clone(), o));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn place_structures(&self, chunk: &mut GeneratedChunk) {
+        let size = chunk.size as i32;
+        let (x0, z0) = (chunk.cx * size, chunk.cz * size);
+        for (key, origin) in self.structures_touching(chunk.cx, chunk.cz, chunk.size) {
+            let Some(st) = self.structures.iter().find(|s| s.key == key) else { continue };
+            for (dy, layer) in st.cells.iter().enumerate() {
+                let y = origin[1] + dy as i32;
+                if y <= 0 || y >= chunk.height as i32 {
+                    continue;
+                }
+                for (dz, row) in layer.iter().enumerate() {
+                    for (dx, cell) in row.iter().enumerate() {
+                        let Some(id) = cell else { continue };
+                        let (x, z) = (origin[0] + dx as i32 - x0, origin[2] + dz as i32 - z0);
+                        if (0..size).contains(&x) && (0..size).contains(&z) {
+                            chunk.set(x as usize, y as usize, z as usize, *id);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn place_ores(&self, chunk: &mut GeneratedChunk) {
@@ -677,6 +884,87 @@ mod tests {
             worst = worst.max((a - b).abs());
         }
         assert!(worst <= 6, "steepest step {worst}");
+    }
+
+    #[test]
+    fn rivers_cut_through_land_and_hold_water() {
+        let (_, g) = generator(2024);
+        let sea = g.config().sea_level;
+        let mut river_columns = 0;
+        let mut wet = 0;
+        for i in -60..60 {
+            for j in -60..60 {
+                let (x, z) = (i * 37, j * 37);
+                if g.is_river(x, z) {
+                    river_columns += 1;
+                    if g.surface_height(x, z) < sea {
+                        wet += 1;
+                    }
+                }
+            }
+        }
+        assert!(river_columns > 20, "found {river_columns} river columns");
+        assert!(wet * 10 >= river_columns * 8, "river beds lie under water: {wet}/{river_columns}");
+    }
+
+    #[test]
+    fn ravines_open_deep_cuts_somewhere() {
+        let (_, g) = generator(77);
+        let mut deepest = 0;
+        'search: for i in -80..80 {
+            for j in -80..80 {
+                let (x, z) = (i * 13, j * 13);
+                let surface = g.surface_height(x, z);
+                let mut depth = 0;
+                for y in (12..surface).rev() {
+                    if g.is_ravine(x, y, z, surface) {
+                        depth += 1;
+                    } else {
+                        break;
+                    }
+                }
+                deepest = deepest.max(depth);
+                if deepest >= 15 {
+                    break 'search;
+                }
+            }
+        }
+        assert!(deepest >= 15, "deepest ravine {deepest}");
+    }
+
+    #[test]
+    fn structures_appear_whole_across_chunk_borders_with_loot_chests() {
+        let (content, g) = generator(31);
+        let chest = content.block("chest").unwrap().id;
+        let mut seen = std::collections::BTreeMap::new();
+        let mut loot_chests = 0;
+        for cx in -30..30 {
+            for cz in -30..30 {
+                for (key, origin) in g.structures_touching(cx, cz, 16) {
+                    seen.insert(key, origin);
+                }
+            }
+        }
+        assert!(seen.len() >= 3, "structures found: {seen:?}");
+        // Generate every chunk a structure covers and check it is complete.
+        for (key, origin) in seen.iter().take(3) {
+            let st = content.structures().iter().find(|s| &s.key == key).unwrap();
+            let (w, _, d) = st.size();
+            let mut solid = 0;
+            for cx in origin[0].div_euclid(16)..=(origin[0] + w as i32).div_euclid(16) {
+                for cz in origin[2].div_euclid(16)..=(origin[2] + d as i32).div_euclid(16) {
+                    let chunk = g.generate_chunk(cx, cz, 16);
+                    for v in &chunk.voxels {
+                        if v & 0xFFFF == chest && v >> LOOT_STAGE_SHIFT > 0 {
+                            loot_chests += 1;
+                        }
+                    }
+                    solid += 1;
+                }
+            }
+            assert!(solid >= 1);
+        }
+        assert!(loot_chests >= 1, "structures carry loot chests");
     }
 
     #[test]
