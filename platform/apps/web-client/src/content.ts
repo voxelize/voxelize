@@ -9,6 +9,7 @@ export type BlockDef = {
   key: string;
   name: string;
   hardness: number;
+  material?: string;
   texture: { all: string; top?: string | null; bottom?: string | null; side?: string | null };
   tool?: { kind: ToolKind; minTier?: number; required?: boolean } | null;
   fluid?: "water" | "lava" | null;

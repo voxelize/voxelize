@@ -8,7 +8,10 @@ import * as THREE from "three";
 
 import { Content, miningMillis } from "./content";
 import { DropsView } from "./drops";
+import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
+import { loadSettings, Settings, settingsPanel } from "./settings";
+import { isTouchDevice, mountTouchControls } from "./touch";
 import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
 import { textureCanvas } from "./textures";
 import { WindowState, WindowUi } from "./window-ui";
@@ -79,11 +82,37 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
 
   const inputs = new VOXELIZE.Inputs<"in-game" | "menu">();
-  const controls = new VOXELIZE.RigidControls(camera, renderer.domElement, world, {
-    initialPosition: [0, 120, 0],
-    flyForce: 120,
-  });
+  const touch = isTouchDevice();
+  const controlOptions = { initialPosition: [0, 120, 0] as VOXELIZE.Coords3, flyForce: 120 };
+  const controls = touch
+    ? new VOXELIZE.MobileRigidControls(camera, renderer.domElement, world, controlOptions)
+    : new VOXELIZE.RigidControls(camera, renderer.domElement, world, controlOptions);
   controls.connect(inputs, "in-game");
+
+  // ---- settings and sound ----------------------------------------------------
+
+  const sfx = new Sfx();
+  const applySettings = (s: Settings) => {
+    controls.options.sensitivity = s.sensitivity;
+    controls.options.invertY = s.invertY;
+    camera.fov = s.fov;
+    camera.updateProjectionMatrix();
+    world.renderRadius = s.renderDistance;
+    document.documentElement.style.setProperty("--ui-scale", String(s.uiScale));
+    sfx.setVolume(s.volume);
+  };
+  const settings = loadSettings();
+  const settingsEl = settingsPanel(settings, applySettings);
+  const gear = document.createElement("button");
+  gear.id = "settings-button";
+  gear.type = "button";
+  gear.textContent = "⚙";
+  gear.setAttribute("aria-label", "Settings");
+  gear.addEventListener("click", () => {
+    settingsEl.hidden = !settingsEl.hidden;
+    if (!settingsEl.hidden) controls.unlock();
+  });
+  document.body.append(gear);
 
   const interact = new VOXELIZE.VoxelInteract(controls.object, world, {
     highlightType: "outline",
@@ -104,6 +133,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
   // ---- server answers -------------------------------------------------------
 
+  let lastMinedMaterial = "soil";
   let mining: { voxel: VOXELIZE.Coords3; started: number; total: number; finishing: boolean } | null = null;
   let leftDown = false;
   let realm = "survival";
@@ -114,8 +144,17 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     hud.setInventory(snapshot);
   });
 
+  const materialAt = (voxel?: [number, number, number]) =>
+    voxel ? content.blocksById.get(world.getVoxelAt(...voxel))?.material ?? "soil" : "soil";
   events.on<ResultEvent>("platform.result", (result) => {
     if (!result) return;
+    if (result.ok) {
+      if (result.intent === "mine.finish") sfx.play("break", lastMinedMaterial);
+      if (result.intent === "build.place") sfx.play("place", materialAt(result.voxel));
+      if (result.intent === "attack") sfx.play("hit");
+      if (result.intent === "eat") sfx.play("eat");
+      if (result.intent === "use") sfx.play("dig", "soil");
+    }
     if (result.intent === "mine.finish") {
       if (result.ok || result.code !== "too_fast") mining = null;
       else if (mining) {
@@ -129,8 +168,11 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
 
   const vitalsHud = new VitalsHud();
+  let lastHealth = 20;
   events.on<Vitals>("platform.vitals", (vitals) => {
     if (!vitals) return;
+    if (vitals.health < lastHealth) sfx.play("hurt");
+    lastHealth = vitals.health;
     vitalsHud.set(vitals);
     if (vitals.dead) {
       mining = null;
@@ -179,6 +221,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   );
   events.on<{ items: [number, number][] }>("platform.pickup", (payload) => {
     if (!payload) return;
+    sfx.play("pickup");
     for (const [item, count] of payload.items) {
       hud.toast(`+${count} ${content.itemsById.get(item)?.name ?? "item"}`);
     }
@@ -198,44 +241,66 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       hud.toast(MESSAGES.unbreakable);
       return;
     }
+    lastMinedMaterial = block.material ?? "soil";
     mining = { voxel: [...target] as VOXELIZE.Coords3, started: performance.now(), total, finishing: false };
     method.call("platform.mine.start", { voxel: target });
   };
 
-  canvas.addEventListener("mousedown", (event) => {
-    if (!controls.isLocked) return;
-    if (vitalsHud.dead) return;
-    // A creature in front of the block under the crosshair takes the click.
+  // A creature in front of the block under the crosshair takes the action.
+  const mobInFront = () => {
     const mob = mobs.pick(camera, 4.5);
     const blockDistance = interact.target
       ? camera.position.distanceTo(new THREE.Vector3(...interact.target).addScalar(0.5))
       : Infinity;
-    if (mob && mob.distance < blockDistance) {
-      if (event.button === 0) method.call("platform.attack", { mob: mob.id });
-      else if (event.button === 2) method.call("platform.interact", { mob: mob.id });
-      return;
-    }
-    if (event.button === 0) {
-      leftDown = true;
-      startMining();
-    } else if (event.button === 2) {
-      // Using a workbench, furnace or chest opens it (sneak to place against it);
-      // food in hand is eaten; anything else is placed.
-      const target = interact.target;
-      const targetKey = target ? content.blocksById.get(world.getVoxelAt(...target))?.key : undefined;
-      if (target && !event.shiftKey && targetKey && ["crafting_table", "furnace", "chest"].includes(targetKey)) {
-        openWindow([...target] as VOXELIZE.Coords3);
-      } else if (hud.heldItem()?.tool?.kind === "hoe" && target && ["dirt", "turf"].includes(targetKey ?? "")) {
-        method.call("platform.use", { voxel: target });
-      } else if (hud.heldItem()?.type === "food") method.call("platform.eat", {});
-      else if (interact.potential) method.call("platform.build.place", { voxel: interact.potential.voxel });
-    }
-  });
-  addEventListener("mouseup", (event) => {
-    if (event.button === 0) {
+    return mob && mob.distance < blockDistance ? mob : null;
+  };
+  const primary = (down: boolean) => {
+    if (!down) {
       leftDown = false;
       mining = null;
+      return;
     }
+    if (vitalsHud.dead) return;
+    const mob = mobInFront();
+    if (mob) {
+      method.call("platform.attack", { mob: mob.id });
+      return;
+    }
+    leftDown = true;
+    startMining();
+  };
+  const secondary = (sneaking: boolean) => {
+    if (vitalsHud.dead) return;
+    const mob = mobInFront();
+    if (mob) {
+      method.call("platform.interact", { mob: mob.id });
+      return;
+    }
+    secondaryOnBlock(sneaking);
+  };
+  canvas.addEventListener("mousedown", (event) => {
+    if (!controls.isLocked || touch) return;
+    if (event.button === 0) primary(true);
+    else if (event.button === 2) secondary(event.shiftKey);
+  });
+  // Using a workbench, furnace or chest opens it (sneak to place against
+  // it); a hoe tills soil; food in hand is eaten; anything else is placed.
+  const secondaryOnBlock = (sneaking: boolean) => {
+    const target = interact.target;
+    const targetKey = target ? content.blocksById.get(world.getVoxelAt(...target))?.key : undefined;
+    const held = hud.heldItem();
+    if (target && !sneaking && targetKey && ["crafting_table", "furnace", "chest"].includes(targetKey)) {
+      openWindow([...target] as VOXELIZE.Coords3);
+    } else if (held?.tool?.kind === "hoe" && target && ["dirt", "turf"].includes(targetKey ?? "")) {
+      method.call("platform.use", { voxel: target });
+    } else if (held?.type === "food") {
+      method.call("platform.eat", {});
+    } else if (interact.potential) {
+      method.call("platform.build.place", { voxel: interact.potential.voxel });
+    }
+  };
+  addEventListener("mouseup", (event) => {
+    if (event.button === 0) primary(false);
   });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   canvas.addEventListener("click", () => {
@@ -256,6 +321,21 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     const next = (hud.inventory.selected + (event.deltaY > 0 ? 1 : 8)) % 9;
     method.call("platform.inventory.select", { slot: next });
   });
+  if (touch) {
+    const mobile = controls as VOXELIZE.MobileRigidControls;
+    mountTouchControls({
+      move: (x, y) => mobile.setMovementVector(x, y),
+      look: (dx, dy) => mobile.setLookDirection(dx, dy),
+      jump: (down) => (mobile.movements.up = down),
+      crouch: (down) => (mobile.movements.down = down),
+      sprint: (on) => (mobile.options.alwaysSprint = on),
+      primary,
+      secondary: () => secondary(false),
+      inventory: () => (windowUi.isOpen ? closeWindow() : openWindow()),
+      drop: () => method.call("platform.inventory.drop", { all: false }),
+    });
+    document.body.classList.add("touch");
+  }
   inputs.bind("KeyF", () => {
     if (realm === "creative") controls.toggleFly();
     else hud.toast("Flight is for creative worlds");
@@ -294,7 +374,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     }
   }
 
-  world.renderRadius = 6;
+  applySettings(settings);
   controls.teleportToTop(0, 0, 2);
   method.call("platform.inventory.get", {});
   hud.show();
@@ -302,6 +382,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // ---- frame loop -----------------------------------------------------------
 
   const direction = new THREE.Vector3();
+  const lastStep = controls.object.position.clone();
+  let lastDigTick = 0;
   let lastStatus = 0;
 
   const frame = () => {
@@ -316,7 +398,20 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     drops.update(performance.now());
     mobs.update(performance.now());
 
+    // Footsteps while walking on the ground.
+    const pos = controls.object.position;
+    const moved = Math.hypot(pos.x - lastStep.x, pos.z - lastStep.z);
+    if (moved > 1.6 && Math.abs(pos.y - lastStep.y) < 0.6) {
+      const below = content.blocksById.get(world.getVoxelAt(Math.floor(pos.x), Math.floor(pos.y - 1.5), Math.floor(pos.z)));
+      if (below) sfx.play("step", below.material);
+      lastStep.copy(pos);
+    } else if (moved > 1.6) lastStep.copy(pos);
+
     if (mining) {
+      if (Math.floor(performance.now() / 250) !== lastDigTick) {
+        lastDigTick = Math.floor(performance.now() / 250);
+        sfx.play("dig", lastMinedMaterial);
+      }
       const target = interact.target;
       if (!leftDown || !target || !same(target, mining.voxel)) {
         mining = null;

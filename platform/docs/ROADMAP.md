@@ -47,9 +47,15 @@ names, own sky palette, hotbar from the server inventory, hold-to-mine with
 progress from the shared mining rule, place on right click, recipe book
 (C) crafting through the server, PWA manifest. Verified in headless
 Chromium against the running stack.
-Remaining: settings screen (sensitivity, FOV, UI scale, audio, controls,
-graphics, render distance), touch controls, full inventory screen, third
-person camera, service worker for offline shell.
+Done since: settings panel (mouse sensitivity, inverted look — added to the
+engine's RigidControls as a generic option — field of view, render distance,
+interface size, volume; stored per browser), original synthesised sound
+effects (digging and breaking by material, placing, footsteps, hits,
+hurt, pickups, eating), touch controls on phones and tablets (joystick,
+drag to look, mine/attack, place/use, jump, crouch, sprint, inventory,
+drop) on the engine's MobileRigidControls, inventory screen, PWA service
+worker for the app shell (never caching API or game data).
+Remaining: key rebinding, third-person camera, colour-blind palettes.
 
 ## Phase 4 — Mining and building 🟡
 

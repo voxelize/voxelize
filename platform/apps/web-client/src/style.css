@@ -498,3 +498,99 @@ body.registering .register-only {
   opacity: 1;
   background: rgba(124, 196, 111, 0.25);
 }
+
+:root {
+  --ui-scale: 1;
+}
+
+#hud,
+.panel {
+  zoom: var(--ui-scale);
+}
+
+#settings-button {
+  position: fixed;
+  right: 12px;
+  top: 10px;
+  z-index: 20;
+  padding: 6px 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: 1fr 120px 40px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+#touch {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+#touch .joystick {
+  position: absolute;
+  left: 24px;
+  bottom: 110px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#touch .knob {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+#touch .look-area {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 55%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#touch .buttons {
+  position: absolute;
+  right: 16px;
+  bottom: 100px;
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  gap: 8px;
+  pointer-events: auto;
+}
+
+#touch .buttons button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 22px;
+  touch-action: none;
+}
+
+#touch .buttons button.down,
+#touch .buttons button.on {
+  background: rgba(124, 196, 111, 0.6);
+}
+
+body.touch #hint {
+  display: none;
+}

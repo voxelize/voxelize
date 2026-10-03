@@ -54,3 +54,9 @@ if (api.hasSession()) {
     .then(() => enter())
     .catch(() => api.forget());
 }
+
+// Installable app shell (PWA). Only in production builds served over a
+// secure origin; failures leave the game working as a normal page.
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+}

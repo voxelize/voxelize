@@ -74,7 +74,7 @@ export class MobileRigidControls extends RigidControls {
 
     this.mobileEuler.setFromQuaternion(this.mobileQuaternion);
     this.mobileEuler.y -= deltaX * sensitivity;
-    this.mobileEuler.x -= deltaY * sensitivity;
+    this.mobileEuler.x -= (this.options.invertY ? -deltaY : deltaY) * sensitivity;
     this.mobileEuler.x = Math.max(
       PI_2 - this.options.maxPolarAngle,
       Math.min(PI_2 - this.options.minPolarAngle, this.mobileEuler.x),
