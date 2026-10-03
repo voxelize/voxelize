@@ -68,13 +68,19 @@ fn build_world(config: &GameConfig, content: Arc<Content>) -> World {
     // guards them. Clients never write voxels directly here: every block
     // change is an intent the server validates (docs/SECURITY.md).
     world.set_raw_update_guard(refuse_raw_writes);
-    gameplay::install(&mut world, content, &save_dir, config.seed);
+    gameplay::install(&mut world, content, &save_dir, config.seed).unwrap_or_else(|e| fail(e));
     world.set_dispatcher(|| {
-        voxelize::default_dispatcher().with(
-            gameplay::SurvivalSystem::default(),
-            "platform-survival",
-            &["physics"],
-        )
+        voxelize::default_dispatcher()
+            .with(
+                gameplay::SurvivalSystem::default(),
+                "platform-survival",
+                &["physics"],
+            )
+            .with(
+                gameplay::WorldItemsSystem::default(),
+                "platform-world-items",
+                &["platform-survival"],
+            )
     });
     world
 }

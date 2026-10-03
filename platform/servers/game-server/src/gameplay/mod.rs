@@ -6,10 +6,15 @@
 //! sender with a `platform.result` event plus a fresh `platform.inventory`
 //! snapshot when the inventory changed.
 
+pub mod containers;
+pub mod drops;
 pub mod inventory;
+mod items_api;
 pub mod rules;
 pub mod store;
 pub mod survival;
+pub mod window;
+pub use items_api::WorldItemsSystem;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -43,16 +48,22 @@ pub struct Gameplay {
     store: PlayerStore,
     players: HashMap<String, PlayerState>,
     rng: u64,
+    containers: containers::Containers,
+    drops: drops::Drops,
+    world_dir: std::path::PathBuf,
 }
 
 impl Gameplay {
-    pub fn new(content: Arc<Content>, world_dir: &Path, seed: u32) -> Self {
-        Self {
+    pub fn new(content: Arc<Content>, world_dir: &Path, seed: u32) -> Result<Self, String> {
+        Ok(Self {
             rules: Rules::new(content),
             store: PlayerStore::new(world_dir),
             players: HashMap::new(),
             rng: seed as u64 ^ 0x5EED_CAFE_F00D,
-        }
+            containers: containers::Containers::load(world_dir)?,
+            drops: drops::Drops::default(),
+            world_dir: world_dir.to_owned(),
+        })
     }
 
     fn random(&mut self) -> f64 {
@@ -239,6 +250,8 @@ fn persist(world: &mut World, client_id: &str) {
         inventory: player.inventory.clone(),
         position,
         vitals: player.vitals.clone(),
+        armor: player.armor.clone(),
+        offhand: player.offhand.clone(),
     };
     if let Err(e) = gameplay.store.save(&record) {
         error!("could not save player {client_id}: {e}");
@@ -333,9 +346,14 @@ fn on_join(world: &mut World, entity: Entity) {
         let gameplay = world.ecs().read_resource::<Gameplay>();
         gameplay.store.load(&id)
     };
-    let (mut inventory, mut vitals) = match loaded {
-        Ok(Some(record)) => (record.inventory, record.vitals),
-        Ok(None) => (Inventory::default(), Vitals::default()),
+    let (mut inventory, mut vitals, armor, offhand) = match loaded {
+        Ok(Some(record)) => (
+            record.inventory,
+            record.vitals,
+            record.armor,
+            record.offhand,
+        ),
+        Ok(None) => (Inventory::default(), Vitals::default(), Vec::new(), None),
         Err(e) => {
             // Never hand out an empty inventory over a record we failed to
             // read: that would silently wipe the player on the next save.
@@ -352,9 +370,12 @@ fn on_join(world: &mut World, entity: Entity) {
         vitals.normalize();
         // The client teleports to the surface right after joining.
         vitals.start_grace(5.0);
-        gameplay
-            .players
-            .insert(id.clone(), PlayerState::new(inventory, realm, vitals));
+        let mut state = PlayerState::new(inventory, realm, vitals);
+        if armor.len() == 4 {
+            state.armor = armor;
+        }
+        state.offhand = offhand;
+        gameplay.players.insert(id.clone(), state);
     }
     send_inventory(world, &id);
     send_vitals(world, &id, None);
@@ -368,14 +389,21 @@ fn on_leave(world: &mut World, entity: Entity) {
     else {
         return;
     };
+    items_api::close_window(world, &id);
     persist(world, &id);
     world.ecs().write_resource::<Gameplay>().players.remove(&id);
 }
 
-pub fn install(world: &mut World, content: Arc<Content>, world_dir: &Path, seed: u32) {
+pub fn install(
+    world: &mut World,
+    content: Arc<Content>,
+    world_dir: &Path,
+    seed: u32,
+) -> Result<(), String> {
     world
         .ecs_mut()
-        .insert(Gameplay::new(content, world_dir, seed));
+        .insert(Gameplay::new(content, world_dir, seed)?);
+    items_api::install(world);
     world.set_client_modifier(on_join);
     world.set_client_leave_modifier(on_leave);
 
@@ -421,6 +449,7 @@ pub fn install(world: &mut World, content: Arc<Content>, world_dir: &Path, seed:
             Some(Ok(outcome)) => {
                 let [x, y, z] = p.voxel;
                 world.chunks_mut().update_voxel(&Vec3(x, y, z), rules::AIR);
+                items_api::block_removed(world, p.voxel, &outcome.drops);
                 persist(world, client_id);
                 reply(
                     world,
@@ -449,6 +478,7 @@ pub fn install(world: &mut World, content: Arc<Content>, world_dir: &Path, seed:
             Some(Ok(block)) => {
                 let [x, y, z] = p.voxel;
                 world.chunks_mut().update_voxel(&Vec3(x, y, z), block);
+                items_api::block_placed(world, p.voxel, block);
                 persist(world, client_id);
                 reply(
                     world,
@@ -603,6 +633,7 @@ pub fn install(world: &mut World, content: Arc<Content>, world_dir: &Path, seed:
             }
         }
     });
+    Ok(())
 }
 
 /// Applies survival every tick to every online survival player.
@@ -640,6 +671,8 @@ impl<'a> specs::System<'a> for SurvivalSystem {
             rules,
             players,
             store,
+            drops,
+            rng,
             ..
         } = &mut *gameplay;
         let content = rules.content();
@@ -707,12 +740,48 @@ impl<'a> specs::System<'a> for SurvivalSystem {
             }
             if outcome.died {
                 player.mining = None;
+                // Everything the player carried spills where they died.
+                let mut spilled: Vec<inventory::Stack> = Vec::new();
+                spilled.extend(player.inventory.slots.iter_mut().filter_map(|s| s.take()));
+                spilled.extend(player.armor.iter_mut().filter_map(|s| s.take()));
+                spilled.extend(player.craft_grid.iter_mut().filter_map(|s| s.take()));
+                spilled.extend(player.offhand.take());
+                spilled.extend(player.cursor.take());
+                if let Some(window) = player.window.take() {
+                    spilled.extend(window.grid.into_iter().flatten());
+                }
+                for stack in spilled {
+                    *rng = rng
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1442695040888963407);
+                    let a = (*rng >> 33) as f32 / (1u64 << 31) as f32 * std::f32::consts::TAU;
+                    drops.spawn(
+                        stack,
+                        [p[0], feet_y + 0.5, p[2]],
+                        [a.cos() * 3.0, 4.0, a.sin() * 3.0],
+                        None,
+                    );
+                }
+                events.dispatch(
+                    Event::new(INVENTORY_EVENT)
+                        .payload(json!({ "slots": player.inventory.slots, "selected": player.inventory.selected, "realm": player.realm }))
+                        .filter(ClientFilter::Direct(id.clone()))
+                        .build(),
+                );
+                events.dispatch(
+                    Event::new(items_api::WINDOW_EVENT)
+                        .payload(json!({ "kind": null }))
+                        .filter(ClientFilter::Direct(id.clone()))
+                        .build(),
+                );
                 let record = PlayerRecord {
                     version: RECORD_VERSION,
                     id: id.clone(),
                     inventory: player.inventory.clone(),
                     position: Some(p),
                     vitals: player.vitals.clone(),
+                    armor: player.armor.clone(),
+                    offhand: player.offhand.clone(),
                 };
                 if let Err(e) = store.save(&record) {
                     error!("could not save player {id} after death: {e}");

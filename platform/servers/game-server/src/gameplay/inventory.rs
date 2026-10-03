@@ -112,20 +112,6 @@ impl Inventory {
             .sum()
     }
 
-    /// How many of `item` could be added without overflow.
-    pub fn room_for(&self, content: &Content, item: u32) -> u32 {
-        let max = max_stack(content, item);
-        let stackable = fresh_durability(content, item).is_none();
-        self.slots
-            .iter()
-            .map(|slot| match slot {
-                None => max,
-                Some(s) if stackable && s.item == item => max.saturating_sub(s.count),
-                Some(_) => 0,
-            })
-            .sum()
-    }
-
     /// Add items: first topping up existing stacks (hotbar first), then
     /// filling empty slots. Returns the count that did not fit.
     pub fn add(&mut self, content: &Content, item: u32, mut count: u32) -> u32 {
@@ -295,7 +281,6 @@ mod tests {
         assert_eq!(inv.add(&c, dirt, 100), 0);
         assert_eq!(inv.get(0).unwrap().count, 64);
         assert_eq!(inv.get(1).unwrap().count, 36);
-        assert_eq!(inv.room_for(&c, dirt), 64 * 36 - 100);
         assert_eq!(inv.add(&c, dirt, 64 * 36), 100);
         assert_eq!(inv.count_of(dirt), 64 * 36);
     }

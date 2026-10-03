@@ -67,8 +67,19 @@ Done: 36-slot server inventory (9 hotbar), stacking, split/merge/swap
 moves, tool durability, all-or-nothing removal, per-player persistence with
 atomic writes and repair of stale records; `platform.inventory.*` intents;
 2×2 and workbench 3×3 crafting (`platform.craft`).
-Remaining: armor, offhand, containers (chests as block entities), drop and
-pick-up of item entities, checkpointing to `inventories`/`inventory_slots`.
+Done since: full window system — inventory screen (2x2 crafting, four armor
+slots, offhand), workbench (3x3), furnace (input, fuel, output, flame and
+progress gauges), chest (27 slots, shared live between viewers, persisted in
+`containers.json`); left/right/shift/double click, drag-spreading,
+number-key hotbar swaps, drop from slot; recipe book that fills the grid
+from the inventory (once or max); dropped items in the world with gravity,
+merging, pickup delay and 5-minute despawn; block drops, broken containers
+and death spill items instead of destroying them. Verified by
+`tests/bots/crafting.mjs`: chop logs by hand → planks → workbench →
+sticks, wooden pickaxe, chest → store and retrieve → dig stone → furnace →
+smelt.
+Remaining: armor items and their protection, checkpointing to
+`inventories`/`inventory_slots`, dropped items surviving a restart.
 
 ## Phase 6 — Persistence 🟡
 
@@ -100,16 +111,17 @@ respawn (`platform.respawn`), vitals persisted with the player; grace
 period after join/respawn so teleports are not falls. HUD bars, damage
 flash, death screen. 10 unit tests plus the live smoke test (a 10-block
 fall hurts, a 40-block fall kills, respawn restores health).
-Remaining: item drops on death (needs item entities; inventory is kept
-until then), armor, experience, status effects, fire, combat, projectile
+Death now spills the whole inventory as dropped items. Remaining: armor, experience, status effects, fire, combat, projectile
 and explosion damage, weather engine.
 
-## Phase 9 — Crafting and processing ⬜ (rules done)
+## Phase 9 — Crafting and processing ✅ (gameplay) / admin ⬜
 
-Done: shaped/shapeless matching and processing-recipe lookup in
-`crates/content`. Remaining: server crafting intent, workbench and station
-block entities with fuel and progress, admin panel v1 (players, economy,
-live server monitor), observability stack.
+Done: shaped/shapeless matching (anywhere in the grid, mirrored), 2x2 and
+3x3 grids, crafting result slot with shift-craft-all, recipe book, furnace
+station with fuels, burn time, progress decay, output limits, smelting while
+nobody watches; all server-side and tested (unit + end-to-end).
+Remaining: admin panel v1 (players, economy, live server monitor),
+observability stack, more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ⬜
 

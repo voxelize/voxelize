@@ -1,7 +1,7 @@
 // Heads-up display: hotbar, mining progress, status line, toasts and the
 // crafting panel. Pure DOM; the game feeds it server state.
 
-import { Content, ItemDef, RecipeDef } from "./content";
+import { Content, ItemDef } from "./content";
 import { textureCanvas } from "./textures";
 
 export type Slot = { item: number; count: number; durability?: number } | null;
@@ -19,7 +19,7 @@ export class Hud {
     $("hud").hidden = false;
   }
 
-  private icon(item: ItemDef): string {
+  icon(item: ItemDef): string {
     const cached = this.iconCache.get(item.id);
     if (cached) return cached;
     let url: string;
@@ -76,7 +76,6 @@ export class Hud {
       }
       bar.append(cell);
     }
-    this.renderRecipes();
   }
 
   heldItem(): ItemDef | undefined {
@@ -102,50 +101,6 @@ export class Hud {
     setTimeout(() => toast.remove(), 2600);
   }
 
-  // ---- crafting -----------------------------------------------------------
-
-  onCraft: (recipe: RecipeDef) => void = () => {};
-
-  get craftingOpen() {
-    return !$("crafting").hidden;
-  }
-
-  toggleCrafting(open = !this.craftingOpen) {
-    $("crafting").hidden = !open;
-    if (open) this.renderRecipes();
-  }
-
-  private owned(key: string): number {
-    const item = this.content.itemsByKey.get(key);
-    if (!item) return 0;
-    return this.inventory.slots.reduce((n, s) => n + (s && s.item === item.id ? s.count : 0), 0);
-  }
-
-  private renderRecipes() {
-    if (!this.craftingOpen) return;
-    const list = $("recipes");
-    list.replaceChildren();
-    for (const recipe of this.content.pack.recipes) {
-      const needs = this.content.recipeNeeds(recipe);
-      const result = this.content.itemsByKey.get(recipe.result.item);
-      if (!result) continue;
-      const ready = [...needs].every(([key, n]) => this.owned(key) >= n);
-      const li = document.createElement("li");
-      li.className = ready ? "ready" : "";
-      const label = [...needs]
-        .map(([key, n]) => `${n}× ${this.content.itemsByKey.get(key)?.name ?? key}`)
-        .join(", ");
-      const button = document.createElement("button");
-      button.type = "button";
-      button.disabled = !ready;
-      button.textContent = `${result.name}${(recipe.result.count ?? 1) > 1 ? ` ×${recipe.result.count}` : ""}`;
-      button.addEventListener("click", () => this.onCraft(recipe));
-      const needsText = document.createElement("span");
-      needsText.textContent = label;
-      li.append(button, needsText);
-      list.append(li);
-    }
-  }
 }
 
 export type Vitals = {

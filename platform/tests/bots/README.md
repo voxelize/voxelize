@@ -7,6 +7,7 @@ validated by the game server like a browser player's.
 | Script | Purpose |
 | --- | --- |
 | `smoke.mjs` | end-to-end check of a running stack: registration, single-use tickets, join, mining with timing validation, drops, placement, refusals |
+| `crafting.mjs` | the crafting progression: chop by hand, pick up drops, 2x2 planks, workbench via recipe book, sticks/pickaxe/chest at the workbench, chest storage, dig stone, furnace, smelting |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |
 

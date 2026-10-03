@@ -1,0 +1,712 @@
+//! Engine wiring for windows (inventory screen, workbench, furnace, chest),
+//! block containers and dropped items.
+
+use serde::Deserialize;
+use serde_json::{json, Value};
+use specs::WorldExt;
+use voxelize::{ClientFilter, Event, PositionComp, World};
+
+use super::containers::{Container, Furnace};
+use super::inventory::Stack;
+use super::rules::{IntentError, OpenWindow};
+use super::window::{Click, Window, WindowKind};
+use super::{client_position, not_joined, parse, persist, reply, send, send_inventory, Gameplay};
+
+pub const WINDOW_EVENT: &str = "platform.window";
+pub const DROPS_EVENT: &str = "platform.drops";
+pub const PICKUP_EVENT: &str = "platform.pickup";
+
+fn container_kind(container: &Container) -> WindowKind {
+    match container {
+        Container::Chest { .. } => WindowKind::Chest,
+        Container::Furnace(_) => WindowKind::Furnace,
+    }
+}
+
+/// Assemble the player's open window (or the inventory screen).
+fn build_window(g: &Gameplay, id: &str) -> Option<Window> {
+    let player = g.players.get(id)?;
+    let inventory = &player.inventory.slots;
+    let window = match &player.window {
+        None => {
+            let mut c = vec![None];
+            c.extend(player.craft_grid.iter().cloned());
+            c.extend(player.armor.iter().cloned());
+            c.push(player.offhand.clone());
+            Window::new(WindowKind::Player, c, inventory)
+        }
+        Some(open) => match open.kind {
+            WindowKind::Player => return None,
+            WindowKind::Workbench => {
+                let mut c = vec![None];
+                c.extend(open.grid.iter().cloned());
+                Window::new(WindowKind::Workbench, c, inventory)
+            }
+            WindowKind::Furnace | WindowKind::Chest => {
+                let container = g.containers.map.get(&open.at?)?;
+                Window::new(
+                    container_kind(container),
+                    container.slots().to_vec(),
+                    inventory,
+                )
+            }
+        },
+    };
+    let mut window = window;
+    window.refresh_result(g.rules.content());
+    Some(window)
+}
+
+/// Write a window's slots back to where they live.
+fn store_window(g: &mut Gameplay, id: &str, w: &Window) {
+    let at = g
+        .players
+        .get(id)
+        .and_then(|p| p.window.as_ref())
+        .and_then(|o| o.at);
+    if let (WindowKind::Furnace | WindowKind::Chest, Some(at)) = (w.kind, at) {
+        if let Some(container) = g.containers.map.get_mut(&at) {
+            *container.slots_mut() = w.container().to_vec();
+            g.containers.dirty = true;
+        }
+    }
+    let Some(player) = g.players.get_mut(id) else {
+        return;
+    };
+    player.inventory.slots = w.inventory().to_vec();
+    match w.kind {
+        WindowKind::Player => {
+            let c = w.container();
+            player.craft_grid = c[1..5].to_vec();
+            player.armor = c[5..9].to_vec();
+            player.offhand = c[9].clone();
+        }
+        WindowKind::Workbench => {
+            if let Some(open) = player.window.as_mut() {
+                open.grid = w.container()[1..10].to_vec();
+            }
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn window_payload(g: &Gameplay, id: &str) -> Value {
+    let Some(player) = g.players.get(id) else {
+        return json!({ "kind": null });
+    };
+    let Some(w) = build_window(g, id) else {
+        return json!({ "kind": null });
+    };
+    let at = player.window.as_ref().and_then(|o| o.at);
+    let furnace = at
+        .and_then(|at| g.containers.map.get(&at))
+        .and_then(|c| match c {
+            Container::Furnace(f) => Some(furnace_payload(f, g)),
+            _ => None,
+        });
+    json!({
+        "kind": w.kind,
+        "open": player.window.is_some(),
+        "at": at,
+        "slots": w.slots,
+        "rules": w.rules,
+        "inventoryStart": w.inventory_start,
+        "grid": w.grid,
+        "cursor": player.cursor,
+        "furnace": furnace,
+    })
+}
+
+fn furnace_payload(f: &Furnace, g: &Gameplay) -> Value {
+    json!({
+        "burnLeft": f.burn_left,
+        "burnTotal": f.burn_total,
+        "progress": f.progress,
+        "progressTotal": f.recipe_ticks(g.rules.content()).unwrap_or(0),
+    })
+}
+
+fn send_window(world: &mut World, id: &str) {
+    let payload = window_payload(&world.ecs().read_resource::<Gameplay>(), id);
+    send(world, id, WINDOW_EVENT, payload);
+}
+
+/// Everyone else looking into the container at `at`.
+fn viewers(g: &Gameplay, at: [i32; 3], except: &str) -> Vec<String> {
+    g.players
+        .iter()
+        .filter(|(id, p)| id.as_str() != except && p.window.as_ref().and_then(|w| w.at) == Some(at))
+        .map(|(id, _)| id.clone())
+        .collect()
+}
+
+fn spill_at(g: &mut Gameplay, stacks: Vec<Stack>, at: [f32; 3], owner: Option<&str>) {
+    for (i, stack) in stacks.into_iter().enumerate() {
+        let angle = i as f32 * 2.399;
+        g.drops.spawn(
+            stack,
+            at,
+            [angle.cos() * 2.0, 3.0, angle.sin() * 2.0],
+            owner,
+        );
+    }
+}
+
+/// Close whatever window the player has open, returning grid and cursor
+/// items to the inventory and dropping what does not fit.
+pub(super) fn close_window(world: &mut World, id: &str) {
+    let position = client_position(world, id);
+    {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        let Some(mut w) = build_window(&g, id) else {
+            return;
+        };
+        let mut cursor = g.players.get_mut(id).and_then(|p| p.cursor.take());
+        let overflow = w.close(g.rules.content(), &mut cursor);
+        store_window(&mut g, id, &w);
+        if let Some(player) = g.players.get_mut(id) {
+            player.window = None;
+            player.cursor = None;
+        }
+        if let Some(p) = position {
+            spill_at(&mut g, overflow, p, Some(id));
+        }
+    }
+    send(world, id, WINDOW_EVENT, json!({ "kind": null }));
+    send_inventory(world, id);
+}
+
+pub(super) fn block_removed(world: &mut World, voxel: [i32; 3], drops: &[(u32, u32)]) {
+    let center = [
+        voxel[0] as f32 + 0.5,
+        voxel[1] as f32 + 0.5,
+        voxel[2] as f32 + 0.5,
+    ];
+    let closed: Vec<String> = {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        let mut stacks: Vec<Stack> = drops
+            .iter()
+            .map(|&(item, count)| Stack {
+                item,
+                count,
+                durability: g
+                    .rules
+                    .content()
+                    .item_by_id(item)
+                    .and_then(|i| i.durability),
+            })
+            .collect();
+        let mut closed = Vec::new();
+        if let Some(mut container) = g.containers.map.remove(&voxel) {
+            stacks.extend(container.take_all());
+            g.containers.dirty = true;
+            closed = viewers(&g, voxel, "");
+            for id in &closed {
+                if let Some(p) = g.players.get_mut(id) {
+                    p.window = None;
+                }
+            }
+        }
+        spill_at(&mut g, stacks, center, None);
+        if g.containers.dirty {
+            let dir = g.world_dir.clone();
+            if let Err(e) = g.containers.save(&dir) {
+                log::error!("could not save containers: {e}");
+            }
+        }
+        closed
+    };
+    for id in closed {
+        send(world, &id, WINDOW_EVENT, json!({ "kind": null }));
+    }
+}
+
+pub(super) fn block_placed(world: &mut World, voxel: [i32; 3], block: u32) {
+    let mut g = world.ecs().write_resource::<Gameplay>();
+    let Some(key) = g.rules.content().block_by_id(block).map(|b| b.key.clone()) else {
+        return;
+    };
+    if let Some(container) = Container::for_block(&key) {
+        g.containers.map.insert(voxel, container);
+        let dir = g.world_dir.clone();
+        if let Err(e) = g.containers.save(&dir) {
+            log::error!("could not save containers: {e}");
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OpenPayload {
+    #[serde(default)]
+    voxel: Option<[i32; 3]>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClickPayload {
+    slot: usize,
+    click: Click,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct DragPayload {
+    slots: Vec<usize>,
+    #[serde(default)]
+    one_each: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FillPayload {
+    recipe: String,
+    #[serde(default)]
+    max: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DropPayload {
+    #[serde(default)]
+    all: bool,
+}
+
+/// Run a window operation and push the results to the player and to anyone
+/// else viewing the same container.
+fn window_op(
+    world: &mut World,
+    id: &str,
+    intent: &str,
+    op: impl FnOnce(
+        &mut Window,
+        &platform_content::Content,
+        &mut Option<Stack>,
+    ) -> Result<Vec<Stack>, IntentError>,
+) {
+    let position = client_position(world, id);
+    let result = {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        match g.players.get(id) {
+            None => None,
+            Some(p) if p.vitals.is_dead() => Some(Err(IntentError::Dead)),
+            Some(_) => match build_window(&g, id) {
+                None => Some(Err(IntentError::NothingThere)),
+                Some(mut w) => {
+                    let mut cursor = g.players.get_mut(id).and_then(|p| p.cursor.take());
+                    let content = g.rules.content_arc();
+                    let outcome = op(&mut w, &content, &mut cursor);
+                    if let Some(p) = g.players.get_mut(id) {
+                        p.cursor = cursor;
+                    }
+                    if let Ok(dropped) = &outcome {
+                        store_window(&mut g, id, &w);
+                        if let Some(pos) = position {
+                            spill_at(&mut g, dropped.clone(), pos, Some(id));
+                        }
+                    }
+                    let at = g
+                        .players
+                        .get(id)
+                        .and_then(|p| p.window.as_ref())
+                        .and_then(|o| o.at);
+                    let others = at.map(|at| viewers(&g, at, id)).unwrap_or_default();
+                    if g.containers.dirty {
+                        let dir = g.world_dir.clone();
+                        if let Err(e) = g.containers.save(&dir) {
+                            log::error!("could not save containers: {e}");
+                        }
+                    }
+                    Some(outcome.map(|_| others))
+                }
+            },
+        }
+    };
+    match result {
+        None => not_joined(world, id, intent),
+        Some(Ok(others)) => {
+            send_window(world, id);
+            send_inventory(world, id);
+            for other in others {
+                send_window(world, &other);
+            }
+            persist(world, id);
+        }
+        Some(Err(e)) => {
+            reply(world, id, intent, Err(e));
+            send_window(world, id);
+        }
+    }
+}
+
+pub(super) fn install(world: &mut World) {
+    world.set_method_handle("platform.window.open", |world, id, payload| {
+        const INTENT: &str = "window.open";
+        let Some(p) = parse::<OpenPayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        close_window(world, id);
+        let position = client_position(world, id);
+        let opened = {
+            let mut g = world.ecs().write_resource::<Gameplay>();
+            let reach = g.rules.reach;
+            match (p.voxel, g.players.contains_key(id)) {
+                (_, false) => Err(None),
+                (None, true) => Ok(()),
+                (Some(voxel), true) => {
+                    let block = {
+                        let chunks = world.chunks();
+                        voxelize::VoxelAccess::get_voxel(&*chunks, voxel[0], voxel[1], voxel[2])
+                    };
+                    let key = g.rules.content().block_by_id(block).map(|b| b.key.clone());
+                    let close = position.is_some_and(|pos| {
+                        (0..3)
+                            .map(|i| (voxel[i] as f32 + 0.5 - pos[i]).powi(2))
+                            .sum::<f32>()
+                            <= reach * reach
+                    });
+                    let kind = match key.as_deref() {
+                        Some("crafting_table") => Some(WindowKind::Workbench),
+                        Some("furnace") => Some(WindowKind::Furnace),
+                        Some("chest") => Some(WindowKind::Chest),
+                        _ => None,
+                    };
+                    match (kind, close) {
+                        (None, _) => Err(Some(IntentError::NothingThere)),
+                        (_, false) => Err(Some(IntentError::OutOfReach)),
+                        (Some(kind), true) => {
+                            if kind != WindowKind::Workbench
+                                && !g.containers.map.contains_key(&voxel)
+                            {
+                                // A container block placed before containers existed.
+                                let fresh =
+                                    Container::for_block(key.as_deref().unwrap_or_default());
+                                if let Some(fresh) = fresh {
+                                    g.containers.map.insert(voxel, fresh);
+                                }
+                            }
+                            let player = g.players.get_mut(id).expect("checked");
+                            if player.vitals.is_dead() {
+                                Err(Some(IntentError::Dead))
+                            } else {
+                                player.window = Some(OpenWindow {
+                                    kind,
+                                    at: Some(voxel),
+                                    grid: if kind == WindowKind::Workbench {
+                                        vec![None; 9]
+                                    } else {
+                                        Vec::new()
+                                    },
+                                });
+                                Ok(())
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        match opened {
+            Err(None) => not_joined(world, id, INTENT),
+            Err(Some(e)) => reply(world, id, INTENT, Err(e)),
+            Ok(()) => send_window(world, id),
+        }
+    });
+
+    world.set_method_handle("platform.window.close", |world, id, _| {
+        close_window(world, id);
+        persist(world, id);
+    });
+
+    world.set_method_handle("platform.window.click", |world, id, payload| {
+        const INTENT: &str = "window.click";
+        let Some(p) = parse::<ClickPayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        window_op(world, id, INTENT, |w, content, cursor| {
+            w.click(content, cursor, p.slot, p.click)
+                .map_err(IntentError::Window)
+        });
+    });
+
+    world.set_method_handle("platform.window.drag", |world, id, payload| {
+        const INTENT: &str = "window.drag";
+        let Some(p) = parse::<DragPayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        window_op(world, id, INTENT, |w, content, cursor| {
+            w.drag(content, cursor, &p.slots, p.one_each)
+                .map(|_| Vec::new())
+                .map_err(IntentError::Window)
+        });
+    });
+
+    world.set_method_handle("platform.window.fill", |world, id, payload| {
+        const INTENT: &str = "window.fill";
+        let Some(p) = parse::<FillPayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        window_op(world, id, INTENT, |w, content, _| {
+            match w.fill_recipe(content, &p.recipe, p.max) {
+                Ok(0) => Err(IntentError::MissingIngredients),
+                Ok(_) => Ok(Vec::new()),
+                Err(_) => Err(IntentError::NoRecipe),
+            }
+        });
+    });
+
+    // Q: drop from the selected hotbar slot without opening a window.
+    world.set_method_handle("platform.inventory.drop", |world, id, payload| {
+        const INTENT: &str = "inventory.drop";
+        let Some(p) = parse::<DropPayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        let position = client_position(world, id);
+        let direction = facing(world, id);
+        let dropped = {
+            let mut g = world.ecs().write_resource::<Gameplay>();
+            let Some(player) = g.players.get_mut(id) else {
+                drop(g);
+                return not_joined(world, id, INTENT);
+            };
+            let slot = player.inventory.selected;
+            let stack = player.inventory.slots[slot].take();
+            let dropped = stack.map(|mut s| {
+                let n = if p.all { s.count } else { 1 };
+                s.count -= n;
+                let out = Stack {
+                    count: n,
+                    ..s.clone()
+                };
+                player.inventory.slots[slot] = (s.count > 0).then_some(s);
+                out
+            });
+            if let (Some(stack), Some(pos)) = (dropped.clone(), position) {
+                let [dx, dy, dz] = direction;
+                g.drops.spawn(
+                    stack,
+                    [pos[0] + dx * 0.4, pos[1] - 0.3, pos[2] + dz * 0.4],
+                    [dx * 6.0, dy * 6.0 + 2.0, dz * 6.0],
+                    Some(id),
+                );
+            }
+            dropped.is_some()
+        };
+        if dropped {
+            send_inventory(world, id);
+            persist(world, id);
+        }
+    });
+}
+
+/// Where the player is looking, from their last peer update.
+fn facing(world: &World, id: &str) -> [f32; 3] {
+    let Some(entity) = world.clients().get(id).map(|c| c.entity) else {
+        return [0.0, 0.0, 0.0];
+    };
+    let directions = world.read_component::<voxelize::DirectionComp>();
+    directions
+        .get(entity)
+        .map(|d| [d.0 .0, d.0 .1, d.0 .2])
+        .unwrap_or([0.0, 0.0, 0.0])
+}
+
+/// Furnaces, dropped items and pickups, every tick.
+#[derive(Default)]
+pub struct WorldItemsSystem {
+    last: Option<std::time::Instant>,
+    furnace_ticks: f32,
+    since_drops_sent: f32,
+    since_furnace_sent: f32,
+    since_saved: f32,
+}
+
+impl<'a> specs::System<'a> for WorldItemsSystem {
+    type SystemData = (
+        specs::ReadExpect<'a, voxelize::Chunks>,
+        specs::ReadExpect<'a, voxelize::Clients>,
+        specs::ReadExpect<'a, voxelize::WorldConfig>,
+        specs::ReadStorage<'a, PositionComp>,
+        specs::WriteExpect<'a, Gameplay>,
+        specs::WriteExpect<'a, voxelize::Events>,
+    );
+
+    fn run(&mut self, (chunks, clients, config, positions, mut g, mut events): Self::SystemData) {
+        let now = std::time::Instant::now();
+        let dt = self
+            .last
+            .map(|l| now.duration_since(l).as_secs_f32())
+            .unwrap_or(0.0)
+            .min(0.25);
+        self.last = Some(now);
+        if dt <= 0.0 {
+            return;
+        }
+        let content = g.rules.content_arc();
+        let direct = |id: &str| ClientFilter::Direct(id.to_owned());
+
+        // Furnaces run at 20 game ticks per second.
+        self.furnace_ticks += dt * 20.0;
+        let steps = self.furnace_ticks.floor() as u32;
+        self.furnace_ticks -= steps as f32;
+        let mut changed_furnaces = Vec::new();
+        for (at, container) in g.containers.map.iter_mut() {
+            if let Container::Furnace(f) = container {
+                let mut changed = false;
+                for _ in 0..steps {
+                    changed |= f.tick(&content);
+                }
+                if changed {
+                    changed_furnaces.push(*at);
+                }
+            }
+        }
+        if !changed_furnaces.is_empty() {
+            g.containers.dirty = true;
+        }
+        self.since_furnace_sent += dt;
+        if self.since_furnace_sent >= 0.25 {
+            self.since_furnace_sent = 0.0;
+            let watchers: Vec<String> =
+                g.players
+                    .iter()
+                    .filter(|(_, p)| {
+                        p.window.as_ref().and_then(|w| w.at).is_some_and(|at| {
+                            changed_furnaces.contains(&at)
+                                || g.containers.map.get(&at).is_some_and(
+                                    |c| matches!(c, Container::Furnace(f) if f.is_lit()),
+                                )
+                        })
+                    })
+                    .map(|(id, _)| id.clone())
+                    .collect();
+            for id in watchers {
+                events.dispatch(
+                    Event::new(WINDOW_EVENT)
+                        .payload(window_payload(&g, &id))
+                        .filter(direct(&id))
+                        .build(),
+                );
+            }
+        }
+
+        // Dropped items: physics, merging, despawn.
+        let max_height = config.max_height as i32;
+        let solid = |x: i32, y: i32, z: i32| {
+            if y < 0 || y >= max_height {
+                return false;
+            }
+            let coords = voxelize::ChunkUtils::map_voxel_to_chunk(x, y, z, config.chunk_size);
+            if !chunks.is_chunk_ready(&coords) {
+                return true; // hold items still until their chunk loads
+            }
+            let id = voxelize::VoxelAccess::get_voxel(&*chunks, x, y, z);
+            content
+                .block_by_id(id)
+                .is_some_and(|b| b.collision && b.fluid.is_none())
+        };
+        let limit = |item: u32| content.item_by_id(item).map(|i| i.stack_size).unwrap_or(1);
+        g.drops.step(dt, solid, limit);
+
+        // Pickups.
+        let ids: Vec<String> = g.players.keys().cloned().collect();
+        for id in ids {
+            let Some(entity) = clients.get(&id).map(|c| c.entity) else {
+                continue;
+            };
+            let Some(p) = positions.get(entity).map(|p| [p.0 .0, p.0 .1, p.0 .2]) else {
+                continue;
+            };
+            if g.players.get(&id).is_none_or(|pl| pl.vitals.is_dead()) {
+                continue;
+            }
+            let feet = [p[0], p[1] - super::survival::EYE_HEIGHT, p[2]];
+            let mut picked = Vec::new();
+            for drop_id in g.drops.in_reach(&id, feet) {
+                let Some(stack) = g.drops.get_mut(drop_id).map(|d| d.stack.clone()) else {
+                    continue;
+                };
+                let player = g.players.get_mut(&id).expect("listed");
+                let left = player.inventory.add(&content, stack.item, stack.count);
+                if left < stack.count {
+                    picked.push((stack.item, stack.count - left));
+                    // Tools keep their wear: add() gives fresh durability, so restore it.
+                    if let Some(d) = stack.durability {
+                        if let Some(s) =
+                            player.inventory.slots.iter_mut().flatten().rev().find(|s| {
+                                s.item == stack.item
+                                    && s.durability
+                                        == content.item_by_id(stack.item).and_then(|i| i.durability)
+                            })
+                        {
+                            s.durability = Some(d);
+                        }
+                    }
+                }
+                if left == 0 {
+                    g.drops.remove(drop_id);
+                } else if let Some(d) = g.drops.get_mut(drop_id) {
+                    d.stack.count = left;
+                }
+            }
+            if !picked.is_empty() {
+                let player = &g.players[&id];
+                events.dispatch(
+                    Event::new(super::INVENTORY_EVENT)
+                        .payload(json!({ "slots": player.inventory.slots, "selected": player.inventory.selected, "realm": player.realm }))
+                        .filter(direct(&id))
+                        .build(),
+                );
+                events.dispatch(
+                    Event::new(PICKUP_EVENT)
+                        .payload(json!({ "items": picked }))
+                        .filter(direct(&id))
+                        .build(),
+                );
+                if player.window.is_none() {
+                    // keep an open inventory screen in sync
+                }
+                events.dispatch(
+                    Event::new(WINDOW_EVENT)
+                        .payload(window_payload(&g, &id))
+                        .filter(direct(&id))
+                        .build(),
+                );
+            }
+        }
+
+        // Tell nearby clients where items are, ten times a second at most.
+        self.since_drops_sent += dt;
+        if g.drops.changed && self.since_drops_sent >= 0.1 {
+            self.since_drops_sent = 0.0;
+            g.drops.changed = false;
+            for client in clients.values() {
+                let Some(p) = positions.get(client.entity) else {
+                    continue;
+                };
+                let near: Vec<Value> = g
+                    .drops
+                    .items
+                    .iter()
+                    .filter(|d| (d.position[0] - p.0 .0).abs() < 64.0 && (d.position[2] - p.0 .2).abs() < 64.0)
+                    .map(|d| json!({ "id": d.id, "item": d.stack.item, "count": d.stack.count, "p": d.position }))
+                    .collect();
+                events.dispatch(
+                    Event::new(DROPS_EVENT)
+                        .payload(json!({ "items": near }))
+                        .filter(direct(&client.id))
+                        .build(),
+                );
+            }
+        }
+
+        // Furnace progress is saved every few seconds; chest edits save at once.
+        self.since_saved += dt;
+        if g.containers.dirty && self.since_saved >= 5.0 {
+            self.since_saved = 0.0;
+            let dir = g.world_dir.clone();
+            if let Err(e) = g.containers.save(&dir) {
+                log::error!("could not save containers: {e}");
+            }
+        }
+    }
+}

@@ -26,6 +26,10 @@ pub struct PlayerRecord {
     /// Records written before survival existed load with full vitals.
     #[serde(default)]
     pub vitals: Vitals,
+    #[serde(default)]
+    pub armor: Vec<Option<super::inventory::Stack>>,
+    #[serde(default)]
+    pub offhand: Option<super::inventory::Stack>,
 }
 
 pub struct PlayerStore {
@@ -131,6 +135,8 @@ mod tests {
             inventory: Inventory::default(),
             position: Some([1.0, 70.0, -3.5]),
             vitals: Vitals::default(),
+            armor: vec![None; 4],
+            offhand: None,
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

@@ -6,9 +6,11 @@ import * as VOXELIZE from "@voxelize/core";
 import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
-import { Content, miningMillis, RecipeDef } from "./content";
+import { Content, miningMillis } from "./content";
+import { DropsView } from "./drops";
 import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
 import { textureCanvas } from "./textures";
+import { WindowState, WindowUi } from "./window-ui";
 
 type ResultEvent = { intent: string; ok: boolean; code?: string; voxel?: [number, number, number] };
 
@@ -120,7 +122,6 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (!result.ok && result.code && result.code !== "too_fast" && result.code !== "nothing_there") {
       hud.toast(MESSAGES[result.code] ?? result.code.replace(/_/g, " "));
     }
-    if (result.ok && result.intent === "craft") hud.toast("Crafted");
   });
 
   const vitalsHud = new VitalsHud();
@@ -139,7 +140,41 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     controls.lock();
   });
 
-  hud.onCraft = (recipe: RecipeDef) => method.call("platform.craft", { grid: content.recipeGrid(recipe) });
+  // ---- windows: inventory screen, workbench, furnace, chest ---------------
+
+  const windowUi = new WindowUi(content, hud, {
+    click: (slot, click) => method.call("platform.window.click", { slot, click }),
+    drag: (slots, oneEach) => method.call("platform.window.drag", { slots, oneEach }),
+    fill: (recipe, max) => method.call("platform.window.fill", { recipe, max }),
+    close: () => closeWindow(),
+  });
+  const closeWindow = () => {
+    windowUi.wantPlayer = false;
+    windowUi.hide();
+    method.call("platform.window.close", {});
+  };
+  const openWindow = (voxel?: VOXELIZE.Coords3) => {
+    windowUi.wantPlayer = !voxel;
+    method.call("platform.window.open", voxel ? { voxel } : {});
+    controls.unlock();
+  };
+  events.on<WindowState>("platform.window", (state) => {
+    if (!state) return;
+    windowUi.set(state);
+  });
+
+  const drops = new DropsView(content, hud);
+  world.add(drops.group);
+  events.on<{ items: { id: number; item: number; count: number; p: [number, number, number] }[] }>(
+    "platform.drops",
+    (payload) => payload && drops.set(payload.items),
+  );
+  events.on<{ items: [number, number][] }>("platform.pickup", (payload) => {
+    if (!payload) return;
+    for (const [item, count] of payload.items) {
+      hud.toast(`+${count} ${content.itemsById.get(item)?.name ?? "item"}`);
+    }
+  });
 
   // ---- input ----------------------------------------------------------------
 
@@ -166,8 +201,13 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       leftDown = true;
       startMining();
     } else if (event.button === 2) {
-      // Food in hand is eaten; anything else is placed.
-      if (hud.heldItem()?.type === "food") method.call("platform.eat", {});
+      // Using a workbench, furnace or chest opens it (sneak to place against it);
+      // food in hand is eaten; anything else is placed.
+      const target = interact.target;
+      const targetKey = target ? content.blocksById.get(world.getVoxelAt(...target))?.key : undefined;
+      if (target && !event.shiftKey && targetKey && ["crafting_table", "furnace", "chest"].includes(targetKey)) {
+        openWindow([...target] as VOXELIZE.Coords3);
+      } else if (hud.heldItem()?.type === "food") method.call("platform.eat", {});
       else if (interact.potential) method.call("platform.build.place", { voxel: interact.potential.voxel });
     }
   });
@@ -179,7 +219,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   canvas.addEventListener("click", () => {
-    if (!controls.isLocked && !hud.craftingOpen && !vitalsHud.dead) controls.lock();
+    if (!controls.isLocked && !windowUi.isOpen && !vitalsHud.dead) controls.lock();
   });
 
   for (let i = 1; i <= 9; i++) {
@@ -201,12 +241,16 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     else hud.toast("Flight is for creative worlds");
   }, "in-game");
   addEventListener("keydown", (event) => {
-    if (event.code !== "KeyC" || (event.target as HTMLElement)?.tagName === "INPUT") return;
-    const open = !hud.craftingOpen;
-    hud.toggleCrafting(open);
-    if (open) controls.unlock();
+    if ((event.target as HTMLElement)?.tagName === "INPUT" || vitalsHud.dead) return;
+    if (event.code === "KeyE") {
+      if (windowUi.isOpen) closeWindow();
+      else openWindow();
+    } else if (event.code === "Escape" && windowUi.isOpen) {
+      closeWindow();
+    } else if (event.code === "KeyQ" && controls.isLocked && !windowUi.isOpen) {
+      method.call("platform.inventory.drop", { all: event.ctrlKey });
+    }
   });
-  document.getElementById("crafting-close")?.addEventListener("click", () => hud.toggleCrafting(false));
 
   // ---- connect --------------------------------------------------------------
 
@@ -249,6 +293,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     camera.getWorldDirection(direction);
     world.update(controls.object.position, direction);
     players.update();
+    drops.update(performance.now());
 
     if (mining) {
       const target = interact.target;

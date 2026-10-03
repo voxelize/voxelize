@@ -83,6 +83,8 @@ export class Bot {
         // The transport decoder already parses JSON payloads.
         const payload = typeof event.payload === "string" ? JSON.parse(event.payload || "null") : event.payload;
         if (event.name === "platform.inventory") this.inventory = payload;
+        if (event.name === "platform.window") this.window = payload;
+        if (event.name === "platform.drops") this.drops = payload.items;
         if (event.name === "platform.result") this.results.push(payload);
         this.waiters = this.waiters.filter((w) => !w.match({ type: "EVENT", name: event.name, payload }) || (w.resolve(payload), false));
       }
@@ -101,6 +103,20 @@ export class Bot {
         }
       }, timeout);
     });
+  }
+
+  /** Next server event with this name (and matching `pred`). */
+  event(name, pred = () => true, timeout = 10000) {
+    return this.waitFor((m) => m.type === "EVENT" && m.name === name && pred(m.payload), timeout, name);
+  }
+
+  /** Inventory slot index holding `itemId`, or -1. */
+  slotOf(itemId) {
+    return (this.inventory?.slots ?? []).findIndex((s) => s && s.item === itemId);
+  }
+
+  count(itemId) {
+    return (this.inventory?.slots ?? []).reduce((n, s) => n + (s && s.item === itemId ? s.count : 0), 0);
   }
 
   result(intent, timeout = 10000) {

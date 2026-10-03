@@ -232,25 +232,6 @@ body.registering .register-only {
   font-size: 14px;
 }
 
-#crafting ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 16px;
-  display: grid;
-  gap: 6px;
-}
-
-#crafting li {
-  display: grid;
-  gap: 2px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-#crafting li button {
-  justify-self: start;
-}
-
 .muted {
   color: var(--muted);
   font-size: 13px;
@@ -327,4 +308,193 @@ body.registering .register-only {
 #death {
   text-align: center;
   background: rgba(60, 0, 0, 0.85);
+}
+
+#window {
+  width: min(560px, calc(100vw - 16px));
+  padding: 16px;
+  user-select: none;
+}
+
+#window header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#window h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.wtop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.grid {
+  display: grid;
+  gap: 3px;
+}
+
+.grid.g2 { grid-template-columns: repeat(2, 44px); }
+.grid.g3 { grid-template-columns: repeat(3, 44px); }
+.grid.g9 { grid-template-columns: repeat(9, minmax(0, 44px)); }
+
+.grid.inventory {
+  margin-top: 4px;
+}
+
+.hotbar-row {
+  margin-top: 10px !important;
+}
+
+.armor {
+  display: grid;
+  gap: 3px;
+}
+
+.arrow,
+.progress-arrow {
+  font-size: 28px;
+  color: var(--muted);
+}
+
+.progress-arrow {
+  width: 44px;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent) calc(var(--fill) * 100%), rgba(255, 255, 255, 0.12) 0);
+}
+
+.furnace {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}
+
+.flame {
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 40% 40%;
+  background: linear-gradient(0deg, #ff9a2e calc(var(--fill) * 100%), rgba(255, 255, 255, 0.12) 0);
+}
+
+.wslot {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.wslot:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.wslot.result {
+  width: 52px;
+  height: 52px;
+  border-color: var(--accent);
+}
+
+.wslot.dragged {
+  outline: 2px solid var(--accent);
+}
+
+.stack {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.stack img {
+  width: 30px;
+  height: 30px;
+  image-rendering: pixelated;
+}
+
+.stack .count {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+}
+
+.stack .wear {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  height: 3px;
+  background: var(--accent);
+}
+
+#cursor-stack {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 36px;
+  height: 36px;
+  pointer-events: none;
+  z-index: 30;
+}
+
+#item-tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 4px 8px;
+  background: #11151b;
+  border: 1px solid #3a4250;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 31;
+}
+
+.recipe-book {
+  flex: 1;
+  min-width: 160px;
+}
+
+.recipe-book h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.recipe-book ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-height: 150px;
+  overflow: auto;
+}
+
+.recipe-book li {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+.recipe-book li.ready {
+  opacity: 1;
+  background: rgba(124, 196, 111, 0.25);
 }

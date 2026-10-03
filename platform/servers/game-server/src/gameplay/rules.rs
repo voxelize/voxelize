@@ -46,6 +46,7 @@ pub enum IntentError {
     MissingIngredients,
     NeedsWorkbench,
     Dead,
+    Window(super::window::WindowError),
     NotFood,
     NotHungry,
     Inventory(InventoryError),
@@ -70,6 +71,7 @@ impl IntentError {
             IntentError::MissingIngredients => "missing_ingredients",
             IntentError::NeedsWorkbench => "needs_workbench",
             IntentError::Dead => "dead",
+            IntentError::Window(e) => e.code(),
             IntentError::NotFood => "not_food",
             IntentError::NotHungry => "not_hungry",
             IntentError::Inventory(e) => e.code(),
@@ -98,6 +100,23 @@ pub struct PlayerState {
     pub vitals: Vitals,
     /// Position at the previous survival tick, for movement effort.
     pub last_position: Option<[f32; 3]>,
+    /// Stack held by the mouse in an open window.
+    pub cursor: Option<super::inventory::Stack>,
+    /// The inventory screen's own 2x2 crafting grid.
+    pub craft_grid: Vec<Option<super::inventory::Stack>>,
+    pub armor: Vec<Option<super::inventory::Stack>>,
+    pub offhand: Option<super::inventory::Stack>,
+    pub window: Option<OpenWindow>,
+}
+
+/// The window a player has open.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenWindow {
+    pub kind: super::window::WindowKind,
+    /// The block it belongs to (workbench, furnace, chest).
+    pub at: Option<[i32; 3]>,
+    /// A workbench's own 3x3 grid (emptied on close).
+    pub grid: Vec<Option<super::inventory::Stack>>,
 }
 
 impl PlayerState {
@@ -108,6 +127,11 @@ impl PlayerState {
             realm,
             vitals,
             last_position: None,
+            cursor: None,
+            craft_grid: vec![None; 4],
+            armor: vec![None; 4],
+            offhand: None,
+            window: None,
         }
     }
 }
@@ -123,7 +147,7 @@ fn alive(player: &PlayerState) -> Result<(), IntentError> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MineOutcome {
     pub harvested: bool,
-    /// `(item id, count)` added to the inventory.
+    /// `(item id, count)` to spawn at the block.
     pub drops: Vec<(u32, u32)>,
     pub tool_broke: bool,
 }
@@ -153,6 +177,10 @@ impl Rules {
 
     pub fn content(&self) -> &Content {
         &self.content
+    }
+
+    pub fn content_arc(&self) -> Arc<Content> {
+        self.content.clone()
     }
 
     fn within_reach(&self, position: [f32; 3], voxel: [i32; 3]) -> bool {
@@ -217,7 +245,7 @@ impl Rules {
     }
 
     /// Validate a finished break. On success the caller sets the voxel to
-    /// air; the drops are already in the inventory.
+    /// air and spawns the returned drops in the world.
     pub fn finish_mining(
         &self,
         player: &mut PlayerState,
@@ -280,24 +308,8 @@ impl Rules {
                 }
             }
         }
-        // Refuse the break rather than destroy drops that do not fit.
-        let mut needed: Vec<(u32, u32)> = Vec::new();
-        for &(item, count) in &drops {
-            match needed.iter_mut().find(|(i, _)| *i == item) {
-                Some(entry) => entry.1 += count,
-                None => needed.push((item, count)),
-            }
-        }
-        if needed
-            .iter()
-            .any(|&(item, count)| player.inventory.room_for(&self.content, item) < count)
-        {
-            return Err(IntentError::InventoryFull);
-        }
-        for &(item, count) in &drops {
-            let left = player.inventory.add(&self.content, item, count);
-            debug_assert_eq!(left, 0, "room was checked");
-        }
+        // Drops are spawned in the world by the caller and picked up by
+        // walking over them, so a full inventory never destroys anything.
         let tool_broke = block.hardness > 0.0 && player.inventory.wear_selected();
         Ok(MineOutcome {
             harvested: harvests,
@@ -524,7 +536,6 @@ mod tests {
             .unwrap();
         let dirt = rules.content().item("dirt").unwrap().id;
         assert_eq!(outcome.drops, vec![(dirt, 1)]);
-        assert_eq!(player.inventory.count_of(dirt), 1);
         assert!(player.mining.is_none());
     }
 
@@ -562,7 +573,7 @@ mod tests {
             .unwrap();
         assert!(outcome.harvested);
         let rubble = rules.content().item("rubble").unwrap().id;
-        assert_eq!(player.inventory.count_of(rubble), 1);
+        assert_eq!(outcome.drops, vec![(rubble, 1)]);
         assert_eq!(player.inventory.get(0).unwrap().durability, Some(59));
     }
 
@@ -621,24 +632,24 @@ mod tests {
     }
 
     #[test]
-    fn a_full_inventory_refuses_the_break_instead_of_losing_drops() {
+    fn a_full_inventory_still_breaks_and_returns_the_drops_to_spawn() {
         let (rules, world, mut player) = setup();
         let sand = rules.content().item("sand").unwrap().id;
         player.inventory.add(rules.content(), sand, 64 * 36);
         rules
             .start_mining(&mut player, &world, HERE, [2, 0, 0], 0)
             .unwrap();
-        assert_eq!(
-            rules.finish_mining(
+        let outcome = rules
+            .finish_mining(
                 &mut player,
                 &world,
                 HERE,
                 [2, 0, 0],
                 5_000,
-                &mut always(0.0)
-            ),
-            Err(IntentError::InventoryFull)
-        );
+                &mut always(0.0),
+            )
+            .unwrap();
+        assert_eq!(outcome.drops.len(), 1);
     }
 
     #[test]

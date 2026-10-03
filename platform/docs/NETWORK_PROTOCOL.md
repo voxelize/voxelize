@@ -80,6 +80,12 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.inventory.select` | `{"slot":0-8}` | hotbar slot | ✅ |
 | `platform.inventory.move` | `{"from":n,"to":n,"count"?:n}` | slots exist, stack limits, partial moves only onto empty or matching stacks | ✅ |
 | `platform.craft` | `{"grid":[[key\|null,…],…]}` (2×2, or 3×3 near a workbench) | recipe match, ingredients owned, result fits; all-or-nothing | ✅ |
+| `platform.window.open` | `{}` (inventory screen) or `{"voxel":[x,y,z]}` (workbench, furnace, chest) | reach, block kind, alive; closes any other window first | ✅ |
+| `platform.window.click` | `{"slot":n,"click":{"type":"left"\|"right"\|"shift"\|"double"\|"hotbar","key"?:0-8\|"drop","all"?:bool}}` | slot rules (result/output take-only, fuel only fuels, armor only armor), stack limits; crafting result consumes one item per grid slot | ✅ |
+| `platform.window.drag` | `{"slots":[n,…],"oneEach":bool}` | spreads the cursor evenly (or one each) over compatible slots | ✅ |
+| `platform.window.fill` | `{"recipe":key,"max":bool}` | recipe book: moves ingredients from the inventory into the grid (once or as many sets as possible); refuses recipes that do not fit the grid | ✅ |
+| `platform.window.close` | `{}` | grid and cursor go back to the inventory; what does not fit drops in the world | ✅ |
+| `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
 | `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface) | ✅ |
 | `platform.trade.*` | trade window ops | both parties present, items owned, version matches | phase 14 |
@@ -96,6 +102,11 @@ Answers (events, sent only to the requesting client):
 - `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
   pushed on join and after every change.
 
+- `platform.window` — the open window, authoritative after every change:
+  `{"kind":"player"|"workbench"|"furnace"|"chest"|null,"slots":[…],"rules":[…],"inventoryStart":n,"grid":[start,size]|null,"cursor":stack|null,"furnace":{"burnLeft","burnTotal","progress","progressTotal"}|null}`.
+  Furnace viewers get updates while it burns; chest viewers see each other's changes.
+- `platform.drops` — `{"items":[{"id","item","count","p":[x,y,z]}]}`, dropped items within 64 blocks, up to 10 times a second.
+- `platform.pickup` — `{"items":[[item,count],…]}` after walking over drops.
 - `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|null,"realm"}`,
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
