@@ -4,10 +4,14 @@
 //! content data becomes engine block properties. Engine block names are the
 //! content keys, which are stable and unique; display names stay in content.
 
+use std::sync::Arc;
+
 use platform_content::{BlockDef, Content, FluidKind, Orientation};
 use voxelize::{Block, BlockFaces, FluidConfig, Registry, YRotatableSegments};
 
-pub fn engine_block(def: &BlockDef) -> Block {
+use crate::behaviors::{self, BehaviorContext};
+
+pub fn engine_block(def: &BlockDef, content: &Content, ctx: &Arc<BehaviorContext>) -> Block {
     let mut block = Block::new(&def.key).id(def.id);
 
     let is_cross_plant = def.material == "plant" && !def.collision;
@@ -52,12 +56,18 @@ pub fn engine_block(def: &BlockDef) -> Block {
             });
         }
     }
-    block.build()
+    behaviors::attach(block, def, content, ctx).build()
 }
 
-pub fn build_registry(content: &Content) -> Registry {
+/// The engine registry for a content pack, with block behaviours wired to
+/// `ctx` (whose queue collects blocks those behaviours break).
+pub fn build_registry_with(content: &Content, ctx: &Arc<BehaviorContext>) -> Registry {
     let mut registry = Registry::new();
-    let blocks: Vec<Block> = content.blocks().iter().map(engine_block).collect();
+    let blocks: Vec<Block> = content
+        .blocks()
+        .iter()
+        .map(|def| engine_block(def, content, ctx))
+        .collect();
     registry.register_blocks(&blocks);
     registry
 }

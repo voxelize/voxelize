@@ -86,6 +86,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.window.fill` | `{"recipe":key,"max":bool}` | recipe book: moves ingredients from the inventory into the grid (once or as many sets as possible); refuses recipes that do not fit the grid | ✅ |
 | `platform.window.close` | `{}` | grid and cursor go back to the inventory; what does not fit drops in the world | ✅ |
 | `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
+| `platform.use` | `{"voxel":[x,y,z]}` | held item acts on a block: a hoe tills dirt/turf with air above into farmland (wears the hoe) | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
 | `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface) | ✅ |
 | `platform.trade.*` | trade window ops | both parties present, items owned, version matches | phase 14 |

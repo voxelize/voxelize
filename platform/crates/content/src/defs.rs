@@ -52,6 +52,8 @@ pub enum BlockBehavior {
     Melts,
     /// Burns and spreads to flammable neighbours (fire).
     Burns,
+    /// Dries back to dirt without water nearby or a crop on top (farmland).
+    Dries,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -132,6 +134,18 @@ pub struct BlockDef {
     /// Number of growth stages for `grows` blocks (0 when the block has none).
     #[serde(default)]
     pub stages: u32,
+    /// Drops when broken at its last growth stage (ripe crops), instead of
+    /// `drops`.
+    #[serde(default)]
+    pub grown_drops: Vec<DropDef>,
+    /// Blocks it must stand on. When the block below is anything else the
+    /// block breaks (and drops), and it cannot be placed there.
+    #[serde(default)]
+    pub support: Vec<String>,
+    /// For saplings: the tree it grows into (`log` and `leaves` keys and
+    /// trunk heights), taken from the biome tree schema.
+    #[serde(default)]
+    pub grows_into: Option<TreeDef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

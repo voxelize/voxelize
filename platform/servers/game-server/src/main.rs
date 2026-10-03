@@ -6,6 +6,7 @@
 //! never starts half-configured.
 
 mod auth;
+mod behaviors;
 mod config;
 mod gameplay;
 mod registry;
@@ -34,7 +35,11 @@ const DAY_TICKS: u64 = 24_000;
 /// Fraction of the day a brand-new world starts at (07:12).
 const START_TIME_OF_DAY: f32 = 0.3;
 
-fn build_world(config: &GameConfig, content: Arc<Content>) -> World {
+fn build_world(
+    config: &GameConfig,
+    content: Arc<Content>,
+    broken: Arc<behaviors::BrokenBlocks>,
+) -> World {
     let save_dir = config.save_dir.join(&config.world);
     let world_config = WorldConfig::new()
         .seed(config.seed)
@@ -68,7 +73,8 @@ fn build_world(config: &GameConfig, content: Arc<Content>) -> World {
     // guards them. Clients never write voxels directly here: every block
     // change is an intent the server validates (docs/SECURITY.md).
     world.set_raw_update_guard(refuse_raw_writes);
-    gameplay::install(&mut world, content, &save_dir, config.seed).unwrap_or_else(|e| fail(e));
+    gameplay::install(&mut world, content, &save_dir, config.seed, broken)
+        .unwrap_or_else(|e| fail(e));
     world.set_dispatcher(|| {
         voxelize::default_dispatcher()
             .with(
@@ -105,7 +111,9 @@ async fn main() -> std::io::Result<()> {
     let config = GameConfig::from_env().unwrap_or_else(|e| fail(e));
     let content = Arc::new(Content::load(&config.content_dir).unwrap_or_else(|e| fail(e)));
     let summary = content.summary();
-    let registry = registry::build_registry(&content);
+    let broken = Arc::new(behaviors::BrokenBlocks::default());
+    let behavior_ctx = Arc::new(behaviors::BehaviorContext::new(&content, broken.clone()));
+    let registry = registry::build_registry_with(&content, &behavior_ctx);
 
     let mut builder = Server::new().port(config.port).registry(&registry);
     if let Some(secret) = &config.transport_secret {
@@ -122,7 +130,7 @@ async fn main() -> std::io::Result<()> {
     }
     let mut server = builder.build();
     server
-        .add_world(build_world(&config, content.clone()))
+        .add_world(build_world(&config, content.clone(), broken))
         .unwrap_or_else(|e| fail(format!("cannot add world: {e:?}")));
 
     info!(
@@ -183,7 +191,9 @@ mod tests {
     #[test]
     fn every_content_block_registers_with_the_engine() {
         let content = content();
-        let registry = registry::build_registry(&content);
+        let broken = Arc::new(behaviors::BrokenBlocks::default());
+        let behavior_ctx = Arc::new(behaviors::BehaviorContext::new(&content, broken.clone()));
+        let registry = registry::build_registry_with(&content, &behavior_ctx);
         for block in content.blocks() {
             assert!(
                 !registry.is_air(block.id),

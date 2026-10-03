@@ -22,6 +22,10 @@ pub const AIR: u32 = 0;
 pub trait WorldView {
     /// Block id at a voxel, `None` when its chunk is not loaded.
     fn block_at(&self, voxel: [i32; 3]) -> Option<u32>;
+    /// The raw voxel (id plus rotation, stage...), `None` when not loaded.
+    fn raw_at(&self, voxel: [i32; 3]) -> Option<u32> {
+        self.block_at(voxel)
+    }
     /// Whether any player's body overlaps the voxel cell.
     fn players_overlap(&self, voxel: [i32; 3]) -> bool;
     /// Whether a block of the given id lies within `radius` of `voxel`.
@@ -46,6 +50,8 @@ pub enum IntentError {
     MissingIngredients,
     NeedsWorkbench,
     Dead,
+    NeedsSupport,
+    CannotUse,
     Window(super::window::WindowError),
     NotFood,
     NotHungry,
@@ -71,6 +77,8 @@ impl IntentError {
             IntentError::MissingIngredients => "missing_ingredients",
             IntentError::NeedsWorkbench => "needs_workbench",
             IntentError::Dead => "dead",
+            IntentError::NeedsSupport => "needs_support",
+            IntentError::CannotUse => "cannot_use",
             IntentError::Window(e) => e.code(),
             IntentError::NotFood => "not_food",
             IntentError::NotHungry => "not_hungry",
@@ -291,8 +299,15 @@ impl Rules {
         }
 
         let mut drops: Vec<(u32, u32)> = Vec::new();
+        let stage = view.raw_at(voxel).map(|raw| (raw >> 24) & 0xF).unwrap_or(0);
+        let ripe = block.stages > 0 && stage + 1 >= block.stages && !block.grown_drops.is_empty();
+        let table = if ripe {
+            &block.grown_drops
+        } else {
+            &block.drops
+        };
         if harvests {
-            for drop in &block.drops {
+            for drop in table {
                 if random() >= drop.chance as f64 {
                     continue;
                 }
@@ -365,6 +380,18 @@ impl Rules {
                 self.content.block(key).ok_or(IntentError::NotPlaceable)?
             }
         };
+        if !block.support.is_empty() {
+            let below = view
+                .block_at([voxel[0], voxel[1] - 1, voxel[2]])
+                .ok_or(IntentError::NotLoaded)?;
+            let ok = self
+                .content
+                .block_by_id(below)
+                .is_some_and(|b| block.support.contains(&b.key));
+            if !ok {
+                return Err(IntentError::NeedsSupport);
+            }
+        }
         if block.collision && view.players_overlap(voxel) {
             return Err(IntentError::CollidesWithPlayer);
         }
@@ -372,6 +399,40 @@ impl Rules {
             player.inventory.take_one(slot)?;
         }
         Ok(block.id)
+    }
+
+    /// Use the held item on a block: a hoe tills dirt or turf with air
+    /// above into farmland. Returns the block to write.
+    pub fn use_on(
+        &self,
+        player: &mut PlayerState,
+        view: &dyn WorldView,
+        position: [f32; 3],
+        voxel: [i32; 3],
+    ) -> Result<u32, IntentError> {
+        alive(player)?;
+        let (id, block) = self.target_block(view, position, voxel)?;
+        let held = self.held_item(player).ok_or(IntentError::CannotUse)?;
+        let is_hoe = held
+            .tool
+            .as_ref()
+            .is_some_and(|t| t.kind == platform_content::ToolKind::Hoe);
+        let tillable = block.key == "dirt" || block.key == "turf";
+        let above = view
+            .block_at([voxel[0], voxel[1] + 1, voxel[2]])
+            .ok_or(IntentError::NotLoaded)?;
+        let farmland = self
+            .content
+            .block("farmland")
+            .ok_or(IntentError::CannotUse)?
+            .id;
+        if !is_hoe || !tillable || above != AIR || id == farmland {
+            return Err(IntentError::CannotUse);
+        }
+        if player.realm == Realm::Survival {
+            player.inventory.wear_selected();
+        }
+        Ok(farmland)
     }
 
     /// Eat one food item from `slot` (the selected slot when `None`).
@@ -467,6 +528,9 @@ mod tests {
 
     impl WorldView for FakeWorld {
         fn block_at(&self, voxel: [i32; 3]) -> Option<u32> {
+            self.raw_at(voxel).map(|raw| raw & 0xFFFF)
+        }
+        fn raw_at(&self, voxel: [i32; 3]) -> Option<u32> {
             if voxel[0].abs() > 100 {
                 return None;
             }
@@ -766,6 +830,64 @@ mod tests {
             rules.start_mining(&mut player, &world, HERE, [2, 0, 0], 0),
             Err(IntentError::Dead)
         );
+    }
+
+    #[test]
+    fn hoes_till_soil_and_seeds_need_farmland() {
+        let (rules, mut world, mut player) = setup();
+        let c = rules.content();
+        let hoe = c.item("wooden_hoe").unwrap().id;
+        let seeds = c.item("wheat_seeds").unwrap().id;
+        player.inventory.add(c, hoe, 1);
+        player.inventory.add(c, seeds, 2);
+        assert_eq!(
+            rules.place(&mut player, &world, HERE, [2, 1, 0], Some(1), None),
+            Err(IntentError::NeedsSupport)
+        );
+        let farmland = c.block("farmland").unwrap().id;
+        assert_eq!(
+            rules.use_on(&mut player, &world, HERE, [2, 0, 0]),
+            Ok(farmland)
+        );
+        assert_eq!(
+            rules.use_on(&mut player, &world, HERE, [1, 0, 0]),
+            Err(IntentError::CannotUse),
+            "stone"
+        );
+        world.blocks.insert([2, 0, 0], farmland);
+        let crop = c.block("wheat_crop").unwrap().id;
+        assert_eq!(
+            rules.place(&mut player, &world, HERE, [2, 1, 0], Some(1), None),
+            Ok(crop)
+        );
+    }
+
+    #[test]
+    fn ripe_crops_drop_wheat_and_seeds() {
+        let (rules, mut world, mut player) = setup();
+        let c = rules.content();
+        let crop = c.block("wheat_crop").unwrap();
+        world.blocks.insert([2, 1, 0], crop.id | (7 << 24));
+        world.blocks.insert([3, 1, 0], crop.id);
+        let wheat = c.item("wheat").unwrap().id;
+        let seeds = c.item("wheat_seeds").unwrap().id;
+        let ripe = rules.finish_mining(&mut player, &world, HERE, [2, 1, 0], 0, &mut always(0.0));
+        // Hardness 0 still needs a session: start then finish.
+        assert_eq!(ripe, Err(IntentError::NoSession));
+        rules
+            .start_mining(&mut player, &world, HERE, [2, 1, 0], 0)
+            .unwrap();
+        let ripe = rules
+            .finish_mining(&mut player, &world, HERE, [2, 1, 0], 0, &mut always(0.0))
+            .unwrap();
+        assert!(ripe.drops.iter().any(|(i, _)| *i == wheat));
+        rules
+            .start_mining(&mut player, &world, HERE, [3, 1, 0], 0)
+            .unwrap();
+        let green = rules
+            .finish_mining(&mut player, &world, HERE, [3, 1, 0], 0, &mut always(0.0))
+            .unwrap();
+        assert_eq!(green.drops, vec![(seeds, 1)]);
     }
 
     #[test]

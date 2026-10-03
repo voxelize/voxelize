@@ -36,6 +36,8 @@ const MESSAGES: Record<string, string> = {
   missing_ingredients: "Missing ingredients",
   not_hungry: "You are not hungry",
   dead: "You are dead",
+  needs_support: "That cannot stand there",
+  cannot_use: "Nothing happens",
   not_loaded: "That area is still loading",
 };
 
@@ -207,6 +209,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       const targetKey = target ? content.blocksById.get(world.getVoxelAt(...target))?.key : undefined;
       if (target && !event.shiftKey && targetKey && ["crafting_table", "furnace", "chest"].includes(targetKey)) {
         openWindow([...target] as VOXELIZE.Coords3);
+      } else if (hud.heldItem()?.tool?.kind === "hoe" && target && ["dirt", "turf"].includes(targetKey ?? "")) {
+        method.call("platform.use", { voxel: target });
       } else if (hud.heldItem()?.type === "food") method.call("platform.eat", {});
       else if (interact.potential) method.call("platform.build.place", { voxel: interact.potential.voxel });
     }

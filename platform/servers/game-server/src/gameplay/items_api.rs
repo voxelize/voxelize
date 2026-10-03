@@ -589,6 +589,48 @@ impl<'a> specs::System<'a> for WorldItemsSystem {
             }
         }
 
+        // Blocks broken by behaviours (decayed leaves, uprooted plants) drop.
+        let broken = g.broken.drain();
+        for b in broken {
+            let id = b.raw & 0xFFFF;
+            let Some(def) = content.block_by_id(id) else {
+                continue;
+            };
+            let stage = (b.raw >> 24) & 0xF;
+            let ripe = def.stages > 0 && stage + 1 >= def.stages && !def.grown_drops.is_empty();
+            let table = if ripe { &def.grown_drops } else { &def.drops };
+            for drop in table {
+                g.rng = g
+                    .rng
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let roll = (g.rng >> 11) as f64 / (1u64 << 53) as f64;
+                if roll >= drop.chance as f64 {
+                    continue;
+                }
+                let span = drop.max - drop.min + 1;
+                let count = drop.min + ((g.rng >> 7) % span as u64) as u32;
+                let Some(item) = content.item(&drop.item) else {
+                    continue;
+                };
+                let center = [
+                    b.voxel[0] as f32 + 0.5,
+                    b.voxel[1] as f32 + 0.5,
+                    b.voxel[2] as f32 + 0.5,
+                ];
+                g.drops.spawn(
+                    Stack {
+                        item: item.id,
+                        count,
+                        durability: item.durability,
+                    },
+                    center,
+                    [0.0, 2.0, 0.0],
+                    None,
+                );
+            }
+        }
+
         // Dropped items: physics, merging, despawn.
         let max_height = config.max_height as i32;
         let solid = |x: i32, y: i32, z: i32| {

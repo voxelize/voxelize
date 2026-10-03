@@ -253,7 +253,22 @@ impl Content {
                     block.stages
                 ));
             }
-            for drop in &block.drops {
+            for key in &block.support {
+                if !has_block(key) {
+                    errors.push(format!("{who} needs unknown support block {key:?}"));
+                }
+            }
+            if let Some(tree) = &block.grows_into {
+                for key in [&tree.log, &tree.leaves] {
+                    if !has_block(key) {
+                        errors.push(format!("{who} grows into unknown block {key:?}"));
+                    }
+                }
+                if !block.behaviors.contains(&BlockBehavior::Grows) {
+                    errors.push(format!("{who} declares growsInto but does not grow"));
+                }
+            }
+            for drop in block.drops.iter().chain(&block.grown_drops) {
                 if !has_item(&drop.item) {
                     errors.push(format!("{who} drops unknown item {:?}", drop.item));
                 }

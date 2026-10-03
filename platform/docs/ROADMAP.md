@@ -130,10 +130,20 @@ animation, navigation, network, status); passive/neutral/hostile/flying/
 aquatic/boss archetypes as data; behaviour trees; voxel pathfinding (engine
 `pathfinding.rs`); spawning by biome, light and time; original models.
 
-## Phase 11 — Farming, animals, structures ⬜
+## Phase 11 — Farming, animals, structures 🟡
 
-Seeds, soil, water, light, growth stages, harvest, trees, fruit; animal
-feeding/breeding/growth; data-driven structure templates and placement.
+Done: block behaviours from content (`servers/game-server/src/behaviors.rs`,
+engine active-voxel and random-tick hooks): falling sand/gravel, support
+rules (plants break and drop when their ground goes), turf spreading and
+dying under cover, natural leaf decay with sapling/stick/apple drops
+(player-placed leaves persist), ice melting by torches, farmland drying
+without water; farming — hoe tills dirt/turf (`platform.use`), seeds only on
+farmland, eight wheat stages that need light and grow faster near water,
+ripe crops drop wheat and seeds; saplings grow into trees. Unit tests for
+every behaviour and `tests/bots/nature.mjs` on a live server (a felled tree's
+leaves decay and drop saplings).
+Remaining: animals (feeding, breeding, growth, drops), structures, bone-meal
+style fertiliser, more crops.
 
 ## Phase 12 — Automation ⬜
 

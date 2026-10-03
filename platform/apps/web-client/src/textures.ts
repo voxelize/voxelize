@@ -233,6 +233,21 @@ const RECIPES: Record<string, Recipe> = {
       for (let y = 1; y < 5; y++) p.set(x, y, hex("#e2c25a"));
     }
   },
+  oak_sapling: (p) => {
+    p.clear();
+    for (let y = 8; y < SIZE; y++) p.set(7, y, hex("#6b4a2b"));
+    p.blobs(hex("#4f8f34"), 5, 2);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < SIZE; x++) if ((x - 7) ** 2 + (y - 5) ** 2 > 22) p.set(x, y, [0, 0, 0, 0]);
+    for (let y = 9; y < SIZE; y++) for (let x = 0; x < SIZE; x++) if (x !== 7) p.set(x, y, [0, 0, 0, 0]);
+  },
+  spruce_sapling: (p) => {
+    p.clear();
+    for (let y = 2; y < SIZE; y++) {
+      p.set(7, y, hex("#45301d"));
+      const w = Math.floor((y - 2) / 3);
+      if (y < 13) for (let x = 7 - w; x <= 7 + w; x++) if (x !== 7) p.set(x, y, hex("#2c5a35"));
+    }
+  },
   cactus_side: (p) => {
     p.speckle(hex("#3f8a3a"), 0.08);
     p.streaks(hex("#2d6a2b"), 4, 0.05);

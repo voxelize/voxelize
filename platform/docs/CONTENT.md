@@ -36,8 +36,11 @@ stable forever once a world has used them; 0 is reserved (air).
 | `tool.required` | `false`: the tool only speeds mining, drops come by hand too |
 | `orientation` | `none`, `horizontal` (4 facings), `full` (6 facings) |
 | `fluid` | `water` or `lava`; fluids must not have collision |
-| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `burns` — implemented once by the server, enabled here |
+| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries` (`burns` reserved) — implemented once by the server, enabled here |
 | `stages` | growth stages (2–16) for `grows` blocks |
+| `grownDrops` | drops at the last growth stage (ripe crops), replacing `drops` |
+| `support` | block keys it must stand on; elsewhere it cannot be placed and it breaks (and drops) when its ground changes |
+| `growsInto` | saplings: the tree they become (`log`, `leaves`, `minHeight`, `maxHeight`) |
 
 Mining time: `hardness × (harvests ? 1.5 : 5.0) ÷ speed`, where `speed` is
 the held tool's `speed` if its kind matches the block's tool, else 1;

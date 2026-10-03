@@ -334,5 +334,29 @@
       "speed": 5.0,
       "attackDamage": 0
     }
+  },
+  {
+    "id": 48,
+    "key": "oak_sapling",
+    "name": "Oak Sapling",
+    "type": "seed",
+    "placesBlock": "oak_sapling",
+    "value": 1
+  },
+  {
+    "id": 49,
+    "key": "spruce_sapling",
+    "name": "Spruce Sapling",
+    "type": "seed",
+    "placesBlock": "spruce_sapling",
+    "value": 1
+  },
+  {
+    "id": 50,
+    "key": "apple",
+    "name": "Apple",
+    "type": "food",
+    "food": 4,
+    "value": 3
   }
 ]

@@ -51,10 +51,17 @@ pub struct Gameplay {
     containers: containers::Containers,
     drops: drops::Drops,
     world_dir: std::path::PathBuf,
+    /// Blocks broken by block behaviours, whose drops are still to spawn.
+    broken: Arc<crate::behaviors::BrokenBlocks>,
 }
 
 impl Gameplay {
-    pub fn new(content: Arc<Content>, world_dir: &Path, seed: u32) -> Result<Self, String> {
+    pub fn new(
+        content: Arc<Content>,
+        world_dir: &Path,
+        seed: u32,
+        broken: Arc<crate::behaviors::BrokenBlocks>,
+    ) -> Result<Self, String> {
         Ok(Self {
             rules: Rules::new(content),
             store: PlayerStore::new(world_dir),
@@ -63,6 +70,7 @@ impl Gameplay {
             containers: containers::Containers::load(world_dir)?,
             drops: drops::Drops::default(),
             world_dir: world_dir.to_owned(),
+            broken,
         })
     }
 
@@ -101,6 +109,11 @@ impl WorldView for EngineView<'_> {
             return None;
         }
         Some(self.chunks.get_voxel(x, y, z))
+    }
+
+    fn raw_at(&self, [x, y, z]: [i32; 3]) -> Option<u32> {
+        self.block_at([x, y, z])?;
+        Some(self.chunks.get_raw_voxel(x, y, z))
     }
 
     fn players_overlap(&self, [x, y, z]: [i32; 3]) -> bool {
@@ -399,10 +412,11 @@ pub fn install(
     content: Arc<Content>,
     world_dir: &Path,
     seed: u32,
+    broken: Arc<crate::behaviors::BrokenBlocks>,
 ) -> Result<(), String> {
     world
         .ecs_mut()
-        .insert(Gameplay::new(content, world_dir, seed)?);
+        .insert(Gameplay::new(content, world_dir, seed, broken)?);
     items_api::install(world);
     world.set_client_modifier(on_join);
     world.set_client_leave_modifier(on_leave);
@@ -477,7 +491,20 @@ pub fn install(
             None => not_joined(world, client_id, INTENT),
             Some(Ok(block)) => {
                 let [x, y, z] = p.voxel;
-                world.chunks_mut().update_voxel(&Vec3(x, y, z), block);
+                let decays = {
+                    let g = world.ecs().read_resource::<Gameplay>();
+                    g.rules.content().block_by_id(block).is_some_and(|b| {
+                        b.behaviors
+                            .contains(&platform_content::BlockBehavior::Decays)
+                    })
+                };
+                // Leaves a player places never decay.
+                let raw = if decays {
+                    voxelize::BlockUtils::insert_stage(block, crate::behaviors::PERSISTENT_STAGE)
+                } else {
+                    block
+                };
+                world.chunks_mut().update_voxel(&Vec3(x, y, z), raw);
                 items_api::block_placed(world, p.voxel, block);
                 persist(world, client_id);
                 reply(
@@ -631,6 +658,34 @@ pub fn install(
                 send_vitals(world, client_id, None);
                 reply(world, client_id, INTENT, Ok(json!({})));
             }
+        }
+    });
+
+    world.set_method_handle("platform.use", |world, client_id, payload| {
+        const INTENT: &str = "use";
+        let Some(p) = parse::<VoxelPayload>(world, client_id, INTENT, payload) else {
+            return;
+        };
+        let result = with_player(world, client_id, |g, view, position| {
+            let Gameplay { rules, players, .. } = g;
+            let player = players.get_mut(client_id).expect("checked by with_player");
+            rules.use_on(player, view, position, p.voxel)
+        });
+        match result {
+            None => not_joined(world, client_id, INTENT),
+            Some(Ok(block)) => {
+                let [x, y, z] = p.voxel;
+                world.chunks_mut().update_voxel(&Vec3(x, y, z), block);
+                persist(world, client_id);
+                reply(
+                    world,
+                    client_id,
+                    INTENT,
+                    Ok(json!({ "voxel": p.voxel, "block": block })),
+                );
+                send_inventory(world, client_id);
+            }
+            Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
         }
     });
     Ok(())
