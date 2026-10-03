@@ -1,5 +1,15 @@
 use super::*;
 
+/// The engine's standard system set for a world. A game that needs its own
+/// per-tick systems builds on it instead of copying the list:
+///
+/// ```ignore
+/// world.set_dispatcher(|| default_dispatcher().with(MySystem, "my-system", &["physics"]));
+/// ```
+pub fn default_dispatcher() -> TimedDispatcherBuilder<'static, 'static> {
+    dispatcher()
+}
+
 pub(super) fn dispatcher() -> TimedDispatcherBuilder<'static, 'static> {
     // Note: shred requires a system's dependencies to be registered before
     // the system that names them, so "physics" must precede "entities-meta".

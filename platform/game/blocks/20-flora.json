@@ -1,0 +1,265 @@
+[
+  {
+    "id": 10,
+    "key": "oak_log",
+    "name": "Oak Log",
+    "material": "wood",
+    "hardness": 2.0,
+    "resistance": 2,
+    "texture": {
+      "all": "oak_log_side",
+      "top": "oak_log_top",
+      "bottom": "oak_log_top"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "orientation": "full",
+    "flammable": true,
+    "drops": [
+      {
+        "item": "oak_log"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "key": "oak_leaves",
+    "name": "Oak Leaves",
+    "material": "foliage",
+    "hardness": 0.2,
+    "resistance": 0.2,
+    "texture": {
+      "all": "oak_leaves"
+    },
+    "tool": {
+      "kind": "shears",
+      "required": false
+    },
+    "transparent": true,
+    "flammable": true,
+    "behaviors": [
+      "decays"
+    ],
+    "drops": [
+      {
+        "item": "oak_sapling",
+        "chance": 0.05
+      },
+      {
+        "item": "stick",
+        "chance": 0.02
+      },
+      {
+        "item": "apple",
+        "chance": 0.005
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "key": "spruce_log",
+    "name": "Spruce Log",
+    "material": "wood",
+    "hardness": 2.0,
+    "resistance": 2,
+    "texture": {
+      "all": "spruce_log_side",
+      "top": "spruce_log_top",
+      "bottom": "spruce_log_top"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "orientation": "full",
+    "flammable": true,
+    "drops": [
+      {
+        "item": "spruce_log"
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "key": "spruce_leaves",
+    "name": "Spruce Needles",
+    "material": "foliage",
+    "hardness": 0.2,
+    "resistance": 0.2,
+    "texture": {
+      "all": "spruce_leaves"
+    },
+    "tool": {
+      "kind": "shears",
+      "required": false
+    },
+    "transparent": true,
+    "flammable": true,
+    "behaviors": [
+      "decays"
+    ],
+    "drops": [
+      {
+        "item": "spruce_sapling",
+        "chance": 0.05
+      },
+      {
+        "item": "stick",
+        "chance": 0.02
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "key": "tall_grass",
+    "name": "Tall Grass",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "tall_grass"
+    },
+    "transparent": true,
+    "collision": false,
+    "flammable": true,
+    "drops": [
+      {
+        "item": "wheat_seeds",
+        "chance": 0.125
+      }
+    ],
+    "support": [
+      "turf",
+      "dirt"
+    ]
+  },
+  {
+    "id": 27,
+    "key": "wheat_crop",
+    "name": "Wheat Crop",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "wheat_stage"
+    },
+    "transparent": true,
+    "collision": false,
+    "behaviors": [
+      "grows"
+    ],
+    "stages": 8,
+    "drops": [
+      {
+        "item": "wheat_seeds"
+      }
+    ],
+    "grownDrops": [
+      {
+        "item": "wheat"
+      },
+      {
+        "item": "wheat_seeds",
+        "min": 1,
+        "max": 3
+      }
+    ],
+    "support": [
+      "farmland"
+    ]
+  },
+  {
+    "id": 30,
+    "key": "cactus",
+    "name": "Cactus",
+    "material": "plant",
+    "hardness": 0.4,
+    "resistance": 0.4,
+    "texture": {
+      "all": "cactus_side",
+      "top": "cactus_top",
+      "bottom": "cactus_top"
+    },
+    "drops": [
+      {
+        "item": "cactus"
+      }
+    ],
+    "support": [
+      "sand",
+      "red_sand",
+      "cactus"
+    ]
+  },
+  {
+    "id": 35,
+    "key": "oak_sapling",
+    "name": "Oak Sapling",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "oak_sapling"
+    },
+    "transparent": true,
+    "collision": false,
+    "behaviors": [
+      "grows"
+    ],
+    "stages": 2,
+    "support": [
+      "turf",
+      "dirt",
+      "farmland"
+    ],
+    "growsInto": {
+      "log": "oak_log",
+      "leaves": "oak_leaves",
+      "density": 1.0,
+      "minHeight": 4,
+      "maxHeight": 6
+    },
+    "drops": [
+      {
+        "item": "oak_sapling"
+      }
+    ]
+  },
+  {
+    "id": 36,
+    "key": "spruce_sapling",
+    "name": "Spruce Sapling",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "spruce_sapling"
+    },
+    "transparent": true,
+    "collision": false,
+    "behaviors": [
+      "grows"
+    ],
+    "stages": 2,
+    "support": [
+      "turf",
+      "dirt",
+      "farmland",
+      "snowpack"
+    ],
+    "growsInto": {
+      "log": "spruce_log",
+      "leaves": "spruce_leaves",
+      "density": 1.0,
+      "minHeight": 6,
+      "maxHeight": 9
+    },
+    "drops": [
+      {
+        "item": "spruce_sapling"
+      }
+    ]
+  }
+]

@@ -1,0 +1,443 @@
+//! Engine wiring for creatures: the per-tick mob system, attack and feed
+//! intents, damage to players, drops, and persistence of animals.
+
+use std::fs;
+use std::io::Write;
+use std::path::Path;
+
+use platform_content::{MobKind, ToolKind};
+use platform_ticket::Realm;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use specs::WorldExt;
+use voxelize::{ClientFilter, Event, PositionComp, VoxelAccess, World};
+
+use super::inventory::Stack;
+use super::mobs::{Mob, MobEvent, MobWorld, Mobs, PlayerInfo};
+use super::rules::IntentError;
+use super::survival::{DamageKind, EYE_HEIGHT};
+use super::{client_position, not_joined, parse, persist, reply, send_inventory, Gameplay};
+
+pub const MOBS_EVENT: &str = "platform.mobs";
+const REACH: f32 = 4.5;
+const ATTACK_COOLDOWN: f32 = 0.5;
+
+/// Animals persist; monsters are recreated by the night.
+pub(super) fn load(world_dir: &Path) -> Result<Mobs, String> {
+    let path = world_dir.join("mobs.json");
+    let text = match fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Mobs::default()),
+        Err(e) => return Err(format!("{}: {e}", path.display())),
+    };
+    let list: Vec<Mob> =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    let next_id = list.iter().map(|m| m.id).max().unwrap_or(0);
+    Ok(Mobs { list, next_id })
+}
+
+fn save(g: &Gameplay) -> Result<(), String> {
+    let content = g.rules.content();
+    let animals: Vec<&Mob> = g
+        .mobs
+        .list
+        .iter()
+        .filter(|m| {
+            content
+                .mob(&m.key)
+                .is_some_and(|d| d.kind != MobKind::Hostile)
+        })
+        .collect();
+    let bytes = serde_json::to_vec(&animals).map_err(|e| e.to_string())?;
+    let path = g.world_dir.join("mobs.json");
+    let tmp = path.with_extension("json.tmp");
+    fs::create_dir_all(&g.world_dir).map_err(|e| e.to_string())?;
+    let result = (|| {
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(&bytes)?;
+        f.sync_all()?;
+        fs::rename(&tmp, &path)
+    })();
+    result.map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        format!("{}: {e}", path.display())
+    })
+}
+
+struct EngineMobWorld<'a> {
+    chunks: &'a voxelize::Chunks,
+    content: &'a platform_content::Content,
+    chunk_size: usize,
+    max_height: i32,
+    day: bool,
+    biome: &'a (dyn Fn(i32, i32) -> String + Send + Sync),
+}
+
+impl EngineMobWorld<'_> {
+    fn ready(&self, x: i32, z: i32) -> bool {
+        self.chunks
+            .is_chunk_ready(&voxelize::ChunkUtils::map_voxel_to_chunk(
+                x,
+                0,
+                z,
+                self.chunk_size,
+            ))
+    }
+}
+
+impl MobWorld for EngineMobWorld<'_> {
+    fn block(&self, x: i32, y: i32, z: i32) -> u32 {
+        if y < 0 || y >= self.max_height || !self.ready(x, z) {
+            return 0;
+        }
+        self.chunks.get_voxel(x, y, z)
+    }
+    fn solid(&self, x: i32, y: i32, z: i32) -> bool {
+        if y < 0 {
+            return true;
+        }
+        if !self.ready(x, z) {
+            return true; // unloaded ground holds creatures still
+        }
+        let id = self.block(x, y, z);
+        self.content
+            .block_by_id(id)
+            .is_some_and(|b| b.collision && b.fluid.is_none())
+    }
+    fn water(&self, x: i32, y: i32, z: i32) -> bool {
+        let id = self.block(x, y, z);
+        self.content
+            .block_by_id(id)
+            .is_some_and(|b| b.fluid == Some(platform_content::FluidKind::Water))
+    }
+    fn sky_light(&self, x: i32, y: i32, z: i32) -> u32 {
+        if y >= self.max_height {
+            return 15;
+        }
+        if !self.ready(x, z) {
+            return 0;
+        }
+        self.chunks.get_sunlight(x, y, z)
+    }
+    fn block_light(&self, x: i32, y: i32, z: i32) -> u32 {
+        if !self.ready(x, z) || y < 0 || y >= self.max_height {
+            return 0;
+        }
+        self.chunks
+            .get_red_light(x, y, z)
+            .max(self.chunks.get_green_light(x, y, z))
+            .max(self.chunks.get_blue_light(x, y, z))
+    }
+    fn is_day(&self) -> bool {
+        self.day
+    }
+    fn biome(&self, x: i32, z: i32) -> Option<String> {
+        Some((self.biome)(x, z))
+    }
+    fn loaded(&self, x: i32, z: i32) -> bool {
+        self.ready(x, z)
+    }
+}
+
+pub(super) fn mob_payload(m: &Mob) -> Value {
+    json!({
+        "id": m.id,
+        "key": m.key,
+        "p": m.position,
+        "yaw": m.yaw,
+        "health": m.health,
+        "hurt": m.hurt_timer > 0.0,
+        "baby": m.is_baby(),
+        "moving": m.moving(),
+        "love": m.love_timer > 0.0,
+    })
+}
+
+#[derive(Default)]
+pub struct MobSystem {
+    last: Option<std::time::Instant>,
+    since_spawn: f32,
+    since_sent: f32,
+    since_saved: f32,
+}
+
+impl<'a> specs::System<'a> for MobSystem {
+    type SystemData = (
+        specs::ReadExpect<'a, voxelize::Chunks>,
+        specs::ReadExpect<'a, voxelize::Clients>,
+        specs::ReadExpect<'a, voxelize::WorldConfig>,
+        specs::ReadExpect<'a, voxelize::Stats>,
+        specs::ReadStorage<'a, PositionComp>,
+        specs::WriteExpect<'a, Gameplay>,
+        specs::WriteExpect<'a, voxelize::Events>,
+    );
+
+    fn run(
+        &mut self,
+        (chunks, clients, config, stats, positions, mut g, mut events): Self::SystemData,
+    ) {
+        let now = std::time::Instant::now();
+        let dt = self
+            .last
+            .map(|l| now.duration_since(l).as_secs_f32())
+            .unwrap_or(0.0)
+            .min(0.1);
+        self.last = Some(now);
+        if dt <= 0.0 {
+            return;
+        }
+        let content = g.rules.content_arc();
+        let fraction = (stats.time / config.time_per_day as f32).rem_euclid(1.0);
+        let day = (0.22..0.75).contains(&fraction);
+
+        // Who is around, and what they hold.
+        let mut players = Vec::new();
+        let mut eyes = std::collections::HashMap::new();
+        for (id, player) in g.players.iter_mut() {
+            player.attack_cooldown = (player.attack_cooldown - dt).max(0.0);
+            let Some(entity) = clients.get(id).map(|c| c.entity) else {
+                continue;
+            };
+            let Some(p) = positions.get(entity).map(|p| [p.0 .0, p.0 .1, p.0 .2]) else {
+                continue;
+            };
+            eyes.insert(id.clone(), p);
+            let holding = player
+                .inventory
+                .selected_stack()
+                .and_then(|s| content.item_by_id(s.item))
+                .map(|i| i.key.clone());
+            players.push(PlayerInfo {
+                id: id.clone(),
+                feet: [p[0], p[1] - EYE_HEIGHT, p[2]],
+                holding,
+                targetable: player.realm == Realm::Survival && !player.vitals.is_dead(),
+            });
+        }
+
+        let biome = g.biome.clone();
+        let view = EngineMobWorld {
+            chunks: &chunks,
+            content: &content,
+            chunk_size: config.chunk_size,
+            max_height: config.max_height as i32,
+            day,
+            biome: &*biome,
+        };
+        let Gameplay {
+            mobs,
+            mob_rng,
+            players: states,
+            drops,
+            store,
+            rng,
+            ..
+        } = &mut *g;
+        let mob_events = mobs.step(&content, &view, &players, dt, mob_rng);
+        self.since_spawn += dt;
+        if self.since_spawn >= 1.0 {
+            self.since_spawn = 0.0;
+            mobs.spawn_around(&content, &view, &players, mob_rng);
+        }
+
+        for event in mob_events {
+            match event {
+                MobEvent::Attack { player, damage, .. } => {
+                    let Some(state) = states.get_mut(&player) else {
+                        continue;
+                    };
+                    if state.vitals.is_dead() || state.realm != Realm::Survival {
+                        continue;
+                    }
+                    state.vitals.damage(damage);
+                    events.dispatch(
+                        Event::new(super::VITALS_EVENT)
+                            .payload(super::vitals_payload(state, Some(DamageKind::Mob)))
+                            .filter(ClientFilter::Direct(player.clone()))
+                            .build(),
+                    );
+                    if state.vitals.is_dead() {
+                        let eye = eyes.get(&player).copied().unwrap_or([0.0, 80.0, 0.0]);
+                        super::on_player_death(&player, state, eye, store, drops, rng, &mut events);
+                    }
+                }
+                MobEvent::Died {
+                    key,
+                    position,
+                    baby,
+                    ..
+                } => {
+                    if baby {
+                        continue;
+                    }
+                    let Some(def) = content.mob(&key) else {
+                        continue;
+                    };
+                    for drop in &def.drops {
+                        *rng = rng
+                            .wrapping_mul(6364136223846793005)
+                            .wrapping_add(1442695040888963407);
+                        let roll = (*rng >> 11) as f64 / (1u64 << 53) as f64;
+                        if roll >= drop.chance as f64 {
+                            continue;
+                        }
+                        let span = drop.max - drop.min + 1;
+                        let count = drop.min + ((*rng >> 7) % span as u64) as u32;
+                        let Some(item) = content.item(&drop.item) else {
+                            continue;
+                        };
+                        if count > 0 {
+                            drops.spawn(
+                                Stack {
+                                    item: item.id,
+                                    count,
+                                    durability: item.durability,
+                                },
+                                [position[0], position[1] + 0.5, position[2]],
+                                [0.0, 3.0, 0.0],
+                                None,
+                            );
+                        }
+                    }
+                }
+                MobEvent::Born { .. } => {}
+            }
+        }
+
+        // Nearby creatures, ten times a second.
+        self.since_sent += dt;
+        if self.since_sent >= 0.1 {
+            self.since_sent = 0.0;
+            for client in clients.values() {
+                let Some(p) = positions.get(client.entity) else {
+                    continue;
+                };
+                let near: Vec<Value> = mobs
+                    .list
+                    .iter()
+                    .filter(|m| {
+                        (m.position[0] - p.0 .0).abs() < 64.0
+                            && (m.position[2] - p.0 .2).abs() < 64.0
+                    })
+                    .map(mob_payload)
+                    .collect();
+                events.dispatch(
+                    Event::new(MOBS_EVENT)
+                        .payload(json!({ "mobs": near }))
+                        .filter(ClientFilter::Direct(client.id.clone()))
+                        .build(),
+                );
+            }
+        }
+
+        self.since_saved += dt;
+        if self.since_saved >= 30.0 {
+            self.since_saved = 0.0;
+            if let Err(e) = save(&g) {
+                log::error!("could not save mobs: {e}");
+            }
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MobPayload {
+    mob: u64,
+}
+
+pub(super) fn install(world: &mut World) {
+    world.set_method_handle("platform.attack", |world, id, payload| {
+        const INTENT: &str = "attack";
+        let Some(p) = parse::<MobPayload>(world, id, INTENT, payload) else { return };
+        let Some(eye) = client_position(world, id) else { return not_joined(world, id, INTENT) };
+        let result = {
+            let mut g = world.ecs().write_resource::<Gameplay>();
+            let content = g.rules.content_arc();
+            let Gameplay { players, mobs, .. } = &mut *g;
+            match (players.get_mut(id), mobs.list.iter().find(|m| m.id == p.mob).cloned()) {
+                (None, _) => None,
+                (Some(_), None) => Some(Err(IntentError::NothingThere)),
+                (Some(player), Some(mob)) => {
+                    let height = content.mob(&mob.key).map(|d| d.size[1]).unwrap_or(1.0);
+                    let center = [mob.position[0], mob.position[1] + height / 2.0, mob.position[2]];
+                    let d2: f32 = (0..3).map(|i| (center[i] - eye[i]).powi(2)).sum();
+                    if player.vitals.is_dead() {
+                        Some(Err(IntentError::Dead))
+                    } else if d2 > (REACH + height).powi(2) {
+                        Some(Err(IntentError::OutOfReach))
+                    } else if player.attack_cooldown > 0.0 {
+                        Some(Err(IntentError::TooFast))
+                    } else {
+                        player.attack_cooldown = ATTACK_COOLDOWN;
+                        let weapon = player
+                            .inventory
+                            .selected_stack()
+                            .and_then(|s| content.item_by_id(s.item))
+                            .and_then(|i| i.tool.clone());
+                        let damage = weapon.as_ref().map(|t| t.attack_damage.max(1.0)).unwrap_or(1.0);
+                        if weapon.is_some_and(|t| t.kind == ToolKind::Sword || t.attack_damage > 1.0) {
+                            player.inventory.wear_selected();
+                        }
+                        let died = mobs.hurt(&content, p.mob, damage, Some(id), Some(eye));
+                        let health = mobs.list.iter().find(|m| m.id == p.mob).map(|m| m.health);
+                        Some(Ok(json!({ "mob": p.mob, "damage": damage, "health": health, "killed": died })))
+                    }
+                }
+            }
+        };
+        match result {
+            None => not_joined(world, id, INTENT),
+            Some(r) => {
+                reply(world, id, INTENT, r);
+                send_inventory(world, id);
+            }
+        }
+    });
+
+    world.set_method_handle("platform.interact", |world, id, payload| {
+        const INTENT: &str = "interact";
+        let Some(p) = parse::<MobPayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        let Some(eye) = client_position(world, id) else {
+            return not_joined(world, id, INTENT);
+        };
+        let result = {
+            let mut g = world.ecs().write_resource::<Gameplay>();
+            let content = g.rules.content_arc();
+            let Gameplay { players, mobs, .. } = &mut *g;
+            let Some(player) = players.get_mut(id) else {
+                drop(g);
+                return not_joined(world, id, INTENT);
+            };
+            let mob = mobs.list.iter().find(|m| m.id == p.mob).cloned();
+            match mob {
+                None => Err(IntentError::NothingThere),
+                Some(mob) => {
+                    let d2: f32 = (0..3).map(|i| (mob.position[i] - eye[i]).powi(2)).sum();
+                    let held = player
+                        .inventory
+                        .selected_stack()
+                        .and_then(|s| content.item_by_id(s.item))
+                        .map(|i| i.key.clone());
+                    if d2 > (REACH + 2.0).powi(2) {
+                        Err(IntentError::OutOfReach)
+                    } else if let Some(item) = held.filter(|item| mobs.feed(&content, p.mob, item))
+                    {
+                        if player.realm == Realm::Survival {
+                            let slot = player.inventory.selected;
+                            let _ = player.inventory.take_one(slot);
+                        }
+                        Ok(json!({ "mob": p.mob, "fed": item }))
+                    } else {
+                        Err(IntentError::CannotUse)
+                    }
+                }
+            }
+        };
+        reply(world, id, INTENT, result);
+        send_inventory(world, id);
+        persist(world, id);
+    });
+}

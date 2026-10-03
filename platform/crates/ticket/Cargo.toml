@@ -1,0 +1,15 @@
+[package]
+name = "platform-ticket"
+description = "Short-lived game tickets issued by the backend and verified by game servers."
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+base64.workspace = true

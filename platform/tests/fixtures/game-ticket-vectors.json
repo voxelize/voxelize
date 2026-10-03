@@ -1,0 +1,97 @@
+{
+  "$comment": "Game ticket test vectors shared by platform/crates/ticket (Rust verifier) and backend/laravel-api (PHP issuer). Generated with an independent HMAC implementation; the secret is for tests only.",
+  "secret": "test-only-ticket-secret-0123456789abcdef",
+  "claims": {
+    "iss": "platform-api",
+    "aud": "game",
+    "sub": "pl_7f3a",
+    "name": "Builder",
+    "world": "main",
+    "realm": "survival",
+    "roles": [
+      "player"
+    ],
+    "iat": 1767225600,
+    "exp": 1767225720,
+    "jti": "9b2f6c1e"
+  },
+  "cases": [
+    {
+      "name": "valid",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJzdXJ2aXZhbCIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTcyMCwianRpIjoiOWIyZjZjMWUifQ.LqbqpJFEu3VOavw3PVWks91uYfHB_ZSZ-dzTIn5DCG8",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "ok"
+    },
+    {
+      "name": "expired",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJzdXJ2aXZhbCIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTcyMCwianRpIjoiOWIyZjZjMWUifQ.LqbqpJFEu3VOavw3PVWks91uYfHB_ZSZ-dzTIn5DCG8",
+      "world": "main",
+      "now": 1767225725,
+      "expect": "expired"
+    },
+    {
+      "name": "not yet valid",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJzdXJ2aXZhbCIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTcyMCwianRpIjoiOWIyZjZjMWUifQ.LqbqpJFEu3VOavw3PVWks91uYfHB_ZSZ-dzTIn5DCG8",
+      "world": "main",
+      "now": 1767225500,
+      "expect": "not_yet_valid"
+    },
+    {
+      "name": "other world",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJzdXJ2aXZhbCIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTcyMCwianRpIjoiOWIyZjZjMWUifQ.LqbqpJFEu3VOavw3PVWks91uYfHB_ZSZ-dzTIn5DCG8",
+      "world": "arena",
+      "now": 1767225610,
+      "expect": "wrong_world"
+    },
+    {
+      "name": "wrong key",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJzdXJ2aXZhbCIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTcyMCwianRpIjoiOWIyZjZjMWUifQ.CRW5Ohy0W4YMqx3HIrPHMCr6h8enknCB26MnnjYKkGY",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "bad_signature"
+    },
+    {
+      "name": "tampered payload",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJjcmVhdGl2ZSIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTcyMCwianRpIjoiOWIyZjZjMWUifQ.LqbqpJFEu3VOavw3PVWks91uYfHB_ZSZ-dzTIn5DCG8",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "bad_signature"
+    },
+    {
+      "name": "lifetime too long",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJzdXJ2aXZhbCIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyOTIwMCwianRpIjoiOWIyZjZjMWUifQ.gsfFTyTovquDgEnsnqMzzkzhiHLZTHZExenWhvcjHew",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "lifetime_too_long"
+    },
+    {
+      "name": "wrong audience",
+      "token": "v1.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJ3ZWIiLCJzdWIiOiJwbF83ZjNhIiwibmFtZSI6IkJ1aWxkZXIiLCJ3b3JsZCI6Im1haW4iLCJyZWFsbSI6InN1cnZpdmFsIiwicm9sZXMiOlsicGxheWVyIl0sImlhdCI6MTc2NzIyNTYwMCwiZXhwIjoxNzY3MjI1NzIwLCJqdGkiOiI5YjJmNmMxZSJ9._sKGbIQGm4FmhJARrs-Gyd4_39ropTMhHv2bM_nhQ-g",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "wrong_audience"
+    },
+    {
+      "name": "wrong issuer",
+      "token": "v1.eyJpc3MiOiJzb21lb25lIiwiYXVkIjoiZ2FtZSIsInN1YiI6InBsXzdmM2EiLCJuYW1lIjoiQnVpbGRlciIsIndvcmxkIjoibWFpbiIsInJlYWxtIjoic3Vydml2YWwiLCJyb2xlcyI6WyJwbGF5ZXIiXSwiaWF0IjoxNzY3MjI1NjAwLCJleHAiOjE3NjcyMjU3MjAsImp0aSI6IjliMmY2YzFlIn0.kLOBk8ZGfoofrgOToU9nqJXSVJbXvD8Xzs9bGn4Wnds",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "wrong_issuer"
+    },
+    {
+      "name": "unsupported version",
+      "token": "v9.eyJpc3MiOiJwbGF0Zm9ybS1hcGkiLCJhdWQiOiJnYW1lIiwic3ViIjoicGxfN2YzYSIsIm5hbWUiOiJCdWlsZGVyIiwid29ybGQiOiJtYWluIiwicmVhbG0iOiJzdXJ2aXZhbCIsInJvbGVzIjpbInBsYXllciJdLCJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTcyMCwianRpIjoiOWIyZjZjMWUifQ.LqbqpJFEu3VOavw3PVWks91uYfHB_ZSZ-dzTIn5DCG8",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "unsupported_version"
+    },
+    {
+      "name": "malformed",
+      "token": "v1.not-a-ticket",
+      "world": "main",
+      "now": 1767225610,
+      "expect": "malformed"
+    }
+  ]
+}

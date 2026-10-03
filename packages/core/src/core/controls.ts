@@ -114,6 +114,11 @@ export type RigidControlsOptions = {
   sensitivity: number;
 
   /**
+   * Invert vertical look (moving the mouse up looks down). Defaults to `false`.
+   */
+  invertY: boolean;
+
+  /**
    * Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`.
    */
   minPolarAngle: number;
@@ -404,6 +409,7 @@ export type RigidControlsOptions = {
 
 const defaultOptions: RigidControlsOptions = {
   sensitivity: 100,
+  invertY: false,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
   initialPosition: [0, 80, 10],
@@ -2143,7 +2149,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.euler.setFromQuaternion(this.quaternion);
 
     this.euler.y -= (movementX * this.options.sensitivity * 0.002) / 100;
-    this.euler.x -= (movementY * this.options.sensitivity * 0.002) / 100;
+    this.euler.x -=
+      ((this.options.invertY ? -movementY : movementY) *
+        this.options.sensitivity *
+        0.002) /
+      100;
 
     this.euler.x = Math.max(
       PI_2 - this.options.maxPolarAngle,

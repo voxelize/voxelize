@@ -1,0 +1,19 @@
+# Context is the repository root; send only what the Rust build needs.
+**
+!Cargo.toml
+!Cargo.lock
+!build.rs
+!messages.proto
+!rust-toolchain.toml
+!.cargo
+!server
+!crates
+!benches
+!examples/server
+!packages/protocol/src/protocol-version.json
+!platform/Cargo.toml
+!platform/Cargo.lock
+!platform/crates
+!platform/servers
+!platform/game
+!platform/tests/fixtures

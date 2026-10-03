@@ -1,0 +1,413 @@
+[
+  {
+    "key": "deep_ocean",
+    "name": "Deep Ocean",
+    "temperature": 0.0,
+    "humidity": 0.0,
+    "continentalness": -0.9,
+    "erosion": 0.0,
+    "terrain": {
+      "heightOffset": -34,
+      "roughness": 6
+    },
+    "surface": "gravel",
+    "subsurface": "gravel",
+    "underwaterSurface": "gravel",
+    "weather": [
+      "clear",
+      "rain",
+      "storm",
+      "fog"
+    ]
+  },
+  {
+    "key": "ocean",
+    "name": "Ocean",
+    "temperature": 0.0,
+    "humidity": 0.0,
+    "continentalness": -0.55,
+    "erosion": 0.0,
+    "terrain": {
+      "heightOffset": -18,
+      "roughness": 4
+    },
+    "surface": "sand",
+    "subsurface": "sand",
+    "underwaterSurface": "gravel",
+    "weather": [
+      "clear",
+      "rain",
+      "storm",
+      "fog"
+    ]
+  },
+  {
+    "key": "beach",
+    "name": "Beach",
+    "temperature": 0.3,
+    "humidity": 0.0,
+    "continentalness": -0.18,
+    "erosion": 0.5,
+    "terrain": {
+      "heightOffset": 1,
+      "roughness": 1
+    },
+    "surface": "sand",
+    "subsurface": "sand",
+    "underwaterSurface": "sand",
+    "weather": [
+      "clear",
+      "rain",
+      "storm"
+    ]
+  },
+  {
+    "key": "plains",
+    "name": "Plains",
+    "temperature": 0.1,
+    "humidity": -0.1,
+    "continentalness": 0.3,
+    "erosion": 0.5,
+    "terrain": {
+      "heightOffset": 4,
+      "roughness": 4
+    },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "underwaterSurface": "sand",
+    "weather": [
+      "clear",
+      "rain",
+      "storm"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "oak_log",
+        "leaves": "oak_leaves",
+        "minHeight": 4,
+        "maxHeight": 6,
+        "density": 0.004
+      },
+      "groundCover": [
+        {
+          "block": "tall_grass",
+          "density": 0.18,
+          "on": "turf"
+        }
+      ]
+    }
+  },
+  {
+    "key": "forest",
+    "name": "Forest",
+    "temperature": 0.1,
+    "humidity": 0.35,
+    "continentalness": 0.35,
+    "erosion": 0.3,
+    "terrain": {
+      "heightOffset": 6,
+      "roughness": 7
+    },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "underwaterSurface": "dirt",
+    "weather": [
+      "clear",
+      "rain",
+      "storm"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "oak_log",
+        "leaves": "oak_leaves",
+        "minHeight": 4,
+        "maxHeight": 6,
+        "density": 0.05
+      },
+      "groundCover": [
+        {
+          "block": "tall_grass",
+          "density": 0.08,
+          "on": "turf"
+        }
+      ]
+    }
+  },
+  {
+    "key": "dark_forest",
+    "name": "Dark Forest",
+    "temperature": 0.15,
+    "humidity": 0.75,
+    "continentalness": 0.45,
+    "erosion": 0.2,
+    "terrain": {
+      "heightOffset": 8,
+      "roughness": 8
+    },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "underwaterSurface": "dirt",
+    "weather": [
+      "clear",
+      "rain",
+      "storm",
+      "fog"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "oak_log",
+        "leaves": "oak_leaves",
+        "minHeight": 5,
+        "maxHeight": 8,
+        "density": 0.12
+      },
+      "groundCover": [
+        {
+          "block": "tall_grass",
+          "density": 0.04,
+          "on": "turf"
+        }
+      ]
+    }
+  },
+  {
+    "key": "desert",
+    "name": "Desert",
+    "temperature": 0.85,
+    "humidity": -0.8,
+    "continentalness": 0.4,
+    "erosion": 0.4,
+    "terrain": {
+      "heightOffset": 5,
+      "roughness": 5
+    },
+    "surface": "sand",
+    "subsurface": "sandstone",
+    "underwaterSurface": "sand",
+    "subsurfaceDepth": 5,
+    "weather": [
+      "clear"
+    ],
+    "vegetation": {
+      "groundCover": [
+        {
+          "block": "cactus",
+          "density": 0.004,
+          "on": "sand"
+        }
+      ]
+    }
+  },
+  {
+    "key": "jungle",
+    "name": "Jungle",
+    "temperature": 0.8,
+    "humidity": 0.8,
+    "continentalness": 0.4,
+    "erosion": 0.1,
+    "terrain": {
+      "heightOffset": 9,
+      "roughness": 12
+    },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "underwaterSurface": "dirt",
+    "weather": [
+      "clear",
+      "rain",
+      "storm"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "oak_log",
+        "leaves": "oak_leaves",
+        "minHeight": 6,
+        "maxHeight": 12,
+        "density": 0.09
+      },
+      "groundCover": [
+        {
+          "block": "tall_grass",
+          "density": 0.3,
+          "on": "turf"
+        }
+      ]
+    }
+  },
+  {
+    "key": "swamp",
+    "name": "Swamp",
+    "temperature": 0.45,
+    "humidity": 0.9,
+    "continentalness": 0.1,
+    "erosion": 0.8,
+    "terrain": {
+      "heightOffset": 0,
+      "roughness": 2
+    },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "underwaterSurface": "clay",
+    "weather": [
+      "clear",
+      "rain",
+      "storm",
+      "fog"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "oak_log",
+        "leaves": "oak_leaves",
+        "minHeight": 4,
+        "maxHeight": 6,
+        "density": 0.02
+      },
+      "groundCover": [
+        {
+          "block": "tall_grass",
+          "density": 0.1,
+          "on": "turf"
+        }
+      ]
+    }
+  },
+  {
+    "key": "savanna",
+    "name": "Savanna",
+    "temperature": 0.65,
+    "humidity": -0.4,
+    "continentalness": 0.4,
+    "erosion": 0.5,
+    "terrain": {
+      "heightOffset": 6,
+      "roughness": 5
+    },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "underwaterSurface": "sand",
+    "weather": [
+      "clear",
+      "rain"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "oak_log",
+        "leaves": "oak_leaves",
+        "minHeight": 4,
+        "maxHeight": 6,
+        "density": 0.006
+      },
+      "groundCover": [
+        {
+          "block": "tall_grass",
+          "density": 0.25,
+          "on": "turf"
+        }
+      ]
+    }
+  },
+  {
+    "key": "snowy_plains",
+    "name": "Snowy Plains",
+    "temperature": -0.85,
+    "humidity": -0.1,
+    "continentalness": 0.35,
+    "erosion": 0.5,
+    "terrain": {
+      "heightOffset": 4,
+      "roughness": 4
+    },
+    "surface": "snowpack",
+    "subsurface": "dirt",
+    "underwaterSurface": "gravel",
+    "weather": [
+      "clear",
+      "snow"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "spruce_log",
+        "leaves": "spruce_leaves",
+        "minHeight": 6,
+        "maxHeight": 10,
+        "density": 0.003
+      }
+    }
+  },
+  {
+    "key": "taiga",
+    "name": "Taiga",
+    "temperature": -0.5,
+    "humidity": 0.4,
+    "continentalness": 0.4,
+    "erosion": 0.3,
+    "terrain": {
+      "heightOffset": 8,
+      "roughness": 9
+    },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "underwaterSurface": "gravel",
+    "weather": [
+      "clear",
+      "rain",
+      "snow"
+    ],
+    "vegetation": {
+      "trees": {
+        "log": "spruce_log",
+        "leaves": "spruce_leaves",
+        "minHeight": 6,
+        "maxHeight": 10,
+        "density": 0.06
+      },
+      "groundCover": [
+        {
+          "block": "tall_grass",
+          "density": 0.05,
+          "on": "turf"
+        }
+      ]
+    }
+  },
+  {
+    "key": "mountains",
+    "name": "Mountains",
+    "temperature": -0.2,
+    "humidity": 0.0,
+    "continentalness": 0.75,
+    "erosion": -0.85,
+    "terrain": {
+      "heightOffset": 40,
+      "roughness": 32
+    },
+    "surface": "stone",
+    "subsurface": "stone",
+    "underwaterSurface": "gravel",
+    "subsurfaceDepth": 1,
+    "weather": [
+      "clear",
+      "snow",
+      "storm"
+    ]
+  },
+  {
+    "key": "badlands",
+    "name": "Badlands",
+    "temperature": 0.9,
+    "humidity": -0.95,
+    "continentalness": 0.6,
+    "erosion": -0.3,
+    "terrain": {
+      "heightOffset": 18,
+      "roughness": 14
+    },
+    "surface": "red_sand",
+    "subsurface": "fired_clay",
+    "underwaterSurface": "red_sand",
+    "subsurfaceDepth": 6,
+    "weather": [
+      "clear"
+    ]
+  }
+]

@@ -1,0 +1,11 @@
+[package]
+name = "platform-worldgen"
+description = "Seeded, deterministic, data-driven terrain generation."
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+platform-content.workspace = true
+noise.workspace = true

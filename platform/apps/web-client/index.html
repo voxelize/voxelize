@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0e1116" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" />
+    <title>Platform</title>
+  </head>
+  <body>
+    <canvas id="main"></canvas>
+
+    <section id="auth" class="panel">
+      <h1>Platform</h1>
+      <form id="auth-form" autocomplete="on">
+        <label>Username or email <input name="login" required autocomplete="username" /></label>
+        <label class="register-only">Email <input name="email" type="email" autocomplete="email" /></label>
+        <label>Password <input name="password" type="password" required minlength="10" autocomplete="current-password" /></label>
+        <button type="submit" id="auth-submit">Sign in</button>
+        <button type="button" id="auth-toggle" class="link">Create an account</button>
+        <p id="auth-error" role="alert"></p>
+      </form>
+    </section>
+
+    <div id="hud" hidden>
+      <div id="crosshair"></div>
+      <div id="mining"><div id="mining-bar"></div></div>
+      <div id="status"></div>
+      <div id="vitals">
+        <div id="health" class="meter" title="Health"></div>
+        <div id="food" class="meter" title="Hunger"></div>
+        <div id="air" class="meter" title="Breath"></div>
+      </div>
+      <div id="hotbar"></div>
+      <div id="hurt"></div>
+      <div id="toasts"></div>
+      <div id="hint">Click to play · WASD move · Space jump · Shift crouch · Ctrl sprint · Left mine · Right place / eat / use · E inventory · Q drop · 1-9 select · F fly (creative)</div>
+    </div>
+
+    <section id="death" class="panel" hidden>
+      <h2>You died</h2>
+      <p id="death-cause" class="muted"></p>
+      <button type="button" id="respawn">Respawn</button>
+    </section>
+
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

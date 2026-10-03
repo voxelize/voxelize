@@ -1,0 +1,20 @@
+{
+  "name": "@platform/web-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3005",
+    "build": "tsc && vite build",
+    "preview": "vite preview --port 3005"
+  },
+  "dependencies": {
+    "@voxelize/core": "workspace:*",
+    "three": "^0.183.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.182.0",
+    "typescript": "^5.8.2",
+    "vite": "^4.5.9"
+  }
+}
