@@ -7,6 +7,7 @@
 
 mod auth;
 mod config;
+mod gameplay;
 mod registry;
 mod stage;
 
@@ -28,7 +29,7 @@ fn fail(message: impl std::fmt::Display) -> ! {
     std::process::exit(1);
 }
 
-fn build_world(config: &GameConfig, content: &Content) -> World {
+fn build_world(config: &GameConfig, content: Arc<Content>) -> World {
     let save_dir = config.save_dir.join(&config.world);
     let world_config = WorldConfig::new()
         .seed(config.seed)
@@ -40,7 +41,7 @@ fn build_world(config: &GameConfig, content: &Content) -> World {
         .build();
 
     let generator = Generator::new(
-        content,
+        &content,
         WorldgenConfig {
             seed: config.seed,
             sea_level: config.sea_level,
@@ -58,6 +59,7 @@ fn build_world(config: &GameConfig, content: &Content) -> World {
     // guards them. Clients never write voxels directly here: every block
     // change is an intent the server validates (docs/SECURITY.md).
     world.set_raw_update_guard(refuse_raw_writes);
+    gameplay::install(&mut world, content, &save_dir, config.seed);
     world
 }
 
@@ -79,7 +81,7 @@ fn refuse_raw_writes(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let config = GameConfig::from_env().unwrap_or_else(|e| fail(e));
-    let content = Content::load(&config.content_dir).unwrap_or_else(|e| fail(e));
+    let content = Arc::new(Content::load(&config.content_dir).unwrap_or_else(|e| fail(e)));
     let summary = content.summary();
     let registry = registry::build_registry(&content);
 
@@ -98,7 +100,7 @@ async fn main() -> std::io::Result<()> {
     }
     let mut server = builder.build();
     server
-        .add_world(build_world(&config, &content))
+        .add_world(build_world(&config, content.clone()))
         .unwrap_or_else(|e| fail(format!("cannot add world: {e:?}")));
 
     info!(

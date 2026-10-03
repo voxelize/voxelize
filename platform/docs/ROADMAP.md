@@ -47,16 +47,21 @@ controls, graphics, render distance), touch controls, PWA manifest.
 ## Phase 4 — Mining and building 🟡
 
 Done: mining rules (hardness × tool kind/tier/speed, airborne/underwater
-modifiers, unbreakable), raw client voxel writes refused by the server.
-Remaining: `platform.mine.*` and `platform.build.place` intents with reach,
-timing, collision, permission and game-mode validation; drops into inventory;
-mining progress UI.
+modifiers, unbreakable); raw client voxel writes refused; server intents
+`platform.mine.start/finish` (reach, session, timing, drops, tool wear,
+inventory-full refusal) and `platform.build.place` (reach, replaceability,
+player collision, item consumption, creative block choice), 18 unit tests.
+Remaining: land permission and game-mode (adventure/spectator) checks once
+those systems exist; block orientation on place; mining progress UI.
 
-## Phase 5 — Inventory ⬜
+## Phase 5 — Inventory 🟡
 
-Server-side inventories (hotbar, main, armor, offhand, containers), stack /
-split / shift-click / quick-move / drop, checkpointed to `inventories` and
-`inventory_slots`.
+Done: 36-slot server inventory (9 hotbar), stacking, split/merge/swap
+moves, tool durability, all-or-nothing removal, per-player persistence with
+atomic writes and repair of stale records; `platform.inventory.*` intents;
+2×2 and workbench 3×3 crafting (`platform.craft`).
+Remaining: armor, offhand, containers (chests as block entities), drop and
+pick-up of item entities, checkpointing to `inventories`/`inventory_slots`.
 
 ## Phase 6 — Persistence 🟡
 

@@ -17,6 +17,7 @@ platform-worldgen.workspace = true
 voxelize.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+specs = "0.20.0"
 log.workspace = true
 actix-web.workspace = true
 actix-cors.workspace = true

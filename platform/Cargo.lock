@@ -2487,6 +2487,7 @@ dependencies = [
  "platform-worldgen",
  "serde",
  "serde_json",
+ "specs",
  "voxelize",
 ]
 

@@ -71,14 +71,31 @@ on the server; unknown fields are refused. The server answers with an
 `EVENT` (`platform.<area>.result`) carrying `ok` or an error code, and with
 the authoritative state changes (`UPDATE`, inventory events).
 
-| Method | Payload | Server validates | Phase |
+| Method | Payload | Server validates | Status |
 | --- | --- | --- | --- |
-| `platform.mine.start` | `{x,y,z}` | reach (≤ 6 blocks from eye), block exists and is breakable, land permission | 4 |
-| `platform.mine.finish` | `{x,y,z}` | same block still there, elapsed ≥ `mining_rule(...)` × tolerance, held tool | 4 |
-| `platform.build.place` | `{x,y,z,face,slot,rotation}` | reach, target replaceable, no entity/player overlap, inventory slot holds a placeable item, land permission, game mode | 4 |
-| `platform.inventory.move` | `{from,to,count}` | slots exist, stack rules, container access | 5 |
-| `platform.craft` | `{grid,station?}` | grid matches a recipe, inputs owned, output fits | 9 |
-| `platform.trade.*` | trade window ops | both parties present, items owned, version matches | 14 |
+| `platform.mine.start` | `{"voxel":[x,y,z]}` | reach (7.5 blocks to the voxel centre), chunk loaded, solid block, breakable in survival | ✅ |
+| `platform.mine.finish` | `{"voxel":[x,y,z]}` | a matching `mine.start` on the same block, elapsed ≥ 80 % of `mining_rule(block, held tool)`, drops fit the inventory (else refused, nothing lost); applies drops and tool wear | ✅ |
+| `platform.build.place` | `{"voxel":[x,y,z],"slot"?:n,"block"?:key}` | reach, target air / fluid / non-solid plant, slot holds a placeable item (consumed), no player overlap for solid blocks; `block` honoured only in the creative realm | ✅ |
+| `platform.inventory.get` | `{}` | — (answers with a snapshot) | ✅ |
+| `platform.inventory.select` | `{"slot":0-8}` | hotbar slot | ✅ |
+| `platform.inventory.move` | `{"from":n,"to":n,"count"?:n}` | slots exist, stack limits, partial moves only onto empty or matching stacks | ✅ |
+| `platform.craft` | `{"grid":[[key\|null,…],…]}` (2×2, or 3×3 near a workbench) | recipe match, ingredients owned, result fits; all-or-nothing | ✅ |
+| `platform.trade.*` | trade window ops | both parties present, items owned, version matches | phase 14 |
+
+Answers (events, sent only to the requesting client):
+
+- `platform.result` — `{"intent":"mine.finish","ok":true,…}` or
+  `{"intent":…,"ok":false,"code":"too_fast"}`. Codes: `out_of_reach`,
+  `not_loaded`, `nothing_there`, `unbreakable`, `no_mining_session`,
+  `wrong_block`, `too_fast`, `inventory_full`, `not_placeable`, `occupied`,
+  `collides_with_player`, `unknown_block`, `no_recipe`,
+  `missing_ingredients`, `needs_workbench`, `bad_slot`, `slot_empty`,
+  `bad_count`, `bad_payload`, `not_joined`.
+- `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
+  pushed on join and after every change.
+
+Players' inventories persist in `<save dir>/<world>/players/<public id>.json`
+(atomic writes) and are restored on the next join.
 
 ## 4. Area of interest
 
