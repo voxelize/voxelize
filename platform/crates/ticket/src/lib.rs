@@ -216,7 +216,10 @@ impl Verifier {
     /// Verify and consume: a ticket admits exactly one session.
     pub fn redeem(&self, token: &str, now: i64) -> Result<Claims, TicketError> {
         let claims = self.inspect(token, now)?;
-        let mut used = self.used.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut used = self
+            .used
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let leeway = self.config.leeway_secs;
         used.retain(|_, exp| *exp + leeway > now);
         if used.contains_key(&claims.jti) {
@@ -272,10 +275,20 @@ mod tests {
         forged.realm = Realm::Creative;
         let forged_payload = sign(&forged, SECRET);
         let signature = token.rsplit_once('.').unwrap().1;
-        let spliced = format!("{}.{}", forged_payload.rsplit_once('.').unwrap().0, signature);
-        assert_eq!(verifier().inspect(&spliced, 1000), Err(TicketError::BadSignature));
+        let spliced = format!(
+            "{}.{}",
+            forged_payload.rsplit_once('.').unwrap().0,
+            signature
+        );
         assert_eq!(
-            verifier().inspect(&sign(&claims(1000), b"another-secret-another-secret-xx"), 1000),
+            verifier().inspect(&spliced, 1000),
+            Err(TicketError::BadSignature)
+        );
+        assert_eq!(
+            verifier().inspect(
+                &sign(&claims(1000), b"another-secret-another-secret-xx"),
+                1000
+            ),
             Err(TicketError::BadSignature)
         );
     }
@@ -283,7 +296,10 @@ mod tests {
     #[test]
     fn rotation_accepts_any_configured_secret() {
         let old = b"old-secret-old-secret-old-secret".to_vec();
-        let v = Verifier::new(vec![SECRET.to_vec(), old.clone()], VerifierConfig::for_world("main"));
+        let v = Verifier::new(
+            vec![SECRET.to_vec(), old.clone()],
+            VerifierConfig::for_world("main"),
+        );
         assert!(v.inspect(&sign(&claims(1000), &old), 1000).is_ok());
     }
 
@@ -292,7 +308,10 @@ mod tests {
         let token = sign(&claims(1000), SECRET);
         assert_eq!(verifier().inspect(&token, 1125), Err(TicketError::Expired));
         assert!(verifier().inspect(&token, 1124).is_ok());
-        assert_eq!(verifier().inspect(&token, 990), Err(TicketError::NotYetValid));
+        assert_eq!(
+            verifier().inspect(&token, 990),
+            Err(TicketError::NotYetValid)
+        );
         let mut long = claims(1000);
         long.exp = 1000 + 3600;
         assert_eq!(
@@ -320,10 +339,21 @@ mod tests {
     #[test]
     fn garbage_is_malformed_not_a_panic() {
         let v = verifier();
-        for token in ["", "v1.", "v1..", "v1.abc", "v1.abc.def.ghi", "v1.!!.@@", "nonsense"] {
+        for token in [
+            "",
+            "v1.",
+            "v1..",
+            "v1.abc",
+            "v1.abc.def.ghi",
+            "v1.!!.@@",
+            "nonsense",
+        ] {
             assert!(v.inspect(token, 0).is_err(), "{token}");
         }
-        assert_eq!(v.inspect("v2.abc.def", 0), Err(TicketError::UnsupportedVersion));
+        assert_eq!(
+            v.inspect("v2.abc.def", 0),
+            Err(TicketError::UnsupportedVersion)
+        );
     }
 
     /// Vectors shared with the backend's PHP issuer, generated independently,

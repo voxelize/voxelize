@@ -20,7 +20,9 @@ impl ChunkStage for WorldgenStage {
 
     fn process(&self, mut chunk: Chunk, _: Resources, _: Option<Space>) -> Chunk {
         let size = chunk.options.size;
-        let generated = self.generator.generate_chunk(chunk.coords.0, chunk.coords.1, size);
+        let generated = self
+            .generator
+            .generate_chunk(chunk.coords.0, chunk.coords.1, size);
         let height = generated.height.min(chunk.options.max_height);
         let (min_x, min_z) = (chunk.min.0, chunk.min.2);
         for x in 0..size {

@@ -35,7 +35,11 @@ impl std::fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
-fn parse<T: std::str::FromStr>(env: &HashMap<String, String>, key: &str, default: T) -> Result<T, ConfigError> {
+fn parse<T: std::str::FromStr>(
+    env: &HashMap<String, String>,
+    key: &str,
+    default: T,
+) -> Result<T, ConfigError> {
     match env.get(key).map(|v| v.trim()).filter(|v| !v.is_empty()) {
         None => Ok(default),
         Some(raw) => raw
@@ -56,7 +60,9 @@ impl GameConfig {
             .cloned()
             .unwrap_or_else(|| "main".to_owned());
         if !platform_content::is_valid_key(&world) {
-            return Err(ConfigError(format!("GAME_WORLD_NAME={world:?} must be snake_case")));
+            return Err(ConfigError(format!(
+                "GAME_WORLD_NAME={world:?} must be snake_case"
+            )));
         }
 
         let ticket_secrets: Vec<Vec<u8>> = env
@@ -70,7 +76,9 @@ impl GameConfig {
             })
             .unwrap_or_default();
         if ticket_secrets.iter().any(|s| s.len() < 32) {
-            return Err(ConfigError("every GAME_TICKET_SECRETS entry must be at least 32 bytes".into()));
+            return Err(ConfigError(
+                "every GAME_TICKET_SECRETS entry must be at least 32 bytes".into(),
+            ));
         }
         let transport_secret = env
             .get("GAME_TRANSPORT_SECRET")
@@ -123,7 +131,10 @@ mod tests {
     use super::*;
 
     fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     const SECRET: &str = "0123456789abcdef0123456789abcdef";
@@ -154,10 +165,15 @@ mod tests {
     #[test]
     fn insecure_dev_needs_no_secrets_and_bad_values_fail_loudly() {
         assert!(GameConfig::from_map(&env(&[("GAME_INSECURE_DEV", "1")])).is_ok());
-        let error = GameConfig::from_map(&env(&[("GAME_INSECURE_DEV", "1"), ("GAME_PORT", "http")])).unwrap_err();
-        assert!(error.0.contains("GAME_PORT"));
         let error =
-            GameConfig::from_map(&env(&[("GAME_INSECURE_DEV", "1"), ("GAME_WORLD_NAME", "Main World")])).unwrap_err();
+            GameConfig::from_map(&env(&[("GAME_INSECURE_DEV", "1"), ("GAME_PORT", "http")]))
+                .unwrap_err();
+        assert!(error.0.contains("GAME_PORT"));
+        let error = GameConfig::from_map(&env(&[
+            ("GAME_INSECURE_DEV", "1"),
+            ("GAME_WORLD_NAME", "Main World"),
+        ]))
+        .unwrap_err();
         assert!(error.0.contains("snake_case"));
     }
 }

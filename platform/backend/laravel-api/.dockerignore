@@ -1,0 +1,6 @@
+vendor
+.env
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*

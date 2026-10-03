@@ -51,8 +51,29 @@ fn build_world(config: &GameConfig, content: &Content) -> World {
     .unwrap_or_else(|e| fail(e));
 
     let mut world = World::new(&config.world, &world_config);
-    world.pipeline_mut().add_stage(stage::WorldgenStage::new(generator));
     world
+        .pipeline_mut()
+        .add_stage(stage::WorldgenStage::new(generator));
+    // The engine applies raw client voxel writes as they stand unless a game
+    // guards them. Clients never write voxels directly here: every block
+    // change is an intent the server validates (docs/SECURITY.md).
+    world.set_raw_update_guard(refuse_raw_writes);
+    world
+}
+
+fn refuse_raw_writes(
+    _: &mut World,
+    client_id: &str,
+    writes: Vec<(voxelize::Vec3<i32>, u32)>,
+) -> Vec<(voxelize::Vec3<i32>, u32)> {
+    static LIMIT: voxelize::LogRateLimiter = voxelize::LogRateLimiter::new();
+    if let Some(suppressed) = LIMIT.allow(1000) {
+        warn!(
+            "refused {} raw voxel write(s) from {client_id}: clients may not write voxels directly (+{suppressed} suppressed)",
+            writes.len()
+        );
+    }
+    Vec::new()
 }
 
 #[actix_web::main]
@@ -125,7 +146,11 @@ mod tests {
         let content = content();
         let registry = registry::build_registry(&content);
         for block in content.blocks() {
-            assert!(!registry.is_air(block.id), "{} registered as air", block.key);
+            assert!(
+                !registry.is_air(block.id),
+                "{} registered as air",
+                block.key
+            );
         }
         let water = content.block("water").unwrap().id;
         assert!(registry.is_fluid(water));
@@ -134,7 +159,10 @@ mod tests {
     #[test]
     fn authenticator_admits_a_ticket_once_and_rejects_missing_ones() {
         let secret = b"0123456789abcdef0123456789abcdef".to_vec();
-        let verifier = Arc::new(Verifier::new(vec![secret.clone()], VerifierConfig::for_world("main")));
+        let verifier = Arc::new(Verifier::new(
+            vec![secret.clone()],
+            VerifierConfig::for_world("main"),
+        ));
         let authenticate = auth::ticket_authenticator(verifier);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -156,7 +184,9 @@ mod tests {
             &secret,
         );
         // The engine passes query parameters as its own map type; collect into it.
-        let query = [(auth::TICKET_PARAM.to_owned(), ticket)].into_iter().collect();
+        let query = [(auth::TICKET_PARAM.to_owned(), ticket)]
+            .into_iter()
+            .collect();
         match authenticate(&query) {
             SessionAuth::Accept(identity) => {
                 assert_eq!(identity.id.as_deref(), Some("pl_42"));
@@ -167,7 +197,9 @@ mod tests {
         }
         assert!(matches!(authenticate(&query), SessionAuth::Reject(r) if r.contains("replayed")));
         // A client-chosen id is never honoured without a ticket.
-        let bare = [("client_id".to_owned(), "admin".to_owned())].into_iter().collect();
+        let bare = [("client_id".to_owned(), "admin".to_owned())]
+            .into_iter()
+            .collect();
         assert!(matches!(authenticate(&bare), SessionAuth::Reject(_)));
     }
 }

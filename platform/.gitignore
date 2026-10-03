@@ -1,3 +1,4 @@
 /target
 /data
 .env
+!Cargo.lock

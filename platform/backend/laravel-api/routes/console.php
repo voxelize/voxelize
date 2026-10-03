@@ -1,8 +1,7 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+// The books must always balance; a violation exits non-zero and is logged
+// by the scheduler (docs/ECONOMY_LEDGER.md §5).
+Schedule::command('ledger:verify')->hourly()->withoutOverlapping();

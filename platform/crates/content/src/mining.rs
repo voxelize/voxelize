@@ -83,7 +83,11 @@ pub fn tool_speed(block: &BlockDef, held: Option<&ItemDef>) -> f32 {
     }
 }
 
-pub fn mining_rule(block: &BlockDef, held: Option<&ItemDef>, modifiers: MiningModifiers) -> MiningRule {
+pub fn mining_rule(
+    block: &BlockDef,
+    held: Option<&ItemDef>,
+    modifiers: MiningModifiers,
+) -> MiningRule {
     if block.hardness < 0.0 {
         return MiningRule::Unbreakable;
     }
@@ -105,7 +109,11 @@ pub fn mining_rule(block: &BlockDef, held: Option<&ItemDef>, modifiers: MiningMo
     if speed <= 0.0 {
         return MiningRule::Unbreakable;
     }
-    let factor = if harvests { HARVEST_FACTOR } else { WRONG_TOOL_PENALTY };
+    let factor = if harvests {
+        HARVEST_FACTOR
+    } else {
+        WRONG_TOOL_PENALTY
+    };
     let seconds = block.hardness * factor / speed;
     MiningRule::Breakable {
         millis: (seconds * 1000.0).round().min(u32::MAX as f32) as u32,

@@ -39,7 +39,10 @@ mod tests {
         assert!(summary["blocks"] >= 30, "{summary:?}");
         assert!(summary["biomes"] >= 14, "{summary:?}");
         assert!(content.block("stone").is_some());
-        assert_eq!(content.block_by_id(2).map(|b| b.key.as_str()), Some("stone"));
+        assert_eq!(
+            content.block_by_id(2).map(|b| b.key.as_str()),
+            Some("stone")
+        );
     }
 
     #[test]
@@ -47,12 +50,22 @@ mod tests {
         let content = pack();
         for item in content.items() {
             if let Some(block) = &item.places_block {
-                assert!(content.block(block).is_some(), "{} places {}", item.key, block);
+                assert!(
+                    content.block(block).is_some(),
+                    "{} places {}",
+                    item.key,
+                    block
+                );
             }
         }
         for block in content.blocks() {
             for drop in &block.drops {
-                assert!(content.item(&drop.item).is_some(), "{} drops {}", block.key, drop.item);
+                assert!(
+                    content.item(&drop.item).is_some(),
+                    "{} drops {}",
+                    block.key,
+                    drop.item
+                );
             }
         }
     }
@@ -110,9 +123,18 @@ mod tests {
 
         match (bare, with_wood, with_stone) {
             (
-                MiningRule::Breakable { millis: bare_ms, harvests: false },
-                MiningRule::Breakable { millis: wood_ms, harvests: true },
-                MiningRule::Breakable { millis: stone_ms, harvests: true },
+                MiningRule::Breakable {
+                    millis: bare_ms,
+                    harvests: false,
+                },
+                MiningRule::Breakable {
+                    millis: wood_ms,
+                    harvests: true,
+                },
+                MiningRule::Breakable {
+                    millis: stone_ms,
+                    harvests: true,
+                },
             ) => {
                 assert_eq!(bare_ms, 7500);
                 assert_eq!(wood_ms, 1125);
@@ -132,7 +154,11 @@ mod tests {
         let content = pack();
         assert!(can_harvest(content.block("dirt").unwrap(), None));
         assert_eq!(
-            mining_rule(content.block("bedrock").unwrap(), None, MiningModifiers::default()),
+            mining_rule(
+                content.block("bedrock").unwrap(),
+                None,
+                MiningModifiers::default()
+            ),
             MiningRule::Unbreakable
         );
         let shovel = content.item("stone_shovel");
@@ -163,7 +189,8 @@ mod tests {
     fn crafting_matches_shaped_anywhere_in_the_grid() {
         let content = pack();
         let p = Some("planks");
-        let grid = CraftingGrid::from_rows(&[&[None, None, None], &[None, p, None], &[None, p, None]]);
+        let grid =
+            CraftingGrid::from_rows(&[&[None, None, None], &[None, p, None], &[None, p, None]]);
         let found = match_recipe(&content, &grid).expect("sticks");
         assert_eq!(found.recipe, "stick");
         assert_eq!(found.result.count, 4);
@@ -177,15 +204,24 @@ mod tests {
         let s = Some("stick");
         let normal = CraftingGrid::from_rows(&[&[i, i, None], &[i, s, None], &[None, s, None]]);
         let mirrored = CraftingGrid::from_rows(&[&[None, i, i], &[None, s, i], &[None, s, None]]);
-        assert_eq!(match_recipe(&content, &normal).unwrap().recipe, "wooden_axe");
-        assert_eq!(match_recipe(&content, &mirrored).unwrap().recipe, "wooden_axe");
+        assert_eq!(
+            match_recipe(&content, &normal).unwrap().recipe,
+            "wooden_axe"
+        );
+        assert_eq!(
+            match_recipe(&content, &mirrored).unwrap().recipe,
+            "wooden_axe"
+        );
     }
 
     #[test]
     fn crafting_shapeless_and_rejects_extra_items() {
         let content = pack();
         let log = CraftingGrid::from_rows(&[&[None, None], &[None, Some("oak_log")]]);
-        assert_eq!(match_recipe(&content, &log).unwrap().recipe, "planks_from_oak");
+        assert_eq!(
+            match_recipe(&content, &log).unwrap().recipe,
+            "planks_from_oak"
+        );
 
         let extra = CraftingGrid::from_rows(&[&[Some("dirt"), None], &[None, Some("oak_log")]]);
         assert!(match_recipe(&content, &extra).is_none());
@@ -199,8 +235,14 @@ mod tests {
             let x = Some(m);
             CraftingGrid::from_rows(&[&[x, x, x], &[x, None, x], &[x, x, x]])
         };
-        assert_eq!(match_recipe(&content, &ring("rubble")).unwrap().recipe, "furnace");
-        assert_eq!(match_recipe(&content, &ring("planks")).unwrap().recipe, "chest");
+        assert_eq!(
+            match_recipe(&content, &ring("rubble")).unwrap().recipe,
+            "furnace"
+        );
+        assert_eq!(
+            match_recipe(&content, &ring("planks")).unwrap().recipe,
+            "chest"
+        );
         assert!(match_recipe(&content, &ring("dirt")).is_none());
     }
 

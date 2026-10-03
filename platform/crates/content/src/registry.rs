@@ -105,7 +105,10 @@ fn read_files<T: DeserializeOwned>(root: &Path, kind: &str) -> Result<Vec<T>, Lo
 
 /// Read a kind whose files each hold a JSON array, concatenated.
 fn read_kind<T: DeserializeOwned>(root: &Path, kind: &str) -> Result<Vec<T>, LoadError> {
-    Ok(read_files::<Vec<T>>(root, kind)?.into_iter().flatten().collect())
+    Ok(read_files::<Vec<T>>(root, kind)?
+        .into_iter()
+        .flatten()
+        .collect())
 }
 
 impl ContentSource {
@@ -184,7 +187,10 @@ fn index_ids<T>(
     for (index, item) in items.iter().enumerate() {
         let id = id_of(item);
         if id == 0 {
-            errors.push(format!("{kind} {:?} uses id 0, which is reserved", key_of(item)));
+            errors.push(format!(
+                "{kind} {:?} uses id 0, which is reserved",
+                key_of(item)
+            ));
             continue;
         }
         if let Some(previous) = map.insert(id, index) {
@@ -204,12 +210,16 @@ impl Content {
         let mut errors = ValidationErrors::default();
 
         let blocks_by_key = index_unique(&source.blocks, "block", |b| &b.key, &mut errors);
-        let blocks_by_id =
-            index_ids(&source.blocks, "block", |b| b.id, |b| &b.key, &mut errors);
+        let blocks_by_id = index_ids(&source.blocks, "block", |b| b.id, |b| &b.key, &mut errors);
         let items_by_key = index_unique(&source.items, "item", |i| &i.key, &mut errors);
         let items_by_id = index_ids(&source.items, "item", |i| i.id, |i| &i.key, &mut errors);
         let recipes_by_key = index_unique(&source.recipes, "recipe", |r| r.key(), &mut errors);
-        index_unique(&source.processing, "processing recipe", |r| &r.key, &mut errors);
+        index_unique(
+            &source.processing,
+            "processing recipe",
+            |r| &r.key,
+            &mut errors,
+        );
         let stations = index_unique(&source.stations, "station", |s| &s.key, &mut errors);
         index_unique(&source.biomes, "biome", |b| &b.key, &mut errors);
         index_unique(&source.ores, "ore", |o| &o.key, &mut errors);
@@ -238,7 +248,10 @@ impl Content {
                 errors.push(format!("{who} grows but declares fewer than 2 stages"));
             }
             if block.stages > 16 {
-                errors.push(format!("{who} declares {} stages; voxels store at most 16", block.stages));
+                errors.push(format!(
+                    "{who} declares {} stages; voxels store at most 16",
+                    block.stages
+                ));
             }
             for drop in &block.drops {
                 if !has_item(&drop.item) {
@@ -248,7 +261,10 @@ impl Content {
                     errors.push(format!("{who} drop {:?} has min > max", drop.item));
                 }
                 if !(drop.chance > 0.0 && drop.chance <= 1.0) {
-                    errors.push(format!("{who} drop {:?} chance must be in (0, 1]", drop.item));
+                    errors.push(format!(
+                        "{who} drop {:?} chance must be in (0, 1]",
+                        drop.item
+                    ));
                 }
             }
         }
@@ -270,7 +286,9 @@ impl Content {
                 (Some(tool), _) if !(tool.speed.is_finite() && tool.speed > 0.0) => {
                     errors.push(format!("{who} tool speed must be positive"));
                 }
-                (None, ItemType::Tool) => errors.push(format!("{who} is a tool without tool stats")),
+                (None, ItemType::Tool) => {
+                    errors.push(format!("{who} is a tool without tool stats"))
+                }
                 _ => {}
             }
             if item.item_type == ItemType::Food && item.food.is_none() {
@@ -326,7 +344,13 @@ impl Content {
                     }
                 }
             }
-            check_stack(&who, recipe.result(), &source.items, &items_by_key, &mut errors);
+            check_stack(
+                &who,
+                recipe.result(),
+                &source.items,
+                &items_by_key,
+                &mut errors,
+            );
         }
 
         for station in &source.stations {
@@ -345,20 +369,38 @@ impl Content {
             if fuel.ticks == 0 {
                 errors.push(format!("fuel {:?} burns for 0 ticks", fuel.item));
             }
-            if fuels_by_item.insert(fuel.item.clone(), fuel.ticks).is_some() {
+            if fuels_by_item
+                .insert(fuel.item.clone(), fuel.ticks)
+                .is_some()
+            {
                 errors.push(format!("fuel {:?} is declared twice", fuel.item));
             }
         }
         for recipe in &source.processing {
             let who = format!("processing recipe {:?}", recipe.key);
             if !stations.contains_key(&recipe.station) {
-                errors.push(format!("{who} runs on unknown station {:?}", recipe.station));
+                errors.push(format!(
+                    "{who} runs on unknown station {:?}",
+                    recipe.station
+                ));
             }
             if recipe.ticks == 0 {
                 errors.push(format!("{who} takes 0 ticks"));
             }
-            check_stack(&who, &recipe.input, &source.items, &items_by_key, &mut errors);
-            check_stack(&who, &recipe.output, &source.items, &items_by_key, &mut errors);
+            check_stack(
+                &who,
+                &recipe.input,
+                &source.items,
+                &items_by_key,
+                &mut errors,
+            );
+            check_stack(
+                &who,
+                &recipe.output,
+                &source.items,
+                &items_by_key,
+                &mut errors,
+            );
         }
 
         for biome in &source.biomes {
@@ -373,9 +415,13 @@ impl Content {
                     errors.push(format!("{who} {axis} {value} is outside [-1, 1]"));
                 }
             }
-            for block in [Some(&biome.surface), Some(&biome.subsurface), biome.underwater_surface.as_ref()]
-                .into_iter()
-                .flatten()
+            for block in [
+                Some(&biome.surface),
+                Some(&biome.subsurface),
+                biome.underwater_surface.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
             {
                 if !has_block(block) {
                     errors.push(format!("{who} uses unknown block {block:?}"));
@@ -390,13 +436,19 @@ impl Content {
                 if !(0.0..=1.0).contains(&tree.density) {
                     errors.push(format!("{who} tree density must be in [0, 1]"));
                 }
-                if tree.min_height < 3 || tree.min_height > tree.max_height || tree.max_height > 24 {
-                    errors.push(format!("{who} tree heights must satisfy 3 <= min <= max <= 24"));
+                if tree.min_height < 3 || tree.min_height > tree.max_height || tree.max_height > 24
+                {
+                    errors.push(format!(
+                        "{who} tree heights must satisfy 3 <= min <= max <= 24"
+                    ));
                 }
             }
             for cover in &biome.vegetation.ground_cover {
                 if !has_block(&cover.block) {
-                    errors.push(format!("{who} ground cover uses unknown block {:?}", cover.block));
+                    errors.push(format!(
+                        "{who} ground cover uses unknown block {:?}",
+                        cover.block
+                    ));
                 }
                 if let Some(on) = &cover.on {
                     if !has_block(on) {
@@ -493,7 +545,9 @@ impl Content {
     }
 
     pub fn recipe(&self, key: &str) -> Option<&RecipeDef> {
-        self.recipes_by_key.get(key).map(|&i| &self.source.recipes[i])
+        self.recipes_by_key
+            .get(key)
+            .map(|&i| &self.source.recipes[i])
     }
 
     /// Burn ticks one unit of `item` provides, if it is a fuel.

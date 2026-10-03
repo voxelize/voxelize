@@ -353,7 +353,10 @@ impl Generator {
         let detail = self.detail.get([x as f64, z as f64]);
         let height = self.config.sea_level as f64 + 2.0 + offset + roughness * detail;
         let height = height.round() as i32;
-        (height.clamp(2, self.config.max_height - 20), self.nearest_biome(&climate))
+        (
+            height.clamp(2, self.config.max_height - 20),
+            self.nearest_biome(&climate),
+        )
     }
 
     fn is_cave(&self, x: i32, y: i32, z: i32, surface: i32) -> bool {
@@ -361,7 +364,11 @@ impl Generator {
             return false;
         }
         // Keep a roof under seas and lakes so water never drains into caves.
-        let roof = if surface < self.config.sea_level { 8 } else { 1 };
+        let roof = if surface < self.config.sea_level {
+            8
+        } else {
+            1
+        };
         if y > surface - roof {
             return false;
         }
@@ -445,7 +452,12 @@ impl Generator {
     fn place_ores(&self, chunk: &mut GeneratedChunk) {
         let size = chunk.size as i32;
         for (index, ore) in self.ores.iter().enumerate() {
-            let mut rng = Rng(hash(self.config.seed, chunk.cx as i64, chunk.cz as i64, 0x0E5 + index as u64));
+            let mut rng = Rng(hash(
+                self.config.seed,
+                chunk.cx as i64,
+                chunk.cz as i64,
+                0x0E5 + index as u64,
+            ));
             let min_y = ore.min_y.max(1);
             let max_y = ore.max_y.min(self.config.max_height - 1);
             if min_y >= max_y {
@@ -503,8 +515,8 @@ impl Generator {
                     let inside = (2..size - 2).contains(&lx) && (2..size - 2).contains(&lz);
                     if inside && roll < tree.density {
                         let span = (tree.max_height - tree.min_height + 1) as u64;
-                        let trunk = tree.min_height
-                            + (hash(self.config.seed, wx, wz, 0x7E1) % span) as u32;
+                        let trunk =
+                            tree.min_height + (hash(self.config.seed, wx, wz, 0x7E1) % span) as u32;
                         Self::place_tree(chunk, lx, surface as usize + 1, lz, trunk as usize, tree);
                         continue;
                     }
@@ -524,7 +536,14 @@ impl Generator {
         }
     }
 
-    fn place_tree(chunk: &mut GeneratedChunk, x: usize, y: usize, z: usize, trunk: usize, tree: &TreeSpec) {
+    fn place_tree(
+        chunk: &mut GeneratedChunk,
+        x: usize,
+        y: usize,
+        z: usize,
+        trunk: usize,
+        tree: &TreeSpec,
+    ) {
         let top = y + trunk;
         for dy in 0..3usize {
             let ly = top - 2 + dy;
@@ -583,7 +602,10 @@ mod tests {
     fn different_seeds_differ() {
         let (_, a) = generator(1);
         let (_, b) = generator(2);
-        assert_ne!(a.generate_chunk(0, 0, 16).voxels, b.generate_chunk(0, 0, 16).voxels);
+        assert_ne!(
+            a.generate_chunk(0, 0, 16).voxels,
+            b.generate_chunk(0, 0, 16).voxels
+        );
     }
 
     #[test]
