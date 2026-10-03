@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::inventory::Inventory;
+use super::survival::Vitals;
 
 pub const RECORD_VERSION: u32 = 1;
 
@@ -22,6 +23,9 @@ pub struct PlayerRecord {
     /// Last known position, restored on the next join.
     #[serde(default)]
     pub position: Option<[f32; 3]>,
+    /// Records written before survival existed load with full vitals.
+    #[serde(default)]
+    pub vitals: Vitals,
 }
 
 pub struct PlayerStore {
@@ -126,6 +130,7 @@ mod tests {
             id: "01ABC".into(),
             inventory: Inventory::default(),
             position: Some([1.0, 70.0, -3.5]),
+            vitals: Vitals::default(),
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

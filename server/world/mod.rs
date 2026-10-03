@@ -124,6 +124,7 @@ mod sync;
 
 pub use client_body::*;
 use dispatcher::dispatcher;
+pub use dispatcher::default_dispatcher;
 pub use method_guard::{MethodGuard, MethodVerdict};
 pub use sync::*;
 

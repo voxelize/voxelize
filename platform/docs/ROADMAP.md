@@ -90,11 +90,19 @@ Remaining: gateway for multiple worlds, presence in Redis, movement
 anti-cheat signals, trading in the load mix, larger load runs with tick
 metrics.
 
-## Phase 8 — Survival ⬜
+## Phase 8 — Survival 🟡
 
-Health, hunger, armor, air, experience, status effects; damage types (fall,
-fire, lava, drowning, combat, projectile, explosion, environment); day/night
-cycle effects; weather engine tied to biomes.
+Done: server-side vitals (health 20, hunger 20 with saturation and
+exhaustion, 15 s of breath), fall damage (beyond 3 blocks, water breaks the
+fall), drowning, lava, starvation (never below one heart), regeneration
+when well fed, eating (`platform.eat`), death (all intents refused) and
+respawn (`platform.respawn`), vitals persisted with the player; grace
+period after join/respawn so teleports are not falls. HUD bars, damage
+flash, death screen. 10 unit tests plus the live smoke test (a 10-block
+fall hurts, a 40-block fall kills, respawn restores health).
+Remaining: item drops on death (needs item entities; inventory is kept
+until then), armor, experience, status effects, fire, combat, projectile
+and explosion damage, weather engine.
 
 ## Phase 9 — Crafting and processing ⬜ (rules done)
 

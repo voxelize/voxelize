@@ -9,6 +9,7 @@
 pub mod inventory;
 pub mod rules;
 pub mod store;
+pub mod survival;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -29,9 +30,12 @@ use voxelize::{
 use self::inventory::Inventory;
 use self::rules::{IntentError, PlayerState, Rules, WorldView};
 use self::store::{PlayerRecord, PlayerStore, RECORD_VERSION};
+use self::survival::{Surroundings, Vitals, EYE_HEIGHT};
 
 pub const RESULT_EVENT: &str = "platform.result";
 pub const INVENTORY_EVENT: &str = "platform.inventory";
+pub const VITALS_EVENT: &str = "platform.vitals";
+pub const RESPAWN_EVENT: &str = "platform.respawn";
 
 /// World resource holding the rules and every online player's state.
 pub struct Gameplay {
@@ -149,6 +153,32 @@ fn send_inventory(world: &mut World, client_id: &str) {
     }
 }
 
+fn vitals_payload(player: &PlayerState, cause: Option<survival::DamageKind>) -> Value {
+    let v = &player.vitals;
+    json!({
+        "health": v.health,
+        "food": v.food,
+        "air": v.air,
+        "maxAir": survival::MAX_AIR,
+        "dead": v.is_dead(),
+        "cause": cause,
+        "realm": player.realm,
+    })
+}
+
+fn send_vitals(world: &mut World, client_id: &str, cause: Option<survival::DamageKind>) {
+    let payload = {
+        let gameplay = world.ecs().read_resource::<Gameplay>();
+        gameplay
+            .players
+            .get(client_id)
+            .map(|p| vitals_payload(p, cause))
+    };
+    if let Some(payload) = payload {
+        send(world, client_id, VITALS_EVENT, payload);
+    }
+}
+
 fn client_position(world: &World, client_id: &str) -> Option<[f32; 3]> {
     let entity = world.clients().get(client_id).map(|c| c.entity)?;
     let positions = world.read_component::<PositionComp>();
@@ -208,6 +238,7 @@ fn persist(world: &mut World, client_id: &str) {
         id: client_id.to_owned(),
         inventory: player.inventory.clone(),
         position,
+        vitals: player.vitals.clone(),
     };
     if let Err(e) = gameplay.store.save(&record) {
         error!("could not save player {client_id}: {e}");
@@ -235,6 +266,13 @@ struct PlacePayload {
 #[serde(deny_unknown_fields)]
 struct SelectPayload {
     slot: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SlotPayload {
+    #[serde(default)]
+    slot: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -295,9 +333,9 @@ fn on_join(world: &mut World, entity: Entity) {
         let gameplay = world.ecs().read_resource::<Gameplay>();
         gameplay.store.load(&id)
     };
-    let mut inventory = match loaded {
-        Ok(Some(record)) => record.inventory,
-        Ok(None) => Inventory::default(),
+    let (mut inventory, mut vitals) = match loaded {
+        Ok(Some(record)) => (record.inventory, record.vitals),
+        Ok(None) => (Inventory::default(), Vitals::default()),
         Err(e) => {
             // Never hand out an empty inventory over a record we failed to
             // read: that would silently wipe the player on the next save.
@@ -311,16 +349,15 @@ fn on_join(world: &mut World, entity: Entity) {
         if dropped > 0 {
             warn!("player {id}: dropped {dropped} stack(s) of items that no longer exist");
         }
-        gameplay.players.insert(
-            id.clone(),
-            PlayerState {
-                inventory,
-                mining: None,
-                realm,
-            },
-        );
+        vitals.normalize();
+        // The client teleports to the surface right after joining.
+        vitals.start_grace(5.0);
+        gameplay
+            .players
+            .insert(id.clone(), PlayerState::new(inventory, realm, vitals));
     }
     send_inventory(world, &id);
+    send_vitals(world, &id, None);
 }
 
 fn on_leave(world: &mut World, entity: Entity) {
@@ -517,4 +554,170 @@ pub fn install(world: &mut World, content: Arc<Content>, world_dir: &Path, seed:
             Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
         }
     });
+
+    world.set_method_handle("platform.eat", |world, client_id, payload| {
+        const INTENT: &str = "eat";
+        let Some(p) = parse::<SlotPayload>(world, client_id, INTENT, payload) else {
+            return;
+        };
+        let result = with_player(world, client_id, |g, _, _| {
+            let Gameplay { rules, players, .. } = g;
+            let player = players.get_mut(client_id).expect("checked by with_player");
+            rules.eat(player, p.slot)
+        });
+        match result {
+            None => not_joined(world, client_id, INTENT),
+            Some(Ok(food)) => {
+                persist(world, client_id);
+                reply(world, client_id, INTENT, Ok(json!({ "food": food })));
+                send_inventory(world, client_id);
+                send_vitals(world, client_id, None);
+            }
+            Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
+        }
+    });
+
+    world.set_method_handle("platform.respawn", |world, client_id, _| {
+        const INTENT: &str = "respawn";
+        let respawned = with_player(world, client_id, |g, _, _| {
+            let player = g
+                .players
+                .get_mut(client_id)
+                .expect("checked by with_player");
+            if !player.vitals.is_dead() {
+                return false;
+            }
+            player.vitals.respawn();
+            player.mining = None;
+            true
+        });
+        match respawned {
+            None => not_joined(world, client_id, INTENT),
+            Some(false) => reply(world, client_id, INTENT, Err(IntentError::NothingThere)),
+            Some(true) => {
+                persist(world, client_id);
+                // The client moves itself to the surface of the spawn column.
+                send(world, client_id, RESPAWN_EVENT, json!({ "x": 0, "z": 0 }));
+                send_vitals(world, client_id, None);
+                reply(world, client_id, INTENT, Ok(json!({})));
+            }
+        }
+    });
+}
+
+/// Applies survival every tick to every online survival player.
+#[derive(Default)]
+pub struct SurvivalSystem {
+    last: Option<std::time::Instant>,
+}
+
+impl<'a> specs::System<'a> for SurvivalSystem {
+    type SystemData = (
+        specs::ReadExpect<'a, Chunks>,
+        specs::ReadExpect<'a, voxelize::Clients>,
+        specs::ReadExpect<'a, voxelize::WorldConfig>,
+        specs::ReadStorage<'a, PositionComp>,
+        specs::WriteExpect<'a, Gameplay>,
+        specs::WriteExpect<'a, voxelize::Events>,
+    );
+
+    fn run(
+        &mut self,
+        (chunks, clients, config, positions, mut gameplay, mut events): Self::SystemData,
+    ) {
+        let now = std::time::Instant::now();
+        let dt = self
+            .last
+            .map(|last| now.duration_since(last).as_secs_f32())
+            .unwrap_or(0.0)
+            .min(0.25);
+        self.last = Some(now);
+        if dt <= 0.0 {
+            return;
+        }
+
+        let Gameplay {
+            rules,
+            players,
+            store,
+            ..
+        } = &mut *gameplay;
+        let content = rules.content();
+        let max_height = config.max_height as i32;
+        let block_at = |x: f32, y: f32, z: f32| -> Option<u32> {
+            let (x, y, z) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
+            if y < 0 || y >= max_height {
+                return Some(rules::AIR);
+            }
+            let coords = ChunkUtils::map_voxel_to_chunk(x, y, z, config.chunk_size);
+            chunks
+                .is_chunk_ready(&coords)
+                .then(|| chunks.get_voxel(x, y, z))
+        };
+        let fluid = |id: u32| content.block_by_id(id).and_then(|b| b.fluid);
+        let solid = |id: u32| {
+            content
+                .block_by_id(id)
+                .is_some_and(|b| b.collision && b.fluid.is_none())
+        };
+
+        for (id, player) in players.iter_mut() {
+            if player.realm != Realm::Survival {
+                continue;
+            }
+            let Some(entity) = clients.get(id).map(|c| c.entity) else {
+                continue;
+            };
+            let Some(p) = positions.get(entity).map(|p| [p.0 .0, p.0 .1, p.0 .2]) else {
+                continue;
+            };
+            let feet_y = p[1] - EYE_HEIGHT;
+            let (Some(head), Some(feet), Some(below)) = (
+                block_at(p[0], p[1], p[2]),
+                block_at(p[0], feet_y + 0.1, p[2]),
+                block_at(p[0], feet_y - 0.05, p[2]),
+            ) else {
+                continue; // standing in a chunk that is not loaded yet
+            };
+            let moved = player
+                .last_position
+                .map(|l| ((p[0] - l[0]).powi(2) + (p[2] - l[2]).powi(2)).sqrt())
+                .unwrap_or(0.0)
+                .min(2.0);
+            player.last_position = Some(p);
+            let lava = |id: u32| fluid(id) == Some(platform_content::FluidKind::Lava);
+            let water = |id: u32| fluid(id) == Some(platform_content::FluidKind::Water);
+            let surroundings = Surroundings {
+                feet_y,
+                on_ground: solid(below),
+                head_in_water: water(head),
+                feet_in_water: water(feet),
+                in_lava: lava(feet) || lava(head),
+                moved,
+            };
+            let outcome = survival::tick(&mut player.vitals, surroundings, dt);
+            if outcome.changed {
+                let cause = outcome.damage.last().map(|(kind, _)| *kind);
+                events.dispatch(
+                    Event::new(VITALS_EVENT)
+                        .payload(vitals_payload(player, cause))
+                        .filter(ClientFilter::Direct(id.clone()))
+                        .build(),
+                );
+            }
+            if outcome.died {
+                player.mining = None;
+                let record = PlayerRecord {
+                    version: RECORD_VERSION,
+                    id: id.clone(),
+                    inventory: player.inventory.clone(),
+                    position: Some(p),
+                    vitals: player.vitals.clone(),
+                };
+                if let Err(e) = store.save(&record) {
+                    error!("could not save player {id} after death: {e}");
+                }
+            }
+        }
+    }
 }

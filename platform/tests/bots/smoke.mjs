@@ -103,6 +103,38 @@ bot.call("platform.build.place", { voxel: [target[0] + 40, target[1], target[2]]
 assert.equal((await bot.result("build.place")).code, "out_of_reach");
 step("out-of-reach placement refused");
 
+// Survival: a long fall hurts, a fatal one kills, and the dead respawn.
+const vitals = [];
+bot.waiters.push({ match: () => false, resolve() {} });
+const onVitals = (m) => m.type === "EVENT" && m.name === "platform.vitals" && (vitals.push(m.payload), false);
+bot.waiters.push({ match: onVitals, resolve() {} });
+await sleep(5200); // the join grace period, during which falls do not count
+const [gx, gy, gz] = [target[0] + 2, target[1], target[2]];
+const eye = 1.425;
+const fallFrom = async (height) => {
+  for (let h = 0; h <= height; h += 20) await bot.moveTo([gx + 0.5, gy + 1 + eye + Math.min(h, height), gz + 0.5], 2);
+  for (let h = height; h > 0; h -= 1) {
+    await bot.moveTo([gx + 0.5, gy + 1 + eye + h, gz + 0.5]);
+    await sleep(20);
+  }
+  await bot.moveTo([gx + 0.5, gy + 1 + eye, gz + 0.5], 3);
+  await sleep(300);
+};
+await fallFrom(10);
+const hurt = vitals.find((v) => v.cause === "fall");
+assert.ok(hurt && hurt.health < 20, `a 10-block fall should hurt, got ${JSON.stringify(vitals.at(-1))}`);
+step(`fell 10 blocks: health ${hurt.health}/20`);
+await fallFrom(40);
+assert.ok(vitals.some((v) => v.dead), "a 40-block fall should kill");
+step("fatal fall killed the player");
+bot.call("platform.mine.start", { voxel: target });
+assert.equal((await bot.result("mine.start")).code, "dead");
+step("the dead cannot act");
+bot.call("platform.respawn");
+assert.equal((await bot.result("respawn")).ok, true);
+assert.equal(vitals.at(-1).health, 20);
+step("respawned with full health");
+
 bot.close();
 console.log("smoke test passed");
 process.exit(0);

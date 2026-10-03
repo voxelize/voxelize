@@ -69,6 +69,13 @@ fn build_world(config: &GameConfig, content: Arc<Content>) -> World {
     // change is an intent the server validates (docs/SECURITY.md).
     world.set_raw_update_guard(refuse_raw_writes);
     gameplay::install(&mut world, content, &save_dir, config.seed);
+    world.set_dispatcher(|| {
+        voxelize::default_dispatcher().with(
+            gameplay::SurvivalSystem::default(),
+            "platform-survival",
+            &["physics"],
+        )
+    });
     world
 }
 

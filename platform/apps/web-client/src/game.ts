@@ -7,7 +7,7 @@ import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
 import { Content, miningMillis, RecipeDef } from "./content";
-import { Hud, InventorySnapshot } from "./hud";
+import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
 import { textureCanvas } from "./textures";
 
 type ResultEvent = { intent: string; ok: boolean; code?: string; voxel?: [number, number, number] };
@@ -32,6 +32,8 @@ const MESSAGES: Record<string, string> = {
   collides_with_player: "Someone is standing there",
   needs_workbench: "Stand near a workbench for this recipe",
   missing_ingredients: "Missing ingredients",
+  not_hungry: "You are not hungry",
+  dead: "You are dead",
   not_loaded: "That area is still loading",
 };
 
@@ -121,6 +123,22 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (result.ok && result.intent === "craft") hud.toast("Crafted");
   });
 
+  const vitalsHud = new VitalsHud();
+  events.on<Vitals>("platform.vitals", (vitals) => {
+    if (!vitals) return;
+    vitalsHud.set(vitals);
+    if (vitals.dead) {
+      mining = null;
+      controls.unlock();
+    }
+  });
+  vitalsHud.onRespawn = () => method.call("platform.respawn", {});
+  events.on<{ x: number; z: number }>("platform.respawn", (spawn) => {
+    if (!spawn) return;
+    controls.teleportToTop(spawn.x, spawn.z, 2);
+    controls.lock();
+  });
+
   hud.onCraft = (recipe: RecipeDef) => method.call("platform.craft", { grid: content.recipeGrid(recipe) });
 
   // ---- input ----------------------------------------------------------------
@@ -143,11 +161,14 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
   canvas.addEventListener("mousedown", (event) => {
     if (!controls.isLocked) return;
+    if (vitalsHud.dead) return;
     if (event.button === 0) {
       leftDown = true;
       startMining();
-    } else if (event.button === 2 && interact.potential) {
-      method.call("platform.build.place", { voxel: interact.potential.voxel });
+    } else if (event.button === 2) {
+      // Food in hand is eaten; anything else is placed.
+      if (hud.heldItem()?.type === "food") method.call("platform.eat", {});
+      else if (interact.potential) method.call("platform.build.place", { voxel: interact.potential.voxel });
     }
   });
   addEventListener("mouseup", (event) => {
@@ -158,7 +179,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   canvas.addEventListener("click", () => {
-    if (!controls.isLocked && !hud.craftingOpen) controls.lock();
+    if (!controls.isLocked && !hud.craftingOpen && !vitalsHud.dead) controls.lock();
   });
 
   for (let i = 1; i <= 9; i++) {

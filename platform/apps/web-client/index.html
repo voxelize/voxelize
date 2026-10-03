@@ -27,10 +27,22 @@
       <div id="crosshair"></div>
       <div id="mining"><div id="mining-bar"></div></div>
       <div id="status"></div>
+      <div id="vitals">
+        <div id="health" class="meter" title="Health"></div>
+        <div id="food" class="meter" title="Hunger"></div>
+        <div id="air" class="meter" title="Breath"></div>
+      </div>
       <div id="hotbar"></div>
+      <div id="hurt"></div>
       <div id="toasts"></div>
-      <div id="hint">Click to play · WASD move · Space jump · Shift crouch · Ctrl sprint · Left mine · Right place · 1-9 select · C craft · F fly (creative)</div>
+      <div id="hint">Click to play · WASD move · Space jump · Shift crouch · Ctrl sprint · Left mine · Right place / eat · 1-9 select · C craft · F fly (creative)</div>
     </div>
+
+    <section id="death" class="panel" hidden>
+      <h2>You died</h2>
+      <p id="death-cause" class="muted"></p>
+      <button type="button" id="respawn">Respawn</button>
+    </section>
 
     <section id="crafting" class="panel" hidden>
       <h2>Crafting</h2>

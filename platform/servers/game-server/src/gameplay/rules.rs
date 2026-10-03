@@ -14,6 +14,7 @@ use platform_ticket::Realm;
 use serde::{Deserialize, Serialize};
 
 use super::inventory::{Inventory, InventoryError};
+use super::survival::Vitals;
 
 pub const AIR: u32 = 0;
 
@@ -44,6 +45,9 @@ pub enum IntentError {
     NoRecipe,
     MissingIngredients,
     NeedsWorkbench,
+    Dead,
+    NotFood,
+    NotHungry,
     Inventory(InventoryError),
 }
 
@@ -65,6 +69,9 @@ impl IntentError {
             IntentError::NoRecipe => "no_recipe",
             IntentError::MissingIngredients => "missing_ingredients",
             IntentError::NeedsWorkbench => "needs_workbench",
+            IntentError::Dead => "dead",
+            IntentError::NotFood => "not_food",
+            IntentError::NotHungry => "not_hungry",
             IntentError::Inventory(e) => e.code(),
         }
     }
@@ -83,11 +90,34 @@ pub struct MiningSession {
     pub started_ms: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PlayerState {
     pub inventory: Inventory,
     pub mining: Option<MiningSession>,
     pub realm: Realm,
+    pub vitals: Vitals,
+    /// Position at the previous survival tick, for movement effort.
+    pub last_position: Option<[f32; 3]>,
+}
+
+impl PlayerState {
+    pub fn new(inventory: Inventory, realm: Realm, vitals: Vitals) -> Self {
+        Self {
+            inventory,
+            mining: None,
+            realm,
+            vitals,
+            last_position: None,
+        }
+    }
+}
+
+fn alive(player: &PlayerState) -> Result<(), IntentError> {
+    if player.vitals.is_dead() {
+        Err(IntentError::Dead)
+    } else {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +203,7 @@ impl Rules {
         voxel: [i32; 3],
         now_ms: u64,
     ) -> Result<(), IntentError> {
+        alive(player)?;
         let (id, block) = self.target_block(view, position, voxel)?;
         if player.realm == Realm::Survival && block.hardness < 0.0 {
             return Err(IntentError::Unbreakable);
@@ -196,6 +227,7 @@ impl Rules {
         now_ms: u64,
         random: &mut dyn FnMut() -> f64,
     ) -> Result<MineOutcome, IntentError> {
+        alive(player)?;
         let (id, block) = self.target_block(view, position, voxel)?;
 
         if player.realm == Realm::Creative {
@@ -286,6 +318,7 @@ impl Rules {
         slot: Option<usize>,
         creative_block: Option<&str>,
     ) -> Result<u32, IntentError> {
+        alive(player)?;
         if !self.within_reach(position, voxel) {
             return Err(IntentError::OutOfReach);
         }
@@ -329,6 +362,28 @@ impl Rules {
         Ok(block.id)
     }
 
+    /// Eat one food item from `slot` (the selected slot when `None`).
+    pub fn eat(&self, player: &mut PlayerState, slot: Option<usize>) -> Result<u32, IntentError> {
+        alive(player)?;
+        let slot = slot.unwrap_or(player.inventory.selected);
+        let stack = player
+            .inventory
+            .get(slot)
+            .ok_or(IntentError::Inventory(InventoryError::EmptySlot))?;
+        let food = self
+            .content
+            .item_by_id(stack.item)
+            .and_then(|i| i.food)
+            .ok_or(IntentError::NotFood)?;
+        if player.realm == Realm::Survival {
+            if !player.vitals.eat(food) {
+                return Err(IntentError::NotHungry);
+            }
+            player.inventory.take_one(slot)?;
+        }
+        Ok(food)
+    }
+
     /// Craft once from a grid of item keys, taking the ingredients from the
     /// inventory. A 3x3 grid needs a workbench within reach.
     pub fn craft(
@@ -338,6 +393,7 @@ impl Rules {
         position: [f32; 3],
         grid: &CraftingGrid,
     ) -> Result<(u32, u32), IntentError> {
+        alive(player)?;
         if grid.size() > 2 {
             let table = self
                 .content
@@ -428,11 +484,7 @@ mod tests {
                 blocks,
                 player_cells: vec![[0, 0, 0], [0, 1, 0]],
             },
-            PlayerState {
-                inventory: Inventory::default(),
-                mining: None,
-                realm: Realm::Survival,
-            },
+            PlayerState::new(Inventory::default(), Realm::Survival, Vitals::default()),
         )
     }
 
@@ -686,6 +738,23 @@ mod tests {
             .unwrap();
         assert!(outcome.drops.is_empty());
         assert_eq!(player.inventory, Inventory::default());
+    }
+
+    #[test]
+    fn the_dead_cannot_act_and_food_is_eaten_only_when_hungry() {
+        let (rules, world, mut player) = setup();
+        let bread = rules.content().item("bread").unwrap().id;
+        player.inventory.add(rules.content(), bread, 2);
+        assert_eq!(rules.eat(&mut player, None), Err(IntentError::NotHungry));
+        player.vitals.food = 10.0;
+        assert_eq!(rules.eat(&mut player, None), Ok(5));
+        assert_eq!(player.inventory.count_of(bread), 1);
+        player.vitals.health = 0.0;
+        assert_eq!(rules.eat(&mut player, None), Err(IntentError::Dead));
+        assert_eq!(
+            rules.start_mining(&mut player, &world, HERE, [2, 0, 0], 0),
+            Err(IntentError::Dead)
+        );
     }
 
     #[test]

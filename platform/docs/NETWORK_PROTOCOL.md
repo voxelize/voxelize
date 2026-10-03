@@ -80,6 +80,8 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.inventory.select` | `{"slot":0-8}` | hotbar slot | ✅ |
 | `platform.inventory.move` | `{"from":n,"to":n,"count"?:n}` | slots exist, stack limits, partial moves only onto empty or matching stacks | ✅ |
 | `platform.craft` | `{"grid":[[key\|null,…],…]}` (2×2, or 3×3 near a workbench) | recipe match, ingredients owned, result fits; all-or-nothing | ✅ |
+| `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
+| `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface) | ✅ |
 | `platform.trade.*` | trade window ops | both parties present, items owned, version matches | phase 14 |
 
 Answers (events, sent only to the requesting client):
@@ -94,7 +96,11 @@ Answers (events, sent only to the requesting client):
 - `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
   pushed on join and after every change.
 
-Players' inventories persist in `<save dir>/<world>/players/<public id>.json`
+- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|null,"realm"}`,
+  pushed on join and whenever a vital changes (from the server's per-tick
+  survival system).
+
+Players' inventories and vitals persist in `<save dir>/<world>/players/<public id>.json`
 (atomic writes) and are restored on the next join.
 
 ## 4. Area of interest

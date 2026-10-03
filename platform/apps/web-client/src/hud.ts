@@ -147,3 +147,68 @@ export class Hud {
     }
   }
 }
+
+export type Vitals = {
+  health: number;
+  food: number;
+  air: number;
+  maxAir: number;
+  dead: boolean;
+  cause: string | null;
+  realm: string;
+};
+
+const CAUSES: Record<string, string> = {
+  fall: "You fell from a high place.",
+  drowning: "You ran out of air.",
+  lava: "You tried to swim in lava.",
+  starvation: "You starved.",
+};
+
+function pips(id: string, value: number, count: number, perPip: number, reverse = false) {
+  const box = document.getElementById(id) as HTMLElement;
+  box.replaceChildren();
+  for (let i = 0; i < count; i++) {
+    const index = reverse ? count - 1 - i : i;
+    const fill = value - index * perPip;
+    const pip = document.createElement("i");
+    pip.className = "pip" + (fill >= perPip ? " full" : fill > 0 ? " half" : "");
+    box.append(pip);
+  }
+}
+
+export class VitalsHud {
+  private last: Vitals | null = null;
+  onRespawn: () => void = () => {};
+
+  constructor() {
+    document.getElementById("respawn")?.addEventListener("click", () => this.onRespawn());
+  }
+
+  set(v: Vitals) {
+    const survival = v.realm === "survival";
+    (document.getElementById("vitals") as HTMLElement).hidden = !survival;
+    pips("health", v.health, 10, 2);
+    pips("food", v.food, 10, 2, true);
+    const air = document.getElementById("air") as HTMLElement;
+    air.hidden = v.air >= v.maxAir;
+    pips("air", v.air, 10, v.maxAir / 10, true);
+
+    if (this.last && v.health < this.last.health) {
+      const hurt = document.getElementById("hurt") as HTMLElement;
+      hurt.classList.add("on");
+      setTimeout(() => hurt.classList.remove("on"), 120);
+    }
+    const death = document.getElementById("death") as HTMLElement;
+    death.hidden = !v.dead;
+    if (v.dead) {
+      (document.getElementById("death-cause") as HTMLElement).textContent =
+        (v.cause && CAUSES[v.cause]) || "";
+    }
+    this.last = v;
+  }
+
+  get dead() {
+    return this.last?.dead ?? false;
+  }
+}
