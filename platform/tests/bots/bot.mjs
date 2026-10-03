@@ -85,6 +85,7 @@ export class Bot {
         if (event.name === "platform.inventory") this.inventory = payload;
         if (event.name === "platform.window") this.window = payload;
         if (event.name === "platform.drops") this.drops = payload.items;
+        if (event.name === "platform.mobs") this.mobs = payload.mobs;
         if (event.name === "platform.result") this.results.push(payload);
         this.waiters = this.waiters.filter((w) => !w.match({ type: "EVENT", name: event.name, payload }) || (w.resolve(payload), false));
       }

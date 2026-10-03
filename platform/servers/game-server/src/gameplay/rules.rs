@@ -115,6 +115,8 @@ pub struct PlayerState {
     pub armor: Vec<Option<super::inventory::Stack>>,
     pub offhand: Option<super::inventory::Stack>,
     pub window: Option<OpenWindow>,
+    /// Seconds until this player can attack again.
+    pub attack_cooldown: f32,
 }
 
 /// The window a player has open.
@@ -140,6 +142,7 @@ impl PlayerState {
             armor: vec![None; 4],
             offhand: None,
             window: None,
+            attack_cooldown: 0.0,
         }
     }
 }

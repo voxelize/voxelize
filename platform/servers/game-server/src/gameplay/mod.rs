@@ -8,6 +8,9 @@
 
 pub mod containers;
 pub mod drops;
+pub mod mobs;
+mod mobs_api;
+pub use mobs_api::MobSystem;
 pub mod inventory;
 mod items_api;
 pub mod rules;
@@ -53,6 +56,10 @@ pub struct Gameplay {
     world_dir: std::path::PathBuf,
     /// Blocks broken by block behaviours, whose drops are still to spawn.
     broken: Arc<crate::behaviors::BrokenBlocks>,
+    mobs: mobs::Mobs,
+    mob_rng: mobs::Rng,
+    /// Biome key at a column, from the world generator (spawn rules).
+    biome: Arc<dyn Fn(i32, i32) -> String + Send + Sync>,
 }
 
 impl Gameplay {
@@ -61,7 +68,9 @@ impl Gameplay {
         world_dir: &Path,
         seed: u32,
         broken: Arc<crate::behaviors::BrokenBlocks>,
+        biome: Arc<dyn Fn(i32, i32) -> String + Send + Sync>,
     ) -> Result<Self, String> {
+        let mobs = mobs_api::load(world_dir)?;
         Ok(Self {
             rules: Rules::new(content),
             store: PlayerStore::new(world_dir),
@@ -71,6 +80,9 @@ impl Gameplay {
             drops: drops::Drops::default(),
             world_dir: world_dir.to_owned(),
             broken,
+            mobs,
+            mob_rng: mobs::Rng(seed as u64 ^ 0x0B5E_55ED),
+            biome,
         })
     }
 
@@ -413,11 +425,13 @@ pub fn install(
     world_dir: &Path,
     seed: u32,
     broken: Arc<crate::behaviors::BrokenBlocks>,
+    biome: Arc<dyn Fn(i32, i32) -> String + Send + Sync>,
 ) -> Result<(), String> {
     world
         .ecs_mut()
-        .insert(Gameplay::new(content, world_dir, seed, broken)?);
+        .insert(Gameplay::new(content, world_dir, seed, broken, biome)?);
     items_api::install(world);
+    mobs_api::install(world);
     world.set_client_modifier(on_join);
     world.set_client_leave_modifier(on_leave);
 
@@ -794,54 +808,69 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 );
             }
             if outcome.died {
-                player.mining = None;
-                // Everything the player carried spills where they died.
-                let mut spilled: Vec<inventory::Stack> = Vec::new();
-                spilled.extend(player.inventory.slots.iter_mut().filter_map(|s| s.take()));
-                spilled.extend(player.armor.iter_mut().filter_map(|s| s.take()));
-                spilled.extend(player.craft_grid.iter_mut().filter_map(|s| s.take()));
-                spilled.extend(player.offhand.take());
-                spilled.extend(player.cursor.take());
-                if let Some(window) = player.window.take() {
-                    spilled.extend(window.grid.into_iter().flatten());
-                }
-                for stack in spilled {
-                    *rng = rng
-                        .wrapping_mul(6364136223846793005)
-                        .wrapping_add(1442695040888963407);
-                    let a = (*rng >> 33) as f32 / (1u64 << 31) as f32 * std::f32::consts::TAU;
-                    drops.spawn(
-                        stack,
-                        [p[0], feet_y + 0.5, p[2]],
-                        [a.cos() * 3.0, 4.0, a.sin() * 3.0],
-                        None,
-                    );
-                }
-                events.dispatch(
-                    Event::new(INVENTORY_EVENT)
-                        .payload(json!({ "slots": player.inventory.slots, "selected": player.inventory.selected, "realm": player.realm }))
-                        .filter(ClientFilter::Direct(id.clone()))
-                        .build(),
-                );
-                events.dispatch(
-                    Event::new(items_api::WINDOW_EVENT)
-                        .payload(json!({ "kind": null }))
-                        .filter(ClientFilter::Direct(id.clone()))
-                        .build(),
-                );
-                let record = PlayerRecord {
-                    version: RECORD_VERSION,
-                    id: id.clone(),
-                    inventory: player.inventory.clone(),
-                    position: Some(p),
-                    vitals: player.vitals.clone(),
-                    armor: player.armor.clone(),
-                    offhand: player.offhand.clone(),
-                };
-                if let Err(e) = store.save(&record) {
-                    error!("could not save player {id} after death: {e}");
-                }
+                on_player_death(id, player, p, store, drops, rng, &mut events);
             }
         }
+    }
+}
+
+/// Everything that happens when a player dies, from any cause: the whole
+/// inventory spills where they fell, windows close, and the record is saved.
+pub(crate) fn on_player_death(
+    id: &str,
+    player: &mut PlayerState,
+    eye: [f32; 3],
+    store: &PlayerStore,
+    drops: &mut drops::Drops,
+    rng: &mut u64,
+    events: &mut voxelize::Events,
+) {
+    player.mining = None;
+    let feet_y = eye[1] - EYE_HEIGHT;
+    let mut spilled: Vec<inventory::Stack> = Vec::new();
+    spilled.extend(player.inventory.slots.iter_mut().filter_map(|s| s.take()));
+    spilled.extend(player.armor.iter_mut().filter_map(|s| s.take()));
+    spilled.extend(player.craft_grid.iter_mut().filter_map(|s| s.take()));
+    spilled.extend(player.offhand.take());
+    spilled.extend(player.cursor.take());
+    if let Some(window) = player.window.take() {
+        spilled.extend(window.grid.into_iter().flatten());
+    }
+    for stack in spilled {
+        *rng = rng
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        let a = (*rng >> 33) as f32 / (1u64 << 31) as f32 * std::f32::consts::TAU;
+        drops.spawn(
+            stack,
+            [eye[0], feet_y + 0.5, eye[2]],
+            [a.cos() * 3.0, 4.0, a.sin() * 3.0],
+            None,
+        );
+    }
+    let direct = || ClientFilter::Direct(id.to_owned());
+    events.dispatch(
+        Event::new(INVENTORY_EVENT)
+            .payload(json!({ "slots": player.inventory.slots, "selected": player.inventory.selected, "realm": player.realm }))
+            .filter(direct())
+            .build(),
+    );
+    events.dispatch(
+        Event::new(items_api::WINDOW_EVENT)
+            .payload(json!({ "kind": null }))
+            .filter(direct())
+            .build(),
+    );
+    let record = PlayerRecord {
+        version: RECORD_VERSION,
+        id: id.to_owned(),
+        inventory: player.inventory.clone(),
+        position: Some(eye),
+        vitals: player.vitals.clone(),
+        armor: player.armor.clone(),
+        offhand: player.offhand.clone(),
+    };
+    if let Err(e) = store.save(&record) {
+        error!("could not save player {id} after death: {e}");
     }
 }

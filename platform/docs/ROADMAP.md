@@ -123,12 +123,23 @@ nobody watches; all server-side and tested (unit + end-to-end).
 Remaining: admin panel v1 (players, economy, live server monitor),
 observability stack, more stations (smelter, crusher) as content.
 
-## Phase 10 — Entities and mobs ⬜
+## Phase 10 — Entities and mobs 🟡
 
-ECS components (transform, physics, health, inventory, AI, combat,
-animation, navigation, network, status); passive/neutral/hostile/flying/
-aquatic/boss archetypes as data; behaviour trees; voxel pathfinding (engine
-`pathfinding.rs`); spawning by biome, light and time; original models.
+Done: data-driven creatures (`platform/game/mobs`, validated): Grazer,
+Cluckling and Bristleback (passive animals) and Shambler and Cave Crawler
+(hostile, night and darkness); voxel physics with gravity, step-up and
+swimming; utility state machine (wander/idle, flee when hurt, follow a
+player holding their food, seek a partner, chase and melee); breeding with
+babies that grow up; Shamblers burn in daylight; natural spawning by light,
+time of day, biome and ground block with per-player caps; despawning of
+distant monsters; animals persist in `mobs.json`; combat (`platform.attack`
+with reach, cooldown, weapon damage and wear, knockback; `platform.interact`
+to feed); creature damage kills players (who drop everything); meat and
+poultry cook in the furnace. Client: original box models, walking animation,
+hurt and love tints, click to attack, right click to feed. 8 unit tests and
+`tests/bots/combat.mjs` (hunt an animal on a live server, collect its meat).
+Remaining: ranged and flying/aquatic creatures, bosses, A* pathfinding
+around obstacles, armor and player knockback, experience.
 
 ## Phase 11 — Farming, animals, structures 🟡
 

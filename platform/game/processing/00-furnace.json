@@ -113,6 +113,30 @@
       },
       "ticks": 100,
       "experience": 0.35
+    },
+    {
+      "key": "cook_meat",
+      "station": "furnace",
+      "input": {
+        "item": "raw_meat"
+      },
+      "output": {
+        "item": "cooked_meat"
+      },
+      "ticks": 200,
+      "experience": 0.35
+    },
+    {
+      "key": "cook_poultry",
+      "station": "furnace",
+      "input": {
+        "item": "raw_poultry"
+      },
+      "output": {
+        "item": "cooked_poultry"
+      },
+      "ticks": 200,
+      "experience": 0.35
     }
   ]
 }

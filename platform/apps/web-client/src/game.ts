@@ -8,6 +8,7 @@ import * as THREE from "three";
 
 import { Content, miningMillis } from "./content";
 import { DropsView } from "./drops";
+import { MobInfo, MobsView } from "./mobs-view";
 import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
 import { textureCanvas } from "./textures";
 import { WindowState, WindowUi } from "./window-ui";
@@ -38,6 +39,7 @@ const MESSAGES: Record<string, string> = {
   dead: "You are dead",
   needs_support: "That cannot stand there",
   cannot_use: "Nothing happens",
+  too_fast: "",
   not_loaded: "That area is still loading",
 };
 
@@ -165,6 +167,10 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     windowUi.set(state);
   });
 
+  const mobs = new MobsView(content);
+  world.add(mobs.group);
+  events.on<{ mobs: MobInfo[] }>("platform.mobs", (payload) => payload && mobs.set(payload.mobs));
+
   const drops = new DropsView(content, hud);
   world.add(drops.group);
   events.on<{ items: { id: number; item: number; count: number; p: [number, number, number] }[] }>(
@@ -199,6 +205,16 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   canvas.addEventListener("mousedown", (event) => {
     if (!controls.isLocked) return;
     if (vitalsHud.dead) return;
+    // A creature in front of the block under the crosshair takes the click.
+    const mob = mobs.pick(camera, 4.5);
+    const blockDistance = interact.target
+      ? camera.position.distanceTo(new THREE.Vector3(...interact.target).addScalar(0.5))
+      : Infinity;
+    if (mob && mob.distance < blockDistance) {
+      if (event.button === 0) method.call("platform.attack", { mob: mob.id });
+      else if (event.button === 2) method.call("platform.interact", { mob: mob.id });
+      return;
+    }
     if (event.button === 0) {
       leftDown = true;
       startMining();
@@ -298,6 +314,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     world.update(controls.object.position, direction);
     players.update();
     drops.update(performance.now());
+    mobs.update(performance.now());
 
     if (mining) {
       const target = interact.target;

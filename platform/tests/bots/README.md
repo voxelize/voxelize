@@ -9,6 +9,7 @@ validated by the game server like a browser player's.
 | `smoke.mjs` | end-to-end check of a running stack: registration, single-use tickets, join, mining with timing validation, drops, placement, refusals |
 | `crafting.mjs` | the crafting progression: chop by hand, pick up drops, 2x2 planks, workbench via recipe book, sticks/pickaxe/chest at the workbench, chest storage, dig stone, furnace, smelting |
 | `nature.mjs` | block behaviours: fell a lone tree and watch its leaves decay and drop |
+| `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |
 

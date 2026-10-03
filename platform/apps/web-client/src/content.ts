@@ -35,7 +35,19 @@ export type RecipeDef =
     }
   | { type: "shapeless"; key: string; ingredients: string[]; result: { item: string; count?: number } };
 
-export type ContentPack = { blocks: BlockDef[]; items: ItemDef[]; recipes: RecipeDef[] };
+export type ModelPart = { name: string; size: [number, number, number]; offset: [number, number, number]; color: string; leg?: boolean };
+
+export type MobDef = {
+  key: string;
+  name: string;
+  kind: "passive" | "neutral" | "hostile";
+  health: number;
+  size: [number, number];
+  breedItem?: string | null;
+  model: ModelPart[];
+};
+
+export type ContentPack = { blocks: BlockDef[]; items: ItemDef[]; recipes: RecipeDef[]; mobs: MobDef[] };
 
 /** Mirrors `crates/content/src/mining.rs`; parity is pinned by mining.test.ts. */
 export const HARVEST_FACTOR = 1.5;
@@ -62,9 +74,11 @@ export class Content {
   readonly blocksById = new Map<number, BlockDef>();
   readonly itemsById = new Map<number, ItemDef>();
   readonly itemsByKey = new Map<string, ItemDef>();
+  readonly mobsByKey = new Map<string, MobDef>();
 
   constructor(readonly pack: ContentPack) {
     pack.blocks.forEach((b) => this.blocksById.set(b.id, b));
+    (pack.mobs ?? []).forEach((m) => this.mobsByKey.set(m.key, m));
     pack.items.forEach((i) => {
       this.itemsById.set(i.id, i);
       this.itemsByKey.set(i.key, i);

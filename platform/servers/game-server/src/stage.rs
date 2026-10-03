@@ -1,14 +1,16 @@
 //! Runs the platform world generator as an engine chunk stage.
 
+use std::sync::Arc;
+
 use platform_worldgen::{Generator, AIR};
 use voxelize::{Chunk, ChunkStage, Resources, Space, VoxelAccess};
 
 pub struct WorldgenStage {
-    generator: Generator,
+    generator: Arc<Generator>,
 }
 
 impl WorldgenStage {
-    pub fn new(generator: Generator) -> Self {
+    pub fn new(generator: Arc<Generator>) -> Self {
         Self { generator }
     }
 }

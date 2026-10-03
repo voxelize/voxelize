@@ -65,6 +65,10 @@ fn build_world(
     )
     .unwrap_or_else(|e| fail(e));
 
+    let generator = Arc::new(generator);
+    let biomes = generator.clone();
+    let biome_at: Arc<dyn Fn(i32, i32) -> String + Send + Sync> =
+        Arc::new(move |x, z| biomes.biome_at(x, z).to_owned());
     let mut world = World::new(&config.world, &world_config);
     world
         .pipeline_mut()
@@ -73,8 +77,15 @@ fn build_world(
     // guards them. Clients never write voxels directly here: every block
     // change is an intent the server validates (docs/SECURITY.md).
     world.set_raw_update_guard(refuse_raw_writes);
-    gameplay::install(&mut world, content, &save_dir, config.seed, broken)
-        .unwrap_or_else(|e| fail(e));
+    gameplay::install(
+        &mut world,
+        content,
+        &save_dir,
+        config.seed,
+        broken,
+        biome_at,
+    )
+    .unwrap_or_else(|e| fail(e));
     world.set_dispatcher(|| {
         voxelize::default_dispatcher()
             .with(
@@ -86,6 +97,11 @@ fn build_world(
                 gameplay::WorldItemsSystem::default(),
                 "platform-world-items",
                 &["platform-survival"],
+            )
+            .with(
+                gameplay::MobSystem::default(),
+                "platform-mobs",
+                &["platform-world-items"],
             )
     });
     world
@@ -153,6 +169,7 @@ async fn main() -> std::io::Result<()> {
         "blocks": content.blocks(),
         "items": content.items(),
         "recipes": content.recipes(),
+        "mobs": content.mobs(),
     });
     Voxelize::run_with(server, move |voxelize| {
         let info = info.clone();

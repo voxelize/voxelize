@@ -1,0 +1,729 @@
+[
+  {
+    "key": "grazer",
+    "name": "Grazer",
+    "kind": "passive",
+    "health": 10,
+    "speed": 1.6,
+    "size": [
+      0.9,
+      1.3
+    ],
+    "spawn": {
+      "light": "bright",
+      "on": [
+        "turf"
+      ],
+      "biomes": [
+        "plains",
+        "forest",
+        "savanna",
+        "taiga",
+        "swamp"
+      ],
+      "weight": 8,
+      "groupMin": 2,
+      "groupMax": 4
+    },
+    "drops": [
+      {
+        "item": "raw_meat",
+        "min": 1,
+        "max": 3
+      },
+      {
+        "item": "hide",
+        "min": 0,
+        "max": 2
+      }
+    ],
+    "breedItem": "wheat",
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          0.9,
+          0.7,
+          1.3
+        ],
+        "offset": [
+          0,
+          0.95,
+          0
+        ],
+        "color": "#8b6a4e"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.55,
+          0.5,
+          0.5
+        ],
+        "offset": [
+          0,
+          1.25,
+          0.85
+        ],
+        "color": "#7a5b41"
+      },
+      {
+        "name": "horns",
+        "size": [
+          0.7,
+          0.1,
+          0.1
+        ],
+        "offset": [
+          0,
+          1.55,
+          0.85
+        ],
+        "color": "#e8dcc0"
+      },
+      {
+        "name": "leg0",
+        "size": [
+          0.22,
+          0.6,
+          0.22
+        ],
+        "offset": [
+          0.3,
+          0.3,
+          0.45
+        ],
+        "color": "#5e4532",
+        "leg": true
+      },
+      {
+        "name": "leg1",
+        "size": [
+          0.22,
+          0.6,
+          0.22
+        ],
+        "offset": [
+          -0.3,
+          0.3,
+          0.45
+        ],
+        "color": "#5e4532",
+        "leg": true
+      },
+      {
+        "name": "leg2",
+        "size": [
+          0.22,
+          0.6,
+          0.22
+        ],
+        "offset": [
+          0.3,
+          0.3,
+          -0.45
+        ],
+        "color": "#5e4532",
+        "leg": true
+      },
+      {
+        "name": "leg3",
+        "size": [
+          0.22,
+          0.6,
+          0.22
+        ],
+        "offset": [
+          -0.3,
+          0.3,
+          -0.45
+        ],
+        "color": "#5e4532",
+        "leg": true
+      }
+    ]
+  },
+  {
+    "key": "cluckling",
+    "name": "Cluckling",
+    "kind": "passive",
+    "health": 4,
+    "speed": 1.8,
+    "size": [
+      0.4,
+      0.7
+    ],
+    "spawn": {
+      "light": "bright",
+      "on": [
+        "turf"
+      ],
+      "biomes": [
+        "plains",
+        "forest",
+        "jungle",
+        "savanna"
+      ],
+      "weight": 10,
+      "groupMin": 2,
+      "groupMax": 4
+    },
+    "drops": [
+      {
+        "item": "raw_poultry"
+      },
+      {
+        "item": "feather",
+        "min": 0,
+        "max": 2
+      }
+    ],
+    "breedItem": "wheat_seeds",
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          0.4,
+          0.4,
+          0.5
+        ],
+        "offset": [
+          0,
+          0.45,
+          0
+        ],
+        "color": "#f1ece0"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.25,
+          0.3,
+          0.25
+        ],
+        "offset": [
+          0,
+          0.8,
+          0.25
+        ],
+        "color": "#f6f2e8"
+      },
+      {
+        "name": "beak",
+        "size": [
+          0.12,
+          0.08,
+          0.12
+        ],
+        "offset": [
+          0,
+          0.78,
+          0.42
+        ],
+        "color": "#e8a33a"
+      },
+      {
+        "name": "comb",
+        "size": [
+          0.06,
+          0.1,
+          0.15
+        ],
+        "offset": [
+          0,
+          0.98,
+          0.25
+        ],
+        "color": "#d8402e"
+      },
+      {
+        "name": "leg0",
+        "size": [
+          0.06,
+          0.25,
+          0.06
+        ],
+        "offset": [
+          0.1,
+          0.125,
+          0.05
+        ],
+        "color": "#e8a33a",
+        "leg": true
+      },
+      {
+        "name": "leg1",
+        "size": [
+          0.06,
+          0.25,
+          0.06
+        ],
+        "offset": [
+          -0.1,
+          0.125,
+          0.05
+        ],
+        "color": "#e8a33a",
+        "leg": true
+      },
+      {
+        "name": "leg2",
+        "size": [
+          0.06,
+          0.25,
+          0.06
+        ],
+        "offset": [
+          0.1,
+          0.125,
+          -0.05
+        ],
+        "color": "#e8a33a",
+        "leg": true
+      },
+      {
+        "name": "leg3",
+        "size": [
+          0.06,
+          0.25,
+          0.06
+        ],
+        "offset": [
+          -0.1,
+          0.125,
+          -0.05
+        ],
+        "color": "#e8a33a",
+        "leg": true
+      }
+    ]
+  },
+  {
+    "key": "bristleback",
+    "name": "Bristleback",
+    "kind": "passive",
+    "health": 10,
+    "speed": 1.5,
+    "size": [
+      0.9,
+      0.9
+    ],
+    "spawn": {
+      "light": "bright",
+      "on": [
+        "turf"
+      ],
+      "biomes": [
+        "forest",
+        "dark_forest",
+        "jungle",
+        "taiga",
+        "plains"
+      ],
+      "weight": 8,
+      "groupMin": 2,
+      "groupMax": 3
+    },
+    "drops": [
+      {
+        "item": "raw_meat",
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "breedItem": "apple",
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          0.85,
+          0.6,
+          1.1
+        ],
+        "offset": [
+          0,
+          0.6,
+          0
+        ],
+        "color": "#6e5a4f"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.55,
+          0.5,
+          0.45
+        ],
+        "offset": [
+          0,
+          0.7,
+          0.7
+        ],
+        "color": "#5e4b42"
+      },
+      {
+        "name": "tusks",
+        "size": [
+          0.5,
+          0.08,
+          0.08
+        ],
+        "offset": [
+          0,
+          0.55,
+          0.95
+        ],
+        "color": "#efe6d2"
+      },
+      {
+        "name": "bristles",
+        "size": [
+          0.25,
+          0.15,
+          0.9
+        ],
+        "offset": [
+          0,
+          0.95,
+          0
+        ],
+        "color": "#3b2f29"
+      },
+      {
+        "name": "leg0",
+        "size": [
+          0.2,
+          0.3,
+          0.2
+        ],
+        "offset": [
+          0.28,
+          0.15,
+          0.38
+        ],
+        "color": "#4b3c35",
+        "leg": true
+      },
+      {
+        "name": "leg1",
+        "size": [
+          0.2,
+          0.3,
+          0.2
+        ],
+        "offset": [
+          -0.28,
+          0.15,
+          0.38
+        ],
+        "color": "#4b3c35",
+        "leg": true
+      },
+      {
+        "name": "leg2",
+        "size": [
+          0.2,
+          0.3,
+          0.2
+        ],
+        "offset": [
+          0.28,
+          0.15,
+          -0.38
+        ],
+        "color": "#4b3c35",
+        "leg": true
+      },
+      {
+        "name": "leg3",
+        "size": [
+          0.2,
+          0.3,
+          0.2
+        ],
+        "offset": [
+          -0.28,
+          0.15,
+          -0.38
+        ],
+        "color": "#4b3c35",
+        "leg": true
+      }
+    ]
+  },
+  {
+    "key": "shambler",
+    "name": "Shambler",
+    "kind": "hostile",
+    "health": 20,
+    "speed": 2.2,
+    "damage": 3,
+    "size": [
+      0.6,
+      1.9
+    ],
+    "spawn": {
+      "light": "dark",
+      "on": [
+        "turf",
+        "dirt",
+        "stone",
+        "sand",
+        "snowpack",
+        "gravel",
+        "rubble"
+      ],
+      "weight": 10,
+      "groupMin": 1,
+      "groupMax": 3
+    },
+    "drops": [
+      {
+        "item": "rotten_flesh",
+        "min": 0,
+        "max": 2
+      }
+    ],
+    "burnsInDaylight": true,
+    "sight": 20,
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          0.55,
+          0.75,
+          0.3
+        ],
+        "offset": [
+          0,
+          1.15,
+          0
+        ],
+        "color": "#3e5d4f"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "offset": [
+          0,
+          1.78,
+          0
+        ],
+        "color": "#6f8f5f"
+      },
+      {
+        "name": "eyes",
+        "size": [
+          0.36,
+          0.08,
+          0.02
+        ],
+        "offset": [
+          0,
+          1.82,
+          0.26
+        ],
+        "color": "#ffd54a"
+      },
+      {
+        "name": "arm_l",
+        "size": [
+          0.18,
+          0.7,
+          0.18
+        ],
+        "offset": [
+          0.37,
+          1.2,
+          0.25
+        ],
+        "color": "#6f8f5f"
+      },
+      {
+        "name": "arm_r",
+        "size": [
+          0.18,
+          0.7,
+          0.18
+        ],
+        "offset": [
+          -0.37,
+          1.2,
+          0.25
+        ],
+        "color": "#6f8f5f"
+      },
+      {
+        "name": "leg_l",
+        "size": [
+          0.24,
+          0.78,
+          0.24
+        ],
+        "offset": [
+          0.13,
+          0.39,
+          0
+        ],
+        "color": "#2f3b46",
+        "leg": true
+      },
+      {
+        "name": "leg_r",
+        "size": [
+          0.24,
+          0.78,
+          0.24
+        ],
+        "offset": [
+          -0.13,
+          0.39,
+          0
+        ],
+        "color": "#2f3b46",
+        "leg": true
+      }
+    ]
+  },
+  {
+    "key": "crawler",
+    "name": "Cave Crawler",
+    "kind": "hostile",
+    "health": 14,
+    "speed": 3.0,
+    "damage": 2,
+    "attackCooldown": 0.8,
+    "size": [
+      1.2,
+      0.8
+    ],
+    "spawn": {
+      "light": "dark",
+      "on": [
+        "stone",
+        "rubble",
+        "dirt",
+        "turf"
+      ],
+      "weight": 6,
+      "groupMin": 1,
+      "groupMax": 2
+    },
+    "drops": [
+      {
+        "item": "silk_thread",
+        "min": 0,
+        "max": 2
+      }
+    ],
+    "sight": 16,
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          0.8,
+          0.45,
+          0.9
+        ],
+        "offset": [
+          0,
+          0.45,
+          -0.2
+        ],
+        "color": "#2b2530"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.55,
+          0.4,
+          0.45
+        ],
+        "offset": [
+          0,
+          0.45,
+          0.45
+        ],
+        "color": "#3a3240"
+      },
+      {
+        "name": "eyes",
+        "size": [
+          0.4,
+          0.08,
+          0.02
+        ],
+        "offset": [
+          0,
+          0.52,
+          0.68
+        ],
+        "color": "#e0303a"
+      },
+      {
+        "name": "leg0",
+        "size": [
+          0.9,
+          0.08,
+          0.08
+        ],
+        "offset": [
+          0,
+          0.3,
+          0.25
+        ],
+        "color": "#1d1820",
+        "leg": true
+      },
+      {
+        "name": "leg1",
+        "size": [
+          0.9,
+          0.08,
+          0.08
+        ],
+        "offset": [
+          0,
+          0.3,
+          0.04999999999999999
+        ],
+        "color": "#1d1820",
+        "leg": true
+      },
+      {
+        "name": "leg2",
+        "size": [
+          0.9,
+          0.08,
+          0.08
+        ],
+        "offset": [
+          0,
+          0.3,
+          -0.15000000000000002
+        ],
+        "color": "#1d1820",
+        "leg": true
+      },
+      {
+        "name": "leg3",
+        "size": [
+          0.9,
+          0.08,
+          0.08
+        ],
+        "offset": [
+          0,
+          0.3,
+          -0.3500000000000001
+        ],
+        "color": "#1d1820",
+        "leg": true
+      }
+    ]
+  }
+]

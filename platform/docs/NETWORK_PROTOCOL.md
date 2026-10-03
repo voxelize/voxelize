@@ -87,6 +87,8 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.window.close` | `{}` | grid and cursor go back to the inventory; what does not fit drops in the world | ✅ |
 | `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
 | `platform.use` | `{"voxel":[x,y,z]}` | held item acts on a block: a hoe tills dirt/turf with air above into farmland (wears the hoe) | ✅ |
+| `platform.attack` | `{"mob":id}` | alive, within reach of the creature, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it, knocks the creature back | ✅ |
+| `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
 | `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface) | ✅ |
 | `platform.trade.*` | trade window ops | both parties present, items owned, version matches | phase 14 |
@@ -108,6 +110,7 @@ Answers (events, sent only to the requesting client):
   Furnace viewers get updates while it burns; chest viewers see each other's changes.
 - `platform.drops` — `{"items":[{"id","item","count","p":[x,y,z]}]}`, dropped items within 64 blocks, up to 10 times a second.
 - `platform.pickup` — `{"items":[[item,count],…]}` after walking over drops.
+- `platform.mobs` — `{"mobs":[{"id","key","p","yaw","health","hurt","baby","moving","love"}]}`, creatures within 64 blocks, ten times a second.
 - `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|null,"realm"}`,
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).

@@ -400,3 +400,91 @@ fn default_subsurface_depth() -> u32 {
 fn default_ore_host() -> String {
     "stone".to_owned()
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MobKind {
+    /// Never attacks; flees when hurt.
+    Passive,
+    /// Attacks only when attacked.
+    Neutral,
+    /// Hunts players in range.
+    Hostile,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SpawnLight {
+    /// Lit ground in daytime (animals).
+    Bright,
+    /// Darkness: night or caves (monsters).
+    Dark,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MobSpawn {
+    pub light: SpawnLight,
+    /// Blocks it may spawn standing on.
+    pub on: Vec<String>,
+    /// Biomes it spawns in; every biome when empty.
+    #[serde(default)]
+    pub biomes: Vec<String>,
+    /// Relative weight among mobs that can spawn at a spot.
+    pub weight: u32,
+    pub group_min: u32,
+    pub group_max: u32,
+}
+
+/// One box of a mob's model, in blocks, relative to its feet centre.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ModelPart {
+    pub name: String,
+    pub size: [f32; 3],
+    pub offset: [f32; 3],
+    pub color: String,
+    /// Legs swing while walking.
+    #[serde(default)]
+    pub leg: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MobDef {
+    pub key: String,
+    pub name: String,
+    pub kind: MobKind,
+    pub health: f32,
+    /// Blocks per second when walking.
+    pub speed: f32,
+    /// Melee damage (hostile and neutral mobs).
+    #[serde(default)]
+    pub damage: f32,
+    /// Seconds between attacks.
+    #[serde(default = "default_attack_cooldown")]
+    pub attack_cooldown: f32,
+    /// Width and height of the body, in blocks.
+    pub size: [f32; 2],
+    pub spawn: MobSpawn,
+    #[serde(default)]
+    pub drops: Vec<DropDef>,
+    /// Burns in daylight under open sky.
+    #[serde(default)]
+    pub burns_in_daylight: bool,
+    /// Item that makes it follow a player holding it, and breed when fed.
+    #[serde(default)]
+    pub breed_item: Option<String>,
+    /// How far it notices players, in blocks.
+    #[serde(default = "default_sight")]
+    pub sight: f32,
+    pub model: Vec<ModelPart>,
+}
+
+fn default_attack_cooldown() -> f32 {
+    1.0
+}
+
+fn default_sight() -> f32 {
+    16.0
+}

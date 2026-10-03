@@ -22,6 +22,8 @@ pub enum DamageKind {
     Drowning,
     Lava,
     Starvation,
+    /// Hit by a creature.
+    Mob,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

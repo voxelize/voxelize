@@ -358,5 +358,66 @@
     "type": "food",
     "food": 4,
     "value": 3
+  },
+  {
+    "id": 51,
+    "key": "raw_meat",
+    "name": "Raw Meat",
+    "type": "food",
+    "food": 3,
+    "value": 3
+  },
+  {
+    "id": 52,
+    "key": "cooked_meat",
+    "name": "Roast Meat",
+    "type": "food",
+    "food": 8,
+    "value": 8
+  },
+  {
+    "id": 53,
+    "key": "raw_poultry",
+    "name": "Raw Fowl",
+    "type": "food",
+    "food": 2,
+    "value": 2
+  },
+  {
+    "id": 54,
+    "key": "cooked_poultry",
+    "name": "Roast Fowl",
+    "type": "food",
+    "food": 6,
+    "value": 6
+  },
+  {
+    "id": 55,
+    "key": "feather",
+    "name": "Feather",
+    "type": "material",
+    "value": 1
+  },
+  {
+    "id": 56,
+    "key": "hide",
+    "name": "Hide",
+    "type": "material",
+    "value": 3
+  },
+  {
+    "id": 57,
+    "key": "rotten_flesh",
+    "name": "Spoiled Flesh",
+    "type": "food",
+    "food": 1,
+    "value": 0
+  },
+  {
+    "id": 58,
+    "key": "silk_thread",
+    "name": "Silk Thread",
+    "type": "material",
+    "value": 2
   }
 ]

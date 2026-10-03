@@ -39,6 +39,7 @@ pub struct ContentSource {
     pub processing: Vec<ProcessingRecipeDef>,
     pub biomes: Vec<BiomeDef>,
     pub ores: Vec<OreDef>,
+    pub mobs: Vec<MobDef>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -122,6 +123,7 @@ impl ContentSource {
             recipes: read_kind(root, "recipes")?,
             biomes: read_kind(root, "biomes")?,
             ores: read_kind(root, "ores")?,
+            mobs: read_kind(root, "mobs")?,
             ..Default::default()
         };
         for file in read_files::<ProcessingFile>(root, "processing")? {
@@ -223,6 +225,8 @@ impl Content {
         let stations = index_unique(&source.stations, "station", |s| &s.key, &mut errors);
         index_unique(&source.biomes, "biome", |b| &b.key, &mut errors);
         index_unique(&source.ores, "ore", |o| &o.key, &mut errors);
+        let biome_keys = index_unique(&source.biomes, "biome-ref", |b| &b.key, &mut ValidationErrors::default());
+        index_unique(&source.mobs, "mob", |m| &m.key, &mut errors);
 
         let has_block = |key: &str| blocks_by_key.contains_key(key);
         let has_item = |key: &str| items_by_key.contains_key(key);
@@ -495,6 +499,45 @@ impl Content {
             }
         }
 
+        for mob in &source.mobs {
+            let who = format!("mob {:?}", mob.key);
+            if !(mob.health > 0.0) || !(mob.speed > 0.0) {
+                errors.push(format!("{who} needs positive health and speed"));
+            }
+            if mob.size.iter().any(|v| !(*v > 0.0 && *v <= 4.0)) {
+                errors.push(format!("{who} size must be within (0, 4] blocks"));
+            }
+            if mob.kind != MobKind::Passive && mob.damage <= 0.0 {
+                errors.push(format!("{who} can attack but deals no damage"));
+            }
+            if mob.spawn.group_min == 0 || mob.spawn.group_min > mob.spawn.group_max {
+                errors.push(format!("{who} spawn group must satisfy 1 <= min <= max"));
+            }
+            for key in &mob.spawn.on {
+                if !has_block(key) {
+                    errors.push(format!("{who} spawns on unknown block {key:?}"));
+                }
+            }
+            for key in &mob.spawn.biomes {
+                if !biome_keys.contains_key(key) {
+                    errors.push(format!("{who} spawns in unknown biome {key:?}"));
+                }
+            }
+            for drop in &mob.drops {
+                if !has_item(&drop.item) {
+                    errors.push(format!("{who} drops unknown item {:?}", drop.item));
+                }
+            }
+            if let Some(item) = &mob.breed_item {
+                if !has_item(item) {
+                    errors.push(format!("{who} breeds with unknown item {item:?}"));
+                }
+            }
+            if mob.model.is_empty() {
+                errors.push(format!("{who} has no model"));
+            }
+        }
+
         if !errors.0.is_empty() {
             return Err(errors);
         }
@@ -543,6 +586,14 @@ impl Content {
         &self.source.ores
     }
 
+    pub fn mobs(&self) -> &[MobDef] {
+        &self.source.mobs
+    }
+
+    pub fn mob(&self, key: &str) -> Option<&MobDef> {
+        self.source.mobs.iter().find(|m| m.key == key)
+    }
+
     pub fn block(&self, key: &str) -> Option<&BlockDef> {
         self.blocks_by_key.get(key).map(|&i| &self.source.blocks[i])
     }
@@ -589,6 +640,7 @@ impl Content {
             ("processing", self.source.processing.len()),
             ("biomes", self.source.biomes.len()),
             ("ores", self.source.ores.len()),
+            ("mobs", self.source.mobs.len()),
         ])
     }
 }
