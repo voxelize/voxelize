@@ -82,7 +82,7 @@ engine, engine code never imports from `platform/` (enforced by
 platform/
   Cargo.toml              Rust workspace of the game (consumer of the engine)
   apps/
-    web-client/           browser game client (TS, @voxelize/core)          [phase 3]
+    web-client/           browser game client (TS, @voxelize/core)
     website/              public site, world map                            [phase 9]
     admin-panel/          administration UI                                 [phase 9]
   backend/
@@ -98,7 +98,9 @@ platform/
                           processing, biomes, ores — later mobs, structures, quests
   infrastructure/         Docker, Nginx, MySQL, Redis, MinIO, backup, monitoring
   docs/                   this documentation
-  tests/                  cross-language fixtures and load-test bots
+  tests/
+    fixtures/             cross-language test vectors
+    bots/                 protocol-level bots: smoke test and load generation
 ```
 
 The specification's `engine/` tree (voxel, rendering, networking, physics,
@@ -157,7 +159,7 @@ transfers, mint and burn, audit log, and invariant verification. Domain
 services live in `app/Services/<Domain>`; controllers stay thin; every
 state-changing economic operation goes through `LedgerService`.
 
-### 3.6 Web client (`apps/web-client`) — phase 3
+### 3.6 Web client (`apps/web-client`)
 
 Built on `@voxelize/core`. Logs in against the API, requests a ticket,
 connects to `/ws/?ticket=…`, renders with WebGL2 (WebGPU when the engine's

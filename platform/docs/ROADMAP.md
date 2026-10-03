@@ -37,12 +37,19 @@ cliff-free borders, trees.
 Remaining: rivers, ravines, aquifers/underground lakes, dungeons and rare
 chambers (with structures, phase 11), biome tints sent to clients.
 
-## Phase 3 — Player controller and web client ⬜
+## Phase 3 — Player controller and web client 🟡
 
-`apps/web-client` on `@voxelize/core`: login, ticket, connect, first-person
-camera, walk/run/sprint/jump/swim/crouch/fall/climb, creative flight, block
-textures (original art), settings (sensitivity, FOV, UI scale, audio,
-controls, graphics, render distance), touch controls, PWA manifest.
+Done: `apps/web-client` on `@voxelize/core` — sign-in/registration against
+the API, a fresh single-use ticket per (re)connect, first-person rigid-body
+controls (walk, sprint, jump, swim, crouch, fall, climb; flight only in
+creative), original procedural block textures for every texture the pack
+names, own sky palette, hotbar from the server inventory, hold-to-mine with
+progress from the shared mining rule, place on right click, recipe book
+(C) crafting through the server, PWA manifest. Verified in headless
+Chromium against the running stack.
+Remaining: settings screen (sensitivity, FOV, UI scale, audio, controls,
+graphics, render distance), touch controls, full inventory screen, third
+person camera, service worker for offline shell.
 
 ## Phase 4 — Mining and building 🟡
 
@@ -66,7 +73,8 @@ pick-up of item entities, checkpointing to `inventories`/`inventory_slots`.
 ## Phase 6 — Persistence 🟡
 
 Done: persistent world directory per world, atomic chunk writes, pristine
-chunks regenerated from the seed, survives restarts.
+chunks regenerated from the seed, player inventories saved atomically;
+verified that block edits and inventories survive a server restart.
 Remaining: player state (`player_world_states`), region files, write-ahead
 log for sensitive block entities, incremental world backups to object
 storage, point-in-time MySQL backups.
@@ -75,9 +83,12 @@ storage, point-in-time MySQL backups.
 
 Done: authenticated sessions via single-use game tickets; identity bound to
 the player's public id; AOI and replication from the engine.
+Done: protocol-level bot client, end-to-end smoke test and load generator
+(`tests/bots`); 30 concurrent bots digging, placing and chatting with no
+server errors.
 Remaining: gateway for multiple worlds, presence in Redis, movement
-anti-cheat signals, bot load-test client (hundreds of synthetic players:
-movement, mining, building, chat, trading).
+anti-cheat signals, trading in the load mix, larger load runs with tick
+metrics.
 
 ## Phase 8 — Survival ⬜
 

@@ -29,6 +29,11 @@ fn fail(message: impl std::fmt::Display) -> ! {
     std::process::exit(1);
 }
 
+/// Game ticks in one day (docs/GAME_TICK.md).
+const DAY_TICKS: u64 = 24_000;
+/// Fraction of the day a brand-new world starts at (07:12).
+const START_TIME_OF_DAY: f32 = 0.3;
+
 fn build_world(config: &GameConfig, content: Arc<Content>) -> World {
     let save_dir = config.save_dir.join(&config.world);
     let world_config = WorldConfig::new()
@@ -38,6 +43,10 @@ fn build_world(config: &GameConfig, content: Arc<Content>) -> World {
         .preload_radius(config.preload_radius)
         .saving(true)
         .save_dir(&save_dir.to_string_lossy())
+        // A new world starts in the morning; afterwards the clock persists
+        // with the world's stats.
+        .default_time(START_TIME_OF_DAY * DAY_TICKS as f32)
+        .time_per_day(DAY_TICKS)
         .build();
 
     let generator = Generator::new(
@@ -117,8 +126,16 @@ async fn main() -> std::io::Result<()> {
         "content": summary,
         "version": env!("CARGO_PKG_VERSION"),
     });
+    // The client renders names, textures, mining progress and recipes from
+    // the same validated pack the server enforces.
+    let content_json = json!({
+        "blocks": content.blocks(),
+        "items": content.items(),
+        "recipes": content.recipes(),
+    });
     Voxelize::run_with(server, move |voxelize| {
         let info = info.clone();
+        let content_json = content_json.clone();
         App::new()
             .wrap(Cors::permissive())
             .configure(voxelize.configure())
@@ -127,6 +144,13 @@ async fn main() -> std::io::Result<()> {
                 web::get().to(move || {
                     let info = info.clone();
                     async move { HttpResponse::Ok().json(info) }
+                }),
+            )
+            .route(
+                "/platform/content",
+                web::get().to(move || {
+                    let content_json = content_json.clone();
+                    async move { HttpResponse::Ok().json(content_json) }
                 }),
             )
     })

@@ -90,6 +90,25 @@ jobs:
           DB_PASSWORD: root
         run: php vendor/bin/phpunit
 
+  web:
+    name: platform web client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      # Pure client modules (mining-rule parity with the server, procedural
+      # textures covering every texture the content pack names).
+      - name: Unit tests
+        run: pnpm exec vitest --run platform/apps
+
   stack:
     name: platform stack config
     runs-on: ubuntu-latest

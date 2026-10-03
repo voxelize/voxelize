@@ -1,0 +1,267 @@
+:root {
+  --bg: #0e1116;
+  --panel: rgba(14, 17, 22, 0.88);
+  --text: #e8edf3;
+  --muted: #9aa6b2;
+  --accent: #7cc46f;
+  --danger: #ff8a7a;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+#main {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+
+.panel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(380px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 24px;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  z-index: 10;
+}
+
+.panel h1,
+.panel h2 {
+  margin: 0 0 16px;
+}
+
+#auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+#auth-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+input {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #2c333d;
+  background: #151a21;
+  color: var(--text);
+  font-size: 16px;
+}
+
+button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #0d1a0c;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.link {
+  background: none;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.register-only {
+  display: none !important;
+}
+
+body.registering .register-only {
+  display: grid !important;
+}
+
+#auth-error {
+  color: var(--danger);
+  min-height: 1em;
+  margin: 0;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(#fff, #fff) center / 2px 18px no-repeat,
+    linear-gradient(#fff, #fff) center / 18px 2px no-repeat;
+  mix-blend-mode: difference;
+}
+
+#mining {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 24px);
+  width: 80px;
+  height: 6px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+#mining-bar {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+}
+
+#status {
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  font: 13px ui-monospace, monospace;
+  text-shadow: 0 1px 2px #000;
+}
+
+#hint {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  text-shadow: 0 1px 2px #000;
+  max-width: calc(100vw - 32px);
+}
+
+#hotbar {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+}
+
+.slot {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+}
+
+.slot.selected {
+  border-color: #fff;
+}
+
+.slot img {
+  width: 30px;
+  height: 30px;
+  image-rendering: pixelated;
+}
+
+.slot .count {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+}
+
+.slot .wear {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  height: 3px;
+  background: var(--accent);
+}
+
+#toasts {
+  position: absolute;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+.toast {
+  padding: 6px 12px;
+  background: var(--panel);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+#crafting ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: grid;
+  gap: 6px;
+}
+
+#crafting li {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#crafting li button {
+  justify-self: start;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .slot {
+    width: 34px;
+    height: 34px;
+  }
+  .slot img {
+    width: 22px;
+    height: 22px;
+  }
+  #hint {
+    display: none;
+  }
+}

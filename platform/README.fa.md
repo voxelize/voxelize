@@ -18,7 +18,10 @@
 | سرور بازی Rust: دنیای دائمی، ورود فقط با بلیت، ردِ نوشتن مستقیم بلاک توسط کلاینت | `servers/game-server` | ✅ |
 | بک‌اند Laravel 13: ثبت‌نام/ورود، صدور بلیت، دفتر کل دوطرفه (Double-entry)، کیف پول، انتقال، Mint/Burn، Audit Log | `backend/laravel-api` | ✅ |
 | محیط Docker (MySQL 8، Redis، MinIO، Nginx، API، سرور بازی) | `docker-compose.yml`, `infrastructure/` | ✅ |
-| CI گیت‌هاب (تست Rust، تست Laravel روی SQLite و MySQL، تست هم‌زمانی) | `.github/workflows/platform-ci.yml` | ✅ |
+| CI گیت‌هاب (تست Rust، تست Laravel روی SQLite و MySQL، تست هم‌زمانی، تست کلاینت) | `.github/workflows/platform-ci.yml` | ✅ |
+| استخراج، ساخت، Inventory و Crafting کاملاً در سرور (اعتبارسنجی فاصله، زمان استخراج، ابزار، برخورد با بازیکن) | `servers/game-server/src/gameplay` | ✅ |
+| کلاینت وب: ورود، بلیت، رندر دنیا با تکسچرهای اختصاصی، استخراج/ساخت، نوار ابزار، دفترچه‌ی ساخت | `apps/web-client` | ✅ |
+| ربات‌های تست سرتاسری و تست بار (۳۰ ربات هم‌زمان بدون خطا) | `tests/bots` | ✅ |
 
 ## اصول غیرقابل‌مذاکره
 
@@ -31,12 +34,16 @@
 ## اجرا
 
 ```sh
+pnpm install && pnpm build && pnpm --filter @platform/web-client build
 cd platform
 cp .env.example .env     # رمزها را پر کنید (مثلاً با openssl rand -hex 32)
 docker compose up --build
 ```
 
+سپس http://localhost:8080 را باز کنید، حساب بسازید و بازی کنید.
+
 ## گام‌های بعدی
 
-نقشه‌ی راه کامل در `docs/ROADMAP.md` است. فاز بعدی: کلاینت وب (ورود، دریافت
-بلیت، اتصال، کنترل بازیکن) و استخراج/ساخت معتبرشده در سرور همراه با Inventory.
+نقشه‌ی راه کامل در `docs/ROADMAP.md` است. فازهای بعدی: Survival (سلامت، گرسنگی،
+آسیب)، کوره و ایستگاه‌های پردازش، Mobها، زمین (Land Ownership) و سپس اقتصاد
+درون‌بازی (فروشگاه، بازار، مزایده، Blueprint).

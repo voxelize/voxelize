@@ -93,4 +93,13 @@ class AuthAndTicketTest extends TestCase
             ->assertForbidden()
             ->assertJsonPath('error.code', 'account_banned');
     }
+
+    public function test_bot_provisioning_creates_usable_accounts_outside_production(): void
+    {
+        $this->artisan('bots:provision', ['count' => 2])->assertSuccessful();
+        $this->assertSame(2, User::where('email', 'like', '%@bots.invalid')->count());
+
+        $this->app['env'] = 'production';
+        $this->artisan('bots:provision', ['count' => 1])->assertFailed();
+    }
 }
