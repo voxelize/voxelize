@@ -176,6 +176,13 @@ export type FriendView = { player: string; username: string; online: boolean; wo
 export type FriendCard = { player: string; username: string };
 export type FriendLists = { friends: FriendView[]; incoming: FriendCard[]; outgoing: FriendCard[]; limit: number };
 
+export type CosmeticSlot = "outfit" | "hat";
+export type Outfit = { body: string; arms: string; legs: string };
+export type Hat = { art?: string; color?: string };
+export type Look = { outfit?: Outfit; hat?: Hat };
+export type Cosmetic = { key: string; name: string; slot: CosmeticSlot; price: number; look: Outfit | Hat };
+export type Wardrobe = { catalog: Cosmetic[]; owned: string[]; equipped: Partial<Record<CosmeticSlot, string>>; look: Look | null; currency: string };
+
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
 
 export const api = {
@@ -200,6 +207,13 @@ export const api = {
   },
 
   me: () => request<{ user: User }>("/me").then((r) => r.user),
+
+  cosmetics: {
+    get: () => request<Wardrobe>("/cosmetics"),
+    buy: (key: string) => request<Wardrobe & { balance: number }>(`/cosmetics/${encodeURIComponent(key)}/buy`, { method: "POST" }),
+    wear: (slot: CosmeticSlot, cosmetic: string | null) =>
+      request<Wardrobe>("/cosmetics/equipped", { method: "PUT", body: JSON.stringify({ slot, cosmetic }) }),
+  },
 
   friends: {
     list: () => request<FriendLists>("/friends"),

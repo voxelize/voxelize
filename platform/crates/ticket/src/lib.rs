@@ -50,6 +50,9 @@ pub struct Claims {
     pub realm: Realm,
     #[serde(default)]
     pub roles: Vec<String>,
+    /// Cosmetics the player wears (`{ "outfit", "hat" }`), shown to others.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<serde_json::Value>,
     /// Issued-at, unix seconds.
     pub iat: i64,
     /// Expiry, unix seconds.
@@ -250,6 +253,7 @@ mod tests {
             world: "main".into(),
             realm: Realm::Survival,
             roles: vec!["player".into()],
+            look: None,
             iat: now,
             exp: now + 120,
             jti: "t-1".into(),

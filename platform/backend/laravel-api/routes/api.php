@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BlueprintController;
 use App\Http\Controllers\Api\V1\ContractController;
+use App\Http\Controllers\Api\V1\CosmeticController;
 use App\Http\Controllers\Api\V1\FriendController;
 use App\Http\Controllers\Api\V1\GameTicketController;
 use App\Http\Controllers\Api\V1\GuildController;
@@ -61,6 +62,10 @@ Route::prefix('v1')->group(function () {
         Route::post('contracts/{contract}/accept', [ContractController::class, 'accept']);
         Route::post('contracts/{contract}/abandon', [ContractController::class, 'abandon']);
         Route::delete('contracts/{contract}', [ContractController::class, 'destroy']);
+
+        Route::get('cosmetics', [CosmeticController::class, 'index']);
+        Route::post('cosmetics/{cosmetic}/buy', [CosmeticController::class, 'buy'])->middleware('throttle:economy');
+        Route::put('cosmetics/equipped', [CosmeticController::class, 'equip']);
 
         Route::get('friends', [FriendController::class, 'index']);
         Route::post('friends', [FriendController::class, 'store'])->middleware('throttle:economy');

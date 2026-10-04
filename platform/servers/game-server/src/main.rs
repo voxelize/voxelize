@@ -239,15 +239,17 @@ async fn main() -> std::io::Result<()> {
     if let Some(secret) = &config.transport_secret {
         builder = builder.transport_secret(secret);
     }
-    if config.ticket_secrets.is_empty() {
+    let tickets = if config.ticket_secrets.is_empty() {
         warn!("GAME_INSECURE_DEV=1: sessions are admitted WITHOUT tickets. Never expose this process.");
+        None
     } else {
-        let verifier = Verifier::new(
+        let verifier = Arc::new(Verifier::new(
             config.ticket_secrets.clone(),
             VerifierConfig::for_world(config.world.clone()),
-        );
-        builder = builder.session_authenticator(auth::ticket_authenticator(Arc::new(verifier)));
-    }
+        ));
+        builder = builder.session_authenticator(auth::ticket_authenticator(verifier.clone()));
+        Some(verifier)
+    };
     let mut server = builder.build();
     let worlds: std::collections::HashMap<Dimension, String> = Dimension::ALL
         .into_iter()
@@ -292,6 +294,7 @@ async fn main() -> std::io::Result<()> {
             guilds: guilds.clone(),
             vaults: vaults.clone(),
             bridge: bridge.clone(),
+            tickets: tickets.clone(),
             siege_seconds: config.siege_seconds,
         };
         server
@@ -417,6 +420,7 @@ mod tests {
                 world: "main".into(),
                 realm: Realm::Survival,
                 roles: vec![],
+                look: None,
                 iat: now,
                 exp: now + 60,
                 jti: "once".into(),

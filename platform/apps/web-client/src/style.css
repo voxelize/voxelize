@@ -933,3 +933,25 @@ body.spectating #vitals {
 .friend-row button {
   margin-left: 6px;
 }
+
+.cosmetic-list {
+  list-style: none;
+  padding: 0;
+}
+
+.cosmetic-list li {
+  margin: 4px 0;
+}
+
+.cosmetic-list .swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  vertical-align: middle;
+}
+
+.cosmetic-list button {
+  margin-left: 6px;
+}

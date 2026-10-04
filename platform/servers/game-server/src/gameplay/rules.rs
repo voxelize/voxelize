@@ -78,12 +78,15 @@ pub enum IntentError {
     NotOwner,
     Busy,
     BadBlueprint,
+    /// A game ticket presented in play was not valid for this player.
+    BadTicket,
     Inventory(InventoryError),
 }
 
 impl IntentError {
     pub fn code(&self) -> &'static str {
         match self {
+            IntentError::BadTicket => "bad_ticket",
             IntentError::OutOfReach => "out_of_reach",
             IntentError::NotLoaded => "not_loaded",
             IntentError::NothingThere => "nothing_there",

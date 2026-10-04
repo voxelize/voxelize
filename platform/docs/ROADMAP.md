@@ -411,7 +411,14 @@ playing every half minute (`/api/internal/v1/presence`), so the friends
 panel (O) shows who is online and where, toasts friends coming online and
 new requests, and whispers them. Tests: FriendTest, unit tests,
 `tests/bots/friends.mjs`.
-Remaining: cosmetics, private worlds and server browser, proximity voice (WebRTC), plugin event API, mod
+Then: cosmetics — outfits (body, arm and leg colours) and hats (a crown,
+caps) bought once with Crowns (burned) and worn one per slot
+(`/api/v1/cosmetics`); the game ticket carries the look, the game server
+checks it and shows it to everyone (`platform.look`), and a look changed in
+play arrives in a fresh ticket (`platform.look.set`). The wardrobe (K)
+paints it on characters. Tests: CosmeticTest, unit tests,
+`tests/bots/cosmetics.mjs`.
+Remaining: private worlds and server browser, proximity voice (WebRTC), plugin event API, mod
 SDK.
 
 ## Definition of done (whole project)

@@ -4,6 +4,7 @@ namespace App\Services\Game;
 
 use App\Models\GameTicket;
 use App\Models\User;
+use App\Services\Social\CosmeticService;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -36,6 +37,11 @@ class TicketIssuer
             'exp' => $now + (int) config('platform.game.ticket_ttl_seconds'),
             'jti' => (string) Str::ulid(),
         ];
+
+        // What the player wears, for everyone in the world to see.
+        if ($look = app(CosmeticService::class)->look($user)) {
+            $claims['look'] = $look;
+        }
 
         $ticket = self::sign($claims, $this->signingSecret());
 

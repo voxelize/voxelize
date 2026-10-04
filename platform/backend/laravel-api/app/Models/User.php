@@ -40,6 +40,7 @@ class User extends Authenticatable
             'last_seen_at' => 'datetime',
             'password' => 'hashed',
             'roles' => 'array',
+            'cosmetics' => 'array',
         ];
     }
 

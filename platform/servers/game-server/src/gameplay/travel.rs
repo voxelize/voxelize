@@ -164,6 +164,9 @@ pub struct Dimensions {
     pub siege_seconds: f32,
     /// The market link to the backend, when there is a backend.
     pub bridge: Option<Arc<super::bridge::Bridge>>,
+    /// Checks game tickets presented in play (a new look), when tickets
+    /// are required.
+    pub tickets: Option<Arc<platform_ticket::Verifier>>,
 }
 
 impl Dimensions {
@@ -467,6 +470,7 @@ mod tests {
             guilds: Default::default(),
             vaults: Default::default(),
             bridge: None,
+            tickets: None,
             siege_seconds: 600.0,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);

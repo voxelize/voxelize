@@ -199,6 +199,18 @@ come to the posting officer; any officer of the guild may withdraw it;
 - `POST /contracts/{id}/abandon` 🔒 contractor — open again.
 - `DELETE /contracts/{id}` 🔒 poster, while untaken — refunds; `409 contract_taken`.
 
+## Cosmetics
+
+Outfits and hats from `platform.cosmetics.catalog` (config): bought once
+with Crowns, which are burned, then worn one per slot (`outfit`, `hat`).
+Game tickets carry what is worn in their `look` claim, so other players see
+it (docs/SECURITY.md); after changing it in play the client presents a
+fresh ticket to the game server (`platform.look.set`).
+
+- `GET /cosmetics` 🔒 → `{ "catalog": [{ "key", "name", "slot", "price", "look" }], "owned": [key], "equipped": { slot: key }, "look" | null, "currency" }`.
+- `POST /cosmetics/{key}/buy` 🔒 → `201` (`200` when already owned) the same plus `"balance"`; `404 unknown_cosmetic`, `422 insufficient_funds`.
+- `PUT /cosmetics/equipped` 🔒 — `{ "slot", "cosmetic": key | null }` → the same; `403 not_owned`, `404 unknown_cosmetic`, `422 bad_slot`.
+
 ## Friends
 
 One player asks another by name; the other accepts (asking someone who

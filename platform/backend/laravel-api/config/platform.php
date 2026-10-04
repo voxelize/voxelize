@@ -115,6 +115,22 @@ return [
         'daily_cap' => (int) env('REWARDS_DAILY_CAP', 300),
     ],
 
+    // Cosmetics: bought once with Crowns (burned), then worn. Outfits colour
+    // the body, arms and legs; hats are a picture the client draws (`art`)
+    // or a band of colour. Game servers check the shape of what is worn.
+    'cosmetics' => [
+        'currency' => 'CRN',
+        'catalog' => [
+            'outfit_ranger' => ['name' => 'Ranger outfit', 'slot' => 'outfit', 'price' => 40, 'look' => ['body' => '#3d6b35', 'arms' => '#2f5229', 'legs' => '#5b4630']],
+            'outfit_miner' => ['name' => 'Miner overalls', 'slot' => 'outfit', 'price' => 40, 'look' => ['body' => '#c47f17', 'arms' => '#7a7a7a', 'legs' => '#2d4a7a']],
+            'outfit_frost' => ['name' => 'Frost robe', 'slot' => 'outfit', 'price' => 80, 'look' => ['body' => '#dff3ff', 'arms' => '#a7d8f0', 'legs' => '#6aa9d8']],
+            'outfit_royal' => ['name' => 'Royal robe', 'slot' => 'outfit', 'price' => 150, 'look' => ['body' => '#5a2a82', 'arms' => '#7b3fb0', 'legs' => '#2b1240']],
+            'hat_red_cap' => ['name' => 'Red cap', 'slot' => 'hat', 'price' => 25, 'look' => ['color' => '#c0392b']],
+            'hat_straw' => ['name' => 'Straw hat', 'slot' => 'hat', 'price' => 30, 'look' => ['color' => '#e3c16f']],
+            'hat_crown' => ['name' => 'Crown', 'slot' => 'hat', 'price' => 250, 'look' => ['art' => 'crown']],
+        ],
+    ],
+
     // Friends: how many, and how long after a game server last reported a
     // player they still count as online.
     'friends' => [

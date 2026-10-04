@@ -10,6 +10,7 @@ pub mod automation;
 pub mod chat;
 pub mod combat;
 pub mod containers;
+pub mod cosmetics;
 pub mod drops;
 pub mod mobs;
 mod mobs_api;
@@ -96,6 +97,8 @@ pub struct Gameplay {
     /// Siege banners standing on enemy guild land (`sieges.json`).
     sieges: guild_api::Sieges,
     chat: chat::ChatState,
+    /// What each player here wears.
+    looks: HashMap<String, cosmetics::Look>,
     /// Lit blast charges and arrows in flight.
     combat: combat::Combat,
     /// The overworld's weather (`weather.json`).
@@ -122,6 +125,7 @@ impl Gameplay {
             trades: trade::Trades::load(world_dir)?,
             sieges: guild_api::Sieges::load(world_dir)?,
             chat: Default::default(),
+            looks: HashMap::new(),
             combat: combat::Combat::default(),
             weather: weather::Weather::load(world_dir)?,
             weather_changed: true,
@@ -559,6 +563,7 @@ fn on_join(world: &mut World, entity: Entity) {
     send_inventory(world, &id);
     send_vitals(world, &id, None);
     modes::on_join(world, &id);
+    cosmetics::on_join(world, &id);
     {
         let done = world
             .ecs()
@@ -609,7 +614,9 @@ fn on_leave(world: &mut World, entity: Entity) {
         .get(entity)
         .map(|p| [p.0 .0, p.0 .1, p.0 .2]);
     persist_at(world, &id, position);
-    world.ecs().write_resource::<Gameplay>().players.remove(&id);
+    let mut g = world.ecs().write_resource::<Gameplay>();
+    g.players.remove(&id);
+    g.looks.remove(&id);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -641,6 +648,7 @@ pub fn install(
     modes::install(world);
     work::install(world);
     chat::install(world);
+    cosmetics::install(world);
     weather::install(world);
     blueprint::install(world);
     trade::install(world);

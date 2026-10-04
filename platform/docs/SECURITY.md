@@ -50,10 +50,14 @@ a password or a web token.
 
 ```
 v1.<base64url(claims JSON)>.<base64url(HMAC-SHA256(secret, "v1." + claims part))>
-claims: iss, aud, sub (player public id), name, world, realm, roles, iat, exp, jti
+claims: iss, aud, sub (player public id), name, world, realm, roles, iat, exp, jti,
+        look (optional)
 (`roles` is always `player` plus any of `moderator`, `admin` granted with
 `php artisan user:role {user} {role} [--remove]`; game servers let these roles
-set game modes)
+set game modes. `look` is what the player wears, `{ "outfit": { "body",
+"arms", "legs" }, "hat": { "art" } | { "color" } }`; game servers check
+every colour and hat picture before anyone sees it, and a look changed in
+play arrives in a fresh ticket for the same player, redeemed once)
 ```
 
 The verifier checks, in order: version prefix, signature against every

@@ -14,6 +14,8 @@ import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { AchievementsPanel } from "./achievements";
 import { ChatBox, type ChatLine } from "./chat";
+import { applyLook, sanitizeLook, WardrobePanel } from "./cosmetics";
+import type { Look } from "./api";
 import { FriendsPanel } from "./friends";
 import { NpcPanel, type Offer } from "./npc";
 import { rewardLine, WorkPanel, type WorkState } from "./work";
@@ -85,6 +87,7 @@ const MESSAGES: Record<string, string> = {
   creative_only: "Only in creative worlds",
   no_arrows: "You have no arrows",
   not_at_war: "Your guilds are not at war",
+  bad_ticket: "Could not change your look; try again",
   siege_underway: "A siege already stands on that land",
   not_in_settlement: "Town halls and vaults stand on guild land in a settlement",
 };
@@ -92,13 +95,28 @@ const MESSAGES: Record<string, string> = {
 class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
   /** Players in spectator mode: never drawn. */
   readonly spectators = new Set<string>();
+  /** What each player wears (`platform.look`), painted when their body exists. */
+  readonly looks = new Map<string, Look>();
 
-  createPeer = () => new VOXELIZE.Character();
+  createPeer = (id: string) => {
+    const character = new VOXELIZE.Character();
+    const look = this.looks.get(id);
+    if (look) applyLook(character, look);
+    return character;
+  };
 
   onPeerUpdate = (object: VOXELIZE.Character, data: { position: number[]; direction: number[] }, info: { id: string }) => {
     object.set(data.position as VOXELIZE.Coords3, data.direction as VOXELIZE.Coords3);
     object.visible = !this.spectators.has(info.id);
   };
+
+  /** Someone's look changed: remember it and repaint them if they are here. */
+  dress(id: string, look: Look | null) {
+    if (look) this.looks.set(id, look);
+    else this.looks.delete(id);
+    const peer = this.map.get(id);
+    if (peer) applyLook(peer, look);
+  }
 }
 
 export async function startGame(content: Content, getTicket: () => Promise<string>, hud: Hud) {
@@ -384,6 +402,25 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (event.code !== "KeyJ" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
     work.toggle();
     if (work.isOpen) controls.unlock();
+  });
+
+  // Wardrobe (K): buy and wear outfits and hats; everyone sees them.
+  events.on<{ player: string; look: unknown }>("platform.look", ({ player, look }) => {
+    const clean = sanitizeLook(look);
+    if (player === players.ownID) applyLook(self, clean);
+    else players.dress(player, clean);
+  });
+  const wardrobe = new WardrobePanel({
+    notify: (text) => hud.toast(text),
+    // The new look travels in a fresh ticket the server checks.
+    dressed: async () => {
+      method.call("platform.look.set", { ticket: await getTicket() });
+    },
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyK" || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    wardrobe.toggle();
+    if (wardrobe.isOpen) controls.unlock();
   });
 
   // Friends (O): requests, who is online, whisper them.

@@ -28,6 +28,7 @@ pub fn identity_for(claims: &Claims) -> SessionIdentity {
             "realm": claims.realm,
             "roles": claims.roles,
             "world": claims.world,
+            "look": claims.look,
         }),
     }
 }
