@@ -2,6 +2,7 @@
 
 use App\Services\Economy\EconomyException;
 use App\Services\Land\LandException;
+use App\Services\Market\MarketException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
         $exceptions->render(fn (EconomyException $e) => response()->json([
+            'error' => ['code' => $e->errorCode, 'message' => $e->getMessage()],
+        ], $e->status));
+        $exceptions->render(fn (MarketException $e) => response()->json([
             'error' => ['code' => $e->errorCode, 'message' => $e->getMessage()],
         ], $e->status));
         $exceptions->render(fn (LandException $e) => response()->json([

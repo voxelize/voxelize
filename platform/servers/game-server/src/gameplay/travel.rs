@@ -157,6 +157,8 @@ pub struct Dimensions {
     pub links: Arc<std::sync::Mutex<PortalLinks>>,
     /// The world's land claims, shared by every dimension.
     pub land: super::land::SharedLand,
+    /// The market link to the backend, when there is a backend.
+    pub bridge: Option<Arc<super::bridge::Bridge>>,
 }
 
 impl Dimensions {
@@ -422,6 +424,7 @@ mod tests {
             worlds: Arc::new(HashMap::new()),
             links: Arc::new(std::sync::Mutex::new(PortalLinks::in_memory())),
             land: Default::default(),
+            bridge: None,
         };
         assert_eq!(dims.through_rift(), Dimension::Overworld);
         assert_eq!(dims.world_of(Dimension::Overworld), None);

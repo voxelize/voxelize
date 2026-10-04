@@ -15,7 +15,10 @@ pub mod inventory;
 mod items_api;
 mod plates;
 pub use plates::PlateSystem;
+pub mod bridge;
 pub mod land;
+pub mod market;
+pub use market::MarketSystem;
 pub mod travel;
 pub use land::LandNoticeSystem;
 pub use travel::{Dimensions, PortalSystem};
@@ -431,24 +434,29 @@ fn on_join(world: &mut World, entity: Entity) {
         }
         warn!("player {id} is in {dimension:?}, which this server does not host");
     }
-    let (mut inventory, mut vitals, armor, offhand, position, arrival) = match record {
-        Some(r) => (
-            r.inventory,
-            r.vitals,
-            r.armor,
-            r.offhand,
-            r.position,
-            r.arrival,
-        ),
-        None => (
-            Inventory::default(),
-            Vitals::default(),
-            Vec::new(),
-            None,
-            None,
-            None,
-        ),
-    };
+    let (mut inventory, mut vitals, armor, offhand, position, arrival, outbox, delivered) =
+        match record {
+            Some(r) => (
+                r.inventory,
+                r.vitals,
+                r.armor,
+                r.offhand,
+                r.position,
+                r.arrival,
+                r.outbox,
+                r.delivered,
+            ),
+            None => (
+                Inventory::default(),
+                Vitals::default(),
+                Vec::new(),
+                None,
+                None,
+                None,
+                Vec::new(),
+                Vec::new(),
+            ),
+        };
     {
         let mut gameplay = world.ecs().write_resource::<Gameplay>();
         let dropped = inventory.normalize(gameplay.rules.content());
@@ -464,6 +472,7 @@ fn on_join(world: &mut World, entity: Entity) {
         }
         state.offhand = offhand;
         state.travel.arrival = arrival.clone();
+        state.market = market::MarketState::restore(outbox, delivered);
         // Joining inside a portal never sends the player straight on.
         state.travel.blocked = true;
         state.travel.settle = travel::SETTLE_SECONDS;
@@ -522,6 +531,7 @@ pub fn install(
     )?);
     items_api::install(world);
     mobs_api::install(world);
+    market::install(world);
     world.set_client_modifier(on_join);
     world.set_client_leave_modifier(on_leave);
 

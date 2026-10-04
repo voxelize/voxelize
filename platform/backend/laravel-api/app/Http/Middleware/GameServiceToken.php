@@ -20,6 +20,13 @@ class GameServiceToken
             return response()->json(['error' => ['code' => 'unauthorized', 'message' => 'Game service token required.']], 401);
         }
 
-        return $next($request);
+        $response = $next($request);
+        // Game servers read bodies by length, whatever serves PHP.
+        $content = $response->getContent();
+        if (is_string($content) && ! $response->headers->has('Content-Length')) {
+            $response->headers->set('Content-Length', (string) strlen($content));
+        }
+
+        return $response;
     }
 }

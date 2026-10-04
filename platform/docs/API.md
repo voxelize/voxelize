@@ -95,6 +95,48 @@ Roles in the game: owner, manager and builder may build, open containers
 and use switches; visitors may use switches; everyone else may do what the
 land's `permissions` allow.
 
+## Market
+
+Goods are listed from the game (`platform.market.list`, NETWORK_PROTOCOL.md):
+the game server takes them from the seller's inventory and hands them to
+the backend. Everything else is here. Prices are whole Crowns; a 5 % fee
+(`MARKET_FEE_BPS`) goes to `system:fees` on every sale.
+
+### `GET /market/listings?world=main[&item=key][&kind=fixed|auction][&mine=1]` 🔒
+Open listings, cheapest first (with `mine=1`: your listings in every
+state, newest first): `{ "listings": [Listing] }` where Listing is
+`{ "id", "kind", "world", "item", "count", "durability", "currency", "price", "buyout", "current_bid", "bid_count", "minimum_bid", "seller": { "id", "name" }, "status", "ends_at" }`.
+
+### `GET /market/listings/{id}` 🔒
+`{ "listing": Listing }`.
+
+### `POST /market/listings/{id}/buy` 🔒
+Buys a fixed-price listing or an auction at its buyout, in one ledger
+transaction (buyer, seller, fee); a standing bid is refunded. The goods
+become a delivery to the buyer. `201 { "listing", "replayed": false, "balance" }`;
+a retry by the same buyer answers `200` with `"replayed": true` (a listing
+is bought once, so no key is needed). Errors: `409 listing_closed`,
+`422 own_listing | not_buyable | insufficient_funds`.
+
+### `POST /market/listings/{id}/bids` 🔒
+Header `Idempotency-Key` (required). `{ "amount": 150 }`. Locks the amount
+in the listing's escrow and refunds the previous bidder. The minimum is the
+opening price, then the current bid plus 5 % (at least 1); a bid in the last
+two minutes extends the auction to two minutes. Errors: `422 bid_too_low |
+already_highest | use_buyout | not_auction | own_listing | insufficient_funds`,
+`409 listing_closed | idempotency_conflict`.
+
+### `DELETE /market/listings/{id}` 🔒 seller
+Cancels; the goods become a delivery back to the seller. `409 has_bids`
+once an auction has bids.
+
+### `GET /deliveries` 🔒
+Goods on their way to you: `{ "deliveries": [{ "id", "world", "item", "count", "reason" }] }`.
+They are handed over in that world when you are online with room.
+
+`php artisan market:settle` (every minute) ends auctions (seller paid from
+escrow, goods to the winner) and expires unsold listings (goods back).
+
 ## Internal API (game servers only)
 
 Served on the private nginx listener (port 8081, not published); the public
@@ -108,6 +150,16 @@ every active land of the world, with an `ETag`; `If-None-Match` with it
 answers `304`. Game servers poll it (`GAME_LAND_FEED_INTERVAL_MS`, default
 5 s) and keep the last copy in `<world>/lands.json`, so a backend outage
 never lifts protection.
+
+### `POST /api/internal/v1/market/listings`
+`{ "key": outbox id, "seller": public id, "world", "kind", "item", "count", "durability"?, "price", "buyout"?, "hours"? }`
+→ `201`/`200 { "listing": { "id", "status" }, "replayed" }`. One listing per key.
+
+### `POST /api/internal/v1/deliveries/pending`
+`{ "world", "players": [public id] }` → `{ "deliveries": [{ "id", "player", "item", "count", "durability", "reason" }] }`.
+
+### `POST /api/internal/v1/deliveries/{id}/ack`
+→ `{ "delivered": true }`; idempotent.
 
 ## Conventions for new endpoints
 

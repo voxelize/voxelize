@@ -22,16 +22,18 @@ pub struct GameConfig {
     /// Secret transport (bridge) connections must present.
     pub transport_secret: Option<String>,
     pub insecure_dev: bool,
-    /// Where land claims come from; `None` only when explicitly off.
-    pub land_feed: Option<LandFeed>,
+    /// The business backend's internal API (land, market); `None` only
+    /// when explicitly off.
+    pub backend: Option<Backend>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LandFeed {
-    /// The backend's internal land feed, `…/api/internal/v1/lands`.
+pub struct Backend {
+    /// Base of the internal API, e.g. `http://nginx:8081/api/internal/v1`.
     pub url: String,
     pub token: String,
-    pub interval_ms: u64,
+    /// How often land claims are refreshed.
+    pub land_interval_ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,19 +112,20 @@ impl GameConfig {
             }
         }
 
-        // Land claims: a reachable server must either enforce them or say
-        // explicitly that this world has none (GAME_LAND_FEED_URL=off).
-        let land_feed = match env.get("GAME_LAND_FEED_URL").map(|s| s.trim()) {
+        // The backend (land claims, market): a reachable server must either
+        // use it or say explicitly that this world has none of that
+        // (GAME_BACKEND_URL=off).
+        let backend = match env.get("GAME_BACKEND_URL").map(|s| s.trim()) {
             Some("off") => None,
             None | Some("") if insecure_dev => None,
             None | Some("") => {
                 return Err(ConfigError(
-                    "GAME_LAND_FEED_URL is required (the backend's /api/internal/v1/lands, or `off` for a world without land claims)".into(),
+                    "GAME_BACKEND_URL is required (the backend's /api/internal/v1, or `off` for a world without land and market)".into(),
                 ))
             }
             Some(url) => {
                 if !url.starts_with("http://") && !url.starts_with("https://") {
-                    return Err(ConfigError(format!("GAME_LAND_FEED_URL={url:?} must be an http(s) URL")));
+                    return Err(ConfigError(format!("GAME_BACKEND_URL={url:?} must be an http(s) URL")));
                 }
                 let token = env
                     .get("GAME_SERVICE_TOKEN")
@@ -130,19 +133,19 @@ impl GameConfig {
                     .unwrap_or_default();
                 if token.len() < 32 {
                     return Err(ConfigError(
-                        "GAME_SERVICE_TOKEN of at least 32 bytes is required with a land feed".into(),
+                        "GAME_SERVICE_TOKEN of at least 32 bytes is required with a backend".into(),
                     ));
                 }
-                let interval_ms = parse(env, "GAME_LAND_FEED_INTERVAL_MS", 5000u64)?;
-                if !(200..=600_000).contains(&interval_ms) {
+                let land_interval_ms = parse(env, "GAME_LAND_FEED_INTERVAL_MS", 5000u64)?;
+                if !(200..=600_000).contains(&land_interval_ms) {
                     return Err(ConfigError(
                         "GAME_LAND_FEED_INTERVAL_MS must be within 200..=600000".into(),
                     ));
                 }
-                Some(LandFeed {
-                    url: url.to_owned(),
+                Some(Backend {
+                    url: url.trim_end_matches('/').to_owned(),
                     token,
-                    interval_ms,
+                    land_interval_ms,
                 })
             }
         };
@@ -169,7 +172,7 @@ impl GameConfig {
             ticket_secrets,
             transport_secret,
             insecure_dev,
-            land_feed,
+            backend,
         })
     }
 }
@@ -203,22 +206,20 @@ mod tests {
             ("GAME_TICKET_SECRETS", &format!("{SECRET}, {SECRET}x")),
             ("GAME_TRANSPORT_SECRET", SECRET),
             ("GAME_WORLD_SEED", "77"),
-            (
-                "GAME_LAND_FEED_URL",
-                "http://nginx:8081/api/internal/v1/lands",
-            ),
+            ("GAME_BACKEND_URL", "http://nginx:8081/api/internal/v1/"),
             ("GAME_SERVICE_TOKEN", SECRET),
         ]))
         .unwrap();
         assert_eq!(config.ticket_secrets.len(), 2);
         assert_eq!(config.seed, 77);
         assert!(!config.insecure_dev);
-        let feed = config.land_feed.unwrap();
-        assert_eq!(feed.interval_ms, 5000);
+        let backend = config.backend.unwrap();
+        assert_eq!(backend.land_interval_ms, 5000);
+        assert_eq!(backend.url, "http://nginx:8081/api/internal/v1");
     }
 
     #[test]
-    fn production_enforces_land_or_says_it_has_none() {
+    fn production_uses_the_backend_or_says_it_has_none() {
         let base = [
             ("GAME_TICKET_SECRETS", SECRET),
             ("GAME_TRANSPORT_SECRET", SECRET),
@@ -228,15 +229,15 @@ mod tests {
             pairs.extend_from_slice(extra);
             GameConfig::from_map(&env(&pairs))
         };
-        assert!(with(&[]).unwrap_err().0.contains("GAME_LAND_FEED_URL"));
-        assert!(with(&[("GAME_LAND_FEED_URL", "off")])
+        assert!(with(&[]).unwrap_err().0.contains("GAME_BACKEND_URL"));
+        assert!(with(&[("GAME_BACKEND_URL", "off")])
             .unwrap()
-            .land_feed
+            .backend
             .is_none());
-        let error = with(&[("GAME_LAND_FEED_URL", "http://api/lands")]).unwrap_err();
+        let error = with(&[("GAME_BACKEND_URL", "http://api/internal")]).unwrap_err();
         assert!(error.0.contains("GAME_SERVICE_TOKEN"));
         let error = with(&[
-            ("GAME_LAND_FEED_URL", "ftp://x"),
+            ("GAME_BACKEND_URL", "ftp://x"),
             ("GAME_SERVICE_TOKEN", SECRET),
         ])
         .unwrap_err();

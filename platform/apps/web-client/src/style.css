@@ -624,3 +624,39 @@ body.touch #hint {
 #land .danger {
   background: #8a2a22;
 }
+
+#market {
+  width: min(520px, calc(100vw - 32px));
+}
+
+#market .market-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+#market .market-tabs .active {
+  outline: 2px solid var(--text);
+}
+
+#market .market-list {
+  padding-left: 18px;
+}
+
+#market .market-list li {
+  margin: 6px 0;
+}
+
+#market .market-list button,
+#market .market-bid {
+  margin-left: 6px;
+}
+
+#market .market-bid {
+  width: 80px;
+}
+
+#market .market-note {
+  font-size: 13px;
+  opacity: 0.8;
+}

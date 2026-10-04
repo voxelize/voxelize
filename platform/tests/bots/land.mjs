@@ -39,8 +39,12 @@ const connect = async (who) => {
 const alice = await connect("alice");
 const bob = await connect("bob");
 
-// A solid block near spawn, inside land chunk (2, 2): blocks 32..47.
-const [x, z] = [40, 40];
+// A land chunk nobody holds yet (the test can run again on one backend).
+const taken = (await api(API, "/lands?world=main&dimension=overworld", { token: tokens.alice })).lands;
+let chunk;
+do chunk = [3 + Math.floor(Math.random() * 8), 3 + Math.floor(Math.random() * 8)];
+while (taken.some((l) => chunk[0] >= l.min[0] && chunk[0] <= l.max[0] && chunk[1] >= l.min[1] && chunk[1] <= l.max[1]));
+const [x, z] = [chunk[0] * 16 + 8, chunk[1] * 16 + 8];
 let y = null;
 for (let i = 0; i < 100 && y === null; i++) {
   alice.position = [x + 0.5, 100, z + 0.5];
@@ -51,14 +55,15 @@ for (let i = 0; i < 100 && y === null; i++) {
   y = alice.surface(x, z, (v) => v !== 0);
 }
 assert.ok(y !== null, "terrain at the claim");
-for (const bot of [alice, bob]) await bot.moveTo([x + 0.5, y + 1 + EYE, z + 2.5], 4);
+for (const bot of [alice, bob]) await bot.moveTo([x + 0.5, y + 1 + EYE, z + 2.5], 10);
 await sleep(5500); // join grace
 
 const tryDig = async (bot) => {
   bot.call("platform.mine.start", { voxel: [x, y, z] });
   return bot.result("mine.start");
 };
-assert.equal((await tryDig(bob)).ok, true, "unclaimed land is open to everyone");
+const open = await tryDig(bob);
+assert.equal(open.ok, true, `unclaimed land is open to everyone (${open.code})`);
 step("unclaimed ground is open to everyone");
 
 // Alice claims the chunk; the price leaves her wallet.
@@ -66,11 +71,11 @@ const before = (await api(API, "/wallets", { token: tokens.alice })).wallets.fin
 const { land } = await api(API, "/lands", {
   token: tokens.alice,
   headers: { "Idempotency-Key": randomUUID().replace(/-/g, "") },
-  body: { world: "main", dimension: "overworld", min: [2, 2], max: [2, 2], name: "Test Acre" },
+  body: { world: "main", dimension: "overworld", min: chunk, max: chunk, name: "Test Acre" },
 });
 const after = (await api(API, "/wallets", { token: tokens.alice })).wallets.find((w) => w.currency === "CRN").balance;
 assert.ok(after < before, `the claim was paid: ${before} -> ${after}`);
-step(`claimed land chunk (2, 2) for ${before - after} CRN`);
+step(`claimed land chunk (${chunk}) for ${before - after} CRN`);
 
 // The game server enforces it once the feed refreshes.
 let refused = null;
@@ -83,7 +88,8 @@ for (let i = 0; i < 40; i++) {
   await sleep(500);
 }
 assert.ok(refused, "a stranger may not dig in claimed land");
-assert.equal((await tryDig(alice)).ok, true, "the owner may");
+const owner = await tryDig(alice);
+assert.equal(owner.ok, true, `the owner may (${owner.code})`);
 step("the game server refuses a stranger and lets the owner dig");
 
 // Entering the land is announced.

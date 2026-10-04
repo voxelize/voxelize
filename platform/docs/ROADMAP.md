@@ -203,14 +203,27 @@ Remaining: guild land, resizing, selling land (marketplace phase), claim
 borders drawn in the world, actuators pushing blocks across a border,
 protecting animals inside claims.
 
-## Phase 14 — Trading and escrow ⬜
+## Phase 14 — Trading and escrow 🟡
 
-Atomic trade window, escrow accounts, contracts with locked rewards.
+Done: escrow accounts in the ledger (`escrow:<ref>:<CUR>`), used by
+auction bids (lock, refund on outbid, release to the seller at the end).
+Remaining: the direct player-to-player trade window, contracts with locked
+rewards.
 
-## Phase 15 — Marketplace, shops, auctions ⬜
+## Phase 15 — Marketplace, shops, auctions 🟡
 
-Listings with goods in escrow, orders, fees to `system:fees`, player shops
-in-world, auction house with bid holds.
+Done: the market — fixed-price listings and auctions with optional buyout,
+listed from the game with the goods in the backend's custody (outbox in the
+seller's record, idempotent hand-over), bought or bid on through the API,
+sales as one ledger transaction (buyer or escrow, seller, 5 % fee to
+`system:fees`), bids locked in escrow with outbid refunds and anti-sniping,
+`market:settle` every minute, deliveries handed over in the game exactly
+once (remembered ids, then acknowledgement), cancellation and expiry
+returning goods; web client market panel (M): browse, buy, bid, sell the
+held stack, my listings, deliveries. Tests: 6 backend feature tests, game
+server unit tests, client helpers, `tests/bots/market.mjs` end to end.
+Remaining: partial purchases of a stack, player shops in the world, price
+history and search by item name, guild sellers.
 
 ## Phase 16 — Blueprint creator economy ⬜
 

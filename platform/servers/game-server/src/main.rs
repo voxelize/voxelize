@@ -150,6 +150,11 @@ fn build_world(
                 "platform-land-notices",
                 &["platform-portals"],
             )
+            .with(
+                gameplay::MarketSystem::default(),
+                "platform-market",
+                &["platform-land-notices"],
+            )
     });
     world
 }
@@ -209,20 +214,27 @@ async fn main() -> std::io::Result<()> {
         gameplay::land::load_cached(&world_dir)
             .unwrap_or_else(|e| fail(format!("cannot load cached land claims: {e}"))),
     ));
-    match &config.land_feed {
-        Some(_) => info!("land: enforcing claims from the backend"),
-        None => warn!("land: no land feed; this world has no land claims"),
+    match &config.backend {
+        Some(b) => info!("backend: {} (land claims, market)", b.url),
+        None => warn!("backend off: this world has no land claims and no market"),
     }
     let links = Arc::new(std::sync::Mutex::new(
         gameplay::travel::PortalLinks::load(&config.save_dir.join(&config.world))
             .unwrap_or_else(|e| fail(format!("cannot load portal links: {e}"))),
     ));
+    // The market link: requests are queued now and sent once the server's
+    // async runtime runs.
+    let bridge = config
+        .backend
+        .as_ref()
+        .map(|b| gameplay::bridge::Bridge::start(b.url.clone(), b.token.clone(), &config.world));
     for dimension in Dimension::ALL {
         let dimensions = gameplay::Dimensions {
             current: dimension,
             worlds: worlds.clone(),
             links: links.clone(),
             land: land.clone(),
+            bridge: bridge.clone(),
         };
         server
             .add_world(build_world(&config, content.clone(), dimensions))
@@ -252,12 +264,12 @@ async fn main() -> std::io::Result<()> {
         "recipes": content.recipes(),
         "mobs": content.mobs(),
     });
-    if let Some(feed) = config.land_feed.clone() {
+    if let Some(backend) = config.backend.clone() {
         actix_web::rt::spawn(gameplay::land::poll(
             gameplay::land::FeedConfig {
-                url: format!("{}?world={}", feed.url, config.world),
-                token: feed.token,
-                interval: std::time::Duration::from_millis(feed.interval_ms),
+                url: format!("{}/lands?world={}", backend.url, config.world),
+                token: backend.token,
+                interval: std::time::Duration::from_millis(backend.land_interval_ms),
                 cache_dir: world_dir.clone(),
             },
             land.clone(),

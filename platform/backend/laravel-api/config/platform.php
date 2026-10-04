@@ -48,6 +48,19 @@ return [
         'dimensions' => ['overworld', 'underworld'],
     ],
 
+    'market' => [
+        'currency' => 'CRN',
+        // Platform fee on every sale, in basis points of the price, to the
+        // system:fees account.
+        'fee_bps' => (int) env('MARKET_FEE_BPS', 500),
+        // A new bid beats the current one by at least this share (and 1).
+        'min_increment_bps' => 500,
+        'max_price' => 1_000_000_000,
+        'min_hours' => 1,
+        'max_hours' => 168,
+        'default_hours' => 48,
+    ],
+
     // Calls from game servers to /api/internal/*: a shared bearer token on
     // the private network only (nginx refuses that path publicly).
     'internal' => [

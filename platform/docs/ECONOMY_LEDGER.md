@@ -76,9 +76,9 @@ and the sum of all account balances is exactly zero (checked by `verify()`).
 | `transfer` | payer wallet −a, payee wallet +a | transferable currencies, distinct players, key scoped per payer |
 | `mint` | mint −a, wallet +a | gameplay rewards (game server, via internal API) and audited admin grants (`economy:grant`) only |
 | `burn` | wallet −a, burn +a | repairs, fast travel, land upkeep, NPC services, cosmetics |
-| `fee` *(phase 15)* | payer −a, fees +a | marketplace fees |
-| `escrow_lock` / `escrow_release` / `escrow_refund` *(phase 14–16)* | wallet ↔ escrow | contracts, auctions, trade windows |
-| `sale` *(phase 15–16)* | buyer −p, seller +(p−f−r), fees +f, creator +r | one transaction, so royalty and fee can never be skipped |
+| `fee` *(phase 15)* | payer −a, fees +a | marketplace fees (today the fee is a leg of `sale`) |
+| `escrow_lock` / `escrow_release` / `escrow_refund` ✅ auctions | wallet ↔ escrow | a bid locks the bidder's money in `escrow:listing:<id>`; an outbid is refunded in the same database transaction |
+| `sale` ✅ market | buyer (or escrow) −p, seller +(p−f−r), fees +f, creator +r | one transaction, so royalty and fee can never be skipped; the fee leg is left out when it rounds to 0 |
 
 Example — a blueprint sale of 1 000 CRN with a 10 % platform share:
 

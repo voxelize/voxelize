@@ -1,0 +1,514 @@
+//! The market as the game server sees it: taking goods from a seller's
+//! inventory into a listing, and handing deliveries over.
+//!
+//! Custody is never ambiguous. Listing removes the goods and records an
+//! outbox entry in the same atomic player-record save; the entry leaves
+//! the record only when the backend confirms the listing (the goods are
+//! then in the backend's custody) or refuses it (the goods come back). A
+//! delivery is applied by adding the goods and remembering its id in that
+//! same record, and only then acknowledged; a delivery seen again is just
+//! acknowledged again.
+
+use std::collections::{HashSet, VecDeque};
+
+use platform_ticket::Realm;
+use serde::Deserialize;
+use serde_json::json;
+use voxelize::{ClientFilter, Event, PositionComp, World};
+
+use super::bridge::{OutboxEntry, Request, Response};
+use super::inventory::Stack;
+use super::rules::{IntentError, PlayerState, Rules};
+use super::{
+    now_ms, parse, persist, reply, send_inventory, with_player, Gameplay, INVENTORY_EVENT,
+};
+
+/// Market notices for one player: `{ "listed" | "rejected" | "received" | "waiting": {...} }`.
+pub const MARKET_EVENT: &str = "platform.market";
+/// How many delivered ids a player record remembers.
+pub const DELIVERED_MEMORY: usize = 256;
+pub const MAX_PRICE: u64 = 1_000_000_000;
+pub const MAX_HOURS: u32 = 168;
+/// Seconds between delivery checks for the players in a world.
+const POLL_SECONDS: f32 = 3.0;
+/// Seconds before a listing that failed in transit is sent again.
+const RETRY_SECONDS: f32 = 5.0;
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MarketState {
+    /// Listings not yet confirmed by the backend (saved with the record).
+    pub outbox: Vec<OutboxEntry>,
+    /// Ids of deliveries already applied (saved with the record).
+    pub delivered: VecDeque<String>,
+    in_flight: HashSet<String>,
+    retry_in: f32,
+    told_full: HashSet<String>,
+}
+
+impl MarketState {
+    pub fn restore(outbox: Vec<OutboxEntry>, delivered: Vec<String>) -> Self {
+        Self {
+            outbox,
+            delivered: delivered.into(),
+            ..Default::default()
+        }
+    }
+
+    fn remember(&mut self, delivery: &str) {
+        self.delivered.push_back(delivery.to_owned());
+        while self.delivered.len() > DELIVERED_MEMORY {
+            self.delivered.pop_front();
+        }
+    }
+}
+
+fn fixed() -> String {
+    "fixed".to_owned()
+}
+
+fn default_hours() -> u32 {
+    48
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListPayload {
+    pub slot: usize,
+    pub count: u32,
+    pub price: u64,
+    #[serde(default = "fixed")]
+    pub kind: String,
+    #[serde(default)]
+    pub buyout: Option<u64>,
+    #[serde(default = "default_hours")]
+    pub hours: u32,
+}
+
+/// Take goods from a slot into a new outbox entry `id`. Creative goods
+/// never enter the survival economy.
+pub fn list(
+    rules: &Rules,
+    player: &mut PlayerState,
+    p: &ListPayload,
+    id: String,
+) -> Result<OutboxEntry, IntentError> {
+    if player.vitals.is_dead() {
+        return Err(IntentError::Dead);
+    }
+    if player.realm != Realm::Survival {
+        return Err(IntentError::SurvivalOnly);
+    }
+    let valid = matches!(p.kind.as_str(), "fixed" | "auction")
+        && (1..=MAX_PRICE).contains(&p.price)
+        && (1..=MAX_HOURS).contains(&p.hours)
+        && match (p.kind.as_str(), p.buyout) {
+            ("fixed", Some(_)) => false,
+            (_, Some(b)) => b > p.price && b <= MAX_PRICE,
+            _ => true,
+        };
+    if !valid {
+        return Err(IntentError::BadListing);
+    }
+    let stack = player
+        .inventory
+        .get(p.slot)
+        .cloned()
+        .ok_or(IntentError::Inventory(
+            super::inventory::InventoryError::EmptySlot,
+        ))?;
+    let item = rules
+        .content()
+        .item_by_id(stack.item)
+        .ok_or(IntentError::BadListing)?
+        .key
+        .clone();
+    let taken = player.inventory.take(p.slot, p.count)?;
+    let entry = OutboxEntry {
+        id,
+        item,
+        count: taken.count,
+        durability: taken.durability,
+        kind: p.kind.clone(),
+        price: p.price,
+        buyout: p.buyout,
+        hours: p.hours,
+    };
+    player.market.outbox.push(entry.clone());
+    Ok(entry)
+}
+
+pub fn install(world: &mut World) {
+    world.set_method_handle("platform.market.list", |world, client_id, payload| {
+        const INTENT: &str = "market.list";
+        let Some(p) = parse::<ListPayload>(world, client_id, INTENT, payload) else {
+            return;
+        };
+        let result = with_player(world, client_id, |g, _, _| {
+            if g.dimensions.bridge.is_none() {
+                return Err(IntentError::MarketUnavailable);
+            }
+            let id = format!(
+                "o{:x}{:012x}",
+                now_ms(),
+                (g.random() * 2f64.powi(48)) as u64
+            );
+            let Gameplay { rules, players, .. } = g;
+            let player = players.get_mut(client_id).expect("checked by with_player");
+            list(rules, player, &p, id)
+        });
+        match result {
+            None => super::not_joined(world, client_id, INTENT),
+            Some(Ok(entry)) => {
+                // Goods out of the inventory and into the outbox in one save.
+                persist(world, client_id);
+                reply(
+                    world,
+                    client_id,
+                    INTENT,
+                    Ok(json!({ "entry": entry.id, "item": entry.item, "count": entry.count })),
+                );
+                send_inventory(world, client_id);
+            }
+            Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
+        }
+    });
+}
+
+/// Sends outbox entries, asks for deliveries, applies what comes back.
+#[derive(Default)]
+pub struct MarketSystem {
+    last: Option<std::time::Instant>,
+    since_poll: f32,
+    polling: bool,
+}
+
+impl<'a> specs::System<'a> for MarketSystem {
+    type SystemData = (
+        specs::ReadExpect<'a, voxelize::Clients>,
+        specs::ReadStorage<'a, PositionComp>,
+        specs::WriteExpect<'a, Gameplay>,
+        specs::WriteExpect<'a, voxelize::Events>,
+    );
+
+    fn run(&mut self, (clients, positions, mut g, mut events): Self::SystemData) {
+        let now = std::time::Instant::now();
+        let dt = self
+            .last
+            .map(|l| now.duration_since(l).as_secs_f32())
+            .unwrap_or(0.0)
+            .min(0.5);
+        self.last = Some(now);
+        let Some(bridge) = g.dimensions.bridge.clone() else {
+            return;
+        };
+        let Some(world) = g
+            .dimensions
+            .world_of(g.dimensions.current)
+            .map(str::to_owned)
+        else {
+            return;
+        };
+        let content = g.rules.content_arc();
+        let position_of = |id: &str| {
+            clients
+                .get(id)
+                .and_then(|c| positions.get(c.entity))
+                .map(|p| [p.0 .0, p.0 .1, p.0 .2])
+        };
+        let notify = |events: &mut voxelize::Events, id: &str, payload: serde_json::Value| {
+            events.dispatch(
+                Event::new(MARKET_EVENT)
+                    .payload(payload)
+                    .filter(ClientFilter::Direct(id.to_owned()))
+                    .build(),
+            );
+        };
+        let inventory_of = |events: &mut voxelize::Events, id: &str, player: &PlayerState| {
+            events.dispatch(
+                Event::new(INVENTORY_EVENT)
+                    .payload(json!({ "slots": player.inventory.slots, "selected": player.inventory.selected, "realm": player.realm }))
+                    .filter(ClientFilter::Direct(id.to_owned()))
+                    .build(),
+            );
+        };
+
+        for response in bridge.take(&world) {
+            let Gameplay {
+                players,
+                store,
+                drops,
+                ..
+            } = &mut *g;
+            // Players who left are answered when they next join: every
+            // request is idempotent, so their outbox is simply sent again.
+            let online = |player: &str| clients.get(player).is_some();
+            match response {
+                Response::Listed {
+                    player: id,
+                    entry,
+                    listing,
+                } => {
+                    let Some(player) = players
+                        .get_mut(&id)
+                        .filter(|p| !p.travel.departed && online(&id))
+                    else {
+                        continue;
+                    };
+                    let Some(done) = player.market.outbox.iter().position(|e| e.id == entry) else {
+                        continue;
+                    };
+                    let done = player.market.outbox.remove(done);
+                    player.market.in_flight.remove(&entry);
+                    save(store, &id, player, position_of(&id));
+                    notify(
+                        &mut events,
+                        &id,
+                        json!({ "listed": { "listing": listing, "item": done.item, "count": done.count, "kind": done.kind, "price": done.price } }),
+                    );
+                }
+                Response::Rejected {
+                    player: id,
+                    entry,
+                    code,
+                } => {
+                    let Some(player) = players
+                        .get_mut(&id)
+                        .filter(|p| !p.travel.departed && online(&id))
+                    else {
+                        continue;
+                    };
+                    let Some(done) = player.market.outbox.iter().position(|e| e.id == entry) else {
+                        continue;
+                    };
+                    let done = player.market.outbox.remove(done);
+                    player.market.in_flight.remove(&entry);
+                    if let Some(item) = content.item(&done.item) {
+                        let stack = Stack {
+                            item: item.id,
+                            count: done.count,
+                            durability: done.durability,
+                        };
+                        if let Some(left) = player.inventory.add_stack(&content, stack) {
+                            let p = position_of(&id).unwrap_or([0.0, 80.0, 0.0]);
+                            drops.spawn(left, [p[0], p[1] - 1.0, p[2]], [0.0, 2.0, 0.0], None);
+                        }
+                    }
+                    save(store, &id, player, position_of(&id));
+                    inventory_of(&mut events, &id, player);
+                    notify(
+                        &mut events,
+                        &id,
+                        json!({ "rejected": { "code": code, "item": done.item, "count": done.count } }),
+                    );
+                }
+                Response::ListingFailed { player: id, entry } => {
+                    if let Some(player) = players.get_mut(&id) {
+                        player.market.in_flight.remove(&entry);
+                        player.market.retry_in = RETRY_SECONDS;
+                    }
+                }
+                Response::Deliveries(deliveries) => {
+                    self.polling = false;
+                    for d in deliveries {
+                        let Some(player) = players
+                            .get_mut(&d.player)
+                            .filter(|p| !p.travel.departed && online(&d.player))
+                        else {
+                            continue;
+                        };
+                        if player.market.delivered.contains(&d.id) {
+                            bridge.request(Request::Acknowledge {
+                                world: world.clone(),
+                                delivery: d.id,
+                            });
+                            continue;
+                        }
+                        let Some(item) = content.item(&d.item) else {
+                            log::warn!(
+                                "delivery {} names unknown item {:?}; left pending",
+                                d.id,
+                                d.item
+                            );
+                            continue;
+                        };
+                        let stack = Stack {
+                            item: item.id,
+                            count: d.count,
+                            durability: d.durability,
+                        };
+                        if !player.inventory.fits(&content, &stack) {
+                            if player.market.told_full.insert(d.id.clone()) {
+                                notify(
+                                    &mut events,
+                                    &d.player,
+                                    json!({ "waiting": { "item": d.item, "count": d.count } }),
+                                );
+                            }
+                            continue;
+                        }
+                        let _ = player.inventory.add_stack(&content, stack);
+                        player.market.remember(&d.id);
+                        player.market.told_full.remove(&d.id);
+                        // Applied and remembered in one save before the ack.
+                        save(store, &d.player, player, position_of(&d.player));
+                        bridge.request(Request::Acknowledge {
+                            world: world.clone(),
+                            delivery: d.id.clone(),
+                        });
+                        inventory_of(&mut events, &d.player, player);
+                        notify(
+                            &mut events,
+                            &d.player,
+                            json!({ "received": { "item": d.item, "count": d.count, "reason": d.reason } }),
+                        );
+                    }
+                }
+                Response::DeliveriesFailed => self.polling = false,
+                Response::Acknowledged { .. } | Response::AcknowledgeFailed { .. } => {}
+            }
+        }
+
+        // Send what waits, ask for deliveries now and then.
+        let mut online = Vec::new();
+        for (id, _) in clients.iter() {
+            let Some(player) = g.players.get_mut(id) else {
+                continue;
+            };
+            if player.travel.departed {
+                continue;
+            }
+            online.push(id.clone());
+            player.market.retry_in = (player.market.retry_in - dt).max(0.0);
+            if player.market.retry_in > 0.0 {
+                continue;
+            }
+            for entry in &player.market.outbox {
+                if player.market.in_flight.insert(entry.id.clone()) {
+                    bridge.request(Request::CreateListing {
+                        world: world.clone(),
+                        player: id.clone(),
+                        entry: entry.clone(),
+                    });
+                }
+            }
+        }
+        self.since_poll += dt;
+        // A lost answer must not stop polling for good.
+        if self.polling && self.since_poll > 30.0 {
+            self.polling = false;
+        }
+        if !self.polling && self.since_poll >= POLL_SECONDS && !online.is_empty() {
+            self.since_poll = 0.0;
+            self.polling = true;
+            bridge.request(Request::PendingDeliveries {
+                world,
+                players: online,
+            });
+        }
+    }
+}
+
+fn save(
+    store: &super::store::PlayerStore,
+    id: &str,
+    player: &PlayerState,
+    position: Option<[f32; 3]>,
+) {
+    if player.travel.departed {
+        return;
+    }
+    if let Err(e) = store.save(&store.record(id, player, position)) {
+        log::error!("could not save player {id}: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gameplay::inventory::Inventory;
+    use crate::gameplay::survival::Vitals;
+    use platform_content::Content;
+    use std::sync::Arc;
+
+    fn setup(realm: Realm) -> (Rules, PlayerState) {
+        let content = Arc::new(Content::load(platform_content::default_pack_dir()).unwrap());
+        let rules = Rules::new(content.clone());
+        let mut player = PlayerState::new(Inventory::default(), realm, Vitals::default());
+        player
+            .inventory
+            .add(&content, content.item("iron_ingot").unwrap().id, 10);
+        (rules, player)
+    }
+
+    fn payload(count: u32, price: u64) -> ListPayload {
+        ListPayload {
+            slot: 0,
+            count,
+            price,
+            kind: "fixed".into(),
+            buyout: None,
+            hours: 48,
+        }
+    }
+
+    #[test]
+    fn listing_moves_goods_from_the_inventory_into_the_outbox() {
+        let (rules, mut player) = setup(Realm::Survival);
+        let entry = list(&rules, &mut player, &payload(4, 120), "o1".into()).unwrap();
+        assert_eq!(
+            (entry.item.as_str(), entry.count, entry.price),
+            ("iron_ingot", 4, 120)
+        );
+        assert_eq!(player.inventory.get(0).unwrap().count, 6);
+        assert_eq!(player.market.outbox, vec![entry]);
+
+        assert_eq!(
+            list(&rules, &mut player, &payload(7, 1), "o2".into()),
+            Err(IntentError::Inventory(
+                super::super::inventory::InventoryError::BadCount
+            ))
+        );
+        assert_eq!(
+            list(&rules, &mut player, &payload(1, 0), "o3".into()),
+            Err(IntentError::BadListing)
+        );
+        let mut auction = payload(1, 10);
+        auction.kind = "auction".into();
+        auction.buyout = Some(5);
+        assert_eq!(
+            list(&rules, &mut player, &auction, "o4".into()),
+            Err(IntentError::BadListing)
+        );
+        auction.buyout = Some(50);
+        assert!(list(&rules, &mut player, &auction, "o5".into()).is_ok());
+        let mut fixed_buyout = payload(1, 10);
+        fixed_buyout.buyout = Some(50);
+        assert_eq!(
+            list(&rules, &mut player, &fixed_buyout, "o6".into()),
+            Err(IntentError::BadListing)
+        );
+        assert_eq!(player.market.outbox.len(), 2, "refusals take nothing");
+        assert_eq!(player.inventory.get(0).unwrap().count, 5);
+    }
+
+    #[test]
+    fn creative_goods_never_reach_the_market() {
+        let (rules, mut player) = setup(Realm::Creative);
+        assert_eq!(
+            list(&rules, &mut player, &payload(1, 5), "o1".into()),
+            Err(IntentError::SurvivalOnly)
+        );
+        assert_eq!(player.inventory.get(0).unwrap().count, 10);
+    }
+
+    #[test]
+    fn delivered_ids_are_remembered_up_to_a_limit() {
+        let mut m = MarketState::default();
+        for i in 0..(DELIVERED_MEMORY + 5) {
+            m.remember(&format!("d{i}"));
+        }
+        assert_eq!(m.delivered.len(), DELIVERED_MEMORY);
+        assert!(!m.delivered.contains(&"d0".to_owned()));
+        assert!(m.delivered.contains(&format!("d{}", DELIVERED_MEMORY + 4)));
+    }
+}

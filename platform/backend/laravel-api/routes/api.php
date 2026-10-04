@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\GameTicketController;
 use App\Http\Controllers\Api\V1\LandController;
+use App\Http\Controllers\Api\V1\MarketController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Internal\LandFeedController;
+use App\Http\Controllers\Internal\MarketBridgeController;
 use App\Http\Middleware\GameServiceToken;
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +35,13 @@ Route::prefix('v1')->group(function () {
         Route::delete('lands/{land}', [LandController::class, 'destroy']);
         Route::post('lands/{land}/members', [LandController::class, 'addMember']);
         Route::delete('lands/{land}/members/{player}', [LandController::class, 'removeMember']);
+
+        Route::get('market/listings', [MarketController::class, 'index']);
+        Route::get('market/listings/{listing}', [MarketController::class, 'show']);
+        Route::post('market/listings/{listing}/buy', [MarketController::class, 'buy'])->middleware('throttle:economy');
+        Route::post('market/listings/{listing}/bids', [MarketController::class, 'bid'])->middleware('throttle:economy');
+        Route::delete('market/listings/{listing}', [MarketController::class, 'destroy']);
+        Route::get('deliveries', [MarketController::class, 'deliveries']);
     });
 });
 
@@ -42,4 +51,7 @@ Route::prefix('v1')->group(function () {
  */
 Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(function () {
     Route::get('lands', LandFeedController::class);
+    Route::post('market/listings', [MarketBridgeController::class, 'createListing']);
+    Route::post('deliveries/pending', [MarketBridgeController::class, 'pending']);
+    Route::post('deliveries/{delivery}/ack', [MarketBridgeController::class, 'acknowledge']);
 });

@@ -8,6 +8,7 @@ import * as THREE from "three";
 
 import { Content, isUsableBlock, miningMillis } from "./content";
 import { LandPanel, type LandHere } from "./land";
+import { MarketPanel } from "./market";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
@@ -57,6 +58,9 @@ const MESSAGES: Record<string, string> = {
   too_fast: "",
   not_loaded: "That area is still loading",
   land_protected: "This land is protected",
+  market_unavailable: "The market is closed on this server",
+  survival_only: "Only survival goods can be sold",
+  bad_listing: "Check the price, buyout and duration",
   creative_only: "Only in creative worlds",
 };
 
@@ -231,6 +235,34 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (event.code !== "KeyL" || (event.target as HTMLElement)?.tagName === "INPUT") return;
     landPanel.toggle();
     if (landPanel.isOpen) controls.unlock();
+  });
+
+  // Market (M): selling goes through the game server, the rest to the API.
+  const marketPanel = new MarketPanel({
+    world: "main",
+    content,
+    inventory: () => hud.inventory,
+    sell: (payload) => method.call("platform.market.list", payload),
+    notify: (text) => hud.toast(text),
+  });
+  type MarketNotice = {
+    listed?: { item: string; count: number };
+    rejected?: { code: string; item: string; count: number };
+    received?: { item: string; count: number; reason: string };
+    waiting?: { item: string; count: number };
+  };
+  const itemName = (key: string) => content.itemsByKey.get(key)?.name ?? key;
+  events.on<MarketNotice>("platform.market", (n) => {
+    if (n.listed) hud.toast(`Listed ${n.listed.count} × ${itemName(n.listed.item)}`);
+    if (n.rejected) hud.toast(`Not listed (${n.rejected.code}); ${itemName(n.rejected.item)} returned`);
+    if (n.received) hud.toast(`Received ${n.received.count} × ${itemName(n.received.item)}`);
+    if (n.waiting) hud.toast(`A delivery of ${itemName(n.waiting.item)} waits for room in your inventory`);
+    marketPanel.refresh();
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyM" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    marketPanel.toggle();
+    if (marketPanel.isOpen) controls.unlock();
   });
 
   // Travel to another dimension: this tab joins that world from now on.

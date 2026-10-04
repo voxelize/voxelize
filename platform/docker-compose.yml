@@ -150,8 +150,9 @@ services:
       GAME_TICKET_SECRETS: ${GAME_TICKET_SECRETS}
       GAME_TRANSPORT_SECRET: ${GAME_TRANSPORT_SECRET:?set GAME_TRANSPORT_SECRET in .env}
       GAME_PRELOAD_RADIUS: ${GAME_PRELOAD_RADIUS:-3}
-      # Land claims from the backend, over the private nginx listener.
-      GAME_LAND_FEED_URL: http://nginx:8081/api/internal/v1/lands
+      # The backend's internal API (land claims, market), over the private
+      # nginx listener.
+      GAME_BACKEND_URL: http://nginx:8081/api/internal/v1
       GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN}
     volumes:
       - world-data:/srv/worlds

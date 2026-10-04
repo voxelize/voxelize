@@ -99,7 +99,7 @@ or echoed (wrong secrets are not printed either).
   land's public permissions); refused with `land_protected`. The game
   server enforces the backend's claims from the internal feed and keeps the
   last copy on disk; a production server must either have a feed or declare
-  `GAME_LAND_FEED_URL=off`, so land is never silently unenforced.
+  `GAME_BACKEND_URL=off`, so land is never silently unenforced.
 
 ## 5. Anti-cheat signals
 
@@ -125,6 +125,20 @@ In production the application database user has no `UPDATE`/`DELETE` grant
 on `ledger_entries`, `ledger_transactions` and `audit_logs`
 (`infrastructure/mysql/init/02-grants.sql`), so even a bug cannot rewrite
 history.
+
+### Goods between the game and the market
+
+- Creative-realm goods never enter the market (`survival_only`).
+- Custody is never ambiguous: listing removes the goods and records an
+  outbox entry in the same atomic player-record write; the entry is removed
+  only when the backend confirms the listing (one listing per outbox id,
+  however often it is resent) or refuses it (goods returned). A delivery is
+  applied by adding the goods and remembering its id in the same record
+  write, and only then acknowledged; a delivery seen again is only
+  acknowledged. Neither a crash nor a lost reply duplicates or loses goods.
+- Money for bids is locked in a per-listing escrow account; buying, bidding
+  and settling each happen in one database transaction with the listing row
+  locked.
 
 ## 7. Audit
 

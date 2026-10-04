@@ -249,6 +249,28 @@ ECONOMY_LEDGER.md §8. Own tables (`creator_accounts`, `creator_ledger_*`,
 CHECK exactly one of (item+count, instance, currency+amount).
 Any change to a trade's items clears both confirmations (`version` bump).
 
+### As implemented (migration `2026_01_01_000500_create_market_tables`) ✅
+
+One table carries fixed-price listings and auctions, whole-lot sales only:
+
+- `market_listings`: `id`, `public_id`, `seller_id` FK, `world`, `kind`
+  (`fixed|auction`), `item` (content key), `count`, `durability` NULL,
+  `currency`, `price` (fixed price or opening bid), `buyout` NULL,
+  `current_bid` NULL, `current_bidder_id` FK NULL, `bid_count`, `status`
+  (`open|sold|cancelled|expired`), `buyer_id` FK NULL, `ends_at`,
+  `listing_key` UNIQUE (the game server's outbox id), `version`, timestamps.
+  The goods are in the backend's custody while a listing exists; bid money
+  sits in the ledger account `escrow:listing:<public_id>:<CUR>`.
+- `market_bids` (append-only): `listing_id`, `bidder_id`, `amount`,
+  `ledger_transaction_id`, `bid_key` (UNIQUE with the bidder), `created_at`.
+- `item_deliveries`: `public_id`, `user_id`, `world`, `item`, `count`,
+  `durability`, `reason` (`purchase|auction_won|cancelled|expired`),
+  `listing_id`, `status` (`pending|delivered`), `delivered_at`. Game servers
+  hand deliveries over and acknowledge them.
+
+The fuller model below (orders with partial quantities, item instances,
+guild sellers, separate auction tables) remains the target.
+
 ### market_listings
 `id`, `public_id`, `seller_type` (`user|guild`), `seller_id`, `realm`,
 `kind` (`item|stack|blueprint|land|building|service`), `item_id` NULL,

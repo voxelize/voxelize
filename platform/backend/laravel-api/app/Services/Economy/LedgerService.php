@@ -81,6 +81,17 @@ class LedgerService
         );
     }
 
+    /** The escrow account holding funds locked for one thing (`$ref`, e.g. `listing:<id>`). */
+    public function escrowAccount(string $ref, string $currency): LedgerAccount
+    {
+        $this->currency($currency);
+
+        return LedgerAccount::query()->firstOrCreate(
+            ['code' => "escrow:{$ref}:{$currency}"],
+            ['type' => LedgerAccount::TYPE_ESCROW, 'currency' => $currency, 'allow_negative' => false],
+        );
+    }
+
     public function balance(User $user, string $currency): int
     {
         return $this->walletFor($user, $currency)->account()->value('balance');

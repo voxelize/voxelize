@@ -37,6 +37,12 @@ pub struct PlayerRecord {
     /// Set while travelling: where the player is to arrive.
     #[serde(default)]
     pub arrival: Option<super::travel::Arrival>,
+    /// Listings taken from the inventory, not yet confirmed by the backend.
+    #[serde(default)]
+    pub outbox: Vec<super::bridge::OutboxEntry>,
+    /// Ids of market deliveries already handed over.
+    #[serde(default)]
+    pub delivered: Vec<String>,
 }
 
 pub struct PlayerStore {
@@ -107,6 +113,8 @@ impl PlayerStore {
             offhand: player.offhand.clone(),
             dimension: self.dimension,
             arrival: player.travel.arrival.clone(),
+            outbox: player.market.outbox.clone(),
+            delivered: player.market.delivered.iter().cloned().collect(),
         }
     }
 
@@ -182,6 +190,17 @@ mod tests {
                 portal: Some([90, 70, -30]),
                 exact: false,
             }),
+            outbox: vec![super::super::bridge::OutboxEntry {
+                id: "o1".into(),
+                item: "coal".into(),
+                count: 3,
+                durability: None,
+                kind: "fixed".into(),
+                price: 9,
+                buyout: None,
+                hours: 48,
+            }],
+            delivered: vec!["d1".into()],
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

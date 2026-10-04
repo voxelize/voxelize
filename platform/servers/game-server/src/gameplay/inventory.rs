@@ -162,6 +162,61 @@ impl Inventory {
         count
     }
 
+    /// Remove exactly `count` items from one slot (all or nothing).
+    pub fn take(&mut self, slot: usize, count: u32) -> Result<Stack, InventoryError> {
+        let entry = self.slots.get_mut(slot).ok_or(InventoryError::BadSlot)?;
+        let stack = entry.as_mut().ok_or(InventoryError::EmptySlot)?;
+        if count == 0 || count > stack.count {
+            return Err(InventoryError::BadCount);
+        }
+        let taken = Stack {
+            item: stack.item,
+            count,
+            durability: stack.durability,
+        };
+        stack.count -= count;
+        if stack.count == 0 {
+            *entry = None;
+        }
+        Ok(taken)
+    }
+
+    /// Add a whole stack, keeping its durability: worn items take empty
+    /// slots, others merge like [`Inventory::add`]. Returns what did not fit.
+    pub fn add_stack(&mut self, content: &Content, stack: Stack) -> Option<Stack> {
+        if stack.durability.is_none() || stack.durability == fresh_durability(content, stack.item) {
+            let left = self.add(content, stack.item, stack.count);
+            return (left > 0).then_some(Stack {
+                count: left,
+                ..stack
+            });
+        }
+        // A worn tool keeps its wear: one per empty slot.
+        let mut left = stack.count;
+        for slot in self.slots.iter_mut() {
+            if left == 0 {
+                break;
+            }
+            if slot.is_none() {
+                *slot = Some(Stack {
+                    count: 1,
+                    ..stack.clone()
+                });
+                left -= 1;
+            }
+        }
+        (left > 0).then_some(Stack {
+            count: left,
+            ..stack
+        })
+    }
+
+    /// Whether `stack` would fit entirely.
+    pub fn fits(&self, content: &Content, stack: &Stack) -> bool {
+        let mut probe = self.clone();
+        probe.add_stack(content, stack.clone()).is_none()
+    }
+
     /// Remove one item from a slot.
     pub fn take_one(&mut self, slot: usize) -> Result<Stack, InventoryError> {
         let entry = self.slots.get_mut(slot).ok_or(InventoryError::BadSlot)?;
@@ -299,6 +354,47 @@ mod tests {
         assert_eq!(inv.get(1).unwrap().count, 36);
         assert_eq!(inv.add(&c, dirt, 64 * 36), 100);
         assert_eq!(inv.count_of(dirt), 64 * 36);
+    }
+
+    #[test]
+    fn exact_takes_and_whole_stacks_keep_wear() {
+        let c = content();
+        let dirt = id(&c, "dirt");
+        let pick = id(&c, "wooden_pickaxe");
+        let mut inv = Inventory::default();
+        inv.add(&c, dirt, 10);
+        assert_eq!(inv.take(0, 11), Err(InventoryError::BadCount));
+        assert_eq!(inv.take(0, 0), Err(InventoryError::BadCount));
+        assert_eq!(inv.take(0, 4).unwrap().count, 4);
+        assert_eq!(inv.count_of(dirt), 6);
+        assert_eq!(inv.take(0, 6).unwrap().count, 6);
+        assert!(inv.get(0).is_none());
+        assert_eq!(inv.take(0, 1), Err(InventoryError::EmptySlot));
+
+        let worn = Stack {
+            item: pick,
+            count: 1,
+            durability: Some(7),
+        };
+        assert!(inv.fits(&c, &worn));
+        assert_eq!(inv.add_stack(&c, worn.clone()), None);
+        assert_eq!(inv.get(0).unwrap().durability, Some(7));
+
+        let mut full = Inventory::default();
+        full.add(&c, dirt, 64 * 36);
+        assert!(!full.fits(&c, &worn));
+        assert_eq!(
+            full.add_stack(
+                &c,
+                Stack {
+                    item: dirt,
+                    count: 5,
+                    durability: None
+                }
+            )
+            .map(|s| s.count),
+            Some(5)
+        );
     }
 
     #[test]

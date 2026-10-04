@@ -59,6 +59,9 @@ pub enum IntentError {
     CreativeOnly,
     /// The land there belongs to someone who has not allowed this.
     LandProtected,
+    MarketUnavailable,
+    SurvivalOnly,
+    BadListing,
     Inventory(InventoryError),
 }
 
@@ -89,6 +92,9 @@ impl IntentError {
             IntentError::UnknownItem => "unknown_item",
             IntentError::CreativeOnly => "creative_only",
             IntentError::LandProtected => "land_protected",
+            IntentError::MarketUnavailable => "market_unavailable",
+            IntentError::SurvivalOnly => "survival_only",
+            IntentError::BadListing => "bad_listing",
             IntentError::Inventory(e) => e.code(),
         }
     }
@@ -128,6 +134,8 @@ pub struct PlayerState {
     pub travel: super::travel::TravelState,
     /// Id of the land the player was last told they are in.
     pub land_seen: Option<String>,
+    /// Listings on their way to the backend and deliveries applied.
+    pub market: super::market::MarketState,
 }
 
 /// The window a player has open.
@@ -156,6 +164,7 @@ impl PlayerState {
             attack_cooldown: 0.0,
             travel: Default::default(),
             land_seen: None,
+            market: Default::default(),
         }
     }
 }

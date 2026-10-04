@@ -57,6 +57,25 @@ export type LandView = {
 };
 export type LandQuote = { currency: string; price: number; max_side_chunks: number; max_chunks_per_player: number };
 
+export type Listing = {
+  id: string;
+  kind: "fixed" | "auction";
+  world: string;
+  item: string;
+  count: number;
+  durability: number | null;
+  currency: string;
+  price: number;
+  buyout: number | null;
+  current_bid: number | null;
+  bid_count: number;
+  minimum_bid: number | null;
+  seller: { id: string; name: string };
+  status: string;
+  ends_at: string;
+};
+export type DeliveryView = { id: string; world: string; item: string; count: number; reason: string };
+
 /** A fresh key for one economic request; retries reuse it. */
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
 
@@ -87,6 +106,28 @@ export const api = {
     request<Ticket>("/game/tickets", { method: "POST", body: JSON.stringify({ world }) }),
 
   forget: () => sessionStorage.removeItem(TOKEN_KEY),
+
+  wallets: () => request<{ wallets: { currency: string; balance: number }[] }>("/wallets").then((r) => r.wallets),
+
+  market: {
+    listings: (world: string, filter: { item?: string; kind?: string; mine?: boolean } = {}) => {
+      const q = new URLSearchParams({ world });
+      if (filter.item) q.set("item", filter.item);
+      if (filter.kind) q.set("kind", filter.kind);
+      if (filter.mine) q.set("mine", "1");
+      return request<{ listings: Listing[] }>(`/market/listings?${q}`).then((r) => r.listings);
+    },
+    buy: (id: string) =>
+      request<{ listing: Listing; balance: number }>(`/market/listings/${id}/buy`, { method: "POST" }),
+    bid: (id: string, amount: number, key: string) =>
+      request<{ listing: Listing; balance: number }>(`/market/listings/${id}/bids`, {
+        method: "POST",
+        headers: { "idempotency-key": key },
+        body: JSON.stringify({ amount }),
+      }),
+    cancel: (id: string) => request<{ cancelled: boolean }>(`/market/listings/${id}`, { method: "DELETE" }),
+    deliveries: () => request<{ deliveries: DeliveryView[] }>("/deliveries").then((r) => r.deliveries),
+  },
 
   lands: {
     list: (world: string, dimension: string, mine = false) =>
