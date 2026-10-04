@@ -122,4 +122,52 @@ class BlueprintTest extends TestCase
         Storage::disk('local')->put($design->storage_path, '{"tampered":true}');
         $get($this->maker)->assertStatus(503)->assertJsonPath('error.code', 'storage_unavailable');
     }
+
+    public function test_licences_resell_with_a_royalty_to_the_creator_and_keep_provenance(): void
+    {
+        $id = $this->internal()->postJson('/api/internal/v1/blueprints', $this->capture())->json('blueprint.id');
+        Sanctum::actingAs($this->maker);
+        $this->patchJson("/api/v1/blueprints/{$id}", ['price' => 100, 'max_copies' => 1, 'published' => true, 'royalty_bps' => 2000])
+            ->assertOk()->assertJsonPath('blueprint.royalty_bps', 2000);
+        $this->postJson("/api/v1/blueprints/{$id}/resales", ['price' => 10])->assertStatus(403)->assertJsonPath('error.code', 'not_licensed');
+
+        Sanctum::actingAs($this->alice);
+        $this->postJson("/api/v1/blueprints/{$id}/buy")->assertCreated();
+        $resale = $this->postJson("/api/v1/blueprints/{$id}/resales", ['price' => 300])->assertCreated()->json('resale.id');
+        $this->postJson("/api/v1/blueprints/{$id}/resales", ['price' => 200])->assertStatus(409)->assertJsonPath('error.code', 'already_listed');
+        $this->postJson("/api/v1/blueprint-resales/{$resale}/buy")->assertStatus(422)->assertJsonPath('error.code', 'own_listing');
+
+        // The edition is sold out, but the licence can change hands.
+        Sanctum::actingAs($this->bob);
+        $this->postJson("/api/v1/blueprints/{$id}/buy")->assertStatus(409)->assertJsonPath('error.code', 'sold_out');
+        $this->getJson("/api/v1/blueprints/{$id}/resales")->assertOk()->assertJsonPath('resales.0.price', 300);
+        $this->postJson("/api/v1/blueprint-resales/{$resale}/buy")->assertOk()->assertJsonPath('balance', 700);
+
+        // 300: fee 15, royalty 60 to the maker, 225 to Alice.
+        $this->assertSame(1125, $this->ledger->balance($this->alice, 'CRN'), '1000 - 100 + 225');
+        $this->assertSame(95 + 60, $this->ledger->balance($this->maker, 'CRN'));
+        $this->assertSame(5 + 15, $this->ledger->systemAccount('fees', 'CRN')->balance);
+        $this->assertSame([], $this->ledger->verify());
+
+        $get = fn (User $u) => $this->internal()->getJson("/api/internal/v1/blueprints/{$id}?player={$u->public_id}");
+        $get($this->bob)->assertOk();
+        $get($this->alice)->assertStatus(403);
+        $this->postJson("/api/v1/blueprint-resales/{$resale}/buy")->assertOk();
+        $this->assertSame(700, $this->ledger->balance($this->bob, 'CRN'), 'bought once');
+
+        $this->getJson("/api/v1/blueprints/{$id}/provenance")->assertOk()
+            ->assertJsonPath('provenance.0.event', 'minted')
+            ->assertJsonPath('provenance.1.event', 'resold')
+            ->assertJsonPath('provenance.1.from', 'alice')
+            ->assertJsonPath('provenance.1.to', 'bob')
+            ->assertJsonPath('provenance.1.royalty', 60)
+            ->assertJsonPath('provenance.1.edition', 1);
+
+        // Alice may now buy it back on resale like anyone else.
+        Sanctum::actingAs($this->bob);
+        $again = $this->postJson("/api/v1/blueprints/{$id}/resales", ['price' => 50])->assertCreated()->json('resale.id');
+        $this->deleteJson("/api/v1/blueprint-resales/{$again}")->assertOk();
+        Sanctum::actingAs($this->alice);
+        $this->postJson("/api/v1/blueprint-resales/{$again}/buy")->assertStatus(409);
+    }
 }

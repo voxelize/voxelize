@@ -123,7 +123,13 @@ export class BlueprintPanel {
           },
         }, "Build here"),
       ];
+      if (!bp.mine) {
+        const ask = el("input", { type: "number", min: "1", value: String(bp.price ?? 50), className: "market-bid" });
+        actions.push(ask, el("button", { type: "button", onclick: () => this.act(() => api.blueprints.resell(bp.id, Number(ask.value)), "Your licence is for sale") }, "Resell"));
+      }
       if (bp.mine) {
+        const royalty = el("input", { type: "number", min: "0", max: "50", value: String(bp.royalty_bps / 100), className: "market-bid", title: "Royalty % on resales" });
+        actions.push(royalty, el("button", { type: "button", onclick: () => this.act(() => api.blueprints.update(bp.id, { royalty_bps: Math.round(Number(royalty.value) * 100) }), "Royalty saved") }, "Royalty %"));
         const price = el("input", { type: "number", min: "1", value: String(bp.price ?? 50), className: "market-bid" });
         const copies = el("input", { type: "number", min: "1", placeholder: "copies", value: bp.max_copies ? String(bp.max_copies) : "", className: "market-bid" });
         actions.push(
@@ -159,6 +165,14 @@ export class BlueprintPanel {
     if (!shop.length) nodes.push(el("p", { textContent: "No blueprints for sale." }));
     const sale = el("ul", { className: "market-list" });
     for (const bp of shop) {
+      for (const r of await api.blueprints.resales(bp.id).catch(() => [])) {
+        sale.append(
+          el("li", {},
+            el("strong", { textContent: r.name }),
+            ` resold by ${r.seller.name} · ${r.price} CRN (creator gets ${r.royalty_bps / 100}%)`,
+            el("button", { type: "button", onclick: () => this.act(() => api.blueprints.buyResale(r.id), "Licence bought") }, "Buy")),
+        );
+      }
       const left = bp.max_copies ? ` · ${bp.max_copies - bp.copies_sold} of ${bp.max_copies} left` : "";
       sale.append(
         el("li", {},

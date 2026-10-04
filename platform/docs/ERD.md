@@ -242,8 +242,15 @@ ECONOMY_LEDGER.md §8. Own tables (`creator_accounts`, `creator_ledger_*`,
   `sha256`, `bytes`, `status` (`draft|published|rejected`), `price`,
   `max_copies` (limited editions), `copies_sold`, `upload_key` UNIQUE,
   `version`, timestamps. The layout itself is in object storage.
-- `blueprint_licenses` (append-only): `blueprint_id`, `user_id`, `edition`,
+- `blueprint_licenses`: `blueprint_id`, `user_id`, `edition`, `status`,
   `ledger_transaction_id`, `created_at`; UNIQUE(`blueprint_id`, `user_id`).
+  A resale moves the row to the buyer.
+- `blueprint_resales`: `public_id`, `blueprint_id`, `license_id`,
+  `seller_id`, `price`, `status` (`open|sold|cancelled`), `buyer_id`.
+- `blueprint_provenance` (append-only): `blueprint_id`, `event`
+  (`minted|resold`), `from_id`, `to_id`, `edition`, `price`, `royalty`,
+  `ledger_transaction_id`, `created_at`. `blueprints.royalty_bps` is the
+  creator's share of resales.
   Provenance: the capture, every sale and every rejection are in
   `audit_logs`; sales are ledger transactions referencing the blueprint.
 

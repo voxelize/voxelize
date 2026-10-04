@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AppendOnly;
 use Illuminate\Database\Eloquent\Model;
 
-/** A right to build a blueprint; `resold` once it passed to someone else. */
-class BlueprintLicense extends Model
+class BlueprintProvenance extends Model
 {
+    use AppendOnly;
+
+    protected $table = 'blueprint_provenance';
+
     public $timestamps = false;
 
     protected $guarded = [];

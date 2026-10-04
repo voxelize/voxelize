@@ -49,6 +49,11 @@ Route::prefix('v1')->group(function () {
         Route::get('blueprints/mine', [BlueprintController::class, 'mine']);
         Route::patch('blueprints/{blueprint}', [BlueprintController::class, 'update']);
         Route::post('blueprints/{blueprint}/buy', [BlueprintController::class, 'buy'])->middleware('throttle:economy');
+        Route::get('blueprints/{blueprint}/resales', [BlueprintController::class, 'resales']);
+        Route::post('blueprints/{blueprint}/resales', [BlueprintController::class, 'listResale']);
+        Route::get('blueprints/{blueprint}/provenance', [BlueprintController::class, 'provenance']);
+        Route::post('blueprint-resales/{resale}/buy', [BlueprintController::class, 'buyResale'])->middleware('throttle:economy');
+        Route::delete('blueprint-resales/{resale}', [BlueprintController::class, 'cancelResale']);
     });
 });
 

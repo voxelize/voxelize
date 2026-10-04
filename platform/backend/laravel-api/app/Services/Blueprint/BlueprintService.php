@@ -4,6 +4,8 @@ namespace App\Services\Blueprint;
 
 use App\Models\BlueprintDesign;
 use App\Models\BlueprintLicense;
+use App\Models\BlueprintProvenance;
+use App\Models\BlueprintResale;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
@@ -24,6 +26,9 @@ use Illuminate\Support\Str;
  */
 class BlueprintService
 {
+    /** Creators may take at most half of a resale. */
+    public const MAX_ROYALTY_BPS = 5000;
+
     public function __construct(
         private readonly LedgerService $ledger,
         private readonly MarketService $market,
@@ -146,10 +151,10 @@ class BlueprintService
         return json_decode($body, true, 512, JSON_THROW_ON_ERROR);
     }
 
-    /** Rename, price, limit and publish or unpublish (creator only). */
-    public function update(User $actor, BlueprintDesign $design, ?string $name, ?int $price, ?int $maxCopies, ?bool $published): BlueprintDesign
+    /** Rename, price, limit, set the resale royalty, publish or unpublish (creator only). */
+    public function update(User $actor, BlueprintDesign $design, ?string $name, ?int $price, ?int $maxCopies, ?bool $published, ?int $royaltyBps = null): BlueprintDesign
     {
-        return DB::transaction(function () use ($actor, $design, $name, $price, $maxCopies, $published) {
+        return DB::transaction(function () use ($actor, $design, $name, $price, $maxCopies, $published, $royaltyBps) {
             $design = BlueprintDesign::query()->lockForUpdate()->findOrFail($design->id);
             if ($design->creator_id !== $actor->id) {
                 throw new MarketException('forbidden', 'That is not your blueprint.', 403);
@@ -172,6 +177,12 @@ class BlueprintService
                 }
                 $design->max_copies = $maxCopies;
             }
+            if ($royaltyBps !== null) {
+                if ($royaltyBps < 0 || $royaltyBps > self::MAX_ROYALTY_BPS) {
+                    throw new MarketException('bad_royalty', 'A royalty is 0 to 50 percent.');
+                }
+                $design->royalty_bps = $royaltyBps;
+            }
             if ($published !== null) {
                 if ($published && $design->price === null) {
                     throw new MarketException('bad_price', 'Set a price before publishing.');
@@ -190,7 +201,7 @@ class BlueprintService
     {
         return DB::transaction(function () use ($buyer, $design) {
             $design = BlueprintDesign::query()->lockForUpdate()->findOrFail($design->id);
-            if ($existing = BlueprintLicense::query()->where('blueprint_id', $design->id)->where('user_id', $buyer->id)->first()) {
+            if ($existing = BlueprintLicense::query()->where('blueprint_id', $design->id)->where('user_id', $buyer->id)->where('status', 'active')->first()) {
                 return $existing;
             }
             if ($design->status !== 'published') {
@@ -230,6 +241,7 @@ class BlueprintService
                 'ledger_transaction_id' => $sale->id,
                 'created_at' => now(),
             ]);
+            $this->provenance($design, 'minted', null, $buyer, $license->edition, $price, 0, $sale->id);
             $this->audit->record(
                 action: 'blueprint.sale',
                 actor: $buyer,
@@ -240,6 +252,145 @@ class BlueprintService
 
             return $license;
         });
+    }
+
+    /** Offer your licence to others (not the creator's own right). */
+    public function listResale(User $seller, BlueprintDesign $design, int $price): BlueprintResale
+    {
+        return DB::transaction(function () use ($seller, $design, $price) {
+            $license = BlueprintLicense::query()->where('blueprint_id', $design->id)->where('user_id', $seller->id)
+                ->where('status', 'active')->lockForUpdate()->first();
+            if (! $license) {
+                throw new MarketException('not_licensed', 'You hold no licence for that blueprint.', 403);
+            }
+            if ($design->status === 'rejected') {
+                throw new MarketException('rejected', 'This blueprint was removed by moderation.', 409);
+            }
+            if ($price < 1 || $price > (int) config('platform.blueprints.max_price')) {
+                throw new MarketException('bad_price', 'Prices are whole amounts from 1.');
+            }
+            if (BlueprintResale::query()->where('license_id', $license->id)->where('status', 'open')->exists()) {
+                throw new MarketException('already_listed', 'That licence is already for sale.', 409);
+            }
+
+            return BlueprintResale::query()->create([
+                'public_id' => (string) Str::ulid(),
+                'blueprint_id' => $design->id,
+                'license_id' => $license->id,
+                'seller_id' => $seller->id,
+                'price' => $price,
+                'status' => 'open',
+            ]);
+        });
+    }
+
+    public function cancelResale(User $seller, BlueprintResale $resale): BlueprintResale
+    {
+        return DB::transaction(function () use ($seller, $resale) {
+            $resale = BlueprintResale::query()->lockForUpdate()->findOrFail($resale->id);
+            if ($resale->seller_id !== $seller->id) {
+                throw new MarketException('forbidden', 'That is not your listing.', 403);
+            }
+            if ($resale->status !== 'open') {
+                throw new MarketException('listing_closed', 'That listing is closed.', 409);
+            }
+            $resale->status = 'cancelled';
+            $resale->save();
+
+            return $resale;
+        });
+    }
+
+    /**
+     * Buy a resold licence: the buyer pays the seller, the creator's
+     * royalty and the platform fee in one ledger transaction, and the
+     * licence (with its edition) passes to the buyer.
+     */
+    public function buyResale(User $buyer, BlueprintResale $resale): BlueprintResale
+    {
+        return DB::transaction(function () use ($buyer, $resale) {
+            $resale = BlueprintResale::query()->lockForUpdate()->findOrFail($resale->id);
+            if ($resale->status === 'sold' && $resale->buyer_id === $buyer->id) {
+                return $resale;
+            }
+            if ($resale->status !== 'open') {
+                throw new MarketException('listing_closed', 'That listing is closed.', 409);
+            }
+            $design = BlueprintDesign::query()->lockForUpdate()->findOrFail($resale->blueprint_id);
+            if ($design->status === 'rejected') {
+                throw new MarketException('rejected', 'This blueprint was removed by moderation.', 409);
+            }
+            if ($buyer->id === $resale->seller_id) {
+                throw new MarketException('own_listing', 'You cannot buy your own listing.');
+            }
+            if ($design->mayBuild($buyer)) {
+                throw new MarketException('already_licensed', 'You may already build this blueprint.', 409);
+            }
+            $license = BlueprintLicense::query()->lockForUpdate()->findOrFail($resale->license_id);
+            if ($license->user_id !== $resale->seller_id || $license->status !== 'active') {
+                throw new MarketException('listing_closed', 'That licence is no longer the seller\'s.', 409);
+            }
+
+            $currency = (string) config('platform.market.currency');
+            $price = (int) $resale->price;
+            $fee = $this->market->fee($price);
+            $royalty = intdiv($price * (int) $design->royalty_bps, 10_000);
+            $seller = User::query()->findOrFail($resale->seller_id);
+            $legs = [
+                new Leg($this->ledger->walletFor($buyer, $currency)->account, -$price),
+                new Leg($this->ledger->walletFor($seller, $currency)->account, $price - $fee - $royalty),
+            ];
+            if ($royalty > 0) {
+                $legs[] = new Leg($this->ledger->walletFor($design->creator, $currency)->account, $royalty);
+            }
+            if ($fee > 0) {
+                $legs[] = new Leg($this->ledger->systemAccount('fees', $currency), $fee);
+            }
+            $sale = $this->ledger->post(new Posting(
+                type: 'sale',
+                reason: "Blueprint licence resale: {$design->name}",
+                idempotencyKey: "blueprint-resale:{$resale->public_id}",
+                legs: $legs,
+                referenceType: 'blueprint_resale',
+                referenceId: $resale->public_id,
+                initiatedBy: $buyer->id,
+            ));
+
+            // The licence row itself moves, edition and all.
+            $license->user_id = $buyer->id;
+            $license->ledger_transaction_id = $sale->id;
+            $license->save();
+            $resale->status = 'sold';
+            $resale->buyer_id = $buyer->id;
+            $resale->save();
+            BlueprintResale::query()->where('license_id', $license->id)->where('status', 'open')
+                ->where('id', '!=', $resale->id)->update(['status' => 'cancelled']);
+            $this->provenance($design, 'resold', $seller, $buyer, $license->edition, $price, $royalty, $sale->id);
+            $this->audit->record(
+                action: 'blueprint.resale',
+                actor: $buyer,
+                subjectType: 'blueprint',
+                subjectId: $design->public_id,
+                payload: ['price' => $price, 'royalty' => $royalty, 'fee' => $fee, 'from' => $seller->public_id, 'transaction' => $sale->public_id],
+            );
+
+            return $resale;
+        });
+    }
+
+    private function provenance(BlueprintDesign $design, string $event, ?User $from, User $to, ?int $edition, int $price, int $royalty, ?int $transactionId): void
+    {
+        BlueprintProvenance::query()->create([
+            'blueprint_id' => $design->id,
+            'event' => $event,
+            'from_id' => $from?->id,
+            'to_id' => $to->id,
+            'edition' => $edition,
+            'price' => $price,
+            'royalty' => $royalty,
+            'ledger_transaction_id' => $transactionId,
+            'created_at' => now(),
+        ]);
     }
 
     /** Moderation: take a blueprint off sale and out of use. */

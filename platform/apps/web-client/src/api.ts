@@ -88,8 +88,19 @@ export type BlueprintView = {
   price: number | null;
   max_copies: number | null;
   copies_sold: number;
+  royalty_bps: number;
   mine: boolean;
   licensed: boolean;
+};
+
+export type Resale = {
+  id: string;
+  blueprint: string;
+  name: string;
+  seller: { id: string; name: string };
+  price: number;
+  royalty_bps: number;
+  status: string;
 };
 
 /** A fresh key for one economic request; retries reuse it. */
@@ -149,11 +160,16 @@ export const api = {
     published: (world: string) =>
       request<{ blueprints: BlueprintView[] }>(`/blueprints?world=${encodeURIComponent(world)}`).then((r) => r.blueprints),
     mine: () => request<{ blueprints: BlueprintView[] }>("/blueprints/mine").then((r) => r.blueprints),
-    update: (id: string, body: { name?: string; price?: number; max_copies?: number; published?: boolean }) =>
+    update: (id: string, body: { name?: string; price?: number; max_copies?: number; published?: boolean; royalty_bps?: number }) =>
       request<{ blueprint: BlueprintView }>(`/blueprints/${id}`, { method: "PATCH", body: JSON.stringify(body) }).then(
         (r) => r.blueprint,
       ),
     buy: (id: string) => request<{ blueprint: BlueprintView; balance: number }>(`/blueprints/${id}/buy`, { method: "POST" }),
+    resales: (id: string) =>
+      request<{ resales: Resale[] }>(`/blueprints/${id}/resales`).then((r) => r.resales),
+    resell: (id: string, price: number) =>
+      request<{ resale: Resale }>(`/blueprints/${id}/resales`, { method: "POST", body: JSON.stringify({ price }) }),
+    buyResale: (id: string) => request<{ balance: number }>(`/blueprint-resales/${id}/buy`, { method: "POST" }),
   },
 
   lands: {

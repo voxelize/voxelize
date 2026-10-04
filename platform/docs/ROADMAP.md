@@ -248,9 +248,12 @@ moderation (`blueprints:reject`), provenance in the audit log; building a
 licensed blueprint in the game from the player's own materials, all or
 nothing; web client blueprint panel (B). Tests: 3 backend feature tests,
 unit tests, `tests/bots/blueprints.mjs` end to end.
-Remaining: resale of licences with a creator royalty, rotated or mirrored
-building, versioned updates of a blueprint, a review queue before
-publishing.
+Done since: resale of licences — holders list theirs, buyers pay the seller,
+the creator's royalty (set by the creator, up to 50 %) and the fee in one
+ledger transaction, the licence and its edition move to the buyer, and an
+append-only provenance records every mint and resale.
+Remaining: rotated or mirrored building, versioned updates of a blueprint,
+a review queue before publishing.
 
 ## Phase 17 — Guilds and cities ⬜
 

@@ -164,6 +164,23 @@ minus the 5 % fee. `201 { "blueprint", "edition", "balance" }` (a repeat
 answers `200` and charges nothing). Errors: `409 not_for_sale | sold_out`,
 `422 own_listing | insufficient_funds`.
 
+### Resale
+
+A licence holder may sell their licence on; the creator sets a royalty
+(`royalty_bps`, 0–5000, default 1000 = 10 %) with `PATCH /blueprints/{id}`.
+
+- `GET /blueprints/{id}/resales` 🔒 — open resales, cheapest first:
+  `{ "resales": [{ "id", "blueprint", "name", "seller", "price", "royalty_bps", "status" }] }`.
+- `POST /blueprints/{id}/resales` 🔒 licence holder — `{ "price" }` → `201`;
+  `403 not_licensed`, `409 already_listed`.
+- `POST /blueprint-resales/{id}/buy` 🔒 — one `sale` transaction: buyer −price,
+  seller +price−fee−royalty, creator +royalty, fees +fee; the licence (and its
+  edition) passes to the buyer. A repeat by the buyer charges nothing.
+  `409 listing_closed | already_licensed | rejected`, `422 own_listing | insufficient_funds`.
+- `DELETE /blueprint-resales/{id}` 🔒 seller.
+- `GET /blueprints/{id}/provenance` 🔒 — every licence minted or resold:
+  `{ "provenance": [{ "event", "from", "to", "edition", "price", "royalty", "at" }] }`.
+
 `php artisan blueprints:reject <moderator> <id> --reason=…` takes a
 blueprint off sale and out of use (audited).
 

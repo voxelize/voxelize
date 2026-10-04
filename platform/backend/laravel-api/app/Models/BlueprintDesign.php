@@ -22,6 +22,7 @@ class BlueprintDesign extends Model
             'price' => 'integer',
             'max_copies' => 'integer',
             'copies_sold' => 'integer',
+            'royalty_bps' => 'integer',
         ];
     }
 
@@ -38,6 +39,6 @@ class BlueprintDesign extends Model
     public function mayBuild(User $user): bool
     {
         return $this->status !== 'rejected'
-            && ($this->creator_id === $user->id || $this->licenses()->where('user_id', $user->id)->exists());
+            && ($this->creator_id === $user->id || $this->licenses()->where('user_id', $user->id)->where('status', 'active')->exists());
     }
 }
