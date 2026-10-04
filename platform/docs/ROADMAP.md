@@ -400,8 +400,13 @@ paid for an iron pickaxe).
 Then: villagers — farmer and smith NPCs that spawn on village paths and
 trade items for gold (offers in content, `platform.npc.trade`, a trade
 panel in the client); unit tests for trading and spawning.
+Then: chat channels — public lines under the speaker's real name, length
+and rate limits, whispers (`/w`, `/r`), local chat (`/l`, 48 blocks), guild
+chat (`/g`), `/help`, unknown commands explained (`platform.chat` events, a
+chat box in the client opened with Enter or `/`). Tests: unit tests,
+`tests/bots/chat.mjs`.
 Remaining: cosmetics, private worlds and server browser,
-friends and chat channels, proximity voice (WebRTC), plugin event API, mod
+friends, proximity voice (WebRTC), plugin event API, mod
 SDK.
 
 ## Definition of done (whole project)

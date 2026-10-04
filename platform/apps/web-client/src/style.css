@@ -860,3 +860,50 @@ body.spectating #vitals {
   opacity: 1;
   color: #ffe08a;
 }
+
+#chat {
+  position: absolute;
+  left: 12px;
+  bottom: 120px;
+  width: min(460px, 80vw);
+  font-size: 13px;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  z-index: 5;
+}
+
+.chat-log {
+  max-height: 30vh;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#chat.open .chat-log {
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.chat-line {
+  transition: opacity 0.6s;
+}
+
+#chat:not(.open) .chat-line.faded {
+  opacity: 0;
+}
+
+.chat-whisper { color: #e3a8ff; }
+.chat-local { color: #b7e3ff; }
+.chat-guild { color: #8ff0a4; }
+.chat-system { color: #ffd48a; }
+
+.chat-input {
+  width: 100%;
+  margin-top: 4px;
+  font: inherit;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 1px solid #555;
+}

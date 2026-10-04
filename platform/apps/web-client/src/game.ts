@@ -13,6 +13,7 @@ import { actionFor, DEFAULT_KEYS, ENGINE_MOVES, KeyMap } from "./keybindings";
 import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { AchievementsPanel } from "./achievements";
+import { ChatBox, type ChatLine } from "./chat";
 import { NpcPanel, type Offer } from "./npc";
 import { rewardLine, WorkPanel, type WorkState } from "./work";
 import { BorderView } from "./borders";
@@ -212,7 +213,36 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   const network = new VOXELIZE.Network();
   const method = new VOXELIZE.Method();
   const events = new VOXELIZE.Events();
-  network.register(world).register(players).register(method).register(events).register(controls);
+  const chat = new VOXELIZE.Chat();
+  network.register(world).register(players).register(method).register(events).register(controls).register(chat);
+  // Chat: Enter to talk, "/" for a command; whispers, local and guild lines
+  // arrive as platform.chat events.
+  const chatBox = new ChatBox(
+    (body) => chat.send({ type: "CLIENT", sender: "", body }),
+    (open) => {
+      if (open) controls.unlock();
+    },
+  );
+  chat.onChat = (line) => {
+    if (line.type === "SYSTEM") chatBox.add({ channel: "system", body: line.body });
+    else chatBox.add({ channel: "public", from: line.sender, body: line.body });
+  };
+  chat.onHistory = (update) => {
+    if (!update.isJoin) return;
+    for (const entry of update.entries) chatBox.add({ channel: "public", from: entry.sender || entry.senderName, body: entry.body });
+  };
+  events.on<ChatLine & { from?: { name: string } | null }>("platform.chat", (line) => {
+    if (!line) return;
+    chatBox.add({ ...line, from: line.from?.name ?? null });
+    if (line.channel === "whisper") sfx.play("pickup");
+  });
+  addEventListener("keydown", (event) => {
+    if (chatBox.isOpen || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    if (event.code === "Enter" || event.code === "Slash") {
+      event.preventDefault();
+      chatBox.open(event.code === "Slash" ? "/" : "");
+    }
+  });
 
   // ---- server answers -------------------------------------------------------
 

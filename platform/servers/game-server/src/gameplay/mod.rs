@@ -7,6 +7,7 @@
 //! snapshot when the inventory changed.
 
 pub mod automation;
+pub mod chat;
 pub mod combat;
 pub mod containers;
 pub mod drops;
@@ -94,6 +95,7 @@ pub struct Gameplay {
     trades: trade::Trades,
     /// Siege banners standing on enemy guild land (`sieges.json`).
     sieges: guild_api::Sieges,
+    chat: chat::ChatState,
     /// Lit blast charges and arrows in flight.
     combat: combat::Combat,
     /// The overworld's weather (`weather.json`).
@@ -119,6 +121,7 @@ impl Gameplay {
             dimensions,
             trades: trade::Trades::load(world_dir)?,
             sieges: guild_api::Sieges::load(world_dir)?,
+            chat: Default::default(),
             combat: combat::Combat::default(),
             weather: weather::Weather::load(world_dir)?,
             weather_changed: true,
@@ -637,6 +640,7 @@ pub fn install(
     combat::install(world);
     modes::install(world);
     work::install(world);
+    chat::install(world);
     weather::install(world);
     blueprint::install(world);
     trade::install(world);
