@@ -907,3 +907,29 @@ body.spectating #vitals {
   color: #fff;
   border: 1px solid #555;
 }
+
+.friend-list {
+  list-style: none;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.friend-list li {
+  margin: 4px 0;
+  opacity: 0.65;
+}
+
+.friend-list li.online {
+  opacity: 1;
+}
+
+.friend-list li.online strong::before {
+  content: "● ";
+  color: #6fdc6f;
+}
+
+.friend-list button,
+.friend-row button {
+  margin-left: 6px;
+}

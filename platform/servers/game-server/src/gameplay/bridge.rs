@@ -106,6 +106,11 @@ pub enum Request {
         player: String,
         payout: super::work::Payout,
     },
+    /// Who is playing in this dimension now (friends see them online).
+    Presence {
+        world: String,
+        players: Vec<String>,
+    },
     /// A player killed another: the backend scores it for their guilds' war.
     WarKill {
         world: String,
@@ -124,6 +129,7 @@ impl Request {
             | Request::Payment { world, .. }
             | Request::WarKill { world, .. }
             | Request::Reward { world, .. }
+            | Request::Presence { world, .. }
             | Request::Capture { world, .. }
             | Request::UploadBlueprint { world, .. }
             | Request::FetchBlueprint { world, .. } => world,
@@ -207,6 +213,8 @@ pub enum Response {
         key: String,
         paid: Option<u32>,
     },
+    /// Presence was reported (or not; the next report replaces it).
+    PresenceSent,
 }
 
 /// The game server's side of the market link, shared by every dimension.
@@ -321,6 +329,13 @@ async fn send(
     request: Request,
 ) -> Response {
     match request {
+        Request::Presence { players, .. } => {
+            let body = json!({ "world": shard, "players": players });
+            if let Err(e) = post(client, &format!("{base}/presence"), token, body).await {
+                log::debug!("presence not sent ({e})");
+            }
+            Response::PresenceSent
+        }
         Request::Reward { player, payout, .. } => {
             let body = json!({
                 "key": payout.key,

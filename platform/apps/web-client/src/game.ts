@@ -14,6 +14,7 @@ import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { AchievementsPanel } from "./achievements";
 import { ChatBox, type ChatLine } from "./chat";
+import { FriendsPanel } from "./friends";
 import { NpcPanel, type Offer } from "./npc";
 import { rewardLine, WorkPanel, type WorkState } from "./work";
 import { BorderView } from "./borders";
@@ -383,6 +384,21 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (event.code !== "KeyJ" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
     work.toggle();
     if (work.isOpen) controls.unlock();
+  });
+
+  // Friends (O): requests, who is online, whisper them.
+  const friends = new FriendsPanel({
+    notify: (text) => hud.toast(text),
+    whisper: (name) => {
+      friends.toggle();
+      chatBox.open(`/w ${name} `);
+    },
+  });
+  friends.start();
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyO" || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    friends.toggle();
+    if (friends.isOpen) controls.unlock();
   });
 
   const borders = new BorderView();

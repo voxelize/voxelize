@@ -28,6 +28,7 @@ validated by the game server like a browser player's.
 | `achievements.mjs` | achievements: none on joining, crafting a crafting table earns "Benchmark" with its experience, kept across a reconnect and earned once (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `work.mjs` | jobs and quests: today's three quests, taking up the smith's job, forging an iron pickaxe at a workbench pays 2 Crowns minted into the wallet (needs the backend and `SAVE_DIR`) |
 | `chat.mjs` | chat channels: public lines carry the real name, whispers reach only their target and `/r` answers, local chat stays near, guild chat needs a guild, unknown commands are explained, flooding is refused |
+| `friends.mjs` | friends: a request by name, accepted, the friend shows online in `main` once they join the game, either side ends it (needs the backend) |
 | `effects.mjs` | effects and weather: drink strength and fire resistance (bottles come back), stand in fire unharmed, fill a bottle at water; a creative player brings rain and a thunderstorm (lightning near the player) and clears it; survival players may not (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |

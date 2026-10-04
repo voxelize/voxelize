@@ -115,6 +115,13 @@ return [
         'daily_cap' => (int) env('REWARDS_DAILY_CAP', 300),
     ],
 
+    // Friends: how many, and how long after a game server last reported a
+    // player they still count as online.
+    'friends' => [
+        'limit' => (int) env('FRIENDS_LIMIT', 200),
+        'online_seconds' => (int) env('FRIENDS_ONLINE_SECONDS', 90),
+    ],
+
     // Calls from game servers to /api/internal/*: a shared bearer token on
     // the private network only (nginx refuses that path publicly).
     'internal' => [

@@ -32,6 +32,8 @@ pub const MAX_PRICE: u64 = 1_000_000_000;
 pub const MAX_HOURS: u32 = 168;
 /// Seconds between delivery checks for the players in a world.
 const POLL_SECONDS: f32 = 3.0;
+/// Seconds between reports of who is online (friends lists read them).
+pub const PRESENCE_SECONDS: f32 = 30.0;
 /// Seconds before a listing that failed in transit is sent again.
 const RETRY_SECONDS: f32 = 5.0;
 
@@ -275,6 +277,8 @@ pub struct MarketSystem {
     last: Option<std::time::Instant>,
     since_poll: f32,
     polling: bool,
+    /// Seconds since presence was last reported (`None` before the first).
+    since_presence: Option<f32>,
     /// Stall sale payments sent and not yet answered.
     payments_in_flight: HashSet<String>,
     payment_retry: f32,
@@ -563,6 +567,7 @@ impl<'a> specs::System<'a> for MarketSystem {
                         );
                     }
                 }
+                Response::PresenceSent => {}
                 Response::Rewarded { player, key, paid } => {
                     if let Some(paid) = paid {
                         super::work::on_rewarded(&mut g, &mut events, &player, &key, paid);
@@ -787,6 +792,14 @@ impl<'a> specs::System<'a> for MarketSystem {
                 }
             }
         }
+        let (due, since) = presence_due(self.since_presence, dt, !online.is_empty());
+        self.since_presence = since;
+        if due {
+            bridge.request(Request::Presence {
+                world: world.clone(),
+                players: online.clone(),
+            });
+        }
         self.since_poll += dt;
         // A lost answer must not stop polling for good.
         if self.polling && self.since_poll > 30.0 {
@@ -800,6 +813,17 @@ impl<'a> specs::System<'a> for MarketSystem {
                 players: online,
             });
         }
+    }
+}
+
+/// Whether to report presence now, and the new time since the last report:
+/// at once when the first player is here, then every [`PRESENCE_SECONDS`].
+fn presence_due(since: Option<f32>, dt: f32, anyone: bool) -> (bool, Option<f32>) {
+    let since = since.map_or(PRESENCE_SECONDS, |s| s + dt);
+    if anyone && since >= PRESENCE_SECONDS {
+        (true, Some(0.0))
+    } else {
+        (false, Some(since))
     }
 }
 
@@ -824,6 +848,19 @@ mod tests {
     use crate::gameplay::survival::Vitals;
     use platform_content::Content;
     use std::sync::Arc;
+
+    #[test]
+    fn presence_is_reported_at_once_then_every_half_minute() {
+        assert!(!presence_due(None, 0.05, false).0, "nobody here");
+        let (due, since) = presence_due(None, 0.05, true);
+        assert!(due, "the first player is reported at once");
+        let (due, since) = presence_due(since, 10.0, true);
+        assert!(!due);
+        let (due, since) = presence_due(since, 19.0, true);
+        assert!(!due);
+        let (due, _) = presence_due(since, 1.5, true);
+        assert!(due, "half a minute later");
+    }
 
     fn setup(realm: Realm) -> (Rules, PlayerState) {
         let content = Arc::new(Content::load(platform_content::default_pack_dir()).unwrap());

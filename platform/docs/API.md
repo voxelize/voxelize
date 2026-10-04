@@ -199,6 +199,20 @@ come to the posting officer; any officer of the guild may withdraw it;
 - `POST /contracts/{id}/abandon` 🔒 contractor — open again.
 - `DELETE /contracts/{id}` 🔒 poster, while untaken — refunds; `409 contract_taken`.
 
+## Friends
+
+One player asks another by name; the other accepts (asking someone who
+already asked you accepts too). Either side ends it with `DELETE`, which
+also declines or withdraws a request. At most `friends.limit` (200)
+friends each. A friend is online while a game server reported them in the
+last `friends.online_seconds` (90).
+
+- `GET /friends` 🔒 → `{ "friends": [{ "player", "username", "online", "world" | null, "last_seen_at", "since" }], "incoming": [{ "player", "username" }], "outgoing": [...], "limit" }` (online friends first).
+- `POST /friends` 🔒 — `{ "player": username }` → `201 { "status": "pending" }`, or `200 { "status": "accepted" }` when they had asked;
+  `404 player_not_found`, `422 self`, `409 already_friends | too_many_friends | too_many_requests`.
+- `POST /friends/{username}/accept` 🔒 → `{ "status": "accepted" }`; `404 no_request`.
+- `DELETE /friends/{username}` 🔒 → `{ "removed": bool }`.
+
 ## Guilds
 
 One guild per player. The leader appoints officers and may hand over the
@@ -375,6 +389,11 @@ window; once per key → `201`/`200 { "transaction", "replayed" }`;
 jobs and quests, at most `rewards.daily_cap` per player per UTC day (a
 reward over the cap is paid up to it, `paid` may be 0). One payment per
 `key` however often it is sent. `404 player_not_found`.
+
+### `POST /api/internal/v1/presence`
+`{ "world", "players": ["<public id>"] }` → `{ "seen": n }`: who is playing
+in the world now. Game servers send it when the first player arrives and
+every 30 s after; friends lists show those players online.
 
 ### `POST /api/internal/v1/blueprints`
 `{ "key", "creator", "world", "name", "size": [x,y,z], "palette": [{ "block": key | null, "raw" }], "runs": [[index, count]], "materials": { item: count } }`

@@ -405,8 +405,13 @@ and rate limits, whispers (`/w`, `/r`), local chat (`/l`, 48 blocks), guild
 chat (`/g`), `/help`, unknown commands explained (`platform.chat` events, a
 chat box in the client opened with Enter or `/`). Tests: unit tests,
 `tests/bots/chat.mjs`.
-Remaining: cosmetics, private worlds and server browser,
-friends, proximity voice (WebRTC), plugin event API, mod
+Then: friends — requests by name, accept, decline, unfriend
+(`/api/v1/friends`, a limit per player); game servers report who is
+playing every half minute (`/api/internal/v1/presence`), so the friends
+panel (O) shows who is online and where, toasts friends coming online and
+new requests, and whispers them. Tests: FriendTest, unit tests,
+`tests/bots/friends.mjs`.
+Remaining: cosmetics, private worlds and server browser, proximity voice (WebRTC), plugin event API, mod
 SDK.
 
 ## Definition of done (whole project)

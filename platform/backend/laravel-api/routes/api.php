@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BlueprintController;
 use App\Http\Controllers\Api\V1\ContractController;
+use App\Http\Controllers\Api\V1\FriendController;
 use App\Http\Controllers\Api\V1\GameTicketController;
 use App\Http\Controllers\Api\V1\GuildController;
 use App\Http\Controllers\Api\V1\LandController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Internal\BlueprintBridgeController;
 use App\Http\Controllers\Internal\GuildFeedController;
 use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
+use App\Http\Controllers\Internal\PresenceController;
 use App\Http\Controllers\Internal\RewardController;
 use App\Http\Middleware\GameServiceToken;
 use Illuminate\Support\Facades\Route;
@@ -59,6 +61,11 @@ Route::prefix('v1')->group(function () {
         Route::post('contracts/{contract}/accept', [ContractController::class, 'accept']);
         Route::post('contracts/{contract}/abandon', [ContractController::class, 'abandon']);
         Route::delete('contracts/{contract}', [ContractController::class, 'destroy']);
+
+        Route::get('friends', [FriendController::class, 'index']);
+        Route::post('friends', [FriendController::class, 'store'])->middleware('throttle:economy');
+        Route::post('friends/{player}/accept', [FriendController::class, 'accept']);
+        Route::delete('friends/{player}', [FriendController::class, 'destroy']);
 
         Route::get('guilds', [GuildController::class, 'index']);
         Route::get('guilds/mine', [GuildController::class, 'mine']);
@@ -118,4 +125,5 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::post('deliveries/pending', [MarketBridgeController::class, 'pending']);
     Route::post('deliveries/{delivery}/ack', [MarketBridgeController::class, 'acknowledge']);
     Route::post('rewards', [RewardController::class, 'store']);
+    Route::post('presence', [PresenceController::class, 'store']);
 });

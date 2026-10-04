@@ -172,6 +172,10 @@ export type Settlement = {
 export type GuildMessage = { id: number; from: { id: string; name: string }; body: string; at: string };
 
 /** A fresh key for one economic request; retries reuse it. */
+export type FriendView = { player: string; username: string; online: boolean; world: string | null; last_seen_at: string | null; since: string | null };
+export type FriendCard = { player: string; username: string };
+export type FriendLists = { friends: FriendView[]; incoming: FriendCard[]; outgoing: FriendCard[]; limit: number };
+
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
 
 export const api = {
@@ -196,6 +200,13 @@ export const api = {
   },
 
   me: () => request<{ user: User }>("/me").then((r) => r.user),
+
+  friends: {
+    list: () => request<FriendLists>("/friends"),
+    add: (player: string) => request<{ status: "pending" | "accepted" }>("/friends", { method: "POST", body: JSON.stringify({ player }) }),
+    accept: (player: string) => request<{ status: "accepted" }>(`/friends/${encodeURIComponent(player)}/accept`, { method: "POST" }),
+    remove: (player: string) => request<{ removed: boolean }>(`/friends/${encodeURIComponent(player)}`, { method: "DELETE" }),
+  },
 
   ticket: (world: string) =>
     request<Ticket>("/game/tickets", { method: "POST", body: JSON.stringify({ world }) }),
