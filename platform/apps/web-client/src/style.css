@@ -716,3 +716,11 @@ body.touch #hint {
   display: block;
   margin-top: 12px;
 }
+
+#guild .guild-chat {
+  max-height: 160px;
+  overflow-y: auto;
+  padding-left: 0;
+  list-style: none;
+  font-size: 13px;
+}

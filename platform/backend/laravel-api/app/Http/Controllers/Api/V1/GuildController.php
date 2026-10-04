@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Guild;
 use App\Models\GuildInvite;
 use App\Models\GuildMember;
+use App\Models\GuildMessage;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Services\Economy\LedgerService;
 use App\Services\Guild\GuildService;
+use App\Services\Guild\Settlements;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 class GuildController extends Controller
 {
@@ -162,6 +165,42 @@ class GuildController extends Controller
         ]);
     }
 
+    /** Guild chat since a message id (members only), oldest first. */
+    public function messages(Request $request, string $guild): JsonResponse
+    {
+        $data = $request->validate(['after' => ['nullable', 'integer', 'min:0']]);
+        $found = $this->find($guild);
+        if ($found->roleOf($request->user()) === null) {
+            return response()->json(['error' => ['code' => 'forbidden', 'message' => 'Members only.']], 403);
+        }
+        $after = (int) ($data['after'] ?? 0);
+        $rows = GuildMessage::query()->where('guild_id', $found->id)
+            ->when($after > 0, fn ($q) => $q->where('id', '>', $after)->orderBy('id')->limit(100),
+                // Without a cursor: the latest 50.
+                fn ($q) => $q->orderByDesc('id')->limit(50))
+            ->with('user:id,public_id,username')->get()->sortBy('id')->values();
+
+        return response()->json(['messages' => $rows->map(fn (GuildMessage $m) => [
+            'id' => $m->id,
+            'from' => ['id' => $m->user->public_id, 'name' => $m->user->username],
+            'body' => $m->body,
+            'at' => $m->created_at?->toIso8601String(),
+        ])]);
+    }
+
+    public function say(Request $request, GuildService $guilds, string $guild): JsonResponse
+    {
+        $data = $request->validate(['body' => ['required', 'string', 'max:1000']]);
+        $limiter = 'guild-chat:'.$request->user()->id;
+        if (RateLimiter::tooManyAttempts($limiter, (int) config('platform.guilds.chat_per_minute'))) {
+            return response()->json(['error' => ['code' => 'slow_down', 'message' => 'You are sending messages too fast.']], 429);
+        }
+        RateLimiter::hit($limiter, 60);
+        $message = $guilds->say($request->user(), $this->find($guild), $data['body']);
+
+        return response()->json(['message' => ['id' => $message->id, 'body' => $message->body]], 201);
+    }
+
     private function keyError(Request $request): ?JsonResponse
     {
         if (preg_match('/^[A-Za-z0-9_-]{8,64}$/', (string) $request->header('Idempotency-Key', ''))) {
@@ -224,7 +263,9 @@ class GuildController extends Controller
             ])->values(),
             'treasury' => $this->treasury($g, $ledger),
             'currency' => (string) config('platform.economy.soft_currency'),
-            'max_members' => (int) config('platform.guilds.max_members'),
+            'max_members' => Settlements::memberLimit($g),
+            'settlements' => $settlements = Settlements::forGuild($g),
+            'settlement_level' => Settlements::best($settlements),
             'max_chunks' => (int) config('platform.guilds.max_chunks'),
             'my_role' => request()->user() ? $g->roleOf(request()->user()) : null,
         ];

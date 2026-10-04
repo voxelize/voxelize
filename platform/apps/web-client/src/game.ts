@@ -7,7 +7,7 @@ import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
 import { Content, isUsableBlock, miningMillis } from "./content";
-import { GuildPanel } from "./guild";
+import { GuildPanel, landNotice } from "./guild";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
 import { StallPanel, type StallView } from "./stall";
@@ -238,7 +238,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
   // Guild (G): roster, treasury, invitations.
   const guildPanel = new GuildPanel({ notify: (text) => hud.toast(text) });
-  void guildPanel.refresh();
+  void guildPanel.refresh().then(() => guildPanel.startChat());
   addEventListener("keydown", (event) => {
     if (event.code !== "KeyG" || (event.target as HTMLElement)?.tagName === "INPUT") return;
     guildPanel.toggle();
@@ -255,7 +255,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
   events.on<{ land: LandHere }>("platform.land", ({ land }) => {
     landPanel.setHere(land);
-    hud.toast(land ? `${land.name || "Land"} — ${land.owner.name || "owned"}` : "Wilderness");
+    hud.toast(landNotice(land));
   });
   addEventListener("keydown", (event) => {
     if (event.code !== "KeyL" || (event.target as HTMLElement)?.tagName === "INPUT") return;
@@ -271,12 +271,15 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     inventory: () => hud.inventory,
     sell: (payload) => method.call("platform.market.list", payload),
     deliver: (contract, slot, count) => method.call("platform.contract.deliver", { contract, slot, count }),
+    guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
     notify: (text) => hud.toast(text),
   });
   const stallPanel = new StallPanel({
     itemName: (key) => (key ? content.itemsByKey.get(key)?.name ?? key : "?"),
     buy: (at, slot) => method.call("platform.stall.buy", { at, slot }),
     price: (at, slot, price) => method.call("platform.stall.price", { at, slot, price }),
+    setGuild: (at, guild) => method.call("platform.stall.guild", { at, guild }),
+    hasGuild: () => guildPanel.guild !== null,
     notify: (text) => hud.toast(text),
   });
   events.on<StallView>("platform.stall", (view) => {

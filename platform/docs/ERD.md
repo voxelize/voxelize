@@ -369,6 +369,15 @@ Planned: `settlement_level` (`none|village|town|city`).
 Joining deletes every invitation of that player.
 
 `lands.guild_id` FK NULL: land held by a guild (paid from its treasury).
+Settlements are not stored: they are the touching groups of a guild's
+active lands, levelled on read (`App\Services\Guild\Settlements`).
+
+### guild_messages ✅ implemented
+`guild_id` FK, `user_id` FK, `body` (≤ 300), `created_at`; INDEX(`guild_id`, `id`).
+Guild chat, read by members with an `after` cursor.
+
+`contracts.guild_id` FK NULL: a contract posted by a guild officer, its
+reward locked from and refunded to the guild's treasury.
 
 ### contracts
 `id`, `public_id`, `issuer_type`, `issuer_id`, `title`, `description`,

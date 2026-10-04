@@ -149,7 +149,12 @@ escrow, goods to the winner) and expires unsold listings (goods back).
 goods arrive in the game (`platform.contract.deliver`), refunded on
 withdrawal or expiry (`php artisan contracts:expire`, every minute).
 
-Contract: `{ "id", "title", "world", "item", "count", "reward", "currency", "status": "open" | "accepted" | "fulfilled" | "expired" | "cancelled", "poster", "contractor", "deadline_at", "role": "poster" | "contractor" | null }`.
+Contract: `{ "id", "title", "world", "item", "count", "reward", "currency", "status": "open" | "accepted" | "fulfilled" | "expired" | "cancelled", "poster", "guild": { "id", "name", "tag" } | null, "contractor", "deadline_at", "role": "poster" | "contractor" | null }`.
+
+A leader or officer posts for their guild with `"guild": "<guild id>"`: the
+reward is locked from the guild's treasury and refunded to it; the goods
+come to the posting officer; any officer of the guild may withdraw it;
+`mine=1` also lists the guild's contracts. `403 forbidden` for members.
 
 - `GET /contracts?world=main[&mine=1]` 🔒 — open contracts (or yours in every state).
 - `POST /contracts` 🔒 — header `Idempotency-Key`; `{ "world", "title"?, "item", "count", "reward", "hours"? (1–168, 48) }`
@@ -168,7 +173,16 @@ burn sink. When the last member leaves, the guild is disbanded: its
 treasury goes to that leader and its land is released.
 
 Guild: `{ "id", "name", "tag", "leader": { "id", "name" }, "members" }`; the
-detailed form adds `"roster": [{ "id", "name", "role" }], "treasury", "currency", "max_members", "max_chunks", "my_role"`.
+detailed form adds `"roster": [{ "id", "name", "role" }], "treasury", "currency", "max_members", "max_chunks", "my_role", "settlements": [Settlement], "settlement_level"`.
+
+**Settlements.** A guild's lands that touch (share an edge or a corner, in
+one world and dimension) form a settlement: Settlement is
+`{ "world", "dimension", "lands": [land id], "chunks", "level": "none" | "village" | "town" | "city", "min": [cx, cz], "max": [cx, cz] }`.
+A village needs 4 chunks, a town 16 chunks and 3 members, a city 64 chunks
+and 8 members (`guilds.settlements`). The guild's best settlement raises
+its member limit (`guilds.member_limits`: 50, a town 75, a city 100). The
+land feed names the settlement on each of its lands, and the game server
+announces it on entry.
 
 - `GET /guilds[?q=text]` 🔒 — active guilds by name or tag.
 - `GET /guilds/mine` 🔒 — `{ "guild": detail | null, "invites": [Guild] }`.
@@ -183,6 +197,8 @@ detailed form adds `"roster": [{ "id", "name", "role" }], "treasury", "currency"
 - `POST /guilds/{id}/deposit` 🔒 member — header `Idempotency-Key`; `{ "amount" }` → `{ "transaction", "treasury", "balance" }`.
 - `POST /guilds/{id}/withdraw` 🔒 leader or officer — header `Idempotency-Key`; `{ "amount", "to"?: username }` (a member; yourself by default).
 - `GET /guilds/{id}/entries` 🔒 member — treasury ledger entries, cursor paginated.
+- `GET /guilds/{id}/messages[?after=id]` 🔒 member — guild chat: the latest 50, or up to 100 newer than `after`, oldest first: `{ "messages": [{ "id", "from": { "id", "name" }, "body", "at" }] }`.
+- `POST /guilds/{id}/messages` 🔒 member — `{ "body" }` (1–300 characters after trimming control characters) → `201`; `422 bad_message`, `429 slow_down` (over `guilds.chat_per_minute`, 20).
 
 ## Blueprints
 
@@ -250,10 +266,12 @@ never lifts protection.
 → `201`/`200 { "listing": { "id", "status" }, "replayed" }`. One listing per key.
 
 ### `POST /api/internal/v1/payments`
-`{ "key", "from": buyer public id, "to": seller public id, "amount", "reason", "kind"?: "stall" | "trade" }`:
+`{ "key", "from": buyer public id, "to": seller public id, "amount", "reason", "kind"?: "stall" | "trade" | "guild_stall" }`:
 a stall sale as one `sale` transaction (buyer −amount, seller +amount−fee,
-fee to `system:fees`), or with `"kind": "trade"` a fee-free `transfer`
-settling a trade window, once per key → `201`/`200 { "transaction", "replayed" }`;
+fee to `system:fees`); with `"kind": "guild_stall"` the seller's share goes
+to the seller's guild treasury instead (their wallet if they have no
+guild); with `"kind": "trade"` a fee-free `transfer` settling a trade
+window; once per key → `201`/`200 { "transaction", "replayed" }`;
 `422 insufficient_funds | own_listing | bad_price`, `404 player_not_found`.
 
 ### `POST /api/internal/v1/blueprints`

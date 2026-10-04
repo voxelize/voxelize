@@ -720,7 +720,7 @@ impl<'a> specs::System<'a> for MarketSystem {
                             to: stall.owner.clone(),
                             amount: sale.price,
                             reason: format!("Stall: {} {name}", sale.stack.count),
-                            kind: "stall",
+                            kind: sale.payment_kind(),
                         });
                     }
                 }

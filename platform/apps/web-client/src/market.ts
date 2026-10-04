@@ -53,6 +53,8 @@ export class MarketPanel {
       inventory: () => InventorySnapshot;
       sell: (payload: Record<string, unknown>) => void;
       deliver: (contract: string, slot: number, count: number) => void;
+      /** My guild, when I may post contracts for it. */
+      guild?: () => { id: string; tag: string; role: string | null } | null;
       notify: (text: string) => void;
     },
   ) {
@@ -200,7 +202,10 @@ export class MarketPanel {
   private async contracts(): Promise<Node[]> {
     const open = await api.contracts.list(this.options.world).catch(() => [] as ContractView[]);
     const mine = await api.contracts.list(this.options.world, true).catch(() => [] as ContractView[]);
-    const line = (c: ContractView) => `${c.title}: ${c.count} × ${this.name(c.item)} for ${c.reward} CRN · ${timeLeft(c.deadline_at)}`;
+    const line = (c: ContractView) =>
+      `${c.guild ? `[${c.guild.tag}] ` : ""}${c.title}: ${c.count} × ${this.name(c.item)} for ${c.reward} CRN · ${timeLeft(c.deadline_at)}`;
+    const guild = this.options.guild?.() ?? null;
+    const officer = !!guild && (guild.role === "leader" || guild.role === "officer");
     const openList = el("ul", { className: "market-list" });
     for (const c of open.filter((c) => !mine.some((m) => m.id === c.id)))
       openList.append(el("li", {}, line(c), ` · by ${c.poster.name}`, el("button", { type: "button", onclick: () => this.act(() => api.contracts.accept(c.id), "Contract taken: bring the goods") }, "Take")));
@@ -222,7 +227,7 @@ export class MarketPanel {
           el("button", { type: "button", onclick: () => this.act(() => api.contracts.abandon(c.id), "Contract given back") }, "Give up"),
         );
       }
-      if (c.status === "open" && c.role === "poster") actions.push(el("button", { type: "button", onclick: () => this.act(() => api.contracts.cancel(c.id), "Withdrawn: reward refunded") }, "Withdraw"));
+      if (c.status === "open" && (c.role === "poster" || (officer && c.guild?.id === guild?.id))) actions.push(el("button", { type: "button", onclick: () => this.act(() => api.contracts.cancel(c.id), "Withdrawn: reward refunded") }, "Withdraw"));
       mineList.append(el("li", {}, line(c), ...actions));
     }
     const item = el("select", {}, ...this.options.content.pack.items.map((i) => el("option", { value: i.key, textContent: i.name })));
@@ -230,9 +235,19 @@ export class MarketPanel {
     const reward = el("input", { type: "number", min: "1", value: "50", className: "market-bid" });
     const hours = el("select", {}, ...[2, 24, 48, 168].map((h) => el("option", { value: String(h), textContent: `${h} h`, selected: h === 48 })));
     const title = el("input", { type: "text", maxLength: 80, placeholder: "Title" });
+    const forGuild = el("input", { type: "checkbox", checked: false });
     const post = () =>
       this.act(
-        () => api.contracts.post(idempotencyKey(), { world: this.options.world, title: title.value, item: item.value, count: Number(count.value), reward: Number(reward.value), hours: Number(hours.value) }),
+        () =>
+          api.contracts.post(idempotencyKey(), {
+            world: this.options.world,
+            title: title.value,
+            item: item.value,
+            count: Number(count.value),
+            reward: Number(reward.value),
+            hours: Number(hours.value),
+            ...(forGuild.checked && guild ? { guild: guild.id } : {}),
+          }),
         "Posted: the reward is locked until it is done or expires",
       );
     return [
@@ -245,6 +260,7 @@ export class MarketPanel {
       el("label", { className: "setting" }, el("span", { textContent: "Count / reward" }), count, reward),
       el("label", { className: "setting" }, el("span", { textContent: "Deadline" }), hours),
       title,
+      ...(officer && guild ? [el("label", { className: "setting" }, el("span", { textContent: `For [${guild.tag}], paid from its treasury` }), forGuild)] : []),
       el("button", { type: "button", onclick: post }, "Post"),
     ];
   }

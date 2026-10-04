@@ -1018,9 +1018,6 @@ impl<'a> specs::System<'a> for SurvivalSystem {
         };
 
         for (id, player) in players.iter_mut() {
-            if player.realm != Realm::Survival {
-                continue;
-            }
             let Some(entity) = clients.get(id).map(|c| c.entity) else {
                 continue;
             };
@@ -1028,6 +1025,27 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 continue;
             };
             let feet_y = p[1] - EYE_HEIGHT;
+            if player.realm != Realm::Survival {
+                let outcome = survival::creative_tick(&mut player.vitals, feet_y, dt);
+                if outcome.changed {
+                    events.dispatch(
+                        Event::new(VITALS_EVENT)
+                            .payload(vitals_payload(player, Some(survival::DamageKind::Void)))
+                            .filter(ClientFilter::Direct(id.clone()))
+                            .build(),
+                    );
+                }
+                if outcome.died {
+                    // Creative goods never spill into the world: the
+                    // inventory stays with the player.
+                    player.mining = None;
+                    let record = store.record(id, player, Some(p));
+                    if let Err(e) = store.save(&record) {
+                        error!("could not save player {id} after death: {e}");
+                    }
+                }
+                continue;
+            }
             // Below the world there are no blocks, only the void.
             let in_void = feet_y < -2.0;
             let (Some(head), Some(feet), Some(below)) = (

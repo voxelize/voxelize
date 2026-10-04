@@ -26,6 +26,11 @@ class Contract extends Model
         return $this->belongsTo(User::class, 'poster_id');
     }
 
+    public function guild(): BelongsTo
+    {
+        return $this->belongsTo(Guild::class);
+    }
+
     public function contractor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'contractor_id');

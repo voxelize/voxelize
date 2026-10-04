@@ -18,6 +18,7 @@ validated by the game server like a browser player's.
 | `blueprints.mjs` | blueprints end to end: capture a small build, publish, a buyer buys a licence and builds it from their own planks, building again without materials is refused (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
 | `trade.mjs` | the trade window end to end: invite, offer iron against bread and Crowns, both confirm, goods swap and Crowns move without fee; a cancelled trade returns the offer (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
 | `contracts.mjs` | contracts end to end: post with a locked reward, take, deliver in the game, reward paid and goods delivered (standalone: seeds the worker's record via `SAVE_DIR`; needs `FUND_CMD`) |
+| `guilds.mjs` | guilds end to end: found, join, deposit; touching guild plots paid from the treasury become a village named on entry; members build there and strangers cannot; a member's stall sells for the treasury; guild chat; a guild contract paid from the treasury and fulfilled in the game (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |

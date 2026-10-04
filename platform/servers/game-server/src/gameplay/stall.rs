@@ -58,6 +58,7 @@ pub fn view(
         "offers": offers,
         "prices": stall.prices,
         "pending": stall.sales.len(),
+        "guild": stall.guild,
         // The owner prices every slot, priced or not.
         "stock": (stall.owner == viewer).then(|| {
             stall
@@ -121,6 +122,13 @@ struct PricePayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct GuildPayload {
+    at: [i32; 3],
+    guild: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct BuyPayload {
     at: [i32; 3],
     slot: usize,
@@ -140,6 +148,15 @@ pub fn set_price(
         return Err(IntentError::BadListing);
     }
     stall.prices[slot] = price;
+    Ok(())
+}
+
+/// Sell for the owner's guild, or for the owner (owner only).
+pub fn set_guild(stall: &mut Stall, player: &str, guild: bool) -> Result<(), IntentError> {
+    if stall.owner != player {
+        return Err(IntentError::NotOwner);
+    }
+    stall.guild = guild;
     Ok(())
 }
 
@@ -173,6 +190,7 @@ pub fn reserve(
         price,
         stack,
         paid: false,
+        for_guild: stall.guild,
     };
     stall.sales.push(sale.clone());
     Ok(sale)
@@ -209,6 +227,42 @@ pub fn install(world: &mut World) {
             id,
             INTENT,
             result.map(|_| json!({ "slot": p.slot, "price": p.price })),
+        );
+        if ok {
+            send_view(world, id, p.at);
+        }
+    });
+
+    world.set_method_handle("platform.stall.guild", |world, id, payload| {
+        const INTENT: &str = "stall.guild";
+        let Some(p) = parse::<GuildPayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        let position = client_position(world, id);
+        let result = {
+            let mut g = world.ecs().write_resource::<Gameplay>();
+            if !within_reach(&g, position, p.at) {
+                Err(IntentError::OutOfReach)
+            } else {
+                let dir = g.world_dir.clone();
+                let r = match g.containers.map.get_mut(&p.at) {
+                    Some(Container::Stall(stall)) => set_guild(stall, id, p.guild),
+                    _ => Err(IntentError::NothingThere),
+                };
+                if r.is_ok() {
+                    if let Err(e) = g.containers.save(&dir) {
+                        log::error!("could not save containers: {e}");
+                    }
+                }
+                r
+            }
+        };
+        let ok = result.is_ok();
+        reply(
+            world,
+            id,
+            INTENT,
+            result.map(|_| json!({ "guild": p.guild })),
         );
         if ok {
             send_view(world, id, p.at);
@@ -264,7 +318,7 @@ pub fn install(world: &mut World) {
                             to: owner.clone(),
                             amount: sale.price,
                             reason: format!("Stall: {} {name}", sale.stack.count),
-                            kind: "stall",
+                            kind: sale.payment_kind(),
                         });
                     }
                     reserved.map(|(sale, _)| sale)
@@ -336,6 +390,19 @@ mod tests {
         assert_eq!(s.slots[0].as_ref().map(|x| x.count), Some(4));
         assert_eq!(s.restock(0, sale.stack.clone()), None);
         assert!(s.slots[1].is_some());
+    }
+
+    #[test]
+    fn guild_stalls_pay_the_guild_even_on_retry() {
+        let mut s = stall();
+        assert_eq!(set_guild(&mut s, "eve", true), Err(IntentError::NotOwner));
+        set_guild(&mut s, "owner", true).unwrap();
+        set_price(&mut s, "owner", 0, 10).unwrap();
+        let sale = reserve(&mut s, "bob", Realm::Survival, 0, "k1".into()).unwrap();
+        assert_eq!(sale.payment_kind(), "guild_stall");
+        // Switching back later does not change a sale already made.
+        set_guild(&mut s, "owner", false).unwrap();
+        assert_eq!(s.sales[0].payment_kind(), "guild_stall");
     }
 
     #[test]

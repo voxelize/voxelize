@@ -14,6 +14,8 @@ pub const MAX_AIR: f32 = 15.0; // seconds of breath
 pub const SAFE_FALL: f32 = 3.0;
 /// Health lost per second below the bottom of the world.
 pub const VOID_DAMAGE: f32 = 8.0;
+/// Creative players fly, so the void takes them only this far down.
+pub const CREATIVE_VOID_Y: f32 = -64.0;
 
 /// Reported positions are the eye; feet are this far below.
 pub const EYE_HEIGHT: f32 = 1.425;
@@ -154,6 +156,27 @@ pub struct TickOutcome {
     pub changed: bool,
 }
 
+/// Advance a creative player's vitals: nothing hurts them but the deep
+/// void.
+pub fn creative_tick(v: &mut Vitals, feet_y: f32, dt: f32) -> TickOutcome {
+    let mut out = TickOutcome::default();
+    if v.is_dead() || feet_y >= CREATIVE_VOID_Y {
+        v.hazard_timer = 0.0;
+        return out;
+    }
+    v.hazard_timer += dt;
+    while v.hazard_timer >= 1.0 {
+        v.hazard_timer -= 1.0;
+        out.damage.push((DamageKind::Void, VOID_DAMAGE));
+    }
+    for &(_, amount) in &out.damage {
+        v.damage(amount);
+    }
+    out.changed = !out.damage.is_empty();
+    out.died = v.is_dead();
+    out
+}
+
 /// Advance vitals by `dt` seconds.
 pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
     let mut out = TickOutcome::default();
@@ -251,6 +274,28 @@ mod tests {
             in_void: false,
             moved: 0.0,
         }
+    }
+
+    #[test]
+    fn creative_players_die_only_in_the_deep_void() {
+        let mut v = Vitals::default();
+        for _ in 0..100 {
+            assert!(
+                !creative_tick(&mut v, -40.0, 0.1).changed,
+                "shallow void: fly back"
+            );
+        }
+        assert_eq!(v.health, MAX_HEALTH);
+        let mut died = false;
+        for _ in 0..40 {
+            let out = creative_tick(&mut v, -80.0, 0.1);
+            if out.died {
+                assert_eq!(out.damage, vec![(DamageKind::Void, VOID_DAMAGE)]);
+                died = true;
+                break;
+            }
+        }
+        assert!(died, "the deep void kills creative players too");
     }
 
     #[test]

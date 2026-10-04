@@ -20,6 +20,8 @@ export type StallView = {
   offers: { slot: number; item: string | null; count: number; price: number }[];
   prices: number[];
   pending: number;
+  /** Sells for the owner's guild. */
+  guild?: boolean;
   stock: ({ item: string | null; count: number } | null)[] | null;
 };
 
@@ -39,6 +41,9 @@ export class StallPanel {
       itemName: (key: string | null) => string;
       buy: (at: [number, number, number], slot: number) => void;
       price: (at: [number, number, number], slot: number, price: number) => void;
+      /** Switch the owner's stall between selling for them and for their guild (when they have one). */
+      setGuild?: (at: [number, number, number], guild: boolean) => void;
+      hasGuild?: () => boolean;
       notify: (text: string) => void;
     },
   ) {
@@ -66,7 +71,12 @@ export class StallPanel {
     const nodes: (Node | string)[] = [el("h2", { textContent: v.mine ? "Your stall" : `${v.owner.name || "A"}'s stall` })];
     if (v.creative) nodes.push(el("p", { className: "market-note", textContent: "A creative stall: for show, never for sale." }));
     if (v.mine) {
-      nodes.push(el("p", { className: "market-note", textContent: "Stock it in the window; set a price per slot (0 = not for sale). Payments reach your wallet minus the 5% fee." }));
+      nodes.push(el("p", { className: "market-note", textContent: `Stock it in the window; set a price per slot (0 = not for sale). Payments reach ${v.guild ? "your guild's treasury" : "your wallet"} minus the 5% fee.` }));
+      if (this.options.setGuild && (v.guild || this.options.hasGuild?.())) {
+        const box = el("input", { type: "checkbox", checked: !!v.guild });
+        box.addEventListener("change", () => this.options.setGuild?.(v.at, box.checked));
+        nodes.push(el("label", { className: "setting" }, el("span", { textContent: "Sell for my guild" }), box));
+      }
       const list = el("ul", { className: "market-list" });
       (v.stock ?? []).forEach((s, slot) => {
         const input = el("input", { type: "number", min: "0", value: String(v.prices[slot] ?? 0), className: "market-bid" });

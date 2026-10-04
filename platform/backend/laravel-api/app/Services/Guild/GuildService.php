@@ -5,6 +5,7 @@ namespace App\Services\Guild;
 use App\Models\Guild;
 use App\Models\GuildInvite;
 use App\Models\GuildMember;
+use App\Models\GuildMessage;
 use App\Models\Land;
 use App\Models\LedgerTransaction;
 use App\Models\User;
@@ -91,7 +92,7 @@ class GuildService
         if (GuildMember::query()->where('user_id', $player->id)->exists()) {
             throw new MarketException('in_guild', 'That player is already in a guild.', 409);
         }
-        if ($guild->members()->count() >= (int) config('platform.guilds.max_members')) {
+        if ($guild->members()->count() >= Settlements::memberLimit($guild)) {
             throw new MarketException('guild_full', 'The guild is full.', 409);
         }
 
@@ -221,6 +222,24 @@ class GuildService
         $this->audit->record(action: 'guild.withdraw', actor: $actor, subjectType: 'guild', subjectId: $guild->public_id, payload: ['to' => $to->public_id, 'amount' => $amount]);
 
         return $transaction;
+    }
+
+    /** A member speaks in the guild's chat. */
+    public function say(User $member, Guild $guild, string $body): GuildMessage
+    {
+        $this->assertRole($member, $guild, Guild::ROLES);
+        $body = trim(preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $body) ?? '');
+        if ($body === '' || mb_strlen($body) > (int) config('platform.guilds.chat_max_length')) {
+            throw new MarketException('bad_message', 'Say something of up to 300 characters.');
+        }
+
+        return GuildMessage::query()->create(['guild_id' => $guild->id, 'user_id' => $member->id, 'body' => $body]);
+    }
+
+    /** Whether `$user` may spend the guild's treasury (leader or officer). */
+    public function assertOfficer(User $user, Guild $guild): void
+    {
+        $this->assertRole($user, $guild, ['leader', 'officer']);
     }
 
     private function disband(User $leader, Guild $guild): void

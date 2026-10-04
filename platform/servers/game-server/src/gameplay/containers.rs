@@ -209,6 +209,9 @@ pub struct Stall {
     pub prices: Vec<u64>,
     #[serde(default)]
     pub sales: Vec<StallSale>,
+    /// Sells for the owner's guild: proceeds go to its treasury.
+    #[serde(default)]
+    pub guild: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -222,6 +225,21 @@ pub struct StallSale {
     /// The backend took the money; the goods are the buyer's.
     #[serde(default)]
     pub paid: bool,
+    /// Paid to the owner's guild (the stall's mode when it was bought, so
+    /// a retried payment asks for the same thing).
+    #[serde(default)]
+    pub for_guild: bool,
+}
+
+impl StallSale {
+    /// The payment kind the backend knows this sale by.
+    pub fn payment_kind(&self) -> &'static str {
+        if self.for_guild {
+            "guild_stall"
+        } else {
+            "stall"
+        }
+    }
 }
 
 impl Stall {
@@ -233,6 +251,7 @@ impl Stall {
             slots: vec![None; STALL_SIZE],
             prices: vec![0; STALL_SIZE],
             sales: Vec::new(),
+            guild: false,
         }
     }
 

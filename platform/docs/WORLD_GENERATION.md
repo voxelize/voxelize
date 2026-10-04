@@ -91,7 +91,8 @@ short flight from land. Smaller, thinner islets float around y 150 where a
 second noise field is high, and flat banks of cloud fill y 190–192. Ores
 whose host is cloudrock (sunstone) use the shared vein placement. Nothing
 generates below y 40: falling off an island falls out of the world, which
-kills (`void` damage, 8 per second below y −2).
+kills (`void` damage, 8 per second below y −2; creative players, who can
+fly back, only below y −64, and they keep their inventory).
 
 Sky coordinates are not scaled. An unlinked arrival looks for the nearest
 island top (clouds excluded) within 32 columns of the departure point —

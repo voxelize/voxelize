@@ -2,6 +2,7 @@
 
 namespace App\Services\Market;
 
+use App\Models\GuildMember;
 use App\Models\ItemDelivery;
 use App\Models\LedgerTransaction;
 use App\Models\MarketBid;
@@ -323,7 +324,8 @@ class MarketService
      * goods and hands them over once this succeeds. One transaction per
      * `$key`, however often it is asked.
      */
-    public function stallSale(User $buyer, User $seller, int $amount, string $key, string $reason, bool $trade = false): LedgerTransaction
+    /** With `$toGuild`, the proceeds go to the seller's guild treasury (their wallet when they have no guild). */
+    public function stallSale(User $buyer, User $seller, int $amount, string $key, string $reason, bool $trade = false, bool $toGuild = false): LedgerTransaction
     {
         if ($buyer->is($seller)) {
             throw new MarketException('own_listing', 'You cannot buy from your own stall.');
@@ -336,7 +338,7 @@ class MarketService
         $fee = $trade ? 0 : $this->fee($amount);
         $legs = [
             new Leg($this->ledger->walletFor($buyer, $currency)->account, -$amount),
-            new Leg($this->ledger->walletFor($seller, $currency)->account, $amount - $fee),
+            new Leg($this->proceeds($seller, $currency, $toGuild && ! $trade), $amount - $fee),
         ];
         if ($fee > 0) {
             $legs[] = new Leg($this->ledger->systemAccount('fees', $currency), $fee);
@@ -382,6 +384,15 @@ class MarketService
 
             return $delivery;
         });
+    }
+
+    private function proceeds(User $seller, string $currency, bool $toGuild)
+    {
+        $guild = $toGuild ? GuildMember::query()->where('user_id', $seller->id)->first()?->guild : null;
+
+        return $guild && $guild->status === 'active'
+            ? $this->ledger->guildAccount($guild, $currency)
+            : $this->ledger->walletFor($seller, $currency)->account;
     }
 
     private function escrow(MarketListing $listing)

@@ -89,6 +89,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.use` | `{"voxel":[x,y,z]}` | reach; a held fire striker lights the riftstone frame at the voxel (a closed frame, interior 2×3 to 21×21, all air) and wears; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe). Answer carries `changed` (cells written) | ✅ |
 | `platform.market.list` | `{"slot":n,"count":n,"price":n,"kind"?:"fixed"\|"auction","buyout"?:n,"hours"?:1-168}` | survival realm only (`survival_only`); a backend configured (`market_unavailable`); valid price, buyout above the opening price for auctions only, duration (`bad_listing`); exactly `count` from the slot (`bad_count`). The goods leave the inventory into the player's outbox in one save; `platform.market {"listed"}` follows when the backend holds them, or `{"rejected"}` with the goods returned | ✅ |
 | `platform.stall.price` | `{"at":[x,y,z],"slot":0-8,"price":n}` | the stall's owner (`not_owner`), within reach; 0 takes the slot off sale | ✅ |
+| `platform.stall.guild` | `{"at":[x,y,z],"guild":bool}` | the stall's owner, within reach; a guild stall's sales pay the owner's guild treasury (fixed per sale when it is bought) | ✅ |
 | `platform.stall.buy` | `{"at":[x,y,z],"slot":0-8}` | not the owner, survival buyer and stall (`survival_only`), a priced stocked slot, within reach, a backend; the goods are set aside and paid through the ledger, then `platform.market {"bought"}` (owner: `{"sold"}`) or `{"refused"}` with the goods back on sale | ✅ |
 | `platform.blueprint.capture` | `{"min":[x,y,z],"max":[x,y,z],"name":s}` | a backend; box ≤ 32 per side, within 64 blocks, loaded (`not_loaded`), all of it land you may build on (`land_protected`), not empty (`bad_blueprint`); answers `{"blocks","size","materials"}`, then `platform.market {"blueprint":{"stored":id,"blocks"}}` or `{"refused":code}` | ✅ |
 | `platform.blueprint.build` | `{"id":s,"at":[x,y,z]}` | a backend, within 64 blocks; then, once the layout arrives: you are the creator or hold a licence (`not_licensed`), land you may build on, every cell free (`occupied`) and no player inside (`collides_with_player`), all materials in the inventory (`missing_ingredients`, survival); all or nothing → `platform.market {"blueprint":{"built":id,"blocks"}}` | ✅ |
@@ -135,13 +136,13 @@ Answers (events, sent only to the requesting client):
   purchase, an auction won, cancelled or expired goods), or
   `{"waiting":{"item","count"}}` (a delivery needs room in the inventory),
   `{"bought"|"sold":{"item","count","price"}}` and `{"refused":{"code","item","count"}}` for stall sales.
-- `platform.stall` — `{"at","owner":{"id","name"},"mine","creative","offers":[{"slot","item","count","price"}],"prices":[9],"pending","stock":[9]|null}`,
+- `platform.stall` — `{"at","owner":{"id","name"},"mine","creative","guild","offers":[{"slot","item","count","price"}],"prices":[9],"pending","stock":[9]|null}`,
   sent when a player opens a trade stall (someone else's stall opens no
   window; the owner also gets the stall's chest-style stock window).
 - `platform.trade` — `{"trade":{"id","mine":{"name","items","crowns","confirmed"},"theirs":{…},"paying"}}`
   after every change, `{"trade":null,"ended":"done"|"cancelled"}`,
   `{"invite":{"from","name"}}`, `{"refused":code}` with the state.
-- `platform.land` — `{"land":{"id","name","owner":{"id","name"},"guild":{"id","name","tag"}|null,"role","public","min","max"}|null}`
+- `platform.land` — `{"land":{"id","name","owner":{"id","name"},"guild":{"id","name","tag"}|null,"settlement":{"name","level"}|null,"role","public","min","max"}|null}`
   when the player walks into different land (null: wilderness).
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are
   to stand in. Sent on join (back where they left) and when a traveller is

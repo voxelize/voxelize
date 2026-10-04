@@ -2,7 +2,8 @@
 // Everything goes to the API; guild land shows up in the land panel and is
 // enforced by the game server like any other land.
 
-import { api, ApiError, idempotencyKey, type GuildRole, type GuildView } from "./api";
+import { api, ApiError, idempotencyKey, type GuildMessage, type GuildRole, type GuildView, type Settlement } from "./api";
+import type { LandHere } from "./land";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -26,6 +27,26 @@ export function guildActions(mine: GuildRole | null, theirs: GuildRole, self: bo
 export const normaliseTag = (tag: string) => tag.trim().toUpperCase();
 export const validTag = (tag: string) => /^[A-Z0-9]{2,5}$/.test(normaliseTag(tag));
 
+/** The toast shown when walking onto land (or into the wild). */
+export function landNotice(land: LandHere | null | undefined): string {
+  if (!land) return "Wilderness";
+  const base = `${land.name || "Land"} — ${land.owner.name || "owned"}`;
+  const tag = land.guild ? ` [${land.guild.tag}]` : "";
+  if (land.settlement && land.settlement.level !== "none") return `The ${land.settlement.level} of ${land.settlement.name}${tag} · ${base}`;
+  return base + tag;
+}
+
+/** One settlement in a line: "Town · 18 chunks · chunks 0,0 to 5,2 (overworld)". */
+export function settlementLine(s: Settlement): string {
+  const level = s.level === "none" ? "Outpost" : s.level[0].toUpperCase() + s.level.slice(1);
+  return `${level} · ${s.chunks} chunk(s) · ${s.min.join(",")} to ${s.max.join(",")} (${s.dimension})`;
+}
+
+/** Messages newer than `after`, oldest first, without duplicates. */
+export function newMessages(list: GuildMessage[], after: number): GuildMessage[] {
+  return list.filter((m) => m.id > after).sort((a, b) => a.id - b.id);
+}
+
 export class GuildPanel {
   readonly root: HTMLElement;
   private busy = false;
@@ -33,6 +54,10 @@ export class GuildPanel {
   guild: GuildView | null = null;
 
   private me = "";
+  /** The guild chat seen so far (the latest 50 lines). */
+  private chat: GuildMessage[] = [];
+  private lastMessage = 0;
+  private polling: number | null = null;
 
   constructor(private readonly options: { notify: (text: string) => void }) {
     this.root = el("section", { id: "guild", className: "panel", hidden: true });
@@ -53,6 +78,25 @@ export class GuildPanel {
     return this.guild;
   }
 
+  /** Poll the guild chat every few seconds; new lines from others are toasted while the panel is closed. */
+  startChat(intervalMs = 4000) {
+    if (this.polling !== null) return;
+    const tick = async () => {
+      if (!this.guild) return;
+      const fresh = await api.guilds.messages(this.guild.id, this.lastMessage).catch(() => null);
+      if (!fresh) return;
+      const added = newMessages(fresh, this.lastMessage);
+      if (!added.length) return;
+      const first = this.lastMessage === 0;
+      this.lastMessage = added[added.length - 1].id;
+      this.chat = [...this.chat, ...added].slice(-50);
+      if (this.isOpen) void this.render();
+      else if (!first) for (const m of added) if (m.from.name !== this.me) this.options.notify(`[${this.guild.tag}] ${m.from.name}: ${m.body}`);
+    };
+    void tick();
+    this.polling = window.setInterval(() => void tick(), intervalMs);
+  }
+
   private async act(work: () => Promise<unknown>, done: string) {
     if (this.busy) return;
     this.busy = true;
@@ -71,6 +115,10 @@ export class GuildPanel {
     const children: (Node | string)[] = [el("h2", { textContent: "Guild" })];
     if (!this.me) this.me = (await api.me().catch(() => null))?.username ?? "";
     const state = await api.guilds.mine().catch(() => null);
+    if (state?.guild?.id !== this.guild?.id) {
+      this.chat = [];
+      this.lastMessage = 0;
+    }
     this.guild = state?.guild ?? null;
     if (!state) children.push(el("p", { textContent: "Could not load your guild." }));
     else if (state.guild) children.push(...this.ownGuild(state.guild));
@@ -132,6 +180,29 @@ export class GuildPanel {
       roster.append(li);
     }
     nodes.push(el("h3", { textContent: "Members" }), roster);
+
+    // Settlements: touching guild lands, levelled by size and membership.
+    nodes.push(el("h3", { textContent: `Settlements${g.settlement_level !== "none" ? ` · best: ${g.settlement_level}` : ""}` }));
+    if (g.settlements.length) {
+      const list = el("ul", { className: "guild-roster" });
+      for (const s of g.settlements) list.append(el("li", { textContent: settlementLine(s) }));
+      nodes.push(list);
+    } else nodes.push(el("p", { textContent: "No guild land yet. Officers claim it in the land panel (L)." }));
+
+    // Chat.
+    const log = el("ul", { className: "guild-chat" });
+    for (const m of this.chat) log.append(el("li", {}, el("strong", { textContent: `${m.from.name}: ` }), m.body));
+    if (!this.chat.length) log.append(el("li", { textContent: "No messages yet." }));
+    const line = el("input", { type: "text", maxLength: 300, placeholder: "Message your guild" });
+    const send = () => {
+      const body = line.value.trim();
+      if (!body) return;
+      void this.act(() => api.guilds.say(g.id, body), "Sent");
+    };
+    line.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+    });
+    nodes.push(el("h3", { textContent: "Chat" }), log, el("div", { className: "guild-add" }, line, el("button", { type: "button", onclick: send }, "Send")));
 
     const amount = el("input", { type: "number", min: 1, value: 10 });
     const depositKey = idempotencyKey();

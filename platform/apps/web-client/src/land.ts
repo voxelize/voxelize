@@ -9,6 +9,8 @@ export type LandHere = {
   id: string;
   name: string;
   owner: { id: string; name: string };
+  guild?: { id: string; name: string; tag: string } | null;
+  settlement?: { name: string; level: string } | null;
   role: string | null;
   public: LandPermissions;
   min: [number, number];

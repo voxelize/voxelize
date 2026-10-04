@@ -67,6 +67,18 @@ return [
         'max_members' => 50,
         // Land a guild may hold in total, in chunks.
         'max_chunks' => 256,
+        // Touching guild lands form a settlement; its level needs this much
+        // land (chunks) and this many guild members. Levels in order.
+        'settlements' => [
+            'village' => ['chunks' => 4, 'members' => 1],
+            'town' => ['chunks' => 16, 'members' => 3],
+            'city' => ['chunks' => 64, 'members' => 8],
+        ],
+        // A guild's best settlement raises its member limit.
+        'member_limits' => ['none' => 50, 'village' => 50, 'town' => 75, 'city' => 100],
+        // Guild chat: longest message, messages a member may send a minute.
+        'chat_max_length' => 300,
+        'chat_per_minute' => 20,
     ],
 
     'blueprints' => [

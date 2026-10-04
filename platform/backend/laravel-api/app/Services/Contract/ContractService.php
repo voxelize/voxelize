@@ -3,12 +3,14 @@
 namespace App\Services\Contract;
 
 use App\Models\Contract;
+use App\Models\Guild;
 use App\Models\ItemDelivery;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
 use App\Services\Economy\Leg;
 use App\Services\Economy\Posting;
+use App\Services\Guild\GuildService;
 use App\Services\Market\MarketException;
 use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
@@ -27,9 +29,11 @@ class ContractService
     public function __construct(
         private readonly LedgerService $ledger,
         private readonly AuditLogger $audit,
+        private readonly GuildService $guilds,
     ) {}
 
-    public function post(User $poster, string $world, string $title, string $item, int $count, int $reward, int $hours, string $key): Contract
+    /** With `$guild`, an officer posts for the guild: its treasury pays the reward (and gets it back unused); the goods come to the poster. */
+    public function post(User $poster, string $world, string $title, string $item, int $count, int $reward, int $hours, string $key, ?Guild $guild = null): Contract
     {
         if ($existing = Contract::query()->where('poster_id', $poster->id)->where('post_key', $key)->first()) {
             $existing->wasReplayed = true;
@@ -49,12 +53,16 @@ class ContractService
             throw new MarketException('bad_duration', 'Contracts run 1 to 168 hours.');
         }
         $currency = (string) config('platform.market.currency');
+        if ($guild) {
+            $this->guilds->assertOfficer($poster, $guild);
+        }
 
         try {
-            return DB::transaction(function () use ($poster, $world, $title, $item, $count, $reward, $hours, $key, $currency) {
+            return DB::transaction(function () use ($poster, $world, $title, $item, $count, $reward, $hours, $key, $currency, $guild) {
                 $contract = Contract::query()->create([
                     'public_id' => (string) Str::ulid(),
                     'poster_id' => $poster->id,
+                    'guild_id' => $guild?->id,
                     'world' => $world,
                     'title' => mb_substr(trim($title) ?: "{$count} {$item}", 0, 80),
                     'item' => $item,
@@ -70,7 +78,7 @@ class ContractService
                     reason: "Contract reward: {$contract->title}",
                     idempotencyKey: "contract:lock:{$contract->public_id}",
                     legs: [
-                        new Leg($this->ledger->walletFor($poster, $currency)->account, -$reward),
+                        new Leg($this->payer($contract), -$reward),
                         new Leg($this->escrow($contract), $reward),
                     ],
                     referenceType: 'contract',
@@ -141,7 +149,10 @@ class ContractService
     {
         return DB::transaction(function () use ($poster, $contract) {
             $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
-            if ($contract->poster_id !== $poster->id) {
+            // A guild's contract may be withdrawn by any of its officers.
+            $officer = $contract->guild_id !== null
+                && in_array(Guild::query()->find($contract->guild_id)?->roleOf($poster), ['leader', 'officer'], true);
+            if ($contract->poster_id !== $poster->id && ! $officer) {
                 throw new MarketException('forbidden', 'That is not your contract.', 403);
             }
             if ($contract->status !== 'open') {
@@ -241,7 +252,7 @@ class ContractService
             idempotencyKey: "contract:refund:{$contract->public_id}",
             legs: [
                 new Leg($this->escrow($contract), -$contract->reward),
-                new Leg($this->ledger->walletFor($contract->poster, $contract->currency)->account, $contract->reward),
+                new Leg($this->payer($contract), $contract->reward),
             ],
             referenceType: 'contract',
             referenceId: $contract->public_id,
@@ -256,6 +267,14 @@ class ContractService
         if ($contract->status !== $status || $contract->deadline_at->isPast()) {
             throw new MarketException('contract_closed', 'That contract is not available.', 409);
         }
+    }
+
+    /** Who pays the reward and gets it back: the guild's treasury or the poster's wallet. */
+    private function payer(Contract $contract)
+    {
+        return $contract->guild_id !== null
+            ? $this->ledger->guildAccount(Guild::query()->findOrFail($contract->guild_id), $contract->currency)
+            : $this->ledger->walletFor($contract->poster, $contract->currency)->account;
     }
 
     private function escrow(Contract $contract)

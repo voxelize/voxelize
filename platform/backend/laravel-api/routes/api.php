@@ -66,6 +66,8 @@ Route::prefix('v1')->group(function () {
         Route::post('guilds/{guild}/deposit', [GuildController::class, 'deposit'])->middleware('throttle:economy');
         Route::post('guilds/{guild}/withdraw', [GuildController::class, 'withdraw'])->middleware('throttle:economy');
         Route::get('guilds/{guild}/entries', [GuildController::class, 'entries']);
+        Route::get('guilds/{guild}/messages', [GuildController::class, 'messages']);
+        Route::post('guilds/{guild}/messages', [GuildController::class, 'say']);
 
         Route::get('blueprints', [BlueprintController::class, 'index']);
         Route::get('blueprints/mine', [BlueprintController::class, 'mine']);

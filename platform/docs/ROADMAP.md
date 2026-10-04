@@ -270,8 +270,15 @@ which every member builds (the game server's land feed carries the guild);
 disbanding pays the treasury to the last leader and releases the land; web
 client guild panel (G) and "claim for the guild" in the land panel. Tests:
 5 backend feature tests, Rust land tests, client unit tests.
-Remaining: settlements from adjacent lands (village, town, city), guild
-chat, guild-owned stalls and contracts.
+Done since: settlements — touching guild lands form a village, town or
+city by size and membership, named on entry in the game and raising the
+guild's member limit; guild chat (API, polled by the guild panel, new lines
+toasted in the game); stalls selling for the guild treasury
+(`platform.stall.guild`); contracts posted by officers and paid from the
+treasury. Tests: 9 backend feature tests, Rust stall and land tests,
+client unit tests, `tests/bots/guilds.mjs` end to end.
+Remaining: settlement buildings and services (town hall, shared storage),
+taxes, wars and alliances.
 
 ## Phase 18 — Advanced content 🟡
 

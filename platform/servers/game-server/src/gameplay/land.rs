@@ -76,6 +76,13 @@ pub struct GuildTag {
     pub tag: String,
 }
 
+/// The settlement (village, town, city) a guild land is part of.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Settlement {
+    pub name: String,
+    pub level: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Land {
     pub id: String,
@@ -87,6 +94,8 @@ pub struct Land {
     pub owner: Person,
     #[serde(default)]
     pub guild: Option<GuildTag>,
+    #[serde(default)]
+    pub settlement: Option<Settlement>,
     #[serde(default)]
     pub members: Vec<Member>,
     #[serde(default)]
@@ -327,6 +336,7 @@ impl<'a> specs::System<'a> for LandNoticeSystem {
                     "name": l.name,
                     "owner": l.owner,
                     "guild": l.guild,
+                    "settlement": l.settlement,
                     "role": l.role_of(id),
                     "public": l.public,
                     "min": l.min,
@@ -365,6 +375,7 @@ mod tests {
                 "id": "L3", "dimension": "overworld", "min": [10, 10], "max": [10, 10],
                 "owner": { "id": "lead", "name": "lead" },
                 "guild": { "id": "G1", "name": "Stone Wardens", "tag": "SW" },
+                "settlement": { "name": "Stone Wardens", "level": "village" },
                 "members": [{ "id": "off", "role": "manager" }, { "id": "mem", "role": "builder" }]
             }]
         }))
@@ -381,6 +392,7 @@ mod tests {
         assert!(!index.allows(o, "stranger", [165, 70, 165], Action::Build));
         let land = index.at(o, 165, 165).unwrap();
         assert_eq!(land.guild.as_ref().unwrap().tag, "SW");
+        assert_eq!(land.settlement.as_ref().unwrap().level, "village");
     }
 
     #[test]

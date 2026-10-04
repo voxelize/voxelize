@@ -13,6 +13,7 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
 use App\Services\Economy\Leg;
 use App\Services\Economy\Posting;
+use App\Services\Guild\Settlements;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -256,11 +257,26 @@ class LandService
      */
     public function feed(string $world): array
     {
-        return Land::query()
+        $lands = Land::query()
             ->where('world', $world)->where('status', 'active')
             ->with(['owner:id,public_id,username', 'members.user:id,public_id', 'guild.members.user:id,public_id,username', 'guild.leader:id,public_id,username'])
             ->orderBy('id')
-            ->get()
+            ->get();
+        // Each guild land's settlement (village and up).
+        $settlement = [];
+        foreach ($lands->whereNotNull('guild_id')->groupBy('guild_id') as $group) {
+            $guild = $group->first()->guild;
+            $all = Land::query()->where('guild_id', $guild->id)->where('status', 'active')->get();
+            foreach (Settlements::of($all, $guild->members->count()) as $s) {
+                if ($s['level'] !== 'none') {
+                    foreach ($s['lands'] as $id) {
+                        $settlement[$id] = ['name' => $guild->name, 'level' => $s['level']];
+                    }
+                }
+            }
+        }
+
+        return $lands
             ->map(fn (Land $land) => [
                 'id' => $land->public_id,
                 'name' => $land->name,
@@ -272,6 +288,7 @@ class LandService
                     ? ['id' => $land->guild->leader->public_id, 'name' => $land->guild->leader->username]
                     : ['id' => $land->owner->public_id, 'name' => $land->owner->username],
                 'guild' => $land->guild ? ['id' => $land->guild->public_id, 'name' => $land->guild->name, 'tag' => $land->guild->tag] : null,
+                'settlement' => $settlement[$land->public_id] ?? null,
                 'members' => $land->members->map(fn (LandMember $m) => ['id' => $m->user->public_id, 'role' => $m->role])
                     ->concat($land->guild ? $land->guild->members
                         ->filter(fn (GuildMember $m) => $m->role !== 'leader')

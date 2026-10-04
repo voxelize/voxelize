@@ -114,6 +114,7 @@ export type ContractView = {
   currency: string;
   status: string;
   poster: { id: string; name: string };
+  guild: { id: string; name: string; tag: string } | null;
   contractor: { id: string; name: string } | null;
   deadline_at: string;
   role: "poster" | "contractor" | null;
@@ -128,7 +129,20 @@ export type GuildView = GuildSummary & {
   max_members: number;
   max_chunks: number;
   my_role: GuildRole | null;
+  settlements: Settlement[];
+  settlement_level: SettlementLevel;
 };
+export type SettlementLevel = "none" | "village" | "town" | "city";
+export type Settlement = {
+  world: string;
+  dimension: string;
+  lands: string[];
+  chunks: number;
+  level: SettlementLevel;
+  min: [number, number];
+  max: [number, number];
+};
+export type GuildMessage = { id: number; from: { id: string; name: string }; body: string; at: string };
 
 /** A fresh key for one economic request; retries reuse it. */
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
@@ -186,7 +200,7 @@ export const api = {
   contracts: {
     list: (world: string, mine = false) =>
       request<{ contracts: ContractView[] }>(`/contracts?world=${encodeURIComponent(world)}${mine ? "&mine=1" : ""}`).then((r) => r.contracts),
-    post: (key: string, body: { world: string; title: string; item: string; count: number; reward: number; hours: number }) =>
+    post: (key: string, body: { world: string; title: string; item: string; count: number; reward: number; hours: number; guild?: string }) =>
       request<{ contract: ContractView; balance: number }>("/contracts", { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify(body) }),
     accept: (id: string) => request<{ contract: ContractView }>(`/contracts/${id}/accept`, { method: "POST" }),
     abandon: (id: string) => request<{ contract: ContractView }>(`/contracts/${id}/abandon`, { method: "POST" }),
@@ -208,6 +222,10 @@ export const api = {
       request<{ guild: GuildView }>(`/guilds/${id}/members/${encodeURIComponent(player)}/role`, { method: "PUT", body: JSON.stringify({ role }) }),
     deposit: (id: string, key: string, amount: number) =>
       request<{ treasury: number; balance: number }>(`/guilds/${id}/deposit`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ amount }) }),
+    messages: (id: string, after = 0) =>
+      request<{ messages: GuildMessage[] }>(`/guilds/${id}/messages${after ? `?after=${after}` : ""}`).then((r) => r.messages),
+    say: (id: string, body: string) =>
+      request<{ message: { id: number } }>(`/guilds/${id}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
     withdraw: (id: string, key: string, amount: number, to?: string) =>
       request<{ treasury: number }>(`/guilds/${id}/withdraw`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ amount, to }) }),
   },
