@@ -264,8 +264,8 @@ portals found within 16 columns or built, portal pairs linked and saved
 (`portal_links.json`), one player record across dimensions with the
 dimension and any pending arrival, redirection on join, respawn home, saved
 position restored on join (`platform.teleport`), creative item palette
-intent (`platform.inventory.creative`; its screen in the web client is
-still to come). The engine gained one generic extension:
+intent (`platform.inventory.creative`) with a searchable palette of every
+item on the inventory screen in creative worlds. The engine gained one generic extension:
 a world may bring its own block registry. Unit tests for generation,
 portal geometry, links and rules; `tests/bots/portals.mjs` on a live server
 (light a portal, travel down, reconnect and resume there, travel back to

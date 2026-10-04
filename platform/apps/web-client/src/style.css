@@ -660,3 +660,8 @@ body.touch #hint {
   font-size: 13px;
   opacity: 0.8;
 }
+
+.recipe-book.palette input[type="search"] {
+  width: 100%;
+  margin-bottom: 8px;
+}

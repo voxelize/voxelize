@@ -329,6 +329,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     drag: (slots, oneEach) => method.call("platform.window.drag", { slots, oneEach }),
     fill: (recipe, max) => method.call("platform.window.fill", { recipe, max }),
     close: () => closeWindow(),
+    creative: (item) => method.call("platform.inventory.creative", { slot: hud.inventory.selected, item }),
   });
   const closeWindow = () => {
     windowUi.wantPlayer = false;

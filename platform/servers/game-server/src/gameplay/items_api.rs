@@ -128,7 +128,7 @@ fn furnace_payload(f: &Furnace, g: &Gameplay) -> Value {
     })
 }
 
-fn send_window(world: &mut World, id: &str) {
+pub(super) fn send_window(world: &mut World, id: &str) {
     let payload = window_payload(&world.ecs().read_resource::<Gameplay>(), id);
     send(world, id, WINDOW_EVENT, payload);
 }

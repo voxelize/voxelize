@@ -33,7 +33,15 @@ export type WindowActions = {
   drag: (slots: number[], oneEach: boolean) => void;
   fill: (recipe: string, max: boolean) => void;
   close: () => void;
+  /** Creative only: a full stack of an item into the selected hotbar slot. */
+  creative?: (item: string) => void;
 };
+
+/** Items whose name or key contains `query` (case-insensitive), in pack order. */
+export function paletteMatches<T extends { key: string; name: string }>(items: T[], query: string): T[] {
+  const q = query.trim().toLowerCase();
+  return q ? items.filter((i) => i.name.toLowerCase().includes(q) || i.key.includes(q)) : items;
+}
 
 const TITLES: Record<WindowKind, string> = {
   player: "Inventory",
@@ -239,7 +247,7 @@ export class WindowUi {
       arrow.className = "arrow";
       arrow.textContent = "→";
       top.append(grid, arrow, this.slotEl(0, "result"));
-      top.append(this.recipeBook(size));
+      top.append(kind === "player" && this.hud.inventory.realm === "creative" && this.actions.creative ? this.palette() : this.recipeBook(size));
     } else if (kind === "furnace") {
       const f = state.furnace;
       const col = document.createElement("div");
@@ -271,6 +279,38 @@ export class WindowUi {
     this.cursorEl.replaceChildren();
     const held = state.cursor ? this.content.itemsById.get(state.cursor.item) : undefined;
     if (state.cursor && held) this.cursorEl.append(this.stackEl(held, state.cursor.count, state.cursor.durability));
+  }
+
+  private paletteQuery = "";
+
+  /** Creative worlds: every item, a click puts a stack in the selected hotbar slot. */
+  private palette(): HTMLElement {
+    const box = document.createElement("div");
+    box.className = "recipe-book palette";
+    const heading = document.createElement("h3");
+    heading.textContent = "All items";
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = "Search";
+    search.value = this.paletteQuery;
+    const list = document.createElement("ul");
+    const fill = () => {
+      list.replaceChildren();
+      for (const item of paletteMatches(this.content.pack.items, this.paletteQuery)) {
+        const li = document.createElement("li");
+        li.title = item.name;
+        li.append(this.stackEl(item, 1));
+        li.addEventListener("click", () => this.actions.creative?.(item.key));
+        list.append(li);
+      }
+    };
+    search.addEventListener("input", () => {
+      this.paletteQuery = search.value;
+      fill();
+    });
+    fill();
+    box.append(heading, search, list);
+    return box;
   }
 
   private recipeBook(size: number): HTMLElement {

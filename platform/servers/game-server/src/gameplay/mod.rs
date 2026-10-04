@@ -695,6 +695,8 @@ pub fn install(
                     if ok {
                         persist(world, client_id);
                         send_inventory(world, client_id);
+                        // The inventory screen shows the new stack too.
+                        items_api::send_window(world, client_id);
                     }
                 }
             }
