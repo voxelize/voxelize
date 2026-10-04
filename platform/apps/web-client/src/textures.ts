@@ -233,6 +233,23 @@ const RECIPES: Record<string, Recipe> = {
       for (let y = 1; y < 5; y++) p.set(x, y, hex("#e2c25a"));
     }
   },
+  carrot_stage: (p) => {
+    p.clear();
+    for (let x = 2; x < SIZE; x += 4) {
+      for (let y = 6; y < SIZE; y++) p.set(x + (y % 3 === 0 ? 1 : 0), y, hex("#5f9e3a"));
+      for (let y = 3; y < 7; y++) p.set(x + (y % 2), y, hex("#78b84a"));
+      p.set(x, SIZE - 1, hex("#e07b26"));
+    }
+  },
+  potato_stage: (p) => {
+    p.clear();
+    for (let x = 1; x < SIZE; x += 5) {
+      for (let y = 7; y < SIZE; y++) p.set(x + 1, y, hex("#4f8a35"));
+      p.blobs(hex("#5f9e3a"), 2, 1);
+      p.set(x + 1, SIZE - 1, hex("#c9a46a"));
+      p.set(x + 2, SIZE - 1, hex("#b08a52"));
+    }
+  },
   oak_sapling: (p) => {
     p.clear();
     for (let y = 8; y < SIZE; y++) p.set(7, y, hex("#6b4a2b"));
@@ -383,6 +400,42 @@ const RECIPES: Record<string, Recipe> = {
   actuator_front: (p) => {
     p.boards(PLANK, 4);
     for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) p.set(x, y, shade(STONE, -0.3));
+  },
+  door_lower: (p) => {
+    p.boards(shade(PLANK, -0.05), 4);
+    p.border(shade(PLANK, -0.5));
+    for (let y = 1; y < 3; y++) for (let x = 11; x < 13; x++) p.set(x, y, hex("#c9c9cf"));
+  },
+  door_upper: (p) => {
+    p.boards(shade(PLANK, -0.05), 4);
+    p.border(shade(PLANK, -0.5));
+    for (let y = 3; y < 9; y++) for (let x = 3; x < 13; x++) p.set(x, y, [170, 205, 225, 140]);
+  },
+  door_lower_open: (p) => {
+    p.clear();
+    for (let y = 0; y < SIZE; y++) for (let x = 0; x < 3; x++) p.set(x, y, shade(PLANK, -0.2));
+  },
+  door_upper_open: (p) => {
+    p.clear();
+    for (let y = 0; y < SIZE; y++) for (let x = 0; x < 3; x++) p.set(x, y, shade(PLANK, -0.2));
+  },
+  grip_front: (p) => {
+    p.boards(PLANK, 4);
+    for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) p.set(x, y, hex("#d8e0c8"));
+  },
+  watcher_side: (p) => {
+    p.speckle(shade(STONE, -0.25), 0.12);
+    for (let x = 0; x < SIZE; x++) p.set(x, 7, hex("#8a3a2a"));
+  },
+  watcher_face: (p) => {
+    p.speckle(shade(STONE, -0.25), 0.12);
+    for (let y = 5; y < 11; y++) for (let x = 3; x < 13; x++) p.set(x, y, hex("#1c1c22"));
+    for (let y = 7; y < 9; y++) for (let x = 6; x < 10; x++) p.set(x, y, hex("#e0473a"));
+  },
+  gauge_top: (p) => {
+    p.speckle(shade(STONE, 0.05), 0.08);
+    for (const [x, y] of [[3, 3], [12, 3], [7, 12]]) for (let d = 0; d < 2; d++) p.set(x + d, y, hex("#e0473a"));
+    for (let i = 4; i < 12; i++) p.set(i, 7, hex("#7a7a80"));
   },
   // Underworld and portals.
   riftstone: (p) => {

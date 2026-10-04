@@ -163,6 +163,18 @@ export class Bot {
     return at ? at.data[at.i] & 0xffff : null;
   }
 
+  /** The full voxel word (id, rotation, stage), or null when not loaded. */
+  raw(vx, vy, vz) {
+    const at = this.index(vx, vy, vz);
+    return at ? at.data[at.i] : null;
+  }
+
+  /** Growth / circuit stage of a voxel (bits 24..27). */
+  stage(vx, vy, vz) {
+    const raw = this.raw(vx, vy, vz);
+    return raw === null ? null : (raw >>> 24) & 0xf;
+  }
+
   setLocal(vx, vy, vz, value) {
     const at = this.index(vx, vy, vz);
     if (at) at.data[at.i] = value;

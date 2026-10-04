@@ -1,0 +1,7 @@
+[
+  { "id": 120, "key": "bone", "name": "Bone", "type": "material", "value": 2 },
+  { "id": 121, "key": "fertiliser", "name": "Fertiliser", "type": "misc", "fertiliser": true, "value": 1 },
+  { "id": 122, "key": "carrot", "name": "Carrot", "type": "seed", "placesBlock": "carrot_crop", "food": 3, "value": 2 },
+  { "id": 123, "key": "potato", "name": "Potato", "type": "seed", "placesBlock": "potato_crop", "food": 1, "value": 2 },
+  { "id": 124, "key": "baked_potato", "name": "Baked Potato", "type": "food", "food": 5, "value": 5 }
+]

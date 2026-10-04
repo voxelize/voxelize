@@ -37,7 +37,35 @@ export type ItemDef = {
   placesBlock?: string | null;
   armor?: { slot: "head" | "chest" | "legs" | "feet"; points: number } | null;
   potion?: { effect: string; seconds?: number; level?: number } | null;
+  food?: number | null;
+  fertiliser?: boolean;
 };
+
+/** Blocks a right click opens as a window. */
+export const WINDOW_BLOCKS = ["crafting_table", "furnace", "chest", "trade_stall", "guild_vault"];
+
+/**
+ * What a right click on a block does: open its window, use it (or use the
+ * held tool on it), eat, fill a bottle, or place the held item. Sneaking
+ * places against usable blocks. Crops that are also food (carrots) plant
+ * on farmland and are eaten elsewhere.
+ */
+export function secondaryAction(
+  target: BlockDef | undefined,
+  held: ItemDef | undefined,
+  sneaking: boolean,
+): "open" | "use" | "eat" | "fill" | "place" {
+  const key = target?.key ?? "";
+  if (target && !sneaking && WINDOW_BLOCKS.includes(key)) return "open";
+  if (target && !sneaking && isUsableBlock(target)) return "use";
+  if (held?.tool?.kind === "hoe" && target && ["dirt", "turf"].includes(key)) return "use";
+  if (held?.tool?.kind === "igniter" && target) return "use";
+  if (held?.fertiliser && target) return "use";
+  if (held?.placesBlock && held.food && key === "farmland") return "place";
+  if (held?.type === "food" || held?.food || held?.potion) return "eat";
+  if (held?.key === "glass_bottle") return "fill";
+  return "place";
+}
 
 export type RecipeDef =
   | {

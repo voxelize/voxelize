@@ -75,6 +75,15 @@ pub enum BlockBehavior {
     Inverter,
     /// Directional: pushes the block in front one cell when powered.
     Actuator,
+    /// Directional: pushes like an actuator, and pulls the block back when
+    /// the power goes.
+    GripActuator,
+    /// Directional: sends a short pulse out of its back when the block in
+    /// front of it changes.
+    Watcher,
+    /// Directional: powers its front with the fill level (0..=15) of the
+    /// container behind it.
+    Gauge,
     /// Portal surface: stays only while framed by its `portal.frame` block
     /// in its plane (stage bit 0: 0 = the plane spans x and y, 1 = z and y).
     Rift,
@@ -202,6 +211,9 @@ pub struct BlockDef {
     /// trunk heights), taken from the biome tree schema.
     #[serde(default)]
     pub grows_into: Option<TreeDef>,
+    /// A block stored over two voxels (tall doors): the other half.
+    #[serde(default)]
+    pub coupled: Option<CoupledDef>,
     /// The block this one becomes when its power state flips (consumers),
     /// or when used by hand (gates).
     #[serde(default)]
@@ -296,6 +308,10 @@ pub struct ItemDef {
     /// A drink that gives an effect (the bottle comes back).
     #[serde(default)]
     pub potion: Option<PotionDef>,
+    /// Used on plants, makes them grow at once (crops advance stages,
+    /// saplings become trees, turf sprouts grass).
+    #[serde(default)]
+    pub fertiliser: bool,
 }
 
 /// Status effects on bodies.
@@ -488,6 +504,19 @@ pub struct VegetationDef {
     /// Single blocks placed on top of the surface (grass, cacti...).
     #[serde(default)]
     pub ground_cover: Vec<GroundCoverDef>,
+}
+
+/// The other half of a two-voxel block.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CoupledDef {
+    /// Where the other half sits, relative to this one.
+    pub offset: [i32; 3],
+    /// The block the other half holds.
+    pub block: String,
+    /// The half that is placed (and brings the other along).
+    #[serde(default)]
+    pub anchor: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

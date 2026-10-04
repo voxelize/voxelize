@@ -6,7 +6,7 @@ import * as VOXELIZE from "@voxelize/core";
 import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
-import { Content, isUsableBlock, miningMillis } from "./content";
+import { Content, miningMillis, secondaryAction } from "./content";
 import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { LandPanel, type LandHere } from "./land";
@@ -592,22 +592,19 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   const secondaryOnBlock = (sneaking: boolean) => {
     const target = interact.target;
     const targetDef = target ? content.blocksById.get(world.getVoxelAt(...target)) : undefined;
-    const targetKey = targetDef?.key;
     const held = hud.heldItem();
-    if (target && !sneaking && targetKey && ["crafting_table", "furnace", "chest", "trade_stall", "guild_vault"].includes(targetKey)) {
+    const action = secondaryAction(targetDef, held, sneaking);
+    if (action === "open" && target) {
       openWindow([...target] as VOXELIZE.Coords3);
-    } else if (target && !sneaking && isUsableBlock(targetDef)) {
+    } else if (action === "use" && target) {
+      // Usable blocks, and tools used on blocks: a hoe tills, a striker
+      // lights, fertiliser grows plants.
       method.call("platform.use", { voxel: target });
-    } else if (held?.tool?.kind === "hoe" && target && ["dirt", "turf"].includes(targetKey ?? "")) {
-      method.call("platform.use", { voxel: target });
-    } else if (held?.tool?.kind === "igniter" && target) {
-      // Light a portal frame, a blast charge, or the top of a block.
-      method.call("platform.use", { voxel: target });
-    } else if (held?.type === "food" || held?.potion) {
+    } else if (action === "eat") {
       method.call("platform.eat", {});
-    } else if (held?.key === "glass_bottle") {
+    } else if (action === "fill") {
       method.call("platform.bottle.fill", {});
-    } else if (interact.potential) {
+    } else if (action === "place" && interact.potential) {
       const { voxel, rotation, yRotation4 } = interact.potential;
       method.call("platform.build.place", { voxel, rotation, yRotation: yRotation4 });
     }

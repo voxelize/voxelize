@@ -490,6 +490,20 @@ impl Rules {
                 return Err(IntentError::NeedsSupport);
             }
         }
+        if let Some(half) = &block.coupled {
+            // A tall block needs its other cell free too.
+            let other = [
+                voxel[0] + half.offset[0],
+                voxel[1] + half.offset[1],
+                voxel[2] + half.offset[2],
+            ];
+            if !half.anchor || view.block_at(other).ok_or(IntentError::NotLoaded)? != AIR {
+                return Err(IntentError::Occupied);
+            }
+            if block.collision && view.players_overlap(other) {
+                return Err(IntentError::CollidesWithPlayer);
+            }
+        }
         if block.collision && view.players_overlap(voxel) {
             return Err(IntentError::CollidesWithPlayer);
         }
@@ -497,6 +511,27 @@ impl Rules {
             player.inventory.take_one(slot)?;
         }
         Ok(block.id)
+    }
+
+    /// The writes that turn the block at `voxel` into `raw`, with the other
+    /// half of a two-voxel block (a door) switching alongside.
+    pub fn with_other_half(&self, voxel: [i32; 3], raw: u32) -> Vec<([i32; 3], u32)> {
+        let mut writes = vec![(voxel, raw)];
+        if let Some(half) = self
+            .content
+            .block_by_id(voxelize::BlockUtils::extract_id(raw))
+            .and_then(|b| b.coupled.as_ref())
+        {
+            if let Some(other) = self.content.block(&half.block) {
+                let at = [
+                    voxel[0] + half.offset[0],
+                    voxel[1] + half.offset[1],
+                    voxel[2] + half.offset[2],
+                ];
+                writes.push((at, (raw & !0xFFFF) | other.id));
+            }
+        }
+        writes
     }
 
     /// Use a block or the held item on it: circuit blocks toggle (levers,
@@ -561,6 +596,96 @@ impl Rules {
         self.held_item(player)
             .and_then(|i| i.tool.as_ref())
             .is_some_and(|t| t.kind == platform_content::ToolKind::Igniter)
+    }
+
+    pub fn holds_fertiliser(&self, player: &PlayerState) -> bool {
+        self.held_item(player).is_some_and(|i| i.fertiliser)
+    }
+
+    /// Use the held fertiliser on the plant at `voxel` (`roll` is a random
+    /// number): a crop advances two to four stages (up to ripe), a sapling
+    /// grows into its tree when there is room, turf sprouts tall grass on
+    /// empty turf around it. One fertiliser is used in survival. The cells
+    /// to write, or `CannotUse` when nothing would grow.
+    pub fn fertilise(
+        &self,
+        player: &mut PlayerState,
+        view: &dyn WorldView,
+        position: [f32; 3],
+        voxel: [i32; 3],
+        roll: u64,
+    ) -> Result<Vec<([i32; 3], u32)>, IntentError> {
+        alive(player)?;
+        let (id, block) = self.target_block(view, position, voxel)?;
+        let raw = view.raw_at(voxel).ok_or(IntentError::NotLoaded)?;
+        let grows = block
+            .behaviors
+            .contains(&platform_content::BlockBehavior::Grows);
+        let get = |p: [i32; 3]| view.block_at(p).unwrap_or(1);
+        let writes = if let (true, Some(tree)) = (grows, &block.grows_into) {
+            let (log, leaves) = (
+                self.content
+                    .block(&tree.log)
+                    .ok_or(IntentError::CannotUse)?
+                    .id,
+                self.content
+                    .block(&tree.leaves)
+                    .ok_or(IntentError::CannotUse)?
+                    .id,
+            );
+            let span = u64::from(tree.max_height - tree.min_height + 1);
+            let trunk = (tree.min_height + (roll % span) as u32) as i32;
+            let empty = |b: u32| {
+                b == AIR
+                    || self
+                        .content
+                        .block_by_id(b)
+                        .is_some_and(|d| d.fluid.is_some() || !d.collision)
+            };
+            crate::behaviors::tree_cells(voxel, trunk, log, leaves, get, empty)
+                .ok_or(IntentError::CannotUse)?
+        } else if grows && block.stages > 1 {
+            let stage = voxelize::BlockUtils::extract_stage(raw);
+            if stage + 1 >= block.stages {
+                return Err(IntentError::CannotUse); // already ripe
+            }
+            let next = (stage + 2 + (roll % 3) as u32).min(block.stages - 1);
+            vec![(voxel, voxelize::BlockUtils::insert_stage(raw, next))]
+        } else if block.key == "turf" {
+            let grass = self
+                .content
+                .block("tall_grass")
+                .ok_or(IntentError::CannotUse)?
+                .id;
+            let mut r = roll;
+            let mut cells = Vec::new();
+            for dx in -2..=2 {
+                for dz in -2..=2 {
+                    r = r
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1442695040888963407);
+                    let ground = [voxel[0] + dx, voxel[1], voxel[2] + dz];
+                    let above = [ground[0], ground[1] + 1, ground[2]];
+                    if (dx == 0 && dz == 0 || (r >> 33) % 3 == 0)
+                        && get(ground) == id
+                        && get(above) == AIR
+                    {
+                        cells.push((above, grass));
+                    }
+                }
+            }
+            cells
+        } else {
+            return Err(IntentError::CannotUse);
+        };
+        if writes.is_empty() {
+            return Err(IntentError::CannotUse);
+        }
+        if player.realm == Realm::Survival {
+            let slot = player.inventory.selected;
+            player.inventory.take_one(slot)?;
+        }
+        Ok(writes)
     }
 
     /// Light the portal frame at `voxel` with the held igniter: the rift
@@ -1106,6 +1231,55 @@ mod tests {
         assert_eq!(
             rules.place(&mut player, &world, HERE, [2, 1, 0], Some(1), None),
             Ok(crop)
+        );
+    }
+
+    #[test]
+    fn fertiliser_ripens_crops_grows_saplings_and_sprouts_grass() {
+        let (rules, mut world, mut player) = setup();
+        let c = rules.content();
+        player.inventory.add(c, c.item("fertiliser").unwrap().id, 4);
+        let crop = c.block("carrot_crop").unwrap().id;
+        world.blocks.insert([2, 1, 0], crop);
+        let writes = rules
+            .fertilise(&mut player, &world, HERE, [2, 1, 0], 0)
+            .unwrap();
+        assert_eq!(writes.len(), 1);
+        let grown = voxelize::BlockUtils::extract_stage(writes[0].1);
+        assert!(grown >= 2, "advanced: {grown}");
+        // A ripe crop takes no more.
+        world
+            .blocks
+            .insert([2, 1, 0], voxelize::BlockUtils::insert_stage(crop, 3));
+        assert_eq!(
+            rules.fertilise(&mut player, &world, HERE, [2, 1, 0], 0),
+            Err(IntentError::CannotUse)
+        );
+        // A sapling becomes a tree.
+        let sapling = c.block("oak_sapling").unwrap().id;
+        let log = c.block("oak_log").unwrap().id;
+        world.blocks.insert([2, 1, 0], sapling);
+        let tree = rules
+            .fertilise(&mut player, &world, HERE, [2, 1, 0], 0)
+            .unwrap();
+        assert!(tree.contains(&([2, 1, 0], log)) && tree.len() > 10);
+        // Turf sprouts grass; stone does nothing.
+        let turf = c.block("turf").unwrap().id;
+        world.blocks.insert([2, 0, 0], turf);
+        world.blocks.remove(&[2, 1, 0]);
+        let grass = c.block("tall_grass").unwrap().id;
+        let sprouts = rules
+            .fertilise(&mut player, &world, HERE, [2, 0, 0], 7)
+            .unwrap();
+        assert!(sprouts.contains(&([2, 1, 0], grass)));
+        assert_eq!(
+            rules.fertilise(&mut player, &world, HERE, [1, 0, 0], 0),
+            Err(IntentError::CannotUse)
+        );
+        assert_eq!(
+            player.inventory.count_of(c.item("fertiliser").unwrap().id),
+            1,
+            "three used"
         );
     }
 

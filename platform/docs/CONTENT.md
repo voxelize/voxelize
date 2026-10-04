@@ -37,12 +37,20 @@ stable forever once a world has used them; 0 is reserved (air).
 | `orientation` | `none`, `horizontal` (4 facings), `full` (6 facings) |
 | `fluid` | `water` or `lava`; fluids must not have collision |
 | `xp` | blocks: experience released when mined and harvested, `[min, max]` (ores) |
-| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries`, `burns` (fire); circuits: `conduit`, `lever`, `button`, `plate`, `clock`, `consumer`, `repeater`, `inverter`, `actuator` — implemented once by the server, enabled here |
+| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries`, `burns` (fire); circuits: `conduit`, `lever`, `button`, `plate`, `clock`, `consumer`, `repeater`, `inverter`, `actuator`, `gripActuator` (pushes when powered, pulls the block back when the power goes), `watcher` (a two-tick pulse out of its back when the cell in front changes), `gauge` (powers its front with the fill level 0–15 of the container behind it) — implemented once by the server, enabled here |
+| `coupled` | two-voxel blocks (tall doors): `{ "offset", "block", "anchor" }` names the other half; the two must point at each other and exactly one is the anchor (the half that is placed). Placing the anchor needs the other cell free; breaking either half removes both; consumer pairs switch together and feel power at either half |
 | `powered` / `powerSwap` | consumers (lamps, gates): whether this block is the powered state, and the block it swaps to when power changes (pairs must point at each other) |
 | `stages` | growth stages (2–16) for `grows` blocks |
 | `grownDrops` | drops at the last growth stage (ripe crops), replacing `drops` |
 | `support` | block keys it must stand on; elsewhere it cannot be placed and it breaks (and drops) when its ground changes |
 | `growsInto` | saplings: the tree they become (`log`, `leaves`, `minHeight`, `maxHeight`) |
+
+Items with `"fertiliser": true` (Fertiliser, three from a bone) used on a
+plant make it grow at once: a crop advances two to four stages (never past
+ripe; a ripe crop refuses), a sapling becomes its tree when there is room,
+and turf sprouts tall grass around the spot. Crops: wheat (seeds), carrots
+and potatoes (planted from the vegetable itself on farmland, eaten
+elsewhere; potatoes bake in the furnace).
 
 The `rift` behaviour marks portal surfaces, and every rift declares
 `"portal": { "frame": "<block>", "to": "<dimension>" }`: a rift stays only

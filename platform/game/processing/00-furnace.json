@@ -149,6 +149,18 @@
       },
       "ticks": 200,
       "experience": 0.35
+    },
+    {
+      "key": "bake_potato",
+      "station": "furnace",
+      "input": {
+        "item": "potato"
+      },
+      "output": {
+        "item": "baked_potato"
+      },
+      "ticks": 200,
+      "experience": 0.35
     }
   ]
 }

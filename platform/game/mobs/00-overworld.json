@@ -482,6 +482,18 @@
         "item": "rotten_flesh",
         "min": 0,
         "max": 2
+      },
+      {
+        "item": "potato",
+        "min": 0,
+        "max": 1,
+        "chance": 0.05
+      },
+      {
+        "item": "carrot",
+        "min": 0,
+        "max": 1,
+        "chance": 0.05
       }
     ],
     "burnsInDaylight": true,

@@ -6,24 +6,135 @@
     "health": 20,
     "speed": 2.2,
     "damage": 2,
-    "size": [0.6, 1.9],
+    "size": [
+      0.6,
+      1.9
+    ],
     "spawn": {
       "light": "dark",
-      "on": ["turf", "dirt", "stone", "sand", "snowpack", "gravel", "rubble"],
+      "on": [
+        "turf",
+        "dirt",
+        "stone",
+        "sand",
+        "snowpack",
+        "gravel",
+        "rubble"
+      ],
       "weight": 7,
       "groupMin": 1,
       "groupMax": 2
     },
-    "drops": [{ "item": "arrow", "min": 0, "max": 2 }, { "item": "stick", "min": 0, "max": 1 }],
+    "drops": [
+      {
+        "item": "arrow",
+        "min": 0,
+        "max": 2
+      },
+      {
+        "item": "stick",
+        "min": 0,
+        "max": 1
+      },
+      {
+        "item": "bone",
+        "min": 0,
+        "max": 2
+      }
+    ],
     "burnsInDaylight": true,
-    "ranged": { "range": 15, "cooldown": 2, "speed": 24 },
+    "ranged": {
+      "range": 15,
+      "cooldown": 2,
+      "speed": 24
+    },
     "model": [
-      { "name": "body", "size": [0.45, 0.75, 0.22], "offset": [0, 1.15, 0], "color": "#d9d4c4" },
-      { "name": "head", "size": [0.46, 0.46, 0.46], "offset": [0, 1.75, 0], "color": "#e8e3d3" },
-      { "name": "eyes", "size": [0.32, 0.06, 0.02], "offset": [0, 1.8, 0.24], "color": "#1c1c1c" },
-      { "name": "bow", "size": [0.06, 0.7, 0.1], "offset": [0.36, 1.2, 0.3], "color": "#6b4a2a" },
-      { "name": "leg_l", "size": [0.14, 0.78, 0.14], "offset": [0.1, 0.39, 0], "color": "#cfc9b8", "leg": true },
-      { "name": "leg_r", "size": [0.14, 0.78, 0.14], "offset": [-0.1, 0.39, 0], "color": "#cfc9b8", "leg": true }
+      {
+        "name": "body",
+        "size": [
+          0.45,
+          0.75,
+          0.22
+        ],
+        "offset": [
+          0,
+          1.15,
+          0
+        ],
+        "color": "#d9d4c4"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.46,
+          0.46,
+          0.46
+        ],
+        "offset": [
+          0,
+          1.75,
+          0
+        ],
+        "color": "#e8e3d3"
+      },
+      {
+        "name": "eyes",
+        "size": [
+          0.32,
+          0.06,
+          0.02
+        ],
+        "offset": [
+          0,
+          1.8,
+          0.24
+        ],
+        "color": "#1c1c1c"
+      },
+      {
+        "name": "bow",
+        "size": [
+          0.06,
+          0.7,
+          0.1
+        ],
+        "offset": [
+          0.36,
+          1.2,
+          0.3
+        ],
+        "color": "#6b4a2a"
+      },
+      {
+        "name": "leg_l",
+        "size": [
+          0.14,
+          0.78,
+          0.14
+        ],
+        "offset": [
+          0.1,
+          0.39,
+          0
+        ],
+        "color": "#cfc9b8",
+        "leg": true
+      },
+      {
+        "name": "leg_r",
+        "size": [
+          0.14,
+          0.78,
+          0.14
+        ],
+        "offset": [
+          -0.1,
+          0.39,
+          0
+        ],
+        "color": "#cfc9b8",
+        "leg": true
+      }
     ]
   },
   {
@@ -33,22 +144,75 @@
     "health": 8,
     "speed": 3.2,
     "damage": 3,
-    "size": [0.7, 0.7],
+    "size": [
+      0.7,
+      0.7
+    ],
     "movement": "fly",
     "spawn": {
       "light": "dark",
-      "on": ["skystone", "cloudrock"],
-      "biomes": ["sky_islands"],
+      "on": [
+        "skystone",
+        "cloudrock"
+      ],
+      "biomes": [
+        "sky_islands"
+      ],
       "weight": 10,
       "groupMin": 1,
       "groupMax": 3
     },
-    "drops": [{ "item": "wisp_essence", "min": 0, "max": 2 }],
+    "drops": [
+      {
+        "item": "wisp_essence",
+        "min": 0,
+        "max": 2
+      }
+    ],
     "sight": 20,
     "model": [
-      { "name": "core", "size": [0.5, 0.5, 0.5], "offset": [0, 0.35, 0], "color": "#bfe7ff" },
-      { "name": "glow", "size": [0.7, 0.2, 0.7], "offset": [0, 0.35, 0], "color": "#e9f7ff" },
-      { "name": "eyes", "size": [0.3, 0.06, 0.02], "offset": [0, 0.42, 0.26], "color": "#28324a" }
+      {
+        "name": "core",
+        "size": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "offset": [
+          0,
+          0.35,
+          0
+        ],
+        "color": "#bfe7ff"
+      },
+      {
+        "name": "glow",
+        "size": [
+          0.7,
+          0.2,
+          0.7
+        ],
+        "offset": [
+          0,
+          0.35,
+          0
+        ],
+        "color": "#e9f7ff"
+      },
+      {
+        "name": "eyes",
+        "size": [
+          0.3,
+          0.06,
+          0.02
+        ],
+        "offset": [
+          0,
+          0.42,
+          0.26
+        ],
+        "color": "#28324a"
+      }
     ]
   },
   {
@@ -57,22 +221,79 @@
     "kind": "passive",
     "health": 3,
     "speed": 2.0,
-    "size": [0.5, 0.4],
+    "size": [
+      0.5,
+      0.4
+    ],
     "movement": "swim",
     "spawn": {
       "light": "bright",
       "on": [],
-      "biomes": ["plains", "forest", "swamp", "ocean", "deep_ocean", "beach", "jungle", "taiga"],
+      "biomes": [
+        "plains",
+        "forest",
+        "swamp",
+        "ocean",
+        "deep_ocean",
+        "beach",
+        "jungle",
+        "taiga"
+      ],
       "weight": 6,
       "groupMin": 2,
       "groupMax": 4
     },
-    "drops": [{ "item": "raw_fish", "min": 1, "max": 1 }],
+    "drops": [
+      {
+        "item": "raw_fish",
+        "min": 1,
+        "max": 1
+      }
+    ],
     "xp": 1,
     "model": [
-      { "name": "body", "size": [0.22, 0.3, 0.5], "offset": [0, 0.2, 0], "color": "#7fa3b5" },
-      { "name": "tail", "size": [0.06, 0.26, 0.18], "offset": [0, 0.2, -0.32], "color": "#5d8296" },
-      { "name": "fin", "size": [0.04, 0.12, 0.2], "offset": [0, 0.4, 0], "color": "#5d8296" }
+      {
+        "name": "body",
+        "size": [
+          0.22,
+          0.3,
+          0.5
+        ],
+        "offset": [
+          0,
+          0.2,
+          0
+        ],
+        "color": "#7fa3b5"
+      },
+      {
+        "name": "tail",
+        "size": [
+          0.06,
+          0.26,
+          0.18
+        ],
+        "offset": [
+          0,
+          0.2,
+          -0.32
+        ],
+        "color": "#5d8296"
+      },
+      {
+        "name": "fin",
+        "size": [
+          0.04,
+          0.12,
+          0.2
+        ],
+        "offset": [
+          0,
+          0.4,
+          0
+        ],
+        "color": "#5d8296"
+      }
     ]
   },
   {
@@ -83,13 +304,30 @@
     "speed": 2.4,
     "damage": 9,
     "attackCooldown": 1.5,
-    "size": [1.6, 3.2],
+    "size": [
+      1.6,
+      3.2
+    ],
     "boss": true,
     "sight": 40,
     "xp": 250,
-    "ranged": { "range": 20, "cooldown": 3, "speed": 30 },
-    "onHit": { "effect": "slowness", "level": 1, "seconds": 3 },
-    "summon": { "item": "ember_sigil", "on": ["cinderstone", "emberglass"] },
+    "ranged": {
+      "range": 20,
+      "cooldown": 3,
+      "speed": 30
+    },
+    "onHit": {
+      "effect": "slowness",
+      "level": 1,
+      "seconds": 3
+    },
+    "summon": {
+      "item": "ember_sigil",
+      "on": [
+        "cinderstone",
+        "emberglass"
+      ]
+    },
     "spawn": {
       "light": "dark",
       "on": [],
@@ -98,16 +336,133 @@
       "groupMin": 1,
       "groupMax": 1
     },
-    "drops": [{ "item": "warden_core", "min": 1, "max": 1 }, { "item": "ember_quartz", "min": 4, "max": 8 }],
+    "drops": [
+      {
+        "item": "warden_core",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "item": "ember_quartz",
+        "min": 4,
+        "max": 8
+      }
+    ],
     "model": [
-      { "name": "body", "size": [1.3, 1.4, 0.8], "offset": [0, 1.9, 0], "color": "#3b1d16" },
-      { "name": "head", "size": [0.9, 0.8, 0.8], "offset": [0, 2.8, 0.1], "color": "#5a2a1a" },
-      { "name": "eyes", "size": [0.6, 0.12, 0.02], "offset": [0, 2.88, 0.51], "color": "#ffb02e" },
-      { "name": "crown", "size": [1.0, 0.2, 0.9], "offset": [0, 3.25, 0.1], "color": "#ff7a1a" },
-      { "name": "arm_l", "size": [0.4, 1.4, 0.4], "offset": [0.85, 1.8, 0.1], "color": "#4a2418" },
-      { "name": "arm_r", "size": [0.4, 1.4, 0.4], "offset": [-0.85, 1.8, 0.1], "color": "#4a2418" },
-      { "name": "leg_l", "size": [0.5, 1.2, 0.5], "offset": [0.35, 0.6, 0], "color": "#2a140f", "leg": true },
-      { "name": "leg_r", "size": [0.5, 1.2, 0.5], "offset": [-0.35, 0.6, 0], "color": "#2a140f", "leg": true }
+      {
+        "name": "body",
+        "size": [
+          1.3,
+          1.4,
+          0.8
+        ],
+        "offset": [
+          0,
+          1.9,
+          0
+        ],
+        "color": "#3b1d16"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.9,
+          0.8,
+          0.8
+        ],
+        "offset": [
+          0,
+          2.8,
+          0.1
+        ],
+        "color": "#5a2a1a"
+      },
+      {
+        "name": "eyes",
+        "size": [
+          0.6,
+          0.12,
+          0.02
+        ],
+        "offset": [
+          0,
+          2.88,
+          0.51
+        ],
+        "color": "#ffb02e"
+      },
+      {
+        "name": "crown",
+        "size": [
+          1.0,
+          0.2,
+          0.9
+        ],
+        "offset": [
+          0,
+          3.25,
+          0.1
+        ],
+        "color": "#ff7a1a"
+      },
+      {
+        "name": "arm_l",
+        "size": [
+          0.4,
+          1.4,
+          0.4
+        ],
+        "offset": [
+          0.85,
+          1.8,
+          0.1
+        ],
+        "color": "#4a2418"
+      },
+      {
+        "name": "arm_r",
+        "size": [
+          0.4,
+          1.4,
+          0.4
+        ],
+        "offset": [
+          -0.85,
+          1.8,
+          0.1
+        ],
+        "color": "#4a2418"
+      },
+      {
+        "name": "leg_l",
+        "size": [
+          0.5,
+          1.2,
+          0.5
+        ],
+        "offset": [
+          0.35,
+          0.6,
+          0
+        ],
+        "color": "#2a140f",
+        "leg": true
+      },
+      {
+        "name": "leg_r",
+        "size": [
+          0.5,
+          1.2,
+          0.5
+        ],
+        "offset": [
+          -0.35,
+          0.6,
+          0
+        ],
+        "color": "#2a140f",
+        "leg": true
+      }
     ]
   }
 ]

@@ -90,10 +90,19 @@ pub enum Logic {
     Button,
     Plate,
     Clock,
-    Consumer { powered: bool, swap: u32 },
+    /// `partner`: the other half of a two-voxel consumer (doors), which
+    /// shares its power and switches with it.
+    Consumer {
+        powered: bool,
+        swap: u32,
+        partner: Option<(i32, i32, i32)>,
+    },
     Repeater,
     Inverter,
     Actuator,
+    GripActuator,
+    Watcher,
+    Gauge,
 }
 
 /// Ticks a pressed button stays on.
@@ -123,6 +132,10 @@ pub struct BehaviorContext {
     eternal_fire: HashSet<u32>,
     fire: Option<u32>,
     blast: Option<u32>,
+    /// Blocks a gauge reads (anything with a container window).
+    containers: HashSet<u32>,
+    /// What each watcher last saw in front of it.
+    watched: Mutex<HashMap<(i32, i32, i32), u32>>,
     counter: AtomicU64,
 }
 
@@ -150,6 +163,10 @@ impl BehaviorContext {
                     .map(|swap| Logic::Consumer {
                         powered: b.powered,
                         swap: swap.id,
+                        partner: b
+                            .coupled
+                            .as_ref()
+                            .map(|c| (c.offset[0], c.offset[1], c.offset[2])),
                     })
             } else if has(BlockBehavior::Repeater) {
                 Some(Logic::Repeater)
@@ -157,6 +174,12 @@ impl BehaviorContext {
                 Some(Logic::Inverter)
             } else if has(BlockBehavior::Actuator) {
                 Some(Logic::Actuator)
+            } else if has(BlockBehavior::GripActuator) {
+                Some(Logic::GripActuator)
+            } else if has(BlockBehavior::Watcher) {
+                Some(Logic::Watcher)
+            } else if has(BlockBehavior::Gauge) {
+                Some(Logic::Gauge)
             } else {
                 None
             };
@@ -167,7 +190,10 @@ impl BehaviorContext {
         let immovable = blocks
             .iter()
             .filter(|b| {
-                b.hardness < 0.0 || b.key == "chest" || b.key == "furnace" || b.fluid.is_some()
+                b.hardness < 0.0
+                    || crate::gameplay::containers::Container::for_block(&b.key).is_some()
+                    || b.coupled.is_some()
+                    || b.fluid.is_some()
             })
             .map(|b| b.id)
             .collect();
@@ -209,6 +235,12 @@ impl BehaviorContext {
                 .collect(),
             fire: id("fire"),
             blast: id("blast_charge"),
+            containers: blocks
+                .iter()
+                .filter(|b| crate::gameplay::containers::Container::for_block(&b.key).is_some())
+                .map(|b| b.id)
+                .collect(),
+            watched: Mutex::new(HashMap::new()),
             counter: AtomicU64::new(0x5EED),
         }
     }
@@ -460,6 +492,23 @@ fn emitted(
                 0
             }
         }
+        Some(Logic::Watcher) => {
+            // Out of its back, away from what it watches.
+            let (dx, dy, dz) = front(raw);
+            if stage & 1 == 1 && (from.0 - dx, from.1 - dy, from.2 - dz) == (to.0, to.1, to.2) {
+                15
+            } else {
+                0
+            }
+        }
+        Some(Logic::Gauge) => {
+            let (dx, dy, dz) = front(raw);
+            if (from.0 + dx, from.1 + dy, from.2 + dz) == (to.0, to.1, to.2) {
+                stage
+            } else {
+                0
+            }
+        }
         _ => 0,
     }
 }
@@ -506,10 +555,17 @@ fn circuit_target(
             let period = CLOCK_PERIODS[((stage >> 1) & 3) as usize];
             Some((BlockUtils::insert_stage(raw, stage ^ 1), period))
         }
-        Logic::Consumer { powered, swap } => {
+        Logic::Consumer {
+            powered,
+            swap,
+            partner,
+        } => {
             // Stage bit 0 remembers the last power seen, so consumers react
-            // to changes only and a gate opened by hand stays open.
-            let on = incoming(ctx, space, at, false) > 0;
+            // to changes only and a gate opened by hand stays open. The
+            // halves of a door feel power at either half.
+            let other = partner.map(|(dx, dy, dz)| Vec3(at.0 + dx, at.1 + dy, at.2 + dz));
+            let on = incoming(ctx, space, at, false) > 0
+                || other.is_some_and(|o| incoming(ctx, space, &o, false) > 0);
             if on == (stage & 1 == 1) {
                 return None;
             }
@@ -529,7 +585,37 @@ fn circuit_target(
             let back = Vec3(at.0 - dx, at.1 - dy, at.2 - dz);
             want(u32::from(emitted(ctx, space, &back, at) == 0), 1)
         }
-        Logic::Actuator => want(u32::from(incoming(ctx, space, at, false) > 0), 1),
+        Logic::Actuator | Logic::GripActuator => {
+            want(u32::from(incoming(ctx, space, at, false) > 0), 1)
+        }
+        Logic::Watcher => {
+            if stage & 1 == 1 {
+                return Some((BlockUtils::insert_stage(raw, 0), 2)); // end of the pulse
+            }
+            let (dx, dy, dz) = front(raw);
+            let seen = space.get_raw_voxel(at.0 + dx, at.1 + dy, at.2 + dz);
+            let mut watched = ctx.watched.lock().unwrap_or_else(|e| e.into_inner());
+            match watched.get(&(at.0, at.1, at.2)) {
+                Some(&before) if before != seen => Some((BlockUtils::insert_stage(raw, 1), 1)),
+                Some(_) => None,
+                None => {
+                    // Newly placed (or the server restarted): remember.
+                    watched.insert((at.0, at.1, at.2), seen);
+                    None
+                }
+            }
+        }
+        Logic::Gauge => {
+            // The game sets the level from the container's contents; with
+            // no container behind it the gauge falls silent.
+            let (dx, dy, dz) = front(raw);
+            let behind = space.get_voxel(at.0 - dx, at.1 - dy, at.2 - dz);
+            if ctx.containers.contains(&behind) {
+                None
+            } else {
+                want(0, 1)
+            }
+        }
         Logic::Lever | Logic::Plate => None,
     }
 }
@@ -548,7 +634,57 @@ fn circuit_update(
     let logic = *ctx.logic.get(&BlockUtils::extract_id(raw))?;
     let (next, _) = circuit_target(ctx, &at, space)?;
     let mut writes = vec![(at.clone(), next)];
-    if logic == Logic::Actuator && BlockUtils::extract_stage(next) == 1 {
+    if let Logic::Consumer {
+        partner: Some((dx, dy, dz)),
+        ..
+    } = logic
+    {
+        // The other half switches with this one, in the same batch.
+        let other = Vec3(at.0 + dx, at.1 + dy, at.2 + dz);
+        let other_raw = space.get_raw_voxel(other.0, other.1, other.2);
+        if let Some(Logic::Consumer { swap, .. }) =
+            ctx.logic.get(&BlockUtils::extract_id(other_raw))
+        {
+            let id = if BlockUtils::extract_id(next) == BlockUtils::extract_id(raw) {
+                BlockUtils::extract_id(other_raw)
+            } else {
+                *swap
+            };
+            let stage = BlockUtils::extract_stage(next);
+            writes.push((
+                other,
+                BlockUtils::insert_stage((other_raw & !0xFFFF) | id, stage),
+            ));
+        }
+    }
+    if logic == Logic::Watcher {
+        let (dx, dy, dz) = front(raw);
+        let seen = space.get_raw_voxel(at.0 + dx, at.1 + dy, at.2 + dz);
+        ctx.watched
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert((at.0, at.1, at.2), seen);
+    }
+    if logic == Logic::GripActuator && BlockUtils::extract_stage(next) == 0 {
+        // Falling edge: pull the block two cells ahead back next to it.
+        let (dx, dy, dz) = front(raw);
+        let target = Vec3(at.0 + dx, at.1 + dy, at.2 + dz);
+        let beyond = Vec3(at.0 + 2 * dx, at.1 + 2 * dy, at.2 + 2 * dz);
+        let moving = space.get_raw_voxel(beyond.0, beyond.1, beyond.2);
+        let moving_id = BlockUtils::extract_id(moving);
+        if moving_id != AIR
+            && !ctx.immovable.contains(&moving_id)
+            && space.get_voxel(target.0, target.1, target.2) == AIR
+            && !registry.get_block_by_id(moving_id).is_passable
+            && !registry.get_block_by_id(moving_id).is_fluid
+        {
+            writes.push((beyond, AIR));
+            writes.push((target, moving));
+        }
+    }
+    if matches!(logic, Logic::Actuator | Logic::GripActuator)
+        && BlockUtils::extract_stage(next) == 1
+    {
         // Rising edge: push the block in front one cell, if it can move.
         let (dx, dy, dz) = front(raw);
         let target = Vec3(at.0 + dx, at.1 + dy, at.2 + dz);
@@ -803,11 +939,35 @@ fn grow_tree(
     log: u32,
     leaves: u32,
 ) -> Vec<VoxelUpdate> {
-    let Vec3(x, y, z) = *at;
-    // The trunk needs clear space; otherwise wait for a later tick.
+    tree_cells(
+        [at.0, at.1, at.2],
+        trunk,
+        log,
+        leaves,
+        |[x, y, z]| space.get_voxel(x, y, z),
+        |id| is_empty(registry, id),
+    )
+    .unwrap_or_default()
+    .into_iter()
+    .map(|([x, y, z], id)| (Vec3(x, y, z), id))
+    .collect()
+}
+
+/// The cells a tree with a `trunk`-tall trunk writes when a sapling at `at`
+/// grows: `None` while something (`empty` says what does not) blocks the
+/// trunk. Leaves only fill air (`get` reads block ids).
+pub fn tree_cells(
+    at: [i32; 3],
+    trunk: i32,
+    log: u32,
+    leaves: u32,
+    get: impl Fn([i32; 3]) -> u32,
+    empty: impl Fn(u32) -> bool,
+) -> Option<Vec<([i32; 3], u32)>> {
+    let [x, y, z] = at;
     for dy in 1..=trunk + 1 {
-        if !is_empty(registry, space.get_voxel(x, y + dy, z)) {
-            return Vec::new();
+        if !empty(get([x, y + dy, z])) {
+            return None;
         }
     }
     let mut writes = Vec::new();
@@ -820,19 +980,19 @@ fn grow_tree(
                 if radius == 2 && dx.abs() == 2 && dz.abs() == 2 {
                     continue;
                 }
-                if space.get_voxel(x + dx, ly, z + dz) == AIR {
-                    writes.push((Vec3(x + dx, ly, z + dz), leaves));
+                if get([x + dx, ly, z + dz]) == AIR {
+                    writes.push(([x + dx, ly, z + dz], leaves));
                 }
             }
         }
     }
-    if space.get_voxel(x, top + 1, z) == AIR {
-        writes.push((Vec3(x, top + 1, z), leaves));
+    if get([x, top + 1, z]) == AIR {
+        writes.push(([x, top + 1, z], leaves));
     }
     for ly in y..top {
-        writes.push((Vec3(x, ly, z), log));
+        writes.push(([x, ly, z], log));
     }
-    writes
+    Some(writes)
 }
 
 #[cfg(test)]
@@ -1209,6 +1369,109 @@ mod tests {
         g.voxels.insert((1, 64, 0), e.id("gate"));
         settle(&e, &mut g);
         assert_eq!(g.get_voxel(1, 64, 0), e.id("gate_open"));
+    }
+
+    fn full_facing_east(e: &Env, key: &str) -> u32 {
+        let id = e.id(key);
+        (0..6)
+            .flat_map(|r| (0..16).map(move |y| (r, y)))
+            .map(|(r, y)| oriented(id, platform_content::Orientation::Full, r, y))
+            .find(|raw| front(*raw) == (1, 0, 0))
+            .expect("some rotation faces +x")
+    }
+
+    #[test]
+    fn grip_actuators_push_when_powered_and_pull_back_when_not() {
+        let e = env();
+        let mut s = Space::default();
+        let lever = e.id("lever");
+        s.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(lever, 1));
+        s.voxels
+            .insert((1, 64, 0), full_facing_east(&e, "grip_actuator"));
+        s.voxels.insert((2, 64, 0), e.id("dirt"));
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel(2, 64, 0), AIR);
+        assert_eq!(s.get_voxel(3, 64, 0), e.id("dirt"));
+        s.voxels.insert((0, 64, 0), lever);
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel(2, 64, 0), e.id("dirt"), "pulled back");
+        assert_eq!(s.get_voxel(3, 64, 0), AIR);
+        // A plain actuator leaves it.
+        let mut p = Space::default();
+        p.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(lever, 1));
+        p.voxels
+            .insert((1, 64, 0), full_facing_east(&e, "actuator"));
+        p.voxels.insert((2, 64, 0), e.id("dirt"));
+        settle(&e, &mut p);
+        p.voxels.insert((0, 64, 0), lever);
+        settle(&e, &mut p);
+        assert_eq!(p.get_voxel(3, 64, 0), e.id("dirt"));
+    }
+
+    #[test]
+    fn watchers_pulse_out_of_their_back_when_the_block_in_front_changes() {
+        let e = env();
+        let mut s = Space::default();
+        // Watching +x; a conduit behind it at x = -1.
+        s.voxels.insert((0, 64, 0), full_facing_east(&e, "watcher"));
+        s.voxels.insert((-1, 64, 0), e.id("conduit"));
+        s.voxels.insert((1, 64, 0), e.id("stone"));
+        assert_eq!(e.ticker(&s, (0, 64, 0)), u64::MAX, "first look: remembers");
+        assert_eq!(e.ticker(&s, (0, 64, 0)), u64::MAX, "nothing changed");
+        s.voxels.remove(&(1, 64, 0));
+        assert_eq!(e.ticker(&s, (0, 64, 0)), 1);
+        e.run(&mut s, (0, 64, 0));
+        assert_eq!(s.get_voxel_stage(0, 64, 0), 1);
+        e.run(&mut s, (-1, 64, 0));
+        assert_eq!(s.get_voxel_stage(-1, 64, 0), 14, "powered from its back");
+        assert_eq!(e.ticker(&s, (0, 64, 0)), 2);
+        e.run(&mut s, (0, 64, 0));
+        assert_eq!(s.get_voxel_stage(0, 64, 0), 0, "the pulse ends");
+        assert_eq!(e.ticker(&s, (0, 64, 0)), u64::MAX);
+    }
+
+    #[test]
+    fn doors_open_with_power_at_either_half_and_gauges_need_a_container() {
+        let e = env();
+        let mut s = Space::default();
+        let lever = e.id("lever");
+        s.voxels.insert((1, 64, 0), e.id("door"));
+        s.voxels.insert((1, 65, 0), e.id("door_top"));
+        // A lever beside the top half.
+        s.voxels
+            .insert((0, 65, 0), BlockUtils::insert_stage(lever, 1));
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel(1, 64, 0), e.id("door_open"));
+        assert_eq!(s.get_voxel(1, 65, 0), e.id("door_top_open"));
+        s.voxels.insert((0, 65, 0), lever);
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel(1, 64, 0), e.id("door"));
+        assert_eq!(s.get_voxel(1, 65, 0), e.id("door_top"));
+
+        // A gauge with a level but no container behind it goes quiet.
+        let mut g = Space::default();
+        let gauge = facing_east(&e, "gauge");
+        g.voxels
+            .insert((1, 64, 0), BlockUtils::insert_stage(gauge, 9));
+        g.voxels.insert((2, 64, 0), e.id("conduit"));
+        settle(&e, &mut g);
+        assert_eq!(g.get_voxel_stage(1, 64, 0), 0);
+        g.voxels.insert((0, 64, 0), e.id("chest"));
+        g.voxels
+            .insert((1, 64, 0), BlockUtils::insert_stage(gauge, 9));
+        settle(&e, &mut g);
+        assert_eq!(
+            g.get_voxel_stage(1, 64, 0),
+            9,
+            "kept while a chest is behind it"
+        );
+        assert_eq!(
+            g.get_voxel_stage(2, 64, 0),
+            8,
+            "its front carries the level"
+        );
     }
 
     #[test]

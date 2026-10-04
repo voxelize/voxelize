@@ -316,6 +316,30 @@ impl Content {
                     errors.push(format!("{who} needs unknown support block {key:?}"));
                 }
             }
+            if let Some(half) = &block.coupled {
+                match source.blocks.iter().find(|b| b.key == half.block) {
+                    None => errors.push(format!(
+                        "{who} is coupled with unknown block {:?}",
+                        half.block
+                    )),
+                    Some(other) => {
+                        let back = other.coupled.as_ref().is_some_and(|o| {
+                            o.block == block.key
+                                && (0..3).all(|i| o.offset[i] == -half.offset[i])
+                                && o.anchor != half.anchor
+                        });
+                        if !back {
+                            errors.push(format!(
+                                "{who} and {:?} must point at each other, one of them the anchor",
+                                half.block
+                            ));
+                        }
+                    }
+                }
+                if half.offset.iter().map(|v| v.abs()).sum::<i32>() != 1 {
+                    errors.push(format!("{who} coupled offset must be one cell away"));
+                }
+            }
             if let Some(tree) = &block.grows_into {
                 for key in [&tree.log, &tree.leaves] {
                     if !has_block(key) {

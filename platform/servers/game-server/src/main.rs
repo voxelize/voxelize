@@ -178,6 +178,11 @@ fn build_world(
                 "platform-weather",
                 &["platform-combat"],
             )
+            .with(
+                gameplay::GaugeSystem::default(),
+                "platform-gauges",
+                &["platform-weather"],
+            )
     });
     world
 }

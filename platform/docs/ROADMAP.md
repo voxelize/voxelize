@@ -169,7 +169,7 @@ unreachable goals); player knockback from creature blows, arrows and PvP
 (`platform.push`). Unit tests for paths, archers, flyers, fish and bosses;
 `tests/bots/creatures.mjs` summons the boss and is shot and struck by it.
 
-## Phase 11 — Farming, animals, structures 🟡
+## Phase 11 — Farming, animals, structures ✅
 
 Done: block behaviours from content (`servers/game-server/src/behaviors.rs`,
 engine active-voxel and random-tick hooks): falling sand/gravel, support
@@ -181,8 +181,11 @@ farmland, eight wheat stages that need light and grow faster near water,
 ripe crops drop wheat and seeds; saplings grow into trees. Unit tests for
 every behaviour and `tests/bots/nature.mjs` on a live server (a felled tree's
 leaves decay and drop saplings).
-Animals and structures are done (phases 10 and 2). Remaining: bone-meal
-style fertiliser, more crops.
+Animals and structures are done (phases 10 and 2). Then: fertiliser (from
+bones that Bone Archers drop) ripens crops by two to four stages, grows
+saplings into trees and sprouts grass on turf; carrots and potatoes (planted
+from the vegetable, rare Shambler drops; baked potatoes). Unit test and
+`tests/bots/farm.mjs` (till, plant, fertilise, harvest).
 
 ## Phase 12 — Automation ✅ (first circuit set)
 
@@ -201,8 +204,12 @@ directional pieces facing the way they look (`rotation`/`yRotation` on
 `platform.build.place`), and pressure plates sense players and creatures
 standing on them (`PlateSystem`). Original client textures for every
 piece. 8 unit tests and `tests/bots/circuits.mjs` on a live server.
-Remaining: comparator-style and detector blocks, doors two blocks tall,
-pulling actuators.
+Then: plank doors two blocks tall (engine coupled blocks: placed whole,
+broken whole, opened by hand or power from either half), grip actuators
+that pull the block back when the power goes, watchers that pulse when the
+block in front changes, and fill gauges that read how full a chest, furnace
+or other container behind them is (`GaugeSystem`). Unit tests for each and
+doors in `tests/bots/farm.mjs`.
 
 ## Phase 13 — Land ownership ✅ (first version)
 

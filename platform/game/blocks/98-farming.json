@@ -1,0 +1,4 @@
+[
+  {"id": 70, "key": "carrot_crop", "name": "Carrots", "material": "plant", "hardness": 0, "resistance": 0, "texture": {"all": "carrot_stage"}, "transparent": true, "collision": false, "behaviors": ["grows"], "stages": 4, "drops": [{"item": "carrot"}], "grownDrops": [{"item": "carrot", "min": 2, "max": 4}], "support": ["farmland"]},
+  {"id": 71, "key": "potato_crop", "name": "Potatoes", "material": "plant", "hardness": 0, "resistance": 0, "texture": {"all": "potato_stage"}, "transparent": true, "collision": false, "behaviors": ["grows"], "stages": 4, "drops": [{"item": "potato"}], "grownDrops": [{"item": "potato", "min": 2, "max": 4}], "support": ["farmland"]}
+]

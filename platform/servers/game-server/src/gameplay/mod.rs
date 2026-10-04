@@ -6,6 +6,7 @@
 //! sender with a `platform.result` event plus a fresh `platform.inventory`
 //! snapshot when the inventory changed.
 
+pub mod automation;
 pub mod combat;
 pub mod containers;
 pub mod drops;
@@ -26,6 +27,7 @@ pub mod stall;
 pub use market::MarketSystem;
 pub mod trade;
 pub mod travel;
+pub use automation::GaugeSystem;
 pub use combat::CombatSystem;
 pub use guild_api::SiegeSystem;
 pub use land::LandNoticeSystem;
@@ -1056,6 +1058,7 @@ pub fn install(
         }
         let result = with_player(world, client_id, |g, view, position| {
             let here = g.dimensions.current;
+            let roll = (g.random() * u64::MAX as f64) as u64;
             let Gameplay { rules, players, .. } = g;
             let player = players.get_mut(client_id).expect("checked by with_player");
             let blast = rules.content().block("blast_charge").map(|b| b.id);
@@ -1068,10 +1071,17 @@ pub fn install(
                 Ok(vec![(p.voxel, 0)])
             } else if rules.holds_igniter(player) {
                 rules.ignite(player, view, position, p.voxel, here)
+            } else if rules.holds_fertiliser(player)
+                && view
+                    .raw_at(p.voxel)
+                    .and_then(|raw| crate::behaviors::use_circuit(rules.content(), raw))
+                    .is_none()
+            {
+                rules.fertilise(player, view, position, p.voxel, roll)
             } else {
                 rules
                     .use_on(player, view, position, p.voxel)
-                    .map(|raw| vec![(p.voxel, raw)])
+                    .map(|raw| rules.with_other_half(p.voxel, raw))
             }
         });
         match result {

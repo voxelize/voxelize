@@ -60,6 +60,14 @@ pub fn engine_block(def: &BlockDef, content: &Content, ctx: &Arc<BehaviorContext
             });
         }
     }
+    if let Some(half) = &def.coupled {
+        if let Some(other) = content.block(&half.block) {
+            let [x, y, z] = half.offset;
+            block = block
+                .coupled_with(voxelize::Vec3(x, y, z), other.id)
+                .coupled_anchor(half.anchor);
+        }
+    }
     behaviors::attach(block, def, content, ctx).build()
 }
 
