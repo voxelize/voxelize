@@ -97,6 +97,14 @@ fn build_world(
     // Each world has its own behaviour context, so blocks broken by
     // behaviours drop in the world they broke in.
     let broken = Arc::new(behaviors::BrokenBlocks::default());
+    {
+        // Actuators do not move blocks across claim borders.
+        let land = dimensions.land.clone();
+        let here = dimensions.current;
+        broken.set_land_of(Arc::new(move |x, z| {
+            land.read().ok()?.at(here, x, z).map(|l| l.id.clone())
+        }));
+    }
     let behavior_ctx = Arc::new(behaviors::BehaviorContext::new(&content, broken.clone()));
     let mut registry = registry::build_registry_with(&content, &behavior_ctx);
     registry.generate();

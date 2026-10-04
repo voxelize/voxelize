@@ -34,14 +34,44 @@ pub struct Broken {
     pub raw: u32,
 }
 
-#[derive(Debug, Default)]
+/// The id of the land claim covering a column, if any.
+pub type LandOf = Arc<dyn Fn(i32, i32) -> Option<String> + Send + Sync>;
+
+#[derive(Default)]
 pub struct BrokenBlocks(
     Mutex<Vec<Broken>>,
     Mutex<Vec<[i32; 3]>>,
     std::sync::atomic::AtomicBool,
+    std::sync::RwLock<Option<LandOf>>,
 );
 
+impl std::fmt::Debug for BrokenBlocks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BrokenBlocks").finish_non_exhaustive()
+    }
+}
+
 impl BrokenBlocks {
+    /// How behaviours see land claims (actuators keep to one claim).
+    pub fn set_land_of(&self, land_of: LandOf) {
+        if let Ok(mut slot) = self.3.write() {
+            *slot = Some(land_of);
+        }
+    }
+
+    /// Whether every cell lies in the same claim (or all unclaimed).
+    pub fn same_land(&self, cells: &[&Vec3<i32>]) -> bool {
+        let Ok(slot) = self.3.read() else {
+            return false;
+        };
+        let Some(land_of) = slot.as_ref() else {
+            return true;
+        };
+        let mut owners = cells.iter().map(|c| land_of(c.0, c.2));
+        let first = owners.next().flatten();
+        owners.all(|o| o == first)
+    }
+
     /// Whether it rains in this world (set by the weather).
     pub fn set_raining(&self, raining: bool) {
         self.2.store(raining, Ordering::Relaxed);
@@ -674,6 +704,7 @@ fn circuit_update(
         let moving_id = BlockUtils::extract_id(moving);
         if moving_id != AIR
             && !ctx.immovable.contains(&moving_id)
+            && ctx.broken.same_land(&[&at, &target, &beyond])
             && space.get_voxel(target.0, target.1, target.2) == AIR
             && !registry.get_block_by_id(moving_id).is_passable
             && !registry.get_block_by_id(moving_id).is_fluid
@@ -695,6 +726,7 @@ fn circuit_update(
         if moving_id != AIR
             && !ctx.immovable.contains(&moving_id)
             && free
+            && ctx.broken.same_land(&[&at, &target, &beyond])
             && !registry.get_block_by_id(moving_id).is_passable
         {
             writes.push((target, AIR));
@@ -1408,6 +1440,39 @@ mod tests {
         p.voxels.insert((0, 64, 0), lever);
         settle(&e, &mut p);
         assert_eq!(p.get_voxel(3, 64, 0), e.id("dirt"));
+    }
+
+    #[test]
+    fn actuators_do_not_move_blocks_across_claim_borders() {
+        let e = env();
+        // Columns x >= 3 belong to another claim.
+        e.ctx
+            .broken
+            .set_land_of(Arc::new(|x, _| (x >= 3).then(|| "L2".to_owned())));
+        let mut s = Space::default();
+        s.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("lever"), 1));
+        s.voxels
+            .insert((1, 64, 0), full_facing_east(&e, "actuator"));
+        s.voxels.insert((2, 64, 0), e.id("dirt"));
+        settle(&e, &mut s);
+        assert_eq!(
+            s.get_voxel(2, 64, 0),
+            e.id("dirt"),
+            "stays on its own claim"
+        );
+        assert_eq!(s.get_voxel(3, 64, 0), AIR);
+        e.ctx.broken.set_land_of(Arc::new(|_, _| None));
+        s.voxels.insert((0, 64, 0), e.id("lever"));
+        settle(&e, &mut s);
+        s.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("lever"), 1));
+        settle(&e, &mut s);
+        assert_eq!(
+            s.get_voxel(3, 64, 0),
+            e.id("dirt"),
+            "pushed where no border lies"
+        );
     }
 
     #[test]

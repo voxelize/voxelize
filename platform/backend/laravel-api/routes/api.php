@@ -38,6 +38,10 @@ Route::prefix('v1')->group(function () {
         Route::post('lands', [LandController::class, 'store'])->middleware('throttle:economy');
         Route::patch('lands/{land}', [LandController::class, 'update']);
         Route::delete('lands/{land}', [LandController::class, 'destroy']);
+        Route::post('lands/{land}/resize', [LandController::class, 'resize'])->middleware('throttle:economy');
+        Route::put('lands/{land}/sale', [LandController::class, 'offer']);
+        Route::delete('lands/{land}/sale', [LandController::class, 'withdraw']);
+        Route::post('lands/{land}/buy', [LandController::class, 'buy'])->middleware('throttle:economy');
         Route::post('lands/{land}/members', [LandController::class, 'addMember']);
         Route::delete('lands/{land}/members/{player}', [LandController::class, 'removeMember']);
 

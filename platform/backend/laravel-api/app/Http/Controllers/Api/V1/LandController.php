@@ -21,11 +21,13 @@ class LandController extends Controller
             'world' => ['required', 'string', 'max:64'],
             'dimension' => ['nullable', 'string', 'max:16'],
             'mine' => ['nullable', 'boolean'],
+            'for_sale' => ['nullable', 'boolean'],
         ]);
         $lands = Land::query()
             ->where('world', $data['world'])
             ->where('status', 'active')
             ->when($data['dimension'] ?? null, fn ($q, $d) => $q->where('dimension', $d))
+            ->when($request->boolean('for_sale'), fn ($q) => $q->whereNotNull('sale_price'))
             ->when($request->boolean('mine'), fn ($q) => $q->where(fn ($w) => $w
                 ->where(fn ($own) => $own->where('owner_id', $request->user()->id)->whereNull('guild_id'))
                 ->orWhereIn('guild_id', GuildMember::query()->where('user_id', $request->user()->id)->select('guild_id'))))
@@ -97,10 +99,62 @@ class LandController extends Controller
             'permissions.build' => ['boolean'],
             'permissions.containers' => ['boolean'],
             'permissions.use' => ['boolean'],
+            'permissions.animals' => ['boolean'],
         ]);
         $updated = $lands->update($request->user(), $this->find($land), $data['name'] ?? null, $data['permissions'] ?? null);
 
         return response()->json(['land' => $this->present($updated->fresh(['owner', 'members.user']))]);
+    }
+
+    public function resize(Request $request, LandService $lands, string $land): JsonResponse
+    {
+        $key = $this->idempotencyKey($request);
+        $data = $request->validate([
+            'min' => ['required', 'array', 'size:2'],
+            'min.*' => ['required', 'integer', 'between:-1000000,1000000'],
+            'max' => ['required', 'array', 'size:2'],
+            'max.*' => ['required', 'integer', 'between:-1000000,1000000'],
+        ]);
+        $resized = $lands->resize($request->user(), $this->find($land), array_map('intval', $data['min']), array_map('intval', $data['max']), $key);
+
+        return response()->json(['land' => $this->present($resized->fresh(['owner', 'members.user']))]);
+    }
+
+    public function offer(Request $request, LandService $lands, string $land): JsonResponse
+    {
+        $data = $request->validate(['price' => ['required', 'integer', 'min:1']]);
+        $offered = $lands->offerForSale($request->user(), $this->find($land), (int) $data['price']);
+
+        return response()->json(['land' => $this->present($offered->fresh(['owner', 'members.user']))]);
+    }
+
+    public function withdraw(Request $request, LandService $lands, string $land): JsonResponse
+    {
+        $withdrawn = $lands->offerForSale($request->user(), $this->find($land), null);
+
+        return response()->json(['land' => $this->present($withdrawn->fresh(['owner', 'members.user']))]);
+    }
+
+    public function buy(Request $request, LandService $lands, string $land): JsonResponse
+    {
+        $key = $this->idempotencyKey($request);
+        $data = $request->validate(['price' => ['required', 'integer', 'min:1']]);
+        $bought = $lands->buy($request->user(), $this->find($land), (int) $data['price'], $key);
+
+        return response()->json(['land' => $this->present($bought->fresh(['owner', 'members.user']))]);
+    }
+
+    private function idempotencyKey(Request $request): string
+    {
+        $key = (string) $request->header('Idempotency-Key', '');
+        if (! preg_match('/^[A-Za-z0-9_-]{8,64}$/', $key)) {
+            abort(response()->json(['error' => [
+                'code' => 'idempotency_key_required',
+                'message' => 'Send an Idempotency-Key header of 8-64 URL-safe characters.',
+            ]], 400));
+        }
+
+        return $key;
     }
 
     public function destroy(Request $request, LandService $lands, string $land): JsonResponse
@@ -165,6 +219,7 @@ class LandController extends Controller
                 'role' => $m->role,
             ])->values(),
             'permissions' => array_merge(Land::DEFAULT_PERMISSIONS, (array) $land->permissions),
+            'sale_price' => $land->sale_price,
             'status' => $land->status,
         ];
     }

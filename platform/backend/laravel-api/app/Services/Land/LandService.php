@@ -175,6 +175,168 @@ class LandService
         });
     }
 
+    /**
+     * Change a land's box. Growing pays the claim price of the added chunks
+     * (from the owner, or the guild treasury for guild land); shrinking
+     * refunds nothing. The new box must touch the old one and stay inside
+     * the size and holding limits without overlapping other claims.
+     *
+     * @param  array{0: int, 1: int}  $min
+     * @param  array{0: int, 1: int}  $max
+     */
+    public function resize(User $actor, Land $land, array $min, array $max, string $idempotencyKey): Land
+    {
+        [$minX, $minZ] = [min($min[0], $max[0]), min($min[1], $max[1])];
+        [$maxX, $maxZ] = [max($min[0], $max[0]), max($min[1], $max[1])];
+        $side = (int) config('platform.land.max_side_chunks');
+        if ($maxX - $minX + 1 > $side || $maxZ - $minZ + 1 > $side) {
+            throw new LandException('claim_too_large', "A claim is at most {$side} chunks along each side.");
+        }
+
+        return DB::transaction(function () use ($actor, $land, $minX, $minZ, $maxX, $maxZ, $idempotencyKey) {
+            LandLock::query()->firstOrCreate(['world' => $land->world, 'dimension' => $land->dimension]);
+            LandLock::query()->where('world', $land->world)->where('dimension', $land->dimension)->lockForUpdate()->first();
+            $land = Land::query()->lockForUpdate()->findOrFail($land->id);
+            $this->assertActive($land);
+            $this->assertRole($actor, $land, ['owner']);
+            if ($land->resize_key === $idempotencyKey) {
+                return $land; // a retry of the resize already made
+            }
+            $touches = $minX <= $land->max_chunk_x && $maxX >= $land->min_chunk_x
+                && $minZ <= $land->max_chunk_z && $maxZ >= $land->min_chunk_z;
+            if (! $touches) {
+                throw new LandException('resize_detached', 'The new area must overlap the old one.');
+            }
+            $old = $land->chunkCount();
+            $new = ($maxX - $minX + 1) * ($maxZ - $minZ + 1);
+            $guild = $land->guild;
+            $held = ($guild
+                ? Land::query()->where('guild_id', $guild->id)
+                : Land::query()->where('owner_id', $land->owner_id)->whereNull('guild_id'))
+                ->where('status', 'active')->get()->sum(fn (Land $l) => $l->chunkCount());
+            $limit = (int) config($guild ? 'platform.guilds.max_chunks' : 'platform.land.max_chunks_per_player');
+            if ($held - $old + $new > $limit) {
+                throw new LandException('land_limit', "At most {$limit} chunks of land may be held.");
+            }
+            $overlap = Land::query()
+                ->where('world', $land->world)->where('dimension', $land->dimension)->where('status', 'active')
+                ->where('id', '!=', $land->id)
+                ->where('min_chunk_x', '<=', $maxX)->where('max_chunk_x', '>=', $minX)
+                ->where('min_chunk_z', '<=', $maxZ)->where('max_chunk_z', '>=', $minZ)
+                ->exists();
+            if ($overlap) {
+                throw new LandException('land_taken', 'Part of that area is already claimed.', 409);
+            }
+            $added = max(0, $new - $old);
+            $paymentId = null;
+            if ($added > 0) {
+                $price = $this->price($added);
+                $currency = (string) config('platform.land.currency');
+                $payment = $guild
+                    ? $this->ledger->post(new Posting(
+                        type: 'burn',
+                        reason: "Guild land resize (+{$added} chunks)",
+                        idempotencyKey: "land:resize:{$land->public_id}:{$idempotencyKey}",
+                        legs: [
+                            new Leg($this->ledger->guildAccount($guild, $currency), -$price),
+                            new Leg($this->ledger->systemAccount('burn', $currency), $price),
+                        ],
+                        referenceType: 'guild',
+                        referenceId: $guild->public_id,
+                        initiatedBy: $actor->id,
+                    ))
+                    : $this->ledger->burn($actor, $currency, $price, "Land resize (+{$added} chunks)", "land:resize:{$land->public_id}:{$idempotencyKey}");
+                $paymentId = $payment->id;
+            }
+            $before = [[$land->min_chunk_x, $land->min_chunk_z], [$land->max_chunk_x, $land->max_chunk_z]];
+            $land->fill([
+                'min_chunk_x' => $minX, 'min_chunk_z' => $minZ,
+                'max_chunk_x' => $maxX, 'max_chunk_z' => $maxZ,
+                'resize_key' => $idempotencyKey,
+            ]);
+            $land->version += 1;
+            $land->save();
+            $this->history($land, 'resized', $actor, ['from' => $before, 'to' => [[$minX, $minZ], [$maxX, $maxZ]], 'added' => $added], $paymentId);
+
+            return $land;
+        });
+    }
+
+    /** Offer a land for sale at `$price`, or withdraw it (null). Guild land is not sold. */
+    public function offerForSale(User $actor, Land $land, ?int $price): Land
+    {
+        return DB::transaction(function () use ($actor, $land, $price) {
+            $land = Land::query()->lockForUpdate()->findOrFail($land->id);
+            $this->assertActive($land);
+            $this->assertRole($actor, $land, ['owner']);
+            if ($land->guild_id !== null) {
+                throw new LandException('guild_land', 'Guild land cannot be sold.');
+            }
+            if ($price !== null && ($price < 1 || $price > (int) config('platform.land.max_sale_price'))) {
+                throw new LandException('bad_price', 'That is not a valid price.');
+            }
+            $land->sale_price = $price;
+            $land->version += 1;
+            $land->save();
+            $this->history($land, $price === null ? 'sale_withdrawn' : 'offered', $actor, ['price' => $price]);
+
+            return $land;
+        });
+    }
+
+    /**
+     * Buy a land on sale at the price the buyer saw. The price goes from the
+     * buyer to the owner; the land changes hands with its members cleared
+     * and its permissions back to the defaults.
+     */
+    public function buy(User $buyer, Land $land, int $expectedPrice, string $idempotencyKey): Land
+    {
+        return DB::transaction(function () use ($buyer, $land, $expectedPrice, $idempotencyKey) {
+            $land = Land::query()->lockForUpdate()->findOrFail($land->id);
+            if ($land->owner_id === $buyer->id && $land->sale_key === $idempotencyKey) {
+                return $land; // a retry of the purchase already made
+            }
+            $this->assertActive($land);
+            if ($land->sale_price === null) {
+                throw new LandException('not_for_sale', 'That land is not for sale.', 409);
+            }
+            if ((int) $land->sale_price !== $expectedPrice) {
+                throw new LandException('price_changed', 'The price has changed.', 409);
+            }
+            if ($land->owner_id === $buyer->id) {
+                throw new LandException('own_land', 'That land is already yours.');
+            }
+            $held = Land::query()->where('owner_id', $buyer->id)->whereNull('guild_id')->where('status', 'active')->get()
+                ->sum(fn (Land $l) => $l->chunkCount());
+            $limit = (int) config('platform.land.max_chunks_per_player');
+            if ($held + $land->chunkCount() > $limit) {
+                throw new LandException('land_limit', "At most {$limit} chunks of land may be held.");
+            }
+            $seller = $land->owner;
+            $payment = $this->ledger->transfer($buyer, $seller, (string) config('platform.land.currency'), $expectedPrice, "land:buy:{$land->public_id}:{$idempotencyKey}", "Land {$land->name}");
+            $land->members()->delete();
+            $land->fill([
+                'owner_id' => $buyer->id,
+                'sale_price' => null,
+                'sale_key' => $idempotencyKey,
+                'permissions' => Land::DEFAULT_PERMISSIONS,
+            ]);
+            $land->version += 1;
+            $land->save();
+            $this->history($land, 'sold', $buyer, ['price' => $expectedPrice, 'seller' => $seller->public_id], $payment->id);
+            $this->audit->record(
+                action: 'land.sale',
+                actor: $buyer,
+                subjectType: 'land',
+                subjectId: $land->public_id,
+                reason: null,
+                payload: ['price' => $expectedPrice, 'seller' => $seller->public_id],
+            );
+
+            return $land;
+        });
+    }
+
     /** Add or change a member. Owners manage everyone; managers manage builders and visitors. */
     public function setMember(User $actor, Land $land, User $member, string $role): LandMember
     {
@@ -306,6 +468,7 @@ class LandService
                     ->concat($land->guild_id ? ($allies[$land->guild_id] ?? []) : [])
                     ->values()->all(),
                 'public' => array_merge(Land::DEFAULT_PERMISSIONS, (array) $land->permissions),
+                'sale' => $land->sale_price,
                 'version' => $land->version,
             ])
             ->all();

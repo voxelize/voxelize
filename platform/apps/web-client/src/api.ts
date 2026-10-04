@@ -41,7 +41,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
-export type LandPermissions = { build: boolean; containers: boolean; use: boolean };
+export type LandPermissions = { build: boolean; containers: boolean; use: boolean; animals: boolean };
 export type LandView = {
   id: string;
   name: string;
@@ -54,6 +54,7 @@ export type LandView = {
   guild: { id: string; name: string; tag: string } | null;
   members: { id: string; name: string; role: string }[];
   permissions: LandPermissions;
+  sale_price: number | null;
   status: string;
 };
 export type LandQuote = { currency: string; price: number; max_side_chunks: number; max_chunks_per_player: number };
@@ -307,6 +308,21 @@ export const api = {
       request<{ land: LandView }>(`/lands/${id}/members`, {
         method: "POST",
         body: JSON.stringify({ player, role }),
+      }).then((r) => r.land),
+    resize: (id: string, key: string, min: [number, number], max: [number, number]) =>
+      request<{ land: LandView }>(`/lands/${id}/resize`, {
+        method: "POST",
+        headers: { "idempotency-key": key },
+        body: JSON.stringify({ min, max }),
+      }).then((r) => r.land),
+    offer: (id: string, price: number) =>
+      request<{ land: LandView }>(`/lands/${id}/sale`, { method: "PUT", body: JSON.stringify({ price }) }).then((r) => r.land),
+    withdraw: (id: string) => request<{ land: LandView }>(`/lands/${id}/sale`, { method: "DELETE" }).then((r) => r.land),
+    buy: (id: string, key: string, price: number) =>
+      request<{ land: LandView }>(`/lands/${id}/buy`, {
+        method: "POST",
+        headers: { "idempotency-key": key },
+        body: JSON.stringify({ price }),
       }).then((r) => r.land),
     removeMember: (id: string, player: string) =>
       request<{ land: LandView }>(`/lands/${id}/members/${encodeURIComponent(player)}`, { method: "DELETE" }).then(

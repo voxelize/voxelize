@@ -23,7 +23,7 @@ describe("guild panel", () => {
   });
 
   it("names settlements when walking onto guild land", () => {
-    const land = { id: "L", name: "Hall", owner: { id: "a", name: "ann" }, role: null, public: { build: false, containers: false, use: false }, min: [0, 0] as [number, number], max: [1, 1] as [number, number] };
+    const land = { id: "L", name: "Hall", owner: { id: "a", name: "ann" }, role: null, public: { build: false, containers: false, use: false, animals: false }, min: [0, 0] as [number, number], max: [1, 1] as [number, number] };
     expect(landNotice(null)).toBe("Wilderness");
     expect(landNotice(land)).toBe("Hall — ann");
     expect(landNotice({ ...land, guild: { id: "G", name: "Stone Wardens", tag: "SW" } })).toBe("Hall — ann [SW]");

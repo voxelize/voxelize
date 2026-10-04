@@ -15,3 +15,20 @@ describe("land helpers", () => {
     expect(claimBox([3, -2], 1)).toEqual({ min: [2, -3], max: [4, -1] });
   });
 });
+
+import { borderPosts, chunkArea, claimRect, ringBox } from "./land";
+
+describe("land sizes and borders", () => {
+  it("grow and shrink claims by a ring of chunks", () => {
+    expect(ringBox([0, 0], [1, 2], 1)).toEqual({ min: [-1, -1], max: [2, 3] });
+    expect(ringBox([0, 0], [0, 0], -1)).toBeNull();
+    expect(chunkArea([-1, -1], [2, 3])).toBe(20);
+  });
+  it("outline the border near the player", () => {
+    expect(claimRect([0, 0], [0, 0])).toEqual([0, 0, 16, 16]);
+    const posts = borderPosts([0, 0], [0, 0], 8, 8, 100);
+    expect(posts.length).toBe(64);
+    expect(posts).toContainEqual([16, 16]);
+    expect(borderPosts([0, 0], [9, 9], 80, 80, 10)).toEqual([]);
+  });
+});

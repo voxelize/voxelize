@@ -228,7 +228,7 @@ block in front changes, and fill gauges that read how full a chest, furnace
 or other container behind them is (`GaugeSystem`). Unit tests for each and
 doors in `tests/bots/farm.mjs`.
 
-## Phase 13 — Land ownership ✅ (first version)
+## Phase 13 — Land ownership ✅
 
 Done: claims of whole 16×16 land chunks per world and dimension, paid in
 Crowns into the burn sink through the ledger, overlap-free under a
@@ -243,9 +243,15 @@ game server enforcement on breaking, placing, using and containers
 members, guest permissions, release. Tests: 5 backend feature tests, game
 server unit tests, `tests/bots/land.mjs` end to end (API → ledger → feed →
 game server).
-Remaining: guild land, resizing, selling land (marketplace phase), claim
-borders drawn in the world, actuators pushing blocks across a border,
-protecting animals inside claims.
+Then: guild land (phase 17); resizing (grow or shrink, added chunks paid,
+idempotent); selling land (owner offers at a price, a buyer pays through a
+ledger transfer and takes it over with members cleared; offers show in the
+game's land notice and panel); claim borders drawn in the world as posts
+for ten seconds after entering and while the land panel is open; actuators
+never move blocks across a claim border; animals (passive and neutral
+creatures) on a claim are protected from strangers' blows and arrows unless
+the land allows `animals`. Tests: LandTest (resize, sale), land unit tests,
+actuator border test, client helpers, `tests/bots/land.mjs` (grow, sell).
 
 ## Phase 14 — Trading and escrow 🟡
 

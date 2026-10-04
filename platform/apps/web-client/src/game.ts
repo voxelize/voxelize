@@ -12,6 +12,7 @@ import { CrackView } from "./crack";
 import { actionFor, DEFAULT_KEYS, ENGINE_MOVES, KeyMap } from "./keybindings";
 import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
+import { BorderView } from "./borders";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
 import { StallPanel, type StallView } from "./stall";
@@ -305,9 +306,12 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
     notify: (text) => hud.toast(text),
   });
+  const borders = new BorderView();
+  world.add(borders.lines);
   events.on<{ land: LandHere }>("platform.land", ({ land }) => {
     landPanel.setHere(land);
     hud.toast(landNotice(land));
+    if (land) borders.show({ min: land.min, max: land.max, mine: land.role !== null }, 10);
   });
   addEventListener("keydown", (event) => {
     if (event.code !== "KeyL" || (event.target as HTMLElement)?.tagName === "INPUT") return;
@@ -756,6 +760,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
     controls.update();
     perspective.update();
+    borders.update(controls.object.position.x, controls.object.position.y, controls.object.position.z, landPanel.isOpen);
     interact.update();
     camera.getWorldDirection(direction);
     world.update(controls.object.position, direction);

@@ -118,7 +118,7 @@ class LandTest extends TestCase
 
         Sanctum::actingAs($this->alice);
         $this->patchJson("/api/v1/lands/{$id}", ['permissions' => ['use' => true, 'fly' => true]])
-            ->assertOk()->assertJsonPath('land.permissions', ['build' => false, 'containers' => false, 'use' => true]);
+            ->assertOk()->assertJsonPath('land.permissions', ['build' => false, 'containers' => false, 'use' => true, 'animals' => false]);
         $this->deleteJson("/api/v1/lands/{$id}/members/carol")->assertOk();
         $this->deleteJson("/api/v1/lands/{$id}")->assertOk();
         $this->deleteJson("/api/v1/lands/{$id}")->assertStatus(409);
@@ -131,6 +131,59 @@ class LandTest extends TestCase
         $this->assertSame(['claimed', 'member_added', 'member_added', 'updated', 'member_removed', 'released', 'claimed'], $events);
         $this->expectException(LogicException::class);
         LandHistory::first()->delete();
+    }
+
+    public function test_resizing_pays_for_added_chunks_and_respects_other_claims(): void
+    {
+        $id = $this->claim($this->alice)->assertCreated()->json('land.id'); // 6 chunks, 940 left
+        $this->ledger->mint($this->bob, 'CRN', 1000, 'test funding', 'seed-bob', $this->alice);
+        $this->claim($this->bob, ['min' => [5, 0], 'max' => [5, 0], 'name' => 'Next door'], 'claim-bob-01')->assertCreated();
+
+        Sanctum::actingAs($this->alice);
+        $resize = fn (array $min, array $max, string $key) => $this->withHeader('Idempotency-Key', $key)
+            ->postJson("/api/v1/lands/{$id}/resize", ['min' => $min, 'max' => $max]);
+        $resize([0, 0], [2, 2], 'resize-0001')->assertOk()->assertJsonPath('land.chunks', 9);
+        $this->assertSame(910, $this->ledger->balance($this->alice, 'CRN'), 'three chunks paid');
+        $resize([0, 0], [2, 2], 'resize-0001')->assertOk();
+        $this->assertSame(910, $this->ledger->balance($this->alice, 'CRN'), 'a retry pays nothing');
+        $resize([0, 0], [5, 0], 'resize-0002')->assertStatus(409)->assertJsonPath('error.code', 'land_taken');
+        $resize([20, 20], [21, 21], 'resize-0003')->assertStatus(422)->assertJsonPath('error.code', 'resize_detached');
+        $resize([0, 0], [0, 0], 'resize-0004')->assertOk()->assertJsonPath('land.chunks', 1);
+        $this->assertSame(910, $this->ledger->balance($this->alice, 'CRN'), 'shrinking refunds nothing');
+
+        Sanctum::actingAs($this->bob);
+        $resize([0, 0], [1, 1], 'resize-0005')->assertForbidden();
+        $this->assertSame(['claimed', 'resized', 'resized'], LandHistory::query()->where('land_id', Land::where('public_id', $id)->value('id'))->orderBy('id')->pluck('event')->all());
+        $this->assertSame([], $this->ledger->verify());
+    }
+
+    public function test_land_is_offered_bought_and_handed_over(): void
+    {
+        $id = $this->claim($this->alice)->assertCreated()->json('land.id');
+        $this->ledger->mint($this->bob, 'CRN', 1000, 'test funding', 'seed-bob', $this->alice);
+        Sanctum::actingAs($this->alice);
+        $this->postJson("/api/v1/lands/{$id}/members", ['player' => 'admin', 'role' => 'builder'])->assertOk();
+        $this->putJson("/api/v1/lands/{$id}/sale", ['price' => 300])->assertOk()->assertJsonPath('land.sale_price', 300);
+        $this->getJson('/api/v1/lands?world=main&for_sale=1')->assertJsonCount(1, 'lands');
+
+        Sanctum::actingAs($this->bob);
+        $buy = fn (int $price, string $key) => $this->withHeader('Idempotency-Key', $key)->postJson("/api/v1/lands/{$id}/buy", ['price' => $price]);
+        $buy(250, 'buy-key-0001')->assertStatus(409)->assertJsonPath('error.code', 'price_changed');
+        $buy(300, 'buy-key-0002')->assertOk()->assertJsonPath('land.owner.name', 'bob')
+            ->assertJsonPath('land.sale_price', null)->assertJsonCount(0, 'land.members');
+        $buy(300, 'buy-key-0002')->assertOk();
+        $this->assertSame(700, $this->ledger->balance($this->bob, 'CRN'), 'paid once');
+        $this->assertSame(1240, $this->ledger->balance($this->alice, 'CRN'));
+        $buy(300, 'buy-key-0003')->assertStatus(409)->assertJsonPath('error.code', 'not_for_sale');
+
+        // The old owner cannot sell it again; the new one withdraws an offer.
+        Sanctum::actingAs($this->alice);
+        $this->putJson("/api/v1/lands/{$id}/sale", ['price' => 10])->assertForbidden();
+        Sanctum::actingAs($this->bob);
+        $this->putJson("/api/v1/lands/{$id}/sale", ['price' => 10])->assertOk();
+        $this->deleteJson("/api/v1/lands/{$id}/sale")->assertOk()->assertJsonPath('land.sale_price', null);
+        $this->patchJson("/api/v1/lands/{$id}", ['permissions' => ['animals' => true]])->assertOk()->assertJsonPath('land.permissions.animals', true);
+        $this->assertSame([], $this->ledger->verify());
     }
 
     public function test_the_internal_feed_needs_the_service_token_and_supports_etags(): void
@@ -146,7 +199,8 @@ class LandTest extends TestCase
         $this->assertSame([1, 2], $land['max']);
         $this->assertSame('overworld', $land['dimension']);
         $this->assertSame($this->alice->public_id, $land['owner']['id']);
-        $this->assertSame(['build' => false, 'containers' => false, 'use' => false], $land['public']);
+        $this->assertSame(['build' => false, 'containers' => false, 'use' => false, 'animals' => false], $land['public']);
+        $this->assertNull($land['sale']);
 
         $etag = $feed->headers->get('ETag');
         $this->withHeaders(['Authorization' => 'Bearer '.self::TOKEN, 'If-None-Match' => $etag])

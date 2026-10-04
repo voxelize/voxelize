@@ -33,6 +33,8 @@ pub enum Action {
     Containers,
     /// Levers, buttons, clocks, gates.
     Use,
+    /// Hurt animals (passive and neutral creatures).
+    Animals,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -43,6 +45,8 @@ pub struct Permissions {
     pub containers: bool,
     #[serde(default, rename = "use")]
     pub use_: bool,
+    #[serde(default)]
+    pub animals: bool,
 }
 
 impl Permissions {
@@ -51,6 +55,7 @@ impl Permissions {
             Action::Build => self.build,
             Action::Containers => self.containers,
             Action::Use => self.use_,
+            Action::Animals => self.animals,
         }
     }
 }
@@ -100,6 +105,9 @@ pub struct Land {
     pub members: Vec<Member>,
     #[serde(default)]
     pub public: Permissions,
+    /// Asking price while the land is for sale.
+    #[serde(default)]
+    pub sale: Option<u64>,
 }
 
 impl Land {
@@ -327,8 +335,8 @@ impl<'a> specs::System<'a> for LandNoticeSystem {
             let here = index.at(dimension, p.0 .0.floor() as i32, p.0 .2.floor() as i32);
             // A settlement growing (village to town) is news too.
             let key = here.map(|l| match &l.settlement {
-                Some(s) => format!("{}#{}", l.id, s.level),
-                None => l.id.clone(),
+                Some(s) => format!("{}#{}#{:?}#{:?}{:?}", l.id, s.level, l.sale, l.min, l.max),
+                None => format!("{}#{:?}#{:?}{:?}", l.id, l.sale, l.min, l.max),
             });
             if key == player.land_seen {
                 continue;
@@ -345,6 +353,7 @@ impl<'a> specs::System<'a> for LandNoticeSystem {
                     "public": l.public,
                     "min": l.min,
                     "max": l.max,
+                    "sale": l.sale,
                 }}),
                 None => json!({ "land": null }),
             };
@@ -427,6 +436,15 @@ mod tests {
             index.at(o, 0, 0).map(|l| l.name.as_str()),
             Some("Homestead")
         );
+        // Animals: only owners and builders hurt them unless the land allows.
+        assert!(!index.allows(o, "eve", [5, 70, 40], Action::Animals));
+        assert!(!index.allows(o, "vic", [5, 70, 40], Action::Animals));
+        assert!(index.allows(o, "bob", [5, 70, 40], Action::Animals));
+        assert!(
+            index.allows(o, "eve", [40, 70, 40], Action::Animals),
+            "unclaimed"
+        );
+        assert_eq!(index.at(o, 0, 0).unwrap().sale, None);
     }
 
     #[test]

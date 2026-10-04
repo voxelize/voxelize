@@ -379,6 +379,37 @@ struct MobPayload {
     mob: u64,
 }
 
+/// Whether the claim a creature stands in keeps `player` from hurting it:
+/// animals (passive and neutral creatures) on land whose public permissions
+/// do not allow it, for anyone but its owner and builders.
+pub(super) fn animal_protected(
+    g: &Gameplay,
+    content: &platform_content::Content,
+    player: &str,
+    mob: u64,
+) -> bool {
+    let Some(m) = g.mobs.list.iter().find(|m| m.id == mob) else {
+        return false;
+    };
+    if content
+        .mob(&m.key)
+        .is_none_or(|d| d.kind == MobKind::Hostile)
+    {
+        return false;
+    }
+    let cell = [
+        m.position[0].floor() as i32,
+        m.position[1].floor() as i32,
+        m.position[2].floor() as i32,
+    ];
+    let here = g.dimensions.current;
+    g.dimensions
+        .land
+        .read()
+        .map(|index| !index.allows(here, player, cell, super::land::Action::Animals))
+        .unwrap_or(true)
+}
+
 pub(super) fn install(world: &mut World) {
     world.set_method_handle("platform.attack", |world, id, payload| {
         const INTENT: &str = "attack";
@@ -387,10 +418,12 @@ pub(super) fn install(world: &mut World) {
         let result = {
             let mut g = world.ecs().write_resource::<Gameplay>();
             let content = g.rules.content_arc();
+            let protected = animal_protected(&g, &content, id, p.mob);
             let Gameplay { players, mobs, .. } = &mut *g;
             match (players.get_mut(id), mobs.list.iter().find(|m| m.id == p.mob).cloned()) {
                 (None, _) => None,
                 (Some(_), None) => Some(Err(IntentError::NothingThere)),
+                (Some(_), Some(_)) if protected => Some(Err(IntentError::LandProtected)),
                 (Some(player), Some(mob)) => {
                     let height = content.mob(&mob.key).map(|d| d.size[1]).unwrap_or(1.0);
                     let center = [mob.position[0], mob.position[1] + height / 2.0, mob.position[2]];

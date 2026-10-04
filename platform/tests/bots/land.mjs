@@ -121,6 +121,44 @@ for (let i = 0; i < 40 && !allowed; i++) {
 assert.ok(allowed, "a builder may dig");
 step("a builder added through the API may dig");
 
+// Bob leaves; Alice grows the land by a ring of chunks.
+await api(API, `/lands/${land.id}/members/${names.bob}`, { token: tokens.alice, method: "DELETE" });
+const waitDig = async (bot, voxel, want) => {
+  for (let i = 0; i < 40; i++) {
+    bot.call("platform.mine.start", { voxel });
+    const r = await bot.result("mine.start");
+    if (want === "ok" ? r.ok : r.code === want) return true;
+    await sleep(500);
+  }
+  return false;
+};
+const nx = x + 16;
+const ny = bob.surface(nx, z, standable);
+assert.ok(ny !== null, "ground in the next chunk");
+await bob.moveTo([nx + 0.5, ny + 1 + EYE, z + 2.5], 3);
+assert.ok(await waitDig(bob, [nx, ny, z], "ok"), "the next chunk is still open");
+await api(API, `/lands/${land.id}/resize`, {
+  token: tokens.alice,
+  headers: { "Idempotency-Key": randomUUID().replace(/-/g, "") },
+  body: { min: [chunk[0] - 1, chunk[1] - 1], max: [chunk[0] + 1, chunk[1] + 1] },
+});
+assert.ok(await waitDig(bob, [nx, ny, z], "land_protected"), "the grown land covers the next chunk");
+step("growing the land by a ring of chunks protects the new ground");
+
+// Alice offers it for sale and Bob buys it: the land changes hands.
+execSync(process.env.FUND_CMD.replaceAll("{player}", names.bob), { stdio: "inherit", shell: "/bin/sh" });
+await api(API, `/lands/${land.id}/sale`, { token: tokens.alice, method: "PUT", body: { price: 40 } });
+const forSale = await bob.event("platform.land", (p) => p.land?.sale === 40, 15000).catch(() => null);
+await api(API, `/lands/${land.id}/buy`, {
+  token: tokens.bob,
+  headers: { "Idempotency-Key": randomUUID().replace(/-/g, "") },
+  body: { price: 40 },
+});
+await bob.moveTo([x + 0.5, y + 1 + EYE, z + 2.5], 3);
+assert.ok(await waitDig(alice, [x, y, z], "land_protected"), "the seller is a stranger now");
+assert.ok(await waitDig(bob, [x, y, z], "ok"), "the buyer digs");
+step(`Alice sold the land to Bob for 40 CRN${forSale ? " (the offer showed in game)" : ""}; it is his now`);
+
 alice.close();
 bob.close();
 console.log("land: all checks passed");

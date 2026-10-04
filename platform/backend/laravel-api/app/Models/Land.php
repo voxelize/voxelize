@@ -14,7 +14,7 @@ class Land extends Model
     public const ROLES = ['manager', 'builder', 'visitor'];
 
     /** What non-members may do unless the owner allows more. */
-    public const DEFAULT_PERMISSIONS = ['build' => false, 'containers' => false, 'use' => false];
+    public const DEFAULT_PERMISSIONS = ['build' => false, 'containers' => false, 'use' => false, 'animals' => false];
 
     protected $guarded = [];
 

@@ -377,6 +377,13 @@ impl<'a> specs::System<'a> for CombatSystem {
                         Shooter::Player(p) => Some(p.clone()),
                         Shooter::Mob(_) => None,
                     };
+                    // A protected animal: the arrow drops harmlessly.
+                    if by
+                        .as_deref()
+                        .is_some_and(|p| super::mobs_api::animal_protected(&g, &content, p, mob))
+                    {
+                        continue 'arrows;
+                    }
                     let died = g.mobs.hurt(
                         &content,
                         mob,

@@ -15,6 +15,7 @@ export type LandHere = {
   public: LandPermissions;
   min: [number, number];
   max: [number, number];
+  sale?: number | null;
 } | null;
 
 export const LAND_CHUNK = 16;
@@ -27,6 +28,37 @@ export const chunkOf = (x: number, z: number): [number, number] => [
 /** The claim box of `radius` chunks around a chunk (0: just that chunk). */
 export function claimBox([cx, cz]: [number, number], radius: number): { min: [number, number]; max: [number, number] } {
   return { min: [cx - radius, cz - radius], max: [cx + radius, cz + radius] };
+}
+
+/** A claim box grown (or shrunk, for negative `by`) on every side; `null`
+ * when it would vanish. */
+export function ringBox(min: [number, number], max: [number, number], by: number): { min: [number, number]; max: [number, number] } | null {
+  const out = { min: [min[0] - by, min[1] - by] as [number, number], max: [max[0] + by, max[1] + by] as [number, number] };
+  return out.min[0] > out.max[0] || out.min[1] > out.max[1] ? null : out;
+}
+
+export const chunkArea = (min: [number, number], max: [number, number]) => (max[0] - min[0] + 1) * (max[1] - min[1] + 1);
+
+/** World-block rectangle of a claim: [x0, z0, x1, z1] (x1, z1 exclusive). */
+export function claimRect(min: [number, number], max: [number, number]): [number, number, number, number] {
+  return [min[0] * LAND_CHUNK, min[1] * LAND_CHUNK, (max[0] + 1) * LAND_CHUNK, (max[1] + 1) * LAND_CHUNK];
+}
+
+/** Points along a claim's border within `reach` blocks of (x, z), one per
+ * block, for drawing posts. */
+export function borderPosts(min: [number, number], max: [number, number], x: number, z: number, reach: number): [number, number][] {
+  const [x0, z0, x1, z1] = claimRect(min, max);
+  const posts: [number, number][] = [];
+  const near = (px: number, pz: number) => Math.abs(px - x) <= reach && Math.abs(pz - z) <= reach;
+  for (let px = x0; px <= x1; px++) {
+    if (near(px, z0)) posts.push([px, z0]);
+    if (near(px, z1)) posts.push([px, z1]);
+  }
+  for (let pz = z0 + 1; pz < z1; pz++) {
+    if (near(x0, pz)) posts.push([x0, pz]);
+    if (near(x1, pz)) posts.push([x1, pz]);
+  }
+  return posts;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -126,6 +158,22 @@ export class LandPanel {
         el("p", {}, el("strong", { textContent: here.name || "Unnamed land" }), ` — ${here.owner.name || "someone"}`),
         el("p", { className: "land-role", textContent: here.role ? `Your role: ${here.role}` : "You are a guest here." }),
       );
+      if (here.sale && here.role !== "owner") {
+        const price = here.sale;
+        children.push(
+          el("p", { className: "land-sale", textContent: `For sale: ${price} CRN` }),
+          el(
+            "button",
+            {
+              type: "button",
+              onclick: () => {
+                if (confirm(`Buy ${here.name} for ${price} CRN?`)) void this.act(() => api.lands.buy(here.id, idempotencyKey(), price), "Bought. It is yours within a few seconds.");
+              },
+            },
+            `Buy for ${price}`,
+          ),
+        );
+      }
       if (here.role === "owner" || here.role === "manager") children.push(...(await this.manage(here.id, here.role)));
     }
     children.push(el("button", { type: "button", onclick: () => (this.root.hidden = true) }, "Done"));
@@ -167,15 +215,79 @@ export class LandPanel {
       ),
       el("h3", { textContent: "Guests may" }),
     );
-    for (const key of ["build", "containers", "use"] as const) {
+    for (const key of ["build", "containers", "use", "animals"] as const) {
       const box = el("input", { type: "checkbox", checked: land.permissions[key] });
       box.addEventListener("change", () =>
         this.act(() => api.lands.update(id, { permissions: { ...land.permissions, [key]: box.checked } }), "Saved"),
       );
-      const label = { build: "build and break", containers: "open chests and furnaces", use: "use switches and gates" }[key];
+      const label = {
+        build: "build and break",
+        containers: "open chests and furnaces",
+        use: "use switches and gates",
+        animals: "hurt animals",
+      }[key];
       nodes.push(el("label", { className: "setting" }, el("span", { textContent: label }), box));
     }
     if (role === "owner") {
+      // Size: grow or shrink by a ring of chunks.
+      const grown = ringBox(land.min, land.max, 1);
+      const shrunk = ringBox(land.min, land.max, -1);
+      const added = grown ? chunkArea(grown.min, grown.max) - land.chunks : 0;
+      const quote = added > 0 ? await api.lands.quote(added).catch(() => null) : null;
+      nodes.push(el("h3", { textContent: "Size" }));
+      if (grown) {
+        nodes.push(
+          el(
+            "button",
+            { type: "button", onclick: () => this.act(() => api.lands.resize(id, idempotencyKey(), grown.min, grown.max), "Land grown") },
+            `Grow by a chunk on every side${quote ? ` (${quote.price} ${quote.currency})` : ""}`,
+          ),
+        );
+      }
+      if (shrunk) {
+        nodes.push(
+          el(
+            "button",
+            {
+              type: "button",
+              onclick: () => {
+                if (confirm("Shrink by a chunk on every side? Nothing is refunded.")) void this.act(() => api.lands.resize(id, idempotencyKey(), shrunk.min, shrunk.max), "Land shrunk");
+              },
+            },
+            "Shrink by a chunk on every side",
+          ),
+        );
+      }
+      // Sale.
+      if (!land.guild) {
+        nodes.push(el("h3", { textContent: "Sale" }));
+        if (land.sale_price) {
+          nodes.push(
+            el("p", { textContent: `Offered for ${land.sale_price} CRN.` }),
+            el("button", { type: "button", onclick: () => this.act(() => api.lands.withdraw(id), "Offer withdrawn") }, "Withdraw the offer"),
+          );
+        } else {
+          const price = el("input", { type: "number", min: "1", step: "1", placeholder: "Price" });
+          nodes.push(
+            el(
+              "div",
+              { className: "land-add" },
+              price,
+              el(
+                "button",
+                {
+                  type: "button",
+                  onclick: () => {
+                    const value = Math.floor(Number(price.value));
+                    if (value >= 1) void this.act(() => api.lands.offer(id, value), "Offered for sale");
+                  },
+                },
+                "Offer for sale",
+              ),
+            ),
+          );
+        }
+      }
       nodes.push(
         el(
           "button",

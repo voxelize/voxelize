@@ -60,10 +60,11 @@ world and dimension. Claiming it is paid in Crowns into the burn sink;
 the game server enforces it within seconds (`platform.land` events tell
 players where they are).
 
-### `GET /lands?world=main&dimension=overworld[&mine=1]` 🔒
+### `GET /lands?world=main&dimension=overworld[&mine=1][&for_sale=1]` 🔒
 `{ "lands": [Land] }`, where Land is
-`{ "id", "name", "world", "dimension", "min": [cx, cz], "max": [cx, cz], "chunks", "owner": { "id", "name" }, "guild": { "id", "name", "tag" } | null, "members": [{ "id", "name", "role" }], "permissions": { "build", "containers", "use" }, "status" }`.
-`permissions` is what non-members may do.
+`{ "id", "name", "world", "dimension", "min": [cx, cz], "max": [cx, cz], "chunks", "owner": { "id", "name" }, "guild": { "id", "name", "tag" } | null, "members": [{ "id", "name", "role" }], "permissions": { "build", "containers", "use", "animals" }, "sale_price": n | null, "status" }`.
+`permissions` is what non-members may do (`animals`: hurt passive and
+neutral creatures). `for_sale=1` lists only land on sale.
 
 ### `GET /lands/quote?chunks=n` 🔒
 `{ "currency": "CRN", "price", "max_side_chunks", "max_chunks_per_player" }`.
@@ -84,7 +85,29 @@ build there (leader = owner, officers = managers, members = builders);
 own land and your guild's.
 
 ### `PATCH /lands/{id}` 🔒 owner or manager
-`{ "name"?: "…", "permissions"?: { "build"?, "containers"?, "use"? } }` → `{ "land": Land }`.
+`{ "name"?: "…", "permissions"?: { "build"?, "containers"?, "use"?, "animals"? } }` → `{ "land": Land }`.
+
+### `POST /lands/{id}/resize` 🔒 owner
+Header `Idempotency-Key` (required). `{ "min": [cx, cz], "max": [cx, cz] }`
+→ `{ "land": Land }`. The new box must overlap the old one
+(`422 resize_detached`), stay within `max_side_chunks` and the holding limit
+(`land_limit`) and not overlap other claims (`409 land_taken`). Added chunks
+are paid at the claim price (guild land from the treasury); shrinking
+refunds nothing. A retry with the same key changes and charges nothing.
+Rate limited (`economy`).
+
+### `PUT /lands/{id}/sale` 🔒 owner · `DELETE /lands/{id}/sale` 🔒 owner
+`{ "price": n }` offers the land for sale (`1 … land.max_sale_price`,
+`422 bad_price`); `DELETE` withdraws the offer. Guild land is not sold
+(`422 guild_land`). → `{ "land": Land }`.
+
+### `POST /lands/{id}/buy` 🔒
+Header `Idempotency-Key` (required). `{ "price": n }`, the price the buyer
+saw → `{ "land": Land }`: the price moves from the buyer's wallet to the
+owner's (ledger transfer), the buyer becomes owner, members are cleared and
+permissions reset. `409 not_for_sale`, `409 price_changed`, `422 own_land`,
+`422 land_limit`, `422 insufficient_funds`; a retry with the same key
+answers the same land and pays once. Rate limited (`economy`).
 
 ### `DELETE /lands/{id}` 🔒 owner
 Releases the land (nothing refunded) → `{ "released": true }`; `409 land_released` if already released.
@@ -294,7 +317,7 @@ killer's guild when the two guilds are fighting, once per key →
 `200 { "war", "score": [a, b] }`; `409 not_at_war`, `404 player_not_found`.
 
 ### `GET /api/internal/v1/lands?world=main`
-`{ "world", "lands": [{ "id", "name", "dimension", "min", "max", "owner": { "id", "name" }, "members": [{ "id", "role" }], "public": { "build", "containers", "use" }, "version" }] }`,
+`{ "world", "lands": [{ "id", "name", "dimension", "min", "max", "owner": { "id", "name" }, "members": [{ "id", "role" }], "public": { "build", "containers", "use", "animals" }, "sale": n | null, "version" }] }`,
 every active land of the world, with an `ETag`; `If-None-Match` with it
 answers `304`. Game servers poll it (`GAME_LAND_FEED_INTERVAL_MS`, default
 5 s) and keep the last copy in `<world>/lands.json`, so a backend outage

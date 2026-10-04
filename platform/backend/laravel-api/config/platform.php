@@ -46,6 +46,8 @@ return [
         // ...and a player holds at most this many chunks in total.
         'max_chunks_per_player' => (int) env('LAND_MAX_CHUNKS_PER_PLAYER', 64),
         'dimensions' => ['overworld', 'underworld', 'sky'],
+        // Highest asking price for a land on sale.
+        'max_sale_price' => (int) env('LAND_MAX_SALE_PRICE', 10_000_000),
     ],
 
     'market' => [
