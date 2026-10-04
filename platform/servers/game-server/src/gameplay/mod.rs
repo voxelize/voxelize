@@ -15,7 +15,9 @@ pub mod inventory;
 mod items_api;
 mod plates;
 pub use plates::PlateSystem;
+pub mod land;
 pub mod travel;
+pub use land::LandNoticeSystem;
 pub use travel::{Dimensions, PortalSystem};
 pub mod rules;
 pub mod store;
@@ -237,6 +239,20 @@ fn realm_of(world: &World, client_id: &str) -> Realm {
         .and_then(|identity| identity.claims.get("realm").cloned())
         .and_then(|realm| serde_json::from_value(realm).ok())
         .unwrap_or(Realm::Survival)
+}
+
+/// Whether the land at `voxel` lets this player do `action`.
+fn land_allows(world: &World, client_id: &str, voxel: [i32; 3], action: land::Action) -> bool {
+    let g = world.ecs().read_resource::<Gameplay>();
+    let dimension = g.dimensions.current;
+    let allowed = g
+        .dimensions
+        .land
+        .read()
+        .map(|index| index.allows(dimension, client_id, voxel, action))
+        // A poisoned lock means a writer panicked mid-update: refuse.
+        .unwrap_or(false);
+    allowed
 }
 
 /// Run `f` with the player's state, the rules and a view of the world.
@@ -518,6 +534,10 @@ pub fn install(
         let Some(p) = parse::<VoxelPayload>(world, client_id, INTENT, payload) else {
             return;
         };
+        if !land_allows(world, client_id, p.voxel, land::Action::Build) {
+            reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
         let now = now_ms();
         let result = with_player(world, client_id, |g, view, position| {
             let Gameplay { rules, players, .. } = g;
@@ -538,6 +558,10 @@ pub fn install(
     world.set_method_handle("platform.mine.finish", |world, client_id, payload| {
         const INTENT: &str = "mine.finish";
         let Some(p) = parse::<VoxelPayload>(world, client_id, INTENT, payload) else { return };
+        if !land_allows(world, client_id, p.voxel, land::Action::Build) {
+            reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
         let now = now_ms();
         let result = with_player(world, client_id, |g, view, position| {
             let mut rolls: Vec<f64> = (0..16).map(|_| g.random()).collect();
@@ -570,6 +594,10 @@ pub fn install(
         let Some(p) = parse::<PlacePayload>(world, client_id, INTENT, payload) else {
             return;
         };
+        if !land_allows(world, client_id, p.voxel, land::Action::Build) {
+            reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
         let result = with_player(world, client_id, |g, view, position| {
             let Gameplay { rules, players, .. } = g;
             let player = players.get_mut(client_id).expect("checked by with_player");
@@ -825,6 +853,26 @@ pub fn install(
         let Some(p) = parse::<VoxelPayload>(world, client_id, INTENT, payload) else {
             return;
         };
+        // Switches need permission to use; everything else used on a block
+        // (tilling, lighting portals) changes it.
+        let action = {
+            let g = world.ecs().read_resource::<Gameplay>();
+            let igniter = g
+                .players
+                .get(client_id)
+                .is_some_and(|player| g.rules.holds_igniter(player));
+            let [x, y, z] = p.voxel;
+            let raw = voxelize::VoxelAccess::get_raw_voxel(&*world.chunks(), x, y, z);
+            if !igniter && crate::behaviors::use_circuit(g.rules.content(), raw).is_some() {
+                land::Action::Use
+            } else {
+                land::Action::Build
+            }
+        };
+        if !land_allows(world, client_id, p.voxel, action) {
+            reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
         let result = with_player(world, client_id, |g, view, position| {
             let Gameplay { rules, players, .. } = g;
             let player = players.get_mut(client_id).expect("checked by with_player");

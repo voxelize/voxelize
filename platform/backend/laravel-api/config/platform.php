@@ -35,4 +35,22 @@ return [
         // Soft currency of survival worlds.
         'soft_currency' => 'CRN',
     ],
+
+    'land' => [
+        // Claims are paid for in the soft currency; the price goes to the
+        // burn sink (docs/ECONOMY_LEDGER.md), so land is a money sink.
+        'currency' => 'CRN',
+        'price_per_chunk' => (int) env('LAND_PRICE_PER_CHUNK', 50),
+        // A claim is at most this many chunks along each side...
+        'max_side_chunks' => (int) env('LAND_MAX_SIDE_CHUNKS', 8),
+        // ...and a player holds at most this many chunks in total.
+        'max_chunks_per_player' => (int) env('LAND_MAX_CHUNKS_PER_PLAYER', 64),
+        'dimensions' => ['overworld', 'underworld'],
+    ],
+
+    // Calls from game servers to /api/internal/*: a shared bearer token on
+    // the private network only (nginx refuses that path publicly).
+    'internal' => [
+        'service_token' => (string) env('GAME_SERVICE_TOKEN', ''),
+    ],
 ];

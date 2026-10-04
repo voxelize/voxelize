@@ -71,6 +71,7 @@ from the client's request.
 | `APP_KEY` | API | Laravel generated |
 | `GAME_TICKET_SECRETS` | API, game servers | 32 bytes each, comma list, newest first |
 | `GAME_TRANSPORT_SECRET` | game server, bridges | 32 bytes |
+| `GAME_SERVICE_TOKEN` | API, game servers (internal API) | 32 bytes |
 | DB / Redis / MinIO credentials | API (and backup jobs) | generated |
 
 The game server refuses to start without ticket and transport secrets unless
@@ -92,6 +93,13 @@ or echoed (wrong secrets are not printed either).
   world changes.
 - Inventory, crafting and trading run on the server; the client renders the
   results it is sent.
+- Land: breaking, placing, tilling and lighting portals need `build`,
+  chests and furnaces need `containers`, switches need `use` in the land at
+  the target block (owner/manager/builder: all; visitor: use; others: the
+  land's public permissions); refused with `land_protected`. The game
+  server enforces the backend's claims from the internal feed and keeps the
+  last copy on disk; a production server must either have a feed or declare
+  `GAME_LAND_FEED_URL=off`, so land is never silently unenforced.
 
 ## 5. Anti-cheat signals
 

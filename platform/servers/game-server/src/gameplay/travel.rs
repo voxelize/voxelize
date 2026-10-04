@@ -155,6 +155,8 @@ pub struct Dimensions {
     pub current: Dimension,
     pub worlds: Arc<HashMap<Dimension, String>>,
     pub links: Arc<std::sync::Mutex<PortalLinks>>,
+    /// The world's land claims, shared by every dimension.
+    pub land: super::land::SharedLand,
 }
 
 impl Dimensions {
@@ -419,6 +421,7 @@ mod tests {
             current: Dimension::Underworld,
             worlds: Arc::new(HashMap::new()),
             links: Arc::new(std::sync::Mutex::new(PortalLinks::in_memory())),
+            land: Default::default(),
         };
         assert_eq!(dims.through_rift(), Dimension::Overworld);
         assert_eq!(dims.world_of(Dimension::Overworld), None);

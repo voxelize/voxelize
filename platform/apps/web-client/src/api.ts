@@ -41,6 +41,25 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+export type LandPermissions = { build: boolean; containers: boolean; use: boolean };
+export type LandView = {
+  id: string;
+  name: string;
+  world: string;
+  dimension: string;
+  min: [number, number];
+  max: [number, number];
+  chunks: number;
+  owner: { id: string; name: string };
+  members: { id: string; name: string; role: string }[];
+  permissions: LandPermissions;
+  status: string;
+};
+export type LandQuote = { currency: string; price: number; max_side_chunks: number; max_chunks_per_player: number };
+
+/** A fresh key for one economic request; retries reuse it. */
+export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
+
 export const api = {
   hasSession: () => sessionStorage.getItem(TOKEN_KEY) !== null,
 
@@ -68,4 +87,33 @@ export const api = {
     request<Ticket>("/game/tickets", { method: "POST", body: JSON.stringify({ world }) }),
 
   forget: () => sessionStorage.removeItem(TOKEN_KEY),
+
+  lands: {
+    list: (world: string, dimension: string, mine = false) =>
+      request<{ lands: LandView[] }>(
+        `/lands?world=${encodeURIComponent(world)}&dimension=${encodeURIComponent(dimension)}${mine ? "&mine=1" : ""}`,
+      ).then((r) => r.lands),
+    quote: (chunks: number) => request<LandQuote>(`/lands/quote?chunks=${chunks}`),
+    claim: (
+      key: string,
+      body: { world: string; dimension: string; min: [number, number]; max: [number, number]; name: string },
+    ) =>
+      request<{ land: LandView; replayed: boolean }>("/lands", {
+        method: "POST",
+        headers: { "idempotency-key": key },
+        body: JSON.stringify(body),
+      }).then((r) => r.land),
+    update: (id: string, body: { name?: string; permissions?: Partial<LandPermissions> }) =>
+      request<{ land: LandView }>(`/lands/${id}`, { method: "PATCH", body: JSON.stringify(body) }).then((r) => r.land),
+    release: (id: string) => request<{ released: boolean }>(`/lands/${id}`, { method: "DELETE" }),
+    addMember: (id: string, player: string, role: string) =>
+      request<{ land: LandView }>(`/lands/${id}/members`, {
+        method: "POST",
+        body: JSON.stringify({ player, role }),
+      }).then((r) => r.land),
+    removeMember: (id: string, player: string) =>
+      request<{ land: LandView }>(`/lands/${id}/members/${encodeURIComponent(player)}`, { method: "DELETE" }).then(
+        (r) => r.land,
+      ),
+  },
 };

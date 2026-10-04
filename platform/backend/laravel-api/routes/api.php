@@ -2,7 +2,10 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\GameTicketController;
+use App\Http\Controllers\Api\V1\LandController;
 use App\Http\Controllers\Api\V1\WalletController;
+use App\Http\Controllers\Internal\LandFeedController;
+use App\Http\Middleware\GameServiceToken;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,5 +25,21 @@ Route::prefix('v1')->group(function () {
         Route::get('wallets', [WalletController::class, 'index']);
         Route::get('wallets/{currency}/entries', [WalletController::class, 'entries']);
         Route::post('transfers', [WalletController::class, 'transfer'])->middleware('throttle:economy');
+
+        Route::get('lands', [LandController::class, 'index']);
+        Route::get('lands/quote', [LandController::class, 'quote']);
+        Route::post('lands', [LandController::class, 'store'])->middleware('throttle:economy');
+        Route::patch('lands/{land}', [LandController::class, 'update']);
+        Route::delete('lands/{land}', [LandController::class, 'destroy']);
+        Route::post('lands/{land}/members', [LandController::class, 'addMember']);
+        Route::delete('lands/{land}/members/{player}', [LandController::class, 'removeMember']);
     });
+});
+
+/*
+ * Game server to backend, private network only (nginx refuses
+ * /api/internal/ on the public listener).
+ */
+Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(function () {
+    Route::get('lands', LandFeedController::class);
 });

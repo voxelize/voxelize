@@ -184,10 +184,24 @@ piece. 8 unit tests and `tests/bots/circuits.mjs` on a live server.
 Remaining: comparator-style and detector blocks, doors two blocks tall,
 pulling actuators.
 
-## Phase 13 — Land ownership ⬜
+## Phase 13 — Land ownership ✅ (first version)
 
-Claims, members and permissions enforced by the game server on every intent;
-internal service API between game server and backend.
+Done: claims of whole 16×16 land chunks per world and dimension, paid in
+Crowns into the burn sink through the ledger, overlap-free under a
+per-dimension lock, idempotent, size and per-player limits; members with
+manager/builder/visitor roles and public permissions; release; append-only
+history and audit (`lands`, `land_members`, `land_history`, `land_locks`);
+API (`/api/v1/lands…`); internal feed for game servers
+(`/api/internal/v1/lands`, service token, ETag, private nginx listener);
+game server enforcement on breaking, placing, using and containers
+(`land_protected`), cached on disk across backend outages, entry notices
+(`platform.land`); web client land panel (L): claim this chunk or 3×3,
+members, guest permissions, release. Tests: 5 backend feature tests, game
+server unit tests, `tests/bots/land.mjs` end to end (API → ledger → feed →
+game server).
+Remaining: guild land, resizing, selling land (marketplace phase), claim
+borders drawn in the world, actuators pushing blocks across a border,
+protecting animals inside claims.
 
 ## Phase 14 — Trading and escrow ⬜
 

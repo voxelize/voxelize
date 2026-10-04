@@ -31,6 +31,7 @@ x-api-env: &api-env
   AWS_ENDPOINT: http://minio:9000
   AWS_USE_PATH_STYLE_ENDPOINT: "true"
   GAME_TICKET_SECRETS: ${GAME_TICKET_SECRETS:?set GAME_TICKET_SECRETS in .env}
+  GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN:?set GAME_SERVICE_TOKEN in .env}
   GAME_SERVER_PUBLIC_URL: ws://localhost:${HTTP_PORT:-8080}/ws/
 
 services:
@@ -149,6 +150,9 @@ services:
       GAME_TICKET_SECRETS: ${GAME_TICKET_SECRETS}
       GAME_TRANSPORT_SECRET: ${GAME_TRANSPORT_SECRET:?set GAME_TRANSPORT_SECRET in .env}
       GAME_PRELOAD_RADIUS: ${GAME_PRELOAD_RADIUS:-3}
+      # Land claims from the backend, over the private nginx listener.
+      GAME_LAND_FEED_URL: http://nginx:8081/api/internal/v1/lands
+      GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN}
     volumes:
       - world-data:/srv/worlds
     stop_grace_period: 30s

@@ -11,6 +11,7 @@ validated by the game server like a browser player's.
 | `nature.mjs` | block behaviours: fell a lone tree and watch its leaves decay and drop |
 | `circuits.mjs` | circuits in creative: lever → conduits → lamp, pressure plate under the bot, gate by hand (also runs against a standalone game server with `DEV_TICKET_SECRET`) |
 | `portals.mjs` | dimensions in creative: build and light a riftstone frame, travel to the underworld, reconnect and resume there, travel back to the original portal (also runs standalone with `DEV_TICKET_SECRET`) |
+| `land.mjs` | land end to end: a paid claim through the API, the game server refusing a stranger, entry notices, a builder added through the API (needs `FUND_CMD` to give the player currency) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |

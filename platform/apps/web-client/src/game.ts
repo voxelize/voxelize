@@ -7,6 +7,7 @@ import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
 import { Content, isUsableBlock, miningMillis } from "./content";
+import { LandPanel, type LandHere } from "./land";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
@@ -55,6 +56,8 @@ const MESSAGES: Record<string, string> = {
   cannot_use: "Nothing happens",
   too_fast: "",
   not_loaded: "That area is still loading",
+  land_protected: "This land is protected",
+  creative_only: "Only in creative worlds",
 };
 
 class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
@@ -213,6 +216,23 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (world.isInitialized) placeFeet(feet);
     else pendingFeet = feet;
   });
+  // Land: a notice when entering someone's land, and the panel (L).
+  const landPanel = new LandPanel({
+    world: "main",
+    dimension: UNDERWORLD ? "underworld" : "overworld",
+    position: () => controls.object.position,
+    notify: (text) => hud.toast(text),
+  });
+  events.on<{ land: LandHere }>("platform.land", ({ land }) => {
+    landPanel.setHere(land);
+    hud.toast(land ? `${land.name || "Land"} — ${land.owner.name || "owned"}` : "Wilderness");
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyL" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    landPanel.toggle();
+    if (landPanel.isOpen) controls.unlock();
+  });
+
   // Travel to another dimension: this tab joins that world from now on.
   events.on<{ world: string }>("platform.travel", ({ world: target }) => {
     if (!/^[a-z0-9_]{1,64}$/.test(target) || target === WORLD) return;

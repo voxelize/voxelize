@@ -21,3 +21,6 @@ specs = "0.20.0"
 log.workspace = true
 actix-web.workspace = true
 actix-cors.workspace = true
+# Fetches land claims from the backend's internal API (plain HTTP on the
+# private network; no TLS stack needed).
+awc = { version = "3", default-features = false }

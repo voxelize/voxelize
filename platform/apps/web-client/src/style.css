@@ -594,3 +594,33 @@ body.registering .register-only {
 body.touch #hint {
   display: none;
 }
+
+#land h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+}
+
+#land button {
+  display: block;
+  margin: 8px 0;
+}
+
+#land .land-members {
+  padding-left: 18px;
+}
+
+#land .land-members button,
+#land .land-add button {
+  display: inline-block;
+  margin: 0 0 0 6px;
+}
+
+#land .land-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#land .danger {
+  background: #8a2a22;
+}

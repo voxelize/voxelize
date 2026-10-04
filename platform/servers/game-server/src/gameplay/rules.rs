@@ -57,6 +57,8 @@ pub enum IntentError {
     NotHungry,
     UnknownItem,
     CreativeOnly,
+    /// The land there belongs to someone who has not allowed this.
+    LandProtected,
     Inventory(InventoryError),
 }
 
@@ -86,6 +88,7 @@ impl IntentError {
             IntentError::NotHungry => "not_hungry",
             IntentError::UnknownItem => "unknown_item",
             IntentError::CreativeOnly => "creative_only",
+            IntentError::LandProtected => "land_protected",
             IntentError::Inventory(e) => e.code(),
         }
     }
@@ -123,6 +126,8 @@ pub struct PlayerState {
     pub attack_cooldown: f32,
     /// Travel between dimensions (see `travel.rs`).
     pub travel: super::travel::TravelState,
+    /// Id of the land the player was last told they are in.
+    pub land_seen: Option<String>,
 }
 
 /// The window a player has open.
@@ -150,6 +155,7 @@ impl PlayerState {
             window: None,
             attack_cooldown: 0.0,
             travel: Default::default(),
+            land_seen: None,
         }
     }
 }

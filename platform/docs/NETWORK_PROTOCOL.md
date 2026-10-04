@@ -102,7 +102,8 @@ Answers (events, sent only to the requesting client):
   `wrong_block`, `too_fast`, `inventory_full`, `not_placeable`, `occupied`,
   `collides_with_player`, `unknown_block`, `no_recipe`,
   `missing_ingredients`, `needs_workbench`, `bad_slot`, `slot_empty`,
-  `bad_count`, `bad_payload`, `not_joined`, `unknown_item`, `creative_only`.
+  `bad_count`, `bad_payload`, `not_joined`, `unknown_item`, `creative_only`,
+  `land_protected`.
 - `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
   pushed on join and after every change.
 
@@ -116,6 +117,8 @@ Answers (events, sent only to the requesting client):
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
 
+- `platform.land` — `{"land":{"id","name","owner":{"id","name"},"role","public","min","max"}|null}`
+  when the player walks into different land (null: wilderness).
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are
   to stand in. Sent on join (back where they left) and when a traveller is
   placed in a portal; the client moves once that chunk exists.

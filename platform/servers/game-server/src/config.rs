@@ -22,6 +22,16 @@ pub struct GameConfig {
     /// Secret transport (bridge) connections must present.
     pub transport_secret: Option<String>,
     pub insecure_dev: bool,
+    /// Where land claims come from; `None` only when explicitly off.
+    pub land_feed: Option<LandFeed>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LandFeed {
+    /// The backend's internal land feed, `…/api/internal/v1/lands`.
+    pub url: String,
+    pub token: String,
+    pub interval_ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +110,43 @@ impl GameConfig {
             }
         }
 
+        // Land claims: a reachable server must either enforce them or say
+        // explicitly that this world has none (GAME_LAND_FEED_URL=off).
+        let land_feed = match env.get("GAME_LAND_FEED_URL").map(|s| s.trim()) {
+            Some("off") => None,
+            None | Some("") if insecure_dev => None,
+            None | Some("") => {
+                return Err(ConfigError(
+                    "GAME_LAND_FEED_URL is required (the backend's /api/internal/v1/lands, or `off` for a world without land claims)".into(),
+                ))
+            }
+            Some(url) => {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(ConfigError(format!("GAME_LAND_FEED_URL={url:?} must be an http(s) URL")));
+                }
+                let token = env
+                    .get("GAME_SERVICE_TOKEN")
+                    .map(|s| s.trim().to_owned())
+                    .unwrap_or_default();
+                if token.len() < 32 {
+                    return Err(ConfigError(
+                        "GAME_SERVICE_TOKEN of at least 32 bytes is required with a land feed".into(),
+                    ));
+                }
+                let interval_ms = parse(env, "GAME_LAND_FEED_INTERVAL_MS", 5000u64)?;
+                if !(200..=600_000).contains(&interval_ms) {
+                    return Err(ConfigError(
+                        "GAME_LAND_FEED_INTERVAL_MS must be within 200..=600000".into(),
+                    ));
+                }
+                Some(LandFeed {
+                    url: url.to_owned(),
+                    token,
+                    interval_ms,
+                })
+            }
+        };
+
         let sea_level = parse(env, "GAME_SEA_LEVEL", 64i32)?;
         if !(16..=200).contains(&sea_level) {
             return Err(ConfigError("GAME_SEA_LEVEL must be within 16..=200".into()));
@@ -122,6 +169,7 @@ impl GameConfig {
             ticket_secrets,
             transport_secret,
             insecure_dev,
+            land_feed,
         })
     }
 }
@@ -155,11 +203,44 @@ mod tests {
             ("GAME_TICKET_SECRETS", &format!("{SECRET}, {SECRET}x")),
             ("GAME_TRANSPORT_SECRET", SECRET),
             ("GAME_WORLD_SEED", "77"),
+            (
+                "GAME_LAND_FEED_URL",
+                "http://nginx:8081/api/internal/v1/lands",
+            ),
+            ("GAME_SERVICE_TOKEN", SECRET),
         ]))
         .unwrap();
         assert_eq!(config.ticket_secrets.len(), 2);
         assert_eq!(config.seed, 77);
         assert!(!config.insecure_dev);
+        let feed = config.land_feed.unwrap();
+        assert_eq!(feed.interval_ms, 5000);
+    }
+
+    #[test]
+    fn production_enforces_land_or_says_it_has_none() {
+        let base = [
+            ("GAME_TICKET_SECRETS", SECRET),
+            ("GAME_TRANSPORT_SECRET", SECRET),
+        ];
+        let with = |extra: &[(&str, &str)]| {
+            let mut pairs = base.to_vec();
+            pairs.extend_from_slice(extra);
+            GameConfig::from_map(&env(&pairs))
+        };
+        assert!(with(&[]).unwrap_err().0.contains("GAME_LAND_FEED_URL"));
+        assert!(with(&[("GAME_LAND_FEED_URL", "off")])
+            .unwrap()
+            .land_feed
+            .is_none());
+        let error = with(&[("GAME_LAND_FEED_URL", "http://api/lands")]).unwrap_err();
+        assert!(error.0.contains("GAME_SERVICE_TOKEN"));
+        let error = with(&[
+            ("GAME_LAND_FEED_URL", "ftp://x"),
+            ("GAME_SERVICE_TOKEN", SECRET),
+        ])
+        .unwrap_err();
+        assert!(error.0.contains("http"));
     }
 
     #[test]

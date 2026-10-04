@@ -397,9 +397,20 @@ pub(super) fn install(world: &mut World) {
                         Some("chest") => Some(WindowKind::Chest),
                         _ => None,
                     };
+                    let protected = kind.is_some_and(|k| k != WindowKind::Workbench) && {
+                        let dimension = g.dimensions.current;
+                        !g.dimensions
+                            .land
+                            .read()
+                            .map(|index| {
+                                index.allows(dimension, id, voxel, super::land::Action::Containers)
+                            })
+                            .unwrap_or(false)
+                    };
                     match (kind, close) {
                         (None, _) => Err(Some(IntentError::NothingThere)),
                         (_, false) => Err(Some(IntentError::OutOfReach)),
+                        _ if protected => Err(Some(IntentError::LandProtected)),
                         (Some(kind), true) => {
                             if kind != WindowKind::Workbench
                                 && !g.containers.map.contains_key(&voxel)

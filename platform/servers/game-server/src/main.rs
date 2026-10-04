@@ -145,6 +145,11 @@ fn build_world(
                 "platform-portals",
                 &["platform-plates"],
             )
+            .with(
+                gameplay::LandNoticeSystem::default(),
+                "platform-land-notices",
+                &["platform-portals"],
+            )
     });
     world
 }
@@ -198,6 +203,16 @@ async fn main() -> std::io::Result<()> {
         .map(|d| (d, world_name(&config, d)))
         .collect();
     let worlds = Arc::new(worlds);
+    // Land claims: the last feed seen, then kept fresh from the backend.
+    let world_dir = config.save_dir.join(&config.world);
+    let land: gameplay::land::SharedLand = Arc::new(std::sync::RwLock::new(
+        gameplay::land::load_cached(&world_dir)
+            .unwrap_or_else(|e| fail(format!("cannot load cached land claims: {e}"))),
+    ));
+    match &config.land_feed {
+        Some(_) => info!("land: enforcing claims from the backend"),
+        None => warn!("land: no land feed; this world has no land claims"),
+    }
     let links = Arc::new(std::sync::Mutex::new(
         gameplay::travel::PortalLinks::load(&config.save_dir.join(&config.world))
             .unwrap_or_else(|e| fail(format!("cannot load portal links: {e}"))),
@@ -207,6 +222,7 @@ async fn main() -> std::io::Result<()> {
             current: dimension,
             worlds: worlds.clone(),
             links: links.clone(),
+            land: land.clone(),
         };
         server
             .add_world(build_world(&config, content.clone(), dimensions))
@@ -236,6 +252,17 @@ async fn main() -> std::io::Result<()> {
         "recipes": content.recipes(),
         "mobs": content.mobs(),
     });
+    if let Some(feed) = config.land_feed.clone() {
+        actix_web::rt::spawn(gameplay::land::poll(
+            gameplay::land::FeedConfig {
+                url: format!("{}?world={}", feed.url, config.world),
+                token: feed.token,
+                interval: std::time::Duration::from_millis(feed.interval_ms),
+                cache_dir: world_dir.clone(),
+            },
+            land.clone(),
+        ));
+    }
     Voxelize::run_with(server, move |voxelize| {
         let info = info.clone();
         let content_json = content_json.clone();

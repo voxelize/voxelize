@@ -125,9 +125,15 @@ Inventory contents are not here: see `inventories`.
 
 ## Land and property
 
-### lands
+### lands ✅ implemented
 A claim is an axis-aligned box in one world, in whole chunks horizontally
-(simple, fast lookup by chunk) and full height.
+(simple, fast lookup by chunk) and full height. As implemented (migration
+`2026_01_01_000400_create_land_tables`): `world` and `dimension` are keys
+until a `worlds` table exists, the owner is `owner_id` → users (guild
+ownership arrives with guilds), `status` (`active|released`), `claim_key`
+(the claimant's Idempotency-Key, UNIQUE with the owner), and
+`land_locks(world, dimension)` rows are what the claim service locks.
+Sale fields arrive with the marketplace phase.
 `id`, `public_id`, `world_id` FK, `owner_type` (`user|guild`), `owner_id`,
 `min_chunk_x`, `min_chunk_z`, `max_chunk_x`, `max_chunk_z`, `name`,
 `sale_status` (`not_for_sale|listed|auction`), `price` bigint NULL,
@@ -137,13 +143,13 @@ INDEX(`world_id`, `min_chunk_x`, `min_chunk_z`). Overlap is prevented by the
 claim service under a world-level lock (`SELECT … FOR UPDATE` on the world
 row) — MySQL has no exclusion constraints.
 
-### land_members
+### land_members ✅ implemented (roles `manager|builder|visitor`; the owner is `lands.owner_id`)
 `id`, `land_id` FK, `user_id` FK, `role` (`owner|manager|builder|visitor`),
 `permissions` json (build, destroy, open_containers, use_machines, invite,
 trade), timestamps. UNIQUE(`land_id`, `user_id`).
 
-### land_history
-Append-only. `id`, `land_id` FK, `event` (`claimed|sold|transferred|resized|released`),
+### land_history ✅ implemented (events `claimed|released|member_added|member_removed|updated`, `actor_id`, `details` json)
+Append-only (also by MySQL grants). `id`, `land_id` FK, `event` (`claimed|sold|transferred|resized|released`),
 `from_owner`, `to_owner`, `ledger_transaction_id` FK NULL, `created_at`.
 
 ### properties
