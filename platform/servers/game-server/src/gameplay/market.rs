@@ -192,9 +192,14 @@ impl<'a> specs::System<'a> for MarketSystem {
         specs::ReadStorage<'a, PositionComp>,
         specs::WriteExpect<'a, Gameplay>,
         specs::WriteExpect<'a, voxelize::Events>,
+        specs::WriteExpect<'a, voxelize::Chunks>,
+        specs::ReadExpect<'a, voxelize::WorldConfig>,
     );
 
-    fn run(&mut self, (clients, positions, mut g, mut events): Self::SystemData) {
+    fn run(
+        &mut self,
+        (clients, positions, mut g, mut events, mut chunks, config): Self::SystemData,
+    ) {
         let now = std::time::Instant::now();
         let dt = self
             .last
@@ -409,6 +414,75 @@ impl<'a> specs::System<'a> for MarketSystem {
                             );
                         }
                         break;
+                    }
+                }
+                Response::BlueprintStored { player, id, blocks } => {
+                    if clients.get(&player).is_some() {
+                        notify(
+                            &mut events,
+                            &player,
+                            json!({ "blueprint": { "stored": id, "blocks": blocks } }),
+                        );
+                    }
+                }
+                Response::BlueprintRefused { player, code } => {
+                    if clients.get(&player).is_some() {
+                        notify(
+                            &mut events,
+                            &player,
+                            json!({ "blueprint": { "refused": code } }),
+                        );
+                    }
+                }
+                Response::BlueprintLayout {
+                    player,
+                    id,
+                    at,
+                    layout,
+                } => {
+                    if clients.get(&player).is_none() {
+                        continue;
+                    }
+                    let built =
+                        super::blueprint::decode(&content, &layout).and_then(|(cells, size)| {
+                            let players: Vec<[f32; 3]> = clients
+                                .values()
+                                .filter_map(|c| {
+                                    positions.get(c.entity).map(|p| [p.0 .0, p.0 .1, p.0 .2])
+                                })
+                                .collect();
+                            let view = super::EngineView {
+                                chunks: &chunks,
+                                chunk_size: config.chunk_size,
+                                max_height: config.max_height as i32,
+                                players,
+                            };
+                            super::blueprint::plan_build(&mut g, &player, &view, at, &cells, size)
+                        });
+                    match built {
+                        Ok(writes) => {
+                            let count = writes.len();
+                            let writes: Vec<(voxelize::Vec3<i32>, u32)> = writes
+                                .into_iter()
+                                .map(|([x, y, z], raw)| (voxelize::Vec3(x, y, z), raw))
+                                .collect();
+                            chunks.update_voxels(&writes);
+                            let Gameplay { players, store, .. } = &mut *g;
+                            if let Some(p) = players.get(&player) {
+                                save(store, &player, p, position_of(&player));
+                                inventory_of(&mut events, &player, p);
+                            }
+                            notify(
+                                &mut events,
+                                &player,
+                                json!({ "blueprint": { "built": id, "blocks": count } }),
+                            );
+                        }
+                        Err(e) => notify(
+                            &mut events,
+                            &player,
+                            json!({ "blueprint": { "refused": e.code() } }),
+                        ),
                     }
                 }
                 Response::PaymentFailed { key } => {

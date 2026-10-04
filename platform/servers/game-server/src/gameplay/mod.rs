@@ -15,6 +15,7 @@ pub mod inventory;
 mod items_api;
 mod plates;
 pub use plates::PlateSystem;
+pub mod blueprint;
 pub mod bridge;
 pub mod land;
 pub mod market;
@@ -534,6 +535,7 @@ pub fn install(
     mobs_api::install(world);
     market::install(world);
     stall::install(world);
+    blueprint::install(world);
     world.set_client_modifier(on_join);
     world.set_client_leave_modifier(on_leave);
 

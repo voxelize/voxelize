@@ -10,6 +10,7 @@ import { Content, isUsableBlock, miningMillis } from "./content";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
 import { StallPanel, type StallView } from "./stall";
+import { BlueprintPanel } from "./blueprints";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
@@ -64,6 +65,7 @@ const MESSAGES: Record<string, string> = {
   bad_listing: "Check the price, buyout and duration",
   not_owner: "That belongs to someone else",
   busy: "A sale is still being paid",
+  bad_blueprint: "That is not a blueprint that can be captured or built",
   creative_only: "Only in creative worlds",
 };
 
@@ -258,7 +260,22 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     stallPanel.show(view);
     controls.unlock();
   });
+  const blueprintPanel = new BlueprintPanel({
+    world: "main",
+    content,
+    target: () => (interact.target ? ([...interact.target] as [number, number, number]) : null),
+    placeAt: () => (interact.potential ? ([...interact.potential.voxel] as [number, number, number]) : null),
+    capture: (min, max, name) => method.call("platform.blueprint.capture", { min, max, name }),
+    build: (id, at) => method.call("platform.blueprint.build", { id, at }),
+    notify: (text) => hud.toast(text),
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyB" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    blueprintPanel.toggle();
+    if (blueprintPanel.isOpen) controls.unlock();
+  });
   type MarketNotice = {
+    blueprint?: { stored?: string; built?: string; refused?: string; blocks?: number };
     bought?: { item: string; count: number; price: number };
     sold?: { item: string; count: number; price: number };
     refused?: { code: string; item: string; count: number };
@@ -273,6 +290,10 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (n.rejected) hud.toast(`Not listed (${n.rejected.code}); ${itemName(n.rejected.item)} returned`);
     if (n.received) hud.toast(`Received ${n.received.count} × ${itemName(n.received.item)}`);
     if (n.waiting) hud.toast(`A delivery of ${itemName(n.waiting.item)} waits for room in your inventory`);
+    if (n.blueprint?.stored) hud.toast(`Blueprint saved (${n.blueprint.blocks} blocks)`);
+    if (n.blueprint?.built) hud.toast(`Built ${n.blueprint.blocks} blocks from the blueprint`);
+    if (n.blueprint?.refused) hud.toast(MESSAGES[n.blueprint.refused] || `Blueprint: ${n.blueprint.refused.replace(/_/g, " ")}`);
+    if (n.blueprint) blueprintPanel.refresh();
     if (n.bought) hud.toast(`Bought ${n.bought.count} × ${itemName(n.bought.item)} for ${n.bought.price} CRN`);
     if (n.sold) hud.toast(`Your stall sold ${n.sold.count} × ${itemName(n.sold.item)} for ${n.sold.price} CRN`);
     if (n.refused) hud.toast(`Not bought: ${n.refused.code.replace("_", " ")}`);

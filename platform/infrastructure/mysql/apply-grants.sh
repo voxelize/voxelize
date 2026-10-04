@@ -4,7 +4,7 @@
 # the application can rewrite ledger or audit history (docs/SECURITY.md §6).
 set -eu
 
-APPEND_ONLY="ledger_entries ledger_transactions audit_logs game_tickets land_history market_bids"
+APPEND_ONLY="ledger_entries ledger_transactions audit_logs game_tickets land_history market_bids blueprint_licenses"
 mysql_cmd() {
   mysql -h"$DB_HOST" -P"${DB_PORT:-3306}" -uroot -p"$MYSQL_ROOT_PASSWORD" -N -B "$@"
 }

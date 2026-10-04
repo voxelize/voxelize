@@ -61,6 +61,14 @@ return [
         'default_hours' => 48,
     ],
 
+    'blueprints' => [
+        // Where blueprint layouts are kept: `s3` (MinIO in the stack) or `local`.
+        'disk' => env('BLUEPRINT_DISK', 'local'),
+        // Largest blueprint along each axis, in blocks.
+        'max_side' => 32,
+        'max_price' => 1_000_000_000,
+    ],
+
     // Calls from game servers to /api/internal/*: a shared bearer token on
     // the private network only (nginx refuses that path publicly).
     'internal' => [

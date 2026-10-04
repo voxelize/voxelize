@@ -32,6 +32,8 @@ x-api-env: &api-env
   AWS_USE_PATH_STYLE_ENDPOINT: "true"
   GAME_TICKET_SECRETS: ${GAME_TICKET_SECRETS:?set GAME_TICKET_SECRETS in .env}
   GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN:?set GAME_SERVICE_TOKEN in .env}
+  # Blueprint layouts live in MinIO (S3 API, the AWS_* values below).
+  BLUEPRINT_DISK: s3
   GAME_SERVER_PUBLIC_URL: ws://localhost:${HTTP_PORT:-8080}/ws/
 
 services:

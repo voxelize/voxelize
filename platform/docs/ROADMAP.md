@@ -232,11 +232,20 @@ to end.
 Remaining: partial purchases of a stack, price history and search by item
 name, guild sellers.
 
-## Phase 16 — Blueprint creator economy ⬜
+## Phase 16 — Blueprint creator economy ✅ (first version)
 
-Blueprint capture (layout + bill of materials), versions in object storage,
-moderation, sales with royalties in one ledger transaction, limited
-editions, provenance.
+Done: capture in the game (box up to 32³, only where you may build,
+palette + run-length layout, bill of materials), layouts in object storage
+(MinIO through the S3 driver; local disk in development) with a SHA-256
+checked on every read, drafts, pricing, publishing, limited editions,
+licences sold in one ledger transaction paying the creator and the fee,
+moderation (`blueprints:reject`), provenance in the audit log; building a
+licensed blueprint in the game from the player's own materials, all or
+nothing; web client blueprint panel (B). Tests: 3 backend feature tests,
+unit tests, `tests/bots/blueprints.mjs` end to end.
+Remaining: resale of licences with a creator royalty, rotated or mirrored
+building, versioned updates of a blueprint, a review queue before
+publishing.
 
 ## Phase 17 — Guilds and cities ⬜
 

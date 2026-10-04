@@ -146,6 +146,17 @@ history.
   and settling each happen in one database transaction with the listing row
   locked.
 
+### Blueprints
+
+- Capturing needs build permission over the whole box (no copying other
+  people's land); only placeable blocks are captured (no containers'
+  contents, no fluids).
+- A stored layout is handed out only to its creator or a licence holder,
+  and only if it still matches the SHA-256 recorded at capture.
+- Building re-checks everything in the game at the moment of building
+  (land, free cells, players, materials) and changes the world and the
+  inventory all at once, so a blueprint never conjures blocks.
+
 ## 7. Audit
 
 Every sensitive action writes an `audit_logs` row in the same database

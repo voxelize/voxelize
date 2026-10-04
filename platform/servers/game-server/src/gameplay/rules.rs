@@ -64,6 +64,7 @@ pub enum IntentError {
     BadListing,
     NotOwner,
     Busy,
+    BadBlueprint,
     Inventory(InventoryError),
 }
 
@@ -99,6 +100,7 @@ impl IntentError {
             IntentError::BadListing => "bad_listing",
             IntentError::NotOwner => "not_owner",
             IntentError::Busy => "busy",
+            IntentError::BadBlueprint => "bad_blueprint",
             IntentError::Inventory(e) => e.code(),
         }
     }

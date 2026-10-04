@@ -137,6 +137,36 @@ They are handed over in that world when you are online with room.
 `php artisan market:settle` (every minute) ends auctions (seller paid from
 escrow, goods to the winner) and expires unsold listings (goods back).
 
+## Blueprints
+
+A blueprint is a building captured in the game (`platform.blueprint.capture`,
+up to 32 blocks along each side, only where you may build): its layout is
+kept in object storage with its SHA-256, its bill of materials here. A
+licence lets you build it in the game from your own materials
+(`platform.blueprint.build`).
+
+Blueprint: `{ "id", "name", "world", "size": [x, y, z], "blocks", "materials": { item: count }, "creator": { "id", "name" }, "status": "draft" | "published" | "rejected", "price", "max_copies", "copies_sold", "mine", "licensed" }`.
+
+### `GET /blueprints?world=main` 🔒
+Published blueprints, newest first.
+
+### `GET /blueprints/mine` 🔒
+Blueprints you made and blueprints you hold a licence for.
+
+### `PATCH /blueprints/{id}` 🔒 creator
+`{ "name"?, "price"?, "max_copies"?, "published"? }`: publishing needs a
+price; a limit cannot go below the copies sold (limited editions). `409
+rejected` once moderation removed it.
+
+### `POST /blueprints/{id}/buy` 🔒
+One licence per player: a `sale` transaction pays the creator the price
+minus the 5 % fee. `201 { "blueprint", "edition", "balance" }` (a repeat
+answers `200` and charges nothing). Errors: `409 not_for_sale | sold_out`,
+`422 own_listing | insufficient_funds`.
+
+`php artisan blueprints:reject <moderator> <id> --reason=…` takes a
+blueprint off sale and out of use (audited).
+
 ## Internal API (game servers only)
 
 Served on the private nginx listener (port 8081, not published); the public
@@ -160,6 +190,16 @@ never lifts protection.
 a stall sale as one `sale` transaction (buyer −amount, seller +amount−fee,
 fee to `system:fees`), once per key → `201`/`200 { "transaction", "replayed" }`;
 `422 insufficient_funds | own_listing | bad_price`, `404 player_not_found`.
+
+### `POST /api/internal/v1/blueprints`
+`{ "key", "creator", "world", "name", "size": [x,y,z], "palette": [{ "block": key | null, "raw" }], "runs": [[index, count]], "materials": { item: count } }`
+(runs walk the box x-major, then y, then z) → `201`/`200 { "blueprint": { "id", "blocks" }, "replayed" }`;
+`422 bad_blueprint`, `503 storage_unavailable`.
+
+### `GET /api/internal/v1/blueprints/{id}?player=<public id>`
+`{ "id", "name", "materials", "layout" }` for the creator or a licence
+holder (`403 not_licensed`, also after moderation); `503
+storage_unavailable` if the stored layout no longer matches its hash.
 
 ### `POST /api/internal/v1/deliveries/pending`
 `{ "world", "players": [public id] }` → `{ "deliveries": [{ "id", "player", "item", "count", "durability", "reason" }] }`.

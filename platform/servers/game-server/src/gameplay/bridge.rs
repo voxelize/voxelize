@@ -61,6 +61,19 @@ pub enum Request {
         world: String,
         delivery: String,
     },
+    /// Store a captured blueprint (`body` is the internal API's request).
+    UploadBlueprint {
+        world: String,
+        player: String,
+        body: Value,
+    },
+    /// The layout of a blueprint `player` may build, to build at `at`.
+    FetchBlueprint {
+        world: String,
+        player: String,
+        id: String,
+        at: [i32; 3],
+    },
     /// A buyer pays a stall's owner.
     Payment {
         world: String,
@@ -78,7 +91,9 @@ impl Request {
             Request::CreateListing { world, .. }
             | Request::PendingDeliveries { world, .. }
             | Request::Acknowledge { world, .. }
-            | Request::Payment { world, .. } => world,
+            | Request::Payment { world, .. }
+            | Request::UploadBlueprint { world, .. }
+            | Request::FetchBlueprint { world, .. } => world,
         }
     }
 }
@@ -122,6 +137,21 @@ pub enum Response {
     /// Not sent: try again later.
     PaymentFailed {
         key: String,
+    },
+    BlueprintStored {
+        player: String,
+        id: String,
+        blocks: u64,
+    },
+    BlueprintRefused {
+        player: String,
+        code: String,
+    },
+    BlueprintLayout {
+        player: String,
+        id: String,
+        at: [i32; 3],
+        layout: Value,
     },
 }
 
@@ -298,6 +328,69 @@ async fn send(
                     _ => Response::DeliveriesFailed,
                 },
                 _ => Response::DeliveriesFailed,
+            }
+        }
+        Request::UploadBlueprint { player, body, .. } => {
+            match post(client, &format!("{base}/blueprints"), token, body).await {
+                Ok((200 | 201, body)) => Response::BlueprintStored {
+                    player,
+                    id: body
+                        .pointer("/blueprint/id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned(),
+                    blocks: body
+                        .pointer("/blueprint/blocks")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0),
+                },
+                Ok((_, body)) => Response::BlueprintRefused {
+                    player,
+                    code: error_code(&body),
+                },
+                Err(_) => Response::BlueprintRefused {
+                    player,
+                    code: "backend_unavailable".into(),
+                },
+            }
+        }
+        Request::FetchBlueprint { player, id, at, .. } => {
+            let url = format!("{base}/blueprints/{id}?player={player}");
+            let fetched = async {
+                let mut response = client
+                    .get(&url)
+                    .insert_header(("Authorization", format!("Bearer {token}")))
+                    .insert_header(("Accept", "application/json"))
+                    .send()
+                    .await
+                    .map_err(|e| e.to_string())?;
+                let status = response.status().as_u16();
+                let bytes = response
+                    .body()
+                    .limit(16 * 1024 * 1024)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok::<_, String>((
+                    status,
+                    serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null),
+                ))
+            }
+            .await;
+            match fetched {
+                Ok((200, body)) => Response::BlueprintLayout {
+                    player,
+                    id,
+                    at,
+                    layout: body.get("layout").cloned().unwrap_or(Value::Null),
+                },
+                Ok((_, body)) => Response::BlueprintRefused {
+                    player,
+                    code: error_code(&body),
+                },
+                Err(_) => Response::BlueprintRefused {
+                    player,
+                    code: "backend_unavailable".into(),
+                },
             }
         }
         Request::Payment {

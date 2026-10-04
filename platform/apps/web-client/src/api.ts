@@ -76,6 +76,22 @@ export type Listing = {
 };
 export type DeliveryView = { id: string; world: string; item: string; count: number; reason: string };
 
+export type BlueprintView = {
+  id: string;
+  name: string;
+  world: string;
+  size: [number, number, number];
+  blocks: number;
+  materials: Record<string, number>;
+  creator: { id: string; name: string };
+  status: string;
+  price: number | null;
+  max_copies: number | null;
+  copies_sold: number;
+  mine: boolean;
+  licensed: boolean;
+};
+
 /** A fresh key for one economic request; retries reuse it. */
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
 
@@ -127,6 +143,17 @@ export const api = {
       }),
     cancel: (id: string) => request<{ cancelled: boolean }>(`/market/listings/${id}`, { method: "DELETE" }),
     deliveries: () => request<{ deliveries: DeliveryView[] }>("/deliveries").then((r) => r.deliveries),
+  },
+
+  blueprints: {
+    published: (world: string) =>
+      request<{ blueprints: BlueprintView[] }>(`/blueprints?world=${encodeURIComponent(world)}`).then((r) => r.blueprints),
+    mine: () => request<{ blueprints: BlueprintView[] }>("/blueprints/mine").then((r) => r.blueprints),
+    update: (id: string, body: { name?: string; price?: number; max_copies?: number; published?: boolean }) =>
+      request<{ blueprint: BlueprintView }>(`/blueprints/${id}`, { method: "PATCH", body: JSON.stringify(body) }).then(
+        (r) => r.blueprint,
+      ),
+    buy: (id: string) => request<{ blueprint: BlueprintView; balance: number }>(`/blueprints/${id}/buy`, { method: "POST" }),
   },
 
   lands: {

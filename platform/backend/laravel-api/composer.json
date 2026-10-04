@@ -10,6 +10,7 @@
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4",
         "laravel/tinker": "^3.0",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "predis/predis": "^3"
     },
     "require-dev": {

@@ -235,6 +235,18 @@ Real-money creator earnings are **not** in the ledger above; see
 ECONOMY_LEDGER.md §8. Own tables (`creator_accounts`, `creator_ledger_*`,
 `payout_requests`, `kyc_checks`) are designed when that feature is approved.
 
+## Blueprints ✅ implemented (migration `2026_01_01_000600_create_blueprint_tables`)
+
+- `blueprints`: `public_id`, `creator_id`, `world`, `name`, `size_x/y/z`,
+  `block_count`, `materials` json, `storage_disk`, `storage_path`,
+  `sha256`, `bytes`, `status` (`draft|published|rejected`), `price`,
+  `max_copies` (limited editions), `copies_sold`, `upload_key` UNIQUE,
+  `version`, timestamps. The layout itself is in object storage.
+- `blueprint_licenses` (append-only): `blueprint_id`, `user_id`, `edition`,
+  `ledger_transaction_id`, `created_at`; UNIQUE(`blueprint_id`, `user_id`).
+  Provenance: the capture, every sale and every rejection are in
+  `audit_logs`; sales are ledger transactions referencing the blueprint.
+
 ## Trading and markets
 
 ### trades

@@ -90,6 +90,8 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.market.list` | `{"slot":n,"count":n,"price":n,"kind"?:"fixed"\|"auction","buyout"?:n,"hours"?:1-168}` | survival realm only (`survival_only`); a backend configured (`market_unavailable`); valid price, buyout above the opening price for auctions only, duration (`bad_listing`); exactly `count` from the slot (`bad_count`). The goods leave the inventory into the player's outbox in one save; `platform.market {"listed"}` follows when the backend holds them, or `{"rejected"}` with the goods returned | ✅ |
 | `platform.stall.price` | `{"at":[x,y,z],"slot":0-8,"price":n}` | the stall's owner (`not_owner`), within reach; 0 takes the slot off sale | ✅ |
 | `platform.stall.buy` | `{"at":[x,y,z],"slot":0-8}` | not the owner, survival buyer and stall (`survival_only`), a priced stocked slot, within reach, a backend; the goods are set aside and paid through the ledger, then `platform.market {"bought"}` (owner: `{"sold"}`) or `{"refused"}` with the goods back on sale | ✅ |
+| `platform.blueprint.capture` | `{"min":[x,y,z],"max":[x,y,z],"name":s}` | a backend; box ≤ 32 per side, within 64 blocks, loaded (`not_loaded`), all of it land you may build on (`land_protected`), not empty (`bad_blueprint`); answers `{"blocks","size","materials"}`, then `platform.market {"blueprint":{"stored":id,"blocks"}}` or `{"refused":code}` | ✅ |
+| `platform.blueprint.build` | `{"id":s,"at":[x,y,z]}` | a backend, within 64 blocks; then, once the layout arrives: you are the creator or hold a licence (`not_licensed`), land you may build on, every cell free (`occupied`) and no player inside (`collides_with_player`), all materials in the inventory (`missing_ingredients`, survival); all or nothing → `platform.market {"blueprint":{"built":id,"blocks"}}` | ✅ |
 | `platform.inventory.creative` | `{"slot":n,"item":key}` | creative realm only (`creative_only`); a full, unworn stack of any item into the slot (`unknown_item`, `bad_slot`) | ✅ |
 | `platform.attack` | `{"mob":id}` | alive, within reach of the creature, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it, knocks the creature back | ✅ |
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
@@ -107,7 +109,8 @@ Answers (events, sent only to the requesting client):
   `missing_ingredients`, `needs_workbench`, `bad_slot`, `slot_empty`,
   `bad_count`, `bad_payload`, `not_joined`, `unknown_item`, `creative_only`,
   `land_protected`, `market_unavailable`, `survival_only`, `bad_listing`,
-  `not_owner` (someone else's stall), `busy` (a stall with a sale being paid).
+  `not_owner` (someone else's stall), `busy` (a stall with a sale being paid),
+  `bad_blueprint`.
 - `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
   pushed on join and after every change.
 

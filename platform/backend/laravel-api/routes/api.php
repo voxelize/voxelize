@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BlueprintController;
 use App\Http\Controllers\Api\V1\GameTicketController;
 use App\Http\Controllers\Api\V1\LandController;
 use App\Http\Controllers\Api\V1\MarketController;
 use App\Http\Controllers\Api\V1\WalletController;
+use App\Http\Controllers\Internal\BlueprintBridgeController;
 use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
 use App\Http\Middleware\GameServiceToken;
@@ -42,6 +44,11 @@ Route::prefix('v1')->group(function () {
         Route::post('market/listings/{listing}/bids', [MarketController::class, 'bid'])->middleware('throttle:economy');
         Route::delete('market/listings/{listing}', [MarketController::class, 'destroy']);
         Route::get('deliveries', [MarketController::class, 'deliveries']);
+
+        Route::get('blueprints', [BlueprintController::class, 'index']);
+        Route::get('blueprints/mine', [BlueprintController::class, 'mine']);
+        Route::patch('blueprints/{blueprint}', [BlueprintController::class, 'update']);
+        Route::post('blueprints/{blueprint}/buy', [BlueprintController::class, 'buy'])->middleware('throttle:economy');
     });
 });
 
@@ -53,6 +60,8 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::get('lands', LandFeedController::class);
     Route::post('market/listings', [MarketBridgeController::class, 'createListing']);
     Route::post('payments', [MarketBridgeController::class, 'payment']);
+    Route::post('blueprints', [BlueprintBridgeController::class, 'store']);
+    Route::get('blueprints/{blueprint}', [BlueprintBridgeController::class, 'show']);
     Route::post('deliveries/pending', [MarketBridgeController::class, 'pending']);
     Route::post('deliveries/{delivery}/ack', [MarketBridgeController::class, 'acknowledge']);
 });
