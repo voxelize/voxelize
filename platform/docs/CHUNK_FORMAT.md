@@ -65,6 +65,10 @@ data/worlds/main/
   chunks/<cx>_<cz>.json      one file per modified chunk
   entities/…                 persisted entities (when enabled)
   chat/…                     chat log
+  players/<id>.json          player records, shared by every dimension
+  portal_links.json          pairs of portals that lead to each other
+  containers.json, mobs.json chests and furnaces, animals
+data/worlds/main_underworld/ the underworld: its own chunks, containers, mobs
 ```
 
 Chunk file (version 1, `server/world/voxels/background_chunk_saver.rs`):

@@ -55,5 +55,22 @@
     "maxY": 40,
     "veinsPerChunk": 5,
     "veinSize": 7
+  },
+  {
+    "key": "riftstone",
+    "block": "riftstone",
+    "minY": 2,
+    "maxY": 16,
+    "veinsPerChunk": 2,
+    "veinSize": 4
+  },
+  {
+    "key": "ember_quartz",
+    "block": "ember_quartz_ore",
+    "replaces": "cinderstone",
+    "minY": 10,
+    "maxY": 118,
+    "veinsPerChunk": 10,
+    "veinSize": 6
   }
 ]

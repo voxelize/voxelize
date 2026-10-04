@@ -1,4 +1,5 @@
-//! Platform game server: one persistent world on the Voxelize engine.
+//! Platform game server: one persistent world, with one engine world per
+//! dimension, on the Voxelize engine.
 //!
 //! Boot order: configuration -> content pack (validated) -> engine registry
 //! -> world generator -> persistent world -> ticket authenticator -> serve.
@@ -9,6 +10,7 @@ mod auth;
 mod behaviors;
 mod config;
 mod gameplay;
+mod portals;
 mod registry;
 mod stage;
 
@@ -17,9 +19,9 @@ use std::sync::Arc;
 use actix_cors::Cors;
 use actix_web::{web, App, HttpResponse};
 use log::{info, warn};
-use platform_content::Content;
+use platform_content::{Content, Dimension};
 use platform_ticket::{Verifier, VerifierConfig};
-use platform_worldgen::{Generator, WorldgenConfig};
+use platform_worldgen::{Generator, Underworld, WorldgenConfig};
 use serde_json::json;
 use voxelize::{Server, Voxelize, World, WorldConfig};
 
@@ -35,12 +37,25 @@ const DAY_TICKS: u64 = 24_000;
 /// Fraction of the day a brand-new world starts at (07:12).
 const START_TIME_OF_DAY: f32 = 0.3;
 
+/// Engine world name of a dimension: the overworld is the configured world,
+/// other dimensions add their key (`main_underworld`).
+fn world_name(config: &GameConfig, dimension: Dimension) -> String {
+    match dimension {
+        Dimension::Overworld => config.world.clone(),
+        other => format!("{}_{}", config.world, other.key()),
+    }
+}
+
 fn build_world(
     config: &GameConfig,
     content: Arc<Content>,
-    broken: Arc<behaviors::BrokenBlocks>,
+    dimensions: gameplay::Dimensions,
 ) -> World {
-    let save_dir = config.save_dir.join(&config.world);
+    let dimension = dimensions.current;
+    let name = world_name(config, dimension);
+    let save_dir = config.save_dir.join(&name);
+    // Every dimension of a world shares the overworld's player records.
+    let players_dir = config.save_dir.join(&config.world);
     let world_config = WorldConfig::new()
         .seed(config.seed)
         .water_level(config.sea_level as usize)
@@ -54,25 +69,40 @@ fn build_world(
         .time_per_day(DAY_TICKS)
         .build();
 
-    let generator = Generator::new(
-        &content,
-        WorldgenConfig {
-            seed: config.seed,
-            sea_level: config.sea_level,
-            max_height: world_config.max_height as i32,
-            ..Default::default()
-        },
-    )
-    .unwrap_or_else(|e| fail(e));
-
-    let generator = Arc::new(generator);
-    let biomes = generator.clone();
+    let max_height = world_config.max_height as i32;
+    let terrain = match dimension {
+        Dimension::Overworld => stage::Terrain::Overworld(Arc::new(
+            Generator::new(
+                &content,
+                WorldgenConfig {
+                    seed: config.seed,
+                    sea_level: config.sea_level,
+                    max_height,
+                    ..Default::default()
+                },
+            )
+            .unwrap_or_else(|e| fail(e)),
+        )),
+        Dimension::Underworld => stage::Terrain::Underworld(Arc::new(
+            Underworld::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
+        )),
+    };
+    let biomes = terrain.clone();
     let biome_at: Arc<dyn Fn(i32, i32) -> String + Send + Sync> =
-        Arc::new(move |x, z| biomes.biome_at(x, z).to_owned());
-    let mut world = World::new(&config.world, &world_config);
+        Arc::new(move |x, z| biomes.biome_at(x, z));
+
+    // Each world has its own behaviour context, so blocks broken by
+    // behaviours drop in the world they broke in.
+    let broken = Arc::new(behaviors::BrokenBlocks::default());
+    let behavior_ctx = Arc::new(behaviors::BehaviorContext::new(&content, broken.clone()));
+    let mut registry = registry::build_registry_with(&content, &behavior_ctx);
+    registry.generate();
+
+    let mut world = World::new(&name, &world_config);
+    world.ecs_mut().insert(registry);
     world
         .pipeline_mut()
-        .add_stage(stage::WorldgenStage::new(generator));
+        .add_stage(stage::WorldgenStage::new(terrain));
     // The engine applies raw client voxel writes as they stand unless a game
     // guards them. Clients never write voxels directly here: every block
     // change is an intent the server validates (docs/SECURITY.md).
@@ -81,9 +111,11 @@ fn build_world(
         &mut world,
         content,
         &save_dir,
+        &players_dir,
         config.seed,
         broken,
         biome_at,
+        dimensions,
     )
     .unwrap_or_else(|e| fail(e));
     world.set_dispatcher(|| {
@@ -107,6 +139,11 @@ fn build_world(
                 gameplay::PlateSystem::default(),
                 "platform-plates",
                 &["platform-mobs"],
+            )
+            .with(
+                gameplay::PortalSystem::default(),
+                "platform-portals",
+                &["platform-plates"],
             )
     });
     world
@@ -132,9 +169,15 @@ async fn main() -> std::io::Result<()> {
     let config = GameConfig::from_env().unwrap_or_else(|e| fail(e));
     let content = Arc::new(Content::load(&config.content_dir).unwrap_or_else(|e| fail(e)));
     let summary = content.summary();
-    let broken = Arc::new(behaviors::BrokenBlocks::default());
-    let behavior_ctx = Arc::new(behaviors::BehaviorContext::new(&content, broken.clone()));
-    let registry = registry::build_registry_with(&content, &behavior_ctx);
+    // The server's default registry; every world installs its own with
+    // the same blocks (build_world).
+    let registry = registry::build_registry_with(
+        &content,
+        &Arc::new(behaviors::BehaviorContext::new(
+            &content,
+            Arc::new(behaviors::BrokenBlocks::default()),
+        )),
+    );
 
     let mut builder = Server::new().port(config.port).registry(&registry);
     if let Some(secret) = &config.transport_secret {
@@ -150,9 +193,25 @@ async fn main() -> std::io::Result<()> {
         builder = builder.session_authenticator(auth::ticket_authenticator(Arc::new(verifier)));
     }
     let mut server = builder.build();
-    server
-        .add_world(build_world(&config, content.clone(), broken))
-        .unwrap_or_else(|e| fail(format!("cannot add world: {e:?}")));
+    let worlds: std::collections::HashMap<Dimension, String> = Dimension::ALL
+        .into_iter()
+        .map(|d| (d, world_name(&config, d)))
+        .collect();
+    let worlds = Arc::new(worlds);
+    let links = Arc::new(std::sync::Mutex::new(
+        gameplay::travel::PortalLinks::load(&config.save_dir.join(&config.world))
+            .unwrap_or_else(|e| fail(format!("cannot load portal links: {e}"))),
+    ));
+    for dimension in Dimension::ALL {
+        let dimensions = gameplay::Dimensions {
+            current: dimension,
+            worlds: worlds.clone(),
+            links: links.clone(),
+        };
+        server
+            .add_world(build_world(&config, content.clone(), dimensions))
+            .unwrap_or_else(|e| fail(format!("cannot add world: {e:?}")));
+    }
 
     info!(
         "world {:?} seed {} content {:?}, saving to {}",
@@ -164,6 +223,7 @@ async fn main() -> std::io::Result<()> {
 
     let info = json!({
         "world": config.world,
+        "dimensions": worlds.iter().map(|(d, w)| (d.key(), w.clone())).collect::<std::collections::BTreeMap<_, _>>(),
         "seed": config.seed,
         "content": summary,
         "version": env!("CARGO_PKG_VERSION"),

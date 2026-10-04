@@ -30,10 +30,20 @@ pub struct PlayerRecord {
     pub armor: Vec<Option<super::inventory::Stack>>,
     #[serde(default)]
     pub offhand: Option<super::inventory::Stack>,
+    /// The dimension the player is in; records from before dimensions
+    /// existed are in the overworld.
+    #[serde(default)]
+    pub dimension: platform_content::Dimension,
+    /// Set while travelling: where the player is to arrive.
+    #[serde(default)]
+    pub arrival: Option<super::travel::Arrival>,
 }
 
 pub struct PlayerStore {
     dir: PathBuf,
+    /// The dimension whose world uses this store; every dimension of a
+    /// world shares one players directory.
+    dimension: platform_content::Dimension,
 }
 
 /// Player ids become file names, so only a conservative alphabet is
@@ -67,8 +77,36 @@ impl std::fmt::Display for StoreError {
 
 impl PlayerStore {
     pub fn new(world_dir: impl AsRef<Path>) -> Self {
+        Self::for_dimension(world_dir, platform_content::Dimension::Overworld)
+    }
+
+    pub fn for_dimension(
+        world_dir: impl AsRef<Path>,
+        dimension: platform_content::Dimension,
+    ) -> Self {
         Self {
             dir: world_dir.as_ref().join("players"),
+            dimension,
+        }
+    }
+
+    /// The record of a player in this store's dimension.
+    pub fn record(
+        &self,
+        id: &str,
+        player: &super::rules::PlayerState,
+        position: Option<[f32; 3]>,
+    ) -> PlayerRecord {
+        PlayerRecord {
+            version: RECORD_VERSION,
+            id: id.to_owned(),
+            inventory: player.inventory.clone(),
+            position,
+            vitals: player.vitals.clone(),
+            armor: player.armor.clone(),
+            offhand: player.offhand.clone(),
+            dimension: self.dimension,
+            arrival: player.travel.arrival.clone(),
         }
     }
 
@@ -137,6 +175,13 @@ mod tests {
             vitals: Vitals::default(),
             armor: vec![None; 4],
             offhand: None,
+            dimension: platform_content::Dimension::Underworld,
+            arrival: Some(super::super::travel::Arrival {
+                from: platform_content::Dimension::Overworld,
+                at: [12.0, 64.0, -4.0],
+                portal: Some([90, 70, -30]),
+                exact: false,
+            }),
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

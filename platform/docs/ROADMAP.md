@@ -93,7 +93,8 @@ Remaining: armor items and their protection, checkpointing to
 Done: persistent world directory per world, atomic chunk writes, pristine
 chunks regenerated from the seed, player inventories saved atomically;
 verified that block edits and inventories survive a server restart.
-Remaining: player state (`player_world_states`), region files, write-ahead
+Done since: player position and dimension saved and restored on join.
+Remaining: player state in `player_world_states`, region files, write-ahead
 log for sensitive block entities, incremental world backups to object
 storage, point-in-time MySQL backups.
 
@@ -208,9 +209,25 @@ editions, provenance.
 Guilds with roles, treasury account, guild land; settlements from adjacent
 lands (village, town, city).
 
-## Phase 18 — Advanced content ⬜
+## Phase 18 — Advanced content 🟡
 
-Dimensions and portals, quests, achievements, jobs, NPC civilisation,
+Done: dimensions and portals — the underworld (sealed cavern generator with
+a lava sea, cinderstone, emberglass, ember quartz, its own creature the
+Cinder Wraith) as a second engine world in the same process with its own
+block registry; riftstone frames lit with a fire striker (`platform.use`),
+rifts that collapse when the frame breaks, travel after 4 s in a rift (1 s
+in creative), coordinates scaled 8:1, arrival areas generated on demand,
+portals found within 16 columns or built, portal pairs linked and saved
+(`portal_links.json`), one player record across dimensions with the
+dimension and any pending arrival, redirection on join, respawn home, saved
+position restored on join (`platform.teleport`), creative item palette
+intent (`platform.inventory.creative`; its screen in the web client is
+still to come). The engine gained one generic extension:
+a world may bring its own block registry. Unit tests for generation,
+portal geometry, links and rules; `tests/bots/portals.mjs` on a live server
+(light a portal, travel down, reconnect and resume there, travel back to
+the original portal).
+Remaining: a sky dimension; quests, achievements, jobs, NPC civilisation,
 cosmetics, private worlds and server browser, friends and chat channels,
 proximity voice (WebRTC), plugin event API, mod SDK.
 

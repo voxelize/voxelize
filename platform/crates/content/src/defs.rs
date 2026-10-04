@@ -13,6 +13,8 @@ pub enum ToolKind {
     Hoe,
     Sword,
     Shears,
+    /// Lights portals (fire strikers).
+    Igniter,
 }
 
 /// How a placed block may be oriented.
@@ -73,6 +75,38 @@ pub enum BlockBehavior {
     Inverter,
     /// Directional: pushes the block in front one cell when powered.
     Actuator,
+    /// Portal surface: stays only while framed by riftstone in its plane
+    /// (stage bit 0: 0 = the plane spans x and y, 1 = z and y).
+    Rift,
+}
+
+/// Which dimension a biome belongs to. Each dimension is its own world
+/// with its own generator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Dimension {
+    #[default]
+    Overworld,
+    Underworld,
+}
+
+impl Dimension {
+    pub const ALL: [Dimension; 2] = [Dimension::Overworld, Dimension::Underworld];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Dimension::Overworld => "overworld",
+            Dimension::Underworld => "underworld",
+        }
+    }
+
+    /// Horizontal blocks of this dimension per overworld block.
+    pub fn scale(self) -> f64 {
+        match self {
+            Dimension::Overworld => 1.0,
+            Dimension::Underworld => 0.125,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -354,6 +388,8 @@ pub struct BiomeDef {
     pub weather: Vec<String>,
     #[serde(default)]
     pub vegetation: VegetationDef,
+    #[serde(default)]
+    pub dimension: Dimension,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

@@ -55,6 +55,8 @@ pub enum IntentError {
     Window(super::window::WindowError),
     NotFood,
     NotHungry,
+    UnknownItem,
+    CreativeOnly,
     Inventory(InventoryError),
 }
 
@@ -82,6 +84,8 @@ impl IntentError {
             IntentError::Window(e) => e.code(),
             IntentError::NotFood => "not_food",
             IntentError::NotHungry => "not_hungry",
+            IntentError::UnknownItem => "unknown_item",
+            IntentError::CreativeOnly => "creative_only",
             IntentError::Inventory(e) => e.code(),
         }
     }
@@ -117,6 +121,8 @@ pub struct PlayerState {
     pub window: Option<OpenWindow>,
     /// Seconds until this player can attack again.
     pub attack_cooldown: f32,
+    /// Travel between dimensions (see `travel.rs`).
+    pub travel: super::travel::TravelState,
 }
 
 /// The window a player has open.
@@ -143,6 +149,7 @@ impl PlayerState {
             offhand: None,
             window: None,
             attack_cooldown: 0.0,
+            travel: Default::default(),
         }
     }
 }
@@ -441,6 +448,57 @@ impl Rules {
             player.inventory.wear_selected();
         }
         Ok(farmland)
+    }
+
+    /// Creative players take any item into a slot (a full stack, fresh).
+    pub fn creative_take(
+        &self,
+        player: &mut PlayerState,
+        slot: usize,
+        item_key: &str,
+    ) -> Result<u32, IntentError> {
+        if player.realm != Realm::Creative {
+            return Err(IntentError::CreativeOnly);
+        }
+        let item = self
+            .content
+            .item(item_key)
+            .ok_or(IntentError::UnknownItem)?;
+        player.inventory.set_fresh(&self.content, slot, item.id)?;
+        Ok(item.id)
+    }
+
+    /// Whether the held item lights portals.
+    pub fn holds_igniter(&self, player: &PlayerState) -> bool {
+        self.held_item(player)
+            .and_then(|i| i.tool.as_ref())
+            .is_some_and(|t| t.kind == platform_content::ToolKind::Igniter)
+    }
+
+    /// Light the riftstone frame at `voxel` with the held igniter: the rift
+    /// cells to write (wearing the igniter), or `CannotUse` when it closes
+    /// no valid frame.
+    pub fn ignite(
+        &self,
+        player: &mut PlayerState,
+        view: &dyn WorldView,
+        position: [f32; 3],
+        voxel: [i32; 3],
+    ) -> Result<Vec<([i32; 3], u32)>, IntentError> {
+        alive(player)?;
+        if !self.holds_igniter(player) {
+            return Err(IntentError::CannotUse);
+        }
+        self.target_block(view, position, voxel)?;
+        let blocks = crate::portals::PortalBlocks::from_content(&self.content)
+            .ok_or(IntentError::CannotUse)?;
+        let (cells, axis) = crate::portals::ignite(&blocks, voxel, |p| view.block_at(p))
+            .ok_or(IntentError::CannotUse)?;
+        if player.realm == Realm::Survival {
+            player.inventory.wear_selected();
+        }
+        let raw = crate::portals::rift_raw(&blocks, axis);
+        Ok(cells.into_iter().map(|c| (c, raw)).collect())
     }
 
     /// Eat one food item from `slot` (the selected slot when `None`).
@@ -886,6 +944,67 @@ mod tests {
             rules.use_on(&mut player, &world, HERE, [90, 0, 0]),
             Err(IntentError::OutOfReach)
         );
+    }
+
+    #[test]
+    fn fire_strikers_light_closed_riftstone_frames_only() {
+        let (rules, mut world, mut player) = setup();
+        let c = rules.content();
+        let frame = c.block("riftstone").unwrap().id;
+        let rift = c.block("rift").unwrap().id;
+        // A 2x3 interior frame in the x plane at z = 2, bottom row y = 0.
+        for x in 0..4 {
+            for y in 0..5 {
+                if x == 0 || x == 3 || y == 0 || y == 4 {
+                    world.blocks.insert([x, y, 2], frame);
+                }
+            }
+        }
+        assert_eq!(
+            rules.ignite(&mut player, &world, HERE, [1, 0, 2]),
+            Err(IntentError::CannotUse),
+            "empty hand"
+        );
+        let striker = c.item("fire_striker").unwrap().id;
+        player.inventory.add(c, striker, 1);
+        player.inventory.select(0).unwrap();
+        let cells = rules.ignite(&mut player, &world, HERE, [1, 0, 2]).unwrap();
+        assert_eq!(cells.len(), 6);
+        assert!(cells.iter().all(|(_, raw)| raw & 0xFFFF == rift));
+        assert_eq!(
+            player.inventory.get(0).unwrap().durability,
+            Some(63),
+            "the striker wears"
+        );
+        world.blocks.insert([2, 4, 2], 0);
+        assert_eq!(
+            rules.ignite(&mut player, &world, HERE, [1, 0, 2]),
+            Err(IntentError::CannotUse),
+            "an open frame"
+        );
+    }
+
+    #[test]
+    fn only_creative_players_take_items_from_the_palette() {
+        let (rules, _, mut player) = setup();
+        assert_eq!(
+            rules.creative_take(&mut player, 0, "fire_striker"),
+            Err(IntentError::CreativeOnly)
+        );
+        player.realm = Realm::Creative;
+        assert_eq!(
+            rules.creative_take(&mut player, 0, "no_such_item"),
+            Err(IntentError::UnknownItem)
+        );
+        let id = rules.creative_take(&mut player, 2, "stone").unwrap();
+        assert_eq!(
+            player.inventory.get(2).map(|s| (s.item, s.count)),
+            Some((id, 64))
+        );
+        let striker = rules.creative_take(&mut player, 3, "fire_striker").unwrap();
+        assert_eq!(player.inventory.get(3).unwrap().item, striker);
+        assert_eq!(player.inventory.get(3).unwrap().durability, Some(64));
+        assert!(rules.creative_take(&mut player, 99, "stone").is_err());
     }
 
     #[test]

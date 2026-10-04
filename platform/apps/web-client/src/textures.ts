@@ -384,6 +384,34 @@ const RECIPES: Record<string, Recipe> = {
     p.boards(PLANK, 4);
     for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) p.set(x, y, shade(STONE, -0.3));
   },
+  // Underworld and portals.
+  riftstone: (p) => {
+    p.speckle(hex("#1d1426"), 0.18);
+    p.blobs(hex("#4a2d6b"), 6, 1);
+    p.blobs(hex("#0c0812"), 5, 0);
+  },
+  rift: (p) => {
+    p.clear();
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++) {
+        const swirl = Math.sin((x + y) * 0.7) + Math.cos((x - y) * 0.5);
+        p.set(x, y, shade(hex("#8a3cff", 170), swirl * 0.2 + (p.random() - 0.5) * 0.2));
+      }
+  },
+  cinderstone: (p) => {
+    p.speckle(hex("#6e2b25"), 0.16);
+    p.blobs(hex("#4a1a17"), 8, 1);
+    p.blobs(hex("#8c3a2e"), 5, 0);
+  },
+  emberglass: (p) => {
+    p.speckle(hex("#f2b54a"), 0.12);
+    p.blobs(hex("#fff0b3"), 6, 1);
+    p.border(hex("#b8742a"));
+  },
+  ember_quartz_ore: (p) => {
+    p.speckle(hex("#6e2b25"), 0.16);
+    p.blobs(hex("#f3e6da"), 5, 1);
+  },
 };
 
 /** RGBA pixels (16x16) of a named texture. Pure and deterministic. */

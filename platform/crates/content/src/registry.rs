@@ -227,7 +227,12 @@ impl Content {
         let stations = index_unique(&source.stations, "station", |s| &s.key, &mut errors);
         index_unique(&source.biomes, "biome", |b| &b.key, &mut errors);
         index_unique(&source.ores, "ore", |o| &o.key, &mut errors);
-        let biome_keys = index_unique(&source.biomes, "biome-ref", |b| &b.key, &mut ValidationErrors::default());
+        let biome_keys = index_unique(
+            &source.biomes,
+            "biome-ref",
+            |b| &b.key,
+            &mut ValidationErrors::default(),
+        );
         index_unique(&source.mobs, "mob", |m| &m.key, &mut errors);
         index_unique(&source.structures, "structure", |s| &s.key, &mut errors);
 
@@ -263,8 +268,13 @@ impl Content {
             if let Some(swap) = &block.power_swap {
                 match source.blocks.iter().find(|b| &b.key == swap) {
                     None => errors.push(format!("{who} swaps to unknown block {swap:?}")),
-                    Some(other) if other.power_swap.as_deref() != Some(&block.key) || other.powered == block.powered => {
-                        errors.push(format!("{who} and {swap:?} must swap to each other, one powered and one not"))
+                    Some(other)
+                        if other.power_swap.as_deref() != Some(&block.key)
+                            || other.powered == block.powered =>
+                    {
+                        errors.push(format!(
+                            "{who} and {swap:?} must swap to each other, one powered and one not"
+                        ))
                     }
                     _ => {}
                 }
@@ -494,6 +504,11 @@ impl Content {
                 errors.push(format!("{who} roughness must not be negative"));
             }
         }
+        for dimension in crate::Dimension::ALL {
+            if !source.biomes.iter().any(|b| b.dimension == dimension) {
+                errors.push(format!("dimension {:?} has no biome", dimension.key()));
+            }
+        }
 
         for ore in &source.ores {
             let who = format!("ore {:?}", ore.key);
@@ -558,7 +573,10 @@ impl Content {
             }
             for (y, layer) in st.layers.iter().enumerate() {
                 if layer.len() != d {
-                    errors.push(format!("{who} layer {y} has {} rows, expected {d}", layer.len()));
+                    errors.push(format!(
+                        "{who} layer {y} has {} rows, expected {d}",
+                        layer.len()
+                    ));
                 }
                 for row in layer {
                     if row.chars().count() != w {
@@ -573,7 +591,9 @@ impl Content {
             }
             for (symbol, block) in &st.palette {
                 if !has_block(block) {
-                    errors.push(format!("{who} symbol {symbol:?} names unknown block {block:?}"));
+                    errors.push(format!(
+                        "{who} symbol {symbol:?} names unknown block {block:?}"
+                    ));
                 }
             }
             for key in &st.biomes {
@@ -636,6 +656,15 @@ impl Content {
 
     pub fn biomes(&self) -> &[BiomeDef] {
         &self.source.biomes
+    }
+
+    /// Biomes of one dimension, in pack order.
+    pub fn biomes_of(&self, dimension: crate::Dimension) -> Vec<&BiomeDef> {
+        self.source
+            .biomes
+            .iter()
+            .filter(|b| b.dimension == dimension)
+            .collect()
     }
 
     pub fn ores(&self) -> &[OreDef] {

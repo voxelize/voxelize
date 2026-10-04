@@ -66,6 +66,18 @@ export class Bot {
     await this.waitFor((m) => m.type === "INIT", 20000, "INIT");
   }
 
+  /** Join another world on the same connection (the server's
+   * `platform.travel`); chunks of the old world are forgotten. */
+  async switchWorld(world) {
+    this.world = world;
+    this.chunks = new Map();
+    this.send({
+      type: "JOIN",
+      json: JSON.stringify({ world, username: this.name, capabilities: [], preferences: {} }),
+    });
+    await this.waitFor((m) => m.type === "INIT", 20000, "INIT");
+  }
+
   send(message) {
     const type = protocol.Message.Type[message.type];
     this.ws.send(protocol.Message.encode(protocol.Message.create({ ...message, type })).finish());

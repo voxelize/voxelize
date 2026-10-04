@@ -223,9 +223,20 @@ struct BlockLogic {
     tree_ids: Option<(u32, u32)>,
     melts: bool,
     dries: bool,
+    /// Rifts: the portal blocks whose frame they need.
+    rift: Option<crate::portals::PortalBlocks>,
 }
 
 impl BlockLogic {
+    fn rift_broken(&self, space: &dyn VoxelAccess, Vec3(x, y, z): &Vec3<i32>) -> bool {
+        self.rift.is_some_and(|blocks| {
+            let raw = space.get_raw_voxel(*x, *y, *z);
+            !crate::portals::rift_intact(&blocks, raw, [*x, *y, *z], |[a, b, c]| {
+                space.get_voxel(a, b, c)
+            })
+        })
+    }
+
     fn supported(&self, space: &dyn VoxelAccess, Vec3(x, y, z): &Vec3<i32>) -> bool {
         self.support.is_empty() || self.support.contains(&space.get_voxel(*x, y - 1, *z))
     }
@@ -316,6 +327,9 @@ pub fn attach(
             .and_then(|t| Some((content.block(&t.log)?.id, content.block(&t.leaves)?.id))),
         melts: has(BlockBehavior::Melts),
         dries: has(BlockBehavior::Dries),
+        rift: has(BlockBehavior::Rift)
+            .then(|| crate::portals::PortalBlocks::from_content(content))
+            .flatten(),
     };
     let random = logic.spreads || logic.decays || logic.grows || logic.melts || logic.dries;
 
@@ -325,7 +339,7 @@ pub fn attach(
     let ctx = ctx.clone();
     builder.is_random_tickable(random).active_fn(
         move |voxel, space, registry| {
-            if !ticker_logic.supported(space, &voxel) {
+            if !ticker_logic.supported(space, &voxel) || ticker_logic.rift_broken(space, &voxel) {
                 1
             } else if ticker_logic.can_fall(space, registry, &voxel) {
                 2
@@ -518,6 +532,10 @@ fn update(
         if let Some(writes) = circuit_update(ctx, voxel.clone(), space, registry) {
             return writes;
         }
+    }
+
+    if logic.rift_broken(space, &voxel) {
+        return vec![(voxel, AIR)]; // a portal collapses without a drop
     }
 
     if !logic.supported(space, &voxel) {
@@ -1040,6 +1058,40 @@ mod tests {
         g.voxels.insert((0, 64, 0), e.id("lever"));
         settle(&e, &mut g);
         assert_eq!(g.get_voxel(1, 64, 0), e.id("gate"));
+    }
+
+    #[test]
+    fn a_portal_collapses_when_its_frame_breaks() {
+        let e = env();
+        let blocks = crate::portals::PortalBlocks::from_content(&e.content).unwrap();
+        let mut s = Space::default();
+        let (writes, stand) = crate::portals::build(&blocks, 0, 64, 0);
+        for ([x, y, z], v) in writes {
+            if v != AIR {
+                s.voxels.insert((x, y, z), v);
+            }
+        }
+        let rifts = |s: &Space| {
+            s.voxels
+                .values()
+                .filter(|v| BlockUtils::extract_id(**v) == blocks.rift)
+                .count()
+        };
+        assert_eq!(rifts(&s), 6);
+        let p = (stand[0], stand[1], stand[2]);
+        assert_eq!(e.ticker(&s, p), u64::MAX, "a framed rift stays");
+        s.voxels.remove(&(0, 65, 0));
+        for _ in 0..10 {
+            let cells: Vec<_> = s.voxels.keys().copied().collect();
+            for c in cells {
+                if BlockUtils::extract_id(s.get_raw_voxel(c.0, c.1, c.2)) == blocks.rift
+                    && e.ticker(&s, c) != u64::MAX
+                {
+                    e.run(&mut s, c);
+                }
+            }
+        }
+        assert_eq!(rifts(&s), 0, "the whole portal goes out");
     }
 
     #[test]

@@ -1,0 +1,12 @@
+[
+  { "id": 69, "key": "riftstone", "name": "Riftstone", "type": "block", "placesBlock": "riftstone", "value": 40 },
+  { "id": 70, "key": "cinderstone", "name": "Cinderstone", "type": "block", "placesBlock": "cinderstone", "value": 1 },
+  { "id": 71, "key": "emberglass", "name": "Emberglass", "type": "block", "placesBlock": "emberglass", "value": 12 },
+  { "id": 72, "key": "ember_dust", "name": "Ember Dust", "type": "material", "value": 3 },
+  { "id": 73, "key": "ember_quartz", "name": "Ember Quartz", "type": "material", "value": 6 },
+  {
+    "id": 74, "key": "fire_striker", "name": "Fire Striker", "type": "tool",
+    "stackSize": 1, "durability": 64, "value": 8,
+    "tool": { "kind": "igniter", "tier": 0, "speed": 1.0, "attackDamage": 1 }
+  }
+]

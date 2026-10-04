@@ -18,7 +18,18 @@ import { WindowState, WindowUi } from "./window-ui";
 
 type ResultEvent = { intent: string; ok: boolean; code?: string; voxel?: [number, number, number] };
 
-const WORLD = "main";
+/** Session key naming the engine world this tab is in (the server tells
+ * the client where to go; the overworld is "main"). */
+const WORLD_KEY = "platform.world";
+const storedWorld = (() => {
+  try {
+    return sessionStorage.getItem(WORLD_KEY);
+  } catch {
+    return null;
+  }
+})();
+const WORLD = storedWorld && /^[a-z0-9_]{1,64}$/.test(storedWorld) ? storedWorld : "main";
+const UNDERWORLD = WORLD.endsWith("_underworld");
 const FACE_ROLES: Record<string, "top" | "bottom" | "side"> = {
   py: "top",
   ny: "bottom",
@@ -70,16 +81,25 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     renderer.setSize(innerWidth, innerHeight);
   });
 
-  // Our own sky palette.
-  world.sky.setShadingPhases([
+  // Our own sky palette; the underworld is a sealed cavern with a smoky
+  // red void instead of a sky.
+  if (UNDERWORLD) {
+    const ember = { top: "#1a0806", middle: "#3a120a", bottom: "#120403" };
+    world.sky.setShadingPhases([
+      { name: "ember", color: ember, skyOffset: 0, voidOffset: 0.6, start: 0 },
+      { name: "ember-late", color: ember, skyOffset: 0, voidOffset: 0.6, start: 0.5 },
+    ]);
+  } else world.sky.setShadingPhases([
     { name: "dawn", color: { top: "#5d7cc0", middle: "#d9875f", bottom: "#1d1f24" }, skyOffset: 0.05, voidOffset: 0.6, start: 0.2 },
     { name: "day", color: { top: "#4f8fe8", middle: "#a9cdf5", bottom: "#1d1f24" }, skyOffset: 0, voidOffset: 0.6, start: 0.26 },
     { name: "dusk", color: { top: "#5a4f8a", middle: "#e8784a", bottom: "#1d1f24" }, skyOffset: 0.05, voidOffset: 0.6, start: 0.7 },
     { name: "night", color: { top: "#04060c", middle: "#0b1020", bottom: "#000000" }, skyOffset: 0.1, voidOffset: 0.6, start: 0.76 },
   ]);
-  world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
-  world.sky.paint("top", VOXELIZE.artFunctions.drawStars());
-  world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
+  if (!UNDERWORLD) {
+    world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
+    world.sky.paint("top", VOXELIZE.artFunctions.drawStars());
+    world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
+  }
 
   const inputs = new VOXELIZE.Inputs<"in-game" | "menu">();
   const touch = isTouchDevice();
@@ -180,6 +200,30 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     }
   });
   vitalsHud.onRespawn = () => method.call("platform.respawn", {});
+  // The server places the player: where they left, or at a portal on
+  // arrival. Feet cell coordinates; waits for the chunk to exist.
+  let pendingFeet: [number, number, number] | null = null;
+  const placeFeet = ([x, y, z]: [number, number, number]) => {
+    const [cx, cz] = VOXELIZE.ChunkUtils.mapVoxelToChunk([x, 0, z], world.options.chunkSize);
+    const go = () => controls.teleport(x, y - 1, z);
+    if (world.getChunkByCoords(cx, cz)?.isReady) go();
+    else world.addChunkInitListener([cx, cz], go);
+  };
+  events.on<{ feet: [number, number, number] }>("platform.teleport", ({ feet }) => {
+    if (world.isInitialized) placeFeet(feet);
+    else pendingFeet = feet;
+  });
+  // Travel to another dimension: this tab joins that world from now on.
+  events.on<{ world: string }>("platform.travel", ({ world: target }) => {
+    if (!/^[a-z0-9_]{1,64}$/.test(target) || target === WORLD) return;
+    hud.setStatus("Travelling…");
+    try {
+      sessionStorage.setItem(WORLD_KEY, target);
+    } catch {
+      return;
+    }
+    location.reload();
+  });
   events.on<{ x: number; z: number }>("platform.respawn", (spawn) => {
     if (!spawn) return;
     controls.teleportToTop(spawn.x, spawn.z, 2);
@@ -379,7 +423,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   }
 
   applySettings(settings);
-  controls.teleportToTop(0, 0, 2);
+  if (pendingFeet) placeFeet(pendingFeet);
+  else if (!UNDERWORLD) controls.teleportToTop(0, 0, 2);
   method.call("platform.inventory.get", {});
   hud.show();
 

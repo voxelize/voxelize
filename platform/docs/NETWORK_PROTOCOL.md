@@ -86,11 +86,12 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.window.fill` | `{"recipe":key,"max":bool}` | recipe book: moves ingredients from the inventory into the grid (once or as many sets as possible); refuses recipes that do not fit the grid | ✅ |
 | `platform.window.close` | `{}` | grid and cursor go back to the inventory; what does not fit drops in the world | ✅ |
 | `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
-| `platform.use` | `{"voxel":[x,y,z]}` | reach; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe) | ✅ |
+| `platform.use` | `{"voxel":[x,y,z]}` | reach; a held fire striker lights the riftstone frame at the voxel (a closed frame, interior 2×3 to 21×21, all air) and wears; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe). Answer carries `changed` (cells written) | ✅ |
+| `platform.inventory.creative` | `{"slot":n,"item":key}` | creative realm only (`creative_only`); a full, unworn stack of any item into the slot (`unknown_item`, `bad_slot`) | ✅ |
 | `platform.attack` | `{"mob":id}` | alive, within reach of the creature, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it, knocks the creature back | ✅ |
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
-| `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface) | ✅ |
+| `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface); in another dimension the player is sent home with `platform.travel` instead | ✅ |
 | `platform.trade.*` | trade window ops | both parties present, items owned, version matches | phase 14 |
 
 Answers (events, sent only to the requesting client):
@@ -101,7 +102,7 @@ Answers (events, sent only to the requesting client):
   `wrong_block`, `too_fast`, `inventory_full`, `not_placeable`, `occupied`,
   `collides_with_player`, `unknown_block`, `no_recipe`,
   `missing_ingredients`, `needs_workbench`, `bad_slot`, `slot_empty`,
-  `bad_count`, `bad_payload`, `not_joined`.
+  `bad_count`, `bad_payload`, `not_joined`, `unknown_item`, `creative_only`.
 - `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
   pushed on join and after every change.
 
@@ -115,8 +116,25 @@ Answers (events, sent only to the requesting client):
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
 
-Players' inventories and vitals persist in `<save dir>/<world>/players/<public id>.json`
-(atomic writes) and are restored on the next join.
+- `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are
+  to stand in. Sent on join (back where they left) and when a traveller is
+  placed in a portal; the client moves once that chunk exists.
+- `platform.travel` — `{"world":name}`: join that engine world. Sent when a
+  player stands in a rift long enough (4 s, 1 s in creative), on respawn
+  away from the overworld, and on join when the player's record says they
+  are in another dimension. Clients send `JOIN` for that world on the same
+  connection (the web client reloads into it); the ticket is the same shard
+  ticket.
+
+Players' inventories, vitals, position and dimension persist in
+`<save dir>/<world>/players/<public id>.json` (atomic writes, one record per
+player across all dimensions) and are restored on the next join.
+
+### Dimensions
+
+`GET /platform/info` lists them: `{"dimensions":{"overworld":"main","underworld":"main_underworld"}}`.
+Each dimension is an engine world; a session may be in one at a time and
+the server decides which (see `servers/game-server/src/gameplay/travel.rs`).
 
 ## 4. Area of interest
 

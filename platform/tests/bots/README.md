@@ -10,6 +10,7 @@ validated by the game server like a browser player's.
 | `crafting.mjs` | the crafting progression: chop by hand, pick up drops, 2x2 planks, workbench via recipe book, sticks/pickaxe/chest at the workbench, chest storage, dig stone, furnace, smelting |
 | `nature.mjs` | block behaviours: fell a lone tree and watch its leaves decay and drop |
 | `circuits.mjs` | circuits in creative: lever → conduits → lamp, pressure plate under the bot, gate by hand (also runs against a standalone game server with `DEV_TICKET_SECRET`) |
+| `portals.mjs` | dimensions in creative: build and light a riftstone frame, travel to the underworld, reconnect and resume there, travel back to the original portal (also runs standalone with `DEV_TICKET_SECRET`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |

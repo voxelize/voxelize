@@ -1,0 +1,6 @@
+[
+  { "type": "shapeless", "key": "fire_striker", "ingredients": ["iron_ingot", "rubble"],
+    "result": { "item": "fire_striker", "count": 1 } },
+  { "type": "shaped", "key": "emberglass", "pattern": ["##", "##"],
+    "symbols": { "#": "ember_dust" }, "result": { "item": "emberglass", "count": 1 } }
+]

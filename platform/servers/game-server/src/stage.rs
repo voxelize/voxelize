@@ -2,15 +2,38 @@
 
 use std::sync::Arc;
 
-use platform_worldgen::{Generator, AIR};
+use platform_worldgen::{GeneratedChunk, Generator, Underworld, AIR};
 use voxelize::{Chunk, ChunkStage, Resources, Space, VoxelAccess};
 
+/// The generator of one dimension.
+#[derive(Clone)]
+pub enum Terrain {
+    Overworld(Arc<Generator>),
+    Underworld(Arc<Underworld>),
+}
+
+impl Terrain {
+    pub fn generate_chunk(&self, cx: i32, cz: i32, size: usize) -> GeneratedChunk {
+        match self {
+            Terrain::Overworld(g) => g.generate_chunk(cx, cz, size),
+            Terrain::Underworld(u) => u.generate_chunk(cx, cz, size),
+        }
+    }
+
+    pub fn biome_at(&self, x: i32, z: i32) -> String {
+        match self {
+            Terrain::Overworld(g) => g.biome_at(x, z).to_owned(),
+            Terrain::Underworld(u) => u.biome_at(x, z).to_owned(),
+        }
+    }
+}
+
 pub struct WorldgenStage {
-    generator: Arc<Generator>,
+    generator: Terrain,
 }
 
 impl WorldgenStage {
-    pub fn new(generator: Arc<Generator>) -> Self {
+    pub fn new(generator: Terrain) -> Self {
         Self { generator }
     }
 }

@@ -87,6 +87,22 @@ impl Inventory {
         dropped
     }
 
+    /// Put a full, unworn stack of `item` in `slot`, replacing what is there.
+    pub fn set_fresh(
+        &mut self,
+        content: &Content,
+        slot: usize,
+        item: u32,
+    ) -> Result<(), InventoryError> {
+        let cell = self.slots.get_mut(slot).ok_or(InventoryError::BadSlot)?;
+        *cell = Some(Stack {
+            item,
+            count: max_stack(content, item),
+            durability: fresh_durability(content, item),
+        });
+        Ok(())
+    }
+
     pub fn get(&self, slot: usize) -> Option<&Stack> {
         self.slots.get(slot).and_then(|s| s.as_ref())
     }

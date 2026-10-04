@@ -15,6 +15,8 @@ pub mod inventory;
 mod items_api;
 mod plates;
 pub use plates::PlateSystem;
+pub mod travel;
+pub use travel::{Dimensions, PortalSystem};
 pub mod rules;
 pub mod store;
 pub mod survival;
@@ -27,7 +29,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use log::{error, warn};
-use platform_content::{Content, CraftingGrid};
+use platform_content::{Content, CraftingGrid, Dimension};
 use platform_ticket::Realm;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -39,7 +41,7 @@ use voxelize::{
 
 use self::inventory::Inventory;
 use self::rules::{IntentError, PlayerState, Rules, WorldView};
-use self::store::{PlayerRecord, PlayerStore, RECORD_VERSION};
+use self::store::PlayerStore;
 use self::survival::{Surroundings, Vitals, EYE_HEIGHT};
 
 pub const RESULT_EVENT: &str = "platform.result";
@@ -62,20 +64,25 @@ pub struct Gameplay {
     mob_rng: mobs::Rng,
     /// Biome key at a column, from the world generator (spawn rules).
     biome: Arc<dyn Fn(i32, i32) -> String + Send + Sync>,
+    /// This world's dimension and the worlds of the others.
+    dimensions: Dimensions,
 }
 
 impl Gameplay {
     pub fn new(
         content: Arc<Content>,
         world_dir: &Path,
+        players_dir: &Path,
         seed: u32,
         broken: Arc<crate::behaviors::BrokenBlocks>,
         biome: Arc<dyn Fn(i32, i32) -> String + Send + Sync>,
+        dimensions: Dimensions,
     ) -> Result<Self, String> {
         let mobs = mobs_api::load(world_dir)?;
         Ok(Self {
             rules: Rules::new(content),
-            store: PlayerStore::new(world_dir),
+            store: PlayerStore::for_dimension(players_dir, dimensions.current),
+            dimensions,
             players: HashMap::new(),
             rng: seed as u64 ^ 0x5EED_CAFE_F00D,
             containers: containers::Containers::load(world_dir)?,
@@ -259,7 +266,11 @@ fn with_player<R>(
         players,
     };
     let mut gameplay = ecs.write_resource::<Gameplay>();
-    if !gameplay.players.contains_key(client_id) {
+    if gameplay
+        .players
+        .get(client_id)
+        .is_none_or(|p| p.travel.departed)
+    {
         return None;
     }
     Some(f(&mut gameplay, &view, position))
@@ -267,19 +278,18 @@ fn with_player<R>(
 
 fn persist(world: &mut World, client_id: &str) {
     let position = client_position(world, client_id);
+    persist_at(world, client_id, position);
+}
+
+fn persist_at(world: &mut World, client_id: &str, position: Option<[f32; 3]>) {
     let gameplay = world.ecs().read_resource::<Gameplay>();
     let Some(player) = gameplay.players.get(client_id) else {
         return;
     };
-    let record = PlayerRecord {
-        version: RECORD_VERSION,
-        id: client_id.to_owned(),
-        inventory: player.inventory.clone(),
-        position,
-        vitals: player.vitals.clone(),
-        armor: player.armor.clone(),
-        offhand: player.offhand.clone(),
-    };
+    if player.travel.departed {
+        return; // saved for the destination when it left; never overwrite
+    }
+    let record = gameplay.store.record(client_id, player, position);
     if let Err(e) = gameplay.store.save(&record) {
         error!("could not save player {client_id}: {e}");
     }
@@ -305,6 +315,13 @@ struct PlacePayload {
     rotation: u32,
     #[serde(default, rename = "yRotation")]
     y_rotation: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreativePayload {
+    slot: usize,
+    item: String,
 }
 
 #[derive(Deserialize)]
@@ -378,20 +395,43 @@ fn on_join(world: &mut World, entity: Entity) {
         let gameplay = world.ecs().read_resource::<Gameplay>();
         gameplay.store.load(&id)
     };
-    let (mut inventory, mut vitals, armor, offhand) = match loaded {
-        Ok(Some(record)) => (
-            record.inventory,
-            record.vitals,
-            record.armor,
-            record.offhand,
-        ),
-        Ok(None) => (Inventory::default(), Vitals::default(), Vec::new(), None),
+    let record = match loaded {
+        Ok(record) => record,
         Err(e) => {
             // Never hand out an empty inventory over a record we failed to
             // read: that would silently wipe the player on the next save.
             error!("refusing gameplay for {id}: cannot load player record: {e}");
             return;
         }
+    };
+    // The record decides the dimension: a player who joins another one is
+    // sent where they are.
+    let dimensions = world.ecs().read_resource::<Gameplay>().dimensions.clone();
+    let dimension = record.as_ref().map(|r| r.dimension).unwrap_or_default();
+    if dimension != dimensions.current {
+        if let Some(target) = dimensions.world_of(dimension) {
+            send(world, &id, travel::TRAVEL_EVENT, json!({ "world": target }));
+            return;
+        }
+        warn!("player {id} is in {dimension:?}, which this server does not host");
+    }
+    let (mut inventory, mut vitals, armor, offhand, position, arrival) = match record {
+        Some(r) => (
+            r.inventory,
+            r.vitals,
+            r.armor,
+            r.offhand,
+            r.position,
+            r.arrival,
+        ),
+        None => (
+            Inventory::default(),
+            Vitals::default(),
+            Vec::new(),
+            None,
+            None,
+            None,
+        ),
     };
     {
         let mut gameplay = world.ecs().write_resource::<Gameplay>();
@@ -407,10 +447,23 @@ fn on_join(world: &mut World, entity: Entity) {
             state.armor = armor;
         }
         state.offhand = offhand;
+        state.travel.arrival = arrival.clone();
+        // Joining inside a portal never sends the player straight on.
+        state.travel.blocked = true;
+        state.travel.settle = travel::SETTLE_SECONDS;
         gameplay.players.insert(id.clone(), state);
     }
     send_inventory(world, &id);
     send_vitals(world, &id, None);
+    // Back where they left (arrivals are placed once their area is ready).
+    if let (None, Some(eye)) = (&arrival, position) {
+        let feet = [
+            eye[0].floor() as i32,
+            (eye[1] - EYE_HEIGHT + 0.1).floor() as i32,
+            eye[2].floor() as i32,
+        ];
+        send(world, &id, travel::TELEPORT_EVENT, json!({ "feet": feet }));
+    }
 }
 
 fn on_leave(world: &mut World, entity: Entity) {
@@ -422,21 +475,35 @@ fn on_leave(world: &mut World, entity: Entity) {
         return;
     };
     items_api::close_window(world, &id);
-    persist(world, &id);
+    // The client may already be gone from the client list; its body is not.
+    let position = world
+        .read_component::<PositionComp>()
+        .get(entity)
+        .map(|p| [p.0 .0, p.0 .1, p.0 .2]);
+    persist_at(world, &id, position);
     world.ecs().write_resource::<Gameplay>().players.remove(&id);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn install(
     world: &mut World,
     content: Arc<Content>,
     world_dir: &Path,
+    players_dir: &Path,
     seed: u32,
     broken: Arc<crate::behaviors::BrokenBlocks>,
     biome: Arc<dyn Fn(i32, i32) -> String + Send + Sync>,
+    dimensions: Dimensions,
 ) -> Result<(), String> {
-    world
-        .ecs_mut()
-        .insert(Gameplay::new(content, world_dir, seed, broken, biome)?);
+    world.ecs_mut().insert(Gameplay::new(
+        content,
+        world_dir,
+        players_dir,
+        seed,
+        broken,
+        biome,
+        dimensions,
+    )?);
     items_api::install(world);
     mobs_api::install(world);
     world.set_client_modifier(on_join);
@@ -544,6 +611,37 @@ pub fn install(
             Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
         }
     });
+
+    world.set_method_handle(
+        "platform.inventory.creative",
+        |world, client_id, payload| {
+            const INTENT: &str = "inventory.creative";
+            let Some(p) = parse::<CreativePayload>(world, client_id, INTENT, payload) else {
+                return;
+            };
+            let result = with_player(world, client_id, |g, _, _| {
+                let Gameplay { rules, players, .. } = g;
+                let player = players.get_mut(client_id).expect("checked by with_player");
+                rules.creative_take(player, p.slot, &p.item)
+            });
+            match result {
+                None => not_joined(world, client_id, INTENT),
+                Some(r) => {
+                    let ok = r.is_ok();
+                    reply(
+                        world,
+                        client_id,
+                        INTENT,
+                        r.map(|item| json!({ "slot": p.slot, "item": item })),
+                    );
+                    if ok {
+                        persist(world, client_id);
+                        send_inventory(world, client_id);
+                    }
+                }
+            }
+        },
+    );
 
     world.set_method_handle("platform.inventory.select", |world, client_id, payload| {
         const INTENT: &str = "inventory.select";
@@ -678,6 +776,41 @@ pub fn install(
             None => not_joined(world, client_id, INTENT),
             Some(false) => reply(world, client_id, INTENT, Err(IntentError::NothingThere)),
             Some(true) => {
+                // Respawning always happens in the overworld.
+                let home = {
+                    let g = world.ecs().read_resource::<Gameplay>();
+                    (g.dimensions.current != Dimension::Overworld)
+                        .then(|| {
+                            g.dimensions
+                                .world_of(Dimension::Overworld)
+                                .map(str::to_owned)
+                        })
+                        .flatten()
+                };
+                if let Some(home) = home {
+                    let saved = {
+                        let mut g = world.ecs().write_resource::<Gameplay>();
+                        let Gameplay { players, store, .. } = &mut *g;
+                        players.get_mut(client_id).is_some_and(|player| {
+                            let mut record = store.record(client_id, player, None);
+                            record.dimension = Dimension::Overworld;
+                            record.arrival = None;
+                            let ok = store.save(&record).is_ok();
+                            player.travel.departed = ok;
+                            ok
+                        })
+                    };
+                    if saved {
+                        reply(world, client_id, INTENT, Ok(json!({})));
+                        send(
+                            world,
+                            client_id,
+                            travel::TRAVEL_EVENT,
+                            json!({ "world": home }),
+                        );
+                        return;
+                    }
+                }
                 persist(world, client_id);
                 // The client moves itself to the surface of the spawn column.
                 send(world, client_id, RESPAWN_EVENT, json!({ "x": 0, "z": 0 }));
@@ -695,19 +828,29 @@ pub fn install(
         let result = with_player(world, client_id, |g, view, position| {
             let Gameplay { rules, players, .. } = g;
             let player = players.get_mut(client_id).expect("checked by with_player");
-            rules.use_on(player, view, position, p.voxel)
+            if rules.holds_igniter(player) {
+                rules.ignite(player, view, position, p.voxel)
+            } else {
+                rules
+                    .use_on(player, view, position, p.voxel)
+                    .map(|raw| vec![(p.voxel, raw)])
+            }
         });
         match result {
             None => not_joined(world, client_id, INTENT),
-            Some(Ok(block)) => {
-                let [x, y, z] = p.voxel;
-                world.chunks_mut().update_voxel(&Vec3(x, y, z), block);
+            Some(Ok(writes)) => {
+                let block = writes.first().map(|(_, raw)| *raw).unwrap_or(0);
+                let writes: Vec<(Vec3<i32>, u32)> = writes
+                    .into_iter()
+                    .map(|([x, y, z], raw)| (Vec3(x, y, z), raw))
+                    .collect();
+                world.chunks_mut().update_voxels(&writes);
                 persist(world, client_id);
                 reply(
                     world,
                     client_id,
                     INTENT,
-                    Ok(json!({ "voxel": p.voxel, "block": block })),
+                    Ok(json!({ "voxel": p.voxel, "block": block, "changed": writes.len() })),
                 );
                 send_inventory(world, client_id);
             }
@@ -873,15 +1016,7 @@ pub(crate) fn on_player_death(
             .filter(direct())
             .build(),
     );
-    let record = PlayerRecord {
-        version: RECORD_VERSION,
-        id: id.to_owned(),
-        inventory: player.inventory.clone(),
-        position: Some(eye),
-        vitals: player.vitals.clone(),
-        armor: player.armor.clone(),
-        offhand: player.offhand.clone(),
-    };
+    let record = store.record(id, player, Some(eye));
     if let Err(e) = store.save(&record) {
         error!("could not save player {id} after death: {e}");
     }

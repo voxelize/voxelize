@@ -59,7 +59,25 @@ Taiga, Mountains, Beach, Ocean, Deep Ocean, Badlands.
 | Structures | ✅ | data-driven templates (`platform/game/structures`): Wayfarer's Hut, Old Ruin, Sand Obelisk, Deep Vault, Lookout Tower. One per seeded grid cell (`spacing` chunks, `chance`), biome- and water-aware. Each chunk computes every structure whose footprint touches it and draws its part, so chunks stay independent and structures are whole across borders. Chests carry their structure in the voxel stage bits; the server fills them from the structure's loot table on first opening (deterministic per position) or spills that loot if broken unopened |
 | Underground lakes, aquifers | later | flood cave pockets below a per-region water table |
 | Villages | later | groups of buildings with paths and NPCs (NPC civilisation phase) |
-| Dimensions | 18 | each dimension is a world with its own generator config (underworld: inverted cavern generator, lava sea; sky: floating islands from 3D density) |
+| Dimensions | ✅ underworld | see below; a sky dimension (floating islands from 3D density) is later |
+
+## The underworld
+
+`crates/worldgen/src/underworld.rs`, run for the `main_underworld` engine
+world. A sealed cavern: bedrock floor at y 0 and roof at y 127 (ragged for a
+few blocks), cinderstone carved by 3D noise that is dense near floor and
+roof and open between, with a slower 2D field varying how open a region is;
+open space below y 31 is a lava sea; emberglass clusters hang from cavern
+ceilings in the upper half; ores whose host is cinderstone (ember quartz)
+use the same vein placement as the overworld. Deterministic and
+chunk-local like the overworld; tested for sealing, openness, the lava sea
+and its materials.
+
+Horizontal distances are 8 times shorter there: a portal at overworld
+(800, z) leads near underworld (100, z/8). Portals are linked in pairs once
+used, so a portal always leads to its partner afterwards; an unlinked one
+looks for a portal within 16 columns of the scaled point and builds one
+(frame, ledges, headroom) when there is none.
 
 ## Changing a live world's generator
 

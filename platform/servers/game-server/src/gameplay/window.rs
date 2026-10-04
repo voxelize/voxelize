@@ -736,7 +736,7 @@ mod tests {
             .sum()
     }
 
-    fn player_window(c: &Content, inv: Vec<(usize, Option<Stack>)>) -> Window {
+    fn player_window(_c: &Content, inv: Vec<(usize, Option<Stack>)>) -> Window {
         let mut inventory = vec![None; INVENTORY_SIZE];
         for (i, s) in inv {
             inventory[i] = s;

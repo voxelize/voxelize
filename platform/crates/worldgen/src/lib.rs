@@ -18,7 +18,10 @@
 use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex};
 use std::collections::HashMap;
 
-use platform_content::{BiomeDef, Content, StructurePlacement};
+use platform_content::{BiomeDef, Content, Dimension, StructurePlacement};
+
+mod underworld;
+pub use underworld::Underworld;
 
 /// Voxel id of air.
 pub const AIR: u32 = 0;
@@ -192,6 +195,62 @@ impl Rng {
     }
 }
 
+/// Seeded ore veins, each replacing only its host block.
+fn place_ores(ores: &[OreSpec], seed: u32, max_height: i32, chunk: &mut GeneratedChunk) {
+    let size = chunk.size as i32;
+    for (index, ore) in ores.iter().enumerate() {
+        let mut rng = Rng(hash(
+            seed,
+            chunk.cx as i64,
+            chunk.cz as i64,
+            0x0E5 + index as u64,
+        ));
+        let min_y = ore.min_y.max(1);
+        let max_y = ore.max_y.min(max_height - 1);
+        if min_y >= max_y {
+            continue;
+        }
+        for _ in 0..ore.veins {
+            let mut x = rng.below(size as u64) as i32;
+            let mut y = min_y + rng.below((max_y - min_y) as u64) as i32;
+            let mut z = rng.below(size as u64) as i32;
+            for _ in 0..ore.size {
+                if (0..size).contains(&x)
+                    && (min_y..max_y).contains(&y)
+                    && (0..size).contains(&z)
+                    && chunk.get(x as usize, y as usize, z as usize) == ore.replaces
+                {
+                    chunk.set(x as usize, y as usize, z as usize, ore.block);
+                }
+                match rng.below(6) {
+                    0 => x += 1,
+                    1 => x -= 1,
+                    2 => y += 1,
+                    3 => y -= 1,
+                    4 => z += 1,
+                    _ => z -= 1,
+                }
+            }
+        }
+    }
+}
+
+fn ore_specs(content: &Content, fallback: u32) -> Vec<OreSpec> {
+    let block = |key: &str| content.block(key).map(|b| b.id).unwrap_or(fallback);
+    content
+        .ores()
+        .iter()
+        .map(|o| OreSpec {
+            block: block(&o.block),
+            replaces: block(&o.replaces),
+            min_y: o.min_y,
+            max_y: o.max_y,
+            veins: o.veins_per_chunk,
+            size: o.vein_size,
+        })
+        .collect()
+}
+
 pub struct Generator {
     config: WorldgenConfig,
     temperature: Fbm<OpenSimplex>,
@@ -235,10 +294,10 @@ impl Generator {
         // Validated content guarantees every key below resolves.
         let block = |key: &str| content.block(key).map(|b| b.id).unwrap_or(stone);
 
-        let biomes: Vec<BiomeSpec> = content
-            .biomes()
+        let overworld = content.biomes_of(Dimension::Overworld);
+        let biomes: Vec<BiomeSpec> = overworld
             .iter()
-            .map(|b: &BiomeDef| BiomeSpec {
+            .map(|b: &&BiomeDef| BiomeSpec {
                 key: b.key.clone(),
                 point: [b.temperature, b.humidity, b.continentalness, b.erosion],
                 height_offset: b.terrain.height_offset,
@@ -273,22 +332,10 @@ impl Generator {
         if biomes.is_empty() {
             return Err(WorldgenError::NoBiomes);
         }
-        let ores = content
-            .ores()
-            .iter()
-            .map(|o| OreSpec {
-                block: block(&o.block),
-                replaces: block(&o.replaces),
-                min_y: o.min_y,
-                max_y: o.max_y,
-                veins: o.veins_per_chunk,
-                size: o.vein_size,
-            })
-            .collect();
+        let ores = ore_specs(content, stone);
 
         let chest = content.block("chest").map(|b| b.id);
-        let biome_index: HashMap<&str, usize> = content
-            .biomes()
+        let biome_index: HashMap<&str, usize> = overworld
             .iter()
             .enumerate()
             .map(|(i, b)| (b.key.as_str(), i))
@@ -585,7 +632,12 @@ impl Generator {
     /// `(min x, floor y, min z)`.
     fn structure_origin(&self, index: usize, gx: i32, gz: i32) -> Option<[i32; 3]> {
         let st = &self.structures[index];
-        let h = hash(self.config.seed, gx as i64, gz as i64, 0x5757 + index as u64);
+        let h = hash(
+            self.config.seed,
+            gx as i64,
+            gz as i64,
+            0x5757 + index as u64,
+        );
         if unit(h) >= st.chance {
             return None;
         }
@@ -623,7 +675,9 @@ impl Generator {
             let (w, _, d) = st.size;
             for gx in (x0 - w).div_euclid(cell)..=x1.div_euclid(cell) {
                 for gz in (z0 - d).div_euclid(cell)..=z1.div_euclid(cell) {
-                    let Some(o) = self.structure_origin(index, gx, gz) else { continue };
+                    let Some(o) = self.structure_origin(index, gx, gz) else {
+                        continue;
+                    };
                     if o[0] < x1 && o[0] + w > x0 && o[2] < z1 && o[2] + d > z0 {
                         out.push((st.key.clone(), o));
                     }
@@ -637,7 +691,9 @@ impl Generator {
         let size = chunk.size as i32;
         let (x0, z0) = (chunk.cx * size, chunk.cz * size);
         for (key, origin) in self.structures_touching(chunk.cx, chunk.cz, chunk.size) {
-            let Some(st) = self.structures.iter().find(|s| s.key == key) else { continue };
+            let Some(st) = self.structures.iter().find(|s| s.key == key) else {
+                continue;
+            };
             for (dy, layer) in st.cells.iter().enumerate() {
                 let y = origin[1] + dy as i32;
                 if y <= 0 || y >= chunk.height as i32 {
@@ -657,42 +713,7 @@ impl Generator {
     }
 
     fn place_ores(&self, chunk: &mut GeneratedChunk) {
-        let size = chunk.size as i32;
-        for (index, ore) in self.ores.iter().enumerate() {
-            let mut rng = Rng(hash(
-                self.config.seed,
-                chunk.cx as i64,
-                chunk.cz as i64,
-                0x0E5 + index as u64,
-            ));
-            let min_y = ore.min_y.max(1);
-            let max_y = ore.max_y.min(self.config.max_height - 1);
-            if min_y >= max_y {
-                continue;
-            }
-            for _ in 0..ore.veins {
-                let mut x = rng.below(size as u64) as i32;
-                let mut y = min_y + rng.below((max_y - min_y) as u64) as i32;
-                let mut z = rng.below(size as u64) as i32;
-                for _ in 0..ore.size {
-                    if (0..size).contains(&x)
-                        && (min_y..max_y).contains(&y)
-                        && (0..size).contains(&z)
-                        && chunk.get(x as usize, y as usize, z as usize) == ore.replaces
-                    {
-                        chunk.set(x as usize, y as usize, z as usize, ore.block);
-                    }
-                    match rng.below(6) {
-                        0 => x += 1,
-                        1 => x -= 1,
-                        2 => y += 1,
-                        3 => y -= 1,
-                        4 => z += 1,
-                        _ => z -= 1,
-                    }
-                }
-            }
-        }
+        place_ores(&self.ores, self.config.seed, self.config.max_height, chunk);
     }
 
     fn place_vegetation(&self, chunk: &mut GeneratedChunk) {
@@ -904,7 +925,10 @@ mod tests {
             }
         }
         assert!(river_columns > 20, "found {river_columns} river columns");
-        assert!(wet * 10 >= river_columns * 8, "river beds lie under water: {wet}/{river_columns}");
+        assert!(
+            wet * 10 >= river_columns * 8,
+            "river beds lie under water: {wet}/{river_columns}"
+        );
     }
 
     #[test]
