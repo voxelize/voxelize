@@ -41,7 +41,7 @@ paths, foundations, loot), biome tints for grass and leaves through the
 engine's regional colour (corners per chunk, persisted with saved chunks).
 Tests: villages, house turns, aquifers, tints meeting at chunk corners.
 
-## Phase 3 — Player controller and web client 🟡
+## Phase 3 — Player controller and web client ✅
 
 Done: `apps/web-client` on `@voxelize/core` — sign-in/registration against
 the API, a fresh single-use ticket per (re)connect, first-person rigid-body
@@ -76,8 +76,13 @@ modifiers, unbreakable); raw client voxel writes refused; server intents
 `platform.mine.start/finish` (reach, session, timing, drops, tool wear,
 inventory-full refusal) and `platform.build.place` (reach, replaceability,
 player collision, item consumption, creative block choice), 18 unit tests.
-Remaining: land permission and game-mode (adventure/spectator) checks once
-those systems exist (block orientation on place and the mining progress bar
+Then: game modes — adventure (no breaking or placing; switches, doors,
+containers and fighting work) and spectator (ghost flight, touches nothing,
+no damage, unseen and not hunted), set by moderators (`platform.mode.set`;
+`user:role` grants the role into tickets) or by players themselves in a
+creative world; saved with the player. Unit tests and
+`tests/bots/modes.mjs`. Land permission checks are done (phase 13)
+ (block orientation on place and the mining progress bar
 and block cracks are done).
 
 ## Phase 5 — Inventory 🟡

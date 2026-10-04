@@ -3,7 +3,6 @@
 //! fighting between players of guilds at war.
 
 use platform_content::Dimension;
-use platform_ticket::Realm;
 use serde::Deserialize;
 use serde_json::json;
 use specs::WorldExt;
@@ -313,7 +312,7 @@ impl<'a> specs::System<'a> for SiegeSystem {
                 let alive = g
                     .players
                     .get(id)
-                    .is_some_and(|s| s.realm == Realm::Survival && !s.vitals.is_dead());
+                    .is_some_and(|s| s.vulnerable() && !s.vitals.is_dead());
                 Some((id.clone(), [p.0 .0, p.0 .1, p.0 .2], alive))
             })
             .collect();
@@ -463,14 +462,14 @@ pub(super) fn install(world: &mut World) {
             } = &mut *g;
             let attacker_ok = players.get(id).map(|a| {
                 (
-                    a.realm == Realm::Survival,
-                    a.vitals.is_dead(),
+                    a.vulnerable(),
+                    super::rules::active(a).is_err(),
                     a.attack_cooldown,
                 )
             });
             let victim_ok = players
                 .get(&p.player)
-                .map(|v| (v.realm == Realm::Survival, v.vitals.is_dead()));
+                .map(|v| (v.vulnerable(), v.vitals.is_dead()));
             // The victim's body centre.
             let center = [target[0], target[1] - EYE_HEIGHT + 0.9, target[2]];
             let d2: f32 = (0..3).map(|i| (center[i] - eye[i]).powi(2)).sum();

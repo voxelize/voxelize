@@ -31,7 +31,7 @@ class TicketIssuer
             'name' => $user->username,
             'world' => $world,
             'realm' => $worlds[$world]['realm'],
-            'roles' => ['player'],
+            'roles' => $user->gameRoles(),
             'iat' => $now,
             'exp' => $now + (int) config('platform.game.ticket_ttl_seconds'),
             'jti' => (string) Str::ulid(),

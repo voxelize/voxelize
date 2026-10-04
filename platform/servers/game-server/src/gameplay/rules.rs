@@ -57,6 +57,9 @@ pub enum IntentError {
     NotHungry,
     UnknownItem,
     CreativeOnly,
+    /// Not allowed in the player's game mode (adventure players do not
+    /// break or place blocks; spectators only watch).
+    GameMode,
     /// Town halls and vaults stand on guild land in a settlement.
     NotInSettlement,
     /// Players may only fight players of a guild theirs is at war with.
@@ -104,6 +107,7 @@ impl IntentError {
             IntentError::NotHungry => "not_hungry",
             IntentError::UnknownItem => "unknown_item",
             IntentError::CreativeOnly => "creative_only",
+            IntentError::GameMode => "game_mode",
             IntentError::NotInSettlement => "not_in_settlement",
             IntentError::NotAtWar => "not_at_war",
             IntentError::SiegeUnderway => "siege_underway",
@@ -165,6 +169,7 @@ pub struct PlayerState {
     pub xp: u32,
     /// When the player started drawing their bow (ms).
     pub bow_drawn: Option<u64>,
+    pub mode: GameMode,
 }
 
 /// The window a player has open.
@@ -198,6 +203,7 @@ impl PlayerState {
             home: None,
             xp: 0,
             bow_drawn: None,
+            mode: GameMode::Normal,
         }
     }
 }
@@ -238,6 +244,44 @@ fn alive(player: &PlayerState) -> Result<(), IntentError> {
         Err(IntentError::Dead)
     } else {
         Ok(())
+    }
+}
+
+/// Alive and taking part (not spectating).
+pub fn active(player: &PlayerState) -> Result<(), IntentError> {
+    alive(player)?;
+    if player.mode == GameMode::Spectator {
+        return Err(IntentError::GameMode);
+    }
+    Ok(())
+}
+
+/// Allowed to break and place blocks (not in adventure or spectator mode).
+pub fn may_build(player: &PlayerState) -> Result<(), IntentError> {
+    active(player)?;
+    if player.mode == GameMode::Adventure {
+        return Err(IntentError::GameMode);
+    }
+    Ok(())
+}
+
+/// A player's game mode within their world's realm. `Normal` plays the
+/// realm as it is (survival or creative); `Adventure` cannot break or place
+/// blocks but uses doors, switches, containers and fights; `Spectator`
+/// flies through everything unseen and touches nothing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GameMode {
+    #[default]
+    Normal,
+    Adventure,
+    Spectator,
+}
+
+impl PlayerState {
+    /// Takes damage and is hunted: survival realm, not spectating.
+    pub fn vulnerable(&self) -> bool {
+        self.realm == Realm::Survival && self.mode != GameMode::Spectator
     }
 }
 
@@ -330,7 +374,7 @@ impl Rules {
         voxel: [i32; 3],
         now_ms: u64,
     ) -> Result<(), IntentError> {
-        alive(player)?;
+        may_build(player)?;
         let (id, block) = self.target_block(view, position, voxel)?;
         if player.realm == Realm::Survival && block.hardness < 0.0 {
             return Err(IntentError::Unbreakable);
@@ -354,7 +398,7 @@ impl Rules {
         now_ms: u64,
         random: &mut dyn FnMut() -> f64,
     ) -> Result<MineOutcome, IntentError> {
-        alive(player)?;
+        may_build(player)?;
         let (id, block) = self.target_block(view, position, voxel)?;
 
         if player.realm == Realm::Creative {
@@ -443,7 +487,7 @@ impl Rules {
         slot: Option<usize>,
         creative_block: Option<&str>,
     ) -> Result<u32, IntentError> {
-        alive(player)?;
+        may_build(player)?;
         if !self.within_reach(position, voxel) {
             return Err(IntentError::OutOfReach);
         }
@@ -544,12 +588,13 @@ impl Rules {
         position: [f32; 3],
         voxel: [i32; 3],
     ) -> Result<u32, IntentError> {
-        alive(player)?;
+        active(player)?;
         let (id, block) = self.target_block(view, position, voxel)?;
         let raw = view.raw_at(voxel).ok_or(IntentError::NotLoaded)?;
         if let Some(next) = crate::behaviors::use_circuit(&self.content, raw) {
             return Ok(next);
         }
+        may_build(player)?;
         let held = self.held_item(player).ok_or(IntentError::CannotUse)?;
         let is_hoe = held
             .tool
@@ -615,7 +660,7 @@ impl Rules {
         voxel: [i32; 3],
         roll: u64,
     ) -> Result<Vec<([i32; 3], u32)>, IntentError> {
-        alive(player)?;
+        may_build(player)?;
         let (id, block) = self.target_block(view, position, voxel)?;
         let raw = view.raw_at(voxel).ok_or(IntentError::NotLoaded)?;
         let grows = block
@@ -699,7 +744,7 @@ impl Rules {
         voxel: [i32; 3],
         here: platform_content::Dimension,
     ) -> Result<Vec<([i32; 3], u32)>, IntentError> {
-        alive(player)?;
+        may_build(player)?;
         if !self.holds_igniter(player) {
             return Err(IntentError::CannotUse);
         }
@@ -739,7 +784,7 @@ impl Rules {
 
     /// Eat one food item from `slot` (the selected slot when `None`).
     pub fn eat(&self, player: &mut PlayerState, slot: Option<usize>) -> Result<u32, IntentError> {
-        alive(player)?;
+        active(player)?;
         let slot = slot.unwrap_or(player.inventory.selected);
         let stack = player
             .inventory
@@ -1281,6 +1326,39 @@ mod tests {
             1,
             "three used"
         );
+    }
+
+    #[test]
+    fn adventure_players_use_but_do_not_build_and_spectators_touch_nothing() {
+        let (rules, mut world, mut player) = setup();
+        let c = rules.content();
+        player.inventory.add(c, c.item("planks").unwrap().id, 4);
+        let lever = c.block("lever").unwrap().id;
+        world.blocks.insert([2, 1, 0], lever);
+        player.mode = GameMode::Adventure;
+        assert_eq!(
+            rules.start_mining(&mut player, &world, HERE, [2, 0, 0], 0),
+            Err(IntentError::GameMode)
+        );
+        assert_eq!(
+            rules.place(&mut player, &world, HERE, [3, 1, 0], Some(0), None),
+            Err(IntentError::GameMode)
+        );
+        assert!(
+            rules.use_on(&mut player, &world, HERE, [2, 1, 0]).is_ok(),
+            "levers still work"
+        );
+        assert!(player.vulnerable());
+        player.mode = GameMode::Spectator;
+        assert_eq!(
+            rules.use_on(&mut player, &world, HERE, [2, 1, 0]),
+            Err(IntentError::GameMode)
+        );
+        assert!(!player.vulnerable(), "spectators take no damage");
+        player.mode = GameMode::Normal;
+        assert!(rules
+            .place(&mut player, &world, HERE, [3, 1, 0], Some(0), None)
+            .is_ok());
     }
 
     #[test]

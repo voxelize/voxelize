@@ -51,6 +51,9 @@ a password or a web token.
 ```
 v1.<base64url(claims JSON)>.<base64url(HMAC-SHA256(secret, "v1." + claims part))>
 claims: iss, aud, sub (player public id), name, world, realm, roles, iat, exp, jti
+(`roles` is always `player` plus any of `moderator`, `admin` granted with
+`php artisan user:role {user} {role} [--remove]`; game servers let these roles
+set game modes)
 ```
 
 The verifier checks, in order: version prefix, signature against every

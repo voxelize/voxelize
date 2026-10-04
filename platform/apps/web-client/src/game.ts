@@ -84,10 +84,14 @@ const MESSAGES: Record<string, string> = {
 };
 
 class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
+  /** Players in spectator mode: never drawn. */
+  readonly spectators = new Set<string>();
+
   createPeer = () => new VOXELIZE.Character();
 
-  onPeerUpdate = (object: VOXELIZE.Character, data: { position: number[]; direction: number[] }) => {
+  onPeerUpdate = (object: VOXELIZE.Character, data: { position: number[]; direction: number[] }, info: { id: string }) => {
     object.set(data.position as VOXELIZE.Coords3, data.direction as VOXELIZE.Coords3);
+    object.visible = !this.spectators.has(info.id);
   };
 }
 
@@ -261,6 +265,10 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (vitals.health < lastHealth) sfx.play("hurt");
     lastHealth = vitals.health;
     vitalsHud.set(vitals);
+    // Spectators fly through blocks; leaving the mode lands them again.
+    const spectating = (vitals as Vitals & { mode?: string }).mode === "spectator";
+    if (spectating !== controls.ghostMode && !touch) controls.toggleGhostMode();
+    document.body.classList.toggle("spectating", spectating);
     if (vitals.dead) {
       mining = null;
       controls.unlock();
@@ -473,6 +481,13 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   const mobs = new MobsView(content);
   world.add(mobs.group);
   const bossBar = document.getElementById("boss-bar") as HTMLElement;
+  events.on<{ player: string; mode: string }>("platform.mode", (payload) => {
+    if (!payload) return;
+    if (payload.mode === "spectator") players.spectators.add(payload.player);
+    else players.spectators.delete(payload.player);
+    const peer = players.getPeerById(payload.player);
+    if (peer) peer.visible = payload.mode !== "spectator";
+  });
   events.on<{ mobs: MobInfo[] }>("platform.mobs", (payload) => {
     if (!payload) return;
     mobs.set(payload.mobs);

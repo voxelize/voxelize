@@ -837,3 +837,9 @@ body.touch #hint {
   margin: 12px 0 4px;
   font-size: 14px;
 }
+
+/* Spectators watch: no hotbar or vitals. */
+body.spectating #hotbar,
+body.spectating #vitals {
+  visibility: hidden;
+}

@@ -12,6 +12,7 @@ pub mod containers;
 pub mod drops;
 pub mod mobs;
 mod mobs_api;
+pub mod modes;
 pub use mobs_api::MobSystem;
 mod guild_api;
 pub mod inventory;
@@ -242,6 +243,7 @@ fn vitals_payload(player: &PlayerState, cause: Option<survival::DamageKind>) -> 
         "dead": v.is_dead(),
         "cause": cause,
         "realm": player.realm,
+        "mode": player.mode,
         "burning": v.burning > 0.0,
         "effects": v.effects,
         "xp": player.xp,
@@ -480,6 +482,7 @@ fn on_join(world: &mut World, entity: Entity) {
         trade_hold,
         home,
         xp,
+        mode,
     ) = match record {
         Some(r) => (
             r.inventory,
@@ -493,6 +496,7 @@ fn on_join(world: &mut World, entity: Entity) {
             r.trade_hold,
             r.home,
             r.xp,
+            r.mode,
         ),
         None => (
             Inventory::default(),
@@ -506,6 +510,7 @@ fn on_join(world: &mut World, entity: Entity) {
             None,
             None,
             0,
+            rules::GameMode::Normal,
         ),
     };
     {
@@ -527,6 +532,7 @@ fn on_join(world: &mut World, entity: Entity) {
         state.trade_hold = trade_hold;
         state.home = home;
         state.xp = xp;
+        state.mode = mode;
         // Joining inside a portal never sends the player straight on.
         state.travel.blocked = true;
         state.travel.settle = travel::SETTLE_SECONDS;
@@ -534,6 +540,7 @@ fn on_join(world: &mut World, entity: Entity) {
     }
     send_inventory(world, &id);
     send_vitals(world, &id, None);
+    modes::on_join(world, &id);
     // Back where they left (arrivals are placed once their area is ready).
     if let (None, Some(eye)) = (&arrival, position) {
         let feet = [
@@ -589,6 +596,7 @@ pub fn install(
     stall::install(world);
     guild_api::install(world);
     combat::install(world);
+    modes::install(world);
     weather::install(world);
     blueprint::install(world);
     trade::install(world);
@@ -1175,7 +1183,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 continue;
             };
             let feet_y = p[1] - EYE_HEIGHT;
-            if player.realm != Realm::Survival {
+            if !player.vulnerable() {
                 let outcome = survival::creative_tick(&mut player.vitals, feet_y, dt);
                 if outcome.changed {
                     events.dispatch(

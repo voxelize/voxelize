@@ -80,6 +80,24 @@ class AuthAndTicketTest extends TestCase
         $this->assertTrue(GameTicket::where('jti', $claims['jti'])->where('user_id', $user->id)->exists());
     }
 
+    public function test_granted_roles_travel_in_the_ticket(): void
+    {
+        $user = User::factory()->create(['username' => 'warden']);
+        $claims = function () use ($user) {
+            $user->refresh();
+            $ticket = $this->actingAs($user)->postJson('/api/v1/game/tickets', ['world' => 'main'])->json('ticket');
+
+            return json_decode(base64_decode(strtr(explode('.', $ticket)[1], '-_', '+/')), true);
+        };
+        $this->assertSame(['player'], $claims()['roles']);
+
+        $this->artisan('user:role', ['user' => 'warden', 'role' => 'moderator'])->assertSuccessful();
+        $this->assertSame(['player', 'moderator'], $claims()['roles']);
+        $this->artisan('user:role', ['user' => 'warden', 'role' => 'emperor'])->assertFailed();
+        $this->artisan('user:role', ['user' => 'warden', 'role' => 'moderator', '--remove' => true])->assertSuccessful();
+        $this->assertSame(['player'], $claims()['roles']);
+    }
+
     public function test_tickets_require_auth_a_known_world_and_an_active_account(): void
     {
         $this->postJson('/api/v1/game/tickets', ['world' => 'main'])->assertUnauthorized();

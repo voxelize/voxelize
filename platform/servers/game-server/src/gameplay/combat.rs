@@ -180,7 +180,9 @@ pub(super) fn install(world: &mut World) {
             let bow = g.rules.content().item("bow").map(|i| i.id);
             match g.players.get_mut(id) {
                 None => Err(IntentError::NothingThere),
-                Some(p) if p.vitals.is_dead() => Err(IntentError::Dead),
+                Some(p) if super::rules::active(p).is_err() => {
+                    super::rules::active(p).map(|_| unreachable!())
+                }
                 Some(p) if p.inventory.selected_stack().map(|s| s.item) != bow => {
                     Err(IntentError::CannotUse)
                 }
@@ -210,7 +212,9 @@ pub(super) fn install(world: &mut World) {
             );
             let shot = match g.players.get_mut(id) {
                 None => Err(IntentError::NothingThere),
-                Some(pl) if pl.vitals.is_dead() => Err(IntentError::Dead),
+                Some(pl) if super::rules::active(pl).is_err() => {
+                    super::rules::active(pl).map(|_| unreachable!())
+                }
                 Some(pl) if pl.inventory.selected_stack().map(|s| s.item) != bow => {
                     Err(IntentError::CannotUse)
                 }
@@ -532,7 +536,7 @@ pub(super) fn hurt_player(
     let Some(state) = players.get_mut(victim) else {
         return;
     };
-    if state.realm != Realm::Survival || state.vitals.is_dead() || state.vitals.grace > 0.0 {
+    if !state.vulnerable() || state.vitals.is_dead() || state.vitals.grace > 0.0 {
         return;
     }
     let damage = super::rules::absorb(&content, state, damage);

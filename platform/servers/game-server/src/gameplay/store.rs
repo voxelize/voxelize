@@ -52,6 +52,9 @@ pub struct PlayerRecord {
     /// Experience points.
     #[serde(default)]
     pub xp: u32,
+    /// Adventure or spectator mode, set by a moderator.
+    #[serde(default)]
+    pub mode: super::rules::GameMode,
 }
 
 pub struct PlayerStore {
@@ -127,6 +130,7 @@ impl PlayerStore {
             trade_hold: player.trade_hold.clone(),
             home: player.home,
             xp: player.xp,
+            mode: player.mode,
         }
     }
 
@@ -217,6 +221,7 @@ mod tests {
             trade_hold: None,
             home: None,
             xp: 0,
+            mode: Default::default(),
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

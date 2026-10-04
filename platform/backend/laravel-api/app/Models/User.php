@@ -38,7 +38,19 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'roles' => 'array',
         ];
+    }
+
+    /** Roles a user may hold besides "player". */
+    public const GRANTABLE_ROLES = ['moderator', 'admin'];
+
+    /** @return list<string> every role, "player" first */
+    public function gameRoles(): array
+    {
+        $extra = array_values(array_intersect(self::GRANTABLE_ROLES, (array) ($this->roles ?? [])));
+
+        return ['player', ...$extra];
     }
 
     public function isActive(): bool

@@ -220,7 +220,7 @@ impl<'a> specs::System<'a> for MobSystem {
                 id: id.clone(),
                 feet: [p[0], p[1] - EYE_HEIGHT, p[2]],
                 holding,
-                targetable: player.realm == Realm::Survival && !player.vitals.is_dead(),
+                targetable: player.vulnerable() && !player.vitals.is_dead(),
             });
         }
 
@@ -270,7 +270,7 @@ impl<'a> specs::System<'a> for MobSystem {
                     let Some(state) = states.get_mut(&player) else {
                         continue;
                     };
-                    if state.vitals.is_dead() || state.realm != Realm::Survival {
+                    if state.vitals.is_dead() || !state.vulnerable() {
                         continue;
                     }
                     let damage = super::rules::absorb(&content, state, damage);
@@ -395,8 +395,8 @@ pub(super) fn install(world: &mut World) {
                     let height = content.mob(&mob.key).map(|d| d.size[1]).unwrap_or(1.0);
                     let center = [mob.position[0], mob.position[1] + height / 2.0, mob.position[2]];
                     let d2: f32 = (0..3).map(|i| (center[i] - eye[i]).powi(2)).sum();
-                    if player.vitals.is_dead() {
-                        Some(Err(IntentError::Dead))
+                    if let Err(e) = super::rules::active(player) {
+                        Some(Err(e))
                     } else if d2 > (REACH + height).powi(2) {
                         Some(Err(IntentError::OutOfReach))
                     } else if player.attack_cooldown > 0.0 {
@@ -464,7 +464,9 @@ pub(super) fn install(world: &mut World) {
                         .selected_stack()
                         .and_then(|s| content.item_by_id(s.item))
                         .map(|i| i.key.clone());
-                    if d2 > (REACH + 2.0).powi(2) {
+                    if let Err(e) = super::rules::active(player) {
+                        Err(e)
+                    } else if d2 > (REACH + 2.0).powi(2) {
                         Err(IntentError::OutOfReach)
                     } else if let Some(item) = held.filter(|item| mobs.feed(&content, p.mob, item))
                     {
@@ -529,8 +531,8 @@ pub(super) fn summon(world: &mut World, id: &str, voxel: [i32; 3]) -> bool {
                 && (m.position[0] - at[0]).abs() < 64.0
                 && (m.position[2] - at[2]).abs() < 64.0
         });
-        if player.vitals.is_dead() {
-            Err(IntentError::Dead)
+        if let Err(e) = super::rules::active(player) {
+            Err(e)
         } else if d2 > (REACH + 1.0).powi(2) {
             Err(IntentError::OutOfReach)
         } else if !on_altar || already {

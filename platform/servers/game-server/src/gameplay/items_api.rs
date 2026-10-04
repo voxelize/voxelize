@@ -395,7 +395,9 @@ fn window_op(
         let mut g = world.ecs().write_resource::<Gameplay>();
         match g.players.get(id) {
             None => None,
-            Some(p) if p.vitals.is_dead() => Some(Err(IntentError::Dead)),
+            Some(p) if super::rules::active(p).is_err() => {
+                Some(super::rules::active(p).map(|_| unreachable!()))
+            }
             Some(_) => match build_window(&g, id) {
                 None => Some(Err(IntentError::NothingThere)),
                 Some(mut w) => {
@@ -860,7 +862,10 @@ impl<'a> specs::System<'a> for WorldItemsSystem {
             let Some(p) = positions.get(entity).map(|p| [p.0 .0, p.0 .1, p.0 .2]) else {
                 continue;
             };
-            if g.players.get(&id).is_none_or(|pl| pl.vitals.is_dead()) {
+            if g.players
+                .get(&id)
+                .is_none_or(|pl| super::rules::active(pl).is_err())
+            {
                 continue;
             }
             let feet = [p[0], p[1] - super::survival::EYE_HEIGHT, p[2]];
@@ -990,7 +995,9 @@ pub(super) fn use_anvil(world: &mut World, id: &str, voxel: [i32; 3]) -> bool {
         match g.players.get_mut(id) {
             None => Err(IntentError::NothingThere),
             Some(_) if !close => Err(IntentError::OutOfReach),
-            Some(player) if player.vitals.is_dead() => Err(IntentError::Dead),
+            Some(player) if super::rules::active(player).is_err() => {
+                super::rules::active(player).map(|_| unreachable!())
+            }
             Some(player) => repair_held(&content, player),
         }
     };
