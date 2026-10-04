@@ -155,4 +155,76 @@ class GuildDiplomacyTest extends TestCase
         $this->assertSame(20 + 190, $this->getJson("/api/v1/guilds/{$a}")->json('guild.treasury'));
         $this->assertSame([], $this->ledger->verify());
     }
+
+    public function test_ranks_grant_members_more_than_their_role(): void
+    {
+        $a = $this->guild('ann', 'amy', 'Alpha', 'AA', 300);
+        Sanctum::actingAs($this->u['amy']);
+        $this->postJson("/api/v1/guilds/{$a}/invites", ['player' => 'cat'])->assertStatus(403);
+        $this->postJson("/api/v1/guilds/{$a}/ranks", ['name' => 'Recruiter', 'permissions' => ['invite']])->assertStatus(403);
+
+        Sanctum::actingAs($this->u['ann']);
+        $this->postJson("/api/v1/guilds/{$a}/ranks", ['name' => 'Recruiter', 'permissions' => ['invite', 'fly']])->assertStatus(422)->assertJsonPath('error.code', 'bad_permission');
+        $rank = $this->postJson("/api/v1/guilds/{$a}/ranks", ['name' => 'Recruiter', 'permissions' => ['invite']])
+            ->assertCreated()->assertJsonPath('guild.ranks.0.name', 'Recruiter')->json('guild.ranks.0.id');
+        $this->postJson("/api/v1/guilds/{$a}/ranks", ['name' => 'Recruiter', 'permissions' => []])->assertStatus(409);
+        $this->putJson("/api/v1/guilds/{$a}/members/amy/rank", ['rank' => $rank])->assertOk()
+            ->assertJsonPath('guild.roster.1.rank.name', 'Recruiter');
+
+        Sanctum::actingAs($this->u['amy']);
+        $this->getJson("/api/v1/guilds/{$a}")->assertJsonPath('guild.my_permissions', ['invite']);
+        $this->postJson("/api/v1/guilds/{$a}/invites", ['player' => 'cat'])->assertOk();
+        $this->withHeader('Idempotency-Key', 'wd-amy-00001')->postJson("/api/v1/guilds/{$a}/withdraw", ['amount' => 10])->assertStatus(403);
+
+        // A treasurer rank pays out; a land rank claims and manages guild land.
+        Sanctum::actingAs($this->u['ann']);
+        $this->patchJson("/api/v1/guilds/{$a}/ranks/{$rank}", ['name' => 'Steward', 'permissions' => ['invite', 'treasury', 'land']])->assertOk();
+        Sanctum::actingAs($this->u['amy']);
+        $this->withHeader('Idempotency-Key', 'wd-amy-00002')->postJson("/api/v1/guilds/{$a}/withdraw", ['amount' => 10])->assertOk()->assertJsonPath('treasury', 290);
+        $this->withHeader('Idempotency-Key', 'land-amy-0001')->postJson('/api/v1/lands', [
+            'world' => 'main', 'dimension' => 'overworld', 'min' => [0, 0], 'max' => [0, 0], 'name' => 'Yard', 'guild' => $a,
+        ])->assertCreated();
+        $land = $this->withHeader('Authorization', 'Bearer '.self::TOKEN)->getJson('/api/internal/v1/lands?world=main')->json('lands.0');
+        $this->assertContains(['id' => $this->u['amy']->public_id, 'role' => 'manager'], $land['members']);
+
+        // Deleting the rank takes the permissions away.
+        Sanctum::actingAs($this->u['ann']);
+        $this->deleteJson("/api/v1/guilds/{$a}/ranks/{$rank}")->assertOk()->assertJsonCount(0, 'guild.ranks');
+        Sanctum::actingAs($this->u['amy']);
+        $this->getJson("/api/v1/guilds/{$a}")->assertJsonPath('guild.my_permissions', [])->assertJsonPath('guild.roster.1.rank', null);
+        $this->assertSame([], $this->ledger->verify());
+    }
+
+    public function test_sieges_capture_enemy_guild_land_during_a_war(): void
+    {
+        $a = $this->guild('ann', 'amy', 'Alpha', 'AA', 600);
+        $this->guild('bob', 'ben', 'Bravo', 'BB', 500);
+        Sanctum::actingAs($this->u['ann']);
+        $land = $this->withHeader('Idempotency-Key', 'land-aa-0001')->postJson('/api/v1/lands', [
+            'world' => 'main', 'dimension' => 'overworld', 'min' => [0, 0], 'max' => [1, 0], 'name' => 'Keep', 'guild' => $a,
+        ])->assertCreated()->json('land.id');
+        $capture = fn (string $key, string $who) => $this->withHeader('Authorization', 'Bearer '.self::TOKEN)->postJson('/api/internal/v1/wars/captures', [
+            'key' => $key, 'attacker' => $this->u[$who]->public_id, 'land' => $land,
+        ]);
+        $capture('siege-0000001', 'ben')->assertStatus(409)->assertJsonPath('error.code', 'not_at_war');
+
+        Sanctum::actingAs($this->u['bob']);
+        $this->postJson('/api/v1/guilds/'.$this->feed()->firstWhere('tag', 'BB')['id'].'/wars', ['guild' => 'AA'])->assertCreated();
+        $capture('siege-0000002', 'ben')->assertStatus(409);
+        $this->travel(11)->minutes();
+        $capture('siege-0000003', 'amy')->assertStatus(409)->assertJsonPath('error.code', 'not_at_war');
+        $capture('siege-0000003', 'ben')->assertCreated();
+        $capture('siege-0000003', 'ben')->assertOk()->assertJsonPath('replayed', true);
+
+        $feed = collect($this->withHeader('Authorization', 'Bearer '.self::TOKEN)->getJson('/api/internal/v1/lands?world=main')->json('lands'));
+        $keep = $feed->firstWhere('id', $land);
+        $this->assertSame('BB', $keep['guild']['tag']);
+        $this->assertSame($this->u['bob']->public_id, $keep['owner']['id']);
+        $this->assertContains(['id' => $this->u['ben']->public_id, 'role' => 'builder'], $keep['members']);
+        $this->assertNotContains($this->u['amy']->public_id, array_column($keep['members'], 'id'));
+        $war = $this->getJson('/api/v1/guilds/'.$this->feed()->firstWhere('tag', 'BB')['id'].'/relations')->json('relations.0');
+        $this->assertSame(['us' => 3, 'them' => 0], $war['score']);
+        // Now Bravo's: Alpha cannot capture it back with the same key, and Bravo cannot capture its own.
+        $capture('siege-0000004', 'ben')->assertStatus(409);
+    }
 }

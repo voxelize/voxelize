@@ -52,8 +52,7 @@ class Land extends Model
     public function roleOf(User $user): ?string
     {
         if ($this->guild_id !== null) {
-            $guildRole = GuildMember::query()->where('guild_id', $this->guild_id)->where('user_id', $user->id)->value('role');
-            $mapped = ['leader' => 'owner', 'officer' => 'manager', 'member' => 'builder'][$guildRole] ?? null;
+            $mapped = GuildMember::query()->where('guild_id', $this->guild_id)->where('user_id', $user->id)->with('rank')->first()?->landRole();
             if ($mapped !== null) {
                 return $mapped;
             }

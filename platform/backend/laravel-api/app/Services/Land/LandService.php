@@ -86,9 +86,8 @@ class LandService
             LandLock::query()->where('world', $world)->where('dimension', $dimension)->lockForUpdate()->first();
 
             if ($guild) {
-                $role = GuildMember::query()->where('guild_id', $guild->id)->where('user_id', $owner->id)->value('role');
-                if (! in_array($role, ['leader', 'officer'], true)) {
-                    throw new LandException('forbidden', 'Only guild officers claim land for the guild.', 403);
+                if (! $guild->can($owner, 'land')) {
+                    throw new LandException('forbidden', 'Your guild rank does not allow claiming land.', 403);
                 }
                 $held = Land::query()->where('guild_id', $guild->id)->where('status', 'active')->get()
                     ->sum(fn (Land $land) => $land->chunkCount());
@@ -260,7 +259,7 @@ class LandService
     {
         $lands = Land::query()
             ->where('world', $world)->where('status', 'active')
-            ->with(['owner:id,public_id,username', 'members.user:id,public_id', 'guild.members.user:id,public_id,username', 'guild.leader:id,public_id,username'])
+            ->with(['owner:id,public_id,username', 'members.user:id,public_id', 'guild.members.user:id,public_id,username', 'guild.members.rank', 'guild.leader:id,public_id,username'])
             ->orderBy('id')
             ->get();
         // Allied guilds' members, per guild.
@@ -302,7 +301,7 @@ class LandService
                 'members' => $land->members->map(fn (LandMember $m) => ['id' => $m->user->public_id, 'role' => $m->role])
                     ->concat($land->guild ? $land->guild->members
                         ->filter(fn (GuildMember $m) => $m->role !== 'leader')
-                        ->map(fn (GuildMember $m) => ['id' => $m->user->public_id, 'role' => $m->role === 'officer' ? 'manager' : 'builder']) : [])
+                        ->map(fn (GuildMember $m) => ['id' => $m->user->public_id, 'role' => $m->landRole()]) : [])
                     // Members of allied guilds visit: they use switches and gates.
                     ->concat($land->guild_id ? ($allies[$land->guild_id] ?? []) : [])
                     ->values()->all(),

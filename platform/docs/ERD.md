@@ -378,6 +378,16 @@ Joining deletes every invitation of that player.
 `peace_offered_by`; timestamps. Ended alliances and wars are deleted (the
 audit log keeps declarations and peace with the final score).
 
+### guild_ranks ✅ implemented
+`public_id`, `guild_id` FK (cascade), `name` (UNIQUE per guild), `permissions`
+json (`invite|kick|treasury|land|contracts`), `position`, timestamps.
+`guild_members.rank_id` FK NULL (set null when the rank is deleted).
+
+### war_captures ✅ implemented
+`relation_id` FK (cascade), `land_id` FK, `attacker_guild_id`,
+`defender_guild_id`, `capture_key` UNIQUE (the game server's siege id),
+`created_at`.
+
 ### war_kills ✅ implemented
 `relation_id` FK (cascade), `kill_key` UNIQUE (the game server's kill id),
 `killer_id`, `victim_id`, `created_at`: each kill scored once.

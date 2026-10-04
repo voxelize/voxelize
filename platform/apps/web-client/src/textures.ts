@@ -440,6 +440,12 @@ const RECIPES: Record<string, Recipe> = {
     p.blobs(hex("#ffd34a"), 5, 1);
     p.blobs(hex("#fff3b0"), 3, 0);
   },
+  siege_banner: (p) => {
+    p.clear();
+    for (let y = 0; y < SIZE; y++) for (let x = 7; x < 9; x++) p.set(x, y, shade(PLANK, -0.3));
+    for (let y = 1; y < 11; y++) for (let x = 2; x < 14; x++) if (x < 7 || x > 8) p.set(x, y, shade(hex("#8a1f1f"), (p.random() - 0.5) * 0.15));
+    for (let x = 2; x < 14; x++) p.set(x, 1, hex("#d9b04a"));
+  },
   // Guild buildings.
   guild_hall_side: (p) => {
     p.boards(shade(PLANK, -0.15), 4);

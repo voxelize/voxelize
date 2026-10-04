@@ -54,7 +54,7 @@ class ContractService
         }
         $currency = (string) config('platform.market.currency');
         if ($guild) {
-            $this->guilds->assertOfficer($poster, $guild);
+            $this->guilds->assertCan($poster, $guild, 'contracts');
         }
 
         try {
@@ -151,7 +151,7 @@ class ContractService
             $contract = Contract::query()->lockForUpdate()->findOrFail($contract->id);
             // A guild's contract may be withdrawn by any of its officers.
             $officer = $contract->guild_id !== null
-                && in_array(Guild::query()->find($contract->guild_id)?->roleOf($poster), ['leader', 'officer'], true);
+                && (bool) Guild::query()->find($contract->guild_id)?->can($poster, 'contracts');
             if ($contract->poster_id !== $poster->id && ! $officer) {
                 throw new MarketException('forbidden', 'That is not your contract.', 403);
             }

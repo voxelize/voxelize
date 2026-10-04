@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Guild;
 use App\Models\GuildMember;
 use App\Models\GuildRelation;
+use App\Models\Land;
 use App\Models\User;
 use App\Services\Guild\DiplomacyService;
 use Illuminate\Http\JsonResponse;
@@ -52,6 +53,24 @@ class GuildFeedController extends Controller
             ->header('Content-Type', 'application/json')
             ->header('Content-Length', (string) strlen($body))
             ->header('ETag', $etag);
+    }
+
+    /** A siege succeeded: the land passes to the attacker's guild. */
+    public function capture(Request $request, DiplomacyService $diplomacy): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{8,100}$/'],
+            'attacker' => ['required', 'string', 'max:64'],
+            'land' => ['required', 'string', 'max:26'],
+        ]);
+        $attacker = User::query()->where('public_id', $data['attacker'])->first();
+        $land = Land::query()->where('public_id', $data['land'])->first();
+        if (! $attacker || ! $land) {
+            return response()->json(['error' => ['code' => 'not_found', 'message' => 'Unknown player or land.']], 404);
+        }
+        $captured = $diplomacy->capture($attacker, $land, $data['key']);
+
+        return response()->json(['land' => $captured->public_id, 'guild' => $captured->guild?->public_id, 'replayed' => $captured->wasReplayed], $captured->wasReplayed ? 200 : 201);
     }
 
     /** A player killed another: counts for a war their guilds are fighting. */

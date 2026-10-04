@@ -563,6 +563,9 @@ impl<'a> specs::System<'a> for MarketSystem {
                         );
                     }
                 }
+                Response::Captured { key, outcome } => {
+                    super::guild_api::on_captured(&mut g, &mut chunks, &mut events, &key, outcome);
+                }
                 Response::WarKill {
                     killer,
                     victim,

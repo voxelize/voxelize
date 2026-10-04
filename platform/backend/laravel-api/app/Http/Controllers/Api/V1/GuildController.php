@@ -7,6 +7,7 @@ use App\Models\Guild;
 use App\Models\GuildInvite;
 use App\Models\GuildMember;
 use App\Models\GuildMessage;
+use App\Models\GuildRank;
 use App\Models\GuildRelation;
 use App\Models\LedgerEntry;
 use App\Models\User;
@@ -203,6 +204,48 @@ class GuildController extends Controller
         return response()->json(['message' => ['id' => $message->id, 'body' => $message->body]], 201);
     }
 
+    public function createRank(Request $request, GuildService $guilds, LedgerService $ledger, string $guild): JsonResponse
+    {
+        $data = $request->validate(['name' => ['required', 'string', 'max:24'], 'permissions' => ['present', 'array'], 'permissions.*' => ['string']]);
+        $found = $this->find($guild);
+        $guilds->createRank($request->user(), $found, $data['name'], $data['permissions']);
+
+        return response()->json(['guild' => $this->detail($found->fresh(), $ledger)], 201);
+    }
+
+    public function updateRank(Request $request, GuildService $guilds, LedgerService $ledger, string $guild, string $rank): JsonResponse
+    {
+        $data = $request->validate(['name' => ['nullable', 'string', 'max:24'], 'permissions' => ['nullable', 'array'], 'permissions.*' => ['string']]);
+        $found = $this->find($guild);
+        $guilds->updateRank($request->user(), $found, $this->rank($found, $rank), $data['name'] ?? null, $data['permissions'] ?? null);
+
+        return response()->json(['guild' => $this->detail($found->fresh(), $ledger)]);
+    }
+
+    public function deleteRank(Request $request, GuildService $guilds, LedgerService $ledger, string $guild, string $rank): JsonResponse
+    {
+        $found = $this->find($guild);
+        $guilds->deleteRank($request->user(), $found, $this->rank($found, $rank));
+
+        return response()->json(['guild' => $this->detail($found->fresh(), $ledger)]);
+    }
+
+    public function assignRank(Request $request, GuildService $guilds, LedgerService $ledger, string $guild, string $player): JsonResponse
+    {
+        $data = $request->validate(['rank' => ['present', 'nullable', 'string', 'max:26']]);
+        $found = $this->find($guild);
+        $guilds->assignRank($request->user(), $found, $this->player($player), $data['rank'] ? $this->rank($found, $data['rank']) : null);
+
+        return response()->json(['guild' => $this->detail($found->fresh(), $ledger)]);
+    }
+
+    private function rank(Guild $guild, string $publicId): GuildRank
+    {
+        return GuildRank::query()->where('guild_id', $guild->id)->where('public_id', $publicId)->firstOr(fn () => abort(response()->json([
+            'error' => ['code' => 'rank_not_found', 'message' => 'No such rank.'],
+        ], 404)));
+    }
+
     public function tax(Request $request, DiplomacyService $diplomacy, LedgerService $ledger, string $guild): JsonResponse
     {
         $data = $request->validate(['bps' => ['required', 'integer']]);
@@ -334,7 +377,7 @@ class GuildController extends Controller
     /** @return array<string, mixed> */
     private function detail(Guild $g, LedgerService $ledger): array
     {
-        $g->load(['leader:id,public_id,username', 'members.user:id,public_id,username']);
+        $g->load(['leader:id,public_id,username', 'members.user:id,public_id,username', 'members.rank', 'ranks']);
         $order = array_flip(Guild::ROLES);
 
         return [
@@ -344,7 +387,10 @@ class GuildController extends Controller
                 'id' => $m->user->public_id,
                 'name' => $m->user->username,
                 'role' => $m->role,
+                'rank' => $m->rank ? ['id' => $m->rank->public_id, 'name' => $m->rank->name] : null,
             ])->values(),
+            'ranks' => $g->ranks->map(fn (GuildRank $r) => ['id' => $r->public_id, 'name' => $r->name, 'permissions' => $r->permissions])->values(),
+            'my_permissions' => request()->user() ? $g->permissionsOf(request()->user()) : [],
             'treasury' => $this->treasury($g, $ledger),
             'currency' => (string) config('platform.economy.soft_currency'),
             'max_members' => Settlements::memberLimit($g),

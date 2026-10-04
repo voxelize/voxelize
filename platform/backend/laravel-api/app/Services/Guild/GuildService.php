@@ -6,6 +6,7 @@ use App\Models\Guild;
 use App\Models\GuildInvite;
 use App\Models\GuildMember;
 use App\Models\GuildMessage;
+use App\Models\GuildRank;
 use App\Models\GuildRelation;
 use App\Models\Land;
 use App\Models\LedgerTransaction;
@@ -89,7 +90,7 @@ class GuildService
 
     public function invite(User $actor, Guild $guild, User $player): GuildInvite
     {
-        $this->assertRole($actor, $guild, ['leader', 'officer']);
+        $this->assertCan($actor, $guild, 'invite');
         if (GuildMember::query()->where('user_id', $player->id)->exists()) {
             throw new MarketException('in_guild', 'That player is already in a guild.', 409);
         }
@@ -141,12 +142,20 @@ class GuildService
     public function kick(User $actor, Guild $guild, User $player): void
     {
         DB::transaction(function () use ($actor, $guild, $player) {
-            $actorRole = $this->assertRole($actor, $guild, ['leader', 'officer']);
+            $this->assertCan($actor, $guild, 'kick');
+            $actorRole = $guild->roleOf($actor);
             $member = GuildMember::query()->where('guild_id', $guild->id)->where('user_id', $player->id)->lockForUpdate()->first();
             if (! $member) {
                 throw new MarketException('not_member', 'That player is not in the guild.', 404);
             }
-            if ($member->role === 'leader' || ($actorRole === 'officer' && $member->role === 'officer')) {
+            // The leader removes anyone; officers remove members; a member
+            // whose rank may remove others removes plain members only.
+            $outranked = match ($actorRole) {
+                'leader' => $member->role !== 'leader',
+                'officer' => $member->role === 'member',
+                default => $member->role === 'member' && ! in_array('kick', $member->load('rank')->permissions(), true) && ! $player->is($actor),
+            };
+            if (! $outranked) {
                 throw new MarketException('forbidden', 'You may not remove that member.', 403);
             }
             $member->delete();
@@ -202,7 +211,7 @@ class GuildService
     /** The leader or an officer pays out of the treasury to a member. */
     public function withdraw(User $actor, Guild $guild, User $to, int $amount, string $key): LedgerTransaction
     {
-        $this->assertRole($actor, $guild, ['leader', 'officer']);
+        $this->assertCan($actor, $guild, 'treasury');
         if (! GuildMember::query()->where('guild_id', $guild->id)->where('user_id', $to->id)->exists()) {
             throw new MarketException('not_member', 'Pay out only to members.', 404);
         }
@@ -237,10 +246,89 @@ class GuildService
         return GuildMessage::query()->create(['guild_id' => $guild->id, 'user_id' => $member->id, 'body' => $body]);
     }
 
-    /** Whether `$user` may spend the guild's treasury (leader or officer). */
-    public function assertOfficer(User $user, Guild $guild): void
+    /** Refuse unless `$user` holds `$permission` in the guild (see Guild::PERMISSIONS). */
+    public function assertCan(User $user, Guild $guild, string $permission): void
     {
-        $this->assertRole($user, $guild, ['leader', 'officer']);
+        if ($guild->status !== 'active' || ! $guild->can($user, $permission)) {
+            throw new MarketException('forbidden', 'Your rank does not allow that.', 403);
+        }
+    }
+
+    /** @param  list<string>  $permissions */
+    public function createRank(User $actor, Guild $guild, string $name, array $permissions): GuildRank
+    {
+        $this->assertRole($actor, $guild, ['leader']);
+        [$name, $permissions] = $this->rankFields($name, $permissions);
+        if ($guild->ranks()->count() >= (int) config('platform.guilds.max_ranks')) {
+            throw new MarketException('too_many_ranks', 'A guild has at most '.config('platform.guilds.max_ranks').' ranks.', 409);
+        }
+        if ($guild->ranks()->where('name', $name)->exists()) {
+            throw new MarketException('rank_taken', 'There is a rank of that name.', 409);
+        }
+        $rank = GuildRank::query()->create([
+            'public_id' => (string) Str::ulid(),
+            'guild_id' => $guild->id,
+            'name' => $name,
+            'permissions' => $permissions,
+            'position' => (int) $guild->ranks()->max('position') + 1,
+        ]);
+        $this->audit->record(action: 'guild.rank', actor: $actor, subjectType: 'guild', subjectId: $guild->public_id, payload: ['rank' => $name, 'permissions' => $permissions]);
+
+        return $rank;
+    }
+
+    /** @param  list<string>|null  $permissions */
+    public function updateRank(User $actor, Guild $guild, GuildRank $rank, ?string $name, ?array $permissions): GuildRank
+    {
+        $this->assertRole($actor, $guild, ['leader']);
+        [$name, $permissions] = $this->rankFields($name ?? $rank->name, $permissions ?? $rank->permissions);
+        if ($name !== $rank->name && $guild->ranks()->where('name', $name)->exists()) {
+            throw new MarketException('rank_taken', 'There is a rank of that name.', 409);
+        }
+        $rank->name = $name;
+        $rank->permissions = $permissions;
+        $rank->save();
+
+        return $rank;
+    }
+
+    /** Delete a rank; its holders keep their role without a rank. */
+    public function deleteRank(User $actor, Guild $guild, GuildRank $rank): void
+    {
+        $this->assertRole($actor, $guild, ['leader']);
+        $rank->delete();
+    }
+
+    /** Give a member a rank (or none). */
+    public function assignRank(User $actor, Guild $guild, User $player, ?GuildRank $rank): GuildMember
+    {
+        $this->assertRole($actor, $guild, ['leader']);
+        $member = GuildMember::query()->where('guild_id', $guild->id)->where('user_id', $player->id)->first();
+        if (! $member) {
+            throw new MarketException('not_member', 'That player is not in the guild.', 404);
+        }
+        $member->rank_id = $rank?->id;
+        $member->save();
+
+        return $member;
+    }
+
+    /**
+     * @param  array<mixed>  $permissions
+     * @return array{0: string, 1: list<string>}
+     */
+    private function rankFields(string $name, array $permissions): array
+    {
+        $name = trim($name);
+        if (mb_strlen($name) < 2 || mb_strlen($name) > 24 || ! preg_match('/^[\pL\pN _-]+$/u', $name)) {
+            throw new MarketException('bad_name', 'A rank name is 2-24 letters, digits, spaces, _ or -.');
+        }
+        $unknown = array_diff($permissions, Guild::PERMISSIONS);
+        if ($unknown) {
+            throw new MarketException('bad_permission', 'Permissions are '.implode(', ', Guild::PERMISSIONS).'.');
+        }
+
+        return [$name, array_values(array_intersect(Guild::PERMISSIONS, $permissions))];
     }
 
     private function disband(User $leader, Guild $guild): void

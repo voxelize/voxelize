@@ -25,6 +25,9 @@ pub struct GameConfig {
     /// The business backend's internal API (land, market); `None` only
     /// when explicitly off.
     pub backend: Option<Backend>,
+    /// Seconds a siege banner must hold, with its guild near and no
+    /// defender, to capture the land.
+    pub siege_seconds: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -173,6 +176,15 @@ impl GameConfig {
             transport_secret,
             insecure_dev,
             backend,
+            siege_seconds: {
+                let s = parse(env, "GAME_SIEGE_SECONDS", 600u32)?;
+                if !(5..=86_400).contains(&s) {
+                    return Err(ConfigError(
+                        "GAME_SIEGE_SECONDS must be within 5..=86400".into(),
+                    ));
+                }
+                s as f32
+            },
         })
     }
 }

@@ -104,7 +104,9 @@ Guild blocks: `guild_hall` (Town Hall) and `guild_vault` (Guild Vault) are
 placed only on guild land that is part of a settlement (a hall by the
 guild's leader or officers, a vault by any member). The server gives them
 their behaviour by key: using a hall sets the member's respawn point; a
-vault opens its guild's shared inventory.
+vault opens its guild's shared inventory. `siege_banner` is the one block
+placed on someone else's land: on land of a guild yours is at war with,
+where it runs a siege (see NETWORK_PROTOCOL.md).
 
 ## biomes/ and ores/
 

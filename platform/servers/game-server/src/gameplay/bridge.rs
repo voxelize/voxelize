@@ -90,6 +90,13 @@ pub enum Request {
         /// The guild whose land the stall stands on: it levies its sales tax.
         land_guild: Option<String>,
     },
+    /// A siege held: the land passes to the attacker's guild.
+    Capture {
+        world: String,
+        key: String,
+        attacker: String,
+        land: String,
+    },
     /// A player killed another: the backend scores it for their guilds' war.
     WarKill {
         world: String,
@@ -107,6 +114,7 @@ impl Request {
             | Request::Acknowledge { world, .. }
             | Request::Payment { world, .. }
             | Request::WarKill { world, .. }
+            | Request::Capture { world, .. }
             | Request::UploadBlueprint { world, .. }
             | Request::FetchBlueprint { world, .. } => world,
         }
@@ -167,6 +175,12 @@ pub enum Response {
         id: String,
         at: [i32; 3],
         layout: Value,
+    },
+    /// A siege's outcome: `Ok` captured, `Err(code)` refused for good;
+    /// `None` not sent (try again).
+    Captured {
+        key: String,
+        outcome: Option<Result<(), String>>,
     },
     /// A war kill was counted (`score`: the war's score, first guild first).
     WarKill {
@@ -498,6 +512,27 @@ async fn send(
                 victim,
                 counted,
             }
+        }
+        Request::Capture {
+            key,
+            attacker,
+            land,
+            ..
+        } => {
+            let body = json!({ "key": key, "attacker": attacker, "land": land });
+            let outcome = match post(client, &format!("{base}/wars/captures"), token, body).await {
+                Ok((200 | 201, _)) => Some(Ok(())),
+                Ok((404 | 409 | 422, body)) => Some(Err(error_code(&body))),
+                Ok((status, _)) => {
+                    log::warn!("siege {key} got HTTP {status}; will retry");
+                    None
+                }
+                Err(e) => {
+                    log::warn!("siege {key} not sent ({e}); will retry");
+                    None
+                }
+            };
+            Response::Captured { key, outcome }
         }
         Request::Acknowledge { delivery, .. } => {
             let url = format!("{base}/deliveries/{delivery}/ack");

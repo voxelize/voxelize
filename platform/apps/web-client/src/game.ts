@@ -7,7 +7,7 @@ import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
 import { Content, isUsableBlock, miningMillis } from "./content";
-import { GuildPanel, landNotice } from "./guild";
+import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
@@ -73,6 +73,7 @@ const MESSAGES: Record<string, string> = {
   bad_blueprint: "That is not a blueprint that can be captured or built",
   creative_only: "Only in creative worlds",
   not_at_war: "Your guilds are not at war",
+  siege_underway: "A siege already stands on that land",
   not_in_settlement: "Town halls and vaults stand on guild land in a settlement",
 };
 
@@ -391,6 +392,12 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (spawn.feet) placeFeet(spawn.feet);
     else controls.teleportToTop(spawn.x, spawn.z, 2);
     controls.lock();
+  });
+  // Sieges: progress near a banner, and the outcome.
+  events.on<{ progress?: number; needed?: number; contested?: boolean; captured?: string; failed?: string; code?: string }>("platform.siege", (s) => {
+    if (s.captured) hud.toast("The siege succeeded: the land is captured");
+    else if (s.failed) hud.toast(`The siege failed (${s.code})`);
+    else if (s.needed) hud.toast(siegeLine({ progress: s.progress ?? 0, needed: s.needed, contested: !!s.contested }));
   });
   // Using a town hall: the guild panel opens.
   events.on<{ guild: { tag: string }; home: boolean }>("platform.guild.hall", ({ guild, home }) => {

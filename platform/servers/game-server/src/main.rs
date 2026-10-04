@@ -163,6 +163,11 @@ fn build_world(
                 "platform-trades",
                 &["platform-market"],
             )
+            .with(
+                gameplay::SiegeSystem::default(),
+                "platform-sieges",
+                &["platform-trades"],
+            )
     });
     world
 }
@@ -254,6 +259,7 @@ async fn main() -> std::io::Result<()> {
             guilds: guilds.clone(),
             vaults: vaults.clone(),
             bridge: bridge.clone(),
+            siege_seconds: config.siege_seconds,
         };
         server
             .add_world(build_world(&config, content.clone(), dimensions))

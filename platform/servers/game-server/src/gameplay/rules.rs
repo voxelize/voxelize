@@ -61,6 +61,8 @@ pub enum IntentError {
     NotInSettlement,
     /// Players may only fight players of a guild theirs is at war with.
     NotAtWar,
+    /// A siege already stands on that land.
+    SiegeUnderway,
     /// The land there belongs to someone who has not allowed this.
     LandProtected,
     MarketUnavailable,
@@ -100,6 +102,7 @@ impl IntentError {
             IntentError::CreativeOnly => "creative_only",
             IntentError::NotInSettlement => "not_in_settlement",
             IntentError::NotAtWar => "not_at_war",
+            IntentError::SiegeUnderway => "siege_underway",
             IntentError::LandProtected => "land_protected",
             IntentError::MarketUnavailable => "market_unavailable",
             IntentError::SurvivalOnly => "survival_only",

@@ -197,6 +197,19 @@ announces it on entry.
 - `POST /guilds/{id}/deposit` 🔒 member — header `Idempotency-Key`; `{ "amount" }` → `{ "transaction", "treasury", "balance" }`.
 - `POST /guilds/{id}/withdraw` 🔒 leader or officer — header `Idempotency-Key`; `{ "amount", "to"?: username }` (a member; yourself by default).
 - `GET /guilds/{id}/entries` 🔒 member — treasury ledger entries, cursor paginated.
+**Ranks.** Beyond the three roles, the leader defines up to
+`guilds.max_ranks` (10) ranks: a title and permissions from `invite`,
+`kick`, `treasury` (pay out), `land` (claim guild land; a manager on guild
+land, so may place town halls), `contracts` (post guild contracts). The
+leader may do everything, officers all five; members only what their rank
+grants. A member who may remove others removes plain members only. The
+guild detail adds `"ranks": [{ "id", "name", "permissions" }]`,
+`"roster"[].rank: { "id", "name" } | null` and `"my_permissions"`.
+
+- `POST /guilds/{id}/ranks` 🔒 leader — `{ "name" (2–24), "permissions": [] }` → `201 { "guild" }`; `409 rank_taken | too_many_ranks`, `422 bad_name | bad_permission`.
+- `PATCH /guilds/{id}/ranks/{rank}` 🔒 leader — `{ "name"?, "permissions"? }`.
+- `DELETE /guilds/{id}/ranks/{rank}` 🔒 leader — its holders keep their role, without a rank.
+- `PUT /guilds/{id}/members/{username}/rank` 🔒 leader — `{ "rank": id | null }`.
 - `PUT /guilds/{id}/tax` 🔒 leader — `{ "bps": 0–2000 }`: a sales tax on every stall sale on the guild's land (not on its own guild stalls), paid to its treasury; `422 bad_tax`.
 - `GET /guilds/{id}/relations` 🔒 — `{ "relations": [Relation] }`, Relation `{ "id", "kind": "alliance" | "war", "status": "proposed" | "active", "with": { "id", "name", "tag" }, "initiated", "fighting", "starts_at", "ends_at", "score": { "us", "them" } | null, "peace_offered": "us" | "them" | null }`; also in the guild detail with `tax_bps`.
 - `POST /guilds/{id}/alliances` 🔒 leader — `{ "guild": id or tag }`: proposes, or accepts the other guild's proposal; allies' members visit each other's guild land (use switches and gates). `409 at_war`, `422 bad_guild`.
@@ -266,6 +279,14 @@ every active guild, its active alliances and the wars it is fighting right
 now (past the warm-up, before the end). Polled with `If-None-Match` like the
 land feed; game servers allow fighting between players of guilds at war
 and open guild vaults to members.
+
+### `POST /api/internal/v1/wars/captures`
+`{ "key": siege id, "attacker", "land": land id }`: a siege banner held long
+enough; when the attacker's guild is fighting the land's guild, the land
+passes to the attacker's guild (owned by its leader, individual land members
+dropped, `land_history` event `captured`) and the war scores
+`guilds.war.capture_points` (3) for it; once per key → `201`/`200 { "land", "guild", "replayed" }`;
+`409 not_at_war | not_guild_land`.
 
 ### `POST /api/internal/v1/wars/kills`
 `{ "key": kill id, "killer", "victim" }` (public ids): scores a kill for the

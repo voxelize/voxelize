@@ -122,8 +122,13 @@ export type ContractView = {
 
 export type GuildSummary = { id: string; name: string; tag: string; leader: { id: string; name: string }; members: number };
 export type GuildRole = "leader" | "officer" | "member";
+export const GUILD_PERMISSIONS = ["invite", "kick", "treasury", "land", "contracts"] as const;
+export type GuildPermission = (typeof GUILD_PERMISSIONS)[number];
+export type GuildRank = { id: string; name: string; permissions: GuildPermission[] };
 export type GuildView = GuildSummary & {
-  roster: { id: string; name: string; role: GuildRole }[];
+  roster: { id: string; name: string; role: GuildRole; rank: { id: string; name: string } | null }[];
+  ranks: GuildRank[];
+  my_permissions: GuildPermission[];
   treasury: number;
   currency: string;
   max_members: number;
@@ -240,6 +245,16 @@ export const api = {
       request<{ messages: GuildMessage[] }>(`/guilds/${id}/messages${after ? `?after=${after}` : ""}`).then((r) => r.messages),
     say: (id: string, body: string) =>
       request<{ message: { id: number } }>(`/guilds/${id}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
+    createRank: (id: string, name: string, permissions: GuildPermission[]) =>
+      request<{ guild: GuildView }>(`/guilds/${id}/ranks`, { method: "POST", body: JSON.stringify({ name, permissions }) }).then((r) => r.guild),
+    updateRank: (id: string, rank: string, body: { name?: string; permissions?: GuildPermission[] }) =>
+      request<{ guild: GuildView }>(`/guilds/${id}/ranks/${rank}`, { method: "PATCH", body: JSON.stringify(body) }).then((r) => r.guild),
+    deleteRank: (id: string, rank: string) =>
+      request<{ guild: GuildView }>(`/guilds/${id}/ranks/${rank}`, { method: "DELETE" }).then((r) => r.guild),
+    assignRank: (id: string, player: string, rank: string | null) =>
+      request<{ guild: GuildView }>(`/guilds/${id}/members/${encodeURIComponent(player)}/rank`, { method: "PUT", body: JSON.stringify({ rank }) }).then(
+        (r) => r.guild,
+      ),
     setTax: (id: string, bps: number) =>
       request<{ guild: GuildView }>(`/guilds/${id}/tax`, { method: "PUT", body: JSON.stringify({ bps }) }).then((r) => r.guild),
     ally: (id: string, other: string) =>

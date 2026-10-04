@@ -1,12 +1,14 @@
-// Guild buildings, alliances and war end to end: the leader of a guild with
-// a village places a town hall and uses it as their respawn point; members
-// place two vaults that share one inventory; vaults stay out of the
-// wilderness; players of guilds at peace cannot hurt each other; a war is
-// declared, kills are scored, the leader respawns at the town hall; the
-// leaders make peace.
+// Guild buildings, ranks, war and sieges end to end: the leader gives a
+// member a rank that lets them manage land, and that member places a town
+// hall the leader uses as their respawn point; two vaults share one
+// inventory; vaults stay out of the wilderness; players of guilds at peace
+// cannot hurt each other; a war is declared, kills are scored, the leader
+// respawns at the town hall; a siege banner held on the village (contested
+// while a defender stands by) captures the land; the leaders make peace.
 //
 // Standalone only (starting goods are written into player records), with
-// the war warm-up off (GUILD_WAR_WARMUP_MINUTES=0 for the API):
+// the war warm-up off (GUILD_WAR_WARMUP_MINUTES=0 for the API) and short
+// sieges (GAME_SIEGE_SECONDS=8 for the game server):
 //   SAVE_DIR=... FUND_CMD='php artisan economy:grant {player} {player} 2000 --reason=t' \
 //     node diplomacy.mjs <api base> <game base>
 
@@ -42,9 +44,8 @@ const seed = (who, slots) => {
   mkdirSync(`${process.env.SAVE_DIR}/main/players`, { recursive: true });
   writeFileSync(`${process.env.SAVE_DIR}/main/players/${ids[who]}.json`, JSON.stringify({ version: 1, id: ids[who], inventory: { slots: all, selected: 0 }, position: null }));
 };
-seed("ann", [{ item: item("guild_hall").id, count: 1 }]);
-seed("amy", [{ item: item("iron_sword").id, count: 1, durability: 250 }, { item: item("guild_vault").id, count: 3 }, { item: item("bread").id, count: 5 }]);
-seed("bob", [{ item: item("iron_sword").id, count: 1, durability: 250 }]);
+seed("amy", [{ item: item("iron_sword").id, count: 1, durability: 250 }, { item: item("guild_vault").id, count: 3 }, { item: item("bread").id, count: 5 }, { item: item("guild_hall").id, count: 1 }]);
+seed("bob", [{ item: item("iron_sword").id, count: 1, durability: 250 }, { item: item("siege_banner").id, count: 1 }]);
 
 // Two guilds; Alpha has a village near spawn.
 const found = async (who, name, tag) => (await as(who)("/guilds", { headers: { "Idempotency-Key": key() }, body: { name, tag } })).guild;
@@ -107,15 +108,22 @@ const placed = async (bot, at, id) => {
   for (let i = 0; i < 50 && bots.ann.voxel(...at) !== id; i++) await sleep(100);
 };
 
-// The town hall: the leader places and uses it.
+// A plain member may not raise a town hall.
 const hallAt = [x, y, z];
-await call(bots.ann, "build.place", { voxel: hallAt, slot: 0 });
+assert.equal(await refused(bots.amy, "build.place", { voxel: hallAt, slot: 3 }), "not_owner");
+// A rank: the leader makes the member a Steward, who may manage land.
+const ranked = await as("ann")(`/guilds/${alpha.id}/ranks`, { body: { name: "Steward", permissions: ["land", "treasury"] } });
+await as("ann")(`/guilds/${alpha.id}/members/${names.amy}/rank`, { method: "PUT", body: { rank: ranked.guild.ranks[0].id } });
+// The land feed makes the Steward a manager within a second or two.
+await sleep(2500);
+await call(bots.amy, "build.place", { voxel: hallAt, slot: 3 });
+step("a member ranked Steward placed the town hall (a plain member could not)");
 await placed(bots.ann, hallAt, block("guild_hall").id);
 const hallEvent = bots.ann.event("platform.guild.hall", (e) => e.home, 8000);
 await call(bots.ann, "use", { voxel: hallAt });
 const hall = await hallEvent;
 assert.equal(hall.guild.tag, alpha.tag);
-step("the leader placed a town hall and made it their respawn point");
+step("the leader made the town hall their respawn point");
 
 // Vaults: two blocks, one inventory.
 const v1 = vault1;
@@ -156,6 +164,28 @@ step("players of guilds at peace cannot hurt each other");
 // War (no warm-up here); the feed reaches the game server within a second.
 await as("ann")(`/guilds/${alpha.id}/wars`, { body: { guild: bravo.tag } });
 await sleep(2500);
+// A siege: Bravo raises a banner on the village; a defender nearby holds it off.
+const claimOf = (c) => [Math.floor(c[0] / 16), Math.floor(c[2] / 16)];
+const inVillage = (c) => { const [a, b] = claimOf(c); return a >= cx && a <= cx + 1 && b >= cz && b <= cz + 1; };
+const used = (c) => [hallAt, v1, v2].some((u) => u[0] === c[0] && u[2] === c[2]);
+const bannerAt = cells.find((c) => inVillage(c) && !used(c) && near(hallCell, c, 6)) ?? cells.find((c) => inVillage(c) && !used(c));
+assert.ok(bannerAt, "room for a banner in the village");
+for (const who of ["ann", "amy"]) await bots[who].moveTo([bannerAt[0] + 20.5, bannerAt[1] + 4 + EYE, bannerAt[2] + 0.5], 4);
+await bots.bob.moveTo([bannerAt[0] + 2.5, bannerAt[1] + EYE, bannerAt[2] + 0.5], 8);
+await sleep(600);
+await call(bots.bob, "build.place", { voxel: bannerAt, slot: 1 });
+await bots.amy.moveTo([bannerAt[0] - 2.5, bannerAt[1] + EYE, bannerAt[2] + 0.5], 8);
+await bots.bob.event("platform.siege", (e) => e.contested === true, 10000);
+step("Bravo raised a siege banner on the village; a defender contests it");
+const captured = bots.bob.event("platform.siege", (e) => e.captured, 30000);
+await bots.amy.moveTo([bannerAt[0] - 20.5, bannerAt[1] + 4 + EYE, bannerAt[2] + 0.5], 8);
+const won = await captured;
+const lands = (await as("bob")("/lands?world=main&dimension=overworld")).lands;
+assert.equal(lands.find((l) => l.id === won.captured)?.guild?.tag, bravo.tag, "the land is Bravo's");
+for (let i = 0; i < 30 && bots.bob.voxel(...bannerAt) !== 0; i++) await sleep(100);
+assert.equal(bots.bob.voxel(...bannerAt), 0, "the banner is spent");
+step("the banner held: the land passed to Bravo");
+
 const strike = async (attacker, victim) => {
   const died = bots[victim].event("platform.vitals", (v) => v.dead && v.cause === "player", 30000);
   for (let i = 0; i < 40; i++) {
@@ -167,7 +197,8 @@ const strike = async (attacker, victim) => {
   }
   await died;
 };
-await bots.bob.moveTo([x + 2.5, y + EYE, z - 2.5], 3);
+for (const [who, dx] of [["ann", 0], ["amy", 1], ["bob", 2]]) await bots[who].moveTo([x + dx + 0.5, y + EYE, z - 2.5], 8);
+await sleep(500);
 await strike(bots.amy, "bob");
 step("at war: a member of Alpha defeated Bravo's leader");
 await call(bots.bob, "respawn", {});
@@ -181,13 +212,14 @@ const spawn = await respawned;
 assert.deepEqual(spawn.feet, [hallAt[0], hallAt[1] + 1, hallAt[2]], "respawned at the town hall");
 step("the leader fell and respawned at the town hall");
 
-await sleep(2000);
+
+await sleep(1000);
 const war = (await as("ann")(`/guilds/${alpha.id}/relations`)).relations[0];
-assert.deepEqual(war.score, { us: 1, them: 1 });
+assert.deepEqual(war.score, { us: 1, them: 4 }, "a kill each, and 3 for the capture");
 await as("ann")(`/guilds/${alpha.id}/wars/${bravo.tag}/peace`, { body: {} });
 const peace = await as("bob")(`/guilds/${bravo.id}/wars/${alpha.tag}/peace`, { body: {} });
 assert.equal(peace.peace, true);
-step("the war stood 1:1 when both leaders made peace");
+step("the war stood 1:4 when both leaders made peace");
 
 for (const b of Object.values(bots)) b.close();
 console.log("diplomacy: all checks passed");

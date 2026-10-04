@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guildActions, landNotice, newMessages, normaliseTag, parseTax, relationLine, settlementLine, validTag } from "./guild";
+import { guildActions, siegeLine, landNotice, newMessages, normaliseTag, parseTax, relationLine, settlementLine, validTag } from "./guild";
 
 describe("guild panel", () => {
   it("lets the leader appoint and officers only remove members", () => {
@@ -9,6 +9,10 @@ describe("guild panel", () => {
     expect(guildActions("officer", "officer", false)).toEqual([]);
     expect(guildActions("member", "member", false)).toEqual([]);
     expect(guildActions("leader", "leader", true)).toEqual([]);
+    expect(guildActions("member", "member", false, true)).toEqual(["kick"], );
+    expect(guildActions("member", "officer", false, true)).toEqual([]);
+    expect(siegeLine({ progress: 30, needed: 60, contested: true })).toBe("Siege 50% · contested");
+    expect(siegeLine({ progress: 90, needed: 60, contested: false })).toBe("Siege 100%");
   });
 
   it("normalises tags", () => {

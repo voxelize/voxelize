@@ -25,6 +25,7 @@ pub mod stall;
 pub use market::MarketSystem;
 pub mod trade;
 pub mod travel;
+pub use guild_api::SiegeSystem;
 pub use land::LandNoticeSystem;
 pub use trade::TradeSystem;
 pub use travel::{Dimensions, PortalSystem};
@@ -79,6 +80,8 @@ pub struct Gameplay {
     dimensions: Dimensions,
     /// Open trade windows and their outcomes (`trades.json`).
     trades: trade::Trades,
+    /// Siege banners standing on enemy guild land (`sieges.json`).
+    sieges: guild_api::Sieges,
 }
 
 impl Gameplay {
@@ -97,6 +100,7 @@ impl Gameplay {
             store: PlayerStore::for_dimension(players_dir, dimensions.current),
             dimensions,
             trades: trade::Trades::load(world_dir)?,
+            sieges: guild_api::Sieges::load(world_dir)?,
             players: HashMap::new(),
             rng: seed as u64 ^ 0x5EED_CAFE_F00D,
             containers: containers::Containers::load(world_dir)?,
@@ -649,14 +653,9 @@ pub fn install(
         let Some(p) = parse::<PlacePayload>(world, client_id, INTENT, payload) else {
             return;
         };
-        if !land_allows(world, client_id, p.voxel, land::Action::Build) {
-            reply(world, client_id, INTENT, Err(IntentError::LandProtected));
-            return;
-        }
-        // Town halls and vaults only go into settlements.
-        let guild_block = {
+        let key = {
             let g = world.ecs().read_resource::<Gameplay>();
-            let key = match &p.block {
+            match &p.block {
                 Some(key) => Some(key.clone()),
                 None => g.players.get(client_id).and_then(|player| {
                     let slot = p.slot.unwrap_or(player.inventory.selected);
@@ -667,7 +666,44 @@ pub fn install(
                         .places_block
                         .clone()
                 }),
+            }
+        };
+        // A siege banner goes onto enemy land, where nothing else may be built.
+        let siege = if key.as_deref() == Some("siege_banner") {
+            let checked = {
+                let g = world.ecs().read_resource::<Gameplay>();
+                let survival = g
+                    .players
+                    .get(client_id)
+                    .is_some_and(|pl| pl.realm == Realm::Survival);
+                let result = match (g.dimensions.land.read(), g.dimensions.guilds.read()) {
+                    _ if !survival => Err(IntentError::SurvivalOnly),
+                    (Ok(land), Ok(guilds)) => guild_api::may_siege(
+                        &land,
+                        &guilds,
+                        &g.sieges.list,
+                        g.dimensions.current,
+                        client_id,
+                        p.voxel,
+                    ),
+                    _ => Err(IntentError::NotAtWar),
+                };
+                result
             };
+            match checked {
+                Ok(siege) => Some(siege),
+                Err(e) => return reply(world, client_id, INTENT, Err(e)),
+            }
+        } else {
+            None
+        };
+        if siege.is_none() && !land_allows(world, client_id, p.voxel, land::Action::Build) {
+            reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
+        // Town halls and vaults only go into settlements.
+        let guild_block = {
+            let g = world.ecs().read_resource::<Gameplay>();
             key.map_or(Ok(()), |key| {
                 guild_api::may_place(&g, client_id, p.voxel, &key)
             })
@@ -705,6 +741,12 @@ pub fn install(
                 };
                 world.chunks_mut().update_voxel(&Vec3(x, y, z), raw);
                 items_api::block_placed(world, p.voxel, block, client_id);
+                if let Some(siege) = siege {
+                    let mut g = world.ecs().write_resource::<Gameplay>();
+                    log::info!("{client_id} besieges land {} at {:?}", siege.land, siege.at);
+                    g.sieges.list.push(siege);
+                    g.sieges.save();
+                }
                 persist(world, client_id);
                 reply(
                     world,

@@ -2,7 +2,18 @@
 // Everything goes to the API; guild land shows up in the land panel and is
 // enforced by the game server like any other land.
 
-import { api, ApiError, idempotencyKey, type GuildMessage, type GuildRelation, type GuildRole, type GuildView, type Settlement } from "./api";
+import {
+  api,
+  ApiError,
+  GUILD_PERMISSIONS,
+  idempotencyKey,
+  type GuildMessage,
+  type GuildPermission,
+  type GuildRelation,
+  type GuildRole,
+  type GuildView,
+  type Settlement,
+} from "./api";
 import type { LandHere } from "./land";
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -16,11 +27,34 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-/** What a role may do to another member's role (the leader appoints; officers only remove members). */
-export function guildActions(mine: GuildRole | null, theirs: GuildRole, self: boolean): ("promote" | "demote" | "lead" | "kick")[] {
-  if (self || theirs === "leader" || !mine || mine === "member") return [];
-  if (mine === "officer") return theirs === "member" ? ["kick"] : [];
-  return theirs === "member" ? ["promote", "lead", "kick"] : ["demote", "lead", "kick"];
+/**
+ * What a member may do to another: the leader appoints and removes anyone;
+ * officers, and members whose rank allows it, remove members only.
+ */
+export function guildActions(
+  mine: GuildRole | null,
+  theirs: GuildRole,
+  self: boolean,
+  canKick = mine === "leader" || mine === "officer",
+): ("promote" | "demote" | "lead" | "kick")[] {
+  if (self || theirs === "leader" || !mine) return [];
+  if (mine === "leader") return theirs === "member" ? ["promote", "lead", "kick"] : ["demote", "lead", "kick"];
+  return canKick && theirs === "member" ? ["kick"] : [];
+}
+
+/** A rank's permissions in words. */
+export const PERMISSION_NAMES: Record<GuildPermission, string> = {
+  invite: "invite",
+  kick: "remove members",
+  treasury: "pay out",
+  land: "claim and manage land",
+  contracts: "post contracts",
+};
+
+/** A siege's state in a line. */
+export function siegeLine(s: { progress: number; needed: number; contested: boolean }): string {
+  const pct = Math.min(100, Math.floor((s.progress / s.needed) * 100));
+  return `Siege ${pct}%${s.contested ? " · contested" : ""}`;
 }
 
 /** A guild tag as players type it: 2-5 letters or digits, upper case. */
@@ -181,7 +215,13 @@ export class GuildPanel {
     const roster = el("ul", { className: "guild-roster" });
     for (const m of g.roster) {
       const li = el("li", {}, `${m.name} (${m.role}) `);
-      for (const action of guildActions(g.my_role, m.role, m.name === me)) {
+      if (m.rank) li.append(el("em", { textContent: `${m.rank.name} ` }));
+      if (g.my_role === "leader" && m.role !== "leader" && g.ranks.length) {
+        const pick = el("select", {}, el("option", { value: "", textContent: "no rank" }), ...g.ranks.map((r) => el("option", { value: r.id, textContent: r.name, selected: m.rank?.id === r.id })));
+        pick.addEventListener("change", () => this.act(() => api.guilds.assignRank(g.id, m.name, pick.value || null), "Rank given"));
+        li.append(pick);
+      }
+      for (const action of guildActions(g.my_role, m.role, m.name === me, g.my_permissions.includes("kick"))) {
         const [label, work, done] = {
           promote: ["Make officer", () => api.guilds.setRole(g.id, m.name, "officer"), `${m.name} is an officer`],
           demote: ["Make member", () => api.guilds.setRole(g.id, m.name, "member"), `${m.name} is a member`],
@@ -198,6 +238,29 @@ export class GuildPanel {
       roster.append(li);
     }
     nodes.push(el("h3", { textContent: "Members" }), roster);
+
+    // Ranks: titles with permissions, given by the leader.
+    if (g.ranks.length || g.my_role === "leader") {
+      nodes.push(el("h3", { textContent: "Ranks" }));
+      const list = el("ul", { className: "guild-roster" });
+      for (const r of g.ranks) {
+        const li = el("li", { textContent: `${r.name}: ${r.permissions.map((p) => PERMISSION_NAMES[p]).join(", ") || "no extra rights"} ` });
+        if (g.my_role === "leader") li.append(el("button", { type: "button", onclick: () => this.act(() => api.guilds.deleteRank(g.id, r.id), "Rank removed") }, "Remove"));
+        list.append(li);
+      }
+      nodes.push(list);
+      if (g.my_role === "leader") {
+        const name = el("input", { type: "text", maxLength: 24, placeholder: "Rank name" });
+        const boxes = GUILD_PERMISSIONS.map((p) => [p, el("input", { type: "checkbox" })] as const);
+        nodes.push(
+          el("div", { className: "guild-found" }, name, ...boxes.map(([p, box]) => el("label", {}, box, ` ${PERMISSION_NAMES[p]}`))),
+          el("button", {
+            type: "button",
+            onclick: () => this.act(() => api.guilds.createRank(g.id, name.value.trim(), boxes.filter(([, b]) => b.checked).map(([p]) => p)), "Rank created"),
+          }, "Create rank"),
+        );
+      }
+    }
 
     // Settlements: touching guild lands, levelled by size and membership.
     nodes.push(el("h3", { textContent: `Settlements${g.settlement_level !== "none" ? ` · best: ${g.settlement_level}` : ""}` }));
@@ -273,7 +336,7 @@ export class GuildPanel {
         el("button", { type: "button", onclick: () => this.act(() => api.guilds.deposit(g.id, depositKey, Number(amount.value)), "Deposited") }, "Deposit"),
       ),
     );
-    if (g.my_role === "leader" || g.my_role === "officer") {
+    if (g.my_permissions.includes("treasury") || g.my_permissions.includes("invite")) {
       const player = el("input", { type: "text", maxLength: 24, placeholder: "Player name" });
       const withdrawKey = idempotencyKey();
       nodes.push(

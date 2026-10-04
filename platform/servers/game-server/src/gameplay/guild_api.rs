@@ -9,6 +9,11 @@ use serde_json::json;
 use specs::WorldExt;
 use voxelize::{ClientFilter, Event, World};
 
+use std::path::{Path, PathBuf};
+
+use serde::Serialize;
+use voxelize::{Chunks, PositionComp, Vec3, VoxelAccess};
+
 use super::bridge::Request;
 use super::rules::IntentError;
 use super::survival::{DamageKind, EYE_HEIGHT};
@@ -144,6 +149,278 @@ pub fn respawn_home(world: &mut World, id: &str) -> Option<[i32; 3]> {
         return None;
     }
     Some(home)
+}
+
+/// Progress of the sieges near a player: `{ "at", "land", "attacker", "progress", "needed", "contested" }`.
+pub const SIEGE_EVENT: &str = "platform.siege";
+/// Blocks from the banner within which attackers hold it and defenders contest it.
+pub const SIEGE_RADIUS: f32 = 12.0;
+
+/// A siege banner on enemy guild land.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Siege {
+    /// Capture key: the backend counts each siege once.
+    pub id: String,
+    pub at: [i32; 3],
+    pub land: String,
+    pub attacker_guild: String,
+    pub defender_guild: String,
+    /// The player who raised the banner (reported as the attacker).
+    pub player: String,
+    /// Seconds the banner has held.
+    pub progress: f32,
+    /// Sent to the backend, waiting for its answer.
+    #[serde(default)]
+    pub reported: bool,
+}
+
+/// This world's sieges, saved in `sieges.json`.
+#[derive(Debug, Default)]
+pub struct Sieges {
+    path: Option<PathBuf>,
+    pub list: Vec<Siege>,
+}
+
+impl Sieges {
+    pub fn load(dir: &Path) -> Result<Self, String> {
+        let path = dir.join("sieges.json");
+        let list = match std::fs::read(&path) {
+            Ok(bytes) => {
+                serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(e) => return Err(format!("{}: {e}", path.display())),
+        };
+        Ok(Self {
+            path: Some(path),
+            list,
+        })
+    }
+
+    pub fn save(&self) {
+        let Some(path) = &self.path else { return };
+        let write = || -> std::io::Result<()> {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            let tmp = path.with_extension("json.tmp");
+            std::fs::write(
+                &tmp,
+                serde_json::to_vec(&self.list).expect("sieges serialize"),
+            )?;
+            std::fs::rename(tmp, path)
+        };
+        if let Err(e) = write() {
+            log::error!("could not save sieges: {e}");
+        }
+    }
+}
+
+/// Whether `player` may raise a siege banner at `voxel`: on land of a guild
+/// theirs is fighting, where no siege stands yet. Returns the siege to start.
+pub fn may_siege(
+    land: &super::land::LandIndex,
+    guilds: &super::guilds::GuildIndex,
+    sieges: &[Siege],
+    dimension: Dimension,
+    player: &str,
+    voxel: [i32; 3],
+) -> Result<Siege, IntentError> {
+    let mine = guilds.guild_of(player).ok_or(IntentError::NotAtWar)?;
+    let here = land
+        .at(dimension, voxel[0], voxel[2])
+        .ok_or(IntentError::NotAtWar)?;
+    let defender = here.guild.as_ref().ok_or(IntentError::NotAtWar)?;
+    if !mine.wars.contains(&defender.id) {
+        return Err(IntentError::NotAtWar);
+    }
+    if sieges.iter().any(|s| s.land == here.id) {
+        return Err(IntentError::SiegeUnderway);
+    }
+    Ok(Siege {
+        id: format!("siege-{}-{}-{}-{}", here.id, voxel[0], voxel[1], voxel[2]),
+        at: voxel,
+        land: here.id.clone(),
+        attacker_guild: mine.id.clone(),
+        defender_guild: defender.id.clone(),
+        player: player.to_owned(),
+        progress: 0.0,
+        reported: false,
+    })
+}
+
+/// One step of a siege: the banner holds while its guild's players are
+/// near and no defender is; returns whether it is contested.
+pub fn advance(siege: &mut Siege, attackers_near: usize, defenders_near: usize, dt: f32) -> bool {
+    let contested = defenders_near > 0;
+    if attackers_near > 0 && !contested {
+        siege.progress += dt;
+    }
+    contested
+}
+
+/// Keeps sieges going: drops those whose banner fell or whose war ended,
+/// advances the rest, tells players near a banner how it stands and asks
+/// the backend for the land once a banner has held long enough.
+#[derive(Default)]
+pub struct SiegeSystem {
+    last: Option<std::time::Instant>,
+    since_notice: f32,
+}
+
+impl<'a> specs::System<'a> for SiegeSystem {
+    type SystemData = (
+        specs::ReadExpect<'a, Chunks>,
+        specs::ReadExpect<'a, voxelize::WorldConfig>,
+        specs::ReadExpect<'a, voxelize::Clients>,
+        specs::ReadStorage<'a, PositionComp>,
+        specs::WriteExpect<'a, Gameplay>,
+        specs::WriteExpect<'a, voxelize::Events>,
+    );
+
+    fn run(&mut self, (chunks, config, clients, positions, mut g, mut events): Self::SystemData) {
+        let chunk_size = config.chunk_size;
+        let now = std::time::Instant::now();
+        let dt = self
+            .last
+            .map(|l| now.duration_since(l).as_secs_f32())
+            .unwrap_or(0.0)
+            .min(0.5);
+        self.last = Some(now);
+        if g.sieges.list.is_empty() {
+            return;
+        }
+        self.since_notice += dt;
+        let notify = self.since_notice >= 2.0;
+        if notify {
+            self.since_notice = 0.0;
+        }
+        let Some(banner) = g.rules.content().block("siege_banner").map(|b| b.id) else {
+            return;
+        };
+        let needed = g.dimensions.siege_seconds;
+        let world_name = g
+            .dimensions
+            .world_of(g.dimensions.current)
+            .map(str::to_owned);
+        let bridge = g.dimensions.bridge.clone();
+        let guilds = g.dimensions.guilds.clone();
+        let Ok(index) = guilds.read() else { return };
+        let bodies: Vec<(String, [f32; 3], bool)> = clients
+            .iter()
+            .filter_map(|(id, c)| {
+                let p = positions.get(c.entity)?;
+                let alive = g
+                    .players
+                    .get(id)
+                    .is_some_and(|s| s.realm == Realm::Survival && !s.vitals.is_dead());
+                Some((id.clone(), [p.0 .0, p.0 .1, p.0 .2], alive))
+            })
+            .collect();
+        let mut changed = false;
+        let Gameplay { sieges, .. } = &mut *g;
+        sieges.list.retain(|s| {
+            let [x, y, z] = s.at;
+            let coords = voxelize::ChunkUtils::map_voxel_to_chunk(x, y, z, chunk_size);
+            // An unloaded banner is left alone; a fallen one ends the siege.
+            let fallen = chunks.is_chunk_ready(&coords) && chunks.get_voxel(x, y, z) != banner;
+            let war_over = !index
+                .guild_of(&s.player)
+                .is_some_and(|g| g.id == s.attacker_guild && g.wars.contains(&s.defender_guild));
+            let keep = s.reported || !(fallen || war_over);
+            changed |= !keep;
+            keep
+        });
+        for siege in sieges.list.iter_mut().filter(|s| !s.reported) {
+            let center = [
+                siege.at[0] as f32 + 0.5,
+                siege.at[1] as f32 + 0.5,
+                siege.at[2] as f32 + 0.5,
+            ];
+            let near = |guild: &str| {
+                bodies
+                    .iter()
+                    .filter(|(id, p, alive)| {
+                        *alive
+                            && index.is_member(id, guild)
+                            && (0..3).map(|i| (p[i] - center[i]).powi(2)).sum::<f32>()
+                                <= SIEGE_RADIUS * SIEGE_RADIUS
+                    })
+                    .count()
+            };
+            let (attackers, defenders) = (near(&siege.attacker_guild), near(&siege.defender_guild));
+            let contested = advance(siege, attackers, defenders, dt);
+            if notify {
+                let payload = json!({
+                    "at": siege.at, "land": siege.land, "attacker": siege.attacker_guild,
+                    "progress": siege.progress, "needed": needed, "contested": contested,
+                });
+                for (id, p, _) in &bodies {
+                    if (0..3).map(|i| (p[i] - center[i]).powi(2)).sum::<f32>() <= 32.0 * 32.0 {
+                        events.dispatch(
+                            Event::new(SIEGE_EVENT)
+                                .payload(payload.clone())
+                                .filter(ClientFilter::Direct(id.clone()))
+                                .build(),
+                        );
+                    }
+                }
+            }
+            if siege.progress >= needed {
+                if let (Some(bridge), Some(world)) = (&bridge, &world_name) {
+                    siege.reported = true;
+                    changed = true;
+                    bridge.request(Request::Capture {
+                        world: world.clone(),
+                        key: siege.id.clone(),
+                        attacker: siege.player.clone(),
+                        land: siege.land.clone(),
+                    });
+                }
+            }
+        }
+        if changed {
+            sieges.save();
+        }
+    }
+}
+
+/// The backend's answer to a capture: the banner is spent on success.
+pub fn on_captured(
+    g: &mut Gameplay,
+    chunks: &mut Chunks,
+    events: &mut voxelize::Events,
+    key: &str,
+    outcome: Option<Result<(), String>>,
+) {
+    let Some(i) = g.sieges.list.iter().position(|s| s.id == key) else {
+        return;
+    };
+    match outcome {
+        None => {
+            // Not sent: ask again on a later tick.
+            g.sieges.list[i].reported = false;
+            g.sieges.list[i].progress = g.dimensions.siege_seconds;
+        }
+        Some(result) => {
+            let siege = g.sieges.list.remove(i);
+            if result.is_ok() {
+                chunks.update_voxel(&Vec3(siege.at[0], siege.at[1], siege.at[2]), 0);
+            }
+            let payload = match &result {
+                Ok(()) => {
+                    json!({ "captured": siege.land, "by": siege.attacker_guild, "at": siege.at })
+                }
+                Err(code) => json!({ "failed": siege.land, "code": code, "at": siege.at }),
+            };
+            events.dispatch_near(
+                Event::new(SIEGE_EVENT).payload(payload).build(),
+                [siege.at[0] as f32, siege.at[1] as f32, siege.at[2] as f32],
+                48.0,
+            );
+        }
+    }
+    g.sieges.save();
 }
 
 #[derive(Deserialize)]
@@ -289,6 +566,94 @@ pub(super) fn install(world: &mut World) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sieges_need_war_hold_and_no_defenders() {
+        let land = LandIndex::from_feed(
+            serde_json::from_value::<Feed>(json!({
+                "world": "main",
+                "lands": [{
+                    "id": "K", "dimension": "overworld", "min": [0, 0], "max": [0, 0],
+                    "owner": { "id": "ann" }, "guild": { "id": "A", "name": "Alpha", "tag": "AA" }
+                }, {
+                    "id": "P", "dimension": "overworld", "min": [4, 4], "max": [4, 4], "owner": { "id": "carl" }
+                }]
+            }))
+            .unwrap(),
+        );
+        let guilds =
+            crate::gameplay::guilds::GuildIndex::from_feed(crate::gameplay::guilds::GuildFeed {
+                guilds: vec![
+                    crate::gameplay::guilds::GuildInfo {
+                        id: "A".into(),
+                        tag: "AA".into(),
+                        name: "Alpha".into(),
+                        members: vec!["ann".into()],
+                        allies: vec![],
+                        wars: vec!["B".into()],
+                    },
+                    crate::gameplay::guilds::GuildInfo {
+                        id: "B".into(),
+                        tag: "BB".into(),
+                        name: "Bravo".into(),
+                        members: vec!["bob".into()],
+                        allies: vec![],
+                        wars: vec!["A".into()],
+                    },
+                    crate::gameplay::guilds::GuildInfo {
+                        id: "C".into(),
+                        tag: "CC".into(),
+                        name: "Charlie".into(),
+                        members: vec!["cat".into()],
+                        allies: vec![],
+                        wars: vec![],
+                    },
+                ],
+            });
+        let o = Dimension::Overworld;
+        let mut siege = may_siege(&land, &guilds, &[], o, "bob", [3, 64, 3]).unwrap();
+        assert_eq!(
+            (
+                siege.land.as_str(),
+                siege.attacker_guild.as_str(),
+                siege.defender_guild.as_str()
+            ),
+            ("K", "B", "A")
+        );
+        assert_eq!(
+            may_siege(&land, &guilds, &[siege.clone()], o, "bob", [5, 64, 5]),
+            Err(IntentError::SiegeUnderway),
+            "one siege per land"
+        );
+        assert_eq!(
+            may_siege(&land, &guilds, &[], o, "cat", [3, 64, 3]),
+            Err(IntentError::NotAtWar),
+            "not at war"
+        );
+        assert_eq!(
+            may_siege(&land, &guilds, &[], o, "bob", [70, 64, 70]),
+            Err(IntentError::NotAtWar),
+            "a player's own plot"
+        );
+        assert_eq!(
+            may_siege(&land, &guilds, &[], o, "bob", [300, 64, 0]),
+            Err(IntentError::NotAtWar),
+            "wilderness"
+        );
+        assert_eq!(
+            may_siege(&land, &guilds, &[], o, "ann", [3, 64, 3]),
+            Err(IntentError::NotAtWar),
+            "their own land"
+        );
+
+        assert!(!advance(&mut siege, 1, 0, 2.0));
+        assert!(advance(&mut siege, 2, 1, 5.0), "a defender contests");
+        advance(&mut siege, 0, 0, 5.0);
+        assert_eq!(
+            siege.progress, 2.0,
+            "held only while attackers stand by, uncontested"
+        );
+    }
     use crate::gameplay::land::{Feed, LandIndex};
 
     #[test]

@@ -5,6 +5,9 @@ namespace App\Services\Guild;
 use App\Models\Guild;
 use App\Models\GuildMember;
 use App\Models\GuildRelation;
+use App\Models\Land;
+use App\Models\LandHistory;
+use App\Models\LandMember;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
@@ -178,6 +181,61 @@ class DiplomacyService
             $relation->increment($mine === $relation->guild_a_id ? 'score_a' : 'score_b');
 
             return $relation->fresh();
+        });
+    }
+
+    /**
+     * A siege succeeded: the game server reports that `$attacker`'s banner
+     * held on `$land` long enough (`$key`: its siege id). When their guilds
+     * are fighting, the land passes to the attacker's guild (its leader
+     * owns it; individual members of the land are dropped) and the war
+     * scores the capture. Once per key.
+     */
+    public function capture(User $attacker, Land $land, string $key): Land
+    {
+        return DB::transaction(function () use ($attacker, $land, $key) {
+            if (DB::table('war_captures')->where('capture_key', $key)->exists()) {
+                $land = $land->fresh();
+                $land->wasReplayed = true;
+
+                return $land;
+            }
+            $land = Land::query()->lockForUpdate()->findOrFail($land->id);
+            if ($land->status !== 'active' || $land->guild_id === null) {
+                throw new MarketException('not_guild_land', 'Only guild land can be captured.', 409);
+            }
+            $mine = GuildMember::query()->where('user_id', $attacker->id)->value('guild_id');
+            if (! $mine || $mine === $land->guild_id) {
+                throw new MarketException('not_at_war', 'That land belongs to no enemy of yours.', 409);
+            }
+            [$a, $b] = $mine < $land->guild_id ? [$mine, $land->guild_id] : [$land->guild_id, $mine];
+            $relation = GuildRelation::query()->where('guild_a_id', $a)->where('guild_b_id', $b)->lockForUpdate()->first();
+            if (! $relation || ! $relation->fighting()) {
+                throw new MarketException('not_at_war', 'Your guilds are not at war.', 409);
+            }
+            $winner = Guild::query()->findOrFail($mine);
+            $loser = $land->guild_id;
+            $land->guild_id = $winner->id;
+            $land->owner_id = $winner->leader_id;
+            $land->version += 1;
+            $land->save();
+            LandMember::query()->where('land_id', $land->id)->delete();
+            LandHistory::query()->create([
+                'land_id' => $land->id,
+                'event' => 'captured',
+                'actor_id' => $attacker->id,
+                'details' => ['from' => Guild::query()->find($loser)?->public_id, 'to' => $winner->public_id, 'war' => $relation->public_id],
+                'created_at' => now(),
+            ]);
+            DB::table('war_captures')->insert([
+                'relation_id' => $relation->id, 'land_id' => $land->id,
+                'attacker_guild_id' => $winner->id, 'defender_guild_id' => $loser,
+                'capture_key' => $key, 'created_at' => now(),
+            ]);
+            $relation->increment($mine === $relation->guild_a_id ? 'score_a' : 'score_b', (int) config('platform.guilds.war.capture_points'));
+            $this->audit->record(action: 'guild.capture', actor: $attacker, subjectType: 'land', subjectId: $land->public_id, payload: ['to' => $winner->public_id, 'war' => $relation->public_id], actorType: 'game_server');
+
+            return $land;
         });
     }
 

@@ -286,7 +286,14 @@ allies visit each other's land); wars (declared for a fee, a warm-up, then
 players of the two guilds may fight; kills scored; peace by both leaders or
 after 7 days). Tests: 4 backend feature tests, Rust guild and vault tests,
 client tests, `tests/bots/diplomacy.mjs` end to end.
-Remaining: sieges and claim capture, guild ranks beyond three roles.
+Done since: sieges — in a war, a siege banner raised on enemy guild land
+captures that land for the attacker's guild once it has held for 10 minutes
+with its guild near and no defender (scored 3 in the war; defenders break
+the banner); guild ranks — titles with permissions (invite, remove, pay out,
+manage land, post contracts) the leader gives members. Tests: 2 more backend
+feature tests, Rust siege tests, client tests, `tests/bots/diplomacy.mjs`
+extended (a ranked member places the hall; a contested siege captures the
+village).
 
 ## Phase 18 — Advanced content 🟡
 

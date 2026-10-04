@@ -160,6 +160,8 @@ pub struct Dimensions {
     /// Guilds (from the backend) and their vaults, shared by every dimension.
     pub guilds: super::guilds::SharedGuilds,
     pub vaults: super::guilds::SharedVaults,
+    /// Seconds a siege banner must hold to capture land.
+    pub siege_seconds: f32,
     /// The market link to the backend, when there is a backend.
     pub bridge: Option<Arc<super::bridge::Bridge>>,
 }
@@ -465,6 +467,7 @@ mod tests {
             guilds: Default::default(),
             vaults: Default::default(),
             bridge: None,
+            siege_seconds: 600.0,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);
         let r = heights(Dimension::Underworld, 40);

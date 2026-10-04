@@ -70,6 +70,10 @@ Route::prefix('v1')->group(function () {
         Route::get('guilds/{guild}/messages', [GuildController::class, 'messages']);
         Route::post('guilds/{guild}/messages', [GuildController::class, 'say']);
         Route::put('guilds/{guild}/tax', [GuildController::class, 'tax']);
+        Route::post('guilds/{guild}/ranks', [GuildController::class, 'createRank']);
+        Route::patch('guilds/{guild}/ranks/{rank}', [GuildController::class, 'updateRank']);
+        Route::delete('guilds/{guild}/ranks/{rank}', [GuildController::class, 'deleteRank']);
+        Route::put('guilds/{guild}/members/{player}/rank', [GuildController::class, 'assignRank']);
         Route::get('guilds/{guild}/relations', [GuildController::class, 'relations']);
         Route::post('guilds/{guild}/alliances', [GuildController::class, 'ally']);
         Route::delete('guilds/{guild}/alliances/{other}', [GuildController::class, 'endAlliance']);
@@ -96,6 +100,7 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::get('lands', LandFeedController::class);
     Route::get('guilds', GuildFeedController::class);
     Route::post('wars/kills', [GuildFeedController::class, 'kill']);
+    Route::post('wars/captures', [GuildFeedController::class, 'capture']);
     Route::post('market/listings', [MarketBridgeController::class, 'createListing']);
     Route::post('payments', [MarketBridgeController::class, 'payment']);
     Route::post('contracts/{contract}/fulfil', [MarketBridgeController::class, 'fulfil']);

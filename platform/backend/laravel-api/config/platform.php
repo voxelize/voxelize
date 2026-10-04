@@ -81,6 +81,8 @@ return [
         'chat_per_minute' => 20,
         // Sales tax a guild may levy on stalls on its land, in basis points.
         'max_tax_bps' => 2000,
+        // Custom ranks a guild may define.
+        'max_ranks' => 10,
         'war' => [
             // Paid from the declaring guild's treasury to the burn sink.
             'declaration_fee' => (int) env('GUILD_WAR_FEE', 200),
@@ -88,6 +90,8 @@ return [
             'warmup_minutes' => (int) env('GUILD_WAR_WARMUP_MINUTES', 10),
             // A war ends by itself after this many days.
             'max_days' => 7,
+            // A captured land counts this much in the war's score (a kill counts 1).
+            'capture_points' => 3,
         ],
     ],
 

@@ -18,4 +18,29 @@ class GuildMember extends Model
     {
         return $this->belongsTo(Guild::class);
     }
+
+    public function rank(): BelongsTo
+    {
+        return $this->belongsTo(GuildRank::class);
+    }
+
+    /** @return list<string> */
+    public function permissions(): array
+    {
+        if (in_array($this->role, ['leader', 'officer'], true)) {
+            return Guild::PERMISSIONS;
+        }
+
+        return array_values(array_intersect(Guild::PERMISSIONS, (array) ($this->rank?->permissions ?? [])));
+    }
+
+    /** The land role a guild member has on guild land. */
+    public function landRole(): string
+    {
+        return match (true) {
+            $this->role === 'leader' => 'owner',
+            in_array('land', $this->permissions(), true) => 'manager',
+            default => 'builder',
+        };
+    }
 }
