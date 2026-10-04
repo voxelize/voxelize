@@ -75,7 +75,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | --- | --- | --- | --- |
 | `platform.mine.start` | `{"voxel":[x,y,z]}` | reach (7.5 blocks to the voxel centre), chunk loaded, solid block, breakable in survival | ✅ |
 | `platform.mine.finish` | `{"voxel":[x,y,z]}` | a matching `mine.start` on the same block, elapsed ≥ 80 % of `mining_rule(block, held tool)`, drops fit the inventory (else refused, nothing lost); applies drops and tool wear | ✅ |
-| `platform.build.place` | `{"voxel":[x,y,z],"slot"?:n,"block"?:key}` | reach, target air / fluid / non-solid plant, slot holds a placeable item (consumed), no player overlap for solid blocks; `block` honoured only in the creative realm | ✅ |
+| `platform.build.place` | `{"voxel":[x,y,z],"slot"?:n,"block"?:key,"rotation"?:0-5,"yRotation"?:0-15}` | reach, target air / fluid / non-solid plant, slot holds a placeable item (consumed), no player overlap for solid blocks; `block` honoured only in the creative realm; rotation applied only to oriented blocks (`horizontal` uses `yRotation`, `full` both) | ✅ |
 | `platform.inventory.get` | `{}` | — (answers with a snapshot) | ✅ |
 | `platform.inventory.select` | `{"slot":0-8}` | hotbar slot | ✅ |
 | `platform.inventory.move` | `{"from":n,"to":n,"count"?:n}` | slots exist, stack limits, partial moves only onto empty or matching stacks | ✅ |
@@ -86,7 +86,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.window.fill` | `{"recipe":key,"max":bool}` | recipe book: moves ingredients from the inventory into the grid (once or as many sets as possible); refuses recipes that do not fit the grid | ✅ |
 | `platform.window.close` | `{}` | grid and cursor go back to the inventory; what does not fit drops in the world | ✅ |
 | `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
-| `platform.use` | `{"voxel":[x,y,z]}` | held item acts on a block: a hoe tills dirt/turf with air above into farmland (wears the hoe) | ✅ |
+| `platform.use` | `{"voxel":[x,y,z]}` | reach; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe) | ✅ |
 | `platform.attack` | `{"mob":id}` | alive, within reach of the creature, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it, knocks the creature back | ✅ |
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |

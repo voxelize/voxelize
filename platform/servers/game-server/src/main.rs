@@ -103,6 +103,11 @@ fn build_world(
                 "platform-mobs",
                 &["platform-world-items"],
             )
+            .with(
+                gameplay::PlateSystem::default(),
+                "platform-plates",
+                &["platform-mobs"],
+            )
     });
     world
 }

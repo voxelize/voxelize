@@ -13,7 +13,16 @@ export type BlockDef = {
   texture: { all: string; top?: string | null; bottom?: string | null; side?: string | null };
   tool?: { kind: ToolKind; minTier?: number; required?: boolean } | null;
   fluid?: "water" | "lava" | null;
+  behaviors?: string[];
+  usable?: boolean;
 };
+
+/** Blocks a right click uses rather than builds against (server decides). */
+export function isUsableBlock(def: BlockDef | undefined): boolean {
+  if (!def) return false;
+  const b = def.behaviors ?? [];
+  return b.includes("lever") || b.includes("button") || b.includes("clock") || (b.includes("consumer") && !!def.usable);
+}
 
 export type ItemDef = {
   id: number;

@@ -372,7 +372,7 @@ pub(super) fn install(world: &mut World) {
         };
         close_window(world, id);
         let position = client_position(world, id);
-        let mut loot_opened = false;
+        let loot_opened = false;
         let opened = {
             let mut g = world.ecs().write_resource::<Gameplay>();
             let reach = g.rules.reach;

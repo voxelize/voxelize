@@ -404,8 +404,9 @@ impl Rules {
         Ok(block.id)
     }
 
-    /// Use the held item on a block: a hoe tills dirt or turf with air
-    /// above into farmland. Returns the block to write.
+    /// Use a block or the held item on it: circuit blocks toggle (levers,
+    /// buttons, clocks, gates) whatever is held; a hoe tills dirt or turf
+    /// with air above into farmland. Returns the raw voxel to write.
     pub fn use_on(
         &self,
         player: &mut PlayerState,
@@ -415,6 +416,10 @@ impl Rules {
     ) -> Result<u32, IntentError> {
         alive(player)?;
         let (id, block) = self.target_block(view, position, voxel)?;
+        let raw = view.raw_at(voxel).ok_or(IntentError::NotLoaded)?;
+        if let Some(next) = crate::behaviors::use_circuit(&self.content, raw) {
+            return Ok(next);
+        }
         let held = self.held_item(player).ok_or(IntentError::CannotUse)?;
         let is_hoe = held
             .tool
@@ -862,6 +867,24 @@ mod tests {
         assert_eq!(
             rules.place(&mut player, &world, HERE, [2, 1, 0], Some(1), None),
             Ok(crop)
+        );
+    }
+
+    #[test]
+    fn empty_hands_flip_levers_but_not_stone() {
+        let (rules, mut world, mut player) = setup();
+        let lever = rules.content().block("lever").unwrap().id;
+        world.blocks.insert([2, 0, 0], lever);
+        let on = rules.use_on(&mut player, &world, HERE, [2, 0, 0]).unwrap();
+        assert_eq!(on & 0xFFFF, lever);
+        assert_eq!(voxelize::BlockUtils::extract_stage(on), 1);
+        assert_eq!(
+            rules.use_on(&mut player, &world, HERE, [1, 0, 0]),
+            Err(IntentError::CannotUse)
+        );
+        assert_eq!(
+            rules.use_on(&mut player, &world, HERE, [90, 0, 0]),
+            Err(IntentError::OutOfReach)
         );
     }
 

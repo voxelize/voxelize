@@ -260,6 +260,28 @@ pub fn oriented(
     }
 }
 
+/// What using (right-clicking) a circuit block does to its raw voxel:
+/// levers toggle, buttons press, clocks step to the next period and usable
+/// consumers (gates) swap form. `None` when the block has no such use.
+pub fn use_circuit(content: &Content, raw: u32) -> Option<u32> {
+    let def = content.block_by_id(BlockUtils::extract_id(raw))?;
+    let stage = BlockUtils::extract_stage(raw);
+    let has = |b: BlockBehavior| def.behaviors.contains(&b);
+    if has(BlockBehavior::Lever) {
+        Some(BlockUtils::insert_stage(raw, stage ^ 1))
+    } else if has(BlockBehavior::Button) {
+        Some(BlockUtils::insert_stage(raw, 1))
+    } else if has(BlockBehavior::Clock) {
+        let period = ((stage >> 1) + 1) & 3;
+        Some(BlockUtils::insert_stage(raw, (period << 1) | (stage & 1)))
+    } else if has(BlockBehavior::Consumer) && def.usable {
+        let swap = content.block(def.power_swap.as_deref()?)?.id;
+        Some((raw & !0xFFFF) | swap)
+    } else {
+        None
+    }
+}
+
 pub fn has_behaviors(def: &BlockDef) -> bool {
     !def.support.is_empty() || !def.behaviors.is_empty()
 }
@@ -418,8 +440,17 @@ fn circuit_target(
             Some((BlockUtils::insert_stage(raw, stage ^ 1), period))
         }
         Logic::Consumer { powered, swap } => {
+            // Stage bit 0 remembers the last power seen, so consumers react
+            // to changes only and a gate opened by hand stays open.
             let on = incoming(ctx, space, at, false) > 0;
-            (on != powered).then(|| ((raw & !0xFFFF) | swap, 1))
+            if on == (stage & 1 == 1) {
+                return None;
+            }
+            let id = if on == powered { id } else { swap };
+            Some((
+                BlockUtils::insert_stage((raw & !0xFFFF) | id, u32::from(on)),
+                1,
+            ))
         }
         Logic::Repeater => {
             let (dx, dy, dz) = front(raw);
@@ -970,6 +1001,45 @@ mod tests {
         g.voxels.insert((1, 64, 0), e.id("gate"));
         settle(&e, &mut g);
         assert_eq!(g.get_voxel(1, 64, 0), e.id("gate_open"));
+    }
+
+    #[test]
+    fn using_circuit_blocks_toggles_them_and_hand_opened_gates_stay_open() {
+        let e = env();
+        let c = &e.content;
+        let lever = e.id("lever");
+        let on = use_circuit(c, lever).unwrap();
+        assert_eq!(BlockUtils::extract_stage(on), 1);
+        assert_eq!(use_circuit(c, on), Some(lever));
+        let pressed = use_circuit(c, e.id("push_button")).unwrap();
+        assert_eq!(BlockUtils::extract_stage(pressed), 1);
+        let mut clock = e.id("pulse_clock");
+        for expected in [1u32, 2, 3, 0] {
+            clock = use_circuit(c, clock).unwrap();
+            assert_eq!(BlockUtils::extract_stage(clock) >> 1, expected);
+        }
+        assert_eq!(
+            use_circuit(c, e.id("volt_lamp")),
+            None,
+            "lamps are not usable"
+        );
+        assert_eq!(use_circuit(c, e.id("stone")), None);
+
+        // A gate opened by hand stays open without power...
+        let mut g = Space::default();
+        g.voxels
+            .insert((1, 64, 0), use_circuit(c, e.id("gate")).unwrap());
+        g.voxels.insert((0, 64, 0), e.id("lever"));
+        settle(&e, &mut g);
+        assert_eq!(g.get_voxel(1, 64, 0), e.id("gate_open"));
+        // ...and follows power changes afterwards.
+        g.voxels
+            .insert((0, 64, 0), use_circuit(c, e.id("lever")).unwrap());
+        settle(&e, &mut g);
+        assert_eq!(g.get_voxel(1, 64, 0), e.id("gate_open"));
+        g.voxels.insert((0, 64, 0), e.id("lever"));
+        settle(&e, &mut g);
+        assert_eq!(g.get_voxel(1, 64, 0), e.id("gate"));
     }
 
     #[test]

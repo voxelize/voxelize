@@ -163,24 +163,25 @@ leaves decay and drop saplings).
 Animals and structures are done (phases 10 and 2). Remaining: bone-meal
 style fertiliser, more crops.
 
-## Phase 12 — Automation 🟡
+## Phase 12 — Automation ✅ (first circuit set)
 
 Done: circuit content (`game/blocks/40-circuits.json`, voltite ore and
 recipes) and server-side signal simulation on the engine's active-voxel hook:
 power 0–15 stored in the block's stage bits, every step into a conduit
-costs one level (a line fades after 15), levers/buttons/pressure plates/
-clocks as sources, buttons release after 3 s, clocks pulse at one of four
-periods, one-way repeaters restore full strength after two ticks, inverters,
-lamps and gates swap powered/unpowered blocks, actuators push the block in
-front one cell on a rising edge; facing comes from the block rotation the
-mesher draws. Original client textures for every piece. 5 unit tests.
-Remaining: toggling levers/buttons/clocks and opening gates with right
-click, rotation on place, pressure plates sensing players and creatures,
-a live bot test.
-
-Original logic network: wire, switch, button, pressure sensor, repeater,
-comparator-like logic, actuator, detector, lamp, door, timer; deterministic
-signal propagation on the fixed step.
+costs one level (a line fades after 15), levers, buttons, pressure plates
+and clocks as sources, buttons release after a short pulse, clocks pulse at
+one of four periods, one-way repeaters restore full strength after two
+ticks, inverters, lamps and gates react to power changes (a gate opened by
+hand stays open until the power changes), actuators push the block in front
+one cell on a rising edge; facing comes from the block rotation the mesher
+draws. Players use them with right click (`platform.use`: toggle a lever,
+press a button, step a clock's period, open or close a gate), place
+directional pieces facing the way they look (`rotation`/`yRotation` on
+`platform.build.place`), and pressure plates sense players and creatures
+standing on them (`PlateSystem`). Original client textures for every
+piece. 8 unit tests and `tests/bots/circuits.mjs` on a live server.
+Remaining: comparator-style and detector blocks, doors two blocks tall,
+pulling actuators.
 
 ## Phase 13 — Land ownership ⬜
 

@@ -6,7 +6,7 @@ import * as VOXELIZE from "@voxelize/core";
 import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
-import { Content, miningMillis } from "./content";
+import { Content, isUsableBlock, miningMillis } from "./content";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
@@ -287,16 +287,20 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // it); a hoe tills soil; food in hand is eaten; anything else is placed.
   const secondaryOnBlock = (sneaking: boolean) => {
     const target = interact.target;
-    const targetKey = target ? content.blocksById.get(world.getVoxelAt(...target))?.key : undefined;
+    const targetDef = target ? content.blocksById.get(world.getVoxelAt(...target)) : undefined;
+    const targetKey = targetDef?.key;
     const held = hud.heldItem();
     if (target && !sneaking && targetKey && ["crafting_table", "furnace", "chest"].includes(targetKey)) {
       openWindow([...target] as VOXELIZE.Coords3);
+    } else if (target && !sneaking && isUsableBlock(targetDef)) {
+      method.call("platform.use", { voxel: target });
     } else if (held?.tool?.kind === "hoe" && target && ["dirt", "turf"].includes(targetKey ?? "")) {
       method.call("platform.use", { voxel: target });
     } else if (held?.type === "food") {
       method.call("platform.eat", {});
     } else if (interact.potential) {
-      method.call("platform.build.place", { voxel: interact.potential.voxel });
+      const { voxel, rotation, yRotation4 } = interact.potential;
+      method.call("platform.build.place", { voxel, rotation, yRotation: yRotation4 });
     }
   };
   addEventListener("mouseup", (event) => {

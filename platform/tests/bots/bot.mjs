@@ -36,8 +36,10 @@ export async function registerPlayer(base, name) {
 }
 
 export class Bot {
-  constructor({ api: apiBase, game, token, world = "main", name }) {
-    Object.assign(this, { apiBase, game, token, world, name });
+  /** `issueTicket` (optional) replaces the API call for a game ticket,
+   * for tests against a standalone game server with a dev secret. */
+  constructor({ api: apiBase, game, token, world = "main", name, issueTicket }) {
+    Object.assign(this, { apiBase, game, token, world, name, issueTicket });
     this.chunks = new Map();
     this.inventory = null;
     this.waiters = [];
@@ -46,7 +48,9 @@ export class Bot {
   }
 
   async connect() {
-    const { ticket } = await api(this.apiBase, "/game/tickets", { token: this.token, body: { world: this.world } });
+    const { ticket } = this.issueTicket
+      ? { ticket: await this.issueTicket() }
+      : await api(this.apiBase, "/game/tickets", { token: this.token, body: { world: this.world } });
     const url = `${this.game.replace(/^http/, "ws")}/ws/?ticket=${encodeURIComponent(ticket)}`;
     this.ws = new WebSocket(url);
     this.ws.binaryType = "arraybuffer";

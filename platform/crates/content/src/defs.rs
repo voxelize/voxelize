@@ -58,7 +58,7 @@ pub enum BlockBehavior {
     Conduit,
     /// Power source switched on and off by using it.
     Lever,
-    /// Power source for one second after being used.
+    /// Power source for a short pulse after being used.
     Button,
     /// Power source while a player or creature stands on it.
     Plate,

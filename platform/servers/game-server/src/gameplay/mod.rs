@@ -13,6 +13,8 @@ mod mobs_api;
 pub use mobs_api::MobSystem;
 pub mod inventory;
 mod items_api;
+mod plates;
+pub use plates::PlateSystem;
 pub mod rules;
 pub mod store;
 pub mod survival;
@@ -298,6 +300,11 @@ struct PlacePayload {
     /// Creative only: any block by key.
     #[serde(default)]
     block: Option<String>,
+    /// Facing for oriented blocks: axis (0..=5) and rotation about y (0..16).
+    #[serde(default)]
+    rotation: u32,
+    #[serde(default, rename = "yRotation")]
+    y_rotation: u32,
 }
 
 #[derive(Deserialize)]
@@ -505,18 +512,23 @@ pub fn install(
             None => not_joined(world, client_id, INTENT),
             Some(Ok(block)) => {
                 let [x, y, z] = p.voxel;
-                let decays = {
+                let (decays, orientation) = {
                     let g = world.ecs().read_resource::<Gameplay>();
-                    g.rules.content().block_by_id(block).is_some_and(|b| {
-                        b.behaviors
-                            .contains(&platform_content::BlockBehavior::Decays)
-                    })
+                    let def = g.rules.content().block_by_id(block);
+                    (
+                        def.is_some_and(|b| {
+                            b.behaviors
+                                .contains(&platform_content::BlockBehavior::Decays)
+                        }),
+                        def.map(|b| b.orientation).unwrap_or_default(),
+                    )
                 };
+                let raw = crate::behaviors::oriented(block, orientation, p.rotation, p.y_rotation);
                 // Leaves a player places never decay.
                 let raw = if decays {
-                    voxelize::BlockUtils::insert_stage(block, crate::behaviors::PERSISTENT_STAGE)
+                    voxelize::BlockUtils::insert_stage(raw, crate::behaviors::PERSISTENT_STAGE)
                 } else {
-                    block
+                    raw
                 };
                 world.chunks_mut().update_voxel(&Vec3(x, y, z), raw);
                 items_api::block_placed(world, p.voxel, block);
