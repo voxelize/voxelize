@@ -325,7 +325,11 @@ impl<'a> specs::System<'a> for LandNoticeSystem {
                 continue;
             };
             let here = index.at(dimension, p.0 .0.floor() as i32, p.0 .2.floor() as i32);
-            let key = here.map(|l| l.id.clone());
+            // A settlement growing (village to town) is news too.
+            let key = here.map(|l| match &l.settlement {
+                Some(s) => format!("{}#{}", l.id, s.level),
+                None => l.id.clone(),
+            });
             if key == player.land_seen {
                 continue;
             }

@@ -151,6 +151,18 @@ pub fn set_price(
     Ok(())
 }
 
+/// The guild whose land `at` stands on (it taxes sales there).
+pub fn land_guild(
+    land: &super::land::SharedLand,
+    dimension: platform_content::Dimension,
+    at: [i32; 3],
+) -> Option<String> {
+    land.read()
+        .ok()?
+        .at(dimension, at[0], at[2])
+        .and_then(|l| l.guild.as_ref().map(|g| g.id.clone()))
+}
+
 /// Sell for the owner's guild, or for the owner (owner only).
 pub fn set_guild(stall: &mut Stall, player: &str, guild: bool) -> Result<(), IntentError> {
     if stall.owner != player {
@@ -297,6 +309,7 @@ pub fn install(world: &mut World) {
                     );
                     let dir = g.world_dir.clone();
                     let content = g.rules.content_arc();
+                    let taxer = land_guild(&g.dimensions.land, g.dimensions.current, p.at);
                     let reserved = match g.containers.map.get_mut(&p.at) {
                         Some(Container::Stall(stall)) => reserve(stall, id, realm, p.slot, key)
                             .map(|sale| (sale, stall.owner.clone())),
@@ -319,6 +332,7 @@ pub fn install(world: &mut World) {
                             amount: sale.price,
                             reason: format!("Stall: {} {name}", sale.stack.count),
                             kind: sale.payment_kind(),
+                            land_guild: taxer,
                         });
                     }
                     reserved.map(|(sale, _)| sale)

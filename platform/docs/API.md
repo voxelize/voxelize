@@ -197,6 +197,12 @@ announces it on entry.
 - `POST /guilds/{id}/deposit` 🔒 member — header `Idempotency-Key`; `{ "amount" }` → `{ "transaction", "treasury", "balance" }`.
 - `POST /guilds/{id}/withdraw` 🔒 leader or officer — header `Idempotency-Key`; `{ "amount", "to"?: username }` (a member; yourself by default).
 - `GET /guilds/{id}/entries` 🔒 member — treasury ledger entries, cursor paginated.
+- `PUT /guilds/{id}/tax` 🔒 leader — `{ "bps": 0–2000 }`: a sales tax on every stall sale on the guild's land (not on its own guild stalls), paid to its treasury; `422 bad_tax`.
+- `GET /guilds/{id}/relations` 🔒 — `{ "relations": [Relation] }`, Relation `{ "id", "kind": "alliance" | "war", "status": "proposed" | "active", "with": { "id", "name", "tag" }, "initiated", "fighting", "starts_at", "ends_at", "score": { "us", "them" } | null, "peace_offered": "us" | "them" | null }`; also in the guild detail with `tax_bps`.
+- `POST /guilds/{id}/alliances` 🔒 leader — `{ "guild": id or tag }`: proposes, or accepts the other guild's proposal; allies' members visit each other's guild land (use switches and gates). `409 at_war`, `422 bad_guild`.
+- `DELETE /guilds/{id}/alliances/{other}` 🔒 leader — ends (or refuses) an alliance.
+- `POST /guilds/{id}/wars` 🔒 leader — `{ "guild": id or tag }`: declares war for `guilds.war.declaration_fee` (200) from the treasury to the burn sink; fighting starts after `warmup_minutes` (10) and ends after `max_days` (7) at the latest. `409 allied`.
+- `POST /guilds/{id}/wars/{other}/peace` 🔒 leader — offers peace; when the other leader already offered it, the war ends: `{ "peace", "offered" }`.
 - `GET /guilds/{id}/messages[?after=id]` 🔒 member — guild chat: the latest 50, or up to 100 newer than `after`, oldest first: `{ "messages": [{ "id", "from": { "id", "name" }, "body", "at" }] }`.
 - `POST /guilds/{id}/messages` 🔒 member — `{ "body" }` (1–300 characters after trimming control characters) → `201`; `422 bad_message`, `429 slow_down` (over `guilds.chat_per_minute`, 20).
 
@@ -254,6 +260,18 @@ listener answers 404 for `/api/internal/`. Every call carries
 `Authorization: Bearer <GAME_SERVICE_TOKEN>` (≥ 32 bytes; without a
 configured token the internal API refuses everything).
 
+### `GET /api/internal/v1/guilds`
+`{ "guilds": [{ "id", "tag", "name", "members": [public id], "allies": [guild id], "wars": [guild id] }] }`:
+every active guild, its active alliances and the wars it is fighting right
+now (past the warm-up, before the end). Polled with `If-None-Match` like the
+land feed; game servers allow fighting between players of guilds at war
+and open guild vaults to members.
+
+### `POST /api/internal/v1/wars/kills`
+`{ "key": kill id, "killer", "victim" }` (public ids): scores a kill for the
+killer's guild when the two guilds are fighting, once per key →
+`200 { "war", "score": [a, b] }`; `409 not_at_war`, `404 player_not_found`.
+
 ### `GET /api/internal/v1/lands?world=main`
 `{ "world", "lands": [{ "id", "name", "dimension", "min", "max", "owner": { "id", "name" }, "members": [{ "id", "role" }], "public": { "build", "containers", "use" }, "version" }] }`,
 every active land of the world, with an `ETag`; `If-None-Match` with it
@@ -270,7 +288,8 @@ never lifts protection.
 a stall sale as one `sale` transaction (buyer −amount, seller +amount−fee,
 fee to `system:fees`); with `"kind": "guild_stall"` the seller's share goes
 to the seller's guild treasury instead (their wallet if they have no
-guild); with `"kind": "trade"` a fee-free `transfer` settling a trade
+guild); with `"land_guild"` (the guild whose land the stall stands on)
+that guild's sales tax goes to its treasury; with `"kind": "trade"` a fee-free `transfer` settling a trade
 window; once per key → `201`/`200 { "transaction", "replayed" }`;
 `422 insufficient_funds | own_listing | bad_price`, `404 player_not_found`.
 

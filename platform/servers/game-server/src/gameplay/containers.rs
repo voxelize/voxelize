@@ -275,9 +275,18 @@ impl Stall {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Container {
-    Chest { slots: Vec<Option<Stack>> },
+    Chest {
+        slots: Vec<Option<Stack>>,
+    },
     Furnace(Furnace),
     Stall(Stall),
+    /// A guild vault: its items live in the guild's shared vault (see
+    /// `guilds::Vaults`), never in the block, so breaking it spills nothing.
+    Vault {
+        guild: String,
+        #[serde(skip, default)]
+        empty: Vec<Option<Stack>>,
+    },
 }
 
 impl Container {
@@ -297,6 +306,7 @@ impl Container {
             Container::Chest { slots } => slots,
             Container::Furnace(f) => &f.slots,
             Container::Stall(s) => &s.slots,
+            Container::Vault { empty, .. } => empty,
         }
     }
 
@@ -305,6 +315,15 @@ impl Container {
             Container::Chest { slots } => slots,
             Container::Furnace(f) => &mut f.slots,
             Container::Stall(s) => &mut s.slots,
+            Container::Vault { empty, .. } => empty,
+        }
+    }
+
+    /// The guild whose vault this is, if it is one.
+    pub fn vault_guild(&self) -> Option<&str> {
+        match self {
+            Container::Vault { guild, .. } => Some(guild),
+            _ => None,
         }
     }
 

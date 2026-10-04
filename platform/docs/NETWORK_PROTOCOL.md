@@ -86,7 +86,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.window.fill` | `{"recipe":key,"max":bool}` | recipe book: moves ingredients from the inventory into the grid (once or as many sets as possible); refuses recipes that do not fit the grid | ✅ |
 | `platform.window.close` | `{}` | grid and cursor go back to the inventory; what does not fit drops in the world | ✅ |
 | `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
-| `platform.use` | `{"voxel":[x,y,z]}` | reach; a held fire striker lights the riftstone frame at the voxel (a closed frame, interior 2×3 to 21×21, all air) and wears; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe). Answer carries `changed` (cells written) | ✅ |
+| `platform.use` | `{"voxel":[x,y,z]}` | reach; on a town hall (`guild_hall`): a member of the guild whose land it stands on makes it their respawn point (overworld halls) and gets `platform.guild.hall {"guild":{"id","tag","name"},"home"}`, others `not_owner`; a held fire striker lights the riftstone frame at the voxel (a closed frame, interior 2×3 to 21×21, all air) and wears; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe). Answer carries `changed` (cells written) | ✅ |
 | `platform.market.list` | `{"slot":n,"count":n,"price":n,"kind"?:"fixed"\|"auction","buyout"?:n,"hours"?:1-168}` | survival realm only (`survival_only`); a backend configured (`market_unavailable`); valid price, buyout above the opening price for auctions only, duration (`bad_listing`); exactly `count` from the slot (`bad_count`). The goods leave the inventory into the player's outbox in one save; `platform.market {"listed"}` follows when the backend holds them, or `{"rejected"}` with the goods returned | ✅ |
 | `platform.stall.price` | `{"at":[x,y,z],"slot":0-8,"price":n}` | the stall's owner (`not_owner`), within reach; 0 takes the slot off sale | ✅ |
 | `platform.stall.guild` | `{"at":[x,y,z],"guild":bool}` | the stall's owner, within reach; a guild stall's sales pay the owner's guild treasury (fixed per sale when it is bought) | ✅ |
@@ -95,10 +95,11 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.blueprint.build` | `{"id":s,"at":[x,y,z]}` | a backend, within 64 blocks; then, once the layout arrives: you are the creator or hold a licence (`not_licensed`), land you may build on, every cell free (`occupied`) and no player inside (`collides_with_player`), all materials in the inventory (`missing_ingredients`, survival); all or nothing → `platform.market {"blueprint":{"built":id,"blocks"}}` | ✅ |
 | `platform.contract.deliver` | `{"contract":id,"slot":n,"count":n}` | survival; exactly `count` from the slot into the outbox (as for listings); the backend checks the contractor, item and count → `platform.market {"fulfilled":{"contract","item","count"}}`, or `{"rejected"}` with the goods back | ✅ |
 | `platform.inventory.creative` | `{"slot":n,"item":key}` | creative realm only (`creative_only`); a full, unworn stack of any item into the slot (`unknown_item`, `bad_slot`) | ✅ |
+| `platform.attack.player` | `{"player":id}` | both players survival and alive, their guilds at war (`not_at_war`; the server's guild feed decides), within reach, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it; a kill is reported to the backend and scored for the war (`platform.market {"war_kill"}` to the killer) | ✅ |
 | `platform.attack` | `{"mob":id}` | alive, within reach of the creature, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it, knocks the creature back | ✅ |
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
-| `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface); in another dimension the player is sent home with `platform.travel` instead | ✅ |
+| `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface), or `{x,z,"feet":[x,y,z]}` at the player's town hall while it stands; in another dimension the player is sent home with `platform.travel` instead | ✅ |
 | `platform.trade.request` | `{"player":id}` | both survival, alive, within 8 blocks, neither in a trade (`busy`), a backend; the other player gets `platform.trade {"invite":{"from","name"}}` (valid 30 s) | ✅ |
 | `platform.trade.accept` | `{"player":inviter}` | a valid invitation, still within 8 blocks; both get the window state | ✅ |
 | `platform.trade.offer` | `{"items"?:[{"slot","count"}],"crowns"?:n,"reset"?:bool}` | adds the stacks to your offer (`reset` first takes the whole offer back) and sets your Crowns; at most 9 stacks; items move into your hold, saved with your inventory; clears both confirmations | ✅ |
@@ -126,7 +127,7 @@ Answers (events, sent only to the requesting client):
 - `platform.drops` — `{"items":[{"id","item","count","p":[x,y,z]}]}`, dropped items within 64 blocks, up to 10 times a second.
 - `platform.pickup` — `{"items":[[item,count],…]}` after walking over drops.
 - `platform.mobs` — `{"mobs":[{"id","key","p","yaw","health","hurt","baby","moving","love"}]}`, creatures within 64 blocks, ten times a second.
-- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|null,"realm"}`,
+- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|"player"|null,"realm"}`,
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
 

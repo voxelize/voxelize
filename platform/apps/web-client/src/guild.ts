@@ -2,7 +2,7 @@
 // Everything goes to the API; guild land shows up in the land panel and is
 // enforced by the game server like any other land.
 
-import { api, ApiError, idempotencyKey, type GuildMessage, type GuildRole, type GuildView, type Settlement } from "./api";
+import { api, ApiError, idempotencyKey, type GuildMessage, type GuildRelation, type GuildRole, type GuildView, type Settlement } from "./api";
 import type { LandHere } from "./land";
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -40,6 +40,24 @@ export function landNotice(land: LandHere | null | undefined): string {
 export function settlementLine(s: Settlement): string {
   const level = s.level === "none" ? "Outpost" : s.level[0].toUpperCase() + s.level.slice(1);
   return `${level} · ${s.chunks} chunk(s) · ${s.min.join(",")} to ${s.max.join(",")} (${s.dimension})`;
+}
+
+/** One relation in a line, from our side. */
+export function relationLine(r: GuildRelation, now = Date.now()): string {
+  const who = `[${r.with.tag}] ${r.with.name}`;
+  if (r.kind === "alliance") return r.status === "active" ? `Allied with ${who}` : r.initiated ? `Alliance offered to ${who}` : `${who} offers an alliance`;
+  const score = r.score ? ` · ${r.score.us}:${r.score.them}` : "";
+  const starts = r.starts_at ? Date.parse(r.starts_at) : 0;
+  const phase = r.fighting ? "at war" : starts > now ? `war in ${Math.ceil((starts - now) / 60_000)} min` : "war";
+  const peace = r.peace_offered === "us" ? " · peace offered" : r.peace_offered === "them" ? " · they offer peace" : "";
+  return `${phase} with ${who}${score}${peace}`;
+}
+
+/** A tax typed as a percentage, in basis points (0–20 %), or null. */
+export function parseTax(raw: string): number | null {
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(raw.trim())) return null;
+  const bps = Math.round(Number(raw.trim()) * 100);
+  return bps <= 2000 ? bps : null;
 }
 
 /** Messages newer than `after`, oldest first, without duplicates. */
@@ -188,6 +206,50 @@ export class GuildPanel {
       for (const s of g.settlements) list.append(el("li", { textContent: settlementLine(s) }));
       nodes.push(list);
     } else nodes.push(el("p", { textContent: "No guild land yet. Officers claim it in the land panel (L)." }));
+
+    // Diplomacy and taxes (leaders act; everyone sees).
+    const leader = g.my_role === "leader";
+    nodes.push(el("h3", { textContent: `Relations · sales tax ${g.tax_bps / 100}%` }));
+    const relations = el("ul", { className: "guild-roster" });
+    for (const r of g.relations) {
+      const li = el("li", { textContent: relationLine(r) + " " });
+      if (leader && r.kind === "alliance" && r.status === "proposed" && !r.initiated)
+        li.append(el("button", { type: "button", onclick: () => this.act(() => api.guilds.ally(g.id, r.with.id), `Allied with [${r.with.tag}]`) }, "Accept"));
+      if (leader && r.kind === "alliance")
+        li.append(el("button", { type: "button", onclick: () => this.act(() => api.guilds.endAlliance(g.id, r.with.id), "Alliance ended") }, r.status === "active" ? "End" : "Refuse"));
+      if (leader && r.kind === "war" && r.peace_offered !== "us")
+        li.append(el("button", { type: "button", onclick: () => this.act(() => api.guilds.peace(g.id, r.with.id), r.peace_offered === "them" ? "Peace made" : "Peace offered") }, r.peace_offered === "them" ? "Accept peace" : "Offer peace"));
+      relations.append(li);
+    }
+    if (!g.relations.length) relations.append(el("li", { textContent: "No alliances or wars." }));
+    nodes.push(relations);
+    if (leader) {
+      const other = el("input", { type: "text", maxLength: 26, placeholder: "Guild tag" });
+      const tax = el("input", { type: "text", maxLength: 5, value: String(g.tax_bps / 100), className: "market-bid" });
+      nodes.push(
+        el("div", { className: "guild-add" }, other,
+          el("button", { type: "button", onclick: () => this.act(() => api.guilds.ally(g.id, other.value.trim()), "Alliance proposed") }, "Propose alliance"),
+          el("button", {
+            type: "button",
+            className: "danger",
+            onclick: () => {
+              if (confirm(`Declare war on [${other.value.trim()}]? It costs 200 CRN from the treasury; fighting starts in 10 minutes.`))
+                void this.act(() => api.guilds.declareWar(g.id, other.value.trim()), "War declared");
+            },
+          }, "Declare war"),
+        ),
+        el("div", { className: "guild-add" }, el("span", { textContent: "Sales tax on our land (%)" }), tax,
+          el("button", {
+            type: "button",
+            onclick: () => {
+              const bps = parseTax(tax.value);
+              if (bps === null) return this.options.notify("A tax is 0 to 20 percent");
+              void this.act(() => api.guilds.setTax(g.id, bps), "Tax set");
+            },
+          }, "Set"),
+        ),
+      );
+    }
 
     // Chat.
     const log = el("ul", { className: "guild-chat" });

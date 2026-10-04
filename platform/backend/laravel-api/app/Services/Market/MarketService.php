@@ -2,6 +2,7 @@
 
 namespace App\Services\Market;
 
+use App\Models\Guild;
 use App\Models\GuildMember;
 use App\Models\ItemDelivery;
 use App\Models\LedgerTransaction;
@@ -325,7 +326,8 @@ class MarketService
      * `$key`, however often it is asked.
      */
     /** With `$toGuild`, the proceeds go to the seller's guild treasury (their wallet when they have no guild). */
-    public function stallSale(User $buyer, User $seller, int $amount, string $key, string $reason, bool $trade = false, bool $toGuild = false): LedgerTransaction
+    /** `$landGuild`: the guild whose land the stall stands on; its sales tax goes to its treasury. */
+    public function stallSale(User $buyer, User $seller, int $amount, string $key, string $reason, bool $trade = false, bool $toGuild = false, ?string $landGuild = null): LedgerTransaction
     {
         if ($buyer->is($seller)) {
             throw new MarketException('own_listing', 'You cannot buy from your own stall.');
@@ -336,10 +338,18 @@ class MarketService
         $currency = (string) config('platform.market.currency');
         // A direct trade between two players carries no platform fee.
         $fee = $trade ? 0 : $this->fee($amount);
+        $payee = $this->proceeds($seller, $currency, $toGuild && ! $trade);
+        // The land's guild taxes the sale, unless it is its own guild stall.
+        $taxer = (! $trade && $landGuild) ? Guild::query()->where('public_id', $landGuild)->where('status', 'active')->first() : null;
+        $treasury = $taxer ? $this->ledger->guildAccount($taxer, $currency) : null;
+        $tax = ($taxer && $treasury->id !== $payee->id) ? intdiv($amount * $taxer->tax_bps, 10_000) : 0;
         $legs = [
             new Leg($this->ledger->walletFor($buyer, $currency)->account, -$amount),
-            new Leg($this->proceeds($seller, $currency, $toGuild && ! $trade), $amount - $fee),
+            new Leg($payee, $amount - $fee - $tax),
         ];
+        if ($tax > 0) {
+            $legs[] = new Leg($treasury, $tax);
+        }
         if ($fee > 0) {
             $legs[] = new Leg($this->ledger->systemAccount('fees', $currency), $fee);
         }

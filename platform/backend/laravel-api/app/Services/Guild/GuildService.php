@@ -6,6 +6,7 @@ use App\Models\Guild;
 use App\Models\GuildInvite;
 use App\Models\GuildMember;
 use App\Models\GuildMessage;
+use App\Models\GuildRelation;
 use App\Models\Land;
 use App\Models\LedgerTransaction;
 use App\Models\User;
@@ -261,6 +262,8 @@ class GuildService
             ));
         }
         GuildInvite::query()->where('guild_id', $guild->id)->delete();
+        // Alliances and wars end with the guild.
+        GuildRelation::query()->where('guild_a_id', $guild->id)->orWhere('guild_b_id', $guild->id)->delete();
         $guild->status = 'disbanded';
         // Free the name and tag for someone else.
         $guild->name = '~'.$guild->public_id;

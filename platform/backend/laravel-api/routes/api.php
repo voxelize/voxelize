@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\LandController;
 use App\Http\Controllers\Api\V1\MarketController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Internal\BlueprintBridgeController;
+use App\Http\Controllers\Internal\GuildFeedController;
 use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
 use App\Http\Middleware\GameServiceToken;
@@ -68,6 +69,12 @@ Route::prefix('v1')->group(function () {
         Route::get('guilds/{guild}/entries', [GuildController::class, 'entries']);
         Route::get('guilds/{guild}/messages', [GuildController::class, 'messages']);
         Route::post('guilds/{guild}/messages', [GuildController::class, 'say']);
+        Route::put('guilds/{guild}/tax', [GuildController::class, 'tax']);
+        Route::get('guilds/{guild}/relations', [GuildController::class, 'relations']);
+        Route::post('guilds/{guild}/alliances', [GuildController::class, 'ally']);
+        Route::delete('guilds/{guild}/alliances/{other}', [GuildController::class, 'endAlliance']);
+        Route::post('guilds/{guild}/wars', [GuildController::class, 'declareWar'])->middleware('throttle:economy');
+        Route::post('guilds/{guild}/wars/{other}/peace', [GuildController::class, 'peace']);
 
         Route::get('blueprints', [BlueprintController::class, 'index']);
         Route::get('blueprints/mine', [BlueprintController::class, 'mine']);
@@ -87,6 +94,8 @@ Route::prefix('v1')->group(function () {
  */
 Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(function () {
     Route::get('lands', LandFeedController::class);
+    Route::get('guilds', GuildFeedController::class);
+    Route::post('wars/kills', [GuildFeedController::class, 'kill']);
     Route::post('market/listings', [MarketBridgeController::class, 'createListing']);
     Route::post('payments', [MarketBridgeController::class, 'payment']);
     Route::post('contracts/{contract}/fulfil', [MarketBridgeController::class, 'fulfil']);

@@ -222,6 +222,15 @@ async fn main() -> std::io::Result<()> {
         gameplay::land::load_cached(&world_dir)
             .unwrap_or_else(|e| fail(format!("cannot load cached land claims: {e}"))),
     ));
+    // Guilds (membership, allies, wars) and their shared vaults.
+    let guilds: gameplay::guilds::SharedGuilds = Arc::new(std::sync::RwLock::new(
+        gameplay::guilds::load_cached(&world_dir)
+            .unwrap_or_else(|e| fail(format!("cannot load cached guilds: {e}"))),
+    ));
+    let vaults: gameplay::guilds::SharedVaults = Arc::new(std::sync::Mutex::new(
+        gameplay::guilds::Vaults::load(&world_dir)
+            .unwrap_or_else(|e| fail(format!("cannot load guild vaults: {e}"))),
+    ));
     match &config.backend {
         Some(b) => info!("backend: {} (land claims, market)", b.url),
         None => warn!("backend off: this world has no land claims and no market"),
@@ -242,6 +251,8 @@ async fn main() -> std::io::Result<()> {
             worlds: worlds.clone(),
             links: links.clone(),
             land: land.clone(),
+            guilds: guilds.clone(),
+            vaults: vaults.clone(),
             bridge: bridge.clone(),
         };
         server
@@ -276,11 +287,20 @@ async fn main() -> std::io::Result<()> {
         actix_web::rt::spawn(gameplay::land::poll(
             gameplay::land::FeedConfig {
                 url: format!("{}/lands?world={}", backend.url, config.world),
-                token: backend.token,
+                token: backend.token.clone(),
                 interval: std::time::Duration::from_millis(backend.land_interval_ms),
                 cache_dir: world_dir.clone(),
             },
             land.clone(),
+        ));
+        actix_web::rt::spawn(gameplay::guilds::poll(
+            gameplay::land::FeedConfig {
+                url: format!("{}/guilds", backend.url),
+                token: backend.token.clone(),
+                interval: std::time::Duration::from_millis(backend.land_interval_ms),
+                cache_dir: world_dir.clone(),
+            },
+            guilds.clone(),
         ));
     }
     Voxelize::run_with(server, move |voxelize| {

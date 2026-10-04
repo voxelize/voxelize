@@ -7,9 +7,11 @@ use App\Models\Guild;
 use App\Models\GuildInvite;
 use App\Models\GuildMember;
 use App\Models\GuildMessage;
+use App\Models\GuildRelation;
 use App\Models\LedgerEntry;
 use App\Models\User;
 use App\Services\Economy\LedgerService;
+use App\Services\Guild\DiplomacyService;
 use App\Services\Guild\GuildService;
 use App\Services\Guild\Settlements;
 use Illuminate\Http\JsonResponse;
@@ -201,6 +203,88 @@ class GuildController extends Controller
         return response()->json(['message' => ['id' => $message->id, 'body' => $message->body]], 201);
     }
 
+    public function tax(Request $request, DiplomacyService $diplomacy, LedgerService $ledger, string $guild): JsonResponse
+    {
+        $data = $request->validate(['bps' => ['required', 'integer']]);
+        $found = $diplomacy->setTax($request->user(), $this->find($guild), (int) $data['bps']);
+
+        return response()->json(['guild' => $this->detail($found, $ledger)]);
+    }
+
+    public function relations(Request $request, DiplomacyService $diplomacy, string $guild): JsonResponse
+    {
+        $found = $this->find($guild);
+
+        return response()->json(['relations' => $this->presentRelations($found, $diplomacy)]);
+    }
+
+    /** Propose an alliance, or accept the other guild's proposal. */
+    public function ally(Request $request, DiplomacyService $diplomacy, string $guild): JsonResponse
+    {
+        $data = $request->validate(['guild' => ['required', 'string', 'max:26']]);
+        $found = $this->find($guild);
+        $relation = $diplomacy->ally($request->user(), $found, $this->other($data['guild']));
+
+        return response()->json(['relation' => $this->presentRelation($found, $relation->fresh(['guildA', 'guildB']))], 201);
+    }
+
+    public function endAlliance(Request $request, DiplomacyService $diplomacy, string $guild, string $other): JsonResponse
+    {
+        $diplomacy->endAlliance($request->user(), $this->find($guild), $this->other($other));
+
+        return response()->json(['ended' => true]);
+    }
+
+    public function declareWar(Request $request, DiplomacyService $diplomacy, string $guild): JsonResponse
+    {
+        $data = $request->validate(['guild' => ['required', 'string', 'max:26']]);
+        $found = $this->find($guild);
+        $relation = $diplomacy->declareWar($request->user(), $found, $this->other($data['guild']));
+
+        return response()->json(['relation' => $this->presentRelation($found, $relation->fresh(['guildA', 'guildB']))], 201);
+    }
+
+    public function peace(Request $request, DiplomacyService $diplomacy, string $guild, string $other): JsonResponse
+    {
+        $ended = $diplomacy->offerPeace($request->user(), $this->find($guild), $this->other($other));
+
+        return response()->json(['peace' => $ended, 'offered' => ! $ended]);
+    }
+
+    /** Another active guild by id or tag. */
+    private function other(string $idOrTag): Guild
+    {
+        return Guild::query()->where('status', 'active')
+            ->where(fn ($q) => $q->where('public_id', $idOrTag)->orWhere('tag', strtoupper($idOrTag)))
+            ->firstOr(fn () => abort(response()->json(['error' => ['code' => 'guild_not_found', 'message' => 'No such guild.']], 404)));
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function presentRelations(Guild $guild, DiplomacyService $diplomacy): array
+    {
+        return $diplomacy->relations($guild)->map(fn (GuildRelation $r) => $this->presentRelation($guild, $r))->values()->all();
+    }
+
+    /** @return array<string, mixed> */
+    private function presentRelation(Guild $guild, GuildRelation $r): array
+    {
+        $mineIsA = $r->guild_a_id === $guild->id;
+        $other = $mineIsA ? $r->guildB : $r->guildA;
+
+        return [
+            'id' => $r->public_id,
+            'kind' => $r->kind,
+            'status' => $r->status,
+            'with' => ['id' => $other->public_id, 'name' => $other->name, 'tag' => $other->tag],
+            'initiated' => $r->initiator_id === $guild->id,
+            'fighting' => $r->fighting(),
+            'starts_at' => $r->starts_at?->toIso8601String(),
+            'ends_at' => $r->ends_at?->toIso8601String(),
+            'score' => $r->kind === 'war' ? ['us' => $mineIsA ? $r->score_a : $r->score_b, 'them' => $mineIsA ? $r->score_b : $r->score_a] : null,
+            'peace_offered' => $r->peace_offered_by === null ? null : ($r->peace_offered_by === $guild->id ? 'us' : 'them'),
+        ];
+    }
+
     private function keyError(Request $request): ?JsonResponse
     {
         if (preg_match('/^[A-Za-z0-9_-]{8,64}$/', (string) $request->header('Idempotency-Key', ''))) {
@@ -266,6 +350,8 @@ class GuildController extends Controller
             'max_members' => Settlements::memberLimit($g),
             'settlements' => $settlements = Settlements::forGuild($g),
             'settlement_level' => Settlements::best($settlements),
+            'tax_bps' => $g->tax_bps,
+            'relations' => $this->presentRelations($g, app(DiplomacyService::class)),
             'max_chunks' => (int) config('platform.guilds.max_chunks'),
             'my_role' => request()->user() ? $g->roleOf(request()->user()) : null,
         ];

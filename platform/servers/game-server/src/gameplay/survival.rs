@@ -29,6 +29,8 @@ pub enum DamageKind {
     Starvation,
     /// Hit by a creature.
     Mob,
+    /// Hit by a player of a guild at war with the victim's.
+    Player,
     /// Fell out of the world (below its lowest block).
     Void,
 }

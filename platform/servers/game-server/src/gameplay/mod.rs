@@ -11,12 +11,14 @@ pub mod drops;
 pub mod mobs;
 mod mobs_api;
 pub use mobs_api::MobSystem;
+mod guild_api;
 pub mod inventory;
 mod items_api;
 mod plates;
 pub use plates::PlateSystem;
 pub mod blueprint;
 pub mod bridge;
+pub mod guilds;
 pub mod land;
 pub mod market;
 pub mod stall;
@@ -451,6 +453,7 @@ fn on_join(world: &mut World, entity: Entity) {
         outbox,
         delivered,
         trade_hold,
+        home,
     ) = match record {
         Some(r) => (
             r.inventory,
@@ -462,6 +465,7 @@ fn on_join(world: &mut World, entity: Entity) {
             r.outbox,
             r.delivered,
             r.trade_hold,
+            r.home,
         ),
         None => (
             Inventory::default(),
@@ -472,6 +476,7 @@ fn on_join(world: &mut World, entity: Entity) {
             None,
             Vec::new(),
             Vec::new(),
+            None,
             None,
         ),
     };
@@ -492,6 +497,7 @@ fn on_join(world: &mut World, entity: Entity) {
         state.travel.arrival = arrival.clone();
         state.market = market::MarketState::restore(outbox, delivered);
         state.trade_hold = trade_hold;
+        state.home = home;
         // Joining inside a portal never sends the player straight on.
         state.travel.blocked = true;
         state.travel.settle = travel::SETTLE_SECONDS;
@@ -552,6 +558,7 @@ pub fn install(
     mobs_api::install(world);
     market::install(world);
     stall::install(world);
+    guild_api::install(world);
     blueprint::install(world);
     trade::install(world);
     world.set_client_modifier(on_join);
@@ -644,6 +651,29 @@ pub fn install(
         };
         if !land_allows(world, client_id, p.voxel, land::Action::Build) {
             reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
+        // Town halls and vaults only go into settlements.
+        let guild_block = {
+            let g = world.ecs().read_resource::<Gameplay>();
+            let key = match &p.block {
+                Some(key) => Some(key.clone()),
+                None => g.players.get(client_id).and_then(|player| {
+                    let slot = p.slot.unwrap_or(player.inventory.selected);
+                    let stack = player.inventory.get(slot)?;
+                    g.rules
+                        .content()
+                        .item_by_id(stack.item)?
+                        .places_block
+                        .clone()
+                }),
+            };
+            key.map_or(Ok(()), |key| {
+                guild_api::may_place(&g, client_id, p.voxel, &key)
+            })
+        };
+        if let Err(e) = guild_block {
+            reply(world, client_id, INTENT, Err(e));
             return;
         }
         let result = with_player(world, client_id, |g, view, position| {
@@ -889,9 +919,14 @@ pub fn install(
                         return;
                     }
                 }
+                // At their town hall, or the client moves itself to the
+                // surface of the spawn column.
+                let spawn = match guild_api::respawn_home(world, client_id) {
+                    Some(home) => json!({ "x": home[0], "z": home[2], "feet": home }),
+                    None => json!({ "x": 0, "z": 0 }),
+                };
                 persist(world, client_id);
-                // The client moves itself to the surface of the spawn column.
-                send(world, client_id, RESPAWN_EVENT, json!({ "x": 0, "z": 0 }));
+                send(world, client_id, RESPAWN_EVENT, spawn);
                 send_vitals(world, client_id, None);
                 reply(world, client_id, INTENT, Ok(json!({})));
             }
@@ -903,6 +938,9 @@ pub fn install(
         let Some(p) = parse::<VoxelPayload>(world, client_id, INTENT, payload) else {
             return;
         };
+        if guild_api::use_hall(world, client_id, p.voxel) {
+            return;
+        }
         // Switches need permission to use; everything else used on a block
         // (tilling, lighting portals) changes it.
         let action = {

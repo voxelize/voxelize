@@ -6,7 +6,7 @@ validated by the game server like a browser player's.
 
 | Script | Purpose |
 | --- | --- |
-| `smoke.mjs` | end-to-end check of a running stack: registration, single-use tickets, join, mining with timing validation, drops, placement, refusals |
+| `smoke.mjs` | end-to-end check of a running stack: registration, single-use tickets, join, mining with timing validation, picking the drop up from the world, placement, refusals, fall damage, death and respawn |
 | `crafting.mjs` | the crafting progression: chop by hand, pick up drops, 2x2 planks, workbench via recipe book, sticks/pickaxe/chest at the workbench, chest storage, dig stone, furnace, smelting |
 | `nature.mjs` | block behaviours: fell a lone tree and watch its leaves decay and drop |
 | `circuits.mjs` | circuits in creative: lever → conduits → lamp, pressure plate under the bot, gate by hand (also runs against a standalone game server with `DEV_TICKET_SECRET`) |
@@ -19,6 +19,7 @@ validated by the game server like a browser player's.
 | `trade.mjs` | the trade window end to end: invite, offer iron against bread and Crowns, both confirm, goods swap and Crowns move without fee; a cancelled trade returns the offer (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
 | `contracts.mjs` | contracts end to end: post with a locked reward, take, deliver in the game, reward paid and goods delivered (standalone: seeds the worker's record via `SAVE_DIR`; needs `FUND_CMD`) |
 | `guilds.mjs` | guilds end to end: found, join, deposit; touching guild plots paid from the treasury become a village named on entry; members build there and strangers cannot; a member's stall sells for the treasury; guild chat; a guild contract paid from the treasury and fulfilled in the game (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
+| `diplomacy.mjs` | guild buildings and war end to end: a town hall as respawn point, two vaults sharing one inventory, vaults kept out of the wilderness, no fighting at peace, a war with a kill each way scored, respawn at the hall, peace (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`; the API with `GUILD_WAR_WARMUP_MINUTES=0`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |

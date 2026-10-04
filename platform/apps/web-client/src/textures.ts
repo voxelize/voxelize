@@ -440,6 +440,25 @@ const RECIPES: Record<string, Recipe> = {
     p.blobs(hex("#ffd34a"), 5, 1);
     p.blobs(hex("#fff3b0"), 3, 0);
   },
+  // Guild buildings.
+  guild_hall_side: (p) => {
+    p.boards(shade(PLANK, -0.15), 4);
+    for (let y = 5; y < 11; y++) for (let x = 6; x < 10; x++) p.set(x, y, hex(y < 7 ? "#d9b04a" : "#4a2f1a"));
+    p.border(hex("#3b2614"));
+  },
+  guild_hall_top: (p) => {
+    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) p.set(x, y, shade(hex("#8a2a22"), ((x + y) % 4 === 0 ? -0.15 : 0) + (p.random() - 0.5) * 0.08));
+    p.border(hex("#d9b04a"));
+  },
+  guild_vault_side: (p) => {
+    p.speckle(hex("#5e6470"), 0.1);
+    p.border(hex("#2c3038"));
+    for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) p.set(x, y, hex(x === 7 || x === 8 ? "#d9b04a" : "#3a3f48"));
+  },
+  guild_vault_top: (p) => {
+    p.speckle(hex("#5e6470"), 0.1);
+    p.border(hex("#2c3038"));
+  },
   // Trade stall: striped awning on top, a counter on the sides.
   stall_top: (p) => {
     for (let y = 0; y < SIZE; y++)

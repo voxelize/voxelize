@@ -8,6 +8,7 @@ import * as THREE from "three";
 
 import { Content, isUsableBlock, miningMillis } from "./content";
 import { GuildPanel, landNotice } from "./guild";
+import { pickPlayer } from "./pvp";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
 import { StallPanel, type StallView } from "./stall";
@@ -71,6 +72,8 @@ const MESSAGES: Record<string, string> = {
   busy: "A sale is still being paid",
   bad_blueprint: "That is not a blueprint that can be captured or built",
   creative_only: "Only in creative worlds",
+  not_at_war: "Your guilds are not at war",
+  not_in_settlement: "Town halls and vaults stand on guild land in a settlement",
 };
 
 class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
@@ -353,6 +356,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (n.listed) hud.toast(`Listed ${n.listed.count} × ${itemName(n.listed.item)}`);
     if (n.rejected) hud.toast(`Not listed (${n.rejected.code}); ${itemName(n.rejected.item)} returned`);
     if ((n as { fulfilled?: { count: number; item: string } }).fulfilled) hud.toast("Contract fulfilled: the reward is yours");
+    if ((n as { war_kill?: unknown }).war_kill) hud.toast("War: an enemy falls, your guild scores");
     if (n.received) hud.toast(`Received ${n.received.count} × ${itemName(n.received.item)}`);
     if (n.waiting) hud.toast(`A delivery of ${itemName(n.waiting.item)} waits for room in your inventory`);
     if (n.blueprint?.stored) hud.toast(`Blueprint saved (${n.blueprint.blocks} blocks)`);
@@ -381,10 +385,18 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     }
     location.reload();
   });
-  events.on<{ x: number; z: number }>("platform.respawn", (spawn) => {
+  events.on<{ x: number; z: number; feet?: [number, number, number] }>("platform.respawn", (spawn) => {
     if (!spawn) return;
-    controls.teleportToTop(spawn.x, spawn.z, 2);
+    // At the player's town hall, or on top of the spawn column.
+    if (spawn.feet) placeFeet(spawn.feet);
+    else controls.teleportToTop(spawn.x, spawn.z, 2);
     controls.lock();
+  });
+  // Using a town hall: the guild panel opens.
+  events.on<{ guild: { tag: string }; home: boolean }>("platform.guild.hall", ({ guild, home }) => {
+    hud.toast(home ? `Town hall of [${guild.tag}]: you will respawn here` : `Town hall of [${guild.tag}]`);
+    if (!guildPanel.isOpen) guildPanel.toggle();
+    controls.unlock();
   });
 
   // ---- windows: inventory screen, workbench, furnace, chest ---------------
@@ -456,6 +468,17 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       : Infinity;
     return mob && mob.distance < blockDistance ? mob : null;
   };
+  // Another player in front of the block under the crosshair.
+  const playerInFront = () => {
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const others = [...players.map.entries()].map(([id, c]) => [id, c.position] as [string, { x: number; y: number; z: number }]);
+    const hit = pickPlayer(camera.position, dir, others);
+    const blockDistance = interact.target
+      ? camera.position.distanceTo(new THREE.Vector3(...interact.target).addScalar(0.5))
+      : Infinity;
+    return hit && hit.distance < blockDistance ? hit : null;
+  };
   const primary = (down: boolean) => {
     if (!down) {
       leftDown = false;
@@ -466,6 +489,11 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     const mob = mobInFront();
     if (mob) {
       method.call("platform.attack", { mob: mob.id });
+      return;
+    }
+    const enemy = playerInFront();
+    if (enemy) {
+      method.call("platform.attack.player", { player: enemy.id });
       return;
     }
     leftDown = true;

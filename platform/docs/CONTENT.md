@@ -100,6 +100,12 @@ A station is any block that runs processing recipes. Smelters, cookers,
 crushers and later machines are new station entries plus recipes, with no
 new code.
 
+Guild blocks: `guild_hall` (Town Hall) and `guild_vault` (Guild Vault) are
+placed only on guild land that is part of a settlement (a hall by the
+guild's leader or officers, a vault by any member). The server gives them
+their behaviour by key: using a hall sets the member's respawn point; a
+vault opens its guild's shared inventory.
+
 ## biomes/ and ores/
 
 Every biome belongs to a `dimension` (`overworld` by default,

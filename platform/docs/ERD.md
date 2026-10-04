@@ -369,6 +369,19 @@ Planned: `settlement_level` (`none|village|town|city`).
 Joining deletes every invitation of that player.
 
 `lands.guild_id` FK NULL: land held by a guild (paid from its treasury).
+`guilds.tax_bps`: the guild's sales tax on stalls on its land.
+
+### guild_relations ✅ implemented
+`public_id`, `guild_a_id` < `guild_b_id` (UNIQUE pair), `kind`
+(`alliance|war`), `status` (`proposed|active`), `initiator_id`, wars:
+`starts_at` (after the warm-up), `ends_at`, `score_a`, `score_b`,
+`peace_offered_by`; timestamps. Ended alliances and wars are deleted (the
+audit log keeps declarations and peace with the final score).
+
+### war_kills ✅ implemented
+`relation_id` FK (cascade), `kill_key` UNIQUE (the game server's kill id),
+`killer_id`, `victim_id`, `created_at`: each kill scored once.
+
 Settlements are not stored: they are the touching groups of a guild's
 active lands, levelled on read (`App\Services\Guild\Settlements`).
 

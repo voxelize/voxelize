@@ -131,6 +131,20 @@ export type GuildView = GuildSummary & {
   my_role: GuildRole | null;
   settlements: Settlement[];
   settlement_level: SettlementLevel;
+  tax_bps: number;
+  relations: GuildRelation[];
+};
+export type GuildRelation = {
+  id: string;
+  kind: "alliance" | "war";
+  status: "proposed" | "active";
+  with: { id: string; name: string; tag: string };
+  initiated: boolean;
+  fighting: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  score: { us: number; them: number } | null;
+  peace_offered: "us" | "them" | null;
 };
 export type SettlementLevel = "none" | "village" | "town" | "city";
 export type Settlement = {
@@ -226,6 +240,16 @@ export const api = {
       request<{ messages: GuildMessage[] }>(`/guilds/${id}/messages${after ? `?after=${after}` : ""}`).then((r) => r.messages),
     say: (id: string, body: string) =>
       request<{ message: { id: number } }>(`/guilds/${id}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
+    setTax: (id: string, bps: number) =>
+      request<{ guild: GuildView }>(`/guilds/${id}/tax`, { method: "PUT", body: JSON.stringify({ bps }) }).then((r) => r.guild),
+    ally: (id: string, other: string) =>
+      request<{ relation: GuildRelation }>(`/guilds/${id}/alliances`, { method: "POST", body: JSON.stringify({ guild: other }) }).then((r) => r.relation),
+    endAlliance: (id: string, other: string) =>
+      request<{ ended: boolean }>(`/guilds/${id}/alliances/${encodeURIComponent(other)}`, { method: "DELETE" }),
+    declareWar: (id: string, other: string) =>
+      request<{ relation: GuildRelation }>(`/guilds/${id}/wars`, { method: "POST", body: JSON.stringify({ guild: other }) }).then((r) => r.relation),
+    peace: (id: string, other: string) =>
+      request<{ peace: boolean; offered: boolean }>(`/guilds/${id}/wars/${encodeURIComponent(other)}/peace`, { method: "POST" }),
     withdraw: (id: string, key: string, amount: number, to?: string) =>
       request<{ treasury: number }>(`/guilds/${id}/withdraw`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ amount, to }) }),
   },

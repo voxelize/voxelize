@@ -57,6 +57,10 @@ pub enum IntentError {
     NotHungry,
     UnknownItem,
     CreativeOnly,
+    /// Town halls and vaults stand on guild land in a settlement.
+    NotInSettlement,
+    /// Players may only fight players of a guild theirs is at war with.
+    NotAtWar,
     /// The land there belongs to someone who has not allowed this.
     LandProtected,
     MarketUnavailable,
@@ -94,6 +98,8 @@ impl IntentError {
             IntentError::NotHungry => "not_hungry",
             IntentError::UnknownItem => "unknown_item",
             IntentError::CreativeOnly => "creative_only",
+            IntentError::NotInSettlement => "not_in_settlement",
+            IntentError::NotAtWar => "not_at_war",
             IntentError::LandProtected => "land_protected",
             IntentError::MarketUnavailable => "market_unavailable",
             IntentError::SurvivalOnly => "survival_only",
@@ -144,6 +150,8 @@ pub struct PlayerState {
     pub market: super::market::MarketState,
     /// Items offered in an open trade (saved with the record).
     pub trade_hold: Option<super::trade::Hold>,
+    /// The town hall the player respawns at (overworld cell above it).
+    pub home: Option<[i32; 3]>,
 }
 
 /// The window a player has open.
@@ -174,6 +182,7 @@ impl PlayerState {
             land_seen: None,
             market: Default::default(),
             trade_hold: None,
+            home: None,
         }
     }
 }

@@ -277,8 +277,16 @@ toasted in the game); stalls selling for the guild treasury
 (`platform.stall.guild`); contracts posted by officers and paid from the
 treasury. Tests: 9 backend feature tests, Rust stall and land tests,
 client unit tests, `tests/bots/guilds.mjs` end to end.
-Remaining: settlement buildings and services (town hall, shared storage),
-taxes, wars and alliances.
+Done since: settlement buildings — the town hall (placed by officers in a
+settlement; members respawn there) and guild vaults (placed by members in a
+settlement; every vault of a guild opens one shared inventory, in every
+dimension, for survival members only, and breaking one spills nothing);
+sales tax on stalls standing on guild land; alliances (both leaders agree;
+allies visit each other's land); wars (declared for a fee, a warm-up, then
+players of the two guilds may fight; kills scored; peace by both leaders or
+after 7 days). Tests: 4 backend feature tests, Rust guild and vault tests,
+client tests, `tests/bots/diplomacy.mjs` end to end.
+Remaining: sieges and claim capture, guild ranks beyond three roles.
 
 ## Phase 18 — Advanced content 🟡
 

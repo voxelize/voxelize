@@ -530,6 +530,7 @@ pub fn install(world: &mut World) {
                                 amount,
                                 reason: format!("Trade with {}", trade.sides[1 - payer].name),
                                 kind: "trade",
+                                land_guild: None,
                             });
                         }
                         (true, None, _, _) => {

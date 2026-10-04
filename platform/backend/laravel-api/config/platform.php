@@ -79,6 +79,16 @@ return [
         // Guild chat: longest message, messages a member may send a minute.
         'chat_max_length' => 300,
         'chat_per_minute' => 20,
+        // Sales tax a guild may levy on stalls on its land, in basis points.
+        'max_tax_bps' => 2000,
+        'war' => [
+            // Paid from the declaring guild's treasury to the burn sink.
+            'declaration_fee' => (int) env('GUILD_WAR_FEE', 200),
+            // Minutes between declaring and fighting, so the other side can prepare.
+            'warmup_minutes' => (int) env('GUILD_WAR_WARMUP_MINUTES', 10),
+            // A war ends by itself after this many days.
+            'max_days' => 7,
+        ],
     ],
 
     'blueprints' => [

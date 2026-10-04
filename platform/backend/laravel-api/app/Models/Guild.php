@@ -14,6 +14,11 @@ class Guild extends Model
 
     public bool $wasReplayed = false;
 
+    protected function casts(): array
+    {
+        return ['tax_bps' => 'integer'];
+    }
+
     public function leader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'leader_id');

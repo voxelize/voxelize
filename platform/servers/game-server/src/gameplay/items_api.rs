@@ -22,6 +22,7 @@ fn container_kind(container: &Container) -> WindowKind {
         Container::Furnace(_) => WindowKind::Furnace,
         // The owner stocks a stall like a small chest.
         Container::Stall(_) => WindowKind::Chest,
+        Container::Vault { .. } => WindowKind::Chest,
     }
 }
 
@@ -46,11 +47,11 @@ fn build_window(g: &Gameplay, id: &str) -> Option<Window> {
             }
             WindowKind::Furnace | WindowKind::Chest => {
                 let container = g.containers.map.get(&open.at?)?;
-                Window::new(
-                    container_kind(container),
-                    container.slots().to_vec(),
-                    inventory,
-                )
+                let slots = match container.vault_guild() {
+                    Some(guild) => g.dimensions.vaults.lock().ok()?.slots(guild),
+                    None => container.slots().to_vec(),
+                };
+                Window::new(container_kind(container), slots, inventory)
             }
         },
     };
@@ -67,7 +68,23 @@ fn store_window(g: &mut Gameplay, id: &str, w: &Window) {
         .and_then(|p| p.window.as_ref())
         .and_then(|o| o.at);
     if let (WindowKind::Furnace | WindowKind::Chest, Some(at)) = (w.kind, at) {
-        if let Some(container) = g.containers.map.get_mut(&at) {
+        if let Some(guild) = g
+            .containers
+            .map
+            .get(&at)
+            .and_then(|c| c.vault_guild())
+            .map(str::to_owned)
+        {
+            let stored = g
+                .dimensions
+                .vaults
+                .lock()
+                .map_err(|_| std::io::Error::other("vaults lock poisoned"))
+                .and_then(|mut v| v.store(&guild, w.container().to_vec()));
+            if let Err(e) = stored {
+                log::error!("could not save the vault of guild {guild}: {e}");
+            }
+        } else if let Some(container) = g.containers.map.get_mut(&at) {
             *container.slots_mut() = w.container().to_vec();
             g.containers.dirty = true;
         }
@@ -135,9 +152,19 @@ pub(super) fn send_window(world: &mut World, id: &str) {
 
 /// Everyone else looking into the container at `at`.
 fn viewers(g: &Gameplay, at: [i32; 3], except: &str) -> Vec<String> {
+    // Every vault of a guild shows the same items.
+    let vault = g.containers.map.get(&at).and_then(|c| c.vault_guild());
     g.players
         .iter()
-        .filter(|(id, p)| id.as_str() != except && p.window.as_ref().and_then(|w| w.at) == Some(at))
+        .filter(|(id, p)| {
+            id.as_str() != except
+                && p.window.as_ref().and_then(|w| w.at).is_some_and(|open| {
+                    open == at
+                        || vault.is_some_and(|guild| {
+                            g.containers.map.get(&open).and_then(|c| c.vault_guild()) == Some(guild)
+                        })
+                })
+        })
         .map(|(id, _)| id.clone())
         .collect()
 }
@@ -267,6 +294,21 @@ pub(super) fn block_placed(world: &mut World, voxel: [i32; 3], block: u32, place
         Some(Container::Stall(super::containers::Stall::new(
             placer, &name, creative,
         )))
+    } else if key == "guild_vault" {
+        // The vault of the guild whose land it stands on (checked before placing).
+        let dimension = g.dimensions.current;
+        g.dimensions
+            .land
+            .read()
+            .ok()
+            .and_then(|l| {
+                l.at(dimension, voxel[0], voxel[2])
+                    .and_then(|l| l.guild.clone())
+            })
+            .map(|guild| Container::Vault {
+                guild: guild.id,
+                empty: Vec::new(),
+            })
     } else {
         Container::for_block(&key)
     };
@@ -429,6 +471,7 @@ pub(super) fn install(world: &mut World) {
                         Some("crafting_table") => Some(WindowKind::Workbench),
                         Some("furnace") => Some(WindowKind::Furnace),
                         Some("chest") => Some(WindowKind::Chest),
+                        Some("guild_vault") => Some(WindowKind::Chest),
                         Some("trade_stall") => Some(WindowKind::Chest),
                         _ => None,
                     };
@@ -442,10 +485,29 @@ pub(super) fn install(world: &mut World) {
                             })
                             .unwrap_or(false)
                     };
+                    // A vault opens for its guild's survival members only.
+                    let vault_refused =
+                        match g.containers.map.get(&voxel).and_then(|c| c.vault_guild()) {
+                            None => None,
+                            Some(_)
+                                if g.players.get(id).is_some_and(|p| {
+                                    p.realm != platform_ticket::Realm::Survival
+                                }) =>
+                            {
+                                Some(IntentError::SurvivalOnly)
+                            }
+                            Some(guild) => (!g
+                                .dimensions
+                                .guilds
+                                .read()
+                                .is_ok_and(|index| index.is_member(id, guild)))
+                            .then_some(IntentError::NotOwner),
+                        };
                     match (kind, close) {
                         (None, _) => Err(Some(IntentError::NothingThere)),
                         (_, false) => Err(Some(IntentError::OutOfReach)),
                         _ if protected => Err(Some(IntentError::LandProtected)),
+                        _ if vault_refused.is_some() => Err(vault_refused),
                         (Some(kind), true) => {
                             if kind != WindowKind::Workbench
                                 && !g.containers.map.contains_key(&voxel)

@@ -80,10 +80,15 @@ bot.call("platform.mine.finish", { voxel: target });
 const mined = await bot.result("mine.finish");
 assert.equal(mined.ok, true, `mining failed: ${mined.code}`);
 const drop = itemByKey.get(block.drops[0].item);
-await sleep(200);
+// Broken blocks drop into the world; stepping into the hole picks it up.
+await bot.moveTo([target[0] + 0.5, target[1] + 1.425 + 0.05, target[2] + 0.5], 2);
+for (let t = 0; t < 50 && !bot.inventory.slots.some((s) => s && s.item === drop.id); t++) await sleep(100);
 const slot = bot.inventory.slots.find((s) => s && s.item === drop.id);
-assert.ok(slot, `inventory holds ${drop.name}`);
-step(`mined ${block.name} in ${millis} ms and received ${drop.name}`);
+assert.ok(slot, `picked up ${drop.name}`);
+step(`mined ${block.name} in ${millis} ms and picked up ${drop.name}`);
+// Back up on the ground beside the hole.
+await bot.moveTo([target[0] + 0.5, target[1] + 2.6, target[2] + 0.5], 2);
+await sleep(200);
 
 if (drop.placesBlock) {
   // Placing into the cell the player stands over is refused; step aside.
@@ -109,7 +114,21 @@ bot.waiters.push({ match: () => false, resolve() {} });
 const onVitals = (m) => m.type === "EVENT" && m.name === "platform.vitals" && (vitals.push(m.payload), false);
 bot.waiters.push({ match: onVitals, resolve() {} });
 await sleep(5200); // the join grace period, during which falls do not count
-const [gx, gy, gz] = [target[0] + 2, target[1], target[2]];
+// Dry, solid ground to fall onto (water breaks a fall).
+let ground = null;
+const standable = (v) => blockById.get(v)?.collision !== false || blockById.get(v)?.fluid != null;
+for (let d = 2; d < 14 && !ground; d++)
+  for (const [dx, dz] of [[d, 0], [-d, 0], [0, d], [0, -d], [d, d], [-d, -d]]) {
+    const [x, z] = [target[0] + dx, target[2] + dz];
+    const top = bot.surface(x, z, standable);
+    const def = top === null ? null : blockById.get(bot.voxel(x, top, z));
+    if (def && def.fluid == null && def.collision !== false) {
+      ground = [x, top, z];
+      break;
+    }
+  }
+assert.ok(ground, "dry ground to fall onto");
+const [gx, gy, gz] = ground;
 const eye = 1.425;
 const fallFrom = async (height) => {
   for (let h = 0; h <= height; h += 20) await bot.moveTo([gx + 0.5, gy + 1 + eye + Math.min(h, height), gz + 0.5], 2);

@@ -79,7 +79,7 @@ and the sum of all account balances is exactly zero (checked by `verify()`).
 | `burn` | wallet −a, burn +a | repairs, fast travel, land upkeep, NPC services, cosmetics |
 | `fee` *(phase 15)* | payer −a, fees +a | marketplace fees (today the fee is a leg of `sale`) |
 | `escrow_lock` / `escrow_release` / `escrow_refund` ✅ auctions, contracts | wallet ↔ escrow | a bid locks the bidder's money in `escrow:listing:<id>`; an outbid is refunded in the same database transaction |
-| `sale` ✅ market, stalls, blueprint licences | buyer (or escrow) −p, seller +(p−f−r), fees +f, creator +r | one transaction, so royalty and fee can never be skipped; the fee leg is left out when it rounds to 0 |
+| `sale` ✅ market, stalls, blueprint licences | buyer (or escrow) −p, seller +(p−f−r−t), fees +f, creator +r, guild treasury +t (the sales tax of the guild whose land a stall stands on) | one transaction, so royalty and fee can never be skipped; the fee leg is left out when it rounds to 0 |
 
 Example — a blueprint sale of 1 000 CRN with a 10 % platform share:
 

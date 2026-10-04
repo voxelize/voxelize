@@ -120,6 +120,7 @@ const CAUSES: Record<string, string> = {
   starvation: "You starved.",
   mob: "You were slain by a creature.",
   void: "You fell out of the world.",
+  player: "You were slain by an enemy guild.",
 };
 
 function pips(id: string, value: number, count: number, perPip: number, reverse = false) {

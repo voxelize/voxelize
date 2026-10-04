@@ -4,6 +4,7 @@ namespace App\Services\Land;
 
 use App\Models\Guild;
 use App\Models\GuildMember;
+use App\Models\GuildRelation;
 use App\Models\Land;
 use App\Models\LandHistory;
 use App\Models\LandLock;
@@ -262,6 +263,15 @@ class LandService
             ->with(['owner:id,public_id,username', 'members.user:id,public_id', 'guild.members.user:id,public_id,username', 'guild.leader:id,public_id,username'])
             ->orderBy('id')
             ->get();
+        // Allied guilds' members, per guild.
+        $allies = [];
+        foreach (GuildRelation::query()->where('kind', 'alliance')->where('status', 'active')->get() as $r) {
+            foreach ([[$r->guild_a_id, $r->guild_b_id], [$r->guild_b_id, $r->guild_a_id]] as [$host, $ally]) {
+                foreach (GuildMember::query()->where('guild_id', $ally)->with('user:id,public_id')->get() as $m) {
+                    $allies[$host][] = ['id' => $m->user->public_id, 'role' => 'visitor'];
+                }
+            }
+        }
         // Each guild land's settlement (village and up).
         $settlement = [];
         foreach ($lands->whereNotNull('guild_id')->groupBy('guild_id') as $group) {
@@ -293,6 +303,8 @@ class LandService
                     ->concat($land->guild ? $land->guild->members
                         ->filter(fn (GuildMember $m) => $m->role !== 'leader')
                         ->map(fn (GuildMember $m) => ['id' => $m->user->public_id, 'role' => $m->role === 'officer' ? 'manager' : 'builder']) : [])
+                    // Members of allied guilds visit: they use switches and gates.
+                    ->concat($land->guild_id ? ($allies[$land->guild_id] ?? []) : [])
                     ->values()->all(),
                 'public' => array_merge(Land::DEFAULT_PERMISSIONS, (array) $land->permissions),
                 'version' => $land->version,

@@ -46,6 +46,9 @@ pub struct PlayerRecord {
     /// Items offered in an open trade.
     #[serde(default)]
     pub trade_hold: Option<super::trade::Hold>,
+    /// Respawn point at a guild town hall.
+    #[serde(default)]
+    pub home: Option<[i32; 3]>,
 }
 
 pub struct PlayerStore {
@@ -119,6 +122,7 @@ impl PlayerStore {
             outbox: player.market.outbox.clone(),
             delivered: player.market.delivered.iter().cloned().collect(),
             trade_hold: player.trade_hold.clone(),
+            home: player.home,
         }
     }
 
@@ -207,6 +211,7 @@ mod tests {
             }],
             delivered: vec!["d1".into()],
             trade_hold: None,
+            home: None,
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

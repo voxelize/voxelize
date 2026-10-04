@@ -87,6 +87,15 @@ pub enum Request {
         reason: String,
         /// `stall` (with the market fee) or `trade` (none).
         kind: &'static str,
+        /// The guild whose land the stall stands on: it levies its sales tax.
+        land_guild: Option<String>,
+    },
+    /// A player killed another: the backend scores it for their guilds' war.
+    WarKill {
+        world: String,
+        key: String,
+        killer: String,
+        victim: String,
     },
 }
 
@@ -97,6 +106,7 @@ impl Request {
             | Request::PendingDeliveries { world, .. }
             | Request::Acknowledge { world, .. }
             | Request::Payment { world, .. }
+            | Request::WarKill { world, .. }
             | Request::UploadBlueprint { world, .. }
             | Request::FetchBlueprint { world, .. } => world,
         }
@@ -157,6 +167,12 @@ pub enum Response {
         id: String,
         at: [i32; 3],
         layout: Value,
+    },
+    /// A war kill was counted (`score`: the war's score, first guild first).
+    WarKill {
+        killer: String,
+        victim: String,
+        counted: bool,
     },
 }
 
@@ -438,9 +454,10 @@ async fn send(
             amount,
             reason,
             kind,
+            land_guild,
             ..
         } => {
-            let body = json!({ "key": key, "from": from, "to": to, "amount": amount, "reason": reason, "kind": kind });
+            let body = json!({ "key": key, "from": from, "to": to, "amount": amount, "reason": reason, "kind": kind, "land_guild": land_guild });
             match post(client, &format!("{base}/payments"), token, body).await {
                 Ok((200 | 201, _)) => Response::Paid { key },
                 Ok((400 | 404 | 409 | 422, body)) => Response::PaymentRefused {
@@ -455,6 +472,31 @@ async fn send(
                     log::warn!("market: payment {key} not sent ({e}); will retry");
                     Response::PaymentFailed { key }
                 }
+            }
+        }
+        Request::WarKill {
+            key,
+            killer,
+            victim,
+            ..
+        } => {
+            let body = json!({ "key": key, "killer": killer, "victim": victim });
+            let counted = match post(client, &format!("{base}/wars/kills"), token, body).await {
+                Ok((200 | 201, _)) => true,
+                Ok((status, _)) if status != 409 => {
+                    log::warn!("war kill {key} got HTTP {status}");
+                    false
+                }
+                Ok(_) => false,
+                Err(e) => {
+                    log::warn!("war kill {key} not sent ({e})");
+                    false
+                }
+            };
+            Response::WarKill {
+                killer,
+                victim,
+                counted,
             }
         }
         Request::Acknowledge { delivery, .. } => {

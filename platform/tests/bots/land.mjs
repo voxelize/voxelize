@@ -39,20 +39,29 @@ const connect = async (who) => {
 const alice = await connect("alice");
 const bob = await connect("bob");
 
-// A land chunk nobody holds yet (the test can run again on one backend).
+// A land chunk nobody holds yet (the test can run again on one backend),
+// with dry ground at its middle.
+const content = await (await fetch(`${GAME}/platform/content`)).json();
+const def = (v) => content.blocks.find((b) => b.id === v);
+const standable = (v) => v !== 0 && (def(v)?.collision !== false || def(v)?.fluid != null);
 const taken = (await api(API, "/lands?world=main&dimension=overworld", { token: tokens.alice })).lands;
-let chunk;
-do chunk = [3 + Math.floor(Math.random() * 8), 3 + Math.floor(Math.random() * 8)];
-while (taken.some((l) => chunk[0] >= l.min[0] && chunk[0] <= l.max[0] && chunk[1] >= l.min[1] && chunk[1] <= l.max[1]));
-const [x, z] = [chunk[0] * 16 + 8, chunk[1] * 16 + 8];
+let chunk, x, z;
 let y = null;
-for (let i = 0; i < 100 && y === null; i++) {
-  alice.position = [x + 0.5, 100, z + 0.5];
-  alice.requestChunks(1);
-  bob.position = alice.position;
-  bob.requestChunks(1);
-  await sleep(200);
-  y = alice.surface(x, z, (v) => v !== 0);
+for (let attempt = 0; attempt < 30 && y === null; attempt++) {
+  do chunk = [3 + Math.floor(Math.random() * 8), 3 + Math.floor(Math.random() * 8)];
+  while (taken.some((l) => chunk[0] >= l.min[0] && chunk[0] <= l.max[0] && chunk[1] >= l.min[1] && chunk[1] <= l.max[1]));
+  [x, z] = [chunk[0] * 16 + 8, chunk[1] * 16 + 8];
+  let top = null;
+  for (let i = 0; i < 100 && top === null; i++) {
+    alice.position = [x + 0.5, 100, z + 0.5];
+    alice.requestChunks(1);
+    bob.position = alice.position;
+    bob.requestChunks(1);
+    await sleep(200);
+    top = alice.surface(x, z, standable);
+  }
+  // Water is no place to dig.
+  if (top !== null && def(alice.voxel(x, top, z))?.fluid == null && alice.voxel(x, top + 1, z) === 0) y = top;
 }
 assert.ok(y !== null, "terrain at the claim");
 for (const bot of [alice, bob]) await bot.moveTo([x + 0.5, y + 1 + EYE, z + 2.5], 10);

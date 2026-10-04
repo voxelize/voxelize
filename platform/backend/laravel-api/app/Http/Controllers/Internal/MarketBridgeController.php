@@ -64,6 +64,8 @@ class MarketBridgeController extends Controller
             // `trade`: a direct trade window between two players, no fee.
             // `guild_stall`: a stall selling for its owner's guild treasury.
             'kind' => ['nullable', 'string', 'in:stall,trade,guild_stall'],
+            // The guild whose land the stall stands on (it levies its sales tax).
+            'land_guild' => ['nullable', 'string', 'max:26'],
         ]);
         $buyer = User::query()->where('public_id', $data['from'])->first();
         $seller = User::query()->where('public_id', $data['to'])->first();
@@ -71,7 +73,7 @@ class MarketBridgeController extends Controller
             return response()->json(['error' => ['code' => 'player_not_found', 'message' => 'Unknown or inactive player.']], 404);
         }
         $kind = $data['kind'] ?? 'stall';
-        $transaction = $market->stallSale($buyer, $seller, (int) $data['amount'], $data['key'], $data['reason'], $kind === 'trade', $kind === 'guild_stall');
+        $transaction = $market->stallSale($buyer, $seller, (int) $data['amount'], $data['key'], $data['reason'], $kind === 'trade', $kind === 'guild_stall', $data['land_guild'] ?? null);
 
         return response()->json(['transaction' => $transaction->public_id, 'replayed' => $transaction->wasReplayed], $transaction->wasReplayed ? 200 : 201);
     }

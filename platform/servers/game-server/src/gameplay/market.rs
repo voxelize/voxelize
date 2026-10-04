@@ -563,6 +563,19 @@ impl<'a> specs::System<'a> for MarketSystem {
                         );
                     }
                 }
+                Response::WarKill {
+                    killer,
+                    victim,
+                    counted,
+                } => {
+                    if counted && clients.get(&killer).is_some() {
+                        notify(
+                            &mut events,
+                            &killer,
+                            json!({ "war_kill": { "victim": victim } }),
+                        );
+                    }
+                }
                 Response::BlueprintLayout {
                     player,
                     id,
@@ -699,14 +712,18 @@ impl<'a> specs::System<'a> for MarketSystem {
                             amount,
                             reason: format!("Trade with {}", trade.sides[1 - payer].name),
                             kind: "trade",
+                            land_guild: None,
                         });
                     }
                 }
             }
-            for c in g.containers.map.values() {
+            let dimension = g.dimensions.current;
+            let land = g.dimensions.land.clone();
+            for (at, c) in g.containers.map.iter() {
                 let Container::Stall(stall) = c else {
                     continue;
                 };
+                let land_guild = super::stall::land_guild(&land, dimension, *at);
                 for sale in stall.sales.iter().filter(|s| !s.paid) {
                     if self.payments_in_flight.insert(sale.key.clone()) {
                         let name = content
@@ -721,6 +738,7 @@ impl<'a> specs::System<'a> for MarketSystem {
                             amount: sale.price,
                             reason: format!("Stall: {} {name}", sale.stack.count),
                             kind: sale.payment_kind(),
+                            land_guild: land_guild.clone(),
                         });
                     }
                 }
