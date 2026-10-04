@@ -90,6 +90,7 @@ impl Underworld {
             voxels: vec![AIR; size * size * height],
             biomes: vec![0; size * size],
             heights: vec![0; size * size],
+            tints: None,
         };
         let (base_x, base_z) = (cx * size as i32, cz * size as i32);
         let top = Self::ROOF.min(self.max_height - 1);

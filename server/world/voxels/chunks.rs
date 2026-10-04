@@ -62,6 +62,9 @@ struct ChunkFileData {
     height_map: String,
     #[serde(default)]
     version: u32,
+    /// Regional colour at the chunk's corners (see `Chunk::biome_tints`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    biome_tints: Option<Vec<u8>>,
 }
 
 /// Backfill the waterlogged bit on a chunk saved before waterlogging existed.
@@ -498,6 +501,10 @@ impl Chunks {
         }
 
         chunk.waterlogging_rules = self.waterlogging_rules.clone();
+        chunk.biome_tints = data
+            .biome_tints
+            .as_deref()
+            .and_then(|t| <[u8; 12]>::try_from(t).ok());
         chunk.status = ChunkStatus::Meshing;
         chunk.is_save_dirty = is_save_dirty;
 
@@ -537,6 +544,7 @@ impl Chunks {
             voxels: to_base_64(&chunk.voxels.data),
             height_map: to_base_64(&chunk.height_map.data),
             version: CHUNK_FILE_VERSION,
+            biome_tints: chunk.biome_tints.map(|t| t.to_vec()),
         };
 
         let j = match serde_json::to_string(&data) {
@@ -577,6 +585,7 @@ impl Chunks {
             chunk_id: chunk.id.clone(),
             voxels: chunk.voxels.data.clone(),
             height_map: chunk.height_map.data.clone(),
+            biome_tints: chunk.biome_tints,
         })
     }
 

@@ -214,6 +214,9 @@ pub struct BlockDef {
     /// A block stored over two voxels (tall doors): the other half.
     #[serde(default)]
     pub coupled: Option<CoupledDef>,
+    /// Takes the biome's `tint` colour (grass, leaves).
+    #[serde(default)]
+    pub tinted: bool,
     /// The block this one becomes when its power state flips (consumers),
     /// or when used by hand (gates).
     #[serde(default)]
@@ -494,6 +497,21 @@ pub struct BiomeDef {
     pub vegetation: VegetationDef,
     #[serde(default)]
     pub dimension: Dimension,
+    /// Colour that `tinted` blocks (grass, leaves) take here, `#rrggbb`
+    /// with `#808080` meaning their texture as drawn; blended smoothly
+    /// between neighbouring biomes.
+    #[serde(default)]
+    pub tint: Option<String>,
+}
+
+/// `#rrggbb` to bytes.
+pub fn parse_color(text: &str) -> Option<[u8; 3]> {
+    let hex = text.strip_prefix('#')?;
+    if hex.len() != 6 {
+        return None;
+    }
+    let v = u32::from_str_radix(hex, 16).ok()?;
+    Some([(v >> 16) as u8, (v >> 8) as u8, v as u8])
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -749,6 +767,33 @@ pub enum StructurePlacement {
     Surface,
     /// Buried between `minY` and `maxY`.
     Underground,
+    /// Only as part of a village (its `spacing` and `chance` are unused).
+    Village,
+}
+
+/// A settlement world generation lays out: a centre piece with houses on a
+/// ring around it, joined to it by paths.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VillageDef {
+    pub key: String,
+    pub name: String,
+    /// Biomes its centre may stand in.
+    pub biomes: Vec<String>,
+    /// Size of the placement grid cell, in chunks; at most one per cell.
+    pub spacing: u32,
+    /// Chance that a cell holds one, in (0, 1].
+    pub chance: f64,
+    /// Structure at the centre (a `village` structure).
+    pub center: String,
+    /// Structures the houses are drawn from (`village` structures).
+    pub houses: Vec<String>,
+    pub min_houses: u32,
+    pub max_houses: u32,
+    /// Distance from the centre to the houses' centres, in blocks.
+    pub radius: u32,
+    /// Block laid on the surface from each house to the centre.
+    pub path: String,
 }
 
 /// A building placed by world generation, drawn as layers of characters.
@@ -779,6 +824,10 @@ pub struct StructureDef {
     /// Filled into chests of this structure the first time they open.
     #[serde(default)]
     pub loot: Vec<DropDef>,
+    /// Fills the ground under the bottom layer down to the terrain (up to
+    /// eight blocks), so buildings on slopes do not float.
+    #[serde(default)]
+    pub foundation: Option<String>,
 }
 
 impl StructureDef {

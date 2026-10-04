@@ -41,6 +41,7 @@ pub struct ContentSource {
     pub ores: Vec<OreDef>,
     pub mobs: Vec<MobDef>,
     pub structures: Vec<StructureDef>,
+    pub villages: Vec<VillageDef>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -126,6 +127,7 @@ impl ContentSource {
             ores: read_kind(root, "ores")?,
             mobs: read_kind(root, "mobs")?,
             structures: read_kind(root, "structures")?,
+            villages: read_kind(root, "villages")?,
             ..Default::default()
         };
         for file in read_files::<ProcessingFile>(root, "processing")? {
@@ -518,6 +520,13 @@ impl Content {
 
         for biome in &source.biomes {
             let who = format!("biome {:?}", biome.key);
+            if biome
+                .tint
+                .as_deref()
+                .is_some_and(|t| parse_color(t).is_none())
+            {
+                errors.push(format!("{who} tint must be #rrggbb"));
+            }
             for (axis, value) in [
                 ("temperature", biome.temperature),
                 ("humidity", biome.humidity),
@@ -712,11 +721,55 @@ impl Content {
                     errors.push(format!("{who} loot names unknown item {:?}", drop.item));
                 }
             }
-            if st.spacing < 2 || !(st.chance > 0.0 && st.chance <= 1.0) {
+            if st.placement != StructurePlacement::Village
+                && (st.spacing < 2 || !(st.chance > 0.0 && st.chance <= 1.0))
+            {
                 errors.push(format!("{who} needs spacing >= 2 and chance in (0, 1]"));
             }
             if st.placement == StructurePlacement::Underground && st.min_y >= st.max_y {
                 errors.push(format!("{who} underground needs minY < maxY"));
+            }
+            if let Some(block) = &st.foundation {
+                if !has_block(block) {
+                    errors.push(format!("{who} foundation is unknown block {block:?}"));
+                }
+            }
+        }
+
+        index_unique(&source.villages, "village", |v| &v.key, &mut errors);
+        for v in &source.villages {
+            let who = format!("village {:?}", v.key);
+            let is_part = |key: &str| {
+                source
+                    .structures
+                    .iter()
+                    .any(|s| s.key == key && s.placement == StructurePlacement::Village)
+            };
+            for key in std::iter::once(&v.center).chain(&v.houses) {
+                if !is_part(key) {
+                    errors.push(format!("{who} needs {key:?} to be a village structure"));
+                }
+            }
+            if v.houses.is_empty() || v.min_houses == 0 || v.min_houses > v.max_houses {
+                errors.push(format!(
+                    "{who} needs houses and 1 <= minHouses <= maxHouses"
+                ));
+            }
+            if v.spacing < 4 || !(v.chance > 0.0 && v.chance <= 1.0) || v.radius < 8 {
+                errors.push(format!(
+                    "{who} needs spacing >= 4, chance in (0, 1] and radius >= 8"
+                ));
+            }
+            if v.radius as i64 * 2 + 32 > v.spacing as i64 * 16 {
+                errors.push(format!("{who} does not fit its grid cell"));
+            }
+            if !has_block(&v.path) {
+                errors.push(format!("{who} paths with unknown block {:?}", v.path));
+            }
+            for key in &v.biomes {
+                if !biome_keys.contains_key(key) {
+                    errors.push(format!("{who} appears in unknown biome {key:?}"));
+                }
             }
         }
 
@@ -783,6 +836,10 @@ impl Content {
 
     pub fn structures(&self) -> &[StructureDef] {
         &self.source.structures
+    }
+
+    pub fn villages(&self) -> &[VillageDef] {
+        &self.source.villages
     }
 
     pub fn mob(&self, key: &str) -> Option<&MobDef> {

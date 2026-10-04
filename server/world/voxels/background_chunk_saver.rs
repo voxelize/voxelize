@@ -28,6 +28,9 @@ struct ChunkFileData {
     height_map: String,
     #[serde(default)]
     version: u32,
+    /// Regional colour at the chunk's corners (see `Chunk::biome_tints`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    biome_tints: Option<Vec<u8>>,
 }
 
 pub struct ChunkSaveData {
@@ -36,6 +39,7 @@ pub struct ChunkSaveData {
     pub chunk_id: String,
     pub voxels: Vec<u32>,
     pub height_map: Vec<u32>,
+    pub biome_tints: Option<[u8; 12]>,
 }
 
 pub struct BackgroundChunkSaver {
@@ -129,6 +133,7 @@ impl BackgroundChunkSaver {
             voxels: Self::to_base_64(&data.voxels),
             height_map: Self::to_base_64(&data.height_map),
             version: CHUNK_FILE_VERSION,
+            biome_tints: data.biome_tints.map(|t| t.to_vec()),
         };
 
         let json_data = match serde_json::to_string(&file_data) {

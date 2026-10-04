@@ -198,6 +198,15 @@ biomes, grid `spacing` and `chance`, a character `palette`, `layers` (bottom
 to top, rows along z, characters along x; space keeps terrain, `.` is air)
 and a `loot` table for their chests.
 
+## villages/
+
+A village names its `center` and `houses` (structures with
+`"placement": "village"`, placed only by villages), `minHouses`–`maxHouses`,
+the ring `radius`, the `path` block, its `biomes`, and grid `spacing`
+(chunks) and `chance`. Structures may name a `foundation` block filled under
+their floor down to the terrain. Biomes may name a `tint` (`#rrggbb`,
+`#808080` neutral) that blocks with `"tinted": true` take.
+
 ## Trade stalls
 
 `trade_stall` (`blocks/60-trade.json`) is a player shop: whoever places it

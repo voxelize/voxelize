@@ -18,7 +18,8 @@
       "rain",
       "storm",
       "fog"
-    ]
+    ],
+    "tint": "#7a8a80"
   },
   {
     "key": "ocean",
@@ -39,7 +40,8 @@
       "rain",
       "storm",
       "fog"
-    ]
+    ],
+    "tint": "#7a8a80"
   },
   {
     "key": "beach",
@@ -59,7 +61,8 @@
       "clear",
       "rain",
       "storm"
-    ]
+    ],
+    "tint": "#8a8a70"
   },
   {
     "key": "plains",
@@ -95,7 +98,8 @@
           "on": "turf"
         }
       ]
-    }
+    },
+    "tint": "#808080"
   },
   {
     "key": "forest",
@@ -131,7 +135,8 @@
           "on": "turf"
         }
       ]
-    }
+    },
+    "tint": "#749070"
   },
   {
     "key": "dark_forest",
@@ -168,7 +173,8 @@
           "on": "turf"
         }
       ]
-    }
+    },
+    "tint": "#5f7a58"
   },
   {
     "key": "desert",
@@ -196,7 +202,8 @@
           "on": "sand"
         }
       ]
-    }
+    },
+    "tint": "#a89a62"
   },
   {
     "key": "jungle",
@@ -232,7 +239,8 @@
           "on": "turf"
         }
       ]
-    }
+    },
+    "tint": "#5ea050"
   },
   {
     "key": "swamp",
@@ -269,7 +277,8 @@
           "on": "turf"
         }
       ]
-    }
+    },
+    "tint": "#6a6e4a"
   },
   {
     "key": "savanna",
@@ -304,7 +313,8 @@
           "on": "turf"
         }
       ]
-    }
+    },
+    "tint": "#a09662"
   },
   {
     "key": "snowy_plains",
@@ -332,7 +342,8 @@
         "maxHeight": 10,
         "density": 0.003
       }
-    }
+    },
+    "tint": "#80948e"
   },
   {
     "key": "taiga",
@@ -368,7 +379,8 @@
           "on": "turf"
         }
       ]
-    }
+    },
+    "tint": "#6f8a7c"
   },
   {
     "key": "mountains",
@@ -389,7 +401,8 @@
       "clear",
       "snow",
       "storm"
-    ]
+    ],
+    "tint": "#788878"
   },
   {
     "key": "badlands",
@@ -408,6 +421,7 @@
     "subsurfaceDepth": 6,
     "weather": [
       "clear"
-    ]
+    ],
+    "tint": "#a08a5c"
   }
 ]

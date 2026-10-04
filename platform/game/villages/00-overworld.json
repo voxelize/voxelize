@@ -1,0 +1,15 @@
+[
+  {
+    "key": "hamlet",
+    "name": "Hamlet",
+    "biomes": ["plains", "savanna", "taiga", "forest", "snowy_plains"],
+    "spacing": 20,
+    "chance": 0.6,
+    "center": "village_well",
+    "houses": ["village_house", "village_house", "village_farm"],
+    "minHouses": 3,
+    "maxHouses": 6,
+    "radius": 16,
+    "path": "gravel"
+  }
+]

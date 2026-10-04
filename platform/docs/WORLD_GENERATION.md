@@ -14,7 +14,7 @@ seed
                  └─ caves: "cheese" chambers + two-field tunnels; lava below y = 10
                      └─ ores: per-chunk seeded veins in their height band, replacing their host block
                          └─ vegetation: trees and ground cover by biome density
-                             └─ structures, entities (phases 11 and 10)
+                             └─ village paths, structures and villages, entities (phases 11 and 10)
 ```
 
 ## Properties
@@ -57,8 +57,9 @@ Taiga, Mountains, Beach, Ocean, Deep Ocean, Badlands.
 | --- | --- | --- |
 | Rivers and ravines | ✅ | rivers where a 700-block noise field crosses zero on land: terrain sinks smoothly to a flat bed 3 below sea level and fills with water; ravines are narrow cuts up to 40 deep inside masked regions |
 | Structures | ✅ | data-driven templates (`platform/game/structures`): Wayfarer's Hut, Old Ruin, Sand Obelisk, Deep Vault, Lookout Tower. One per seeded grid cell (`spacing` chunks, `chance`), biome- and water-aware. Each chunk computes every structure whose footprint touches it and draws its part, so chunks stay independent and structures are whole across borders. Chests carry their structure in the voxel stage bits; the server fills them from the structure's loot table on first opening (deterministic per position) or spills that loot if broken unopened |
-| Underground lakes, aquifers | later | flood cave pockets below a per-region water table |
-| Villages | later | groups of buildings with paths and NPCs (NPC civilisation phase) |
+| Underground lakes, aquifers | ✅ | where a 110-block aquifer field is high, cave cells below a regional water table (14–44 under sea level, always 10 or more under the ground) hold water instead of air |
+| Villages | ✅ | data-driven (`platform/game/villages`): a Hamlet is a well with three to six houses and farms on a ring around it (`radius`), each turned by quarter turns so its front row faces the well, joined to it by gravel paths laid on the surface (clearing ground cover). One per seeded grid cell, in its biomes, on dry land; houses that would stand in water are left out. Village pieces are `village` structures with `foundation` blocks filled under their floors on slopes; house chests carry loot |
+| Biome tints | ✅ | each biome has a `tint` colour; blocks marked `tinted` (turf, tall grass, leaves) take it through the engine's regional colour: every chunk carries the tint at its four corners (an average over a 3 × 3 grid of biomes around each corner, so neighbouring chunks share corners and colours blend), the client blends it across the chunk; tints are saved with edited chunks |
 | Dimensions | ✅ underworld, sky | see below |
 
 ## The underworld

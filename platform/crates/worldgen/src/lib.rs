@@ -18,7 +18,7 @@
 use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex};
 use std::collections::HashMap;
 
-use platform_content::{BiomeDef, Content, Dimension, StructurePlacement};
+use platform_content::{parse_color, BiomeDef, Content, Dimension, StructurePlacement};
 
 mod sky;
 mod underworld;
@@ -84,6 +84,53 @@ struct BiomeSpec {
     underwater_surface: u32,
     trees: Option<TreeSpec>,
     cover: Vec<CoverSpec>,
+    /// Colour of tinted blocks (grass, leaves); 128 per channel is neutral.
+    tint: [u8; 3],
+}
+
+/// Neutral tint: blocks look as their textures are drawn.
+pub const NEUTRAL_TINT: [u8; 3] = [128, 128, 128];
+
+#[derive(Debug, Clone)]
+struct VillageSpec {
+    biomes: Vec<usize>,
+    spacing: i32,
+    chance: f64,
+    center: usize,
+    houses: Vec<usize>,
+    min_houses: u32,
+    max_houses: u32,
+    radius: i32,
+    path: u32,
+}
+
+/// One structure placed in the world, turned by quarter turns (0: as
+/// drawn, its front row facing -z; 1: front facing -x; 2: +z; 3: +x).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Placed {
+    structure: usize,
+    origin: [i32; 3],
+    turn: u8,
+}
+
+/// Columns a turned footprint covers: (width along x, depth along z).
+fn turned_size(size: (i32, i32, i32), turn: u8) -> (i32, i32) {
+    if turn % 2 == 1 {
+        (size.2, size.0)
+    } else {
+        (size.0, size.2)
+    }
+}
+
+/// The drawn cell (x, z) at a turned footprint's (tx, tz).
+fn drawn_cell(size: (i32, i32, i32), turn: u8, tx: i32, tz: i32) -> (i32, i32) {
+    let (w, d) = (size.0, size.2);
+    match turn % 4 {
+        0 => (tx, tz),
+        1 => (w - 1 - tz, tx),
+        2 => (w - 1 - tx, d - 1 - tz),
+        _ => (tz, d - 1 - tx),
+    }
 }
 
 /// Stage value carried by a chest generated inside a structure: the
@@ -103,6 +150,7 @@ struct StructureSpec {
     size: (i32, i32, i32),
     /// [y][z][x] -> block to write (None keeps the terrain).
     cells: Vec<Vec<Vec<Option<u32>>>>,
+    foundation: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -145,6 +193,9 @@ pub struct GeneratedChunk {
     pub biomes: Vec<u16>,
     /// Topmost solid (non-air, non-water) y per column, `x * size + z`.
     pub heights: Vec<i32>,
+    /// Biome colour at the chunk's four corners (x0z0, x1z0, x0z1, x1z1),
+    /// RGB each, for tinted blocks; `None` where nothing is tinted.
+    pub tints: Option<[u8; 12]>,
 }
 
 impl GeneratedChunk {
@@ -269,6 +320,11 @@ pub struct Generator {
     biomes: Vec<BiomeSpec>,
     ores: Vec<OreSpec>,
     structures: Vec<StructureSpec>,
+    villages: Vec<VillageSpec>,
+    aquifer: Fbm<OpenSimplex>,
+    aquifer_level: Fbm<OpenSimplex>,
+    /// Ground cover blocks (paths clear them).
+    cover_blocks: Vec<u32>,
     stone: u32,
     water: u32,
     lava: u32,
@@ -329,6 +385,11 @@ impl Generator {
                         on: c.on.as_deref().map(block),
                     })
                     .collect(),
+                tint: b
+                    .tint
+                    .as_deref()
+                    .and_then(parse_color)
+                    .unwrap_or(NEUTRAL_TINT),
             })
             .collect();
         if biomes.is_empty() {
@@ -389,13 +450,44 @@ impl Generator {
                     max_y: st.max_y,
                     size: (w as i32, h as i32, d as i32),
                     cells,
+                    foundation: st.foundation.as_deref().map(block),
                 }
             })
+            .collect();
+        let structure_index = |key: &str| content.structures().iter().position(|s| s.key == key);
+        let villages = content
+            .villages()
+            .iter()
+            .filter_map(|v| {
+                Some(VillageSpec {
+                    biomes: v
+                        .biomes
+                        .iter()
+                        .filter_map(|b| biome_index.get(b.as_str()).copied())
+                        .collect(),
+                    spacing: v.spacing as i32,
+                    chance: v.chance,
+                    center: structure_index(&v.center)?,
+                    houses: v.houses.iter().filter_map(|h| structure_index(h)).collect(),
+                    min_houses: v.min_houses,
+                    max_houses: v.max_houses,
+                    radius: v.radius as i32,
+                    path: block(&v.path),
+                })
+            })
+            .collect();
+        let cover_blocks = biomes
+            .iter()
+            .flat_map(|b| b.cover.iter().map(|c| c.block))
             .collect();
 
         let s = config.seed;
         Ok(Self {
             structures,
+            villages,
+            aquifer: fbm(s.wrapping_add(12), 2, 1.0 / 110.0),
+            aquifer_level: fbm(s.wrapping_add(13), 1, 1.0 / 300.0),
+            cover_blocks,
             config,
             temperature: fbm(s.wrapping_add(1), 4, 1.0 / 1400.0),
             humidity: fbm(s.wrapping_add(2), 4, 1.0 / 1200.0),
@@ -457,6 +549,33 @@ impl Generator {
             }
         }
         best
+    }
+
+    /// Colour of tinted blocks at a column: the biome tints around it,
+    /// averaged over a 3 x 3 grid eight blocks apart so borders blend.
+    pub fn tint_at(&self, x: i32, z: i32) -> [u8; 3] {
+        let mut sum = [0u32; 3];
+        for dx in [-8, 0, 8] {
+            for dz in [-8, 0, 8] {
+                let t = self.biomes[self.nearest_biome(&self.climate(x + dx, z + dz))].tint;
+                for c in 0..3 {
+                    sum[c] += u32::from(t[c]);
+                }
+            }
+        }
+        sum.map(|v| (v / 9) as u8)
+    }
+
+    /// Water table of an aquifer under a column: caves below it hold water
+    /// instead of air. `None` where the column has no aquifer.
+    fn aquifer_at(&self, x: i32, z: i32, surface: i32) -> Option<i32> {
+        let p = [x as f64, z as f64];
+        if self.aquifer.get(p) < 0.2 {
+            return None;
+        }
+        let level = self.config.sea_level - 14 - (self.aquifer_level.get(p).abs() * 30.0) as i32;
+        // Always well under the ground, so water never wells up on land.
+        Some(level.min(surface - 10))
     }
 
     /// Biome key at a world column.
@@ -567,6 +686,13 @@ impl Generator {
     /// Generate one chunk of `size x size` columns.
     pub fn generate_chunk(&self, cx: i32, cz: i32, size: usize) -> GeneratedChunk {
         let height = self.config.max_height as usize;
+        let base_x = cx * size as i32;
+        let base_z = cz * size as i32;
+        let s = size as i32;
+        let mut tints = [0u8; 12];
+        for (i, (x, z)) in [(0, 0), (s, 0), (0, s), (s, s)].into_iter().enumerate() {
+            tints[i * 3..i * 3 + 3].copy_from_slice(&self.tint_at(base_x + x, base_z + z));
+        }
         let mut chunk = GeneratedChunk {
             cx,
             cz,
@@ -575,10 +701,9 @@ impl Generator {
             voxels: vec![AIR; size * size * height],
             biomes: vec![0; size * size],
             heights: vec![0; size * size],
+            tints: Some(tints),
         };
         let sea = self.config.sea_level;
-        let base_x = cx * size as i32;
-        let base_z = cz * size as i32;
 
         // Terrain, surface layers, caves.
         for lx in 0..size {
@@ -586,6 +711,7 @@ impl Generator {
                 let (wx, wz) = (base_x + lx as i32, base_z + lz as i32);
                 let (surface, biome_index) = self.column(wx, wz);
                 let biome = &self.biomes[biome_index];
+                let aquifer = self.aquifer_at(wx, wz, surface);
                 chunk.biomes[lx * size + lz] = biome_index as u16;
                 let underwater = surface < sea;
                 let mut top = 0;
@@ -596,6 +722,8 @@ impl Generator {
                         if self.is_cave(wx, y, wz, surface) {
                             if y <= self.config.lava_level {
                                 self.lava
+                            } else if aquifer.is_some_and(|level| y <= level) {
+                                self.water
                             } else {
                                 AIR
                             }
@@ -626,8 +754,206 @@ impl Generator {
 
         self.place_ores(&mut chunk);
         self.place_vegetation(&mut chunk);
+        self.place_paths(&mut chunk);
         self.place_structures(&mut chunk);
         chunk
+    }
+
+    /// A village's layout in a grid cell, if it has one there: its placed
+    /// structures (the centre first) and its path columns.
+    fn village(&self, index: usize, gx: i32, gz: i32) -> Option<(Vec<Placed>, Vec<[i32; 2]>)> {
+        let v = &self.villages[index];
+        let h = hash(
+            self.config.seed,
+            gx as i64,
+            gz as i64,
+            0x7111 + index as u64,
+        );
+        if unit(h) >= v.chance {
+            return None;
+        }
+        let cell = v.spacing * 16;
+        let margin = v.radius + 16;
+        let span = (cell - 2 * margin).max(1) as u64;
+        let cx = gx * cell + margin + ((h >> 8) % span) as i32;
+        let cz = gz * cell + margin + ((h >> 24) % span) as i32;
+        let (surface, biome) = self.column(cx, cz);
+        if surface < self.config.sea_level
+            || self.is_river(cx, cz)
+            || (!v.biomes.is_empty() && !v.biomes.contains(&biome))
+        {
+            return None;
+        }
+        let mut parts = Vec::new();
+        let mut paths = Vec::new();
+        let center = &self.structures[v.center];
+        let (cw, cd) = turned_size(center.size, 0);
+        parts.push(Placed {
+            structure: v.center,
+            origin: [cx - cw / 2, surface + center.y_offset, cz - cd / 2],
+            turn: 0,
+        });
+        let mut r = Rng(h ^ 0xA5A5);
+        let count = v.min_houses + r.below(u64::from(v.max_houses - v.min_houses + 1)) as u32;
+        let start = unit(r.next()) * std::f64::consts::TAU;
+        for i in 0..count {
+            let angle = start + i as f64 * std::f64::consts::TAU / count as f64;
+            let hx = cx + (angle.cos() * v.radius as f64).round() as i32;
+            let hz = cz + (angle.sin() * v.radius as f64).round() as i32;
+            let structure = v.houses[r.below(v.houses.len() as u64) as usize];
+            let (ground, _) = self.column(hx, hz);
+            if ground < self.config.sea_level || self.is_river(hx, hz) {
+                continue;
+            }
+            let st = &self.structures[structure];
+            // Turn the front row (drawn at -z) towards the centre.
+            let (dx, dz) = (cx - hx, cz - hz);
+            let turn = if dz.abs() >= dx.abs() {
+                if dz < 0 {
+                    0
+                } else {
+                    2
+                }
+            } else if dx < 0 {
+                1
+            } else {
+                3
+            };
+            let (w, d) = turned_size(st.size, turn);
+            let origin = [hx - w / 2, ground + st.y_offset, hz - d / 2];
+            parts.push(Placed {
+                structure,
+                origin,
+                turn,
+            });
+            // The path starts in front of the middle of the front row.
+            let door = match turn {
+                0 => [origin[0] + w / 2, origin[2] - 1],
+                1 => [origin[0] - 1, origin[2] + d / 2],
+                2 => [origin[0] + w / 2, origin[2] + d],
+                _ => [origin[0] + w, origin[2] + d / 2],
+            };
+            let steps = (door[0] - cx).abs().max((door[1] - cz).abs()).max(1);
+            for s in 0..=steps {
+                let t = s as f64 / steps as f64;
+                paths.push([
+                    door[0] + ((cx - door[0]) as f64 * t).round() as i32,
+                    door[1] + ((cz - door[1]) as f64 * t).round() as i32,
+                ]);
+            }
+        }
+        Some((parts, paths))
+    }
+
+    /// Village layouts whose area may reach the given chunk.
+    #[allow(clippy::type_complexity)]
+    fn villages_near(
+        &self,
+        cx: i32,
+        cz: i32,
+        size: usize,
+    ) -> Vec<(usize, Vec<Placed>, Vec<[i32; 2]>)> {
+        let mut out = Vec::new();
+        let (x0, z0) = (cx * size as i32, cz * size as i32);
+        let (x1, z1) = (x0 + size as i32, z0 + size as i32);
+        for (index, v) in self.villages.iter().enumerate() {
+            let cell = v.spacing * 16;
+            let reach = v.radius + 24;
+            for gx in (x0 - reach).div_euclid(cell)..=(x1 + reach).div_euclid(cell) {
+                for gz in (z0 - reach).div_euclid(cell)..=(z1 + reach).div_euclid(cell) {
+                    if let Some((parts, paths)) = self.village(index, gx, gz) {
+                        out.push((index, parts, paths));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Centres of the villages in a square of world columns, for tests and
+    /// tools: `(village index, centre structure origin)`.
+    pub fn villages_in(&self, x0: i32, z0: i32, x1: i32, z1: i32) -> Vec<(usize, [i32; 3])> {
+        let mut out = Vec::new();
+        for (index, v) in self.villages.iter().enumerate() {
+            let cell = v.spacing * 16;
+            for gx in x0.div_euclid(cell)..=x1.div_euclid(cell) {
+                for gz in z0.div_euclid(cell)..=z1.div_euclid(cell) {
+                    if let Some((parts, _)) = self.village(index, gx, gz) {
+                        out.push((index, parts[0].origin));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Every placed structure whose footprint touches the chunk.
+    fn placed_touching(&self, cx: i32, cz: i32, size: usize) -> Vec<Placed> {
+        let (x0, z0) = (cx * size as i32, cz * size as i32);
+        let (x1, z1) = (x0 + size as i32, z0 + size as i32);
+        let touches = |origin: [i32; 3], w: i32, d: i32| {
+            origin[0] < x1 && origin[0] + w > x0 && origin[2] < z1 && origin[2] + d > z0
+        };
+        let mut out = Vec::new();
+        for (index, st) in self.structures.iter().enumerate() {
+            if st.placement == StructurePlacement::Village {
+                continue;
+            }
+            let cell = st.spacing * 16;
+            let (w, _, d) = st.size;
+            for gx in (x0 - w).div_euclid(cell)..=x1.div_euclid(cell) {
+                for gz in (z0 - d).div_euclid(cell)..=z1.div_euclid(cell) {
+                    let Some(origin) = self.structure_origin(index, gx, gz) else {
+                        continue;
+                    };
+                    if touches(origin, w, d) {
+                        out.push(Placed {
+                            structure: index,
+                            origin,
+                            turn: 0,
+                        });
+                    }
+                }
+            }
+        }
+        for (_, parts, _) in self.villages_near(cx, cz, size) {
+            for p in parts {
+                let (w, d) = turned_size(self.structures[p.structure].size, p.turn);
+                if touches(p.origin, w, d) {
+                    out.push(p);
+                }
+            }
+        }
+        out
+    }
+
+    /// Village paths: the path block on the surface, clearing ground cover.
+    fn place_paths(&self, chunk: &mut GeneratedChunk) {
+        let size = chunk.size as i32;
+        let (x0, z0) = (chunk.cx * size, chunk.cz * size);
+        for (index, _, paths) in self.villages_near(chunk.cx, chunk.cz, chunk.size) {
+            let path = self.villages[index].path;
+            for [x, z] in paths {
+                let (lx, lz) = (x - x0, z - z0);
+                if !(0..size).contains(&lx) || !(0..size).contains(&lz) {
+                    continue;
+                }
+                let (lx, lz) = (lx as usize, lz as usize);
+                let y = chunk.heights[lx * chunk.size + lz];
+                if y < self.config.sea_level || y + 2 >= chunk.height as i32 {
+                    continue;
+                }
+                let ground = chunk.get(lx, y as usize, lz);
+                if ground == AIR || ground == self.water || ground == self.lava {
+                    continue;
+                }
+                chunk.set(lx, y as usize, lz, path);
+                let above = chunk.get(lx, y as usize + 1, lz);
+                if self.cover_blocks.contains(&above) {
+                    chunk.set(lx, y as usize + 1, lz, AIR);
+                }
+            }
+        }
     }
 
     /// Where a structure stands in a grid cell, if it has one there:
@@ -653,6 +979,7 @@ impl Generator {
             return None;
         }
         let y = match st.placement {
+            StructurePlacement::Village => return None,
             StructurePlacement::Surface => {
                 if surface < self.config.sea_level || self.is_river(cx, cz) {
                     return None;
@@ -667,47 +994,57 @@ impl Generator {
     }
 
     /// Every structure placed in the world whose footprint touches the
-    /// given chunk: `(structure key, origin)`.
+    /// given chunk: `(structure key, origin)` (the min corner of its turned
+    /// footprint, at its floor).
     pub fn structures_touching(&self, cx: i32, cz: i32, size: usize) -> Vec<(String, [i32; 3])> {
-        let mut out = Vec::new();
-        let (x0, z0) = (cx * size as i32, cz * size as i32);
-        let (x1, z1) = (x0 + size as i32, z0 + size as i32);
-        for (index, st) in self.structures.iter().enumerate() {
-            let cell = st.spacing * 16;
-            let (w, _, d) = st.size;
-            for gx in (x0 - w).div_euclid(cell)..=x1.div_euclid(cell) {
-                for gz in (z0 - d).div_euclid(cell)..=z1.div_euclid(cell) {
-                    let Some(o) = self.structure_origin(index, gx, gz) else {
-                        continue;
-                    };
-                    if o[0] < x1 && o[0] + w > x0 && o[2] < z1 && o[2] + d > z0 {
-                        out.push((st.key.clone(), o));
-                    }
-                }
-            }
-        }
-        out
+        self.placed_touching(cx, cz, size)
+            .into_iter()
+            .map(|p| (self.structures[p.structure].key.clone(), p.origin))
+            .collect()
     }
 
     fn place_structures(&self, chunk: &mut GeneratedChunk) {
         let size = chunk.size as i32;
         let (x0, z0) = (chunk.cx * size, chunk.cz * size);
-        for (key, origin) in self.structures_touching(chunk.cx, chunk.cz, chunk.size) {
-            let Some(st) = self.structures.iter().find(|s| s.key == key) else {
-                continue;
-            };
-            for (dy, layer) in st.cells.iter().enumerate() {
-                let y = origin[1] + dy as i32;
-                if y <= 0 || y >= chunk.height as i32 {
-                    continue;
-                }
-                for (dz, row) in layer.iter().enumerate() {
-                    for (dx, cell) in row.iter().enumerate() {
-                        let Some(id) = cell else { continue };
-                        let (x, z) = (origin[0] + dx as i32 - x0, origin[2] + dz as i32 - z0);
-                        if (0..size).contains(&x) && (0..size).contains(&z) {
-                            chunk.set(x as usize, y as usize, z as usize, *id);
+        for placed in self.placed_touching(chunk.cx, chunk.cz, chunk.size) {
+            let st = &self.structures[placed.structure];
+            let origin = placed.origin;
+            let (w, d) = turned_size(st.size, placed.turn);
+            for tz in 0..d {
+                for tx in 0..w {
+                    let (x, z) = (origin[0] + tx - x0, origin[2] + tz - z0);
+                    if !(0..size).contains(&x) || !(0..size).contains(&z) {
+                        continue;
+                    }
+                    let (dx, dz) = drawn_cell(st.size, placed.turn, tx, tz);
+                    let (x, z) = (x as usize, z as usize);
+                    for (dy, layer) in st.cells.iter().enumerate() {
+                        let y = origin[1] + dy as i32;
+                        if y <= 0 || y >= chunk.height as i32 {
+                            continue;
                         }
+                        if let Some(id) = layer[dz as usize][dx as usize] {
+                            chunk.set(x, y as usize, z, id);
+                        }
+                    }
+                    // Fill the ground under the floor so it does not float.
+                    let Some(fill) = st.foundation else { continue };
+                    if st
+                        .cells
+                        .first()
+                        .is_none_or(|l| l[dz as usize][dx as usize].is_none())
+                    {
+                        continue;
+                    }
+                    for y in (origin[1] - 8..origin[1]).rev() {
+                        if y <= 0 {
+                            break;
+                        }
+                        let here = chunk.get(x, y as usize, z);
+                        if here != AIR && here != self.water && !self.cover_blocks.contains(&here) {
+                            break;
+                        }
+                        chunk.set(x, y as usize, z, fill);
                     }
                 }
             }
@@ -991,6 +1328,115 @@ mod tests {
             assert!(solid >= 1);
         }
         assert!(loot_chests >= 1, "structures carry loot chests");
+    }
+
+    /// The block at a world position, generating its chunk.
+    fn block_at(g: &Generator, x: i32, y: i32, z: i32) -> u32 {
+        let chunk = g.generate_chunk(x.div_euclid(16), z.div_euclid(16), 16);
+        chunk.get(
+            x.rem_euclid(16) as usize,
+            y as usize,
+            z.rem_euclid(16) as usize,
+        ) & 0xFFFF
+    }
+
+    #[test]
+    fn villages_have_a_well_houses_facing_it_and_paths() {
+        let (content, g) = generator(5);
+        let villages = g.villages_in(-8000, -8000, 8000, 8000);
+        assert!(villages.len() >= 2, "villages: {villages:?}");
+        let id = |k: &str| content.block(k).unwrap().id;
+        let (water, gravel, door, chest) = (id("water"), id("gravel"), id("door"), id("chest"));
+        let mut checked = 0;
+        for (_, well) in villages.iter().take(4) {
+            // The well's water (its 3 x 3 middle, at the surface layer).
+            assert_eq!(block_at(&g, well[0] + 2, well[1] + 2, well[2] + 2), water);
+            let (mut doors, mut paths, mut chests) = (0, 0, 0);
+            let (cx, cz) = (well[0] + 2, well[2] + 2);
+            for chunk_x in (cx - 28).div_euclid(16)..=(cx + 28).div_euclid(16) {
+                for chunk_z in (cz - 28).div_euclid(16)..=(cz + 28).div_euclid(16) {
+                    let chunk = g.generate_chunk(chunk_x, chunk_z, 16);
+                    for v in &chunk.voxels {
+                        let v = v & 0xFFFF;
+                        doors += usize::from(v == door);
+                        paths += usize::from(v == gravel);
+                        chests += usize::from(v == chest);
+                    }
+                }
+            }
+            if doors == 0 {
+                continue; // every house plot fell in water
+            }
+            assert!(paths >= 8, "paths join the houses: {paths}");
+            assert!(chests >= 1);
+            checked += 1;
+        }
+        assert!(checked >= 1, "a village with houses");
+    }
+
+    #[test]
+    fn house_turns_keep_every_cell() {
+        let size = (7, 5, 5);
+        for turn in 0..4u8 {
+            let (w, d) = turned_size(size, turn);
+            let mut seen = std::collections::HashSet::new();
+            for tz in 0..d {
+                for tx in 0..w {
+                    let (x, z) = drawn_cell(size, turn, tx, tz);
+                    assert!((0..7).contains(&x) && (0..5).contains(&z));
+                    seen.insert((x, z));
+                }
+            }
+            assert_eq!(seen.len(), 35, "turn {turn}");
+        }
+        // The drawn front row (z = 0) ends up on the turned side.
+        assert_eq!(drawn_cell(size, 1, 0, 3), (3, 0), "front faces -x");
+        assert_eq!(drawn_cell(size, 2, 3, 4), (3, 0), "front faces +z");
+        assert_eq!(drawn_cell(size, 3, 4, 3), (3, 0), "front faces +x");
+    }
+
+    #[test]
+    fn aquifers_hold_water_in_caves_under_dry_land() {
+        let (content, g) = generator(9);
+        let water = content.block("water").unwrap().id;
+        let sea = g.config().sea_level;
+        let mut found = 0;
+        'chunks: for cx in -12..12 {
+            for cz in -12..12 {
+                let chunk = g.generate_chunk(cx, cz, 16);
+                for x in 0..16 {
+                    for z in 0..16 {
+                        if chunk.heights[x * 16 + z] < sea + 4 {
+                            continue; // seas and lakes hold water anyway
+                        }
+                        for y in 6..(sea - 14) as usize {
+                            if chunk.get(x, y, z) == water {
+                                found += 1;
+                                if found > 50 {
+                                    break 'chunks;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found > 50, "aquifer water under land: {found}");
+    }
+
+    #[test]
+    fn biome_tints_vary_and_meet_at_chunk_corners() {
+        let (_, g) = generator(3);
+        let a = g.generate_chunk(4, 7, 16).tints.unwrap();
+        let east = g.generate_chunk(5, 7, 16).tints.unwrap();
+        let south = g.generate_chunk(4, 8, 16).tints.unwrap();
+        assert_eq!(a[3..6], east[0..3], "shared corner with the east chunk");
+        assert_eq!(a[6..9], south[0..3], "shared corner with the south chunk");
+        let mut colours = std::collections::HashSet::new();
+        for i in -20..20 {
+            colours.insert(g.tint_at(i * 400, i * 300));
+        }
+        assert!(colours.len() >= 3, "tints differ by biome: {colours:?}");
     }
 
     #[test]

@@ -55,7 +55,8 @@
         "item": "apple",
         "chance": 0.005
       }
-    ]
+    ],
+    "tinted": true
   },
   {
     "id": 33,
@@ -109,7 +110,8 @@
         "item": "stick",
         "chance": 0.02
       }
-    ]
+    ],
+    "tinted": true
   },
   {
     "id": 28,
@@ -133,7 +135,8 @@
     "support": [
       "turf",
       "dirt"
-    ]
+    ],
+    "tinted": true
   },
   {
     "id": 27,

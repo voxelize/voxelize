@@ -28,15 +28,18 @@ Chunks, meshing (greedy, culled, WASM on the client, worker threads),
 lighting (incremental sunlight + RGB), fluids, ECS, physics, replication with
 AOI, persistence primitives. Platform work here is extension points only.
 
-## Phase 2 — World generation 🟡
+## Phase 2 — World generation ✅
 
 Done: data-driven content pack (34 blocks, 47 items, 25 recipes, 14 biomes,
 6 ores); deterministic climate → height → biome → layers → caves/lava → ores →
 vegetation; engine stage; tests for determinism, ore bands, biome variety,
 cliff-free borders, trees.
 Done since: rivers, ravines, five data-driven structures with loot
-(see WORLD_GENERATION.md). Remaining: aquifers/underground lakes, villages,
-biome tints sent to clients.
+(see WORLD_GENERATION.md). Then: aquifers (cave water under a regional
+water table), villages (a well, houses turned towards it, farms, gravel
+paths, foundations, loot), biome tints for grass and leaves through the
+engine's regional colour (corners per chunk, persisted with saved chunks).
+Tests: villages, house turns, aquifers, tints meeting at chunk corners.
 
 ## Phase 3 — Player controller and web client 🟡
 

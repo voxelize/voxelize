@@ -63,6 +63,7 @@ impl ChunkStage for WorldgenStage {
                 }
             }
         }
+        chunk.biome_tints = generated.tints;
         chunk
     }
 }

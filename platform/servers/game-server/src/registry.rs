@@ -31,6 +31,10 @@ pub fn engine_block(def: &BlockDef, content: &Content, ctx: &Arc<BehaviorContext
     if !def.collision {
         block = block.is_passable(true);
     }
+    if def.tinted {
+        // Grass and leaves take the biome colour the chunk carries.
+        block = block.stage_tint(1);
+    }
     if def.light_emission > 0 {
         block = block.torch_light_level(def.light_emission);
     }
