@@ -43,10 +43,16 @@ stable forever once a world has used them; 0 is reserved (air).
 | `support` | block keys it must stand on; elsewhere it cannot be placed and it breaks (and drops) when its ground changes |
 | `growsInto` | saplings: the tree they become (`log`, `leaves`, `minHeight`, `maxHeight`) |
 
-The `rift` behaviour marks portal surfaces: a rift stays only while its four
-in-plane neighbours are rift or `riftstone`, so breaking any frame block puts
-the whole portal out. Items with tool kind `igniter` (the Fire Striker) light
-closed riftstone frames.
+The `rift` behaviour marks portal surfaces, and every rift declares
+`"portal": { "frame": "<block>", "to": "<dimension>" }`: a rift stays only
+while its four in-plane neighbours are rift or its frame, so breaking any
+frame block puts the whole portal out. Items with tool kind `igniter` (the
+Fire Striker) light closed frames into their rift. A portal kind leads from
+the overworld to its `to` dimension and back, and does nothing anywhere else
+(its frame does not light there). The pack has two kinds: `riftstone` →
+`rift` → underworld and `skystone` → `sky_rift` → sky. Each frame and each
+destination belongs to one rift only, and no rift leads to the overworld
+(checked at load).
 
 Mining time: `hardness × (harvests ? 1.5 : 5.0) ÷ speed`, where `speed` is
 the held tool's `speed` if its kind matches the block's tool, else 1;
@@ -96,10 +102,10 @@ new code.
 
 ## biomes/ and ores/
 
-Every biome belongs to a `dimension` (`overworld` by default, or
-`underworld`); each dimension needs at least one. The overworld generator
-uses only overworld biomes; the underworld's first biome names its single
-region.
+Every biome belongs to a `dimension` (`overworld` by default,
+`underworld` or `sky`); each dimension needs at least one. The overworld
+generator uses only overworld biomes; the underworld's and the sky's first
+biome names its single region.
 
 See [WORLD_GENERATION.md](WORLD_GENERATION.md). Biomes declare a climate
 point, terrain offset and roughness, surface/subsurface/underwater blocks,

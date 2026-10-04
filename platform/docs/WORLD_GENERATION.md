@@ -59,7 +59,7 @@ Taiga, Mountains, Beach, Ocean, Deep Ocean, Badlands.
 | Structures | ✅ | data-driven templates (`platform/game/structures`): Wayfarer's Hut, Old Ruin, Sand Obelisk, Deep Vault, Lookout Tower. One per seeded grid cell (`spacing` chunks, `chance`), biome- and water-aware. Each chunk computes every structure whose footprint touches it and draws its part, so chunks stay independent and structures are whole across borders. Chests carry their structure in the voxel stage bits; the server fills them from the structure's loot table on first opening (deterministic per position) or spills that loot if broken unopened |
 | Underground lakes, aquifers | later | flood cave pockets below a per-region water table |
 | Villages | later | groups of buildings with paths and NPCs (NPC civilisation phase) |
-| Dimensions | ✅ underworld | see below; a sky dimension (floating islands from 3D density) is later |
+| Dimensions | ✅ underworld, sky | see below |
 
 ## The underworld
 
@@ -78,6 +78,25 @@ Horizontal distances are 8 times shorter there: a portal at overworld
 used, so a portal always leads to its partner afterwards; an unlinked one
 looks for a portal within 16 columns of the scaled point and builds one
 (frame, ledges, headroom) when there is none.
+
+## The sky
+
+`crates/worldgen/src/sky.rs`, run for the `main_sky` engine world:
+floating islands over an empty void. The main layer holds one island per
+40-block grid cell, at a seeded jittered centre with a radius of 9–20 and a
+top between y 84 and 108; a noise-warped rim makes the outline ragged, the
+top is turf over dirt, gently domed, and the cloudrock underside hangs
+deepest at the middle (up to ~1.3 × the radius). So no point is more than a
+short flight from land. Smaller, thinner islets float around y 150 where a
+second noise field is high, and flat banks of cloud fill y 190–192. Ores
+whose host is cloudrock (sunstone) use the shared vein placement. Nothing
+generates below y 40: falling off an island falls out of the world, which
+kills (`void` damage, 8 per second below y −2).
+
+Sky coordinates are not scaled. An unlinked arrival looks for the nearest
+island top (clouds excluded) within 32 columns of the departure point —
+the arrival area is 5 × 5 chunks there — and builds the portal on it; over
+open void it builds a portal with its ledges as a platform at island height.
 
 ## Changing a live world's generator
 

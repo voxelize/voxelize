@@ -291,7 +291,17 @@ a world may bring its own block registry. Unit tests for generation,
 portal geometry, links and rules; `tests/bots/portals.mjs` on a live server
 (light a portal, travel down, reconnect and resume there, travel back to
 the original portal).
-Remaining: a sky dimension; quests, achievements, jobs, NPC civilisation,
+Done since: the sky dimension — floating-island generator (one island per
+grid cell, islets, cloud banks, sunstone ore) as a third engine world; a
+second portal kind (skystone frame, sky rift, crafted from riftstone, ember
+quartz and glass) declared in content (`portal` on the rift block), travel
+routed by the kind of rift, arrivals landing on the nearest island, void
+damage below the world, a bright sky palette in the client. Unit tests for
+generation, routing, ignition and the void; `tests/bots/sky.mjs` on a live
+server (light a skystone portal, travel up, land on an island over the void,
+an underworld frame refuses to light there, travel back to the original
+portal).
+Remaining: quests, achievements, jobs, NPC civilisation,
 cosmetics, private worlds and server browser, friends and chat channels,
 proximity voice (WebRTC), plugin event API, mod SDK.
 

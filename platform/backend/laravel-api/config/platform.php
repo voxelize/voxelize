@@ -45,7 +45,7 @@ return [
         'max_side_chunks' => (int) env('LAND_MAX_SIDE_CHUNKS', 8),
         // ...and a player holds at most this many chunks in total.
         'max_chunks_per_player' => (int) env('LAND_MAX_CHUNKS_PER_PLAYER', 64),
-        'dimensions' => ['overworld', 'underworld'],
+        'dimensions' => ['overworld', 'underworld', 'sky'],
     ],
 
     'market' => [

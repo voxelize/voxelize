@@ -1,10 +1,10 @@
-// Dimensions on a live server: build a riftstone frame, light it, travel
-// to the underworld, come back through the portal built there, and find
-// the server sending a reconnecting player back to the dimension they left.
-// Builds in creative.
+// The sky dimension on a live server: build a skystone frame, light it,
+// travel to the floating islands, find cloudrock and open void around the
+// arrival, and come back through the portal built there. Builds in
+// creative.
 //
-//   DEV_TICKET_SECRET=... node portals.mjs - http://127.0.0.1:4000
-//   node portals.mjs <api base> <game base> <creative api token>
+//   DEV_TICKET_SECRET=... node sky.mjs - http://127.0.0.1:4000
+//   node sky.mjs <api base> <game base> <creative api token>
 
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
@@ -21,10 +21,10 @@ const info = await (await fetch(`${GAME}/platform/info`)).json();
 const id = (key) => content.blocks.find((b) => b.key === key).id;
 const def = (v) => content.blocks.find((b) => b.id === v);
 const EYE = 1.425;
-const UNDER = info.dimensions?.underworld;
-assert.ok(UNDER, "the server hosts an underworld");
+const SKY = info.dimensions?.sky;
+assert.ok(SKY, "the server hosts a sky");
 
-const name = `portals_${Date.now().toString(36)}`;
+const name = `sky_${Date.now().toString(36)}`;
 const b64 = (data) => Buffer.from(data).toString("base64url");
 const devTicket = () => {
   const now = Math.floor(Date.now() / 1000);
@@ -85,7 +85,7 @@ const [bx, by, bz] = base;
 await bot.moveTo([bx + 1.5, by + EYE, bz + 3.5], 12);
 await sleep(5500);
 
-await call(bot, "inventory.creative", { slot: 0, item: "riftstone" });
+await call(bot, "inventory.creative", { slot: 0, item: "skystone" });
 await call(bot, "inventory.creative", { slot: 1, item: "fire_striker" });
 for (let dx = 0; dx < 4; dx++)
   for (let dy = 0; dy < 5; dy++)
@@ -94,49 +94,52 @@ await call(bot, "inventory.select", { slot: 1 });
 const lit = await call(bot, "use", { voxel: [bx + 1, by, bz] });
 assert.equal(lit.changed, 6, "six rift cells");
 await sleep(300);
-assert.equal(bot.voxel(bx + 1, by + 1, bz), id("rift"));
-step("a riftstone frame lights with a fire striker");
+assert.equal(bot.voxel(bx + 1, by + 1, bz), id("sky_rift"));
+step("a skystone frame lights into a sky rift");
 
-// Into the portal: off to the underworld.
+// Into the portal: up to the sky.
 await bot.moveTo([bx + 1.5, by + EYE, bz + 0.5], 3);
-const down = await travel(bot);
-assert.equal(down.world, UNDER);
-await sleep(1000);
-assert.equal(bot.voxel(...down.feet), id("rift"), `arrived standing in a portal: ${bot.voxel(...down.feet)} at ${down.feet}`);
-let cinder = 0;
-for (let dx = -8; dx <= 8; dx++) for (let dy = -8; dy <= 8; dy++) for (let dz = -8; dz <= 8; dz++) if (bot.voxel(down.feet[0] + dx, down.feet[1] + dy, down.feet[2] + dz) === id("cinderstone")) cinder++;
-assert.ok(cinder > 50, `cinderstone around the arrival: ${cinder}`);
-assert.ok(Math.abs(down.feet[0] - bx / 8) < 20 && Math.abs(down.feet[2] - bz / 8) < 20, `scaled coordinates: ${down.feet}`);
-step(`travelled to the underworld, arrived in a portal at ${down.feet}`);
-
-// Reconnecting puts the player back in the underworld.
-await sleep(1500);
-bot.close();
-await sleep(1500);
-bot = newBot();
-const redirected = bot.event("platform.travel", () => true, 25000);
-await bot.connect(); // joins "main"
-const { world: back } = await redirected;
-assert.equal(back, UNDER, "the server sends a reconnecting player to their dimension");
-const placed = bot.event("platform.teleport", () => true, 15000);
-await bot.switchWorld(back);
-const { feet: resumed } = await placed;
-assert.ok(Math.abs(resumed[0] - down.feet[0]) <= 2 && Math.abs(resumed[2] - down.feet[2]) <= 2, `resumed at ${resumed}`);
-step("reconnecting resumes in the underworld where the player was");
-
-// Step out of the portal and back in: home through the same portal.
-await loadAround(bot, resumed);
-// (an arrival portal has a riftstone ledge on both sides)
-// Joining or arriving in a portal needs a step out (after a 3 s settle)
-// before it takes you anywhere.
-await bot.moveTo([resumed[0] + 0.5, resumed[1] + EYE, resumed[2] + 1.5], 3);
-await sleep(4000);
-await bot.moveTo([resumed[0] + 0.5, resumed[1] + EYE, resumed[2] + 0.5], 3);
 const up = await travel(bot);
-assert.equal(up.world, "main");
-assert.ok(Math.abs(up.feet[0] - (bx + 1)) <= 2 && Math.abs(up.feet[2] - bz) <= 2 && Math.abs(up.feet[1] - (by + 1)) <= 2, `home through the first portal: ${up.feet} vs ${[bx + 1, by + 1, bz]}`);
+assert.equal(up.world, SKY);
+await sleep(1000);
+assert.equal(bot.voxel(...up.feet), id("sky_rift"), `arrived standing in a sky portal: ${bot.voxel(...up.feet)}`);
+assert.ok(Math.abs(up.feet[0] - bx) < 40 && Math.abs(up.feet[2] - bz) < 40, `unscaled coordinates: ${up.feet}`);
+let rock = 0;
+for (let dx = -16; dx <= 16; dx++) for (let dy = -30; dy <= 8; dy++) for (let dz = -16; dz <= 16; dz++) {
+  const v = bot.voxel(up.feet[0] + dx, up.feet[1] + dy, up.feet[2] + dz);
+  if (v === id("cloudrock") || v === id("turf")) rock++;
+}
+let void_ = 0;
+for (let dx = -16; dx <= 16; dx += 4) for (let dz = -16; dz <= 16; dz += 4) {
+  let empty = true;
+  for (let y = 0; y < 40 && empty; y++) empty = bot.voxel(up.feet[0] + dx, y, up.feet[2] + dz) === 0;
+  if (empty) void_++;
+}
+assert.ok(void_ > 0, "open void below the islands");
+assert.ok(rock > 20, `landed on an island: ${rock} island blocks near ${up.feet}`);
+step(`travelled to the sky, arrived at ${up.feet}: ${rock} island blocks near, void below`);
+
+// A riftstone frame does not light up here.
+await call(bot, "inventory.creative", { slot: 2, item: "riftstone" });
+// Beside the arrival ledge, facing the portal.
+const [sx, sy, sz] = [up.feet[0] - 1, up.feet[1], up.feet[2] + 2];
+for (let dx = 0; dx < 4; dx++)
+  for (let dy = 0; dy < 5; dy++)
+    if (dx === 0 || dx === 3 || dy === 0 || dy === 4) await call(bot, "build.place", { voxel: [sx + dx, sy + dy, sz], slot: 2 });
+bot.call("platform.use", { voxel: [sx + 1, sy, sz] });
+const refused = await bot.result("use");
+assert.equal(refused.ok, false, "an underworld frame stays dark in the sky");
+step("an underworld frame does not light in the sky");
+
+// Step out and back in: home through the first portal.
+await bot.moveTo([up.feet[0] + 0.5, up.feet[1] + EYE, up.feet[2] + 1.5], 3);
+await sleep(4000);
+await bot.moveTo([up.feet[0] + 0.5, up.feet[1] + EYE, up.feet[2] + 0.5], 3);
+const home = await travel(bot);
+assert.equal(home.world, "main");
+assert.ok(Math.abs(home.feet[0] - (bx + 1)) <= 2 && Math.abs(home.feet[2] - bz) <= 2, `home through the first portal: ${home.feet}`);
 step("travelled back and arrived in the original portal");
 
 bot.close();
-console.log("portals: all checks passed");
+console.log("sky: all checks passed");
 process.exit(0);

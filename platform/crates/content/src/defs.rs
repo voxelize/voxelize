@@ -75,8 +75,8 @@ pub enum BlockBehavior {
     Inverter,
     /// Directional: pushes the block in front one cell when powered.
     Actuator,
-    /// Portal surface: stays only while framed by riftstone in its plane
-    /// (stage bit 0: 0 = the plane spans x and y, 1 = z and y).
+    /// Portal surface: stays only while framed by its `portal.frame` block
+    /// in its plane (stage bit 0: 0 = the plane spans x and y, 1 = z and y).
     Rift,
 }
 
@@ -88,15 +88,17 @@ pub enum Dimension {
     #[default]
     Overworld,
     Underworld,
+    Sky,
 }
 
 impl Dimension {
-    pub const ALL: [Dimension; 2] = [Dimension::Overworld, Dimension::Underworld];
+    pub const ALL: [Dimension; 3] = [Dimension::Overworld, Dimension::Underworld, Dimension::Sky];
 
     pub fn key(self) -> &'static str {
         match self {
             Dimension::Overworld => "overworld",
             Dimension::Underworld => "underworld",
+            Dimension::Sky => "sky",
         }
     }
 
@@ -105,6 +107,7 @@ impl Dimension {
         match self {
             Dimension::Overworld => 1.0,
             Dimension::Underworld => 0.125,
+            Dimension::Sky => 1.0,
         }
     }
 }
@@ -209,6 +212,18 @@ pub struct BlockDef {
     /// Can be toggled by hand with `platform.use` (gates).
     #[serde(default)]
     pub usable: bool,
+    /// Rifts: the frame that lights into this rift and the dimension it
+    /// opens from the overworld (from any other dimension, rifts lead back
+    /// to the overworld).
+    #[serde(default)]
+    pub portal: Option<PortalDef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PortalDef {
+    pub frame: String,
+    pub to: Dimension,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

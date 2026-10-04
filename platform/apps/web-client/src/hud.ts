@@ -119,6 +119,7 @@ const CAUSES: Record<string, string> = {
   lava: "You tried to swim in lava.",
   starvation: "You starved.",
   mob: "You were slain by a creature.",
+  void: "You fell out of the world.",
 };
 
 function pips(id: string, value: number, count: number, perPip: number, reverse = false) {

@@ -35,7 +35,9 @@ const storedWorld = (() => {
   }
 })();
 const WORLD = storedWorld && /^[a-z0-9_]{1,64}$/.test(storedWorld) ? storedWorld : "main";
-const UNDERWORLD = WORLD.endsWith("_underworld");
+/** The dimension this world is (`main_underworld`, `main_sky`). */
+const DIMENSION = WORLD.endsWith("_underworld") ? "underworld" : WORLD.endsWith("_sky") ? "sky" : "overworld";
+const UNDERWORLD = DIMENSION === "underworld";
 const FACE_ROLES: Record<string, "top" | "bottom" | "side"> = {
   py: "top",
   ny: "bottom",
@@ -96,8 +98,15 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
 
   // Our own sky palette; the underworld is a sealed cavern with a smoky
-  // red void instead of a sky.
-  if (UNDERWORLD) {
+  // red void instead of a sky, and the sky dimension stays pale and bright
+  // above a white void.
+  if (DIMENSION === "sky") {
+    world.sky.setShadingPhases([
+      { name: "sky-day", color: { top: "#6fa8ff", middle: "#cfe4ff", bottom: "#f4f8ff" }, skyOffset: 0, voidOffset: 0.4, start: 0.2 },
+      { name: "sky-dusk", color: { top: "#7f78c8", middle: "#f2b7a0", bottom: "#e8e4f4" }, skyOffset: 0.05, voidOffset: 0.4, start: 0.7 },
+      { name: "sky-night", color: { top: "#141a3a", middle: "#2c3768", bottom: "#4a5488" }, skyOffset: 0.1, voidOffset: 0.4, start: 0.78 },
+    ]);
+  } else if (UNDERWORLD) {
     const ember = { top: "#1a0806", middle: "#3a120a", bottom: "#120403" };
     world.sky.setShadingPhases([
       { name: "ember", color: ember, skyOffset: 0, voidOffset: 0.6, start: 0 },
@@ -239,7 +248,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // Land: a notice when entering someone's land, and the panel (L).
   const landPanel = new LandPanel({
     world: "main",
-    dimension: UNDERWORLD ? "underworld" : "overworld",
+    dimension: DIMENSION,
     position: () => controls.object.position,
     guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
     notify: (text) => hud.toast(text),
@@ -570,7 +579,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
   applySettings(settings);
   if (pendingFeet) placeFeet(pendingFeet);
-  else if (!UNDERWORLD) controls.teleportToTop(0, 0, 2);
+  else if (DIMENSION === "overworld") controls.teleportToTop(0, 0, 2);
   method.call("platform.inventory.get", {});
   hud.show();
 

@@ -499,22 +499,26 @@ impl Rules {
             .is_some_and(|t| t.kind == platform_content::ToolKind::Igniter)
     }
 
-    /// Light the riftstone frame at `voxel` with the held igniter: the rift
+    /// Light the portal frame at `voxel` with the held igniter: the rift
     /// cells to write (wearing the igniter), or `CannotUse` when it closes
-    /// no valid frame.
+    /// no valid frame or that kind of portal leads nowhere from `here`.
     pub fn ignite(
         &self,
         player: &mut PlayerState,
         view: &dyn WorldView,
         position: [f32; 3],
         voxel: [i32; 3],
+        here: platform_content::Dimension,
     ) -> Result<Vec<([i32; 3], u32)>, IntentError> {
         alive(player)?;
         if !self.holds_igniter(player) {
             return Err(IntentError::CannotUse);
         }
         self.target_block(view, position, voxel)?;
-        let blocks = crate::portals::PortalBlocks::from_content(&self.content)
+        let blocks = view
+            .block_at(voxel)
+            .and_then(|frame| crate::portals::PortalBlocks::by_frame(&self.content, frame))
+            .filter(|kind| kind.route(here).is_some())
             .ok_or(IntentError::CannotUse)?;
         let (cells, axis) = crate::portals::ignite(&blocks, voxel, |p| view.block_at(p))
             .ok_or(IntentError::CannotUse)?;
@@ -985,14 +989,28 @@ mod tests {
             }
         }
         assert_eq!(
-            rules.ignite(&mut player, &world, HERE, [1, 0, 2]),
+            rules.ignite(
+                &mut player,
+                &world,
+                HERE,
+                [1, 0, 2],
+                platform_content::Dimension::Overworld
+            ),
             Err(IntentError::CannotUse),
             "empty hand"
         );
         let striker = c.item("fire_striker").unwrap().id;
         player.inventory.add(c, striker, 1);
         player.inventory.select(0).unwrap();
-        let cells = rules.ignite(&mut player, &world, HERE, [1, 0, 2]).unwrap();
+        let cells = rules
+            .ignite(
+                &mut player,
+                &world,
+                HERE,
+                [1, 0, 2],
+                platform_content::Dimension::Overworld,
+            )
+            .unwrap();
         assert_eq!(cells.len(), 6);
         assert!(cells.iter().all(|(_, raw)| raw & 0xFFFF == rift));
         assert_eq!(
@@ -1002,10 +1020,46 @@ mod tests {
         );
         world.blocks.insert([2, 4, 2], 0);
         assert_eq!(
-            rules.ignite(&mut player, &world, HERE, [1, 0, 2]),
+            rules.ignite(
+                &mut player,
+                &world,
+                HERE,
+                [1, 0, 2],
+                platform_content::Dimension::Overworld
+            ),
             Err(IntentError::CannotUse),
             "an open frame"
         );
+        world.blocks.insert([2, 4, 2], frame);
+        assert_eq!(
+            rules.ignite(
+                &mut player,
+                &world,
+                HERE,
+                [1, 0, 2],
+                platform_content::Dimension::Sky
+            ),
+            Err(IntentError::CannotUse),
+            "an underworld portal leads nowhere from the sky"
+        );
+        // A skystone frame lights into a sky rift.
+        let (sky_frame, sky_rift) = (
+            c.block("skystone").unwrap().id,
+            c.block("sky_rift").unwrap().id,
+        );
+        for (_, v) in world.blocks.iter_mut().filter(|(_, v)| **v == frame) {
+            *v = sky_frame;
+        }
+        let cells = rules
+            .ignite(
+                &mut player,
+                &world,
+                HERE,
+                [1, 0, 2],
+                platform_content::Dimension::Sky,
+            )
+            .unwrap();
+        assert!(cells.iter().all(|(_, raw)| raw & 0xFFFF == sky_rift));
     }
 
     #[test]

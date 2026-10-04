@@ -9,7 +9,7 @@
     "id": 54, "key": "rift", "name": "Rift", "material": "crystal",
     "hardness": -1, "resistance": 0, "texture": { "all": "rift" },
     "transparent": true, "collision": false, "lightEmission": 11,
-    "behaviors": ["rift"], "drops": []
+    "behaviors": ["rift"], "portal": { "frame": "riftstone", "to": "underworld" }, "drops": []
   },
   {
     "id": 55, "key": "cinderstone", "name": "Cinderstone", "material": "rock",

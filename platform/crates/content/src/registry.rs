@@ -279,6 +279,33 @@ impl Content {
                     _ => {}
                 }
             }
+            let is_rift = block.behaviors.contains(&crate::BlockBehavior::Rift);
+            match (&block.portal, is_rift) {
+                (Some(portal), true) => {
+                    if !has_block(&portal.frame) {
+                        errors.push(format!(
+                            "{who} is framed by unknown block {:?}",
+                            portal.frame
+                        ));
+                    }
+                    if portal.to == crate::Dimension::Overworld {
+                        errors.push(format!("{who} must lead out of the overworld"));
+                    }
+                    if source.blocks.iter().any(|b| {
+                        b.key != block.key
+                            && b.portal
+                                .as_ref()
+                                .is_some_and(|p| p.frame == portal.frame || p.to == portal.to)
+                    }) {
+                        errors.push(format!(
+                            "{who} shares its frame or destination with another rift"
+                        ));
+                    }
+                }
+                (None, true) => errors.push(format!("{who} is a rift without a portal")),
+                (Some(_), false) => errors.push(format!("{who} declares a portal but is no rift")),
+                (None, false) => {}
+            }
             for key in &block.support {
                 if !has_block(key) {
                     errors.push(format!("{who} needs unknown support block {key:?}"));

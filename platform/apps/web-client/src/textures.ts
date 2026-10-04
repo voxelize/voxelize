@@ -412,6 +412,34 @@ const RECIPES: Record<string, Recipe> = {
     p.speckle(hex("#6e2b25"), 0.16);
     p.blobs(hex("#f3e6da"), 5, 1);
   },
+  // Sky dimension and its portal.
+  skystone: (p) => {
+    p.speckle(hex("#d9e6f2"), 0.1);
+    p.blobs(hex("#8fb8e8"), 6, 1);
+    p.blobs(hex("#f6e7a8"), 4, 0);
+  },
+  sky_rift: (p) => {
+    p.clear();
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++) {
+        const swirl = Math.sin((x - y) * 0.6) + Math.cos((x + y) * 0.4);
+        p.set(x, y, shade(hex("#7fd4ff", 170), swirl * 0.18 + (p.random() - 0.5) * 0.2));
+      }
+  },
+  cloudrock: (p) => {
+    p.speckle(hex("#c9ccd6"), 0.12);
+    p.blobs(hex("#aeb3c2"), 7, 1);
+    p.blobs(hex("#e4e7ef"), 5, 0);
+  },
+  cloud: (p) => {
+    p.speckle(hex("#f7f9fc"), 0.04);
+    p.blobs(hex("#e6ecf5"), 4, 1);
+  },
+  sunstone_ore: (p) => {
+    p.speckle(hex("#c9ccd6"), 0.12);
+    p.blobs(hex("#ffd34a"), 5, 1);
+    p.blobs(hex("#fff3b0"), 3, 0);
+  },
   // Trade stall: striped awning on top, a counter on the sides.
   stall_top: (p) => {
     for (let y = 0; y < SIZE; y++)

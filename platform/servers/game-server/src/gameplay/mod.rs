@@ -924,10 +924,11 @@ pub fn install(
             return;
         }
         let result = with_player(world, client_id, |g, view, position| {
+            let here = g.dimensions.current;
             let Gameplay { rules, players, .. } = g;
             let player = players.get_mut(client_id).expect("checked by with_player");
             if rules.holds_igniter(player) {
-                rules.ignite(player, view, position, p.voxel)
+                rules.ignite(player, view, position, p.voxel, here)
             } else {
                 rules
                     .use_on(player, view, position, p.voxel)
@@ -1027,6 +1028,8 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 continue;
             };
             let feet_y = p[1] - EYE_HEIGHT;
+            // Below the world there are no blocks, only the void.
+            let in_void = feet_y < -2.0;
             let (Some(head), Some(feet), Some(below)) = (
                 block_at(p[0], p[1], p[2]),
                 block_at(p[0], feet_y + 0.1, p[2]),
@@ -1048,6 +1051,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 head_in_water: water(head),
                 feet_in_water: water(feet),
                 in_lava: lava(feet) || lava(head),
+                in_void,
                 moved,
             };
             let outcome = survival::tick(&mut player.vitals, surroundings, dt);

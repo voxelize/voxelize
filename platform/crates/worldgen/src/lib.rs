@@ -20,7 +20,9 @@ use std::collections::HashMap;
 
 use platform_content::{BiomeDef, Content, Dimension, StructurePlacement};
 
+mod sky;
 mod underworld;
+pub use sky::{Sky, Span};
 pub use underworld::Underworld;
 
 /// Voxel id of air.

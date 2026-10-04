@@ -328,7 +328,7 @@ pub fn attach(
         melts: has(BlockBehavior::Melts),
         dries: has(BlockBehavior::Dries),
         rift: has(BlockBehavior::Rift)
-            .then(|| crate::portals::PortalBlocks::from_content(content))
+            .then(|| crate::portals::PortalBlocks::by_rift(content, def.id))
             .flatten(),
     };
     let random = logic.spreads || logic.decays || logic.grows || logic.melts || logic.dries;
@@ -1063,7 +1063,11 @@ mod tests {
     #[test]
     fn a_portal_collapses_when_its_frame_breaks() {
         let e = env();
-        let blocks = crate::portals::PortalBlocks::from_content(&e.content).unwrap();
+        let blocks = crate::portals::PortalBlocks::leading_to(
+            &e.content,
+            platform_content::Dimension::Underworld,
+        )
+        .unwrap();
         let mut s = Space::default();
         let (writes, stand) = crate::portals::build(&blocks, 0, 64, 0);
         for ([x, y, z], v) in writes {

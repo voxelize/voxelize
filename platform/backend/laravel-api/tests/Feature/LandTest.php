@@ -93,7 +93,7 @@ class LandTest extends TestCase
         $this->assertSame(1, Land::where('owner_id', $this->alice->id)->count(), 'nothing half-written');
 
         $this->claim($this->alice, [], 'short')->assertStatus(400);
-        $this->claim($this->alice, ['dimension' => 'sky'], 'bad-dim-0001')->assertStatus(404);
+        $this->claim($this->alice, ['dimension' => 'moon'], 'bad-dim-0001')->assertStatus(404);
     }
 
     public function test_members_roles_and_release(): void

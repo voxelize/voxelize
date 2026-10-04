@@ -1,9 +1,14 @@
-//! Portal geometry: lighting a riftstone frame, the frame a rift needs to
-//! stay, finding a portal near an arrival point and building one when
-//! there is none. Pure functions over a voxel lookup, so they are tested
-//! without an engine.
+//! Portal geometry: lighting a frame, the frame a rift needs to stay,
+//! finding a portal near an arrival point and building one when there is
+//! none. Pure functions over a voxel lookup, so they are tested without an
+//! engine.
+//!
+//! Each kind of portal is a rift block with a `portal` definition in the
+//! content pack: the frame block that lights into it and the dimension it
+//! opens from the overworld (riftstone and rift lead to the underworld,
+//! skystone and sky rift to the sky).
 
-use platform_content::Content;
+use platform_content::{Content, Dimension};
 use voxelize::BlockUtils;
 
 /// Largest portal interior in either direction.
@@ -18,14 +23,54 @@ pub const SEARCH_RADIUS: i32 = 16;
 pub struct PortalBlocks {
     pub rift: u32,
     pub frame: u32,
+    /// The dimension this kind opens from the overworld.
+    pub to: Dimension,
 }
 
 impl PortalBlocks {
-    pub fn from_content(content: &Content) -> Option<Self> {
-        Some(Self {
-            rift: content.block("rift")?.id,
-            frame: content.block("riftstone")?.id,
-        })
+    /// Every kind of portal in the content pack.
+    pub fn all(content: &Content) -> Vec<Self> {
+        content
+            .blocks()
+            .iter()
+            .filter_map(|b| {
+                let portal = b.portal.as_ref()?;
+                Some(Self {
+                    rift: b.id,
+                    frame: content.block(&portal.frame)?.id,
+                    to: portal.to,
+                })
+            })
+            .collect()
+    }
+
+    pub fn by_rift(content: &Content, rift: u32) -> Option<Self> {
+        Self::all(content).into_iter().find(|k| k.rift == rift)
+    }
+
+    pub fn by_frame(content: &Content, frame: u32) -> Option<Self> {
+        Self::all(content).into_iter().find(|k| k.frame == frame)
+    }
+
+    /// The kind that connects the overworld with `dimension`.
+    pub fn leading_to(content: &Content, dimension: Dimension) -> Option<Self> {
+        Self::all(content).into_iter().find(|k| k.to == dimension)
+    }
+
+    /// Where this kind of portal leads from `here`: out of the overworld to
+    /// its dimension and back; it does not work anywhere else.
+    pub fn route(&self, here: Dimension) -> Option<Dimension> {
+        match here {
+            Dimension::Overworld => Some(self.to),
+            d if d == self.to => Some(Dimension::Overworld),
+            _ => None,
+        }
+    }
+
+    /// The kind travel between two dimensions goes through.
+    pub fn between(content: &Content, a: Dimension, b: Dimension) -> Option<Self> {
+        let far = if a == Dimension::Overworld { b } else { a };
+        Self::leading_to(content, far)
     }
 }
 
@@ -69,7 +114,7 @@ pub fn anchor(blocks: &PortalBlocks, cell: [i32; 3], raw_at: impl Fn([i32; 3]) -
 }
 
 /// Whether a rift cell is still framed: its four in-plane neighbours are
-/// rift or riftstone.
+/// rift or its frame.
 pub fn rift_intact(
     blocks: &PortalBlocks,
     raw: u32,
@@ -86,7 +131,7 @@ pub fn rift_intact(
         })
 }
 
-/// The cells a fire striker used on the riftstone at `clicked` fills with
+/// The cells a fire striker used on the frame at `clicked` fills with
 /// rift, and the portal's axis — or `None` when it closes no valid frame.
 /// `id_at` returns `None` for unloaded voxels.
 pub fn ignite(
@@ -113,7 +158,7 @@ pub fn ignite(
 }
 
 /// Flood-fill air in the portal plane from `start`; valid when bounded by
-/// riftstone on every side and at least `MIN_WIDTH x MIN_HEIGHT` across.
+/// frame on every side and at least `MIN_WIDTH x MIN_HEIGHT` across.
 fn fill(
     blocks: &PortalBlocks,
     start: [i32; 3],
@@ -179,7 +224,7 @@ pub fn find_rift(
 
 /// A new portal standing on a floor at `floor_y` (the frame's bottom row),
 /// its lower-left interior corner at `origin`'s column: frame, rift and a
-/// riftstone ledge on both sides with headroom cleared, so the traveller
+/// ledge of frame on both sides with headroom cleared, so the traveller
 /// arrives on solid ground in open air. Returns writes and the lower
 /// interior cell to stand in.
 pub fn build(
@@ -250,6 +295,7 @@ mod tests {
     const B: PortalBlocks = PortalBlocks {
         rift: 54,
         frame: 53,
+        to: Dimension::Underworld,
     };
     const STONE: u32 = 2;
 
@@ -265,6 +311,31 @@ mod tests {
 
     fn lookup(world: &HashMap<[i32; 3], u32>) -> impl Fn([i32; 3]) -> Option<u32> + '_ {
         move |p| Some(*world.get(&p).unwrap_or(&0))
+    }
+
+    #[test]
+    fn every_kind_routes_between_the_overworld_and_its_dimension() {
+        let content = Content::load(platform_content::default_pack_dir()).unwrap();
+        let kinds = PortalBlocks::all(&content);
+        assert_eq!(kinds.len(), 2);
+        let down = PortalBlocks::leading_to(&content, Dimension::Underworld).unwrap();
+        let up = PortalBlocks::leading_to(&content, Dimension::Sky).unwrap();
+        assert_eq!(down.rift, content.block("rift").unwrap().id);
+        assert_eq!(up.frame, content.block("skystone").unwrap().id);
+        assert_eq!(PortalBlocks::by_frame(&content, up.frame), Some(up));
+        assert_eq!(PortalBlocks::by_rift(&content, down.rift), Some(down));
+        assert_eq!(up.route(Dimension::Overworld), Some(Dimension::Sky));
+        assert_eq!(up.route(Dimension::Sky), Some(Dimension::Overworld));
+        assert_eq!(up.route(Dimension::Underworld), None);
+        assert_eq!(down.route(Dimension::Sky), None);
+        assert_eq!(
+            PortalBlocks::between(&content, Dimension::Sky, Dimension::Overworld),
+            Some(up)
+        );
+        assert_eq!(
+            PortalBlocks::between(&content, Dimension::Overworld, Dimension::Underworld),
+            Some(down)
+        );
     }
 
     #[test]

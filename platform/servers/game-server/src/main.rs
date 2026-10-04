@@ -21,7 +21,7 @@ use actix_web::{web, App, HttpResponse};
 use log::{info, warn};
 use platform_content::{Content, Dimension};
 use platform_ticket::{Verifier, VerifierConfig};
-use platform_worldgen::{Generator, Underworld, WorldgenConfig};
+use platform_worldgen::{Generator, Sky, Underworld, WorldgenConfig};
 use serde_json::json;
 use voxelize::{Server, Voxelize, World, WorldConfig};
 
@@ -85,6 +85,9 @@ fn build_world(
         )),
         Dimension::Underworld => stage::Terrain::Underworld(Arc::new(
             Underworld::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
+        )),
+        Dimension::Sky => stage::Terrain::Sky(Arc::new(
+            Sky::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
         )),
     };
     let biomes = terrain.clone();

@@ -125,7 +125,7 @@ Answers (events, sent only to the requesting client):
 - `platform.drops` — `{"items":[{"id","item","count","p":[x,y,z]}]}`, dropped items within 64 blocks, up to 10 times a second.
 - `platform.pickup` — `{"items":[[item,count],…]}` after walking over drops.
 - `platform.mobs` — `{"mobs":[{"id","key","p","yaw","health","hurt","baby","moving","love"}]}`, creatures within 64 blocks, ten times a second.
-- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|null,"realm"}`,
+- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|null,"realm"}`,
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
 
@@ -159,7 +159,7 @@ player across all dimensions) and are restored on the next join.
 
 ### Dimensions
 
-`GET /platform/info` lists them: `{"dimensions":{"overworld":"main","underworld":"main_underworld"}}`.
+`GET /platform/info` lists them: `{"dimensions":{"overworld":"main","sky":"main_sky","underworld":"main_underworld"}}`.
 Each dimension is an engine world; a session may be in one at a time and
 the server decides which (see `servers/game-server/src/gameplay/travel.rs`).
 

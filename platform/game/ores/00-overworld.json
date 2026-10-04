@@ -72,5 +72,14 @@
     "maxY": 118,
     "veinsPerChunk": 10,
     "veinSize": 6
+  },
+  {
+    "key": "sunstone",
+    "block": "sunstone_ore",
+    "replaces": "cloudrock",
+    "minY": 40,
+    "maxY": 200,
+    "veinsPerChunk": 6,
+    "veinSize": 5
   }
 ]

@@ -69,6 +69,7 @@ data/worlds/main/
   portal_links.json          pairs of portals that lead to each other
   containers.json, mobs.json chests and furnaces, animals
 data/worlds/main_underworld/ the underworld: its own chunks, containers, mobs
+data/worlds/main_sky/        the sky: the same, for the floating islands
 ```
 
 Chunk file (version 1, `server/world/voxels/background_chunk_saver.rs`):

@@ -12,6 +12,9 @@ pub const MAX_FOOD: f32 = 20.0;
 pub const MAX_AIR: f32 = 15.0; // seconds of breath
 /// Falls up to this many blocks are free.
 pub const SAFE_FALL: f32 = 3.0;
+/// Health lost per second below the bottom of the world.
+pub const VOID_DAMAGE: f32 = 8.0;
+
 /// Reported positions are the eye; feet are this far below.
 pub const EYE_HEIGHT: f32 = 1.425;
 
@@ -24,6 +27,8 @@ pub enum DamageKind {
     Starvation,
     /// Hit by a creature.
     Mob,
+    /// Fell out of the world (below its lowest block).
+    Void,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -135,6 +140,8 @@ pub struct Surroundings {
     pub head_in_water: bool,
     pub feet_in_water: bool,
     pub in_lava: bool,
+    /// Below the bottom of the world: falling forever.
+    pub in_void: bool,
     /// Horizontal distance moved since the last tick.
     pub moved: f32,
 }
@@ -196,6 +203,9 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
         if s.in_lava {
             out.damage.push((DamageKind::Lava, 4.0));
         }
+        if s.in_void {
+            out.damage.push((DamageKind::Void, VOID_DAMAGE));
+        }
         if v.air <= 0.0 {
             out.damage.push((DamageKind::Drowning, 2.0));
         }
@@ -238,8 +248,26 @@ mod tests {
             head_in_water: false,
             feet_in_water: false,
             in_lava: false,
+            in_void: false,
             moved: 0.0,
         }
+    }
+
+    #[test]
+    fn the_void_kills_within_seconds() {
+        let mut v = Vitals::default();
+        let mut s = at(-20.0, false);
+        s.in_void = true;
+        let mut died = false;
+        for _ in 0..(4.0 / 0.05) as usize {
+            let out = tick(&mut v, s, 0.05);
+            if out.died {
+                assert_eq!(out.damage.last().map(|d| d.0), Some(DamageKind::Void));
+                died = true;
+                break;
+            }
+        }
+        assert!(died, "dead within 4 seconds of falling out");
     }
 
     fn fall(v: &mut Vitals, from: f32, to: f32) -> TickOutcome {
