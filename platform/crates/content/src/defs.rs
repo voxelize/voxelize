@@ -293,6 +293,41 @@ pub struct ItemDef {
     /// Armor: where it is worn and how much it protects.
     #[serde(default)]
     pub armor: Option<ArmorStats>,
+    /// A drink that gives an effect (the bottle comes back).
+    #[serde(default)]
+    pub potion: Option<PotionDef>,
+}
+
+/// Status effects on bodies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EffectKind {
+    Speed,
+    Slowness,
+    Strength,
+    Weakness,
+    Regeneration,
+    Poison,
+    Resistance,
+    FireResistance,
+    NightVision,
+    WaterBreathing,
+    JumpBoost,
+    Hunger,
+    /// Instant: heals at once, never lasts.
+    Healing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PotionDef {
+    pub effect: EffectKind,
+    /// Seconds it lasts (ignored for instant effects).
+    #[serde(default)]
+    pub seconds: f32,
+    /// 0 for level I, 1 for level II.
+    #[serde(default)]
+    pub level: u8,
 }
 
 /// The four armor slots, top to bottom (the order of the inventory screen).

@@ -31,9 +31,11 @@ pub use guild_api::SiegeSystem;
 pub use land::LandNoticeSystem;
 pub use trade::TradeSystem;
 pub use travel::{Dimensions, PortalSystem};
+pub use weather::WeatherSystem;
 pub mod rules;
 pub mod store;
 pub mod survival;
+pub mod weather;
 pub mod window;
 pub mod xp;
 pub use items_api::WorldItemsSystem;
@@ -87,6 +89,10 @@ pub struct Gameplay {
     sieges: guild_api::Sieges,
     /// Lit blast charges and arrows in flight.
     combat: combat::Combat,
+    /// The overworld's weather (`weather.json`).
+    weather: weather::Weather,
+    /// Set when the weather was changed by hand, to tell players at once.
+    weather_changed: bool,
 }
 
 impl Gameplay {
@@ -107,6 +113,8 @@ impl Gameplay {
             trades: trade::Trades::load(world_dir)?,
             sieges: guild_api::Sieges::load(world_dir)?,
             combat: combat::Combat::default(),
+            weather: weather::Weather::load(world_dir)?,
+            weather_changed: true,
             players: HashMap::new(),
             rng: seed as u64 ^ 0x5EED_CAFE_F00D,
             containers: containers::Containers::load(world_dir)?,
@@ -233,6 +241,7 @@ fn vitals_payload(player: &PlayerState, cause: Option<survival::DamageKind>) -> 
         "cause": cause,
         "realm": player.realm,
         "burning": v.burning > 0.0,
+        "effects": v.effects,
         "xp": player.xp,
         "level": xp::level_of(player.xp).0,
         "progress": xp::level_of(player.xp).1,
@@ -578,6 +587,7 @@ pub fn install(
     stall::install(world);
     guild_api::install(world);
     combat::install(world);
+    weather::install(world);
     blueprint::install(world);
     trade::install(world);
     world.set_client_modifier(on_join);
@@ -926,6 +936,24 @@ pub fn install(
         }
     });
 
+    world.set_method_handle("platform.bottle.fill", |world, client_id, _| {
+        const INTENT: &str = "bottle.fill";
+        let result = with_player(world, client_id, |g, view, position| {
+            let Gameplay { rules, players, .. } = g;
+            let player = players.get_mut(client_id).expect("checked by with_player");
+            rules.fill_bottle(player, view, position)
+        });
+        match result {
+            None => not_joined(world, client_id, INTENT),
+            Some(Ok(())) => {
+                persist(world, client_id);
+                reply(world, client_id, INTENT, Ok(json!({})));
+                send_inventory(world, client_id);
+            }
+            Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
+        }
+    });
+
     world.set_method_handle("platform.respawn", |world, client_id, _| {
         const INTENT: &str = "respawn";
         let respawned = with_player(world, client_id, |g, _, _| {
@@ -1098,6 +1126,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
             return;
         }
 
+        let raining = gameplay.weather.raining();
         let Gameplay {
             rules,
             players,
@@ -1180,6 +1209,14 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 in_lava: lava(feet) || lava(head),
                 in_void,
                 in_fire: fire(feet) || fire(head),
+                rained_on: raining && {
+                    let (x, y, z) = (
+                        p[0].floor() as i32,
+                        p[1].floor() as i32,
+                        p[2].floor() as i32,
+                    );
+                    y >= max_height || voxelize::VoxelAccess::get_sunlight(&*chunks, x, y, z) >= 15
+                },
                 moved,
             };
             let outcome = survival::tick(&mut player.vitals, surroundings, dt);

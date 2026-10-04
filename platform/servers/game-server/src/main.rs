@@ -173,6 +173,11 @@ fn build_world(
                 "platform-combat",
                 &["platform-sieges"],
             )
+            .with(
+                gameplay::WeatherSystem::default(),
+                "platform-weather",
+                &["platform-combat"],
+            )
     });
     world
 }

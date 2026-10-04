@@ -1,0 +1,127 @@
+[
+  {
+    "type": "shaped",
+    "key": "glass_bottle",
+    "pattern": [
+      "g g",
+      " g "
+    ],
+    "symbols": {
+      "g": "glass"
+    },
+    "result": {
+      "item": "glass_bottle",
+      "count": 3
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_regeneration",
+    "ingredients": [
+      "water_bottle",
+      "lumen_shard"
+    ],
+    "result": {
+      "item": "potion_regeneration"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_swiftness",
+    "ingredients": [
+      "water_bottle",
+      "volt_dust"
+    ],
+    "result": {
+      "item": "potion_swiftness"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_fire_resistance",
+    "ingredients": [
+      "water_bottle",
+      "ember_dust"
+    ],
+    "result": {
+      "item": "potion_fire_resistance"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_night_vision",
+    "ingredients": [
+      "water_bottle",
+      "sun_shard"
+    ],
+    "result": {
+      "item": "potion_night_vision"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_strength",
+    "ingredients": [
+      "water_bottle",
+      "ember_quartz"
+    ],
+    "result": {
+      "item": "potion_strength"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_healing",
+    "ingredients": [
+      "water_bottle",
+      "gold_ingot"
+    ],
+    "result": {
+      "item": "potion_healing"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_water_breathing",
+    "ingredients": [
+      "water_bottle",
+      "cloud"
+    ],
+    "result": {
+      "item": "potion_water_breathing"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_poison",
+    "ingredients": [
+      "water_bottle",
+      "rotten_flesh"
+    ],
+    "result": {
+      "item": "potion_poison"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_leaping",
+    "ingredients": [
+      "water_bottle",
+      "feather"
+    ],
+    "result": {
+      "item": "potion_leaping"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "potion_slowness",
+    "ingredients": [
+      "water_bottle",
+      "snowpack"
+    ],
+    "result": {
+      "item": "potion_slowness"
+    }
+  }
+]

@@ -2,7 +2,7 @@
 // the client's copy of the mining rule. The server enforces the rule; the
 // client only uses it to show progress and to know when to ask.
 
-export type ToolKind = "pickaxe" | "axe" | "shovel" | "hoe" | "sword" | "shears";
+export type ToolKind = "pickaxe" | "axe" | "shovel" | "hoe" | "sword" | "shears" | "igniter";
 
 export type BlockDef = {
   id: number;
@@ -21,6 +21,8 @@ export type BlockDef = {
 export function isUsableBlock(def: BlockDef | undefined): boolean {
   if (!def) return false;
   const b = def.behaviors ?? [];
+  // Town halls and anvils are used by key (the server knows them).
+  if (def.key === "guild_hall" || def.key === "anvil") return true;
   return b.includes("lever") || b.includes("button") || b.includes("clock") || (b.includes("consumer") && !!def.usable);
 }
 
@@ -34,6 +36,7 @@ export type ItemDef = {
   tool?: { kind: ToolKind; tier: number; speed: number } | null;
   placesBlock?: string | null;
   armor?: { slot: "head" | "chest" | "legs" | "feet"; points: number } | null;
+  potion?: { effect: string; seconds?: number; level?: number } | null;
 };
 
 export type RecipeDef =

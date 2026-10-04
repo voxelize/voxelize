@@ -18,6 +18,7 @@ import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
 import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
+import { EffectInfo, WeatherInfo, WeatherView, effectLine, flash, movement } from "./weather";
 import { loadSettings, Settings, settingsPanel } from "./settings";
 import { isTouchDevice, mountTouchControls } from "./touch";
 import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
@@ -218,8 +219,20 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
   const vitalsHud = new VitalsHud();
   let lastHealth = 20;
+  // Effects: movement, night vision and the list in the corner.
+  const baseSpeed = controls.options.maxSpeed;
+  const baseJump = controls.options.jumpImpulse;
+  const showEffects = (effects: EffectInfo[]) => {
+    const m = movement(effects);
+    controls.options.maxSpeed = baseSpeed * m.speed;
+    controls.options.jumpImpulse = baseJump * m.jump;
+    canvas.style.filter = effects.some((e) => e.kind === "night_vision") ? "brightness(1.8)" : "";
+    const list = document.getElementById("effects");
+    if (list) list.replaceChildren(...effects.map((e) => Object.assign(document.createElement("div"), { textContent: effectLine(e) })));
+  };
   events.on<Vitals>("platform.vitals", (vitals) => {
     if (!vitals) return;
+    showEffects((vitals as Vitals & { effects?: EffectInfo[] }).effects ?? []);
     if (vitals.health < lastHealth) sfx.play("hurt");
     lastHealth = vitals.health;
     vitalsHud.set(vitals);
@@ -436,6 +449,16 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   world.add(mobs.group);
   events.on<{ mobs: MobInfo[] }>("platform.mobs", (payload) => payload && mobs.set(payload.mobs));
 
+  // Weather: rain or snow, storm tint, lightning.
+  const weather = new WeatherView();
+  world.add(weather.points);
+  events.on<WeatherInfo>("platform.weather", (w) => w && weather.set(w));
+  events.on<{ at: [number, number, number] }>("platform.lightning", (payload) => {
+    if (!payload) return;
+    flash();
+    sfx.play("break");
+  });
+
   // Arrows, lit charges, explosions and the push of a blast.
   const combat = new CombatView();
   world.add(combat.group);
@@ -560,14 +583,19 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     const targetDef = target ? content.blocksById.get(world.getVoxelAt(...target)) : undefined;
     const targetKey = targetDef?.key;
     const held = hud.heldItem();
-    if (target && !sneaking && targetKey && ["crafting_table", "furnace", "chest", "trade_stall"].includes(targetKey)) {
+    if (target && !sneaking && targetKey && ["crafting_table", "furnace", "chest", "trade_stall", "guild_vault"].includes(targetKey)) {
       openWindow([...target] as VOXELIZE.Coords3);
     } else if (target && !sneaking && isUsableBlock(targetDef)) {
       method.call("platform.use", { voxel: target });
     } else if (held?.tool?.kind === "hoe" && target && ["dirt", "turf"].includes(targetKey ?? "")) {
       method.call("platform.use", { voxel: target });
-    } else if (held?.type === "food") {
+    } else if (held?.tool?.kind === "igniter" && target) {
+      // Light a portal frame, a blast charge, or the top of a block.
+      method.call("platform.use", { voxel: target });
+    } else if (held?.type === "food" || held?.potion) {
       method.call("platform.eat", {});
+    } else if (held?.key === "glass_bottle") {
+      method.call("platform.bottle.fill", {});
     } else if (interact.potential) {
       const { voxel, rotation, yRotation4 } = interact.potential;
       method.call("platform.build.place", { voxel, rotation, yRotation: yRotation4 });
@@ -671,6 +699,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     world.update(controls.object.position, direction);
     players.update();
     combat.update();
+    weather.update(controls.object.position, 1 / 60);
     drops.update(performance.now());
     mobs.update(performance.now());
 

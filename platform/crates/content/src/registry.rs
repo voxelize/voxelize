@@ -350,6 +350,14 @@ impl Content {
             if item.durability.is_some() && item.stack_size != 1 {
                 errors.push(format!("{who} has durability and must stack to 1"));
             }
+            if let Some(p) = &item.potion {
+                if p.level > 4 || !(0.0..=3600.0).contains(&p.seconds) {
+                    errors.push(format!("{who} potion must last 0-3600 s at level 0-4"));
+                }
+                if p.effect != crate::EffectKind::Healing && p.seconds <= 0.0 {
+                    errors.push(format!("{who} potion must last some seconds"));
+                }
+            }
             match (&item.armor, item.item_type == crate::ItemType::Armor) {
                 (Some(armor), true) if armor.points > 20 => {
                     errors.push(format!("{who} gives more than 20 armor points"))

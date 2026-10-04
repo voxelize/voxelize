@@ -5,6 +5,7 @@
 //! it moved, and returns what happened. The engine system in `mod.rs` feeds
 //! it from the world and applies the outcome.
 
+use platform_content::EffectKind;
 use serde::{Deserialize, Serialize};
 
 pub const MAX_HEALTH: f32 = 20.0;
@@ -37,7 +38,9 @@ pub enum DamageKind {
     Player,
     /// Burning (standing in fire, or on fire after fire or lava).
     Fire,
+    Poison,
     Explosion,
+    Lightning,
     /// Shot by an arrow.
     Arrow,
     /// Fell out of the world (below its lowest block).
@@ -67,6 +70,21 @@ pub struct Vitals {
     /// Seconds left on fire.
     #[serde(default)]
     pub burning: f32,
+    /// Status effects running (potions, poison).
+    #[serde(default)]
+    pub effects: Vec<Effect>,
+    #[serde(skip)]
+    pub effect_regen_timer: f32,
+    #[serde(skip)]
+    pub poison_timer: f32,
+}
+
+/// A status effect on a body: its kind, level (0 = I) and seconds left.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Effect {
+    pub kind: EffectKind,
+    pub level: u8,
+    pub seconds: f32,
 }
 
 impl Default for Vitals {
@@ -83,6 +101,9 @@ impl Default for Vitals {
             hazard_timer: 0.0,
             grace: 0.0,
             burning: 0.0,
+            effects: Vec::new(),
+            effect_regen_timer: 0.0,
+            poison_timer: 0.0,
         }
     }
 }
@@ -130,6 +151,58 @@ impl Vitals {
         true
     }
 
+    /// The level of an effect running on this body.
+    pub fn effect(&self, kind: EffectKind) -> Option<u8> {
+        self.effects
+            .iter()
+            .find(|e| e.kind == kind)
+            .map(|e| e.level)
+    }
+
+    /// Start an effect: instant healing heals now; otherwise it replaces a
+    /// weaker one of the kind (or lengthens one of the same level).
+    pub fn apply_effect(&mut self, kind: EffectKind, level: u8, seconds: f32) {
+        if kind == EffectKind::Healing {
+            self.health = (self.health + 4.0 * f32::from(level + 1)).min(MAX_HEALTH);
+            return;
+        }
+        match self.effects.iter_mut().find(|e| e.kind == kind) {
+            Some(e) if e.level > level => {}
+            Some(e) if e.level == level => e.seconds = e.seconds.max(seconds),
+            Some(e) => {
+                *e = Effect {
+                    kind,
+                    level,
+                    seconds,
+                }
+            }
+            None => self.effects.push(Effect {
+                kind,
+                level,
+                seconds,
+            }),
+        }
+    }
+
+    /// Damage after the resistance effect (20 % less per level).
+    pub fn resisted(&self, amount: f32) -> f32 {
+        match self.effect(EffectKind::Resistance) {
+            Some(l) => amount * (1.0 - 0.2 * f32::from(l + 1)).max(0.0),
+            None => amount,
+        }
+    }
+
+    /// Melee damage after strength (+3 per level) and weakness (-4 per level).
+    pub fn melee(&self, base: f32) -> f32 {
+        let strength = self
+            .effect(EffectKind::Strength)
+            .map_or(0.0, |l| 3.0 * f32::from(l + 1));
+        let weakness = self
+            .effect(EffectKind::Weakness)
+            .map_or(0.0, |l| 4.0 * f32::from(l + 1));
+        (base + strength - weakness).max(0.5)
+    }
+
     pub fn damage(&mut self, amount: f32) {
         self.health = (self.health - amount).max(0.0);
     }
@@ -161,6 +234,8 @@ pub struct Surroundings {
     pub in_void: bool,
     /// Standing in a fire block.
     pub in_fire: bool,
+    /// Rain falls on this body (it puts the burning out).
+    pub rained_on: bool,
     /// Horizontal distance moved since the last tick.
     pub moved: f32,
 }
@@ -230,18 +305,25 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
     }
     v.last_feet_y = Some(s.feet_y);
 
+    // Effects run down.
+    for e in v.effects.iter_mut() {
+        e.seconds -= dt;
+    }
+    v.effects.retain(|e| e.seconds > 0.0);
+    let fire_immune = v.effect(EffectKind::FireResistance).is_some();
+
     // Fire: fire and lava set the body alight; water puts it out.
     if s.in_lava {
         v.burning = v.burning.max(BURN_AFTER_LAVA);
     } else if s.in_fire {
         v.burning = v.burning.max(BURN_AFTER_FIRE);
     }
-    if s.feet_in_water || s.head_in_water {
+    if s.feet_in_water || s.head_in_water || s.rained_on || fire_immune {
         v.burning = 0.0;
     }
 
     // Breath.
-    if s.head_in_water {
+    if s.head_in_water && v.effect(EffectKind::WaterBreathing).is_none() {
         v.air = (v.air - dt).max(0.0);
     } else {
         v.air = (v.air + dt * 5.0).min(MAX_AIR);
@@ -272,6 +354,33 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
 
     // Hunger: walking costs effort, so does simply being alive.
     v.exhaust(s.moved * 0.01 + dt * 0.005);
+    if let Some(l) = v.effect(EffectKind::Hunger) {
+        v.exhaust(dt * 0.1 * f32::from(l + 1));
+    }
+
+    // Regeneration and poison, faster at higher levels; poison never kills.
+    if let Some(l) = v.effect(EffectKind::Regeneration) {
+        v.effect_regen_timer += dt;
+        let every = 2.5 / f32::from(1u8 << l.min(4));
+        while v.effect_regen_timer >= every {
+            v.effect_regen_timer -= every;
+            v.health = (v.health + 1.0).min(MAX_HEALTH);
+        }
+    } else {
+        v.effect_regen_timer = 0.0;
+    }
+    if let Some(l) = v.effect(EffectKind::Poison) {
+        v.poison_timer += dt;
+        let every = 1.25 / f32::from(1u8 << l.min(4));
+        while v.poison_timer >= every {
+            v.poison_timer -= every;
+            if v.health > 1.0 {
+                out.damage.push((DamageKind::Poison, 1.0));
+            }
+        }
+    } else {
+        v.poison_timer = 0.0;
+    }
 
     // Natural regeneration while well fed.
     if v.food >= 18.0 && v.health < MAX_HEALTH {
@@ -285,8 +394,22 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
         v.regen_timer = 0.0;
     }
 
-    for &(_, amount) in &out.damage {
-        v.damage(amount);
+    if fire_immune {
+        out.damage
+            .retain(|(k, _)| !matches!(k, DamageKind::Fire | DamageKind::Lava));
+    }
+    for &(kind, amount) in &out.damage {
+        // Poison stops at one heart; resistance softens everything but the void.
+        let amount = if kind == DamageKind::Void {
+            amount
+        } else {
+            v.resisted(amount)
+        };
+        if kind == DamageKind::Poison {
+            v.health = (v.health - amount).max(1.0_f32.min(v.health));
+        } else {
+            v.damage(amount);
+        }
     }
     out.died = v.is_dead();
     out.changed = before != (v.health, v.food.floor(), v.air.ceil()) || out.died;
@@ -306,8 +429,54 @@ mod tests {
             in_lava: false,
             in_void: false,
             in_fire: false,
+            rained_on: false,
             moved: 0.0,
         }
+    }
+
+    #[test]
+    fn effects_heal_poison_protect_and_run_out() {
+        let mut v = Vitals::default();
+        v.health = 10.0;
+        v.food = 10.0; // no natural regeneration
+        v.apply_effect(EffectKind::Regeneration, 0, 10.0);
+        tick(&mut v, at(64.0, true), 5.0);
+        assert_eq!(v.health, 12.0, "one point per 2.5 s");
+        v.apply_effect(EffectKind::Healing, 0, 0.0);
+        assert_eq!(v.health, 16.0);
+
+        let mut p = Vitals::default();
+        p.health = 3.0;
+        p.food = 10.0;
+        p.apply_effect(EffectKind::Poison, 0, 30.0);
+        for _ in 0..40 {
+            tick(&mut p, at(64.0, true), 0.5);
+        }
+        assert_eq!(p.health, 1.0, "poison stops at one heart");
+
+        let mut f = Vitals::default();
+        f.apply_effect(EffectKind::FireResistance, 0, 3.0);
+        let mut s = at(64.0, true);
+        s.in_lava = true;
+        let out = tick(&mut f, s, 1.0);
+        assert!(
+            out.damage.is_empty() && f.health == MAX_HEALTH,
+            "no harm in lava"
+        );
+        tick(&mut f, at(64.0, true), 3.0);
+        assert!(f.effects.is_empty(), "it ran out");
+
+        let mut r = Vitals::default();
+        r.apply_effect(EffectKind::Resistance, 1, 60.0);
+        assert!((r.resisted(10.0) - 6.0).abs() < 1e-5);
+        r.apply_effect(EffectKind::Strength, 0, 60.0);
+        assert_eq!(r.melee(1.0), 4.0);
+        r.apply_effect(EffectKind::Resistance, 0, 999.0);
+        assert_eq!(
+            r.effect(EffectKind::Resistance),
+            Some(1),
+            "a weaker potion does not replace a stronger one"
+        );
     }
 
     #[test]

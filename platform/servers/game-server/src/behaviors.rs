@@ -35,9 +35,22 @@ pub struct Broken {
 }
 
 #[derive(Debug, Default)]
-pub struct BrokenBlocks(Mutex<Vec<Broken>>, Mutex<Vec<[i32; 3]>>);
+pub struct BrokenBlocks(
+    Mutex<Vec<Broken>>,
+    Mutex<Vec<[i32; 3]>>,
+    std::sync::atomic::AtomicBool,
+);
 
 impl BrokenBlocks {
+    /// Whether it rains in this world (set by the weather).
+    pub fn set_raining(&self, raining: bool) {
+        self.2.store(raining, Ordering::Relaxed);
+    }
+
+    pub fn raining(&self) -> bool {
+        self.2.load(Ordering::Relaxed)
+    }
+
     /// A blast charge set off by fire (its block is already gone).
     pub fn push_primed(&self, voxel: [i32; 3]) {
         if let Ok(mut q) = self.1.lock() {
@@ -697,7 +710,9 @@ fn update(
         let planted = ctx
             .crops_on_farmland
             .contains(&space.get_voxel(x, y + 1, z));
-        if !planted && !ctx.water_near(space, &voxel, 4) && ctx.roll(&voxel) % 4 == 0 {
+        let rained_on = ctx.broken.raining() && space.get_sunlight(x, y + 1, z) >= 15;
+        if !planted && !rained_on && !ctx.water_near(space, &voxel, 4) && ctx.roll(&voxel) % 4 == 0
+        {
             return ctx.dirt.map(|d| vec![(voxel, d)]).unwrap_or_default();
         }
     }
@@ -718,7 +733,10 @@ fn burn(
         return vec![(voxel, AIR)];
     };
     let at = |(dx, dy, dz): (i32, i32, i32)| space.get_voxel(x + dx, y + dy, z + dz);
-    if SIDES.iter().any(|s| ctx.water.contains(&at(*s))) {
+    // Water beside it, or rain falling on it, puts it out.
+    if SIDES.iter().any(|s| ctx.water.contains(&at(*s)))
+        || (ctx.broken.raining() && space.get_sunlight(x, y, z) >= 15)
+    {
         return vec![(voxel, AIR)];
     }
     let below = at((0, -1, 0));

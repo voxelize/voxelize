@@ -195,7 +195,8 @@ impl<'a> specs::System<'a> for MobSystem {
         }
         let content = g.rules.content_arc();
         let fraction = (stats.time / config.time_per_day as f32).rem_euclid(1.0);
-        let day = (0.22..0.75).contains(&fraction);
+        // The undead do not burn under rain clouds.
+        let day = (0.22..0.75).contains(&fraction) && !g.weather.raining();
 
         // Who is around, and what they hold.
         let mut players = Vec::new();
@@ -383,7 +384,7 @@ pub(super) fn install(world: &mut World) {
                             .selected_stack()
                             .and_then(|s| content.item_by_id(s.item))
                             .and_then(|i| i.tool.clone());
-                        let damage = weapon.as_ref().map(|t| t.attack_damage.max(1.0)).unwrap_or(1.0);
+                        let damage = player.vitals.melee(weapon.as_ref().map(|t| t.attack_damage.max(1.0)).unwrap_or(1.0));
                         if weapon.is_some_and(|t| t.kind == ToolKind::Sword || t.attack_damage > 1.0) {
                             player.inventory.wear_selected();
                         }

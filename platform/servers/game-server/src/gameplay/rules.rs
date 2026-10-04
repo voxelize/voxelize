@@ -228,7 +228,9 @@ pub fn absorb(content: &Content, player: &mut PlayerState, damage: f32) -> f32 {
             }
         }
     }
-    damage * (1.0 - points as f32 / 25.0)
+    player
+        .vitals
+        .resisted(damage * (1.0 - points as f32 / 25.0))
 }
 
 fn alive(player: &PlayerState) -> Result<(), IntentError> {
@@ -618,6 +620,23 @@ impl Rules {
             .inventory
             .get(slot)
             .ok_or(IntentError::Inventory(InventoryError::EmptySlot))?;
+        // A potion: its effect starts; the bottle comes back in its place.
+        if let Some(potion) = self.content.item_by_id(stack.item).and_then(|i| i.potion) {
+            player
+                .vitals
+                .apply_effect(potion.effect, potion.level, potion.seconds);
+            if player.realm == Realm::Survival {
+                player.inventory.take_one(slot)?;
+                if let Some(bottle) = self.content.item("glass_bottle") {
+                    player.inventory.slots[slot] = Some(super::inventory::Stack {
+                        item: bottle.id,
+                        count: 1,
+                        durability: None,
+                    });
+                }
+            }
+            return Ok(0);
+        }
         let food = self
             .content
             .item_by_id(stack.item)
@@ -630,6 +649,59 @@ impl Rules {
             player.inventory.take_one(slot)?;
         }
         Ok(food)
+    }
+
+    /// Fill the held glass bottle from water within 4 blocks of the eye.
+    pub fn fill_bottle(
+        &self,
+        player: &mut PlayerState,
+        view: &dyn WorldView,
+        eye: [f32; 3],
+    ) -> Result<(), IntentError> {
+        alive(player)?;
+        let (bottle, water_bottle) = match (
+            self.content.item("glass_bottle"),
+            self.content.item("water_bottle"),
+        ) {
+            (Some(b), Some(w)) => (b.id, w.id),
+            _ => return Err(IntentError::CannotUse),
+        };
+        let slot = player.inventory.selected;
+        if player.inventory.get(slot).map(|s| s.item) != Some(bottle) {
+            return Err(IntentError::CannotUse);
+        }
+        let c = [
+            eye[0].floor() as i32,
+            eye[1].floor() as i32,
+            eye[2].floor() as i32,
+        ];
+        let water = (-4..=4).any(|dx| {
+            (-4..=2).any(|dy| {
+                (-4..=4).any(|dz| {
+                    view.block_at([c[0] + dx, c[1] + dy, c[2] + dz])
+                        .and_then(|id| self.content.block_by_id(id))
+                        .is_some_and(|b| b.fluid == Some(platform_content::FluidKind::Water))
+                })
+            })
+        });
+        if !water {
+            return Err(IntentError::NothingThere);
+        }
+        if player.inventory.get(slot).is_some_and(|s| s.count == 1) {
+            player.inventory.slots[slot] = Some(super::inventory::Stack {
+                item: water_bottle,
+                count: 1,
+                durability: None,
+            });
+            return Ok(());
+        }
+        if self.content.item_by_id(water_bottle).is_none()
+            || player.inventory.add(&self.content, water_bottle, 1) > 0
+        {
+            return Err(IntentError::InventoryFull);
+        }
+        player.inventory.take_one(slot)?;
+        Ok(())
     }
 
     /// Craft once from a grid of item keys, taking the ingredients from the
@@ -1141,6 +1213,53 @@ mod tests {
             )
             .unwrap();
         assert!(cells.iter().all(|(_, raw)| raw & 0xFFFF == sky_rift));
+    }
+
+    #[test]
+    fn bottles_fill_near_water_and_potions_give_effects() {
+        let (rules, mut world, mut player) = setup();
+        world
+            .blocks
+            .retain(|_, b| *b != rules.content().block("water").unwrap().id);
+        let c = rules.content();
+        let bottle = c.item("glass_bottle").unwrap().id;
+        player.inventory.add(c, bottle, 2);
+        player.inventory.select(0).unwrap();
+        assert_eq!(
+            rules.fill_bottle(&mut player, &world, HERE),
+            Err(IntentError::NothingThere),
+            "no water near"
+        );
+        let eye = [
+            HERE[0].floor() as i32,
+            HERE[1].floor() as i32,
+            HERE[2].floor() as i32,
+        ];
+        world.blocks.insert(
+            [eye[0] + 2, eye[1] - 1, eye[2]],
+            c.block("water").unwrap().id,
+        );
+        rules.fill_bottle(&mut player, &world, HERE).unwrap();
+        let water_bottle = c.item("water_bottle").unwrap().id;
+        assert_eq!(player.inventory.count_of(water_bottle), 1);
+        assert_eq!(player.inventory.count_of(bottle), 1);
+
+        let strength = c.item("potion_strength").unwrap().id;
+        player.inventory.slots[5] = Some(crate::gameplay::inventory::Stack {
+            item: strength,
+            count: 1,
+            durability: None,
+        });
+        rules.eat(&mut player, Some(5)).unwrap();
+        assert_eq!(
+            player.vitals.effect(platform_content::EffectKind::Strength),
+            Some(0)
+        );
+        assert_eq!(
+            player.inventory.get(5).map(|s| s.item),
+            Some(bottle),
+            "the bottle comes back"
+        );
     }
 
     #[test]

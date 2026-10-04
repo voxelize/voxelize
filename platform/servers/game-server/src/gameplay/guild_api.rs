@@ -490,10 +490,12 @@ pub(super) fn install(world: &mut World) {
                         .selected_stack()
                         .and_then(|s| content.item_by_id(s.item))
                         .and_then(|i| i.tool.clone());
-                    let damage = weapon
-                        .as_ref()
-                        .map(|t| t.attack_damage.max(1.0))
-                        .unwrap_or(1.0);
+                    let damage = attacker.vitals.melee(
+                        weapon
+                            .as_ref()
+                            .map(|t| t.attack_damage.max(1.0))
+                            .unwrap_or(1.0),
+                    );
                     if weapon.is_some() {
                         attacker.inventory.wear_selected();
                     }

@@ -133,6 +133,23 @@ lit it may build); one block in four drops; other charges go off within a
 second or so; bodies within 8 blocks take up to 24 damage (through armor)
 and are pushed away. Bows (`bow`) shoot `arrow`s (see NETWORK_PROTOCOL.md).
 
+Potions are items with `"potion": { "effect", "seconds", "level" }`; effects
+are `speed`, `slowness`, `strength` (+3 melee per level), `weakness`
+(−4), `regeneration` (1 health per 2.5 s, twice as fast per level),
+`poison` (1 per 1.25 s, never below one heart), `resistance` (−20 % damage
+per level), `fire_resistance`, `night_vision`, `water_breathing`,
+`jump_boost`, `hunger` and the instant `healing`. Speed, slowness, jumping
+and night vision act on the client; the rest on the server. Brewing is
+shapeless crafting: a water bottle (a glass bottle filled at water) and an
+ingredient.
+
+Weather (overworld only): clear spells of 10–150 minutes and rain of 10–20
+minutes, a quarter of it thunder. Rain puts out fires and burning bodies
+under open sky, keeps farmland wet and keeps the undead from burning; it
+falls as snow in biomes colder than −0.3 and not at all above 0.84.
+Thunderstorms strike lightning near a player every 8 s: 5 damage within 3
+blocks (setting them alight) and fire where it hits unclaimed land.
+
 ## biomes/ and ores/
 
 Every biome belongs to a `dimension` (`overworld` by default,

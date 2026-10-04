@@ -128,8 +128,12 @@ wood away, dying out; burning players and creatures), blast charges and
 explosions (blocks by resistance, land-aware, chains, damage and push
 through armor), bows and arrows (server-timed draw, gravity, hits on
 creatures and players at war, arrows picked up again). Tests: fire,
-explosion and arrow unit tests, `tests/bots/fire.mjs`. Remaining: status
-effects, weather engine.
+explosion and arrow unit tests, `tests/bots/fire.mjs`. Done since: status effects
+(potions brewed in the crafting grid, bottles filled at water; regeneration,
+poison, resistance, strength and the rest; shown and applied on the client),
+weather (rain, snow, thunder with lightning; rain puts fires out, wets
+farmland, shields the undead; creative players set it). Tests: effect,
+potion and weather unit tests, `tests/bots/effects.mjs`.
 
 ## Phase 9 — Crafting and processing ✅ (gameplay) / admin ⬜
 

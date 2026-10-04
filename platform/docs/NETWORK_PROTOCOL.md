@@ -96,11 +96,14 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.contract.deliver` | `{"contract":id,"slot":n,"count":n}` | survival; exactly `count` from the slot into the outbox (as for listings); the backend checks the contractor, item and count → `platform.market {"fulfilled":{"contract","item","count"}}`, or `{"rejected"}` with the goods back | ✅ |
 | `platform.inventory.creative` | `{"slot":n,"item":key}` | creative realm only (`creative_only`); a full, unworn stack of any item into the slot (`unknown_item`, `bad_slot`) | ✅ |
 | `platform.build.place` with a `siege_banner` | as for any block, but on enemy guild land: the placer's guild must be fighting the land's guild (`not_at_war`), one siege per land (`siege_underway`), survival only. The banner holds while members of its guild stand within 12 blocks and no defender does; after `GAME_SIEGE_SECONDS` (600) held the game server asks the backend for the land. Players within 32 blocks get `platform.siege {"at","land","attacker","progress","needed","contested"}` every 2 s, and `{"captured","by","at"}` or `{"failed","code","at"}` at the end (the banner is spent on capture); defenders break the banner to end the siege | ✅ |
+| `platform.bottle.fill` | `{}` | holding a glass bottle, water within 4 blocks of the eye (`nothing_there`) → a water bottle | ✅ |
+| `platform.weather.set` | `{"kind":"clear"|"rain"|"thunder"}` | creative players only (`creative_only`), overworld | ✅ |
 | `platform.bow.draw` | `{}` | holding a bow, alive; the server starts timing the draw | ✅ |
 | `platform.bow.shoot` | `{"direction":[x,y,z]}` | after `bow.draw`; the draw time sets the power (full after 1 s, at least 0.1 s: `too_fast`); survival takes an arrow (`no_arrows`) and wears the bow; the arrow flies under gravity (45 blocks/s at full draw), hits creatures, players of a guild at war with yours, or sticks into a block where a survival player's arrow drops as an item → `{"arrow":id,"charge"}` | ✅ |
 | `platform.attack.player` | `{"player":id}` | both players survival and alive, their guilds at war (`not_at_war`; the server's guild feed decides), within reach, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it; a kill is reported to the backend and scored for the war (`platform.market {"war_kill"}` to the killer) | ✅ |
 | `platform.attack` | `{"mob":id}` | alive, within reach of the creature, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it, knocks the creature back | ✅ |
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
+| `platform.eat` (potions) | `{"slot"?:n}` | a potion is drunk whatever the hunger: its effect starts (instant healing heals 4 per level) and a glass bottle takes its place | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
 | `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface), or `{x,z,"feet":[x,y,z]}` at the player's town hall while it stands; in another dimension the player is sent home with `platform.travel` instead | ✅ |
 | `platform.trade.request` | `{"player":id}` | both survival, alive, within 8 blocks, neither in a trade (`busy`), a backend; the other player gets `platform.trade {"invite":{"from","name"}}` (valid 30 s) | ✅ |
@@ -130,7 +133,7 @@ Answers (events, sent only to the requesting client):
 - `platform.drops` — `{"items":[{"id","item","count","p":[x,y,z]}]}`, dropped items within 64 blocks, up to 10 times a second.
 - `platform.pickup` — `{"items":[[item,count],…]}` after walking over drops.
 - `platform.mobs` — `{"mobs":[{"id","key","p","yaw","health","hurt","baby","moving","love"}]}`, creatures within 64 blocks, ten times a second.
-- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|"player"|"fire"|"explosion"|"arrow"|null,"realm","xp","level","progress","burning"}` (experience points, level and the fraction towards the next level`,
+- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|"player"|"fire"|"explosion"|"arrow"|null,"realm","xp","level","progress","burning","effects":[{"kind","level","seconds"}]}` (experience points, level and the fraction towards the next level`,
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
 
@@ -140,6 +143,7 @@ Answers (events, sent only to the requesting client):
   purchase, an auction won, cancelled or expired goods), or
   `{"waiting":{"item","count"}}` (a delivery needs room in the inventory),
   `{"bought"|"sold":{"item","count","price"}}` and `{"refused":{"code","item","count"}}` for stall sales.
+- `platform.weather` — `{"kind":"clear"|"rain"|"thunder","precipitation":"rain"|"snow"|"none"}` on joining, on a change and on walking into a biome where other weather falls; `platform.lightning` — `{"at"}` to players within 160 blocks,
 - `platform.combat` — `{"fuses":[{"at","fuse"}],"arrows":[{"id","pos","vel"}]}` ten times a second to players within 96 blocks of anything in flight or burning (and once more when nothing is left),
 - `platform.explosion` — `{"at","power"}` to players within 96 blocks; `platform.push` — `{"velocity":[x,y,z]}` the blast's push on this player,
 - `platform.stall` — `{"at","owner":{"id","name"},"mine","creative","guild","offers":[{"slot","item","count","price"}],"prices":[9],"pending","stock":[9]|null}`,
