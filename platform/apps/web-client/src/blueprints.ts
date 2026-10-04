@@ -26,9 +26,21 @@ export function boxSize(a: Coords | null, b: Coords | null, max = 32): { ok: tru
   return { ok: true, size };
 }
 
+/** A blueprint's footprint after `turn` quarter turns (x and z swap on odd turns). */
+export function turnedSize([x, y, z]: Coords, turn: number): Coords {
+  return turn % 2 === 1 ? [z, y, x] : [x, y, z];
+}
+
+/** How a status reads in the panel. */
+export function statusLabel(status: string): string {
+  return { in_review: "waiting for review", published: "published", draft: "draft", rejected: "removed" }[status] ?? status;
+}
+
 export class BlueprintPanel {
   readonly root: HTMLElement;
   private corners: [Coords | null, Coords | null] = [null, null];
+  private turn = 0;
+  private mirror = false;
   private busy = false;
 
   constructor(
@@ -37,8 +49,8 @@ export class BlueprintPanel {
       content: Content;
       target: () => Coords | null;
       placeAt: () => Coords | null;
-      capture: (min: Coords, max: Coords, name: string) => void;
-      build: (id: string, at: Coords) => void;
+      capture: (min: Coords, max: Coords, name: string, update?: string) => void;
+      build: (id: string, at: Coords, turn: number, mirror: boolean) => void;
       notify: (text: string) => void;
     },
   ) {
@@ -89,13 +101,17 @@ export class BlueprintPanel {
       this.corners[i] = t;
       void this.render();
     };
-    const capture = () => {
+    const capture = (update?: string) => {
       const box = boxSize(a, b);
       if (!box.ok) return this.options.notify(box.reason);
       const min = [0, 1, 2].map((i) => Math.min(a![i], b![i])) as Coords;
       const max = [0, 1, 2].map((i) => Math.max(a![i], b![i])) as Coords;
-      this.options.capture(min, max, name.value.trim() || "My building");
+      this.options.capture(min, max, name.value.trim() || "My building", update);
     };
+    const turn = el("select", {}, ...[0, 1, 2, 3].map((t) => el("option", { value: String(t), textContent: `${t * 90}°`, selected: t === this.turn })));
+    turn.addEventListener("change", () => (this.turn = Number(turn.value)));
+    const mirror = el("input", { type: "checkbox", checked: this.mirror });
+    mirror.addEventListener("change", () => (this.mirror = mirror.checked));
     const box = boxSize(a, b);
     const nodes: (Node | string)[] = [
       el("h2", { textContent: "Blueprints" }),
@@ -105,7 +121,10 @@ export class BlueprintPanel {
         el("button", { type: "button", onclick: mark(0) }, "Mark corner 1"),
         el("button", { type: "button", onclick: mark(1) }, "Mark corner 2")),
       el("label", { className: "setting" }, el("span", { textContent: "Name" }), name),
-      el("button", { type: "button", onclick: capture }, "Capture"),
+      el("button", { type: "button", onclick: () => capture() }, "Capture"),
+      el("h3", { textContent: "Building" }),
+      el("label", { className: "setting" }, el("span", { textContent: "Turn" }), turn),
+      el("label", { className: "setting" }, el("span", { textContent: "Mirror" }), mirror),
     ];
 
     const mine = await api.blueprints.mine().catch(() => [] as BlueprintView[]);
@@ -119,10 +138,13 @@ export class BlueprintPanel {
           onclick: () => {
             const at = this.options.placeAt();
             if (!at) return this.options.notify("Look at where it should stand");
-            this.options.build(bp.id, at);
+            this.options.build(bp.id, at, this.turn, this.mirror);
           },
         }, "Build here"),
       ];
+      if (bp.mine && bp.status !== "rejected") {
+        actions.push(el("button", { type: "button", title: "Capture the marked box as the next revision", onclick: () => capture(bp.id) }, "New revision"));
+      }
       if (!bp.mine) {
         const ask = el("input", { type: "number", min: "1", value: String(bp.price ?? 50), className: "market-bid" });
         actions.push(ask, el("button", { type: "button", onclick: () => this.act(() => api.blueprints.resell(bp.id, Number(ask.value)), "Your licence is for sale") }, "Resell"));
@@ -143,17 +165,18 @@ export class BlueprintPanel {
                   api.blueprints.update(bp.id, {
                     price: Number(price.value),
                     ...(copies.value ? { max_copies: Number(copies.value) } : {}),
-                    published: bp.status !== "published",
+                    published: bp.status === "draft",
                   }),
-                bp.status === "published" ? "Unpublished" : "Published",
+                bp.status === "draft" ? "Sent to be published" : "Unpublished",
               ),
-          }, bp.status === "published" ? "Unpublish" : "Publish"),
+          }, bp.status === "draft" ? "Publish" : "Unpublish"),
         );
       }
       list.append(
         el("li", {},
           el("strong", { textContent: bp.name }),
-          ` ${bp.size.join("×")} · ${bp.blocks} blocks · ${bp.mine ? `${bp.status}, ${bp.copies_sold} sold` : `by ${bp.creator.name}`}`,
+          ` ${turnedSize(bp.size, this.turn).join("×")} · ${bp.blocks} blocks · r${bp.revision ?? 1} · ${bp.mine ? `${statusLabel(bp.status)}, ${bp.copies_sold} sold` : `by ${bp.creator.name}`}`,
+          ...(bp.mine && bp.review_note ? [el("div", { className: "market-note", textContent: `Review: ${bp.review_note}` })] : []),
           el("div", { className: "market-note", textContent: `Needs: ${this.materials(bp.materials)}` }),
           ...actions),
       );

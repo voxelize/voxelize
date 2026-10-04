@@ -6,6 +6,7 @@ use App\Models\BlueprintDesign;
 use App\Models\BlueprintLicense;
 use App\Models\BlueprintProvenance;
 use App\Models\BlueprintResale;
+use App\Models\BlueprintRevision;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
@@ -44,8 +45,17 @@ class BlueprintService
      * @param  list<array{0: int, 1: int}>  $runs
      * @param  array<string, int>  $materials
      */
-    public function store(User $creator, string $world, string $name, array $size, array $palette, array $runs, array $materials, string $key): BlueprintDesign
+    public function store(User $creator, string $world, string $name, array $size, array $palette, array $runs, array $materials, string $key, ?string $replaces = null): BlueprintDesign
     {
+        if ($revised = BlueprintRevision::query()->where('upload_key', $key)->first()) {
+            $existing = BlueprintDesign::query()->findOrFail($revised->blueprint_id);
+            if ($existing->creator_id !== $creator->id) {
+                throw new MarketException('key_conflict', 'That key belongs to another blueprint.', 409);
+            }
+            $existing->wasReplayed = true;
+
+            return $existing;
+        }
         if ($existing = BlueprintDesign::query()->where('upload_key', $key)->first()) {
             if ($existing->creator_id !== $creator->id) {
                 throw new MarketException('key_conflict', 'That key belongs to another blueprint.', 409);
@@ -93,8 +103,11 @@ class BlueprintService
             }
         }
 
-        $publicId = (string) Str::ulid();
         $body = json_encode(['format' => 1, 'size' => $size, 'palette' => $palette, 'runs' => $runs], JSON_THROW_ON_ERROR);
+        if ($replaces !== null) {
+            return $this->revise($creator, $replaces, $size, $blocks, $materials, $body, $key);
+        }
+        $publicId = (string) Str::ulid();
         $disk = (string) config('platform.blueprints.disk');
         $path = "blueprints/{$publicId}/v1.json";
         if (! Storage::disk($disk)->put($path, $body)) {
@@ -118,7 +131,9 @@ class BlueprintService
                 'bytes' => strlen($body),
                 'status' => 'draft',
                 'upload_key' => $key,
+                'revision' => 1,
             ]);
+            $this->recordRevision($design, $key);
         } catch (QueryException $e) {
             Storage::disk($disk)->delete($path);
             if ($existing = BlueprintDesign::query()->where('upload_key', $key)->first()) {
@@ -138,6 +153,113 @@ class BlueprintService
         );
 
         return $design;
+    }
+
+    /**
+     * A new layout for an existing design: the next revision, which licence
+     * holders build from now on. A published design goes back to review
+     * when review is required.
+     *
+     * @param  array{0: int, 1: int, 2: int}  $size
+     * @param  array<string, int>  $materials
+     */
+    private function revise(User $creator, string $publicId, array $size, int $blocks, array $materials, string $body, string $key): BlueprintDesign
+    {
+        return DB::transaction(function () use ($creator, $publicId, $size, $blocks, $materials, $body, $key) {
+            $design = BlueprintDesign::query()->where('public_id', $publicId)->lockForUpdate()->first();
+            if (! $design) {
+                throw new MarketException('blueprint_not_found', 'No such blueprint.', 404);
+            }
+            if ($design->creator_id !== $creator->id) {
+                throw new MarketException('forbidden', 'That is not your blueprint.', 403);
+            }
+            if ($design->status === 'rejected') {
+                throw new MarketException('rejected', 'This blueprint was removed by moderation.', 409);
+            }
+            $revision = $design->revision + 1;
+            $path = "blueprints/{$design->public_id}/v{$revision}.json";
+            if (! Storage::disk($design->storage_disk)->put($path, $body)) {
+                throw new MarketException('storage_unavailable', 'The blueprint could not be stored; try again.', 503);
+            }
+            $design->fill([
+                'revision' => $revision,
+                'size_x' => $size[0],
+                'size_y' => $size[1],
+                'size_z' => $size[2],
+                'block_count' => $blocks,
+                'materials' => $materials,
+                'storage_path' => $path,
+                'sha256' => hash('sha256', $body),
+                'bytes' => strlen($body),
+            ]);
+            if ($design->status === 'published' && $this->reviewRequired()) {
+                $design->status = 'in_review';
+            }
+            $design->version += 1;
+            $design->save();
+            $this->recordRevision($design, $key);
+            $this->audit->record(
+                action: 'blueprint.revise',
+                actor: $creator,
+                subjectType: 'blueprint',
+                subjectId: $design->public_id,
+                payload: ['revision' => $revision, 'size' => $size, 'blocks' => $blocks, 'sha256' => $design->sha256],
+                actorType: 'game_server',
+            );
+
+            return $design;
+        });
+    }
+
+    private function recordRevision(BlueprintDesign $design, string $key): void
+    {
+        BlueprintRevision::query()->create([
+            'blueprint_id' => $design->id,
+            'revision' => $design->revision,
+            'storage_path' => $design->storage_path,
+            'sha256' => $design->sha256,
+            'bytes' => $design->bytes,
+            'size_x' => $design->size_x,
+            'size_y' => $design->size_y,
+            'size_z' => $design->size_z,
+            'block_count' => $design->block_count,
+            'materials' => $design->materials,
+            'upload_key' => $key,
+            'created_at' => now(),
+        ]);
+    }
+
+    public function reviewRequired(): bool
+    {
+        return (bool) config('platform.blueprints.review_required');
+    }
+
+    /** A moderator approves a design in review (published) or sends it back to draft with a note. */
+    public function review(User $moderator, BlueprintDesign $design, bool $approve, ?string $note = null): BlueprintDesign
+    {
+        return DB::transaction(function () use ($moderator, $design, $approve, $note) {
+            $design = BlueprintDesign::query()->lockForUpdate()->findOrFail($design->id);
+            if ($design->status !== 'in_review') {
+                throw new MarketException('not_in_review', 'That blueprint is not waiting for review.', 409);
+            }
+            if (! $approve && trim((string) $note) === '') {
+                throw new MarketException('note_required', 'Say why the blueprint is sent back.');
+            }
+            $design->status = $approve ? 'published' : 'draft';
+            $design->review_note = $approve ? null : mb_substr((string) $note, 0, 255);
+            $design->version += 1;
+            $design->save();
+            $this->audit->record(
+                action: $approve ? 'blueprint.approve' : 'blueprint.send_back',
+                actor: $moderator,
+                subjectType: 'blueprint',
+                subjectId: $design->public_id,
+                reason: $note,
+                actorType: 'admin',
+            );
+
+            return $design;
+        });
     }
 
     /** The stored layout, checked against its recorded hash. */
@@ -187,7 +309,8 @@ class BlueprintService
                 if ($published && $design->price === null) {
                     throw new MarketException('bad_price', 'Set a price before publishing.');
                 }
-                $design->status = $published ? 'published' : 'draft';
+                // Publishing waits for a moderator when review is required.
+                $design->status = ! $published ? 'draft' : ($design->status === 'published' || ! $this->reviewRequired() ? 'published' : 'in_review');
             }
             $design->version += 1;
             $design->save();

@@ -1,10 +1,12 @@
 // Blueprints end to end: a creator builds and captures a small structure,
-// publishes it; a buyer buys a licence through the API and builds it in
-// the game from their own planks; building again without materials is
-// refused; the creator is paid minus the fee.
+// publishes it (a moderator approves it when review is required); a buyer
+// buys a licence through the API and builds it turned a quarter turn in the
+// game from their own planks; building again without materials is refused;
+// the creator is paid minus the fee and uploads a second revision.
 //
 // Standalone only (starting planks are written into the players' records):
 //   SAVE_DIR=... FUND_CMD='php artisan economy:grant {player} {player} 100 --reason=t' \
+//     REVIEW_CMD='php artisan blueprints:review {admin} {blueprint} --approve' \
 //     node blueprints.mjs <api base> <game base>
 
 import assert from "node:assert/strict";
@@ -69,7 +71,12 @@ assert.equal(cap.blocks, 3);
 const { blueprint } = await stored;
 step(`captured a 2×2×1 blueprint of 3 planks (${blueprint.stored})`);
 
-await api(API, `/blueprints/${blueprint.stored}`, { token: tokens.maker, method: "PATCH", body: { price: 20, published: true } });
+const publish = await api(API, `/blueprints/${blueprint.stored}`, { token: tokens.maker, method: "PATCH", body: { price: 20, published: true } });
+if (publish.blueprint.status === "in_review") {
+  assert.ok(process.env.REVIEW_CMD, "review is required: set REVIEW_CMD");
+  execSync(process.env.REVIEW_CMD.replaceAll("{admin}", names.maker).replaceAll("{blueprint}", blueprint.stored), { stdio: "inherit", shell: "/bin/sh" });
+  step("a moderator approved the blueprint from the review queue");
+}
 const before = await crowns("buyer");
 await api(API, `/blueprints/${blueprint.stored}/buy`, { token: tokens.buyer, body: {} });
 assert.equal(await crowns("buyer"), before - 20);
@@ -80,20 +87,31 @@ step("published at 20 CRN; the buyer bought a licence, the maker got 19");
 const [bx, bz] = [mx - 9, mz + 6];
 const by = ground(buyer, bx, bz);
 const built = buyer.event("platform.market", (n) => n.blueprint?.built || n.blueprint?.refused, 20000);
-await call(buyer, "blueprint.build", { id: blueprint.stored, at: [bx, by, bz] });
+await call(buyer, "blueprint.build", { id: blueprint.stored, at: [bx, by, bz], turn: 1 });
 const result = await built;
 assert.equal(result.blueprint.built, blueprint.stored, `built: ${JSON.stringify(result)}`);
 await sleep(500);
+// Turned a quarter turn: the arm along x now runs along z.
 assert.equal(buyer.voxel(bx, by, bz), block("planks").id);
-assert.equal(buyer.voxel(bx + 1, by, bz), block("planks").id);
+assert.equal(buyer.voxel(bx, by, bz + 1), block("planks").id);
 assert.equal(buyer.voxel(bx, by + 1, bz), block("planks").id);
+assert.equal(buyer.voxel(bx + 1, by, bz), 0, "nothing along x");
 assert.equal(buyer.count(item("planks").id), 0, "the materials were used");
-step("the buyer built it from 3 of their own planks");
+step("the buyer built it turned a quarter turn from 3 of their own planks");
 
 const again = buyer.event("platform.market", (n) => n.blueprint?.refused, 20000);
 await call(buyer, "blueprint.build", { id: blueprint.stored, at: [bx + 4, by, bz] });
 assert.equal((await again).blueprint.refused, "missing_ingredients");
 step("building again without materials is refused");
+
+// The maker uploads a second revision: one plank.
+const revised = maker.event("platform.market", (n) => n.blueprint?.stored, 15000);
+await call(maker, "blueprint.capture", { min: [mx, my, mz], max: [mx, my, mz], name: "Tiny L", update: blueprint.stored });
+await revised;
+const mine = (await api(API, "/blueprints/mine", { token: tokens.buyer })).blueprints.find((b) => b.id === blueprint.stored);
+assert.equal(mine.revision, 2);
+assert.equal(mine.blocks, 1, "licence holders see the newest layout");
+step("the maker uploaded revision 2; the licence holder builds the newest layout");
 
 maker.close();
 buyer.close();

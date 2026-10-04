@@ -247,9 +247,14 @@ timestamps. The reward sits in the ledger account `escrow:contract:<id>`.
 
 - `blueprints`: `public_id`, `creator_id`, `world`, `name`, `size_x/y/z`,
   `block_count`, `materials` json, `storage_disk`, `storage_path`,
-  `sha256`, `bytes`, `status` (`draft|published|rejected`), `price`,
+  `sha256`, `bytes`, `status` (`draft|in_review|published|rejected`), `price`,
+  `revision` (the current layout), `review_note`,
   `max_copies` (limited editions), `copies_sold`, `upload_key` UNIQUE,
   `version`, timestamps. The layout itself is in object storage.
+- `blueprint_revisions` (append-only): `blueprint_id`, `revision`,
+  `storage_path`, `sha256`, `bytes`, `size_x/y/z`, `block_count`,
+  `materials`, `upload_key` UNIQUE, `created_at`; UNIQUE(`blueprint_id`,
+  `revision`).
 - `blueprint_licenses`: `blueprint_id`, `user_id`, `edition`, `status`,
   `ledger_transaction_id`, `created_at`; UNIQUE(`blueprint_id`, `user_id`).
   A resale moves the row to the buyer.

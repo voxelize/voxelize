@@ -29,7 +29,7 @@ class BlueprintTest extends TestCase
     {
         parent::setUp();
         Storage::fake('local');
-        config(['platform.market.fee_bps' => 500, 'platform.internal.service_token' => self::TOKEN, 'platform.blueprints.disk' => 'local']);
+        config(['platform.market.fee_bps' => 500, 'platform.internal.service_token' => self::TOKEN, 'platform.blueprints.disk' => 'local', 'platform.blueprints.review_required' => false]);
         $this->ledger = app(LedgerService::class);
         $admin = User::factory()->create(['username' => 'admin']);
         $this->maker = User::factory()->create(['username' => 'maker']);
@@ -102,6 +102,50 @@ class BlueprintTest extends TestCase
         Sanctum::actingAs($this->bob);
         $this->postJson("/api/v1/blueprints/{$id}/buy")->assertStatus(409)->assertJsonPath('error.code', 'sold_out');
         $this->assertSame([], $this->ledger->verify());
+    }
+
+    public function test_publishing_waits_for_review_and_revisions_reach_licence_holders(): void
+    {
+        config(['platform.blueprints.review_required' => true]);
+        $mod = User::factory()->create(['username' => 'mod', 'roles' => ['moderator']]);
+        $id = $this->internal()->postJson('/api/internal/v1/blueprints', $this->capture())->json('blueprint.id');
+        Sanctum::actingAs($this->maker);
+        $this->patchJson("/api/v1/blueprints/{$id}", ['price' => 50, 'published' => true])->assertOk()->assertJsonPath('blueprint.status', 'in_review');
+        $this->getJson('/api/v1/blueprints?world=main')->assertJsonCount(0, 'blueprints');
+        $this->getJson('/api/v1/blueprints/review')->assertForbidden();
+
+        // A moderator sends it back with a note, then approves the resubmission.
+        Sanctum::actingAs($mod);
+        $this->getJson('/api/v1/blueprints/review')->assertOk()->assertJsonCount(1, 'blueprints');
+        $this->postJson("/api/v1/blueprints/{$id}/review", ['approve' => false])->assertStatus(422)->assertJsonPath('error.code', 'note_required');
+        $this->postJson("/api/v1/blueprints/{$id}/review", ['approve' => false, 'note' => 'Add a door'])->assertOk()->assertJsonPath('blueprint.status', 'draft');
+        Sanctum::actingAs($this->maker);
+        $this->getJson('/api/v1/blueprints/mine')->assertJsonPath('blueprints.0.review_note', 'Add a door');
+        $this->patchJson("/api/v1/blueprints/{$id}", ['published' => true])->assertJsonPath('blueprint.status', 'in_review');
+        Sanctum::actingAs($mod);
+        $this->postJson("/api/v1/blueprints/{$id}/review", ['approve' => true])->assertOk()->assertJsonPath('blueprint.status', 'published');
+
+        Sanctum::actingAs($this->alice);
+        $this->postJson("/api/v1/blueprints/{$id}/buy")->assertCreated();
+
+        // A new revision from the game: licence holders build the newest layout.
+        $revised = $this->capture([
+            'key' => 'capture-0000009',
+            'size' => [1, 1, 2],
+            'palette' => [['block' => 'planks', 'raw' => 12]],
+            'runs' => [[0, 2]],
+            'materials' => ['planks' => 2],
+            'replaces' => $id,
+        ]);
+        $this->internal()->postJson('/api/internal/v1/blueprints', $revised)->assertCreated()->assertJsonPath('blueprint.revision', 2);
+        $this->internal()->postJson('/api/internal/v1/blueprints', $revised)->assertOk()->assertJsonPath('blueprint.revision', 2);
+        $layout = $this->internal()->getJson("/api/internal/v1/blueprints/{$id}?player={$this->alice->public_id}")->assertOk();
+        $this->assertSame([1, 1, 2], $layout->json('layout.size'));
+        $this->getJson("/api/v1/blueprints/{$id}/revisions")->assertOk()->assertJsonCount(2, 'revisions')->assertJsonPath('revisions.1.blocks', 2);
+        $this->assertSame('in_review', BlueprintDesign::sole()->status, 'a published design is reviewed again');
+        // Only the creator revises.
+        $this->internal()->postJson('/api/internal/v1/blueprints', array_merge($revised, ['key' => 'capture-0000010', 'creator' => $this->alice->public_id]))
+            ->assertStatus(403);
     }
 
     public function test_only_licensed_players_get_the_layout_and_moderation_removes_it(): void

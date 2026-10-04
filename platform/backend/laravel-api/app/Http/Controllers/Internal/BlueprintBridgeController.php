@@ -23,14 +23,16 @@ class BlueprintBridgeController extends Controller
             'palette' => ['required', 'array'],
             'runs' => ['required', 'array'],
             'materials' => ['present', 'array'],
+            // A new revision of this design (the creator's own).
+            'replaces' => ['nullable', 'string', 'max:26'],
         ]);
         $creator = User::query()->where('public_id', $data['creator'])->first();
         if (! $creator || ! $creator->isActive()) {
             return response()->json(['error' => ['code' => 'player_not_found', 'message' => 'No active player with that id.']], 404);
         }
-        $design = $blueprints->store($creator, $data['world'], $data['name'], $data['size'], $data['palette'], $data['runs'], $data['materials'], $data['key']);
+        $design = $blueprints->store($creator, $data['world'], $data['name'], $data['size'], $data['palette'], $data['runs'], $data['materials'], $data['key'], $data['replaces'] ?? null);
 
-        return response()->json(['blueprint' => ['id' => $design->public_id, 'blocks' => $design->block_count], 'replayed' => $design->wasReplayed], $design->wasReplayed ? 200 : 201);
+        return response()->json(['blueprint' => ['id' => $design->public_id, 'blocks' => $design->block_count, 'revision' => $design->revision], 'replayed' => $design->wasReplayed], $design->wasReplayed ? 200 : 201);
     }
 
     /** The layout, for a player allowed to build it. */

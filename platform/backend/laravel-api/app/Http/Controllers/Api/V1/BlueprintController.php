@@ -7,6 +7,7 @@ use App\Models\BlueprintDesign;
 use App\Models\BlueprintLicense;
 use App\Models\BlueprintProvenance;
 use App\Models\BlueprintResale;
+use App\Models\BlueprintRevision;
 use App\Models\User;
 use App\Services\Blueprint\BlueprintService;
 use App\Services\Economy\LedgerService;
@@ -152,6 +153,55 @@ class BlueprintController extends Controller
         ];
     }
 
+    /** Designs waiting for review (moderators only). */
+    public function reviewQueue(Request $request): JsonResponse
+    {
+        $this->assertModerator($request);
+        $designs = BlueprintDesign::query()->where('status', 'in_review')
+            ->with('creator:id,public_id,username')->orderBy('updated_at')->limit(200)->get();
+
+        return response()->json(['blueprints' => $designs->map(fn ($d) => $this->present($d, $request))]);
+    }
+
+    public function review(Request $request, BlueprintService $blueprints, string $blueprint): JsonResponse
+    {
+        $this->assertModerator($request);
+        $data = $request->validate([
+            'approve' => ['required', 'boolean'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+        $design = $blueprints->review($request->user(), $this->find($blueprint), $request->boolean('approve'), $data['note'] ?? null);
+
+        return response()->json(['blueprint' => $this->present($design->load('creator'), $request)]);
+    }
+
+    /** Every revision of a design (its creator, licence holders and moderators). */
+    public function revisions(Request $request, string $blueprint): JsonResponse
+    {
+        $design = $this->find($blueprint);
+        $user = $request->user();
+        if (! $design->mayBuild($user) && ! array_intersect(['moderator', 'admin'], $user->gameRoles())) {
+            abort(response()->json(['error' => ['code' => 'forbidden', 'message' => 'Not your blueprint.']], 403));
+        }
+        $revisions = BlueprintRevision::query()->where('blueprint_id', $design->id)->orderBy('revision')->get();
+
+        return response()->json(['revisions' => $revisions->map(fn (BlueprintRevision $r) => [
+            'revision' => $r->revision,
+            'size' => [$r->size_x, $r->size_y, $r->size_z],
+            'blocks' => $r->block_count,
+            'materials' => $r->materials,
+            'sha256' => $r->sha256,
+            'at' => $r->created_at->toIso8601String(),
+        ])->values()]);
+    }
+
+    private function assertModerator(Request $request): void
+    {
+        if (! array_intersect(['moderator', 'admin'], $request->user()->gameRoles())) {
+            abort(response()->json(['error' => ['code' => 'forbidden', 'message' => 'Moderators only.']], 403));
+        }
+    }
+
     private function find(string $publicId): BlueprintDesign
     {
         return BlueprintDesign::query()->where('public_id', $publicId)->with('creator')->firstOr(fn () => abort(response()->json([
@@ -173,6 +223,8 @@ class BlueprintController extends Controller
             'materials' => $d->materials,
             'creator' => ['id' => $d->creator->public_id, 'name' => $d->creator->username],
             'status' => $d->status,
+            'revision' => $d->revision,
+            'review_note' => $d->creator_id === $user?->id ? $d->review_note : null,
             'price' => $d->price,
             'max_copies' => $d->max_copies,
             'copies_sold' => $d->copies_sold,

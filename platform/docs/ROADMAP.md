@@ -296,7 +296,7 @@ search by item name or part of a key; in the client a search box, "Buy n"
 and a price line per listing. Guild sellers sell from guild stalls (phase
 17). Tests: MarketTest (parts, search), client helpers, `tests/bots/market.mjs`.
 
-## Phase 16 — Blueprint creator economy ✅ (first version)
+## Phase 16 — Blueprint creator economy ✅
 
 Done: capture in the game (box up to 32³, only where you may build,
 palette + run-length layout, bill of materials), layouts in object storage
@@ -311,8 +311,13 @@ Done since: resale of licences — holders list theirs, buyers pay the seller,
 the creator's royalty (set by the creator, up to 50 %) and the fee in one
 ledger transaction, the licence and its edition move to the buyer, and an
 append-only provenance records every mint and resale.
-Remaining: rotated or mirrored building, versioned updates of a blueprint,
-a review queue before publishing.
+Then: building turned by quarter turns and mirrored (directional blocks
+re-oriented to match), versioned blueprints (a creator uploads a new
+revision from the game; licence holders build the newest; every revision
+kept), and a review queue before publishing (moderators approve or send
+back with a note, through the API or `blueprints:review`; a new revision
+of a published design is reviewed again). Tests: BlueprintTest (review,
+revisions), transform unit test, client helpers, `tests/bots/blueprints.mjs`.
 
 ## Phase 17 — Guilds and cities 🟡
 

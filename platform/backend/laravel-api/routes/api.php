@@ -87,6 +87,9 @@ Route::prefix('v1')->group(function () {
 
         Route::get('blueprints', [BlueprintController::class, 'index']);
         Route::get('blueprints/mine', [BlueprintController::class, 'mine']);
+        Route::get('blueprints/review', [BlueprintController::class, 'reviewQueue']);
+        Route::post('blueprints/{blueprint}/review', [BlueprintController::class, 'review']);
+        Route::get('blueprints/{blueprint}/revisions', [BlueprintController::class, 'revisions']);
         Route::patch('blueprints/{blueprint}', [BlueprintController::class, 'update']);
         Route::post('blueprints/{blueprint}/buy', [BlueprintController::class, 'buy'])->middleware('throttle:economy');
         Route::get('blueprints/{blueprint}/resales', [BlueprintController::class, 'resales']);

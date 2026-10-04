@@ -583,6 +583,8 @@ impl<'a> specs::System<'a> for MarketSystem {
                     player,
                     id,
                     at,
+                    turn,
+                    mirror,
                     layout,
                 } => {
                     if clients.get(&player).is_none() {
@@ -590,6 +592,8 @@ impl<'a> specs::System<'a> for MarketSystem {
                     }
                     let built =
                         super::blueprint::decode(&content, &layout).and_then(|(cells, size)| {
+                            let (cells, size) =
+                                super::blueprint::transform(&content, &cells, size, turn, mirror);
                             let players: Vec<[f32; 3]> = clients
                                 .values()
                                 .filter_map(|c| {

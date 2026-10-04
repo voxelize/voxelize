@@ -173,6 +173,81 @@ pub fn decode(
     Ok((cells, layout.size))
 }
 
+/// A layout mirrored along x (when `mirror`), then turned `turn` quarter
+/// turns clockwise seen from above; directional blocks turn with it. The
+/// box's minimum corner stays where it was.
+pub fn transform(
+    content: &Content,
+    cells: &[([i32; 3], u32)],
+    size: [i32; 3],
+    turn: u8,
+    mirror: bool,
+) -> (Vec<([i32; 3], u32)>, [i32; 3]) {
+    let turn = turn % 4;
+    let step = |[x, y, z]: [i32; 3], [_, _, d]: [i32; 3]| [d - 1 - z, y, x];
+    let dir_step = |[x, y, z]: [i32; 3]| [-z, y, x];
+    let mut out = Vec::with_capacity(cells.len());
+    for (offset, raw) in cells {
+        let mut p = *offset;
+        let mut dims = size;
+        if mirror {
+            p[0] = size[0] - 1 - p[0];
+        }
+        for _ in 0..turn {
+            p = step(p, dims);
+            dims = [dims[2], dims[1], dims[0]];
+        }
+        let raw = reorient(content, *raw, |mut d| {
+            if mirror {
+                d[0] = -d[0];
+            }
+            for _ in 0..turn {
+                d = dir_step(d);
+            }
+            d
+        });
+        out.push((p, raw));
+    }
+    let size = if turn % 2 == 1 {
+        [size[2], size[1], size[0]]
+    } else {
+        size
+    };
+    (out, size)
+}
+
+/// A directional block re-encoded to face `turn(front)`.
+fn reorient(content: &Content, raw: u32, turn: impl Fn([i32; 3]) -> [i32; 3]) -> u32 {
+    use platform_content::Orientation;
+    let id = BlockUtils::extract_id(raw);
+    let Some(block) = content.block_by_id(id) else {
+        return raw;
+    };
+    if block.orientation == Orientation::None {
+        return raw;
+    }
+    let (fx, fy, fz) = crate::behaviors::front(raw);
+    let want = turn([fx, fy, fz]);
+    let values: &[u32] = if block.orientation == Orientation::Horizontal {
+        &[0]
+    } else {
+        &[0, 1, 2, 3, 4, 5]
+    };
+    let current = voxelize::BlockRotation::decode(&BlockUtils::extract_rotation(raw)).0;
+    let mut candidates: Vec<u32> = vec![current];
+    candidates.extend(values.iter().copied().filter(|v| *v != current));
+    for value in candidates {
+        for y in 0..16 {
+            let next = crate::behaviors::oriented(raw, block.orientation, value, y);
+            let (x2, y2, z2) = crate::behaviors::front(next);
+            if [x2, y2, z2] == want {
+                return next;
+            }
+        }
+    }
+    raw
+}
+
 /// Items needed to build these blocks, by item id.
 pub fn bill(
     content: &Content,
@@ -283,6 +358,9 @@ struct CapturePayload {
     min: [i32; 3],
     max: [i32; 3],
     name: String,
+    /// A blueprint of mine this capture becomes the next revision of.
+    #[serde(default)]
+    update: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -290,6 +368,12 @@ struct CapturePayload {
 struct BuildPayload {
     id: String,
     at: [i32; 3],
+    /// Quarter turns clockwise seen from above (0..=3).
+    #[serde(default)]
+    turn: u8,
+    /// Mirror along x before turning.
+    #[serde(default)]
+    mirror: bool,
 }
 
 pub fn install(world: &mut World) {
@@ -331,6 +415,13 @@ pub fn install(world: &mut World) {
                 "runs": captured.runs.iter().map(|(i, n)| json!([i, n])).collect::<Vec<_>>(),
                 "materials": captured.materials,
             });
+            let mut body = body;
+            if let Some(update) = p.update.as_ref() {
+                if !update.chars().all(|c| c.is_ascii_alphanumeric()) || update.len() > 40 {
+                    return Err(IntentError::BadBlueprint);
+                }
+                body["replaces"] = json!(update);
+            }
             bridge.request(Request::UploadBlueprint {
                 world: world_name,
                 player: id.to_owned(),
@@ -376,6 +467,8 @@ pub fn install(world: &mut World) {
                 player: id.to_owned(),
                 id: p.id.clone(),
                 at: p.at,
+                turn: p.turn % 4,
+                mirror: p.mirror,
             });
             Ok(())
         });
@@ -438,6 +531,48 @@ mod tests {
         );
         let need = bill(&c, &cells).unwrap();
         assert_eq!(need.get(&c.item("planks").unwrap().id), Some(&2));
+    }
+
+    #[test]
+    fn layouts_turn_and_mirror_with_their_directional_blocks() {
+        let c = content();
+        let stone = c.block("stone").unwrap().id;
+        let repeater = c.block("repeater").unwrap().id;
+        let east = (0..16)
+            .map(|r| {
+                crate::behaviors::oriented(
+                    repeater,
+                    platform_content::Orientation::Horizontal,
+                    0,
+                    r,
+                )
+            })
+            .find(|raw| crate::behaviors::front(*raw) == (1, 0, 0))
+            .unwrap();
+        // A 3 x 1 x 2 layout: stone at (0,0,0), a repeater facing +x at (2,0,1).
+        let cells = vec![([0, 0, 0], stone), ([2, 0, 1], east)];
+        let (turned, size) = transform(&c, &cells, [3, 1, 2], 1, false);
+        assert_eq!(size, [2, 1, 3]);
+        assert_eq!(turned[0], ([1, 0, 0], stone));
+        assert_eq!(turned[1].0, [0, 0, 2]);
+        assert_eq!(
+            crate::behaviors::front(turned[1].1),
+            (0, 0, 1),
+            "+x turns to +z"
+        );
+        let (mirrored, size) = transform(&c, &cells, [3, 1, 2], 0, true);
+        assert_eq!(size, [3, 1, 2]);
+        assert_eq!(mirrored[0].0, [2, 0, 0]);
+        assert_eq!(mirrored[1].0, [0, 0, 1]);
+        assert_eq!(crate::behaviors::front(mirrored[1].1), (-1, 0, 0));
+        // Four turns are the identity.
+        let (back, size) = transform(&c, &cells, [3, 1, 2], 0, false);
+        assert_eq!((back, size), (cells.clone(), [3, 1, 2]));
+        let mut round = (cells.clone(), [3, 1, 2]);
+        for _ in 0..4 {
+            round = transform(&c, &round.0, round.1, 1, false);
+        }
+        assert_eq!(round, (cells, [3, 1, 2]));
     }
 
     #[test]

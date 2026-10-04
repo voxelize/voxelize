@@ -347,8 +347,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     content,
     target: () => (interact.target ? ([...interact.target] as [number, number, number]) : null),
     placeAt: () => (interact.potential ? ([...interact.potential.voxel] as [number, number, number]) : null),
-    capture: (min, max, name) => method.call("platform.blueprint.capture", { min, max, name }),
-    build: (id, at) => method.call("platform.blueprint.build", { id, at }),
+    capture: (min, max, name, update) => method.call("platform.blueprint.capture", { min, max, name, ...(update ? { update } : {}) }),
+    build: (id, at, turn, mirror) => method.call("platform.blueprint.build", { id, at, turn, mirror }),
     notify: (text) => hud.toast(text),
   });
   addEventListener("keydown", (event) => {

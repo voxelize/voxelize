@@ -98,6 +98,8 @@ export type BlueprintView = {
   royalty_bps: number;
   mine: boolean;
   licensed: boolean;
+  revision?: number;
+  review_note?: string | null;
 };
 
 export type Resale = {

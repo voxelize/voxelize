@@ -103,6 +103,9 @@ return [
         // Largest blueprint along each axis, in blocks.
         'max_side' => 32,
         'max_price' => 1_000_000_000,
+        // Publishing, and new revisions of published designs, wait for a
+        // moderator's approval.
+        'review_required' => (bool) env('BLUEPRINT_REVIEW_REQUIRED', true),
     ],
 
     // Calls from game servers to /api/internal/*: a shared bearer token on

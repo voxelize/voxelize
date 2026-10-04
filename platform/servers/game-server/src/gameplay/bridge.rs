@@ -76,6 +76,9 @@ pub enum Request {
         player: String,
         id: String,
         at: [i32; 3],
+        /// Quarter turns and mirroring to build with.
+        turn: u8,
+        mirror: bool,
     },
     /// A buyer pays a stall's owner.
     Payment {
@@ -174,6 +177,8 @@ pub enum Response {
         player: String,
         id: String,
         at: [i32; 3],
+        turn: u8,
+        mirror: bool,
         layout: Value,
     },
     /// A siege's outcome: `Ok` captured, `Err(code)` refused for good;
@@ -422,7 +427,14 @@ async fn send(
                 },
             }
         }
-        Request::FetchBlueprint { player, id, at, .. } => {
+        Request::FetchBlueprint {
+            player,
+            id,
+            at,
+            turn,
+            mirror,
+            ..
+        } => {
             let url = format!("{base}/blueprints/{id}?player={player}");
             let fetched = async {
                 let mut response = client
@@ -449,6 +461,8 @@ async fn send(
                     player,
                     id,
                     at,
+                    turn,
+                    mirror,
                     layout: body.get("layout").cloned().unwrap_or(Value::Null),
                 },
                 Ok((_, body)) => Response::BlueprintRefused {

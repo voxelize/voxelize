@@ -10,3 +10,17 @@ describe("blueprint capture box", () => {
     expect(boxSize([0, 0, 0], [40, 0, 0]).ok).toBe(false);
   });
 });
+
+import { statusLabel, turnedSize } from "./blueprints";
+
+describe("turning and reviewing blueprints", () => {
+  it("swap x and z on odd turns", () => {
+    expect(turnedSize([5, 3, 2], 0)).toEqual([5, 3, 2]);
+    expect(turnedSize([5, 3, 2], 1)).toEqual([2, 3, 5]);
+    expect(turnedSize([5, 3, 2], 2)).toEqual([5, 3, 2]);
+  });
+  it("name review states", () => {
+    expect(statusLabel("in_review")).toBe("waiting for review");
+    expect(statusLabel("something")).toBe("something");
+  });
+});

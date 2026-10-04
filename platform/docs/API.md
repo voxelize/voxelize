@@ -274,7 +274,26 @@ Blueprints you made and blueprints you hold a licence for.
 ### `PATCH /blueprints/{id}` 🔒 creator
 `{ "name"?, "price"?, "max_copies"?, "published"? }`: publishing needs a
 price; a limit cannot go below the copies sold (limited editions). `409
-rejected` once moderation removed it.
+rejected` once moderation removed it. When review is required
+(`BLUEPRINT_REVIEW_REQUIRED`, default on) publishing puts the design
+`in_review` until a moderator approves it; `published: false` withdraws it.
+Blueprints carry `revision` and, for their creator, `review_note`.
+
+### `GET /blueprints/review` 🔒 moderator
+Designs waiting for review, oldest first (`403` for players without the
+`moderator` or `admin` role).
+
+### `POST /blueprints/{id}/review` 🔒 moderator
+`{ "approve": true }` publishes; `{ "approve": false, "note": "…" }` sends
+it back to draft with the note (`422 note_required` without one).
+`409 not_in_review`. Audited. `php artisan blueprints:review <moderator>
+[<id> --approve | --send-back="…"]` does the same (no id: lists the queue).
+
+### `GET /blueprints/{id}/revisions` 🔒 creator, licence holder or moderator
+`{ "revisions": [{ "revision", "size", "blocks", "materials", "sha256", "at" }] }`.
+A creator uploads a new revision from the game (`platform.blueprint.capture`
+with `update`); licence holders always build the newest, and a published
+design goes back to review.
 
 ### `POST /blueprints/{id}/buy` 🔒
 One licence per player: a `sale` transaction pays the creator the price
@@ -352,7 +371,8 @@ window; once per key → `201`/`200 { "transaction", "replayed" }`;
 
 ### `POST /api/internal/v1/blueprints`
 `{ "key", "creator", "world", "name", "size": [x,y,z], "palette": [{ "block": key | null, "raw" }], "runs": [[index, count]], "materials": { item: count } }`
-(runs walk the box x-major, then y, then z) → `201`/`200 { "blueprint": { "id", "blocks" }, "replayed" }`;
+(runs walk the box x-major, then y, then z), optionally `"replaces": "<design id>"` for the creator's
+next revision → `201`/`200 { "blueprint": { "id", "blocks", "revision" }, "replayed" }`;
 `422 bad_blueprint`, `503 storage_unavailable`.
 
 ### `GET /api/internal/v1/blueprints/{id}?player=<public id>`
