@@ -822,3 +822,18 @@ body.touch #hint {
   height: 100%;
   background: linear-gradient(#ff9a3c, #c2410c);
 }
+
+.key-button {
+  min-width: 7em;
+  font-family: inherit;
+}
+
+.key-warning {
+  color: #f0b04a;
+  min-height: 1em;
+}
+
+#settings h3 {
+  margin: 12px 0 4px;
+  font-size: 14px;
+}

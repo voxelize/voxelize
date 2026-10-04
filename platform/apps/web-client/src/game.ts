@@ -6,7 +6,10 @@ import * as VOXELIZE from "@voxelize/core";
 import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
+import { applyColourVision } from "./colour-vision";
 import { Content, miningMillis, secondaryAction } from "./content";
+import { CrackView } from "./crack";
+import { actionFor, DEFAULT_KEYS, ENGINE_MOVES, KeyMap } from "./keybindings";
 import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { LandPanel, type LandHere } from "./land";
@@ -138,6 +141,22 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     ? new VOXELIZE.MobileRigidControls(camera, renderer.domElement, world, controlOptions)
     : new VOXELIZE.RigidControls(camera, renderer.domElement, world, controlOptions);
   controls.connect(inputs, "in-game");
+  // Movement keys come from the player's key map, not the engine's fixed
+  // ones (touch devices move with the on-screen stick instead).
+  if (!touch) {
+    for (const move of Object.values(ENGINE_MOVES)) {
+      for (const occasion of ["keydown", "keyup"] as const) {
+        inputs.unbind(move!.code, { identifier: VOXELIZE.RigidControls.INPUT_IDENTIFIER, occasion });
+      }
+    }
+  }
+  let keys: KeyMap = { ...DEFAULT_KEYS };
+  // The player's own body, seen from behind or in front (camera key).
+  const self = new VOXELIZE.Character();
+  self.options.positionLerp = 1;
+  world.add(self);
+  controls.character = self;
+  const perspective = new VOXELIZE.Perspective(controls, world);
 
   // ---- settings and sound ----------------------------------------------------
 
@@ -150,6 +169,9 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     world.renderRadius = s.renderDistance;
     document.documentElement.style.setProperty("--ui-scale", String(s.uiScale));
     sfx.setVolume(s.volume);
+    applyColourVision(s.colourVision, [canvas, document.getElementById("hud") ?? document.body]);
+    keys = s.keys;
+    Object.keys(controls.movements).forEach((m) => ((controls.movements as Record<string, boolean>)[m] = false));
   };
   const settings = loadSettings();
   const settingsEl = settingsPanel(settings, applySettings);
@@ -163,6 +185,9 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (!settingsEl.hidden) controls.unlock();
   });
   document.body.append(gear);
+
+  const cracks = new CrackView();
+  world.add(cracks.mesh);
 
   const interact = new VOXELIZE.VoxelInteract(controls.object, world, {
     highlightType: "outline",
@@ -577,7 +602,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       return;
     }
     if (event.button === 0) primary(true);
-    else if (event.button === 2) secondary(event.shiftKey);
+    else if (event.button === 2) secondary(event.shiftKey || controls.movements.down);
   });
   addEventListener("mouseup", (event) => {
     if (event.button !== 2 || !drawing) return;
@@ -646,19 +671,32 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     });
     document.body.classList.add("touch");
   }
-  inputs.bind("KeyF", () => {
-    if (realm === "creative") controls.toggleFly();
-    else hud.toast("Flight is for creative worlds");
-  }, "in-game");
+  const typing = (event: KeyboardEvent) => ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName);
+  const setMove = (event: KeyboardEvent, on: boolean) => {
+    const action = actionFor(keys, event.code);
+    const move = action && ENGINE_MOVES[action];
+    if (!move || touch) return false;
+    (controls.movements as Record<string, boolean>)[move.movement] = on && controls.isLocked;
+    return true;
+  };
+  addEventListener("keyup", (event) => setMove(event, false));
+  addEventListener("blur", () => Object.keys(controls.movements).forEach((m) => ((controls.movements as Record<string, boolean>)[m] = false)));
   addEventListener("keydown", (event) => {
-    if ((event.target as HTMLElement)?.tagName === "INPUT" || vitalsHud.dead) return;
-    if (event.code === "KeyE") {
+    if (typing(event) || vitalsHud.dead) return;
+    if (setMove(event, true)) return;
+    const action = actionFor(keys, event.code);
+    if (event.code === "Escape" && windowUi.isOpen) {
+      closeWindow();
+    } else if (action === "inventory") {
       if (windowUi.isOpen) closeWindow();
       else openWindow();
-    } else if (event.code === "Escape" && windowUi.isOpen) {
-      closeWindow();
-    } else if (event.code === "KeyQ" && controls.isLocked && !windowUi.isOpen) {
+    } else if (action === "drop" && controls.isLocked && !windowUi.isOpen) {
       method.call("platform.inventory.drop", { all: event.ctrlKey });
+    } else if (action === "fly" && controls.isLocked) {
+      if (realm === "creative") controls.toggleFly();
+      else hud.toast("Flight is for creative worlds");
+    } else if (action === "camera" && controls.isLocked) {
+      perspective.toggle();
     }
   });
 
@@ -702,6 +740,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (!world.isInitialized) return;
 
     controls.update();
+    perspective.update();
     interact.update();
     camera.getWorldDirection(direction);
     world.update(controls.object.position, direction);
@@ -732,13 +771,17 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       } else {
         const elapsed = performance.now() - mining.started;
         hud.setMining(mining.total === 0 ? 1 : elapsed / mining.total);
+        cracks.show(mining.voxel, mining.total === 0 ? 1 : elapsed / mining.total);
         if (elapsed >= mining.total && !mining.finishing) {
           mining.finishing = true;
           method.call("platform.mine.finish", { voxel: mining.voxel });
         }
       }
     }
-    if (!mining) hud.setMining(null);
+    if (!mining) {
+      hud.setMining(null);
+      cracks.show(null);
+    }
 
     const now = performance.now();
     if (now - lastStatus > 250) {

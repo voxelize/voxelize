@@ -16,4 +16,12 @@ describe("settings", () => {
     expect(s.volume).toBe(0.3);
     expect(s.invertY).toBe(true);
   });
+
+  it("keep a known colour vision aid and repair key maps", () => {
+    const s = sanitize({ colourVision: "tritanopia", keys: { forward: "ArrowUp", back: 3 } });
+    expect(s.colourVision).toBe("tritanopia");
+    expect(s.keys.forward).toBe("ArrowUp");
+    expect(s.keys.back).toBe("KeyS");
+    expect(sanitize({ colourVision: "sepia" }).colourVision).toBe("normal");
+  });
 });

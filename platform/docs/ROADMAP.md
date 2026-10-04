@@ -59,7 +59,15 @@ hurt, pickups, eating), touch controls on phones and tablets (joystick,
 drag to look, mine/attack, place/use, jump, crouch, sprint, inventory,
 drop) on the engine's MobileRigidControls, inventory screen, PWA service
 worker for the app shell (never caching API or game data).
-Remaining: key rebinding, third-person camera, colour-blind palettes.
+Then: key rebinding for every game key (movement, jump, sneak, sprint,
+inventory, drop, flight, camera; clashes are shown; the engine's fixed
+movement keys are unbound and the controls driven from the player's key
+map), a camera key cycling first, third and second person (the engine's
+Perspective, with the player's own body), colour vision aids (daltonising
+colour matrices for red-, green- and blue-blindness over the game view and
+interface), cracks on the block being mined in ten stages. Unit tests for
+key maps, colour matrices and cracks; checked in headless Chromium (rebind,
+clash warning, filter, walking with the key map, third person).
 
 ## Phase 4 — Mining and building 🟡
 
@@ -69,7 +77,8 @@ modifiers, unbreakable); raw client voxel writes refused; server intents
 inventory-full refusal) and `platform.build.place` (reach, replaceability,
 player collision, item consumption, creative block choice), 18 unit tests.
 Remaining: land permission and game-mode (adventure/spectator) checks once
-those systems exist; block orientation on place; mining progress UI.
+those systems exist (block orientation on place and the mining progress bar
+and block cracks are done).
 
 ## Phase 5 — Inventory 🟡
 
