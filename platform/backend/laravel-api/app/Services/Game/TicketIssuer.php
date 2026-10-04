@@ -20,8 +20,8 @@ class TicketIssuer
      */
     public function issue(User $user, string $world, ?string $ip = null): array
     {
-        $worlds = config('platform.game.worlds');
-        if (! isset($worlds[$world])) {
+        $entry = app(WorldDirectory::class)->find($world);
+        if (! $entry || $entry['url'] === null) {
             throw new RuntimeException("Unknown world {$world}.");
         }
         $now = now()->getTimestamp();
@@ -31,7 +31,7 @@ class TicketIssuer
             'sub' => $user->public_id,
             'name' => $user->username,
             'world' => $world,
-            'realm' => $worlds[$world]['realm'],
+            'realm' => $entry['realm'],
             'roles' => $user->gameRoles(),
             'iat' => $now,
             'exp' => $now + (int) config('platform.game.ticket_ttl_seconds'),
@@ -60,7 +60,7 @@ class TicketIssuer
             'expires_at' => $claims['exp'],
             'world' => $world,
             'realm' => $claims['realm'],
-            'url' => $worlds[$world]['url'],
+            'url' => $entry['url'],
         ];
     }
 

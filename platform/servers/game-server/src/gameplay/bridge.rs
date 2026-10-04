@@ -109,6 +109,8 @@ pub enum Request {
     /// Who is playing in this dimension now (friends see them online).
     Presence {
         world: String,
+        /// Which dimension of the world (each reports its own players).
+        dimension: String,
         players: Vec<String>,
     },
     /// A player killed another: the backend scores it for their guilds' war.
@@ -213,8 +215,8 @@ pub enum Response {
         key: String,
         paid: Option<u32>,
     },
-    /// Presence was reported (or not; the next report replaces it).
-    PresenceSent,
+    /// Presence was reported, or not (`false`: report again soon).
+    PresenceSent(bool),
 }
 
 /// The game server's side of the market link, shared by every dimension.
@@ -329,12 +331,21 @@ async fn send(
     request: Request,
 ) -> Response {
     match request {
-        Request::Presence { players, .. } => {
-            let body = json!({ "world": shard, "players": players });
-            if let Err(e) = post(client, &format!("{base}/presence"), token, body).await {
-                log::debug!("presence not sent ({e})");
+        Request::Presence {
+            dimension, players, ..
+        } => {
+            let body = json!({ "world": shard, "dimension": dimension, "players": players });
+            match post(client, &format!("{base}/presence"), token, body).await {
+                Ok((200, _)) => Response::PresenceSent(true),
+                Ok((status, _)) => {
+                    log::debug!("presence got HTTP {status}");
+                    Response::PresenceSent(false)
+                }
+                Err(e) => {
+                    log::debug!("presence not sent ({e})");
+                    Response::PresenceSent(false)
+                }
             }
-            Response::PresenceSent
         }
         Request::Reward { player, payout, .. } => {
             let body = json!({

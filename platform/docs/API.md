@@ -29,10 +29,31 @@ Revokes the current token.
 ## Game
 
 ### `POST /game/tickets` 🔒
-`{ "world": "main" }` → `201 { "ticket", "expires_at", "world", "realm", "url" }`.
+`{ "world": "main" | "<player world key>" }` → `201 { "ticket", "expires_at", "world", "realm", "url" }`.
 The ticket admits one WebSocket session to `url?ticket=…` within
-`GAME_TICKET_TTL` seconds. `422` unknown world; `403` inactive account.
-Rate limited (`tickets`).
+`GAME_TICKET_TTL` seconds. `422` unknown world; `403` inactive account or
+`world_closed` (a friends or private world not open to you); `409
+world_full` (the owner always gets in) or `world_offline` (no address for
+its server). Rate limited (`tickets`).
+
+## Worlds
+
+The server browser. Official worlds come from config
+(`platform.game.worlds`); players create their own (at most
+`worlds.per_player`, 3): public, open to the owner's friends, or private
+(the owner and members). Each runs on its own game server
+(`GAME_WORLD_NAME` = the world's key) at `worlds.url_template` with
+`{world}` replaced, unless the world has its own `url`. A world is online
+while its game server reports it (every 30 s, and when players come and
+go); `players` counts every dimension.
+
+- `GET /worlds` 🔒 → `{ "worlds": [{ "key", "name", "realm", "official", "visibility", "owner" | null, "mine", "online", "players" | null, "max_players" | null, "members" (owner only) | null, "url" }], "per_player" }`
+  (official first, then the busiest).
+- `POST /worlds` 🔒 — `{ "name", "visibility": "public" | "friends" | "private", "realm"?: "survival" | "creative" }` → `201 { "world" }` (key `w_` + 10 letters or digits);
+  `422 bad_name`, `409 too_many_worlds`.
+- `PATCH /worlds/{key}` 🔒 owner — `{ "name"?, "visibility"?, "max_players"? }` → `{ "world" }`.
+- `DELETE /worlds/{key}` 🔒 owner — archived: no more tickets.
+- `POST /worlds/{key}/members` 🔒 owner — `{ "player": username }`; `DELETE /worlds/{key}/members/{username}` 🔒 owner → `{ "world" }`.
 
 ## Economy
 
@@ -403,9 +424,15 @@ reward over the cap is paid up to it, `paid` may be 0). One payment per
 `key` however often it is sent. `404 player_not_found`.
 
 ### `POST /api/internal/v1/presence`
-`{ "world", "players": ["<public id>"] }` → `{ "seen": n }`: who is playing
-in the world now. Game servers send it when the first player arrives and
-every 30 s after; friends lists show those players online.
+`{ "world", "dimension", "players": ["<public id>"] }` → `{ "seen": n }`:
+who is playing in one dimension of the world now. Game servers send it at
+start, every 30 s (even with nobody there) and within 2 s of players coming
+or going; friends lists show those players online and the server browser
+counts them.
+
+### `GET /api/internal/v1/worlds`
+`{ "worlds": [{ "key", "realm", "url", "max_players" }] }`: player-made
+worlds that want a game server, for whatever starts and stops them.
 
 ### `POST /api/internal/v1/blueprints`
 `{ "key", "creator", "world", "name", "size": [x,y,z], "palette": [{ "block": key | null, "raw" }], "runs": [[index, count]], "materials": { item: count } }`

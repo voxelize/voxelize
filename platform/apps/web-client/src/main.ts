@@ -2,8 +2,8 @@ import "./style.css";
 
 import { api, ApiError } from "./api";
 import { Content } from "./content";
-import { startGame } from "./game";
 import { Hud } from "./hud";
+import { baseWorld, chooseWorld, SERVER_KEY, serverOrigin, WORLD_KEY } from "./worlds";
 
 const form = document.getElementById("auth-form") as HTMLFormElement;
 const error = document.getElementById("auth-error") as HTMLElement;
@@ -21,12 +21,44 @@ toggle.addEventListener("click", () => {
     : "Username or email ";
 });
 
+const session = {
+  get: (key: string) => {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set: (key: string, value: string) => {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      // Private mode: travel between dimensions will not survive a reload.
+    }
+  },
+};
+
 async function enter() {
   document.getElementById("auth")!.hidden = true;
+  // A tab already in a world (or travelling between its dimensions) stays
+  // there; otherwise the player picks one.
+  let engineWorld = session.get(WORLD_KEY);
+  let server = session.get(SERVER_KEY) ?? "";
+  if (!engineWorld || !/^[a-z0-9_]{1,64}$/.test(engineWorld)) {
+    const chosen = await chooseWorld();
+    engineWorld = chosen.key;
+    server = chosen.official ? "" : (serverOrigin(chosen.url ?? "") ?? "");
+    session.set(WORLD_KEY, engineWorld);
+    session.set(SERVER_KEY, server);
+  }
+  const key = baseWorld(engineWorld);
+  // Loaded once the world is known: the game module reads it on load.
+  const { startGame } = await import("./game");
   const content = await Content.fetch();
   const hud = new Hud(content);
-  // A fresh single-use ticket for every (re)connect.
-  await startGame(content, async () => (await api.ticket("main")).ticket, hud);
+  // A fresh single-use ticket for every (re)connect. Official worlds are
+  // reached through this site; others at their own game server.
+  await startGame(content, async () => (await api.ticket(key)).ticket, hud, server || location.origin);
 }
 
 form.addEventListener("submit", async (event) => {

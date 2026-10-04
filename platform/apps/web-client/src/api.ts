@@ -176,6 +176,22 @@ export type FriendView = { player: string; username: string; online: boolean; wo
 export type FriendCard = { player: string; username: string };
 export type FriendLists = { friends: FriendView[]; incoming: FriendCard[]; outgoing: FriendCard[]; limit: number };
 
+export type WorldVisibility = "public" | "friends" | "private";
+export type WorldView = {
+  key: string;
+  name: string;
+  realm: "survival" | "creative";
+  official: boolean;
+  visibility: WorldVisibility;
+  owner: { id: string; name: string } | null;
+  mine: boolean;
+  online: boolean;
+  players: number | null;
+  max_players: number | null;
+  members: string[] | null;
+  url: string | null;
+};
+
 export type CosmeticSlot = "outfit" | "hat";
 export type Outfit = { body: string; arms: string; legs: string };
 export type Hat = { art?: string; color?: string };
@@ -207,6 +223,19 @@ export const api = {
   },
 
   me: () => request<{ user: User }>("/me").then((r) => r.user),
+
+  worlds: {
+    list: () => request<{ worlds: WorldView[]; per_player: number }>("/worlds"),
+    create: (name: string, visibility: WorldVisibility, realm: "survival" | "creative") =>
+      request<{ world: WorldView }>("/worlds", { method: "POST", body: JSON.stringify({ name, visibility, realm }) }).then((r) => r.world),
+    update: (key: string, body: { name?: string; visibility?: WorldVisibility; max_players?: number }) =>
+      request<{ world: WorldView }>(`/worlds/${key}`, { method: "PATCH", body: JSON.stringify(body) }).then((r) => r.world),
+    archive: (key: string) => request<{ archived: boolean }>(`/worlds/${key}`, { method: "DELETE" }),
+    addMember: (key: string, player: string) =>
+      request<{ world: WorldView }>(`/worlds/${key}/members`, { method: "POST", body: JSON.stringify({ player }) }).then((r) => r.world),
+    removeMember: (key: string, player: string) =>
+      request<{ world: WorldView }>(`/worlds/${key}/members/${encodeURIComponent(player)}`, { method: "DELETE" }).then((r) => r.world),
+  },
 
   cosmetics: {
     get: () => request<Wardrobe>("/cosmetics"),

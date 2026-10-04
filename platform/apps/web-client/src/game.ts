@@ -15,6 +15,7 @@ import { pickPlayer } from "./pvp";
 import { AchievementsPanel } from "./achievements";
 import { ChatBox, type ChatLine } from "./chat";
 import { applyLook, sanitizeLook, WardrobePanel } from "./cosmetics";
+import { SERVER_KEY, WORLD_KEY } from "./worlds";
 import type { Look } from "./api";
 import { FriendsPanel } from "./friends";
 import { NpcPanel, type Offer } from "./npc";
@@ -38,9 +39,8 @@ import { WindowState, WindowUi } from "./window-ui";
 
 type ResultEvent = { intent: string; ok: boolean; code?: string; voxel?: [number, number, number] };
 
-/** Session key naming the engine world this tab is in (the server tells
- * the client where to go; the overworld is "main"). */
-const WORLD_KEY = "platform.world";
+// The engine world this tab is in (the browser chose it; the server sends
+// players between dimensions).
 const storedWorld = (() => {
   try {
     return sessionStorage.getItem(WORLD_KEY);
@@ -119,7 +119,7 @@ class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
   }
 }
 
-export async function startGame(content: Content, getTicket: () => Promise<string>, hud: Hud) {
+export async function startGame(content: Content, getTicket: () => Promise<string>, hud: Hud, server = location.origin) {
   const canvas = document.getElementById("main") as HTMLCanvasElement;
 
   const world = new VOXELIZE.World({ textureUnitDimension: 16 });
@@ -213,6 +213,23 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (!settingsEl.hidden) controls.unlock();
   });
   document.body.append(gear);
+  // Leave for the world browser.
+  const leave = document.createElement("button");
+  leave.id = "worlds-button";
+  leave.type = "button";
+  leave.textContent = "⇄";
+  leave.title = "Change world";
+  leave.setAttribute("aria-label", "Change world");
+  leave.addEventListener("click", () => {
+    try {
+      sessionStorage.removeItem(WORLD_KEY);
+      sessionStorage.removeItem(SERVER_KEY);
+    } catch {
+      // Nothing stored.
+    }
+    location.reload();
+  });
+  document.body.append(leave);
 
   const cracks = new CrackView();
   world.add(cracks.mesh);
@@ -856,7 +873,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // ---- connect --------------------------------------------------------------
 
   hud.setStatus("Connecting…");
-  await network.connect(location.origin, { getTicket, reconnectTimeout: 3000 });
+  await network.connect(server, { getTicket, reconnectTimeout: 3000 });
   await network.join(WORLD);
   await world.initialize();
 

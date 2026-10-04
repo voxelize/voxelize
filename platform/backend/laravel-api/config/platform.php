@@ -131,6 +131,18 @@ return [
         ],
     ],
 
+    // Worlds players create (the server browser lists them with the
+    // official ones above). Each runs on its own game server with
+    // GAME_WORLD_NAME set to the world's key; `url_template` says where,
+    // e.g. wss://w-{world}.play.example (a world's own `url` wins).
+    'worlds' => [
+        'per_player' => (int) env('WORLDS_PER_PLAYER', 3),
+        'max_players' => (int) env('WORLDS_MAX_PLAYERS', 20),
+        'url_template' => (string) env('WORLDS_URL_TEMPLATE', ''),
+        // A world counts as online while its server reported this recently.
+        'online_seconds' => 90,
+    ],
+
     // Friends: how many, and how long after a game server last reported a
     // player they still count as online.
     'friends' => [

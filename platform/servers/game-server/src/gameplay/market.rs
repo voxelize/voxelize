@@ -34,6 +34,10 @@ pub const MAX_HOURS: u32 = 168;
 const POLL_SECONDS: f32 = 3.0;
 /// Seconds between reports of who is online (friends lists read them).
 pub const PRESENCE_SECONDS: f32 = 30.0;
+/// The shortest gap between two reports when players come and go.
+pub const PRESENCE_MIN_SECONDS: f32 = 2.0;
+/// Seconds before a report the backend did not take is sent again.
+pub const PRESENCE_RETRY_SECONDS: f32 = 5.0;
 /// Seconds before a listing that failed in transit is sent again.
 const RETRY_SECONDS: f32 = 5.0;
 
@@ -279,6 +283,8 @@ pub struct MarketSystem {
     polling: bool,
     /// Seconds since presence was last reported (`None` before the first).
     since_presence: Option<f32>,
+    /// Who was in the last report.
+    reported: Vec<String>,
     /// Stall sale payments sent and not yet answered.
     payments_in_flight: HashSet<String>,
     payment_retry: f32,
@@ -567,7 +573,11 @@ impl<'a> specs::System<'a> for MarketSystem {
                         );
                     }
                 }
-                Response::PresenceSent => {}
+                Response::PresenceSent(true) => {}
+                // The backend was not reachable: try again in a few seconds.
+                Response::PresenceSent(false) => {
+                    self.since_presence = Some(PRESENCE_SECONDS - PRESENCE_RETRY_SECONDS);
+                }
                 Response::Rewarded { player, key, paid } => {
                     if let Some(paid) = paid {
                         super::work::on_rewarded(&mut g, &mut events, &player, &key, paid);
@@ -792,11 +802,14 @@ impl<'a> specs::System<'a> for MarketSystem {
                 }
             }
         }
-        let (due, since) = presence_due(self.since_presence, dt, !online.is_empty());
+        online.sort();
+        let (due, since) = presence_due(self.since_presence, dt, online != self.reported);
         self.since_presence = since;
         if due {
+            self.reported = online.clone();
             bridge.request(Request::Presence {
                 world: world.clone(),
+                dimension: g.dimensions.current.key().to_owned(),
                 players: online.clone(),
             });
         }
@@ -817,10 +830,12 @@ impl<'a> specs::System<'a> for MarketSystem {
 }
 
 /// Whether to report presence now, and the new time since the last report:
-/// at once when the first player is here, then every [`PRESENCE_SECONDS`].
-fn presence_due(since: Option<f32>, dt: f32, anyone: bool) -> (bool, Option<f32>) {
+/// at once, then every [`PRESENCE_SECONDS`] (even with nobody here: the
+/// server browser counts the world online), and soon after someone comes
+/// or goes (at most every [`PRESENCE_MIN_SECONDS`]).
+fn presence_due(since: Option<f32>, dt: f32, changed: bool) -> (bool, Option<f32>) {
     let since = since.map_or(PRESENCE_SECONDS, |s| s + dt);
-    if anyone && since >= PRESENCE_SECONDS {
+    if since >= PRESENCE_SECONDS || (changed && since >= PRESENCE_MIN_SECONDS) {
         (true, Some(0.0))
     } else {
         (false, Some(since))
@@ -851,14 +866,17 @@ mod tests {
 
     #[test]
     fn presence_is_reported_at_once_then_every_half_minute() {
-        assert!(!presence_due(None, 0.05, false).0, "nobody here");
-        let (due, since) = presence_due(None, 0.05, true);
-        assert!(due, "the first player is reported at once");
-        let (due, since) = presence_due(since, 10.0, true);
+        let (due, since) = presence_due(None, 0.05, false);
+        assert!(due, "at once, even before anyone joins");
+        let (due, since) = presence_due(since, 1.0, true);
+        assert!(!due, "not twice in a breath");
+        let (due, since) = presence_due(since, 9.0, false);
         assert!(!due);
-        let (due, since) = presence_due(since, 19.0, true);
+        let (due, since) = presence_due(since, 0.5, true);
+        assert!(due, "someone came");
+        let (due, since) = presence_due(since, 29.0, false);
         assert!(!due);
-        let (due, _) = presence_due(since, 1.5, true);
+        let (due, _) = presence_due(since, 1.5, false);
         assert!(due, "half a minute later");
     }
 

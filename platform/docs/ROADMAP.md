@@ -418,7 +418,15 @@ checks it and shows it to everyone (`platform.look`), and a look changed in
 play arrives in a fresh ticket (`platform.look.set`). The wardrobe (K)
 paints it on characters. Tests: CosmeticTest, unit tests,
 `tests/bots/cosmetics.mjs`.
-Remaining: private worlds and server browser, proximity voice (WebRTC), plugin event API, mod
+Then: private worlds and a server browser — players create worlds
+(public, the owner's friends, or private with members; survival or
+creative; a limit each), each hosted by its own game server
+(`GAME_WORLD_NAME`, the address from `WORLDS_URL_TEMPLATE`); tickets check
+who may join and turn players away from full worlds; game servers report
+every dimension's players, so the browser after sign-in lists worlds with
+who is playing (`/api/v1/worlds`, a ⇄ button to come back to it). Tests:
+WorldTest, unit tests, `tests/bots/worlds.mjs`.
+Remaining: proximity voice (WebRTC), plugin event API, mod
 SDK.
 
 ## Definition of done (whole project)

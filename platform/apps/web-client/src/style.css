@@ -955,3 +955,61 @@ body.spectating #vitals {
 .cosmetic-list button {
   margin-left: 6px;
 }
+
+#worlds-button {
+  position: fixed;
+  right: 56px;
+  top: 10px;
+  z-index: 20;
+  padding: 6px 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+#worlds {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.world-list {
+  list-style: none;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.world-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  opacity: 0.7;
+}
+
+.world-list li.online {
+  opacity: 1;
+}
+
+.world-list li > span {
+  flex: 1;
+}
+
+.world-manage,
+.world-create {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.world-manage input,
+.world-create input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.worlds-status {
+  color: var(--danger);
+  min-height: 1em;
+}

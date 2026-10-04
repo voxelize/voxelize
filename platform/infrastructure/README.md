@@ -48,6 +48,17 @@ network whose proxy re-signs TLS, add the proxy CA to the build stages (or
 use a local registry mirror); the Dockerfiles themselves assume a normal
 network.
 
+## Player worlds
+
+Worlds players create (docs/API.md, "Worlds") each need a game server of
+their own: the same image with `GAME_WORLD_NAME` set to the world's key,
+its own save volume, and the same ticket secrets and backend token. Set
+`WORLDS_URL_TEMPLATE` on the API (e.g. `wss://w-{world}.play.example/ws/`)
+and route that host to the world's server. Whatever starts them (a
+supervisor, an orchestrator) reads `GET /api/internal/v1/worlds` for the
+active worlds and stops servers for archived ones. The browser counts a
+world online while its server reports in.
+
 ## Production notes
 
 - Terminate TLS at Nginx (or a load balancer) and serve `wss://`.
