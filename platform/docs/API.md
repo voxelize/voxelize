@@ -137,6 +137,22 @@ They are handed over in that world when you are online with room.
 `php artisan market:settle` (every minute) ends auctions (seller paid from
 escrow, goods to the winner) and expires unsold listings (goods back).
 
+## Contracts
+
+"Bring me N of an item by a deadline": the reward is locked in
+`escrow:contract:<id>` when posted, released to the contractor when the
+goods arrive in the game (`platform.contract.deliver`), refunded on
+withdrawal or expiry (`php artisan contracts:expire`, every minute).
+
+Contract: `{ "id", "title", "world", "item", "count", "reward", "currency", "status": "open" | "accepted" | "fulfilled" | "expired" | "cancelled", "poster", "contractor", "deadline_at", "role": "poster" | "contractor" | null }`.
+
+- `GET /contracts?world=main[&mine=1]` 🔒 — open contracts (or yours in every state).
+- `POST /contracts` 🔒 — header `Idempotency-Key`; `{ "world", "title"?, "item", "count", "reward", "hours"? (1–168, 48) }`
+  → `201 { "contract", "replayed", "balance" }`; `422 insufficient_funds | bad_goods | bad_price | bad_duration`.
+- `POST /contracts/{id}/accept` 🔒 — one contractor; `409 contract_closed`, `422 own_listing`.
+- `POST /contracts/{id}/abandon` 🔒 contractor — open again.
+- `DELETE /contracts/{id}` 🔒 poster, while untaken — refunds; `409 contract_taken`.
+
 ## Blueprints
 
 A blueprint is a building captured in the game (`platform.blueprint.capture`,
@@ -218,6 +234,12 @@ settling a trade window, once per key → `201`/`200 { "transaction", "replayed"
 `{ "id", "name", "materials", "layout" }` for the creator or a licence
 holder (`403 not_licensed`, also after moderation); `503
 storage_unavailable` if the stored layout no longer matches its hash.
+
+### `POST /api/internal/v1/contracts/{id}/fulfil`
+`{ "key": outbox id, "contractor", "item", "count", "durability"? }`: the
+contractor's goods arrived; releases the reward and delivers the goods to
+the poster, once per key. `403 not_contractor`, `409 contract_closed`,
+`422 wrong_goods` (exactly the item and count asked).
 
 ### `POST /api/internal/v1/deliveries/pending`
 `{ "world", "players": [public id] }` → `{ "deliveries": [{ "id", "player", "item", "count", "durability", "reason" }] }`.

@@ -3,11 +3,11 @@
 // to the API (money); selling goes to the game server, which takes the
 // goods from your inventory and hands them to the market.
 
-import { api, ApiError, idempotencyKey, type Listing } from "./api";
+import { api, ApiError, idempotencyKey, type ContractView, type Listing } from "./api";
 import type { Content } from "./content";
 import type { InventorySnapshot } from "./hud";
 
-type Tab = "browse" | "sell" | "mine" | "deliveries";
+type Tab = "browse" | "sell" | "mine" | "contracts" | "deliveries";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -52,6 +52,7 @@ export class MarketPanel {
       content: Content;
       inventory: () => InventorySnapshot;
       sell: (payload: Record<string, unknown>) => void;
+      deliver: (contract: string, slot: number, count: number) => void;
       notify: (text: string) => void;
     },
   ) {
@@ -96,7 +97,7 @@ export class MarketPanel {
     const tabs = el(
       "nav",
       { className: "market-tabs" },
-      ...(["browse", "sell", "mine", "deliveries"] as Tab[]).map((t) =>
+      ...(["browse", "sell", "mine", "contracts", "deliveries"] as Tab[]).map((t) =>
         el("button", { type: "button", className: t === this.tab ? "active" : "", onclick: () => ((this.tab = t), void this.render()) }, t[0].toUpperCase() + t.slice(1)),
       ),
     );
@@ -105,6 +106,7 @@ export class MarketPanel {
     if (this.tab === "sell") body.append(...this.sellForm());
     if (this.tab === "mine") body.append(...(await this.mine()));
     if (this.tab === "deliveries") body.append(...(await this.deliveries()));
+    if (this.tab === "contracts") body.append(...(await this.contracts()));
     this.root.replaceChildren(
       el("h2", { textContent: "Market" }),
       el("p", { className: "market-balance", textContent: `${crowns} Crowns` }),
@@ -193,6 +195,58 @@ export class MarketPanel {
       list.append(this.row(l, actions));
     }
     return [list];
+  }
+
+  private async contracts(): Promise<Node[]> {
+    const open = await api.contracts.list(this.options.world).catch(() => [] as ContractView[]);
+    const mine = await api.contracts.list(this.options.world, true).catch(() => [] as ContractView[]);
+    const line = (c: ContractView) => `${c.title}: ${c.count} × ${this.name(c.item)} for ${c.reward} CRN · ${timeLeft(c.deadline_at)}`;
+    const openList = el("ul", { className: "market-list" });
+    for (const c of open.filter((c) => !mine.some((m) => m.id === c.id)))
+      openList.append(el("li", {}, line(c), ` · by ${c.poster.name}`, el("button", { type: "button", onclick: () => this.act(() => api.contracts.accept(c.id), "Contract taken: bring the goods") }, "Take")));
+    const mineList = el("ul", { className: "market-list" });
+    for (const c of mine) {
+      const actions: Node[] = [el("span", { className: "market-status", textContent: ` [${c.status}]` })];
+      if (c.status === "accepted" && c.role === "contractor") {
+        actions.push(
+          el("button", {
+            type: "button",
+            onclick: () => {
+              const inv = this.options.inventory();
+              const held = inv.slots[inv.selected];
+              const item = held ? this.options.content.itemsById.get(held.item) : undefined;
+              if (!held || item?.key !== c.item || held.count < c.count) return this.options.notify(`Hold ${c.count} × ${this.name(c.item)}`);
+              this.options.deliver(c.id, inv.selected, c.count);
+            },
+          }, "Deliver held"),
+          el("button", { type: "button", onclick: () => this.act(() => api.contracts.abandon(c.id), "Contract given back") }, "Give up"),
+        );
+      }
+      if (c.status === "open" && c.role === "poster") actions.push(el("button", { type: "button", onclick: () => this.act(() => api.contracts.cancel(c.id), "Withdrawn: reward refunded") }, "Withdraw"));
+      mineList.append(el("li", {}, line(c), ...actions));
+    }
+    const item = el("select", {}, ...this.options.content.pack.items.map((i) => el("option", { value: i.key, textContent: i.name })));
+    const count = el("input", { type: "number", min: "1", value: "16", className: "market-bid" });
+    const reward = el("input", { type: "number", min: "1", value: "50", className: "market-bid" });
+    const hours = el("select", {}, ...[2, 24, 48, 168].map((h) => el("option", { value: String(h), textContent: `${h} h`, selected: h === 48 })));
+    const title = el("input", { type: "text", maxLength: 80, placeholder: "Title" });
+    const post = () =>
+      this.act(
+        () => api.contracts.post(idempotencyKey(), { world: this.options.world, title: title.value, item: item.value, count: Number(count.value), reward: Number(reward.value), hours: Number(hours.value) }),
+        "Posted: the reward is locked until it is done or expires",
+      );
+    return [
+      el("h3", { textContent: "Open" }),
+      open.length ? openList : el("p", { textContent: "No open contracts." }),
+      el("h3", { textContent: "Yours" }),
+      mine.length ? mineList : el("p", { textContent: "You have no contracts." }),
+      el("h3", { textContent: "Post a contract" }),
+      el("label", { className: "setting" }, el("span", { textContent: "Wanted" }), item),
+      el("label", { className: "setting" }, el("span", { textContent: "Count / reward" }), count, reward),
+      el("label", { className: "setting" }, el("span", { textContent: "Deadline" }), hours),
+      title,
+      el("button", { type: "button", onclick: post }, "Post"),
+    ];
   }
 
   private async deliveries(): Promise<Node[]> {

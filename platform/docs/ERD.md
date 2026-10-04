@@ -235,6 +235,14 @@ Real-money creator earnings are **not** in the ledger above; see
 ECONOMY_LEDGER.md §8. Own tables (`creator_accounts`, `creator_ledger_*`,
 `payout_requests`, `kyc_checks`) are designed when that feature is approved.
 
+## Contracts ✅ implemented (migration `2026_01_01_000800_create_contracts_table`)
+
+`contracts`: `public_id`, `poster_id`, `world`, `title`, `item`, `count`,
+`currency`, `reward`, `status` (`open|accepted|fulfilled|expired|cancelled`),
+`contractor_id`, `accepted_at`, `deadline_at`, `post_key` (UNIQUE with the
+poster), `fulfil_key` UNIQUE (the game server's outbox id), `version`,
+timestamps. The reward sits in the ledger account `escrow:contract:<id>`.
+
 ## Blueprints ✅ implemented (migration `2026_01_01_000600_create_blueprint_tables`)
 
 - `blueprints`: `public_id`, `creator_id`, `world`, `name`, `size_x/y/z`,

@@ -203,6 +203,7 @@ mod tests {
                 price: 9,
                 buyout: None,
                 hours: 48,
+                contract: None,
             }],
             delivered: vec!["d1".into()],
             trade_hold: None,

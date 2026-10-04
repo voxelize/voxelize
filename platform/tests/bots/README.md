@@ -16,6 +16,7 @@ validated by the game server like a browser player's.
 | `stall.mjs` | trade stalls end to end: place, stock and price a stall, a buyer pays through the ledger and receives the goods, an unaffordable buy is refused and the goods go back on sale, strangers cannot break it (standalone: seeds the owner's record via `SAVE_DIR`; needs `FUND_CMD`) |
 | `blueprints.mjs` | blueprints end to end: capture a small build, publish, a buyer buys a licence and builds it from their own planks, building again without materials is refused (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
 | `trade.mjs` | the trade window end to end: invite, offer iron against bread and Crowns, both confirm, goods swap and Crowns move without fee; a cancelled trade returns the offer (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
+| `contracts.mjs` | contracts end to end: post with a locked reward, take, deliver in the game, reward paid and goods delivered (standalone: seeds the worker's record via `SAVE_DIR`; needs `FUND_CMD`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contract;
 use App\Models\ItemDelivery;
 use App\Models\User;
+use App\Services\Contract\ContractService;
 use App\Services\Market\MarketService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -70,6 +72,26 @@ class MarketBridgeController extends Controller
         $transaction = $market->stallSale($buyer, $seller, (int) $data['amount'], $data['key'], $data['reason'], ($data['kind'] ?? 'stall') === 'trade');
 
         return response()->json(['transaction' => $transaction->public_id, 'replayed' => $transaction->wasReplayed], $transaction->wasReplayed ? 200 : 201);
+    }
+
+    /** A contractor's goods arrived in the game: complete the contract. */
+    public function fulfil(Request $request, ContractService $contracts, string $contract): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{8,100}$/'],
+            'contractor' => ['required', 'string', 'max:64'],
+            'item' => ['required', 'string', 'max:64'],
+            'count' => ['required', 'integer', 'min:1'],
+            'durability' => ['nullable', 'integer', 'min:0'],
+        ]);
+        $row = Contract::query()->where('public_id', $contract)->first();
+        $contractor = User::query()->where('public_id', $data['contractor'])->first();
+        if (! $row || ! $contractor) {
+            return response()->json(['error' => ['code' => 'contract_not_found', 'message' => 'No such contract.']], 404);
+        }
+        $done = $contracts->fulfil($contractor, $row, $data['item'], (int) $data['count'], isset($data['durability']) ? (int) $data['durability'] : null, $data['key']);
+
+        return response()->json(['contract' => ['id' => $done->public_id, 'status' => $done->status, 'reward' => $done->reward], 'replayed' => $done->wasReplayed], $done->wasReplayed ? 200 : 201);
     }
 
     public function pending(Request $request, MarketService $market): JsonResponse

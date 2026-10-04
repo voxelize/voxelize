@@ -103,6 +103,21 @@ export type Resale = {
   status: string;
 };
 
+export type ContractView = {
+  id: string;
+  title: string;
+  world: string;
+  item: string;
+  count: number;
+  reward: number;
+  currency: string;
+  status: string;
+  poster: { id: string; name: string };
+  contractor: { id: string; name: string } | null;
+  deadline_at: string;
+  role: "poster" | "contractor" | null;
+};
+
 /** A fresh key for one economic request; retries reuse it. */
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
 
@@ -154,6 +169,16 @@ export const api = {
       }),
     cancel: (id: string) => request<{ cancelled: boolean }>(`/market/listings/${id}`, { method: "DELETE" }),
     deliveries: () => request<{ deliveries: DeliveryView[] }>("/deliveries").then((r) => r.deliveries),
+  },
+
+  contracts: {
+    list: (world: string, mine = false) =>
+      request<{ contracts: ContractView[] }>(`/contracts?world=${encodeURIComponent(world)}${mine ? "&mine=1" : ""}`).then((r) => r.contracts),
+    post: (key: string, body: { world: string; title: string; item: string; count: number; reward: number; hours: number }) =>
+      request<{ contract: ContractView; balance: number }>("/contracts", { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify(body) }),
+    accept: (id: string) => request<{ contract: ContractView }>(`/contracts/${id}/accept`, { method: "POST" }),
+    abandon: (id: string) => request<{ contract: ContractView }>(`/contracts/${id}/abandon`, { method: "POST" }),
+    cancel: (id: string) => request<{ cancelled: boolean }>(`/contracts/${id}`, { method: "DELETE" }),
   },
 
   blueprints: {

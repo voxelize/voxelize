@@ -32,6 +32,9 @@ pub struct OutboxEntry {
     #[serde(default)]
     pub buyout: Option<u64>,
     pub hours: u32,
+    /// Set when the goods fulfil a delivery contract instead of being listed.
+    #[serde(default)]
+    pub contract: Option<String>,
 }
 
 /// Goods the backend owes a player.
@@ -269,6 +272,39 @@ async fn send(
     request: Request,
 ) -> Response {
     match request {
+        Request::CreateListing { player, entry, .. } if entry.contract.is_some() => {
+            let contract = entry.contract.clone().unwrap_or_default();
+            let body = json!({
+                "key": entry.id,
+                "contractor": player,
+                "item": entry.item,
+                "count": entry.count,
+                "durability": entry.durability,
+            });
+            match post(
+                client,
+                &format!("{base}/contracts/{contract}/fulfil"),
+                token,
+                body,
+            )
+            .await
+            {
+                Ok((200 | 201, _)) => Response::Listed {
+                    player,
+                    entry: entry.id,
+                    listing: contract,
+                },
+                Ok((400 | 403 | 404 | 409 | 422, body)) => Response::Rejected {
+                    player,
+                    entry: entry.id,
+                    code: error_code(&body),
+                },
+                _ => Response::ListingFailed {
+                    player,
+                    entry: entry.id,
+                },
+            }
+        }
         Request::CreateListing { player, entry, .. } => {
             let body = json!({
                 "key": entry.id,

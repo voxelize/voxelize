@@ -8,3 +8,6 @@ Schedule::command('ledger:verify')->hourly()->withoutOverlapping();
 
 // Auctions end and unsold listings expire on time (docs/API.md "Market").
 Schedule::command('market:settle')->everyMinute()->withoutOverlapping();
+
+// Contracts past their deadline give their locked reward back.
+Schedule::command('contracts:expire')->everyMinute()->withoutOverlapping();

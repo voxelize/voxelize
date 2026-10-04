@@ -133,12 +133,106 @@ pub fn list(
         price: p.price,
         buyout: p.buyout,
         hours: p.hours,
+        contract: None,
     };
     player.market.outbox.push(entry.clone());
     Ok(entry)
 }
 
+/// Hand `count` from a slot over to fulfil contract `contract` (the backend
+/// checks the item, count and that this player took the contract).
+pub fn deliver(
+    rules: &Rules,
+    player: &mut PlayerState,
+    slot: usize,
+    count: u32,
+    contract: &str,
+    id: String,
+) -> Result<OutboxEntry, IntentError> {
+    if player.vitals.is_dead() {
+        return Err(IntentError::Dead);
+    }
+    if player.realm != Realm::Survival {
+        return Err(IntentError::SurvivalOnly);
+    }
+    if contract.is_empty()
+        || contract.len() > 40
+        || !contract.chars().all(|c| c.is_ascii_alphanumeric())
+    {
+        return Err(IntentError::BadListing);
+    }
+    let stack = player
+        .inventory
+        .get(slot)
+        .cloned()
+        .ok_or(IntentError::Inventory(
+            super::inventory::InventoryError::EmptySlot,
+        ))?;
+    let item = rules
+        .content()
+        .item_by_id(stack.item)
+        .ok_or(IntentError::BadListing)?
+        .key
+        .clone();
+    let taken = player.inventory.take(slot, count)?;
+    let entry = OutboxEntry {
+        id,
+        item,
+        count: taken.count,
+        durability: taken.durability,
+        kind: "contract".into(),
+        price: 0,
+        buyout: None,
+        hours: 0,
+        contract: Some(contract.to_owned()),
+    };
+    player.market.outbox.push(entry.clone());
+    Ok(entry)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeliverPayload {
+    pub contract: String,
+    pub slot: usize,
+    pub count: u32,
+}
+
 pub fn install(world: &mut World) {
+    world.set_method_handle("platform.contract.deliver", |world, client_id, payload| {
+        const INTENT: &str = "contract.deliver";
+        let Some(p) = parse::<DeliverPayload>(world, client_id, INTENT, payload) else {
+            return;
+        };
+        let result = with_player(world, client_id, |g, _, _| {
+            if g.dimensions.bridge.is_none() {
+                return Err(IntentError::MarketUnavailable);
+            }
+            let id = format!(
+                "c{:x}{:012x}",
+                now_ms(),
+                (g.random() * 2f64.powi(48)) as u64
+            );
+            let Gameplay { rules, players, .. } = g;
+            let player = players.get_mut(client_id).expect("checked by with_player");
+            deliver(rules, player, p.slot, p.count, &p.contract, id)
+        });
+        match result {
+            None => super::not_joined(world, client_id, INTENT),
+            Some(Ok(entry)) => {
+                persist(world, client_id);
+                reply(
+                    world,
+                    client_id,
+                    INTENT,
+                    Ok(json!({ "entry": entry.id, "contract": p.contract })),
+                );
+                send_inventory(world, client_id);
+            }
+            Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
+        }
+    });
+
     world.set_method_handle("platform.market.list", |world, client_id, payload| {
         const INTENT: &str = "market.list";
         let Some(p) = parse::<ListPayload>(world, client_id, INTENT, payload) else {
@@ -270,11 +364,12 @@ impl<'a> specs::System<'a> for MarketSystem {
                     let done = player.market.outbox.remove(done);
                     player.market.in_flight.remove(&entry);
                     save(store, &id, player, position_of(&id));
-                    notify(
-                        &mut events,
-                        &id,
-                        json!({ "listed": { "listing": listing, "item": done.item, "count": done.count, "kind": done.kind, "price": done.price } }),
-                    );
+                    let notice = if done.contract.is_some() {
+                        json!({ "fulfilled": { "contract": listing, "item": done.item, "count": done.count } })
+                    } else {
+                        json!({ "listed": { "listing": listing, "item": done.item, "count": done.count, "kind": done.kind, "price": done.price } })
+                    };
+                    notify(&mut events, &id, notice);
                 }
                 Response::Rejected {
                     player: id,
@@ -759,6 +854,24 @@ mod tests {
         );
         assert_eq!(player.market.outbox.len(), 2, "refusals take nothing");
         assert_eq!(player.inventory.get(0).unwrap().count, 5);
+    }
+
+    #[test]
+    fn contract_deliveries_go_through_the_outbox() {
+        let (rules, mut player) = setup(Realm::Survival);
+        let entry = deliver(&rules, &mut player, 0, 4, "01ABC", "c1".into()).unwrap();
+        assert_eq!(entry.contract.as_deref(), Some("01ABC"));
+        assert_eq!(player.inventory.get(0).unwrap().count, 6);
+        assert_eq!(player.market.outbox.len(), 1);
+        assert_eq!(
+            deliver(&rules, &mut player, 0, 4, "../x", "c2".into()),
+            Err(IntentError::BadListing)
+        );
+        let (rules, mut creative) = setup(Realm::Creative);
+        assert_eq!(
+            deliver(&rules, &mut creative, 0, 1, "01ABC", "c3".into()),
+            Err(IntentError::SurvivalOnly)
+        );
     }
 
     #[test]

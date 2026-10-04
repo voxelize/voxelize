@@ -213,7 +213,12 @@ goods swap; any change unconfirms; cancel, distance, leaving or death end
 it with everyone's items back; holds saved with each player's inventory and
 outcomes applied once; web client trade panel (T to invite, Y to accept).
 Tests: unit tests, backend payment test, `tests/bots/trade.mjs` end to end.
-Remaining: contracts with locked rewards.
+Done since: delivery contracts — the reward is locked in escrow when
+posted; one player takes the contract and delivers the goods in the game
+through the outbox; the reward is released to them and the goods delivered
+to the poster; withdrawal and expiry refund the poster; Contracts tab in the
+market panel. Tests: 2 backend feature tests, unit test,
+`tests/bots/contracts.mjs` end to end.
 
 ## Phase 15 — Marketplace, shops, auctions 🟡
 

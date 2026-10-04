@@ -249,6 +249,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     content,
     inventory: () => hud.inventory,
     sell: (payload) => method.call("platform.market.list", payload),
+    deliver: (contract, slot, count) => method.call("platform.contract.deliver", { contract, slot, count }),
     notify: (text) => hud.toast(text),
   });
   const stallPanel = new StallPanel({
@@ -327,6 +328,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   events.on<MarketNotice>("platform.market", (n) => {
     if (n.listed) hud.toast(`Listed ${n.listed.count} × ${itemName(n.listed.item)}`);
     if (n.rejected) hud.toast(`Not listed (${n.rejected.code}); ${itemName(n.rejected.item)} returned`);
+    if ((n as { fulfilled?: { count: number; item: string } }).fulfilled) hud.toast("Contract fulfilled: the reward is yours");
     if (n.received) hud.toast(`Received ${n.received.count} × ${itemName(n.received.item)}`);
     if (n.waiting) hud.toast(`A delivery of ${itemName(n.waiting.item)} waits for room in your inventory`);
     if (n.blueprint?.stored) hud.toast(`Blueprint saved (${n.blueprint.blocks} blocks)`);
