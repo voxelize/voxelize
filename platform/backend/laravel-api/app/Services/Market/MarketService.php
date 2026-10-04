@@ -8,6 +8,7 @@ use App\Models\ItemDelivery;
 use App\Models\LedgerTransaction;
 use App\Models\MarketBid;
 use App\Models\MarketListing;
+use App\Models\MarketSale;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
@@ -124,6 +125,126 @@ class MarketService
         return $listing;
     }
 
+    /**
+     * Buy part of a fixed-price stack: `$count` items for their share of the
+     * price, rounded up (the last items pay whatever remains, so the whole
+     * stack never costs more or less than listed). One purchase per `$key`.
+     */
+    public function buyPart(User $buyer, MarketListing $listing, int $count, string $key): MarketListing
+    {
+        return DB::transaction(function () use ($buyer, $listing, $count, $key) {
+            $listing = MarketListing::query()->lockForUpdate()->findOrFail($listing->id);
+            if (MarketSale::query()->where('buyer_id', $buyer->id)->where('sale_key', $key)->exists()) {
+                $listing->wasReplayed = true;
+
+                return $listing;
+            }
+            if ($count >= $listing->count) {
+                return $this->buy($buyer, $listing);
+            }
+            $this->assertOpen($listing);
+            if ($listing->kind !== 'fixed') {
+                throw new MarketException('not_divisible', 'Only fixed-price listings sell part of a stack.');
+            }
+            if ($listing->seller_id === $buyer->id) {
+                throw new MarketException('own_listing', 'You cannot buy your own listing.');
+            }
+            if ($count < 1) {
+                throw new MarketException('bad_count', 'Buy at least one item.');
+            }
+            $cost = self::partPrice((int) $listing->price, (int) $listing->count, $count);
+            $fee = $this->fee($cost);
+            $legs = [
+                new Leg($this->ledger->walletFor($buyer, $listing->currency)->account, -$cost),
+                new Leg($this->ledger->walletFor($listing->seller, $listing->currency)->account, $cost - $fee),
+            ];
+            if ($fee > 0) {
+                $legs[] = new Leg($this->ledger->systemAccount('fees', $listing->currency), $fee);
+            }
+            $sale = $this->ledger->post(new Posting(
+                type: 'sale',
+                reason: "Market purchase of {$count} of {$listing->count} {$listing->item}",
+                idempotencyKey: "market:sale:{$listing->public_id}:{$buyer->public_id}:{$key}",
+                legs: $legs,
+                initiatedBy: $buyer->id,
+                referenceType: 'market_listing',
+                referenceId: $listing->public_id,
+            ));
+            $listing->count -= $count;
+            $listing->price -= $cost;
+            $listing->version += 1;
+            $listing->save();
+            $this->deliver($listing, $buyer, 'purchase', $count);
+            $this->recordSale($listing, $buyer, $count, $cost, $key);
+            $this->audit->record(
+                action: 'market.buy',
+                actor: $buyer,
+                subjectType: 'market_listing',
+                subjectId: $listing->public_id,
+                payload: ['count' => $count, 'price' => $cost, 'fee' => $fee, 'transaction' => $sale->public_id],
+            );
+
+            return $listing;
+        });
+    }
+
+    /** What `$count` of a `$total`-item stack priced `$price` costs (rounded up). */
+    public static function partPrice(int $price, int $total, int $count): int
+    {
+        if ($count >= $total) {
+            return $price;
+        }
+
+        return intdiv($price * $count + $total - 1, $total);
+    }
+
+    /**
+     * Recent sales of an item in a world and their unit-price statistics
+     * over `$days` days.
+     *
+     * @return array{sales: list<array<string, mixed>>, stats: array<string, mixed>}
+     */
+    public function history(string $world, string $item, int $days = 30): array
+    {
+        $since = now()->subDays($days);
+        $rows = MarketSale::query()->where('world', $world)->where('item', $item)
+            ->where('created_at', '>=', $since)->orderByDesc('id')->limit(500)->get();
+        $units = $rows->map(fn (MarketSale $s) => $s->price / max(1, $s->count));
+        $count = (int) $rows->sum('count');
+
+        return [
+            'sales' => $rows->take(50)->map(fn (MarketSale $s) => [
+                'count' => $s->count,
+                'price' => $s->price,
+                'unit_price' => round($s->price / max(1, $s->count), 2),
+                'at' => $s->created_at->toIso8601String(),
+            ])->values()->all(),
+            'stats' => [
+                'days' => $days,
+                'sales' => $rows->count(),
+                'items' => $count,
+                'average_unit_price' => $count > 0 ? round($rows->sum('price') / $count, 2) : null,
+                'min_unit_price' => $units->isEmpty() ? null : round($units->min(), 2),
+                'max_unit_price' => $units->isEmpty() ? null : round($units->max(), 2),
+            ],
+        ];
+    }
+
+    private function recordSale(MarketListing $listing, User $buyer, int $count, int $price, ?string $key = null): void
+    {
+        MarketSale::query()->create([
+            'listing_id' => $listing->id,
+            'world' => $listing->world,
+            'item' => $listing->item,
+            'count' => $count,
+            'price' => $price,
+            'currency' => $listing->currency,
+            'buyer_id' => $buyer->id,
+            'sale_key' => $key,
+            'created_at' => now(),
+        ]);
+    }
+
     /** Buy a fixed-price listing, or an auction at its buyout price. */
     public function buy(User $buyer, MarketListing $listing): MarketListing
     {
@@ -169,6 +290,7 @@ class MarketService
             $listing->version += 1;
             $listing->save();
             $this->deliver($listing, $buyer, 'purchase');
+            $this->recordSale($listing, $buyer, (int) $listing->count, (int) $price);
             $this->audit->record(
                 action: 'market.buy',
                 actor: $buyer,
@@ -306,6 +428,7 @@ class MarketService
                     $listing->status = 'sold';
                     $listing->buyer_id = $winner->id;
                     $this->deliver($listing, $winner, 'auction_won');
+                    $this->recordSale($listing, $winner, (int) $listing->count, $bid);
                 } else {
                     $listing->status = 'expired';
                     $this->deliver($listing, $listing->seller, 'expired');
@@ -435,14 +558,14 @@ class MarketService
         }
     }
 
-    private function deliver(MarketListing $listing, User $to, string $reason): void
+    private function deliver(MarketListing $listing, User $to, string $reason, ?int $count = null): void
     {
         ItemDelivery::query()->create([
             'public_id' => (string) Str::ulid(),
             'user_id' => $to->id,
             'world' => $listing->world,
             'item' => $listing->item,
-            'count' => $listing->count,
+            'count' => $count ?? $listing->count,
             'durability' => $listing->durability,
             'reason' => $reason,
             'listing_id' => $listing->id,

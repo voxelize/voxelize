@@ -24,3 +24,30 @@ describe("market helpers", () => {
     });
   });
 });
+
+import { historyLine, partPrice, searchKeys } from "./market";
+
+describe("market search, parts and prices", () => {
+  const items = [
+    { key: "iron_ingot", name: "Iron Ingot" },
+    { key: "iron_pickaxe", name: "Iron Pickaxe" },
+    { key: "coal", name: "Coal" },
+  ];
+  it("finds items by name or key", () => {
+    expect(searchKeys(items, "iron")).toEqual(["iron_ingot", "iron_pickaxe"]);
+    expect(searchKeys(items, "Iron Ingot")).toEqual(["iron_ingot"]);
+    expect(searchKeys(items, "  ")).toEqual([]);
+  });
+  it("prices part of a stack like the server", () => {
+    expect(partPrice(100, 3, 1)).toBe(34);
+    expect(partPrice(66, 2, 2)).toBe(66);
+    expect(partPrice(64, 64, 10)).toBe(10);
+  });
+  it("summarises price history", () => {
+    const empty = { item: "coal", sales: [], stats: { days: 30, sales: 0, items: 0, average_unit_price: null, min_unit_price: null, max_unit_price: null } };
+    expect(historyLine(empty)).toBe("No sales in 30 days");
+    expect(historyLine({ ...empty, stats: { days: 30, sales: 2, items: 3, average_unit_price: 33.33, min_unit_price: 32, max_unit_price: 34 } })).toBe(
+      "3 sold in 2 sales over 30 days · avg 33.33 each (32–34)",
+    );
+  });
+});

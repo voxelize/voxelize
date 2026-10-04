@@ -46,6 +46,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('lands/{land}/members/{player}', [LandController::class, 'removeMember']);
 
         Route::get('market/listings', [MarketController::class, 'index']);
+        Route::get('market/history', [MarketController::class, 'history']);
         Route::get('market/listings/{listing}', [MarketController::class, 'show']);
         Route::post('market/listings/{listing}/buy', [MarketController::class, 'buy'])->middleware('throttle:economy');
         Route::post('market/listings/{listing}/bids', [MarketController::class, 'bid'])->middleware('throttle:economy');

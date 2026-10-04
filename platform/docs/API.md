@@ -130,10 +130,17 @@ the game server takes them from the seller's inventory and hands them to
 the backend. Everything else is here. Prices are whole Crowns; a 5 % fee
 (`MARKET_FEE_BPS`) goes to `system:fees` on every sale.
 
-### `GET /market/listings?world=main[&item=key][&kind=fixed|auction][&mine=1]` 🔒
+### `GET /market/listings?world=main[&item=key][&items=k1,k2][&q=text][&kind=fixed|auction][&mine=1]` 🔒
 Open listings, cheapest first (with `mine=1`: your listings in every
 state, newest first): `{ "listings": [Listing] }` where Listing is
 `{ "id", "kind", "world", "item", "count", "durability", "currency", "price", "buyout", "current_bid", "bid_count", "minimum_bid", "seller": { "id", "name" }, "status", "ends_at" }`.
+Search: `items` lists exact item keys (the client turns item names into
+keys from the content pack), `q` matches part of a key (spaces read as `_`).
+
+### `GET /market/history?world=main&item=key[&days=30]` 🔒
+Price history of an item: `{ "item", "sales": [{ "count", "price", "unit_price", "at" }] (newest 50), "stats": { "days", "sales", "items", "average_unit_price", "min_unit_price", "max_unit_price" } }`
+over the last `days` (1–365). Every sale counts: whole listings, parts of
+stacks and won auctions.
 
 ### `GET /market/listings/{id}` 🔒
 `{ "listing": Listing }`.
@@ -145,6 +152,12 @@ become a delivery to the buyer. `201 { "listing", "replayed": false, "balance" }
 a retry by the same buyer answers `200` with `"replayed": true` (a listing
 is bought once, so no key is needed). Errors: `409 listing_closed`,
 `422 own_listing | not_buyable | insufficient_funds`.
+`{ "count": n }` with an `Idempotency-Key` header buys part of a fixed-price
+stack: `n` items for their share of the price rounded up (the last items pay
+whatever remains, so a whole stack costs exactly its price); the listing
+keeps the rest. A retry with the same key answers `"replayed": true` and
+pays once; `n` at or above the count buys the rest. `422 not_divisible` for
+auctions, `400 idempotency_key_required`.
 
 ### `POST /market/listings/{id}/bids` 🔒
 Header `Idempotency-Key` (required). `{ "amount": 150 }`. Locks the amount

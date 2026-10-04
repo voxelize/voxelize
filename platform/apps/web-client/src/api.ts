@@ -57,6 +57,11 @@ export type LandView = {
   sale_price: number | null;
   status: string;
 };
+export type PriceHistory = {
+  item: string;
+  sales: { count: number; price: number; unit_price: number; at: string }[];
+  stats: { days: number; sales: number; items: number; average_unit_price: number | null; min_unit_price: number | null; max_unit_price: number | null };
+};
 export type LandQuote = { currency: string; price: number; max_side_chunks: number; max_chunks_per_player: number };
 
 export type Listing = {
@@ -198,15 +203,24 @@ export const api = {
   wallets: () => request<{ wallets: { currency: string; balance: number }[] }>("/wallets").then((r) => r.wallets),
 
   market: {
-    listings: (world: string, filter: { item?: string; kind?: string; mine?: boolean } = {}) => {
+    listings: (world: string, filter: { item?: string; items?: string[]; kind?: string; mine?: boolean } = {}) => {
       const q = new URLSearchParams({ world });
       if (filter.item) q.set("item", filter.item);
+      if (filter.items) q.set("items", filter.items.join(","));
       if (filter.kind) q.set("kind", filter.kind);
       if (filter.mine) q.set("mine", "1");
       return request<{ listings: Listing[] }>(`/market/listings?${q}`).then((r) => r.listings);
     },
     buy: (id: string) =>
       request<{ listing: Listing; balance: number }>(`/market/listings/${id}/buy`, { method: "POST" }),
+    buyPart: (id: string, count: number, key: string) =>
+      request<{ listing: Listing; balance: number }>(`/market/listings/${id}/buy`, {
+        method: "POST",
+        headers: { "idempotency-key": key },
+        body: JSON.stringify({ count }),
+      }),
+    history: (world: string, item: string) =>
+      request<PriceHistory>(`/market/history?${new URLSearchParams({ world, item })}`),
     bid: (id: string, amount: number, key: string) =>
       request<{ listing: Listing; balance: number }>(`/market/listings/${id}/bids`, {
         method: "POST",

@@ -290,6 +290,9 @@ One table carries fixed-price listings and auctions, whole-lot sales only:
   sits in the ledger account `escrow:listing:<public_id>:<CUR>`.
 - `market_bids` (append-only): `listing_id`, `bidder_id`, `amount`,
   `ledger_transaction_id`, `bid_key` (UNIQUE with the bidder), `created_at`.
+- `market_sales` (append-only price history): `listing_id`, `world`, `item`,
+  `count`, `price`, `currency`, `buyer_id`, `sale_key` (UNIQUE with the
+  buyer: a partial purchase's idempotency key), `created_at`.
 - `item_deliveries`: `public_id`, `user_id`, `world`, `item`, `count`,
   `durability`, `reason` (`purchase|auction_won|cancelled|expired`),
   `listing_id`, `status` (`pending|delivered`), `delivered_at`. Game servers

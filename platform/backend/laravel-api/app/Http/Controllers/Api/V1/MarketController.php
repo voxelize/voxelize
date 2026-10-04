@@ -19,14 +19,22 @@ class MarketController extends Controller
             'item' => ['nullable', 'string', 'max:64'],
             'kind' => ['nullable', 'string', 'in:fixed,auction'],
             'mine' => ['nullable', 'boolean'],
+            // Part of an item key ("iron" finds iron_ingot, iron_pickaxe…).
+            'q' => ['nullable', 'string', 'max:64'],
+            // Exact item keys, comma separated (the client maps names to keys).
+            'items' => ['nullable', 'string', 'max:2000'],
         ]);
         $mine = $request->boolean('mine');
+        $items = array_values(array_filter(array_map('trim', explode(',', (string) ($data['items'] ?? '')))));
+        $q = strtolower(str_replace(' ', '_', trim((string) ($data['q'] ?? ''))));
         $listings = MarketListing::query()
             ->where('world', $data['world'])
             ->when(! $mine, fn ($q) => $q->where('status', 'open')->where('ends_at', '>', now()))
             ->when($mine, fn ($q) => $q->where('seller_id', $request->user()->id))
             ->when($data['item'] ?? null, fn ($q, $item) => $q->where('item', $item))
-            ->when($data['kind'] ?? null, fn ($q, $kind) => $q->where('kind', $kind))
+            ->when($data['kind'] ?? null, fn ($query, $kind) => $query->where('kind', $kind))
+            ->when($items !== [], fn ($query) => $query->whereIn('item', $items))
+            ->when($q !== '', fn ($query) => $query->whereRaw('instr(item, ?) > 0', [$q]))
             ->with(['seller:id,public_id,username'])
             ->orderBy($mine ? 'id' : 'price', $mine ? 'desc' : 'asc')
             ->limit(200)
@@ -40,9 +48,32 @@ class MarketController extends Controller
         return response()->json(['listing' => $this->present($this->find($listing))]);
     }
 
+    public function history(Request $request, MarketService $market): JsonResponse
+    {
+        $data = $request->validate([
+            'world' => ['required', 'string', 'max:64'],
+            'item' => ['required', 'string', 'max:64'],
+            'days' => ['nullable', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        return response()->json(['item' => $data['item'], ...$market->history($data['world'], $data['item'], (int) ($data['days'] ?? 30))]);
+    }
+
     public function buy(Request $request, MarketService $market, LedgerService $ledger, string $listing): JsonResponse
     {
-        $sold = $market->buy($request->user(), $this->find($listing));
+        $data = $request->validate(['count' => ['nullable', 'integer', 'min:1']]);
+        if (isset($data['count'])) {
+            $key = (string) $request->header('Idempotency-Key', '');
+            if (! preg_match('/^[A-Za-z0-9_-]{8,64}$/', $key)) {
+                return response()->json(['error' => [
+                    'code' => 'idempotency_key_required',
+                    'message' => 'Send an Idempotency-Key header of 8-64 URL-safe characters to buy part of a stack.',
+                ]], 400);
+            }
+            $sold = $market->buyPart($request->user(), $this->find($listing), (int) $data['count'], $key);
+        } else {
+            $sold = $market->buy($request->user(), $this->find($listing));
+        }
 
         return response()->json([
             'listing' => $this->present($sold->fresh(['seller'])),

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ItemDelivery;
 use App\Models\MarketListing;
+use App\Models\MarketSale;
 use App\Models\User;
 use App\Services\Economy\LedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -98,6 +99,42 @@ class MarketTest extends TestCase
         $this->assertSame(1000, $this->crn($this->bob));
         $this->assertSame(1, ItemDelivery::count());
         $this->assertSame([], $this->ledger->verify());
+    }
+
+    public function test_part_of_a_stack_is_sold_at_its_share_and_the_rest_stays_listed(): void
+    {
+        $id = $this->list(['price' => 100, 'count' => 3]); // 33.3 each
+        Sanctum::actingAs($this->alice);
+        $part = fn (int $count, string $key) => $this->withHeader('Idempotency-Key', $key)->postJson("/api/v1/market/listings/{$id}/buy", ['count' => $count]);
+        $this->postJson("/api/v1/market/listings/{$id}/buy", ['count' => 1])->assertStatus(400);
+        $part(1, 'part-key-0001')->assertCreated()->assertJsonPath('listing.count', 2)->assertJsonPath('listing.price', 66);
+        $this->assertSame(966, $this->crn($this->alice), '34 for one (rounded up)');
+        $part(1, 'part-key-0001')->assertOk()->assertJsonPath('replayed', true);
+        $this->assertSame(966, $this->crn($this->alice), 'a retry pays once');
+
+        Sanctum::actingAs($this->bob);
+        $part(5, 'part-key-0002')->assertCreated()->assertJsonPath('listing.status', 'sold');
+        $this->assertSame(934, $this->crn($this->bob), 'the rest of the stack for the rest of the price');
+        $this->assertSame([1, 2], ItemDelivery::query()->orderBy('id')->pluck('count')->all());
+        $this->assertSame(100, (int) MarketSale::sum('price'), 'the whole stack cost exactly its price');
+
+        $history = $this->getJson('/api/v1/market/history?world=main&item=iron_ingot')->assertOk();
+        $history->assertJsonPath('stats.sales', 2)->assertJsonPath('stats.items', 3);
+        $this->assertEqualsWithDelta(33.33, $history->json('stats.average_unit_price'), 0.01);
+        $this->assertSame(34, (int) $history->json('stats.max_unit_price'));
+        $this->assertSame([], $this->ledger->verify());
+    }
+
+    public function test_listings_are_found_by_part_of_an_item_key_or_a_list_of_keys(): void
+    {
+        $this->list(['item' => 'iron_ingot']);
+        $this->list(['item' => 'iron_pickaxe', 'count' => 1]);
+        $this->list(['item' => 'coal']);
+        Sanctum::actingAs($this->alice);
+        $this->getJson('/api/v1/market/listings?world=main&q=iron')->assertJsonCount(2, 'listings');
+        $this->getJson('/api/v1/market/listings?world=main&q=Iron Ingot')->assertJsonCount(1, 'listings');
+        $this->getJson('/api/v1/market/listings?world=main&items=coal,iron_pickaxe')->assertJsonCount(2, 'listings');
+        $this->getJson('/api/v1/market/listings?world=main&q=%25')->assertJsonCount(0, 'listings');
     }
 
     public function test_refusals_change_nothing(): void

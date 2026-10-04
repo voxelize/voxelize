@@ -270,7 +270,7 @@ to the poster; withdrawal and expiry refund the poster; Contracts tab in the
 market panel. Tests: 2 backend feature tests, unit test,
 `tests/bots/contracts.mjs` end to end.
 
-## Phase 15 — Marketplace, shops, auctions 🟡
+## Phase 15 — Marketplace, shops, auctions ✅
 
 Done: the market — fixed-price listings and auctions with optional buyout,
 listed from the game with the goods in the backend's custody (outbox in the
@@ -289,8 +289,12 @@ included, idempotent by sale key) and hands the goods over once, or puts
 them back on sale when refused; owner-only breaking; creative stalls never
 sell. Tests: backend payment test, unit tests, `tests/bots/stall.mjs` end
 to end.
-Remaining: partial purchases of a stack, price history and search by item
-name, guild sellers.
+Then: partial purchases of a fixed-price stack (share of the price rounded
+up, idempotent, the rest stays listed), price history per item
+(`market_sales`, `GET /market/history`, average/min/max unit price) and
+search by item name or part of a key; in the client a search box, "Buy n"
+and a price line per listing. Guild sellers sell from guild stalls (phase
+17). Tests: MarketTest (parts, search), client helpers, `tests/bots/market.mjs`.
 
 ## Phase 16 — Blueprint creator economy ✅ (first version)
 

@@ -3,7 +3,7 @@
 // to the API (money); selling goes to the game server, which takes the
 // goods from your inventory and hands them to the market.
 
-import { api, ApiError, idempotencyKey, type ContractView, type Listing } from "./api";
+import { api, ApiError, idempotencyKey, type ContractView, type Listing, type PriceHistory } from "./api";
 import type { Content } from "./content";
 import type { InventorySnapshot } from "./hud";
 
@@ -41,9 +41,31 @@ export function sellPayload(form: { slot: number; count: number; price: number; 
   return { ok: true, payload };
 }
 
+/** Item keys whose name or key contains the query (case-insensitive). */
+export function searchKeys(items: { key: string; name: string }[], query: string): string[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const asKey = q.replace(/\s+/g, "_");
+  return items.filter((i) => i.name.toLowerCase().includes(q) || i.key.includes(asKey)).map((i) => i.key);
+}
+
+/** What `count` of a `total`-item stack priced `price` costs (the server's
+ * rounding: up, with the last items paying the rest). */
+export function partPrice(price: number, total: number, count: number): number {
+  return count >= total ? price : Math.ceil((price * count) / total);
+}
+
+/** One line of price statistics. */
+export function historyLine(h: PriceHistory): string {
+  const s = h.stats;
+  if (!s.sales) return `No sales in ${s.days} days`;
+  return `${s.items} sold in ${s.sales} sales over ${s.days} days · avg ${s.average_unit_price} each (${s.min_unit_price}–${s.max_unit_price})`;
+}
+
 export class MarketPanel {
   readonly root: HTMLElement;
   private tab: Tab = "browse";
+  private query = "";
   private busy = false;
 
   constructor(
@@ -133,11 +155,31 @@ export class MarketPanel {
   }
 
   private async browse(): Promise<Node[]> {
-    const listings = await api.market.listings(this.options.world).catch(() => [] as Listing[]);
-    if (!listings.length) return [el("p", { textContent: "Nothing for sale right now." })];
+    const search = el("input", { type: "search", placeholder: "Search items", value: this.query, className: "market-search" });
+    search.addEventListener("change", () => {
+      this.query = search.value;
+      void this.render();
+    });
+    const keys = searchKeys(this.options.content.pack.items, this.query);
+    if (this.query.trim() && !keys.length) return [search, el("p", { textContent: "No item by that name." })];
+    const listings = await api.market.listings(this.options.world, keys.length ? { items: keys.slice(0, 100) } : {}).catch(() => [] as Listing[]);
+    if (!listings.length) return [search, el("p", { textContent: "Nothing for sale right now." })];
     const list = el("ul", { className: "market-list" });
     for (const l of listings) {
       const actions: Node[] = [];
+      if (l.kind === "fixed" && l.count > 1) {
+        const n = el("input", { type: "number", min: "1", max: String(l.count - 1), value: "1", className: "market-bid" });
+        const label = () => `Buy ${n.value} for ${partPrice(l.price, l.count, Math.max(1, Number(n.value) || 1))}`;
+        const part = el("button", { type: "button", onclick: () => this.act(() => api.market.buyPart(l.id, Math.max(1, Math.floor(Number(n.value) || 1)), idempotencyKey()), "Bought: it arrives in your inventory") }, label());
+        n.addEventListener("input", () => (part.textContent = label()));
+        actions.push(n, part);
+      }
+      const history = el("button", { type: "button", className: "market-history" }, "Prices");
+      history.addEventListener("click", async () => {
+        const h = await api.market.history(this.options.world, l.item).catch(() => null);
+        history.replaceWith(el("span", { className: "muted", textContent: h ? historyLine(h) : "No history" }));
+      });
+      actions.push(history);
       if (l.kind === "fixed" || l.buyout)
         actions.push(el("button", { type: "button", onclick: () => this.act(() => api.market.buy(l.id), "Bought: it arrives in your inventory") }, l.kind === "fixed" ? "Buy" : "Buy out"));
       if (l.kind === "auction") {
