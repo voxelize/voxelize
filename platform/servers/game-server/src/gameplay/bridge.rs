@@ -82,6 +82,8 @@ pub enum Request {
         to: String,
         amount: u64,
         reason: String,
+        /// `stall` (with the market fee) or `trade` (none).
+        kind: &'static str,
     },
 }
 
@@ -399,10 +401,10 @@ async fn send(
             to,
             amount,
             reason,
+            kind,
             ..
         } => {
-            let body =
-                json!({ "key": key, "from": from, "to": to, "amount": amount, "reason": reason });
+            let body = json!({ "key": key, "from": from, "to": to, "amount": amount, "reason": reason, "kind": kind });
             match post(client, &format!("{base}/payments"), token, body).await {
                 Ok((200 | 201, _)) => Response::Paid { key },
                 Ok((400 | 404 | 409 | 422, body)) => Response::PaymentRefused {

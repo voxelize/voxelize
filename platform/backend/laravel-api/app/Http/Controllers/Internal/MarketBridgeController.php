@@ -59,13 +59,15 @@ class MarketBridgeController extends Controller
             'to' => ['required', 'string', 'max:64'],
             'amount' => ['required', 'integer'],
             'reason' => ['required', 'string', 'max:200'],
+            // `trade`: a direct trade window between two players, no fee.
+            'kind' => ['nullable', 'string', 'in:stall,trade'],
         ]);
         $buyer = User::query()->where('public_id', $data['from'])->first();
         $seller = User::query()->where('public_id', $data['to'])->first();
         if (! $buyer || ! $seller || ! $buyer->isActive() || ! $seller->isActive()) {
             return response()->json(['error' => ['code' => 'player_not_found', 'message' => 'Unknown or inactive player.']], 404);
         }
-        $transaction = $market->stallSale($buyer, $seller, (int) $data['amount'], $data['key'], $data['reason']);
+        $transaction = $market->stallSale($buyer, $seller, (int) $data['amount'], $data['key'], $data['reason'], ($data['kind'] ?? 'stall') === 'trade');
 
         return response()->json(['transaction' => $transaction->public_id, 'replayed' => $transaction->wasReplayed], $transaction->wasReplayed ? 200 : 201);
     }

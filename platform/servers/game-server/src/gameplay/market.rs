@@ -55,7 +55,7 @@ impl MarketState {
         }
     }
 
-    fn remember(&mut self, delivery: &str) {
+    pub fn remember(&mut self, delivery: &str) {
         self.delivered.push_back(delivery.to_owned());
         while self.delivered.len() > DELIVERED_MEMORY {
             self.delivered.pop_front();
@@ -375,6 +375,40 @@ impl<'a> specs::System<'a> for MarketSystem {
                 }
                 Response::DeliveriesFailed => self.polling = false,
                 Response::Acknowledged { .. } | Response::AcknowledgeFailed { .. } => {}
+                Response::Paid { key } if g.trades.open.iter().any(|t| t.id == key) => {
+                    self.payments_in_flight.remove(&key);
+                    if let Some(trade) = super::trade::on_paid(&mut g, &key) {
+                        for side in &trade.sides {
+                            if clients.get(&side.player).is_some() {
+                                events.dispatch(
+                                    Event::new(super::trade::TRADE_EVENT)
+                                        .payload(json!({ "trade": null, "ended": "done" }))
+                                        .filter(ClientFilter::Direct(side.player.clone()))
+                                        .build(),
+                                );
+                            }
+                        }
+                    }
+                }
+                Response::PaymentRefused { key, code }
+                    if g.trades.open.iter().any(|t| t.id == key) =>
+                {
+                    self.payments_in_flight.remove(&key);
+                    if let Some(trade) = super::trade::on_refused(&mut g, &key) {
+                        for side in &trade.sides {
+                            if clients.get(&side.player).is_some() {
+                                let mut view = super::trade::view(&trade, &side.player, &content);
+                                view["refused"] = json!(code);
+                                events.dispatch(
+                                    Event::new(super::trade::TRADE_EVENT)
+                                        .payload(view)
+                                        .filter(ClientFilter::Direct(side.player.clone()))
+                                        .build(),
+                                );
+                            }
+                        }
+                    }
+                }
                 Response::Paid { key } => {
                     self.payments_in_flight.remove(&key);
                     let sale = g.containers.map.values_mut().find_map(|c| match c {
@@ -556,9 +590,24 @@ impl<'a> specs::System<'a> for MarketSystem {
             stalls_changed = true;
         }
 
-        // Unanswered stall payments are asked again (idempotent by key).
+        // Unanswered stall and trade payments are asked again (idempotent by key).
         self.payment_retry = (self.payment_retry - dt).max(0.0);
         if self.payment_retry == 0.0 {
+            for trade in g.trades.open.iter().filter(|t| t.paying) {
+                if let Some((payer, amount)) = super::trade::net(trade) {
+                    if self.payments_in_flight.insert(trade.id.clone()) {
+                        bridge.request(Request::Payment {
+                            world: world.clone(),
+                            key: trade.id.clone(),
+                            from: trade.sides[payer].player.clone(),
+                            to: trade.sides[1 - payer].player.clone(),
+                            amount,
+                            reason: format!("Trade with {}", trade.sides[1 - payer].name),
+                            kind: "trade",
+                        });
+                    }
+                }
+            }
             for c in g.containers.map.values() {
                 let Container::Stall(stall) = c else {
                     continue;
@@ -576,6 +625,7 @@ impl<'a> specs::System<'a> for MarketSystem {
                             to: stall.owner.clone(),
                             amount: sale.price,
                             reason: format!("Stall: {} {name}", sale.stack.count),
+                            kind: "stall",
                         });
                     }
                 }

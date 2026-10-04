@@ -142,6 +142,8 @@ pub struct PlayerState {
     pub land_seen: Option<String>,
     /// Listings on their way to the backend and deliveries applied.
     pub market: super::market::MarketState,
+    /// Items offered in an open trade (saved with the record).
+    pub trade_hold: Option<super::trade::Hold>,
 }
 
 /// The window a player has open.
@@ -171,6 +173,7 @@ impl PlayerState {
             travel: Default::default(),
             land_seen: None,
             market: Default::default(),
+            trade_hold: None,
         }
     }
 }

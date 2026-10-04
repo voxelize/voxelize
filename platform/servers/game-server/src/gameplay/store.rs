@@ -43,6 +43,9 @@ pub struct PlayerRecord {
     /// Ids of market deliveries already handed over.
     #[serde(default)]
     pub delivered: Vec<String>,
+    /// Items offered in an open trade.
+    #[serde(default)]
+    pub trade_hold: Option<super::trade::Hold>,
 }
 
 pub struct PlayerStore {
@@ -115,6 +118,7 @@ impl PlayerStore {
             arrival: player.travel.arrival.clone(),
             outbox: player.market.outbox.clone(),
             delivered: player.market.delivered.iter().cloned().collect(),
+            trade_hold: player.trade_hold.clone(),
         }
     }
 
@@ -201,6 +205,7 @@ mod tests {
                 hours: 48,
             }],
             delivered: vec!["d1".into()],
+            trade_hold: None,
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

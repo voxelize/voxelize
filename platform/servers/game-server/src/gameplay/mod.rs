@@ -21,8 +21,10 @@ pub mod land;
 pub mod market;
 pub mod stall;
 pub use market::MarketSystem;
+pub mod trade;
 pub mod travel;
 pub use land::LandNoticeSystem;
+pub use trade::TradeSystem;
 pub use travel::{Dimensions, PortalSystem};
 pub mod rules;
 pub mod store;
@@ -73,6 +75,8 @@ pub struct Gameplay {
     biome: Arc<dyn Fn(i32, i32) -> String + Send + Sync>,
     /// This world's dimension and the worlds of the others.
     dimensions: Dimensions,
+    /// Open trade windows and their outcomes (`trades.json`).
+    trades: trade::Trades,
 }
 
 impl Gameplay {
@@ -90,6 +94,7 @@ impl Gameplay {
             rules: Rules::new(content),
             store: PlayerStore::for_dimension(players_dir, dimensions.current),
             dimensions,
+            trades: trade::Trades::load(world_dir)?,
             players: HashMap::new(),
             rng: seed as u64 ^ 0x5EED_CAFE_F00D,
             containers: containers::Containers::load(world_dir)?,
@@ -436,29 +441,40 @@ fn on_join(world: &mut World, entity: Entity) {
         }
         warn!("player {id} is in {dimension:?}, which this server does not host");
     }
-    let (mut inventory, mut vitals, armor, offhand, position, arrival, outbox, delivered) =
-        match record {
-            Some(r) => (
-                r.inventory,
-                r.vitals,
-                r.armor,
-                r.offhand,
-                r.position,
-                r.arrival,
-                r.outbox,
-                r.delivered,
-            ),
-            None => (
-                Inventory::default(),
-                Vitals::default(),
-                Vec::new(),
-                None,
-                None,
-                None,
-                Vec::new(),
-                Vec::new(),
-            ),
-        };
+    let (
+        mut inventory,
+        mut vitals,
+        armor,
+        offhand,
+        position,
+        arrival,
+        outbox,
+        delivered,
+        trade_hold,
+    ) = match record {
+        Some(r) => (
+            r.inventory,
+            r.vitals,
+            r.armor,
+            r.offhand,
+            r.position,
+            r.arrival,
+            r.outbox,
+            r.delivered,
+            r.trade_hold,
+        ),
+        None => (
+            Inventory::default(),
+            Vitals::default(),
+            Vec::new(),
+            None,
+            None,
+            None,
+            Vec::new(),
+            Vec::new(),
+            None,
+        ),
+    };
     {
         let mut gameplay = world.ecs().write_resource::<Gameplay>();
         let dropped = inventory.normalize(gameplay.rules.content());
@@ -475,6 +491,7 @@ fn on_join(world: &mut World, entity: Entity) {
         state.offhand = offhand;
         state.travel.arrival = arrival.clone();
         state.market = market::MarketState::restore(outbox, delivered);
+        state.trade_hold = trade_hold;
         // Joining inside a portal never sends the player straight on.
         state.travel.blocked = true;
         state.travel.settle = travel::SETTLE_SECONDS;
@@ -536,6 +553,7 @@ pub fn install(
     market::install(world);
     stall::install(world);
     blueprint::install(world);
+    trade::install(world);
     world.set_client_modifier(on_join);
     world.set_client_leave_modifier(on_leave);
 

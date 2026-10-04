@@ -665,3 +665,13 @@ body.touch #hint {
   width: 100%;
   margin-bottom: 8px;
 }
+
+#trade {
+  width: min(520px, calc(100vw - 32px));
+}
+
+#trade .trade-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}

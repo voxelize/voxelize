@@ -11,6 +11,7 @@ import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
 import { StallPanel, type StallView } from "./stall";
 import { BlueprintPanel } from "./blueprints";
+import { nearest, TradePanel, type TradeView } from "./trade";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
@@ -273,6 +274,44 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (event.code !== "KeyB" || (event.target as HTMLElement)?.tagName === "INPUT") return;
     blueprintPanel.toggle();
     if (blueprintPanel.isOpen) controls.unlock();
+  });
+  const tradePanel = new TradePanel({
+    itemName: (key) => (key ? content.itemsByKey.get(key)?.name ?? key : "?"),
+    heldSlot: () => {
+      const slot = hud.inventory.selected;
+      const s = hud.inventory.slots[slot];
+      return s ? { slot, count: s.count } : null;
+    },
+    call: (intent, payload) => method.call(intent, payload),
+    notify: (text) => hud.toast(text),
+  });
+  events.on<{ invite?: { from: string; name: string }; trade?: TradeView | null; ended?: string; refused?: string; received?: unknown }>(
+    "platform.trade",
+    (e) => {
+      if (e.invite) {
+        tradePanel.invite = e.invite;
+        hud.toast(`${e.invite.name} wants to trade: press Y to accept`);
+      }
+      if (e.trade !== undefined) {
+        tradePanel.show(e.trade);
+        if (e.trade) controls.unlock();
+      }
+      if (e.ended) hud.toast(e.ended === "done" ? "Trade complete" : "Trade cancelled");
+      if (e.refused) hud.toast(`Trade not paid: ${e.refused.replace(/_/g, " ")}`);
+    },
+  );
+  addEventListener("keydown", (event) => {
+    if ((event.target as HTMLElement)?.tagName === "INPUT") return;
+    if (event.code === "KeyT") {
+      const me = controls.object.position;
+      const others = [...players.map.entries()].map(([id, c]) => [id, c.position] as [string, { x: number; y: number; z: number }]);
+      const partner = nearest(me, others);
+      if (!partner) return hud.toast("Stand next to the player you want to trade with");
+      method.call("platform.trade.request", { player: partner });
+    } else if (event.code === "KeyY" && tradePanel.invite) {
+      method.call("platform.trade.accept", { player: tradePanel.invite.from });
+      tradePanel.invite = null;
+    }
   });
   type MarketNotice = {
     blueprint?: { stored?: string; built?: string; refused?: string; blocks?: number };

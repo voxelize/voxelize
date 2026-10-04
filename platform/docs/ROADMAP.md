@@ -207,8 +207,13 @@ protecting animals inside claims.
 
 Done: escrow accounts in the ledger (`escrow:<ref>:<CUR>`), used by
 auction bids (lock, refund on outbid, release to the seller at the end).
-Remaining: the direct player-to-player trade window, contracts with locked
-rewards.
+Done since: the trade window — invite a nearby player, offer stacks and
+Crowns, both confirm; Crowns move through the ledger without fee, then the
+goods swap; any change unconfirms; cancel, distance, leaving or death end
+it with everyone's items back; holds saved with each player's inventory and
+outcomes applied once; web client trade panel (T to invite, Y to accept).
+Tests: unit tests, backend payment test, `tests/bots/trade.mjs` end to end.
+Remaining: contracts with locked rewards.
 
 ## Phase 15 — Marketplace, shops, auctions 🟡
 

@@ -155,6 +155,11 @@ fn build_world(
                 "platform-market",
                 &["platform-land-notices"],
             )
+            .with(
+                gameplay::TradeSystem::default(),
+                "platform-trades",
+                &["platform-market"],
+            )
     });
     world
 }

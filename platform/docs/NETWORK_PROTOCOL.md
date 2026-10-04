@@ -97,7 +97,11 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
 | `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface); in another dimension the player is sent home with `platform.travel` instead | ✅ |
-| `platform.trade.*` | trade window ops | both parties present, items owned, version matches | phase 14 |
+| `platform.trade.request` | `{"player":id}` | both survival, alive, within 8 blocks, neither in a trade (`busy`), a backend; the other player gets `platform.trade {"invite":{"from","name"}}` (valid 30 s) | ✅ |
+| `platform.trade.accept` | `{"player":inviter}` | a valid invitation, still within 8 blocks; both get the window state | ✅ |
+| `platform.trade.offer` | `{"items"?:[{"slot","count"}],"crowns"?:n,"reset"?:bool}` | adds the stacks to your offer (`reset` first takes the whole offer back) and sets your Crowns; at most 9 stacks; items move into your hold, saved with your inventory; clears both confirmations | ✅ |
+| `platform.trade.confirm` | `{}` | when both confirm: the Crowns difference moves through the ledger (no fee), then the goods swap; a refused payment reopens the trade unconfirmed | ✅ |
+| `platform.trade.cancel` | `{}` | not while paying; everyone's hold comes back. Trades also end when players drift 16 blocks apart, leave or die | ✅ |
 
 Answers (events, sent only to the requesting client):
 
@@ -133,6 +137,9 @@ Answers (events, sent only to the requesting client):
 - `platform.stall` — `{"at","owner":{"id","name"},"mine","creative","offers":[{"slot","item","count","price"}],"prices":[9],"pending","stock":[9]|null}`,
   sent when a player opens a trade stall (someone else's stall opens no
   window; the owner also gets the stall's chest-style stock window).
+- `platform.trade` — `{"trade":{"id","mine":{"name","items","crowns","confirmed"},"theirs":{…},"paying"}}`
+  after every change, `{"trade":null,"ended":"done"|"cancelled"}`,
+  `{"invite":{"from","name"}}`, `{"refused":code}` with the state.
 - `platform.land` — `{"land":{"id","name","owner":{"id","name"},"role","public","min","max"}|null}`
   when the player walks into different land (null: wilderness).
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are

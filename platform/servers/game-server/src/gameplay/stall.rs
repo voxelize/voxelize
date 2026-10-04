@@ -264,6 +264,7 @@ pub fn install(world: &mut World) {
                             to: owner.clone(),
                             amount: sale.price,
                             reason: format!("Stall: {} {name}", sale.stack.count),
+                            kind: "stall",
                         });
                     }
                     reserved.map(|(sale, _)| sale)

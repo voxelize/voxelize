@@ -186,9 +186,10 @@ never lifts protection.
 → `201`/`200 { "listing": { "id", "status" }, "replayed" }`. One listing per key.
 
 ### `POST /api/internal/v1/payments`
-`{ "key", "from": buyer public id, "to": seller public id, "amount", "reason" }`:
+`{ "key", "from": buyer public id, "to": seller public id, "amount", "reason", "kind"?: "stall" | "trade" }`:
 a stall sale as one `sale` transaction (buyer −amount, seller +amount−fee,
-fee to `system:fees`), once per key → `201`/`200 { "transaction", "replayed" }`;
+fee to `system:fees`), or with `"kind": "trade"` a fee-free `transfer`
+settling a trade window, once per key → `201`/`200 { "transaction", "replayed" }`;
 `422 insufficient_funds | own_listing | bad_price`, `404 player_not_found`.
 
 ### `POST /api/internal/v1/blueprints`

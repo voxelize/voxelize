@@ -142,6 +142,12 @@ history.
   before money is asked for; the payment is idempotent by the sale's key, so
   a restart asks again and lands on the same outcome; paid goods are handed
   over once (the key is remembered with the buyer's inventory).
+- Trade windows: offered items move into the player's hold in the same
+  record write as their inventory; a cancelled trade returns the hold as
+  saved there, a completed one clears it and adds the other side's goods,
+  each player's outcome applied once (keyed like deliveries) and only in
+  the trade's world. Crowns move before goods, by the trade's key; a trade
+  interrupted by a restart while paying settles when the payment answers.
 - Money for bids is locked in a per-listing escrow account; buying, bidding
   and settling each happen in one database transaction with the listing row
   locked.

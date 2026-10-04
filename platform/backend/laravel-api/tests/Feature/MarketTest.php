@@ -178,6 +178,14 @@ class MarketTest extends TestCase
         $pay(['key' => 'stall-sale-0003', 'to' => $this->alice->public_id])->assertStatus(422)->assertJsonPath('error.code', 'own_listing');
         $pay(['key' => 'stall-sale-0004', 'to' => 'nobody'])->assertStatus(404);
         $this->flushHeaders()->postJson('/api/internal/v1/payments', [])->assertStatus(401);
+
+        // Trades between players pay no fee.
+        $this->internal()->postJson('/api/internal/v1/payments', [
+            'key' => 'trade-0000001', 'kind' => 'trade', 'from' => $this->bob->public_id,
+            'to' => $this->alice->public_id, 'amount' => 40, 'reason' => 'Trade',
+        ])->assertCreated();
+        $this->assertSame(940, $this->crn($this->alice));
+        $this->assertSame(5, $this->ledger->systemAccount('fees', 'CRN')->balance);
         $this->assertSame([], $this->ledger->verify());
     }
 

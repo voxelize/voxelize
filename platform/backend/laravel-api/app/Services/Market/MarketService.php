@@ -323,7 +323,7 @@ class MarketService
      * goods and hands them over once this succeeds. One transaction per
      * `$key`, however often it is asked.
      */
-    public function stallSale(User $buyer, User $seller, int $amount, string $key, string $reason): LedgerTransaction
+    public function stallSale(User $buyer, User $seller, int $amount, string $key, string $reason, bool $trade = false): LedgerTransaction
     {
         if ($buyer->is($seller)) {
             throw new MarketException('own_listing', 'You cannot buy from your own stall.');
@@ -332,7 +332,8 @@ class MarketService
             throw new MarketException('bad_price', 'That price is not allowed.');
         }
         $currency = (string) config('platform.market.currency');
-        $fee = $this->fee($amount);
+        // A direct trade between two players carries no platform fee.
+        $fee = $trade ? 0 : $this->fee($amount);
         $legs = [
             new Leg($this->ledger->walletFor($buyer, $currency)->account, -$amount),
             new Leg($this->ledger->walletFor($seller, $currency)->account, $amount - $fee),
@@ -342,11 +343,11 @@ class MarketService
         }
 
         return $this->ledger->post(new Posting(
-            type: 'sale',
+            type: $trade ? 'transfer' : 'sale',
             reason: mb_substr($reason, 0, 120),
-            idempotencyKey: "stall:{$key}",
+            idempotencyKey: ($trade ? 'trade:' : 'stall:').$key,
             legs: $legs,
-            referenceType: 'stall_sale',
+            referenceType: $trade ? 'trade' : 'stall_sale',
             referenceId: $key,
             initiatedBy: $buyer->id,
         ));
