@@ -353,14 +353,22 @@ char(64), `created_at`. UNIQUE(`blueprint_id`, `version`).
 timestamps. UNIQUE(`user_id`, `friend_id`); CHECK(`user_id` <> `friend_id`).
 An accepted friendship is two rows, one per direction, written together.
 
-### guilds
-`id`, `public_id`, `name` UNIQUE, `tag` UNIQUE, `owner_id` FK,
-`treasury_account_id` FK (ledger account, type `wallet` owned by the guild),
-`settlement_level` (`none|village|town|city`), timestamps.
+### guilds ✅ implemented
+`id`, `public_id` ULID UNIQUE, `name` UNIQUE, `tag` UNIQUE, `leader_id` FK,
+`status` (`active|disbanded`; a disbanded guild frees its name and tag),
+`create_key` (UNIQUE with `leader_id`: founding is idempotent), timestamps.
+The treasury is the ledger account `guild:<public_id>:<CUR>` (type `guild`).
+Planned: `settlement_level` (`none|village|town|city`).
 
-### guild_members
-`guild_id` FK, `user_id` FK UNIQUE (one guild per player in v1), `role`
-(`leader|officer|member|recruit`), `permissions` json, `joined_at`.
+### guild_members ✅ implemented
+`guild_id` FK, `user_id` FK UNIQUE (one guild per player), `role`
+(`leader|officer|member`), timestamps.
+
+### guild_invites ✅ implemented
+`guild_id` FK, `user_id` FK, `invited_by` FK, timestamps; UNIQUE(`guild_id`, `user_id`).
+Joining deletes every invitation of that player.
+
+`lands.guild_id` FK NULL: land held by a guild (paid from its treasury).
 
 ### contracts
 `id`, `public_id`, `issuer_type`, `issuer_id`, `title`, `description`,

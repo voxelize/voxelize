@@ -2,6 +2,8 @@
 
 namespace App\Services\Land;
 
+use App\Models\Guild;
+use App\Models\GuildMember;
 use App\Models\Land;
 use App\Models\LandHistory;
 use App\Models\LandLock;
@@ -9,6 +11,8 @@ use App\Models\LandMember;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
+use App\Services\Economy\Leg;
+use App\Services\Economy\Posting;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -37,7 +41,7 @@ class LandService
      * @param  array{0: int, 1: int}  $min
      * @param  array{0: int, 1: int}  $max
      */
-    public function claim(User $owner, string $world, string $dimension, array $min, array $max, string $name, string $idempotencyKey): Land
+    public function claim(User $owner, string $world, string $dimension, array $min, array $max, string $name, string $idempotencyKey, ?Guild $guild = null): Land
     {
         if ($existing = Land::query()->where('owner_id', $owner->id)->where('claim_key', $idempotencyKey)->first()) {
             $existing->wasReplayed = true;
@@ -60,7 +64,7 @@ class LandService
         $chunks = ($maxX - $minX + 1) * ($maxZ - $minZ + 1);
 
         try {
-            return $this->claimLocked($owner, $world, $dimension, $minX, $minZ, $maxX, $maxZ, $chunks, $name, $idempotencyKey);
+            return $this->claimLocked($owner, $world, $dimension, $minX, $minZ, $maxX, $maxZ, $chunks, $name, $idempotencyKey, $guild);
         } catch (QueryException $e) {
             // Lost a race with the same request: answer with the winner's land.
             if ($existing = Land::query()->where('owner_id', $owner->id)->where('claim_key', $idempotencyKey)->first()) {
@@ -72,18 +76,28 @@ class LandService
         }
     }
 
-    private function claimLocked(User $owner, string $world, string $dimension, int $minX, int $minZ, int $maxX, int $maxZ, int $chunks, string $name, string $idempotencyKey): Land
+    private function claimLocked(User $owner, string $world, string $dimension, int $minX, int $minZ, int $maxX, int $maxZ, int $chunks, string $name, string $idempotencyKey, ?Guild $guild): Land
     {
-        return DB::transaction(function () use ($owner, $world, $dimension, $minX, $minZ, $maxX, $maxZ, $chunks, $name, $idempotencyKey) {
+        return DB::transaction(function () use ($owner, $world, $dimension, $minX, $minZ, $maxX, $maxZ, $chunks, $name, $idempotencyKey, $guild) {
             // Serialise every claim in this world and dimension.
             LandLock::query()->firstOrCreate(['world' => $world, 'dimension' => $dimension]);
             LandLock::query()->where('world', $world)->where('dimension', $dimension)->lockForUpdate()->first();
 
-            $held = Land::query()->where('owner_id', $owner->id)->where('status', 'active')->get()
-                ->sum(fn (Land $land) => $land->chunkCount());
-            $limit = (int) config('platform.land.max_chunks_per_player');
+            if ($guild) {
+                $role = GuildMember::query()->where('guild_id', $guild->id)->where('user_id', $owner->id)->value('role');
+                if (! in_array($role, ['leader', 'officer'], true)) {
+                    throw new LandException('forbidden', 'Only guild officers claim land for the guild.', 403);
+                }
+                $held = Land::query()->where('guild_id', $guild->id)->where('status', 'active')->get()
+                    ->sum(fn (Land $land) => $land->chunkCount());
+                $limit = (int) config('platform.guilds.max_chunks');
+            } else {
+                $held = Land::query()->where('owner_id', $owner->id)->whereNull('guild_id')->where('status', 'active')->get()
+                    ->sum(fn (Land $land) => $land->chunkCount());
+                $limit = (int) config('platform.land.max_chunks_per_player');
+            }
             if ($held + $chunks > $limit) {
-                throw new LandException('land_limit', "A player may hold at most {$limit} chunks of land.");
+                throw new LandException('land_limit', "At most {$limit} chunks of land may be held.");
             }
 
             $overlap = Land::query()
@@ -96,19 +110,29 @@ class LandService
             }
 
             $price = $this->price($chunks);
-            $payment = $this->ledger->burn(
-                $owner,
-                (string) config('platform.land.currency'),
-                $price,
-                "Land claim ({$chunks} chunks)",
-                "land:{$idempotencyKey}",
-            );
+            $currency = (string) config('platform.land.currency');
+            // A guild pays from its treasury.
+            $payment = $guild
+                ? $this->ledger->post(new Posting(
+                    type: 'burn',
+                    reason: "Guild land claim ({$chunks} chunks)",
+                    idempotencyKey: "land:guild:{$guild->public_id}:{$idempotencyKey}",
+                    legs: [
+                        new Leg($this->ledger->guildAccount($guild, $currency), -$price),
+                        new Leg($this->ledger->systemAccount('burn', $currency), $price),
+                    ],
+                    referenceType: 'guild',
+                    referenceId: $guild->public_id,
+                    initiatedBy: $owner->id,
+                ))
+                : $this->ledger->burn($owner, $currency, $price, "Land claim ({$chunks} chunks)", "land:{$idempotencyKey}");
 
             $land = Land::query()->create([
                 'public_id' => (string) Str::ulid(),
                 'world' => $world,
                 'dimension' => $dimension,
                 'owner_id' => $owner->id,
+                'guild_id' => $guild?->id,
                 'name' => $name,
                 'min_chunk_x' => $minX,
                 'min_chunk_z' => $minZ,
@@ -234,7 +258,7 @@ class LandService
     {
         return Land::query()
             ->where('world', $world)->where('status', 'active')
-            ->with(['owner:id,public_id,username', 'members.user:id,public_id'])
+            ->with(['owner:id,public_id,username', 'members.user:id,public_id', 'guild.members.user:id,public_id,username', 'guild.leader:id,public_id,username'])
             ->orderBy('id')
             ->get()
             ->map(fn (Land $land) => [
@@ -243,8 +267,16 @@ class LandService
                 'dimension' => $land->dimension,
                 'min' => [$land->min_chunk_x, $land->min_chunk_z],
                 'max' => [$land->max_chunk_x, $land->max_chunk_z],
-                'owner' => ['id' => $land->owner->public_id, 'name' => $land->owner->username],
-                'members' => $land->members->map(fn (LandMember $m) => ['id' => $m->user->public_id, 'role' => $m->role])->values()->all(),
+                // Guild land belongs to the guild's leader; its members build there.
+                'owner' => $land->guild
+                    ? ['id' => $land->guild->leader->public_id, 'name' => $land->guild->leader->username]
+                    : ['id' => $land->owner->public_id, 'name' => $land->owner->username],
+                'guild' => $land->guild ? ['id' => $land->guild->public_id, 'name' => $land->guild->name, 'tag' => $land->guild->tag] : null,
+                'members' => $land->members->map(fn (LandMember $m) => ['id' => $m->user->public_id, 'role' => $m->role])
+                    ->concat($land->guild ? $land->guild->members
+                        ->filter(fn (GuildMember $m) => $m->role !== 'leader')
+                        ->map(fn (GuildMember $m) => ['id' => $m->user->public_id, 'role' => $m->role === 'officer' ? 'manager' : 'builder']) : [])
+                    ->values()->all(),
                 'public' => array_merge(Land::DEFAULT_PERMISSIONS, (array) $land->permissions),
                 'version' => $land->version,
             ])

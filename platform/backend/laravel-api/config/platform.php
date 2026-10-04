@@ -61,6 +61,14 @@ return [
         'default_hours' => 48,
     ],
 
+    'guilds' => [
+        // Founding a guild costs this much (to the burn sink).
+        'creation_fee' => (int) env('GUILD_CREATION_FEE', 100),
+        'max_members' => 50,
+        // Land a guild may hold in total, in chunks.
+        'max_chunks' => 256,
+    ],
+
     'blueprints' => [
         // Where blueprint layouts are kept: `s3` (MinIO in the stack) or `local`.
         'disk' => env('BLUEPRINT_DISK', 'local'),

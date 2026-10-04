@@ -51,6 +51,7 @@ export type LandView = {
   max: [number, number];
   chunks: number;
   owner: { id: string; name: string };
+  guild: { id: string; name: string; tag: string } | null;
   members: { id: string; name: string; role: string }[];
   permissions: LandPermissions;
   status: string;
@@ -118,6 +119,17 @@ export type ContractView = {
   role: "poster" | "contractor" | null;
 };
 
+export type GuildSummary = { id: string; name: string; tag: string; leader: { id: string; name: string }; members: number };
+export type GuildRole = "leader" | "officer" | "member";
+export type GuildView = GuildSummary & {
+  roster: { id: string; name: string; role: GuildRole }[];
+  treasury: number;
+  currency: string;
+  max_members: number;
+  max_chunks: number;
+  my_role: GuildRole | null;
+};
+
 /** A fresh key for one economic request; retries reuse it. */
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
 
@@ -181,6 +193,25 @@ export const api = {
     cancel: (id: string) => request<{ cancelled: boolean }>(`/contracts/${id}`, { method: "DELETE" }),
   },
 
+  guilds: {
+    search: (q = "") => request<{ guilds: GuildSummary[] }>(`/guilds${q ? `?q=${encodeURIComponent(q)}` : ""}`).then((r) => r.guilds),
+    mine: () => request<{ guild: GuildView | null; invites: GuildSummary[] }>("/guilds/mine"),
+    create: (key: string, name: string, tag: string) =>
+      request<{ guild: GuildView; balance: number }>("/guilds", { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ name, tag }) }),
+    invite: (id: string, player: string) => request<{ invited: boolean }>(`/guilds/${id}/invites`, { method: "POST", body: JSON.stringify({ player }) }),
+    join: (id: string) => request<{ guild: GuildView }>(`/guilds/${id}/join`, { method: "POST" }),
+    decline: (id: string) => request<{ declined: boolean }>(`/guilds/${id}/decline`, { method: "POST" }),
+    leave: (id: string) => request<{ left: boolean }>(`/guilds/${id}/leave`, { method: "POST" }),
+    kick: (id: string, player: string) =>
+      request<{ guild: GuildView }>(`/guilds/${id}/members/${encodeURIComponent(player)}`, { method: "DELETE" }),
+    setRole: (id: string, player: string, role: GuildRole) =>
+      request<{ guild: GuildView }>(`/guilds/${id}/members/${encodeURIComponent(player)}/role`, { method: "PUT", body: JSON.stringify({ role }) }),
+    deposit: (id: string, key: string, amount: number) =>
+      request<{ treasury: number; balance: number }>(`/guilds/${id}/deposit`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ amount }) }),
+    withdraw: (id: string, key: string, amount: number, to?: string) =>
+      request<{ treasury: number }>(`/guilds/${id}/withdraw`, { method: "POST", headers: { "idempotency-key": key }, body: JSON.stringify({ amount, to }) }),
+  },
+
   blueprints: {
     published: (world: string) =>
       request<{ blueprints: BlueprintView[] }>(`/blueprints?world=${encodeURIComponent(world)}`).then((r) => r.blueprints),
@@ -205,7 +236,7 @@ export const api = {
     quote: (chunks: number) => request<LandQuote>(`/lands/quote?chunks=${chunks}`),
     claim: (
       key: string,
-      body: { world: string; dimension: string; min: [number, number]; max: [number, number]; name: string },
+      body: { world: string; dimension: string; min: [number, number]; max: [number, number]; name: string; guild?: string },
     ) =>
       request<{ land: LandView; replayed: boolean }>("/lands", {
         method: "POST",

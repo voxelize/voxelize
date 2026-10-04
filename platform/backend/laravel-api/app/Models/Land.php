@@ -43,9 +43,21 @@ class Land extends Model
         return ($this->max_chunk_x - $this->min_chunk_x + 1) * ($this->max_chunk_z - $this->min_chunk_z + 1);
     }
 
+    public function guild(): BelongsTo
+    {
+        return $this->belongsTo(Guild::class);
+    }
+
+    /** Guild land: the leader owns it, officers manage it, members build. */
     public function roleOf(User $user): ?string
     {
-        if ($this->owner_id === $user->id) {
+        if ($this->guild_id !== null) {
+            $guildRole = GuildMember::query()->where('guild_id', $this->guild_id)->where('user_id', $user->id)->value('role');
+            $mapped = ['leader' => 'owner', 'officer' => 'manager', 'member' => 'builder'][$guildRole] ?? null;
+            if ($mapped !== null) {
+                return $mapped;
+            }
+        } elseif ($this->owner_id === $user->id) {
             return 'owner';
         }
 

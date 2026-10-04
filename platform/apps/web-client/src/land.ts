@@ -48,6 +48,8 @@ export class LandPanel {
       world: string;
       dimension: string;
       position: () => { x: number; z: number };
+      /** My guild, when I may claim land for it. */
+      guild?: () => { id: string; tag: string; role: string | null } | null;
       notify: (text: string) => void;
     },
   ) {
@@ -95,6 +97,8 @@ export class LandPanel {
       const quote = await api.lands.quote(1).catch(() => null);
       const quote9 = await api.lands.quote(9).catch(() => null);
       const name = el("input", { type: "text", maxLength: 48, value: "My land", placeholder: "Name" });
+      const guild = this.options.guild?.() ?? null;
+      const forGuild = el("input", { type: "checkbox", checked: false });
       const claim = (radius: number) =>
         this.act(
           () =>
@@ -103,11 +107,15 @@ export class LandPanel {
               dimension: this.options.dimension,
               ...claimBox(chunk, radius),
               name: name.value.trim() || "My land",
+              ...(forGuild.checked && guild ? { guild: guild.id } : {}),
             }),
           "Claimed. It is protected within a few seconds.",
         );
       children.push(
         el("label", { className: "setting" }, el("span", { textContent: "Name" }), name),
+        ...(guild && (guild.role === "leader" || guild.role === "officer")
+          ? [el("label", { className: "setting" }, el("span", { textContent: `For [${guild.tag}], paid from its treasury` }), forGuild)]
+          : []),
         el("button", { type: "button", onclick: () => claim(0) }, `Claim this chunk${quote ? ` (${quote.price} ${quote.currency})` : ""}`),
         el("button", { type: "button", onclick: () => claim(1) }, `Claim 3×3 chunks${quote9 ? ` (${quote9.price} ${quote9.currency})` : ""}`),
       );

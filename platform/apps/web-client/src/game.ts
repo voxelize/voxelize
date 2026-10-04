@@ -7,6 +7,7 @@ import "@voxelize/core/styles.css";
 import * as THREE from "three";
 
 import { Content, isUsableBlock, miningMillis } from "./content";
+import { GuildPanel } from "./guild";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
 import { StallPanel, type StallView } from "./stall";
@@ -226,11 +227,21 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (world.isInitialized) placeFeet(feet);
     else pendingFeet = feet;
   });
+  // Guild (G): roster, treasury, invitations.
+  const guildPanel = new GuildPanel({ notify: (text) => hud.toast(text) });
+  void guildPanel.refresh();
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyG" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    guildPanel.toggle();
+    if (guildPanel.isOpen) controls.unlock();
+  });
+
   // Land: a notice when entering someone's land, and the panel (L).
   const landPanel = new LandPanel({
     world: "main",
     dimension: UNDERWORLD ? "underworld" : "overworld",
     position: () => controls.object.position,
+    guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
     notify: (text) => hud.toast(text),
   });
   events.on<{ land: LandHere }>("platform.land", ({ land }) => {
@@ -239,6 +250,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
   addEventListener("keydown", (event) => {
     if (event.code !== "KeyL" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    if (!landPanel.isOpen) void guildPanel.refresh();
     landPanel.toggle();
     if (landPanel.isOpen) controls.unlock();
   });

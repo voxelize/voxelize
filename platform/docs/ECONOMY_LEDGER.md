@@ -65,8 +65,9 @@ erDiagram
 | `system:burn:<CUR>` | money sink; `balance` = money destroyed | ≥ 0 |
 | `system:fees:<CUR>` | marketplace and service fees (platform revenue in game currency) | ≥ 0 |
 | `escrow:<ref>:<CUR>` | funds locked for a contract, auction bid or listing | ≥ 0 |
+| `guild:<id>:<CUR>` | a guild's treasury: member deposits (`transfer`), payouts to members (`transfer`), guild land claims (`burn`) | ≥ 0 |
 
-Hence, per currency: **money supply = Σ wallet balances = −mint − burn − fees − escrow**,
+Hence, per currency: **money supply = Σ wallet balances = −mint − burn − fees − escrow − guild treasuries**,
 and the sum of all account balances is exactly zero (checked by `verify()`).
 
 ## 3. Operations

@@ -675,3 +675,44 @@ body.touch #hint {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+
+#guild h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+}
+
+#guild .guild-roster {
+  padding-left: 18px;
+}
+
+#guild .guild-roster button,
+#guild .guild-invite button {
+  margin: 0 0 0 6px;
+}
+
+#guild .guild-found,
+#guild .guild-money,
+#guild .guild-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+#guild .guild-found input[maxlength="5"] {
+  width: 5em;
+}
+
+#guild .guild-money input[type="number"] {
+  width: 7em;
+}
+
+#guild .danger {
+  background: #8a2a22;
+  margin-top: 12px;
+}
+
+#guild > button:last-child {
+  display: block;
+  margin-top: 12px;
+}

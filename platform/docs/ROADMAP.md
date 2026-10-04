@@ -260,10 +260,18 @@ append-only provenance records every mint and resale.
 Remaining: rotated or mirrored building, versioned updates of a blueprint,
 a review queue before publishing.
 
-## Phase 17 — Guilds and cities ⬜
+## Phase 17 — Guilds and cities 🟡
 
-Guilds with roles, treasury account, guild land; settlements from adjacent
-lands (village, town, city).
+Done: guilds (one per player) with leader, officers and members,
+invitations, removal, leadership handover; a treasury that is a ledger
+account (deposits by members, payouts to members by officers, its own
+statement); guild land claimed by officers and paid from the treasury, on
+which every member builds (the game server's land feed carries the guild);
+disbanding pays the treasury to the last leader and releases the land; web
+client guild panel (G) and "claim for the guild" in the land panel. Tests:
+5 backend feature tests, Rust land tests, client unit tests.
+Remaining: settlements from adjacent lands (village, town, city), guild
+chat, guild-owned stalls and contracts.
 
 ## Phase 18 — Advanced content 🟡
 

@@ -141,7 +141,7 @@ Answers (events, sent only to the requesting client):
 - `platform.trade` — `{"trade":{"id","mine":{"name","items","crowns","confirmed"},"theirs":{…},"paying"}}`
   after every change, `{"trade":null,"ended":"done"|"cancelled"}`,
   `{"invite":{"from","name"}}`, `{"refused":code}` with the state.
-- `platform.land` — `{"land":{"id","name","owner":{"id","name"},"role","public","min","max"}|null}`
+- `platform.land` — `{"land":{"id","name","owner":{"id","name"},"guild":{"id","name","tag"}|null,"role","public","min","max"}|null}`
   when the player walks into different land (null: wilderness).
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are
   to stand in. Sent on join (back where they left) and when a traveller is

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Guild;
+use App\Models\GuildMember;
 use App\Models\Land;
 use App\Models\LandMember;
 use App\Models\User;
@@ -24,8 +26,10 @@ class LandController extends Controller
             ->where('world', $data['world'])
             ->where('status', 'active')
             ->when($data['dimension'] ?? null, fn ($q, $d) => $q->where('dimension', $d))
-            ->when($request->boolean('mine'), fn ($q) => $q->where('owner_id', $request->user()->id))
-            ->with(['owner:id,public_id,username', 'members.user:id,public_id,username'])
+            ->when($request->boolean('mine'), fn ($q) => $q->where(fn ($w) => $w
+                ->where(fn ($own) => $own->where('owner_id', $request->user()->id)->whereNull('guild_id'))
+                ->orWhereIn('guild_id', GuildMember::query()->where('user_id', $request->user()->id)->select('guild_id'))))
+            ->with(['owner:id,public_id,username', 'members.user:id,public_id,username', 'guild:id,public_id,name,tag'])
             ->orderBy('id')
             ->limit(500)
             ->get();
@@ -62,7 +66,14 @@ class LandController extends Controller
             'max' => ['required', 'array', 'size:2'],
             'max.*' => ['required', 'integer', 'between:-1000000,1000000'],
             'name' => ['required', 'string', 'min:1', 'max:48'],
+            'guild' => ['nullable', 'string', 'max:26'],
         ]);
+        $guild = null;
+        if (! empty($data['guild'])) {
+            $guild = Guild::query()->where('public_id', $data['guild'])->where('status', 'active')->firstOr(fn () => abort(response()->json([
+                'error' => ['code' => 'guild_not_found', 'message' => 'No such guild.'],
+            ], 404)));
+        }
 
         $land = $lands->claim(
             $request->user(),
@@ -72,6 +83,7 @@ class LandController extends Controller
             array_map('intval', $data['max']),
             trim($data['name']),
             $key,
+            $guild,
         );
 
         return response()->json(['land' => $this->present($land->fresh(['owner', 'members.user'])), 'replayed' => $land->wasReplayed], $land->wasReplayed ? 200 : 201);
@@ -146,6 +158,7 @@ class LandController extends Controller
             'max' => [$land->max_chunk_x, $land->max_chunk_z],
             'chunks' => $land->chunkCount(),
             'owner' => ['id' => $land->owner->public_id, 'name' => $land->owner->username],
+            'guild' => $land->guild ? ['id' => $land->guild->public_id, 'name' => $land->guild->name, 'tag' => $land->guild->tag] : null,
             'members' => $land->members->map(fn (LandMember $m) => [
                 'id' => $m->user->public_id,
                 'name' => $m->user->username,

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BlueprintController;
 use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\GameTicketController;
+use App\Http\Controllers\Api\V1\GuildController;
 use App\Http\Controllers\Api\V1\LandController;
 use App\Http\Controllers\Api\V1\MarketController;
 use App\Http\Controllers\Api\V1\WalletController;
@@ -51,6 +52,20 @@ Route::prefix('v1')->group(function () {
         Route::post('contracts/{contract}/accept', [ContractController::class, 'accept']);
         Route::post('contracts/{contract}/abandon', [ContractController::class, 'abandon']);
         Route::delete('contracts/{contract}', [ContractController::class, 'destroy']);
+
+        Route::get('guilds', [GuildController::class, 'index']);
+        Route::get('guilds/mine', [GuildController::class, 'mine']);
+        Route::post('guilds', [GuildController::class, 'store'])->middleware('throttle:economy');
+        Route::get('guilds/{guild}', [GuildController::class, 'show']);
+        Route::post('guilds/{guild}/invites', [GuildController::class, 'invite']);
+        Route::post('guilds/{guild}/join', [GuildController::class, 'join']);
+        Route::post('guilds/{guild}/decline', [GuildController::class, 'decline']);
+        Route::post('guilds/{guild}/leave', [GuildController::class, 'leave']);
+        Route::delete('guilds/{guild}/members/{player}', [GuildController::class, 'kick']);
+        Route::put('guilds/{guild}/members/{player}/role', [GuildController::class, 'role']);
+        Route::post('guilds/{guild}/deposit', [GuildController::class, 'deposit'])->middleware('throttle:economy');
+        Route::post('guilds/{guild}/withdraw', [GuildController::class, 'withdraw'])->middleware('throttle:economy');
+        Route::get('guilds/{guild}/entries', [GuildController::class, 'entries']);
 
         Route::get('blueprints', [BlueprintController::class, 'index']);
         Route::get('blueprints/mine', [BlueprintController::class, 'mine']);

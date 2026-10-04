@@ -62,7 +62,7 @@ players where they are).
 
 ### `GET /lands?world=main&dimension=overworld[&mine=1]` 🔒
 `{ "lands": [Land] }`, where Land is
-`{ "id", "name", "world", "dimension", "min": [cx, cz], "max": [cx, cz], "chunks", "owner": { "id", "name" }, "members": [{ "id", "name", "role" }], "permissions": { "build", "containers", "use" }, "status" }`.
+`{ "id", "name", "world", "dimension", "min": [cx, cz], "max": [cx, cz], "chunks", "owner": { "id", "name" }, "guild": { "id", "name", "tag" } | null, "members": [{ "id", "name", "role" }], "permissions": { "build", "containers", "use" }, "status" }`.
 `permissions` is what non-members may do.
 
 ### `GET /lands/quote?chunks=n` 🔒
@@ -70,13 +70,18 @@ players where they are).
 
 ### `POST /lands` 🔒
 Header `Idempotency-Key` (required).
-`{ "world": "main", "dimension": "overworld", "min": [0, 0], "max": [1, 2], "name": "Homestead" }`
+`{ "world": "main", "dimension": "overworld", "min": [0, 0], "max": [1, 2], "name": "Homestead", "guild"?: "<guild id>" }`
 → `201 { "land": Land, "replayed": false }`; a retry with the same key
 answers `200` with the same land and charges nothing. Errors:
 `409 land_taken` (overlaps an active land), `422 claim_too_large`
 (more than `max_side_chunks` along a side), `422 land_limit` (over
 `max_chunks_per_player` in total), `422 insufficient_funds`,
 `404 unknown_world | unknown_dimension`. Rate limited (`economy`).
+With `guild`, a leader or officer claims for the guild: the guild's treasury
+pays, the limit is `guilds.max_chunks` per guild, and every guild member may
+build there (leader = owner, officers = managers, members = builders);
+`403 forbidden` for anyone else, `404 guild_not_found`. `mine=1` lists your
+own land and your guild's.
 
 ### `PATCH /lands/{id}` 🔒 owner or manager
 `{ "name"?: "…", "permissions"?: { "build"?, "containers"?, "use"? } }` → `{ "land": Land }`.
@@ -152,6 +157,32 @@ Contract: `{ "id", "title", "world", "item", "count", "reward", "currency", "sta
 - `POST /contracts/{id}/accept` 🔒 — one contractor; `409 contract_closed`, `422 own_listing`.
 - `POST /contracts/{id}/abandon` 🔒 contractor — open again.
 - `DELETE /contracts/{id}` 🔒 poster, while untaken — refunds; `409 contract_taken`.
+
+## Guilds
+
+One guild per player. The leader appoints officers and may hand over the
+leadership; officers invite and remove members and spend the treasury;
+every member may deposit. The treasury is the ledger account
+`guild:<id>:CRN`. Founding costs `guilds.creation_fee` (100 CRN) into the
+burn sink. When the last member leaves, the guild is disbanded: its
+treasury goes to that leader and its land is released.
+
+Guild: `{ "id", "name", "tag", "leader": { "id", "name" }, "members" }`; the
+detailed form adds `"roster": [{ "id", "name", "role" }], "treasury", "currency", "max_members", "max_chunks", "my_role"`.
+
+- `GET /guilds[?q=text]` 🔒 — active guilds by name or tag.
+- `GET /guilds/mine` 🔒 — `{ "guild": detail | null, "invites": [Guild] }`.
+- `GET /guilds/{id}` 🔒 — detail.
+- `POST /guilds` 🔒 — header `Idempotency-Key`; `{ "name" (3–32), "tag" (2–5 letters or digits) }`
+  → `201 { "guild", "replayed", "balance" }`; `409 in_guild | guild_taken`, `422 bad_name | bad_tag | insufficient_funds`.
+- `POST /guilds/{id}/invites` 🔒 leader or officer — `{ "player": username }`; `409 in_guild | guild_full`.
+- `POST /guilds/{id}/join` 🔒 invited player; `403 not_invited`. `POST /guilds/{id}/decline` 🔒.
+- `POST /guilds/{id}/leave` 🔒 — `409 leader_must_hand_over` while others remain.
+- `DELETE /guilds/{id}/members/{username}` 🔒 — leader removes anyone, officers remove members.
+- `PUT /guilds/{id}/members/{username}/role` 🔒 leader — `{ "role": "leader" | "officer" | "member" }`; `leader` hands over (the old leader becomes an officer).
+- `POST /guilds/{id}/deposit` 🔒 member — header `Idempotency-Key`; `{ "amount" }` → `{ "transaction", "treasury", "balance" }`.
+- `POST /guilds/{id}/withdraw` 🔒 leader or officer — header `Idempotency-Key`; `{ "amount", "to"?: username }` (a member; yourself by default).
+- `GET /guilds/{id}/entries` 🔒 member — treasury ledger entries, cursor paginated.
 
 ## Blueprints
 

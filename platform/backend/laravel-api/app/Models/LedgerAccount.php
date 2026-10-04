@@ -18,6 +18,9 @@ class LedgerAccount extends Model
 
     public const TYPE_ESCROW = 'escrow';
 
+    /** A guild's treasury. */
+    public const TYPE_GUILD = 'guild';
+
     protected $guarded = [];
 
     protected function casts(): array

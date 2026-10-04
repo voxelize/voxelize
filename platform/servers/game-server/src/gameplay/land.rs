@@ -68,6 +68,14 @@ pub struct Member {
     pub role: String,
 }
 
+/// The guild holding a land, if any (its leader is the land's owner).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GuildTag {
+    pub id: String,
+    pub name: String,
+    pub tag: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Land {
     pub id: String,
@@ -77,6 +85,8 @@ pub struct Land {
     pub min: [i32; 2],
     pub max: [i32; 2],
     pub owner: Person,
+    #[serde(default)]
+    pub guild: Option<GuildTag>,
     #[serde(default)]
     pub members: Vec<Member>,
     #[serde(default)]
@@ -316,6 +326,7 @@ impl<'a> specs::System<'a> for LandNoticeSystem {
                     "id": l.id,
                     "name": l.name,
                     "owner": l.owner,
+                    "guild": l.guild,
                     "role": l.role_of(id),
                     "public": l.public,
                     "min": l.min,
@@ -350,9 +361,26 @@ mod tests {
             }, {
                 "id": "L2", "dimension": "underworld", "min": [-1, -1], "max": [-1, -1],
                 "owner": { "id": "carol" }
+            }, {
+                "id": "L3", "dimension": "overworld", "min": [10, 10], "max": [10, 10],
+                "owner": { "id": "lead", "name": "lead" },
+                "guild": { "id": "G1", "name": "Stone Wardens", "tag": "SW" },
+                "members": [{ "id": "off", "role": "manager" }, { "id": "mem", "role": "builder" }]
             }]
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn guild_land_lets_every_member_build() {
+        let index = LandIndex::from_feed(feed());
+        let o = Dimension::Overworld;
+        for who in ["lead", "off", "mem"] {
+            assert!(index.allows(o, who, [165, 70, 165], Action::Build));
+        }
+        assert!(!index.allows(o, "stranger", [165, 70, 165], Action::Build));
+        let land = index.at(o, 165, 165).unwrap();
+        assert_eq!(land.guild.as_ref().unwrap().tag, "SW");
     }
 
     #[test]
@@ -392,7 +420,7 @@ mod tests {
         assert_eq!(load_cached(&dir).unwrap().len(), 0, "no cache: no land");
         save_cached(&dir, &feed()).unwrap();
         let index = load_cached(&dir).unwrap();
-        assert_eq!(index.len(), 2);
+        assert_eq!(index.len(), 3);
         assert!(!index.allows(Dimension::Overworld, "eve", [1, 1, 1], Action::Build));
         std::fs::write(cache_path(&dir), b"{broken").unwrap();
         assert!(

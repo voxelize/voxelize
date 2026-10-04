@@ -3,6 +3,7 @@
 namespace App\Services\Economy;
 
 use App\Models\Currency;
+use App\Models\Guild;
 use App\Models\LedgerAccount;
 use App\Models\LedgerEntry;
 use App\Models\LedgerTransaction;
@@ -78,6 +79,17 @@ class LedgerService
                 'currency' => $currency,
                 'allow_negative' => $name === 'mint',
             ],
+        );
+    }
+
+    /** A guild's treasury account. */
+    public function guildAccount(Guild $guild, string $currency): LedgerAccount
+    {
+        $this->currency($currency);
+
+        return LedgerAccount::query()->firstOrCreate(
+            ['code' => "guild:{$guild->public_id}:{$currency}"],
+            ['type' => LedgerAccount::TYPE_GUILD, 'currency' => $currency, 'allow_negative' => false],
         );
     }
 
