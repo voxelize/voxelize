@@ -26,6 +26,7 @@ validated by the game server like a browser player's.
 | `farm.mjs` | farming and doors: till soil, plant a carrot, ripen it with fertiliser and pick up the harvest; place a two-block door, open and close it from either half, break it whole into one door (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `modes.mjs` | game modes: a moderator puts a player into adventure (no mining or placing, announced to the world) and spectator (no use or eating) and back; a survival player may not change their own mode (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `achievements.mjs` | achievements: none on joining, crafting a crafting table earns "Benchmark" with its experience, kept across a reconnect and earned once (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
+| `work.mjs` | jobs and quests: today's three quests, taking up the smith's job, forging an iron pickaxe at a workbench pays 2 Crowns minted into the wallet (needs the backend and `SAVE_DIR`) |
 | `effects.mjs` | effects and weather: drink strength and fire resistance (bottles come back), stand in fire unharmed, fill a bottle at water; a creative player brings rain and a thunderstorm (lightning near the player) and clears it; survival players may not (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |

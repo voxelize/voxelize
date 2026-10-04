@@ -298,6 +298,10 @@ One table carries fixed-price listings and auctions, whole-lot sales only:
 - `market_sales` (append-only price history): `listing_id`, `world`, `item`,
   `count`, `price`, `currency`, `buyer_id`, `sale_key` (UNIQUE with the
   buyer: a partial purchase's idempotency key), `created_at`.
+- `gameplay_rewards` (append-only): `user_id`, `world`, `source`
+  (`job|quest`), `reason`, `requested`, `paid` (after the daily cap),
+  `ledger_transaction_id` (null when nothing was paid), `reward_key`
+  UNIQUE, `created_at`.
 - `item_deliveries`: `public_id`, `user_id`, `world`, `item`, `count`,
   `durability`, `reason` (`purchase|auction_won|cancelled|expired`),
   `listing_id`, `status` (`pending|delivered`), `delivered_at`. Game servers

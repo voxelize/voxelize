@@ -14,6 +14,7 @@ pub mod mobs;
 mod mobs_api;
 pub mod modes;
 pub mod progress;
+pub mod work;
 pub use mobs_api::MobSystem;
 mod guild_api;
 pub mod inventory;
@@ -37,6 +38,7 @@ pub use progress::ProgressSystem;
 pub use trade::TradeSystem;
 pub use travel::{Dimensions, PortalSystem};
 pub use weather::WeatherSystem;
+pub use work::PayoutSystem;
 pub mod rules;
 pub mod store;
 pub mod survival;
@@ -486,6 +488,7 @@ fn on_join(world: &mut World, entity: Entity) {
         xp,
         mode,
         progress,
+        work,
     ) = match record {
         Some(r) => (
             r.inventory,
@@ -501,6 +504,7 @@ fn on_join(world: &mut World, entity: Entity) {
             r.xp,
             r.mode,
             r.progress,
+            r.work,
         ),
         None => (
             Inventory::default(),
@@ -515,6 +519,7 @@ fn on_join(world: &mut World, entity: Entity) {
             None,
             0,
             rules::GameMode::Normal,
+            Default::default(),
             Default::default(),
         ),
     };
@@ -539,6 +544,7 @@ fn on_join(world: &mut World, entity: Entity) {
         state.xp = xp;
         state.mode = mode;
         state.progress = progress;
+        state.work = work;
         // Arriving in a dimension counts (achievements for each one).
         let here = gameplay.dimensions.current;
         state.note(platform_content::TriggerKind::Enter, here.key(), 1);
@@ -564,6 +570,15 @@ fn on_join(world: &mut World, entity: Entity) {
             progress::PROGRESS_EVENT,
             json!({ "unlocked": [], "done": done }),
         );
+        let work = {
+            let g = world.ecs().read_resource::<Gameplay>();
+            g.players
+                .get(&id)
+                .map(|p| work::payload(g.rules.content(), &p.work, work::today()))
+        };
+        if let Some(work) = work {
+            send(world, &id, work::WORK_EVENT, work);
+        }
     }
     // Back where they left (arrivals are placed once their area is ready).
     if let (None, Some(eye)) = (&arrival, position) {
@@ -621,6 +636,7 @@ pub fn install(
     guild_api::install(world);
     combat::install(world);
     modes::install(world);
+    work::install(world);
     weather::install(world);
     blueprint::install(world);
     trade::install(world);

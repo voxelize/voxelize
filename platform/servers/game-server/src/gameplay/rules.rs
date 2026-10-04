@@ -174,6 +174,8 @@ pub struct PlayerState {
     pub progress: super::progress::Progress,
     /// Actions not yet counted (see `progress.rs`).
     pub notes: Vec<super::progress::Note>,
+    /// Job, daily quests and unpaid Crowns (saved with the record).
+    pub work: super::work::Work,
 }
 
 /// The window a player has open.
@@ -210,6 +212,7 @@ impl PlayerState {
             mode: GameMode::Normal,
             progress: Default::default(),
             notes: Vec::new(),
+            work: Default::default(),
         }
     }
 }

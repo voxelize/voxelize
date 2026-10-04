@@ -196,6 +196,11 @@ fn build_world(
                 "platform-progress",
                 &["platform-gauges"],
             )
+            .with(
+                gameplay::PayoutSystem::default(),
+                "platform-payouts",
+                &["platform-progress"],
+            )
     });
     world
 }
@@ -317,6 +322,8 @@ async fn main() -> std::io::Result<()> {
         "recipes": content.recipes(),
         "mobs": content.mobs(),
         "achievements": content.achievements(),
+        "jobs": content.jobs(),
+        "quests": content.quests(),
     });
     if let Some(backend) = config.backend.clone() {
         actix_web::rt::spawn(gameplay::land::poll(

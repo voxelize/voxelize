@@ -386,12 +386,20 @@ Then: achievements — data-driven (`platform/game/achievements`, a tree
 with parents, triggers on mining, placing, crafting, smelting, killing,
 eating and entering dimensions, experience rewards), lifetime counters per
 player saved with the record, gameplay code only notes actions and a
-progress system turns them into achievements (and will feed quests and
-jobs), a toast and the achievements panel (Y). Unit tests and
+progress system turns them into achievements (and feeds quests and
+jobs), a toast and the achievements panel (H). Unit tests and
 `tests/bots/achievements.mjs`.
-Remaining: quests, jobs, NPC civilisation, cosmetics, private worlds and
-server browser, friends and chat channels, proximity voice (WebRTC),
-plugin event API, mod SDK.
+Then: jobs and daily quests — five jobs (miner, lumberjack, farmer, hunter,
+smith) paying hundredths of a Crown per action, three daily quests from a
+pool with Crowns and experience; earnings wait in the player's record as
+payouts with stable keys until the backend mints them
+(`POST /api/internal/v1/rewards`, capped per player per day, recorded in
+`gameplay_rewards`); the client's quests and jobs panel (J) and payout
+toasts. Tests: RewardTest, unit tests, `tests/bots/work.mjs` (the smith is
+paid for an iron pickaxe).
+Remaining: NPC civilisation, cosmetics, private worlds and server browser,
+friends and chat channels, proximity voice (WebRTC), plugin event API, mod
+SDK.
 
 ## Definition of done (whole project)
 

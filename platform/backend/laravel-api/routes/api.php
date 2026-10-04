@@ -12,6 +12,7 @@ use App\Http\Controllers\Internal\BlueprintBridgeController;
 use App\Http\Controllers\Internal\GuildFeedController;
 use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
+use App\Http\Controllers\Internal\RewardController;
 use App\Http\Middleware\GameServiceToken;
 use Illuminate\Support\Facades\Route;
 
@@ -116,4 +117,5 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::get('blueprints/{blueprint}', [BlueprintBridgeController::class, 'show']);
     Route::post('deliveries/pending', [MarketBridgeController::class, 'pending']);
     Route::post('deliveries/{delivery}/ack', [MarketBridgeController::class, 'acknowledge']);
+    Route::post('rewards', [RewardController::class, 'store']);
 });

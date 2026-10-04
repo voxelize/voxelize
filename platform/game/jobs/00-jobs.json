@@ -1,0 +1,39 @@
+[
+  { "key": "miner", "name": "Miner", "description": "Paid for stone and ore dug from the ground.", "icon": "stone_pickaxe",
+    "pays": [
+      { "trigger": { "kind": "mine", "target": "stone" }, "cents": 4 },
+      { "trigger": { "kind": "mine", "target": "coal_ore" }, "cents": 40 },
+      { "trigger": { "kind": "mine", "target": "copper_ore" }, "cents": 60 },
+      { "trigger": { "kind": "mine", "target": "iron_ore" }, "cents": 100 },
+      { "trigger": { "kind": "mine", "target": "gold_ore" }, "cents": 200 }
+    ] },
+  { "key": "lumberjack", "name": "Lumberjack", "description": "Paid for every log felled.", "icon": "stone_axe",
+    "pays": [
+      { "trigger": { "kind": "mine", "target": "oak_log" }, "cents": 20 },
+      { "trigger": { "kind": "mine", "target": "spruce_log" }, "cents": 20 }
+    ] },
+  { "key": "farmer", "name": "Farmer", "description": "Paid for crops planted and food made from them.", "icon": "wooden_hoe",
+    "pays": [
+      { "trigger": { "kind": "place", "target": "wheat_crop" }, "cents": 3 },
+      { "trigger": { "kind": "place", "target": "carrot_crop" }, "cents": 3 },
+      { "trigger": { "kind": "place", "target": "potato_crop" }, "cents": 3 },
+      { "trigger": { "kind": "craft", "target": "bread" }, "cents": 40 },
+      { "trigger": { "kind": "smelt", "target": "baked_potato" }, "cents": 20 }
+    ] },
+  { "key": "hunter", "name": "Hunter", "description": "Paid for the monsters of the night and the deep.", "icon": "stone_sword",
+    "pays": [
+      { "trigger": { "kind": "kill", "target": "shambler" }, "cents": 100 },
+      { "trigger": { "kind": "kill", "target": "crawler" }, "cents": 100 },
+      { "trigger": { "kind": "kill", "target": "bone_archer" }, "cents": 150 },
+      { "trigger": { "kind": "kill", "target": "cinder_wraith" }, "cents": 150 },
+      { "trigger": { "kind": "kill", "target": "sky_wisp" }, "cents": 120 }
+    ] },
+  { "key": "smith", "name": "Smith", "description": "Paid for metal smelted and tools forged.", "icon": "anvil",
+    "pays": [
+      { "trigger": { "kind": "smelt", "target": "iron_ingot" }, "cents": 50 },
+      { "trigger": { "kind": "smelt", "target": "copper_ingot" }, "cents": 30 },
+      { "trigger": { "kind": "smelt", "target": "gold_ingot" }, "cents": 80 },
+      { "trigger": { "kind": "craft", "target": "iron_pickaxe" }, "cents": 200 },
+      { "trigger": { "kind": "craft", "target": "iron_sword" }, "cents": 150 }
+    ] }
+]

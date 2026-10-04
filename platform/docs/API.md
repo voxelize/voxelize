@@ -369,6 +369,13 @@ that guild's sales tax goes to its treasury; with `"kind": "trade"` a fee-free `
 window; once per key → `201`/`200 { "transaction", "replayed" }`;
 `422 insufficient_funds | own_listing | bad_price`, `404 player_not_found`.
 
+### `POST /api/internal/v1/rewards`
+`{ "key", "player": "<public id>", "world", "source": "job" | "quest", "reason", "amount" }`
+→ `{ "paid", "requested", "paid_today", "daily_cap" }`: Crowns minted for
+jobs and quests, at most `rewards.daily_cap` per player per UTC day (a
+reward over the cap is paid up to it, `paid` may be 0). One payment per
+`key` however often it is sent. `404 player_not_found`.
+
 ### `POST /api/internal/v1/blueprints`
 `{ "key", "creator", "world", "name", "size": [x,y,z], "palette": [{ "block": key | null, "raw" }], "runs": [[index, count]], "materials": { item: count } }`
 (runs walk the box x-major, then y, then z), optionally `"replaces": "<design id>"` for the creator's

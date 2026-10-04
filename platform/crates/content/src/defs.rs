@@ -911,3 +911,40 @@ pub struct AchievementDef {
     #[serde(default)]
     pub xp: u32,
 }
+
+/// What a job pays for one counted action.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct JobPay {
+    /// The action (its `count` is ignored: every one pays).
+    pub trigger: Trigger,
+    /// Hundredths of a Crown per action.
+    pub cents: u32,
+}
+
+/// A trade a player takes up to earn Crowns for everyday work.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct JobDef {
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    pub icon: String,
+    pub pays: Vec<JobPay>,
+}
+
+/// A daily task: the server offers a few from the pool each day.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QuestDef {
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    pub objective: Trigger,
+    /// Crowns paid on completion.
+    #[serde(default)]
+    pub crowns: u32,
+    #[serde(default)]
+    pub xp: u32,
+    pub icon: String,
+}

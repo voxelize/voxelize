@@ -13,6 +13,7 @@ import { actionFor, DEFAULT_KEYS, ENGINE_MOVES, KeyMap } from "./keybindings";
 import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { AchievementsPanel } from "./achievements";
+import { rewardLine, WorkPanel, type WorkState } from "./work";
 import { BorderView } from "./borders";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
@@ -307,7 +308,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
     notify: (text) => hud.toast(text),
   });
-  // Achievements (Y): earned on the server; a toast when one is.
+  // Achievements (H): earned on the server; a toast when one is.
   const achievements = new AchievementsPanel(content);
   events.on<{ unlocked: { key: string; name: string; xp: number }[]; done: string[] }>("platform.progress", (p) => {
     if (!p) return;
@@ -318,9 +319,24 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     }
   });
   addEventListener("keydown", (event) => {
-    if (event.code !== "KeyY" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
+    if (event.code !== "KeyH" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
     achievements.toggle();
     if (achievements.isOpen) controls.unlock();
+  });
+
+  // Work (J): today's quests and the player's job.
+  const work = new WorkPanel(content, {
+    setJob: (job) => method.call("platform.job.set", { job }),
+  });
+  events.on<WorkState & { finished?: { name: string; crowns: number; xp: number }[] }>("platform.work", (w) => {
+    if (!w) return;
+    work.set(w);
+    for (const q of w.finished ?? []) hud.toast(`Quest done: ${q.name} (+${q.crowns} Crowns, +${q.xp} xp)`);
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyJ" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
+    work.toggle();
+    if (work.isOpen) controls.unlock();
   });
 
   const borders = new BorderView();
@@ -428,6 +444,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if ((n as { fulfilled?: { count: number; item: string } }).fulfilled) hud.toast("Contract fulfilled: the reward is yours");
     if ((n as { war_kill?: unknown }).war_kill) hud.toast("War: an enemy falls, your guild scores");
     if (n.received) hud.toast(`Received ${n.received.count} × ${itemName(n.received.item)}`);
+    const reward = (n as { reward?: { source: string; reason: string; paid: number; requested: number } }).reward;
+    if (reward) hud.toast(rewardLine(reward));
     if (n.waiting) hud.toast(`A delivery of ${itemName(n.waiting.item)} waits for room in your inventory`);
     if (n.blueprint?.stored) hud.toast(`Blueprint saved (${n.blueprint.blocks} blocks)`);
     if (n.blueprint?.built) hud.toast(`Built ${n.blueprint.blocks} blocks from the blueprint`);

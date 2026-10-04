@@ -209,6 +209,16 @@ defaults to 1. Targets and parents are checked at load. Players earn each
 once; lifetime counters are kept per player (the same triggers drive quests
 and jobs).
 
+## jobs/ and quests/
+
+A job has a `key`, `name`, `description`, `icon` and `pays`: a list of
+`{ "trigger", "cents" }` — every action matching the trigger (its `count`
+is ignored) earns `cents` hundredths of a Crown to the player who took up
+the job. A quest has an `objective` trigger (with its `count`), `crowns`
+and `xp`; each UTC day the server offers three quests from the pool (the
+same for everyone, shuffled by the day), each completed once that day.
+Crowns are minted by the backend within the daily reward cap.
+
 ## villages/
 
 A village names its `center` and `houses` (structures with

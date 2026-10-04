@@ -108,6 +108,13 @@ return [
         'review_required' => (bool) env('BLUEPRINT_REVIEW_REQUIRED', true),
     ],
 
+    // Crowns paid for jobs and quests (minted by game servers), capped per
+    // player per day.
+    'rewards' => [
+        'currency' => 'CRN',
+        'daily_cap' => (int) env('REWARDS_DAILY_CAP', 300),
+    ],
+
     // Calls from game servers to /api/internal/*: a shared bearer token on
     // the private network only (nginx refuses that path publicly).
     'internal' => [

@@ -43,6 +43,8 @@ pub struct ContentSource {
     pub structures: Vec<StructureDef>,
     pub villages: Vec<VillageDef>,
     pub achievements: Vec<AchievementDef>,
+    pub jobs: Vec<JobDef>,
+    pub quests: Vec<QuestDef>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -130,6 +132,8 @@ impl ContentSource {
             structures: read_kind(root, "structures")?,
             villages: read_kind(root, "villages")?,
             achievements: read_kind(root, "achievements")?,
+            jobs: read_kind(root, "jobs")?,
+            quests: read_kind(root, "quests")?,
             ..Default::default()
         };
         for file in read_files::<ProcessingFile>(root, "processing")? {
@@ -756,6 +760,41 @@ impl Content {
             }
         }
 
+        let has_mob = |k: &str| source.mobs.iter().any(|m| m.key == k);
+        index_unique(&source.jobs, "job", |j| &j.key, &mut errors);
+        for j in &source.jobs {
+            let who = format!("job {:?}", j.key);
+            if !has_item(&j.icon) {
+                errors.push(format!("{who} icon is unknown item {:?}", j.icon));
+            }
+            if j.pays.is_empty() {
+                errors.push(format!("{who} pays for nothing"));
+            }
+            for pay in &j.pays {
+                if pay.cents == 0 || pay.cents > 10_000 {
+                    errors.push(format!("{who} pays 1..=10000 cents per action"));
+                }
+                if let Some(problem) =
+                    trigger_problem(&pay.trigger, &has_block, &has_item, &has_mob)
+                {
+                    errors.push(format!("{who} {problem}"));
+                }
+            }
+        }
+        index_unique(&source.quests, "quest", |q| &q.key, &mut errors);
+        for q in &source.quests {
+            let who = format!("quest {:?}", q.key);
+            if !has_item(&q.icon) {
+                errors.push(format!("{who} icon is unknown item {:?}", q.icon));
+            }
+            if q.crowns == 0 && q.xp == 0 {
+                errors.push(format!("{who} rewards nothing"));
+            }
+            if let Some(problem) = trigger_problem(&q.objective, &has_block, &has_item, &has_mob) {
+                errors.push(format!("{who} {problem}"));
+            }
+        }
+
         index_unique(&source.villages, "village", |v| &v.key, &mut errors);
         for v in &source.villages {
             let who = format!("village {:?}", v.key);
@@ -856,6 +895,18 @@ impl Content {
 
     pub fn structures(&self) -> &[StructureDef] {
         &self.source.structures
+    }
+
+    pub fn jobs(&self) -> &[JobDef] {
+        &self.source.jobs
+    }
+
+    pub fn job(&self, key: &str) -> Option<&JobDef> {
+        self.source.jobs.iter().find(|j| j.key == key)
+    }
+
+    pub fn quests(&self) -> &[QuestDef] {
+        &self.source.quests
     }
 
     pub fn achievements(&self) -> &[AchievementDef] {

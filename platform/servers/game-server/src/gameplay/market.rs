@@ -563,6 +563,11 @@ impl<'a> specs::System<'a> for MarketSystem {
                         );
                     }
                 }
+                Response::Rewarded { player, key, paid } => {
+                    if let Some(paid) = paid {
+                        super::work::on_rewarded(&mut g, &mut events, &player, &key, paid);
+                    }
+                }
                 Response::Captured { key, outcome } => {
                     super::guild_api::on_captured(&mut g, &mut chunks, &mut events, &key, outcome);
                 }

@@ -99,6 +99,7 @@ impl<'a> specs::System<'a> for ProgressSystem {
                     unlocked.push(json!({ "key": a.key, "name": a.name, "xp": a.xp }));
                 }
             }
+            super::work::on_notes(&content, id, player, &notes, &mut events);
             if !unlocked.is_empty() {
                 events.dispatch(
                     Event::new(PROGRESS_EVENT)

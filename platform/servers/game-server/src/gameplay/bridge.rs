@@ -100,6 +100,12 @@ pub enum Request {
         attacker: String,
         land: String,
     },
+    /// Crowns a player earned in a job or quest (minted by the backend).
+    Reward {
+        world: String,
+        player: String,
+        payout: super::work::Payout,
+    },
     /// A player killed another: the backend scores it for their guilds' war.
     WarKill {
         world: String,
@@ -117,6 +123,7 @@ impl Request {
             | Request::Acknowledge { world, .. }
             | Request::Payment { world, .. }
             | Request::WarKill { world, .. }
+            | Request::Reward { world, .. }
             | Request::Capture { world, .. }
             | Request::UploadBlueprint { world, .. }
             | Request::FetchBlueprint { world, .. } => world,
@@ -192,6 +199,13 @@ pub enum Response {
         killer: String,
         victim: String,
         counted: bool,
+    },
+    /// A payout settled: `paid` Crowns (after the daily cap); `None` when
+    /// the backend could not be reached (it is sent again later).
+    Rewarded {
+        player: String,
+        key: String,
+        paid: Option<u32>,
     },
 }
 
@@ -307,6 +321,34 @@ async fn send(
     request: Request,
 ) -> Response {
     match request {
+        Request::Reward { player, payout, .. } => {
+            let body = json!({
+                "key": payout.key,
+                "player": player,
+                "world": shard,
+                "source": payout.source,
+                "reason": payout.reason,
+                "amount": payout.amount,
+            });
+            let paid = match post(client, &format!("{base}/rewards"), token, body).await {
+                Ok((200 | 201, body)) => Some(body["paid"].as_u64().unwrap_or(0) as u32),
+                // An unknown player or a refused payout will never be paid.
+                Ok((404 | 422, _)) => Some(0),
+                Ok((status, _)) => {
+                    log::warn!("reward {} got HTTP {status}; will retry", payout.key);
+                    None
+                }
+                Err(e) => {
+                    log::warn!("reward {} not sent ({e}); will retry", payout.key);
+                    None
+                }
+            };
+            Response::Rewarded {
+                player,
+                key: payout.key,
+                paid,
+            }
+        }
         Request::CreateListing { player, entry, .. } if entry.contract.is_some() => {
             let contract = entry.contract.clone().unwrap_or_default();
             let body = json!({

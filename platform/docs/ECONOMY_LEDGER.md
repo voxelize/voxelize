@@ -132,6 +132,13 @@ repairs, marketplace fees, fast travel, land upkeep, cosmetics, NPC
 services. Sinks never sell power: nothing bought with currency outperforms
 what can be earned by play (no pay-to-win).
 
+Gameplay rewards (jobs and daily quests) are the faucet: game servers ask
+`POST /api/internal/v1/rewards`, which mints at most `REWARDS_DAILY_CAP`
+Crowns (default 300) per player per UTC day — a reward over the cap is paid
+only up to it and recorded in `gameplay_rewards` with what was asked and
+what was paid. Each reward carries the game server's key (`reward:<key>`
+in the ledger), so a resend is paid once.
+
 Admin analytics (phase 9) read: money supply, created (mint) and destroyed
 (burn + fees) per period, trading volume, average prices per item, top
 balances, marketplace volume, and a price-index inflation indicator.
