@@ -86,6 +86,8 @@ pub struct Window {
     pub grid: Option<(usize, usize)>,
     /// First of the 36 inventory slots.
     pub inventory_start: usize,
+    /// Items crafted by the last click: `(item, count)`.
+    pub crafted: Vec<(u32, u32)>,
 }
 
 fn stack_limit(content: &Content, item: u32) -> u32 {
@@ -141,6 +143,7 @@ impl Window {
             rules,
             grid,
             inventory_start,
+            crafted: Vec::new(),
         }
     }
 
@@ -336,6 +339,7 @@ impl Window {
                 }
             }
             crafted += 1;
+            self.crafted.push((result.item, result.count));
             if !shift || crafted >= 64 {
                 break;
             }

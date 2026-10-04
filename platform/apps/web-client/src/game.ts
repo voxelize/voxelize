@@ -12,6 +12,7 @@ import { CrackView } from "./crack";
 import { actionFor, DEFAULT_KEYS, ENGINE_MOVES, KeyMap } from "./keybindings";
 import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
+import { AchievementsPanel } from "./achievements";
 import { BorderView } from "./borders";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
@@ -306,6 +307,22 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
     notify: (text) => hud.toast(text),
   });
+  // Achievements (Y): earned on the server; a toast when one is.
+  const achievements = new AchievementsPanel(content);
+  events.on<{ unlocked: { key: string; name: string; xp: number }[]; done: string[] }>("platform.progress", (p) => {
+    if (!p) return;
+    achievements.setDone(p.done);
+    for (const u of p.unlocked) {
+      hud.toast(`Achievement: ${u.name}${u.xp ? ` (+${u.xp} xp)` : ""}`);
+      sfx.play("pickup");
+    }
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyY" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
+    achievements.toggle();
+    if (achievements.isOpen) controls.unlock();
+  });
+
   const borders = new BorderView();
   world.add(borders.lines);
   events.on<{ land: LandHere }>("platform.land", ({ land }) => {

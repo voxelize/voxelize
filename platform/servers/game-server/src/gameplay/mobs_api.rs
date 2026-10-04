@@ -451,6 +451,7 @@ pub(super) fn install(world: &mut World) {
                             if let Some(def) = content.mob(&mob.key) {
                                 player.xp = player.xp.saturating_add(def.experience());
                             }
+                            player.note(platform_content::TriggerKind::Kill, &mob.key, 1);
                         }
                         let health = mobs.list.iter().find(|m| m.id == p.mob).map(|m| m.health);
                         Some(Ok(json!({ "mob": p.mob, "damage": damage, "health": health, "killed": died })))

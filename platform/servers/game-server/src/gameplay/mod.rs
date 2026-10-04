@@ -13,6 +13,7 @@ pub mod drops;
 pub mod mobs;
 mod mobs_api;
 pub mod modes;
+pub mod progress;
 pub use mobs_api::MobSystem;
 mod guild_api;
 pub mod inventory;
@@ -32,6 +33,7 @@ pub use automation::GaugeSystem;
 pub use combat::CombatSystem;
 pub use guild_api::SiegeSystem;
 pub use land::LandNoticeSystem;
+pub use progress::ProgressSystem;
 pub use trade::TradeSystem;
 pub use travel::{Dimensions, PortalSystem};
 pub use weather::WeatherSystem;
@@ -483,6 +485,7 @@ fn on_join(world: &mut World, entity: Entity) {
         home,
         xp,
         mode,
+        progress,
     ) = match record {
         Some(r) => (
             r.inventory,
@@ -497,6 +500,7 @@ fn on_join(world: &mut World, entity: Entity) {
             r.home,
             r.xp,
             r.mode,
+            r.progress,
         ),
         None => (
             Inventory::default(),
@@ -511,6 +515,7 @@ fn on_join(world: &mut World, entity: Entity) {
             None,
             0,
             rules::GameMode::Normal,
+            Default::default(),
         ),
     };
     {
@@ -533,6 +538,10 @@ fn on_join(world: &mut World, entity: Entity) {
         state.home = home;
         state.xp = xp;
         state.mode = mode;
+        state.progress = progress;
+        // Arriving in a dimension counts (achievements for each one).
+        let here = gameplay.dimensions.current;
+        state.note(platform_content::TriggerKind::Enter, here.key(), 1);
         // Joining inside a portal never sends the player straight on.
         state.travel.blocked = true;
         state.travel.settle = travel::SETTLE_SECONDS;
@@ -541,6 +550,21 @@ fn on_join(world: &mut World, entity: Entity) {
     send_inventory(world, &id);
     send_vitals(world, &id, None);
     modes::on_join(world, &id);
+    {
+        let done = world
+            .ecs()
+            .read_resource::<Gameplay>()
+            .players
+            .get(&id)
+            .map(|p| p.progress.done.clone())
+            .unwrap_or_default();
+        send(
+            world,
+            &id,
+            progress::PROGRESS_EVENT,
+            json!({ "unlocked": [], "done": done }),
+        );
+    }
     // Back where they left (arrivals are placed once their area is ready).
     if let (None, Some(eye)) = (&arrival, position) {
         let feet = [

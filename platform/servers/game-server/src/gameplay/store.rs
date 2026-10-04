@@ -55,6 +55,8 @@ pub struct PlayerRecord {
     /// Adventure or spectator mode, set by a moderator.
     #[serde(default)]
     pub mode: super::rules::GameMode,
+    #[serde(default)]
+    pub progress: super::progress::Progress,
 }
 
 pub struct PlayerStore {
@@ -131,6 +133,7 @@ impl PlayerStore {
             home: player.home,
             xp: player.xp,
             mode: player.mode,
+            progress: player.progress.clone(),
         }
     }
 
@@ -222,6 +225,7 @@ mod tests {
             home: None,
             xp: 0,
             mode: Default::default(),
+            progress: Default::default(),
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

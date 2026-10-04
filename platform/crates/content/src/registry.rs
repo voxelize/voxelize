@@ -42,6 +42,7 @@ pub struct ContentSource {
     pub mobs: Vec<MobDef>,
     pub structures: Vec<StructureDef>,
     pub villages: Vec<VillageDef>,
+    pub achievements: Vec<AchievementDef>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -128,6 +129,7 @@ impl ContentSource {
             mobs: read_kind(root, "mobs")?,
             structures: read_kind(root, "structures")?,
             villages: read_kind(root, "villages")?,
+            achievements: read_kind(root, "achievements")?,
             ..Default::default()
         };
         for file in read_files::<ProcessingFile>(root, "processing")? {
@@ -736,6 +738,24 @@ impl Content {
             }
         }
 
+        index_unique(&source.achievements, "achievement", |a| &a.key, &mut errors);
+        for a in &source.achievements {
+            let who = format!("achievement {:?}", a.key);
+            if !has_item(&a.icon) {
+                errors.push(format!("{who} icon is unknown item {:?}", a.icon));
+            }
+            if let Some(parent) = &a.parent {
+                if !source.achievements.iter().any(|p| &p.key == parent) {
+                    errors.push(format!("{who} follows unknown achievement {parent:?}"));
+                }
+            }
+            if let Some(problem) = trigger_problem(&a.trigger, &has_block, &has_item, &|k| {
+                source.mobs.iter().any(|m| m.key == k)
+            }) {
+                errors.push(format!("{who} {problem}"));
+            }
+        }
+
         index_unique(&source.villages, "village", |v| &v.key, &mut errors);
         for v in &source.villages {
             let who = format!("village {:?}", v.key);
@@ -838,6 +858,10 @@ impl Content {
         &self.source.structures
     }
 
+    pub fn achievements(&self) -> &[AchievementDef] {
+        &self.source.achievements
+    }
+
     pub fn villages(&self) -> &[VillageDef] {
         &self.source.villages
     }
@@ -916,4 +940,24 @@ fn check_stack(
             }
         }
     }
+}
+
+/// Why a trigger cannot be met, if it cannot: its target must exist for its kind.
+pub(crate) fn trigger_problem(
+    t: &Trigger,
+    has_block: &dyn Fn(&str) -> bool,
+    has_item: &dyn Fn(&str) -> bool,
+    has_mob: &dyn Fn(&str) -> bool,
+) -> Option<String> {
+    if t.count == 0 {
+        return Some("trigger count must be positive".to_owned());
+    }
+    let target = t.target.as_deref()?;
+    let known = match t.kind {
+        TriggerKind::Mine | TriggerKind::Place => has_block(target),
+        TriggerKind::Craft | TriggerKind::Smelt | TriggerKind::Eat => has_item(target),
+        TriggerKind::Kill => has_mob(target),
+        TriggerKind::Enter => ["overworld", "underworld", "sky"].contains(&target),
+    };
+    (!known).then(|| format!("trigger names unknown {} target {target:?}", t.kind.key()))
 }

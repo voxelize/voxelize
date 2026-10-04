@@ -1,0 +1,18 @@
+[
+  { "key": "getting_wood", "name": "Getting Wood", "description": "Chop down a tree for its wood.", "trigger": { "kind": "mine", "target": "oak_log" }, "icon": "oak_log", "xp": 2 },
+  { "key": "benchmark", "name": "Benchmark", "description": "Craft a crafting table.", "trigger": { "kind": "craft", "target": "crafting_table" }, "parent": "getting_wood", "icon": "crafting_table", "xp": 2 },
+  { "key": "time_to_mine", "name": "Time to Mine!", "description": "Craft a wooden pickaxe.", "trigger": { "kind": "craft", "target": "wooden_pickaxe" }, "parent": "benchmark", "icon": "wooden_pickaxe", "xp": 3 },
+  { "key": "stone_age", "name": "Stone Age", "description": "Mine stone.", "trigger": { "kind": "mine", "target": "stone" }, "parent": "time_to_mine", "icon": "rubble", "xp": 3 },
+  { "key": "hot_topic", "name": "Hot Topic", "description": "Craft a furnace.", "trigger": { "kind": "craft", "target": "furnace" }, "parent": "stone_age", "icon": "furnace", "xp": 3 },
+  { "key": "acquire_hardware", "name": "Acquire Hardware", "description": "Smelt an iron ingot.", "trigger": { "kind": "smelt", "target": "iron_ingot" }, "parent": "hot_topic", "icon": "iron_ingot", "xp": 5 },
+  { "key": "isnt_it_iron_pick", "name": "Isn't It an Iron Pick", "description": "Craft an iron pickaxe.", "trigger": { "kind": "craft", "target": "iron_pickaxe" }, "parent": "acquire_hardware", "icon": "iron_pickaxe", "xp": 5 },
+  { "key": "bake_bread", "name": "Bake Bread", "description": "Turn wheat into bread.", "trigger": { "kind": "craft", "target": "bread" }, "parent": "benchmark", "icon": "bread", "xp": 3 },
+  { "key": "monster_hunter", "name": "Monster Hunter", "description": "Defeat a monster of the night.", "trigger": { "kind": "kill", "target": "shambler" }, "icon": "rotten_flesh", "xp": 5 },
+  { "key": "sniper", "name": "Bone Breaker", "description": "Defeat a Bone Archer.", "trigger": { "kind": "kill", "target": "bone_archer" }, "parent": "monster_hunter", "icon": "bow", "xp": 8 },
+  { "key": "into_the_rift", "name": "Into the Rift", "description": "Step through a riftstone portal into the underworld.", "trigger": { "kind": "enter", "target": "underworld" }, "parent": "isnt_it_iron_pick", "icon": "riftstone", "xp": 10 },
+  { "key": "above_the_clouds", "name": "Above the Clouds", "description": "Travel to the sky islands.", "trigger": { "kind": "enter", "target": "sky" }, "parent": "isnt_it_iron_pick", "icon": "skystone", "xp": 10 },
+  { "key": "warden_slayer", "name": "Warden Slayer", "description": "Defeat the Ember Warden.", "trigger": { "kind": "kill", "target": "ember_warden" }, "parent": "into_the_rift", "icon": "warden_core", "xp": 100 },
+  { "key": "green_thumb", "name": "Green Thumb", "description": "Plant ten crops.", "trigger": { "kind": "place", "target": "wheat_crop", "count": 10 }, "icon": "wheat_seeds", "xp": 5 },
+  { "key": "busy_miner", "name": "Busy Miner", "description": "Break 500 blocks.", "trigger": { "kind": "mine", "count": 500 }, "parent": "stone_age", "icon": "iron_pickaxe", "xp": 15 },
+  { "key": "fishy_business", "name": "Fishy Business", "description": "Eat a grilled fish.", "trigger": { "kind": "eat", "target": "cooked_fish" }, "icon": "cooked_fish", "xp": 3 }
+]

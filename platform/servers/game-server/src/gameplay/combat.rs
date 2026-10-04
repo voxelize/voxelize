@@ -397,6 +397,7 @@ impl<'a> specs::System<'a> for CombatSystem {
                         {
                             if state.realm == Realm::Survival {
                                 state.xp = state.xp.saturating_add(def.experience());
+                                state.note(platform_content::TriggerKind::Kill, &key, 1);
                             }
                         }
                     }

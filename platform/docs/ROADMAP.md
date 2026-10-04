@@ -382,9 +382,16 @@ generation, routing, ignition and the void; `tests/bots/sky.mjs` on a live
 server (light a skystone portal, travel up, land on an island over the void,
 an underworld frame refuses to light there, travel back to the original
 portal).
-Remaining: quests, achievements, jobs, NPC civilisation,
-cosmetics, private worlds and server browser, friends and chat channels,
-proximity voice (WebRTC), plugin event API, mod SDK.
+Then: achievements — data-driven (`platform/game/achievements`, a tree
+with parents, triggers on mining, placing, crafting, smelting, killing,
+eating and entering dimensions, experience rewards), lifetime counters per
+player saved with the record, gameplay code only notes actions and a
+progress system turns them into achievements (and will feed quests and
+jobs), a toast and the achievements panel (Y). Unit tests and
+`tests/bots/achievements.mjs`.
+Remaining: quests, jobs, NPC civilisation, cosmetics, private worlds and
+server browser, friends and chat channels, proximity voice (WebRTC),
+plugin event API, mod SDK.
 
 ## Definition of done (whole project)
 

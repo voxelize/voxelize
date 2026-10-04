@@ -844,3 +844,70 @@ impl StructureDef {
         (width, height, depth)
     }
 }
+
+/// What a player does that counts towards achievements, quests and jobs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TriggerKind {
+    /// Break a block (target: block key).
+    Mine,
+    /// Place a block (target: block key).
+    Place,
+    /// Craft an item (target: item key; counts items made).
+    Craft,
+    /// Take smelted items out of a furnace (target: item key).
+    Smelt,
+    /// Kill a creature (target: mob key).
+    Kill,
+    /// Eat or drink (target: item key).
+    Eat,
+    /// Arrive in a dimension (target: dimension key).
+    Enter,
+}
+
+impl TriggerKind {
+    pub fn key(self) -> &'static str {
+        match self {
+            TriggerKind::Mine => "mine",
+            TriggerKind::Place => "place",
+            TriggerKind::Craft => "craft",
+            TriggerKind::Smelt => "smelt",
+            TriggerKind::Kill => "kill",
+            TriggerKind::Eat => "eat",
+            TriggerKind::Enter => "enter",
+        }
+    }
+}
+
+/// `count` times `kind` on `target` (any target when absent).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Trigger {
+    pub kind: TriggerKind,
+    #[serde(default)]
+    pub target: Option<String>,
+    #[serde(default = "one")]
+    pub count: u32,
+}
+
+fn one() -> u32 {
+    1
+}
+
+/// A milestone a player earns once (advancements).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AchievementDef {
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    pub trigger: Trigger,
+    /// The achievement this one follows in the tree.
+    #[serde(default)]
+    pub parent: Option<String>,
+    /// Item shown as its icon.
+    pub icon: String,
+    /// Experience points awarded.
+    #[serde(default)]
+    pub xp: u32,
+}

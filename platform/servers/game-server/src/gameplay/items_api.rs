@@ -410,6 +410,13 @@ fn window_op(
                     let outcome = op(&mut w, &content, &mut cursor);
                     if let Some(p) = g.players.get_mut(id) {
                         p.cursor = cursor;
+                        if outcome.is_ok() && p.realm == platform_ticket::Realm::Survival {
+                            for (item, count) in w.crafted.drain(..) {
+                                if let Some(def) = content.item_by_id(item) {
+                                    p.note(platform_content::TriggerKind::Craft, &def.key, count);
+                                }
+                            }
+                        }
                     }
                     if let (Ok(_), Some(before)) = (&outcome, output_before) {
                         let left = w
@@ -429,6 +436,9 @@ fn window_op(
                                     taken,
                                     roll,
                                 ));
+                                if let Some(item) = content.item_by_id(before.item) {
+                                    p.note(platform_content::TriggerKind::Smelt, &item.key, taken);
+                                }
                             }
                         }
                     }

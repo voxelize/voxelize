@@ -144,6 +144,8 @@ Answers (events, sent only to the requesting client):
   purchase, an auction won, cancelled or expired goods), or
   `{"waiting":{"item","count"}}` (a delivery needs room in the inventory),
   `{"bought"|"sold":{"item","count","price"}}` and `{"refused":{"code","item","count"}}` for stall sales.
+- `platform.progress` — `{"unlocked":[{"key","name","xp"}],"done":[key]}`: on joining (everything earned so far, nothing unlocked) and whenever achievements are earned.
+- `platform.mode` — `{"player","mode"}` (see `platform.mode.set`).
 - `platform.weather` — `{"kind":"clear"|"rain"|"thunder","precipitation":"rain"|"snow"|"none"}` on joining, on a change and on walking into a biome where other weather falls; `platform.lightning` — `{"at"}` to players within 160 blocks,
 - `platform.combat` — `{"fuses":[{"at","fuse"}],"arrows":[{"id","pos","vel"}]}` ten times a second to players within 96 blocks of anything in flight or burning (and once more when nothing is left),
 - `platform.explosion` — `{"at","power"}` to players within 96 blocks; `platform.push` — `{"velocity":[x,y,z]}` a push on this player's body: an explosion's blast, or knockback from a creature's blow, an arrow or a player's hit at war,

@@ -191,6 +191,11 @@ fn build_world(
                 "platform-gauges",
                 &["platform-weather"],
             )
+            .with(
+                gameplay::ProgressSystem,
+                "platform-progress",
+                &["platform-gauges"],
+            )
     });
     world
 }
@@ -311,6 +316,7 @@ async fn main() -> std::io::Result<()> {
         "items": content.items(),
         "recipes": content.recipes(),
         "mobs": content.mobs(),
+        "achievements": content.achievements(),
     });
     if let Some(backend) = config.backend.clone() {
         actix_web::rt::spawn(gameplay::land::poll(

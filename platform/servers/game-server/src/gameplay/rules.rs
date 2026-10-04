@@ -170,6 +170,10 @@ pub struct PlayerState {
     /// When the player started drawing their bow (ms).
     pub bow_drawn: Option<u64>,
     pub mode: GameMode,
+    /// Lifetime counters and achievements (saved with the record).
+    pub progress: super::progress::Progress,
+    /// Actions not yet counted (see `progress.rs`).
+    pub notes: Vec<super::progress::Note>,
 }
 
 /// The window a player has open.
@@ -204,6 +208,8 @@ impl PlayerState {
             xp: 0,
             bow_drawn: None,
             mode: GameMode::Normal,
+            progress: Default::default(),
+            notes: Vec::new(),
         }
     }
 }
@@ -279,6 +285,17 @@ pub enum GameMode {
 }
 
 impl PlayerState {
+    /// Note an action for achievements, quests and jobs.
+    pub fn note(&mut self, kind: platform_content::TriggerKind, target: &str, count: u32) {
+        if count > 0 {
+            self.notes.push(super::progress::Note {
+                kind,
+                target: target.to_owned(),
+                count,
+            });
+        }
+    }
+
     /// Takes damage and is hunted: survival realm, not spectating.
     pub fn vulnerable(&self) -> bool {
         self.realm == Realm::Survival && self.mode != GameMode::Spectator
@@ -467,6 +484,7 @@ impl Rules {
             _ => 0,
         };
         player.xp = player.xp.saturating_add(xp);
+        player.note(platform_content::TriggerKind::Mine, &block.key, 1);
         Ok(MineOutcome {
             harvested: harvests,
             xp,
@@ -553,6 +571,7 @@ impl Rules {
         }
         if player.realm == Realm::Survival {
             player.inventory.take_one(slot)?;
+            player.note(platform_content::TriggerKind::Place, &block.key, 1);
         }
         Ok(block.id)
     }
@@ -790,13 +809,17 @@ impl Rules {
             .inventory
             .get(slot)
             .ok_or(IntentError::Inventory(InventoryError::EmptySlot))?;
+        let stack_item = stack.item;
         // A potion: its effect starts; the bottle comes back in its place.
-        if let Some(potion) = self.content.item_by_id(stack.item).and_then(|i| i.potion) {
+        if let Some(potion) = self.content.item_by_id(stack_item).and_then(|i| i.potion) {
             player
                 .vitals
                 .apply_effect(potion.effect, potion.level, potion.seconds);
             if player.realm == Realm::Survival {
                 player.inventory.take_one(slot)?;
+                if let Some(item) = self.content.item_by_id(stack_item) {
+                    player.note(platform_content::TriggerKind::Eat, &item.key, 1);
+                }
                 if let Some(bottle) = self.content.item("glass_bottle") {
                     player.inventory.slots[slot] = Some(super::inventory::Stack {
                         item: bottle.id,
@@ -817,6 +840,9 @@ impl Rules {
                 return Err(IntentError::NotHungry);
             }
             player.inventory.take_one(slot)?;
+            if let Some(item) = self.content.item_by_id(stack_item) {
+                player.note(platform_content::TriggerKind::Eat, &item.key, 1);
+            }
         }
         Ok(food)
     }
@@ -929,6 +955,13 @@ impl Rules {
             return Err(IntentError::InventoryFull);
         }
         player.inventory = after;
+        if player.realm == Realm::Survival {
+            player.note(
+                platform_content::TriggerKind::Craft,
+                &found.result.item,
+                count,
+            );
+        }
         Ok((result, count))
     }
 }

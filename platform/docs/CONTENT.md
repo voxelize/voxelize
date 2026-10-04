@@ -198,6 +198,17 @@ biomes, grid `spacing` and `chance`, a character `palette`, `layers` (bottom
 to top, rows along z, characters along x; space keeps terrain, `.` is air)
 and a `loot` table for their chests.
 
+## achievements/
+
+An achievement has a `key`, `name`, `description`, an `icon` item, `xp`
+awarded, an optional `parent` (its place in the tree) and a `trigger`:
+`{ "kind", "target"?, "count"? }` where kind is `mine` / `place` (block
+keys), `craft` / `smelt` / `eat` (item keys), `kill` (mob keys) or `enter`
+(`overworld`, `underworld`, `sky`); without a target any counts; `count`
+defaults to 1. Targets and parents are checked at load. Players earn each
+once; lifetime counters are kept per player (the same triggers drive quests
+and jobs).
+
 ## villages/
 
 A village names its `center` and `houses` (structures with

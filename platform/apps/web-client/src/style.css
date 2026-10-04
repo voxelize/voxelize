@@ -843,3 +843,20 @@ body.spectating #hotbar,
 body.spectating #vitals {
   visibility: hidden;
 }
+
+.achievement-list {
+  list-style: none;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.achievement-list li {
+  margin: 4px 0;
+  opacity: 0.6;
+}
+
+.achievement-list li.done {
+  opacity: 1;
+  color: #ffe08a;
+}
