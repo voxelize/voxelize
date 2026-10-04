@@ -397,7 +397,10 @@ payouts with stable keys until the backend mints them
 `gameplay_rewards`); the client's quests and jobs panel (J) and payout
 toasts. Tests: RewardTest, unit tests, `tests/bots/work.mjs` (the smith is
 paid for an iron pickaxe).
-Remaining: NPC civilisation, cosmetics, private worlds and server browser,
+Then: villagers — farmer and smith NPCs that spawn on village paths and
+trade items for gold (offers in content, `platform.npc.trade`, a trade
+panel in the client); unit tests for trading and spawning.
+Remaining: cosmetics, private worlds and server browser,
 friends and chat channels, proximity voice (WebRTC), plugin event API, mod
 SDK.
 

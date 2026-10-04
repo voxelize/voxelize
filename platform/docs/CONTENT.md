@@ -184,6 +184,7 @@ with size, offset, colour; legs swing). Optional fields:
 | `ranged` | `{ "range", "cooldown", "speed" }`: shoots arrows (aimed above far targets for the drop) at targets in sight within `range`, and keeps away when nearer than 60 % of it; still strikes in melee when cornered. Not for passive creatures |
 | `onHit` | `{ "effect", "level", "seconds" }`: a status effect its blows give |
 | `boss` | a health bar for players within 48 blocks, 15 % knockback, never despawns |
+| `trades` | villagers (passive only): offers `{ "give": { "item", "count" }, "take": [{ "item", "count" }] }`; using the creature lists them and `platform.npc.trade` makes one, all or nothing |
 | `summon` | `{ "item", "on": [blocks] }`: using the item on one of the blocks calls the creature up above it (one of a kind within 64 blocks; the item is used up in survival). Give such creatures `spawn.weight` 0 so they never spawn by themselves |
 
 Creatures in the pack: Grazer, Cluckling, Bristleback (animals), Shambler,
@@ -192,7 +193,10 @@ Cinder Wraith (underworld), Sky Wisp (flying, sky islands at night), River
 Fish (swimming; raw fish grills in the furnace) and the Ember Warden boss
 (200 health, arrows and slowing blows, summoned with an Ember Sigil —
 ember dust, ember quartz and a sun shard — on cinderstone or emberglass;
-drops a Warden Core). Structures declare placement
+drops a Warden Core). Villagers — the Village Farmer (buys wheat, carrots
+and potatoes for gold, sells bread, fertiliser and apples) and the Village
+Smith (buys coal and iron, sells iron tools, armor and arrows) — spawn by
+day on gravel, which in the wild means village paths. Structures declare placement
 (`surface` with `yOffset`, or `underground` between `minY` and `maxY`),
 biomes, grid `spacing` and `chance`, a character `palette`, `layers` (bottom
 to top, rows along z, characters along x; space keeps terrain, `.` is air)

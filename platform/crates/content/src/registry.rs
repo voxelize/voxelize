@@ -665,6 +665,22 @@ impl Content {
                     errors.push(format!("{who} on-hit effect needs positive seconds"));
                 }
             }
+            for offer in &mob.trades {
+                for ic in std::iter::once(&offer.give).chain(&offer.take) {
+                    if !has_item(&ic.item) || ic.count == 0 {
+                        errors.push(format!(
+                            "{who} trades {} of unknown item {:?}",
+                            ic.count, ic.item
+                        ));
+                    }
+                }
+                if offer.take.is_empty() {
+                    errors.push(format!("{who} gives something for nothing"));
+                }
+            }
+            if !mob.trades.is_empty() && mob.kind != MobKind::Passive {
+                errors.push(format!("{who} trades but is not passive"));
+            }
             if let Some(summon) = &mob.summon {
                 if !has_item(&summon.item) {
                     errors.push(format!(

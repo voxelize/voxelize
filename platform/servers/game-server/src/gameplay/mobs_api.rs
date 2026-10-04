@@ -410,7 +410,76 @@ pub(super) fn animal_protected(
         .unwrap_or(true)
 }
 
+/// Trade with a villager: hand over an offer's `take` for its `give`, all
+/// or nothing (the result must fit in the inventory).
+pub fn npc_trade(
+    content: &platform_content::Content,
+    player: &mut super::rules::PlayerState,
+    offer: &platform_content::TradeOfferDef,
+) -> Result<(), IntentError> {
+    super::rules::active(player)?;
+    let id = |key: &str| {
+        content
+            .item(key)
+            .map(|i| i.id)
+            .ok_or(IntentError::UnknownItem)
+    };
+    let mut after = player.inventory.clone();
+    for t in &offer.take {
+        let item = id(&t.item)?;
+        if after.count_of(item) < t.count {
+            return Err(IntentError::MissingIngredients);
+        }
+        after.remove(item, t.count);
+    }
+    if after.add(content, id(&offer.give.item)?, offer.give.count) > 0 {
+        return Err(IntentError::InventoryFull);
+    }
+    player.inventory = after;
+    Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NpcTradePayload {
+    mob: u64,
+    offer: usize,
+}
+
 pub(super) fn install(world: &mut World) {
+    world.set_method_handle("platform.npc.trade", |world, id, payload| {
+        const INTENT: &str = "npc.trade";
+        let Some(p) = parse::<NpcTradePayload>(world, id, INTENT, payload) else {
+            return;
+        };
+        let Some(eye) = client_position(world, id) else {
+            return not_joined(world, id, INTENT);
+        };
+        let result = {
+            let mut g = world.ecs().write_resource::<Gameplay>();
+            let content = g.rules.content_arc();
+            let Gameplay { players, mobs, .. } = &mut *g;
+            let mob = mobs.list.iter().find(|m| m.id == p.mob).cloned();
+            match (players.get_mut(id), mob) {
+                (None, _) => Err(IntentError::NothingThere),
+                (Some(_), None) => Err(IntentError::NothingThere),
+                (Some(player), Some(mob)) => {
+                    let d2: f32 = (0..3).map(|i| (mob.position[i] - eye[i]).powi(2)).sum();
+                    let offer = content.mob(&mob.key).and_then(|d| d.trades.get(p.offer));
+                    match offer {
+                        None => Err(IntentError::CannotUse),
+                        Some(_) if d2 > (REACH + 2.0).powi(2) => Err(IntentError::OutOfReach),
+                        Some(offer) => npc_trade(&content, player, offer)
+                            .map(|_| json!({ "mob": p.mob, "offer": p.offer, "got": offer.give })),
+                    }
+                }
+            }
+        };
+        reply(world, id, INTENT, result);
+        send_inventory(world, id);
+        persist(world, id);
+    });
+
     world.set_method_handle("platform.attack", |world, id, payload| {
         const INTENT: &str = "attack";
         let Some(p) = parse::<MobPayload>(world, id, INTENT, payload) else { return };
@@ -498,10 +567,17 @@ pub(super) fn install(world: &mut World) {
                         .selected_stack()
                         .and_then(|s| content.item_by_id(s.item))
                         .map(|i| i.key.clone());
+                    let trades = content
+                        .mob(&mob.key)
+                        .filter(|d| !d.trades.is_empty())
+                        .map(|d| (d.name.clone(), d.trades.clone()));
                     if let Err(e) = super::rules::active(player) {
                         Err(e)
                     } else if d2 > (REACH + 2.0).powi(2) {
                         Err(IntentError::OutOfReach)
+                    } else if let Some((name, trades)) = trades {
+                        // A villager: show what it sells.
+                        Ok(json!({ "mob": p.mob, "name": name, "trades": trades }))
                     } else if let Some(item) = held.filter(|item| mobs.feed(&content, p.mob, item))
                     {
                         if player.realm == Realm::Survival {
@@ -587,4 +663,39 @@ pub(super) fn summon(world: &mut World, id: &str, voxel: [i32; 3]) -> bool {
     send_inventory(world, id);
     persist(world, id);
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gameplay::inventory::Inventory;
+    use crate::gameplay::rules::PlayerState;
+    use crate::gameplay::survival::Vitals;
+
+    #[test]
+    fn villagers_trade_all_or_nothing() {
+        let c = platform_content::Content::load(platform_content::default_pack_dir()).unwrap();
+        let farmer = c.mob("village_farmer").unwrap();
+        let sell_wheat = &farmer.trades[0];
+        assert_eq!(sell_wheat.take[0].item, "wheat");
+        let mut p = PlayerState::new(Inventory::default(), Realm::Survival, Vitals::default());
+        let wheat = c.item("wheat").unwrap().id;
+        let gold = c.item("gold_ingot").unwrap().id;
+        p.inventory.add(&c, wheat, 19);
+        assert_eq!(
+            npc_trade(&c, &mut p, sell_wheat),
+            Err(IntentError::MissingIngredients)
+        );
+        assert_eq!(p.inventory.count_of(wheat), 19, "nothing taken");
+        p.inventory.add(&c, wheat, 5);
+        npc_trade(&c, &mut p, sell_wheat).unwrap();
+        assert_eq!(
+            (p.inventory.count_of(wheat), p.inventory.count_of(gold)),
+            (4, 1)
+        );
+        // Buying bread with that gold.
+        npc_trade(&c, &mut p, &farmer.trades[3]).unwrap();
+        assert_eq!(p.inventory.count_of(gold), 0);
+        assert_eq!(p.inventory.count_of(c.item("bread").unwrap().id), 6);
+    }
 }

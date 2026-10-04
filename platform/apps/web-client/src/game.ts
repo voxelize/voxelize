@@ -13,6 +13,7 @@ import { actionFor, DEFAULT_KEYS, ENGINE_MOVES, KeyMap } from "./keybindings";
 import { GuildPanel, landNotice, siegeLine } from "./guild";
 import { pickPlayer } from "./pvp";
 import { AchievementsPanel } from "./achievements";
+import { NpcPanel, type Offer } from "./npc";
 import { rewardLine, WorkPanel, type WorkState } from "./work";
 import { BorderView } from "./borders";
 import { LandPanel, type LandHere } from "./land";
@@ -224,12 +225,27 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (!snapshot) return;
     realm = snapshot.realm;
     hud.setInventory(snapshot);
+    npcPanel.refresh();
   });
 
+  const npcPanel = new NpcPanel(content, {
+    trade: (mob, offer) => method.call("platform.npc.trade", { mob, offer }),
+    have: (key) => {
+      const id = content.itemsByKey.get(key)?.id;
+      return hud.inventory.slots.reduce((n, s) => n + (s && s.item === id ? s.count : 0), 0);
+    },
+  });
   const materialAt = (voxel?: [number, number, number]) =>
     voxel ? content.blocksById.get(world.getVoxelAt(...voxel))?.material ?? "soil" : "soil";
   events.on<ResultEvent>("platform.result", (result) => {
     if (!result) return;
+    const trades = (result as { trades?: Offer[] }).trades;
+    if (result.ok && result.intent === "interact" && trades) {
+      const r = result as unknown as { mob: number; name: string };
+      npcPanel.open(r.mob, r.name, trades);
+      controls.unlock();
+    }
+    if (result.ok && result.intent === "npc.trade") sfx.play("pickup");
     if (result.ok) {
       if (result.intent === "mine.finish") sfx.play("break", lastMinedMaterial);
       if (result.intent === "build.place") sfx.play("place", materialAt(result.voxel));

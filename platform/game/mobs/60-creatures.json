@@ -464,5 +464,417 @@
         "leg": true
       }
     ]
+  },
+  {
+    "key": "village_farmer",
+    "name": "Village Farmer",
+    "kind": "passive",
+    "health": 20,
+    "speed": 1.0,
+    "size": [
+      0.6,
+      1.95
+    ],
+    "spawn": {
+      "light": "bright",
+      "on": [
+        "gravel"
+      ],
+      "biomes": [
+        "plains",
+        "savanna",
+        "taiga",
+        "forest",
+        "snowy_plains"
+      ],
+      "weight": 20,
+      "groupMin": 1,
+      "groupMax": 1
+    },
+    "drops": [],
+    "sight": 8,
+    "xp": 0,
+    "trades": [
+      {
+        "give": {
+          "item": "gold_ingot",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "wheat",
+            "count": 20
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "gold_ingot",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "carrot",
+            "count": 16
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "gold_ingot",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "potato",
+            "count": 16
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "bread",
+          "count": 6
+        },
+        "take": [
+          {
+            "item": "gold_ingot",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "fertiliser",
+          "count": 8
+        },
+        "take": [
+          {
+            "item": "gold_ingot",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "apple",
+          "count": 4
+        },
+        "take": [
+          {
+            "item": "gold_ingot",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          0.5,
+          0.75,
+          0.3
+        ],
+        "offset": [
+          0,
+          1.13,
+          0
+        ],
+        "color": "#7a5a32"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.48,
+          0.5,
+          0.48
+        ],
+        "offset": [
+          0,
+          1.77,
+          0
+        ],
+        "color": "#c9a07a"
+      },
+      {
+        "name": "nose",
+        "size": [
+          0.12,
+          0.18,
+          0.1
+        ],
+        "offset": [
+          0,
+          1.7,
+          0.28
+        ],
+        "color": "#c9a07a"
+      },
+      {
+        "name": "apron",
+        "size": [
+          0.44,
+          0.5,
+          0.04
+        ],
+        "offset": [
+          0,
+          1.0,
+          0.17
+        ],
+        "color": "#e8dcc0"
+      },
+      {
+        "name": "arms",
+        "size": [
+          0.6,
+          0.2,
+          0.24
+        ],
+        "offset": [
+          0,
+          1.3,
+          0.18
+        ],
+        "color": "#7a5a32"
+      },
+      {
+        "name": "leg_l",
+        "size": [
+          0.2,
+          0.75,
+          0.2
+        ],
+        "offset": [
+          0.12,
+          0.375,
+          0
+        ],
+        "color": "#4a3a2a",
+        "leg": true
+      },
+      {
+        "name": "leg_r",
+        "size": [
+          0.2,
+          0.75,
+          0.2
+        ],
+        "offset": [
+          -0.12,
+          0.375,
+          0
+        ],
+        "color": "#4a3a2a",
+        "leg": true
+      }
+    ]
+  },
+  {
+    "key": "village_smith",
+    "name": "Village Smith",
+    "kind": "passive",
+    "health": 20,
+    "speed": 1.0,
+    "size": [
+      0.6,
+      1.95
+    ],
+    "spawn": {
+      "light": "bright",
+      "on": [
+        "gravel"
+      ],
+      "biomes": [
+        "plains",
+        "savanna",
+        "taiga",
+        "forest",
+        "snowy_plains"
+      ],
+      "weight": 10,
+      "groupMin": 1,
+      "groupMax": 1
+    },
+    "drops": [],
+    "sight": 8,
+    "xp": 0,
+    "trades": [
+      {
+        "give": {
+          "item": "gold_ingot",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "coal",
+            "count": 15
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "gold_ingot",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "iron_ingot",
+            "count": 4
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "iron_pickaxe",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "gold_ingot",
+            "count": 3
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "iron_sword",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "gold_ingot",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "iron_chestplate",
+          "count": 1
+        },
+        "take": [
+          {
+            "item": "gold_ingot",
+            "count": 6
+          }
+        ]
+      },
+      {
+        "give": {
+          "item": "arrow",
+          "count": 16
+        },
+        "take": [
+          {
+            "item": "gold_ingot",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          0.5,
+          0.75,
+          0.3
+        ],
+        "offset": [
+          0,
+          1.13,
+          0
+        ],
+        "color": "#4a4a4a"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.48,
+          0.5,
+          0.48
+        ],
+        "offset": [
+          0,
+          1.77,
+          0
+        ],
+        "color": "#b88a6a"
+      },
+      {
+        "name": "nose",
+        "size": [
+          0.12,
+          0.18,
+          0.1
+        ],
+        "offset": [
+          0,
+          1.7,
+          0.28
+        ],
+        "color": "#b88a6a"
+      },
+      {
+        "name": "apron",
+        "size": [
+          0.44,
+          0.5,
+          0.04
+        ],
+        "offset": [
+          0,
+          1.0,
+          0.17
+        ],
+        "color": "#2a1f18"
+      },
+      {
+        "name": "arms",
+        "size": [
+          0.6,
+          0.2,
+          0.24
+        ],
+        "offset": [
+          0,
+          1.3,
+          0.18
+        ],
+        "color": "#4a4a4a"
+      },
+      {
+        "name": "leg_l",
+        "size": [
+          0.2,
+          0.75,
+          0.2
+        ],
+        "offset": [
+          0.12,
+          0.375,
+          0
+        ],
+        "color": "#2a2a2a",
+        "leg": true
+      },
+      {
+        "name": "leg_r",
+        "size": [
+          0.2,
+          0.75,
+          0.2
+        ],
+        "offset": [
+          -0.12,
+          0.375,
+          0
+        ],
+        "color": "#2a2a2a",
+        "leg": true
+      }
+    ]
   }
 ]

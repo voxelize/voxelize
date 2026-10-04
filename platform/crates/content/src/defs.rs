@@ -740,7 +740,26 @@ pub struct MobDef {
     pub on_hit: Option<OnHitEffect>,
     #[serde(default)]
     pub summon: Option<SummonDef>,
+    /// Villagers: what they sell to players who use them.
+    #[serde(default)]
+    pub trades: Vec<TradeOfferDef>,
     pub model: Vec<ModelPart>,
+}
+
+/// Some of an item.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ItemCount {
+    pub item: String,
+    pub count: u32,
+}
+
+/// A villager's offer: it hands over `give` for `take`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TradeOfferDef {
+    pub give: ItemCount,
+    pub take: Vec<ItemCount>,
 }
 
 impl MobDef {

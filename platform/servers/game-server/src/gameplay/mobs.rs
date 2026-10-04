@@ -1318,6 +1318,29 @@ mod tests {
     }
 
     #[test]
+    fn villagers_spawn_on_village_paths_only() {
+        let c = content();
+        let mut rng = Rng(21);
+        let players = [player([0.5, 64.0, 0.5])];
+        let path = Flat {
+            ground: 64,
+            day: true,
+            walls: vec![],
+            turf: c.block("gravel").unwrap().id,
+        };
+        let mut mobs = Mobs::default();
+        for _ in 0..200 {
+            mobs.spawn_around(&c, &path, &players, &mut rng);
+        }
+        assert!(!mobs.list.is_empty());
+        assert!(
+            mobs.list.iter().all(|m| m.key.starts_with("village_")),
+            "{:?}",
+            mobs.list.iter().map(|m| &m.key).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn a_star_walks_around_walls_and_climbs_steps() {
         // A wall from z = -6 to 6 at x = 3, two high: the way is round its end.
         let mut walls = Vec::new();
