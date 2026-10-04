@@ -20,6 +20,7 @@ validated by the game server like a browser player's.
 | `contracts.mjs` | contracts end to end: post with a locked reward, take, deliver in the game, reward paid and goods delivered (standalone: seeds the worker's record via `SAVE_DIR`; needs `FUND_CMD`) |
 | `guilds.mjs` | guilds end to end: found, join, deposit; touching guild plots paid from the treasury become a village named on entry; members build there and strangers cannot; a member's stall sells for the treasury; guild chat; a guild contract paid from the treasury and fulfilled in the game (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`) |
 | `diplomacy.mjs` | guild buildings, ranks and war end to end: a member ranked Steward places the town hall, which becomes a respawn point; two vaults share one inventory; vaults kept out of the wilderness; no fighting at peace; a contested siege captures the village; a kill each way; respawn at the hall; peace at 1:4 (standalone: seeds records via `SAVE_DIR`; needs `FUND_CMD`; the API with `GUILD_WAR_WARMUP_MINUTES=0`, the game server with `GAME_SIEGE_SECONDS=8`) |
+| `armor.mjs` | armor and experience: shift-click a chestplate on (armor points reach the HUD), place an anvil and repair a worn pickaxe for levels (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |

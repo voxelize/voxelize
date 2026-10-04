@@ -290,6 +290,36 @@ body.registering .register-only {
 #food .pip.full { background: #c98a3c; }
 #food .pip.half { background: linear-gradient(90deg, rgba(0, 0, 0, 0.45) 50%, #c98a3c 50%); }
 #air .pip { border-radius: 50%; width: 12px; height: 12px; }
+#armor .pip.full { background: #c9ccd2; }
+#armor .pip.half { background: linear-gradient(90deg, #c9ccd2 50%, rgba(0, 0, 0, 0.45) 50%); }
+#armor[hidden] { display: flex; visibility: hidden; }
+
+#xp {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+#xp-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: #8fdc3a;
+}
+
+#xp-level {
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  transform: translateX(-50%);
+  color: #b5f25a;
+  font-weight: 700;
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+}
 #air .pip.full { background: #7fc4ff; }
 
 #hurt {

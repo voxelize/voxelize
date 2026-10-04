@@ -279,6 +279,11 @@ impl Content {
                     _ => {}
                 }
             }
+            if block.xp.is_some_and(|[lo, hi]| lo > hi || hi > 100) {
+                errors.push(format!(
+                    "{who} xp must be [min, max] with min <= max <= 100"
+                ));
+            }
             let is_rift = block.behaviors.contains(&crate::BlockBehavior::Rift);
             match (&block.portal, is_rift) {
                 (Some(portal), true) => {
@@ -344,6 +349,14 @@ impl Content {
             }
             if item.durability.is_some() && item.stack_size != 1 {
                 errors.push(format!("{who} has durability and must stack to 1"));
+            }
+            match (&item.armor, item.item_type == crate::ItemType::Armor) {
+                (Some(armor), true) if armor.points > 20 => {
+                    errors.push(format!("{who} gives more than 20 armor points"))
+                }
+                (None, true) => errors.push(format!("{who} is armor without armor stats")),
+                (Some(_), false) => errors.push(format!("{who} has armor stats but is not armor")),
+                _ => {}
             }
             if let Some(block) = &item.places_block {
                 if !has_block(block) {

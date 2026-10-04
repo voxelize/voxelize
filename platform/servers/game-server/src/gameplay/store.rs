@@ -49,6 +49,9 @@ pub struct PlayerRecord {
     /// Respawn point at a guild town hall.
     #[serde(default)]
     pub home: Option<[i32; 3]>,
+    /// Experience points.
+    #[serde(default)]
+    pub xp: u32,
 }
 
 pub struct PlayerStore {
@@ -123,6 +126,7 @@ impl PlayerStore {
             delivered: player.market.delivered.iter().cloned().collect(),
             trade_hold: player.trade_hold.clone(),
             home: player.home,
+            xp: player.xp,
         }
     }
 
@@ -212,6 +216,7 @@ mod tests {
             delivered: vec!["d1".into()],
             trade_hold: None,
             home: None,
+            xp: 0,
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

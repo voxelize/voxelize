@@ -5,7 +5,24 @@ import { Content, ItemDef } from "./content";
 import { textureCanvas } from "./textures";
 
 export type Slot = { item: number; count: number; durability?: number } | null;
-export type InventorySnapshot = { slots: Slot[]; selected: number; realm: string };
+export type InventorySnapshot = { slots: Slot[]; selected: number; realm: string; armor?: number };
+
+/** Colour of an armor set, from its item key. */
+export function armorColor(key: string): string {
+  if (key.startsWith("hide")) return "#8a5a34";
+  if (key.startsWith("copper")) return "#c27a4a";
+  if (key.startsWith("iron")) return "#c9ccd2";
+  if (key.startsWith("ember")) return "#e2783a";
+  return "#9aa0aa";
+}
+
+/** Silhouettes of the armor pieces on a 32-pixel tile: [x, y, w, h] boxes. */
+export const ARMOR_SHAPES: Record<string, [number, number, number, number][]> = {
+  head: [[7, 8, 18, 6], [7, 14, 5, 8], [20, 14, 5, 8]],
+  chest: [[5, 6, 7, 8], [20, 6, 7, 8], [9, 6, 14, 20]],
+  legs: [[9, 6, 14, 6], [9, 12, 6, 15], [17, 12, 6, 15]],
+  feet: [[6, 16, 8, 10], [18, 16, 8, 10], [6, 23, 10, 4], [18, 23, 10, 4]],
+};
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -26,6 +43,15 @@ export class Hud {
     const block = item.placesBlock ? this.content.pack.blocks.find((b) => b.key === item.placesBlock) : undefined;
     if (block) {
       url = textureCanvas(block.texture.side ?? block.texture.all).toDataURL();
+    } else if (item.armor) {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 32;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = armorColor(item.key);
+      for (const [x, y, w, h] of ARMOR_SHAPES[item.armor.slot]) ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      for (const [x, y, w, h] of ARMOR_SHAPES[item.armor.slot]) ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      url = canvas.toDataURL();
     } else {
       // Non-block items: an original glyph tile from the item key.
       const canvas = document.createElement("canvas");
@@ -48,6 +74,9 @@ export class Hud {
 
   setInventory(snapshot: InventorySnapshot) {
     this.inventory = snapshot;
+    const armor = $("armor");
+    armor.hidden = !snapshot.armor;
+    if (snapshot.armor) pips("armor", snapshot.armor, 10, 2);
     const bar = $("hotbar");
     bar.replaceChildren();
     for (let i = 0; i < 9; i++) {
@@ -111,6 +140,9 @@ export type Vitals = {
   dead: boolean;
   cause: string | null;
   realm: string;
+  xp?: number;
+  level?: number;
+  progress?: number;
 };
 
 const CAUSES: Record<string, string> = {
@@ -147,6 +179,8 @@ export class VitalsHud {
     const survival = v.realm === "survival";
     (document.getElementById("vitals") as HTMLElement).hidden = !survival;
     pips("health", v.health, 10, 2);
+    ($("xp-fill") as HTMLElement).style.width = `${Math.round((v.progress ?? 0) * 100)}%`;
+    $("xp-level").textContent = v.level ? String(v.level) : "";
     pips("food", v.food, 10, 2, true);
     const air = document.getElementById("air") as HTMLElement;
     air.hidden = v.air >= v.maxAir;

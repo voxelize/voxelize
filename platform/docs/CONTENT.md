@@ -36,6 +36,7 @@ stable forever once a world has used them; 0 is reserved (air).
 | `tool.required` | `false`: the tool only speeds mining, drops come by hand too |
 | `orientation` | `none`, `horizontal` (4 facings), `full` (6 facings) |
 | `fluid` | `water` or `lava`; fluids must not have collision |
+| `xp` | blocks: experience released when mined and harvested, `[min, max]` (ores) |
 | `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries` (`burns` reserved); circuits: `conduit`, `lever`, `button`, `plate`, `clock`, `consumer`, `repeater`, `inverter`, `actuator` — implemented once by the server, enabled here |
 | `powered` / `powerSwap` | consumers (lamps, gates): whether this block is the powered state, and the block it swaps to when power changes (pairs must point at each other) |
 | `stages` | growth stages (2–16) for `grows` blocks |
@@ -107,6 +108,16 @@ their behaviour by key: using a hall sets the member's respawn point; a
 vault opens its guild's shared inventory. `siege_banner` is the one block
 placed on someone else's land: on land of a guild yours is at war with,
 where it runs a siege (see NETWORK_PROTOCOL.md).
+
+Armor items (`"type": "armor"`) carry `"armor": { "slot": "head" | "chest" | "legs" | "feet", "points": n }`
+(checked at load: armor needs stats and only armor has them). The inventory
+screen's armor slots run head, chest, legs, feet and take only their own
+piece; shift-click puts a piece on. Armor worn adds up to at most 20 points
+and takes points/25 off hits from creatures and players; each hit wears
+every worn piece by one. The pack has hide, copper, iron and ember quartz
+sets (the classic points: 1/3/2/1 up to 3/8/6/3). Mobs may set `xp` (the
+default is 5, 2 for passive ones); processing recipes' `experience` is paid
+per item taken out of a furnace.
 
 ## biomes/ and ores/
 

@@ -85,7 +85,11 @@ and death spill items instead of destroying them. Verified by
 `tests/bots/crafting.mjs`: chop logs by hand → planks → workbench →
 sticks, wooden pickaxe, chest → store and retrieve → dig stone → furnace →
 smelt.
-Remaining: armor items and their protection, checkpointing to
+Done since: armor (four slots, four sets, damage reduction and wear),
+experience (ores, creatures, smelting; classic level curve; lost on death;
+the anvil repairs held items for levels), HUD armor and experience bars.
+Tests: armor, XP and anvil unit tests, `tests/bots/armor.mjs`.
+Remaining: checkpointing to
 `inventories`/`inventory_slots`, dropped items surviving a restart.
 
 ## Phase 6 — Persistence 🟡
@@ -119,7 +123,7 @@ respawn (`platform.respawn`), vitals persisted with the player; grace
 period after join/respawn so teleports are not falls. HUD bars, damage
 flash, death screen. 10 unit tests plus the live smoke test (a 10-block
 fall hurts, a 40-block fall kills, respawn restores health).
-Death now spills the whole inventory as dropped items. Remaining: armor, experience, status effects, fire, combat, projectile
+Death now spills the whole inventory as dropped items; armor and experience are done (phase 5), player combat in guild wars (phase 17). Remaining: status effects, fire, projectile
 and explosion damage, weather engine.
 
 ## Phase 9 — Crafting and processing ✅ (gameplay) / admin ⬜

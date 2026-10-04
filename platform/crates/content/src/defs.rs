@@ -212,6 +212,9 @@ pub struct BlockDef {
     /// Can be toggled by hand with `platform.use` (gates).
     #[serde(default)]
     pub usable: bool,
+    /// Experience released when mined and harvested: `[min, max]`.
+    #[serde(default)]
+    pub xp: Option<[u32; 2]>,
     /// Rifts: the frame that lights into this rift and the dimension it
     /// opens from the overworld (from any other dimension, rifts lead back
     /// to the overworld).
@@ -287,6 +290,41 @@ pub struct ItemDef {
     /// Hunger points restored when eaten.
     #[serde(default)]
     pub food: Option<u32>,
+    /// Armor: where it is worn and how much it protects.
+    #[serde(default)]
+    pub armor: Option<ArmorStats>,
+}
+
+/// The four armor slots, top to bottom (the order of the inventory screen).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArmorSlot {
+    Head,
+    Chest,
+    Legs,
+    Feet,
+}
+
+impl ArmorSlot {
+    pub const ALL: [ArmorSlot; 4] = [
+        ArmorSlot::Head,
+        ArmorSlot::Chest,
+        ArmorSlot::Legs,
+        ArmorSlot::Feet,
+    ];
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ArmorStats {
+    pub slot: ArmorSlot,
+    /// Armor points (all worn pieces together, at most 20, take
+    /// points/25 off incoming hits).
+    pub points: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -558,7 +596,20 @@ pub struct MobDef {
     /// How far it notices players, in blocks.
     #[serde(default = "default_sight")]
     pub sight: f32,
+    /// Experience for the player who kills it (default: 5 for hostile and
+    /// neutral creatures, 2 for passive ones).
+    #[serde(default)]
+    pub xp: Option<u32>,
     pub model: Vec<ModelPart>,
+}
+
+impl MobDef {
+    pub fn experience(&self) -> u32 {
+        self.xp.unwrap_or(match self.kind {
+            MobKind::Passive => 2,
+            _ => 5,
+        })
+    }
 }
 
 fn default_attack_cooldown() -> f32 {

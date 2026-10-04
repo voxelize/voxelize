@@ -26,6 +26,26 @@ fn container_kind(container: &Container) -> WindowKind {
     }
 }
 
+/// Experience for taking `count` of a smelted item: the recipe's
+/// experience each, the fraction paid by chance (`roll` in 0..1).
+pub(super) fn smelting_xp(
+    content: &platform_content::Content,
+    item: u32,
+    count: u32,
+    roll: f64,
+) -> u32 {
+    let Some(key) = content.item_by_id(item).map(|i| i.key.clone()) else {
+        return 0;
+    };
+    let each = content
+        .processing()
+        .iter()
+        .find(|r| r.output.item == key)
+        .map_or(0.0, |r| r.experience as f64);
+    let total = each * count as f64;
+    total.floor() as u32 + u32::from(roll < total.fract())
+}
+
 /// Assemble the player's open window (or the inventory screen).
 fn build_window(g: &Gameplay, id: &str) -> Option<Window> {
     let player = g.players.get(id)?;
@@ -381,9 +401,34 @@ fn window_op(
                 Some(mut w) => {
                     let mut cursor = g.players.get_mut(id).and_then(|p| p.cursor.take());
                     let content = g.rules.content_arc();
+                    // A furnace's output: smelting experience is paid on taking it.
+                    let output_before = (w.kind == WindowKind::Furnace)
+                        .then(|| w.slots.get(2).cloned().flatten())
+                        .flatten();
                     let outcome = op(&mut w, &content, &mut cursor);
                     if let Some(p) = g.players.get_mut(id) {
                         p.cursor = cursor;
+                    }
+                    if let (Ok(_), Some(before)) = (&outcome, output_before) {
+                        let left = w
+                            .slots
+                            .get(2)
+                            .cloned()
+                            .flatten()
+                            .filter(|s| s.item == before.item)
+                            .map_or(0, |s| s.count);
+                        let taken = before.count.saturating_sub(left);
+                        let roll = g.random();
+                        if let Some(p) = g.players.get_mut(id) {
+                            if taken > 0 && p.realm == platform_ticket::Realm::Survival {
+                                p.xp = p.xp.saturating_add(smelting_xp(
+                                    &content,
+                                    before.item,
+                                    taken,
+                                    roll,
+                                ));
+                            }
+                        }
                     }
                     if let Ok(dropped) = &outcome {
                         store_window(&mut g, id, &w);
@@ -417,6 +462,8 @@ fn window_op(
                 send_window(world, &other);
             }
             persist(world, id);
+            // Experience from smelting, and armor put on or taken off.
+            super::send_vitals(world, id, None);
         }
         Some(Err(e)) => {
             reply(world, id, intent, Err(e));
@@ -905,5 +952,122 @@ impl<'a> specs::System<'a> for WorldItemsSystem {
                 log::error!("could not save containers: {e}");
             }
         }
+    }
+}
+
+/// Using an anvil repairs the held item fully for experience levels (one per
+/// quarter of its durability restored; free in creative). Returns false
+/// when the block is not an anvil.
+pub(super) fn use_anvil(world: &mut World, id: &str, voxel: [i32; 3]) -> bool {
+    const INTENT: &str = "use";
+    let is_anvil = {
+        let g = world.ecs().read_resource::<Gameplay>();
+        let block =
+            voxelize::VoxelAccess::get_voxel(&*world.chunks(), voxel[0], voxel[1], voxel[2]);
+        g.rules
+            .content()
+            .block_by_id(block)
+            .is_some_and(|b| b.key == "anvil")
+    };
+    if !is_anvil {
+        return false;
+    }
+    if !super::land_allows(world, id, voxel, super::land::Action::Use) {
+        reply(world, id, INTENT, Err(IntentError::LandProtected));
+        return true;
+    }
+    let position = client_position(world, id);
+    let result = {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        let reach = g.rules.reach;
+        let content = g.rules.content_arc();
+        let close = position.is_some_and(|p| {
+            (0..3)
+                .map(|i| (voxel[i] as f32 + 0.5 - p[i]).powi(2))
+                .sum::<f32>()
+                <= reach * reach
+        });
+        match g.players.get_mut(id) {
+            None => Err(IntentError::NothingThere),
+            Some(_) if !close => Err(IntentError::OutOfReach),
+            Some(player) if player.vitals.is_dead() => Err(IntentError::Dead),
+            Some(player) => repair_held(&content, player),
+        }
+    };
+    let ok = result.is_ok();
+    reply(world, id, INTENT, result);
+    if ok {
+        send_inventory(world, id);
+        super::send_vitals(world, id, None);
+        persist(world, id);
+    }
+    true
+}
+
+/// Repair the selected item at an anvil, paying levels in survival.
+pub(super) fn repair_held(
+    content: &platform_content::Content,
+    player: &mut super::rules::PlayerState,
+) -> Result<Value, IntentError> {
+    let slot = player.inventory.selected;
+    let stack = player.inventory.get(slot).ok_or(IntentError::CannotUse)?;
+    let max = content
+        .item_by_id(stack.item)
+        .and_then(|i| i.durability)
+        .ok_or(IntentError::CannotUse)?;
+    let worn = max.saturating_sub(stack.durability.unwrap_or(max));
+    let cost = super::xp::repair_cost(worn, max);
+    if cost == 0 {
+        return Err(IntentError::CannotUse);
+    }
+    if player.realm == platform_ticket::Realm::Survival {
+        player.xp = super::xp::spend_levels(player.xp, cost).ok_or(IntentError::NotEnoughXp)?;
+    }
+    if let Some(s) = player
+        .inventory
+        .slots
+        .get_mut(slot)
+        .and_then(Option::as_mut)
+    {
+        s.durability = Some(max);
+    }
+    Ok(json!({ "repaired": slot, "levels": cost }))
+}
+
+#[cfg(test)]
+mod xp_tests {
+    use super::*;
+    use crate::gameplay::inventory::{Inventory, Stack};
+    use crate::gameplay::rules::PlayerState;
+
+    #[test]
+    fn anvils_repair_for_levels_and_furnaces_pay_experience() {
+        let c = platform_content::Content::load(platform_content::default_pack_dir()).unwrap();
+        let pick = c.item("iron_pickaxe").unwrap();
+        let max = pick.durability.unwrap();
+        let mut inv = Inventory::default();
+        inv.slots[0] = Some(Stack {
+            item: pick.id,
+            count: 1,
+            durability: Some(max - max / 2),
+        });
+        let mut p = PlayerState::new(inv, platform_ticket::Realm::Survival, Default::default());
+        assert_eq!(repair_held(&c, &mut p), Err(IntentError::NotEnoughXp));
+        p.xp = super::super::xp::points_for_level(3);
+        let r = repair_held(&c, &mut p).unwrap();
+        assert_eq!(r["levels"], 2);
+        assert_eq!(super::super::xp::level_of(p.xp).0, 1);
+        assert_eq!(p.inventory.get(0).unwrap().durability, Some(max));
+        assert_eq!(
+            repair_held(&c, &mut p),
+            Err(IntentError::CannotUse),
+            "nothing to repair"
+        );
+
+        // Iron gives 0.7 each: 10 ingots are 7 points.
+        let iron = c.item("iron_ingot").unwrap().id;
+        assert_eq!(smelting_xp(&c, iron, 10, 0.99), 7);
+        assert_eq!(smelting_xp(&c, iron, 1, 0.5), 1);
+        assert_eq!(smelting_xp(&c, iron, 1, 0.9), 0);
     }
 }

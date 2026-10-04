@@ -27,6 +27,6 @@
     "id": 57, "key": "ember_quartz_ore", "name": "Ember Quartz Ore", "material": "rock",
     "hardness": 3, "resistance": 3, "texture": { "all": "ember_quartz_ore" },
     "tool": { "kind": "pickaxe", "minTier": 1, "required": true },
-    "drops": [{ "item": "ember_quartz" }]
+    "xp": [2, 5], "drops": [{ "item": "ember_quartz" }]
   }
 ]

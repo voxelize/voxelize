@@ -15,7 +15,7 @@
 //! conserves items; anything that cannot be stored is returned to the
 //! caller to be dropped in the world, never deleted.
 
-use platform_content::{match_recipe, Content, CraftingGrid, ItemType};
+use platform_content::{match_recipe, Content, CraftingGrid};
 use serde::{Deserialize, Serialize};
 
 use super::inventory::{Stack, HOTBAR_SIZE, INVENTORY_SIZE};
@@ -159,9 +159,18 @@ impl Window {
             SlotRule::Fuel => content
                 .item_by_id(stack.item)
                 .is_some_and(|i| content.fuel_ticks(&i.key).is_some()),
-            SlotRule::Armor => content
-                .item_by_id(stack.item)
-                .is_some_and(|i| i.item_type == ItemType::Armor),
+            // Armor slots run head, chest, legs, feet; each takes its piece.
+            SlotRule::Armor => {
+                let first = self
+                    .rules
+                    .iter()
+                    .position(|r| *r == SlotRule::Armor)
+                    .unwrap_or(slot);
+                content
+                    .item_by_id(stack.item)
+                    .and_then(|i| i.armor)
+                    .is_some_and(|a| a.slot.index() == slot - first)
+            }
         }
     }
 
@@ -274,11 +283,9 @@ impl Window {
                 }
             }
             WindowKind::Player => {
-                let is_armor = content
-                    .item_by_id(stack.item)
-                    .is_some_and(|i| i.item_type == ItemType::Armor);
-                if is_armor {
-                    let mut t: Vec<usize> = (5..9).collect();
+                let armor = content.item_by_id(stack.item).and_then(|i| i.armor);
+                if let Some(armor) = armor {
+                    let mut t = vec![5 + armor.slot.index()];
                     t.extend(swap_halves());
                     t
                 } else {
@@ -832,10 +839,18 @@ mod tests {
         f.click(&c, &mut cursor, 2, Click::Left).unwrap(); // cannot place into output
         assert_eq!(f.slots[2], st(&c, "iron_ingot", 2));
         assert_eq!(cursor, st(&c, "dirt", 4));
-        // armor slots refuse non-armor
+        // armor slots refuse non-armor, and each takes only its own piece
         let mut p = player_window(&c, vec![]);
         p.click(&c, &mut cursor, 5, Click::Left).unwrap();
         assert!(p.slots[5].is_none());
+        let mut boots = st(&c, "iron_boots", 1);
+        p.click(&c, &mut boots, 5, Click::Left).unwrap();
+        assert!(p.slots[5].is_none(), "boots are no helmet");
+        p.click(&c, &mut boots, 8, Click::Left).unwrap();
+        assert_eq!(
+            p.slots[8].as_ref().map(|s| s.item),
+            Some(c.item("iron_boots").unwrap().id)
+        );
     }
 
     #[test]

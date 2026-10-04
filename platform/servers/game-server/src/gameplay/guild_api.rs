@@ -498,6 +498,7 @@ pub(super) fn install(world: &mut World) {
                         attacker.inventory.wear_selected();
                     }
                     let victim = players.get_mut(&p.player).expect("checked");
+                    let damage = super::rules::absorb(&content, victim, damage);
                     victim.vitals.damage(damage);
                     let killed = victim.vitals.is_dead();
                     let vitals = super::vitals_payload(victim, Some(DamageKind::Player));

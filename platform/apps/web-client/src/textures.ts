@@ -440,6 +440,17 @@ const RECIPES: Record<string, Recipe> = {
     p.blobs(hex("#ffd34a"), 5, 1);
     p.blobs(hex("#fff3b0"), 3, 0);
   },
+  anvil_side: (p) => {
+    p.speckle(hex("#3d4048"), 0.08);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < SIZE; x++) p.set(x, y, shade(hex("#55595f"), (p.random() - 0.5) * 0.1));
+    for (let y = 4; y < 12; y++) for (let x = 0; x < SIZE; x++) if (x < 5 || x > 10) p.set(x, y, hex("#000000", 0));
+    p.border(hex("#26282d"));
+  },
+  anvil_top: (p) => {
+    p.speckle(hex("#4a4e55"), 0.08);
+    for (let y = 6; y < 10; y++) for (let x = 1; x < 15; x++) p.set(x, y, shade(hex("#6a6f77"), (p.random() - 0.5) * 0.1));
+    p.border(hex("#26282d"));
+  },
   siege_banner: (p) => {
     p.clear();
     for (let y = 0; y < SIZE; y++) for (let x = 7; x < 9; x++) p.set(x, y, shade(PLANK, -0.3));

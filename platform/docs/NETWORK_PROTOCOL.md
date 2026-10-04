@@ -86,7 +86,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.window.fill` | `{"recipe":key,"max":bool}` | recipe book: moves ingredients from the inventory into the grid (once or as many sets as possible); refuses recipes that do not fit the grid | ✅ |
 | `platform.window.close` | `{}` | grid and cursor go back to the inventory; what does not fit drops in the world | ✅ |
 | `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
-| `platform.use` | `{"voxel":[x,y,z]}` | reach; on a town hall (`guild_hall`): a member of the guild whose land it stands on makes it their respawn point (overworld halls) and gets `platform.guild.hall {"guild":{"id","tag","name"},"home"}`, others `not_owner`; a held fire striker lights the riftstone frame at the voxel (a closed frame, interior 2×3 to 21×21, all air) and wears; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe). Answer carries `changed` (cells written) | ✅ |
+| `platform.use` | `{"voxel":[x,y,z]}` | reach; on an anvil: repairs the held item fully for one experience level per quarter of its durability restored (free in creative; `not_enough_xp`, `cannot_use` when nothing is worn), answers `{"repaired":slot,"levels":n}`; on a town hall (`guild_hall`): a member of the guild whose land it stands on makes it their respawn point (overworld halls) and gets `platform.guild.hall {"guild":{"id","tag","name"},"home"}`, others `not_owner`; a held fire striker lights the riftstone frame at the voxel (a closed frame, interior 2×3 to 21×21, all air) and wears; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe). Answer carries `changed` (cells written) | ✅ |
 | `platform.market.list` | `{"slot":n,"count":n,"price":n,"kind"?:"fixed"\|"auction","buyout"?:n,"hours"?:1-168}` | survival realm only (`survival_only`); a backend configured (`market_unavailable`); valid price, buyout above the opening price for auctions only, duration (`bad_listing`); exactly `count` from the slot (`bad_count`). The goods leave the inventory into the player's outbox in one save; `platform.market {"listed"}` follows when the backend holds them, or `{"rejected"}` with the goods returned | ✅ |
 | `platform.stall.price` | `{"at":[x,y,z],"slot":0-8,"price":n}` | the stall's owner (`not_owner`), within reach; 0 takes the slot off sale | ✅ |
 | `platform.stall.guild` | `{"at":[x,y,z],"guild":bool}` | the stall's owner, within reach; a guild stall's sales pay the owner's guild treasury (fixed per sale when it is bought) | ✅ |
@@ -119,7 +119,7 @@ Answers (events, sent only to the requesting client):
   `land_protected`, `market_unavailable`, `survival_only`, `bad_listing`,
   `not_owner` (someone else's stall), `busy` (a stall with a sale being paid),
   `bad_blueprint`.
-- `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
+- `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival","armor":0-20}` (`armor`: points of the armor worn),
   pushed on join and after every change.
 
 - `platform.window` — the open window, authoritative after every change:
@@ -128,7 +128,7 @@ Answers (events, sent only to the requesting client):
 - `platform.drops` — `{"items":[{"id","item","count","p":[x,y,z]}]}`, dropped items within 64 blocks, up to 10 times a second.
 - `platform.pickup` — `{"items":[[item,count],…]}` after walking over drops.
 - `platform.mobs` — `{"mobs":[{"id","key","p","yaw","health","hurt","baby","moving","love"}]}`, creatures within 64 blocks, ten times a second.
-- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|"player"|null,"realm"}`,
+- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|"player"|null,"realm","xp","level","progress"}` (experience points, level and the fraction towards the next level`,
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
 

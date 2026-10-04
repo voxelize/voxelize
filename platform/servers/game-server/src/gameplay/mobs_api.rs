@@ -249,6 +249,7 @@ impl<'a> specs::System<'a> for MobSystem {
                     if state.vitals.is_dead() || state.realm != Realm::Survival {
                         continue;
                     }
+                    let damage = super::rules::absorb(&content, state, damage);
                     state.vitals.damage(damage);
                     events.dispatch(
                         Event::new(super::VITALS_EVENT)
@@ -380,6 +381,12 @@ pub(super) fn install(world: &mut World) {
                             player.inventory.wear_selected();
                         }
                         let died = mobs.hurt(&content, p.mob, damage, Some(id), Some(eye));
+                        // The killer earns the creature's experience (not for babies).
+                        if died && player.realm == Realm::Survival && !mob.is_baby() {
+                            if let Some(def) = content.mob(&mob.key) {
+                                player.xp = player.xp.saturating_add(def.experience());
+                            }
+                        }
                         let health = mobs.list.iter().find(|m| m.id == p.mob).map(|m| m.health);
                         Some(Ok(json!({ "mob": p.mob, "damage": damage, "health": health, "killed": died })))
                     }
@@ -389,8 +396,12 @@ pub(super) fn install(world: &mut World) {
         match result {
             None => not_joined(world, id, INTENT),
             Some(r) => {
+                let killed = r.as_ref().is_ok_and(|v| v["killed"] == true);
                 reply(world, id, INTENT, r);
                 send_inventory(world, id);
+                if killed {
+                    super::send_vitals(world, id, None);
+                }
             }
         }
     });

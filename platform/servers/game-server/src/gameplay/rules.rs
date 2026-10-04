@@ -63,6 +63,8 @@ pub enum IntentError {
     NotAtWar,
     /// A siege already stands on that land.
     SiegeUnderway,
+    /// An anvil repair costs more levels than the player has.
+    NotEnoughXp,
     /// The land there belongs to someone who has not allowed this.
     LandProtected,
     MarketUnavailable,
@@ -103,6 +105,7 @@ impl IntentError {
             IntentError::NotInSettlement => "not_in_settlement",
             IntentError::NotAtWar => "not_at_war",
             IntentError::SiegeUnderway => "siege_underway",
+            IntentError::NotEnoughXp => "not_enough_xp",
             IntentError::LandProtected => "land_protected",
             IntentError::MarketUnavailable => "market_unavailable",
             IntentError::SurvivalOnly => "survival_only",
@@ -155,6 +158,8 @@ pub struct PlayerState {
     pub trade_hold: Option<super::trade::Hold>,
     /// The town hall the player respawns at (overworld cell above it).
     pub home: Option<[i32; 3]>,
+    /// Experience points (see `xp.rs`).
+    pub xp: u32,
 }
 
 /// The window a player has open.
@@ -186,8 +191,38 @@ impl PlayerState {
             market: Default::default(),
             trade_hold: None,
             home: None,
+            xp: 0,
         }
     }
+}
+
+/// Armor points worn (at most 20).
+pub fn armor_points(content: &Content, player: &PlayerState) -> u32 {
+    player
+        .armor
+        .iter()
+        .flatten()
+        .filter_map(|s| content.item_by_id(s.item)?.armor)
+        .map(|a| a.points)
+        .sum::<u32>()
+        .min(20)
+}
+
+/// A hit through armor: the damage left after armor takes points/25 of it,
+/// and every worn piece wears by one (breaking at zero).
+pub fn absorb(content: &Content, player: &mut PlayerState, damage: f32) -> f32 {
+    let points = armor_points(content, player);
+    for piece in player.armor.iter_mut() {
+        if let Some(stack) = piece {
+            if let Some(d) = stack.durability.as_mut() {
+                *d = d.saturating_sub(1);
+                if *d == 0 {
+                    *piece = None;
+                }
+            }
+        }
+    }
+    damage * (1.0 - points as f32 / 25.0)
 }
 
 fn alive(player: &PlayerState) -> Result<(), IntentError> {
@@ -201,6 +236,8 @@ fn alive(player: &PlayerState) -> Result<(), IntentError> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MineOutcome {
     pub harvested: bool,
+    /// Experience earned (ores).
+    pub xp: u32,
     /// `(item id, count)` to spawn at the block.
     pub drops: Vec<(u32, u32)>,
     pub tool_broke: bool,
@@ -316,6 +353,7 @@ impl Rules {
             player.mining = None;
             return Ok(MineOutcome {
                 harvested: false,
+                xp: 0,
                 drops: vec![],
                 tool_broke: false,
             });
@@ -372,8 +410,14 @@ impl Rules {
         // Drops are spawned in the world by the caller and picked up by
         // walking over them, so a full inventory never destroys anything.
         let tool_broke = block.hardness > 0.0 && player.inventory.wear_selected();
+        let xp = match (harvests, block.xp) {
+            (true, Some([lo, hi])) => lo + ((random() * (hi - lo + 1) as f64) as u32).min(hi - lo),
+            _ => 0,
+        };
+        player.xp = player.xp.saturating_add(xp);
         Ok(MineOutcome {
             harvested: harvests,
+            xp,
             drops,
             tool_broke,
         })
@@ -1145,5 +1189,45 @@ mod tests {
             .unwrap();
         assert!(!outcome.harvested);
         assert!(outcome.drops.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod armor_tests {
+    use super::*;
+    use crate::gameplay::inventory::Stack;
+
+    #[test]
+    fn armor_softens_hits_and_wears() {
+        let c = Content::load(platform_content::default_pack_dir()).unwrap();
+        let mut p = PlayerState::new(Inventory::default(), Realm::Survival, Default::default());
+        assert_eq!(absorb(&c, &mut p, 10.0), 10.0, "no armor");
+        let piece = |k: &str, d: u32| {
+            Some(Stack {
+                item: c.item(k).unwrap().id,
+                count: 1,
+                durability: Some(d),
+            })
+        };
+        p.armor = vec![
+            piece("iron_helmet", 100),
+            piece("iron_chestplate", 100),
+            piece("iron_leggings", 1),
+            piece("iron_boots", 100),
+        ];
+        assert_eq!(armor_points(&c, &p), 15);
+        let left = absorb(&c, &mut p, 10.0);
+        assert!((left - 4.0).abs() < 1e-5, "15 points take 60 %: {left}");
+        assert_eq!(p.armor[0].as_ref().unwrap().durability, Some(99));
+        assert!(p.armor[2].is_none(), "worn-out leggings break");
+        assert_eq!(armor_points(&c, &p), 10);
+        // A full ember set stays capped at 20 points (80 %).
+        p.armor = vec![
+            piece("ember_helmet", 9),
+            piece("ember_chestplate", 9),
+            piece("ember_leggings", 9),
+            piece("ember_boots", 9),
+        ];
+        assert_eq!(armor_points(&c, &p), 20);
     }
 }

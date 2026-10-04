@@ -27,6 +27,6 @@
     "hardness": 3, "resistance": 3, "texture": { "all": "sunstone_ore" },
     "lightEmission": 6,
     "tool": { "kind": "pickaxe", "minTier": 2, "required": true },
-    "drops": [{ "item": "sun_shard" }]
+    "xp": [3, 7], "drops": [{ "item": "sun_shard" }]
   }
 ]

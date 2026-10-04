@@ -33,6 +33,7 @@ pub mod rules;
 pub mod store;
 pub mod survival;
 pub mod window;
+pub mod xp;
 pub use items_api::WorldItemsSystem;
 
 use std::collections::HashMap;
@@ -209,7 +210,7 @@ fn send_inventory(world: &mut World, client_id: &str) {
         gameplay
             .players
             .get(client_id)
-            .map(|p| json!({ "slots": p.inventory.slots, "selected": p.inventory.selected, "realm": p.realm }))
+            .map(|p| json!({ "slots": p.inventory.slots, "selected": p.inventory.selected, "realm": p.realm, "armor": rules::armor_points(gameplay.rules.content(), p) }))
     };
     if let Some(snapshot) = snapshot {
         send(world, client_id, INVENTORY_EVENT, snapshot);
@@ -226,6 +227,9 @@ fn vitals_payload(player: &PlayerState, cause: Option<survival::DamageKind>) -> 
         "dead": v.is_dead(),
         "cause": cause,
         "realm": player.realm,
+        "xp": player.xp,
+        "level": xp::level_of(player.xp).0,
+        "progress": xp::level_of(player.xp).1,
     })
 }
 
@@ -458,6 +462,7 @@ fn on_join(world: &mut World, entity: Entity) {
         delivered,
         trade_hold,
         home,
+        xp,
     ) = match record {
         Some(r) => (
             r.inventory,
@@ -470,6 +475,7 @@ fn on_join(world: &mut World, entity: Entity) {
             r.delivered,
             r.trade_hold,
             r.home,
+            r.xp,
         ),
         None => (
             Inventory::default(),
@@ -482,6 +488,7 @@ fn on_join(world: &mut World, entity: Entity) {
             Vec::new(),
             None,
             None,
+            0,
         ),
     };
     {
@@ -502,6 +509,7 @@ fn on_join(world: &mut World, entity: Entity) {
         state.market = market::MarketState::restore(outbox, delivered);
         state.trade_hold = trade_hold;
         state.home = home;
+        state.xp = xp;
         // Joining inside a portal never sends the player straight on.
         state.travel.blocked = true;
         state.travel.settle = travel::SETTLE_SECONDS;
@@ -640,9 +648,12 @@ pub fn install(
                     world,
                     client_id,
                     INTENT,
-                    Ok(json!({ "voxel": p.voxel, "drops": outcome.drops, "toolBroke": outcome.tool_broke })),
+                    Ok(json!({ "voxel": p.voxel, "drops": outcome.drops, "toolBroke": outcome.tool_broke, "xp": outcome.xp })),
                 );
                 send_inventory(world, client_id);
+                if outcome.xp > 0 {
+                    send_vitals(world, client_id, None);
+                }
             }
             Some(Err(e)) => reply(world, client_id, INTENT, Err(e)),
         }
@@ -980,7 +991,9 @@ pub fn install(
         let Some(p) = parse::<VoxelPayload>(world, client_id, INTENT, payload) else {
             return;
         };
-        if guild_api::use_hall(world, client_id, p.voxel) {
+        if guild_api::use_hall(world, client_id, p.voxel)
+            || items_api::use_anvil(world, client_id, p.voxel)
+        {
             return;
         }
         // Switches need permission to use; everything else used on a block
@@ -1181,6 +1194,8 @@ pub(crate) fn on_player_death(
     events: &mut voxelize::Events,
 ) {
     player.mining = None;
+    // Experience is lost with the rest.
+    player.xp = 0;
     let feet_y = eye[1] - EYE_HEIGHT;
     let mut spilled: Vec<inventory::Stack> = Vec::new();
     spilled.extend(player.inventory.slots.iter_mut().filter_map(|s| s.take()));

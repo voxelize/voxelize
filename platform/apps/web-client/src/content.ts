@@ -33,6 +33,7 @@ export type ItemDef = {
   durability?: number | null;
   tool?: { kind: ToolKind; tier: number; speed: number } | null;
   placesBlock?: string | null;
+  armor?: { slot: "head" | "chest" | "legs" | "feet"; points: number } | null;
 };
 
 export type RecipeDef =
