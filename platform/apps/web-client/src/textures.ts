@@ -440,6 +440,24 @@ const RECIPES: Record<string, Recipe> = {
     p.blobs(hex("#ffd34a"), 5, 1);
     p.blobs(hex("#fff3b0"), 3, 0);
   },
+  fire: (p) => {
+    p.clear();
+    for (let x = 0; x < SIZE; x++) {
+      const h = 6 + Math.floor(p.random() * 9);
+      for (let y = SIZE - h; y < SIZE; y++) {
+        const t = (y - (SIZE - h)) / h;
+        p.set(x, y, hex(t < 0.3 ? "#ffe066" : t < 0.65 ? "#ff9a1f" : "#d9401a", 220));
+      }
+    }
+  },
+  blast_charge_side: (p) => {
+    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) p.set(x, y, shade(hex("#b8322a"), (x % 4 === 0 ? -0.2 : 0) + (p.random() - 0.5) * 0.08));
+    for (let y = 6; y < 10; y++) for (let x = 0; x < SIZE; x++) p.set(x, y, hex("#e8e0c8"));
+  },
+  blast_charge_top: (p) => {
+    p.speckle(hex("#b8322a"), 0.08);
+    for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) p.set(x, y, hex("#2b2b2b"));
+  },
   anvil_side: (p) => {
     p.speckle(hex("#3d4048"), 0.08);
     for (let y = 0; y < 4; y++) for (let x = 0; x < SIZE; x++) p.set(x, y, shade(hex("#55595f"), (p.random() - 0.5) * 0.1));

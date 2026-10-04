@@ -17,6 +17,7 @@ import { nearest, TradePanel, type TradeView } from "./trade";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
+import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
 import { loadSettings, Settings, settingsPanel } from "./settings";
 import { isTouchDevice, mountTouchControls } from "./touch";
 import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
@@ -72,6 +73,7 @@ const MESSAGES: Record<string, string> = {
   busy: "A sale is still being paid",
   bad_blueprint: "That is not a blueprint that can be captured or built",
   creative_only: "Only in creative worlds",
+  no_arrows: "You have no arrows",
   not_at_war: "Your guilds are not at war",
   siege_underway: "A siege already stands on that land",
   not_in_settlement: "Town halls and vaults stand on guild land in a settlement",
@@ -434,6 +436,22 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   world.add(mobs.group);
   events.on<{ mobs: MobInfo[] }>("platform.mobs", (payload) => payload && mobs.set(payload.mobs));
 
+  // Arrows, lit charges, explosions and the push of a blast.
+  const combat = new CombatView();
+  world.add(combat.group);
+  events.on<{ arrows: ArrowInfo[]; fuses: FuseInfo[] }>("platform.combat", (payload) => payload && combat.set(payload));
+  events.on<{ at: [number, number, number]; power: number }>("platform.explosion", (payload) => {
+    if (!payload) return;
+    sfx.play("break");
+    const d = controls.object.position.distanceTo(new THREE.Vector3(...payload.at));
+    if (d < 24) hud.toast("Boom!");
+  });
+  events.on<{ velocity: [number, number, number] }>("platform.push", (payload) => {
+    if (!payload) return;
+    const body = (controls as unknown as { body?: { applyImpulse: (v: number[]) => void } }).body;
+    body?.applyImpulse(payload.velocity);
+  });
+
   const drops = new DropsView(content, hud);
   world.add(drops.group);
   events.on<{ items: { id: number; item: number; count: number; p: [number, number, number] }[] }>(
@@ -515,10 +533,25 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     }
     secondaryOnBlock(sneaking);
   };
+  // A bow: hold the right button to draw, release to shoot.
+  let drawing = false;
   canvas.addEventListener("mousedown", (event) => {
     if (!controls.isLocked || touch) return;
+    if (event.button === 2 && hud.heldItem()?.key === "bow" && !vitalsHud.dead) {
+      drawing = true;
+      method.call("platform.bow.draw", {});
+      return;
+    }
     if (event.button === 0) primary(true);
     else if (event.button === 2) secondary(event.shiftKey);
+  });
+  addEventListener("mouseup", (event) => {
+    if (event.button !== 2 || !drawing) return;
+    drawing = false;
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    method.call("platform.bow.shoot", { direction: [dir.x, dir.y, dir.z] });
+    sfx.play("hit");
   });
   // Using a workbench, furnace or chest opens it (sneak to place against
   // it); a hoe tills soil; food in hand is eaten; anything else is placed.
@@ -637,6 +670,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     camera.getWorldDirection(direction);
     world.update(controls.object.position, direction);
     players.update();
+    combat.update();
     drops.update(performance.now());
     mobs.update(performance.now());
 

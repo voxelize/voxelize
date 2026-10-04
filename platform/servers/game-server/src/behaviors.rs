@@ -10,6 +10,7 @@
 //! | `grows` | random tick, light ≥ 9 | crops advance a stage (faster on watered farmland); saplings grow into trees |
 //! | `melts` | random tick | ice next to bright block light turns to water |
 //! | `dries` | random tick | farmland with no water nearby and nothing planted turns back to dirt |
+//! | `burns` | every 1-2 s | fire: burns flammable neighbours away, spreads to air beside flammable blocks, ages and dies out (never on cinderstone), goes out next to water or without fuel |
 //!
 //! Updaters only see the world and return voxel writes, so drops from
 //! blocks broken here are queued in [`BrokenBlocks`] and spawned by the
@@ -34,9 +35,23 @@ pub struct Broken {
 }
 
 #[derive(Debug, Default)]
-pub struct BrokenBlocks(Mutex<Vec<Broken>>);
+pub struct BrokenBlocks(Mutex<Vec<Broken>>, Mutex<Vec<[i32; 3]>>);
 
 impl BrokenBlocks {
+    /// A blast charge set off by fire (its block is already gone).
+    pub fn push_primed(&self, voxel: [i32; 3]) {
+        if let Ok(mut q) = self.1.lock() {
+            q.push(voxel);
+        }
+    }
+
+    pub fn drain_primed(&self) -> Vec<[i32; 3]> {
+        self.1
+            .lock()
+            .map(|mut q| std::mem::take(&mut *q))
+            .unwrap_or_default()
+    }
+
     pub fn push(&self, voxel: Vec3<i32>, raw: u32) {
         if let Ok(mut q) = self.0.lock() {
             q.push(Broken {
@@ -70,6 +85,10 @@ pub enum Logic {
 
 /// Ticks a pressed button stays on.
 pub const BUTTON_TICKS: u64 = 60;
+/// Ticks between a fire's updates (plus up to as many again at random).
+pub const FIRE_TICKS: u64 = 30;
+/// A fire's age (stage) at which it dies out.
+pub const FIRE_MAX_AGE: u32 = 15;
 /// Pulse clock periods, selected by stage bits 1..=2.
 pub const CLOCK_PERIODS: [u64; 4] = [30, 60, 120, 240];
 
@@ -86,6 +105,11 @@ pub struct BehaviorContext {
     logs: HashSet<u32>,
     opaque: HashSet<u32>,
     crops_on_farmland: HashSet<u32>,
+    flammable: HashSet<u32>,
+    /// Blocks fire burns on forever.
+    eternal_fire: HashSet<u32>,
+    fire: Option<u32>,
+    blast: Option<u32>,
     counter: AtomicU64,
 }
 
@@ -160,6 +184,18 @@ impl BehaviorContext {
                 .filter(|b| b.support.iter().any(|s| s == "farmland") && b.grows_into.is_none())
                 .map(|b| b.id)
                 .collect(),
+            flammable: blocks
+                .iter()
+                .filter(|b| b.flammable)
+                .map(|b| b.id)
+                .collect(),
+            eternal_fire: blocks
+                .iter()
+                .filter(|b| b.key == "cinderstone")
+                .map(|b| b.id)
+                .collect(),
+            fire: id("fire"),
+            blast: id("blast_charge"),
             counter: AtomicU64::new(0x5EED),
         }
     }
@@ -223,6 +259,7 @@ struct BlockLogic {
     tree_ids: Option<(u32, u32)>,
     melts: bool,
     dries: bool,
+    burns: bool,
     /// Rifts: the portal blocks whose frame they need.
     rift: Option<crate::portals::PortalBlocks>,
 }
@@ -326,6 +363,7 @@ pub fn attach(
             .as_ref()
             .and_then(|t| Some((content.block(&t.log)?.id, content.block(&t.leaves)?.id))),
         melts: has(BlockBehavior::Melts),
+        burns: has(BlockBehavior::Burns),
         dries: has(BlockBehavior::Dries),
         rift: has(BlockBehavior::Rift)
             .then(|| crate::portals::PortalBlocks::by_rift(content, def.id))
@@ -345,6 +383,8 @@ pub fn attach(
                 2
             } else if let Some(delay) = circuit_delay(&ticker_ctx, &voxel, space) {
                 delay
+            } else if ticker_logic.burns {
+                FIRE_TICKS + ticker_ctx.roll(&voxel) % FIRE_TICKS
             } else {
                 u64::MAX
             }
@@ -553,6 +593,10 @@ fn update(
         return vec![(voxel, AIR), (below, raw)];
     }
 
+    if logic.burns {
+        return burn(ctx, voxel, raw, space);
+    }
+
     if logic.spreads {
         let above = space.get_voxel(x, y + 1, z);
         if ctx.opaque.contains(&above) {
@@ -658,6 +702,79 @@ fn update(
         }
     }
     Vec::new()
+}
+
+/// One step of a fire at `voxel`: put out by water or a lack of fuel; else
+/// it may burn a flammable neighbour away (into fire), spread to an empty
+/// cell beside fuel, and ages (dying out at the end, except on cinderstone).
+fn burn(
+    ctx: &BehaviorContext,
+    voxel: Vec3<i32>,
+    raw: u32,
+    space: &dyn VoxelAccess,
+) -> Vec<VoxelUpdate> {
+    let Vec3(x, y, z) = voxel;
+    let Some(fire) = ctx.fire else {
+        return vec![(voxel, AIR)];
+    };
+    let at = |(dx, dy, dz): (i32, i32, i32)| space.get_voxel(x + dx, y + dy, z + dz);
+    if SIDES.iter().any(|s| ctx.water.contains(&at(*s))) {
+        return vec![(voxel, AIR)];
+    }
+    let below = at((0, -1, 0));
+    let eternal = ctx.eternal_fire.contains(&below);
+    let fuel: Vec<(i32, i32, i32)> = SIDES
+        .iter()
+        .copied()
+        .filter(|s| ctx.flammable.contains(&at(*s)))
+        .collect();
+    let age = BlockUtils::extract_stage(raw);
+    let grounded = ctx.opaque.contains(&below);
+    if !eternal && fuel.is_empty() && (!grounded || age >= 3) {
+        return vec![(voxel, AIR)];
+    }
+    let r = ctx.roll(&voxel);
+    let mut writes = Vec::new();
+    // Burn one flammable neighbour away (it turns into fire, no drop).
+    if !fuel.is_empty() && r % 3 == 0 {
+        let (dx, dy, dz) = fuel[((r >> 4) % fuel.len() as u64) as usize];
+        let target = Vec3(x + dx, y + dy, z + dz);
+        if Some(at((dx, dy, dz))) == ctx.blast {
+            // A blast charge catches: it is primed, not burned.
+            ctx.broken.push_primed([target.0, target.1, target.2]);
+            writes.push((target, AIR));
+        } else {
+            writes.push((target, fire));
+        }
+    }
+    // Spread to an empty cell nearby that touches fuel.
+    let (dx, dy, dz) = (
+        ((r >> 12) % 3) as i32 - 1,
+        ((r >> 16) % 4) as i32 - 1,
+        ((r >> 20) % 3) as i32 - 1,
+    );
+    let (tx, ty, tz) = (x + dx, y + dy, z + dz);
+    if (r >> 24) % 2 == 0
+        && space.get_voxel(tx, ty, tz) == AIR
+        && SIDES.iter().any(|(sx, sy, sz)| {
+            ctx.flammable
+                .contains(&space.get_voxel(tx + sx, ty + sy, tz + sz))
+        })
+    {
+        writes.push((Vec3(tx, ty, tz), fire));
+    }
+    // Age; an eternal fire just toggles to stay scheduled.
+    let next = if eternal {
+        age ^ 1
+    } else {
+        age + 1 + (r >> 28) as u32 % 2
+    };
+    if !eternal && next >= FIRE_MAX_AGE {
+        writes.push((voxel, AIR));
+    } else {
+        writes.push((voxel, BlockUtils::insert_stage(raw, next)));
+    }
+    writes
 }
 
 fn grow_tree(
@@ -897,6 +1014,61 @@ mod tests {
         s.voxels.insert((0, 64, 0), e.id("stone"));
         e.run(&mut s, (0, 63, 0));
         assert_eq!(s.get_voxel(0, 63, 0), e.id("dirt"));
+    }
+
+    #[test]
+    fn fire_burns_wood_away_spreads_and_dies_out() {
+        let e = env();
+        let (fire, log, stone, water) =
+            (e.id("fire"), e.id("oak_log"), e.id("stone"), e.id("water"));
+        let is_fire = |v: u32| BlockUtils::extract_id(v) == fire;
+        // A wooden wall beside a fire on stone.
+        let mut s = Space::default();
+        for y in 63..=66 {
+            s.voxels.insert((1, y, 0), log);
+        }
+        s.voxels.insert((0, 62, 0), stone);
+        s.voxels.insert((0, 63, 0), fire);
+        for _ in 0..200 {
+            let fires: Vec<(i32, i32, i32)> = s
+                .voxels
+                .iter()
+                .filter(|(_, v)| is_fire(**v))
+                .map(|(p, _)| *p)
+                .collect();
+            for p in fires {
+                e.run(&mut s, p);
+            }
+        }
+        let logs = s.voxels.values().filter(|&&v| v == log).count();
+        assert!(logs < 4, "the wall burned: {logs} logs left");
+        assert!(
+            !s.voxels.values().any(|&v| is_fire(v)),
+            "and the fire died out"
+        );
+
+        // On bare stone a fire dies out quickly; beside water it goes out at once.
+        let mut bare = Space::default();
+        bare.voxels.insert((0, 62, 0), stone);
+        bare.voxels
+            .insert((0, 63, 0), BlockUtils::insert_stage(fire, 3));
+        e.run(&mut bare, (0, 63, 0));
+        assert_eq!(bare.get_voxel(0, 63, 0), 0);
+        let mut wet = Space::default();
+        wet.voxels.insert((0, 62, 0), stone);
+        wet.voxels.insert((0, 63, 0), fire);
+        wet.voxels.insert((1, 63, 0), water);
+        e.run(&mut wet, (0, 63, 0));
+        assert_eq!(wet.get_voxel(0, 63, 0), 0);
+
+        // Cinderstone burns forever.
+        let mut eternal = Space::default();
+        eternal.voxels.insert((0, 62, 0), e.id("cinderstone"));
+        eternal.voxels.insert((0, 63, 0), fire);
+        for _ in 0..100 {
+            e.run(&mut eternal, (0, 63, 0));
+        }
+        assert!(is_fire(eternal.get_raw_voxel(0, 63, 0)));
     }
 
     /// Run every circuit block's updater repeatedly until nothing changes.

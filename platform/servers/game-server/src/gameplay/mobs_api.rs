@@ -110,6 +110,13 @@ impl MobWorld for EngineMobWorld<'_> {
             .block_by_id(id)
             .is_some_and(|b| b.fluid == Some(platform_content::FluidKind::Water))
     }
+    fn heat(&self, x: i32, y: i32, z: i32) -> f32 {
+        match self.content.block_by_id(self.block(x, y, z)) {
+            Some(b) if b.fluid == Some(platform_content::FluidKind::Lava) => 4.0,
+            Some(b) if b.key == "fire" => 1.0,
+            _ => 0.0,
+        }
+    }
     fn sky_light(&self, x: i32, y: i32, z: i32) -> u32 {
         if y >= self.max_height {
             return 15;

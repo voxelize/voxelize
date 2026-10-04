@@ -168,6 +168,11 @@ fn build_world(
                 "platform-sieges",
                 &["platform-trades"],
             )
+            .with(
+                gameplay::CombatSystem::default(),
+                "platform-combat",
+                &["platform-sieges"],
+            )
     });
     world
 }

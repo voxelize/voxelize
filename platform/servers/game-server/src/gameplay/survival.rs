@@ -12,6 +12,10 @@ pub const MAX_FOOD: f32 = 20.0;
 pub const MAX_AIR: f32 = 15.0; // seconds of breath
 /// Falls up to this many blocks are free.
 pub const SAFE_FALL: f32 = 3.0;
+/// Seconds a body keeps burning after leaving fire or lava.
+pub const BURN_AFTER_FIRE: f32 = 8.0;
+pub const BURN_AFTER_LAVA: f32 = 15.0;
+
 /// Health lost per second below the bottom of the world.
 pub const VOID_DAMAGE: f32 = 8.0;
 /// Creative players fly, so the void takes them only this far down.
@@ -31,6 +35,11 @@ pub enum DamageKind {
     Mob,
     /// Hit by a player of a guild at war with the victim's.
     Player,
+    /// Burning (standing in fire, or on fire after fire or lava).
+    Fire,
+    Explosion,
+    /// Shot by an arrow.
+    Arrow,
     /// Fell out of the world (below its lowest block).
     Void,
 }
@@ -55,6 +64,9 @@ pub struct Vitals {
     /// the reported position jumps, which is not a fall.
     #[serde(skip)]
     pub grace: f32,
+    /// Seconds left on fire.
+    #[serde(default)]
+    pub burning: f32,
 }
 
 impl Default for Vitals {
@@ -70,6 +82,7 @@ impl Default for Vitals {
             regen_timer: 0.0,
             hazard_timer: 0.0,
             grace: 0.0,
+            burning: 0.0,
         }
     }
 }
@@ -146,6 +159,8 @@ pub struct Surroundings {
     pub in_lava: bool,
     /// Below the bottom of the world: falling forever.
     pub in_void: bool,
+    /// Standing in a fire block.
+    pub in_fire: bool,
     /// Horizontal distance moved since the last tick.
     pub moved: f32,
 }
@@ -187,6 +202,7 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
     }
     let before = (v.health, v.food.floor(), v.air.ceil());
 
+    v.burning = (v.burning - dt).max(0.0);
     if v.grace > 0.0 {
         v.grace -= dt;
         v.fall_start = None;
@@ -214,6 +230,16 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
     }
     v.last_feet_y = Some(s.feet_y);
 
+    // Fire: fire and lava set the body alight; water puts it out.
+    if s.in_lava {
+        v.burning = v.burning.max(BURN_AFTER_LAVA);
+    } else if s.in_fire {
+        v.burning = v.burning.max(BURN_AFTER_FIRE);
+    }
+    if s.feet_in_water || s.head_in_water {
+        v.burning = 0.0;
+    }
+
     // Breath.
     if s.head_in_water {
         v.air = (v.air - dt).max(0.0);
@@ -230,6 +256,11 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
         }
         if s.in_void {
             out.damage.push((DamageKind::Void, VOID_DAMAGE));
+        }
+        // Lava hurts on its own; otherwise being alight does (more in the flames).
+        if v.burning > 0.0 && !s.in_lava {
+            out.damage
+                .push((DamageKind::Fire, if s.in_fire { 2.0 } else { 1.0 }));
         }
         if v.air <= 0.0 {
             out.damage.push((DamageKind::Drowning, 2.0));
@@ -274,8 +305,29 @@ mod tests {
             feet_in_water: false,
             in_lava: false,
             in_void: false,
+            in_fire: false,
             moved: 0.0,
         }
+    }
+
+    #[test]
+    fn fire_sets_bodies_alight_until_water() {
+        let mut v = Vitals::default();
+        let mut s = at(64.0, true);
+        s.in_fire = true;
+        let out = tick(&mut v, s, 1.0);
+        assert_eq!(out.damage, vec![(DamageKind::Fire, 2.0)]);
+        assert!(v.burning > 7.0);
+        s.in_fire = false;
+        let out = tick(&mut v, s, 1.0);
+        assert_eq!(
+            out.damage,
+            vec![(DamageKind::Fire, 1.0)],
+            "still alight after stepping out"
+        );
+        s.feet_in_water = true;
+        tick(&mut v, s, 0.1);
+        assert_eq!(v.burning, 0.0, "water puts it out");
     }
 
     #[test]

@@ -65,6 +65,8 @@ pub enum IntentError {
     SiegeUnderway,
     /// An anvil repair costs more levels than the player has.
     NotEnoughXp,
+    /// A bow needs an arrow in the inventory.
+    NoArrows,
     /// The land there belongs to someone who has not allowed this.
     LandProtected,
     MarketUnavailable,
@@ -106,6 +108,7 @@ impl IntentError {
             IntentError::NotAtWar => "not_at_war",
             IntentError::SiegeUnderway => "siege_underway",
             IntentError::NotEnoughXp => "not_enough_xp",
+            IntentError::NoArrows => "no_arrows",
             IntentError::LandProtected => "land_protected",
             IntentError::MarketUnavailable => "market_unavailable",
             IntentError::SurvivalOnly => "survival_only",
@@ -160,6 +163,8 @@ pub struct PlayerState {
     pub home: Option<[i32; 3]>,
     /// Experience points (see `xp.rs`).
     pub xp: u32,
+    /// When the player started drawing their bow (ms).
+    pub bow_drawn: Option<u64>,
 }
 
 /// The window a player has open.
@@ -192,6 +197,7 @@ impl PlayerState {
             trade_hold: None,
             home: None,
             xp: 0,
+            bow_drawn: None,
         }
     }
 }
@@ -571,9 +577,28 @@ impl Rules {
             return Err(IntentError::CannotUse);
         }
         self.target_block(view, position, voxel)?;
-        let blocks = view
-            .block_at(voxel)
-            .and_then(|frame| crate::portals::PortalBlocks::by_frame(&self.content, frame))
+        let clicked = view.block_at(voxel).ok_or(IntentError::NotLoaded)?;
+        let Some(kind) = crate::portals::PortalBlocks::by_frame(&self.content, clicked) else {
+            // Not a portal frame: set the top of a solid block on fire.
+            let fire = self
+                .content
+                .block("fire")
+                .map(|b| b.id)
+                .ok_or(IntentError::CannotUse)?;
+            let solid = self
+                .content
+                .block_by_id(clicked)
+                .is_some_and(|b| b.collision && b.fluid.is_none());
+            let above = [voxel[0], voxel[1] + 1, voxel[2]];
+            if !solid || view.block_at(above) != Some(0) {
+                return Err(IntentError::CannotUse);
+            }
+            if player.realm == Realm::Survival {
+                player.inventory.wear_selected();
+            }
+            return Ok(vec![(above, fire)]);
+        };
+        let blocks = Some(kind)
             .filter(|kind| kind.route(here).is_some())
             .ok_or(IntentError::CannotUse)?;
         let (cells, axis) = crate::portals::ignite(&blocks, voxel, |p| view.block_at(p))

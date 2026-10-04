@@ -754,3 +754,16 @@ body.touch #hint {
   list-style: none;
   font-size: 13px;
 }
+
+#burning {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(255, 120, 20, 0.45), transparent 35%);
+  animation: flicker 0.3s infinite alternate;
+}
+
+@keyframes flicker {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}

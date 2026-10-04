@@ -1,0 +1,9 @@
+[
+  {
+    "id": 69, "key": "blast_charge", "name": "Blast Charge", "material": "wood",
+    "hardness": 0, "resistance": 0,
+    "texture": { "all": "blast_charge_side", "top": "blast_charge_top", "bottom": "blast_charge_top" },
+    "flammable": true,
+    "drops": [{ "item": "blast_charge" }]
+  }
+]

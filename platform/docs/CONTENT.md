@@ -37,7 +37,7 @@ stable forever once a world has used them; 0 is reserved (air).
 | `orientation` | `none`, `horizontal` (4 facings), `full` (6 facings) |
 | `fluid` | `water` or `lava`; fluids must not have collision |
 | `xp` | blocks: experience released when mined and harvested, `[min, max]` (ores) |
-| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries` (`burns` reserved); circuits: `conduit`, `lever`, `button`, `plate`, `clock`, `consumer`, `repeater`, `inverter`, `actuator` — implemented once by the server, enabled here |
+| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries`, `burns` (fire); circuits: `conduit`, `lever`, `button`, `plate`, `clock`, `consumer`, `repeater`, `inverter`, `actuator` — implemented once by the server, enabled here |
 | `powered` / `powerSwap` | consumers (lamps, gates): whether this block is the powered state, and the block it swaps to when power changes (pairs must point at each other) |
 | `stages` | growth stages (2–16) for `grows` blocks |
 | `grownDrops` | drops at the last growth stage (ripe crops), replacing `drops` |
@@ -118,6 +118,20 @@ every worn piece by one. The pack has hide, copper, iron and ember quartz
 sets (the classic points: 1/3/2/1 up to 3/8/6/3). Mobs may set `xp` (the
 default is 5, 2 for passive ones); processing recipes' `experience` is paid
 per item taken out of a furnace.
+
+Fire (`fire`, behaviour `burns`) updates every 1.5–3 s: it burns a
+flammable neighbour away (into fire), spreads to empty cells beside
+flammable blocks, ages and dies out (at once without fuel or ground, beside
+water; never on cinderstone). A `blast_charge` caught by fire is set off
+instead. Bodies in fire or lava burn (1 per second, 2 in the flames, for 8
+s after fire and 15 s after lava) until water puts them out; creatures in
+fire or lava take 1 or 4 per second. A lit blast charge explodes after 4 s
+with power 4: cells within 4 blocks break when the blast at their distance
+beats their `resistance` (never unbreakable blocks, fluids, containers,
+town halls, vaults or anvils, and on claimed land only where the one who
+lit it may build); one block in four drops; other charges go off within a
+second or so; bodies within 8 blocks take up to 24 damage (through armor)
+and are pushed away. Bows (`bow`) shoot `arrow`s (see NETWORK_PROTOCOL.md).
 
 ## biomes/ and ores/
 

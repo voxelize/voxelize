@@ -1,0 +1,5 @@
+[
+  { "id": 100, "key": "blast_charge", "name": "Blast Charge", "type": "block", "placesBlock": "blast_charge", "value": 20 },
+  { "id": 101, "key": "bow", "name": "Bow", "type": "weapon", "stackSize": 1, "durability": 384, "value": 15 },
+  { "id": 102, "key": "arrow", "name": "Arrow", "type": "material", "stackSize": 64, "value": 1 }
+]

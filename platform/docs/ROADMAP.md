@@ -123,8 +123,13 @@ respawn (`platform.respawn`), vitals persisted with the player; grace
 period after join/respawn so teleports are not falls. HUD bars, damage
 flash, death screen. 10 unit tests plus the live smoke test (a 10-block
 fall hurts, a 40-block fall kills, respawn restores health).
-Death now spills the whole inventory as dropped items; armor and experience are done (phase 5), player combat in guild wars (phase 17). Remaining: status effects, fire, projectile
-and explosion damage, weather engine.
+Death now spills the whole inventory as dropped items; armor and experience are done (phase 5), player combat in guild wars (phase 17). Done since: fire (spreading, burning
+wood away, dying out; burning players and creatures), blast charges and
+explosions (blocks by resistance, land-aware, chains, damage and push
+through armor), bows and arrows (server-timed draw, gravity, hits on
+creatures and players at war, arrows picked up again). Tests: fire,
+explosion and arrow unit tests, `tests/bots/fire.mjs`. Remaining: status
+effects, weather engine.
 
 ## Phase 9 — Crafting and processing ✅ (gameplay) / admin ⬜
 

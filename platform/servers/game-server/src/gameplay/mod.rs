@@ -6,6 +6,7 @@
 //! sender with a `platform.result` event plus a fresh `platform.inventory`
 //! snapshot when the inventory changed.
 
+pub mod combat;
 pub mod containers;
 pub mod drops;
 pub mod mobs;
@@ -25,6 +26,7 @@ pub mod stall;
 pub use market::MarketSystem;
 pub mod trade;
 pub mod travel;
+pub use combat::CombatSystem;
 pub use guild_api::SiegeSystem;
 pub use land::LandNoticeSystem;
 pub use trade::TradeSystem;
@@ -83,6 +85,8 @@ pub struct Gameplay {
     trades: trade::Trades,
     /// Siege banners standing on enemy guild land (`sieges.json`).
     sieges: guild_api::Sieges,
+    /// Lit blast charges and arrows in flight.
+    combat: combat::Combat,
 }
 
 impl Gameplay {
@@ -102,6 +106,7 @@ impl Gameplay {
             dimensions,
             trades: trade::Trades::load(world_dir)?,
             sieges: guild_api::Sieges::load(world_dir)?,
+            combat: combat::Combat::default(),
             players: HashMap::new(),
             rng: seed as u64 ^ 0x5EED_CAFE_F00D,
             containers: containers::Containers::load(world_dir)?,
@@ -227,6 +232,7 @@ fn vitals_payload(player: &PlayerState, cause: Option<survival::DamageKind>) -> 
         "dead": v.is_dead(),
         "cause": cause,
         "realm": player.realm,
+        "burning": v.burning > 0.0,
         "xp": player.xp,
         "level": xp::level_of(player.xp).0,
         "progress": xp::level_of(player.xp).1,
@@ -571,6 +577,7 @@ pub fn install(
     market::install(world);
     stall::install(world);
     guild_api::install(world);
+    combat::install(world);
     blueprint::install(world);
     trade::install(world);
     world.set_client_modifier(on_join);
@@ -1020,7 +1027,15 @@ pub fn install(
             let here = g.dimensions.current;
             let Gameplay { rules, players, .. } = g;
             let player = players.get_mut(client_id).expect("checked by with_player");
-            if rules.holds_igniter(player) {
+            let blast = rules.content().block("blast_charge").map(|b| b.id);
+            if rules.holds_igniter(player) && blast.is_some() && view.block_at(p.voxel) == blast {
+                // A lit blast charge leaves its block and burns a fuse.
+                if player.realm == Realm::Survival {
+                    player.inventory.wear_selected();
+                }
+                combat::prime(g, p.voxel, combat::FUSE_SECONDS, Some(client_id.to_owned()));
+                Ok(vec![(p.voxel, 0)])
+            } else if rules.holds_igniter(player) {
                 rules.ignite(player, view, position, p.voxel, here)
             } else {
                 rules
@@ -1155,6 +1170,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 .min(2.0);
             player.last_position = Some(p);
             let lava = |id: u32| fluid(id) == Some(platform_content::FluidKind::Lava);
+            let fire = |id: u32| content.block_by_id(id).is_some_and(|b| b.key == "fire");
             let water = |id: u32| fluid(id) == Some(platform_content::FluidKind::Water);
             let surroundings = Surroundings {
                 feet_y,
@@ -1163,6 +1179,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 feet_in_water: water(feet),
                 in_lava: lava(feet) || lava(head),
                 in_void,
+                in_fire: fire(feet) || fire(head),
                 moved,
             };
             let outcome = survival::tick(&mut player.vitals, surroundings, dt);

@@ -143,6 +143,7 @@ export type Vitals = {
   xp?: number;
   level?: number;
   progress?: number;
+  burning?: boolean;
 };
 
 const CAUSES: Record<string, string> = {
@@ -152,6 +153,9 @@ const CAUSES: Record<string, string> = {
   starvation: "You starved.",
   mob: "You were slain by a creature.",
   void: "You fell out of the world.",
+  fire: "You burned to death.",
+  explosion: "You were blown up.",
+  arrow: "You were shot by an arrow.",
   player: "You were slain by an enemy guild.",
 };
 
@@ -179,6 +183,7 @@ export class VitalsHud {
     const survival = v.realm === "survival";
     (document.getElementById("vitals") as HTMLElement).hidden = !survival;
     pips("health", v.health, 10, 2);
+    $("burning").hidden = !v.burning;
     ($("xp-fill") as HTMLElement).style.width = `${Math.round((v.progress ?? 0) * 100)}%`;
     $("xp-level").textContent = v.level ? String(v.level) : "";
     pips("food", v.food, 10, 2, true);

@@ -33,6 +33,10 @@ pub trait MobWorld {
     fn biome(&self, x: i32, z: i32) -> Option<String>;
     /// Whether the column's chunk is loaded.
     fn loaded(&self, x: i32, z: i32) -> bool;
+    /// Health per second a body loses in this cell (fire, lava).
+    fn heat(&self, _x: i32, _y: i32, _z: i32) -> f32 {
+        0.0
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -329,15 +333,19 @@ impl Mobs {
                 mob.position[2].floor() as i32,
             ];
             let in_water = world.water(head[0], mob.position[1].floor() as i32, head[2]);
-            if def.burns_in_daylight
+            let feet = [head[0], mob.position[1].floor() as i32, head[2]];
+            let heat = world
+                .heat(feet[0], feet[1], feet[2])
+                .max(world.heat(head[0], head[1], head[2]));
+            let sunburn = def.burns_in_daylight
                 && world.is_day()
                 && !in_water
-                && world.sky_light(head[0], head[1], head[2]) >= 15
-            {
+                && world.sky_light(head[0], head[1], head[2]) >= 15;
+            if sunburn || heat > 0.0 {
                 mob.burn_timer += dt;
                 while mob.burn_timer >= 1.0 {
                     mob.burn_timer -= 1.0;
-                    mob.health -= 1.0;
+                    mob.health -= heat.max(1.0);
                     mob.hurt_timer = 0.3;
                 }
             } else {
