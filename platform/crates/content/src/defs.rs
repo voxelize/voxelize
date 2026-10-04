@@ -583,10 +583,56 @@ pub struct MobSpawn {
     /// Biomes it spawns in; every biome when empty.
     #[serde(default)]
     pub biomes: Vec<String>,
-    /// Relative weight among mobs that can spawn at a spot.
+    /// Relative weight among mobs that can spawn at a spot; 0 never spawns
+    /// naturally (summoned creatures).
     pub weight: u32,
     pub group_min: u32,
     pub group_max: u32,
+}
+
+/// How a creature moves.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MobMovement {
+    /// Walks on the ground, jumps single steps and finds paths around walls.
+    #[default]
+    Walk,
+    /// Flies freely; never falls.
+    Fly,
+    /// Swims in water, spawns there, and suffocates on land.
+    Swim,
+}
+
+/// A creature that shoots arrows from a distance instead of closing in.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RangedAttack {
+    /// Shoots at targets within this many blocks.
+    pub range: f32,
+    /// Seconds between shots.
+    pub cooldown: f32,
+    /// Arrow speed, blocks per second.
+    pub speed: f32,
+}
+
+/// An effect a creature's melee hit gives its victim.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OnHitEffect {
+    pub effect: EffectKind,
+    #[serde(default)]
+    pub level: u8,
+    pub seconds: f32,
+}
+
+/// How players call up a creature that never spawns by itself.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SummonDef {
+    /// Item used on a block to summon it (consumed in survival).
+    pub item: String,
+    /// Blocks the item must be used on.
+    pub on: Vec<String>,
 }
 
 /// One box of a mob's model, in blocks, relative to its feet centre.
@@ -635,6 +681,18 @@ pub struct MobDef {
     /// neutral creatures, 2 for passive ones).
     #[serde(default)]
     pub xp: Option<u32>,
+    #[serde(default)]
+    pub movement: MobMovement,
+    #[serde(default)]
+    pub ranged: Option<RangedAttack>,
+    /// Bosses show a health bar to players nearby, shrug off most knockback
+    /// and never despawn.
+    #[serde(default)]
+    pub boss: bool,
+    #[serde(default)]
+    pub on_hit: Option<OnHitEffect>,
+    #[serde(default)]
+    pub summon: Option<SummonDef>,
     pub model: Vec<ModelPart>,
 }
 

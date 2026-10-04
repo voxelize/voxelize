@@ -511,8 +511,11 @@ pub(super) fn install(world: &mut World) {
                             .filter(ClientFilter::Direct(p.player.clone()))
                             .build(),
                     );
+                    let mut death_events = voxelize::Events::new();
+                    if !killed {
+                        super::combat::knockback(&mut death_events, &p.player, eye, target, 1.0);
+                    }
                     if killed {
-                        let mut death_events = voxelize::Events::new();
                         super::on_player_death(
                             &p.player,
                             victim,
@@ -522,8 +525,8 @@ pub(super) fn install(world: &mut World) {
                             rng,
                             &mut death_events,
                         );
-                        events.extend(death_events.queue);
                     }
+                    events.extend(death_events.queue);
                     Ok((damage, killed, events))
                 }
             }

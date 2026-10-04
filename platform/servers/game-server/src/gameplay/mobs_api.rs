@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 use specs::WorldExt;
 use voxelize::{ClientFilter, Event, PositionComp, VoxelAccess, World};
 
+use super::combat::{knockback, Shooter};
 use super::inventory::Stack;
 use super::mobs::{Mob, MobEvent, MobWorld, Mobs, PlayerInfo};
 use super::rules::IntentError;
@@ -239,6 +240,7 @@ impl<'a> specs::System<'a> for MobSystem {
             drops,
             store,
             rng,
+            combat,
             ..
         } = &mut *g;
         let mob_events = mobs.step(&content, &view, &players, dt, mob_rng);
@@ -250,7 +252,21 @@ impl<'a> specs::System<'a> for MobSystem {
 
         for event in mob_events {
             match event {
-                MobEvent::Attack { player, damage, .. } => {
+                MobEvent::Shoot {
+                    mob,
+                    from,
+                    direction,
+                    speed,
+                } => {
+                    combat.shoot(from, direction, speed, Shooter::Mob(mob), false);
+                }
+                MobEvent::Attack {
+                    player,
+                    damage,
+                    from,
+                    effect,
+                    ..
+                } => {
                     let Some(state) = states.get_mut(&player) else {
                         continue;
                     };
@@ -259,6 +275,14 @@ impl<'a> specs::System<'a> for MobSystem {
                     }
                     let damage = super::rules::absorb(&content, state, damage);
                     state.vitals.damage(damage);
+                    if let Some(hit) = effect.filter(|_| !state.vitals.is_dead()) {
+                        state
+                            .vitals
+                            .apply_effect(hit.effect, hit.level, hit.seconds);
+                    }
+                    if let Some(eye) = eyes.get(&player) {
+                        knockback(&mut events, &player, from, *eye, 1.0);
+                    }
                     events.dispatch(
                         Event::new(super::VITALS_EVENT)
                             .payload(super::vitals_payload(state, Some(DamageKind::Mob)))
@@ -459,4 +483,72 @@ pub(super) fn install(world: &mut World) {
         send_inventory(world, id);
         persist(world, id);
     });
+}
+
+/// Using a summoning item on one of its blocks calls up its creature above
+/// the block (one of a kind within 64 blocks). Returns whether the held item
+/// summons something, in which case the intent has been answered.
+pub(super) fn summon(world: &mut World, id: &str, voxel: [i32; 3]) -> bool {
+    const INTENT: &str = "use";
+    let Some(eye) = client_position(world, id) else {
+        return false;
+    };
+    let block = world.chunks().get_voxel(voxel[0], voxel[1], voxel[2]);
+    let result = {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        let content = g.rules.content_arc();
+        let Gameplay { players, mobs, .. } = &mut *g;
+        let Some(player) = players.get_mut(id) else {
+            return false;
+        };
+        let held = player
+            .inventory
+            .selected_stack()
+            .and_then(|s| content.item_by_id(s.item))
+            .map(|i| i.key.clone());
+        let Some(def) = held.and_then(|item| {
+            content
+                .mobs()
+                .iter()
+                .find(|m| m.summon.as_ref().is_some_and(|s| s.item == item))
+        }) else {
+            return false;
+        };
+        let summon = def.summon.as_ref().expect("found by summon");
+        let at = [
+            voxel[0] as f32 + 0.5,
+            voxel[1] as f32 + 1.0,
+            voxel[2] as f32 + 0.5,
+        ];
+        let d2: f32 = (0..3).map(|i| (at[i] - eye[i]).powi(2)).sum();
+        let on_altar = content
+            .block_by_id(block)
+            .is_some_and(|b| summon.on.contains(&b.key));
+        let already = mobs.list.iter().any(|m| {
+            m.key == def.key
+                && (m.position[0] - at[0]).abs() < 64.0
+                && (m.position[2] - at[2]).abs() < 64.0
+        });
+        if player.vitals.is_dead() {
+            Err(IntentError::Dead)
+        } else if d2 > (REACH + 1.0).powi(2) {
+            Err(IntentError::OutOfReach)
+        } else if !on_altar || already {
+            Err(IntentError::CannotUse)
+        } else {
+            if player.realm == Realm::Survival {
+                let slot = player.inventory.selected;
+                let _ = player.inventory.take_one(slot);
+            }
+            let key = def.key.clone();
+            match mobs.spawn(&content, &key, at, false) {
+                Some(mob) => Ok(json!({ "voxel": voxel, "summoned": key, "mob": mob })),
+                None => Err(IntentError::CannotUse),
+            }
+        }
+    };
+    reply(world, id, INTENT, result);
+    send_inventory(world, id);
+    persist(world, id);
+    true
 }

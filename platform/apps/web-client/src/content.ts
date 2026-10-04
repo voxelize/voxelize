@@ -58,6 +58,9 @@ export type MobDef = {
   health: number;
   size: [number, number];
   breedItem?: string | null;
+  /** Bosses show a health bar to players nearby. */
+  boss?: boolean;
+  movement?: "walk" | "fly" | "swim";
   model: ModelPart[];
 };
 

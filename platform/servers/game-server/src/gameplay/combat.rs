@@ -423,6 +423,8 @@ impl<'a> specs::System<'a> for CombatSystem {
                             arrow_damage(speed),
                             DamageKind::Arrow,
                         );
+                        let back = [a.pos[0] - a.vel[0], a.pos[1], a.pos[2] - a.vel[2]];
+                        knockback(&mut events, &victim, back, eye, 0.6);
                         continue 'arrows;
                     }
                 }
@@ -484,6 +486,33 @@ impl<'a> specs::System<'a> for CombatSystem {
 }
 
 /// Hurt a player through their armor; they die and spill as from any cause.
+/// Knocks a player away from `from` (horizontal speed 7 × `strength`, with
+/// a small hop), through [`PUSH_EVENT`].
+pub(super) fn knockback(
+    events: &mut voxelize::Events,
+    victim: &str,
+    from: [f32; 3],
+    eye: [f32; 3],
+    strength: f32,
+) {
+    let dx = eye[0] - from[0];
+    let dz = eye[2] - from[2];
+    let len = (dx * dx + dz * dz).sqrt();
+    let (dx, dz) = if len < 1e-3 {
+        (0.0, 0.0)
+    } else {
+        (dx / len, dz / len)
+    };
+    events.dispatch(
+        Event::new(PUSH_EVENT)
+            .payload(
+                json!({ "velocity": [dx * 7.0 * strength, 4.0 * strength, dz * 7.0 * strength] }),
+            )
+            .filter(ClientFilter::Direct(victim.to_owned()))
+            .build(),
+    );
+}
+
 pub(super) fn hurt_player(
     g: &mut Gameplay,
     events: &mut voxelize::Events,

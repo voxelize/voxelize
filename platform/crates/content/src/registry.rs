@@ -611,6 +611,40 @@ impl Content {
             if mob.model.is_empty() {
                 errors.push(format!("{who} has no model"));
             }
+            if let Some(r) = &mob.ranged {
+                if !(r.range > 0.0 && r.cooldown > 0.0 && r.speed > 0.0) {
+                    errors.push(format!(
+                        "{who} ranged attack needs positive range, cooldown and speed"
+                    ));
+                }
+                if mob.kind == MobKind::Passive {
+                    errors.push(format!("{who} is passive but has a ranged attack"));
+                }
+            }
+            if let Some(h) = &mob.on_hit {
+                if !(h.seconds > 0.0) {
+                    errors.push(format!("{who} on-hit effect needs positive seconds"));
+                }
+            }
+            if let Some(summon) = &mob.summon {
+                if !has_item(&summon.item) {
+                    errors.push(format!(
+                        "{who} is summoned with unknown item {:?}",
+                        summon.item
+                    ));
+                }
+                if summon.on.is_empty() {
+                    errors.push(format!("{who} summon needs at least one block"));
+                }
+                for key in &summon.on {
+                    if !has_block(key) {
+                        errors.push(format!("{who} is summoned on unknown block {key:?}"));
+                    }
+                }
+            }
+            if mob.movement == MobMovement::Swim && !mob.spawn.on.is_empty() {
+                errors.push(format!("{who} swims, so it spawns in water, not on blocks"));
+            }
         }
 
         for st in &source.structures {

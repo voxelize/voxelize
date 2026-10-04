@@ -144,7 +144,7 @@ nobody watches; all server-side and tested (unit + end-to-end).
 Remaining: admin panel v1 (players, economy, live server monitor),
 observability stack, more stations (smelter, crusher) as content.
 
-## Phase 10 — Entities and mobs 🟡
+## Phase 10 — Entities and mobs ✅
 
 Done: data-driven creatures (`platform/game/mobs`, validated): Grazer,
 Cluckling and Bristleback (passive animals) and Shambler and Cave Crawler
@@ -159,8 +159,15 @@ to feed); creature damage kills players (who drop everything); meat and
 poultry cook in the furnace. Client: original box models, walking animation,
 hurt and love tints, click to attack, right click to feed. 8 unit tests and
 `tests/bots/combat.mjs` (hunt an animal on a live server, collect its meat).
-Remaining: ranged and flying/aquatic creatures, bosses, A* pathfinding
-around obstacles, armor and player knockback, experience.
+Then: Bone Archers (keep their distance and shoot arrows aimed for the
+drop, only with a clear line of sight), Sky Wisps (flying), River Fish
+(swimming, spawn in water, suffocate on land), Cave Crawler bites poison,
+the Ember Warden boss summoned with an Ember Sigil (boss health bar on the
+client, little knockback, never despawns); A* pathfinding (steps, drops of
+up to three, swimming; re-planned every second; partial paths towards
+unreachable goals); player knockback from creature blows, arrows and PvP
+(`platform.push`). Unit tests for paths, archers, flyers, fish and bosses;
+`tests/bots/creatures.mjs` summons the boss and is shot and struck by it.
 
 ## Phase 11 — Farming, animals, structures 🟡
 

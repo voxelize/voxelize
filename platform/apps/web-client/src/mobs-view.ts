@@ -18,6 +18,26 @@ export type MobInfo = {
   love: boolean;
 };
 
+/** Range within which a boss's health bar shows, in blocks. */
+export const BOSS_BAR_RANGE = 48;
+
+/** The nearest boss within range: its name and remaining health (0..1). */
+export function nearestBoss(
+  mobs: MobInfo[],
+  content: Content,
+  me: [number, number, number],
+): { name: string; fraction: number } | null {
+  let best: { name: string; fraction: number; d: number } | null = null;
+  for (const m of mobs) {
+    const def = content.mobsByKey.get(m.key);
+    if (!def?.boss) continue;
+    const d = Math.hypot(m.p[0] - me[0], m.p[1] - me[1], m.p[2] - me[2]);
+    if (d > BOSS_BAR_RANGE || (best && best.d <= d)) continue;
+    best = { name: def.name, fraction: Math.max(0, Math.min(1, m.health / def.health)), d };
+  }
+  return best && { name: best.name, fraction: best.fraction };
+}
+
 type View = {
   group: THREE.Group;
   legs: THREE.Object3D[];

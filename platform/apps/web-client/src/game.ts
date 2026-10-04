@@ -16,7 +16,7 @@ import { BlueprintPanel } from "./blueprints";
 import { nearest, TradePanel, type TradeView } from "./trade";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
-import { MobInfo, MobsView } from "./mobs-view";
+import { MobInfo, MobsView, nearestBoss } from "./mobs-view";
 import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
 import { EffectInfo, WeatherInfo, WeatherView, effectLine, flash, movement } from "./weather";
 import { loadSettings, Settings, settingsPanel } from "./settings";
@@ -447,7 +447,18 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
   const mobs = new MobsView(content);
   world.add(mobs.group);
-  events.on<{ mobs: MobInfo[] }>("platform.mobs", (payload) => payload && mobs.set(payload.mobs));
+  const bossBar = document.getElementById("boss-bar") as HTMLElement;
+  events.on<{ mobs: MobInfo[] }>("platform.mobs", (payload) => {
+    if (!payload) return;
+    mobs.set(payload.mobs);
+    const me = controls.object.position;
+    const boss = nearestBoss(payload.mobs, content, [me.x, me.y, me.z]);
+    bossBar.hidden = !boss;
+    if (boss) {
+      (document.getElementById("boss-name") as HTMLElement).textContent = boss.name;
+      (document.getElementById("boss-fill") as HTMLElement).style.width = `${Math.round(boss.fraction * 100)}%`;
+    }
+  });
 
   // Weather: rain or snow, storm tint, lightning.
   const weather = new WeatherView();

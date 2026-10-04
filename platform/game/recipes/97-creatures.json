@@ -1,0 +1,4 @@
+[
+  { "type": "shaped", "key": "ember_sigil", "pattern": ["dqd", "qsq", "dqd"],
+    "symbols": { "d": "ember_dust", "q": "ember_quartz", "s": "sun_shard" }, "result": { "item": "ember_sigil" } }
+]

@@ -10,7 +10,10 @@
 //! | neutral | like passive until hit, then like hostile towards the attacker |
 //! | passive | flee after being hurt → seek a partner when fed → follow a player holding its food → wander / idle |
 
-use platform_content::{Content, MobDef, MobKind, SpawnLight};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
+
+use platform_content::{Content, MobDef, MobKind, MobMovement, OnHitEffect, SpawnLight};
 use serde::{Deserialize, Serialize};
 
 const GRAVITY: f32 = 25.0;
@@ -18,6 +21,12 @@ const JUMP_SPEED: f32 = 7.5;
 const BABY_SECONDS: f32 = 300.0;
 const LOVE_SECONDS: f32 = 30.0;
 const BREED_COOLDOWN: f32 = 300.0;
+/// Seconds between path searches while chasing or following.
+const REPATH_SECONDS: f32 = 1.0;
+/// Cells A* may expand per search.
+const PATH_NODES: usize = 600;
+/// Bosses take this share of knockback.
+const BOSS_KNOCKBACK: f32 = 0.15;
 
 pub trait MobWorld {
     /// Block id at a voxel.
@@ -94,6 +103,17 @@ pub struct Mob {
     /// Neutral mobs remember who hit them.
     #[serde(default)]
     pub angry_at: Option<String>,
+    /// Seconds until a ranged creature may shoot again.
+    #[serde(default)]
+    pub shoot_timer: f32,
+    /// Seconds a swimmer has spent out of water.
+    #[serde(default)]
+    pub dry_timer: f32,
+    /// Cells still to walk to reach the goal (from A*).
+    #[serde(skip)]
+    pub path: Vec<[i32; 3]>,
+    #[serde(skip)]
+    pub repath: f32,
 }
 
 fn idle() -> MobState {
@@ -116,6 +136,16 @@ pub enum MobEvent {
         mob: u64,
         player: String,
         damage: f32,
+        /// Where the blow came from, for knockback.
+        from: [f32; 3],
+        effect: Option<OnHitEffect>,
+    },
+    /// A ranged creature looses an arrow.
+    Shoot {
+        mob: u64,
+        from: [f32; 3],
+        direction: [f32; 3],
+        speed: f32,
     },
     Died {
         mob: u64,
@@ -215,6 +245,10 @@ impl Mobs {
             burn_timer: 0.0,
             on_ground: false,
             angry_at: None,
+            shoot_timer: 0.0,
+            dry_timer: 0.0,
+            path: Vec::new(),
+            repath: 0.0,
         });
         Some(self.next_id)
     }
@@ -237,13 +271,18 @@ impl Mobs {
         };
         mob.health -= damage;
         mob.hurt_timer = 0.4;
+        let push = if content.mob(&mob.key).is_some_and(|d| d.boss) {
+            BOSS_KNOCKBACK
+        } else {
+            1.0
+        };
         if let Some(src) = push_from {
             let dx = mob.position[0] - src[0];
             let dz = mob.position[2] - src[2];
             let len = (dx * dx + dz * dz).sqrt().max(0.01);
-            mob.velocity[0] = dx / len * 6.0;
-            mob.velocity[2] = dz / len * 6.0;
-            mob.velocity[1] = 5.0;
+            mob.velocity[0] = dx / len * 6.0 * push;
+            mob.velocity[2] = dz / len * 6.0 * push;
+            mob.velocity[1] = 5.0 * push;
         }
         if let Some(def) = content.mob(&mob.key) {
             match def.kind {
@@ -319,6 +358,8 @@ impl Mobs {
                 &mut mob.hurt_timer,
                 &mut mob.love_timer,
                 &mut mob.breed_cooldown,
+                &mut mob.shoot_timer,
+                &mut mob.repath,
             ] {
                 *t = (*t - dt).max(0.0);
             }
@@ -351,6 +392,18 @@ impl Mobs {
             } else {
                 mob.burn_timer = 0.0;
             }
+            // Swimmers suffocate on land.
+            let swimmer = def.movement == MobMovement::Swim;
+            if swimmer && !in_water {
+                mob.dry_timer += dt;
+                if mob.dry_timer >= 2.0 {
+                    mob.dry_timer -= 1.0;
+                    mob.health -= 1.0;
+                    mob.hurt_timer = 0.3;
+                }
+            } else {
+                mob.dry_timer = 0.0;
+            }
 
             // Pick what to do.
             let nearest = |pred: &dyn Fn(&PlayerInfo) -> bool| {
@@ -378,10 +431,13 @@ impl Mobs {
             };
             let mut goal: Option<[f32; 3]> = None;
             let mut speed = def.speed;
+            let mut seek = false; // goal worth a path search
+            let mut face: Option<[f32; 3]> = None;
             if let Some(player) = aggressive_to {
                 mob.state = MobState::Chase;
                 mob.target = Some(player.id.clone());
                 goal = Some(player.feet);
+                seek = true;
                 let close = horizontal_distance(player.feet, mob.position) <= half + 1.2
                     && (player.feet[1] - mob.position[1]).abs() < height.max(1.5);
                 if close && mob.attack_timer <= 0.0 {
@@ -390,10 +446,37 @@ impl Mobs {
                         mob: mob.id,
                         player: player.id.clone(),
                         damage: def.damage,
+                        from: mob.position,
+                        effect: def.on_hit,
                     });
                 }
                 if close {
                     goal = None;
+                }
+                if let Some(ranged) = def.ranged {
+                    let eye = [
+                        mob.position[0],
+                        mob.position[1] + height * 0.85,
+                        mob.position[2],
+                    ];
+                    let aim = [player.feet[0], player.feet[1] + 1.2, player.feet[2]];
+                    let d = distance(eye, aim);
+                    if d <= ranged.range && line_of_sight(world, eye, aim) {
+                        face = Some(aim);
+                        // Keep a distance and shoot.
+                        if d < ranged.range * 0.6 && !close {
+                            goal = None;
+                        }
+                        if mob.shoot_timer <= 0.0 && !close {
+                            mob.shoot_timer = ranged.cooldown;
+                            events.push(MobEvent::Shoot {
+                                mob: mob.id,
+                                from: eye,
+                                direction: aim_with_drop(eye, aim, ranged.speed),
+                                speed: ranged.speed,
+                            });
+                        }
+                    }
                 }
             } else if mob.state == MobState::Flee && mob.timer > 0.0 {
                 speed *= 1.6;
@@ -439,6 +522,7 @@ impl Mobs {
                 mob.state = MobState::Follow;
                 if horizontal_distance(player.feet, mob.position) > 2.0 {
                     goal = Some(player.feet);
+                    seek = true;
                 }
             } else {
                 if mob.timer <= 0.0 {
@@ -453,11 +537,30 @@ impl Mobs {
                 }
                 if mob.state == MobState::Wander {
                     speed *= 0.6;
-                    goal = Some([
+                    let ahead = [
                         mob.position[0] + mob.yaw.sin() * 4.0,
                         mob.position[1],
                         mob.position[2] + mob.yaw.cos() * 4.0,
+                    ];
+                    let cell = |p: [f32; 3]| {
+                        [
+                            p[0].floor() as i32,
+                            p[1].floor() as i32,
+                            p[2].floor() as i32,
+                        ]
+                    };
+                    let [ax, ay, az] = cell([
+                        mob.position[0] + mob.yaw.sin(),
+                        mob.position[1],
+                        mob.position[2] + mob.yaw.cos(),
                     ]);
+                    if swimmer && in_water && !world.water(ax, ay, az) {
+                        // Shore ahead: turn around.
+                        mob.yaw += std::f32::consts::PI;
+                        mob.timer = rng.range(1.0, 3.0);
+                    } else {
+                        goal = Some(ahead);
+                    }
                 }
             }
             if mob.state == MobState::Chase && aggressive_to_none(def, &mob.target, players) {
@@ -465,8 +568,47 @@ impl Mobs {
                 mob.target = None;
             }
 
+            // Walkers find a way around walls and up stairs.
+            if def.movement == MobMovement::Walk && seek {
+                if let Some(g) = goal {
+                    let from = cell_of(mob.position);
+                    let to = cell_of(g);
+                    let stale = mob
+                        .path
+                        .last()
+                        .is_none_or(|end| (end[0] - to[0]).abs() + (end[2] - to[2]).abs() > 2);
+                    if mob.repath <= 0.0 && (stale || mob.path.is_empty()) {
+                        mob.repath = REPATH_SECONDS;
+                        let tall = height.ceil().max(1.0) as i32;
+                        mob.path = find_path(world, from, to, tall, PATH_NODES).unwrap_or_default();
+                    }
+                    while let Some(next) = mob.path.first() {
+                        let center = [next[0] as f32 + 0.5, next[1] as f32, next[2] as f32 + 0.5];
+                        if horizontal_distance(center, mob.position) < 0.4
+                            && (next[1] as f32 - mob.position[1]).abs() < 1.1
+                        {
+                            mob.path.remove(0);
+                        } else {
+                            break;
+                        }
+                    }
+                    if let Some(next) = mob.path.first() {
+                        // The next waypoint, unless the goal itself is closer.
+                        if horizontal_distance(g, mob.position) > 1.5 {
+                            goal =
+                                Some([next[0] as f32 + 0.5, next[1] as f32, next[2] as f32 + 0.5]);
+                        }
+                    }
+                }
+            } else if !seek {
+                mob.path.clear();
+            }
+
             // Steering.
             let (mut vx, mut vz) = (0.0, 0.0);
+            if let Some(f) = face {
+                mob.yaw = (f[0] - mob.position[0]).atan2(f[2] - mob.position[2]);
+            }
             if let Some(g) = goal {
                 let dx = g[0] - mob.position[0];
                 let dz = g[2] - mob.position[2];
@@ -488,10 +630,41 @@ impl Mobs {
             } else {
                 vz
             };
-            if in_water {
-                mob.velocity[1] = (mob.velocity[1] + 12.0 * dt).min(2.0); // swim up
-            } else {
-                mob.velocity[1] -= GRAVITY * dt;
+            match def.movement {
+                MobMovement::Fly => {
+                    // Hover towards the goal's height (a little above a
+                    // chased player's feet); hold altitude otherwise, but
+                    // keep clear of the ground.
+                    let ground_close = (1..=2)
+                        .any(|d| world.solid(head[0], mob.position[1].floor() as i32 - d, head[2]));
+                    let want = match goal {
+                        Some(g) if mob.state == MobState::Chase => g[1] + 0.8,
+                        _ if ground_close => mob.position[1] + 1.0,
+                        _ => mob.position[1],
+                    };
+                    let target = ((want - mob.position[1]) * 2.0).clamp(-speed, speed);
+                    mob.velocity[1] += (target - mob.velocity[1]) * (5.0 * dt).min(1.0);
+                }
+                MobMovement::Swim if in_water => {
+                    let want = match goal {
+                        Some(g) if mob.state != MobState::Wander => g[1],
+                        _ => mob.position[1],
+                    };
+                    let mut target = ((want - mob.position[1]) * 2.0).clamp(-speed, speed);
+                    let above = world.water(
+                        head[0],
+                        (mob.position[1] + height + 0.1).floor() as i32,
+                        head[2],
+                    );
+                    if !above && target > 0.0 {
+                        target = 0.0; // stay under the surface
+                    }
+                    mob.velocity[1] += (target - mob.velocity[1]) * (5.0 * dt).min(1.0);
+                }
+                _ if in_water => {
+                    mob.velocity[1] = (mob.velocity[1] + 12.0 * dt).min(2.0); // swim up
+                }
+                _ => mob.velocity[1] -= GRAVITY * dt,
             }
 
             // Move axis by axis; step up one block when walking into it.
@@ -501,6 +674,9 @@ impl Mobs {
                 next[axis] += mob.velocity[axis] * dt;
                 if !collides(world, next, half, height) {
                     p = next;
+                } else if def.movement == MobMovement::Fly {
+                    mob.velocity[1] = speed * 0.8; // rise over the obstacle
+                    mob.velocity[axis] = 0.0;
                 } else if mob.on_ground {
                     let mut up = next;
                     up[1] += 1.01;
@@ -539,7 +715,7 @@ impl Mobs {
         for mob in self.list.drain(..) {
             let hostile = content
                 .mob(&mob.key)
-                .is_some_and(|d| d.kind == MobKind::Hostile);
+                .is_some_and(|d| d.kind == MobKind::Hostile && !d.boss);
             let nearest = players
                 .iter()
                 .map(|p| horizontal_distance(p.feet, mob.position))
@@ -572,14 +748,12 @@ impl Mobs {
     ) -> Vec<u64> {
         let mut spawned = Vec::new();
         for player in players {
-            let near = |kind_hostile: bool, list: &[Mob]| {
+            // Monsters, land animals and swimmers have separate caps.
+            let class = |d: &MobDef| (d.kind == MobKind::Hostile, d.movement == MobMovement::Swim);
+            let near = |of: (bool, bool), list: &[Mob]| {
                 list.iter()
                     .filter(|m| horizontal_distance(m.position, player.feet) < 64.0)
-                    .filter(|m| {
-                        content
-                            .mob(&m.key)
-                            .is_some_and(|d| (d.kind == MobKind::Hostile) == kind_hostile)
-                    })
+                    .filter(|m| content.mob(&m.key).is_some_and(|d| class(d) == of))
                     .count()
             };
             let angle = rng.range(0.0, std::f32::consts::TAU);
@@ -589,40 +763,53 @@ impl Mobs {
             if !world.loaded(x, z) {
                 continue;
             }
-            // A standing spot: solid ground with two free cells above.
             let top = player.feet[1] as i32 + 16;
-            let Some(y) = (top - 40..top).rev().find(|&y| {
+            // A standing spot: solid ground with two free cells above.
+            let land = (top - 40..top).rev().find(|&y| {
                 world.solid(x, y - 1, z)
                     && !world.solid(x, y, z)
                     && !world.solid(x, y + 1, z)
                     && !world.water(x, y, z)
-            }) else {
-                continue;
+            });
+            // A swimming spot: the cell under the surface of water two deep.
+            let water = (top - 40..top)
+                .rev()
+                .find(|&y| world.water(x, y, z))
+                .filter(|&y| world.water(x, y - 1, z))
+                .map(|y| y - 1);
+            let light_ok = |d: &MobDef, y: i32| {
+                let sky = world.sky_light(x, y, z);
+                match d.spawn.light {
+                    SpawnLight::Bright => world.is_day() && sky >= 9,
+                    SpawnLight::Dark => {
+                        (!world.is_day() || sky <= 7) && world.block_light(x, y, z) < 8
+                    }
+                }
             };
-            let sky = world.sky_light(x, y, z);
-            let dark = (!world.is_day() || sky <= 7) && world.block_light(x, y, z) < 8;
-            let bright = world.is_day() && sky >= 9;
-            let ground = world.solid(x, y - 1, z);
             let biome = world.biome(x, z);
-            let candidates: Vec<&MobDef> = content
+            let candidates: Vec<(&MobDef, i32)> = content
                 .mobs()
                 .iter()
-                .filter(|d| match d.spawn.light {
-                    SpawnLight::Bright => bright,
-                    SpawnLight::Dark => dark,
+                .filter(|d| d.spawn.weight > 0)
+                .filter_map(|d| {
+                    let y = if d.movement == MobMovement::Swim {
+                        water
+                    } else {
+                        land
+                    }?;
+                    light_ok(d, y).then_some((d, y))
                 })
-                .filter(|d| {
+                .filter(|(d, _)| {
                     d.spawn.biomes.is_empty()
                         || biome.as_ref().is_some_and(|b| d.spawn.biomes.contains(b))
                 })
-                .filter(|_| ground)
                 .collect();
-            let total: u32 = candidates.iter().map(|d| d.spawn.weight).sum();
+            let total: u32 = candidates.iter().map(|(d, _)| d.spawn.weight).sum();
             if total == 0 {
                 continue;
             }
             let mut pick = (rng.next_f32() * total as f32) as u32;
-            let Some(def) = candidates.iter().find(|d| {
+            let Some(&(def, y)) = candidates.iter().find(|(d, _)| {
                 if pick < d.spawn.weight {
                     true
                 } else {
@@ -632,9 +819,13 @@ impl Mobs {
             }) else {
                 continue;
             };
-            let hostile = def.kind == MobKind::Hostile;
-            let cap = if hostile { 12 } else { 10 };
-            if near(hostile, &self.list) >= cap {
+            let (hostile, swims) = class(def);
+            let cap = match (hostile, swims) {
+                (true, _) => 12,
+                (false, true) => 6,
+                (false, false) => 10,
+            };
+            if near((hostile, swims), &self.list) >= cap {
                 continue;
             }
             if !def.spawn.on.is_empty() && !on_block(content, world, def, x, y - 1, z) {
@@ -643,10 +834,14 @@ impl Mobs {
             let count = def.spawn.group_min
                 + (rng.next_f32() * (def.spawn.group_max - def.spawn.group_min + 1) as f32) as u32;
             for i in 0..count.min(def.spawn.group_max) {
-                let offset = [(i % 2) as f32 * 1.2, 0.0, (i / 2) as f32 * 1.2];
+                let offset = if swims {
+                    [0.0, 0.0, 0.0]
+                } else {
+                    [(i % 2) as f32 * 1.2, 0.0, (i / 2) as f32 * 1.2]
+                };
                 let at = [
                     x as f32 + 0.5 + offset[0],
-                    y as f32,
+                    y as f32 + if swims { 0.3 } else { 0.0 },
                     z as f32 + 0.5 + offset[2],
                 ];
                 if let Some(id) = self.spawn(content, &def.key, at, false) {
@@ -656,6 +851,142 @@ impl Mobs {
         }
         spawned
     }
+}
+
+fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
+    (0..3).map(|i| (a[i] - b[i]).powi(2)).sum::<f32>().sqrt()
+}
+
+fn cell_of(p: [f32; 3]) -> [i32; 3] {
+    [
+        p[0].floor() as i32,
+        (p[1] + 0.01).floor() as i32,
+        p[2].floor() as i32,
+    ]
+}
+
+/// Whether nothing solid lies on the straight line between two points.
+pub fn line_of_sight(world: &dyn MobWorld, from: [f32; 3], to: [f32; 3]) -> bool {
+    let d = distance(from, to);
+    let steps = (d / 0.25).ceil().max(1.0) as i32;
+    (1..steps).all(|i| {
+        let t = i as f32 / steps as f32;
+        let p = [
+            from[0] + (to[0] - from[0]) * t,
+            from[1] + (to[1] - from[1]) * t,
+            from[2] + (to[2] - from[2]) * t,
+        ];
+        !world.solid(
+            p[0].floor() as i32,
+            p[1].floor() as i32,
+            p[2].floor() as i32,
+        )
+    })
+}
+
+/// Direction to loose an arrow at `speed` so it falls onto `to`.
+pub fn aim_with_drop(from: [f32; 3], to: [f32; 3], speed: f32) -> [f32; 3] {
+    let dx = to[0] - from[0];
+    let dz = to[2] - from[2];
+    let flat = (dx * dx + dz * dz).sqrt();
+    let t = flat / speed.max(1.0);
+    let drop = 0.5 * super::combat::GRAVITY * t * t;
+    [dx, to[1] - from[1] + drop, dz]
+}
+
+/// A* over cells a body `height` cells tall can stand in: it walks to
+/// neighbours, climbs single steps (with headroom for the jump), drops up
+/// to three cells and swims through water. Returns the cells to visit after
+/// `start`, ending at `goal` — or, when the goal is out of reach within
+/// `max_nodes` expansions, at the cell that got closest to it. `None` when
+/// no step brings it closer.
+pub fn find_path(
+    world: &dyn MobWorld,
+    start: [i32; 3],
+    goal: [i32; 3],
+    height: i32,
+    max_nodes: usize,
+) -> Option<Vec<[i32; 3]>> {
+    let free = |x: i32, y: i32, z: i32| (0..height).all(|h| !world.solid(x, y + h, z));
+    let stand = |x: i32, y: i32, z: i32| {
+        free(x, y, z)
+            && (world.solid(x, y - 1, z) || world.water(x, y, z) || world.water(x, y - 1, z))
+    };
+    let h = |c: [i32; 3]| {
+        ((c[0] - goal[0]).abs() + (c[2] - goal[2]).abs()) * 2 + (c[1] - goal[1]).abs() * 2
+    };
+    let reached = |c: [i32; 3]| {
+        (c[0] - goal[0]).abs() + (c[2] - goal[2]).abs() <= 1 && (c[1] - goal[1]).abs() <= 1
+    };
+    let mut open = BinaryHeap::new();
+    let mut cost: HashMap<[i32; 3], i32> = HashMap::new();
+    let mut came: HashMap<[i32; 3], [i32; 3]> = HashMap::new();
+    cost.insert(start, 0);
+    open.push(Reverse((h(start), 0, start)));
+    let mut best = (h(start), start);
+    let mut expanded = 0;
+    let mut end = None;
+    while let Some(Reverse((_, g, c))) = open.pop() {
+        if cost.get(&c).is_some_and(|&known| known < g) {
+            continue;
+        }
+        if reached(c) {
+            end = Some(c);
+            break;
+        }
+        expanded += 1;
+        if expanded > max_nodes {
+            break;
+        }
+        if h(c) < best.0 {
+            best = (h(c), c);
+        }
+        for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            let (nx, nz) = (c[0] + dx, c[2] + dz);
+            let mut next = None;
+            if stand(nx, c[1], nz) {
+                next = Some(([nx, c[1], nz], 2));
+            } else if stand(nx, c[1] + 1, nz) && !world.solid(c[0], c[1] + height, c[2]) {
+                next = Some(([nx, c[1] + 1, nz], 3));
+            } else if free(nx, c[1], nz) {
+                for drop in 1..=3 {
+                    if stand(nx, c[1] - drop, nz) {
+                        next = Some(([nx, c[1] - drop, nz], 2 + drop));
+                        break;
+                    }
+                    if world.solid(nx, c[1] - drop, nz) {
+                        break;
+                    }
+                }
+            }
+            let Some((n, step)) = next else { continue };
+            let ng = g + step;
+            if cost.get(&n).is_none_or(|&known| ng < known) {
+                cost.insert(n, ng);
+                came.insert(n, c);
+                open.push(Reverse((ng + h(n), ng, n)));
+            }
+        }
+    }
+    let end = end.unwrap_or(best.1);
+    if end == start {
+        return None;
+    }
+    let mut path = vec![end];
+    let mut at = end;
+    while let Some(&prev) = came.get(&at) {
+        if prev == start {
+            break;
+        }
+        path.push(prev);
+        at = prev;
+    }
+    path.reverse();
+    // Arrived next to the goal: finish on it when it can be stood in.
+    if reached(end) && end != goal && stand(goal[0], goal[1], goal[2]) {
+        path.push(goal);
+    }
+    Some(path)
 }
 
 fn aggressive_to_none(def: &MobDef, target: &Option<String>, players: &[PlayerInfo]) -> bool {
@@ -942,5 +1273,238 @@ mod tests {
             none.spawn_around(&c, &glass, &players, &mut rng);
         }
         assert!(none.list.is_empty());
+    }
+
+    /// Ground at 64 with a pond (y 60..64) in |x|, |z| <= 4.
+    struct Pond;
+
+    impl MobWorld for Pond {
+        fn block(&self, x: i32, y: i32, z: i32) -> u32 {
+            u32::from(self.solid(x, y, z))
+        }
+        fn solid(&self, x: i32, y: i32, z: i32) -> bool {
+            if self.water(x, y, z) {
+                return false;
+            }
+            y < 64 && !(x.abs() <= 4 && z.abs() <= 4 && y >= 60)
+        }
+        fn water(&self, x: i32, y: i32, z: i32) -> bool {
+            x.abs() <= 4 && z.abs() <= 4 && (60..64).contains(&y)
+        }
+        fn sky_light(&self, _: i32, _: i32, _: i32) -> u32 {
+            15
+        }
+        fn block_light(&self, _: i32, _: i32, _: i32) -> u32 {
+            0
+        }
+        fn is_day(&self) -> bool {
+            true
+        }
+        fn biome(&self, _: i32, _: i32) -> Option<String> {
+            Some("plains".into())
+        }
+        fn loaded(&self, _: i32, _: i32) -> bool {
+            true
+        }
+    }
+
+    fn night() -> Flat {
+        Flat {
+            ground: 64,
+            day: false,
+            walls: vec![],
+            turf: 5,
+        }
+    }
+
+    #[test]
+    fn a_star_walks_around_walls_and_climbs_steps() {
+        // A wall from z = -6 to 6 at x = 3, two high: the way is round its end.
+        let mut walls = Vec::new();
+        for z in -6..=6 {
+            walls.push([3, 64, z]);
+            walls.push([3, 65, z]);
+        }
+        let w = Flat { walls, ..night() };
+        let path = find_path(&w, [0, 64, 0], [6, 64, 0], 2, 600).expect("a way round");
+        assert_eq!(*path.last().unwrap(), [6, 64, 0]);
+        assert!(path.iter().any(|c| c[2].abs() >= 7), "goes round: {path:?}");
+        assert!(path.iter().all(|c| !w.solid(c[0], c[1], c[2])));
+        // A single step is climbed.
+        let step = Flat {
+            walls: vec![[1, 64, 0], [2, 64, 0], [3, 64, 0]],
+            ..night()
+        };
+        let path = find_path(&step, [0, 64, 0], [2, 65, 0], 2, 600).unwrap();
+        assert_eq!(*path.last().unwrap(), [2, 65, 0]);
+        // Walled in: the closest reachable cell, or nothing.
+        let mut cage = Vec::new();
+        for (x, z) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            cage.push([x, 64, z]);
+            cage.push([x, 65, z]);
+        }
+        let caged = Flat {
+            walls: cage,
+            ..night()
+        };
+        assert!(find_path(&caged, [0, 64, 0], [9, 64, 0], 2, 600).is_none());
+    }
+
+    #[test]
+    fn walkers_path_round_a_wall_to_reach_a_player() {
+        let c = content();
+        let mut walls = Vec::new();
+        for z in -6..=6 {
+            walls.push([3, 64, z]);
+            walls.push([3, 65, z]);
+        }
+        let w = Flat { walls, ..night() };
+        let mut mobs = Mobs::default();
+        mobs.spawn(&c, "shambler", [0.5, 64.0, 0.5], false);
+        let events = run(&mut mobs, &c, &w, &[player([7.5, 64.0, 0.5])], 15.0);
+        assert!(
+            events.iter().any(|e| matches!(e, MobEvent::Attack { .. })),
+            "reached the player: {:?}",
+            mobs.list[0].position
+        );
+    }
+
+    #[test]
+    fn archers_keep_their_distance_and_shoot() {
+        let c = content();
+        let w = night();
+        let mut mobs = Mobs::default();
+        mobs.spawn(&c, "bone_archer", [12.5, 64.0, 0.5], false);
+        let events = run(&mut mobs, &c, &w, &[player([0.5, 64.0, 0.5])], 6.0);
+        let shots: Vec<_> = events
+            .iter()
+            .filter_map(|e| match e {
+                MobEvent::Shoot { direction, .. } => Some(*direction),
+                _ => None,
+            })
+            .collect();
+        assert!(shots.len() >= 2, "{events:?}");
+        assert!(shots[0][0] < 0.0, "aims at the player: {:?}", shots[0]);
+        assert!(!events.iter().any(|e| matches!(e, MobEvent::Attack { .. })));
+        let x = mobs.list[0].position[0];
+        assert!(x > 5.0, "keeps away: {x}");
+        // Behind a wall it holds fire.
+        let wall: Vec<[i32; 3]> = (-3..=3)
+            .flat_map(|z| (64..68).map(move |y| [6, y, z]))
+            .collect();
+        let hidden = Flat {
+            walls: wall,
+            ..night()
+        };
+        let mut mobs = Mobs::default();
+        mobs.spawn(&c, "bone_archer", [12.5, 64.0, 0.5], false);
+        let mut rng = Rng(7);
+        let first = mobs.step(&c, &hidden, &[player([0.5, 64.0, 0.5])], 0.05, &mut rng);
+        assert!(!first.iter().any(|e| matches!(e, MobEvent::Shoot { .. })));
+    }
+
+    #[test]
+    fn arrows_are_aimed_above_far_targets() {
+        let near = aim_with_drop([0.0, 65.0, 0.0], [2.0, 65.0, 0.0], 24.0);
+        let far = aim_with_drop([0.0, 65.0, 0.0], [20.0, 65.0, 0.0], 24.0);
+        assert!(near[1] < 0.2 && far[1] > 5.0, "{near:?} {far:?}");
+    }
+
+    #[test]
+    fn flyers_hover_and_dive_at_players() {
+        let c = content();
+        let w = night();
+        let mut mobs = Mobs::default();
+        mobs.spawn(&c, "sky_wisp", [0.5, 72.0, 0.5], false);
+        let mut observer = player([40.5, 64.0, 0.5]);
+        observer.targetable = false;
+        run(&mut mobs, &c, &w, &[observer], 3.0);
+        assert!(
+            mobs.list[0].position[1] > 70.0,
+            "did not fall: {:?}",
+            mobs.list[0].position
+        );
+        let events = run(&mut mobs, &c, &w, &[player([6.5, 64.0, 0.5])], 8.0);
+        assert!(events.iter().any(|e| matches!(e, MobEvent::Attack { .. })));
+    }
+
+    #[test]
+    fn fish_swim_in_water_and_die_on_land() {
+        let c = content();
+        let mut mobs = Mobs::default();
+        mobs.spawn(&c, "river_fish", [0.5, 61.3, 0.5], false);
+        let mut observer = player([10.5, 64.0, 0.5]);
+        observer.targetable = false;
+        let mut rng = Rng(11);
+        for _ in 0..400 {
+            mobs.step(&c, &Pond, &[observer.clone()], 0.05, &mut rng);
+            let p = mobs.list[0].position;
+            assert!(
+                Pond.water(
+                    p[0].floor() as i32,
+                    p[1].floor() as i32,
+                    p[2].floor() as i32
+                ),
+                "left the water: {p:?}"
+            );
+        }
+        assert_eq!(mobs.list[0].health, 3.0);
+        let mut stranded = Mobs::default();
+        stranded.spawn(&c, "river_fish", [8.5, 64.0, 0.5], false);
+        let events = run(&mut stranded, &c, &night(), &[observer], 10.0);
+        assert!(events.iter().any(|e| matches!(e, MobEvent::Died { .. })));
+        // They spawn in water only.
+        let mut rng = Rng(5);
+        let players = [player([0.5, 64.0, 30.5])];
+        let mut spawned = Mobs::default();
+        for _ in 0..2000 {
+            spawned.spawn_around(&c, &Pond, &players, &mut rng);
+        }
+        let fish: Vec<_> = spawned
+            .list
+            .iter()
+            .filter(|m| m.key == "river_fish")
+            .collect();
+        assert!(!fish.is_empty());
+        assert!(fish
+            .iter()
+            .all(|m| m.position[0].abs() < 5.0 && m.position[1] < 64.0));
+    }
+
+    #[test]
+    fn crawler_bites_poison_and_bosses_resist_knockback_and_stay() {
+        let c = content();
+        let w = night();
+        let mut mobs = Mobs::default();
+        mobs.spawn(&c, "crawler", [3.5, 64.0, 0.5], false);
+        let events = run(&mut mobs, &c, &w, &[player([0.5, 64.0, 0.5])], 5.0);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            MobEvent::Attack { effect: Some(h), .. } if h.effect == platform_content::EffectKind::Poison
+        )));
+
+        let mut bosses = Mobs::default();
+        let id = bosses
+            .spawn(&c, "ember_warden", [0.5, 64.0, 0.5], false)
+            .unwrap();
+        assert_eq!(bosses.list[0].health, 200.0);
+        bosses.hurt(&c, id, 5.0, Some("p1"), Some([-1.0, 64.0, 0.5]));
+        assert!(
+            bosses.list[0].velocity[0] < 1.5,
+            "{:?}",
+            bosses.list[0].velocity
+        );
+        // Monsters vanish far from players; bosses wait.
+        bosses.spawn(&c, "shambler", [0.5, 64.0, 3.5], false);
+        run(&mut bosses, &c, &w, &[player([300.5, 64.0, 0.5])], 1.0);
+        assert_eq!(bosses.list.len(), 1);
+        assert_eq!(bosses.list[0].key, "ember_warden");
+        // Never by itself.
+        let mut rng = Rng(9);
+        let mut natural = Mobs::default();
+        for _ in 0..300 {
+            natural.spawn_around(&c, &w, &[player([0.5, 64.0, 0.5])], &mut rng);
+        }
+        assert!(natural.list.iter().all(|m| m.key != "ember_warden"));
     }
 }

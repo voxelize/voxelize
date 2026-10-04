@@ -724,6 +724,11 @@
         "color": "#1d1820",
         "leg": true
       }
-    ]
+    ],
+    "onHit": {
+      "effect": "poison",
+      "level": 0,
+      "seconds": 4
+    }
   }
 ]

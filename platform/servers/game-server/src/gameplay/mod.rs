@@ -1051,6 +1051,9 @@ pub fn install(
             reply(world, client_id, INTENT, Err(IntentError::LandProtected));
             return;
         }
+        if mobs_api::summon(world, client_id, p.voxel) {
+            return;
+        }
         let result = with_player(world, client_id, |g, view, position| {
             let here = g.dimensions.current;
             let Gameplay { rules, players, .. } = g;

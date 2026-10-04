@@ -797,3 +797,28 @@ body.touch #hint {
   text-shadow: 0 1px 2px #000;
   text-align: right;
 }
+
+#boss-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 70vw);
+  text-align: center;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+
+#boss-health {
+  margin-top: 4px;
+  height: 8px;
+  border: 1px solid #000;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#boss-fill {
+  height: 100%;
+  background: linear-gradient(#ff9a3c, #c2410c);
+}

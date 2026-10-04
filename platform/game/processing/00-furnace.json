@@ -137,6 +137,18 @@
       },
       "ticks": 200,
       "experience": 0.35
+    },
+    {
+      "key": "cook_fish",
+      "station": "furnace",
+      "input": {
+        "item": "raw_fish"
+      },
+      "output": {
+        "item": "cooked_fish"
+      },
+      "ticks": 200,
+      "experience": 0.35
     }
   ]
 }

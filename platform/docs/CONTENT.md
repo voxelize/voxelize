@@ -168,7 +168,23 @@ host block, height band, veins per chunk and vein size.
 Creatures declare kind (`passive`, `neutral`, `hostile`), health, speed,
 damage, size, spawn rules (light, ground blocks, biomes, weight, group
 size), drops, breed item, daylight burning, sight and a box model (parts
-with size, offset, colour; legs swing). Structures declare placement
+with size, offset, colour; legs swing). Optional fields:
+
+| field | meaning |
+| --- | --- |
+| `movement` | `walk` (default: gravity, step-up, A* paths round walls), `fly` (no gravity; hovers, dives at its target, rises over obstacles), `swim` (moves in 3D in water, stays under the surface, turns back at the shore, loses 1 health a second on land; spawns in water two deep, so `spawn.on` must be empty) |
+| `ranged` | `{ "range", "cooldown", "speed" }`: shoots arrows (aimed above far targets for the drop) at targets in sight within `range`, and keeps away when nearer than 60 % of it; still strikes in melee when cornered. Not for passive creatures |
+| `onHit` | `{ "effect", "level", "seconds" }`: a status effect its blows give |
+| `boss` | a health bar for players within 48 blocks, 15 % knockback, never despawns |
+| `summon` | `{ "item", "on": [blocks] }`: using the item on one of the blocks calls the creature up above it (one of a kind within 64 blocks; the item is used up in survival). Give such creatures `spawn.weight` 0 so they never spawn by themselves |
+
+Creatures in the pack: Grazer, Cluckling, Bristleback (animals), Shambler,
+Cave Crawler (its bite poisons), Bone Archer (ranged, burns in daylight),
+Cinder Wraith (underworld), Sky Wisp (flying, sky islands at night), River
+Fish (swimming; raw fish grills in the furnace) and the Ember Warden boss
+(200 health, arrows and slowing blows, summoned with an Ember Sigil —
+ember dust, ember quartz and a sun shard — on cinderstone or emberglass;
+drops a Warden Core). Structures declare placement
 (`surface` with `yOffset`, or `underground` between `minY` and `maxY`),
 biomes, grid `spacing` and `chance`, a character `palette`, `layers` (bottom
 to top, rows along z, characters along x; space keeps terrain, `.` is air)
