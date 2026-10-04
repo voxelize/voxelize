@@ -15,12 +15,12 @@
 //! blocks broken here are queued in [`BrokenBlocks`] and spawned by the
 //! gameplay system.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use platform_content::{BlockBehavior, BlockDef, Content, FluidKind, TreeDef};
-use voxelize::{BlockUtils, Registry, Vec3, VoxelAccess, VoxelUpdate};
+use voxelize::{BlockRotation, BlockUtils, Registry, Vec3, VoxelAccess, VoxelUpdate};
 
 pub const AIR: u32 = 0;
 /// Stage bit marking player-placed leaves, which never decay.
@@ -54,9 +54,31 @@ impl BrokenBlocks {
     }
 }
 
+/// How a block takes part in circuits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Logic {
+    Conduit,
+    Lever,
+    Button,
+    Plate,
+    Clock,
+    Consumer { powered: bool, swap: u32 },
+    Repeater,
+    Inverter,
+    Actuator,
+}
+
+/// Ticks a pressed button stays on.
+pub const BUTTON_TICKS: u64 = 60;
+/// Pulse clock periods, selected by stage bits 1..=2.
+pub const CLOCK_PERIODS: [u64; 4] = [30, 60, 120, 240];
+
 /// Facts about the content pack that behaviours need, shared by every
 /// block's closures.
 pub struct BehaviorContext {
+    pub logic: HashMap<u32, Logic>,
+    /// Blocks an actuator may not push (containers, unbreakable blocks).
+    immovable: HashSet<u32>,
     pub broken: Arc<BrokenBlocks>,
     dirt: Option<u32>,
     turf: Option<u32>,
@@ -71,7 +93,50 @@ impl BehaviorContext {
     pub fn new(content: &Content, broken: Arc<BrokenBlocks>) -> Self {
         let id = |key: &str| content.block(key).map(|b| b.id);
         let blocks = content.blocks();
+        let mut logic = HashMap::new();
+        for b in blocks {
+            let has = |x: BlockBehavior| b.behaviors.contains(&x);
+            let kind = if has(BlockBehavior::Conduit) {
+                Some(Logic::Conduit)
+            } else if has(BlockBehavior::Lever) {
+                Some(Logic::Lever)
+            } else if has(BlockBehavior::Button) {
+                Some(Logic::Button)
+            } else if has(BlockBehavior::Plate) {
+                Some(Logic::Plate)
+            } else if has(BlockBehavior::Clock) {
+                Some(Logic::Clock)
+            } else if has(BlockBehavior::Consumer) {
+                b.power_swap
+                    .as_ref()
+                    .and_then(|k| content.block(k))
+                    .map(|swap| Logic::Consumer {
+                        powered: b.powered,
+                        swap: swap.id,
+                    })
+            } else if has(BlockBehavior::Repeater) {
+                Some(Logic::Repeater)
+            } else if has(BlockBehavior::Inverter) {
+                Some(Logic::Inverter)
+            } else if has(BlockBehavior::Actuator) {
+                Some(Logic::Actuator)
+            } else {
+                None
+            };
+            if let Some(kind) = kind {
+                logic.insert(b.id, kind);
+            }
+        }
+        let immovable = blocks
+            .iter()
+            .filter(|b| {
+                b.hardness < 0.0 || b.key == "chest" || b.key == "furnace" || b.fluid.is_some()
+            })
+            .map(|b| b.id)
+            .collect();
         Self {
+            logic,
+            immovable,
             broken,
             dirt: id("dirt"),
             turf: id("turf"),
@@ -175,6 +240,26 @@ impl BlockLogic {
     }
 }
 
+/// The raw voxel for a block placed with an orientation (validated ranges).
+pub fn oriented(
+    id: u32,
+    orientation: platform_content::Orientation,
+    rotation: u32,
+    y_rotation: u32,
+) -> u32 {
+    use platform_content::Orientation;
+    let y_rotation = y_rotation % 16;
+    match orientation {
+        Orientation::None => id,
+        Orientation::Horizontal => {
+            BlockUtils::insert_rotation(id, &BlockRotation::encode(0, y_rotation))
+        }
+        Orientation::Full => {
+            BlockUtils::insert_rotation(id, &BlockRotation::encode(rotation.min(5), y_rotation))
+        }
+    }
+}
+
 pub fn has_behaviors(def: &BlockDef) -> bool {
     !def.support.is_empty() || !def.behaviors.is_empty()
 }
@@ -214,6 +299,7 @@ pub fn attach(
 
     let ticker_logic = logic.clone();
     let updater_logic = logic;
+    let ticker_ctx = ctx.clone();
     let ctx = ctx.clone();
     builder.is_random_tickable(random).active_fn(
         move |voxel, space, registry| {
@@ -221,12 +307,167 @@ pub fn attach(
                 1
             } else if ticker_logic.can_fall(space, registry, &voxel) {
                 2
+            } else if let Some(delay) = circuit_delay(&ticker_ctx, &voxel, space) {
+                delay
             } else {
                 u64::MAX
             }
         },
         move |voxel, space, registry| update(&updater_logic, &ctx, voxel, space, registry),
     )
+}
+
+const SIDES: [(i32, i32, i32); 6] = [
+    (1, 0, 0),
+    (-1, 0, 0),
+    (0, 1, 0),
+    (0, -1, 0),
+    (0, 0, 1),
+    (0, 0, -1),
+];
+
+/// The direction a directional block faces, from its stored rotation (the
+/// same rotation the mesher uses, so logic matches what players see).
+pub fn front(raw: u32) -> (i32, i32, i32) {
+    let mut d = [0.0f32, 0.0, 1.0];
+    BlockUtils::extract_rotation(raw).rotate_direction(&mut d, true);
+    (
+        d[0].round() as i32,
+        d[1].round() as i32,
+        d[2].round() as i32,
+    )
+}
+
+/// Power the block at `from` delivers to its neighbour `to`, 0..=15.
+fn emitted(
+    ctx: &BehaviorContext,
+    space: &dyn VoxelAccess,
+    from: &Vec3<i32>,
+    to: &Vec3<i32>,
+) -> u32 {
+    let raw = space.get_raw_voxel(from.0, from.1, from.2);
+    let stage = BlockUtils::extract_stage(raw);
+    match ctx.logic.get(&BlockUtils::extract_id(raw)) {
+        Some(Logic::Conduit) => stage,
+        Some(Logic::Lever | Logic::Button | Logic::Plate) => {
+            if stage > 0 {
+                15
+            } else {
+                0
+            }
+        }
+        Some(Logic::Clock) => {
+            if stage & 1 == 1 {
+                15
+            } else {
+                0
+            }
+        }
+        Some(Logic::Repeater | Logic::Inverter) => {
+            let (dx, dy, dz) = front(raw);
+            if stage > 0 && (from.0 + dx, from.1 + dy, from.2 + dz) == (to.0, to.1, to.2) {
+                15
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    }
+}
+
+/// Strongest power arriving at `at` from any side; power entering a
+/// conduit loses one level, so a line of conduits fades out after 15.
+fn incoming(
+    ctx: &BehaviorContext,
+    space: &dyn VoxelAccess,
+    at: &Vec3<i32>,
+    into_conduit: bool,
+) -> u32 {
+    SIDES
+        .iter()
+        .map(|(dx, dy, dz)| {
+            let n = Vec3(at.0 + dx, at.1 + dy, at.2 + dz);
+            let p = emitted(ctx, space, &n, at);
+            if into_conduit {
+                p.saturating_sub(1)
+            } else {
+                p
+            }
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+/// The circuit state a block should be in, as its new raw voxel, or `None`
+/// when it is already right (or is no circuit block).
+fn circuit_target(
+    ctx: &BehaviorContext,
+    at: &Vec3<i32>,
+    space: &dyn VoxelAccess,
+) -> Option<(u32, u64)> {
+    let raw = space.get_raw_voxel(at.0, at.1, at.2);
+    let id = BlockUtils::extract_id(raw);
+    let stage = BlockUtils::extract_stage(raw);
+    let logic = *ctx.logic.get(&id)?;
+    let want = |s: u32, delay: u64| (s != stage).then(|| (BlockUtils::insert_stage(raw, s), delay));
+    match logic {
+        Logic::Conduit => want(incoming(ctx, space, at, true), 1),
+        Logic::Button => (stage > 0).then(|| (BlockUtils::insert_stage(raw, 0), BUTTON_TICKS)),
+        Logic::Clock => {
+            let period = CLOCK_PERIODS[((stage >> 1) & 3) as usize];
+            Some((BlockUtils::insert_stage(raw, stage ^ 1), period))
+        }
+        Logic::Consumer { powered, swap } => {
+            let on = incoming(ctx, space, at, false) > 0;
+            (on != powered).then(|| ((raw & !0xFFFF) | swap, 1))
+        }
+        Logic::Repeater => {
+            let (dx, dy, dz) = front(raw);
+            let back = Vec3(at.0 - dx, at.1 - dy, at.2 - dz);
+            want(u32::from(emitted(ctx, space, &back, at) > 0), 2)
+        }
+        Logic::Inverter => {
+            let (dx, dy, dz) = front(raw);
+            let back = Vec3(at.0 - dx, at.1 - dy, at.2 - dz);
+            want(u32::from(emitted(ctx, space, &back, at) == 0), 1)
+        }
+        Logic::Actuator => want(u32::from(incoming(ctx, space, at, false) > 0), 1),
+        Logic::Lever | Logic::Plate => None,
+    }
+}
+
+fn circuit_delay(ctx: &BehaviorContext, at: &Vec3<i32>, space: &dyn VoxelAccess) -> Option<u64> {
+    circuit_target(ctx, at, space).map(|(_, delay)| delay)
+}
+
+fn circuit_update(
+    ctx: &BehaviorContext,
+    at: Vec3<i32>,
+    space: &dyn VoxelAccess,
+    registry: &Registry,
+) -> Option<Vec<VoxelUpdate>> {
+    let raw = space.get_raw_voxel(at.0, at.1, at.2);
+    let logic = *ctx.logic.get(&BlockUtils::extract_id(raw))?;
+    let (next, _) = circuit_target(ctx, &at, space)?;
+    let mut writes = vec![(at.clone(), next)];
+    if logic == Logic::Actuator && BlockUtils::extract_stage(next) == 1 {
+        // Rising edge: push the block in front one cell, if it can move.
+        let (dx, dy, dz) = front(raw);
+        let target = Vec3(at.0 + dx, at.1 + dy, at.2 + dz);
+        let beyond = Vec3(at.0 + 2 * dx, at.1 + 2 * dy, at.2 + 2 * dz);
+        let moving = space.get_raw_voxel(target.0, target.1, target.2);
+        let moving_id = BlockUtils::extract_id(moving);
+        let free = is_empty(registry, space.get_voxel(beyond.0, beyond.1, beyond.2));
+        if moving_id != AIR
+            && !ctx.immovable.contains(&moving_id)
+            && free
+            && !registry.get_block_by_id(moving_id).is_passable
+        {
+            writes.push((target, AIR));
+            writes.push((beyond, moving));
+        }
+    }
+    Some(writes)
 }
 
 fn update(
@@ -240,6 +481,12 @@ fn update(
     let raw = space.get_raw_voxel(x, y, z);
     if BlockUtils::extract_id(raw) != logic.id {
         return Vec::new(); // replaced since it was scheduled
+    }
+
+    if logic.supported(space, &voxel) {
+        if let Some(writes) = circuit_update(ctx, voxel.clone(), space, registry) {
+            return writes;
+        }
     }
 
     if !logic.supported(space, &voxel) {
@@ -601,6 +848,148 @@ mod tests {
         s.voxels.insert((0, 64, 0), e.id("stone"));
         e.run(&mut s, (0, 63, 0));
         assert_eq!(s.get_voxel(0, 63, 0), e.id("dirt"));
+    }
+
+    /// Run every circuit block's updater repeatedly until nothing changes.
+    fn settle(e: &Env, s: &mut Space) {
+        for _ in 0..200 {
+            let positions: Vec<(i32, i32, i32)> = s
+                .voxels
+                .iter()
+                .filter(|(_, v)| e.ctx.logic.contains_key(&BlockUtils::extract_id(**v)))
+                .map(|(p, _)| *p)
+                .collect();
+            let mut changed = false;
+            for p in positions {
+                let before = s.get_raw_voxel(p.0, p.1, p.2);
+                if e.ticker(s, p) != u64::MAX {
+                    e.run(s, p);
+                }
+                changed |= before != s.get_raw_voxel(p.0, p.1, p.2);
+            }
+            if !changed {
+                return;
+            }
+        }
+        panic!("circuit did not settle");
+    }
+
+    fn facing_east(e: &Env, key: &str) -> u32 {
+        // Find the y rotation whose front is +x.
+        let id = e.id(key);
+        (0..16)
+            .map(|r| oriented(id, platform_content::Orientation::Horizontal, 0, r))
+            .find(|raw| front(*raw) == (1, 0, 0))
+            .expect("some rotation faces +x")
+    }
+
+    #[test]
+    fn a_lever_lights_a_lamp_through_conduits_and_power_fades_with_distance() {
+        let e = env();
+        let mut s = Space::default();
+        let (lever, conduit, lamp) = (e.id("lever"), e.id("conduit"), e.id("volt_lamp"));
+        s.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(lever, 1));
+        for x in 1..=5 {
+            s.voxels.insert((x, 64, 0), conduit);
+        }
+        s.voxels.insert((6, 64, 0), lamp);
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel_stage(1, 64, 0), 14);
+        assert_eq!(s.get_voxel_stage(5, 64, 0), 10);
+        assert_eq!(s.get_voxel(6, 64, 0), e.id("volt_lamp_lit"));
+        // Lever off: everything goes dark.
+        s.voxels.insert((0, 64, 0), lever);
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel_stage(3, 64, 0), 0);
+        assert_eq!(s.get_voxel(6, 64, 0), lamp);
+    }
+
+    #[test]
+    fn power_runs_out_after_fifteen_conduits() {
+        let e = env();
+        let mut s = Space::default();
+        s.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("lever"), 1));
+        for x in 1..=20 {
+            s.voxels.insert((x, 64, 0), e.id("conduit"));
+        }
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel_stage(15, 64, 0), 0);
+        assert_eq!(s.get_voxel_stage(14, 64, 0), 1);
+    }
+
+    #[test]
+    fn repeaters_restore_power_one_way_and_inverters_invert() {
+        let e = env();
+        let mut s = Space::default();
+        let conduit = e.id("conduit");
+        s.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("lever"), 1));
+        for x in 1..=14 {
+            s.voxels.insert((x, 64, 0), conduit);
+        }
+        s.voxels.insert((15, 64, 0), facing_east(&e, "repeater"));
+        s.voxels.insert((16, 64, 0), conduit);
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel_stage(14, 64, 0), 1);
+        assert_eq!(
+            s.get_voxel_stage(16, 64, 0),
+            14,
+            "repeated to full strength"
+        );
+
+        // An inverter turns a powered input into no output and back.
+        let mut t = Space::default();
+        t.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("lever"), 1));
+        t.voxels.insert((1, 64, 0), facing_east(&e, "inverter"));
+        t.voxels.insert((2, 64, 0), e.id("volt_lamp"));
+        settle(&e, &mut t);
+        assert_eq!(t.get_voxel(2, 64, 0), e.id("volt_lamp"));
+        t.voxels.insert((0, 64, 0), e.id("lever"));
+        settle(&e, &mut t);
+        assert_eq!(t.get_voxel(2, 64, 0), e.id("volt_lamp_lit"));
+    }
+
+    #[test]
+    fn powered_actuators_push_one_block_and_gates_open() {
+        let e = env();
+        let mut s = Space::default();
+        s.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("lever"), 1));
+        s.voxels.insert((1, 64, 0), facing_east(&e, "actuator"));
+        s.voxels.insert((2, 64, 0), e.id("dirt"));
+        settle(&e, &mut s);
+        assert_eq!(s.get_voxel(2, 64, 0), AIR);
+        assert_eq!(s.get_voxel(3, 64, 0), e.id("dirt"));
+
+        let mut g = Space::default();
+        g.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("lever"), 1));
+        g.voxels.insert((1, 64, 0), e.id("gate"));
+        settle(&e, &mut g);
+        assert_eq!(g.get_voxel(1, 64, 0), e.id("gate_open"));
+    }
+
+    #[test]
+    fn clocks_pulse_and_buttons_release() {
+        let e = env();
+        let mut s = Space::default();
+        let clock = e.id("pulse_clock");
+        s.voxels.insert((0, 64, 0), clock);
+        assert_eq!(e.ticker(&s, (0, 64, 0)), CLOCK_PERIODS[0]);
+        e.run(&mut s, (0, 64, 0));
+        assert_eq!(s.get_voxel_stage(0, 64, 0) & 1, 1);
+        e.run(&mut s, (0, 64, 0));
+        assert_eq!(s.get_voxel_stage(0, 64, 0) & 1, 0);
+
+        let mut b = Space::default();
+        b.voxels
+            .insert((0, 64, 0), BlockUtils::insert_stage(e.id("push_button"), 1));
+        assert_eq!(e.ticker(&b, (0, 64, 0)), BUTTON_TICKS);
+        e.run(&mut b, (0, 64, 0));
+        assert_eq!(b.get_voxel_stage(0, 64, 0), 0);
     }
 
     #[test]

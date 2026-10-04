@@ -260,6 +260,15 @@ impl Content {
                     block.stages
                 ));
             }
+            if let Some(swap) = &block.power_swap {
+                match source.blocks.iter().find(|b| &b.key == swap) {
+                    None => errors.push(format!("{who} swaps to unknown block {swap:?}")),
+                    Some(other) if other.power_swap.as_deref() != Some(&block.key) || other.powered == block.powered => {
+                        errors.push(format!("{who} and {swap:?} must swap to each other, one powered and one not"))
+                    }
+                    _ => {}
+                }
+            }
             for key in &block.support {
                 if !has_block(key) {
                     errors.push(format!("{who} needs unknown support block {key:?}"));

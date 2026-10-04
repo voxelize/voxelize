@@ -47,5 +47,13 @@
     "maxY": 70,
     "veinsPerChunk": 2,
     "veinSize": 12
+  },
+  {
+    "key": "voltite",
+    "block": "voltite_ore",
+    "minY": 5,
+    "maxY": 40,
+    "veinsPerChunk": 5,
+    "veinSize": 7
   }
 ]

@@ -297,6 +297,93 @@ const RECIPES: Record<string, Recipe> = {
     p.border(shade(PLANK, -0.5));
     for (let y = 6; y < 9; y++) for (let x = 7; x < 9; x++) p.set(x, y, hex("#c9c9cf"));
   },
+  voltite_ore: ore("#d9364a", 6),
+  // Circuit pieces: original flat designs, all drawn in code.
+  conduit: (p) => {
+    p.clear();
+    for (let x = 0; x < SIZE; x++) for (let y = 6; y < 10; y++) p.set(x, y, shade(hex("#8c1f2b"), (p.random() - 0.5) * 0.2));
+    for (let y = 0; y < SIZE; y++) for (let x = 6; x < 10; x++) p.set(x, y, shade(hex("#8c1f2b"), (p.random() - 0.5) * 0.2));
+  },
+  lever_top: (p) => {
+    p.speckle(shade(STONE, 0.05), 0.08);
+    p.border(shade(STONE, -0.4));
+    for (let i = 3; i < 13; i++) p.set(i, 15 - i, hex("#7a5432"));
+    for (let y = 2; y < 5; y++) for (let x = 11; x < 14; x++) p.set(x, y, hex("#d9364a"));
+  },
+  button_top: (p) => {
+    p.speckle(shade(STONE, 0.05), 0.08);
+    for (let y = 5; y < 11; y++) for (let x = 4; x < 12; x++) p.set(x, y, shade(STONE, y === 5 ? 0.25 : -0.1));
+  },
+  pressure_plate: (p) => {
+    p.speckle(shade(STONE, 0.12), 0.06);
+    p.border(shade(STONE, -0.3));
+  },
+  clock_side: (p) => {
+    p.speckle(hex("#5a4636"), 0.08);
+    p.border(hex("#3a2b20"));
+    for (let i = 4; i < 12; i++) p.set(i, 8, hex("#d9364a"));
+  },
+  clock_top: (p) => {
+    p.speckle(hex("#5a4636"), 0.08);
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++) if ((x - 7.5) ** 2 + (y - 7.5) ** 2 < 25) p.set(x, y, hex("#e8e0c8"));
+    for (let i = 0; i < 5; i++) p.set(8, 8 - i, hex("#262224"));
+    for (let i = 0; i < 4; i++) p.set(8 + i, 8, hex("#d9364a"));
+  },
+  lamp_off: (p) => {
+    p.speckle(hex("#6a5a3a"), 0.1);
+    p.border(hex("#3f3524"));
+    for (let i = 0; i < SIZE; i += 5) for (let j = 0; j < SIZE; j++) {
+      p.set(i, j, hex("#3f3524"));
+      p.set(j, i, hex("#3f3524"));
+    }
+  },
+  lamp_on: (p) => {
+    p.speckle(hex("#ffd36b"), 0.1);
+    p.border(hex("#a8742a"));
+    for (let i = 0; i < SIZE; i += 5) for (let j = 0; j < SIZE; j++) {
+      p.set(i, j, hex("#a8742a"));
+      p.set(j, i, hex("#a8742a"));
+    }
+  },
+  repeater_side: (p) => {
+    p.speckle(shade(STONE, 0.1), 0.06);
+    for (let x = 0; x < SIZE; x++) p.set(x, 7, hex("#8c1f2b"));
+  },
+  repeater_top: (p) => {
+    p.speckle(shade(STONE, 0.1), 0.06);
+    for (let y = 0; y < SIZE; y++) p.set(7, y, hex("#8c1f2b"));
+    for (let i = 0; i < 5; i++) {
+      p.set(7 - i, 3 + i, hex("#d9364a"));
+      p.set(7 + i, 3 + i, hex("#d9364a"));
+    }
+  },
+  inverter_side: (p) => {
+    p.speckle(shade(STONE, -0.05), 0.06);
+    for (let x = 0; x < SIZE; x++) p.set(x, 7, hex("#3a5fb0"));
+  },
+  inverter_top: (p) => {
+    p.speckle(shade(STONE, -0.05), 0.06);
+    for (let y = 0; y < SIZE; y++) p.set(7, y, hex("#3a5fb0"));
+    for (let y = 2; y < 6; y++) for (let x = 5; x < 10; x++) if ((x - 7) ** 2 + (y - 3.5) ** 2 < 5) p.set(x, y, hex("#d9364a"));
+  },
+  gate_closed: (p) => {
+    p.boards(shade(PLANK, -0.1), 4);
+    p.border(shade(PLANK, -0.5));
+    for (let y = 7; y < 9; y++) for (let x = 11; x < 13; x++) p.set(x, y, hex("#c9c9cf"));
+  },
+  gate_open: (p) => {
+    p.clear();
+    p.border(shade(PLANK, -0.4));
+  },
+  actuator_side: (p) => {
+    p.speckle(shade(STONE, -0.08), 0.1);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < SIZE; x++) p.set(x, y, shade(PLANK, -0.1));
+  },
+  actuator_front: (p) => {
+    p.boards(PLANK, 4);
+    for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) p.set(x, y, shade(STONE, -0.3));
+  },
 };
 
 /** RGBA pixels (16x16) of a named texture. Pure and deterministic. */

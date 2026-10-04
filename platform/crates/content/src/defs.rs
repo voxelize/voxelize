@@ -54,6 +54,25 @@ pub enum BlockBehavior {
     Burns,
     /// Dries back to dirt without water nearby or a crop on top (farmland).
     Dries,
+    /// Carries power, losing one level per block (volt conduit).
+    Conduit,
+    /// Power source switched on and off by using it.
+    Lever,
+    /// Power source for one second after being used.
+    Button,
+    /// Power source while a player or creature stands on it.
+    Plate,
+    /// Power source that pulses on a period (changed by using it).
+    Clock,
+    /// Turns into its `powerSwap` block when its power state changes
+    /// (lamps, gates).
+    Consumer,
+    /// Directional: repeats power from behind to the front after a delay.
+    Repeater,
+    /// Directional: powers the front only while the back is unpowered.
+    Inverter,
+    /// Directional: pushes the block in front one cell when powered.
+    Actuator,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -146,6 +165,16 @@ pub struct BlockDef {
     /// trunk heights), taken from the biome tree schema.
     #[serde(default)]
     pub grows_into: Option<TreeDef>,
+    /// The block this one becomes when its power state flips (consumers),
+    /// or when used by hand (gates).
+    #[serde(default)]
+    pub power_swap: Option<String>,
+    /// Whether this is the powered (on, open) form of a swapping pair.
+    #[serde(default)]
+    pub powered: bool,
+    /// Can be toggled by hand with `platform.use` (gates).
+    #[serde(default)]
+    pub usable: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

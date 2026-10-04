@@ -419,5 +419,85 @@
     "name": "Silk Thread",
     "type": "material",
     "value": 2
+  },
+  {
+    "id": 59,
+    "key": "volt_dust",
+    "name": "Volt Dust",
+    "type": "material",
+    "placesBlock": "conduit",
+    "value": 4
+  },
+  {
+    "id": 60,
+    "key": "lever",
+    "name": "Lever",
+    "type": "block",
+    "placesBlock": "lever",
+    "value": 4
+  },
+  {
+    "id": 61,
+    "key": "push_button",
+    "name": "Push Button",
+    "type": "block",
+    "placesBlock": "push_button",
+    "value": 4
+  },
+  {
+    "id": 62,
+    "key": "pressure_plate",
+    "name": "Pressure Plate",
+    "type": "block",
+    "placesBlock": "pressure_plate",
+    "value": 4
+  },
+  {
+    "id": 63,
+    "key": "pulse_clock",
+    "name": "Pulse Clock",
+    "type": "block",
+    "placesBlock": "pulse_clock",
+    "value": 4
+  },
+  {
+    "id": 64,
+    "key": "volt_lamp",
+    "name": "Volt Lamp",
+    "type": "block",
+    "placesBlock": "volt_lamp",
+    "value": 4
+  },
+  {
+    "id": 65,
+    "key": "repeater",
+    "name": "Repeater",
+    "type": "block",
+    "placesBlock": "repeater",
+    "value": 4
+  },
+  {
+    "id": 66,
+    "key": "inverter",
+    "name": "Inverter",
+    "type": "block",
+    "placesBlock": "inverter",
+    "value": 4
+  },
+  {
+    "id": 67,
+    "key": "gate",
+    "name": "Plank Gate",
+    "type": "block",
+    "placesBlock": "gate",
+    "value": 4
+  },
+  {
+    "id": 68,
+    "key": "actuator",
+    "name": "Thrust Block",
+    "type": "block",
+    "placesBlock": "actuator",
+    "value": 4
   }
 ]

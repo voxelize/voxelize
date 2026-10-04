@@ -36,7 +36,8 @@ stable forever once a world has used them; 0 is reserved (air).
 | `tool.required` | `false`: the tool only speeds mining, drops come by hand too |
 | `orientation` | `none`, `horizontal` (4 facings), `full` (6 facings) |
 | `fluid` | `water` or `lava`; fluids must not have collision |
-| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries` (`burns` reserved) — implemented once by the server, enabled here |
+| `behaviors` | `falls`, `spreads`, `decays`, `grows`, `melts`, `dries` (`burns` reserved); circuits: `conduit`, `lever`, `button`, `plate`, `clock`, `consumer`, `repeater`, `inverter`, `actuator` — implemented once by the server, enabled here |
+| `powered` / `powerSwap` | consumers (lamps, gates): whether this block is the powered state, and the block it swaps to when power changes (pairs must point at each other) |
 | `stages` | growth stages (2–16) for `grows` blocks |
 | `grownDrops` | drops at the last growth stage (ripe crops), replacing `drops` |
 | `support` | block keys it must stand on; elsewhere it cannot be placed and it breaks (and drops) when its ground changes |

@@ -21,6 +21,10 @@ pub fn engine_block(def: &BlockDef, content: &Content, ctx: &Arc<BehaviorContext
             .is_plant(true)
             .is_see_through(true);
     }
+    // Conduits and plates lie flat on the ground.
+    if def.material == "circuit" && !def.collision {
+        block = block.faces(&BlockFaces::six_faces().scale_y(0.0625).build());
+    }
     if def.transparent {
         block = block.is_transparent(true).is_see_through(true);
     }
