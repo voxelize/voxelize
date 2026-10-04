@@ -136,6 +136,12 @@ history.
   applied by adding the goods and remembering its id in the same record
   write, and only then acknowledged; a delivery seen again is only
   acknowledged. Neither a crash nor a lost reply duplicates or loses goods.
+- Trade stalls: only the placer owns, prices and breaks a stall (never
+  while a sale is being paid); creative stalls and creative buyers never
+  trade. A purchase sets the goods aside in a sale saved with the stall
+  before money is asked for; the payment is idempotent by the sale's key, so
+  a restart asks again and lands on the same outcome; paid goods are handed
+  over once (the key is remembered with the buyer's inventory).
 - Money for bids is locked in a per-listing escrow account; buying, bidding
   and settling each happen in one database transaction with the listing row
   locked.

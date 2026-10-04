@@ -222,8 +222,15 @@ once (remembered ids, then acknowledgement), cancellation and expiry
 returning goods; web client market panel (M): browse, buy, bid, sell the
 held stack, my listings, deliveries. Tests: 6 backend feature tests, game
 server unit tests, client helpers, `tests/bots/market.mjs` end to end.
-Remaining: partial purchases of a stack, player shops in the world, price
-history and search by item name, guild sellers.
+Done since: player shops in the world — trade stalls owned by whoever
+places them, stocked through a chest-style window, priced per slot; a
+purchase sets the goods aside, is paid through the ledger (one `sale`, fee
+included, idempotent by sale key) and hands the goods over once, or puts
+them back on sale when refused; owner-only breaking; creative stalls never
+sell. Tests: backend payment test, unit tests, `tests/bots/stall.mjs` end
+to end.
+Remaining: partial purchases of a stack, price history and search by item
+name, guild sellers.
 
 ## Phase 16 — Blueprint creator economy ⬜
 

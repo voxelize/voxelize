@@ -9,6 +9,7 @@ import * as THREE from "three";
 import { Content, isUsableBlock, miningMillis } from "./content";
 import { LandPanel, type LandHere } from "./land";
 import { MarketPanel } from "./market";
+import { StallPanel, type StallView } from "./stall";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { MobInfo, MobsView } from "./mobs-view";
@@ -61,6 +62,8 @@ const MESSAGES: Record<string, string> = {
   market_unavailable: "The market is closed on this server",
   survival_only: "Only survival goods can be sold",
   bad_listing: "Check the price, buyout and duration",
+  not_owner: "That belongs to someone else",
+  busy: "A sale is still being paid",
   creative_only: "Only in creative worlds",
 };
 
@@ -245,7 +248,20 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     sell: (payload) => method.call("platform.market.list", payload),
     notify: (text) => hud.toast(text),
   });
+  const stallPanel = new StallPanel({
+    itemName: (key) => (key ? content.itemsByKey.get(key)?.name ?? key : "?"),
+    buy: (at, slot) => method.call("platform.stall.buy", { at, slot }),
+    price: (at, slot, price) => method.call("platform.stall.price", { at, slot, price }),
+    notify: (text) => hud.toast(text),
+  });
+  events.on<StallView>("platform.stall", (view) => {
+    stallPanel.show(view);
+    controls.unlock();
+  });
   type MarketNotice = {
+    bought?: { item: string; count: number; price: number };
+    sold?: { item: string; count: number; price: number };
+    refused?: { code: string; item: string; count: number };
     listed?: { item: string; count: number };
     rejected?: { code: string; item: string; count: number };
     received?: { item: string; count: number; reason: string };
@@ -257,6 +273,9 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (n.rejected) hud.toast(`Not listed (${n.rejected.code}); ${itemName(n.rejected.item)} returned`);
     if (n.received) hud.toast(`Received ${n.received.count} × ${itemName(n.received.item)}`);
     if (n.waiting) hud.toast(`A delivery of ${itemName(n.waiting.item)} waits for room in your inventory`);
+    if (n.bought) hud.toast(`Bought ${n.bought.count} × ${itemName(n.bought.item)} for ${n.bought.price} CRN`);
+    if (n.sold) hud.toast(`Your stall sold ${n.sold.count} × ${itemName(n.sold.item)} for ${n.sold.price} CRN`);
+    if (n.refused) hud.toast(`Not bought: ${n.refused.code.replace("_", " ")}`);
     marketPanel.refresh();
   });
   addEventListener("keydown", (event) => {
@@ -386,7 +405,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     const targetDef = target ? content.blocksById.get(world.getVoxelAt(...target)) : undefined;
     const targetKey = targetDef?.key;
     const held = hud.heldItem();
-    if (target && !sneaking && targetKey && ["crafting_table", "furnace", "chest"].includes(targetKey)) {
+    if (target && !sneaking && targetKey && ["crafting_table", "furnace", "chest", "trade_stall"].includes(targetKey)) {
       openWindow([...target] as VOXELIZE.Coords3);
     } else if (target && !sneaking && isUsableBlock(targetDef)) {
       method.call("platform.use", { voxel: target });

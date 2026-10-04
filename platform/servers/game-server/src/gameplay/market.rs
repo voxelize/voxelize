@@ -17,6 +17,7 @@ use serde_json::json;
 use voxelize::{ClientFilter, Event, PositionComp, World};
 
 use super::bridge::{OutboxEntry, Request, Response};
+use super::containers::{Container, StallSale};
 use super::inventory::Stack;
 use super::rules::{IntentError, PlayerState, Rules};
 use super::{
@@ -180,6 +181,9 @@ pub struct MarketSystem {
     last: Option<std::time::Instant>,
     since_poll: f32,
     polling: bool,
+    /// Stall sale payments sent and not yet answered.
+    payments_in_flight: HashSet<String>,
+    payment_retry: f32,
 }
 
 impl<'a> specs::System<'a> for MarketSystem {
@@ -232,6 +236,7 @@ impl<'a> specs::System<'a> for MarketSystem {
             );
         };
 
+        let mut stalls_changed = false;
         for response in bridge.take(&world) {
             let Gameplay {
                 players,
@@ -365,6 +370,147 @@ impl<'a> specs::System<'a> for MarketSystem {
                 }
                 Response::DeliveriesFailed => self.polling = false,
                 Response::Acknowledged { .. } | Response::AcknowledgeFailed { .. } => {}
+                Response::Paid { key } => {
+                    self.payments_in_flight.remove(&key);
+                    let sale = g.containers.map.values_mut().find_map(|c| match c {
+                        Container::Stall(stall) => stall.sales.iter_mut().find(|s| s.key == key),
+                        _ => None,
+                    });
+                    if let Some(sale) = sale {
+                        sale.paid = true;
+                        stalls_changed = true;
+                    }
+                }
+                Response::PaymentRefused { key, code } => {
+                    self.payments_in_flight.remove(&key);
+                    let Gameplay {
+                        containers, drops, ..
+                    } = &mut *g;
+                    for (at, container) in containers.map.iter_mut() {
+                        let Container::Stall(stall) = container else {
+                            continue;
+                        };
+                        let Some(i) = stall.sales.iter().position(|s| s.key == key && !s.paid)
+                        else {
+                            continue;
+                        };
+                        let sale = stall.sales.remove(i);
+                        if let Some(left) = stall.restock(sale.slot, sale.stack.clone()) {
+                            let p = [at[0] as f32 + 0.5, at[1] as f32 + 1.2, at[2] as f32 + 0.5];
+                            drops.spawn(left, p, [0.0, 2.0, 0.0], None);
+                        }
+                        stalls_changed = true;
+                        if clients.get(&sale.buyer).is_some() {
+                            let item = content.item_by_id(sale.stack.item).map(|i| i.key.clone());
+                            notify(
+                                &mut events,
+                                &sale.buyer,
+                                json!({ "refused": { "code": code, "item": item, "count": sale.stack.count, "price": sale.price } }),
+                            );
+                        }
+                        break;
+                    }
+                }
+                Response::PaymentFailed { key } => {
+                    self.payments_in_flight.remove(&key);
+                    self.payment_retry = RETRY_SECONDS;
+                }
+            }
+        }
+
+        // Paid stall sales: hand the goods to their buyer (once: the key is
+        // remembered with the buyer's inventory).
+        let paid: Vec<([i32; 3], StallSale, String)> = g
+            .containers
+            .map
+            .iter()
+            .filter_map(|(at, c)| match c {
+                Container::Stall(stall) => Some((*at, stall)),
+                _ => None,
+            })
+            .flat_map(|(at, stall)| {
+                stall
+                    .sales
+                    .iter()
+                    .filter(|s| s.paid)
+                    .map(move |s| (at, s.clone(), stall.owner.clone()))
+            })
+            .collect();
+        for (at, sale, owner) in paid {
+            let Gameplay {
+                players,
+                store,
+                drops,
+                containers,
+                ..
+            } = &mut *g;
+            let Some(buyer) = players
+                .get_mut(&sale.buyer)
+                .filter(|p| !p.travel.departed && clients.get(&sale.buyer).is_some())
+            else {
+                continue;
+            };
+            if !buyer.market.delivered.contains(&sale.key) {
+                if let Some(left) = buyer.inventory.add_stack(&content, sale.stack.clone()) {
+                    let p = position_of(&sale.buyer).unwrap_or([
+                        at[0] as f32,
+                        at[1] as f32 + 1.0,
+                        at[2] as f32,
+                    ]);
+                    drops.spawn(left, [p[0], p[1] - 1.0, p[2]], [0.0, 2.0, 0.0], None);
+                }
+                buyer.market.remember(&sale.key);
+                save(store, &sale.buyer, buyer, position_of(&sale.buyer));
+                inventory_of(&mut events, &sale.buyer, buyer);
+                let item = content.item_by_id(sale.stack.item).map(|i| i.key.clone());
+                notify(
+                    &mut events,
+                    &sale.buyer,
+                    json!({ "bought": { "item": item, "count": sale.stack.count, "price": sale.price } }),
+                );
+                if clients.get(&owner).is_some() {
+                    notify(
+                        &mut events,
+                        &owner,
+                        json!({ "sold": { "item": item, "count": sale.stack.count, "price": sale.price } }),
+                    );
+                }
+            }
+            if let Some(Container::Stall(stall)) = containers.map.get_mut(&at) {
+                stall.sales.retain(|s| s.key != sale.key);
+            }
+            stalls_changed = true;
+        }
+
+        // Unanswered stall payments are asked again (idempotent by key).
+        self.payment_retry = (self.payment_retry - dt).max(0.0);
+        if self.payment_retry == 0.0 {
+            for c in g.containers.map.values() {
+                let Container::Stall(stall) = c else {
+                    continue;
+                };
+                for sale in stall.sales.iter().filter(|s| !s.paid) {
+                    if self.payments_in_flight.insert(sale.key.clone()) {
+                        let name = content
+                            .item_by_id(sale.stack.item)
+                            .map(|i| i.name.clone())
+                            .unwrap_or_default();
+                        bridge.request(Request::Payment {
+                            world: world.clone(),
+                            key: sale.key.clone(),
+                            from: sale.buyer.clone(),
+                            to: stall.owner.clone(),
+                            amount: sale.price,
+                            reason: format!("Stall: {} {name}", sale.stack.count),
+                        });
+                    }
+                }
+            }
+        }
+        if stalls_changed {
+            let dir = g.world_dir.clone();
+            if let Err(e) = g.containers.save(&dir) {
+                log::error!("could not save containers: {e}");
             }
         }
 

@@ -190,11 +190,75 @@ pub fn structure_loot(content: &Content, stage: u32, at: [i32; 3]) -> Vec<Option
     slots
 }
 
+/// Slots of a trade stall.
+pub const STALL_SIZE: usize = 9;
+
+/// A player's shop in the world: stock, a price per slot, and sales whose
+/// payment is on its way (their goods are set aside, out of the stock).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Stall {
+    pub owner: String,
+    #[serde(default)]
+    pub owner_name: String,
+    /// Stalls placed in creative never sell: creative goods stay out of
+    /// the economy.
+    #[serde(default)]
+    pub creative: bool,
+    pub slots: Vec<Option<Stack>>,
+    /// Price per slot in whole Crowns; 0 is not for sale.
+    pub prices: Vec<u64>,
+    #[serde(default)]
+    pub sales: Vec<StallSale>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StallSale {
+    /// Payment idempotency key.
+    pub key: String,
+    pub slot: usize,
+    pub buyer: String,
+    pub price: u64,
+    pub stack: Stack,
+    /// The backend took the money; the goods are the buyer's.
+    #[serde(default)]
+    pub paid: bool,
+}
+
+impl Stall {
+    pub fn new(owner: &str, owner_name: &str, creative: bool) -> Self {
+        Self {
+            owner: owner.to_owned(),
+            owner_name: owner_name.to_owned(),
+            creative,
+            slots: vec![None; STALL_SIZE],
+            prices: vec![0; STALL_SIZE],
+            sales: Vec::new(),
+        }
+    }
+
+    /// Put goods back after a refused payment: their slot, any free slot,
+    /// or (stock full) hand them back to drop.
+    pub fn restock(&mut self, slot: usize, stack: Stack) -> Option<Stack> {
+        if let Some(cell) = self.slots.get_mut(slot).filter(|c| c.is_none()) {
+            *cell = Some(stack);
+            return None;
+        }
+        match self.slots.iter_mut().find(|c| c.is_none()) {
+            Some(cell) => {
+                *cell = Some(stack);
+                None
+            }
+            None => Some(stack),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Container {
     Chest { slots: Vec<Option<Stack>> },
     Furnace(Furnace),
+    Stall(Stall),
 }
 
 impl Container {
@@ -213,6 +277,7 @@ impl Container {
         match self {
             Container::Chest { slots } => slots,
             Container::Furnace(f) => &f.slots,
+            Container::Stall(s) => &s.slots,
         }
     }
 
@@ -220,6 +285,7 @@ impl Container {
         match self {
             Container::Chest { slots } => slots,
             Container::Furnace(f) => &mut f.slots,
+            Container::Stall(s) => &mut s.slots,
         }
     }
 

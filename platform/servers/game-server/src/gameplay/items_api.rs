@@ -20,6 +20,8 @@ fn container_kind(container: &Container) -> WindowKind {
     match container {
         Container::Chest { .. } => WindowKind::Chest,
         Container::Furnace(_) => WindowKind::Furnace,
+        // The owner stocks a stall like a small chest.
+        Container::Stall(_) => WindowKind::Chest,
     }
 }
 
@@ -246,12 +248,29 @@ pub(super) fn block_removed(world: &mut World, voxel: [i32; 3], drops: &[(u32, u
     }
 }
 
-pub(super) fn block_placed(world: &mut World, voxel: [i32; 3], block: u32) {
+pub(super) fn block_placed(world: &mut World, voxel: [i32; 3], block: u32, placer: &str) {
+    let name = world
+        .clients()
+        .get(placer)
+        .map(|c| c.username.clone())
+        .unwrap_or_default();
     let mut g = world.ecs().write_resource::<Gameplay>();
     let Some(key) = g.rules.content().block_by_id(block).map(|b| b.key.clone()) else {
         return;
     };
-    if let Some(container) = Container::for_block(&key) {
+    let creative = g
+        .players
+        .get(placer)
+        .is_some_and(|p| p.realm == platform_ticket::Realm::Creative);
+    // A stall belongs to whoever placed it.
+    let container = if key == "trade_stall" {
+        Some(Container::Stall(super::containers::Stall::new(
+            placer, &name, creative,
+        )))
+    } else {
+        Container::for_block(&key)
+    };
+    if let Some(container) = container {
         g.containers.map.insert(voxel, container);
         let dir = g.world_dir.clone();
         if let Err(e) = g.containers.save(&dir) {
@@ -370,6 +389,21 @@ pub(super) fn install(world: &mut World) {
         let Some(p) = parse::<OpenPayload>(world, id, INTENT, payload) else {
             return;
         };
+        // Someone else's stall shows its offers instead of opening.
+        let stall_owner = p.voxel.and_then(|at| {
+            let g = world.ecs().read_resource::<Gameplay>();
+            match g.containers.map.get(&at) {
+                Some(Container::Stall(stall)) => Some(stall.owner.clone()),
+                _ => None,
+            }
+        });
+        if let (Some(owner), Some(at)) = (&stall_owner, p.voxel) {
+            if owner != id {
+                super::stall::send_view(world, id, at);
+                reply(world, id, INTENT, Ok(json!({ "stall": at })));
+                return;
+            }
+        }
         close_window(world, id);
         let position = client_position(world, id);
         let loot_opened = false;
@@ -395,6 +429,7 @@ pub(super) fn install(world: &mut World) {
                         Some("crafting_table") => Some(WindowKind::Workbench),
                         Some("furnace") => Some(WindowKind::Furnace),
                         Some("chest") => Some(WindowKind::Chest),
+                        Some("trade_stall") => Some(WindowKind::Chest),
                         _ => None,
                     };
                     let protected = kind.is_some_and(|k| k != WindowKind::Workbench) && {
@@ -461,7 +496,12 @@ pub(super) fn install(world: &mut World) {
         match opened {
             Err(None) => not_joined(world, id, INTENT),
             Err(Some(e)) => reply(world, id, INTENT, Err(e)),
-            Ok(()) => send_window(world, id),
+            Ok(()) => {
+                send_window(world, id);
+                if let (Some(_), Some(at)) = (stall_owner, p.voxel) {
+                    super::stall::send_view(world, id, at);
+                }
+            }
         }
     });
 

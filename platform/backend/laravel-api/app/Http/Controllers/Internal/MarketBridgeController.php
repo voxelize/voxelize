@@ -50,6 +50,26 @@ class MarketBridgeController extends Controller
         return response()->json(['listing' => ['id' => $listing->public_id, 'status' => $listing->status], 'replayed' => $listing->wasReplayed], $listing->wasReplayed ? 200 : 201);
     }
 
+    /** A buyer pays a stall's owner; the game server delivers on success. */
+    public function payment(Request $request, MarketService $market): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{8,100}$/'],
+            'from' => ['required', 'string', 'max:64'],
+            'to' => ['required', 'string', 'max:64'],
+            'amount' => ['required', 'integer'],
+            'reason' => ['required', 'string', 'max:200'],
+        ]);
+        $buyer = User::query()->where('public_id', $data['from'])->first();
+        $seller = User::query()->where('public_id', $data['to'])->first();
+        if (! $buyer || ! $seller || ! $buyer->isActive() || ! $seller->isActive()) {
+            return response()->json(['error' => ['code' => 'player_not_found', 'message' => 'Unknown or inactive player.']], 404);
+        }
+        $transaction = $market->stallSale($buyer, $seller, (int) $data['amount'], $data['key'], $data['reason']);
+
+        return response()->json(['transaction' => $transaction->public_id, 'replayed' => $transaction->wasReplayed], $transaction->wasReplayed ? 200 : 201);
+    }
+
     public function pending(Request $request, MarketService $market): JsonResponse
     {
         $data = $request->validate([

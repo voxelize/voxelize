@@ -118,6 +118,14 @@ biomes, grid `spacing` and `chance`, a character `palette`, `layers` (bottom
 to top, rows along z, characters along x; space keeps terrain, `.` is air)
 and a `loot` table for their chests.
 
+## Trade stalls
+
+`trade_stall` (`blocks/60-trade.json`) is a player shop: whoever places it
+owns it, stocks its nine slots through a chest-style window and prices each
+slot; other players buy priced stacks with Crowns (see API.md and
+NETWORK_PROTOCOL.md). Crafted from three sticks over planks, a chest and
+planks.
+
 ## Adding a content kind
 
 1. Schema structs in `crates/content/src/defs.rs` (`deny_unknown_fields`).

@@ -412,6 +412,17 @@ const RECIPES: Record<string, Recipe> = {
     p.speckle(hex("#6e2b25"), 0.16);
     p.blobs(hex("#f3e6da"), 5, 1);
   },
+  // Trade stall: striped awning on top, a counter on the sides.
+  stall_top: (p) => {
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++) p.set(x, y, shade(hex(Math.floor(x / 4) % 2 ? "#e8e0c8" : "#b8322a"), (p.random() - 0.5) * 0.1));
+    p.border(hex("#6b4a2b"));
+  },
+  stall_side: (p) => {
+    p.boards(shade(PLANK, -0.05), 4);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < SIZE; x++) p.set(x, y, hex(Math.floor(x / 4) % 2 ? "#e8e0c8" : "#b8322a"));
+    for (let x = 2; x < 14; x++) p.set(x, 9, hex("#d9b04a"));
+  },
 };
 
 /** RGBA pixels (16x16) of a named texture. Pure and deterministic. */

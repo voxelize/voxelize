@@ -61,6 +61,15 @@ pub enum Request {
         world: String,
         delivery: String,
     },
+    /// A buyer pays a stall's owner.
+    Payment {
+        world: String,
+        key: String,
+        from: String,
+        to: String,
+        amount: u64,
+        reason: String,
+    },
 }
 
 impl Request {
@@ -68,7 +77,8 @@ impl Request {
         match self {
             Request::CreateListing { world, .. }
             | Request::PendingDeliveries { world, .. }
-            | Request::Acknowledge { world, .. } => world,
+            | Request::Acknowledge { world, .. }
+            | Request::Payment { world, .. } => world,
         }
     }
 }
@@ -99,6 +109,19 @@ pub enum Response {
     },
     AcknowledgeFailed {
         delivery: String,
+    },
+    /// The money moved (or had already moved for this key).
+    Paid {
+        key: String,
+    },
+    /// Refused for good (`insufficient_funds`, …): the goods go back.
+    PaymentRefused {
+        key: String,
+        code: String,
+    },
+    /// Not sent: try again later.
+    PaymentFailed {
+        key: String,
     },
 }
 
@@ -275,6 +298,32 @@ async fn send(
                     _ => Response::DeliveriesFailed,
                 },
                 _ => Response::DeliveriesFailed,
+            }
+        }
+        Request::Payment {
+            key,
+            from,
+            to,
+            amount,
+            reason,
+            ..
+        } => {
+            let body =
+                json!({ "key": key, "from": from, "to": to, "amount": amount, "reason": reason });
+            match post(client, &format!("{base}/payments"), token, body).await {
+                Ok((200 | 201, _)) => Response::Paid { key },
+                Ok((400 | 404 | 409 | 422, body)) => Response::PaymentRefused {
+                    key,
+                    code: error_code(&body),
+                },
+                Ok((status, _)) => {
+                    log::warn!("market: payment {key} got HTTP {status}; will retry");
+                    Response::PaymentFailed { key }
+                }
+                Err(e) => {
+                    log::warn!("market: payment {key} not sent ({e}); will retry");
+                    Response::PaymentFailed { key }
+                }
             }
         }
         Request::Acknowledge { delivery, .. } => {

@@ -159,6 +159,28 @@ class MarketTest extends TestCase
         $this->assertSame([], $this->ledger->verify());
     }
 
+    public function test_stall_payments_are_one_sale_per_key(): void
+    {
+        $pay = fn (array $over = []) => $this->internal()->postJson('/api/internal/v1/payments', array_merge([
+            'key' => 'stall-sale-0001',
+            'from' => $this->alice->public_id,
+            'to' => $this->seller->public_id,
+            'amount' => 100,
+            'reason' => 'Stall: 4 bread',
+        ], $over));
+        $pay()->assertCreated();
+        $pay()->assertOk()->assertJsonPath('replayed', true);
+        $this->assertSame(900, $this->crn($this->alice));
+        $this->assertSame(95, $this->crn($this->seller));
+        $this->assertSame(5, $this->ledger->systemAccount('fees', 'CRN')->balance);
+
+        $pay(['key' => 'stall-sale-0002', 'amount' => 5000])->assertStatus(422)->assertJsonPath('error.code', 'insufficient_funds');
+        $pay(['key' => 'stall-sale-0003', 'to' => $this->alice->public_id])->assertStatus(422)->assertJsonPath('error.code', 'own_listing');
+        $pay(['key' => 'stall-sale-0004', 'to' => 'nobody'])->assertStatus(404);
+        $this->flushHeaders()->postJson('/api/internal/v1/payments', [])->assertStatus(401);
+        $this->assertSame([], $this->ledger->verify());
+    }
+
     public function test_cancelled_and_expired_goods_go_back_to_the_seller_and_deliveries_are_acknowledged_once(): void
     {
         $cancelled = $this->list();

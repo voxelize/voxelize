@@ -3,6 +3,7 @@
 namespace App\Services\Market;
 
 use App\Models\ItemDelivery;
+use App\Models\LedgerTransaction;
 use App\Models\MarketBid;
 use App\Models\MarketListing;
 use App\Models\User;
@@ -315,6 +316,40 @@ class MarketService
         }
 
         return $closed;
+    }
+
+    /**
+     * A sale at a player's stall in the world: the game server holds the
+     * goods and hands them over once this succeeds. One transaction per
+     * `$key`, however often it is asked.
+     */
+    public function stallSale(User $buyer, User $seller, int $amount, string $key, string $reason): LedgerTransaction
+    {
+        if ($buyer->is($seller)) {
+            throw new MarketException('own_listing', 'You cannot buy from your own stall.');
+        }
+        if ($amount < 1 || $amount > (int) config('platform.market.max_price')) {
+            throw new MarketException('bad_price', 'That price is not allowed.');
+        }
+        $currency = (string) config('platform.market.currency');
+        $fee = $this->fee($amount);
+        $legs = [
+            new Leg($this->ledger->walletFor($buyer, $currency)->account, -$amount),
+            new Leg($this->ledger->walletFor($seller, $currency)->account, $amount - $fee),
+        ];
+        if ($fee > 0) {
+            $legs[] = new Leg($this->ledger->systemAccount('fees', $currency), $fee);
+        }
+
+        return $this->ledger->post(new Posting(
+            type: 'sale',
+            reason: mb_substr($reason, 0, 120),
+            idempotencyKey: "stall:{$key}",
+            legs: $legs,
+            referenceType: 'stall_sale',
+            referenceId: $key,
+            initiatedBy: $buyer->id,
+        ));
     }
 
     /**

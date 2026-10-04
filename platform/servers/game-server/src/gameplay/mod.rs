@@ -18,6 +18,7 @@ pub use plates::PlateSystem;
 pub mod bridge;
 pub mod land;
 pub mod market;
+pub mod stall;
 pub use market::MarketSystem;
 pub mod travel;
 pub use land::LandNoticeSystem;
@@ -532,6 +533,7 @@ pub fn install(
     items_api::install(world);
     mobs_api::install(world);
     market::install(world);
+    stall::install(world);
     world.set_client_modifier(on_join);
     world.set_client_leave_modifier(on_leave);
 
@@ -546,6 +548,14 @@ pub fn install(
         };
         if !land_allows(world, client_id, p.voxel, land::Action::Build) {
             reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
+        let stall = {
+            let g = world.ecs().read_resource::<Gameplay>();
+            stall::guard_break(&g, client_id, p.voxel)
+        };
+        if let Err(e) = stall {
+            reply(world, client_id, INTENT, Err(e));
             return;
         }
         let now = now_ms();
@@ -570,6 +580,14 @@ pub fn install(
         let Some(p) = parse::<VoxelPayload>(world, client_id, INTENT, payload) else { return };
         if !land_allows(world, client_id, p.voxel, land::Action::Build) {
             reply(world, client_id, INTENT, Err(IntentError::LandProtected));
+            return;
+        }
+        let stall = {
+            let g = world.ecs().read_resource::<Gameplay>();
+            stall::guard_break(&g, client_id, p.voxel)
+        };
+        if let Err(e) = stall {
+            reply(world, client_id, INTENT, Err(e));
             return;
         }
         let now = now_ms();
@@ -636,7 +654,7 @@ pub fn install(
                     raw
                 };
                 world.chunks_mut().update_voxel(&Vec3(x, y, z), raw);
-                items_api::block_placed(world, p.voxel, block);
+                items_api::block_placed(world, p.voxel, block, client_id);
                 persist(world, client_id);
                 reply(
                     world,

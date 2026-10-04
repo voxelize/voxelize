@@ -88,6 +88,8 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.inventory.drop` | `{"all":bool}` | drops one (or the stack) from the selected hotbar slot | ✅ |
 | `platform.use` | `{"voxel":[x,y,z]}` | reach; a held fire striker lights the riftstone frame at the voxel (a closed frame, interior 2×3 to 21×21, all air) and wears; circuit blocks are used whatever is held (lever toggles, button presses, clock steps its period, usable gates open/close); otherwise the held item acts: a hoe tills dirt/turf with air above into farmland (wears the hoe). Answer carries `changed` (cells written) | ✅ |
 | `platform.market.list` | `{"slot":n,"count":n,"price":n,"kind"?:"fixed"\|"auction","buyout"?:n,"hours"?:1-168}` | survival realm only (`survival_only`); a backend configured (`market_unavailable`); valid price, buyout above the opening price for auctions only, duration (`bad_listing`); exactly `count` from the slot (`bad_count`). The goods leave the inventory into the player's outbox in one save; `platform.market {"listed"}` follows when the backend holds them, or `{"rejected"}` with the goods returned | ✅ |
+| `platform.stall.price` | `{"at":[x,y,z],"slot":0-8,"price":n}` | the stall's owner (`not_owner`), within reach; 0 takes the slot off sale | ✅ |
+| `platform.stall.buy` | `{"at":[x,y,z],"slot":0-8}` | not the owner, survival buyer and stall (`survival_only`), a priced stocked slot, within reach, a backend; the goods are set aside and paid through the ledger, then `platform.market {"bought"}` (owner: `{"sold"}`) or `{"refused"}` with the goods back on sale | ✅ |
 | `platform.inventory.creative` | `{"slot":n,"item":key}` | creative realm only (`creative_only`); a full, unworn stack of any item into the slot (`unknown_item`, `bad_slot`) | ✅ |
 | `platform.attack` | `{"mob":id}` | alive, within reach of the creature, 0.5 s cooldown; damage from the held weapon (1 by hand), wears it, knocks the creature back | ✅ |
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
@@ -104,7 +106,8 @@ Answers (events, sent only to the requesting client):
   `collides_with_player`, `unknown_block`, `no_recipe`,
   `missing_ingredients`, `needs_workbench`, `bad_slot`, `slot_empty`,
   `bad_count`, `bad_payload`, `not_joined`, `unknown_item`, `creative_only`,
-  `land_protected`, `market_unavailable`, `survival_only`, `bad_listing`.
+  `land_protected`, `market_unavailable`, `survival_only`, `bad_listing`,
+  `not_owner` (someone else's stall), `busy` (a stall with a sale being paid).
 - `platform.inventory` — `{"slots":[{"item":id,"count":n,"durability"?:n}|null ×36],"selected":0-8,"realm":"survival"}`,
   pushed on join and after every change.
 
@@ -122,7 +125,11 @@ Answers (events, sent only to the requesting client):
   `{"rejected":{"code","item","count"}}` (goods returned),
   `{"received":{"item","count","reason"}}` (a delivery handed over: a
   purchase, an auction won, cancelled or expired goods), or
-  `{"waiting":{"item","count"}}` (a delivery needs room in the inventory).
+  `{"waiting":{"item","count"}}` (a delivery needs room in the inventory),
+  `{"bought"|"sold":{"item","count","price"}}` and `{"refused":{"code","item","count"}}` for stall sales.
+- `platform.stall` — `{"at","owner":{"id","name"},"mine","creative","offers":[{"slot","item","count","price"}],"prices":[9],"pending","stock":[9]|null}`,
+  sent when a player opens a trade stall (someone else's stall opens no
+  window; the owner also gets the stall's chest-style stock window).
 - `platform.land` — `{"land":{"id","name","owner":{"id","name"},"role","public","min","max"}|null}`
   when the player walks into different land (null: wilderness).
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are

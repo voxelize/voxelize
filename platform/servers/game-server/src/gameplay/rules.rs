@@ -62,6 +62,8 @@ pub enum IntentError {
     MarketUnavailable,
     SurvivalOnly,
     BadListing,
+    NotOwner,
+    Busy,
     Inventory(InventoryError),
 }
 
@@ -95,6 +97,8 @@ impl IntentError {
             IntentError::MarketUnavailable => "market_unavailable",
             IntentError::SurvivalOnly => "survival_only",
             IntentError::BadListing => "bad_listing",
+            IntentError::NotOwner => "not_owner",
+            IntentError::Busy => "busy",
             IntentError::Inventory(e) => e.code(),
         }
     }

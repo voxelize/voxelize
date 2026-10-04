@@ -52,6 +52,7 @@ Route::prefix('v1')->group(function () {
 Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(function () {
     Route::get('lands', LandFeedController::class);
     Route::post('market/listings', [MarketBridgeController::class, 'createListing']);
+    Route::post('payments', [MarketBridgeController::class, 'payment']);
     Route::post('deliveries/pending', [MarketBridgeController::class, 'pending']);
     Route::post('deliveries/{delivery}/ack', [MarketBridgeController::class, 'acknowledge']);
 });

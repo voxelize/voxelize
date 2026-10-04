@@ -13,6 +13,7 @@ validated by the game server like a browser player's.
 | `portals.mjs` | dimensions in creative: build and light a riftstone frame, travel to the underworld, reconnect and resume there, travel back to the original portal (also runs standalone with `DEV_TICKET_SECRET`) |
 | `land.mjs` | land end to end: a paid claim through the API, the game server refusing a stranger, entry notices, a builder added through the API (needs `FUND_CMD` to give the player currency) |
 | `market.mjs` | the market end to end: dig goods, list one in the game, a funded buyer buys through the API and receives it in the game, a cancelled listing comes back (needs `FUND_CMD`) |
+| `stall.mjs` | trade stalls end to end: place, stock and price a stall, a buyer pays through the ledger and receives the goods, an unaffordable buy is refused and the goods go back on sale, strangers cannot break it (standalone: seeds the owner's record via `SAVE_DIR`; needs `FUND_CMD`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
 | `bot.mjs` | the bot client both use |

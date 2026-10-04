@@ -155,6 +155,12 @@ never lifts protection.
 `{ "key": outbox id, "seller": public id, "world", "kind", "item", "count", "durability"?, "price", "buyout"?, "hours"? }`
 → `201`/`200 { "listing": { "id", "status" }, "replayed" }`. One listing per key.
 
+### `POST /api/internal/v1/payments`
+`{ "key", "from": buyer public id, "to": seller public id, "amount", "reason" }`:
+a stall sale as one `sale` transaction (buyer −amount, seller +amount−fee,
+fee to `system:fees`), once per key → `201`/`200 { "transaction", "replayed" }`;
+`422 insufficient_funds | own_listing | bad_price`, `404 player_not_found`.
+
 ### `POST /api/internal/v1/deliveries/pending`
 `{ "world", "players": [public id] }` → `{ "deliveries": [{ "id", "player", "item", "count", "durability", "reason" }] }`.
 
