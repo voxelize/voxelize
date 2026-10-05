@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Cosmetic } from "./api";
-import { BASE_LOOK, cosmeticLine, lookColors, sanitizeLook } from "./cosmetics";
+import { BASE_LOOK, cosmeticLine, lookColors, sanitizeLook } from "./look";
 
 describe("cosmetics", () => {
   it("paints the defaults where nothing is worn", () => {
