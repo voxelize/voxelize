@@ -129,9 +129,11 @@ the player's public id; AOI and replication from the engine.
 Done: protocol-level bot client, end-to-end smoke test and load generator
 (`tests/bots`); 30 concurrent bots digging, placing and chatting with no
 server errors.
-Remaining: gateway for multiple worlds, presence in Redis, movement
-anti-cheat signals, trading in the load mix, larger load runs with tick
-metrics.
+Done since (see below): gateway for player worlds, presence in the cache,
+movement anti-cheat signals, load runs with tick metrics; trading and the
+market in the load mix (pairs of bots trading through the trade window,
+market reads; 105 trades among 50 bots in a minute, none failed,
+docs/LOAD_TESTS.md).
 
 ## Phase 8 — Survival 🟡
 

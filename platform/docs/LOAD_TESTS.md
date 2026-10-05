@@ -3,7 +3,9 @@
 `tests/bots/load.mjs` plays N bots through the real protocol (API login,
 game ticket, WebSocket, validated intents): each walks to a random column
 within 24 blocks of spawn, digs the top block, places it back and now and
-then chats. While they play it samples the game server's own metrics
+then chats. A share of the bots (`TRADE_SHARE`, 0.2 by default) play in
+pairs instead: they meet, open a trade window, offer what they carry, both
+confirm and start again; every bot reads the market API now and then. While they play it samples the game server's own metrics
 (`/platform/metrics`) every 2 s and reports how the overworld kept up.
 
 ```sh
@@ -13,7 +15,8 @@ MAX_TICK_SECONDS=0.6 node tests/bots/load.mjs tokens.json 60 <api> <game>
 ```
 
 The output is one JSON line: what the bots did (`joined`, `mined`,
-`placed`, `chats`, refusals by code) and `server`: peak players, the
+`placed`, `chats`, `trades`, `trades_failed`, `market_reads`,
+`market_failed`, refusals by code) and `server`: peak players, the
 slowest gap between ticks per sample (`tick_seconds` p50/p95/max), ticks
 per second (`min`, `p50`) and every intent answered by result.
 `MAX_TICK_SECONDS` makes the run fail when the slowest tick is over it.
@@ -30,6 +33,7 @@ change). Numbers are for the overworld; 60 s of play.
 | --- | --- | --- | --- | --- |
 | 50 | 50 | 4 593 (3 419 ok) | 19.8 | 0.16 / 0.28 / 0.51 s |
 | 100 | 100 | 5 296 (4 218 ok) | 2.8 | 0.41 / 1.03 / 1.16 s |
+| 50, 10 of them trading, MySQL backend | 50 | 4 639 (3 724 ok); 105 trades done, none failed; 238 market reads | 32 (min 17.6) | 0.10 / 0.23 / 0.51 s |
 
 With 50 players in one spot the world keeps its 20 ticks a second with
 occasional slow ticks; at 100, on hardware that also runs the hundred

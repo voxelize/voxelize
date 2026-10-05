@@ -1,5 +1,7 @@
 // Load generation (spec §93): bots join, walk, dig, place and chat through
-// the same validated intents as players. While they play, the game server's
+// the same validated intents as players; a share of them (TRADE_SHARE, 0.2
+// by default) play in pairs that meet and trade what they carry through the
+// trade window, and every bot browses the market API now and then. While they play, the game server's
 // own metrics (/platform/metrics) are sampled every 2 s: the result says how
 // long the overworld's ticks took (p50, p95, max), how many ticks it ran a
 // second and how intents were answered. MAX_TICK_SECONDS fails the run when
@@ -11,7 +13,7 @@
 
 import { readFileSync } from "node:fs";
 
-import { Bot } from "./bot.mjs";
+import { api, Bot } from "./bot.mjs";
 
 const TOKENS = JSON.parse(readFileSync(process.argv[2] ?? "tokens.json", "utf8"));
 const SECONDS = Number(process.argv[3] ?? 60);
@@ -26,13 +28,94 @@ const diggable = (id) => {
   return b && !b.fluid && b.hardness > 0 && (!b.tool || b.tool.required === false) && b.drops.length > 0;
 };
 
-const stats = { joined: 0, failed: 0, mined: 0, placed: 0, chats: 0, refused: {} };
+const stats = { joined: 0, failed: 0, mined: 0, placed: 0, chats: 0, trades: 0, trades_failed: 0, market_reads: 0, market_failed: 0, refused: {} };
+const TRADE_SHARE = Number(process.env.TRADE_SHARE ?? 0.2);
+// Bots 0..TRADERS-1 trade in pairs (0 with 1, 2 with 3, …).
+const TRADERS = Math.floor((TOKENS.length * TRADE_SHARE) / 2) * 2;
+const browse = async (token) => {
+  try {
+    await api(API, "/market/listings?world=main", { token });
+    stats.market_reads++;
+  } catch {
+    stats.market_failed++;
+  }
+};
+const EYE = 1.425;
+const trader = new Map();
+const call = async (bot, intent, payload = {}) => {
+  bot.call(`platform.${intent}`, payload);
+  const r = await bot.result(intent, 8000).catch(() => null);
+  if (!r?.ok) throw new Error(`${intent}: ${r?.code ?? "no answer"}`);
+  return r;
+};
+
+/** One trade between two bots standing next to each other. */
+async function tradeOnce(a, b, spot) {
+  const keep = setInterval(() => {
+    a.moveTo([spot[0] + 0.5, spot[1], spot[2] + 0.5]);
+    b.moveTo([spot[0] + 2.5, spot[1], spot[2] + 0.5]);
+  }, 400);
+  try {
+    await a.moveTo([spot[0] + 0.5, spot[1], spot[2] + 0.5], 4);
+    await b.moveTo([spot[0] + 2.5, spot[1], spot[2] + 0.5], 4);
+    await sleep(600);
+    const invited = b.event("platform.trade", (e) => e.invite, 8000);
+    await call(a, "trade.request", { player: a.peerId });
+    await invited;
+    const opened = a.event("platform.trade", (e) => e.trade, 8000);
+    await call(b, "trade.accept", { player: b.peerId });
+    await opened;
+    for (const bot of [a, b]) {
+      const slot = (bot.inventory?.slots ?? []).findIndex((s) => s && s.count > 0);
+      await call(bot, "trade.offer", { items: slot >= 0 ? [{ slot, count: 1 }] : [], crowns: 0 });
+    }
+    const done = [a, b].map((bot) => bot.event("platform.trade", (e) => e.ended, 15000));
+    await call(a, "trade.confirm");
+    await call(b, "trade.confirm");
+    const ended = await Promise.all(done);
+    if (ended.every((e) => e.ended === "done")) stats.trades++;
+    else stats.trades_failed++;
+  } catch (e) {
+    stats.trades_failed++;
+    stats.refused[e.message] = (stats.refused[e.message] ?? 0) + 1;
+    a.call("platform.trade.cancel", {});
+  } finally {
+    clearInterval(keep);
+  }
+}
+
+async function tradePair(a, b, index) {
+  const end = Date.now() + SECONDS * 1000;
+  const spot = [index * 6 - 120, 100 + EYE, 200];
+  while (Date.now() < end) {
+    await tradeOnce(a, b, spot);
+    void browse(a.token);
+    await sleep(1000 + Math.random() * 1000);
+  }
+}
 
 async function run({ username, token }, index) {
   try {
     const bot = new Bot({ api: API, game: GAME, token, name: username });
     await bot.connect();
     stats.joined++;
+    if (index < TRADERS) {
+      bot.token = token;
+      bot.me = (await api(API, "/me", { token })).user.id;
+      trader.set(index, bot);
+      // The second of a pair runs the pair once both are in.
+      if (index % 2 === 1) {
+        for (let i = 0; i < 100 && !trader.has(index - 1); i++) await sleep(200);
+        const a = trader.get(index - 1);
+        if (!a) throw new Error("trade partner never joined");
+        a.peerId = bot.me;
+        bot.peerId = a.me;
+        await tradePair(a, bot, index);
+        a.close();
+        bot.close();
+      }
+      return;
+    }
     const end = Date.now() + SECONDS * 1000;
     while (Date.now() < end) {
       const x = Math.floor((Math.random() - 0.5) * 48);
@@ -64,6 +147,7 @@ async function run({ username, token }, index) {
         bot.chat(`bot ${index} checking in`);
         stats.chats++;
       }
+      if (Math.random() < 0.1) void browse(token);
     }
     bot.close();
   } catch (e) {
