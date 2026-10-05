@@ -6,7 +6,7 @@
 
 import "./style.css";
 
-import { api, ApiError, type AdminPlayer, type User } from "./api";
+import { api, ApiError, type AdminPlayer, type AdminPlayerState, type User } from "./api";
 
 export type Tab = "players" | "servers" | "economy" | "audit";
 
@@ -26,6 +26,23 @@ export function ago(iso: string | null, now = Date.now()): string {
   if (s < 172800) return `${Math.floor(s / 3600)} h ago`;
   return `${Math.floor(s / 86400)} days ago`;
 }
+
+/** A player's saved state in a world: "main · overworld at 10, 64, -3 · 18/20 health · 30 xp". */
+export function stateLine(s: AdminPlayerState): string {
+  const parts = [`${s.world} · ${s.dimension}`];
+  if (s.position) parts[0] += ` at ${s.position.map((v) => Math.round(v)).join(", ")}`;
+  if (s.health !== null) parts.push(`${Math.round(s.health * 10) / 10}/20 health`);
+  parts.push(`${s.xp} xp`);
+  return parts.join(" · ");
+}
+
+/** Item names by id, from the game's content pack (fetched once). */
+let itemNames: Promise<Map<number, string>> | null = null;
+const names = () =>
+  (itemNames ??= fetch("/platform/content")
+    .then((r) => r.json())
+    .then((c: { items: { id: number; name: string }[] }) => new Map(c.items.map((i) => [i.id, i.name])))
+    .catch(() => new Map()));
 
 /** A player's state in a few words: "online in main · muted · suspended". */
 export function playerLine(p: AdminPlayer, now = Date.now()): string {
@@ -121,6 +138,8 @@ async function start() {
       return;
     }
     const p = detail.player;
+    const itemNamesById = await names();
+    const itemName = (id: number) => itemNamesById.get(id) ?? `#${id}`;
     const again = () => void showPlayer(id);
     const actions = h("div", { className: "admin-actions" });
     if (p.status === "active") {
@@ -153,6 +172,13 @@ async function start() {
       ...(p.status_reason ? [h("p", { textContent: `${p.status}: ${p.status_reason}` })] : []),
       ...(p.mute_reason ? [h("p", { textContent: `muted until ${new Date(p.muted_until!).toLocaleString()}: ${p.mute_reason}` })] : []),
       h("p", { textContent: `Wallets: ${p.wallets.map((w) => `${w.balance} ${w.currency}`).join(", ") || "none"}` }),
+      ...p.states.map((st) =>
+        h(
+          "p",
+          { className: "admin-stats" },
+          `${stateLine(st)} · carrying ${st.items.map((i) => `${i.count} × ${itemName(i.item)}`).join(", ") || "nothing"}`,
+        ),
+      ),
       actions,
       admin,
       h("h3", { textContent: "History" }),

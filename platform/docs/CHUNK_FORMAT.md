@@ -65,7 +65,11 @@ data/worlds/main/
   chunks/<cx>_<cz>.json      one file per modified chunk
   entities/…                 persisted entities (when enabled)
   chat/…                     chat log
-  players/<id>.json          player records, shared by every dimension
+  players/<id>.json          player records, only without a database
+                             (GAME_DATABASE_URL); with one they live in
+                             MySQL `player_states`, and an old file is
+                             imported on the player's first load
+                             (renamed <id>.json.imported)
   portal_links.json          pairs of portals that lead to each other
   containers.json, mobs.json chests and furnaces, animals
   drops.json                 items lying on the ground (with their age)
@@ -89,7 +93,10 @@ Lights are not stored; they are recomputed on load, which keeps files small
 and makes a light-propagation fix apply to old saves.
 
 **When game state is written.** Player records after every intent that
-changes them, and every player every minute (places and vitals change
+changes them (to MySQL through a writer thread that never blocks the tick:
+a burst of saves becomes one write within milliseconds, a record still
+waiting is what the next load returns, and on stop the server waits until
+every record is written), and every player every minute (places and vitals change
 without intents); containers and lying items every 5 s when they changed;
 animals as they change; chunks within ticks of an edit (the engine's
 background saver flushes every 50 ms). On SIGTERM or Ctrl-C every world

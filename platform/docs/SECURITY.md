@@ -140,6 +140,11 @@ time and intent rate are refused per intent (§4). `GAME_ANTICHEAT=off`
 switches the movement checks off (scripted test bots move by setting
 positions).
 
+**Game server database account.** Game servers write player records with
+their own MySQL account (`platform_game`), granted SELECT, INSERT and
+UPDATE on `player_states` only: a compromised game server can neither read
+accounts nor touch the ledger, and cannot delete records.
+
 ## 6. Economic safety
 
 See [ECONOMY_LEDGER.md](ECONOMY_LEDGER.md): integer money, double entry,

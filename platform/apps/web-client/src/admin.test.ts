@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdminPlayer } from "./api";
-import { ago, playerLine, tabsFor } from "./admin";
+import { ago, playerLine, stateLine, tabsFor } from "./admin";
 
 const player = (over: Partial<AdminPlayer>): AdminPlayer => ({
   id: "p",
@@ -37,5 +37,12 @@ describe("admin panel", () => {
     expect(playerLine(player({ online: true, world: "main" }), now)).toBe("online in main");
     expect(playerLine(player({ status: "banned", roles: ["player", "moderator"], muted_until: "2026-10-05T13:00:00Z" }), now)).toBe("seen never · muted · banned · moderator");
     expect(playerLine(player({ muted_until: "2026-10-05T11:00:00Z", last_seen_at: "2026-10-05T11:50:00Z" }), now)).toBe("seen 10 min ago");
+  });
+
+  it("sums a saved state up in a line", () => {
+    expect(stateLine({ world: "main", dimension: "overworld", position: [10.3, 64, -3.5], health: 18.5, xp: 30, items: [], updated_at: "" })).toBe(
+      "main · overworld at 10, 64, -3 · 18.5/20 health · 30 xp",
+    );
+    expect(stateLine({ world: "w_x", dimension: "sky", position: null, health: null, xp: 0, items: [], updated_at: "" })).toBe("w_x · sky · 0 xp");
   });
 });

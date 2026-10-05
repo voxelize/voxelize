@@ -20,6 +20,7 @@ pub mod plugins;
 pub mod progress;
 pub mod sanctions;
 pub mod shutdown;
+pub mod store_mysql;
 pub mod voice;
 pub mod work;
 pub use mobs_api::MobSystem;
@@ -133,7 +134,8 @@ impl Gameplay {
         let mobs = mobs_api::load(world_dir)?;
         Ok(Self {
             rules: Rules::new(content),
-            store: PlayerStore::for_dimension(players_dir, dimensions.current),
+            store: PlayerStore::for_dimension(players_dir, dimensions.current)
+                .with_db(dimensions.player_db.clone()),
             dimensions,
             trades: trade::Trades::load(world_dir)?,
             sieges: guild_api::Sieges::load(world_dir)?,

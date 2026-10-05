@@ -103,8 +103,8 @@ Append-only. The ticket string is never stored.
 
 ## Worlds
 
-### worlds
-`id`, `public_id`, `key` UNIQUE (`main`), `name`, `realm`, `dimension`
+### worlds ✅ implemented (player-made worlds; official ones are config)
+Planned: `id`, `public_id`, `key` UNIQUE (`main`), `name`, `realm`, `dimension`
 (`overworld|underworld|sky`), `seed` int unsigned, `visibility`
 (`public|friends|invite|private`), `owner_user_id` FK NULL (private worlds),
 `max_players`, `description`, `status` (`active|maintenance|archived`), timestamps.
@@ -115,13 +115,16 @@ Append-only. The ticket string is never stored.
 `player_count`, `service_key_id` (rotating HMAC key reference). Heartbeats are
 written to Redis every few seconds and summarised here.
 
-### player_world_states
-Where a character is and what the backend must know about it per world.
-`id`, `character_id` FK, `world_id` FK, `position` json (x, y, z, yaw, pitch),
-`game_mode` (`survival|creative|adventure|spectator`), `health`, `hunger`,
-`experience`, `last_seen_at`, `version` int (optimistic lock), timestamps.
-UNIQUE(`character_id`, `world_id`).
-Inventory contents are not here: see `inventories`.
+### player_states ✅ implemented (replaces the planned `player_world_states`)
+What each player carries and where they are, per world, written by the
+world's game server (its own MySQL account: SELECT, INSERT, UPDATE on this
+table only). `id`, `world` (the world key, every dimension sharing one
+record), `player` (users.public_id), `dimension`, `record_version`,
+`record` json (inventory, armor, off hand, vitals and effects, position,
+travel, market outbox and deliveries, trade hold, home, experience, game
+mode, achievements, job and quests), and the parts admins query as columns:
+`health`, `xp`, `x`, `y`, `z`; `revision` (bumped on every write),
+`updated_at`. UNIQUE(`world`, `player`), INDEX(`player`).
 
 ## Land and property
 

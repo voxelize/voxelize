@@ -212,7 +212,22 @@ export type AdminPlayer = {
   last_seen_at: string | null;
 };
 export type AdminAudit = { action: string; reason: string | null; payload: unknown; actor_type: string; created_at: string };
-export type AdminPlayerDetail = AdminPlayer & { email: string; created_at: string; wallets: { currency: string; balance: number }[]; tickets_today: number };
+export type AdminPlayerState = {
+  world: string;
+  dimension: string;
+  position: [number, number, number] | null;
+  health: number | null;
+  xp: number;
+  items: { item: number; count: number }[];
+  updated_at: string;
+};
+export type AdminPlayerDetail = AdminPlayer & {
+  email: string;
+  created_at: string;
+  wallets: { currency: string; balance: number }[];
+  tickets_today: number;
+  states: AdminPlayerState[];
+};
 export type AdminServers = {
   worlds: { world: string; dimension: string; players: number; seen_at: string; online: boolean }[];
   online_players: number;

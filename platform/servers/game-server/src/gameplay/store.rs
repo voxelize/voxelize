@@ -1,8 +1,10 @@
-//! Per-player state on disk, next to the world's chunks.
-//!
+//! Per-player state: in MySQL (`player_states`, see `store_mysql.rs`) when
+//! the server has a database (GAME_DATABASE_URL), otherwise on disk next to
+//! the world's chunks for standalone development:
 //! `<save_dir>/<world>/players/<player id>.json`, written atomically (temp
 //! file, fsync, rename) so a crash leaves the old or the new record, never a
-//! torn one. Phase 6 moves this to `player_world_states` in the backend.
+//! torn one. With a database, a player's old file (or one seeded by a test)
+//! is imported on their first load and renamed `<id>.json.imported`.
 
 use std::fs;
 use std::io::Write;
@@ -62,6 +64,8 @@ pub struct PlayerRecord {
 }
 
 pub struct PlayerStore {
+    /// The database every dimension of the world shares, when there is one.
+    db: Option<std::sync::Arc<super::store_mysql::MysqlStore>>,
     dir: PathBuf,
     /// The dimension whose world uses this store; every dimension of a
     /// world shares one players directory.
@@ -84,6 +88,7 @@ pub enum StoreError {
     Io(std::io::Error),
     Corrupt(serde_json::Error),
     UnsupportedVersion(u32),
+    Db(String),
 }
 
 impl std::fmt::Display for StoreError {
@@ -93,6 +98,7 @@ impl std::fmt::Display for StoreError {
             StoreError::Io(e) => write!(f, "io: {e}"),
             StoreError::Corrupt(e) => write!(f, "corrupt record: {e}"),
             StoreError::UnsupportedVersion(v) => write!(f, "unsupported record version {v}"),
+            StoreError::Db(e) => write!(f, "database: {e}"),
         }
     }
 }
@@ -107,9 +113,16 @@ impl PlayerStore {
         dimension: platform_content::Dimension,
     ) -> Self {
         Self {
+            db: None,
             dir: world_dir.as_ref().join("players"),
             dimension,
         }
+    }
+
+    /// Keep records in this database instead of files.
+    pub fn with_db(mut self, db: Option<std::sync::Arc<super::store_mysql::MysqlStore>>) -> Self {
+        self.db = db;
+        self
     }
 
     /// The record of a player in this store's dimension.
@@ -150,7 +163,26 @@ impl PlayerStore {
     /// `Ok(None)` for a player who has never been saved.
     pub fn load(&self, id: &str) -> Result<Option<PlayerRecord>, StoreError> {
         let path = self.path(id)?;
-        let text = match fs::read_to_string(&path) {
+        if let Some(db) = &self.db {
+            if let Some(record) = db.load(id)? {
+                return Ok(Some(record));
+            }
+            // Not in the database yet: an old file (or a test's seed) moves in.
+            let Some(record) = Self::read_file(&path)? else {
+                return Ok(None);
+            };
+            db.save(&record);
+            if let Err(e) = fs::rename(&path, path.with_extension("json.imported")) {
+                log::warn!("player {id}: imported, but the old file stays: {e}");
+            }
+            log::info!("player {id}: record imported into the database");
+            return Ok(Some(record));
+        }
+        Self::read_file(&path)
+    }
+
+    fn read_file(path: &Path) -> Result<Option<PlayerRecord>, StoreError> {
+        let text = match fs::read_to_string(path) {
             Ok(text) => text,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(StoreError::Io(e)),
@@ -164,6 +196,10 @@ impl PlayerStore {
 
     pub fn save(&self, record: &PlayerRecord) -> Result<(), StoreError> {
         let path = self.path(&record.id)?;
+        if let Some(db) = &self.db {
+            db.save(record);
+            return Ok(());
+        }
         fs::create_dir_all(&self.dir).map_err(StoreError::Io)?;
         let tmp = path.with_extension("json.tmp");
         let bytes = serde_json::to_vec(record).map_err(StoreError::Corrupt)?;

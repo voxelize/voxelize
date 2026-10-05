@@ -25,11 +25,18 @@ curl localhost:8080/api/v1/auth/register -H 'content-type: application/json' \
 
 ## Database users
 
+The game servers keep player records in MySQL (`GAME_DATABASE_URL`) with
+their own account, `platform_game` (`GAME_DB_PASSWORD` in `.env`), which
+`apply-grants.sh` limits to SELECT, INSERT and UPDATE on `player_states`.
+The game server starts after the migrations and refuses to run without
+that table.
+
 | User | Privileges | Used by |
 | --- | --- | --- |
 | `root` | all | `apply-grants.sh`, backups |
 | `platform_migrator` | all on `platform`, `platform_test` | `migrate` |
 | `platform` | `SELECT, INSERT, UPDATE, DELETE` per table, but only `SELECT, INSERT` on `ledger_entries`, `ledger_transactions`, `audit_logs`, `game_tickets` | `api`, `scheduler` |
+| `platform_game` | SELECT, INSERT, UPDATE on `player_states` | game servers (player records) |
 
 `apply-grants.sh` runs after every migration so new tables get grants too.
 

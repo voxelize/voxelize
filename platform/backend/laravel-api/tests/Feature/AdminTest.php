@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Economy\LedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -53,6 +54,15 @@ class AdminTest extends TestCase
         $this->as($admin)->putJson('/api/v1/admin/players/mod/roles', ['roles' => [], 'reason' => 'stepped down'])->assertOk()->assertJsonPath('player.roles', ['player']);
         $this->as($mod->fresh())->getJson('/api/v1/admin/players')->assertForbidden();
         $this->as($admin)->putJson('/api/v1/admin/players/boss/roles', ['roles' => [], 'reason' => 'oops'])->assertStatus(422);
+        DB::table('player_states')->insert([
+            'world' => 'main', 'player' => $player->public_id, 'dimension' => 'overworld', 'record_version' => 1,
+            'record' => json_encode(['inventory' => ['slots' => [['item' => 7, 'count' => 12], null, ['item' => 28, 'count' => 2]], 'selected' => 0]]),
+            'health' => 18.5, 'xp' => 30, 'x' => 10.25, 'y' => 64, 'z' => -3.5, 'revision' => 1, 'updated_at' => now(),
+        ]);
+        $this->as($admin)->getJson('/api/v1/admin/players/plain')->assertOk()
+            ->assertJsonPath('player.states.0.dimension', 'overworld')->assertJsonPath('player.states.0.health', 18.5)
+            ->assertJsonPath('player.states.0.items', [['item' => 7, 'count' => 12], ['item' => 28, 'count' => 2]])
+            ->assertJsonPath('player.states.0.position', [10.3, 64, -3.5]);
         $this->as($admin)->getJson('/api/v1/admin/players/plain')->assertOk()->assertJsonPath('player.wallets.0.balance', 50)
             ->assertJsonPath('audit.0.action', 'economy.mint');
         $this->assertSame(['economy.mint', 'admin.roles'], AuditLog::query()->orderBy('id')->pluck('action')->all(), 'the refused changes left no trace');

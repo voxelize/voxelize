@@ -112,6 +112,9 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       APP_DB_USER: platform
       APP_DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      # The game servers' account: player_states only.
+      GAME_DB_USER: platform_game
+      GAME_DB_PASSWORD: ${GAME_DB_PASSWORD:?set GAME_DB_PASSWORD in .env}
     volumes:
       - ./infrastructure/mysql/apply-grants.sh:/usr/local/bin/apply-grants.sh:ro
     user: root
@@ -146,6 +149,10 @@ services:
       context: ..
       dockerfile: platform/infrastructure/docker/game-server.Dockerfile
     image: platform-game-server:dev
+    depends_on:
+      # Player records live in tables the migrations create.
+      migrate:
+        condition: service_completed_successfully
     environment:
       GAME_WORLD_NAME: main
       GAME_WORLD_SEED: ${GAME_WORLD_SEED:-20260101}
@@ -156,6 +163,8 @@ services:
       # nginx listener.
       GAME_BACKEND_URL: http://nginx:8081/api/internal/v1
       GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN}
+      # Player records (inventories, positions, progress) in MySQL.
+      GAME_DATABASE_URL: mysql://platform_game:${GAME_DB_PASSWORD}@mysql:3306/platform
       # /platform/metrics asks for it (Prometheus, profile "observability").
       GAME_METRICS_TOKEN: ${GAME_METRICS_TOKEN:-}
     volumes:

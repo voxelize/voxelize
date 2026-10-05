@@ -51,9 +51,29 @@ class AdminController extends Controller
             ->orWhere('payload->recipient', $user->public_id)
             ->latest('id')->limit(30)->get(['action', 'reason', 'payload', 'actor_type', 'created_at']);
 
+        // What the player carries and where they are, per world (written by
+        // the game servers into player_states).
+        $states = DB::table('player_states')->where('player', $user->public_id)->orderBy('world')->get()
+            ->map(function ($row) {
+                $record = json_decode((string) $row->record, true) ?: [];
+                $slots = collect($record['inventory']['slots'] ?? [])->filter()->values()
+                    ->map(fn ($s) => ['item' => (int) $s['item'], 'count' => (int) $s['count']]);
+
+                return [
+                    'world' => $row->world,
+                    'dimension' => $row->dimension,
+                    'position' => $row->x === null ? null : [round($row->x, 1), round($row->y, 1), round($row->z, 1)],
+                    'health' => $row->health === null ? null : (float) $row->health,
+                    'xp' => (int) $row->xp,
+                    'items' => $slots,
+                    'updated_at' => $row->updated_at,
+                ];
+            });
+
         return response()->json([
             'player' => [
                 ...$this->card($user, $friends),
+                'states' => $states,
                 'email' => $user->email,
                 'created_at' => $user->created_at?->toIso8601String(),
                 'wallets' => $wallets,

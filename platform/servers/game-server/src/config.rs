@@ -37,6 +37,10 @@ pub struct GameConfig {
     /// Movement checks (`GAME_ANTICHEAT`, on unless `off`: scripted test
     /// bots move by setting positions and would be caught).
     pub anticheat: bool,
+    /// Where player records live: `mysql://user:pass@host:port/db`
+    /// (`GAME_DATABASE_URL`, the backend's database with its migrations
+    /// run). Without it they are files in the save directory (development).
+    pub database_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -194,6 +198,15 @@ impl GameConfig {
                 }
                 s as f32
             },
+            database_url: match env.get("GAME_DATABASE_URL").filter(|u| !u.is_empty()) {
+                None => None,
+                Some(u) if u.starts_with("mysql://") => Some(u.clone()),
+                Some(_) => {
+                    return Err(ConfigError(
+                        "GAME_DATABASE_URL must be a mysql:// URL".into(),
+                    ))
+                }
+            },
             anticheat: env.get("GAME_ANTICHEAT").is_none_or(|v| v != "off"),
             metrics_token: env
                 .get("GAME_METRICS_TOKEN")
@@ -313,5 +326,16 @@ mod tests {
         );
         let error = dev(&[("GAME_VOICE_ICE_SERVERS", "{}")]).unwrap_err();
         assert!(error.0.contains("GAME_VOICE_ICE_SERVERS"));
+        assert_eq!(dev(&[]).unwrap().database_url, None);
+        assert!(dev(&[("GAME_DATABASE_URL", "postgres://x")])
+            .unwrap_err()
+            .0
+            .contains("GAME_DATABASE_URL"));
+        assert!(
+            dev(&[("GAME_DATABASE_URL", "mysql://g:p@db:3306/platform")])
+                .unwrap()
+                .database_url
+                .is_some()
+        );
     }
 }

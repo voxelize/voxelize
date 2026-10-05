@@ -18,5 +18,10 @@ for table in $(mysql_cmd -e "SELECT table_name FROM information_schema.tables WH
   esac
   mysql_cmd -e "GRANT $privileges ON \`$DB_DATABASE\`.\`$table\` TO '$APP_DB_USER'@'%';"
 done
+# The game servers' own account: player records only (GAME_DATABASE_URL).
+if [ -n "${GAME_DB_USER:-}" ]; then
+  mysql_cmd -e "CREATE USER IF NOT EXISTS '$GAME_DB_USER'@'%' IDENTIFIED BY '$GAME_DB_PASSWORD'; ALTER USER '$GAME_DB_USER'@'%' IDENTIFIED BY '$GAME_DB_PASSWORD'; REVOKE ALL PRIVILEGES, GRANT OPTION FROM '$GAME_DB_USER'@'%';"
+  mysql_cmd -e "GRANT SELECT, INSERT, UPDATE ON \`$DB_DATABASE\`.\`player_states\` TO '$GAME_DB_USER'@'%';"
+fi
 mysql_cmd -e "FLUSH PRIVILEGES;"
-echo "grants applied for $APP_DB_USER on $DB_DATABASE"
+echo "grants applied for $APP_DB_USER${GAME_DB_USER:+ and $GAME_DB_USER} on $DB_DATABASE"

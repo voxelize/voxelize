@@ -367,6 +367,19 @@ async fn main() -> std::io::Result<()> {
         .map(|b| gameplay::bridge::Bridge::start(b.url.clone(), b.token.clone(), &config.world));
     let voice_ice_servers = Arc::new(config.voice_ice_servers.clone());
     let sanctions: gameplay::sanctions::SharedSanctions = Default::default();
+    // Player records: MySQL when configured (production), files otherwise.
+    let player_db = match &config.database_url {
+        Some(url) => {
+            let db = gameplay::store_mysql::MysqlStore::connect(url, &config.world)
+                .unwrap_or_else(|e| fail(e));
+            info!("player records in MySQL");
+            Some(db)
+        }
+        None => {
+            warn!("GAME_DATABASE_URL is not set: player records are files in the save directory");
+            None
+        }
+    };
     if !config.anticheat {
         warn!("GAME_ANTICHEAT=off: movement is not checked");
     }
@@ -396,6 +409,7 @@ async fn main() -> std::io::Result<()> {
             plugins: plugins.clone(),
             sanctions: sanctions.clone(),
             anticheat: config.anticheat,
+            player_db: player_db.clone(),
             siege_seconds: config.siege_seconds,
         };
         server
@@ -458,6 +472,7 @@ async fn main() -> std::io::Result<()> {
     // On SIGTERM or Ctrl-C every world saves once more before the HTTP
     // server finishes its own graceful stop.
     let dimension_count = Dimension::ALL.len();
+    let stop_db = player_db.clone();
     actix_web::rt::spawn(async move {
         #[cfg(unix)]
         {
@@ -483,6 +498,16 @@ async fn main() -> std::io::Result<()> {
             info!("every world saved");
         } else {
             warn!("not every world saved within 5 s");
+        }
+        if let Some(db) = &stop_db {
+            if db.flush(std::time::Duration::from_secs(10)) {
+                info!("player records written to the database");
+            } else {
+                warn!(
+                    "{} player record(s) not written to the database",
+                    db.backlog()
+                );
+            }
         }
         // Open game sockets would hold the HTTP server's graceful stop for
         // half a minute; chunk edits reach disk within ticks, so a moment

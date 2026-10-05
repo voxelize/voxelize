@@ -10,7 +10,7 @@
 # their volumes are kept.
 #
 #   API_INTERNAL=http://nginx:8081/api/internal/v1 GAME_SERVICE_TOKEN=... \
-#   GAME_TICKET_SECRETS=... GAME_TRANSPORT_SECRET=... \
+#   GAME_TICKET_SECRETS=... GAME_TRANSPORT_SECRET=... GAME_DATABASE_URL=mysql://... \
 #   IMAGE=platform-game-server:dev NETWORK=platform_default sh host-worlds.sh
 set -eu
 
@@ -41,6 +41,7 @@ for key in $wanted; do
     -e GAME_BACKEND_URL="$API_INTERNAL" \
     -e GAME_SERVICE_TOKEN="$GAME_SERVICE_TOKEN" \
     -e GAME_METRICS_TOKEN="${GAME_METRICS_TOKEN:-}" \
+    -e GAME_DATABASE_URL="${GAME_DATABASE_URL:-}" \
     "$IMAGE" >/dev/null
   echo "started world-$id for $key"
 done

@@ -115,9 +115,12 @@ Done: persistent world directory per world, atomic chunk writes, pristine
 chunks regenerated from the seed, player inventories saved atomically;
 verified that block edits and inventories survive a server restart.
 Done since: player position and dimension saved and restored on join.
-Remaining: player state in `player_world_states`, region files, write-ahead
-log for sensitive block entities, incremental world backups to object
-storage, point-in-time MySQL backups.
+Done since: player records in MySQL (`player_states`, written by the game
+server's own database account through a non-blocking writer, read back
+consistently across dimensions, old files imported on first load), shown
+in the admin panel; files only for standalone development. Tests: store
+tests against MySQL (CI), AdminTest, the bots on a MySQL stack.
+Remaining: region files, incremental world backups to object storage.
 
 ## Phase 7 — Multiplayer 🟡
 

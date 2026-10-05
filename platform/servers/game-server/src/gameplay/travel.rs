@@ -175,6 +175,8 @@ pub struct Dimensions {
     pub sanctions: super::sanctions::SharedSanctions,
     /// Whether movement checks run (`GAME_ANTICHEAT`).
     pub anticheat: bool,
+    /// Player records in MySQL (`GAME_DATABASE_URL`); files when absent.
+    pub player_db: Option<Arc<super::store_mysql::MysqlStore>>,
 }
 
 impl Dimensions {
@@ -484,6 +486,7 @@ mod tests {
             plugins: Arc::new(std::sync::Mutex::new(super::super::plugins::Plugins::none())),
             sanctions: Default::default(),
             anticheat: true,
+            player_db: None,
             siege_seconds: 600.0,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);
