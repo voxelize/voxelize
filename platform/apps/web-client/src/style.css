@@ -1199,3 +1199,15 @@ button.danger {
   min-height: 1em;
   color: var(--muted);
 }
+
+.account-form textarea {
+  font: inherit;
+  resize: vertical;
+}
+
+.account-reports {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}

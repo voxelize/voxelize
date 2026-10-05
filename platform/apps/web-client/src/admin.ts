@@ -1,20 +1,20 @@
-// The admin panel (/admin.html): players and moderation, the economy, the
-// live server monitor and the audit log. Moderators see players, servers
+// The admin panel (/admin.html): players and moderation, player reports,
+// the economy, the live server monitor and the audit log. Moderators see players, servers
 // and the log, and suspend or mute; administrators also ban, manage roles,
 // grant currency and see the economy. The API enforces all of it
 // (docs/API.md, "Admin"); this page only hides what would be refused.
 
 import "./style.css";
 
-import { api, ApiError, type AdminPlayer, type AdminPlayerState, type User } from "./api";
+import { api, ApiError, type AdminPlayer, type AdminPlayerState, type AdminReport, type User } from "./api";
 
-export type Tab = "players" | "servers" | "economy" | "audit";
+export type Tab = "players" | "reports" | "servers" | "economy" | "audit";
 
 /** Tabs a user with these roles may open. */
 export function tabsFor(roles: string[]): Tab[] {
   const admin = roles.includes("admin");
   if (!admin && !roles.includes("moderator")) return [];
-  return admin ? ["players", "servers", "economy", "audit"] : ["players", "servers", "audit"];
+  return admin ? ["players", "reports", "servers", "economy", "audit"] : ["players", "reports", "servers", "audit"];
 }
 
 /** "3 min ago", "2 h ago", "5 days ago", "never". */
@@ -33,6 +33,25 @@ export function stateLine(s: AdminPlayerState): string {
   if (s.position) parts[0] += ` at ${s.position.map((v) => Math.round(v)).join(", ")}`;
   if (s.health !== null) parts.push(`${Math.round(s.health * 10) / 10}/20 health`);
   parts.push(`${s.xp} xp`);
+  return parts.join(" · ");
+}
+
+/** A report's headline: "bob · griefing · by ana in game (main) · 3 open about bob". */
+export function reportLine(r: AdminReport, now = Date.now()): string {
+  const parts = [`${r.target.username} · ${r.category} · by ${r.reporter.username} ${r.source === "game" ? `in game${r.world ? ` (${r.world})` : ""}` : "on the web"} · ${ago(r.created_at, now)}`];
+  if (r.open_about_target > 1) parts.push(`${r.open_about_target} open about ${r.target.username}`);
+  if (r.target.status !== "active") parts.push(`${r.target.username} is ${r.target.status}`);
+  if (r.status !== "open") parts.push(`${r.status} by ${r.handled_by ?? "?"}${r.resolution ? `: ${r.resolution}` : ""}`);
+  return parts.join(" · ");
+}
+
+/** What the game server saw, in a line ("" for web reports). */
+export function reportContext(r: AdminReport): string {
+  const c = r.context;
+  if (!c) return "";
+  const at = (p?: number[] | null) => (p ? p.map((v) => Math.round(v)).join(", ") : "?");
+  const parts = [`${c.dimension ?? "?"}: reporter at ${at(c.reporter_at)}, ${r.target.username} at ${at(c.target_at)}`];
+  if (c.target_lines?.length) parts.push(`last lines: ${c.target_lines.map((l) => `“${l}”`).join(" ")}`);
   return parts.join(" · ");
 }
 
@@ -169,6 +188,7 @@ async function start() {
       button("← Players", () => void views.players(), "link"),
       h("h2", { textContent: p.username }),
       h("p", { textContent: `${playerLine(p)} · ${p.email} · joined ${ago(p.created_at)} · ${p.tickets_today} ticket(s) today` }),
+      ...(p.reports_total ? [h("p", {}, `Reported ${p.reports_total} time(s), ${p.reports_open} open · `, button("See reports", () => void views.reports(p.username), "link"))] : []),
       ...(p.status_reason ? [h("p", { textContent: `${p.status}: ${p.status_reason}` })] : []),
       ...(p.mute_reason ? [h("p", { textContent: `muted until ${new Date(p.muted_until!).toLocaleString()}: ${p.mute_reason}` })] : []),
       h("p", { textContent: `Wallets: ${p.wallets.map((w) => `${w.balance} ${w.currency}`).join(", ") || "none"}` }),
@@ -186,7 +206,43 @@ async function start() {
     );
   };
 
-  const views: Record<Tab, () => Promise<void>> = {
+  const views: Record<Tab, (about?: string) => Promise<void>> = {
+    reports: async (about = "") => {
+      const filter = h("select", {}, ...["open", "resolved", "dismissed"].map((v) => h("option", { value: v, textContent: v })));
+      const who = h("input", { placeholder: "About player (optional)", value: about });
+      const list = h("ul", { className: "admin-list admin-reports" });
+      const load = async () => {
+        try {
+          const { reports, open } = await api.admin.reports(filter.value, who.value.trim());
+          const tab = nav.querySelector<HTMLButtonElement>('button[data-tab="reports"]');
+          if (tab) tab.textContent = open ? `Reports (${open})` : "Reports";
+          list.replaceChildren(
+            ...reports.map((r) => {
+              const item = h("li", {}, h("strong", {}, button(r.target.username, () => void showPlayer(r.target.id), "link")), ` ${reportLine(r).slice(r.target.username.length)}`, h("p", { textContent: r.details }));
+              const context = reportContext(r);
+              if (context) item.append(h("p", { className: "admin-stats", textContent: context }));
+              if (r.status === "open") {
+                const decide = (outcome: "resolved" | "dismissed") => {
+                  const note = reasonFor(outcome === "resolved" ? "resolve the report (what was done)" : "dismiss the report");
+                  if (note) void run(() => api.admin.handleReport(r.id, outcome, note), () => void load());
+                };
+                item.append(h("div", { className: "admin-actions" }, button("Resolve", () => decide("resolved")), button("Dismiss", () => decide("dismissed"))));
+              }
+              return item;
+            }),
+          );
+          if (!reports.length) list.append(h("li", { textContent: filter.value === "open" ? "No open reports." : "None." }));
+        } catch (e) {
+          status.textContent = say(e);
+        }
+      };
+      const form = h("form", { className: "admin-actions" }, filter, who, h("button", { type: "submit", textContent: "Show" }));
+      form.addEventListener("submit", (e) => (e.preventDefault(), void load()));
+      filter.addEventListener("change", () => void load());
+      nav.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.tab === "reports"));
+      body.replaceChildren(form, list);
+      await load();
+    },
     players: async () => {
       const q = h("input", { placeholder: "Name, email or id" });
       const filter = h("select", {}, ...["", "active", "suspended", "banned", "muted"].map((v) => h("option", { value: v, textContent: v || "everyone" })));

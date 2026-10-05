@@ -502,6 +502,11 @@ sessions, a download of one's data and account deletion that settles or
 refuses what is in flight and anonymises the rest (`/auth/password/*`,
 `/me/*`, account panel in the game settings, Mailpit for local mail).
 Tests: AccountTest, client unit tests, `tests/e2e/account.mjs`.
+Then: player reports — `/report` in game (with positions and the reported
+player's last lines) or the account panel; a report queue in the admin
+panel to resolve or dismiss with a note; reporters see the outcome; rate
+limited; `platform_reports` gauge. Tests: ReportTest, chat unit tests,
+`tests/bots/report.mjs`, `tests/e2e/reports.mjs`.
 
 ## Definition of done (whole project)
 

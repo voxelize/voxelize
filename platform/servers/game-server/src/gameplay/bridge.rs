@@ -120,6 +120,14 @@ pub enum Request {
         kind: &'static str,
         count: u32,
     },
+    /// `/report`: a player reports another, with what the server saw.
+    Report {
+        world: String,
+        reporter: String,
+        target: String,
+        reason: String,
+        context: Value,
+    },
     /// A player killed another: the backend scores it for their guilds' war.
     WarKill {
         world: String,
@@ -144,6 +152,7 @@ impl Request {
             Request::FetchBlueprint { .. } => "blueprint_fetch",
             Request::Presence { .. } => "presence",
             Request::Flag { .. } => "flag",
+            Request::Report { .. } => "report",
         }
     }
 
@@ -157,6 +166,7 @@ impl Request {
             | Request::Reward { world, .. }
             | Request::Presence { world, .. }
             | Request::Flag { world, .. }
+            | Request::Report { world, .. }
             | Request::Capture { world, .. }
             | Request::UploadBlueprint { world, .. }
             | Request::FetchBlueprint { world, .. } => world,
@@ -242,6 +252,12 @@ pub enum Response {
     },
     /// Presence was reported, or not (`false`: report again soon).
     PresenceSent(bool),
+    /// A `/report` was filed (`Ok(category)`) or refused (`Err(code)`;
+    /// `unreachable` when the backend could not be reached).
+    Reported {
+        player: String,
+        outcome: Result<String, String>,
+    },
 }
 
 /// The game server's side of the market link, shared by every dimension.
@@ -371,6 +387,27 @@ async fn send(
                 log::warn!("anti-cheat flag for {player} not sent ({e})");
             }
             Response::PresenceSent(true)
+        }
+        Request::Report {
+            reporter,
+            target,
+            reason,
+            context,
+            ..
+        } => {
+            let body = json!({ "world": shard, "reporter": reporter, "target": target, "reason": reason, "context": context });
+            let outcome = match post(client, &format!("{base}/reports"), token, body).await {
+                Ok((201, body)) => Ok(body["category"].as_str().unwrap_or("other").to_owned()),
+                Ok((_, body)) => Err(error_code(&body)),
+                Err(e) => {
+                    log::warn!("report by {reporter} not sent ({e})");
+                    Err("unreachable".to_owned())
+                }
+            };
+            Response::Reported {
+                player: reporter,
+                outcome,
+            }
         }
         Request::Presence {
             dimension, players, ..

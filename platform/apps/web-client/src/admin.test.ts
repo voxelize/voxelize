@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdminPlayer } from "./api";
-import { ago, playerLine, stateLine, tabsFor } from "./admin";
+import { ago, playerLine, reportContext, reportLine, stateLine, tabsFor } from "./admin";
+import type { AdminReport } from "./api";
 
 const player = (over: Partial<AdminPlayer>): AdminPlayer => ({
   id: "p",
@@ -19,8 +20,8 @@ const player = (over: Partial<AdminPlayer>): AdminPlayer => ({
 describe("admin panel", () => {
   it("opens only the tabs a role may use", () => {
     expect(tabsFor(["player"])).toEqual([]);
-    expect(tabsFor(["player", "moderator"])).toEqual(["players", "servers", "audit"]);
-    expect(tabsFor(["player", "admin"])).toEqual(["players", "servers", "economy", "audit"]);
+    expect(tabsFor(["player", "moderator"])).toEqual(["players", "reports", "servers", "audit"]);
+    expect(tabsFor(["player", "admin"])).toEqual(["players", "reports", "servers", "economy", "audit"]);
   });
 
   it("says how long ago", () => {
@@ -44,5 +45,30 @@ describe("admin panel", () => {
       "main · overworld at 10, 64, -3 · 18.5/20 health · 30 xp",
     );
     expect(stateLine({ world: "w_x", dimension: "sky", position: null, health: null, xp: 0, items: [], updated_at: "" })).toBe("w_x · sky · 0 xp");
+  });
+
+  it("sums a report up", () => {
+    const now = Date.parse("2026-05-01T12:00:00Z");
+    const r: AdminReport = {
+      id: "r1",
+      status: "open",
+      source: "game",
+      world: "main",
+      category: "griefing",
+      details: "broke my house",
+      context: { dimension: "overworld", reporter_at: [1.2, 64, -3.7], target_at: [5, 64, 2], target_lines: ["lol", "mine now"] },
+      reporter: { id: "a", username: "ana" },
+      target: { id: "b", username: "bob", status: "suspended" },
+      handled_by: null,
+      resolution: null,
+      created_at: "2026-05-01T11:55:00Z",
+      handled_at: null,
+      open_about_target: 3,
+    };
+    expect(reportLine(r, now)).toBe("bob · griefing · by ana in game (main) · 5 min ago · 3 open about bob · bob is suspended");
+    expect(reportContext(r)).toBe("overworld: reporter at 1, 64, -4, bob at 5, 64, 2 · last lines: “lol” “mine now”");
+    const web = { ...r, source: "web" as const, context: null, open_about_target: 1, target: { ...r.target, status: "active" }, status: "dismissed" as const, handled_by: "mod", resolution: "no evidence" };
+    expect(reportLine(web, now)).toBe("bob · griefing · by ana on the web · 5 min ago · dismissed by mod: no evidence");
+    expect(reportContext(web)).toBe("");
   });
 });

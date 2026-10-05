@@ -38,6 +38,8 @@ class MetricsController extends Controller
             ->map(fn ($r) => [['currency' => $r->currency], $r->total]));
         $gauge('platform_market_listings', 'Market listings by status.', DB::table('market_listings')->select('status', DB::raw('count(*) as n'))->groupBy('status')->get()
             ->map(fn ($r) => [['status' => $r->status], $r->n]));
+        $gauge('platform_reports', 'Player reports by status.', DB::table('player_reports')->select('status', DB::raw('count(*) as n'))->groupBy('status')->get()
+            ->map(fn ($r) => [['status' => $r->status], $r->n]));
         $gauge('platform_game_tickets_last_hour', 'Game tickets issued in the last hour.', [[[], DB::table('game_tickets')->where('issued_at', '>=', now()->subHour())->count()]]);
         $gauge('platform_audit_actions_last_hour', 'Audited actions in the last hour.', [[[], DB::table('audit_logs')->where('created_at', '>=', now()->subHour())->count()]]);
 

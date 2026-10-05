@@ -10,6 +10,7 @@ use App\Models\GuildMember;
 use App\Models\Land;
 use App\Models\LedgerEntry;
 use App\Models\MarketListing;
+use App\Models\PlayerReport;
 use App\Models\User;
 use App\Models\World;
 use App\Services\Audit\AuditLogger;
@@ -150,6 +151,8 @@ class AccountService
             'friends' => Friendship::query()->where('user_id', $user->id)->orWhere('friend_id', $user->id)->with(['user:id,username', 'friend:id,username'])->get()
                 ->map(fn (Friendship $f) => ['with' => $f->user_id === $user->id ? $f->friend->username : $f->user->username, 'status' => $f->status]),
             'worlds' => World::query()->where('owner_id', $user->id)->get(['public_id', 'name', 'visibility', 'realm', 'status']),
+            'reports_filed' => PlayerReport::query()->where('reporter_id', $user->id)->with('target:id,username')->get()
+                ->map(fn (PlayerReport $r) => ['player' => $r->target->username, 'category' => $r->category, 'details' => $r->details, 'status' => $r->status, 'created_at' => $r->created_at]),
             'cosmetics_owned' => CosmeticUnlock::query()->where('user_id', $user->id)->pluck('cosmetic'),
             'history' => AuditLog::query()->where('subject_type', 'user')->where('subject_id', $user->public_id)->latest('id')->limit(500)
                 ->get(['action', 'reason', 'created_at']),

@@ -1,9 +1,9 @@
 // The player's own account: "forgot password" and the reset form an email
 // link opens, the notice after confirming the address, and the account
-// panel (password, confirmation email, taking one's data away, deleting
-// the account).
+// panel (password, confirmation email, reporting a player, taking one's
+// data away, deleting the account).
 
-import { api, ApiError } from "./api";
+import { api, ApiError, REPORT_CATEGORIES, type MyReport, type ReportCategory } from "./api";
 
 /** What the page was opened for, from an email link's query string. */
 export function linkIntent(search: string): { kind: "reset"; token: string; email: string } | { kind: "verified"; ok: boolean } | null {
@@ -23,7 +23,17 @@ const ERRORS: Record<string, string> = {
   auction_has_bids: "An auction of yours has bids: it must run to its end.",
   leading_bid: "You lead an auction: wait until it ends.",
   contract_in_progress: "A contract of yours is being worked on.",
+  already_reported: "You reported this player a moment ago; a moderator will look at it.",
+  too_many_reports: "You have sent many reports this hour; try again later.",
+  self: "You cannot report yourself.",
+  player_not_found: "There is no player by that name.",
 };
+
+/** One of my reports in a line: "bob · griefing · a moderator dealt with it". */
+export function myReportLine(r: MyReport): string {
+  const outcome = { open: "waiting for a moderator", resolved: "a moderator dealt with it", dismissed: "a moderator looked and took no action" }[r.status];
+  return `${r.player} · ${r.category} · ${outcome}`;
+}
 
 export const accountError = (e: unknown) => (e instanceof ApiError ? (ERRORS[e.code] ?? e.message) : "Could not reach the server");
 
@@ -103,6 +113,38 @@ export function accountPanel(user: { username: string; email_verified?: boolean 
       }),
   });
 
+  const target = h("input", { placeholder: "Player name", autocomplete: "off", maxLength: 24 });
+  const category = h("select", {}, ...REPORT_CATEGORIES.map((c) => h("option", { value: c, textContent: c })));
+  const details = h("textarea", { placeholder: "What happened, where and when", maxLength: 500, rows: 3 });
+  const mine = h("ul", { className: "account-reports" });
+  const showMine = async () => {
+    try {
+      const reports = await api.reports.mine();
+      mine.replaceChildren(...reports.slice(0, 10).map((r) => h("li", { textContent: myReportLine(r) })));
+    } catch {
+      mine.replaceChildren();
+    }
+  };
+  const report = h("form", { className: "account-form" },
+    h("h3", { textContent: "Report a player" }),
+    h("p", { textContent: "In the game you can also type /report <name> <what happened>." }),
+    target,
+    category,
+    details,
+    h("button", { type: "submit", textContent: "Send report" }),
+    mine,
+  );
+  report.addEventListener("submit", (e) => {
+    e.preventDefault();
+    void run(async () => {
+      await api.reports.file(target.value.trim(), category.value as ReportCategory, details.value.trim());
+      target.value = details.value = "";
+      void showMine();
+      return "Report sent. A moderator will look at it; thank you.";
+    });
+  });
+  void showMine();
+
   const confirm = field("Your password, to delete the account", "current-password");
   const del = h("form", { className: "account-form danger-zone" },
     h("h3", { textContent: "Delete the account" }),
@@ -130,6 +172,7 @@ export function accountPanel(user: { username: string; email_verified?: boolean 
     h("h2", { textContent: `Account · ${user.username}` }),
     change,
     email,
+    report,
     h("div", { className: "account-form" }, h("h3", { textContent: "Your data" }), exportButton),
     del,
     status,

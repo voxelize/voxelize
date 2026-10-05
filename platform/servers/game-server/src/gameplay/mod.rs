@@ -681,6 +681,7 @@ fn on_leave(world: &mut World, entity: Entity) {
     g.players.remove(&id);
     g.looks.remove(&id);
     g.voice.leave(&id);
+    g.chat.forget(&id);
 }
 
 #[allow(clippy::too_many_arguments)]

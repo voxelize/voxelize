@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\GameTicket;
 use App\Models\LedgerTransaction;
+use App\Models\PlayerReport;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Economy\LedgerService;
 use App\Services\Game\WorldDirectory;
 use App\Services\Market\MarketException;
+use App\Services\Moderation\ReportService;
 use App\Services\Social\FriendService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -77,6 +79,8 @@ class AdminController extends Controller
                 'email' => $user->email,
                 'created_at' => $user->created_at?->toIso8601String(),
                 'wallets' => $wallets,
+                'reports_open' => PlayerReport::query()->where('target_id', $user->id)->where('status', PlayerReport::OPEN)->count(),
+                'reports_total' => PlayerReport::query()->where('target_id', $user->id)->count(),
                 'tickets_today' => GameTicket::query()->where('user_id', $user->id)->where('issued_at', '>=', now()->startOfDay())->count(),
             ],
             'audit' => $audit,
@@ -201,6 +205,44 @@ class AdminController extends Controller
             'tickets_last_hour' => GameTicket::query()->where('issued_at', '>=', now()->subHour())->count(),
             'accounts' => User::query()->count(),
         ]);
+    }
+
+    /** Reports by status (`open` first by default), optionally about one player. */
+    public function reports(Request $request, ReportService $reports): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['nullable', Rule::in([PlayerReport::OPEN, PlayerReport::RESOLVED, PlayerReport::DISMISSED])],
+            'player' => ['nullable', 'string', 'max:64'],
+        ]);
+        $target = isset($data['player']) ? $this->find($data['player']) : null;
+        $rows = PlayerReport::query()->with(['reporter', 'target', 'handler'])
+            ->where('status', $data['status'] ?? PlayerReport::OPEN)
+            ->when($target, fn ($q) => $q->where('target_id', $target->id))
+            ->orderBy(($data['status'] ?? PlayerReport::OPEN) === PlayerReport::OPEN ? 'id' : 'handled_at', ($data['status'] ?? PlayerReport::OPEN) === PlayerReport::OPEN ? 'asc' : 'desc')
+            ->limit(100)->get();
+        // How many open reports each reported player has (repeat offenders first to the eye).
+        $open = PlayerReport::query()->where('status', PlayerReport::OPEN)
+            ->whereIn('target_id', $rows->pluck('target_id')->unique())
+            ->selectRaw('target_id, count(*) as n')->groupBy('target_id')->pluck('n', 'target_id');
+
+        return response()->json([
+            'reports' => $rows->map(fn ($r) => [...$reports->present($r), 'open_about_target' => (int) ($open[$r->target_id] ?? 0)]),
+            'open' => PlayerReport::query()->where('status', PlayerReport::OPEN)->count(),
+        ]);
+    }
+
+    /** `{ "outcome": resolved | dismissed, "note" }`. Sanctions are separate (mute, status). */
+    public function handleReport(Request $request, ReportService $reports, string $report): JsonResponse
+    {
+        $data = $request->validate([
+            'outcome' => ['required', Rule::in([PlayerReport::RESOLVED, PlayerReport::DISMISSED])],
+            'note' => ['required', 'string', 'min:3', 'max:255'],
+        ]);
+        $row = PlayerReport::query()->with(['reporter', 'target'])->where('public_id', $report)->first()
+            ?? throw new MarketException('report_not_found', 'No such report.', 404);
+        $row = $reports->handle($request->user(), $row, $data['outcome'], $data['note']);
+
+        return response()->json(['report' => $reports->present($row->fresh(['reporter', 'target', 'handler']))]);
     }
 
     public function audit(Request $request): JsonResponse

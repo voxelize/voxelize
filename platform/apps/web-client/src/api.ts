@@ -227,6 +227,27 @@ export type AdminPlayerDetail = AdminPlayer & {
   wallets: { currency: string; balance: number }[];
   tickets_today: number;
   states: AdminPlayerState[];
+  reports_open: number;
+  reports_total: number;
+};
+export const REPORT_CATEGORIES = ["cheating", "griefing", "harassment", "scam", "name", "other"] as const;
+export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+export type MyReport = { id: string; player: string; category: ReportCategory; details: string; status: "open" | "resolved" | "dismissed"; created_at: string };
+export type AdminReport = {
+  id: string;
+  status: "open" | "resolved" | "dismissed";
+  source: "game" | "web";
+  world: string | null;
+  category: ReportCategory;
+  details: string;
+  context: { dimension?: string; reporter_at?: number[] | null; target_at?: number[] | null; target_lines?: string[] } | null;
+  reporter: { id: string; username: string };
+  target: { id: string; username: string; status: string };
+  handled_by: string | null;
+  resolution: string | null;
+  created_at: string;
+  handled_at: string | null;
+  open_about_target: number;
 };
 export type AdminServers = {
   worlds: { world: string; dimension: string; players: number; seen_at: string; online: boolean }[];
@@ -276,6 +297,12 @@ export const api = {
     delete: (password: string) => request<{ deleted: boolean }>("/me", { method: "DELETE", body: JSON.stringify({ password }) }),
   },
 
+  reports: {
+    file: (player: string, category: ReportCategory, details: string, world?: string) =>
+      request<{ report: MyReport }>("/reports", { method: "POST", body: JSON.stringify({ player, category, details, ...(world ? { world } : {}) }) }).then((r) => r.report),
+    mine: () => request<{ reports: MyReport[] }>("/reports").then((r) => r.reports),
+  },
+
   admin: {
     players: (q = "", status = "") =>
       request<{ players: AdminPlayer[] }>(`/admin/players?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}) })}`).then((r) => r.players),
@@ -292,6 +319,10 @@ export const api = {
         headers: { "idempotency-key": idempotencyKey() },
         body: JSON.stringify({ currency, amount, reason }),
       }),
+    reports: (status = "open", player = "") =>
+      request<{ reports: AdminReport[]; open: number }>(`/admin/reports?${new URLSearchParams({ status, ...(player ? { player } : {}) })}`),
+    handleReport: (id: string, outcome: "resolved" | "dismissed", note: string) =>
+      request<{ report: AdminReport }>(`/admin/reports/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({ outcome, note }) }),
     servers: () => request<AdminServers>("/admin/servers"),
     economy: () => request<AdminEconomy>("/admin/economy"),
     audit: (action = "") => request<{ entries: (AdminAudit & { subject_id: string | null })[] }>(`/admin/audit${action ? `?action=${encodeURIComponent(action)}` : ""}`),

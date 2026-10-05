@@ -126,6 +126,17 @@ mode, achievements, job and quests), and the parts admins query as columns:
 `health`, `xp`, `x`, `y`, `z`; `revision` (bumped on every write),
 `updated_at`. UNIQUE(`world`, `player`), INDEX(`player`).
 
+### player_reports ✅ implemented
+Players reporting players. `id`, `public_id` ULID UNIQUE, `reporter_id` and
+`target_id` FK users, `source` (`game|web`), `world` nullable, `category`
+(`cheating|griefing|harassment|scam|name|other`), `details` (≤ 500),
+`context` json (from the game server: dimension, both positions, the
+reported player's last five public or local lines), `status`
+(`open|resolved|dismissed`), `handled_by` FK users, `resolution` (the
+moderator's note, never shown to the reporter), `handled_at`, timestamps.
+INDEX(`status`, `created_at`), INDEX(`target_id`, `status`),
+INDEX(`reporter_id`, `created_at`).
+
 ## Land and property
 
 ### lands ✅ implemented

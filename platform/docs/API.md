@@ -43,7 +43,7 @@ used or expired token. Every token of the account is revoked. Audited
 (`account.password_reset`).
 
 ### `PUT /me/password` 🔒
-`{ "current_password", "password" }` → `200`; `422 wrong_password`. Other
+`{ "current", "password" }` → `200`; `422 wrong_password`. Other
 sessions end; the current one stays.
 
 ### `POST /me/email/verification` 🔒
@@ -99,6 +99,25 @@ and only administrators act on administrators. `403 forbidden` otherwise.
 - `GET /admin/economy` 🔒 admin → `{ "currencies": [{ "currency", "wallets", "escrow", "guilds", "minted", "burned" }], "problems": [ledger:verify findings], "recent": [transactions] }`.
 - `GET /admin/servers` 🔒 → `{ "worlds": [{ "world", "dimension", "players", "seen_at", "online" }], "online_players", "tickets_last_hour", "accounts" }`.
 - `GET /admin/audit?action=prefix&limit=` 🔒 → `{ "entries": [...] }`.
+- `GET /admin/reports?status=open|resolved|dismissed&player=` 🔒 → `{ "reports": [{ "id", "status", "source", "world", "category", "details", "context", "reporter": { "id", "username" }, "target": { "id", "username", "status" }, "handled_by", "resolution", "created_at", "handled_at", "open_about_target" }], "open" }` (open ones oldest first; at most 100). The player page also carries `reports_open` and `reports_total`.
+- `POST /admin/reports/{id}` 🔒 — `{ "outcome": "resolved" | "dismissed", "note" }`; `409 already_handled`; `422 self` for a report about yourself. Audited (`admin.report`). Sanctions stay separate (mute, status).
+
+## Reports
+
+Players report players: from the game (`/report <name> [category] <what
+happened>`, sent by the game server with what it saw) or here. Categories:
+`cheating`, `griefing`, `harassment`, `scam`, `name`, `other`. Five reports
+per reporter per hour (`429 too_many_reports`); the same player again within
+10 minutes is `409 already_reported`; `422 self`; `404 player_not_found`.
+A report sanctions nobody by itself; moderators handle it (Admin above).
+
+### `POST /reports` 🔒
+`{ "player": "<username or id>", "category", "details": "3–500 chars", "world"? }` →
+`201 { "report": { "id", "player", "category", "details", "status", "created_at" } }`.
+
+### `GET /reports` 🔒
+My last 50 reports and their status (`open`, `resolved`, `dismissed`);
+moderators' notes are not shown.
 
 ## Worlds
 
@@ -507,6 +526,12 @@ muted ones cannot chat or use voice.
 `{ "world", "player", "kind": "speed" | "hover" | "noclip", "count" }` →
 `201`: a game server's movement checks caught a player repeatedly; written
 to the audit log as `anticheat.<kind>` for moderators. `404 player_not_found`.
+
+### `POST /api/internal/v1/reports`
+`{ "world", "reporter", "target" (public ids), "reason", "context"? }` →
+`201 { "report", "category" }`. The category is the reason's first word when
+it names one (`other` otherwise). `context` (≤ 8 KB, dropped if larger) is
+what the game server saw. Same refusals as `POST /reports`.
 
 ### `GET /api/internal/v1/metrics`
 Prometheus text format: `platform_accounts{status}`, `platform_players_online`,

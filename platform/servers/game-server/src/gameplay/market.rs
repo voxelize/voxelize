@@ -578,6 +578,16 @@ impl<'a> specs::System<'a> for MarketSystem {
                 Response::PresenceSent(false) => {
                     self.since_presence = Some(PRESENCE_SECONDS - PRESENCE_RETRY_SECONDS);
                 }
+                Response::Reported { player, outcome } => {
+                    if clients.get(&player).is_some() {
+                        events.dispatch(
+                            Event::new(super::chat::CHAT_EVENT)
+                                .payload(json!({ "channel": "system", "from": null, "to": null, "body": super::chat::report_reply(&outcome) }))
+                                .filter(ClientFilter::Direct(player.clone()))
+                                .build(),
+                        );
+                    }
+                }
                 Response::Rewarded { player, key, paid } => {
                     if let Some(paid) = paid {
                         super::work::on_rewarded(&mut g, &mut events, &player, &key, paid);

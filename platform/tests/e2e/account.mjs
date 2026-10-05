@@ -1,10 +1,10 @@
 // Account flows in a real browser: sign up, forget the password and reset
 // it from the emailed link, change it in the account panel (other sessions
-// end), download one's data, delete the account (signing in no longer
+// end), report another player from the panel, download one's data, delete the account (signing in no longer
 // works). The reset email is read from the backend's mail log
 // (MAIL_MAILER=log), at MAIL_LOG.
 //
-//   MAIL_LOG=.../storage/logs/laravel.log node account.mjs <client base>
+//   MAIL_LOG=.../storage/logs/laravel.log [API=http://127.0.0.1:8000] node account.mjs <client base>
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -71,10 +71,26 @@ await page.click("#account button:has-text('Change password')");
 await page.waitForFunction(() => document.querySelector("#account .account-status")?.textContent?.startsWith("Password changed"), null, { timeout: 10000 });
 step("changed the password in the account panel");
 
+const other = "rp_" + Math.floor(Math.random() * 1e6);
+const registered = await fetch(new URL("/api/v1/auth/register", process.env.API ?? "http://127.0.0.1:8000"), {
+  method: "POST",
+  headers: { "content-type": "application/json", accept: "application/json" },
+  body: JSON.stringify({ username: other, email: `${other}@example.com`, password: "a long password 123" }),
+});
+assert.ok(registered.ok, "the other player signs up");
+await page.fill("#account input[placeholder='Player name']", other);
+await page.selectOption("#account select", "griefing");
+await page.fill("#account textarea", "dug a hole under spawn");
+await page.click("#account button:has-text('Send report')");
+await page.waitForFunction(() => document.querySelector("#account .account-status")?.textContent?.startsWith("Report sent"), null, { timeout: 10000 });
+await page.waitForSelector(`#account .account-reports li:has-text("${other} · griefing · waiting for a moderator")`, { timeout: 10000 });
+step("reported another player from the account panel");
+
 const [download] = await Promise.all([page.waitForEvent("download"), page.click("#account button:has-text('Download my data')")]);
 const data = JSON.parse(readFileSync(await download.path(), "utf8"));
 assert.equal(data.account.username, name);
 assert.equal(data.account.email, email);
+assert.equal(data.reports_filed[0]?.player, other);
 step("downloaded my data");
 
 await page.fill("#account input[placeholder^='Your password']", "third password 3");

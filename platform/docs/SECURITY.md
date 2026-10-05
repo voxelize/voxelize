@@ -58,6 +58,16 @@ flight (bids, accepted contracts, a guild to hand over), removes personal
 data and game saves, and keeps an anonymised row so the ledger stays
 balanced. Players can download their data (`GET /me/export`).
 
+### Player reports
+
+Reports never act on their own: a moderator decides, and sanctions stay the
+separate, audited mute and status actions. Reporters are rate limited
+(five an hour, no repeats within 10 minutes, a 30 s cooldown in game) and
+see only the outcome of their reports, never moderators' notes or other
+reports. Evidence comes from the game server, not the reporter: positions
+and the reported player's last public or local lines (never whispers or
+guild chat).
+
 ### Game tickets
 
 ```

@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\GameTicketController;
 use App\Http\Controllers\Api\V1\GuildController;
 use App\Http\Controllers\Api\V1\LandController;
 use App\Http\Controllers\Api\V1\MarketController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Api\V1\WorldController;
 use App\Http\Controllers\Internal\BlueprintBridgeController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
 use App\Http\Controllers\Internal\MetricsController;
 use App\Http\Controllers\Internal\PresenceController;
+use App\Http\Controllers\Internal\ReportBridgeController;
 use App\Http\Controllers\Internal\RewardController;
 use App\Http\Controllers\Internal\SanctionFeedController;
 use App\Http\Controllers\Internal\WorldFeedController;
@@ -47,6 +49,8 @@ Route::prefix('v1')->group(function () {
         Route::get('me/export', [AccountController::class, 'export']);
         Route::delete('me', [AccountController::class, 'destroy'])->middleware('throttle:auth');
 
+        Route::post('reports', [ReportController::class, 'store'])->middleware('throttle:economy');
+        Route::get('reports', [ReportController::class, 'index']);
         Route::post('game/tickets', [GameTicketController::class, 'store'])->middleware('throttle:tickets');
 
         Route::get('wallets', [WalletController::class, 'index']);
@@ -87,6 +91,8 @@ Route::prefix('v1')->group(function () {
             Route::put('players/{player}/mute', [AdminController::class, 'mute']);
             Route::get('servers', [AdminController::class, 'servers']);
             Route::get('audit', [AdminController::class, 'audit']);
+            Route::get('reports', [AdminController::class, 'reports']);
+            Route::post('reports/{report}', [AdminController::class, 'handleReport']);
             Route::middleware(RequireRole::class.':admin')->group(function () {
                 Route::put('players/{player}/roles', [AdminController::class, 'roles']);
                 Route::post('players/{player}/grant', [AdminController::class, 'grant']);
@@ -173,4 +179,5 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::get('sanctions', SanctionFeedController::class);
     Route::get('metrics', MetricsController::class);
     Route::post('flags', [FlagController::class, 'store']);
+    Route::post('reports', [ReportBridgeController::class, 'store']);
 });
