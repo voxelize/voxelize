@@ -211,6 +211,11 @@ fn build_world(
                 "platform-plugins",
                 &["platform-voice"],
             )
+            .with(
+                gameplay::SanctionSystem::default(),
+                "platform-sanctions",
+                &["platform-plugins"],
+            )
     });
     world
 }
@@ -324,6 +329,7 @@ async fn main() -> std::io::Result<()> {
         .as_ref()
         .map(|b| gameplay::bridge::Bridge::start(b.url.clone(), b.token.clone(), &config.world));
     let voice_ice_servers = Arc::new(config.voice_ice_servers.clone());
+    let sanctions: gameplay::sanctions::SharedSanctions = Default::default();
     // Server plugins (content pack `plugins/`), their stores beside the saves.
     let plugins = {
         let mut p = gameplay::plugins::Plugins::load(
@@ -348,6 +354,7 @@ async fn main() -> std::io::Result<()> {
             tickets: tickets.clone(),
             voice_ice_servers: voice_ice_servers.clone(),
             plugins: plugins.clone(),
+            sanctions: sanctions.clone(),
             siege_seconds: config.siege_seconds,
         };
         server
@@ -390,6 +397,12 @@ async fn main() -> std::io::Result<()> {
                 cache_dir: world_dir.clone(),
             },
             land.clone(),
+        ));
+        actix_web::rt::spawn(gameplay::sanctions::poll(
+            format!("{}/sanctions", backend.url),
+            backend.token.clone(),
+            std::time::Duration::from_millis(backend.land_interval_ms),
+            sanctions.clone(),
         ));
         actix_web::rt::spawn(gameplay::guilds::poll(
             gameplay::land::FeedConfig {

@@ -80,6 +80,8 @@ pub enum IntentError {
     BadBlueprint,
     /// A game ticket presented in play was not valid for this player.
     BadTicket,
+    /// A moderator muted the player (no chat or voice).
+    Muted,
     Inventory(InventoryError),
 }
 
@@ -87,6 +89,7 @@ impl IntentError {
     pub fn code(&self) -> &'static str {
         match self {
             IntentError::BadTicket => "bad_ticket",
+            IntentError::Muted => "muted",
             IntentError::OutOfReach => "out_of_reach",
             IntentError::NotLoaded => "not_loaded",
             IntentError::NothingThere => "nothing_there",

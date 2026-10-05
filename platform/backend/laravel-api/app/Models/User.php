@@ -38,6 +38,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'last_seen_at' => 'datetime',
+            'muted_until' => 'datetime',
+            'sanctioned_at' => 'datetime',
             'password' => 'hashed',
             'roles' => 'array',
             'cosmetics' => 'array',
@@ -53,6 +55,16 @@ class User extends Authenticatable
         $extra = array_values(array_intersect(self::GRANTABLE_ROLES, (array) ($this->roles ?? [])));
 
         return ['player', ...$extra];
+    }
+
+    public function hasRole(string ...$roles): bool
+    {
+        return (bool) array_intersect($roles, $this->gameRoles());
+    }
+
+    public function isMuted(): bool
+    {
+        return $this->muted_until !== null && $this->muted_until->isFuture();
     }
 
     public function isActive(): bool

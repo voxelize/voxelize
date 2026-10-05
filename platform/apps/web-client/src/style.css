@@ -1013,3 +1013,108 @@ body.spectating #vitals {
   color: var(--danger);
   min-height: 1em;
 }
+
+/* ---- admin panel ---------------------------------------------------- */
+
+body.admin {
+  overflow: auto;
+}
+
+#admin {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+  color: var(--text);
+}
+
+#admin header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+#admin header span {
+  color: var(--muted);
+  flex: 1;
+}
+
+.admin-login {
+  display: grid;
+  gap: 12px;
+  max-width: 360px;
+  margin: 10vh auto;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.admin-tabs button {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.admin-tabs button.active {
+  background: var(--accent);
+  color: #0d1a0c;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.admin-actions input:not([type="checkbox"]) {
+  flex: 1;
+  min-width: 140px;
+}
+
+.admin-amount {
+  max-width: 120px;
+}
+
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.admin-list {
+  list-style: none;
+  padding: 0;
+}
+
+.admin-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-table tr.offline {
+  opacity: 0.55;
+}
+
+.admin-error {
+  color: var(--danger);
+  min-height: 1em;
+}
+
+.admin-stats {
+  color: var(--muted);
+}

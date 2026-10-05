@@ -128,6 +128,16 @@ pub(super) fn install(world: &mut World) {
         }
         let ice = {
             let mut g = world.ecs().write_resource::<Gameplay>();
+            let muted = g
+                .dimensions
+                .sanctions
+                .read()
+                .ok()
+                .is_some_and(|s| s.muted(id, super::sanctions::now()).is_some());
+            if muted {
+                drop(g);
+                return reply(world, id, INTENT, Err(IntentError::Muted));
+            }
             if !g.players.contains_key(id) {
                 drop(g);
                 return reply(world, id, INTENT, Err(IntentError::NoSession));

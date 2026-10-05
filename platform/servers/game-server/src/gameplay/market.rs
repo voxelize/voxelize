@@ -842,7 +842,7 @@ fn presence_due(since: Option<f32>, dt: f32, changed: bool) -> (bool, Option<f32
     }
 }
 
-fn save(
+pub(super) fn save(
     store: &super::store::PlayerStore,
     id: &str,
     player: &PlayerState,

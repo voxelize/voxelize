@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BlueprintController;
 use App\Http\Controllers\Api\V1\ContractController;
@@ -17,8 +18,10 @@ use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
 use App\Http\Controllers\Internal\PresenceController;
 use App\Http\Controllers\Internal\RewardController;
+use App\Http\Controllers\Internal\SanctionFeedController;
 use App\Http\Controllers\Internal\WorldFeedController;
 use App\Http\Middleware\GameServiceToken;
+use App\Http\Middleware\RequireRole;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -64,6 +67,21 @@ Route::prefix('v1')->group(function () {
         Route::post('contracts/{contract}/accept', [ContractController::class, 'accept']);
         Route::post('contracts/{contract}/abandon', [ContractController::class, 'abandon']);
         Route::delete('contracts/{contract}', [ContractController::class, 'destroy']);
+
+        // The admin panel (docs/API.md, "Admin").
+        Route::prefix('admin')->middleware(RequireRole::class.':moderator,admin')->group(function () {
+            Route::get('players', [AdminController::class, 'players']);
+            Route::get('players/{player}', [AdminController::class, 'player']);
+            Route::put('players/{player}/status', [AdminController::class, 'status']);
+            Route::put('players/{player}/mute', [AdminController::class, 'mute']);
+            Route::get('servers', [AdminController::class, 'servers']);
+            Route::get('audit', [AdminController::class, 'audit']);
+            Route::middleware(RequireRole::class.':admin')->group(function () {
+                Route::put('players/{player}/roles', [AdminController::class, 'roles']);
+                Route::post('players/{player}/grant', [AdminController::class, 'grant']);
+                Route::get('economy', [AdminController::class, 'economy']);
+            });
+        });
 
         Route::get('worlds', [WorldController::class, 'index']);
         Route::post('worlds', [WorldController::class, 'store'])->middleware('throttle:economy');
@@ -141,4 +159,5 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::post('rewards', [RewardController::class, 'store']);
     Route::post('presence', [PresenceController::class, 'store']);
     Route::get('worlds', WorldFeedController::class);
+    Route::get('sanctions', SanctionFeedController::class);
 });

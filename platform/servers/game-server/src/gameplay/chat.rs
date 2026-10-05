@@ -116,6 +116,21 @@ fn deliver(
 
 /// Rate and mute check shared by every channel.
 fn may_speak(world: &mut World, id: &str) -> bool {
+    let now = super::sanctions::now();
+    let muted = {
+        let g = world.ecs().read_resource::<Gameplay>();
+        let s = g.dimensions.sanctions.clone();
+        drop(g);
+        let line = s.read().ok().and_then(|s| {
+            s.muted(id, now)
+                .map(|(until, reason)| super::sanctions::muted_line(until, reason, now))
+        });
+        line
+    };
+    if let Some(line) = muted {
+        system(world, id, &line);
+        return false;
+    }
     let allowed = {
         let mut g = world.ecs().write_resource::<Gameplay>();
         g.chat.allow(id, Instant::now())

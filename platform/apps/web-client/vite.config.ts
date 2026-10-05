@@ -16,5 +16,9 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
+    rollupOptions: {
+      // The game, and the admin panel (/admin.html).
+      input: { main: "index.html", admin: "admin.html" },
+    },
   },
 });

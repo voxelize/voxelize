@@ -36,6 +36,24 @@ The ticket admits one WebSocket session to `url?ticket=…` within
 world_full` (the owner always gets in) or `world_offline` (no address for
 its server). Rate limited (`tickets`).
 
+## Admin
+
+The admin panel (`/admin.html`) uses these; `GET /me` lists the user's
+`roles`. Moderators (`moderator` or `admin` role) may use every route
+below except those marked admin. Every change takes a `reason` (3–255
+characters) and is written to the audit log. Nobody acts on themselves,
+and only administrators act on administrators. `403 forbidden` otherwise.
+
+- `GET /admin/players?q=&status=active|suspended|banned|muted` 🔒 → `{ "players": [{ "id", "username", "status", "status_reason", "roles", "muted_until", "mute_reason", "online", "world", "last_seen_at" }] }` (at most 100, recently seen first).
+- `GET /admin/players/{id or username}` 🔒 → `{ "player": { … "email", "created_at", "wallets": [{ "currency", "balance" }], "tickets_today" }, "audit": [...] }`.
+- `PUT /admin/players/{id}/status` 🔒 — `{ "status": "active" | "suspended" | "banned", "reason" }`; banning is admin only. Suspending or banning signs the player out everywhere; game servers take them out of play within seconds and new tickets are refused.
+- `PUT /admin/players/{id}/mute` 🔒 — `{ "minutes": 0–43200, "reason" }` (0 lifts it): no chat or voice in game.
+- `PUT /admin/players/{id}/roles` 🔒 admin — `{ "roles": ["moderator", "admin"], "reason" }`.
+- `POST /admin/players/{id}/grant` 🔒 admin — `{ "currency", "amount", "reason" }`, header `Idempotency-Key` → `201 { "transaction", "balance" }` (minted, audited).
+- `GET /admin/economy` 🔒 admin → `{ "currencies": [{ "currency", "wallets", "escrow", "guilds", "minted", "burned" }], "problems": [ledger:verify findings], "recent": [transactions] }`.
+- `GET /admin/servers` 🔒 → `{ "worlds": [{ "world", "dimension", "players", "seen_at", "online" }], "online_players", "tickets_last_hour", "accounts" }`.
+- `GET /admin/audit?action=prefix&limit=` 🔒 → `{ "entries": [...] }`.
+
 ## Worlds
 
 The server browser. Official worlds come from config
@@ -429,6 +447,12 @@ who is playing in one dimension of the world now. Game servers send it at
 start, every 30 s (even with nobody there) and within 2 s of players coming
 or going; friends lists show those players online and the server browser
 counts them.
+
+### `GET /api/internal/v1/sanctions`
+`{ "players": [{ "id", "status", "reason", "muted_until" (unix s) | null, "mute_reason" }] }`:
+players who are suspended, banned or muted now. Game servers fetch it as
+often as the land feed: suspended and banned players are taken out of play,
+muted ones cannot chat or use voice.
 
 ### `GET /api/internal/v1/worlds`
 `{ "worlds": [{ "key", "realm", "url", "max_players" }] }`: player-made

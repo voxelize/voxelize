@@ -17,6 +17,7 @@ mod mobs_api;
 pub mod modes;
 pub mod plugins;
 pub mod progress;
+pub mod sanctions;
 pub mod voice;
 pub mod work;
 pub use mobs_api::MobSystem;
@@ -33,6 +34,7 @@ pub mod market;
 pub mod stall;
 pub use market::MarketSystem;
 pub use plugins::PluginSystem;
+pub use sanctions::SanctionSystem;
 pub use voice::VoiceSystem;
 pub mod trade;
 pub mod travel;
@@ -463,6 +465,23 @@ fn on_join(world: &mut World, entity: Entity) {
     else {
         return;
     };
+    // Suspended or banned since the ticket was issued: no play.
+    let locked = {
+        let g = world.ecs().read_resource::<Gameplay>();
+        let s = g.dimensions.sanctions.clone();
+        drop(g);
+        let s = s.read().ok().and_then(|s| s.locked(&id).cloned());
+        s
+    };
+    if let Some(s) = locked {
+        send(
+            world,
+            &id,
+            sanctions::KICKED_EVENT,
+            json!({ "status": s.status, "reason": s.reason }),
+        );
+        return;
+    }
     let realm = realm_of(world, &id);
     let loaded = {
         let gameplay = world.ecs().read_resource::<Gameplay>();

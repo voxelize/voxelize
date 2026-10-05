@@ -5,7 +5,7 @@
 
 const TOKEN_KEY = "platform.token";
 
-export type User = { id: string; username: string; status: string };
+export type User = { id: string; username: string; status: string; roles?: string[] };
 export type Ticket = { ticket: string; expires_at: number; world: string; realm: string; url: string };
 
 export class ApiError extends Error {
@@ -199,6 +199,32 @@ export type Look = { outfit?: Outfit; hat?: Hat };
 export type Cosmetic = { key: string; name: string; slot: CosmeticSlot; price: number; look: Outfit | Hat };
 export type Wardrobe = { catalog: Cosmetic[]; owned: string[]; equipped: Partial<Record<CosmeticSlot, string>>; look: Look | null; currency: string };
 
+export type AdminPlayer = {
+  id: string;
+  username: string;
+  status: "active" | "suspended" | "banned";
+  status_reason: string | null;
+  roles: string[];
+  muted_until: string | null;
+  mute_reason: string | null;
+  online: boolean;
+  world: string | null;
+  last_seen_at: string | null;
+};
+export type AdminAudit = { action: string; reason: string | null; payload: unknown; actor_type: string; created_at: string };
+export type AdminPlayerDetail = AdminPlayer & { email: string; created_at: string; wallets: { currency: string; balance: number }[]; tickets_today: number };
+export type AdminServers = {
+  worlds: { world: string; dimension: string; players: number; seen_at: string; online: boolean }[];
+  online_players: number;
+  tickets_last_hour: number;
+  accounts: number;
+};
+export type AdminEconomy = {
+  currencies: { currency: string; wallets: number; escrow: number; guilds: number; minted: number; burned: number }[];
+  problems: string[];
+  recent: { public_id: string; type: string; reason: string; created_at: string }[];
+};
+
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
 
 export const api = {
@@ -223,6 +249,27 @@ export const api = {
   },
 
   me: () => request<{ user: User }>("/me").then((r) => r.user),
+
+  admin: {
+    players: (q = "", status = "") =>
+      request<{ players: AdminPlayer[] }>(`/admin/players?${new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}) })}`).then((r) => r.players),
+    player: (id: string) => request<{ player: AdminPlayerDetail; audit: AdminAudit[] }>(`/admin/players/${encodeURIComponent(id)}`),
+    status: (id: string, status: AdminPlayer["status"], reason: string) =>
+      request<{ player: AdminPlayer }>(`/admin/players/${encodeURIComponent(id)}/status`, { method: "PUT", body: JSON.stringify({ status, reason }) }),
+    mute: (id: string, minutes: number, reason: string) =>
+      request<{ player: AdminPlayer }>(`/admin/players/${encodeURIComponent(id)}/mute`, { method: "PUT", body: JSON.stringify({ minutes, reason }) }),
+    roles: (id: string, roles: string[], reason: string) =>
+      request<{ player: AdminPlayer }>(`/admin/players/${encodeURIComponent(id)}/roles`, { method: "PUT", body: JSON.stringify({ roles, reason }) }),
+    grant: (id: string, currency: string, amount: number, reason: string) =>
+      request<{ transaction: string; balance: number }>(`/admin/players/${encodeURIComponent(id)}/grant`, {
+        method: "POST",
+        headers: { "idempotency-key": idempotencyKey() },
+        body: JSON.stringify({ currency, amount, reason }),
+      }),
+    servers: () => request<AdminServers>("/admin/servers"),
+    economy: () => request<AdminEconomy>("/admin/economy"),
+    audit: (action = "") => request<{ entries: (AdminAudit & { subject_id: string | null })[] }>(`/admin/audit${action ? `?action=${encodeURIComponent(action)}` : ""}`),
+  },
 
   worlds: {
     list: () => request<{ worlds: WorldView[]; per_player: number }>("/worlds"),

@@ -17,7 +17,7 @@ import { ChatBox, type ChatLine } from "./chat";
 import { applyLook, sanitizeLook, WardrobePanel } from "./cosmetics";
 import { SERVER_KEY, WORLD_KEY } from "./worlds";
 import { VoiceChat } from "./voice";
-import type { Look } from "./api";
+import { api, type Look } from "./api";
 import { FriendsPanel } from "./friends";
 import { NpcPanel, type Offer } from "./npc";
 import { rewardLine, WorkPanel, type WorkState } from "./work";
@@ -89,6 +89,7 @@ const MESSAGES: Record<string, string> = {
   no_arrows: "You have no arrows",
   not_at_war: "Your guilds are not at war",
   bad_ticket: "Could not change your look; try again",
+  muted: "You are muted",
   siege_underway: "A siege already stands on that land",
   not_in_settlement: "Town halls and vaults stand on guild land in a settlement",
 };
@@ -439,6 +440,20 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (event.code !== "KeyK" || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
     wardrobe.toggle();
     if (wardrobe.isOpen) controls.unlock();
+  });
+
+  // A moderator suspended or banned the account: this session is over.
+  events.on<{ status: string; reason?: string | null }>("platform.kicked", ({ status, reason }) => {
+    if (voice.enabled) voice.stop();
+    network.disconnect();
+    controls.unlock();
+    const box = Object.assign(document.createElement("section"), { id: "kicked", className: "panel" });
+    box.append(
+      Object.assign(document.createElement("h2"), { textContent: status === "banned" ? "Your account is banned" : "Your account is suspended" }),
+      Object.assign(document.createElement("p"), { textContent: reason ? `Reason: ${reason}` : "A moderator ended this session." }),
+    );
+    document.body.append(box);
+    api.forget();
   });
 
   // Proximity voice (V): nearby players hear each other.

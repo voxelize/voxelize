@@ -158,8 +158,15 @@ Done: shaped/shapeless matching (anywhere in the grid, mirrored), 2x2 and
 3x3 grids, crafting result slot with shift-craft-all, recipe book, furnace
 station with fuels, burn time, progress decay, output limits, smelting while
 nobody watches; all server-side and tested (unit + end-to-end).
-Remaining: admin panel v1 (players, economy, live server monitor),
-observability stack, more stations (smelter, crusher) as content.
+Then: admin panel v1 (`/admin.html`): players (search, history, suspend,
+ban, mute, roles, currency grants, all audited with a reason), the economy
+(money per currency in wallets, escrow and guild treasuries, minted and
+burned, ledger health), a live server monitor (every world and dimension
+with its players) and the audit log; game servers enforce sanctions from
+the backend within seconds (out of play, no chat or voice). Tests:
+AdminTest, unit tests, `tests/bots/moderation.mjs`.
+Remaining: observability stack, more stations (smelter, crusher) as
+content.
 
 ## Phase 10 — Entities and mobs ✅
 

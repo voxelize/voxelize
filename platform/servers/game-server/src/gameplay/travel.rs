@@ -171,6 +171,8 @@ pub struct Dimensions {
     pub voice_ice_servers: Arc<serde_json::Value>,
     /// The world's server plugins, shared by every dimension.
     pub plugins: super::plugins::SharedPlugins,
+    /// Moderation from the backend (suspended, banned, muted players).
+    pub sanctions: super::sanctions::SharedSanctions,
 }
 
 impl Dimensions {
@@ -477,6 +479,7 @@ mod tests {
             tickets: None,
             voice_ice_servers: Arc::new(serde_json::json!([])),
             plugins: Arc::new(std::sync::Mutex::new(super::super::plugins::Plugins::none())),
+            sanctions: Default::default(),
             siege_seconds: 600.0,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);

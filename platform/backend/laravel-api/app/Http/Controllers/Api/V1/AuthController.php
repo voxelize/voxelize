@@ -79,6 +79,7 @@ class AuthController extends Controller
             'id' => $user->public_id,
             'username' => $user->username,
             'status' => $user->status,
+            'roles' => $user->gameRoles(),
         ];
     }
 }
