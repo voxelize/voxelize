@@ -151,13 +151,18 @@ pub(super) fn install(world: &mut World) {
                 peers: Vec::new(),
                 window: (Instant::now(), 0),
             });
-            g.dimensions.voice_ice_servers.clone()
+            super::turn::ice_servers(
+                &g.dimensions.voice_ice_servers,
+                g.dimensions.turn.as_deref(),
+                id,
+                super::sanctions::now() as u64,
+            )
         };
         reply(
             world,
             id,
             INTENT,
-            Ok(json!({ "ice_servers": *ice, "range": VOICE_RANGE })),
+            Ok(json!({ "ice_servers": ice, "range": VOICE_RANGE })),
         );
     });
 

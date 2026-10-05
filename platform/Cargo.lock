@@ -2705,6 +2705,8 @@ dependencies = [
  "actix-cors",
  "actix-web",
  "awc",
+ "base64 0.22.1",
+ "hmac",
  "log",
  "mysql",
  "platform-content",
@@ -2713,6 +2715,7 @@ dependencies = [
  "rhai",
  "serde",
  "serde_json",
+ "sha1 0.10.7",
  "specs",
  "voxelize",
 ]

@@ -100,6 +100,18 @@ Set `PLATFORM_CLIENT_URL` to the address players open (links in the mail
 point there) and `AUTH_REQUIRE_VERIFIED_EMAIL=true` to keep unconfirmed
 accounts out of the game.
 
+## Voice relay
+
+Most players connect voice directly; players behind strict NATs need a
+relay. Set in `.env` a `TURN_SECRET` (32+ characters), `TURN_EXTERNAL_IP`
+(the host's public address) and `GAME_TURN_URLS`
+(`turn:<host>:3478?transport=udp,turn:<host>:3478?transport=tcp`), open
+3478 (UDP and TCP) and 49160–49200/UDP in the firewall, then:
+
+```sh
+docker compose --profile voice up -d
+```
+
 ## Metrics and dashboards
 
 ```sh

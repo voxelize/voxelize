@@ -169,6 +169,8 @@ pub struct Dimensions {
     pub tickets: Option<Arc<platform_ticket::Verifier>>,
     /// ICE servers for voice chat (see `GameConfig::voice_ice_servers`).
     pub voice_ice_servers: Arc<serde_json::Value>,
+    /// A TURN relay; each player gets credentials of their own.
+    pub turn: Option<Arc<super::turn::Turn>>,
     /// The world's server plugins, shared by every dimension.
     pub plugins: super::plugins::SharedPlugins,
     /// Moderation from the backend (suspended, banned, muted players).
@@ -483,6 +485,7 @@ mod tests {
             bridge: None,
             tickets: None,
             voice_ice_servers: Arc::new(serde_json::json!([])),
+            turn: None,
             plugins: Arc::new(std::sync::Mutex::new(super::super::plugins::Plugins::none())),
             sanctions: Default::default(),
             anticheat: true,

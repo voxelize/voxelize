@@ -31,6 +31,10 @@ pub struct GameConfig {
     /// ICE servers voice chat peers use (`GAME_VOICE_ICE_SERVERS`, the JSON
     /// array an `RTCPeerConnection` takes); empty: direct connections only.
     pub voice_ice_servers: serde_json::Value,
+    /// A TURN relay with per-player credentials (`GAME_TURN_URLS`,
+    /// comma-separated, and `GAME_TURN_SECRET`, coturn's
+    /// `static-auth-secret`; `GAME_TURN_TTL` seconds, a day by default).
+    pub turn: Option<crate::gameplay::turn::Turn>,
     /// Bearer token `/platform/metrics` asks for (`GAME_METRICS_TOKEN`);
     /// none: open (keep it off the public listener).
     pub metrics_token: Option<String>,
@@ -212,6 +216,57 @@ impl GameConfig {
                 .get("GAME_METRICS_TOKEN")
                 .filter(|t| !t.is_empty())
                 .cloned(),
+            turn: {
+                let urls: Vec<String> = env
+                    .get("GAME_TURN_URLS")
+                    .map(|v| {
+                        v.split(',')
+                            .map(str::trim)
+                            .filter(|u| !u.is_empty())
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let secret = env.get("GAME_TURN_SECRET").filter(|s| !s.is_empty());
+                match (urls.is_empty(), secret) {
+                    // A secret alone (the relay runs, nobody is sent to it yet) is off.
+                    (true, _) => None,
+                    (false, Some(secret)) if secret.len() >= 32 => {
+                        if let Some(bad) = urls
+                            .iter()
+                            .find(|u| !u.starts_with("turn:") && !u.starts_with("turns:"))
+                        {
+                            return Err(ConfigError(format!(
+                                "GAME_TURN_URLS entries start with turn: or turns: ({bad})"
+                            )));
+                        }
+                        let ttl = match env.get("GAME_TURN_TTL") {
+                            None => 86_400,
+                            Some(v) => match v.parse::<u64>() {
+                                Ok(t) if (60..=604_800).contains(&t) => t,
+                                _ => {
+                                    return Err(ConfigError(
+                                        "GAME_TURN_TTL is seconds between 60 and 604800".into(),
+                                    ))
+                                }
+                            },
+                        };
+                        Some(crate::gameplay::turn::Turn {
+                            urls,
+                            secret: secret.clone(),
+                            ttl,
+                        })
+                    }
+                    (false, Some(_)) => {
+                        return Err(ConfigError(
+                            "GAME_TURN_SECRET must be at least 32 bytes".into(),
+                        ))
+                    }
+                    (false, None) => {
+                        return Err(ConfigError("GAME_TURN_URLS needs GAME_TURN_SECRET".into()))
+                    }
+                }
+            },
             voice_ice_servers: match env.get("GAME_VOICE_ICE_SERVERS") {
                 None => serde_json::json!([]),
                 Some(raw) => match serde_json::from_str::<serde_json::Value>(raw) {
@@ -307,6 +362,47 @@ mod tests {
         ]))
         .unwrap_err();
         assert!(error.0.contains("snake_case"));
+    }
+
+    #[test]
+    fn turn_needs_urls_and_a_long_secret() {
+        let dev = |extra: &[(&str, &str)]| {
+            let mut pairs = vec![("GAME_INSECURE_DEV", "1")];
+            pairs.extend_from_slice(extra);
+            GameConfig::from_map(&env(&pairs))
+        };
+        let secret = "turn-secret-turn-secret-0123456789ab";
+        assert_eq!(dev(&[]).unwrap().turn, None);
+        let turn = dev(&[
+            (
+                "GAME_TURN_URLS",
+                "turn:t.example:3478?transport=udp, turns:t.example:5349",
+            ),
+            ("GAME_TURN_SECRET", secret),
+        ])
+        .unwrap()
+        .turn
+        .unwrap();
+        assert_eq!(turn.urls.len(), 2);
+        assert_eq!(turn.ttl, 86_400);
+        assert!(dev(&[("GAME_TURN_URLS", "turn:t.example:3478")]).is_err());
+        assert_eq!(dev(&[("GAME_TURN_SECRET", secret)]).unwrap().turn, None);
+        assert!(dev(&[
+            ("GAME_TURN_URLS", "turn:t:3478"),
+            ("GAME_TURN_SECRET", "short")
+        ])
+        .is_err());
+        assert!(dev(&[
+            ("GAME_TURN_URLS", "http://t:3478"),
+            ("GAME_TURN_SECRET", secret)
+        ])
+        .is_err());
+        assert!(dev(&[
+            ("GAME_TURN_URLS", "turn:t:3478"),
+            ("GAME_TURN_SECRET", secret),
+            ("GAME_TURN_TTL", "5")
+        ])
+        .is_err());
     }
 
     #[test]

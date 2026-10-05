@@ -505,6 +505,10 @@ sessions, a download of one's data and account deletion that settles or
 refuses what is in flight and anonymises the rest (`/auth/password/*`,
 `/me/*`, account panel in the game settings, Mailpit for local mail).
 Tests: AccountTest, client unit tests, `tests/e2e/account.mjs`.
+Then: a voice relay — coturn in compose (profile `voice`) with
+`use-auth-secret`, never relaying into private networks; game servers hand
+each player TURN credentials of their own that expire. Tests: config and
+credential unit tests, `tests/bots/turn.mjs` against a real coturn.
 Then: player reports — `/report` in game (with positions and the reported
 player's last lines) or the account panel; a report queue in the admin
 panel to resolve or dismiss with a note; reporters see the outcome; rate

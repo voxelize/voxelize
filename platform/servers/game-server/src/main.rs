@@ -366,6 +366,7 @@ async fn main() -> std::io::Result<()> {
         .as_ref()
         .map(|b| gameplay::bridge::Bridge::start(b.url.clone(), b.token.clone(), &config.world));
     let voice_ice_servers = Arc::new(config.voice_ice_servers.clone());
+    let turn = config.turn.clone().map(Arc::new);
     let sanctions: gameplay::sanctions::SharedSanctions = Default::default();
     // Player records: MySQL when configured (production), files otherwise.
     let player_db = match &config.database_url {
@@ -406,6 +407,7 @@ async fn main() -> std::io::Result<()> {
             bridge: bridge.clone(),
             tickets: tickets.clone(),
             voice_ice_servers: voice_ice_servers.clone(),
+            turn: turn.clone(),
             plugins: plugins.clone(),
             sanctions: sanctions.clone(),
             anticheat: config.anticheat,

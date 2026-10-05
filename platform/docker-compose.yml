@@ -179,6 +179,10 @@ services:
       GAME_DATABASE_URL: mysql://platform_game:${GAME_DB_PASSWORD}@mysql:3306/platform
       # /platform/metrics asks for it (Prometheus, profile "observability").
       GAME_METRICS_TOKEN: ${GAME_METRICS_TOKEN:-}
+      # Voice relay (the `voice` profile): per-player credentials signed with
+      # the TURN server's secret. Empty: direct connections only.
+      GAME_TURN_URLS: ${GAME_TURN_URLS:-}
+      GAME_TURN_SECRET: ${TURN_SECRET:-}
     volumes:
       - world-data:/srv/worlds
     stop_grace_period: 30s
@@ -202,6 +206,44 @@ services:
     image: axllent/mailpit:v1.20
     ports:
       - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+
+  # Voice relay for players behind strict NATs: `docker compose --profile
+  # voice up`. Set TURN_SECRET, TURN_EXTERNAL_IP (the host's public address)
+  # and GAME_TURN_URLS (turn:<host>:3478?transport=udp,turn:<host>:3478?transport=tcp).
+  # It never relays into private networks, so it cannot reach the stack.
+  turn:
+    profiles: ["voice"]
+    image: coturn/coturn:4.6.2
+    restart: unless-stopped
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
+    command:
+      - -n
+      - --log-file=stdout
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:-}
+      - --realm=${TURN_REALM:-platform}
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --external-ip=${TURN_EXTERNAL_IP:-}
+      - --no-multicast-peers
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --user-quota=4
+      - --total-quota=400
 
   # Metrics and dashboards: `docker compose --profile observability up`.
   # Put the metrics and service tokens in infrastructure/observability/secrets/.

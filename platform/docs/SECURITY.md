@@ -58,6 +58,14 @@ flight (bids, accepted contracts, a guild to hand over), removes personal
 data and game saves, and keeps an anonymised row so the ledger stays
 balanced. Players can download their data (`GET /me/export`).
 
+### Voice relay
+
+The TURN server shares one secret with the game servers (`TURN_SECRET`)
+and never with players: each player gets credentials that name them and
+expire (a day by default). It refuses to relay to private, loopback and
+link-local addresses, so a relay cannot be pointed at the stack's own
+network, and caps allocations per user and in total.
+
 ### Player reports
 
 Reports never act on their own: a moderator decides, and sanctions stay the
