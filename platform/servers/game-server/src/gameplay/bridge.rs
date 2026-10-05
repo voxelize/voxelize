@@ -123,6 +123,22 @@ pub enum Request {
 }
 
 impl Request {
+    /// A short name for metrics.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Request::CreateListing { .. } => "listing",
+            Request::PendingDeliveries { .. } => "deliveries",
+            Request::Acknowledge { .. } => "acknowledge",
+            Request::Payment { .. } => "payment",
+            Request::WarKill { .. } => "war_kill",
+            Request::Reward { .. } => "reward",
+            Request::Capture { .. } => "capture",
+            Request::UploadBlueprint { .. } => "blueprint_upload",
+            Request::FetchBlueprint { .. } => "blueprint_fetch",
+            Request::Presence { .. } => "presence",
+        }
+    }
+
     fn world(&self) -> &str {
         match self {
             Request::CreateListing { world, .. }
@@ -267,6 +283,10 @@ impl Bridge {
     }
 
     pub fn request(&self, request: Request) {
+        crate::metrics::inc(
+            "platform_bridge_requests_total",
+            &[("kind", request.kind())],
+        );
         if let Ok(tx) = self.outgoing.lock() {
             let _ = tx.send(request);
         }

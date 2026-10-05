@@ -2,3 +2,4 @@
 /data
 .env
 !Cargo.lock
+/infrastructure/observability/secrets/

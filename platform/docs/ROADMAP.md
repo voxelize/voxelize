@@ -171,8 +171,14 @@ or Ctrl-C makes every world save once more before the process exits;
 players joining see items lying nearby at once. Tests: unit tests,
 `tests/bots/persistence.mjs` (a stack dropped, the server stopped and
 started, the stack and the player where they were).
-Remaining: observability stack, more stations (smelter, crusher) as
-content.
+Then: observability — Prometheus metrics from the game server
+(`/platform/metrics`: players, creatures, items, voice, tick rate and
+longest tick per world, intents by result, chat, backend requests,
+plugins) and the backend (`/api/internal/v1/metrics`: accounts, players
+online, money supply, listings, tickets, audit), alert rules and a Grafana
+dashboard in the compose profile `observability`. Tests: metrics unit test,
+MetricsTest.
+Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅
 

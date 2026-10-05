@@ -36,6 +36,7 @@ pub mod stall;
 pub use market::MarketSystem;
 pub use plugins::PluginSystem;
 pub use sanctions::SanctionSystem;
+pub use shutdown::MetricsSystem;
 pub use shutdown::SaveSystem;
 pub use voice::VoiceSystem;
 pub mod trade;
@@ -239,6 +240,11 @@ fn reply(world: &mut World, client_id: &str, intent: &str, result: Result<Value,
         }
         Err(error) => json!({ "intent": intent, "ok": false, "code": error.code() }),
     };
+    let result = payload["code"].as_str().unwrap_or("ok");
+    crate::metrics::inc(
+        "platform_intents_total",
+        &[("intent", intent), ("result", result)],
+    );
     send(world, client_id, RESULT_EVENT, payload);
 }
 

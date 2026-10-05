@@ -217,8 +217,16 @@ This contract is implemented together with the first in-world economic action
 
 - Structured JSON logs from both tiers, correlated by `trace_id` (the engine
   already stamps chat and perf traces).
-- Metrics: engine `/health` and `/info`, tick timing (`tick_stats`), per-world
-  stats; Laravel exposes Prometheus-format metrics in phase 9.
+- Metrics (Prometheus text format): the game server's `/platform/metrics`
+  (behind `GAME_METRICS_TOKEN`) — players, creatures, lying items and voice
+  members per world, tick rate and longest tick (worlds without players
+  idle at about 2 ticks a second), intents by result, chat lines by
+  channel, backend requests by kind, plugins switched off; the backend's
+  `/api/internal/v1/metrics` (service token) — accounts by status, players
+  online, players per world, money supply per currency, market listings,
+  tickets and audited actions in the last hour. Prometheus, alert rules and
+  a Grafana dashboard come with the compose profile `observability`
+  (infrastructure/README.md).
 - Tracing: OpenTelemetry spans across API → game server calls (phase 9).
 - Error tracking: Sentry-compatible DSN for both tiers (phase 9).
 

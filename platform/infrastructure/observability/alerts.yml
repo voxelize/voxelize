@@ -1,0 +1,22 @@
+groups:
+  - name: platform
+    rules:
+      - alert: GameTicksSlow
+        expr: max by (world) (platform_tick_seconds) > 0.25
+        for: 2m
+        annotations:
+          summary: "{{ $labels.world }}: a game tick took over 250 ms"
+      - alert: WorldNotReporting
+        expr: platform_world_report_age_seconds > 120
+        for: 1m
+        annotations:
+          summary: "{{ $labels.world }} ({{ $labels.dimension }}) has not reported for 2 minutes"
+      - alert: PluginSwitchedOff
+        expr: platform_plugins_disabled > 0
+        annotations:
+          summary: "A server plugin failed too often and was switched off"
+      - alert: ManyRefusedIntents
+        expr: sum(rate(platform_intents_total{result=~"too_fast|out_of_reach"}[5m])) > 5
+        for: 5m
+        annotations:
+          summary: "Many too_fast / out_of_reach refusals: a client may be cheating"

@@ -59,12 +59,27 @@ supervisor, an orchestrator) reads `GET /api/internal/v1/worlds` for the
 active worlds and stops servers for archived ones. The browser counts a
 world online while its server reports in.
 
+## Metrics and dashboards
+
+```sh
+mkdir -p infrastructure/observability/secrets
+printf %s "$GAME_METRICS_TOKEN" > infrastructure/observability/secrets/metrics_token
+printf %s "$GAME_SERVICE_TOKEN" > infrastructure/observability/secrets/service_token
+docker compose --profile observability up -d
+```
+
+Prometheus scrapes the game server (`/platform/metrics`) and the backend
+(`/api/internal/v1/metrics`) every 15 s and evaluates `alerts.yml` (slow
+ticks, a world that stopped reporting, a plugin switched off, a burst of
+refused intents). Grafana (http://127.0.0.1:3001, bound to localhost)
+opens with the "Platform" dashboard. Neither metrics path is routed by the
+public listener.
+
 ## Production notes
 
 - Terminate TLS at Nginx (or a load balancer) and serve `wss://`.
 - Set `APP_ENV=production`, `APP_DEBUG=false`, and real secrets from a secret
   manager, never from a committed file.
 - Do not publish MySQL, Redis or MinIO ports.
-- Monitoring (phase 9): Prometheus scraping the game server's `/info` and
-  the API's metrics endpoint, Grafana dashboards, alerting on
-  `ledger:verify` failures and tick-time p99.
+- Monitoring: see "Metrics and dashboards" above; add an Alertmanager
+  route for the rules in `observability/alerts.yml`.

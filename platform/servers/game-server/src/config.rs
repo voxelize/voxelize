@@ -31,6 +31,9 @@ pub struct GameConfig {
     /// ICE servers voice chat peers use (`GAME_VOICE_ICE_SERVERS`, the JSON
     /// array an `RTCPeerConnection` takes); empty: direct connections only.
     pub voice_ice_servers: serde_json::Value,
+    /// Bearer token `/platform/metrics` asks for (`GAME_METRICS_TOKEN`);
+    /// none: open (keep it off the public listener).
+    pub metrics_token: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -188,6 +191,10 @@ impl GameConfig {
                 }
                 s as f32
             },
+            metrics_token: env
+                .get("GAME_METRICS_TOKEN")
+                .filter(|t| !t.is_empty())
+                .cloned(),
             voice_ice_servers: match env.get("GAME_VOICE_ICE_SERVERS") {
                 None => serde_json::json!([]),
                 Some(raw) => match serde_json::from_str::<serde_json::Value>(raw) {

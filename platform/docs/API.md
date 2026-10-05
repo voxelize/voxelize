@@ -454,6 +454,12 @@ players who are suspended, banned or muted now. Game servers fetch it as
 often as the land feed: suspended and banned players are taken out of play,
 muted ones cannot chat or use voice.
 
+### `GET /api/internal/v1/metrics`
+Prometheus text format: `platform_accounts{status}`, `platform_players_online`,
+`platform_world_players{world,dimension}`, `platform_world_report_age_seconds`,
+`platform_money_supply{currency}`, `platform_market_listings{status}`,
+`platform_game_tickets_last_hour`, `platform_audit_actions_last_hour`.
+
 ### `GET /api/internal/v1/worlds`
 `{ "worlds": [{ "key", "realm", "url", "max_players" }] }`: player-made
 worlds that want a game server, for whatever starts and stops them.

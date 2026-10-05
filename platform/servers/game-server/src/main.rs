@@ -10,6 +10,7 @@ mod auth;
 mod behaviors;
 mod config;
 mod gameplay;
+mod metrics;
 mod portals;
 mod registry;
 mod stage;
@@ -220,6 +221,11 @@ fn build_world(
                 gameplay::SaveSystem::default(),
                 "platform-save",
                 &["platform-sanctions"],
+            )
+            .with(
+                gameplay::MetricsSystem::default(),
+                "platform-metrics",
+                &["platform-save"],
             )
     });
     world
@@ -476,7 +482,9 @@ async fn main() -> std::io::Result<()> {
         info!("stopped");
         std::process::exit(0);
     });
+    let metrics_token = config.metrics_token.clone();
     Voxelize::run_with(server, move |voxelize| {
+        let metrics_token = metrics_token.clone();
         let info = info.clone();
         let content_json = content_json.clone();
         App::new()
@@ -487,6 +495,28 @@ async fn main() -> std::io::Result<()> {
                 web::get().to(move || {
                     let info = info.clone();
                     async move { HttpResponse::Ok().json(info) }
+                }),
+            )
+            .route(
+                "/platform/metrics",
+                web::get().to(move |request: actix_web::HttpRequest| {
+                    let token = metrics_token.clone();
+                    async move {
+                        // Behind a token when one is set (GAME_METRICS_TOKEN).
+                        let allowed = token.as_deref().is_none_or(|t| {
+                            request
+                                .headers()
+                                .get("Authorization")
+                                .and_then(|v| v.to_str().ok())
+                                .is_some_and(|v| v == format!("Bearer {t}"))
+                        });
+                        if !allowed {
+                            return HttpResponse::Unauthorized().finish();
+                        }
+                        HttpResponse::Ok()
+                            .content_type("text/plain; version=0.0.4")
+                            .body(metrics::render())
+                    }
                 }),
             )
             .route(

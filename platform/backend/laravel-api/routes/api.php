@@ -16,6 +16,7 @@ use App\Http\Controllers\Internal\BlueprintBridgeController;
 use App\Http\Controllers\Internal\GuildFeedController;
 use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
+use App\Http\Controllers\Internal\MetricsController;
 use App\Http\Controllers\Internal\PresenceController;
 use App\Http\Controllers\Internal\RewardController;
 use App\Http\Controllers\Internal\SanctionFeedController;
@@ -160,4 +161,5 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::post('presence', [PresenceController::class, 'store']);
     Route::get('worlds', WorldFeedController::class);
     Route::get('sanctions', SanctionFeedController::class);
+    Route::get('metrics', MetricsController::class);
 });

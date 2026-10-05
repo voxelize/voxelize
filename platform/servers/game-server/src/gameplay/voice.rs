@@ -61,6 +61,11 @@ impl Voice {
         m.window.1 <= SIGNALS_PER_SECOND
     }
 
+    /// Players with voice on.
+    pub fn members(&self) -> usize {
+        self.members.len()
+    }
+
     pub fn leave(&mut self, id: &str) {
         self.members.remove(id);
     }

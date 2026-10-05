@@ -92,3 +92,56 @@ impl<'a> specs::System<'a> for SaveSystem {
         }
     }
 }
+
+/// Once a second: this world's gauges for `/platform/metrics`.
+#[derive(Default)]
+pub struct MetricsSystem {
+    last: Option<std::time::Instant>,
+    window_start: Option<std::time::Instant>,
+    ticks: u32,
+    longest: f32,
+}
+
+impl<'a> specs::System<'a> for MetricsSystem {
+    type SystemData = specs::ReadExpect<'a, Gameplay>;
+
+    fn run(&mut self, g: Self::SystemData) {
+        let now = std::time::Instant::now();
+        if let Some(last) = self.last {
+            self.longest = self.longest.max(now.duration_since(last).as_secs_f32());
+        }
+        self.last = Some(now);
+        self.ticks += 1;
+        let start = *self.window_start.get_or_insert(now);
+        if now.duration_since(start).as_secs_f32() < 1.0 {
+            return;
+        }
+        let world = g
+            .dimensions
+            .world_of(g.dimensions.current)
+            .unwrap_or("unknown")
+            .to_owned();
+        let w = [("world", world.as_str())];
+        use crate::metrics::set;
+        set("platform_players", &w, g.players.len() as f64);
+        set("platform_mobs", &w, g.mobs.list.len() as f64);
+        set("platform_dropped_items", &w, g.drops.items.len() as f64);
+        set("platform_voice_members", &w, g.voice.members() as f64);
+        set("platform_tick_seconds", &w, self.longest as f64);
+        set(
+            "platform_tick_rate",
+            &w,
+            self.ticks as f64 / now.duration_since(start).as_secs_f64(),
+        );
+        if let Ok(p) = g.dimensions.plugins.try_lock() {
+            set(
+                "platform_plugins_disabled",
+                &[],
+                p.list.iter().filter(|p| p.disabled).count() as f64,
+            );
+        }
+        self.window_start = Some(now);
+        self.ticks = 0;
+        self.longest = 0.0;
+    }
+}

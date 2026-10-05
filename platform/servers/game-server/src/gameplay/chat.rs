@@ -190,6 +190,7 @@ pub(super) fn install(world: &mut World) {
         }
         chat.body = line;
         chat.sender = name;
+        crate::metrics::inc("platform_chat_lines_total", &[("channel", "public")]);
         true
     });
 
