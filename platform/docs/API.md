@@ -61,7 +61,8 @@ The server browser. Official worlds come from config
 `worlds.per_player`, 3): public, open to the owner's friends, or private
 (the owner and members). Each runs on its own game server
 (`GAME_WORLD_NAME` = the world's key) at `worlds.url_template` with
-`{world}` replaced, unless the world has its own `url`. A world is online
+`{world}` (the key) or `{id}` (the key without `w_`, for host names)
+replaced, unless the world has its own `url`. A world is online
 while its game server reports it (every 30 s, and when players come and
 go); `players` counts every dimension.
 

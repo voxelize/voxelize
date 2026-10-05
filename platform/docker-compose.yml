@@ -169,6 +169,8 @@ services:
       - game-server
     volumes:
       - ./infrastructure/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Gateway for player-made worlds (w-<id>.<domain>).
+      - ./infrastructure/nginx/worlds.conf:/etc/nginx/conf.d/worlds.conf:ro
       - ./apps/web-client/dist:/usr/share/nginx/html:ro
     ports:
       - "${HTTP_PORT:-8080}:80"

@@ -98,6 +98,15 @@ class WorldTest extends TestCase
         $this->as($user)->getJson('/api/v1/worlds')->assertJsonPath('worlds.0.online', false)->assertJsonPath('worlds.0.players', null);
     }
 
+    public function test_the_address_template_names_hosts_without_underscores(): void
+    {
+        config(['platform.worlds.url_template' => 'wss://w-{id}.play.example/ws/']);
+        $owner = User::factory()->create();
+        $key = $this->as($owner)->postJson('/api/v1/worlds', ['name' => 'Hosted', 'visibility' => 'public'])->json('world.key');
+        $this->as($owner)->postJson('/api/v1/game/tickets', ['world' => $key])->assertCreated()
+            ->assertJsonPath('url', 'wss://w-'.substr($key, 2).'.play.example/ws/');
+    }
+
     public function test_worlds_without_a_server_address_get_no_tickets(): void
     {
         config(['platform.worlds.url_template' => '']);

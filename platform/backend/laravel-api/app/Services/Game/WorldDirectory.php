@@ -62,7 +62,9 @@ class WorldDirectory
     {
         $template = (string) config('platform.worlds.url_template');
 
-        return $template !== '' ? str_replace('{world}', $key, $template) : null;
+        // {world} is the key (w_abc…), {id} the part after "w_" (host names
+        // cannot hold "_"): wss://w-{id}.play.example/ws/.
+        return $template !== '' ? str_replace(['{world}', '{id}'], [$key, substr($key, 2)], $template) : null;
     }
 
     private function friends(User $a, User $b): bool

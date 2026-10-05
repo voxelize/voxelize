@@ -63,14 +63,21 @@ network.
 
 ## Player worlds
 
-Worlds players create (docs/API.md, "Worlds") each need a game server of
-their own: the same image with `GAME_WORLD_NAME` set to the world's key,
-its own save volume, and the same ticket secrets and backend token. Set
-`WORLDS_URL_TEMPLATE` on the API (e.g. `wss://w-{world}.play.example/ws/`)
-and route that host to the world's server. Whatever starts them (a
-supervisor, an orchestrator) reads `GET /api/internal/v1/worlds` for the
-active worlds and stops servers for archived ones. The browser counts a
-world online while its server reports in.
+Worlds players create (docs/API.md, "Worlds") each run on a game server of
+their own, behind one gateway:
+
+- `worlds/host-worlds.sh` (every minute: cron, a loop or a timer) reads
+  `GET /api/internal/v1/worlds` and keeps a container `world-<id>` per
+  active world `w_<id>` — the game server image with `GAME_WORLD_NAME` set,
+  its own volume `world-<id>-data`, the same ticket secrets and backend
+  token — on the compose network; archived worlds' containers are stopped
+  (they save first) and removed, their volumes kept.
+- `nginx/worlds.conf` routes `w-<id>.<domain>` to `world-<id>:4000` (only
+  `/ws/` and `/health`), looking names up through Docker's DNS.
+- Set the API's `WORLDS_URL_TEMPLATE=wss://w-{id}.<domain>/ws/` and a
+  wildcard DNS record and certificate for `*.<domain>`.
+- `worlds/test-host-worlds.sh` checks the host script against a fake feed
+  and a fake Docker (CI runs it).
 
 ## Metrics and dashboards
 

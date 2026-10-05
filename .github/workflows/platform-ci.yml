@@ -123,3 +123,10 @@ jobs:
           docker compose --profile observability config --quiet
       - name: Backup and restore scripts
         run: sh platform/infrastructure/backup/test-backups.sh
+      - name: World hosting script
+        run: sh platform/infrastructure/worlds/test-host-worlds.sh
+      - name: Nginx configuration
+        working-directory: platform
+        run: |
+          docker run --rm --add-host game-server:127.0.0.1 --add-host api:127.0.0.1 \
+            -v "$PWD/infrastructure/nginx:/etc/nginx/conf.d:ro" nginx:1.27-alpine nginx -t

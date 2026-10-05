@@ -195,6 +195,10 @@ ticks a second).
 Then: presence in Redis — who is online, and where, is kept in the cache
 for 90 s instead of a database write per player every half minute; "last
 seen" is written at most every five minutes (FriendTest).
+Then: a gateway for player-made worlds — `host-worlds.sh` keeps one game
+server container per active world (and stops archived ones), nginx routes
+`w-<id>.<domain>` to it, and the world address template takes `{id}`.
+Tests: WorldTest, `test-host-worlds.sh` in CI.
 Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅
