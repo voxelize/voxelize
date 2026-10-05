@@ -120,3 +120,6 @@ jobs:
           cp .env.example .env
           sed -i 's/^\([A-Z_]*\(KEY\|PASSWORD\|SECRETS\|SECRET\)\)=$/\1=ci-placeholder-value-0123456789abcdef/' .env
           docker compose config --quiet
+          docker compose --profile observability config --quiet
+      - name: Backup and restore scripts
+        run: sh platform/infrastructure/backup/test-backups.sh

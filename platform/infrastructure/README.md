@@ -37,9 +37,22 @@ curl localhost:8080/api/v1/auth/register -H 'content-type: application/json' \
 
 - `backup/backup.sh`: consistent `mysqldump --single-transaction` with the
   binlog position recorded, for point-in-time recovery by replaying binlogs.
-- World data lives in the `world-data` volume; chunk writes are atomic, so a
-  filesystem snapshot of the volume is consistent per chunk. Incremental
-  world backups to `platform-backups` arrive with region files (phase 6).
+- `backup/backup-worlds.sh`: every world's saves (chunks, players,
+  containers, lying items, animals, plugin stores) as one archive, the
+  newest `BACKUP_KEEP` (14) kept, uploaded to an `mc` alias when `S3_ALIAS`
+  is set (the MinIO `platform-backups` bucket keeps versions). Save files
+  are renamed into place, so copying a running world never catches a torn
+  file. Run it daily (cron or a scheduler), for example:
+
+  ```sh
+  docker compose run --rm --user root \
+    -v "$PWD/infrastructure/backup:/backup" -v platform_world-data:/srv/worlds:ro \
+    -e BACKUP_DIR=/backup/out --entrypoint sh migrate /backup/backup-worlds.sh
+  ```
+- `backup/restore-worlds.sh <archive> <worlds dir>`: with the game server
+  stopped, puts a backup back and moves what was there aside
+  (`<dir>.before-<time>`), never deleting it.
+- `backup/test-backups.sh` checks both (CI runs it).
 
 ## Building images behind a TLS-intercepting proxy
 

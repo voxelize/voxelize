@@ -178,6 +178,10 @@ plugins) and the backend (`/api/internal/v1/metrics`: accounts, players
 online, money supply, listings, tickets, audit), alert rules and a Grafana
 dashboard in the compose profile `observability`. Tests: metrics unit test,
 MetricsTest.
+Then: world backups — `backup-worlds.sh` (one archive of every world's
+saves, retention, optional upload to object storage) and
+`restore-worlds.sh` (keeps what was there aside), checked by
+`test-backups.sh` in CI.
 Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅
