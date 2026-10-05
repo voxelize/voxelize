@@ -167,6 +167,8 @@ pub struct Dimensions {
     /// Checks game tickets presented in play (a new look), when tickets
     /// are required.
     pub tickets: Option<Arc<platform_ticket::Verifier>>,
+    /// ICE servers for voice chat (see `GameConfig::voice_ice_servers`).
+    pub voice_ice_servers: Arc<serde_json::Value>,
 }
 
 impl Dimensions {
@@ -471,6 +473,7 @@ mod tests {
             vaults: Default::default(),
             bridge: None,
             tickets: None,
+            voice_ice_servers: Arc::new(serde_json::json!([])),
             siege_seconds: 600.0,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);

@@ -201,6 +201,11 @@ fn build_world(
                 "platform-payouts",
                 &["platform-progress"],
             )
+            .with(
+                gameplay::VoiceSystem::default(),
+                "platform-voice",
+                &["platform-payouts"],
+            )
     });
     world
 }
@@ -285,6 +290,7 @@ async fn main() -> std::io::Result<()> {
         .backend
         .as_ref()
         .map(|b| gameplay::bridge::Bridge::start(b.url.clone(), b.token.clone(), &config.world));
+    let voice_ice_servers = Arc::new(config.voice_ice_servers.clone());
     for dimension in Dimension::ALL {
         let dimensions = gameplay::Dimensions {
             current: dimension,
@@ -295,6 +301,7 @@ async fn main() -> std::io::Result<()> {
             vaults: vaults.clone(),
             bridge: bridge.clone(),
             tickets: tickets.clone(),
+            voice_ice_servers: voice_ice_servers.clone(),
             siege_seconds: config.siege_seconds,
         };
         server

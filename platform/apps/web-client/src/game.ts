@@ -16,6 +16,7 @@ import { AchievementsPanel } from "./achievements";
 import { ChatBox, type ChatLine } from "./chat";
 import { applyLook, sanitizeLook, WardrobePanel } from "./cosmetics";
 import { SERVER_KEY, WORLD_KEY } from "./worlds";
+import { VoiceChat } from "./voice";
 import type { Look } from "./api";
 import { FriendsPanel } from "./friends";
 import { NpcPanel, type Offer } from "./npc";
@@ -438,6 +439,31 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (event.code !== "KeyK" || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
     wardrobe.toggle();
     if (wardrobe.isOpen) controls.unlock();
+  });
+
+  // Proximity voice (V): nearby players hear each other.
+  const voice = new VoiceChat({
+    me: () => players.ownID,
+    call: (intent, payload) => method.call(intent, payload),
+    positionOf: (id) => {
+      const p = players.map.get(id)?.position;
+      return p ? [p.x, p.y + 1.5, p.z] : null;
+    },
+    listener: () => {
+      const d = camera.getWorldDirection(new THREE.Vector3());
+      return { at: [camera.position.x, camera.position.y, camera.position.z], forward: [d.x, d.y, d.z] };
+    },
+    notify: (text) => hud.toast(text),
+  });
+  (window as unknown as { voice?: VoiceChat }).voice = voice;
+  events.on<{ peers: { id: string }[] }>("platform.voice.peers", ({ peers }) => voice.setPeers(peers ?? []));
+  events.on<{ from: string; kind: "offer" | "answer" | "ice"; data: unknown }>("platform.voice.signal", (s) => void voice.signal(s));
+  events.on<ResultEvent & { ice_servers?: RTCIceServer[] }>("platform.result", (r) => {
+    if (r?.ok && r.intent === "voice.join") voice.joined(r);
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyV" || event.repeat || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    void voice.toggle();
   });
 
   // Friends (O): requests, who is online, whisper them.
@@ -963,6 +989,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       hud.setStatus(`${x}, ${y}, ${z} · ${clock} · ${realm}`);
     }
 
+    voice.update();
     renderer.render(world, camera);
   };
   frame();

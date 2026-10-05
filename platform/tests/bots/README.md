@@ -31,6 +31,7 @@ validated by the game server like a browser player's.
 | `friends.mjs` | friends: a request by name, accepted, the friend shows online in `main` once they join the game, either side ends it (needs the backend) |
 | `cosmetics.mjs` | cosmetics: a crown and a robe bought with Crowns and worn; another player sees them when the wearer joins and when the crown comes off in play; someone else's ticket is refused (needs the backend and `FUND_CMD` granting 400) |
 | `worlds.mjs` | private worlds: one is created, hosted by a game server of its own (`HOST_CMD`), the owner plays in it and the browser shows it online; a stranger neither sees it nor gets in until it is made public (needs the backend with `WORLDS_URL_TEMPLATE` pointing at that server) |
+| `voice.mjs` | proximity voice: players near each other with voice on are paired, one far away is not; WebRTC setup is relayed between paired players only; walking away ends the pairing (standalone, `DEV_TICKET_SECRET`) |
 | `effects.mjs` | effects and weather: drink strength and fire resistance (bottles come back), stand in fire unharmed, fill a bottle at water; a creative player brings rain and a thunderstorm (lightning near the player) and clears it; survival players may not (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |

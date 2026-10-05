@@ -16,6 +16,7 @@ pub mod mobs;
 mod mobs_api;
 pub mod modes;
 pub mod progress;
+pub mod voice;
 pub mod work;
 pub use mobs_api::MobSystem;
 mod guild_api;
@@ -30,6 +31,7 @@ pub mod land;
 pub mod market;
 pub mod stall;
 pub use market::MarketSystem;
+pub use voice::VoiceSystem;
 pub mod trade;
 pub mod travel;
 pub use automation::GaugeSystem;
@@ -99,6 +101,8 @@ pub struct Gameplay {
     chat: chat::ChatState,
     /// What each player here wears.
     looks: HashMap<String, cosmetics::Look>,
+    /// Who has voice on and whom they are paired with.
+    voice: voice::Voice,
     /// Lit blast charges and arrows in flight.
     combat: combat::Combat,
     /// The overworld's weather (`weather.json`).
@@ -126,6 +130,7 @@ impl Gameplay {
             sieges: guild_api::Sieges::load(world_dir)?,
             chat: Default::default(),
             looks: HashMap::new(),
+            voice: Default::default(),
             combat: combat::Combat::default(),
             weather: weather::Weather::load(world_dir)?,
             weather_changed: true,
@@ -617,6 +622,7 @@ fn on_leave(world: &mut World, entity: Entity) {
     let mut g = world.ecs().write_resource::<Gameplay>();
     g.players.remove(&id);
     g.looks.remove(&id);
+    g.voice.leave(&id);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -649,6 +655,7 @@ pub fn install(
     work::install(world);
     chat::install(world);
     cosmetics::install(world);
+    voice::install(world);
     weather::install(world);
     blueprint::install(world);
     trade::install(world);

@@ -426,8 +426,14 @@ who may join and turn players away from full worlds; game servers report
 every dimension's players, so the browser after sign-in lists worlds with
 who is playing (`/api/v1/worlds`, a ⇄ button to come back to it). Tests:
 WorldTest, unit tests, `tests/bots/worlds.mjs`.
-Remaining: proximity voice (WebRTC), plugin event API, mod
-SDK.
+Then: proximity voice — V switches the microphone on; the game server pairs
+players with voice on within 32 blocks (kept to 40, at most 8 each, both
+ways) and relays their WebRTC setup only between pairs, rate limited;
+audio goes browser to browser, placed where the speaker stands and fading
+to silence at 32 blocks (`platform.voice.*`, TURN/STUN servers from
+`GAME_VOICE_ICE_SERVERS`). Tests: unit tests, `tests/bots/voice.mjs`, two
+browsers with fake microphones connected and receiving audio.
+Remaining: plugin event API, mod SDK.
 
 ## Definition of done (whole project)
 

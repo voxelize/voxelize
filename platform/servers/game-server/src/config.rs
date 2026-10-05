@@ -28,6 +28,9 @@ pub struct GameConfig {
     /// Seconds a siege banner must hold, with its guild near and no
     /// defender, to capture the land.
     pub siege_seconds: f32,
+    /// ICE servers voice chat peers use (`GAME_VOICE_ICE_SERVERS`, the JSON
+    /// array an `RTCPeerConnection` takes); empty: direct connections only.
+    pub voice_ice_servers: serde_json::Value,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -185,6 +188,17 @@ impl GameConfig {
                 }
                 s as f32
             },
+            voice_ice_servers: match env.get("GAME_VOICE_ICE_SERVERS") {
+                None => serde_json::json!([]),
+                Some(raw) => match serde_json::from_str::<serde_json::Value>(raw) {
+                    Ok(v @ serde_json::Value::Array(_)) => v,
+                    _ => {
+                        return Err(ConfigError(
+                            "GAME_VOICE_ICE_SERVERS must be a JSON array of ICE servers".into(),
+                        ))
+                    }
+                },
+            },
         })
     }
 }
@@ -269,5 +283,24 @@ mod tests {
         ]))
         .unwrap_err();
         assert!(error.0.contains("snake_case"));
+    }
+
+    #[test]
+    fn voice_ice_servers_are_a_json_array() {
+        let dev = |extra: &[(&str, &str)]| {
+            let mut pairs = vec![("GAME_INSECURE_DEV", "1")];
+            pairs.extend_from_slice(extra);
+            GameConfig::from_map(&env(&pairs))
+        };
+        assert_eq!(dev(&[]).unwrap().voice_ice_servers, serde_json::json!([]));
+        let ice = r#"[{"urls":"turn:turn.example:3478","username":"u","credential":"c"}]"#;
+        assert_eq!(
+            dev(&[("GAME_VOICE_ICE_SERVERS", ice)])
+                .unwrap()
+                .voice_ice_servers[0]["urls"],
+            "turn:turn.example:3478"
+        );
+        let error = dev(&[("GAME_VOICE_ICE_SERVERS", "{}")]).unwrap_err();
+        assert!(error.0.contains("GAME_VOICE_ICE_SERVERS"));
     }
 }
