@@ -213,7 +213,10 @@ selected by tapping; in portrait the stick and buttons sit above the vitals
 and hotbar; the controls step aside while a panel is open; panels fit the
 visible height and the inventory shrinks on short screens. Tests: touch
 unit test, `tests/e2e/phone.mjs` (portrait and landscape).
-Remaining: more stations (smelter, crusher) as content.
+Then: more stations as content — the crusher (one raw ore into two crushed
+ores; stone to rubble to sand) and the smelter (metals at twice a furnace's
+speed); fueled stations are data (`stations[].fueled`), the window names
+its station. Tests: station unit tests, `tests/bots/stations.mjs`.
 
 ## Phase 10 — Entities and mobs ✅
 

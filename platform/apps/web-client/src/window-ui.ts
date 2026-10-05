@@ -17,7 +17,8 @@ export type WindowState = {
   inventoryStart: number;
   grid: [number, number] | null;
   cursor: Slot;
-  furnace: { burnLeft: number; burnTotal: number; progress: number; progressTotal: number } | null;
+  /** A fueled station (furnace, smelter, crusher): which one and how far along. */
+  furnace: { station?: string; name?: string; burnLeft: number; burnTotal: number; progress: number; progressTotal: number } | null;
 };
 
 export type ClickType =
@@ -49,6 +50,11 @@ const TITLES: Record<WindowKind, string> = {
   furnace: "Furnace",
   chest: "Storage Chest",
 };
+
+/** The window's heading; fueled stations name themselves (Smelter, Crusher). */
+export function windowTitle(kind: WindowKind, furnace: WindowState["furnace"]): string {
+  return kind === "furnace" && furnace?.name ? furnace.name : TITLES[kind];
+}
 
 export class WindowUi {
   readonly root: HTMLElement;
@@ -212,7 +218,7 @@ export class WindowUi {
 
     const header = document.createElement("header");
     const title = document.createElement("h2");
-    title.textContent = TITLES[kind];
+    title.textContent = windowTitle(kind, state.furnace);
     const close = document.createElement("button");
     close.type = "button";
     close.className = "link";

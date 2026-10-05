@@ -221,7 +221,7 @@ impl BehaviorContext {
             .iter()
             .filter(|b| {
                 b.hardness < 0.0
-                    || crate::gameplay::containers::Container::for_block(&b.key).is_some()
+                    || crate::gameplay::containers::Container::for_block(content, &b.key).is_some()
                     || b.coupled.is_some()
                     || b.fluid.is_some()
             })
@@ -267,7 +267,9 @@ impl BehaviorContext {
             blast: id("blast_charge"),
             containers: blocks
                 .iter()
-                .filter(|b| crate::gameplay::containers::Container::for_block(&b.key).is_some())
+                .filter(|b| {
+                    crate::gameplay::containers::Container::for_block(content, &b.key).is_some()
+                })
                 .map(|b| b.id)
                 .collect(),
             watched: Mutex::new(HashMap::new()),

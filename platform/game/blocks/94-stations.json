@@ -1,0 +1,46 @@
+[
+  {
+    "id": 79,
+    "key": "smelter",
+    "name": "Smelter",
+    "material": "rock",
+    "hardness": 3.5,
+    "resistance": 6,
+    "texture": {
+      "all": "smelter_side",
+      "top": "smelter_top",
+      "side": "smelter_side"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "orientation": "horizontal",
+    "drops": [
+      {
+        "item": "smelter"
+      }
+    ]
+  },
+  {
+    "id": 80,
+    "key": "crusher",
+    "name": "Crusher",
+    "material": "rock",
+    "hardness": 4,
+    "resistance": 6,
+    "texture": {
+      "all": "crusher_side",
+      "top": "crusher_top",
+      "side": "crusher_side"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "orientation": "horizontal",
+    "drops": [
+      {
+        "item": "crusher"
+      }
+    ]
+  }
+]

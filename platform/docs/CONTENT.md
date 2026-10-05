@@ -105,9 +105,20 @@ ingredients. The first matching recipe in pack order wins.
                  "ticks": 200, "experience": 0.7 }] }
 ```
 
-A station is any block that runs processing recipes. Smelters, cookers,
-crushers and later machines are new station entries plus recipes, with no
-new code.
+A station is any block that runs processing recipes. A `fueled` station
+is a block entity with an input, a fuel and an output slot (the furnace
+window, titled with the station's name); new ones are a station entry, a
+block, an item and recipes, with no new code. The pack ships three:
+
+| station | runs |
+| --- | --- |
+| `furnace` | everything that smelts or cooks (ores, sand, rubble, clay, food), 200 ticks |
+| `crusher` | one raw ore → two crushed ores (160 ticks); stone → rubble → sand |
+| `smelter` | metals only (raw and crushed ores), 100 ticks — twice the furnace's speed |
+
+Crushed ores melt into one ingot each in a furnace or smelter, so a crusher
+doubles what a vein yields. Furnaces saved before there were other stations
+load as furnaces.
 
 Guild blocks: `guild_hall` (Town Hall) and `guild_vault` (Guild Vault) are
 placed only on guild land that is part of a settlement (a hall by the
@@ -125,7 +136,7 @@ and takes points/25 off hits from creatures and players; each hit wears
 every worn piece by one. The pack has hide, copper, iron and ember quartz
 sets (the classic points: 1/3/2/1 up to 3/8/6/3). Mobs may set `xp` (the
 default is 5, 2 for passive ones); processing recipes' `experience` is paid
-per item taken out of a furnace.
+per item taken out of a furnace, smelter or crusher.
 
 Fire (`fire`, behaviour `burns`) updates every 1.5–3 s: it burns a
 flammable neighbour away (into fire), spreads to empty cells beside

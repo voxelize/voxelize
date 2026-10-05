@@ -1,0 +1,7 @@
+[
+  { "id": 129, "key": "smelter", "name": "Smelter", "type": "block", "placesBlock": "smelter", "value": 30 },
+  { "id": 130, "key": "crusher", "name": "Crusher", "type": "block", "placesBlock": "crusher", "value": 30 },
+  { "id": 131, "key": "crushed_iron", "name": "Crushed Iron", "type": "material", "value": 5 },
+  { "id": 132, "key": "crushed_copper", "name": "Crushed Copper", "type": "material", "value": 4 },
+  { "id": 133, "key": "crushed_gold", "name": "Crushed Gold", "type": "material", "value": 9 }
+]

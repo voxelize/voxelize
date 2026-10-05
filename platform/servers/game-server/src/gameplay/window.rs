@@ -88,6 +88,8 @@ pub struct Window {
     pub inventory_start: usize,
     /// Items crafted by the last click: `(item, count)`.
     pub crafted: Vec<(u32, u32)>,
+    /// The station a furnace-like window runs (`furnace`, `smelter`, …).
+    pub station: String,
 }
 
 fn stack_limit(content: &Content, item: u32) -> u32 {
@@ -144,6 +146,7 @@ impl Window {
             grid,
             inventory_start,
             crafted: Vec::new(),
+            station: "furnace".to_owned(),
         }
     }
 
@@ -277,7 +280,7 @@ impl Window {
                     content
                         .processing()
                         .iter()
-                        .any(|r| r.station == "furnace" && r.input.item == i.key)
+                        .any(|r| r.station == self.station && r.input.item == i.key)
                 });
                 match (smeltable, is_fuel) {
                     (true, _) => vec![0],

@@ -7,6 +7,8 @@ const item = (key: string, extra: Partial<ItemDef> = {}): ItemDef => ({ id: 1, k
 describe("right click on a block", () => {
   it("opens windows unless sneaking", () => {
     expect(secondaryAction(block("chest"), undefined, false)).toBe("open");
+    expect(secondaryAction(block("smelter"), undefined, false)).toBe("open");
+    expect(secondaryAction(block("crusher"), undefined, false)).toBe("open");
     expect(secondaryAction(block("chest"), item("planks", { placesBlock: "planks" }), true)).toBe("place");
   });
   it("uses fertiliser, hoes and strikers on blocks", () => {

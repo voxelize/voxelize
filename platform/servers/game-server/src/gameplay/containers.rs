@@ -1,4 +1,5 @@
-//! Blocks that hold items: chests and furnaces (block entities).
+//! Blocks that hold items: chests and fueled stations — furnace, smelter,
+//! crusher, any `stations` entry with `fueled` (block entities).
 //!
 //! Contents live here keyed by block position and are saved to
 //! `<world>/containers.json` with an atomic write. Breaking the block spills
@@ -20,8 +21,17 @@ pub const FURNACE_INPUT: usize = 0;
 pub const FURNACE_FUEL: usize = 1;
 pub const FURNACE_OUTPUT: usize = 2;
 
+fn furnace_station() -> String {
+    "furnace".to_owned()
+}
+
+/// A fueled station: input, fuel and output, running its station's
+/// processing recipes (`station`, `furnace` for records saved before there
+/// were other stations).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Furnace {
+    #[serde(default = "furnace_station")]
+    pub station: String,
     pub slots: Vec<Option<Stack>>,
     /// Game ticks of fuel left in the current burn.
     pub burn_left: u32,
@@ -33,16 +43,21 @@ pub struct Furnace {
 
 impl Default for Furnace {
     fn default() -> Self {
+        Self::new("furnace")
+    }
+}
+
+impl Furnace {
+    pub fn new(station: &str) -> Self {
         Self {
+            station: station.to_owned(),
             slots: vec![None; 3],
             burn_left: 0,
             burn_total: 0,
             progress: 0,
         }
     }
-}
 
-impl Furnace {
     pub fn is_lit(&self) -> bool {
         self.burn_left > 0
     }
@@ -51,7 +66,7 @@ impl Furnace {
     pub fn recipe_ticks(&self, content: &Content) -> Option<u32> {
         let input = self.slots[FURNACE_INPUT].as_ref()?;
         let key = &content.item_by_id(input.item)?.key;
-        content.processing_for("furnace", key).map(|r| r.ticks)
+        content.processing_for(&self.station, key).map(|r| r.ticks)
     }
 
     fn can_smelt(&self, content: &Content) -> bool {
@@ -61,7 +76,7 @@ impl Furnace {
         let Some(item) = content.item_by_id(input.item) else {
             return false;
         };
-        let Some(recipe) = content.processing_for("furnace", &item.key) else {
+        let Some(recipe) = content.processing_for(&self.station, &item.key) else {
             return false;
         };
         if input.count < recipe.input.count {
@@ -121,7 +136,7 @@ impl Furnace {
             .expect("can_smelt checked");
         let item = content.item_by_id(input.item).expect("known item");
         let recipe = content
-            .processing_for("furnace", &item.key)
+            .processing_for(&self.station, &item.key)
             .expect("recipe");
         input.count -= recipe.input.count;
         if input.count == 0 {
@@ -141,6 +156,15 @@ impl Furnace {
             }
         }
     }
+}
+
+/// The fueled station a block hosts (`furnace`, `smelter`, `crusher`).
+pub fn fueled_station<'a>(content: &'a Content, block: &str) -> Option<&'a str> {
+    content
+        .stations()
+        .iter()
+        .find(|s| s.fueled && s.block == block)
+        .map(|s| s.key.as_str())
 }
 
 /// Loot for a chest generated inside structure number `stage - 1`,
@@ -291,14 +315,13 @@ pub enum Container {
 
 impl Container {
     /// A fresh container for a block key, if that block holds items.
-    pub fn for_block(key: &str) -> Option<Self> {
-        match key {
-            "chest" => Some(Container::Chest {
+    pub fn for_block(content: &Content, key: &str) -> Option<Self> {
+        if key == "chest" {
+            return Some(Container::Chest {
                 slots: vec![None; CHEST_SIZE],
-            }),
-            "furnace" => Some(Container::Furnace(Furnace::default())),
-            _ => None,
+            });
         }
+        fueled_station(content, key).map(|station| Container::Furnace(Furnace::new(station)))
     }
 
     pub fn slots(&self) -> &[Option<Stack>] {
@@ -455,6 +478,64 @@ mod tests {
     }
 
     #[test]
+    fn the_crusher_doubles_ores_and_the_smelter_is_twice_as_fast() {
+        let c = content();
+        let Some(Container::Furnace(mut crusher)) = Container::for_block(&c, "crusher") else {
+            panic!("the crusher holds items");
+        };
+        assert_eq!(crusher.station, "crusher");
+        crusher.slots[FURNACE_INPUT] = st(&c, "raw_iron", 2);
+        crusher.slots[FURNACE_FUEL] = st(&c, "coal", 1);
+        for _ in 0..320 {
+            crusher.tick(&c);
+        }
+        assert_eq!(crusher.slots[FURNACE_OUTPUT], st(&c, "crushed_iron", 4));
+        assert!(crusher.slots[FURNACE_INPUT].is_none());
+
+        // Food is not crushed.
+        let mut other = Furnace::new("crusher");
+        other.slots[FURNACE_INPUT] = st(&c, "raw_meat", 1);
+        other.slots[FURNACE_FUEL] = st(&c, "coal", 1);
+        for _ in 0..400 {
+            other.tick(&c);
+        }
+        assert!(other.slots[FURNACE_OUTPUT].is_none());
+        assert_eq!(
+            other.slots[FURNACE_FUEL],
+            st(&c, "coal", 1),
+            "no fuel burnt on nothing"
+        );
+
+        let mut smelter = Furnace::new("smelter");
+        let mut furnace = Furnace::default();
+        for f in [&mut smelter, &mut furnace] {
+            f.slots[FURNACE_INPUT] = st(&c, "crushed_iron", 4);
+            f.slots[FURNACE_FUEL] = st(&c, "coal", 1);
+            for _ in 0..400 {
+                f.tick(&c);
+            }
+        }
+        assert_eq!(smelter.slots[FURNACE_OUTPUT], st(&c, "iron_ingot", 4));
+        assert_eq!(furnace.slots[FURNACE_OUTPUT], st(&c, "iron_ingot", 2));
+
+        // The smelter takes metals only.
+        let mut bread = Furnace::new("smelter");
+        bread.slots[FURNACE_INPUT] = st(&c, "wheat", 1);
+        bread.slots[FURNACE_FUEL] = st(&c, "coal", 1);
+        for _ in 0..200 {
+            bread.tick(&c);
+        }
+        assert!(bread.slots[FURNACE_OUTPUT].is_none());
+    }
+
+    #[test]
+    fn furnaces_saved_before_stations_load_as_furnaces() {
+        let old = r#"{"slots":[null,null,null],"burn_left":0,"burn_total":0,"progress":0}"#;
+        let f: Furnace = serde_json::from_str(old).unwrap();
+        assert_eq!(f.station, "furnace");
+    }
+
+    #[test]
     fn fuel_is_not_wasted_without_something_to_smelt() {
         let c = content();
         let mut f = Furnace::default();
@@ -518,16 +599,16 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("platform-containers-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let mut all = Containers::default();
-        let mut chest = Container::for_block("chest").unwrap();
+        let mut chest = Container::for_block(&c, "chest").unwrap();
         chest.slots_mut()[4] = st(&c, "gold_ingot", 9);
         all.map.insert([1, 64, -2], chest.clone());
         all.map
-            .insert([5, 70, 5], Container::for_block("furnace").unwrap());
+            .insert([5, 70, 5], Container::for_block(&c, "furnace").unwrap());
         all.save(&dir).unwrap();
         let loaded = Containers::load(&dir).unwrap();
         assert_eq!(loaded.map.get(&[1, 64, -2]), Some(&chest));
         assert_eq!(loaded.map.len(), 2);
-        assert!(Container::for_block("dirt").is_none());
+        assert!(Container::for_block(&c, "dirt").is_none());
         let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -309,6 +309,37 @@ const RECIPES: Record<string, Recipe> = {
     p.speckle(shade(STONE, -0.05), 0.1);
     p.border(shade(STONE, -0.4));
   },
+  smelter_side: (p) => {
+    p.speckle(hex("#8a4b3a"), 0.08);
+    for (let y = 3; y < SIZE; y += 4) for (let x = 0; x < SIZE; x++) p.set(x, y, hex("#5d3328"));
+    for (let y = 0; y < SIZE; y++) for (let x = (Math.floor(y / 4) % 2) * 4; x < SIZE; x += 8) p.set(x, y, hex("#5d3328"));
+    p.border(hex("#3f2520"));
+    for (let y = 9; y < 13; y++) for (let x = 5; x < 11; x++) p.set(x, y, hex(y === 9 ? "#ffb347" : "#2a1a17"));
+  },
+  smelter_top: (p) => {
+    p.speckle(hex("#6e6f74"), 0.08);
+    p.border(hex("#3f2520"));
+    for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) p.set(x, y, hex(x === 5 || y === 5 || x === 10 || y === 10 ? "#2a1a17" : "#ff8a2e"));
+  },
+  crusher_side: (p) => {
+    p.speckle(shade(STONE, -0.1), 0.1);
+    p.border(hex("#5b5d63"));
+    for (let x = 2; x < 14; x++) {
+      p.set(x, 3, hex("#a9adb5"));
+      p.set(x, 12, hex("#a9adb5"));
+    }
+    for (let x = 3; x < 13; x += 2) {
+      p.set(x, 6, hex("#d0d3d9"));
+      p.set(x + 1, 7, hex("#d0d3d9"));
+      p.set(x, 9, hex("#d0d3d9"));
+      p.set(x + 1, 8, hex("#d0d3d9"));
+    }
+  },
+  crusher_top: (p) => {
+    p.speckle(shade(STONE, -0.1), 0.1);
+    p.border(hex("#5b5d63"));
+    for (let y = 4; y < 12; y++) for (let x = 4; x < 12; x++) p.set(x, y, hex((x + y) % 3 === 0 ? "#d0d3d9" : "#33353a"));
+  },
   chest: (p) => {
     p.boards(shade(PLANK, -0.15), 5);
     p.border(shade(PLANK, -0.5));

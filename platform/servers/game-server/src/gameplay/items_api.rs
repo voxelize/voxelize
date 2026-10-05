@@ -71,7 +71,11 @@ fn build_window(g: &Gameplay, id: &str) -> Option<Window> {
                     Some(guild) => g.dimensions.vaults.lock().ok()?.slots(guild),
                     None => container.slots().to_vec(),
                 };
-                Window::new(container_kind(container), slots, inventory)
+                let mut window = Window::new(container_kind(container), slots, inventory);
+                if let Container::Furnace(f) = container {
+                    window.station = f.station.clone();
+                }
+                window
             }
         },
     };
@@ -157,7 +161,17 @@ pub(super) fn window_payload(g: &Gameplay, id: &str) -> Value {
 }
 
 fn furnace_payload(f: &Furnace, g: &Gameplay) -> Value {
+    let name = g
+        .rules
+        .content()
+        .stations()
+        .iter()
+        .find(|s| s.key == f.station)
+        .map(|s| s.name.clone())
+        .unwrap_or_else(|| f.station.clone());
     json!({
+        "station": f.station,
+        "name": name,
         "burnLeft": f.burn_left,
         "burnTotal": f.burn_total,
         "progress": f.progress,
@@ -330,7 +344,7 @@ pub(super) fn block_placed(world: &mut World, voxel: [i32; 3], block: u32, place
                 empty: Vec::new(),
             })
     } else {
-        Container::for_block(&key)
+        Container::for_block(g.rules.content(), &key)
     };
     if let Some(container) = container {
         g.containers.map.insert(voxel, container);
@@ -528,7 +542,12 @@ pub(super) fn install(world: &mut World) {
                     });
                     let kind = match key.as_deref() {
                         Some("crafting_table") => Some(WindowKind::Workbench),
-                        Some("furnace") => Some(WindowKind::Furnace),
+                        Some(k)
+                            if super::containers::fueled_station(g.rules.content(), k)
+                                .is_some() =>
+                        {
+                            Some(WindowKind::Furnace)
+                        }
                         Some("chest") => Some(WindowKind::Chest),
                         Some("guild_vault") => Some(WindowKind::Chest),
                         Some("trade_stall") => Some(WindowKind::Chest),
@@ -572,8 +591,10 @@ pub(super) fn install(world: &mut World) {
                                 && !g.containers.map.contains_key(&voxel)
                             {
                                 // A container block placed before containers existed.
-                                let fresh =
-                                    Container::for_block(key.as_deref().unwrap_or_default());
+                                let fresh = Container::for_block(
+                                    g.rules.content(),
+                                    key.as_deref().unwrap_or_default(),
+                                );
                                 if let Some(fresh) = fresh {
                                     g.containers.map.insert(voxel, fresh);
                                 }

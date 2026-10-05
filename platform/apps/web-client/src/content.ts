@@ -42,7 +42,7 @@ export type ItemDef = {
 };
 
 /** Blocks a right click opens as a window. */
-export const WINDOW_BLOCKS = ["crafting_table", "furnace", "chest", "trade_stall", "guild_vault"];
+export const WINDOW_BLOCKS = ["crafting_table", "furnace", "smelter", "crusher", "chest", "trade_stall", "guild_vault"];
 
 /**
  * What a right click on a block does: open its window, use it (or use the

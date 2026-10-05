@@ -262,7 +262,14 @@ pub(super) fn install(world: &mut World) {
 fn blast_proof(key: &str) -> bool {
     matches!(
         key,
-        "chest" | "furnace" | "trade_stall" | "guild_vault" | "guild_hall" | "anvil"
+        "chest"
+            | "furnace"
+            | "smelter"
+            | "crusher"
+            | "trade_stall"
+            | "guild_vault"
+            | "guild_hall"
+            | "anvil"
     )
 }
 

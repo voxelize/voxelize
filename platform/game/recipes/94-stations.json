@@ -1,0 +1,4 @@
+[
+  { "type": "shaped", "key": "smelter", "pattern": ["iii", "ifi", "sss"], "symbols": { "i": "iron_ingot", "f": "furnace", "s": "stone" }, "result": { "item": "smelter" } },
+  { "type": "shaped", "key": "crusher", "pattern": ["i i", "ifi", "sss"], "symbols": { "i": "iron_ingot", "f": "furnace", "s": "stone" }, "result": { "item": "crusher" } }
+]
