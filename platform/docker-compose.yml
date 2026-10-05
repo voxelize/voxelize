@@ -179,6 +179,8 @@ services:
       GAME_DATABASE_URL: mysql://platform_game:${GAME_DB_PASSWORD}@mysql:3306/platform
       # /platform/metrics asks for it (Prometheus, profile "observability").
       GAME_METRICS_TOKEN: ${GAME_METRICS_TOKEN:-}
+      # Movement checks; `off` only for scripted test bots, which set positions.
+      GAME_ANTICHEAT: ${GAME_ANTICHEAT:-on}
       # Voice relay (the `voice` profile): per-player credentials signed with
       # the TURN server's secret. Empty: direct connections only.
       GAME_TURN_URLS: ${GAME_TURN_URLS:-}

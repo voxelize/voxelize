@@ -23,6 +23,11 @@ curl localhost:8080/api/v1/auth/register -H 'content-type: application/json' \
   -d '{"username":"first_player","email":"me@example.com","password":"a long password"}'
 ```
 
+CI builds every image from these files, starts the stack with
+`docker compose up` and plays through nginx on every push to main (job
+"platform stack end to end": smoke, reports, moderation, and player
+records reaching MySQL through the game server's own account).
+
 ## Database users
 
 The game servers keep player records in MySQL (`GAME_DATABASE_URL`) with
