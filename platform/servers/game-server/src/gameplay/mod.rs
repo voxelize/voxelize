@@ -6,6 +6,7 @@
 //! sender with a `platform.result` event plus a fresh `platform.inventory`
 //! snapshot when the inventory changed.
 
+pub mod anticheat;
 pub mod automation;
 pub mod chat;
 pub mod combat;
@@ -33,6 +34,7 @@ pub mod guilds;
 pub mod land;
 pub mod market;
 pub mod stall;
+pub use anticheat::AntiCheatSystem;
 pub use market::MarketSystem;
 pub use plugins::PluginSystem;
 pub use sanctions::SanctionSystem;
@@ -1136,6 +1138,14 @@ pub fn install(
                     Some(home) => json!({ "x": home[0], "z": home[2], "feet": home }),
                     None => json!({ "x": 0, "z": 0 }),
                 };
+                if let Some(p) = world
+                    .ecs()
+                    .write_resource::<Gameplay>()
+                    .players
+                    .get_mut(client_id)
+                {
+                    p.moved = rules::MOVED_GRACE;
+                }
                 persist(world, client_id);
                 send(world, client_id, RESPAWN_EVENT, spawn);
                 send_vitals(world, client_id, None);

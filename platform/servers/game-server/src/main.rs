@@ -227,6 +227,11 @@ fn build_world(
                 "platform-metrics",
                 &["platform-save"],
             )
+            .with(
+                gameplay::AntiCheatSystem::default(),
+                "platform-anticheat",
+                &["platform-metrics"],
+            )
     });
     world
 }
@@ -362,6 +367,9 @@ async fn main() -> std::io::Result<()> {
         .map(|b| gameplay::bridge::Bridge::start(b.url.clone(), b.token.clone(), &config.world));
     let voice_ice_servers = Arc::new(config.voice_ice_servers.clone());
     let sanctions: gameplay::sanctions::SharedSanctions = Default::default();
+    if !config.anticheat {
+        warn!("GAME_ANTICHEAT=off: movement is not checked");
+    }
     // Server plugins (content pack `plugins/`), their stores beside the saves.
     let plugins = {
         let mut p = gameplay::plugins::Plugins::load(
@@ -387,6 +395,7 @@ async fn main() -> std::io::Result<()> {
             voice_ice_servers: voice_ice_servers.clone(),
             plugins: plugins.clone(),
             sanctions: sanctions.clone(),
+            anticheat: config.anticheat,
             siege_seconds: config.siege_seconds,
         };
         server

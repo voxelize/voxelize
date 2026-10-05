@@ -124,6 +124,22 @@ Each detector records a structured signal (`player`, `kind`, `severity`,
 | currency manipulation | all money through the ledger; `ledger:verify` invariants |
 | bot farming | reward-rate outliers per account and IP, repetitive input timing |
 
+**Movement checks (implemented, `gameplay/anticheat.rs`).** Four times a
+second, for every player in survival or adventure (not creative, not
+spectating, not within 3 s of being moved by the server or 10 s of joining,
+not just hurt): horizontal speed over a 1 s window above any sprint with
+their Speed effect ×1.5 (`speed`); more than 2.5 s with no ground, water
+or loaded edge under them while not falling (`hover`); feet and head in
+solid blocks for 0.75 s (`noclip`). A violation sends them back — down
+onto the ground below for hovering, otherwise to the last place they stood
+fairly — and counts it (`platform_anticheat_violations_total`). Ten of a
+kind within five minutes are reported to the backend
+(`POST /api/internal/v1/flags`), which writes `anticheat.<kind>` to the
+audit log for moderators; nothing is banned automatically. Reach, mining
+time and intent rate are refused per intent (§4). `GAME_ANTICHEAT=off`
+switches the movement checks off (scripted test bots move by setting
+positions).
+
 ## 6. Economic safety
 
 See [ECONOMY_LEDGER.md](ECONOMY_LEDGER.md): integer money, double entry,

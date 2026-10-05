@@ -113,6 +113,13 @@ pub enum Request {
         dimension: String,
         players: Vec<String>,
     },
+    /// Movement checks caught a player repeatedly (for moderators).
+    Flag {
+        world: String,
+        player: String,
+        kind: &'static str,
+        count: u32,
+    },
     /// A player killed another: the backend scores it for their guilds' war.
     WarKill {
         world: String,
@@ -136,6 +143,7 @@ impl Request {
             Request::UploadBlueprint { .. } => "blueprint_upload",
             Request::FetchBlueprint { .. } => "blueprint_fetch",
             Request::Presence { .. } => "presence",
+            Request::Flag { .. } => "flag",
         }
     }
 
@@ -148,6 +156,7 @@ impl Request {
             | Request::WarKill { world, .. }
             | Request::Reward { world, .. }
             | Request::Presence { world, .. }
+            | Request::Flag { world, .. }
             | Request::Capture { world, .. }
             | Request::UploadBlueprint { world, .. }
             | Request::FetchBlueprint { world, .. } => world,
@@ -351,6 +360,18 @@ async fn send(
     request: Request,
 ) -> Response {
     match request {
+        Request::Flag {
+            player,
+            kind,
+            count,
+            ..
+        } => {
+            let body = json!({ "world": shard, "player": player, "kind": kind, "count": count });
+            if let Err(e) = post(client, &format!("{base}/flags"), token, body).await {
+                log::warn!("anti-cheat flag for {player} not sent ({e})");
+            }
+            Response::PresenceSent(true)
+        }
         Request::Presence {
             dimension, players, ..
         } => {

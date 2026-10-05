@@ -144,8 +144,16 @@ pub struct MiningSession {
     pub started_ms: u64,
 }
 
+/// Seconds movement checks wait after the server moves a player.
+pub const MOVED_GRACE: f32 = 3.0;
+/// Seconds after joining before movement is checked.
+pub const JOIN_GRACE: f32 = 10.0;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerState {
+    /// Seconds during which movement checks leave the player alone: the
+    /// server just moved them (joining, respawning, a teleport).
+    pub moved: f32,
     pub inventory: Inventory,
     pub mining: Option<MiningSession>,
     pub realm: Realm,
@@ -197,6 +205,9 @@ pub struct OpenWindow {
 impl PlayerState {
     pub fn new(inventory: Inventory, realm: Realm, vitals: Vitals) -> Self {
         Self {
+            // Joining: the client loads its surroundings and is placed on
+            // the ground; give it longer.
+            moved: JOIN_GRACE,
             inventory,
             mining: None,
             realm,

@@ -173,6 +173,8 @@ pub struct Dimensions {
     pub plugins: super::plugins::SharedPlugins,
     /// Moderation from the backend (suspended, banned, muted players).
     pub sanctions: super::sanctions::SharedSanctions,
+    /// Whether movement checks run (`GAME_ANTICHEAT`).
+    pub anticheat: bool,
 }
 
 impl Dimensions {
@@ -365,6 +367,7 @@ impl<'a> specs::System<'a> for PortalSystem {
                 player.travel.settle = SETTLE_SECONDS;
                 player.travel.in_portal = 0.0;
                 player.vitals.start_grace(5.0);
+                player.moved = super::rules::MOVED_GRACE;
                 send(&mut events, id, TELEPORT_EVENT, json!({ "feet": feet }));
                 continue;
             }
@@ -480,6 +483,7 @@ mod tests {
             voice_ice_servers: Arc::new(serde_json::json!([])),
             plugins: Arc::new(std::sync::Mutex::new(super::super::plugins::Plugins::none())),
             sanctions: Default::default(),
+            anticheat: true,
             siege_seconds: 600.0,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);

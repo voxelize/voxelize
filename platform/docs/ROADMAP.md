@@ -182,6 +182,12 @@ Then: world backups — `backup-worlds.sh` (one archive of every world's
 saves, retention, optional upload to object storage) and
 `restore-worlds.sh` (keeps what was there aside), checked by
 `test-backups.sh` in CI.
+Then: anti-cheat movement checks — speed, hovering and walking through
+walls send the player back (hovering: down onto the ground), repeat
+offenders are reported to moderators through the audit log; creative,
+spectators and players the server just moved are left alone. Tests: unit
+tests, AdminTest, `tests/bots/anticheat.mjs`; a browser player sprinting
+and jumping is not caught.
 Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅

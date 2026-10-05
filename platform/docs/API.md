@@ -454,6 +454,11 @@ players who are suspended, banned or muted now. Game servers fetch it as
 often as the land feed: suspended and banned players are taken out of play,
 muted ones cannot chat or use voice.
 
+### `POST /api/internal/v1/flags`
+`{ "world", "player", "kind": "speed" | "hover" | "noclip", "count" }` →
+`201`: a game server's movement checks caught a player repeatedly; written
+to the audit log as `anticheat.<kind>` for moderators. `404 player_not_found`.
+
 ### `GET /api/internal/v1/metrics`
 Prometheus text format: `platform_accounts{status}`, `platform_players_online`,
 `platform_world_players{world,dimension}`, `platform_world_report_age_seconds`,

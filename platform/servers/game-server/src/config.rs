@@ -34,6 +34,9 @@ pub struct GameConfig {
     /// Bearer token `/platform/metrics` asks for (`GAME_METRICS_TOKEN`);
     /// none: open (keep it off the public listener).
     pub metrics_token: Option<String>,
+    /// Movement checks (`GAME_ANTICHEAT`, on unless `off`: scripted test
+    /// bots move by setting positions and would be caught).
+    pub anticheat: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -191,6 +194,7 @@ impl GameConfig {
                 }
                 s as f32
             },
+            anticheat: env.get("GAME_ANTICHEAT").is_none_or(|v| v != "off"),
             metrics_token: env
                 .get("GAME_METRICS_TOKEN")
                 .filter(|t| !t.is_empty())

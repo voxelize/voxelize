@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\MarketController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Api\V1\WorldController;
 use App\Http\Controllers\Internal\BlueprintBridgeController;
+use App\Http\Controllers\Internal\FlagController;
 use App\Http\Controllers\Internal\GuildFeedController;
 use App\Http\Controllers\Internal\LandFeedController;
 use App\Http\Controllers\Internal\MarketBridgeController;
@@ -162,4 +163,5 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::get('worlds', WorldFeedController::class);
     Route::get('sanctions', SanctionFeedController::class);
     Route::get('metrics', MetricsController::class);
+    Route::post('flags', [FlagController::class, 'store']);
 });

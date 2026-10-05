@@ -84,6 +84,19 @@ class AdminTest extends TestCase
         $this->assertSame([], $ledger->verify());
     }
 
+    public function test_movement_flags_reach_the_audit_log(): void
+    {
+        $player = User::factory()->create(['username' => 'zoomer']);
+        $admin = User::factory()->create(['roles' => ['admin']]);
+        $flag = fn (array $body) => $this->withHeader('Authorization', 'Bearer '.self::TOKEN)->postJson('/api/internal/v1/flags', $body);
+        $flag(['world' => 'main', 'player' => $player->public_id, 'kind' => 'speed', 'count' => 12])->assertCreated();
+        $flag(['world' => 'main', 'player' => $player->public_id, 'kind' => 'teleport', 'count' => 1])->assertStatus(422);
+        $flag(['world' => 'main', 'player' => 'nobody', 'kind' => 'hover', 'count' => 10])->assertNotFound();
+        $this->as($admin)->getJson('/api/v1/admin/audit?action=anticheat')->assertJsonCount(1, 'entries')
+            ->assertJsonPath('entries.0.action', 'anticheat.speed')->assertJsonPath('entries.0.subject_id', $player->public_id);
+        $this->as($admin)->getJson('/api/v1/admin/players/zoomer')->assertJsonPath('audit.0.reason', '12 violations in 5 minutes');
+    }
+
     public function test_the_server_monitor_shows_worlds_and_players(): void
     {
         $admin = User::factory()->create(['roles' => ['admin']]);
