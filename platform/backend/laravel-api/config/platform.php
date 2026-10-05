@@ -115,6 +115,13 @@ return [
         'daily_cap' => (int) env('REWARDS_DAILY_CAP', 300),
     ],
 
+    // Accounts: links in emails (password reset) open the web client here;
+    // with require_verified_email, unconfirmed accounts get no game tickets.
+    'auth' => [
+        'client_url' => (string) env('PLATFORM_CLIENT_URL', env('APP_URL', 'http://localhost:8080')),
+        'require_verified_email' => (bool) env('AUTH_REQUIRE_VERIFIED_EMAIL', false),
+    ],
+
     // Cosmetics: bought once with Crowns (burned), then worn. Outfits colour
     // the body, arms and legs; hats are a picture the client draws (`art`)
     // or a band of colour. Game servers check the shape of what is worn.

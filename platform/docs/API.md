@@ -24,7 +24,53 @@ empty `CRN` wallet. Rate limited (`auth`).
 Revokes the current token.
 
 ### `GET /me` 🔒
-`{ "user": { "id", "username", "status" } }`. Never returns email or numeric id.
+`{ "user": { "id", "username", "status", "email_verified" } }`. Never returns
+email or numeric id.
+
+## Account
+
+Mail goes through Laravel's mailer (`MAIL_*`); links point at the web client
+(`PLATFORM_CLIENT_URL`).
+
+### `POST /auth/password/forgot`
+`{ "email": "…" }` → always `202`, whether or not the address is known (no
+account probing). A known address gets a link
+`<client>/?reset=<token>&email=<email>`, valid 60 minutes. Rate limited (`auth`).
+
+### `POST /auth/password/reset`
+`{ "email", "token", "password" }` → `200`; `422 invalid_reset` for a wrong,
+used or expired token. Every token of the account is revoked. Audited
+(`account.password_reset`).
+
+### `PUT /me/password` 🔒
+`{ "current_password", "password" }` → `200`; `422 wrong_password`. Other
+sessions end; the current one stays.
+
+### `POST /me/email/verification` 🔒
+Sends a fresh confirmation link (`202`; `200` with `already_verified`).
+
+### `GET /auth/email/verify/{id}/{hash}` (signed link)
+The link from the confirmation mail (24 h). Marks the address confirmed and
+redirects to `<client>/?verified=1` (`?verified=0` for a link that does not
+match the account). With `AUTH_REQUIRE_VERIFIED_EMAIL=true`, `POST
+/game/tickets` answers `403 email_unverified` until the address is confirmed.
+Registration sends the first link.
+
+### `GET /me/export` 🔒
+A JSON download of everything kept about the player: account, wallets with
+their ledger entries, game saves, lands, listings, contracts, guild, friends,
+worlds, cosmetics and recent history.
+
+### `DELETE /me` 🔒
+`{ "password" }` → `200`; `422 wrong_password`; `409` when something must be
+settled first: `leader_must_hand_over` (lead of a guild with other members),
+`auction_has_bids` (an auction of yours has bids), `leading_bid` (you lead a
+live auction), `contract_in_progress` (you accepted or posted a contract that
+is being worked). Otherwise open listings and contracts are cancelled, personal
+lands released, the guild left, friendships, memberships and game saves
+deleted, owned worlds archived and every token revoked; the account row stays
+only as an anonymised tombstone (`deleted_…`, status `deleted`) so ledgers and
+the audit trail still add up. Audited (`account.deleted`).
 
 ## Game
 

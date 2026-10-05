@@ -46,6 +46,18 @@ flowchart LR
 Passwords are hashed by Laravel (bcrypt, cost 12). The game server never sees
 a password or a web token.
 
+### Account recovery and deletion
+
+Password reset tokens are Laravel's (hashed in `password_reset_tokens`, 60
+minutes, one use); asking for one never reveals whether an address exists.
+A reset or password change revokes the other bearer tokens. Email
+confirmation links are signed URLs (24 h) bound to the public id and the
+address hash; `AUTH_REQUIRE_VERIFIED_EMAIL` keeps unconfirmed accounts out of
+the game. Deleting an account needs the password, refuses while money is in
+flight (bids, accepted contracts, a guild to hand over), removes personal
+data and game saves, and keeps an anonymised row so the ledger stays
+balanced. Players can download their data (`GET /me/export`).
+
 ### Game tickets
 
 ```

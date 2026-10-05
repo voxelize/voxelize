@@ -496,6 +496,12 @@ and a plugin that keeps failing is switched off. `game-server --check
 <pack>` validates a pack and its plugins; a template
 (`tools/plugin-template`), a shipped example (`welcome`: greetings,
 /stats) and docs/MODDING.md. Tests: unit tests, `tests/bots/plugins.mjs`.
+Then: accounts — forgotten passwords reset from an emailed link, email
+confirmation (optionally required to play), password change ending other
+sessions, a download of one's data and account deletion that settles or
+refuses what is in flight and anonymises the rest (`/auth/password/*`,
+`/me/*`, account panel in the game settings, Mailpit for local mail).
+Tests: AccountTest, client unit tests, `tests/e2e/account.mjs`.
 
 ## Definition of done (whole project)
 

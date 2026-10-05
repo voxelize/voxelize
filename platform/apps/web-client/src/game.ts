@@ -17,6 +17,7 @@ import { ChatBox, type ChatLine } from "./chat";
 import { applyLook, sanitizeLook, WardrobePanel } from "./cosmetics";
 import { SERVER_KEY, WORLD_KEY } from "./worlds";
 import { VoiceChat } from "./voice";
+import { accountPanel } from "./account";
 import { api, type Look } from "./api";
 import { FriendsPanel } from "./friends";
 import { NpcPanel, type Offer } from "./npc";
@@ -205,6 +206,16 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   };
   const settings = loadSettings();
   const settingsEl = settingsPanel(settings, applySettings);
+  // Account (password, confirmation email, data, deleting it) from the settings.
+  void api.me().then((me) => {
+    const account = accountPanel(me);
+    const open = Object.assign(document.createElement("button"), { type: "button", textContent: "Account…", className: "link" });
+    open.addEventListener("click", () => {
+      settingsEl.hidden = true;
+      account.hidden = false;
+    });
+    settingsEl.insertBefore(open, settingsEl.lastElementChild);
+  }).catch(() => undefined);
   const gear = document.createElement("button");
   gear.id = "settings-button";
   gear.type = "button";
@@ -449,7 +460,9 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     controls.unlock();
     const box = Object.assign(document.createElement("section"), { id: "kicked", className: "panel" });
     box.append(
-      Object.assign(document.createElement("h2"), { textContent: status === "banned" ? "Your account is banned" : "Your account is suspended" }),
+      Object.assign(document.createElement("h2"), {
+        textContent: status === "banned" ? "Your account is banned" : status === "deleted" ? "This account was deleted" : "Your account is suspended",
+      }),
       Object.assign(document.createElement("p"), { textContent: reason ? `Reason: ${reason}` : "A moderator ended this session." }),
     );
     document.body.append(box);

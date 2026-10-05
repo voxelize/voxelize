@@ -86,6 +86,20 @@ their own, behind one gateway:
 - `worlds/test-host-worlds.sh` checks the host script against a fake feed
   and a fake Docker (CI runs it).
 
+## Mail
+
+Password resets and email confirmation send mail through `MAIL_*` in `.env`
+(SMTP by default). For local work start Mailpit and read the mail at
+http://127.0.0.1:8025:
+
+```sh
+docker compose --profile mail up -d
+```
+
+Set `PLATFORM_CLIENT_URL` to the address players open (links in the mail
+point there) and `AUTH_REQUIRE_VERIFIED_EMAIL=true` to keep unconfirmed
+accounts out of the game.
+
 ## Metrics and dashboards
 
 ```sh

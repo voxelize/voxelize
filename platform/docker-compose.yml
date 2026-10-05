@@ -35,6 +35,18 @@ x-api-env: &api-env
   # Blueprint layouts live in MinIO (S3 API, the AWS_* values below).
   BLUEPRINT_DISK: s3
   GAME_SERVER_PUBLIC_URL: ws://localhost:${HTTP_PORT:-8080}/ws/
+  # Email (password resets, address confirmation). Development: the
+  # "mail" profile's Mailpit (http://127.0.0.1:8025) catches everything.
+  MAIL_MAILER: ${MAIL_MAILER:-smtp}
+  MAIL_HOST: ${MAIL_HOST:-mailpit}
+  MAIL_PORT: ${MAIL_PORT:-1025}
+  MAIL_USERNAME: ${MAIL_USERNAME:-}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@localhost}
+  MAIL_FROM_NAME: Platform
+  # Links in emails open the web client here.
+  PLATFORM_CLIENT_URL: ${PLATFORM_CLIENT_URL:-http://localhost:8080}
+  AUTH_REQUIRE_VERIFIED_EMAIL: ${AUTH_REQUIRE_VERIFIED_EMAIL:-false}
 
 services:
   mysql:
@@ -183,6 +195,13 @@ services:
       - ./apps/web-client/dist:/usr/share/nginx/html:ro
     ports:
       - "${HTTP_PORT:-8080}:80"
+
+  # Development mail catcher: `docker compose --profile mail up`.
+  mailpit:
+    profiles: ["mail"]
+    image: axllent/mailpit:v1.20
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
 
   # Metrics and dashboards: `docker compose --profile observability up`.
   # Put the metrics and service tokens in infrastructure/observability/secrets/.

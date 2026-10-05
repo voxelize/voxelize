@@ -5,7 +5,7 @@
 
 const TOKEN_KEY = "platform.token";
 
-export type User = { id: string; username: string; status: string; roles?: string[] };
+export type User = { id: string; username: string; status: string; roles?: string[]; email_verified?: boolean };
 export type Ticket = { ticket: string; expires_at: number; world: string; realm: string; url: string };
 
 export class ApiError extends Error {
@@ -264,6 +264,17 @@ export const api = {
   },
 
   me: () => request<{ user: User }>("/me").then((r) => r.user),
+
+  account: {
+    forgot: (email: string) => request<{ sent: boolean }>("/auth/password/forgot", { method: "POST", body: JSON.stringify({ email }) }),
+    reset: (email: string, token: string, password: string) =>
+      request<{ reset: boolean }>("/auth/password/reset", { method: "POST", body: JSON.stringify({ email, token, password }) }),
+    changePassword: (current: string, password: string) =>
+      request<{ changed: boolean }>("/me/password", { method: "PUT", body: JSON.stringify({ current, password }) }),
+    resendVerification: () => request<{ sent?: boolean; verified?: boolean }>("/me/email/verification", { method: "POST" }),
+    export: () => request<unknown>("/me/export"),
+    delete: (password: string) => request<{ deleted: boolean }>("/me", { method: "DELETE", body: JSON.stringify({ password }) }),
+  },
 
   admin: {
     players: (q = "", status = "") =>

@@ -28,6 +28,12 @@ class AuthController extends Controller
 
             return $user;
         });
+        // Confirm the address (a failing mail server never blocks sign-up).
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json([
             'user' => $this->present($user),
@@ -80,6 +86,7 @@ class AuthController extends Controller
             'username' => $user->username,
             'status' => $user->status,
             'roles' => $user->gameRoles(),
+            'email_verified' => $user->email_verified_at !== null,
         ];
     }
 }

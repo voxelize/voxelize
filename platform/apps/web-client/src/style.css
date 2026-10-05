@@ -1178,3 +1178,24 @@ button.danger {
     margin-bottom: 6px;
   }
 }
+
+.account-form {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.account-form h3 {
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+
+.danger-zone {
+  border-top: 1px solid rgba(255, 90, 90, 0.35);
+  padding-top: 8px;
+}
+
+.account-status {
+  min-height: 1em;
+  color: var(--muted);
+}

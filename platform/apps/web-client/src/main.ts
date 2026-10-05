@@ -1,5 +1,6 @@
 import "./style.css";
 
+import { linkIntent, resetForm } from "./account";
 import { api, ApiError } from "./api";
 import { Content } from "./content";
 import { Hud } from "./hud";
@@ -80,11 +81,37 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-if (api.hasSession()) {
-  api
-    .me()
-    .then(() => enter())
-    .catch(() => api.forget());
+// Forgotten password: the address gets a link to the reset form.
+document.getElementById("auth-forgot")?.addEventListener("click", async () => {
+  const email = (prompt("Your account's email address:") ?? "").trim();
+  if (!email) return;
+  try {
+    await api.account.forgot(email);
+    error.textContent = "If that address has an account, a reset link is on its way.";
+  } catch (e) {
+    error.textContent = e instanceof ApiError ? e.message : "Could not reach the server";
+  }
+});
+
+// Opened from an email link: reset the password, or note the confirmation.
+const intent = linkIntent(location.search);
+if (intent?.kind === "reset") {
+  document.getElementById("auth")!.hidden = true;
+  void resetForm(intent.token, intent.email).then(() => {
+    document.getElementById("auth")!.hidden = false;
+    error.textContent = "Password changed: sign in with the new one.";
+  });
+} else {
+  if (intent?.kind === "verified") {
+    error.textContent = intent.ok ? "Your email address is confirmed." : "That confirmation link is not valid.";
+    history.replaceState(null, "", location.pathname);
+  }
+  if (api.hasSession()) {
+    api
+      .me()
+      .then(() => enter())
+      .catch(() => api.forget());
+  }
 }
 
 // Installable app shell (PWA). Only in production builds served over a

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordLink;
+use App\Notifications\VerifyEmailLink;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -24,6 +26,9 @@ class User extends Authenticatable
     public const STATUS_SUSPENDED = 'suspended';
 
     public const STATUS_BANNED = 'banned';
+
+    /** Deleted by the player: anonymised, kept for the ledger and audit log. */
+    public const STATUS_DELETED = 'deleted';
 
     protected static function booted(): void
     {
@@ -70,6 +75,17 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->status === self::STATUS_ACTIVE;
+    }
+
+    /** The reset link goes to the web client, which posts the new password. */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordLink($token));
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailLink);
     }
 
     public function wallets(): HasMany

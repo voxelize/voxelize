@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\AdminController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BlueprintController;
@@ -33,10 +34,18 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+    Route::post('auth/password/forgot', [AccountController::class, 'forgot'])->middleware('throttle:auth');
+    Route::post('auth/password/reset', [AccountController::class, 'reset'])->middleware('throttle:auth');
+    Route::get('auth/email/verify/{id}/{hash}', [AccountController::class, 'verify'])
+        ->middleware(['signed', 'throttle:auth'])->name('verification.verify');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
+        Route::put('me/password', [AccountController::class, 'changePassword'])->middleware('throttle:auth');
+        Route::post('me/email/verification', [AccountController::class, 'resendVerification'])->middleware('throttle:auth');
+        Route::get('me/export', [AccountController::class, 'export']);
+        Route::delete('me', [AccountController::class, 'destroy'])->middleware('throttle:auth');
 
         Route::post('game/tickets', [GameTicketController::class, 'store'])->middleware('throttle:tickets');
 

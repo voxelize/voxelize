@@ -18,6 +18,9 @@ class GameTicketController extends Controller
         if (! $user->isActive()) {
             return response()->json(['error' => ['code' => 'account_'.$user->status, 'message' => 'This account cannot join worlds.']], 403);
         }
+        if (config('platform.auth.require_verified_email') && $user->email_verified_at === null) {
+            return response()->json(['error' => ['code' => 'email_unverified', 'message' => 'Confirm your email address first (see your inbox).']], 403);
+        }
         $world = $worlds->find($data['world']);
         if (! $world) {
             return response()->json(['message' => 'The selected world is invalid.', 'errors' => ['world' => ['The selected world is invalid.']]], 422);
