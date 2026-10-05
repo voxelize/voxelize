@@ -120,7 +120,14 @@ server's own database account through a non-blocking writer, read back
 consistently across dimensions, old files imported on first load), shown
 in the admin panel; files only for standalone development. Tests: store
 tests against MySQL (CI), AdminTest, the bots on a MySQL stack.
-Remaining: region files, incremental world backups to object storage.
+Done since: incremental world backups — full archives every 24 runs and
+changed files only in between (SHA-256 manifests, deletions honoured on
+restore, chains pruned whole, uploaded to object storage);
+`test-backups.sh` in CI.
+Not planned: region files. Chunks are one small file each, written
+atomically; at the sizes worlds reach here the file count is not a
+bottleneck, and one file per chunk keeps writes torn-proof and backups
+incremental per chunk (docs/CHUNK_FORMAT.md).
 
 ## Phase 7 — Multiplayer 🟡
 

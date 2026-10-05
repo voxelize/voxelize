@@ -44,12 +44,16 @@ that table.
 
 - `backup/backup.sh`: consistent `mysqldump --single-transaction` with the
   binlog position recorded, for point-in-time recovery by replaying binlogs.
-- `backup/backup-worlds.sh`: every world's saves (chunks, players,
-  containers, lying items, animals, plugin stores) as one archive, the
-  newest `BACKUP_KEEP` (14) kept, uploaded to an `mc` alias when `S3_ALIAS`
-  is set (the MinIO `platform-backups` bucket keeps versions). Save files
-  are renamed into place, so copying a running world never catches a torn
-  file. Run it daily (cron or a scheduler), for example:
+- `backup/backup-worlds.sh`: incremental world backups. The first archive
+  (and every `FULL_EVERY`-th, 24 by default, or with `BACKUP_FULL=1`) holds
+  every save (chunks, players, containers, lying items, animals, plugin
+  stores); the others hold only the files whose content changed, with a
+  manifest of every file's SHA-256 and the archive they build on. The
+  newest `BACKUP_KEEP` (7) chains are kept, a chain always whole; archives
+  are uploaded to an `mc` alias when `S3_ALIAS` is set (the MinIO
+  `platform-backups` bucket keeps versions). Save files are renamed into
+  place, so copying a running world never catches a torn file. Run it
+  hourly, for example:
 
   ```sh
   docker compose run --rm --user root \
@@ -57,8 +61,11 @@ that table.
     -e BACKUP_DIR=/backup/out --entrypoint sh migrate /backup/backup-worlds.sh
   ```
 - `backup/restore-worlds.sh <archive> <worlds dir>`: with the game server
-  stopped, puts a backup back and moves what was there aside
-  (`<dir>.before-<time>`), never deleting it.
+  stopped, puts any backup back — an incremental one with the full archive
+  and incrementals before it, dropping files deleted since and checking
+  every file against the manifest — and moves what was there aside
+  (`<dir>.before-<time>`), never deleting it. A chain with a missing link
+  is refused.
 - `backup/test-backups.sh` checks both (CI runs it).
 
 ## Building images behind a TLS-intercepting proxy

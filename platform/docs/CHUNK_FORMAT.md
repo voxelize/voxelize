@@ -147,15 +147,20 @@ retried with a bounded count and logged, never dropped silently.
 - Block ids are stable forever once a world uses them. Removing a block from
   content requires a remap migration; reusing an id is refused by review.
 
-## 8. Planned: region files and write-ahead log (phase 6)
+## 8. Region files, write-ahead log and backups: decided
 
-One JSON file per chunk is simple and crash-safe but costs an inode per
-chunk. Phase 6 introduces:
+The plan here was region files (32×32 chunks per file), a write-ahead log
+and content-addressed backups. What shipped instead, and why:
 
-1. **Region files**: 32×32 chunks per file with an offset table and
-   per-chunk zstd compression, written append-then-swap.
-2. **Write-ahead log** for sensitive changes (block entities holding items,
-   land-protected edits): each change is appended and fsynced before it is
-   acknowledged, and replayed on startup after a crash.
-3. **Incremental backups**: region files are content-addressed and uploaded
-   to object storage when they change ([../infrastructure/README.md](../infrastructure/README.md)).
+1. **No region files.** One JSON file per chunk, written to a temporary
+   name and renamed, is never torn by a crash and needs no compaction. The
+   cost is an inode per chunk, which at the world sizes reached here (tens
+   of thousands of chunks) is not a bottleneck; region files would trade
+   that for append-then-swap rewrites of whole regions.
+2. **No separate write-ahead log.** What a crash can lose is bounded and
+   written down above (a block changed in the last ~100 ms may come back;
+   nothing is torn; money lives in the backend's ledger, never here).
+3. **Incremental backups** work per file: `backup-worlds.sh` archives only
+   the chunk and player files whose SHA-256 changed since the last run,
+   with a manifest that lets a restore rebuild any point exactly
+   ([../infrastructure/README.md](../infrastructure/README.md), "Backups").
