@@ -367,7 +367,7 @@ and a price line per listing. Guild sellers sell from guild stalls (phase
 
 Done: capture in the game (box up to 32³, only where you may build,
 palette + run-length layout, bill of materials), layouts in object storage
-(MinIO through the S3 driver; local disk in development) with a SHA-256
+(object storage through the S3 driver; local disk in development) with a SHA-256
 checked on every read, drafts, pricing, publishing, limited editions,
 licences sold in one ledger transaction paying the creator and the fee,
 moderation (`blueprints:reject`), provenance in the audit log; building a

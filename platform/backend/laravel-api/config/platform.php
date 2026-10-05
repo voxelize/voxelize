@@ -98,7 +98,7 @@ return [
     ],
 
     'blueprints' => [
-        // Where blueprint layouts are kept: `s3` (MinIO in the stack) or `local`.
+        // Where blueprint layouts are kept: `s3` (the stack's object storage) or `local`.
         'disk' => env('BLUEPRINT_DISK', 'local'),
         // Largest blueprint along each axis, in blocks.
         'max_side' => 32,

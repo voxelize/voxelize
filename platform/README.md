@@ -20,7 +20,7 @@ repository.
 | `apps/web-client` | browser client (TypeScript, Three.js via `@voxelize/core`) |
 | `game/` | the content pack (JSON) |
 | `tests/bots` | protocol-level bots: end-to-end smoke test, load generation |
-| `infrastructure/` | Docker, Nginx, MySQL, Redis, MinIO |
+| `infrastructure/` | Docker, Nginx, MySQL, Redis, object storage (SeaweedFS, S3 API) |
 | `tests/fixtures` | cross-language test vectors |
 
 ## Quick start (Docker)

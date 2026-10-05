@@ -11,7 +11,7 @@ Development stack defined in `platform/docker-compose.yml`.
 | `game-server` | `platform-game-server` | world `main`, persistent volume `world-data` | internal |
 | `mysql` | mysql 8.4 | source of truth; binlog kept 7 days for point-in-time recovery | `127.0.0.1:3306` |
 | `redis` | redis 7 | cache, sessions, queues, rate limits (AOF on) | internal |
-| `minio` + `minio-init` | MinIO | object storage: `platform` and versioned `platform-backups` buckets | console `127.0.0.1:9001` |
+| `storage` + `storage-init` | SeaweedFS 3.97 | object storage with an S3 API (credentials from `.env`, nothing anonymous): `platform` (blueprint layouts) and `platform-backups` buckets | internal |
 
 ## Start
 
@@ -55,8 +55,8 @@ that table.
   stores); the others hold only the files whose content changed, with a
   manifest of every file's SHA-256 and the archive they build on. The
   newest `BACKUP_KEEP` (7) chains are kept, a chain always whole; archives
-  are uploaded to an `mc` alias when `S3_ALIAS` is set (the MinIO
-  `platform-backups` bucket keeps versions). Save files are renamed into
+  are uploaded to an `mc` alias when `S3_ALIAS` is set (for example the
+  stack's `platform-backups` bucket at `http://storage:8333`). Save files are renamed into
   place, so copying a running world never catches a torn file. Run it
   hourly, for example:
 
@@ -145,6 +145,6 @@ public listener.
 - Terminate TLS at Nginx (or a load balancer) and serve `wss://`.
 - Set `APP_ENV=production`, `APP_DEBUG=false`, and real secrets from a secret
   manager, never from a committed file.
-- Do not publish MySQL, Redis or MinIO ports.
+- Do not publish MySQL, Redis or object storage ports.
 - Monitoring: see "Metrics and dashboards" above; add an Alertmanager
   route for the rules in `observability/alerts.yml`.

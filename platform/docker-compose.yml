@@ -21,18 +21,17 @@ x-api-env: &api-env
   SESSION_DRIVER: redis
   REDIS_CLIENT: predis
   REDIS_HOST: redis
-  # S3 (MinIO) becomes the default disk with blueprint storage (phase 16);
-  # the AWS_* values below are already wired for it and for backups.
+  # Object storage (the `storage` service, S3 API) for blueprint layouts.
   FILESYSTEM_DISK: local
-  AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-platform}
-  AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+  AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:-platform}
+  AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:?set STORAGE_SECRET_KEY in .env}
   AWS_DEFAULT_REGION: us-east-1
   AWS_BUCKET: platform
-  AWS_ENDPOINT: http://minio:9000
+  AWS_ENDPOINT: http://storage:8333
   AWS_USE_PATH_STYLE_ENDPOINT: "true"
   GAME_TICKET_SECRETS: ${GAME_TICKET_SECRETS:?set GAME_TICKET_SECRETS in .env}
   GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN:?set GAME_SERVICE_TOKEN in .env}
-  # Blueprint layouts live in MinIO (S3 API, the AWS_* values below).
+  # Blueprint layouts live in object storage (S3 API, the AWS_* values above).
   BLUEPRINT_DISK: s3
   GAME_SERVER_PUBLIC_URL: ws://localhost:${HTTP_PORT:-8080}/ws/
   # Email (password resets, address confirmation). Development: the
@@ -78,34 +77,42 @@ services:
       interval: 5s
       retries: 20
 
-  minio:
-    image: minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
+  # Object storage with an S3 API (SeaweedFS): blueprint layouts, and a
+  # bucket for world backups. Credentials come from .env; nothing is
+  # anonymous. Not published outside the stack.
+  storage:
+    image: chrislusf/seaweedfs:3.97
+    restart: unless-stopped
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        printf '{"identities":[{"name":"platform","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' "$$STORAGE_ACCESS_KEY" "$$STORAGE_SECRET_KEY" > /tmp/s3.json
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json -master.volumeSizeLimitMB=1024 -volume.max=100
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-platform}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-platform}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?set STORAGE_SECRET_KEY in .env}
     volumes:
-      - minio-data:/data
-    ports:
-      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - storage-data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
       interval: 5s
-      retries: 20
+      retries: 30
 
-  minio-init:
-    image: minio/mc:latest
+  # One-shot: the buckets.
+  storage-init:
+    image: chrislusf/seaweedfs:3.97
     depends_on:
-      minio:
+      storage:
         condition: service_healthy
-    entrypoint: >
-      sh -c "mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}
-      && mc mb --ignore-existing local/platform
-      && mc mb --ignore-existing local/platform-backups
-      && mc version enable local/platform-backups"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-platform}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          printf 's3.bucket.create -name platform\ns3.bucket.create -name platform-backups\n' | weed shell -master=storage:9333 2>&1 | tee /tmp/out
+          grep -q 'platform-backups' /tmp/out && exit 0
+          sleep 3
+        done
+        exit 1
 
   # One-shot: run migrations with the migrator account, then give the
   # runtime account its restricted grants.
@@ -140,6 +147,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
     environment:
       <<: *api-env
       DB_USERNAME: platform
@@ -273,5 +282,5 @@ volumes:
   prometheus-data:
   mysql-data:
   redis-data:
-  minio-data:
+  storage-data:
   world-data:

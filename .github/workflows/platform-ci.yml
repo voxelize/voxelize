@@ -184,7 +184,7 @@ jobs:
         working-directory: platform
         run: |
           cp .env.example .env
-          for key in MYSQL_ROOT_PASSWORD DB_MIGRATOR_PASSWORD DB_PASSWORD GAME_DB_PASSWORD MINIO_ROOT_PASSWORD \
+          for key in MYSQL_ROOT_PASSWORD DB_MIGRATOR_PASSWORD DB_PASSWORD GAME_DB_PASSWORD STORAGE_SECRET_KEY \
                      GAME_TICKET_SECRETS GAME_TRANSPORT_SECRET GAME_SERVICE_TOKEN; do
             sed -i "s/^$key=$/$key=$(openssl rand -hex 24)/" .env
           done

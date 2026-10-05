@@ -17,7 +17,7 @@ flowchart LR
     subgraph Data["Data (private network only)"]
         M[(MySQL)]
         R[(Redis)]
-        S[(MinIO)]
+        S[(Object storage)]
     end
     B --> N --> G
     N --> A
@@ -32,7 +32,7 @@ flowchart LR
 - The game server trusts the API's answers; the API trusts the game server
   only for the narrow internal endpoints its service key allows.
 - Data stores are reachable only on the private Docker network; nothing in
-  `infrastructure/` publishes MySQL, Redis or MinIO ports outside localhost.
+  `infrastructure/` publishes MySQL, Redis or object storage ports outside localhost.
 
 ## 2. Authentication
 
@@ -109,7 +109,7 @@ from the client's request.
 | `GAME_TICKET_SECRETS` | API, game servers | 32 bytes each, comma list, newest first |
 | `GAME_TRANSPORT_SECRET` | game server, bridges | 32 bytes |
 | `GAME_SERVICE_TOKEN` | API, game servers (internal API) | 32 bytes |
-| DB / Redis / MinIO credentials | API (and backup jobs) | generated |
+| DB / Redis / object storage credentials | API (and backup jobs) | generated |
 
 The game server refuses to start without ticket and transport secrets unless
 `GAME_INSECURE_DEV=1`, which logs a warning and must never be set on a

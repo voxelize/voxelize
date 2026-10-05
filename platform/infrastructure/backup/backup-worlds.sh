@@ -11,7 +11,7 @@
 # incrementals, or with BACKUP_FULL=1. The newest $BACKUP_KEEP (7) chains
 # (a full and its incrementals) are kept; older chains go together, so a
 # kept archive never loses what it builds on. With $S3_ALIAS set (an `mc`
-# alias, e.g. to the MinIO `platform-backups` bucket, which keeps versions)
+# alias, e.g. to the stack's `platform-backups` bucket at http://storage:8333)
 # each archive is uploaded too.
 #
 # Every save file is written to a temporary name and renamed, so copying a

@@ -36,7 +36,7 @@ flowchart LR
     subgraph Data
         DB[(MySQL 8<br/>accounts, ledger,<br/>ownership)]
         RD[(Redis<br/>cache, presence,<br/>rate limits, queues)]
-        S3[(S3 / MinIO<br/>blueprints, skins,<br/>world backups)]
+        S3[(S3 storage<br/>blueprints, skins,<br/>world backups)]
         WD[(World store<br/>chunk files on disk)]
     end
 
@@ -94,7 +94,7 @@ platform/
     ticket/               game ticket format and verifier
   game/                   data-driven content pack (JSON): blocks, items, recipes,
                           processing, biomes, ores — later mobs, structures, quests
-  infrastructure/         Docker, Nginx, MySQL, Redis, MinIO, backup, monitoring
+  infrastructure/         Docker, Nginx, MySQL, Redis, object storage, backup, monitoring
   docs/                   this documentation
   tests/
     fixtures/             cross-language test vectors
@@ -192,7 +192,7 @@ predicts local movement while the server stays authoritative.
 
 | Stage | Shape |
 | --- | --- |
-| Now | one game-server process per world; one Laravel deployment; one MySQL primary; Redis; MinIO |
+| Now | one game-server process per world; one Laravel deployment; one MySQL primary; Redis; S3-compatible object storage (SeaweedFS) |
 | Done | the world address in each ticket routes players to the right world process (nginx per-world hosts); presence lives in the cache |
 | Not built | one world sharded across processes, MySQL read replicas, Kubernetes manifests: about 50 players per world on 4 cores (docs/LOAD_TESTS.md) has not called for them |
 

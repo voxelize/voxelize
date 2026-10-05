@@ -17,7 +17,7 @@
 | بلیت بازی (Game Ticket) کوتاه‌عمر و یک‌بارمصرف با HMAC، چرخش کلید و جلوگیری از Replay | `crates/ticket` | ✅ |
 | سرور بازی Rust: دنیای دائمی، ورود فقط با بلیت، ردِ نوشتن مستقیم بلاک توسط کلاینت | `servers/game-server` | ✅ |
 | بک‌اند Laravel 13: ثبت‌نام/ورود، صدور بلیت، دفتر کل دوطرفه (Double-entry)، کیف پول، انتقال، Mint/Burn، Audit Log | `backend/laravel-api` | ✅ |
-| محیط Docker (MySQL 8، Redis، MinIO، Nginx، API، سرور بازی) | `docker-compose.yml`, `infrastructure/` | ✅ |
+| محیط Docker (MySQL 8، Redis، ذخیره‌ساز S3 (SeaweedFS)، Nginx، API، سرور بازی) | `docker-compose.yml`, `infrastructure/` | ✅ |
 | CI گیت‌هاب (تست Rust، تست Laravel روی SQLite و MySQL، تست هم‌زمانی، تست کلاینت) | `.github/workflows/platform-ci.yml` | ✅ |
 | استخراج، ساخت، Inventory و Crafting کاملاً در سرور (اعتبارسنجی فاصله، زمان استخراج، ابزار، برخورد با بازیکن) | `servers/game-server/src/gameplay` | ✅ |
 | کلاینت وب: ورود، بلیت، رندر دنیا با تکسچرهای اختصاصی، استخراج/ساخت، نوار ابزار، دفترچه‌ی ساخت | `apps/web-client` | ✅ |
