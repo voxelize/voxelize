@@ -34,6 +34,7 @@ validated by the game server like a browser player's.
 | `voice.mjs` | proximity voice: players near each other with voice on are paired, one far away is not; WebRTC setup is relayed between paired players only; walking away ends the pairing (standalone, `DEV_TICKET_SECRET`) |
 | `plugins.mjs` | server plugins with the shipped `welcome`: a first visit greeted, a second welcomed back (the store kept count), `/stats` answered and listed by `/help` (standalone) |
 | `moderation.mjs` | moderation: a moderator mutes a player in the admin API and their chat is refused in game, then suspends them and the game server takes them out of play and the backend signs them out (needs the backend and `ROLE_CMD`) |
+| `persistence.mjs` | stopping loses nothing: a stack dropped, the server stopped with SIGTERM and started again (`STOP_CMD`, `START_CMD`, `SAVE_DIR`), the stack still where it fell and the player back where they stood (standalone) |
 | `effects.mjs` | effects and weather: drink strength and fire resistance (bottles come back), stand in fire unharmed, fill a bottle at water; a creative player brings rain and a thunderstorm (lightning near the player) and clears it; survival players may not (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
 | `load.mjs` | load generation: provisioned bots walk, dig, place and chat |

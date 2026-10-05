@@ -68,6 +68,8 @@ data/worlds/main/
   players/<id>.json          player records, shared by every dimension
   portal_links.json          pairs of portals that lead to each other
   containers.json, mobs.json chests and furnaces, animals
+  drops.json                 items lying on the ground (with their age)
+  plugins/<key>.json         each server plugin's store
 data/worlds/main_underworld/ the underworld: its own chunks, containers, mobs
 data/worlds/main_sky/        the sky: the same, for the floating islands
 ```
@@ -85,6 +87,16 @@ Chunk file (version 1, `server/world/voxels/background_chunk_saver.rs`):
 
 Lights are not stored; they are recomputed on load, which keeps files small
 and makes a light-propagation fix apply to old saves.
+
+**When game state is written.** Player records after every intent that
+changes them, and every player every minute (places and vitals change
+without intents); containers and lying items every 5 s when they changed;
+animals as they change; chunks within ticks of an edit (the engine's
+background saver flushes every 50 ms). On SIGTERM or Ctrl-C every world
+saves players, containers, items and animals once more, plugins save their
+stores, and the process exits 1.5 s later (`gameplay/shutdown.rs`), so a
+stop loses nothing a player did. Items whose chunk is not loaded hold still
+until it is, so restored items never fall through an unloaded world.
 
 **Write safety.** Files are written to `<name>.json.tmp`, `fsync`ed, then
 atomically renamed over the old file. A crash leaves either the old or the

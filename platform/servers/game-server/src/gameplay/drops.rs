@@ -1,7 +1,9 @@
 //! Items lying in the world: spawned by breaking blocks, dropping from the
 //! inventory, death and broken containers; picked up by walking over them.
 
-use serde::Serialize;
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
 
 use super::inventory::Stack;
 
@@ -31,9 +33,86 @@ pub struct Drops {
     pub items: Vec<Drop>,
     next_id: u64,
     pub changed: bool,
+    /// Whether the last save held any items (an empty world is saved once).
+    saved_any: bool,
+}
+
+/// One item as `drops.json` keeps it: where it lies and how old it is, so
+/// it still despawns on time after a restart.
+#[derive(Serialize, Deserialize)]
+struct SavedDrop {
+    stack: Stack,
+    position: [f32; 3],
+    age: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DropsFile {
+    version: u32,
+    items: Vec<SavedDrop>,
+}
+
+fn file(world_dir: &Path) -> PathBuf {
+    world_dir.join("drops.json")
 }
 
 impl Drops {
+    /// Items left lying when the server last saved (none when there is no file).
+    pub fn load(world_dir: &Path) -> Result<Self, String> {
+        let path = file(world_dir);
+        let text = match std::fs::read_to_string(&path) {
+            Ok(t) => t,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
+            Err(e) => return Err(format!("{}: {e}", path.display())),
+        };
+        let parsed: DropsFile =
+            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        if parsed.version != 1 {
+            return Err(format!(
+                "{}: unsupported version {}",
+                path.display(),
+                parsed.version
+            ));
+        }
+        let mut drops = Self::default();
+        for d in parsed.items {
+            drops.spawn(d.stack, d.position, [0.0; 3], None);
+            if let Some(last) = drops.items.last_mut() {
+                last.age = d.age;
+            }
+        }
+        drops.saved_any = !drops.items.is_empty();
+        Ok(drops)
+    }
+
+    /// Whether a save would change what is on disk.
+    pub fn worth_saving(&self) -> bool {
+        !self.items.is_empty() || self.saved_any
+    }
+
+    /// Write every lying item (atomically: a crash leaves the old file).
+    pub fn save(&mut self, world_dir: &Path) -> Result<(), String> {
+        let path = file(world_dir);
+        let items = self
+            .items
+            .iter()
+            .map(|d| SavedDrop {
+                stack: d.stack.clone(),
+                position: d.position,
+                age: d.age,
+            })
+            .collect();
+        let bytes =
+            serde_json::to_vec(&DropsFile { version: 1, items }).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(world_dir).map_err(|e| e.to_string())?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, bytes)
+            .and_then(|_| std::fs::rename(&tmp, &path))
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        self.saved_any = !self.items.is_empty();
+        Ok(())
+    }
+
     pub fn spawn(
         &mut self,
         stack: Stack,
@@ -227,5 +306,39 @@ mod tests {
         assert_eq!(d.items[0].stack.count, 15);
         d.step(DESPAWN_AFTER, ground, |_| 64);
         assert!(d.items.is_empty());
+    }
+
+    #[test]
+    fn lying_items_survive_a_restart_and_still_despawn_on_time() {
+        let dir = std::env::temp_dir().join(format!("drops-save-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut drops = Drops::default();
+        assert!(!drops.worth_saving(), "nothing to save yet");
+        drops.spawn(
+            Stack {
+                item: 7,
+                count: 3,
+                durability: None,
+            },
+            [1.5, 64.0, 2.5],
+            [0.0; 3],
+            Some("pl_1"),
+        );
+        drops.items[0].age = 120.0;
+        drops.save(&dir).unwrap();
+        let loaded = Drops::load(&dir).unwrap();
+        assert_eq!(loaded.items.len(), 1);
+        assert_eq!(loaded.items[0].stack.count, 3);
+        assert_eq!(loaded.items[0].position, [1.5, 64.0, 2.5]);
+        assert_eq!(loaded.items[0].age, 120.0, "the clock keeps running");
+        assert!(loaded.items[0].owner_delay.is_none());
+        // Once picked up, the empty world is saved once more.
+        let mut loaded = loaded;
+        loaded.items.clear();
+        assert!(loaded.worth_saving());
+        loaded.save(&dir).unwrap();
+        assert!(!loaded.worth_saving());
+        assert!(Drops::load(&dir).unwrap().items.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

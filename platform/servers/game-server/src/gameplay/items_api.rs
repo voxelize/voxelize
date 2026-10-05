@@ -732,6 +732,10 @@ pub struct WorldItemsSystem {
     since_drops_sent: f32,
     since_furnace_sent: f32,
     since_saved: f32,
+    /// Players already told where items lie (a newcomer is told at once).
+    told: std::collections::HashSet<String>,
+    /// Seconds since every client was last told (players move into range).
+    since_refresh: f32,
 }
 
 impl<'a> specs::System<'a> for WorldItemsSystem {
@@ -935,7 +939,12 @@ impl<'a> specs::System<'a> for WorldItemsSystem {
 
         // Tell nearby clients where items are, ten times a second at most.
         self.since_drops_sent += dt;
-        if g.drops.changed && self.since_drops_sent >= 0.1 {
+        self.since_refresh += dt;
+        let newcomer = clients.keys().any(|id| !self.told.contains(id));
+        let refresh = self.since_refresh >= 2.0 && !g.drops.items.is_empty();
+        if (g.drops.changed || newcomer || refresh) && self.since_drops_sent >= 0.1 {
+            self.told = clients.keys().cloned().collect();
+            self.since_refresh = 0.0;
             self.since_drops_sent = 0.0;
             g.drops.changed = false;
             for client in clients.values() {
@@ -960,11 +969,19 @@ impl<'a> specs::System<'a> for WorldItemsSystem {
 
         // Furnace progress is saved every few seconds; chest edits save at once.
         self.since_saved += dt;
-        if g.containers.dirty && self.since_saved >= 5.0 {
+        if self.since_saved >= 5.0 {
             self.since_saved = 0.0;
             let dir = g.world_dir.clone();
-            if let Err(e) = g.containers.save(&dir) {
-                log::error!("could not save containers: {e}");
+            if g.containers.dirty {
+                if let Err(e) = g.containers.save(&dir) {
+                    log::error!("could not save containers: {e}");
+                }
+            }
+            // Items lying around survive a restart (a death's loot included).
+            if g.drops.worth_saving() {
+                if let Err(e) = g.drops.save(&dir) {
+                    log::error!("could not save dropped items: {e}");
+                }
             }
         }
     }

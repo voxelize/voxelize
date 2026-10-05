@@ -18,6 +18,7 @@ pub mod modes;
 pub mod plugins;
 pub mod progress;
 pub mod sanctions;
+pub mod shutdown;
 pub mod voice;
 pub mod work;
 pub use mobs_api::MobSystem;
@@ -35,6 +36,7 @@ pub mod stall;
 pub use market::MarketSystem;
 pub use plugins::PluginSystem;
 pub use sanctions::SanctionSystem;
+pub use shutdown::SaveSystem;
 pub use voice::VoiceSystem;
 pub mod trade;
 pub mod travel;
@@ -141,7 +143,7 @@ impl Gameplay {
             players: HashMap::new(),
             rng: seed as u64 ^ 0x5EED_CAFE_F00D,
             containers: containers::Containers::load(world_dir)?,
-            drops: drops::Drops::default(),
+            drops: drops::Drops::load(world_dir)?,
             world_dir: world_dir.to_owned(),
             broken,
             mobs,

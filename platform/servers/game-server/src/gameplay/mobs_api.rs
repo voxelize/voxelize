@@ -37,7 +37,7 @@ pub(super) fn load(world_dir: &Path) -> Result<Mobs, String> {
     Ok(Mobs { list, next_id })
 }
 
-fn save(g: &Gameplay) -> Result<(), String> {
+pub(super) fn save(g: &Gameplay) -> Result<(), String> {
     let content = g.rules.content();
     let animals: Vec<&Mob> = g
         .mobs

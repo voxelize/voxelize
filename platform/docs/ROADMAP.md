@@ -165,6 +165,12 @@ burned, ledger health), a live server monitor (every world and dimension
 with its players) and the audit log; game servers enforce sanctions from
 the backend within seconds (out of play, no chat or voice). Tests:
 AdminTest, unit tests, `tests/bots/moderation.mjs`.
+Then: saving on stop — items lying on the ground persist (`drops.json`,
+their despawn clock kept), every player is saved each minute, and SIGTERM
+or Ctrl-C makes every world save once more before the process exits;
+players joining see items lying nearby at once. Tests: unit tests,
+`tests/bots/persistence.mjs` (a stack dropped, the server stopped and
+started, the stack and the player where they were).
 Remaining: observability stack, more stations (smelter, crusher) as
 content.
 

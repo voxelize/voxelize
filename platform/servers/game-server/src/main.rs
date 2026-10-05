@@ -216,6 +216,11 @@ fn build_world(
                 "platform-sanctions",
                 &["platform-plugins"],
             )
+            .with(
+                gameplay::SaveSystem::default(),
+                "platform-save",
+                &["platform-sanctions"],
+            )
     });
     world
 }
@@ -233,6 +238,27 @@ fn refuse_raw_writes(
         );
     }
     Vec::new()
+}
+
+/// Wait for SIGTERM or Ctrl-C, whichever comes first.
+#[cfg(unix)]
+async fn tokio_select_stop(term: &mut actix_web::rt::signal::unix::Signal) {
+    let ctrl_c = actix_web::rt::signal::ctrl_c();
+    futures_select(term.recv(), ctrl_c).await;
+}
+
+/// The first of two futures to finish (no extra runtime dependency).
+#[cfg(unix)]
+async fn futures_select<A: std::future::Future, B: std::future::Future>(a: A, b: B) {
+    let (mut a, mut b) = (Box::pin(a), Box::pin(b));
+    std::future::poll_fn(|cx| {
+        if a.as_mut().poll(cx).is_ready() || b.as_mut().poll(cx).is_ready() {
+            std::task::Poll::Ready(())
+        } else {
+            std::task::Poll::Pending
+        }
+    })
+    .await
 }
 
 #[actix_web::main]
@@ -414,6 +440,42 @@ async fn main() -> std::io::Result<()> {
             guilds.clone(),
         ));
     }
+    // On SIGTERM or Ctrl-C every world saves once more before the HTTP
+    // server finishes its own graceful stop.
+    let dimension_count = Dimension::ALL.len();
+    actix_web::rt::spawn(async move {
+        #[cfg(unix)]
+        {
+            use actix_web::rt::signal::unix::{signal, SignalKind};
+            let mut term = signal(SignalKind::terminate()).expect("SIGTERM handler");
+            tokio_select_stop(&mut term).await;
+        }
+        #[cfg(not(unix))]
+        let _ = actix_web::rt::signal::ctrl_c().await;
+        info!("stopping: saving every world");
+        gameplay::shutdown::request_stop();
+        let mut saved = false;
+        for _ in 0..100 {
+            if gameplay::shutdown::FLUSHED.load(std::sync::atomic::Ordering::SeqCst)
+                >= dimension_count
+            {
+                saved = true;
+                break;
+            }
+            actix_web::rt::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        if saved {
+            info!("every world saved");
+        } else {
+            warn!("not every world saved within 5 s");
+        }
+        // Open game sockets would hold the HTTP server's graceful stop for
+        // half a minute; chunk edits reach disk within ticks, so a moment
+        // is enough before leaving.
+        actix_web::rt::time::sleep(std::time::Duration::from_millis(1500)).await;
+        info!("stopped");
+        std::process::exit(0);
+    });
     Voxelize::run_with(server, move |voxelize| {
         let info = info.clone();
         let content_json = content_json.clone();
