@@ -15,6 +15,7 @@ pub mod drops;
 pub mod mobs;
 mod mobs_api;
 pub mod modes;
+pub mod plugins;
 pub mod progress;
 pub mod voice;
 pub mod work;
@@ -31,6 +32,7 @@ pub mod land;
 pub mod market;
 pub mod stall;
 pub use market::MarketSystem;
+pub use plugins::PluginSystem;
 pub use voice::VoiceSystem;
 pub mod trade;
 pub mod travel;
@@ -569,6 +571,7 @@ fn on_join(world: &mut World, entity: Entity) {
     send_vitals(world, &id, None);
     modes::on_join(world, &id);
     cosmetics::on_join(world, &id);
+    plugin_presence(world, &id, true);
     {
         let done = world
             .ecs()
@@ -604,6 +607,29 @@ fn on_join(world: &mut World, entity: Entity) {
     }
 }
 
+/// Tell plugins a player came into (or left) this dimension.
+fn plugin_presence(world: &mut World, id: &str, joined: bool) {
+    // The ticket's name (the client list may not hold the player yet).
+    let name = world
+        .read_resource::<SessionIdentities>()
+        .get(id)
+        .and_then(|identity| identity.username.clone())
+        .or_else(|| world.clients().get(id).map(|c| c.username.clone()))
+        .unwrap_or_else(|| id.to_owned());
+    let g = world.ecs().read_resource::<Gameplay>();
+    if !joined && !g.players.contains_key(id) {
+        return;
+    }
+    let player = plugins::player(id, &name, g.dimensions.current.key());
+    if let Ok(mut p) = g.dimensions.plugins.lock() {
+        if joined {
+            p.joined(player);
+        } else {
+            p.left(player);
+        }
+    };
+}
+
 fn on_leave(world: &mut World, entity: Entity) {
     let Some(id) = world
         .read_component::<IDComp>()
@@ -613,6 +639,7 @@ fn on_leave(world: &mut World, entity: Entity) {
         return;
     };
     items_api::close_window(world, &id);
+    plugin_presence(world, &id, false);
     // The client may already be gone from the client list; its body is not.
     let position = world
         .read_component::<PositionComp>()

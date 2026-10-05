@@ -158,13 +158,40 @@ pub(super) fn install(world: &mut World) {
         if !may_speak(world, id) {
             return false;
         }
+        let name = name_of(world, id);
+        // A plugin may hide a line (on_chat returning false).
+        let shown = {
+            let g = world.ecs().read_resource::<Gameplay>();
+            let player = super::plugins::player(id, &name, g.dimensions.current.key());
+            let plugins = g.dimensions.plugins.clone();
+            drop(g);
+            plugins
+                .lock()
+                .map(|mut p| p.chat(player, &line))
+                .unwrap_or(true)
+        };
+        if !shown {
+            return false;
+        }
         chat.body = line;
-        chat.sender = name_of(world, id);
+        chat.sender = name;
         true
     });
 
     world.set_command_handle(|world, id, command| {
         let (name, rest) = split_command(command);
+        // Plugin commands (manifest `commands`).
+        let answered = {
+            let player_name = name_of(world, id);
+            let g = world.ecs().read_resource::<Gameplay>();
+            let player = super::plugins::player(id, &player_name, g.dimensions.current.key());
+            let plugins = g.dimensions.plugins.clone();
+            drop(g);
+            plugins.lock().map(|mut p| p.command(player, &name, &rest)).unwrap_or(false)
+        };
+        if answered {
+            return;
+        }
         if !matches!(name.as_str(), "w" | "msg" | "tell" | "r" | "l" | "local" | "g" | "guild" | "help") {
             return system(world, id, &format!("Unknown command /{name} (try /help)."));
         }
@@ -236,11 +263,20 @@ pub(super) fn install(world: &mut World) {
                     }
                 }
             }
-            "help" => system(
-                world,
-                id,
-                "/w <name> <text> whispers, /r <text> replies, /l <text> talks to players nearby, /g <text> to your guild; plain lines go to everyone.",
-            ),
+            "help" => {
+                let extra: Vec<String> = {
+                    let g = world.ecs().read_resource::<Gameplay>();
+                    let plugins = g.dimensions.plugins.clone();
+                    drop(g);
+                    let list = plugins.lock().map(|p| p.commands()).unwrap_or_default();
+                    list.into_iter().map(|(c, from)| format!("/{c} ({from})")).collect()
+                };
+                let mut text = "/w <name> <text> whispers, /r <text> replies, /l <text> talks to players nearby, /g <text> to your guild; plain lines go to everyone.".to_owned();
+                if !extra.is_empty() {
+                    text.push_str(&format!(" Also: {}.", extra.join(", ")));
+                }
+                system(world, id, &text)
+            }
             other => system(world, id, &format!("Unknown command /{other} (try /help).")),
         }
     });

@@ -169,6 +169,8 @@ pub struct Dimensions {
     pub tickets: Option<Arc<platform_ticket::Verifier>>,
     /// ICE servers for voice chat (see `GameConfig::voice_ice_servers`).
     pub voice_ice_servers: Arc<serde_json::Value>,
+    /// The world's server plugins, shared by every dimension.
+    pub plugins: super::plugins::SharedPlugins,
 }
 
 impl Dimensions {
@@ -474,6 +476,7 @@ mod tests {
             bridge: None,
             tickets: None,
             voice_ice_servers: Arc::new(serde_json::json!([])),
+            plugins: Arc::new(std::sync::Mutex::new(super::super::plugins::Plugins::none())),
             siege_seconds: 600.0,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);

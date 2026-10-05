@@ -81,17 +81,34 @@ pub struct ProgressSystem;
 
 impl<'a> specs::System<'a> for ProgressSystem {
     type SystemData = (
+        specs::ReadExpect<'a, voxelize::Clients>,
         specs::WriteExpect<'a, Gameplay>,
         specs::WriteExpect<'a, voxelize::Events>,
     );
 
-    fn run(&mut self, (mut g, mut events): Self::SystemData) {
+    fn run(&mut self, (clients, mut g, mut events): Self::SystemData) {
         let content = g.rules.content_arc();
+        let plugins = g.dimensions.plugins.clone();
+        let dimension = g.dimensions.current.key();
         for (id, player) in g.players.iter_mut() {
             if player.notes.is_empty() {
                 continue;
             }
             let notes = std::mem::take(&mut player.notes);
+            // Plugins hear about it too (on_event).
+            if let Ok(mut p) = plugins.lock() {
+                if !p.list.is_empty() {
+                    let name = clients.get(id).map(|c| c.username.as_str()).unwrap_or(id);
+                    for note in &notes {
+                        p.event(
+                            super::plugins::player(id, name, dimension),
+                            note.kind.key(),
+                            &note.target,
+                            note.count,
+                        );
+                    }
+                }
+            }
             let mut unlocked = Vec::new();
             for note in &notes {
                 for a in player.progress.count(&content, note) {

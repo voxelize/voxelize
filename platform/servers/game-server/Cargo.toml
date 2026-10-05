@@ -24,3 +24,5 @@ actix-cors.workspace = true
 # Fetches land claims from the backend's internal API (plain HTTP on the
 # private network; no TLS stack needed).
 awc = { version = "3", default-features = false }
+# Server plugins: sandboxed scripts (no file, network or module access).
+rhai = { version = "1.26", features = ["sync", "no_module", "serde"] }

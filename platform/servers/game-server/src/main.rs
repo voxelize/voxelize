@@ -206,6 +206,11 @@ fn build_world(
                 "platform-voice",
                 &["platform-payouts"],
             )
+            .with(
+                gameplay::PluginSystem::default(),
+                "platform-plugins",
+                &["platform-voice"],
+            )
     });
     world
 }
@@ -227,6 +232,34 @@ fn refuse_raw_writes(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // `game-server --check [content dir]`: validate a content pack and its
+    // plugins (what a mod author runs) and exit.
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--check") {
+        let dir = args
+            .get(2)
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(platform_content::default_pack_dir);
+        let content = Content::load(&dir).unwrap_or_else(|e| fail(e));
+        let plugins = gameplay::plugins::Plugins::load(&dir.join("plugins"), None)
+            .unwrap_or_else(|e| fail(e));
+        let names: Vec<String> = plugins
+            .list
+            .iter()
+            .map(|p| format!("{} {}", p.manifest.key, p.manifest.version))
+            .collect();
+        println!(
+            "{}: {:?}; plugins: {}",
+            dir.display(),
+            content.summary(),
+            if names.is_empty() {
+                "none".into()
+            } else {
+                names.join(", ")
+            }
+        );
+        return Ok(());
+    }
     let config = GameConfig::from_env().unwrap_or_else(|e| fail(e));
     let content = Arc::new(Content::load(&config.content_dir).unwrap_or_else(|e| fail(e)));
     let summary = content.summary();
@@ -291,6 +324,18 @@ async fn main() -> std::io::Result<()> {
         .as_ref()
         .map(|b| gameplay::bridge::Bridge::start(b.url.clone(), b.token.clone(), &config.world));
     let voice_ice_servers = Arc::new(config.voice_ice_servers.clone());
+    // Server plugins (content pack `plugins/`), their stores beside the saves.
+    let plugins = {
+        let mut p = gameplay::plugins::Plugins::load(
+            &config.content_dir.join("plugins"),
+            Some(&config.save_dir.join(&config.world).join("plugins")),
+        )
+        .unwrap_or_else(|e| fail(format!("cannot load plugins: {e}")));
+        for w in worlds.values() {
+            p.attach(w);
+        }
+        Arc::new(std::sync::Mutex::new(p))
+    };
     for dimension in Dimension::ALL {
         let dimensions = gameplay::Dimensions {
             current: dimension,
@@ -302,6 +347,7 @@ async fn main() -> std::io::Result<()> {
             bridge: bridge.clone(),
             tickets: tickets.clone(),
             voice_ice_servers: voice_ice_servers.clone(),
+            plugins: plugins.clone(),
             siege_seconds: config.siege_seconds,
         };
         server

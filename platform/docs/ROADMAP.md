@@ -433,7 +433,15 @@ audio goes browser to browser, placed where the speaker stands and fading
 to silence at 32 blocks (`platform.voice.*`, TURN/STUN servers from
 `GAME_VOICE_ICE_SERVERS`). Tests: unit tests, `tests/bots/voice.mjs`, two
 browsers with fake microphones connected and receiving audio.
-Remaining: plugin event API, mod SDK.
+Then: plugin event API and mod SDK — server plugins in Rhai
+(`<pack>/plugins/<key>/`): hooks for joining and leaving, chat (may hide a
+line), their own commands, gameplay events (mine, place, craft, smelt,
+kill, eat, enter) and a once-a-second tick; scripts tell, broadcast, give
+items and keep a saved store; no files, network or eval, operation limits,
+and a plugin that keeps failing is switched off. `game-server --check
+<pack>` validates a pack and its plugins; a template
+(`tools/plugin-template`), a shipped example (`welcome`: greetings,
+/stats) and docs/MODDING.md. Tests: unit tests, `tests/bots/plugins.mjs`.
 
 ## Definition of done (whole project)
 

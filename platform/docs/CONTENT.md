@@ -240,6 +240,10 @@ slot; other players buy priced stacks with Crowns (see API.md and
 NETWORK_PROTOCOL.md). Crafted from three sticks over planks, a chest and
 planks.
 
+## plugins/
+
+Server plugins (scripts reacting to players): docs/MODDING.md.
+
 ## Adding a content kind
 
 1. Schema structs in `crates/content/src/defs.rs` (`deny_unknown_fields`).
