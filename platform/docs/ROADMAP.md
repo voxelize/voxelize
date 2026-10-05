@@ -199,6 +199,10 @@ Then: a gateway for player-made worlds — `host-worlds.sh` keeps one game
 server container per active world (and stops archived ones), nginx routes
 `w-<id>.<domain>` to it, and the world address template takes `{id}`.
 Tests: WorldTest, `test-host-worlds.sh` in CI.
+Then: durability written down — what a hard crash can lose (a block
+changed in the last ~100 ms may come back; nothing is ever torn, money is
+never at risk) and why that does not need a separate write-ahead log
+(docs/CHUNK_FORMAT.md).
 Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅

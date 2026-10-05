@@ -98,6 +98,21 @@ stores, and the process exits 1.5 s later (`gameplay/shutdown.rs`), so a
 stop loses nothing a player did. Items whose chunk is not loaded hold still
 until it is, so restored items never fall through an unloaded world.
 
+**What a crash can lose (and why there is no separate write-ahead log).**
+A clean stop loses nothing (above). A hard crash (power loss, `kill -9`)
+loses what was not yet on disk: up to a minute of a player's position and
+vitals, up to 5 s of container and lying-item changes, and chunk edits of
+the last few ticks. The one case that matters is a block mined (or placed)
+in the last ~100 ms before a crash: the player's record, written right
+after the intent, keeps the item while the chunk may not yet hold the
+change, so one block can come back. Every file is written whole and
+renamed into place, so nothing is ever torn, and money never depends on
+these files (the ledger is in the database, in transactions). A
+write-ahead log of block changes would close that sub-second window at the
+cost of a second write path through the engine's chunk saver; with the
+window this small it is not worth it, and the backups (daily archives,
+infrastructure/README.md) cover losing the disk itself.
+
 **Write safety.** Files are written to `<name>.json.tmp`, `fsync`ed, then
 atomically renamed over the old file. A crash leaves either the old or the
 new chunk, never a torn one.
