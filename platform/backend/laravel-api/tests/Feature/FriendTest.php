@@ -84,6 +84,18 @@ class FriendTest extends TestCase
             ->assertJsonPath('friends.0.username', 'cy')->assertJsonPath('friends.0.online', true)->assertJsonPath('friends.0.world', 'main')
             ->assertJsonPath('friends.1.username', 'bo')->assertJsonPath('friends.1.online', false);
 
+        // Presence is kept in the cache; the database only learns "last seen"
+        // every five minutes, unless the player changes worlds.
+        $first = $cy->fresh()->last_seen_at;
+        $this->travel(1)->minutes();
+        $report = fn (string $world) => $this->withHeader('Authorization', 'Bearer '.self::TOKEN)
+            ->postJson('/api/internal/v1/presence', ['world' => $world, 'players' => [$cy->public_id]])->assertOk();
+        $report('main');
+        $this->assertEquals($first, $cy->fresh()->last_seen_at, 'no write a minute later');
+        $report('w_abcdefghij');
+        $this->assertSame('w_abcdefghij', $cy->fresh()->last_world, 'a new world is written at once');
+        $this->as($ana)->getJson('/api/v1/friends')->assertJsonPath('friends.0.world', 'w_abcdefghij');
+
         $this->travel(2)->minutes();
         $this->as($ana)->getJson('/api/v1/friends')->assertJsonPath('friends.0.username', 'bo')
             ->assertJsonPath('friends.1.online', false)->assertJsonPath('friends.1.world', null);

@@ -192,6 +192,9 @@ Then: load tests with numbers — `load.mjs` samples the server's metrics
 while bots play and can fail on a tick-time budget; 50 and 100 bots on a
 4-core machine in docs/LOAD_TESTS.md (50 together in one spot keep 20
 ticks a second).
+Then: presence in Redis — who is online, and where, is kept in the cache
+for 90 s instead of a database write per player every half minute; "last
+seen" is written at most every five minutes (FriendTest).
 Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅

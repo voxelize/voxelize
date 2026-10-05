@@ -177,7 +177,7 @@ class AdminController extends Controller
 
         return response()->json([
             'worlds' => $status,
-            'online_players' => User::query()->where('last_seen_at', '>=', now()->subSeconds((int) config('platform.friends.online_seconds')))->count(),
+            'online_players' => app(FriendService::class)->onlineCount(),
             'tickets_last_hour' => GameTicket::query()->where('issued_at', '>=', now()->subHour())->count(),
             'accounts' => User::query()->count(),
         ]);
@@ -203,7 +203,7 @@ class AdminController extends Controller
             'muted_until' => $u->isMuted() ? $u->muted_until->toIso8601String() : null,
             'mute_reason' => $u->isMuted() ? $u->mute_reason : null,
             'online' => $friends->online($u),
-            'world' => $friends->online($u) ? $u->last_world : null,
+            'world' => $friends->where($u),
             'last_seen_at' => $u->last_seen_at?->toIso8601String(),
         ];
     }

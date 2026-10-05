@@ -446,7 +446,9 @@ reward over the cap is paid up to it, `paid` may be 0). One payment per
 who is playing in one dimension of the world now. Game servers send it at
 start, every 30 s (even with nobody there) and within 2 s of players coming
 or going; friends lists show those players online and the server browser
-counts them.
+counts them. Presence lives in the cache (Redis in production) for
+`friends.online_seconds`; the database's `last_seen_at` is written at most
+every five minutes per player (or when they change worlds).
 
 ### `GET /api/internal/v1/sanctions`
 `{ "players": [{ "id", "status", "reason", "muted_until" (unix s) | null, "mute_reason" }] }`:

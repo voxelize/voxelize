@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Social\FriendService;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
@@ -27,8 +28,7 @@ class MetricsController extends Controller
 
         $gauge('platform_accounts', 'Accounts by status.', User::query()->select('status', DB::raw('count(*) as n'))->groupBy('status')->get()
             ->map(fn ($r) => [['status' => $r->status], $r->n]));
-        $gauge('platform_players_online', 'Players a game server reported in the last 90 s.', [[[], User::query()
-            ->where('last_seen_at', '>=', now()->subSeconds((int) config('platform.friends.online_seconds')))->count()]]);
+        $gauge('platform_players_online', 'Players the game servers reported in the last 90 s.', [[[], app(FriendService::class)->onlineCount()]]);
         $gauge('platform_world_players', 'Players per world and dimension, as last reported.', DB::table('world_status')->get()
             ->map(fn ($r) => [['world' => $r->world, 'dimension' => $r->dimension], $r->players]));
         $gauge('platform_world_report_age_seconds', 'Seconds since each world last reported.', DB::table('world_status')->get()
