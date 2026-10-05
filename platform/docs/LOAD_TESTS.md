@@ -28,8 +28,8 @@ change). Numbers are for the overworld; 60 s of play.
 
 | Bots | Joined | Intents answered | Ticks/s (p50) | Slowest tick gap p50 / p95 / max |
 | --- | --- | --- | --- | --- |
-| 50 | 50 | 4 590 (3 419 ok) | 19.8 | 0.16 / 0.28 / 0.51 s |
-| 100 | 100 | 5 286 (4 218 ok) | 2.8 | 0.41 / 1.03 / 1.16 s |
+| 50 | 50 | 4 593 (3 419 ok) | 19.8 | 0.16 / 0.28 / 0.51 s |
+| 100 | 100 | 5 296 (4 218 ok) | 2.8 | 0.41 / 1.03 / 1.16 s |
 
 With 50 players in one spot the world keeps its 20 ticks a second with
 occasional slow ticks; at 100, on hardware that also runs the hundred
