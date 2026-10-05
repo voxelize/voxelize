@@ -95,9 +95,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The version comes from package.json's packageManager.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -118,7 +117,7 @@ jobs:
         working-directory: platform
         run: |
           cp .env.example .env
-          sed -i 's/^\([A-Z_]*\(KEY\|PASSWORD\|SECRETS\|SECRET\)\)=$/\1=ci-placeholder-value-0123456789abcdef/' .env
+          sed -i 's/^\([A-Z_]*\(KEY\|PASSWORD\|SECRETS\|SECRET\|TOKEN\)\)=$/\1=ci-placeholder-value-0123456789abcdef/' .env
           docker compose config --quiet
           docker compose --profile observability config --quiet
       - name: Backup and restore scripts
