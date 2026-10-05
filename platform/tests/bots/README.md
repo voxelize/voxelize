@@ -42,7 +42,7 @@ script except `anticheat.mjs`, which needs them on.
 | `anticheat.mjs` | movement checks (server with `GAME_ANTICHEAT` on): walking is left alone, running at 28 blocks a second and hanging in the air send the player back, repeated cheating is reported to moderators (needs the backend and `ROLE_CMD`) |
 | `effects.mjs` | effects and weather: drink strength and fire resistance (bottles come back), stand in fire unharmed, fill a bottle at water; a creative player brings rain and a thunderstorm (lightning near the player) and clears it; survival players may not (standalone with `DEV_TICKET_SECRET`; seeds the record via `SAVE_DIR`) |
 | `combat.mjs` | creatures: wait for an animal to spawn, kill it with validated attacks, collect its drops |
-| `load.mjs` | load generation: provisioned bots walk, dig, place and chat |
+| `load.mjs` | load: N provisioned bots dig, place and chat while the game server's metrics are sampled; reports tick time and intents, fails over `MAX_TICK_SECONDS` (results in docs/LOAD_TESTS.md) |
 | `bot.mjs` | the bot client both use |
 
 ```sh

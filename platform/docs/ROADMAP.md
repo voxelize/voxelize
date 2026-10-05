@@ -188,6 +188,10 @@ offenders are reported to moderators through the audit log; creative,
 spectators and players the server just moved are left alone. Tests: unit
 tests, AdminTest, `tests/bots/anticheat.mjs`; a browser player sprinting
 and jumping is not caught.
+Then: load tests with numbers — `load.mjs` samples the server's metrics
+while bots play and can fail on a tick-time budget; 50 and 100 bots on a
+4-core machine in docs/LOAD_TESTS.md (50 together in one spot keep 20
+ticks a second).
 Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅

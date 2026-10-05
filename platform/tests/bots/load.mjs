@@ -1,5 +1,10 @@
 // Load generation (spec §93): bots join, walk, dig, place and chat through
-// the same validated intents as players.
+// the same validated intents as players. While they play, the game server's
+// own metrics (/platform/metrics) are sampled every 2 s: the result says how
+// long the overworld's ticks took (p50, p95, max), how many ticks it ran a
+// second and how intents were answered. MAX_TICK_SECONDS fails the run when
+// the slowest tick took longer; METRICS_TOKEN is sent if the endpoint wants
+// one. Run the game server with GAME_ANTICHEAT=off (bots set positions).
 //
 //   docker compose exec -T api php artisan bots:provision 50 > tokens.json
 //   node load.mjs tokens.json [seconds=60] [api base] [game base]
@@ -67,7 +72,54 @@ async function run({ username, token }, index) {
   }
 }
 
+// Samples of the server's metrics while the bots play.
+const samples = { tick: [], rate: [], players: 0 };
+const metric = (text, name, world = "main") =>
+  Number(text.split("\n").find((l) => l.startsWith(`${name}{world="${world}"}`))?.split(" ").at(-1) ?? NaN);
+const intents = (text) => {
+  const out = {};
+  for (const l of text.split("\n").filter((l) => l.startsWith("platform_intents_total{"))) {
+    const result = l.match(/result="([^"]*)"/)?.[1] ?? "?";
+    out[result] = (out[result] ?? 0) + Number(l.split(" ").at(-1));
+  }
+  return out;
+};
+const scrape = async () => {
+  const headers = process.env.METRICS_TOKEN ? { authorization: `Bearer ${process.env.METRICS_TOKEN}` } : {};
+  return (await fetch(`${GAME}/platform/metrics`, { headers }).catch(() => null))?.text?.() ?? "";
+};
+const before = intents(await scrape());
+let sampling = true;
+const sampler = (async () => {
+  while (sampling) {
+    await sleep(2000);
+    const text = await scrape();
+    const tick = metric(text, "platform_tick_seconds");
+    if (Number.isFinite(tick)) samples.tick.push(tick);
+    const rate = metric(text, "platform_tick_rate");
+    if (Number.isFinite(rate)) samples.rate.push(rate);
+    samples.players = Math.max(samples.players, metric(text, "platform_players") || 0);
+  }
+})();
+const pct = (list, p) => {
+  const sorted = [...list].sort((a, b) => a - b);
+  return sorted.length ? Number(sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))].toFixed(3)) : null;
+};
+
 const started = Date.now();
 await Promise.all(TOKENS.map((t, i) => sleep(i * 100).then(() => run(t, i))));
-console.log(JSON.stringify({ bots: TOKENS.length, ...stats, seconds: (Date.now() - started) / 1000 }));
-process.exit(stats.failed > 0 ? 1 : 0);
+sampling = false;
+await sampler;
+const after = intents(await scrape());
+const answered = Object.fromEntries(Object.entries(after).map(([k, v]) => [k, v - (before[k] ?? 0)]).filter(([, v]) => v > 0));
+const server = {
+  peak_players: samples.players,
+  tick_seconds: { p50: pct(samples.tick, 50), p95: pct(samples.tick, 95), max: pct(samples.tick, 100) },
+  ticks_per_second: { min: pct(samples.rate, 0), p50: pct(samples.rate, 50) },
+  intents: answered,
+};
+console.log(JSON.stringify({ bots: TOKENS.length, ...stats, seconds: (Date.now() - started) / 1000, server }));
+const budget = Number(process.env.MAX_TICK_SECONDS ?? NaN);
+const tooSlow = Number.isFinite(budget) && server.tick_seconds.max !== null && server.tick_seconds.max > budget;
+if (tooSlow) console.error(`slowest tick ${server.tick_seconds.max} s is over the budget of ${budget} s`);
+process.exit(stats.failed > 0 || tooSlow ? 1 : 0);
