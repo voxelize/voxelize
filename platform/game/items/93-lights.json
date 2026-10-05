@@ -1,0 +1,5 @@
+[
+  {"id": 134, "key": "ice", "name": "Ice", "type": "block", "placesBlock": "ice", "value": 2},
+  {"id": 135, "key": "wisp_lantern", "name": "Wisp Lantern", "type": "block", "placesBlock": "wisp_lantern", "value": 12},
+  {"id": 136, "key": "core_lamp", "name": "Core Lamp", "type": "block", "placesBlock": "core_lamp", "value": 80}
+]

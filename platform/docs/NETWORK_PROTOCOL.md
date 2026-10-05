@@ -5,7 +5,7 @@ Two protocols, never mixed:
 | | Realtime game protocol | Business API |
 | --- | --- | --- |
 | Peer | browser ↔ game server | browser / game server ↔ Laravel |
-| Transport | WebSocket (binary frames); WebRTC data channel lane already in the engine; WebTransport later | HTTPS |
+| Transport | WebSocket (binary frames); WebRTC data channel lane in the engine (not used by the game) | HTTPS |
 | Encoding | Protocol Buffers (`messages.proto`) | JSON |
 | Versioning | `packages/protocol/src/protocol-version.json` | URL prefix `/api/v1` |
 | Spec | this document | [API.md](API.md) |
@@ -153,7 +153,7 @@ Answers (events, sent only to the requesting client):
 - `platform.progress` — `{"unlocked":[{"key","name","xp"}],"done":[key]}`: on joining (everything earned so far, nothing unlocked) and whenever achievements are earned.
 - `platform.mode` — `{"player","mode"}` (see `platform.mode.set`).
 - `platform.work` — the work state (as `platform.quests.get` answers) on joining and when quest progress or job earnings change, with `"finished":[{"key","name","crowns","xp"}]` for quests just completed; payouts arrive as `platform.market {"reward":{"source","reason","requested","paid"}}` once the backend paid them (`paid` below `requested` at the daily cap).
-- `platform.chat` — `{"channel":"whisper"|"local"|"guild"|"system","from":{"id","name"}|null,"to":name|null,"body"}`: a line on a channel other than public. Plain chat lines (engine `CHAT`) are public; the server stamps the speaker's real name, strips control characters, cuts them to 256 characters and refuses more than 6 lines per 8 s. Lines starting with `/` are commands: `/w <name> <text>` (`/msg`, `/tell`) whispers (to the target and the speaker), `/r <text>` answers the last whisper, `/l <text>` (`/local`) reaches players within 48 blocks, `/g <text>` (`/guild`) the guild's online members, `/report <name> [category] <what happened>` sends a report to the moderators (with both positions and the reported player's last five public or local lines; one every 30 s; the backend's answer comes back as a `system` line), `/help` lists them; anything else gets a `system` line naming the unknown command.
+- `platform.chat` — `{"channel":"whisper"|"local"|"guild"|"system","from":{"id","name"}|null,"to":name|null,"body"}`: a line on a channel other than public. Plain chat lines (engine `CHAT`) are public; the server stamps the speaker's real name, strips control characters, cuts them to 256 characters and refuses more than 6 lines per 8 s. Lines starting with `/` are commands: `/w <name> <text>` (`/msg`, `/tell`) whispers (to the target and the speaker), `/r <text>` answers the last whisper, `/l <text>` (`/local`) reaches players within 48 blocks, `/g <text>` (`/guild`) the guild's online members, `/report <name> [category] <what happened>` sends a report to the moderators (with both positions and the reported player's last five public or local lines; one every 30 s; the backend's answer comes back as a `system` line), `/gamemode <normal|adventure|spectator> [name]` (`/gm`; your own in a creative world, anyone's for moderators, as `platform.mode.set`), `/weather <clear|rain|thunder>` (creative players in the overworld, as `platform.weather.set`), `/help` lists them; anything else gets a `system` line naming the unknown command.
 - `platform.look` — `{"player","look":{"outfit"?:{"body","arms","legs"},"hat"?:{"art":"crown"}|{"color"}}|null}`: what a player wears (colours `#rrggbb`), to everyone when it changes (from the join ticket or `platform.look.set`) and to a joining player for everyone already dressed.
 - `platform.voice.peers` — `{"peers":[{"id","name"}]}`: whom a player with voice on is paired with, whenever it changes (checked twice a second). Players with voice on within 32 blocks pair up, stay paired until 40 apart, at most 8 each (the nearest, and only when both pick each other). The smaller id makes the WebRTC offer; audio goes browser to browser, never through the server.
 - `platform.kicked` — `{"status":"suspended"|"banned","reason"}`: a moderator suspended or banned the account; the server has saved and dropped the player's gameplay state (every intent answers `not_joined`) and the client leaves. Muted players' chat lines and commands get a `system` line saying until when and why, and `platform.voice.join` answers `muted`.
@@ -224,6 +224,6 @@ with new tag numbers; tags are never reused.
 ## 7. Transport migration path
 
 The WebSocket route (`/ws/`) and the WebRTC signalling routes share one
-session authenticator, so a WebTransport (QUIC) route added later reuses the
+session authenticator, so a WebTransport (QUIC) route, if one is ever added, would reuse the
 same ticket check and the same message codec. Clients pick the best lane the
 server advertises in `/info`; the ticket flow does not change.

@@ -48,38 +48,48 @@ pub(super) fn install(world: &mut World) {
             return;
         };
         let target = p.player.clone().unwrap_or_else(|| id.to_owned());
-        let is_moderator = moderator(world, id);
-        let result = {
-            let mut g = world.ecs().write_resource::<Gameplay>();
-            let realm = g.players.get(id).map(|s| s.realm);
-            match (realm, g.players.contains_key(&target)) {
-                (None, _) => Err(IntentError::NothingThere),
-                (_, false) => Err(IntentError::NothingThere),
-                (Some(realm), true) if !may_set(is_moderator, realm, target == id) => {
-                    Err(IntentError::GameMode)
-                }
-                _ => {
-                    let state = g.players.get_mut(&target).expect("checked");
-                    state.mode = p.mode;
-                    state.mining = None;
-                    Ok(json!({ "player": target, "mode": p.mode }))
-                }
-            }
-        };
-        let changed = result.is_ok();
+        let result = set(world, id, &target, p.mode);
         reply(world, id, INTENT, result);
-        if changed {
-            super::items_api::close_window(world, &target);
-            world.events_mut().dispatch(
-                Event::new(MODE_EVENT)
-                    .payload(json!({ "player": target, "mode": p.mode }))
-                    .filter(ClientFilter::All)
-                    .build(),
-            );
-            super::send_vitals(world, &target, None);
-            persist(world, &target);
-        }
     });
+}
+
+/// `id` sets `target`'s game mode (the intent and the `/gamemode` command).
+pub(super) fn set(
+    world: &mut World,
+    id: &str,
+    target: &str,
+    mode: GameMode,
+) -> Result<serde_json::Value, IntentError> {
+    let is_moderator = moderator(world, id);
+    let result = {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        let realm = g.players.get(id).map(|s| s.realm);
+        match (realm, g.players.contains_key(target)) {
+            (None, _) => Err(IntentError::NothingThere),
+            (_, false) => Err(IntentError::NothingThere),
+            (Some(realm), true) if !may_set(is_moderator, realm, target == id) => {
+                Err(IntentError::GameMode)
+            }
+            _ => {
+                let state = g.players.get_mut(target).expect("checked");
+                state.mode = mode;
+                state.mining = None;
+                Ok(json!({ "player": target, "mode": mode }))
+            }
+        }
+    };
+    if result.is_ok() {
+        super::items_api::close_window(world, target);
+        world.events_mut().dispatch(
+            Event::new(MODE_EVENT)
+                .payload(json!({ "player": target, "mode": mode }))
+                .filter(ClientFilter::All)
+                .build(),
+        );
+        super::send_vitals(world, target, None);
+        persist(world, target);
+    }
+    result
 }
 
 /// Tell a joining player who is not in normal mode, and everyone else the

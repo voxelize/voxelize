@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sellPayload, timeLeft } from "./market";
+import { entryLine, sellPayload, timeLeft } from "./market";
 
 describe("market helpers", () => {
   it("format time left", () => {
@@ -49,5 +49,13 @@ describe("market search, parts and prices", () => {
     expect(historyLine({ ...empty, stats: { days: 30, sales: 2, items: 3, average_unit_price: 33.33, min_unit_price: 32, max_unit_price: 34 } })).toBe(
       "3 sold in 2 sales over 30 days · avg 33.33 each (32–34)",
     );
+  });
+});
+
+describe("wallet statement", () => {
+  it("shows money in and out with the balance after", () => {
+    const e = { transaction: "t1", type: "transfer", reason: "for the wall", amount: 25, balance_after: 125, at: "2026-05-05T10:00:00Z" };
+    expect(entryLine(e)).toMatch(/^\+25 CRN · transfer · for the wall — balance 125 \(/);
+    expect(entryLine({ ...e, amount: -10, reason: null })).toMatch(/^-10 CRN · transfer — balance 125 \(/);
   });
 });

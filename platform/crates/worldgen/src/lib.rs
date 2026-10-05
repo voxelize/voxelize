@@ -86,7 +86,12 @@ struct BiomeSpec {
     cover: Vec<CoverSpec>,
     /// Colour of tinted blocks (grass, leaves); 128 per channel is neutral.
     tint: [u8; 3],
+    /// Cold enough that still water freezes over at sea level.
+    freezes: bool,
 }
+
+/// Biome temperature at or under which water freezes at the surface.
+const FREEZING: f64 = -0.4;
 
 /// Neutral tint: blocks look as their textures are drawn.
 pub const NEUTRAL_TINT: [u8; 3] = [128, 128, 128];
@@ -329,6 +334,8 @@ pub struct Generator {
     water: u32,
     lava: u32,
     bedrock: u32,
+    /// Ice for frozen seas and lakes (water when the pack has none).
+    ice: u32,
 }
 
 fn fbm(seed: u32, octaves: usize, frequency: f64) -> Fbm<OpenSimplex> {
@@ -390,6 +397,7 @@ impl Generator {
                     .as_deref()
                     .and_then(parse_color)
                     .unwrap_or(NEUTRAL_TINT),
+                freezes: b.temperature <= FREEZING,
             })
             .collect();
         if biomes.is_empty() {
@@ -505,6 +513,7 @@ impl Generator {
             stone,
             water,
             lava,
+            ice: content.block("ice").map(|b| b.id).unwrap_or(water),
             bedrock,
         })
     }
@@ -738,6 +747,8 @@ impl Generator {
                         } else {
                             self.stone
                         }
+                    } else if y == sea && biome.freezes {
+                        self.ice
                     } else if y <= sea {
                         self.water
                     } else {
@@ -1393,6 +1404,42 @@ mod tests {
         assert_eq!(drawn_cell(size, 1, 0, 3), (3, 0), "front faces -x");
         assert_eq!(drawn_cell(size, 2, 3, 4), (3, 0), "front faces +z");
         assert_eq!(drawn_cell(size, 3, 4, 3), (3, 0), "front faces +x");
+    }
+
+    #[test]
+    fn cold_seas_and_lakes_freeze_over_and_warm_ones_do_not() {
+        let (content, g) = generator(5);
+        let ice = content.block("ice").unwrap().id;
+        let water = content.block("water").unwrap().id;
+        let sea = g.config().sea_level as usize;
+        let (mut frozen, mut open) = (0, 0);
+        for cx in -24..24 {
+            for cz in -24..24 {
+                if (cx + cz) % 4 != 0 {
+                    continue; // a sample is enough
+                }
+                let chunk = g.generate_chunk(cx, cz, 16);
+                for x in 0..16 {
+                    for z in 0..16 {
+                        let biome = &g.biomes[chunk.biomes[x * 16 + z] as usize];
+                        let top = chunk.get(x, sea, z);
+                        if top == ice {
+                            assert!(biome.freezes, "ice only where it is cold ({})", biome.key);
+                            assert_ne!(
+                                chunk.get(x, sea - 1, z),
+                                0,
+                                "water or ground under the ice, never air"
+                            );
+                            frozen += 1;
+                        } else if top == water && !biome.freezes {
+                            open += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(frozen > 0, "some lake or sea froze");
+        assert!(open > frozen, "most water stays open");
     }
 
     #[test]

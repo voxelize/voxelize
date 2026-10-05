@@ -82,14 +82,12 @@ engine, engine code never imports from `platform/` (enforced by
 platform/
   Cargo.toml              Rust workspace of the game (consumer of the engine)
   apps/
-    web-client/           browser game client (TS, @voxelize/core)
-    website/              public site, world map                            [phase 9]
-    admin-panel/          administration UI                                 [phase 9]
+    web-client/           browser game client (TS, @voxelize/core); also
+                          serves the admin panel (/admin.html)
   backend/
     laravel-api/          business API (Laravel 13, PHP 8.3)
   servers/
     game-server/          authoritative world server (Rust)
-    gateway/              connection router across worlds                   [phase 7]
   crates/
     content/              content schema, validation, mining & crafting rules
     worldgen/             seeded terrain / biome / cave / ore / vegetation generator
@@ -142,8 +140,8 @@ server persists only chunks players changed and regenerates the rest.
 
 ### 3.4 Game server (`servers/game-server`)
 
-One process hosts one world (later: several worlds per process, or one world
-sharded across processes behind the gateway). Boots in a fixed order —
+One process hosts one world; player-made worlds each get their own process,
+and nginx routes `w-<id>.<domain>` to it (`infrastructure/worlds/host-worlds.sh`). Boots in a fixed order —
 configuration, content, engine registry, generator, persistent world, ticket
 authenticator — and refuses to start half-configured. Admits WebSocket
 sessions only with a valid, unused game ticket. Gameplay systems (mining
@@ -195,11 +193,11 @@ predicts local movement while the server stays authoritative.
 | Stage | Shape |
 | --- | --- |
 | Now | one game-server process per world; one Laravel deployment; one MySQL primary; Redis; MinIO |
-| Phase 7 | `servers/gateway` routes tickets to the right world process; game servers publish presence to Redis |
-| Later | worlds sharded by region across processes with hand-off at region borders; MySQL read replicas for analytics; Laravel horizontally behind Nginx; Kubernetes manifests generated from the Compose services |
+| Done | the world address in each ticket routes players to the right world process (nginx per-world hosts); presence lives in the cache |
+| Not built | one world sharded across processes, MySQL read replicas, Kubernetes manifests: about 50 players per world on 4 cores (docs/LOAD_TESTS.md) has not called for them |
 
 Transport is abstracted behind the engine's `@voxelize/transport` and the
-WebSocket route; a WebTransport/QUIC lane is added beside it, not instead of
+WebSocket route; a WebTransport/QUIC lane (not built) would go beside it, not instead of
 it (the engine already carries a WebRTC data-channel lane).
 
 ## 6. Game server ↔ API contract
@@ -227,8 +225,9 @@ This contract is implemented together with the first in-world economic action
   tickets and audited actions in the last hour. Prometheus, alert rules and
   a Grafana dashboard come with the compose profile `observability`
   (infrastructure/README.md).
-- Tracing: OpenTelemetry spans across API → game server calls (phase 9).
-- Error tracking: Sentry-compatible DSN for both tiers (phase 9).
+- Not built: distributed tracing and an error-tracking service. Errors go
+  to the logs of each service (`docker compose logs`), and the alerts above
+  cover slow ticks, silent worlds, a frozen economy and piled-up reports.
 
 ## 8. Document index
 

@@ -20,3 +20,12 @@ groups:
         for: 5m
         annotations:
           summary: "Many too_fast / out_of_reach refusals: a client may be cheating"
+      - alert: EconomyFrozen
+        expr: platform_economy_frozen > 0
+        annotations:
+          summary: "The ledger did not balance: money is frozen until an administrator releases it (admin panel, Economy)"
+      - alert: ReportsPilingUp
+        expr: platform_reports{status="open"} > 20
+        for: 30m
+        annotations:
+          summary: "More than 20 player reports wait for a moderator"

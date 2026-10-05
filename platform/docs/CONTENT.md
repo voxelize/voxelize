@@ -116,6 +116,10 @@ block, an item and recipes, with no new code. The pack ships three:
 | `crusher` | one raw ore → two crushed ores (160 ticks); stone → rubble → sand |
 | `smelter` | metals only (raw and crushed ores), 100 ticks — twice the furnace's speed |
 
+Lights: the Wisp Lantern (glass and Wisp Essence from wisps, light 13) and
+the Core Lamp (iron, glass and the Warden Core the Ember Warden drops,
+light 15, four per core) give the creature drops a use.
+
 Crushed ores melt into one ingot each in a furnace or smelter, so a crusher
 doubles what a vein yields. Furnaces saved before there were other stations
 load as furnaces.

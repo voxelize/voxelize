@@ -104,10 +104,15 @@ Append-only. The ticket string is never stored.
 ## Worlds
 
 ### worlds ✅ implemented (player-made worlds; official ones are config)
-Planned: `id`, `public_id`, `key` UNIQUE (`main`), `name`, `realm`, `dimension`
-(`overworld|underworld|sky`), `seed` int unsigned, `visibility`
-(`public|friends|invite|private`), `owner_user_id` FK NULL (private worlds),
-`max_players`, `description`, `status` (`active|maintenance|archived`), timestamps.
+`id`, `public_id` UNIQUE (its world key), `name`, `owner_id` FK users,
+`visibility` (`public|friends|invite|private`), `realm`
+(`survival|creative`), `max_players`, `url` (its game server, from the
+address template), `status` (`active|archived`), timestamps;
+INDEX(`owner_id`, `status`), INDEX(`visibility`, `status`). The official
+worlds (`main` and its dimensions) are configuration, not rows. Beside it:
+`world_members` (invitations; UNIQUE(`world_id`, `user_id`)) and
+`world_status` (players per world and dimension as game servers report;
+UNIQUE(`world`, `dimension`)).
 
 ### servers
 `id`, `world_id` FK, `public_url`, `internal_url`, `region`, `version`,
@@ -384,7 +389,9 @@ An accepted friendship is two rows, one per direction, written together.
 `status` (`active|disbanded`; a disbanded guild frees its name and tag),
 `create_key` (UNIQUE with `leader_id`: founding is idempotent), timestamps.
 The treasury is the ledger account `guild:<public_id>:<CUR>` (type `guild`).
-Planned: `settlement_level` (`none|village|town|city`).
+The settlement level (`none|village|town|city`) is not stored: it is
+worked out from the guild's touching lands and members when asked
+(`App\Services\Guild\Settlements`), so it can never go stale.
 
 ### guild_members ✅ implemented
 `guild_id` FK, `user_id` FK UNIQUE (one guild per player), `role`

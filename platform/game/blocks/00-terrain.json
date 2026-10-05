@@ -293,6 +293,11 @@
     "transparent": true,
     "behaviors": [
       "melts"
+    ],
+    "drops": [
+      {
+        "item": "ice"
+      }
     ]
   },
   {

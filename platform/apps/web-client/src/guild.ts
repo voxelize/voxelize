@@ -15,6 +15,7 @@ import {
   type Settlement,
 } from "./api";
 import type { LandHere } from "./land";
+import { entryLine } from "./market";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -110,6 +111,8 @@ export class GuildPanel {
   private chat: GuildMessage[] = [];
   private lastMessage = 0;
   private polling: number | null = null;
+  /** The rank the leader is editing (its form is filled in), if any. */
+  private editing: string | null = null;
 
   constructor(private readonly options: { notify: (text: string) => void }) {
     this.root = el("section", { id: "guild", className: "panel", hidden: true });
@@ -173,7 +176,7 @@ export class GuildPanel {
     }
     this.guild = state?.guild ?? null;
     if (!state) children.push(el("p", { textContent: "Could not load your guild." }));
-    else if (state.guild) children.push(...this.ownGuild(state.guild));
+    else if (state.guild) children.push(...(await this.ownGuild(state.guild)));
     else {
       for (const inv of state.invites) {
         children.push(
@@ -206,7 +209,7 @@ export class GuildPanel {
     this.root.replaceChildren(...children);
   }
 
-  private ownGuild(g: GuildView): Node[] {
+  private async ownGuild(g: GuildView): Promise<Node[]> {
     const me = this.me;
     const nodes: Node[] = [
       el("p", {}, el("strong", { textContent: `[${g.tag}] ${g.name}` }), ` · ${g.members}/${g.max_members} members · you are ${g.my_role}`),
@@ -245,19 +248,36 @@ export class GuildPanel {
       const list = el("ul", { className: "guild-roster" });
       for (const r of g.ranks) {
         const li = el("li", { textContent: `${r.name}: ${r.permissions.map((p) => PERMISSION_NAMES[p]).join(", ") || "no extra rights"} ` });
-        if (g.my_role === "leader") li.append(el("button", { type: "button", onclick: () => this.act(() => api.guilds.deleteRank(g.id, r.id), "Rank removed") }, "Remove"));
+        if (g.my_role === "leader") {
+          li.append(
+            el("button", { type: "button", onclick: () => ((this.editing = r.id), void this.render()) }, "Edit"),
+            el("button", { type: "button", onclick: () => this.act(() => api.guilds.deleteRank(g.id, r.id), "Rank removed") }, "Remove"),
+          );
+        }
         list.append(li);
       }
       nodes.push(list);
       if (g.my_role === "leader") {
-        const name = el("input", { type: "text", maxLength: 24, placeholder: "Rank name" });
-        const boxes = GUILD_PERMISSIONS.map((p) => [p, el("input", { type: "checkbox" })] as const);
+        const editing = g.ranks.find((r) => r.id === this.editing) ?? null;
+        const name = el("input", { type: "text", maxLength: 24, placeholder: "Rank name", value: editing?.name ?? "" });
+        const boxes = GUILD_PERMISSIONS.map((p) => [p, el("input", { type: "checkbox", checked: editing?.permissions.includes(p) ?? false })] as const);
+        const chosen = () => boxes.filter(([, b]) => b.checked).map(([p]) => p);
         nodes.push(
           el("div", { className: "guild-found" }, name, ...boxes.map(([p, box]) => el("label", {}, box, ` ${PERMISSION_NAMES[p]}`))),
-          el("button", {
-            type: "button",
-            onclick: () => this.act(() => api.guilds.createRank(g.id, name.value.trim(), boxes.filter(([, b]) => b.checked).map(([p]) => p)), "Rank created"),
-          }, "Create rank"),
+          editing
+            ? el("div", { className: "guild-add" },
+                el("button", {
+                  type: "button",
+                  onclick: () => {
+                    this.editing = null;
+                    void this.act(() => api.guilds.updateRank(g.id, editing.id, { name: name.value.trim(), permissions: chosen() }), "Rank saved");
+                  },
+                }, `Save ${editing.name}`),
+                el("button", { type: "button", onclick: () => ((this.editing = null), void this.render()) }, "Cancel"))
+            : el("button", {
+                type: "button",
+                onclick: () => this.act(() => api.guilds.createRank(g.id, name.value.trim(), chosen()), "Rank created"),
+              }, "Create rank"),
         );
       }
     }
@@ -287,7 +307,21 @@ export class GuildPanel {
     if (!g.relations.length) relations.append(el("li", { textContent: "No alliances or wars." }));
     nodes.push(relations);
     if (leader) {
-      const other = el("input", { type: "text", maxLength: 26, placeholder: "Guild tag" });
+      const other = el("input", { type: "text", maxLength: 26, placeholder: "Guild tag or name" });
+      // Suggest guilds as the leader types.
+      const found = el("datalist", { id: "guild-search" });
+      other.setAttribute("list", "guild-search");
+      let lookup = 0;
+      other.addEventListener("input", () => {
+        const q = other.value.trim();
+        const mine = ++lookup;
+        if (q.length < 2) return;
+        void api.guilds.search(q).then((list) => {
+          if (mine !== lookup) return;
+          found.replaceChildren(...list.filter((x) => x.id !== g.id).slice(0, 10).map((x) => el("option", { value: x.tag, textContent: `${x.name} · ${x.members} members` })));
+        }).catch(() => {});
+      });
+      nodes.push(found);
       const tax = el("input", { type: "text", maxLength: 5, value: String(g.tax_bps / 100), className: "market-bid" });
       nodes.push(
         el("div", { className: "guild-add" }, other,
@@ -336,6 +370,12 @@ export class GuildPanel {
         el("button", { type: "button", onclick: () => this.act(() => api.guilds.deposit(g.id, depositKey, Number(amount.value)), "Deposited") }, "Deposit"),
       ),
     );
+    const statement = await api.guilds.entries(g.id).catch(() => []);
+    if (statement.length) {
+      const list = el("ul", { className: "guild-roster guild-statement" });
+      for (const e of statement.slice(0, 15)) list.append(el("li", { textContent: entryLine(e) }));
+      nodes.push(el("details", {}, el("summary", { textContent: "Treasury statement" }), list));
+    }
     if (g.my_permissions.includes("treasury") || g.my_permissions.includes("invite")) {
       const player = el("input", { type: "text", maxLength: 24, placeholder: "Player name" });
       const withdrawKey = idempotencyKey();

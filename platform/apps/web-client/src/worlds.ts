@@ -127,7 +127,7 @@ export function chooseWorld(): Promise<WorldView> {
         void act(() => api.worlds.create(name.value.trim(), vis.value as WorldVisibility, realm.value as "survival" | "creative"));
       });
       const mine = worlds.filter((w) => w.mine).length;
-      root.replaceChildren(h("h2", "Worlds"), list, h("h3", `Your worlds (${mine}/${perPlayer})`), form, status, button("Refresh", () => void load(), "link"));
+      root.replaceChildren(h("h2", "Worlds"), list, h("h3", `Your worlds (${mine}/${perPlayer})`), form, status, button("Refresh", () => void load(), "link"), button("Sign out", () => void api.logout().then(() => location.reload()), "link"));
     };
 
     const load = async () => {

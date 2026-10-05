@@ -25,6 +25,7 @@ use App\Http\Controllers\Internal\ReportBridgeController;
 use App\Http\Controllers\Internal\RewardController;
 use App\Http\Controllers\Internal\SanctionFeedController;
 use App\Http\Controllers\Internal\WorldFeedController;
+use App\Http\Middleware\EconomyOpen;
 use App\Http\Middleware\GameServiceToken;
 use App\Http\Middleware\RequireRole;
 use Illuminate\Support\Facades\Route;
@@ -55,30 +56,30 @@ Route::prefix('v1')->group(function () {
 
         Route::get('wallets', [WalletController::class, 'index']);
         Route::get('wallets/{currency}/entries', [WalletController::class, 'entries']);
-        Route::post('transfers', [WalletController::class, 'transfer'])->middleware('throttle:economy');
+        Route::post('transfers', [WalletController::class, 'transfer'])->middleware(['throttle:economy', EconomyOpen::class]);
 
         Route::get('lands', [LandController::class, 'index']);
         Route::get('lands/quote', [LandController::class, 'quote']);
-        Route::post('lands', [LandController::class, 'store'])->middleware('throttle:economy');
+        Route::post('lands', [LandController::class, 'store'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::patch('lands/{land}', [LandController::class, 'update']);
         Route::delete('lands/{land}', [LandController::class, 'destroy']);
-        Route::post('lands/{land}/resize', [LandController::class, 'resize'])->middleware('throttle:economy');
+        Route::post('lands/{land}/resize', [LandController::class, 'resize'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::put('lands/{land}/sale', [LandController::class, 'offer']);
         Route::delete('lands/{land}/sale', [LandController::class, 'withdraw']);
-        Route::post('lands/{land}/buy', [LandController::class, 'buy'])->middleware('throttle:economy');
+        Route::post('lands/{land}/buy', [LandController::class, 'buy'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::post('lands/{land}/members', [LandController::class, 'addMember']);
         Route::delete('lands/{land}/members/{player}', [LandController::class, 'removeMember']);
 
         Route::get('market/listings', [MarketController::class, 'index']);
         Route::get('market/history', [MarketController::class, 'history']);
         Route::get('market/listings/{listing}', [MarketController::class, 'show']);
-        Route::post('market/listings/{listing}/buy', [MarketController::class, 'buy'])->middleware('throttle:economy');
-        Route::post('market/listings/{listing}/bids', [MarketController::class, 'bid'])->middleware('throttle:economy');
+        Route::post('market/listings/{listing}/buy', [MarketController::class, 'buy'])->middleware(['throttle:economy', EconomyOpen::class]);
+        Route::post('market/listings/{listing}/bids', [MarketController::class, 'bid'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::delete('market/listings/{listing}', [MarketController::class, 'destroy']);
         Route::get('deliveries', [MarketController::class, 'deliveries']);
 
         Route::get('contracts', [ContractController::class, 'index']);
-        Route::post('contracts', [ContractController::class, 'store'])->middleware('throttle:economy');
+        Route::post('contracts', [ContractController::class, 'store'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::post('contracts/{contract}/accept', [ContractController::class, 'accept']);
         Route::post('contracts/{contract}/abandon', [ContractController::class, 'abandon']);
         Route::delete('contracts/{contract}', [ContractController::class, 'destroy']);
@@ -97,18 +98,19 @@ Route::prefix('v1')->group(function () {
                 Route::put('players/{player}/roles', [AdminController::class, 'roles']);
                 Route::post('players/{player}/grant', [AdminController::class, 'grant']);
                 Route::get('economy', [AdminController::class, 'economy']);
+                Route::post('economy/release', [AdminController::class, 'releaseEconomy']);
             });
         });
 
         Route::get('worlds', [WorldController::class, 'index']);
-        Route::post('worlds', [WorldController::class, 'store'])->middleware('throttle:economy');
+        Route::post('worlds', [WorldController::class, 'store'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::patch('worlds/{world}', [WorldController::class, 'update']);
         Route::delete('worlds/{world}', [WorldController::class, 'destroy']);
         Route::post('worlds/{world}/members', [WorldController::class, 'addMember']);
         Route::delete('worlds/{world}/members/{player}', [WorldController::class, 'removeMember']);
 
         Route::get('cosmetics', [CosmeticController::class, 'index']);
-        Route::post('cosmetics/{cosmetic}/buy', [CosmeticController::class, 'buy'])->middleware('throttle:economy');
+        Route::post('cosmetics/{cosmetic}/buy', [CosmeticController::class, 'buy'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::put('cosmetics/equipped', [CosmeticController::class, 'equip']);
 
         Route::get('friends', [FriendController::class, 'index']);
@@ -118,7 +120,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('guilds', [GuildController::class, 'index']);
         Route::get('guilds/mine', [GuildController::class, 'mine']);
-        Route::post('guilds', [GuildController::class, 'store'])->middleware('throttle:economy');
+        Route::post('guilds', [GuildController::class, 'store'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::get('guilds/{guild}', [GuildController::class, 'show']);
         Route::post('guilds/{guild}/invites', [GuildController::class, 'invite']);
         Route::post('guilds/{guild}/join', [GuildController::class, 'join']);
@@ -126,8 +128,8 @@ Route::prefix('v1')->group(function () {
         Route::post('guilds/{guild}/leave', [GuildController::class, 'leave']);
         Route::delete('guilds/{guild}/members/{player}', [GuildController::class, 'kick']);
         Route::put('guilds/{guild}/members/{player}/role', [GuildController::class, 'role']);
-        Route::post('guilds/{guild}/deposit', [GuildController::class, 'deposit'])->middleware('throttle:economy');
-        Route::post('guilds/{guild}/withdraw', [GuildController::class, 'withdraw'])->middleware('throttle:economy');
+        Route::post('guilds/{guild}/deposit', [GuildController::class, 'deposit'])->middleware(['throttle:economy', EconomyOpen::class]);
+        Route::post('guilds/{guild}/withdraw', [GuildController::class, 'withdraw'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::get('guilds/{guild}/entries', [GuildController::class, 'entries']);
         Route::get('guilds/{guild}/messages', [GuildController::class, 'messages']);
         Route::post('guilds/{guild}/messages', [GuildController::class, 'say']);
@@ -139,7 +141,7 @@ Route::prefix('v1')->group(function () {
         Route::get('guilds/{guild}/relations', [GuildController::class, 'relations']);
         Route::post('guilds/{guild}/alliances', [GuildController::class, 'ally']);
         Route::delete('guilds/{guild}/alliances/{other}', [GuildController::class, 'endAlliance']);
-        Route::post('guilds/{guild}/wars', [GuildController::class, 'declareWar'])->middleware('throttle:economy');
+        Route::post('guilds/{guild}/wars', [GuildController::class, 'declareWar'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::post('guilds/{guild}/wars/{other}/peace', [GuildController::class, 'peace']);
 
         Route::get('blueprints', [BlueprintController::class, 'index']);
@@ -148,11 +150,11 @@ Route::prefix('v1')->group(function () {
         Route::post('blueprints/{blueprint}/review', [BlueprintController::class, 'review']);
         Route::get('blueprints/{blueprint}/revisions', [BlueprintController::class, 'revisions']);
         Route::patch('blueprints/{blueprint}', [BlueprintController::class, 'update']);
-        Route::post('blueprints/{blueprint}/buy', [BlueprintController::class, 'buy'])->middleware('throttle:economy');
+        Route::post('blueprints/{blueprint}/buy', [BlueprintController::class, 'buy'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::get('blueprints/{blueprint}/resales', [BlueprintController::class, 'resales']);
         Route::post('blueprints/{blueprint}/resales', [BlueprintController::class, 'listResale']);
         Route::get('blueprints/{blueprint}/provenance', [BlueprintController::class, 'provenance']);
-        Route::post('blueprint-resales/{resale}/buy', [BlueprintController::class, 'buyResale'])->middleware('throttle:economy');
+        Route::post('blueprint-resales/{resale}/buy', [BlueprintController::class, 'buyResale'])->middleware(['throttle:economy', EconomyOpen::class]);
         Route::delete('blueprint-resales/{resale}', [BlueprintController::class, 'cancelResale']);
     });
 });
@@ -167,13 +169,13 @@ Route::prefix('internal/v1')->middleware(GameServiceToken::class)->group(functio
     Route::post('wars/kills', [GuildFeedController::class, 'kill']);
     Route::post('wars/captures', [GuildFeedController::class, 'capture']);
     Route::post('market/listings', [MarketBridgeController::class, 'createListing']);
-    Route::post('payments', [MarketBridgeController::class, 'payment']);
-    Route::post('contracts/{contract}/fulfil', [MarketBridgeController::class, 'fulfil']);
+    Route::post('payments', [MarketBridgeController::class, 'payment'])->middleware(EconomyOpen::class);
+    Route::post('contracts/{contract}/fulfil', [MarketBridgeController::class, 'fulfil'])->middleware(EconomyOpen::class);
     Route::post('blueprints', [BlueprintBridgeController::class, 'store']);
     Route::get('blueprints/{blueprint}', [BlueprintBridgeController::class, 'show']);
     Route::post('deliveries/pending', [MarketBridgeController::class, 'pending']);
     Route::post('deliveries/{delivery}/ack', [MarketBridgeController::class, 'acknowledge']);
-    Route::post('rewards', [RewardController::class, 'store']);
+    Route::post('rewards', [RewardController::class, 'store'])->middleware(EconomyOpen::class);
     Route::post('presence', [PresenceController::class, 'store']);
     Route::get('worlds', WorldFeedController::class);
     Route::get('sanctions', SanctionFeedController::class);

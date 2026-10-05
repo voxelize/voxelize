@@ -122,26 +122,33 @@ pub(super) fn install(world: &mut World) {
         let Some(p) = parse::<SetPayload>(world, id, INTENT, payload) else {
             return;
         };
-        let result = {
-            let mut g = world.ecs().write_resource::<Gameplay>();
-            match g.players.get(id).map(|pl| pl.realm) {
-                None => Err(IntentError::NothingThere),
-                Some(Realm::Creative) if g.dimensions.current == Dimension::Overworld => {
-                    let seconds = if p.kind == WeatherKind::Clear {
-                        3600.0
-                    } else {
-                        600.0
-                    };
-                    g.weather.set(p.kind, seconds);
-                    g.weather_changed = true;
-                    Ok(json!({ "kind": p.kind }))
-                }
-                Some(Realm::Creative) => Err(IntentError::CannotUse),
-                Some(_) => Err(IntentError::CreativeOnly),
-            }
-        };
+        let result = set(world, id, p.kind);
         reply(world, id, INTENT, result);
     });
+}
+
+/// A creative player sets the weather (the intent and `/weather`).
+pub(super) fn set(
+    world: &mut World,
+    id: &str,
+    kind: WeatherKind,
+) -> Result<serde_json::Value, IntentError> {
+    let mut g = world.ecs().write_resource::<Gameplay>();
+    match g.players.get(id).map(|pl| pl.realm) {
+        None => Err(IntentError::NothingThere),
+        Some(Realm::Creative) if g.dimensions.current == Dimension::Overworld => {
+            let seconds = if kind == WeatherKind::Clear {
+                3600.0
+            } else {
+                600.0
+            };
+            g.weather.set(kind, seconds);
+            g.weather_changed = true;
+            Ok(json!({ "kind": kind }))
+        }
+        Some(Realm::Creative) => Err(IntentError::CannotUse),
+        Some(_) => Err(IntentError::CreativeOnly),
+    }
 }
 
 /// Turns the weather, tells players, rains out fires and throws lightning.

@@ -1,0 +1,40 @@
+[
+  {
+    "id": 81,
+    "key": "wisp_lantern",
+    "name": "Wisp Lantern",
+    "material": "glass",
+    "hardness": 0.3,
+    "resistance": 0.3,
+    "texture": {
+      "all": "wisp_lantern"
+    },
+    "transparent": true,
+    "lightEmission": 13,
+    "drops": [
+      {
+        "item": "wisp_lantern"
+      }
+    ]
+  },
+  {
+    "id": 82,
+    "key": "core_lamp",
+    "name": "Core Lamp",
+    "material": "rock",
+    "hardness": 3,
+    "resistance": 6,
+    "texture": {
+      "all": "core_lamp"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "lightEmission": 15,
+    "drops": [
+      {
+        "item": "core_lamp"
+      }
+    ]
+  }
+]

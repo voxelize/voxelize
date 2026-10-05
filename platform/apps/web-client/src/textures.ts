@@ -309,6 +309,17 @@ const RECIPES: Record<string, Recipe> = {
     p.speckle(shade(STONE, -0.05), 0.1);
     p.border(shade(STONE, -0.4));
   },
+  wisp_lantern: (p) => {
+    p.speckle(hex("#bfe8ff", 120), 0.05);
+    p.border(hex("#6b7c8c"));
+    for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) p.set(x, y, hex(Math.abs(x - 7.5) + Math.abs(y - 7.5) < 3 ? "#f2fbff" : "#9fd8ff"));
+  },
+  core_lamp: (p) => {
+    p.speckle(hex("#5d6168"), 0.06);
+    for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++) p.set(x, y, hex((x + y) % 2 ? "#ffd27a" : "#ffb347"));
+    for (let y = 6; y < 10; y++) for (let x = 6; x < 10; x++) p.set(x, y, hex("#fff3c4"));
+    p.border(hex("#3c3f45"));
+  },
   smelter_side: (p) => {
     p.speckle(hex("#8a4b3a"), 0.08);
     for (let y = 3; y < SIZE; y += 4) for (let x = 0; x < SIZE; x++) p.set(x, y, hex("#5d3328"));

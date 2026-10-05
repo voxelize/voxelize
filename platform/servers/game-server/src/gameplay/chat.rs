@@ -10,6 +10,8 @@
 //! | `/l <text>` (`/local`) | players within [`LOCAL_RANGE`] blocks |
 //! | `/g <text>` (`/guild`) | online members of your guild |
 //! | `/report <name> [category] <what happened>` | to the moderators |
+//! | `/gamemode <normal\|adventure\|spectator> [name]` | your mode in a creative world; anyone's for moderators |
+//! | `/weather <clear\|rain\|thunder>` | creative players, in the overworld |
 //! | `/help` | the list |
 //!
 //! Channel lines reach clients as [`CHAT_EVENT`] events.
@@ -226,6 +228,88 @@ fn whisper(world: &mut World, id: &str, to_name: &str, body: &str) {
     );
 }
 
+/// The text a refused operator command answers with.
+fn refused(error: &super::rules::IntentError) -> String {
+    match error.code() {
+        "game_mode" => {
+            "Only moderators set game modes, or you your own in a creative world.".into()
+        }
+        "creative_only" => "Only creative players change the weather.".into(),
+        "cannot_use" => "The weather can only change in the overworld.".into(),
+        "nothing_there" => "Nobody by that name is here.".into(),
+        other => format!("Refused ({other})."),
+    }
+}
+
+/// A mode by the names players use for it.
+pub fn parse_mode(word: &str) -> Option<super::rules::GameMode> {
+    use super::rules::GameMode;
+    match word.to_lowercase().as_str() {
+        "normal" | "survival" | "s" | "0" => Some(GameMode::Normal),
+        "adventure" | "a" | "2" => Some(GameMode::Adventure),
+        "spectator" | "sp" | "3" => Some(GameMode::Spectator),
+        _ => None,
+    }
+}
+
+/// `/gamemode <mode> [name]`.
+fn gamemode(world: &mut World, id: &str, body: &str) {
+    let mut words = body.split_whitespace();
+    let Some(mode) = words.next().and_then(parse_mode) else {
+        return system(
+            world,
+            id,
+            "Use /gamemode <normal|adventure|spectator> [name].",
+        );
+    };
+    let target = match words.next() {
+        None => id.to_owned(),
+        Some(name) => match id_by_name(world, name) {
+            Some(t) => t,
+            None => return system(world, id, &format!("{name} is not here.")),
+        },
+    };
+    match super::modes::set(world, id, &target, mode) {
+        Ok(_) => {
+            let who = if target == id {
+                "Your".to_owned()
+            } else {
+                format!("{}'s", name_of(world, &target))
+            };
+            system(
+                world,
+                id,
+                &format!(
+                    "{who} game mode is now {}.",
+                    serde_json::to_value(mode)
+                        .ok()
+                        .and_then(|v| v.as_str().map(str::to_owned))
+                        .unwrap_or_default()
+                ),
+            );
+        }
+        Err(e) => system(world, id, &refused(&e)),
+    }
+}
+
+/// `/weather <clear|rain|thunder>`.
+fn weather(world: &mut World, id: &str, body: &str) {
+    let kind = match body.trim().to_lowercase().as_str() {
+        "clear" | "sun" => super::weather::WeatherKind::Clear,
+        "rain" | "snow" => super::weather::WeatherKind::Rain,
+        "thunder" | "storm" => super::weather::WeatherKind::Thunder,
+        _ => return system(world, id, "Use /weather <clear|rain|thunder>."),
+    };
+    match super::weather::set(world, id, kind) {
+        Ok(_) => system(
+            world,
+            id,
+            &format!("The weather turns to {}.", body.trim().to_lowercase()),
+        ),
+        Err(e) => system(world, id, &refused(&e)),
+    }
+}
+
 fn position_of(world: &World, id: &str) -> Option<[f32; 3]> {
     let clients = world.read_resource::<Clients>();
     let positions = world.read_component::<PositionComp>();
@@ -346,7 +430,7 @@ pub(super) fn install(world: &mut World) {
         if answered {
             return;
         }
-        if !matches!(name.as_str(), "w" | "msg" | "tell" | "r" | "l" | "local" | "g" | "guild" | "report" | "help") {
+        if !matches!(name.as_str(), "w" | "msg" | "tell" | "r" | "l" | "local" | "g" | "guild" | "report" | "gamemode" | "gm" | "weather" | "help") {
             return system(world, id, &format!("Unknown command /{name} (try /help)."));
         }
         let Some(body) = clean(&rest).or_else(|| (name == "help").then(String::new)) else {
@@ -354,6 +438,12 @@ pub(super) fn install(world: &mut World) {
         };
         if name == "report" {
             return report(world, id, &body);
+        }
+        if matches!(name.as_str(), "gamemode" | "gm") {
+            return gamemode(world, id, &body);
+        }
+        if name == "weather" {
+            return weather(world, id, &body);
         }
         if name != "help" && !may_speak(world, id) {
             return;
@@ -433,7 +523,7 @@ pub(super) fn install(world: &mut World) {
                     let list = plugins.lock().map(|p| p.commands()).unwrap_or_default();
                     list.into_iter().map(|(c, from)| format!("/{c} ({from})")).collect()
                 };
-                let mut text = "/w <name> <text> whispers, /r <text> replies, /l <text> talks to players nearby, /g <text> to your guild, /report <name> [cheating|griefing|harassment|scam|name] <what happened> to the moderators; plain lines go to everyone.".to_owned();
+                let mut text = "/w <name> <text> whispers, /r <text> replies, /l <text> talks to players nearby, /g <text> to your guild, /report <name> [cheating|griefing|harassment|scam|name] <what happened> to the moderators; plain lines go to everyone. In a creative world: /gamemode <normal|adventure|spectator>, /weather <clear|rain|thunder>.".to_owned();
                 if !extra.is_empty() {
                     text.push_str(&format!(" Also: {}.", extra.join(", ")));
                 }
@@ -493,6 +583,19 @@ mod tests {
         assert!(state.may_report("a", later));
         state.forget("b");
         assert!(state.recent("b").is_empty());
+    }
+
+    #[test]
+    fn game_modes_go_by_their_usual_names() {
+        use super::super::rules::GameMode;
+        assert_eq!(parse_mode("Survival"), Some(GameMode::Normal));
+        assert_eq!(parse_mode("adventure"), Some(GameMode::Adventure));
+        assert_eq!(parse_mode("sp"), Some(GameMode::Spectator));
+        assert_eq!(
+            parse_mode("creative"),
+            None,
+            "creative is a world, not a mode"
+        );
     }
 
     #[test]

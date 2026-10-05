@@ -3,11 +3,18 @@
 // to the API (money); selling goes to the game server, which takes the
 // goods from your inventory and hands them to the market.
 
-import { api, ApiError, idempotencyKey, type ContractView, type Listing, type PriceHistory } from "./api";
+import { api, ApiError, idempotencyKey, type ContractView, type Listing, type PriceHistory, type WalletEntry } from "./api";
 import type { Content } from "./content";
 import type { InventorySnapshot } from "./hud";
 
-type Tab = "browse" | "sell" | "mine" | "contracts" | "deliveries";
+type Tab = "browse" | "sell" | "mine" | "contracts" | "deliveries" | "wallet";
+
+/** One statement line: "+25 CRN · trade · from bob — balance 125 (5 May)". */
+export function entryLine(e: WalletEntry): string {
+  const sign = e.amount > 0 ? "+" : "";
+  const day = new Date(e.at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return `${sign}${e.amount} CRN · ${e.type}${e.reason ? ` · ${e.reason}` : ""} — balance ${e.balance_after} (${day})`;
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -115,13 +122,39 @@ export class MarketPanel {
     }
   }
 
+  /** The Crowns statement and sending Crowns to another player. */
+  private async wallet(): Promise<Node[]> {
+    const to = el("input", { type: "text", placeholder: "Player name", maxLength: 24 });
+    const amount = el("input", { type: "number", min: "1", value: "10", className: "market-bid" });
+    const memo = el("input", { type: "text", placeholder: "Note (optional)", maxLength: 120 });
+    // One key per filled-in form: a double click or a retry never pays twice.
+    let key = idempotencyKey();
+    const send = el("button", {
+      type: "button",
+      onclick: () => {
+        const n = Math.floor(Number(amount.value));
+        if (!to.value.trim() || !(n > 0)) return this.options.notify("Name a player and an amount");
+        const k = key;
+        void this.act(async () => {
+          await api.transfer(to.value.trim(), n, memo.value.trim(), k);
+          key = idempotencyKey();
+        }, `Sent ${n} Crowns to ${to.value.trim()}`);
+      },
+    }, "Send");
+    const list = el("ul", { className: "market-list" });
+    const { entries } = await api.entries("CRN").catch(() => ({ entries: [] as WalletEntry[] }));
+    for (const e of entries.slice(0, 50)) list.append(el("li", { textContent: entryLine(e) }));
+    if (!entries.length) list.append(el("li", { textContent: "No movements yet." }));
+    return [el("h3", { textContent: "Send Crowns" }), el("div", { className: "land-add" }, to, amount, memo, send), el("h3", { textContent: "Statement" }), list];
+  }
+
   private async render() {
     const wallets = await api.wallets().catch(() => []);
     const crowns = wallets.find((w) => w.currency === "CRN")?.balance ?? 0;
     const tabs = el(
       "nav",
       { className: "market-tabs" },
-      ...(["browse", "sell", "mine", "contracts", "deliveries"] as Tab[]).map((t) =>
+      ...(["browse", "sell", "mine", "contracts", "deliveries", "wallet"] as Tab[]).map((t) =>
         el("button", { type: "button", className: t === this.tab ? "active" : "", onclick: () => ((this.tab = t), void this.render()) }, t[0].toUpperCase() + t.slice(1)),
       ),
     );
@@ -131,6 +164,7 @@ export class MarketPanel {
     if (this.tab === "mine") body.append(...(await this.mine()));
     if (this.tab === "deliveries") body.append(...(await this.deliveries()));
     if (this.tab === "contracts") body.append(...(await this.contracts()));
+    if (this.tab === "wallet") body.append(...(await this.wallet()));
     this.root.replaceChildren(
       el("h2", { textContent: "Market" }),
       el("p", { className: "market-balance", textContent: `${crowns} Crowns` }),

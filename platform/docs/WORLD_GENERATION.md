@@ -61,6 +61,7 @@ Taiga, Mountains, Beach, Ocean, Deep Ocean, Badlands.
 | Villages | ✅ | data-driven (`platform/game/villages`): a Hamlet is a well with three to six houses and farms on a ring around it (`radius`), each turned by quarter turns so its front row faces the well, joined to it by gravel paths laid on the surface (clearing ground cover). One per seeded grid cell, in its biomes, on dry land; houses that would stand in water are left out. Village pieces are `village` structures with `foundation` blocks filled under their floors on slopes; house chests carry loot |
 | Biome tints | ✅ | each biome has a `tint` colour; blocks marked `tinted` (turf, tall grass, leaves) take it through the engine's regional colour: every chunk carries the tint at its four corners (an average over a 3 × 3 grid of biomes around each corner, so neighbouring chunks share corners and colours blend), the client blends it across the chunk; tints are saved with edited chunks |
 | Dimensions | ✅ underworld, sky | see below |
+| Frozen water | ✅ | in biomes at or under temperature −0.4 (Snowy Plains, Taiga) the top layer of seas, lakes and rivers is ice; torches melt it (block behaviour `melts`), and broken ice gives an ice block. Pristine cold-water chunks of worlds made before this regenerate frozen; edited chunks keep what was saved |
 
 ## The underworld
 

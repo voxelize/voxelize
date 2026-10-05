@@ -6,15 +6,15 @@
 
 import "./style.css";
 
-import { api, ApiError, type AdminPlayer, type AdminPlayerState, type AdminReport, type User } from "./api";
+import { api, ApiError, type AdminPlayer, type AdminPlayerState, type AdminReport, type BlueprintView, type User } from "./api";
 
-export type Tab = "players" | "reports" | "servers" | "economy" | "audit";
+export type Tab = "players" | "reports" | "blueprints" | "servers" | "economy" | "audit";
 
 /** Tabs a user with these roles may open. */
 export function tabsFor(roles: string[]): Tab[] {
   const admin = roles.includes("admin");
   if (!admin && !roles.includes("moderator")) return [];
-  return admin ? ["players", "reports", "servers", "economy", "audit"] : ["players", "reports", "servers", "audit"];
+  return admin ? ["players", "reports", "blueprints", "servers", "economy", "audit"] : ["players", "reports", "blueprints", "servers", "audit"];
 }
 
 /** "3 min ago", "2 h ago", "5 days ago", "never". */
@@ -43,6 +43,12 @@ export function reportLine(r: AdminReport, now = Date.now()): string {
   if (r.target.status !== "active") parts.push(`${r.target.username} is ${r.target.status}`);
   if (r.status !== "open") parts.push(`${r.status} by ${r.handled_by ?? "?"}${r.resolution ? `: ${r.resolution}` : ""}`);
   return parts.join(" · ");
+}
+
+/** A design waiting for review: "Watchtower by ana · 7×12×7, 310 blocks · revision 2 · 120 CRN". */
+export function designLine(b: BlueprintView): string {
+  const price = b.price ? ` · ${b.price} CRN${b.max_copies ? `, ${b.max_copies} copies` : ""}` : "";
+  return `${b.name} by ${b.creator.name} · ${b.size.join("×")}, ${b.blocks} blocks · revision ${b.revision ?? 1}${price}`;
 }
 
 /** What the game server saw, in a line ("" for web reports). */
@@ -132,7 +138,7 @@ async function start() {
     b.dataset.tab = tab;
     nav.append(b);
   }
-  root.replaceChildren(h("header", {}, h("h1", { textContent: "Admin" }), h("span", { textContent: `${me.username} · ${roles.filter((r) => r !== "player").join(", ")}` }), button("Sign out", () => (api.forget(), location.reload()), "link")), nav, status, body);
+  root.replaceChildren(h("header", {}, h("h1", { textContent: "Admin" }), h("span", { textContent: `${me.username} · ${roles.filter((r) => r !== "player").join(", ")}` }), button("Sign out", () => void api.logout().then(() => location.reload()), "link")), nav, status, body);
 
   const run = async (action: () => Promise<unknown>, after: () => void) => {
     try {
@@ -207,6 +213,34 @@ async function start() {
   };
 
   const views: Record<Tab, (about?: string) => Promise<void>> = {
+    blueprints: async () => {
+      const list = h("ul", { className: "admin-list admin-designs" });
+      const load = async () => {
+        try {
+          const designs = await api.blueprints.reviewQueue();
+          const tab = nav.querySelector<HTMLButtonElement>('button[data-tab="blueprints"]');
+          if (tab) tab.textContent = designs.length ? `Blueprints (${designs.length})` : "Blueprints";
+          list.replaceChildren(
+            ...designs.map((b) => {
+              const decide = (approve: boolean) => {
+                const note = approve ? (prompt("Note for the creator (optional):") ?? "").trim() : reasonFor(`reject ${b.name}`);
+                if (note === null) return;
+                void run(() => api.blueprints.review(b.id, approve, note), () => void load());
+              };
+              const materials = Object.entries(b.materials).sort((x, y) => y[1] - x[1]).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(", ");
+              return h("li", {}, h("strong", { textContent: b.name }), ` ${designLine(b).slice(b.name.length)}`,
+                h("p", { className: "admin-stats", textContent: `Materials: ${materials}` }),
+                h("div", { className: "admin-actions" }, button("Approve", () => decide(true)), button("Reject", () => decide(false), "danger")));
+            }),
+          );
+          if (!designs.length) list.append(h("li", { textContent: "Nothing waiting for review." }));
+        } catch (e) {
+          status.textContent = say(e);
+        }
+      };
+      body.replaceChildren(h("p", { className: "admin-stats", textContent: "Published blueprints wait here until a moderator approves them; rejected ones go back to their creator with the note." }), list);
+      await load();
+    },
     reports: async (about = "") => {
       const filter = h("select", {}, ...["open", "resolved", "dismissed"].map((v) => h("option", { value: v, textContent: v })));
       const who = h("input", { placeholder: "About player (optional)", value: about });
@@ -284,7 +318,13 @@ async function start() {
     economy: async () => {
       try {
         const e = await api.admin.economy();
+        const frozen = e.frozen
+          ? [h("div", { className: "admin-error" },
+              h("p", { textContent: `Money is frozen since ${new Date(e.frozen.since).toLocaleString()}: buying, selling, transfers and payouts are refused until the ledger balances and an administrator releases it.` }),
+              button("Release", () => { const r = reasonFor("release the economy"); if (r) void run(() => api.admin.releaseEconomy(r), () => void views.economy()); }, "danger"))]
+          : [];
         body.replaceChildren(
+          ...frozen,
           h("p", { className: e.problems.length ? "admin-error" : "admin-stats", textContent: e.problems.length ? `Ledger problems: ${e.problems.join("; ")}` : "The ledger balances." }),
           h(
             "table",

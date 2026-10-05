@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Economy\EconomyFreeze;
 use App\Services\Social\FriendService;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,7 @@ class MetricsController extends Controller
             ->map(fn ($r) => [['currency' => $r->currency], $r->total]));
         $gauge('platform_market_listings', 'Market listings by status.', DB::table('market_listings')->select('status', DB::raw('count(*) as n'))->groupBy('status')->get()
             ->map(fn ($r) => [['status' => $r->status], $r->n]));
+        $gauge('platform_economy_frozen', 'Whether money endpoints are frozen (the ledger did not balance).', [[[], app(EconomyFreeze::class)->state() === null ? 0 : 1]]);
         $gauge('platform_reports', 'Player reports by status.', DB::table('player_reports')->select('status', DB::raw('count(*) as n'))->groupBy('status')->get()
             ->map(fn ($r) => [['status' => $r->status], $r->n]));
         $gauge('platform_game_tickets_last_hour', 'Game tickets issued in the last hour.', [[[], DB::table('game_tickets')->where('issued_at', '>=', now()->subHour())->count()]]);

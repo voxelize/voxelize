@@ -96,7 +96,9 @@ and only administrators act on administrators. `403 forbidden` otherwise.
 - `PUT /admin/players/{id}/mute` 🔒 — `{ "minutes": 0–43200, "reason" }` (0 lifts it): no chat or voice in game.
 - `PUT /admin/players/{id}/roles` 🔒 admin — `{ "roles": ["moderator", "admin"], "reason" }`.
 - `POST /admin/players/{id}/grant` 🔒 admin — `{ "currency", "amount", "reason" }`, header `Idempotency-Key` → `201 { "transaction", "balance" }` (minted, audited).
-- `GET /admin/economy` 🔒 admin → `{ "currencies": [{ "currency", "wallets", "escrow", "guilds", "minted", "burned" }], "problems": [ledger:verify findings], "recent": [transactions] }`.
+- `GET /admin/economy` 🔒 admin → `{ "currencies": [{ "currency", "wallets", "escrow", "guilds", "minted", "burned" }], "problems": [ledger:verify findings], "recent": [transactions], "frozen": { "since", "problems" } | null }`.
+- `POST /admin/economy/release` 🔒 admin — `{ "reason" }`: money moves again after a freeze (docs/ECONOMY_LEDGER.md §5); `409 still_inconsistent` while the ledger does not balance, `409 not_frozen`. While frozen, every route that moves money answers `503 economy_frozen`.
+- Blueprint review: the admin panel's Blueprints tab uses `GET /blueprints/review` and `POST /blueprints/{id}/review` (see "Blueprints").
 - `GET /admin/servers` 🔒 → `{ "worlds": [{ "world", "dimension", "players", "seen_at", "online" }], "online_players", "tickets_last_hour", "accounts" }`.
 - `GET /admin/audit?action=prefix&limit=` 🔒 → `{ "entries": [...] }`.
 - `GET /admin/reports?status=open|resolved|dismissed&player=` 🔒 → `{ "reports": [{ "id", "status", "source", "world", "category", "details", "context", "reporter": { "id", "username" }, "target": { "id", "username", "status" }, "handled_by", "resolution", "created_at", "handled_at", "open_about_target" }], "open" }` (open ones oldest first; at most 100). The player page also carries `reports_open` and `reports_total`.

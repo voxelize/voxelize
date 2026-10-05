@@ -1,7 +1,9 @@
 # Platform API (Laravel)
 
-The business backend of the platform: accounts, authentication, game tickets,
-the in-game economy ledger and (in later phases) marketplace, land, guilds,
+The business backend of the platform: accounts (sign-up, email
+confirmation, password reset, data export, deletion), game tickets, the
+in-game economy ledger, marketplace and auctions, contracts, land, guilds
+and wars, blueprints, worlds, friends, cosmetics, player reports,
 moderation and administration. It never runs the game loop — that is the Rust
 game server in `platform/servers/game-server`.
 

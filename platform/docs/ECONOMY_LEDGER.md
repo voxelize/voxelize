@@ -77,7 +77,6 @@ and the sum of all account balances is exactly zero (checked by `verify()`).
 | `transfer` | payer wallet −a, payee wallet +a | transferable currencies, distinct players, key scoped per payer |
 | `mint` | mint −a, wallet +a | gameplay rewards (game server, via internal API) and audited admin grants (`economy:grant`) only |
 | `burn` | wallet −a, burn +a | repairs, fast travel, land upkeep, NPC services, cosmetics |
-| `fee` *(phase 15)* | payer −a, fees +a | marketplace fees (today the fee is a leg of `sale`) |
 | `escrow_lock` / `escrow_release` / `escrow_refund` ✅ auctions, contracts | wallet ↔ escrow | a bid locks the bidder's money in `escrow:listing:<id>`; an outbid is refunded in the same database transaction |
 | `sale` ✅ market, stalls, blueprint licences | buyer (or escrow) −p, seller +(p−f−r−t), fees +f, creator +r, guild treasury +t (the sales tax of the guild whose land a stall stands on) | one transaction, so royalty and fee can never be skipped; the fee leg is left out when it rounds to 0 |
 
@@ -109,8 +108,14 @@ originated postings derive keys from the game event id
 4. per currency, the sum of all balances is zero.
 
 The test suites assert it after every economic scenario, and the scheduler
-runs it hourly (`routes/console.php`);
-any violation pages an operator and freezes economic endpoints (phase 9).
+runs it hourly (`routes/console.php`). Any violation freezes every endpoint
+that moves money (`503 economy_frozen`: buying, bidding, selling, transfers,
+land, guild treasuries, game-server payments and rewards; reading still
+works), logs it as critical, audits `economy.frozen`, and raises the
+`EconomyFrozen` alert (gauge `platform_economy_frozen`). An administrator
+releases it from the admin panel (Economy) once `ledger:verify` passes
+again (`POST /admin/economy/release`; refused with `409 still_inconsistent`
+before that). `ledger:verify --no-freeze` only reports.
 
 ## 6. Tests
 
@@ -146,9 +151,9 @@ balances, marketplace volume, and a price-index inflation indicator.
 ## 8. Real money is a separate system
 
 Real-money creator earnings are **not** game currency and never share these
-tables. A future `Creator Wallet` has its own ledger (same rules), fed only by
-an explicit, rate-limited conversion from earned in-game sales, and stays
-**disabled** until KYC, age restrictions, fraud detection, chargeback
+tables, and none is built: a `Creator Wallet` would need its own ledger
+(same rules), fed only by an explicit, rate-limited conversion from earned
+in-game sales, and must stay **disabled** until KYC, age restrictions, fraud detection, chargeback
 handling, tax handling, regional restrictions, AML checks and terms of
 service are implemented and reviewed for each target country. Game currency
 is never redeemable for money by default.

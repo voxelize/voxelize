@@ -176,6 +176,7 @@ export function accountPanel(user: { username: string; email_verified?: boolean 
     h("div", { className: "account-form" }, h("h3", { textContent: "Your data" }), exportButton),
     del,
     status,
+    h("button", { type: "button", textContent: "Sign out", onclick: () => void api.logout().then(() => location.assign("/")) }),
     h("button", { type: "button", textContent: "Done", onclick: () => (root.hidden = true) }),
   );
   document.body.append(root);

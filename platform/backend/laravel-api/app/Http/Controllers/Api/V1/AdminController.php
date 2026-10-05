@@ -9,6 +9,7 @@ use App\Models\LedgerTransaction;
 use App\Models\PlayerReport;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
+use App\Services\Economy\EconomyFreeze;
 use App\Services\Economy\LedgerService;
 use App\Services\Game\WorldDirectory;
 use App\Services\Market\MarketException;
@@ -177,7 +178,7 @@ class AdminController extends Controller
     }
 
     /** Money in circulation per currency, minted and burned, the ledger's health and the latest transactions. */
-    public function economy(LedgerService $ledger): JsonResponse
+    public function economy(LedgerService $ledger, EconomyFreeze $freeze): JsonResponse
     {
         $currencies = DB::table('ledger_accounts')->select('currency')
             ->selectRaw("sum(case when type = 'wallet' then balance else 0 end) as wallets")
@@ -189,7 +190,16 @@ class AdminController extends Controller
             ->map(fn ($r) => ['currency' => $r->currency, 'wallets' => (int) $r->wallets, 'escrow' => (int) $r->escrow, 'guilds' => (int) $r->guilds, 'minted' => (int) $r->minted, 'burned' => (int) $r->burned]);
         $recent = LedgerTransaction::query()->latest('id')->limit(25)->get(['public_id', 'type', 'reason', 'created_at']);
 
-        return response()->json(['currencies' => $currencies, 'problems' => $ledger->verify(), 'recent' => $recent]);
+        return response()->json(['currencies' => $currencies, 'problems' => $ledger->verify(), 'recent' => $recent, 'frozen' => $freeze->state()]);
+    }
+
+    /** `{ "reason" }` (administrators): money moves again, once the ledger balances. */
+    public function releaseEconomy(Request $request, LedgerService $ledger, EconomyFreeze $freeze): JsonResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:255']]);
+        $freeze->release($request->user(), $ledger, $data['reason']);
+
+        return response()->json(['frozen' => null]);
     }
 
     /** Every world with what its game servers report, and tickets issued lately. */

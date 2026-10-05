@@ -43,6 +43,8 @@ export class BlueprintPanel {
   private mirror = false;
   private busy = false;
 
+  private readonly me: Promise<string | null>;
+
   constructor(
     private readonly options: {
       world: string;
@@ -55,6 +57,7 @@ export class BlueprintPanel {
     },
   ) {
     this.root = el("section", { id: "blueprints", className: "panel", hidden: true });
+    this.me = api.me().then((u) => u.id).catch(() => null);
     document.body.append(this.root);
   }
 
@@ -146,6 +149,12 @@ export class BlueprintPanel {
         actions.push(el("button", { type: "button", title: "Capture the marked box as the next revision", onclick: () => capture(bp.id) }, "New revision"));
       }
       if (!bp.mine) {
+        // My licence already for sale: withdraw it.
+        const me = await this.me;
+        for (const r of await api.blueprints.resales(bp.id).catch(() => [])) {
+          if (r.seller.id !== me) continue;
+          actions.push(el("button", { type: "button", title: `For sale at ${r.price} CRN`, onclick: () => this.act(() => api.blueprints.cancelResale(r.id), "Resale withdrawn") }, `Withdraw resale (${r.price} CRN)`));
+        }
         const ask = el("input", { type: "number", min: "1", value: String(bp.price ?? 50), className: "market-bid" });
         actions.push(ask, el("button", { type: "button", onclick: () => this.act(() => api.blueprints.resell(bp.id, Number(ask.value)), "Your licence is for sale") }, "Resell"));
       }

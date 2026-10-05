@@ -520,6 +520,17 @@ Then: music — calm pieces composed in the browser from a seeded generator
 with an echo, minutes of silence between pieces; its own volume in the
 settings. No recordings. Tests: music unit tests, checked playing in
 Chromium.
+Then: loose ends found by an audit — moderators approve or reject
+blueprints in the admin panel (Blueprints tab); signing out revokes the
+token on the server (world list, account panel, admin); a wallet tab in the
+market (statement, sending Crowns); withdrawing one's own blueprint resale;
+the guild treasury statement, editing ranks and guild suggestions for
+alliances and wars; `/gamemode` and `/weather` chat commands; frozen seas
+and lakes in cold biomes (ice can be gathered); lanterns and lamps from
+creature drops; the economy freezes when the ledger does not balance until
+an administrator releases it (`EconomyFrozen` alert); CI builds every image
+and plays through the whole compose stack. Tests: EconomyFreezeTest, client
+and worldgen tests, chat tests, CI job "platform stack end to end".
 Then: a voice relay — coturn in compose (profile `voice`) with
 `use-auth-secret`, never relaying into private networks; game servers hand
 each player TURN credentials of their own that expire. Tests: config and

@@ -102,6 +102,8 @@ export type BlueprintView = {
   review_note?: string | null;
 };
 
+export type WalletEntry = { transaction: string; type: string; reason: string | null; amount: number; balance_after: number; at: string };
+
 export type Resale = {
   id: string;
   blueprint: string;
@@ -259,6 +261,8 @@ export type AdminEconomy = {
   currencies: { currency: string; wallets: number; escrow: number; guilds: number; minted: number; burned: number }[];
   problems: string[];
   recent: { public_id: string; type: string; reason: string; created_at: string }[];
+  /** Set while money is frozen because the ledger did not balance. */
+  frozen?: { since: string; problems: string[] } | null;
 };
 
 export const idempotencyKey = () => crypto.randomUUID().replace(/-/g, "");
@@ -325,6 +329,7 @@ export const api = {
       request<{ report: AdminReport }>(`/admin/reports/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({ outcome, note }) }),
     servers: () => request<AdminServers>("/admin/servers"),
     economy: () => request<AdminEconomy>("/admin/economy"),
+    releaseEconomy: (reason: string) => request<{ frozen: null }>("/admin/economy/release", { method: "POST", body: JSON.stringify({ reason }) }),
     audit: (action = "") => request<{ entries: (AdminAudit & { subject_id: string | null })[] }>(`/admin/audit${action ? `?action=${encodeURIComponent(action)}` : ""}`),
   },
 
@@ -360,7 +365,27 @@ export const api = {
 
   forget: () => sessionStorage.removeItem(TOKEN_KEY),
 
+  /** Sign out: the token is revoked on the server, then forgotten here. */
+  logout: async () => {
+    try {
+      await request<unknown>("/auth/logout", { method: "POST" });
+    } catch {
+      // Already invalid or offline: forgetting it is all that is left.
+    }
+    sessionStorage.removeItem(TOKEN_KEY);
+  },
+
   wallets: () => request<{ wallets: { currency: string; balance: number }[] }>("/wallets").then((r) => r.wallets),
+  /** A wallet's statement, newest first. */
+  entries: (currency: string, cursor?: string) =>
+    request<{ entries: WalletEntry[]; next_cursor: string | null }>(`/wallets/${encodeURIComponent(currency)}/entries${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+  /** Send money to another player (no fee). */
+  transfer: (to: string, amount: number, memo: string, key: string) =>
+    request<{ balance: number; replayed: boolean }>("/transfers", {
+      method: "POST",
+      headers: { "Idempotency-Key": key },
+      body: JSON.stringify({ to, currency: "CRN", amount, ...(memo ? { memo } : {}) }),
+    }),
 
   market: {
     listings: (world: string, filter: { item?: string; items?: string[]; kind?: string; mine?: boolean } = {}) => {
@@ -402,6 +427,7 @@ export const api = {
   },
 
   guilds: {
+    entries: (id: string) => request<{ entries: WalletEntry[]; next_cursor: string | null }>(`/guilds/${id}/entries`).then((r) => r.entries),
     search: (q = "") => request<{ guilds: GuildSummary[] }>(`/guilds${q ? `?q=${encodeURIComponent(q)}` : ""}`).then((r) => r.guilds),
     mine: () => request<{ guild: GuildView | null; invites: GuildSummary[] }>("/guilds/mine"),
     create: (key: string, name: string, tag: string) =>
@@ -458,6 +484,11 @@ export const api = {
     resell: (id: string, price: number) =>
       request<{ resale: Resale }>(`/blueprints/${id}/resales`, { method: "POST", body: JSON.stringify({ price }) }),
     buyResale: (id: string) => request<{ balance: number }>(`/blueprint-resales/${id}/buy`, { method: "POST" }),
+    cancelResale: (id: string) => request<{ resale: Resale }>(`/blueprint-resales/${id}`, { method: "DELETE" }),
+    /** Designs waiting for review (moderators). */
+    reviewQueue: () => request<{ blueprints: BlueprintView[] }>("/blueprints/review").then((r) => r.blueprints),
+    review: (id: string, approve: boolean, note: string) =>
+      request<{ blueprint: BlueprintView }>(`/blueprints/${id}/review`, { method: "POST", body: JSON.stringify({ approve, note }) }).then((r) => r.blueprint),
   },
 
   lands: {

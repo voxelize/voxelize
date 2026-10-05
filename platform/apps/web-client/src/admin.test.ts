@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdminPlayer } from "./api";
-import { ago, playerLine, reportContext, reportLine, stateLine, tabsFor } from "./admin";
+import { ago, designLine, playerLine, reportContext, reportLine, stateLine, tabsFor } from "./admin";
 import type { AdminReport } from "./api";
 
 const player = (over: Partial<AdminPlayer>): AdminPlayer => ({
@@ -20,8 +20,8 @@ const player = (over: Partial<AdminPlayer>): AdminPlayer => ({
 describe("admin panel", () => {
   it("opens only the tabs a role may use", () => {
     expect(tabsFor(["player"])).toEqual([]);
-    expect(tabsFor(["player", "moderator"])).toEqual(["players", "reports", "servers", "audit"]);
-    expect(tabsFor(["player", "admin"])).toEqual(["players", "reports", "servers", "economy", "audit"]);
+    expect(tabsFor(["player", "moderator"])).toEqual(["players", "reports", "blueprints", "servers", "audit"]);
+    expect(tabsFor(["player", "admin"])).toEqual(["players", "reports", "blueprints", "servers", "economy", "audit"]);
   });
 
   it("says how long ago", () => {
@@ -70,5 +70,11 @@ describe("admin panel", () => {
     const web = { ...r, source: "web" as const, context: null, open_about_target: 1, target: { ...r.target, status: "active" }, status: "dismissed" as const, handled_by: "mod", resolution: "no evidence" };
     expect(reportLine(web, now)).toBe("bob · griefing · by ana on the web · 5 min ago · dismissed by mod: no evidence");
     expect(reportContext(web)).toBe("");
+  });
+
+  it("sums a design up for review", () => {
+    const b = { id: "b1", name: "Watchtower", world: "main", size: [7, 12, 7] as [number, number, number], blocks: 310, materials: {}, creator: { id: "a", name: "ana" }, status: "in_review", price: 120, max_copies: 5, copies_sold: 0, royalty_bps: 500, mine: false, licensed: false, revision: 2 };
+    expect(designLine(b)).toBe("Watchtower by ana · 7×12×7, 310 blocks · revision 2 · 120 CRN, 5 copies");
+    expect(designLine({ ...b, price: null, revision: undefined })).toBe("Watchtower by ana · 7×12×7, 310 blocks · revision 1");
   });
 });
