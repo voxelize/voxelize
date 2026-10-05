@@ -30,6 +30,7 @@ import { BlueprintPanel } from "./blueprints";
 import { nearest, TradePanel, type TradeView } from "./trade";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
+import { moodFor, Music } from "./music";
 import { MobInfo, MobsView, nearestBoss } from "./mobs-view";
 import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
 import { EffectInfo, WeatherInfo, WeatherView, effectLine, flash, movement } from "./weather";
@@ -192,6 +193,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // ---- settings and sound ----------------------------------------------------
 
   const sfx = new Sfx();
+  const music = new Music();
   const applySettings = (s: Settings) => {
     controls.options.sensitivity = s.sensitivity;
     controls.options.invertY = s.invertY;
@@ -200,6 +202,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     world.renderRadius = s.renderDistance;
     document.documentElement.style.setProperty("--ui-scale", String(s.uiScale));
     sfx.setVolume(s.volume);
+    music.setVolume(s.music);
     applyColourVision(s.colourVision, [canvas, document.getElementById("hud") ?? document.body]);
     keys = s.keys;
     Object.keys(controls.movements).forEach((m) => ((controls.movements as Record<string, boolean>)[m] = false));
@@ -862,6 +865,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     if (event.button === 0) primary(false);
   });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+  // Music starts with the first touch or click (browsers need a gesture).
+  addEventListener("pointerdown", () => music.start(), { once: true });
   canvas.addEventListener("click", () => {
     if (!controls.isLocked && !windowUi.isOpen && !vitalsHud.dead) controls.lock();
   });
@@ -1015,6 +1020,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       lastStatus = now;
       const [x, y, z] = controls.voxel;
       const time = world.time / world.options.timePerDay;
+      music.setMood(moodFor(DIMENSION, time));
       const clock = `${String(Math.floor(time * 24)).padStart(2, "0")}:${String(Math.floor((time * 1440) % 60)).padStart(2, "0")}`;
       hud.setStatus(`${x}, ${y}, ${z} · ${clock} · ${realm}`);
     }

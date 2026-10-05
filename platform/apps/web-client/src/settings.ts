@@ -11,6 +11,7 @@ export type Settings = {
   renderDistance: number;
   uiScale: number;
   volume: number;
+  music: number;
   invertY: boolean;
   colourVision: ColourVision;
   keys: KeyMap;
@@ -22,6 +23,7 @@ export const DEFAULTS: Settings = {
   renderDistance: 6,
   uiScale: 1,
   volume: 0.6,
+  music: 0.4,
   invertY: false,
   colourVision: "normal",
   keys: { ...DEFAULT_KEYS },
@@ -35,6 +37,7 @@ export const RANGES: Record<Exclude<keyof Settings, "invertY" | "colourVision" |
   renderDistance: [2, 12, 1, "Render distance (chunks)"],
   uiScale: [0.6, 1.6, 0.05, "Interface size"],
   volume: [0, 1, 0.05, "Volume"],
+  music: [0, 1, 0.05, "Music"],
 };
 
 /** Clamp and fill a possibly stale or tampered stored object. */

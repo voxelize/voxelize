@@ -514,6 +514,11 @@ sessions, a download of one's data and account deletion that settles or
 refuses what is in flight and anonymises the rest (`/auth/password/*`,
 `/me/*`, account panel in the game settings, Mailpit for local mail).
 Tests: AccountTest, client unit tests, `tests/e2e/account.mjs`.
+Then: music — calm pieces composed in the browser from a seeded generator
+(a scale and tempo per mood: day, night, underworld, sky), soft voices
+with an echo, minutes of silence between pieces; its own volume in the
+settings. No recordings. Tests: music unit tests, checked playing in
+Chromium.
 Then: a voice relay — coturn in compose (profile `voice`) with
 `use-auth-secret`, never relaying into private networks; game servers hand
 each player TURN credentials of their own that expire. Tests: config and
