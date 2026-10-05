@@ -30,6 +30,9 @@ export class Hud {
   private iconCache = new Map<number, string>();
   inventory: InventorySnapshot = { slots: [], selected: 0, realm: "survival" };
 
+  /** A hotbar slot was tapped. */
+  onSelect: (slot: number) => void = () => {};
+
   constructor(private readonly content: Content) {}
 
   show() {
@@ -83,6 +86,11 @@ export class Hud {
       const slot = snapshot.slots[i] ?? null;
       const cell = document.createElement("div");
       cell.className = "slot" + (i === snapshot.selected ? " selected" : "");
+      // Tapping (or clicking) a slot selects it: phones have no number keys.
+      cell.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        this.onSelect(i);
+      });
       const item = slot ? this.content.itemsById.get(slot.item) : undefined;
       if (slot && item) {
         const img = document.createElement("img");

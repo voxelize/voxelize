@@ -1,6 +1,32 @@
 // Touch controls for phones and tablets: a movement joystick on the left,
 // drag anywhere on the right to look, and buttons for jump, crouch, sprint,
-// mine/attack (hold), place/use, inventory and drop.
+// mine/attack (hold), place/use, inventory, drop and a menu that opens every
+// panel a keyboard opens with a key (chat, friends, market, …).
+
+/** A menu entry: what it says and what it does. */
+export type MenuEntry = { label: string; run: () => void };
+
+/**
+ * The menu a phone gets for every panel a keyboard opens with a key: the
+ * key's code is sent as a key press, so a panel behaves the same either way.
+ */
+export const MENU_KEYS: { label: string; code: string }[] = [
+  { label: "Chat", code: "Enter" },
+  { label: "Friends", code: "KeyO" },
+  { label: "Quests & jobs", code: "KeyJ" },
+  { label: "Achievements", code: "KeyH" },
+  { label: "Market", code: "KeyM" },
+  { label: "Guild", code: "KeyG" },
+  { label: "Land", code: "KeyL" },
+  { label: "Blueprints", code: "KeyB" },
+  { label: "Wardrobe", code: "KeyK" },
+  { label: "Trade", code: "KeyT" },
+  { label: "Accept trade", code: "KeyY" },
+  { label: "Voice", code: "KeyV" },
+];
+
+/** Press a key as a keyboard would (for the panels' own key handlers). */
+export const pressKey = (code: string) => dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true }));
 
 export type TouchActions = {
   move: (x: number, y: number) => void;
@@ -12,6 +38,8 @@ export type TouchActions = {
   secondary: () => void;
   inventory: () => void;
   drop: () => void;
+  /** Extra menu entries beside the panel keys (camera, …). */
+  menu?: MenuEntry[];
 };
 
 export const isTouchDevice = () =>
@@ -31,8 +59,22 @@ export function mountTouchControls(actions: TouchActions): HTMLElement {
       <button data-b="sprint" aria-label="Sprint">»</button>
       <button data-b="inventory" aria-label="Inventory">☰</button>
       <button data-b="drop" aria-label="Drop">⇣</button>
-    </div>`;
+      <button data-b="menu" aria-label="Menu">⋯</button>
+    </div>
+    <div class="touch-menu" hidden></div>`;
   document.body.append(root);
+
+  const menu = root.querySelector(".touch-menu") as HTMLElement;
+  const entries: MenuEntry[] = [...MENU_KEYS.map(({ label, code }) => ({ label, run: () => pressKey(code) })), ...(actions.menu ?? [])];
+  for (const entry of entries) {
+    const b = Object.assign(document.createElement("button"), { type: "button", textContent: entry.label });
+    b.addEventListener("click", () => {
+      menu.hidden = true;
+      entry.run();
+    });
+    menu.append(b);
+  }
+  menu.append(Object.assign(document.createElement("button"), { type: "button", textContent: "Close", className: "link", onclick: () => (menu.hidden = true) }));
 
   const stick = root.querySelector(".joystick") as HTMLElement;
   const knob = root.querySelector(".knob") as HTMLElement;
@@ -97,6 +139,7 @@ export function mountTouchControls(actions: TouchActions): HTMLElement {
       if (b === "secondary") actions.secondary();
       if (b === "inventory") actions.inventory();
       if (b === "drop") actions.drop();
+      if (b === "menu") menu.hidden = !menu.hidden;
       if (b === "sprint") {
         sprinting = !sprinting;
         button.classList.toggle("on", sprinting);

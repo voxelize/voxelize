@@ -167,6 +167,7 @@ body.registering .register-only {
 }
 
 #hotbar {
+  pointer-events: auto;
   position: absolute;
   left: 50%;
   bottom: 36px;
@@ -623,6 +624,44 @@ body.registering .register-only {
 
 body.touch #hint {
   display: none;
+}
+
+/* The menu: every panel a keyboard opens with a key. */
+#touch .touch-menu {
+  position: absolute;
+  right: 16px;
+  top: 64px;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border-radius: 12px;
+  pointer-events: auto;
+}
+
+#touch .touch-menu[hidden] {
+  display: none;
+}
+
+/* Portrait phones: stick and buttons above the vitals and hotbar. */
+@media (orientation: portrait) {
+  body.touch #touch .joystick,
+  body.touch #touch .buttons {
+    bottom: 170px;
+  }
+}
+
+/* A window or panel is open: the controls step aside so it can be used. */
+body.touch:has(.panel:not([hidden]):not(#auth)) #touch {
+  display: none;
+}
+
+/* Panels fit the screen they are on (phones: the visible height). */
+.panel {
+  max-height: calc(100dvh - 16px);
 }
 
 #land h3 {
@@ -1117,4 +1156,25 @@ button.danger {
 
 .admin-stats {
   color: var(--muted);
+}
+
+/* Short screens (phones held sideways): smaller slots so the inventory and
+   crafting fit, and less padding. */
+@media (max-height: 480px) {
+  #window {
+    padding: 8px;
+  }
+
+  #window .wslot {
+    width: 34px;
+    height: 34px;
+  }
+
+  .grid.g9 {
+    grid-template-columns: repeat(9, minmax(0, 34px));
+  }
+
+  #window h2 {
+    margin-bottom: 6px;
+  }
 }

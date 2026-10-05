@@ -867,6 +867,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     const next = (hud.inventory.selected + (event.deltaY > 0 ? 1 : 8)) % 9;
     method.call("platform.inventory.select", { slot: next });
   });
+  hud.onSelect = (slot) => method.call("platform.inventory.select", { slot });
   if (touch) {
     const mobile = controls as VOXELIZE.MobileRigidControls;
     mountTouchControls({
@@ -879,6 +880,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       secondary: () => secondary(false),
       inventory: () => (windowUi.isOpen ? closeWindow() : openWindow()),
       drop: () => method.call("platform.inventory.drop", { all: false }),
+      menu: [{ label: "Camera", run: () => perspective.toggle() }],
     });
     document.body.classList.add("touch");
   }

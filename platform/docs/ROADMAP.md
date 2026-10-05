@@ -203,6 +203,13 @@ Then: durability written down — what a hard crash can lose (a block
 changed in the last ~100 ms may come back; nothing is ever torn, money is
 never at risk) and why that does not need a separate write-ahead log
 (docs/CHUNK_FORMAT.md).
+Then: phones — a menu button in the touch controls opens every panel a
+keyboard opens with a key (chat, friends, quests, achievements, market,
+guild, land, blueprints, wardrobe, trade, voice, camera); hotbar slots are
+selected by tapping; in portrait the stick and buttons sit above the vitals
+and hotbar; the controls step aside while a panel is open; panels fit the
+visible height and the inventory shrinks on short screens. Tests: touch
+unit test, `tests/e2e/phone.mjs` (portrait and landscape).
 Remaining: more stations (smelter, crusher) as content.
 
 ## Phase 10 — Entities and mobs ✅
