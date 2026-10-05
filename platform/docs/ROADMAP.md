@@ -69,7 +69,7 @@ interface), cracks on the block being mined in ten stages. Unit tests for
 key maps, colour matrices and cracks; checked in headless Chromium (rebind,
 clash warning, filter, walking with the key map, third person).
 
-## Phase 4 — Mining and building 🟡
+## Phase 4 — Mining and building ✅
 
 Done: mining rules (hardness × tool kind/tier/speed, airborne/underwater
 modifiers, unbreakable); raw client voxel writes refused; server intents
@@ -85,7 +85,7 @@ creative world; saved with the player. Unit tests and
  (block orientation on place and the mining progress bar
 and block cracks are done).
 
-## Phase 5 — Inventory 🟡
+## Phase 5 — Inventory ✅
 
 Done: 36-slot server inventory (9 hotbar), stacking, split/merge/swap
 moves, tool durability, all-or-nothing removal, per-player persistence with
@@ -106,10 +106,11 @@ Done since: armor (four slots, four sets, damage reduction and wear),
 experience (ores, creatures, smelting; classic level curve; lost on death;
 the anvil repairs held items for levels), HUD armor and experience bars.
 Tests: armor, XP and anvil unit tests, `tests/bots/armor.mjs`.
-Remaining: checkpointing to
-`inventories`/`inventory_slots`, dropped items surviving a restart.
+Done since: player records (inventory and everything else) in MySQL
+`player_states` (phase 6); dropped items saved in `drops.json` and back
+after a restart.
 
-## Phase 6 — Persistence 🟡
+## Phase 6 — Persistence ✅
 
 Done: persistent world directory per world, atomic chunk writes, pristine
 chunks regenerated from the seed, player inventories saved atomically;
@@ -129,7 +130,7 @@ atomically; at the sizes worlds reach here the file count is not a
 bottleneck, and one file per chunk keeps writes torn-proof and backups
 incremental per chunk (docs/CHUNK_FORMAT.md).
 
-## Phase 7 — Multiplayer 🟡
+## Phase 7 — Multiplayer ✅
 
 Done: authenticated sessions via single-use game tickets; identity bound to
 the player's public id; AOI and replication from the engine.
@@ -142,7 +143,7 @@ market in the load mix (pairs of bots trading through the trade window,
 market reads; 105 trades among 50 bots in a minute, none failed,
 docs/LOAD_TESTS.md).
 
-## Phase 8 — Survival 🟡
+## Phase 8 — Survival ✅
 
 Done: server-side vitals (health 20, hunger 20 with saturation and
 exhaustion, 15 s of breath), fall damage (beyond 3 blocks, water breaks the
@@ -164,7 +165,7 @@ weather (rain, snow, thunder with lightning; rain puts fires out, wets
 farmland, shields the undead; creative players set it). Tests: effect,
 potion and weather unit tests, `tests/bots/effects.mjs`.
 
-## Phase 9 — Crafting and processing ✅ (gameplay) / admin ⬜
+## Phase 9 — Crafting and processing ✅
 
 Done: shaped/shapeless matching (anywhere in the grid, mirrored), 2x2 and
 3x3 grids, crafting result slot with shift-craft-all, recipe book, furnace
@@ -319,7 +320,7 @@ creatures) on a claim are protected from strangers' blows and arrows unless
 the land allows `animals`. Tests: LandTest (resize, sale), land unit tests,
 actuator border test, client helpers, `tests/bots/land.mjs` (grow, sell).
 
-## Phase 14 — Trading and escrow 🟡
+## Phase 14 — Trading and escrow ✅
 
 Done: escrow accounts in the ledger (`escrow:<ref>:<CUR>`), used by
 auction bids (lock, refund on outbid, release to the seller at the end).
@@ -385,7 +386,7 @@ back with a note, through the API or `blueprints:review`; a new revision
 of a published design is reviewed again). Tests: BlueprintTest (review,
 revisions), transform unit test, client helpers, `tests/bots/blueprints.mjs`.
 
-## Phase 17 — Guilds and cities 🟡
+## Phase 17 — Guilds and cities ✅
 
 Done: guilds (one per player) with leader, officers and members,
 invitations, removal, leadership handover; a treasury that is a ledger
@@ -420,7 +421,7 @@ feature tests, Rust siege tests, client tests, `tests/bots/diplomacy.mjs`
 extended (a ranked member places the hall; a contested siege captures the
 village).
 
-## Phase 18 — Advanced content 🟡
+## Phase 18 — Advanced content ✅
 
 Done: dimensions and portals — the underworld (sealed cavern generator with
 a lava sea, cinderstone, emberglass, ember quartz, its own creature the
