@@ -7,6 +7,7 @@ import {
   NearestFilter,
   ShaderLib,
   ShaderMaterial,
+  type Side,
   SRGBColorSpace,
   Texture,
   Uniform,
@@ -35,6 +36,16 @@ import { positionUnitsPerBlock } from "./vertex-quantization";
 export const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
 export const SHARED_CUTOUT_MATERIAL_KEY = "shared-cutout";
 export const SHARED_CUTOUT_PLANT_MATERIAL_KEY = "shared-cutout-plant";
+export const SHARED_CUTOUT_CUBE_MATERIAL_KEY = "shared-cutout-cube";
+
+const UNIT_CUBE_FACE_DIRECTIONS = [
+  "1,0,0",
+  "-1,0,0",
+  "0,1,0",
+  "0,-1,0",
+  "0,0,1",
+  "0,0,-1",
+];
 
 /**
  * Chunk geometry that is not main-thread sorted arrives with fixed-point
@@ -133,7 +144,47 @@ export function sharedCutoutMaterialKeyFor(block: Block): string | null {
     block.transparentStandalone || block.lightAttenuation > 0;
   if (!isDepthWritingCutout) return null;
   if (block.isPlant) return SHARED_CUTOUT_PLANT_MATERIAL_KEY;
+  if (isClosedCutoutCube(block)) return SHARED_CUTOUT_CUBE_MATERIAL_KEY;
   return block.lightAttenuation > 0 ? SHARED_CUTOUT_MATERIAL_KEY : null;
+}
+
+/**
+ * Whether a cutout is a closed unit cube that meshes the faces between
+ * same-id neighbours to a depth (`standaloneFaceDepth`), like a leaf canopy
+ * whose inner layers show through its holes. Such a block draws
+ * single-sided: every plane between two of them carries two faces back to
+ * back, and drawn double-sided both would show from either side and fight
+ * over one depth. Single-sided, each side of the plane sees only the face
+ * turned toward it, and the voxel the camera stands in shows none of its
+ * own. The mesher lays an inward copy of every face such a block turns to
+ * empty space, so its surface still shows from inside (the mesher's
+ * `is_cutout_mass`; the two must agree).
+ */
+export function isClosedCutoutCube(block: Block): boolean {
+  if (!block.isSeeThrough || block.isFluid || block.isPlant) return false;
+  if (!block.transparentStandalone || !(block.standaloneFaceDepth > 0)) {
+    return false;
+  }
+  if (block.isDynamic) return false;
+
+  if (block.aabbs.length !== 1) return false;
+  const [box] = block.aabbs;
+  const isUnitCube =
+    box.minX === 0 &&
+    box.minY === 0 &&
+    box.minZ === 0 &&
+    box.maxX === 1 &&
+    box.maxY === 1 &&
+    box.maxZ === 1;
+  if (!isUnitCube) return false;
+
+  if (block.faces.length !== UNIT_CUBE_FACE_DIRECTIONS.length) return false;
+  const directions = new Set<string>();
+  for (const face of block.faces) {
+    if (face.independent || face.isolated) return false;
+    directions.add(face.dir.join(","));
+  }
+  return UNIT_CUBE_FACE_DIRECTIONS.every((dir) => directions.has(dir));
 }
 
 export function makeChunkMaterialKey(
@@ -494,14 +545,17 @@ export async function loadChunkMaterials(
     SHADER_LIGHTING_CHUNK_SHADERS,
     world.options.swayProfileCapacity,
   );
-  const makeSharedCutout = (isShadowCasting: boolean) => {
+  const makeSharedCutout = (
+    isShadowCasting: boolean,
+    side: Side = DoubleSide,
+  ) => {
     const mat = makeChunkShaderMaterial(
       world,
       swayShaders.fragmentShader,
       swayShaders.vertexShader,
       { uSwayParams: world.swayProfileTable },
     );
-    mat.side = DoubleSide;
+    mat.side = side;
     mat.transparent = true;
     mat.depthWrite = true;
     mat.alphaTest = 0.1;
@@ -515,6 +569,10 @@ export async function loadChunkMaterials(
   world.chunkRenderer.materials.set(
     SHARED_CUTOUT_MATERIAL_KEY,
     makeSharedCutout(true),
+  );
+  world.chunkRenderer.materials.set(
+    SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+    makeSharedCutout(true, FrontSide),
   );
   world.chunkRenderer.materials.set(
     SHARED_CUTOUT_PLANT_MATERIAL_KEY,
@@ -534,6 +592,7 @@ export async function loadChunkMaterials(
           block.transparentStandalone,
           blockCastsShadow(block),
         );
+    if (isClosedCutoutCube(block)) mat.side = FrontSide;
     // Keyed per id, not through makeChunkMaterialKey: a block that collapses
     // into a shared cutout bucket still needs its own material reachable so
     // customizeMaterialShaders can opt it out into a bespoke shader.

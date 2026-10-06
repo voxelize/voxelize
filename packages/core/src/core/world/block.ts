@@ -172,6 +172,15 @@ export type Block = {
   transparentStandalone: boolean;
 
   /**
+   * With `transparentStandalone`, how many voxels in from either side of a
+   * mass of this block the faces between its voxels are still meshed, along
+   * each face's axis; 0 meshes every layer. A depth also makes a see-through
+   * cube a cutout mass, drawn single-sided with inward copies of its surface
+   * (see `isClosedCutoutCube`).
+   */
+  standaloneFaceDepth: number;
+
+  /**
    * Whether this block is plant decoration — a grass tuft, a flower, a crop.
    * The mesher uses it to jitter diagonal faces; the renderer uses it to decide
    * what {@link WorldClientOptions.plantDetailDistance} may stop drawing.

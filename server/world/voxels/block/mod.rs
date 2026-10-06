@@ -96,6 +96,13 @@ pub struct Block {
     /// Do faces of this transparent block need to be rendered?
     pub transparent_standalone: bool,
 
+    /// With `transparent_standalone`, how many voxels in from either side of
+    /// a mass of this block the faces between its voxels are still meshed
+    /// (along each face's axis); 0 meshes every layer. A depth also makes a
+    /// see-through cube a cutout mass: drawn single-sided, with inward copies
+    /// of its surface.
+    pub standalone_face_depth: u32,
+
     /// The faces that this block has to render.
     pub faces: Vec<BlockFace>,
 
@@ -433,6 +440,7 @@ impl Block {
             is_see_through: self.is_see_through,
             is_transparent: self.is_transparent,
             transparent_standalone: self.transparent_standalone,
+            standalone_face_depth: self.standalone_face_depth,
             occludes_fluid: self.occludes_fluid,
             is_plant: self.is_plant,
             stack_group: self.stack_group,

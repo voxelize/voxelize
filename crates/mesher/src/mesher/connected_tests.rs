@@ -164,6 +164,7 @@ fn block(id: u32, name: &str) -> Block {
         is_see_through: false,
         is_transparent: [false; 6],
         transparent_standalone: false,
+        standalone_face_depth: 0,
         occludes_fluid: false,
         is_plant: false,
         stack_group: 0,
@@ -286,6 +287,7 @@ fn pane() -> Block {
         is_see_through: true,
         is_transparent: [true; 6],
         transparent_standalone: true,
+        standalone_face_depth: 0,
         dynamic_patterns: Some(patterns),
         connected: Some(frame(PANE)),
         ..block(PANE, "Glass Pane")
@@ -320,6 +322,7 @@ fn registry() -> Registry {
                 is_see_through: true,
                 is_transparent: [true; 6],
                 transparent_standalone: true,
+                standalone_face_depth: 0,
                 faces: box_faces("post-", [0.375, 0.0, 0.375], [0.25, 1.0, 0.25]),
                 aabbs: vec![AABB {
                     min_x: 0.375,

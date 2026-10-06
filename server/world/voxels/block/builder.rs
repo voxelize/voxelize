@@ -29,6 +29,7 @@ pub struct BlockBuilder {
     green_light_level: u32,
     blue_light_level: u32,
     transparent_standalone: bool,
+    standalone_face_depth: u32,
     faces: Vec<BlockFace>,
     aabbs: Vec<AABB>,
     is_see_through: bool,
@@ -311,6 +312,16 @@ impl BlockBuilder {
     /// Configure whether or not should transparent faces be rendered individually. Default is false.
     pub fn transparent_standalone(mut self, transparent_standalone: bool) -> Self {
         self.transparent_standalone = transparent_standalone;
+        self
+    }
+
+    /// With `transparent_standalone`, mesh the faces between this block's
+    /// voxels only within `depth` voxels of either side of a mass of it,
+    /// along each face's axis: a cutout hides what lies deeper. A depth also
+    /// makes a see-through cube a cutout mass, drawn single-sided with inward
+    /// copies of its surface. Default is 0, every layer.
+    pub fn standalone_face_depth(mut self, depth: u32) -> Self {
+        self.standalone_face_depth = depth;
         self
     }
 
@@ -606,6 +617,7 @@ impl BlockBuilder {
             green_light_level: self.green_light_level,
             blue_light_level: self.blue_light_level,
             transparent_standalone: self.transparent_standalone,
+            standalone_face_depth: self.standalone_face_depth,
             faces,
             aabbs: self.aabbs,
             is_see_through: self.is_see_through,

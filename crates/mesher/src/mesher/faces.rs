@@ -45,6 +45,62 @@ pub(super) fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> 
         && !has_diagonal_faces(block)
 }
 
+/// Whether a block is a cutout mass: a see-through cube with a
+/// `standalone_face_depth`, like a canopy of leaves. The client draws it
+/// single-sided, so the two faces back to back between its voxels never
+/// fight over one depth; to keep its surface visible from inside the mass
+/// (through a hedge's front, out of a canopy's edge), the greedy mesher also
+/// lays an inward copy of every face it turns to empty space.
+pub(super) fn is_cutout_mass(block: &Block) -> bool {
+    block.is_see_through
+        && !block.is_fluid
+        && !block.is_plant
+        && block.transparent_standalone
+        && block.standalone_face_depth > 0
+        && block.is_full_cube()
+        && block.faces.len() == CARDINAL_DIRECTIONS.len()
+        && CARDINAL_DIRECTIONS
+            .iter()
+            .all(|dir| block.faces.iter().any(|face| face.dir == *dir))
+        && block.faces.iter().all(|face| !face.independent && !face.isolated)
+}
+
+const CARDINAL_DIRECTIONS: [[i32; 3]; 6] = [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0],
+    [0, 0, 1],
+    [0, 0, -1],
+];
+
+/// Whether a face between two voxels of one standalone block lies within the
+/// block's `standalone_face_depth` of either side of the mass, along the
+/// face's axis: the run of the block in front of the face (from the
+/// neighbour, along `dir`) or behind it (from this voxel, against `dir`) ends
+/// within that many voxels. Space the access does not hold ends a run.
+pub(super) fn is_standalone_face_within_depth<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    dir: [i32; 3],
+    voxel_id: u32,
+    depth: u32,
+    space: &S,
+) -> bool {
+    if depth == 0 {
+        return true;
+    }
+    let run_ends_within = |sx: i32, sy: i32, sz: i32, step: [i32; 3]| {
+        (1..=depth as i32).any(|i| {
+            let (x, y, z) = (sx + step[0] * i, sy + step[1] * i, sz + step[2] * i);
+            !space.contains(x, y, z) || space.get_voxel(x, y, z) != voxel_id
+        })
+    };
+    run_ends_within(vx + dir[0], vy + dir[1], vz + dir[2], dir)
+        || run_ends_within(vx, vy, vz, [-dir[0], -dir[1], -dir[2]])
+}
+
 pub(super) fn should_render_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -94,7 +150,18 @@ pub(super) fn should_render_face<S: VoxelAccess>(
         || (see_through
             && !is_opaque
             && !n_block_type.is_opaque
-            && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
+            && ((is_see_through
+                && neighbor_id == voxel_id
+                && n_block_type.transparent_standalone
+                && is_standalone_face_within_depth(
+                    vx,
+                    vy,
+                    vz,
+                    dir,
+                    voxel_id,
+                    block.standalone_face_depth,
+                    space,
+                ))
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
                 || ({
                     if is_see_through && !is_opaque && n_block_type.is_opaque {
@@ -391,7 +458,16 @@ pub(super) fn process_face<S: VoxelAccess>(
             && !n_block_type.is_opaque
             && ((is_see_through
                 && neighbor_id == voxel_id
-                && n_block_type.transparent_standalone)
+                && n_block_type.transparent_standalone
+                && is_standalone_face_within_depth(
+                    vx,
+                    vy,
+                    vz,
+                    dir,
+                    voxel_id,
+                    block.standalone_face_depth,
+                    space,
+                ))
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
                 || ({
                     if is_see_through && !is_opaque && n_block_type.is_opaque {

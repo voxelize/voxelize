@@ -76,8 +76,8 @@ function isNonCasterMaterial(material: Material | null | undefined): boolean {
 /**
  * Whether a scene-level object is a see-through effect with no business in
  * a shadow map: every material it draws with is transparent and writes no
- * depth. Rain streaks, snow, splashes, lightning, shore foam, underwater
- * light shafts, marine snow and entity fire are all built this way, and a
+ * depth. Rain streaks, snow, splashes, lightning, shore foam, marine snow
+ * and entity fire are all built this way, and a
  * surface that does not occlude the camera does not occlude the sun either.
  *
  * Depth passes draw with an override material, which ignores the effect's

@@ -1,11 +1,16 @@
+import { AABB } from "@voxelize/aabb";
 import { ShaderMaterial, Texture, Uniform } from "three";
 import { describe, expect, it } from "vitest";
 
 import type { Block } from "./block";
 import {
   type CustomChunkShaderMaterial,
+  SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+  SHARED_CUTOUT_MATERIAL_KEY,
+  SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
   forkChunkMaterial,
+  isClosedCutoutCube,
   makeChunkMaterialKey,
 } from "./chunk-materials";
 
@@ -81,5 +86,103 @@ describe("solid-shaped block material batching", () => {
     expect(own.uniforms.sunlight.value).toBe(0.2);
     expect(own.map).toBe(source.map);
     expect(own.uniforms.map.value).toBe(source.map);
+  });
+});
+
+const CUBE_DIRECTIONS: [number, number, number][] = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
+
+const cubeFaces = (textureGroup: string | null) =>
+  CUBE_DIRECTIONS.map((dir, i) => ({
+    corners: [],
+    dir,
+    independent: false,
+    isolated: false,
+    textureGroup,
+    range: { startU: 0, endU: 1, startV: 0, endV: 1 },
+    name: `face-${i}`,
+  })) as Block["faces"];
+
+/**
+ * A light-attenuating cutout cube that meshes the faces between same-id
+ * neighbours to a depth: six faces of one texture, unit box.
+ */
+const foliageCube = (overrides: Partial<Block> = {}): Block =>
+  solidShape({
+    id: 41000,
+    isSeeThrough: true,
+    lightAttenuation: 1,
+    transparentStandalone: true,
+    standaloneFaceDepth: 2,
+    rotatable: false,
+    yRotatable: false,
+    isDynamic: false,
+    isAnimated: false,
+    aabbs: [new AABB(0, 0, 0, 1, 1, 1)],
+    faces: cubeFaces("canopy"),
+    ...overrides,
+  });
+
+describe("closed cutout cubes", () => {
+  it("collapses a standalone cutout cube into the single-sided bucket", () => {
+    const mixedTextures = cubeFaces("canopy");
+    mixedTextures[2] = { ...mixedTextures[2], textureGroup: "canopy-top" };
+    for (const overrides of [
+      {},
+      { faces: mixedTextures },
+      { rotatable: true },
+      { isAnimated: true },
+    ] satisfies Partial<Block>[]) {
+      const block = foliageCube(overrides);
+      expect(isClosedCutoutCube(block)).toBe(true);
+      expect(makeChunkMaterialKey(host(block), block.id)).toBe(
+        SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+      );
+    }
+  });
+
+  it("keeps cubes with culled inner faces, or no closed box, double-sided", () => {
+    const ownFace = cubeFaces("canopy");
+    ownFace[0] = { ...ownFace[0], independent: true };
+    for (const overrides of [
+      { transparentStandalone: false },
+      { standaloneFaceDepth: 0 },
+      { faces: ownFace },
+      { faces: cubeFaces("canopy").slice(0, 5) },
+      { aabbs: [new AABB(0, 0, 0, 1, 0.5, 1)] },
+      { isDynamic: true },
+    ] satisfies Partial<Block>[]) {
+      const block = foliageCube(overrides);
+      expect(isClosedCutoutCube(block)).toBe(false);
+      expect(makeChunkMaterialKey(host(block), block.id)).toBe(
+        SHARED_CUTOUT_MATERIAL_KEY,
+      );
+    }
+  });
+
+  it("never makes plants, plain standalone cubes, fluids or customized blocks single-sided", () => {
+    const plant = foliageCube({ isPlant: true });
+    expect(isClosedCutoutCube(plant)).toBe(false);
+    expect(makeChunkMaterialKey(host(plant), plant.id)).toBe(
+      SHARED_CUTOUT_PLANT_MATERIAL_KEY,
+    );
+
+    const clear = foliageCube({ lightAttenuation: 0, standaloneFaceDepth: 0 });
+    expect(isClosedCutoutCube(clear)).toBe(false);
+    expect(makeChunkMaterialKey(host(clear), clear.id)).toBe(`${clear.id}`);
+
+    const fluid = foliageCube({ isFluid: true });
+    expect(isClosedCutoutCube(fluid)).toBe(false);
+
+    const customized = foliageCube();
+    expect(makeChunkMaterialKey(host(customized, true), customized.id)).toBe(
+      `${customized.id}`,
+    );
   });
 });

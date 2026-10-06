@@ -23,6 +23,14 @@ pub struct Block {
     pub is_see_through: bool,
     pub is_transparent: [bool; 6],
     pub transparent_standalone: bool,
+    /// With `transparent_standalone`, how many voxels in from either side of
+    /// a mass of this block a face between two of its voxels is still meshed,
+    /// counted along the face's axis. A deeper face sits behind that many
+    /// layers of the block, which a cutout hides; 0 meshes every layer. A
+    /// depth also makes a see-through cube a cutout mass, drawn single-sided
+    /// with inward copies of its surface (`is_cutout_mass`).
+    #[serde(default)]
+    pub standalone_face_depth: u32,
     #[serde(default)]
     pub occludes_fluid: bool,
     #[serde(default)]

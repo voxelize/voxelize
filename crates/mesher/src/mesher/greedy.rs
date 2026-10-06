@@ -249,6 +249,63 @@ pub(super) fn process_greedy_quad(
     }
 }
 
+/// The greedy-mask entry for `block`'s face toward `dir` from `center`: lit
+/// and occluded from the voxel in front of it, exposed to water on either
+/// side, tinted by the stage of `stage_voxel`.
+#[allow(clippy::too_many_arguments)]
+fn greedy_face_data<S: VoxelAccess>(
+    center: [i32; 3],
+    stage_voxel: [i32; 3],
+    dir: [i32; 3],
+    block: &Block,
+    face: &BlockFace,
+    space: &S,
+    registry: &Registry,
+    is_see_through: bool,
+    is_fluid: bool,
+) -> FaceData {
+    let [cx, cy, cz] = center;
+    let [sx, sy, sz] = stage_voxel;
+    let uv_range = face.range.clone();
+    let neighbors = NeighborCache::populate(cx, cy, cz, space);
+    let (aos, lights) = compute_face_ao_and_light(dir, block, &neighbors, registry);
+    let is_water_exposed = space.get_voxel_waterlogged(cx, cy, cz)
+        || space.get_voxel_waterlogged(cx + dir[0], cy + dir[1], cz + dir[2])
+        || registry
+            .get_block_by_id(space.get_voxel(cx + dir[0], cy + dir[1], cz + dir[2]))
+            .map(|b| b.is_fluid)
+            .unwrap_or(false);
+    let stage = space.get_voxel_stage(sx, sy, sz);
+
+    let key = FaceKey {
+        block_id: block.id,
+        face_name: face.name.clone(),
+        independent: face.independent,
+        is_water_exposed,
+        tint_bits: match face_pigment(stage, face.pigment_mask) {
+            Some(pigment) if !is_fluid => pigment_bits(pigment),
+            _ if face.stage_tint_mask != 0 && !is_fluid && block.stack_group == 0 => {
+                stage_tint_bits(stage & face.stage_tint_mask)
+            }
+            _ => 0,
+        },
+        ao: aos,
+        light: lights,
+        uv_start_u: (uv_range.start_u * 1000000.0) as u32,
+        uv_end_u: (uv_range.end_u * 1000000.0) as u32,
+        uv_start_v: (uv_range.start_v * 1000000.0) as u32,
+        uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+    };
+
+    FaceData {
+        key,
+        uv_range,
+        is_see_through,
+        is_fluid,
+        emissive_bits: ao_or_emissive_bits(0, face.emissive),
+    }
+}
+
 pub fn mesh_space_greedy<S: VoxelAccess>(
     min: &[i32; 3],
     max: &[i32; 3],
@@ -282,6 +339,10 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
     let mut greedy_mask: HashMap<(i32, i32), FaceData> =
         HashMap::with_capacity(slice_size * slice_size);
+    // Inward copies of cutout-mass surface faces (see `is_cutout_mass`),
+    // gathered while their voxels are visited; each lies on the next plane
+    // back along the sweep.
+    let mut inward_mask: HashMap<(i32, i32), FaceData> = HashMap::new();
     // The block is borrowed from the registry, not cloned: a `Block` owns
     // several strings and vectors, and cloning one per face put tens of heap
     // allocations behind every water voxel.
@@ -330,6 +391,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
         for slice in slice_range {
             greedy_mask.clear();
+            inward_mask.clear();
             non_greedy_faces.clear();
 
             for u in u_range.0..u_range.1 {
@@ -414,6 +476,31 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             continue;
                         };
 
+                        // A cutout mass's face toward the empty voxel behind
+                        // it, seen from inside: on that face's plane, turned
+                        // back toward this voxel and lit by it.
+                        let behind = [vx - dir[0], vy - dir[1], vz - dir[2]];
+                        if is_cutout_mass(block)
+                            && registry
+                                .get_block_by_id(space.get_voxel(behind[0], behind[1], behind[2]))
+                                .is_some_and(|b| b.is_empty)
+                        {
+                            inward_mask.insert(
+                                (u, v),
+                                greedy_face_data(
+                                    behind,
+                                    [vx, vy, vz],
+                                    dir,
+                                    block,
+                                    face,
+                                    space,
+                                    registry,
+                                    is_see_through,
+                                    is_fluid,
+                                ),
+                            );
+                        }
+
                         let should_render = should_render_face(
                             vx,
                             vy,
@@ -431,58 +518,19 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             continue;
                         }
 
-                        let uv_range = face.range.clone();
-                        let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                        let (aos, lights) =
-                            compute_face_ao_and_light(dir, block, &neighbors, registry);
-                        let is_water_exposed = space.get_voxel_waterlogged(vx, vy, vz)
-                            || space.get_voxel_waterlogged(vx + dir[0], vy + dir[1], vz + dir[2])
-                            || registry
-                                .get_block_by_id(space.get_voxel(
-                                    vx + dir[0],
-                                    vy + dir[1],
-                                    vz + dir[2],
-                                ))
-                                .map(|b| b.is_fluid)
-                                .unwrap_or(false);
-
-                        let key = FaceKey {
-                            block_id: block.id,
-                            face_name: face.name.clone(),
-                            independent: face.independent,
-                            is_water_exposed,
-                            tint_bits: match face_pigment(
-                                space.get_voxel_stage(vx, vy, vz),
-                                face.pigment_mask,
-                            ) {
-                                Some(pigment) if !is_fluid => pigment_bits(pigment),
-                                _ if face.stage_tint_mask != 0
-                                    && !is_fluid
-                                    && block.stack_group == 0 =>
-                                {
-                                    stage_tint_bits(
-                                        space.get_voxel_stage(vx, vy, vz) & face.stage_tint_mask,
-                                    )
-                                }
-                                _ => 0,
-                            },
-                            ao: aos,
-                            light: lights,
-                            uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-                            uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-                            uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-                            uv_end_v: (uv_range.end_v * 1000000.0) as u32,
-                        };
-
                         greedy_mask.insert(
                             (u, v),
-                            FaceData {
-                                key,
-                                uv_range,
+                            greedy_face_data(
+                                [vx, vy, vz],
+                                [vx, vy, vz],
+                                dir,
+                                block,
+                                face,
+                                space,
+                                registry,
                                 is_see_through,
                                 is_fluid,
-                                emissive_bits: ao_or_emissive_bits(0, face.emissive),
-                            },
+                            ),
                         );
                         continue;
                     }
@@ -573,8 +621,15 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
             let quads =
                 extract_greedy_quads(&mut greedy_mask, u_range.0, u_range.1, v_range.0, v_range.1);
+            let inward_quads =
+                extract_greedy_quads(&mut inward_mask, u_range.0, u_range.1, v_range.0, v_range.1);
+            let inward_slice = slice - dir[axis];
 
-            for quad in quads {
+            for (quad, quad_slice) in quads
+                .into_iter()
+                .map(|quad| (quad, slice))
+                .chain(inward_quads.into_iter().map(|quad| (quad, inward_slice)))
+            {
                 let block = match registry.get_block_by_id(quad.data.key.block_id) {
                     Some(b) => b,
                     None => continue,
@@ -598,7 +653,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     g
                 });
 
-                process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
+                process_greedy_quad(&quad, axis, quad_slice, dir, min, block, geometry);
             }
 
             for (

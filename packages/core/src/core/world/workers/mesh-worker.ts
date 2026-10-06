@@ -34,6 +34,7 @@ type WasmBlock = {
   isSeeThrough: boolean;
   isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
   transparentStandalone: boolean;
+  standaloneFaceDepth: number;
   occludesFluid: boolean;
   isPlant: boolean;
   stackGroup: number;
@@ -161,6 +162,7 @@ type RawWasmBlock = {
   isSeeThrough: boolean;
   isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
   transparentStandalone: boolean;
+  standaloneFaceDepth?: number;
   lightAttenuation?: number;
   occludesFluid?: boolean;
   isPlant?: boolean;
@@ -446,6 +448,7 @@ export function convertRegistryToWasm(rawRegistry: {
         isSeeThrough: block.isSeeThrough,
         isTransparent: block.isTransparent,
         transparentStandalone: block.transparentStandalone as boolean,
+        standaloneFaceDepth: block.standaloneFaceDepth ?? 0,
         occludesFluid: block.occludesFluid ?? false,
         isPlant: block.isPlant ?? false,
         stackGroup: block.stackGroup ?? 0,

@@ -12,8 +12,10 @@ import {
   getDownwellingTransmittance,
   getUnderwaterAmbientColor,
   measureWaterColumn,
+  UNDERSIDE_CRITICAL_COS,
   UNDERWATER_FOG_FRAGMENT,
   underwaterInScatterScale,
+  undersideSceneShare,
   undersideTransmission,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
@@ -633,6 +635,24 @@ describe("the Snell window underside", () => {
     );
     expect(WATER_OPTICS.undersideWindowRippleKeep).toBeGreaterThan(0.5);
     expect(WATER_OPTICS.undersideWindowRippleKeep).toBeLessThanOrEqual(1);
+  });
+
+  it("lets the dry world through past the rim, with no step at the rim", () => {
+    const critical = Math.acos(UNDERSIDE_CRITICAL_COS);
+    expect(Math.sin(critical) * WATER_OPTICS.refractiveIndex).toBeCloseTo(1, 6);
+    const justInside = undersideSceneShare(Math.cos(critical - 0.002));
+    const justOutside = undersideSceneShare(Math.cos(critical + 0.002));
+    // A shore past the rim shows through instead of a blank wall...
+    expect(justOutside).toBeGreaterThan(0.5);
+    expect(undersideSceneShare(0)).toBeGreaterThan(0.3);
+    // ...without a ring where the window meets the rest of the surface,
+    expect(Math.abs(justInside - justOutside)).toBeLessThan(0.05);
+    // and the window overhead still carries the most of it.
+    expect(undersideSceneShare(1)).toBeGreaterThan(justOutside);
+    expect(undersideSceneShare(0)).toBeLessThan(justOutside);
+    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
+      "mix(snellMirror, snellScene * snellRippleShade, snellLeak),",
+    );
   });
 
   it("is the default underside and compiles per texel, with the film kept as style 4", () => {

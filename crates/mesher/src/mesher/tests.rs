@@ -107,6 +107,80 @@ fn an_unknown_decoration_does_not_erase_the_ground_under_it() {
     assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36);
 }
 
+#[test]
+fn standalone_faces_between_same_blocks_stop_at_their_depth() {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let leaf_line = |depth: u32| {
+        let mut leaf = plain_block(1, "Leaf");
+        leaf.is_see_through = true;
+        leaf.transparent_standalone = true;
+        leaf.standalone_face_depth = depth;
+        leaf.faces = six_faces();
+        let mut registry = Registry::new(vec![(0, air.clone()), (1, leaf.clone())]);
+        registry.build_cache();
+        let cells: Vec<_> = (-2..=2).map(|x| ((x, 0, 0), (1, 0))).collect();
+        (leaf, registry, SparseSpace::new(&cells))
+    };
+    let renders = |leaf: &Block, registry: &Registry, space: &SparseSpace, x: i32, dir: i32| {
+        should_render_face(x, 0, 0, 1, [dir, 0, 0], leaf, space, registry, true, false)
+    };
+
+    // Five leaves along x, depth 1: only faces with one leaf before either
+    // end of the line are meshed, from both sides of each plane.
+    let (leaf, registry, space) = leaf_line(1);
+    let toward_px: Vec<_> = (-2..=1).filter(|&x| renders(&leaf, &registry, &space, x, 1)).collect();
+    let toward_nx: Vec<_> = (-1..=2).filter(|&x| renders(&leaf, &registry, &space, x, -1)).collect();
+    assert_eq!(toward_px, vec![-2, 1]);
+    assert_eq!(toward_nx, vec![-1, 2]);
+    // The ends of the line still face the air.
+    assert!(renders(&leaf, &registry, &space, 2, 1));
+    assert!(renders(&leaf, &registry, &space, -2, -1));
+
+    // Depth 0 meshes every layer.
+    let (leaf, registry, space) = leaf_line(0);
+    assert!((-2..=1).all(|x| renders(&leaf, &registry, &space, x, 1)));
+    assert!((-1..=2).all(|x| renders(&leaf, &registry, &space, x, -1)));
+}
+
+#[test]
+fn a_cutout_mass_lays_inward_copies_of_its_surface() {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mesh_lone_leaf = |depth: u32| {
+        let mut leaf = plain_block(1, "Leaf");
+        leaf.is_see_through = true;
+        leaf.transparent_standalone = true;
+        leaf.standalone_face_depth = depth;
+        leaf.faces = six_faces();
+        let mut registry = Registry::new(vec![(0, air.clone()), (1, leaf)]);
+        registry.build_cache();
+        let space = SparseSpace::new(&[((0, 0, 0), (1, 0))]);
+        mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry)
+    };
+
+    // A single-sided mass shows each of its six faces from inside too: the
+    // copy sits on the same plane, just outside the cube, facing back in.
+    let meshes = mesh_lone_leaf(2);
+    assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 72);
+    let xs: Vec<f32> = meshes
+        .iter()
+        .flat_map(|g| g.positions.chunks(3).map(|p| p[0]))
+        .collect();
+    assert!(xs.iter().any(|&x| x < 0.0), "the -x copy lies outside the cube");
+    assert!(xs.iter().any(|&x| x > 1.0), "the +x copy lies outside the cube");
+
+    // Without a depth it is a plain standalone cutout: six faces.
+    let meshes = mesh_lone_leaf(0);
+    assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36);
+}
+
 struct SingleVoxelSpace {
     voxel_id: u32,
     is_waterlogged: bool,
@@ -186,6 +260,7 @@ fn full_block_diagonal_block() -> Block {
         is_see_through: true,
         is_transparent: [true; 6],
         transparent_standalone: true,
+        standalone_face_depth: 0,
         occludes_fluid: false,
         is_plant: true,
         stack_group: 0,
@@ -612,6 +687,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         is_see_through: false,
         is_transparent: [true; 6],
         transparent_standalone: false,
+        standalone_face_depth: 0,
         occludes_fluid: false,
         is_plant: false,
         stack_group: 0,
@@ -636,6 +712,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         is_see_through: false,
         is_transparent: [false; 6],
         transparent_standalone: false,
+        standalone_face_depth: 0,
         occludes_fluid: false,
         is_plant: false,
         stack_group: 0,
@@ -742,6 +819,7 @@ fn plain_block(id: u32, name: &str) -> Block {
         is_see_through: false,
         is_transparent: [false; 6],
         transparent_standalone: false,
+        standalone_face_depth: 0,
         occludes_fluid: false,
         is_plant: false,
         stack_group: 0,
@@ -1414,6 +1492,7 @@ fn an_animated_block_meshes_each_voxel_as_its_own_geometry() {
         is_see_through: true,
         is_transparent: [true; 6],
         transparent_standalone: true,
+        standalone_face_depth: 0,
         faces: six_faces(),
         aabbs: vec![AABB {
             min_x: 0.0,
@@ -1483,6 +1562,7 @@ fn an_inset_see_through_face_survives_an_opaque_neighbour() {
         is_see_through: true,
         is_transparent: [true; 6],
         transparent_standalone: true,
+        standalone_face_depth: 0,
         aabbs: vec![],
         ..plain_block(LEAF_ID, "Leaf")
     };
@@ -1597,6 +1677,7 @@ fn a_fluid_wall_is_a_pane_only_against_a_see_through_solid() {
         is_see_through: true,
         is_transparent: [true; 6],
         transparent_standalone: true,
+        standalone_face_depth: 0,
         faces: six_faces(),
         ..plain_block(GLASS_ID, "Glass")
     };
@@ -1686,6 +1767,7 @@ fn a_fluid_wall_beside_a_partial_block_is_the_waters_own_surface() {
         is_see_through: true,
         is_transparent: [true; 6],
         transparent_standalone: true,
+        standalone_face_depth: 0,
         faces: six_faces(),
         ..plain_block(GLASS_ID, "Glass")
     };

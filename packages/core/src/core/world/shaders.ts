@@ -22,6 +22,7 @@ import {
   ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   FLOW_CREST_PHASE_PER_HEIGHT,
   FLUID_SPILL_CORNER_MIN_HEIGHT,
+  UNDERSIDE_CRITICAL_COS,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_CAUSTIC_WEB_GLSL,
   WATER_OPTICS,
@@ -35,6 +36,14 @@ export const CHUNK_RENDER_QUALITY = {
   highResolutionLocalLightsPerCell:
     defaultLocalLightsOptions.highResolutionLightsPerCell,
 } as const;
+
+/**
+ * The chunk fragment shader's atlas sample. A consumer injecting code ahead
+ * of it (a frame strip remapping `finalUv`) anchors on this exact line, so
+ * import it rather than copying it: the two cannot drift apart.
+ */
+export const CHUNK_TEXTURE_SAMPLE_GLSL =
+  "vec4 sampledDiffuseColor = textureGrad(map, finalUv, finalUvDx, finalUvDy);";
 
 // Chunk fog reveals through both channels at once: the material uniform (a
 // plain mesh's per-draw value) and the per-section varying (an arena slot's
@@ -607,6 +616,27 @@ uniform float uMinLightLevel;
 uniform float uBaseAmbient;
 uniform vec4 uFaceShades;
 
+// A greedy face's coordinates inside its atlas cell, from its outward normal
+// and the point's position inside its voxel. A greedy quad carries one UV
+// range for every voxel it spans, so this is the only orientation its
+// texels have.
+vec2 greedyFaceUv(vec3 normal, vec3 local) {
+  vec3 absNormal = abs(normal);
+  if (absNormal.y > 0.5) {
+    return normal.y > 0.0
+      ? vec2(1.0 - local.x, local.z)
+      : vec2(local.x, 1.0 - local.z);
+  }
+  if (absNormal.x > 0.5) {
+    return normal.x > 0.0
+      ? vec2(1.0 - local.z, local.y)
+      : vec2(local.z, local.y);
+  }
+  return normal.z > 0.0
+    ? vec2(local.x, local.y)
+    : vec2(1.0 - local.x, local.y);
+}
+
 uniform sampler2D uShadowMap0;
 uniform sampler2D uShadowMap1;
 uniform sampler2D uShadowMap2;
@@ -857,43 +887,30 @@ float getShadow() {
       `
 #ifdef USE_MAP
   vec2 finalUv;
+  // The mip gradients follow the face's unwrapped coordinates. A greedy
+  // quad wraps its UV once per block, and implicit derivatives across that
+  // jump pick the atlas's smallest mip: a line of its average colour along
+  // every block edge inside the quad, glinting as the view moves.
+  vec2 seamlessUv = vMapUv;
   
   if (vIsGreedy > 0.5) {
     float cellSize = 1.0 / uAtlasSize;
     float padding = cellSize / 4.0;
-    
-    vec3 absNormal = abs(vWorldNormal);
-    vec2 localUv;
-    if (absNormal.y > 0.5) {
-      if (vWorldNormal.y > 0.0) {
-        localUv = vec2(1.0 - fract(vWorldPosition.x), fract(vWorldPosition.z));
-      } else {
-        localUv = vec2(fract(vWorldPosition.x), 1.0 - fract(vWorldPosition.z));
-      }
-    } else if (absNormal.x > 0.5) {
-      if (vWorldNormal.x > 0.0) {
-        localUv = vec2(1.0 - fract(vWorldPosition.z), fract(vWorldPosition.y));
-      } else {
-        localUv = vec2(fract(vWorldPosition.z), fract(vWorldPosition.y));
-      }
-    } else {
-      if (vWorldNormal.z > 0.0) {
-        localUv = vec2(fract(vWorldPosition.x), fract(vWorldPosition.y));
-      } else {
-        localUv = vec2(1.0 - fract(vWorldPosition.x), fract(vWorldPosition.y));
-      }
-    }
+    vec2 localUv = greedyFaceUv(vWorldNormal, fract(vWorldPosition.xyz));
     
     vec2 cellMin = floor(vMapUv / cellSize) * cellSize;
     vec2 innerMin = cellMin + padding;
     float innerSize = cellSize - padding * 2.0;
     finalUv = innerMin + localUv * innerSize;
+    seamlessUv = innerMin + greedyFaceUv(vWorldNormal, vWorldPosition.xyz) * innerSize;
   } else {
     finalUv = vMapUv;
   }
+  vec2 finalUvDx = dFdx(seamlessUv);
+  vec2 finalUvDy = dFdy(seamlessUv);
   
   
-  vec4 sampledDiffuseColor = texture2D(map, finalUv);
+  ${CHUNK_TEXTURE_SAMPLE_GLSL}
   #ifdef DECODE_VIDEO_TEXTURE
     sampledDiffuseColor = vec4(mix(pow(sampledDiffuseColor.rgb * 0.9478672986 + vec3(0.0521327014), vec3(2.4)), sampledDiffuseColor.rgb * 0.0773993808, vec3(lessThanEqual(sampledDiffuseColor.rgb, vec3(0.04045)))), sampledDiffuseColor.w);
   #endif
@@ -1533,9 +1550,10 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   // the whole sky into the window, sky.ts), brighter than anything else in
   // view and dimming toward the rim by Fresnel; beyond it, a mirror of the
   // water below, lifted toward the lit bed in shallow water and broken by
-  // the sun's glitter. The rim is decided per texel, so it is a ragged
-  // pixel edge the ripples keep moving, never a soft halo. The caustic web
-  // stays on the bed.
+  // the sun's glitter. The dry world shows through the whole surface under
+  // the window's blend, so a shore is never a blank wall. The rim is
+  // decided per texel, so it is a ragged pixel edge the ripples keep
+  // moving, never a soft halo. The caustic web stays on the bed.
   if (uCameraSubmersion > 0.5 && topWaterFace > 0.5 && uSurfaceUndersideScale > 0.5 && uSurfaceUndersideScale < 1.5) {
     vec2 snellXZ = (floor(wPos.xz * 16.0) + 0.5) / 16.0;
     vec3 snellRay = normalize(vec3(snellXZ.x, wPos.y, snellXZ.y) - cameraPosition);
@@ -1568,7 +1586,18 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
       -1.0,
       1.0
     ) + 0.5);
-    snellMirror *= 1.0 + ${WATER_OPTICS.undersideReflectionRipple.toFixed(4)} * snellRipple;
+    float snellRippleShade = 1.0 + ${WATER_OPTICS.undersideReflectionRipple.toFixed(4)} * snellRipple;
+    snellMirror *= snellRippleShade;
+
+    // The dry world's share through the surface: most at the rim, less
+    // toward grazing, under the same ripple shade as the mirror so the band
+    // past the rim keeps moving with the waves. Applied under the window's
+    // blend, so the share runs on across the rim instead of stepping there.
+    float snellLeak = ${WATER_OPTICS.undersideSceneTransmit.toFixed(4)} * mix(
+      ${WATER_OPTICS.undersideSceneGrazingShare.toFixed(4)},
+      1.0,
+      clamp(snellCosI / ${UNDERSIDE_CRITICAL_COS.toFixed(4)}, 0.0, 1.0)
+    );
 
     // The sun through a ripple facet: a texel whose ray leaves the water
     // toward the sun glints, inside the window and at its shivering rim.
@@ -1587,13 +1616,17 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
         + snellNormal.xz * (1.0 - snellCosI)
           * ${(WATER_OPTICS.refractionSlopeScale * WATER_OPTICS.undersideDistortion).toFixed(4)}
           * uWaterRefractionStrength;
-      snellAbove = texture2D(uSceneColor, clamp(snellUv, vec2(0.001), vec2(0.999))).rgb
-        * ${WATER_OPTICS.undersideWindowGain.toFixed(4)};
-      outgoingLight.rgb = mix(snellMirror, snellAbove, snellT);
+      vec3 snellScene = texture2D(uSceneColor, clamp(snellUv, vec2(0.001), vec2(0.999))).rgb;
+      snellAbove = snellScene * ${WATER_OPTICS.undersideWindowGain.toFixed(4)};
+      outgoingLight.rgb = mix(
+        mix(snellMirror, snellScene * snellRippleShade, snellLeak),
+        snellAbove,
+        snellT
+      );
     } else {
       // No capture: the scene behind (the dome's window and whatever stands
-      // above the water) shows through the blend in the window's share.
-      snellAlpha = 1.0 - snellT;
+      // above the water) shows through the blend in the same share.
+      snellAlpha = (1.0 - snellT) * (1.0 - snellLeak);
       outgoingLight.rgb = snellMirror;
     }
     outgoingLight.rgb += uSunColor * snellGlint

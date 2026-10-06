@@ -464,6 +464,20 @@ export const WATER_OPTICS = Object.freeze({
   undersideGlitterStrength: 1.6,
 
   /**
+   * The dry world through the surface. Past the window a real surface
+   * mirrors the water, and that hid everything above it: a shore read as a
+   * teal wall from below, with no beach, tree or house in sight. The frame
+   * drawn before water shows through the whole underside instead,
+   * `undersideSceneTransmit` of it at the window's rim, falling to
+   * `undersideSceneGrazingShare` of that at grazing. The window blends on
+   * top, so the share is continuous across the rim and the window stays the
+   * brightest thing overhead; the view-path fog already in that frame fades
+   * a far shore into the water.
+   */
+  undersideSceneTransmit: 0.85,
+  undersideSceneGrazingShare: 0.6,
+
+  /**
    * The underwater fog's in-scatter brightens looking up and darkens
    * looking down: the light arrives from the surface, so a ray toward it
    * scatters more of it into the eye than a ray into the depths. The
@@ -753,6 +767,29 @@ export function undersideTransmission(cosIncidence: number): number {
   if (sinT2 >= 1) return 0;
   const cosT = Math.sqrt(1 - sinT2);
   return 1 - (0.02 + 0.98 * Math.pow(1 - cosT, 5));
+}
+
+/** Cosine of the critical angle, from straight up, seen from below. */
+export const UNDERSIDE_CRITICAL_COS = Math.sqrt(
+  1 - 1 / (WATER_OPTICS.refractiveIndex * WATER_OPTICS.refractiveIndex),
+);
+
+/**
+ * The share of the scene above in the underside's colour at `cosIncidence`
+ * (mirrors the Snell-window GLSL): the window's Fresnel transmission over
+ * the dry world showing through the rest of the surface.
+ */
+export function undersideSceneShare(cosIncidence: number): number {
+  const cosI = Math.min(1, Math.max(0, cosIncidence));
+  const leak =
+    WATER_OPTICS.undersideSceneTransmit *
+    MathUtils.lerp(
+      WATER_OPTICS.undersideSceneGrazingShare,
+      1,
+      Math.min(cosI / UNDERSIDE_CRITICAL_COS, 1),
+    );
+  const window = undersideTransmission(cosI);
+  return window + (1 - window) * leak;
 }
 
 /**
