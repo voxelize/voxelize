@@ -1,21 +1,29 @@
 import { MessageProtocol } from "@voxelize/protocol";
 import {
+  Box3,
   BufferAttribute,
   BufferGeometry,
   Color,
   DataTexture,
   DoubleSide,
   Group,
+  LinearFilter,
   Mesh,
-  NearestFilter,
   PlaneGeometry,
   RedFormat,
   ShaderMaterial,
+  Sphere,
+  Texture,
   UnsignedByteType,
-  Vector2,
   Vector3,
+  Vector4,
 } from "three";
 
+import {
+  FAR_SEAM_FUNCTIONS,
+  FAR_SEAM_UNIFORM_DECLARATIONS,
+  farSeamScale,
+} from "./far-terrain-seam";
 import {
   buildCoverageMask,
   buildFarLandArrays,
@@ -24,6 +32,8 @@ import {
   FarRing,
   farTerrainRings,
   FarTerrainDescriptor,
+  farTileBounds,
+  FarTileBounds,
   FarTileData,
   farTileId,
   FarTileKey,
@@ -69,6 +79,14 @@ export type FarTerrainSharedUniforms = {
   sunDirection: ShaderUniform<Vector3>;
   sunColor: ShaderUniform<Color>;
   ambientColor: ShaderUniform<Color>;
+  /**
+   * The chunk shader's side of the seam, written here: the coverage mask,
+   * its placement `(originCx, originCz, chunkSize, texels)` and the seam
+   * band's ramp scale (0 while the layer is off).
+   */
+  farCoverMask: ShaderUniform<Texture | null>;
+  farCover: ShaderUniform<Vector4>;
+  farSeam: ShaderUniform<number>;
 };
 
 export type FarTerrainOptions = {
@@ -94,6 +112,11 @@ export type FarTerrainOptions = {
   retryAfterMs: number;
   /** Main-thread time one update may spend building tile meshes. */
   buildBudgetMs: number;
+  /**
+   * Blocks of the loaded area's outer edge that hand over to the far layer
+   * across a dithered band, up to half a chunk; 0 keeps the edge hard.
+   */
+  seamBand: number;
 };
 
 const DEFAULT_OPTIONS: FarTerrainOptions = {
@@ -106,6 +129,7 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
   requestIntervalMs: 120,
   retryAfterMs: 6000,
   buildBudgetMs: 0.6,
+  seamBand: 8,
 };
 
 /** Counters a harness can read to prove the budget. */
@@ -130,6 +154,11 @@ export type FarTerrainStats = {
   updates: number;
   /** Mask rebuilds. */
   maskRebuilds: number;
+  /** Triangles across every built tile mesh in the scene. */
+  triangles: number;
+  /** Main-thread ms the last tile mesh took to build, and the highest since the peaks were reset. */
+  lastBuildMs: number;
+  peakBuildMs: number;
 };
 
 const VERTEX_SHADER = `
@@ -165,19 +194,19 @@ uniform vec3 uAmbientColor;
 uniform float uMinLightLevel;
 uniform float uBaseAmbient;
 uniform vec4 uFaceShades;
-uniform sampler2D uCoverMask;
-uniform vec2 uCoverOrigin;
-uniform float uCoverSize;
-uniform float uChunkSize;
 uniform float uRingInner;
 uniform float uRingOuter;
+${FAR_SEAM_UNIFORM_DECLARATIONS}
 ${isWater ? "uniform vec3 uWaterColor;" : "varying vec3 vFarColor;"}
 varying vec3 vWorldPosition;
+${FAR_SEAM_FUNCTIONS}
 
 void main() {
-  vec2 chunk = floor(vWorldPosition.xz / uChunkSize) - uCoverOrigin;
-  if (chunk.x >= 0.0 && chunk.y >= 0.0 && chunk.x < uCoverSize && chunk.y < uCoverSize) {
-    if (texture2D(uCoverMask, (chunk + 0.5) / uCoverSize).r > 0.5) discard;
+  // Hidden under every chunk that draws real terrain, except the pixels the
+  // chunk's outer half yields across the seam band (far-terrain-seam).
+  vec2 farTexel = farCoverTexel(vWorldPosition.xz);
+  if (farCoverInside(farTexel) && farCoverHard(farTexel) > 0.5) {
+    if (uFarSeam <= 0.0 || farSeamWeight(farTexel) > farSeamDither(gl_FragCoord.xy)) discard;
   }
   float horizontal = length(vWorldPosition.xz - cameraPosition.xz);
   if (horizontal < uRingInner || horizontal >= uRingOuter) discard;
@@ -245,6 +274,9 @@ export class FarTerrain extends Group {
     totalUpdateMs: 0,
     updates: 0,
     maskRebuilds: 0,
+    triangles: 0,
+    lastBuildMs: 0,
+    peakBuildMs: 0,
   };
 
   private resident = new Map<string, ResidentTile>();
@@ -269,8 +301,6 @@ export class FarTerrain extends Group {
 
   private coverageTexture: DataTexture;
 
-  private coverageOrigin = new Vector2(0, 0);
-
   private coverageGeneration = -1;
 
   private coverageCenter: [number, number] | null = null;
@@ -290,6 +320,8 @@ export class FarTerrain extends Group {
 
   private chunkSize = 16;
 
+  private shared: FarTerrainSharedUniforms;
+
   constructor(
     shared: FarTerrainSharedUniforms,
     options: Partial<FarTerrainOptions> = {},
@@ -297,6 +329,7 @@ export class FarTerrain extends Group {
     super();
     this.name = "far-terrain";
     this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.shared = shared;
     this.palette = Float32Array.from(this.options.palette);
     this.skyTop = colorTriple(this.options.skyTopColor);
     this.skySide = colorTriple(this.options.skySideColor);
@@ -309,9 +342,14 @@ export class FarTerrain extends Group {
       RedFormat,
       UnsignedByteType,
     );
-    this.coverageTexture.magFilter = NearestFilter;
-    this.coverageTexture.minFilter = NearestFilter;
+    // Linear so the mask reads as a ramp across the loaded edge for the
+    // seam band; the per-chunk answer samples texel centres.
+    this.coverageTexture.magFilter = LinearFilter;
+    this.coverageTexture.minFilter = LinearFilter;
     this.coverageTexture.needsUpdate = true;
+    shared.farCoverMask.value = this.coverageTexture;
+    shared.farCover.value.set(0, 0, this.chunkSize, COVERAGE_SIZE);
+    shared.farSeam.value = 0;
 
     const common = () => ({
       uFogColor: shared.fogColor,
@@ -341,10 +379,9 @@ export class FarTerrain extends Group {
       uMinLightLevel: shared.minLightLevel,
       uBaseAmbient: shared.baseAmbient,
       uFaceShades: shared.faceShades,
-      uCoverMask: { value: this.coverageTexture },
-      uCoverOrigin: { value: this.coverageOrigin },
-      uCoverSize: { value: COVERAGE_SIZE },
-      uChunkSize: { value: this.chunkSize },
+      uFarCoverMask: shared.farCoverMask,
+      uFarCover: shared.farCover,
+      uFarSeam: shared.farSeam,
       uRingInner: { value: 0 },
       uRingOuter: { value: 0 },
     });
@@ -436,11 +473,16 @@ export class FarTerrain extends Group {
       this.stats.isActive = false;
       this.stats.rings = 0;
       this.stats.distance = 0;
+      this.shared.farSeam.value = 0;
       return;
     }
     this.visible = true;
     this.stats.isActive = true;
     this.stats.distance = this.options.distance;
+    this.shared.farSeam.value = farSeamScale(
+      world.chunkSize,
+      this.options.seamBand,
+    );
 
     const renderDistance = world.renderRadius * world.chunkSize;
     this.rings = farTerrainRings(
@@ -520,6 +562,7 @@ export class FarTerrain extends Group {
     this.stats.peakUpdateMs = 0;
     this.stats.totalUpdateMs = 0;
     this.stats.updates = 0;
+    this.stats.peakBuildMs = 0;
   }
 
   /** Drop every tile and forget what was asked for. */
@@ -530,6 +573,7 @@ export class FarTerrain extends Group {
     this.queuedRequests = [];
     this.stats.tilesResident = 0;
     this.stats.meshes = 0;
+    this.stats.triangles = 0;
     this.water.visible = false;
   }
 
@@ -616,7 +660,12 @@ export class FarTerrain extends Group {
     const meshed: [number, number][] = [];
     world.forEachMeshedChunk((x, z) => meshed.push([x, z]));
     buildCoverageMask(meshed, originCx, originCz, COVERAGE_SIZE, this.coverage);
-    this.coverageOrigin.set(originCx, originCz);
+    this.shared.farCover.value.set(
+      originCx,
+      originCz,
+      world.chunkSize,
+      COVERAGE_SIZE,
+    );
     this.coverageTexture.needsUpdate = true;
     this.stats.maskRebuilds += 1;
   }
@@ -635,7 +684,6 @@ export class FarTerrain extends Group {
       : 0;
     this.waterMaterial.uniforms.uRingInner.value = 0;
     this.waterMaterial.uniforms.uRingOuter.value = outer;
-    this.waterMaterial.uniforms.uChunkSize.value = this.chunkSize;
   }
 
   /** One material per ring so each cuts at its own radii. */
@@ -654,7 +702,6 @@ export class FarTerrain extends Group {
     this.rings.forEach((ring, index) => {
       this.ringUniforms[index].inner.value = ring.inner;
       this.ringUniforms[index].outer.value = ring.outer;
-      this.ringMaterials[index].uniforms.uChunkSize.value = this.chunkSize;
     });
   }
 
@@ -671,20 +718,24 @@ export class FarTerrain extends Group {
   }
 
   private buildTile(tile: ResidentTile) {
+    const started = performance.now();
     const ringIndex = this.rings.findIndex(
       (ring) => ring.level === tile.data.key.level,
     );
     const material =
       this.ringMaterials[ringIndex >= 0 ? ringIndex : 0] ?? this.landMaterial;
+    const bounds = farTileBounds(tile.data);
     const land = buildFarLandArrays(tile.data, this.palette);
     tile.land = this.meshFrom(
       land.positions,
       land.colors,
       land.indices,
       material,
+      bounds,
     );
     tile.land.name = `far-terrain-${farTileId(tile.data.key)}`;
     this.add(tile.land);
+    this.stats.triangles += land.indices.length / 3;
     const sky = buildFarSkyArrays(tile.data, this.skyTop, this.skySide);
     if (sky) {
       tile.sky = this.meshFrom(
@@ -692,13 +743,20 @@ export class FarTerrain extends Group {
         sky.colors,
         sky.indices,
         material,
+        bounds,
       );
       tile.sky.name = `far-terrain-sky-${farTileId(tile.data.key)}`;
       this.add(tile.sky);
+      this.stats.triangles += sky.indices.length / 3;
     }
     tile.isBuilt = true;
     this.stats.tilesBuilt += 1;
     this.stats.meshes += sky ? 2 : 1;
+    this.stats.lastBuildMs = performance.now() - started;
+    this.stats.peakBuildMs = Math.max(
+      this.stats.peakBuildMs,
+      this.stats.lastBuildMs,
+    );
   }
 
   private meshFrom(
@@ -706,12 +764,20 @@ export class FarTerrain extends Group {
     colors: Float32Array,
     indices: Uint32Array,
     material: ShaderMaterial,
+    bounds: FarTileBounds,
   ) {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(positions, 3));
     geometry.setAttribute("aFarColor", new BufferAttribute(colors, 3));
     geometry.setIndex(new BufferAttribute(indices, 1));
-    geometry.computeBoundingSphere();
+    // The bounds from the tile's own extent: cheaper than a pass over the
+    // vertices, and the frustum test only needs them conservative.
+    geometry.boundingBox = new Box3(
+      new Vector3(bounds.x0, bounds.y0, bounds.z0),
+      new Vector3(bounds.x1, bounds.y1, bounds.z1),
+    );
+    geometry.boundingSphere = new Sphere();
+    geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
     const mesh = new Mesh(geometry, material);
     // Far tiles stay out of the shadow cascades: they lie past the cascades'
     // reach, and each would otherwise cost a draw per cascade.
@@ -726,6 +792,13 @@ export class FarTerrain extends Group {
     for (const mesh of [tile.land, tile.sky]) {
       if (!mesh) continue;
       this.remove(mesh);
+      const index = mesh.geometry.getIndex();
+      if (index) {
+        this.stats.triangles = Math.max(
+          0,
+          this.stats.triangles - index.count / 3,
+        );
+      }
       mesh.geometry.dispose();
       this.stats.meshes = Math.max(0, this.stats.meshes - 1);
     }

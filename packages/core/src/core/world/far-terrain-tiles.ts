@@ -192,6 +192,49 @@ export function selectFarTiles(
   return picked.map((p) => p.key);
 }
 
+/** The world-space box a tile's land and floating land fit in. */
+export type FarTileBounds = {
+  x0: number;
+  y0: number;
+  z0: number;
+  x1: number;
+  y1: number;
+  z1: number;
+};
+
+/**
+ * The box every mesh of `tile` fits in: its span in x and z, and from its
+ * lowest height (or sky bottom) to its highest (or sky top) in y.
+ */
+export function farTileBounds(tile: FarTileData): FarTileBounds {
+  const { size, step, heights, sky, key } = tile;
+  const span = (size - 1) * step;
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (let at = 0; at < heights.length; at++) {
+    const h = heights[at];
+    if (h < y0) y0 = h;
+    if (h > y1) y1 = h;
+  }
+  if (sky) {
+    for (let at = 0; at < sky.length; at += 2) {
+      if (sky[at] === 0) continue;
+      if (sky[at] > y1) y1 = sky[at];
+      if (sky[at + 1] < y0) y0 = sky[at + 1];
+    }
+  }
+  if (!Number.isFinite(y0)) y0 = 0;
+  if (!Number.isFinite(y1)) y1 = 0;
+  return {
+    x0: key.tx * span,
+    y0: Math.round(y0),
+    z0: key.tz * span,
+    x1: key.tx * span + span,
+    y1: Math.round(y1),
+    z1: key.tz * span + span,
+  };
+}
+
 /** Flat typed arrays for one tile's land mesh. */
 export type FarMeshArrays = {
   positions: Float32Array;
@@ -200,9 +243,148 @@ export type FarMeshArrays = {
 };
 
 /**
- * The land heightfield of a tile as world-space triangles with a colour per
- * vertex from `palette` (RGB triples in 0..1, one per class; a class past
- * the palette takes its last entry).
+ * Axis-aligned quads into flat typed arrays, four vertices each so every
+ * face keeps its own flat colour. `a b c d` run counter-clockwise seen from
+ * the side the face shows; the triangles are `a b c` and `a c d`.
+ */
+class FarQuadWriter {
+  positions: Float32Array;
+
+  colors: Float32Array;
+
+  indices: Uint32Array;
+
+  vertices = 0;
+
+  indexCount = 0;
+
+  constructor(maxQuads: number) {
+    this.positions = new Float32Array(maxQuads * 12);
+    this.colors = new Float32Array(maxQuads * 12);
+    this.indices = new Uint32Array(maxQuads * 6);
+  }
+
+  private vertex(x: number, y: number, z: number, c: readonly number[]) {
+    const at = this.vertices * 3;
+    this.positions[at] = x;
+    this.positions[at + 1] = y;
+    this.positions[at + 2] = z;
+    this.colors[at] = c[0];
+    this.colors[at + 1] = c[1];
+    this.colors[at + 2] = c[2];
+    return this.vertices++;
+  }
+
+  private close(a: number) {
+    const n = this.indexCount;
+    this.indices[n] = a;
+    this.indices[n + 1] = a + 1;
+    this.indices[n + 2] = a + 2;
+    this.indices[n + 3] = a;
+    this.indices[n + 4] = a + 2;
+    this.indices[n + 5] = a + 3;
+    this.indexCount = n + 6;
+  }
+
+  /** A horizontal quad over `[x0, x1] x [z0, z1]` at `y`, facing up or down. */
+  flat(
+    x0: number,
+    x1: number,
+    z0: number,
+    z1: number,
+    y: number,
+    isUp: boolean,
+    c: readonly number[],
+  ) {
+    const a = this.vertex(x0, y, z0, c);
+    if (isUp) {
+      this.vertex(x0, y, z1, c);
+      this.vertex(x1, y, z1, c);
+      this.vertex(x1, y, z0, c);
+    } else {
+      this.vertex(x1, y, z0, c);
+      this.vertex(x1, y, z1, c);
+      this.vertex(x0, y, z1, c);
+    }
+    this.close(a);
+  }
+
+  /** A wall in the plane `x = x`, from `y0` up to `y1`, facing +x or -x. */
+  wallX(
+    x: number,
+    z0: number,
+    z1: number,
+    y0: number,
+    y1: number,
+    facesPositive: boolean,
+    c: readonly number[],
+  ) {
+    const a = this.vertex(x, y0, z0, c);
+    if (facesPositive) {
+      this.vertex(x, y1, z0, c);
+      this.vertex(x, y1, z1, c);
+      this.vertex(x, y0, z1, c);
+    } else {
+      this.vertex(x, y0, z1, c);
+      this.vertex(x, y1, z1, c);
+      this.vertex(x, y1, z0, c);
+    }
+    this.close(a);
+  }
+
+  /** A wall in the plane `z = z`, from `y0` up to `y1`, facing +z or -z. */
+  wallZ(
+    z: number,
+    x0: number,
+    x1: number,
+    y0: number,
+    y1: number,
+    facesPositive: boolean,
+    c: readonly number[],
+  ) {
+    const a = this.vertex(x0, y0, z, c);
+    if (facesPositive) {
+      this.vertex(x1, y0, z, c);
+      this.vertex(x1, y1, z, c);
+      this.vertex(x0, y1, z, c);
+    } else {
+      this.vertex(x0, y1, z, c);
+      this.vertex(x1, y1, z, c);
+      this.vertex(x1, y0, z, c);
+    }
+    this.close(a);
+  }
+
+  get isEmpty() {
+    return this.indexCount === 0;
+  }
+
+  /** The arrays, trimmed to what was written when that is less. */
+  finish(): FarMeshArrays {
+    const full = this.vertices * 3 === this.positions.length;
+    return {
+      positions: full
+        ? this.positions
+        : this.positions.subarray(0, this.vertices * 3),
+      colors: full ? this.colors : this.colors.subarray(0, this.vertices * 3),
+      indices: full ? this.indices : this.indices.subarray(0, this.indexCount),
+    };
+  }
+}
+
+const GREY: readonly number[] = [0.5, 0.5, 0.5];
+
+/**
+ * The land of a tile as flat-topped columns, so the far layer steps like
+ * distant blocks instead of rolling: one quad per cell at its sample's
+ * height (whole blocks), and a vertical wall along every cell edge whose
+ * two sides differ in height, from the lower top up to the higher one,
+ * facing the lower side and coloured as the higher column. The cell of
+ * sample `(i, j)` spans `[i, i + 1) x [j, j + 1)` steps, so the last sample
+ * row is the first cell of the next tile: this tile walls that shared edge
+ * from both heights and the next tile leaves its low edge alone, so no edge
+ * is walled twice and none is missed. Colours are RGB triples in 0..1 from
+ * `palette`, one per class; a class past the palette takes its last entry.
  */
 export function buildFarLandArrays(
   tile: FarTileData,
@@ -212,60 +394,61 @@ export function buildFarLandArrays(
   const span = (size - 1) * step;
   const originX = key.tx * span;
   const originZ = key.tz * span;
-  const count = size * size;
-  const positions = new Float32Array(count * 3);
-  const colorArray = new Float32Array(count * 3);
-  const classes = Math.max(1, palette.length / 3);
-  for (let j = 0; j < size; j++) {
-    for (let i = 0; i < size; i++) {
-      const at = j * size + i;
-      positions[at * 3] = originX + i * step;
-      positions[at * 3 + 1] = heights[at];
-      positions[at * 3 + 2] = originZ + j * step;
-      const c = Math.min(colors[at], classes - 1) * 3;
-      colorArray[at * 3] = palette[c] ?? 0.5;
-      colorArray[at * 3 + 1] = palette[c + 1] ?? 0.5;
-      colorArray[at * 3 + 2] = palette[c + 2] ?? 0.5;
+  const cells = size - 1;
+  const classes = Math.max(1, Math.floor(palette.length / 3));
+  const triples: number[][] = [];
+  for (let c = 0; c < classes; c++) {
+    triples.push(
+      palette.length >= 3
+        ? [palette[c * 3], palette[c * 3 + 1], palette[c * 3 + 2]]
+        : [...GREY],
+    );
+  }
+  const colorOf = (i: number, j: number) =>
+    triples[Math.min(colors[j * size + i], classes - 1)];
+  const heightOf = (i: number, j: number) => Math.round(heights[j * size + i]);
+
+  // A top per cell and a wall on each of its +x and +z edges that steps;
+  // counted first so the arrays are allocated once at their final size.
+  let quads = cells * cells;
+  for (let j = 0; j < cells; j++) {
+    for (let i = 0; i < cells; i++) {
+      const y = heightOf(i, j);
+      if (heightOf(i + 1, j) !== y) quads++;
+      if (heightOf(i, j + 1) !== y) quads++;
     }
   }
-  const cells = (size - 1) * (size - 1);
-  const indices = new Uint32Array(cells * 6);
-  let n = 0;
-  for (let j = 0; j < size - 1; j++) {
-    for (let i = 0; i < size - 1; i++) {
-      const a = j * size + i;
-      const b = a + 1;
-      const c = a + size;
-      const d = c + 1;
-      // Counter-clockwise seen from above (+y), the split along the
-      // shorter diagonal so ridges and gullies keep their line.
-      const ad = Math.abs(heights[a] - heights[d]);
-      const bc = Math.abs(heights[b] - heights[c]);
-      if (ad <= bc) {
-        indices[n++] = a;
-        indices[n++] = c;
-        indices[n++] = d;
-        indices[n++] = a;
-        indices[n++] = d;
-        indices[n++] = b;
-      } else {
-        indices[n++] = a;
-        indices[n++] = c;
-        indices[n++] = b;
-        indices[n++] = b;
-        indices[n++] = c;
-        indices[n++] = d;
-      }
+  const writer = new FarQuadWriter(quads);
+  for (let j = 0; j < cells; j++) {
+    const z0 = originZ + j * step;
+    const z1 = z0 + step;
+    for (let i = 0; i < cells; i++) {
+      const x0 = originX + i * step;
+      const x1 = x0 + step;
+      const y = heightOf(i, j);
+      const color = colorOf(i, j);
+      writer.flat(x0, x1, z0, z1, y, true, color);
+      const east = heightOf(i + 1, j);
+      if (east < y) writer.wallX(x1, z0, z1, east, y, true, color);
+      else if (east > y)
+        writer.wallX(x1, z0, z1, y, east, false, colorOf(i + 1, j));
+      const south = heightOf(i, j + 1);
+      if (south < y) writer.wallZ(z1, x0, x1, south, y, true, color);
+      else if (south > y)
+        writer.wallZ(z1, x0, x1, y, south, false, colorOf(i, j + 1));
     }
   }
-  return { positions, colors: colorArray, indices };
+  return writer.finish();
 }
 
 /**
- * Floating land of a tile as slabs: a top heightfield over every cell whose
- * four corners carry sky land, the matching underside, and a vertical wall
- * along every cell edge where the land ends. Returns null when the tile
- * has no floating land.
+ * Floating land of a tile as boxy slabs, one column per cell whose sample
+ * carries sky land: a flat top at the land's top, a flat underside at its
+ * bottom, a full wall from bottom to top along every edge where the land
+ * ends, and between two land cells a wall for each step in their tops (from
+ * the lower top up, facing it) and in their bottoms (from the deeper bottom
+ * up, facing the shallower). Edges are shared with the next tile the same
+ * way as the land's. Returns null when the tile has no floating land.
  */
 export function buildFarSkyArrays(
   tile: FarTileData,
@@ -274,69 +457,80 @@ export function buildFarSkyArrays(
 ): FarMeshArrays | null {
   const { sky, size, step, key } = tile;
   if (!sky) return null;
+  let present = 0;
+  for (let at = 0; at < size * size; at++) if (sky[at * 2] > 0) present++;
+  if (present === 0) return null;
   const span = (size - 1) * step;
   const originX = key.tx * span;
   const originZ = key.tz * span;
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const indices: number[] = [];
-  const has = (i: number, j: number) =>
-    i >= 0 && j >= 0 && i < size && j < size && sky[(j * size + i) * 2] > 0;
-  const cellPresent = (i: number, j: number) =>
-    i >= 0 &&
-    j >= 0 &&
-    i < size - 1 &&
-    j < size - 1 &&
-    has(i, j) &&
-    has(i + 1, j) &&
-    has(i, j + 1) &&
-    has(i + 1, j + 1);
-  const push = (x: number, y: number, z: number, c: readonly number[]) => {
-    positions.push(x, y, z);
-    colors.push(c[0], c[1], c[2]);
-    return positions.length / 3 - 1;
-  };
-  const top = (i: number, j: number) => sky[(j * size + i) * 2];
-  const bottom = (i: number, j: number) => sky[(j * size + i) * 2 + 1];
-  const wx = (i: number) => originX + i * step;
-  const wz = (j: number) => originZ + j * step;
+  const cells = size - 1;
+  const has = (i: number, j: number) => sky[(j * size + i) * 2] > 0;
+  const top = (i: number, j: number) => Math.round(sky[(j * size + i) * 2]);
+  const bottom = (i: number, j: number) =>
+    Math.round(sky[(j * size + i) * 2 + 1]);
 
-  for (let j = 0; j < size - 1; j++) {
-    for (let i = 0; i < size - 1; i++) {
-      if (!cellPresent(i, j)) continue;
-      // Top, counter-clockwise from above.
-      const a = push(wx(i), top(i, j), wz(j), topColor);
-      const b = push(wx(i + 1), top(i + 1, j), wz(j), topColor);
-      const c = push(wx(i), top(i, j + 1), wz(j + 1), topColor);
-      const d = push(wx(i + 1), top(i + 1, j + 1), wz(j + 1), topColor);
-      indices.push(a, c, d, a, d, b);
-      // Underside, wound to face down.
-      const a2 = push(wx(i), bottom(i, j), wz(j), sideColor);
-      const b2 = push(wx(i + 1), bottom(i + 1, j), wz(j), sideColor);
-      const c2 = push(wx(i), bottom(i, j + 1), wz(j + 1), sideColor);
-      const d2 = push(wx(i + 1), bottom(i + 1, j + 1), wz(j + 1), sideColor);
-      indices.push(a2, d2, c2, a2, b2, d2);
-      // Walls where a neighbouring cell has no land: two triangles from the
-      // edge's tops down to its bottoms.
-      const wall = (i0: number, j0: number, i1: number, j1: number) => {
-        const t0 = push(wx(i0), top(i0, j0), wz(j0), sideColor);
-        const t1 = push(wx(i1), top(i1, j1), wz(j1), sideColor);
-        const b0 = push(wx(i0), bottom(i0, j0), wz(j0), sideColor);
-        const b1 = push(wx(i1), bottom(i1, j1), wz(j1), sideColor);
-        indices.push(t0, b0, b1, t0, b1, t1);
-      };
-      if (!cellPresent(i, j - 1)) wall(i, j, i + 1, j);
-      if (!cellPresent(i, j + 1)) wall(i + 1, j + 1, i, j + 1);
-      if (!cellPresent(i - 1, j)) wall(i, j + 1, i, j);
-      if (!cellPresent(i + 1, j)) wall(i + 1, j, i + 1, j + 1);
+  // Top, underside and up to two walls on each of the +x and +z edges.
+  const writer = new FarQuadWriter(cells * cells * 6);
+  for (let j = 0; j < cells; j++) {
+    const z0 = originZ + j * step;
+    const z1 = z0 + step;
+    for (let i = 0; i < cells; i++) {
+      const x0 = originX + i * step;
+      const x1 = x0 + step;
+      const here = has(i, j);
+      if (here) {
+        writer.flat(x0, x1, z0, z1, top(i, j), true, topColor);
+        writer.flat(x0, x1, z0, z1, bottom(i, j), false, sideColor);
+      }
+      const east = has(i + 1, j);
+      if (here && !east) {
+        writer.wallX(x1, z0, z1, bottom(i, j), top(i, j), true, sideColor);
+      } else if (!here && east) {
+        writer.wallX(
+          x1,
+          z0,
+          z1,
+          bottom(i + 1, j),
+          top(i + 1, j),
+          false,
+          sideColor,
+        );
+      } else if (here && east) {
+        const t0 = top(i, j);
+        const t1 = top(i + 1, j);
+        if (t0 > t1) writer.wallX(x1, z0, z1, t1, t0, true, sideColor);
+        else if (t1 > t0) writer.wallX(x1, z0, z1, t0, t1, false, sideColor);
+        const b0 = bottom(i, j);
+        const b1 = bottom(i + 1, j);
+        if (b0 < b1) writer.wallX(x1, z0, z1, b0, b1, true, sideColor);
+        else if (b1 < b0) writer.wallX(x1, z0, z1, b1, b0, false, sideColor);
+      }
+      const south = has(i, j + 1);
+      if (here && !south) {
+        writer.wallZ(z1, x0, x1, bottom(i, j), top(i, j), true, sideColor);
+      } else if (!here && south) {
+        writer.wallZ(
+          z1,
+          x0,
+          x1,
+          bottom(i, j + 1),
+          top(i, j + 1),
+          false,
+          sideColor,
+        );
+      } else if (here && south) {
+        const t0 = top(i, j);
+        const t1 = top(i, j + 1);
+        if (t0 > t1) writer.wallZ(z1, x0, x1, t1, t0, true, sideColor);
+        else if (t1 > t0) writer.wallZ(z1, x0, x1, t0, t1, false, sideColor);
+        const b0 = bottom(i, j);
+        const b1 = bottom(i, j + 1);
+        if (b0 < b1) writer.wallZ(z1, x0, x1, b0, b1, true, sideColor);
+        else if (b1 < b0) writer.wallZ(z1, x0, x1, b1, b0, false, sideColor);
+      }
     }
   }
-  if (indices.length === 0) return null;
-  return {
-    positions: new Float32Array(positions),
-    colors: new Float32Array(colors),
-    indices: new Uint32Array(indices),
-  };
+  return writer.isEmpty ? null : writer.finish();
 }
 
 /**

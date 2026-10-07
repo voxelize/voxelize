@@ -340,6 +340,13 @@ export type WorldClientOptions = {
   farTerrainFogNearRatio: number;
 
   /**
+   * How many blocks of the loaded area's outer edge hand over to the far
+   * layer across a dithered band, up to half a chunk; 0 leaves the edge
+   * hard. Defaults to `8`.
+   */
+  farTerrainSeamBand: number;
+
+  /**
    * The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`.
    */
   chunkUniformsOverwrite: Partial<ChunkRenderer["uniforms"]>;
@@ -518,6 +525,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   farTerrainSkyTopColor: "#6f9d4e",
   farTerrainSkySideColor: "#6e665c",
   farTerrainFogNearRatio: 0.6,
+  farTerrainSeamBand: 8,
   chunkUniformsOverwrite: {},
   sunlightStartTimeFrac: 0.25,
   sunlightEndTimeFrac: 0.7,

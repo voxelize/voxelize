@@ -146,6 +146,16 @@ export class ChunkRenderer {
     cameraWaterPlaneY: { value: number };
     underwaterAmbient: { value: Color };
     underwaterViewScale: { value: number };
+    /**
+     * The far layer's chunk-coverage mask and its placement, written by
+     * `FarTerrain`: chunk fragments read them to yield their outer half
+     * chunk to the far layer across a dithered band. See far-terrain-seam.
+     */
+    farCoverMask: { value: Texture | null };
+    /** x, y: mask origin in chunk columns; z: blocks per chunk; w: texels per side. */
+    farCover: { value: Vector4 };
+    /** The seam band's ramp scale; 0 keeps the loaded edge hard. */
+    farSeam: { value: number };
   } = {
     fogColor: { value: new Color("#B1CCFD") },
     fogNear: { value: 100 },
@@ -167,6 +177,9 @@ export class ChunkRenderer {
     lightIntensityAdjustment: { value: 0.8 },
     atlasSize: { value: 16 },
     showGreedyDebug: { value: 0 },
+    farCoverMask: { value: null },
+    farCover: { value: new Vector4(0, 0, 16, 1) },
+    farSeam: { value: 0 },
     skyFogTopColor: { value: new Color(0.4, 0.6, 0.9) },
     skyFogMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
     skyFogBottomColor: { value: new Color(0.15, 0.18, 0.25) },

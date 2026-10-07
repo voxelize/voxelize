@@ -6664,6 +6664,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         sunDirection: lighting.sunDirection,
         sunColor: lighting.sunColor,
         ambientColor: lighting.ambientColor,
+        farCoverMask: chunkUniforms.farCoverMask,
+        farCover: chunkUniforms.farCover,
+        farSeam: chunkUniforms.farSeam,
       },
       {
         distance: this.options.farTerrainDistance,
@@ -6671,6 +6674,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         waterColor: this.options.farTerrainWaterColor,
         skyTopColor: this.options.farTerrainSkyTopColor,
         skySideColor: this.options.farTerrainSkySideColor,
+        seamBand: this.options.farTerrainSeamBand,
       },
     );
     this.add(this.farTerrain);

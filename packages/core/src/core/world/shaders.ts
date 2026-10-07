@@ -5,6 +5,10 @@ import {
   BLOCK_LIGHT_TRANSFER_UNIFORMS_GLSL,
 } from "./block-light-transfer";
 import {
+  FAR_SEAM_FUNCTIONS,
+  FAR_SEAM_UNIFORM_DECLARATIONS,
+} from "./far-terrain-seam";
+import {
   LIGHT_CONES_FUNCTIONS,
   LIGHT_CONES_SCATTER_FRAGMENT,
   LIGHT_CONES_UNIFORM_DECLARATIONS,
@@ -615,6 +619,8 @@ uniform vec3 uAmbientColor;
 uniform float uMinLightLevel;
 uniform float uBaseAmbient;
 uniform vec4 uFaceShades;
+${FAR_SEAM_UNIFORM_DECLARATIONS}
+${FAR_SEAM_FUNCTIONS}
 
 // A greedy face's coordinates inside its atlas cell, from its outward normal
 // and the point's position inside its voxel. A greedy quad carries one UV
@@ -885,6 +891,18 @@ float getShadow() {
     .replace(
       "#include <map_fragment>",
       `
+// The seam with the far layer: over the outer half chunk of the loaded area
+// this fragment yields to the far layer by an ordered dither and the far
+// layer draws the pixels it yields, so blocks hand over to columns across a
+// band instead of along a line. Fluids keep drawing; the far water plane
+// lies under them anyway.
+if (uFarSeam > 0.0 && vIsFluid < 0.5) {
+  vec2 farSeamTexel = farCoverTexel(vWorldPosition.xz);
+  if (farCoverInside(farSeamTexel)
+      && farSeamWeight(farSeamTexel) <= farSeamDither(gl_FragCoord.xy)) {
+    discard;
+  }
+}
 #ifdef USE_MAP
   vec2 finalUv;
   // The mip gradients follow the face's unwrapped coordinates. A greedy

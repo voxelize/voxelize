@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chunkKeepsSeamPixel,
+  FAR_SEAM_BAYER,
+  farKeepsSeamPixel,
+  farSeamDither,
+  farSeamScale,
+  farSeamWeightAt,
+} from "./far-terrain-seam";
+import {
   buildCoverageMask,
   buildFarLandArrays,
   buildFarSkyArrays,
   decodeFarTerrainReply,
   farTerrainRings,
   FarTerrainDescriptor,
+  farTileBounds,
   FarTileData,
   farTileId,
   farTilesToEvict,
@@ -185,33 +194,167 @@ describe("selectFarTiles", () => {
   });
 });
 
+/** Each triangle's outward normal (right-hand rule), one vec3 per triangle. */
+const normalsOf = ({
+  positions,
+  indices,
+}: {
+  positions: Float32Array;
+  indices: Uint32Array;
+}) => {
+  const out: [number, number, number][] = [];
+  const p = (k: number) =>
+    [positions[k * 3], positions[k * 3 + 1], positions[k * 3 + 2]] as const;
+  for (let t = 0; t < indices.length; t += 3) {
+    const a = p(indices[t]);
+    const b = p(indices[t + 1]);
+    const c = p(indices[t + 2]);
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n: [number, number, number] = [
+      u[1] * v[2] - u[2] * v[1],
+      u[2] * v[0] - u[0] * v[2],
+      u[0] * v[1] - u[1] * v[0],
+    ];
+    const len = Math.hypot(...n) || 1;
+    out.push([n[0] / len, n[1] / len, n[2] / len]);
+  }
+  return out;
+};
+
+/** The y of every vertex of the triangles whose normal passes `pick`. */
+const ysWhere = (
+  mesh: { positions: Float32Array; indices: Uint32Array },
+  pick: (n: [number, number, number]) => boolean,
+) => {
+  const ys = new Set<number>();
+  normalsOf(mesh).forEach((n, t) => {
+    if (!pick(n)) return;
+    for (let k = 0; k < 3; k++)
+      ys.add(mesh.positions[mesh.indices[t * 3 + k] * 3 + 1]);
+  });
+  return ys;
+};
+
+const isUp = (n: [number, number, number]) => n[1] > 0.99;
+const isDown = (n: [number, number, number]) => n[1] < -0.99;
+const isSide = (n: [number, number, number]) => Math.abs(n[1]) < 0.01;
+
 describe("buildFarLandArrays", () => {
-  it("places samples on the tile's lattice with palette colours", () => {
-    const tile = tileOf(3, (i, j) => 100 + i + 10 * j);
+  it("draws a flat plain as one flat-topped quad per cell and no walls", () => {
+    const tile = tileOf(3, () => 100);
     const palette = Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    const { positions, colors, indices } = buildFarLandArrays(tile, palette);
-    expect(positions.length).toBe(9 * 3);
-    // Sample (1, 2) sits at world (tx*span + 8, tz*span + 16).
+    const mesh = buildFarLandArrays(tile, palette);
+    // Four cells, two triangles each, four vertices each.
+    expect(mesh.indices.length).toBe(4 * 6);
+    expect(mesh.positions.length).toBe(4 * 4 * 3);
+    expect(normalsOf(mesh).every(isUp)).toBe(true);
+    for (let k = 1; k < mesh.positions.length; k += 3)
+      expect(mesh.positions[k]).toBe(100);
+  });
+
+  it("puts each top at its sample's height, rounded to a whole block, over the cell it starts", () => {
+    const tile = tileOf(3, (i, j) => 100 + i + 10 * j);
+    tile.heights[0] = 100;
+    const palette = Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    const mesh = buildFarLandArrays(tile, palette);
     const span = 2 * 8;
-    const at = (2 * 3 + 1) * 3;
-    expect(positions[at]).toBe(1 * span + 8);
-    expect(positions[at + 1]).toBe(100 + 1 + 20);
-    expect(positions[at + 2]).toBe(-1 * span + 16);
-    // Class (i + j) % 3 = 0 at the origin: red.
-    expect(Array.from(colors.subarray(0, 3))).toEqual([1, 0, 0]);
-    // Four cells, two triangles each, wound upward.
-    expect(indices.length).toBe(4 * 6);
-    const i0 = indices[0];
-    const i1 = indices[1];
-    const i2 = indices[2];
-    const p = (k: number) => [positions[k * 3], positions[k * 3 + 2]];
-    const [ax, az] = p(i0);
-    const [bx, bz] = p(i1);
-    const [cx, cz] = p(i2);
-    // Counter-clockwise seen from +y in a right-handed world means a
-    // negative signed area in the xz plane.
-    const area = (bx - ax) * (cz - az) - (cx - ax) * (bz - az);
-    expect(area).toBeLessThan(0);
+    // Cell (1, 1): x in [tx*span + 8, +16], z in [tz*span + 8, +16], y = 111.
+    const tops = normalsOf(mesh)
+      .map((n, t) => (isUp(n) ? t : -1))
+      .filter((t) => t >= 0);
+    const cell = tops.filter((t) => {
+      const k = mesh.indices[t * 3];
+      return mesh.positions[k * 3 + 1] === 111;
+    });
+    expect(cell.length).toBe(2);
+    const xs = new Set<number>();
+    const zs = new Set<number>();
+    for (const t of cell)
+      for (let k = 0; k < 3; k++) {
+        const v = mesh.indices[t * 3 + k];
+        xs.add(mesh.positions[v * 3]);
+        zs.add(mesh.positions[v * 3 + 2]);
+      }
+    expect(xs).toEqual(new Set([1 * span + 8, 1 * span + 16]));
+    expect(zs).toEqual(new Set([-1 * span + 8, -1 * span + 16]));
+    // Class (i + j) % 3 = 0 at the origin: red on every vertex of its top.
+    expect(Array.from(mesh.colors.subarray(0, 12))).toEqual([
+      1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
+    ]);
+    // Every top winds counter-clockwise seen from above: a negative signed
+    // area in the xz plane.
+    const p = (k: number) => [mesh.positions[k * 3], mesh.positions[k * 3 + 2]];
+    const [ax, az] = p(mesh.indices[0]);
+    const [bx, bz] = p(mesh.indices[1]);
+    const [cx, cz] = p(mesh.indices[2]);
+    expect((bx - ax) * (cz - az) - (cx - ax) * (bz - az)).toBeLessThan(0);
+  });
+
+  it("walls a step only where a neighbour is lower, facing the lower cell", () => {
+    // A 2x2-cell tile: the west column of cells is 100, the east is 90.
+    const tile = tileOf(3, (i) => (i === 0 ? 100 : 90));
+    const palette = Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    const mesh = buildFarLandArrays(tile, palette);
+    const normals = normalsOf(mesh);
+    // 4 tops (8 triangles) + 2 walls along the one step (4 triangles).
+    expect(normals.length).toBe(12);
+    const walls = normals.filter(isSide);
+    expect(walls.length).toBe(4);
+    // The wall faces +x, toward the lower eastern cells, from 90 up to 100.
+    for (const n of walls) expect(n[0]).toBeCloseTo(1, 5);
+    expect(ysWhere(mesh, isSide)).toEqual(new Set([90, 100]));
+    const wallXs = new Set<number>();
+    normals.forEach((n, t) => {
+      if (!isSide(n)) return;
+      for (let k = 0; k < 3; k++)
+        wallXs.add(mesh.positions[mesh.indices[t * 3 + k] * 3]);
+    });
+    expect(wallXs).toEqual(new Set([1 * 16 + 8]));
+    // The wall is coloured as the higher column (class 0 at i = 0, j = 0;
+    // class 1 at i = 0, j = 1): red and green, never the lower cell's.
+    const wallColors = new Set<string>();
+    normals.forEach((n, t) => {
+      if (!isSide(n)) return;
+      const v = mesh.indices[t * 3];
+      wallColors.add(Array.from(mesh.colors.subarray(v * 3, v * 3 + 3)).join());
+    });
+    expect(wallColors).toEqual(new Set(["1,0,0", "0,1,0"]));
+  });
+
+  it("walls the shared edge with the next tile from both heights, and never its own low edge", () => {
+    // Three samples: the last row is the next tile's first cell. The middle
+    // cell sits at 90 and the shared row at 100, so the step up belongs to
+    // the next tile's column but is walled here, facing -x.
+    const tile = tileOf(3, (i) => (i === 2 ? 100 : 90));
+    const palette = Float32Array.from([1, 0, 0]);
+    const mesh = buildFarLandArrays(tile, palette);
+    const normals = normalsOf(mesh);
+    const walls = normals.filter(isSide);
+    expect(walls.length).toBe(4);
+    for (const n of walls) expect(n[0]).toBeCloseTo(-1, 5);
+    const xs = new Set<number>();
+    normals.forEach((n, t) => {
+      if (!isSide(n)) return;
+      for (let k = 0; k < 3; k++)
+        xs.add(mesh.positions[mesh.indices[t * 3 + k] * 3]);
+    });
+    // At the tile's east edge (x = tx * span + span), not its west edge.
+    expect(xs).toEqual(new Set([1 * 16 + 16]));
+  });
+
+  it("rounds fractional heights to whole blocks", () => {
+    const tile = tileOf(2, () => 90);
+    // Heights are u16 on the wire; a decoded-then-scaled value still lands
+    // on a block.
+    (tile as { heights: Uint16Array | Float32Array }).heights =
+      Float32Array.from([90.4, 90.6, 89.5, 90]);
+    const palette = Float32Array.from([1, 0, 0]);
+    const mesh = buildFarLandArrays(tile, palette);
+    const ys = new Set<number>();
+    for (let k = 1; k < mesh.positions.length; k += 3)
+      ys.add(mesh.positions[k]);
+    expect(ys).toEqual(new Set([90, 91]));
   });
 
   it("takes the last palette entry for an unknown class", () => {
@@ -222,6 +365,26 @@ describe("buildFarLandArrays", () => {
     expect(Array.from(colors.subarray(0, 3))).toEqual(
       [0.4, 0.5, 0.6].map((v) => expect.closeTo(v, 5)),
     );
+  });
+});
+
+describe("farTileBounds", () => {
+  it("spans the tile and runs from its lowest to its highest surface", () => {
+    const tile = tileOf(3, (i, j) => 100 + i + 10 * j);
+    expect(farTileBounds(tile)).toEqual({
+      x0: 16,
+      y0: 100,
+      z0: -16,
+      x1: 32,
+      y1: 122,
+      z1: 0,
+    });
+    const island = tileOf(
+      3,
+      () => 90,
+      (i, j) => (i === 1 && j === 1 ? [200, 60] : null),
+    );
+    expect(farTileBounds(island)).toMatchObject({ y0: 60, y1: 200 });
   });
 });
 
@@ -242,31 +405,88 @@ describe("buildFarSkyArrays", () => {
     expect(buildFarSkyArrays(empty, [0, 1, 0], [0.5, 0.5, 0.5])).toBeNull();
   });
 
-  it("makes a top, an underside and four walls for one island cell", () => {
+  it("makes a boxy slab: flat top, flat underside and four full walls for one island cell", () => {
+    // A 3x3-cell tile with land in the middle cell only, so all four of its
+    // walls are drawn here (an edge cell's low walls come from the tile
+    // before it, see the shared-edge test).
     const tile = tileOf(
-      3,
+      4,
       () => 90,
-      (i, j) => (i < 2 && j < 2 ? [200, 180] : null),
+      (i, j) => (i === 1 && j === 1 ? [200, 180] : null),
     );
     const sky = buildFarSkyArrays(tile, [0, 1, 0], [0.5, 0.5, 0.5])!;
     expect(sky).not.toBeNull();
     // 1 cell: top (2 tris) + bottom (2) + 4 walls (2 each) = 12 triangles.
     expect(sky.indices.length).toBe(12 * 3);
-    const ys = new Set<number>();
-    for (let k = 1; k < sky.positions.length; k += 3) ys.add(sky.positions[k]);
-    expect(ys).toEqual(new Set([200, 180]));
+    const normals = normalsOf(sky);
+    expect(normals.filter(isUp).length).toBe(2);
+    expect(normals.filter(isDown).length).toBe(2);
+    expect(normals.filter(isSide).length).toBe(8);
+    expect(ysWhere(sky, isUp)).toEqual(new Set([200]));
+    expect(ysWhere(sky, isDown)).toEqual(new Set([180]));
+    expect(ysWhere(sky, isSide)).toEqual(new Set([200, 180]));
+    // The walls face away from the cell, one per direction.
+    const facings = new Set(
+      normals
+        .filter(isSide)
+        .map((n) => `${Math.round(n[0])},${Math.round(n[2])}`),
+    );
+    expect(facings).toEqual(new Set(["1,0", "-1,0", "0,1", "0,-1"]));
   });
 
-  it("shares no wall between two neighbouring island cells", () => {
+  it("steps between two island cells only where their tops or bottoms differ", () => {
+    // Cells (1,1) and (2,1) carry land; the second is a block higher on top
+    // and hangs a block deeper. Everything else is air.
     const tile = tileOf(
       4,
       () => 90,
-      (i, j) => (j < 2 ? [200, 180] : null),
+      (i, j) =>
+        j === 1 && i === 1
+          ? [200, 180]
+          : j === 1 && i === 2
+            ? [201, 179]
+            : null,
     );
     const sky = buildFarSkyArrays(tile, [0, 1, 0], [0.5, 0.5, 0.5])!;
-    // Three cells in a row: 3 tops + 3 bottoms + walls on the outside only
-    // (3 north + 3 south + 1 west + 1 east = 8) = 6 + 8 = 14 quads.
-    expect(sky.indices.length).toBe(14 * 2 * 3);
+    const normals = normalsOf(sky);
+    // 2 tops + 2 bottoms + outside walls (3 per cell: north, south and the
+    // far side) + a top step and a bottom step between them = 4 + 6 + 2 =
+    // 12 quads.
+    expect(sky.indices.length).toBe(12 * 2 * 3);
+    const stepWalls = normals
+      .map((n, t) => [n, t] as const)
+      .filter(([n, t]) => {
+        // Walls in the plane of the shared edge: tx * span + 2 cells, span
+        // being 3 * 8.
+        if (!isSide(n) || Math.abs(n[0]) < 0.99) return false;
+        return sky.positions[sky.indices[t * 3] * 3] === 1 * 24 + 16;
+      });
+    // Two quads at the shared edge: the top step faces -x (toward the lower
+    // top), the bottom step faces -x too (toward the shallower bottom).
+    expect(stepWalls.length).toBe(4);
+    for (const [n] of stepWalls) expect(n[0]).toBeCloseTo(-1, 5);
+    const stepYs = new Set<number>();
+    for (const [, t] of stepWalls)
+      for (let k = 0; k < 3; k++)
+        stepYs.add(sky.positions[sky.indices[t * 3 + k] * 3 + 1]);
+    expect(stepYs).toEqual(new Set([200, 201, 179, 180]));
+  });
+
+  it("walls the shared edge with the next tile where land ends or begins there", () => {
+    // Land only in the shared row (the next tile's first column): this tile
+    // still draws the wall that faces its own empty cells.
+    const tile = tileOf(
+      3,
+      () => 90,
+      (i) => (i === 2 ? [200, 180] : null),
+    );
+    const sky = buildFarSkyArrays(tile, [0, 1, 0], [0.5, 0.5, 0.5])!;
+    const normals = normalsOf(sky);
+    expect(normals.filter(isUp).length).toBe(0);
+    const walls = normals.filter(isSide);
+    expect(walls.length).toBe(4);
+    for (const n of walls) expect(n[0]).toBeCloseTo(-1, 5);
+    expect(ysWhere(sky, isSide)).toEqual(new Set([200, 180]));
   });
 });
 
@@ -370,5 +590,69 @@ describe("computeFogRange with a far layer", () => {
         .far,
     ).toBe(512);
     expect(computeFogRange({ ...base, fogDistance: 9000 }).far).toBe(128);
+  });
+});
+
+describe("the seam band", () => {
+  // A 16-texel window from chunk (-8, -8); the loaded disc is radius 3 in
+  // chunks around the origin, as a full square for simplicity.
+  const size = 16;
+  const origin = -8;
+  const loaded: [number, number][] = [];
+  for (let cx = -3; cx <= 2; cx++)
+    for (let cz = -3; cz <= 2; cz++) loaded.push([cx, cz]);
+  const mask = buildCoverageMask(loaded, origin, origin, size);
+  const scale = farSeamScale(16, 8);
+  const weightAt = (x: number, z: number, s = scale) =>
+    farSeamWeightAt(mask, origin, origin, size, 16, s, x, z);
+
+  it("dithers with every Bayer threshold once, the same on both sides", () => {
+    expect([...FAR_SEAM_BAYER].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 16 }, (_, k) => k),
+    );
+    const seen = new Set<number>();
+    for (let y = 0; y < 4; y++)
+      for (let x = 0; x < 4; x++) seen.add(farSeamDither(x + 0.5, y + 0.5));
+    expect(seen.size).toBe(16);
+    expect(farSeamDither(100, 200)).toBe(farSeamDither(100 % 4, 200 % 4));
+    for (const d of seen)
+      for (const w of [0, 0.1, 0.5, 0.9, 1]) {
+        // Exactly one of the two layers draws a pixel in the band.
+        expect(chunkKeepsSeamPixel(w, d)).not.toBe(farKeepsSeamPixel(w, d));
+      }
+  });
+
+  it("keeps every pixel for a chunk deep inside and yields every pixel at the loaded edge", () => {
+    // Deep inside: weight 1 beats every threshold, so the far layer draws
+    // nothing there (no double surface).
+    expect(weightAt(0, 0)).toBe(1);
+    expect(weightAt(8, 8)).toBe(1);
+    // The loaded edge runs at x = 3 * 16 = 48: weight 0, so the chunk
+    // yields every pixel and the far layer takes every one (no gap).
+    expect(weightAt(48, 0)).toBe(0);
+    expect(weightAt(60, 0)).toBe(0);
+    expect(weightAt(400, 0)).toBe(0);
+  });
+
+  it("ramps across the outer half chunk, shorter with a narrower band", () => {
+    // From the loaded edge at x = 48 back to 40 the weight climbs 0 -> 1.
+    expect(weightAt(44, 0)).toBeCloseTo(0.5, 5);
+    expect(weightAt(42, 0)).toBeCloseTo(0.75, 5);
+    expect(weightAt(40, 0)).toBe(1);
+    expect(weightAt(32, 0)).toBe(1);
+    // A 4-block band reaches 1 four blocks in; a 0 band is a hard edge.
+    const steep = farSeamScale(16, 4);
+    expect(steep).toBe(2);
+    expect(weightAt(44, 0, steep)).toBe(1);
+    expect(weightAt(46, 0, steep)).toBeCloseTo(0.5, 5);
+    expect(farSeamScale(16, 0)).toBe(0);
+    expect(farSeamScale(16, 100)).toBe(1);
+  });
+
+  it("is the hard mask where the band is off", () => {
+    const hard = 0;
+    for (const x of [0, 40, 44, 47.9]) expect(weightAt(x, 0, hard)).toBe(0);
+    expect(isCoveredAt(mask, origin, origin, size, 16, 47.9, 0)).toBe(true);
+    expect(isCoveredAt(mask, origin, origin, size, 16, 48, 0)).toBe(false);
   });
 });
