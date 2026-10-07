@@ -86,4 +86,34 @@ describe("computeFogRange", () => {
     expect(range.near).toBe(0);
     expect(range.far).toBe(100);
   });
+
+  it("with the far layer off, falls back to exactly the radius-derived fog", () => {
+    // About 58/100 at radius 8: the fog every world had before the far
+    // layer, whatever the far-layer ratio says.
+    const old = { near: 8 * 16 * 0.45, far: 8 * 16 * 0.78 };
+    expect(computeFogRange({ ...BASE, farTerrainDistance: 0 })).toEqual(old);
+    expect(
+      computeFogRange({
+        ...BASE,
+        farTerrainDistance: 0,
+        farTerrainFogNearRatio: 0.95,
+      }),
+    ).toEqual(old);
+    expect(computeFogRange(BASE)).toEqual(old);
+    expect(old.near).toBeCloseTo(57.6);
+    expect(old.far).toBeCloseTo(99.84);
+  });
+
+  it("ignores a far reach that ends inside the loaded chunks", () => {
+    expect(computeFogRange({ ...BASE, farTerrainDistance: 8 * 16 })).toEqual(
+      computeFogRange(BASE),
+    );
+  });
+
+  it("closes fog at the far layer's edge only while the layer draws", () => {
+    expect(computeFogRange({ ...BASE, farTerrainDistance: 512 })).toEqual({
+      near: 8 * 16 * 0.6,
+      far: 512,
+    });
+  });
 });

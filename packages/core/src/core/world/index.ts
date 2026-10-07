@@ -6722,6 +6722,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
     );
     this.add(this.farTerrain);
+    // The far layer never casts: in a depth pass nothing discards it under
+    // the loaded chunks, so its coarse columns would shade the real ground
+    // in blocky patches.
+    this.csmRenderer?.addNeverCaster(this.farTerrain);
 
     this.physics = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {

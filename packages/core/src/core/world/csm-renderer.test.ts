@@ -391,6 +391,45 @@ describe("CSMRenderer dynamic casters", () => {
   });
 });
 
+describe("CSMRenderer never-casters", () => {
+  it("hides a never-caster from every depth pass, even with the exclusion switch off", () => {
+    for (const isExcluding of [true, false]) {
+      const csm = new CSMRenderer({ entityShadowFrameInterval: 1 });
+      csm.setNonCasterExclusion(isExcluding);
+      const scene = new Scene();
+      const ground = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+      const farLayer = new Group();
+      const farTile = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+      farLayer.add(farTile);
+      scene.add(ground, farLayer);
+      csm.addNeverCaster(farLayer);
+
+      const seen: boolean[] = [];
+      const stub = {
+        setRenderTarget: () => undefined,
+        clear: () => undefined,
+        render: () => {
+          seen.push(farLayer.visible);
+        },
+      } as Partial<WebGLRenderer> as WebGLRenderer;
+      const position = new Vector3(0, 40, 0);
+      const camera = makeCamera(position, new Vector3(10, 40, 0));
+      csm.update(camera, SUN, position);
+      csm.hideNonCasters(scene);
+      try {
+        csm.render(stub, scene);
+      } finally {
+        csm.restoreNonCasters();
+      }
+
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((visible) => !visible)).toBe(true);
+      expect(farLayer.visible).toBe(true);
+      expect(ground.visible).toBe(true);
+    }
+  });
+});
+
 describe("isNonCasterEffect", () => {
   it("flags transparent, depth-less effects only", () => {
     const effect = new Mesh(

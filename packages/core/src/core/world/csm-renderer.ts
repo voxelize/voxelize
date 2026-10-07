@@ -211,6 +211,12 @@ export class CSMRenderer {
    * depth consumer, so the sun's maps and the torches' atlas agree.
    */
   private shadowExclusions: Object3D[] = [];
+  /**
+   * Objects that are never casters at all, whatever the A/B switch says:
+   * hidden by {@link hideNonCasters} even with the exclusion off. See
+   * {@link addNeverCaster}.
+   */
+  private neverCasters: Object3D[] = [];
   private isExcludingNonCasters = true;
   private hiddenNonCasters: Object3D[] = [];
 
@@ -597,8 +603,29 @@ export class CSMRenderer {
   }
 
   /**
+   * Keep `object` (and its subtree) out of every depth pass, always: a
+   * stand-in that only ever draws where real geometry does not, such as the
+   * far-terrain layer. Its own shader discards it under the loaded chunks,
+   * but a depth pass draws it with the shared depth material and no such
+   * test, so it would shade the real ground below it. `castShadow` alone
+   * does not keep it out: the cascades render the whole scene.
+   */
+  addNeverCaster(object: Object3D) {
+    if (!this.neverCasters.includes(object)) {
+      this.neverCasters.push(object);
+    }
+  }
+
+  removeNeverCaster(object: Object3D) {
+    const idx = this.neverCasters.indexOf(object);
+    if (idx !== -1) {
+      this.neverCasters.splice(idx, 1);
+    }
+  }
+
+  /**
    * Hide everything no depth pass may draw, for one shadow frame: the
-   * registered exclusions and every direct child of `scene` that
+   * never-casters, the registered exclusions and every direct child of `scene` that
    * {@link isNonCasterEffect} identifies. Call once before the frame's
    * first depth pass (cascades and local lights alike) and pair with
    * {@link restoreNonCasters}.
@@ -606,6 +633,12 @@ export class CSMRenderer {
   hideNonCasters(scene: Scene) {
     const hidden = this.hiddenNonCasters;
     if (hidden.length > 0) this.restoreNonCasters();
+    for (const object of this.neverCasters) {
+      if (object.visible) {
+        hidden.push(object);
+        object.visible = false;
+      }
+    }
     if (!this.isExcludingNonCasters) return;
     for (const object of this.shadowExclusions) {
       if (object.visible) {
