@@ -276,6 +276,26 @@ impl World {
     }
 }
 
+/// Lights one chunk the way a Load pass does: from a space built around it
+/// with voxels and height maps in and lights out, then installs the result
+/// as the chunk's lights.
+fn load_light(world: &mut World, cx: i32, cz: i32) {
+    for chunk in world.chunks.map.values_mut() {
+        chunk.calculate_max_height(&world.registry);
+    }
+    let coords = Vec2(cx, cz);
+    let mut space = world
+        .chunks
+        .make_space(&coords, world.config.max_light_level as usize)
+        .needs_height_maps()
+        .needs_voxels()
+        .strict()
+        .build();
+    Lights::light_fresh_chunk(&mut space, &world.registry, &world.config);
+    let lights = space.get_lights(cx, cz).unwrap().clone();
+    world.chunks.map.get_mut(&coords).unwrap().lights = std::sync::Arc::new(lights);
+}
+
 fn assert_no_seams(world: &World) {
     let seams = world.seams();
     assert!(
@@ -363,6 +383,79 @@ fn random_torch_and_stone_edits_across_chunk_borders_never_leave_a_seam() {
             &seams[..seams.len().min(4)]
         );
     }
+}
+
+#[test]
+fn sunlight_under_a_roof_on_a_shared_border_agrees_from_both_chunks_load_passes() {
+    // A roofed hall straddles the x=15|16 border between chunks (0,0) and
+    // (1,0), sealed except for a doorway on its z=0 side at x 8..=14, where
+    // the full-sun columns at z=-1 shine in sideways. Lit chunk by chunk,
+    // (1,0)'s pass saw those sun columns and the shaded doorway in two
+    // different sweeps and never seeded the doorway, so its half of the
+    // hall came out black while (0,0) lit its half from the same doorway.
+    let mut world = World::new();
+    let roof_y = FLOOR_Y + 5;
+    for x in 8..=24 {
+        for z in 0..=12 {
+            world.chunks.set_voxel(x, roof_y, z, STONE);
+        }
+    }
+    for y in Y..roof_y {
+        for z in 0..=12 {
+            world.chunks.set_voxel(7, y, z, STONE);
+            world.chunks.set_voxel(25, y, z, STONE);
+        }
+        for x in 8..=24 {
+            world.chunks.set_voxel(x, y, 13, STONE);
+        }
+        for x in 15..=24 {
+            world.chunks.set_voxel(x, y, 0, STONE);
+        }
+    }
+
+    load_light(&mut world, 0, 0);
+    load_light(&mut world, 1, 0);
+
+    // Sun enters the doorway at level 14 and loses one per step:
+    // (14,0)=14, (14,1)=13, (15,1)=12, (16,1)=11.
+    assert_eq!(world.chunks.get_sunlight(14, Y + 1, 0), 14);
+    assert_eq!(world.chunks.get_sunlight(15, Y + 1, 1), 12);
+    assert_eq!(
+        world.chunks.get_sunlight(16, Y + 1, 1),
+        11,
+        "chunk (1,0) must light its half of the hall from the doorway in (0,0)"
+    );
+    for y in Y..roof_y {
+        for z in 1..=12 {
+            let (a, b) = (
+                world.chunks.get_sunlight(15, y, z),
+                world.chunks.get_sunlight(16, y, z),
+            );
+            assert!(a.abs_diff(b) <= 1, "sunlight seam at y={y} z={z}: {a} vs {b}");
+        }
+    }
+}
+
+#[test]
+fn light_flooding_into_a_chunk_moves_its_write_epoch() {
+    // The mesher lights a clone taken at dispatch; the generating system
+    // compares the clone's epoch with the live chunk's when the result
+    // lands, and relights instead of renewing when they differ. So a flood
+    // from a neighbour's edit across the border must move the epoch of the
+    // chunk it reaches, and only that chunk's.
+    let mut world = World::new();
+    let dispatched = world.chunks.raw(&Vec2(0, 0)).unwrap().clone();
+    let far = world.chunks.raw(&Vec2(-3, -2)).unwrap().write_epoch;
+
+    world.edit(&[([16, Y, 8], TORCH, 0)]);
+
+    assert!(world.light([15, Y, 8], &RED) > 0);
+    assert_ne!(
+        world.chunks.raw(&Vec2(0, 0)).unwrap().write_epoch,
+        dispatched.write_epoch,
+        "light written over the border must be visible as a write"
+    );
+    assert_eq!(world.chunks.raw(&Vec2(-3, -2)).unwrap().write_epoch, far);
 }
 
 #[test]

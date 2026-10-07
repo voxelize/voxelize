@@ -12,10 +12,19 @@ use crate::{
 
 use super::lights::Lights;
 
+/// How many times a finished Load pass may be thrown away because writes
+/// reached the live chunk while it ran. Past this the result is accepted
+/// as it is, so a chunk under a steady stream of writes (a fluid front on
+/// its border) still reaches the clients waiting on it.
+const MAX_STALE_LOAD_RETRIES: u8 = 2;
+
 pub struct Mesher {
     pub(crate) queue: std::collections::VecDeque<Vec2<i32>>,
     pub(crate) map: HashSet<Vec2<i32>>,
     pub(crate) pending_remesh: HashSet<Vec2<i32>>,
+    /// Load passes relit because the live chunk moved on under them, per
+    /// chunk, forgotten once a result is accepted.
+    stale_load_retries: HashMap<Vec2<i32>, u8>,
     sender: Arc<Sender<(Chunk, MessageType)>>,
     receiver: Arc<Receiver<(Chunk, MessageType)>>,
     pool: Arc<ThreadPool>,
@@ -29,6 +38,7 @@ impl Mesher {
             queue: std::collections::VecDeque::new(),
             map: HashSet::new(),
             pending_remesh: HashSet::new(),
+            stale_load_retries: HashMap::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: crate::world::shared_pools::meshing_pool(),
@@ -60,10 +70,30 @@ impl Mesher {
         self.map.clear();
         self.queue.clear();
         self.pending_remesh.clear();
+        self.stale_load_retries.clear();
     }
 
     pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
         self.map.contains(coords)
+    }
+
+    /// A Load result landed for a chunk that was written to since its
+    /// dispatch. Says whether to light it again from the live state (true)
+    /// or to accept the stale result after `MAX_STALE_LOAD_RETRIES` relights
+    /// (false), so a chunk under constant writes still reaches clients.
+    pub fn retry_stale_load(&mut self, coords: &Vec2<i32>) -> bool {
+        let tries = self.stale_load_retries.entry(coords.to_owned()).or_insert(0);
+        if *tries >= MAX_STALE_LOAD_RETRIES {
+            self.stale_load_retries.remove(coords);
+            return false;
+        }
+        *tries += 1;
+        true
+    }
+
+    /// A Load result for this chunk was accepted: its retry count is over.
+    pub fn accept_load(&mut self, coords: &Vec2<i32>) {
+        self.stale_load_retries.remove(coords);
     }
 
     pub fn get(&mut self) -> Option<Vec2<i32>> {
@@ -115,17 +145,7 @@ impl Mesher {
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {
                     let _inflight = InflightJob::adopt(&MESHING_INFLIGHT);
-                    let chunk_size = config.chunk_size as i32;
                     let coords = space.coords.to_owned();
-                    let min = space.min.to_owned();
-                    let shape = space.shape.to_owned();
-
-                    let light_colors = [
-                        LightColor::Sunlight,
-                        LightColor::Red,
-                        LightColor::Green,
-                        LightColor::Blue,
-                    ];
 
                     let sub_chunks = chunk.updated_levels.clone();
                     let Vec3(min_x, min_y, min_z) = chunk.min;
@@ -134,51 +154,7 @@ impl Mesher {
                         (space.options.max_height / space.options.sub_chunks) as i32;
 
                     if is_load {
-                        let mut light_queues = vec![VecDeque::new(); 4];
-
-                        let started = std::time::Instant::now();
-                        for dx in -1..=1 {
-                            for dz in -1..=1 {
-                                let min = Vec3(
-                                    (coords.0 + dx) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
-                                    0,
-                                    (coords.1 + dz) * chunk_size
-                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
-                                );
-                                let shape = Vec3(
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
-                                    space.options.max_height as usize,
-                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
-                                );
-
-                                let light_subqueues =
-                                    Lights::propagate(&mut space, &min, &shape, &registry, &config);
-
-                                for (queue, subqueue) in
-                                    light_queues.iter_mut().zip(light_subqueues.into_iter())
-                                {
-                                    queue.extend(subqueue);
-                                }
-                            }
-                        }
-                        super::gen_profiler::record("lights: propagate scan", started.elapsed());
-
-                        let started = std::time::Instant::now();
-                        for (queue, color) in light_queues.into_iter().zip(light_colors.iter()) {
-                            if !queue.is_empty() {
-                                Lights::flood_light(
-                                    &mut space,
-                                    queue,
-                                    color,
-                                    &registry,
-                                    &config,
-                                    Some(&min),
-                                    Some(&shape),
-                                );
-                            }
-                        }
-                        super::gen_profiler::record("lights: flood", started.elapsed());
+                        Lights::light_fresh_chunk(&mut space, &registry, &config);
 
                         chunk.lights =
                             Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
@@ -273,5 +249,33 @@ impl Mesher {
 impl Default for Mesher {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_stale_load_is_relit_a_bounded_number_of_times_then_accepted() {
+        let mut mesher = Mesher::new();
+        let coords = Vec2(3, -1);
+        let other = Vec2(0, 0);
+
+        assert!(mesher.retry_stale_load(&coords));
+        assert!(mesher.retry_stale_load(&coords));
+        assert!(
+            !mesher.retry_stale_load(&coords),
+            "a chunk written to on every pass must still be delivered"
+        );
+        // Another chunk's count is its own.
+        assert!(mesher.retry_stale_load(&other));
+
+        // Accepting a result forgets the count, so a later regenerate pass
+        // gets its full allowance again.
+        mesher.accept_load(&other);
+        assert!(mesher.retry_stale_load(&other));
+        assert!(mesher.retry_stale_load(&other));
+        assert!(!mesher.retry_stale_load(&other));
     }
 }

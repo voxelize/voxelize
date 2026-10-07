@@ -101,6 +101,18 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                 if chunks.is_chunk_ready(&coords) {
                     chunks.update_voxel(&voxel, id);
+                } else if mesher.has_chunk(&coords) {
+                    // The target's Load pass is lighting a clone taken at
+                    // dispatch. As a leftover this write would be baked in
+                    // raw once that pass landed: unlit, unmeshed and never
+                    // sent, the two sides of the border disagreeing about
+                    // it. It waits and replays as an edit once the chunk is
+                    // ready.
+                    pipeline
+                        .deferred
+                        .entry(coords)
+                        .or_default()
+                        .push((voxel, id));
                 } else {
                     pipeline
                         .leftovers
@@ -363,6 +375,24 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             }
 
+            if r#type == MessageType::Load {
+                let is_stale = chunks
+                    .raw(&chunk.coords)
+                    .is_some_and(|live| live.write_epoch != chunk.write_epoch);
+                if is_stale && mesher.retry_stale_load(&chunk.coords) {
+                    // Light or blocks reached the live chunk while this pass
+                    // lit its dispatch-time clone: a neighbour's flood over
+                    // the border, a fluid step, a structure's late write.
+                    // Renewing would erase them and leave this side of the
+                    // border darker than the neighbour's, so the chunk goes
+                    // back to the mesher and is lit from its live state.
+                    // Its listeners were served above; it is still Meshing.
+                    mesher.add_chunk(&chunk.coords, true);
+                    continue;
+                }
+                mesher.accept_load(&chunk.coords);
+            }
+
             chunk.status = ChunkStatus::Ready;
             let coords = chunk.coords.to_owned();
             let is_updating = r#type == MessageType::Update;
@@ -414,6 +444,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     live.is_save_dirty = false;
                 }
                 seed_generated_entities(&mut chunks, &coords, &registry, &entities, &lazy);
+            }
+
+            // Stage writes that arrived while the Load pass ran now go
+            // through the updating lane: relit, remeshed and sent like any
+            // edit, instead of being baked in raw and never shown.
+            if !is_updating {
+                if let Some(writes) = pipeline.deferred.remove(&coords) {
+                    chunks.update_voxels(&writes);
+                }
             }
         }
 
@@ -507,6 +546,16 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         chunks.add_listener(&n_coords, &coords);
                         break;
                     }
+                }
+
+                if chunks.is_chunk_ready(&n_coords) {
+                    // A ready chunk is lit and sent: a write parked for it
+                    // (possible only when it was loaded from disk after the
+                    // park) is an edit, never a raw write.
+                    if let Some(blocks) = pipeline.leftovers.remove(&n_coords) {
+                        chunks.update_voxels(&blocks);
+                    }
+                    continue;
                 }
 
                 if let Some(blocks) = pipeline.leftovers.get(&n_coords) {

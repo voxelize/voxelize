@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
-    ChunkUtils, LightColor, LightPassInfo, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
+    ChunkUtils, LightColor, LightPassInfo, Registry, Space, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -527,6 +527,55 @@ impl Lights {
             green_light_queue,
             blue_light_queue,
         ]
+    }
+
+    /// Lights a freshly generated chunk inside its space. One sweep over
+    /// every chunk the space holds seeds each emitter and each sideways
+    /// sunlight edge; each colour then floods within the space's margin,
+    /// and the chunk's own light array is what the caller keeps.
+    ///
+    /// The sweep covers the whole neighbourhood at once on purpose. Run
+    /// chunk by chunk, a sideways sunlight seed (a full-sun column beside a
+    /// shaded one) was only placed when both columns fell in the same
+    /// sweep, so an overhang straddling the edge between two neighbours
+    /// lost its seeds in this chunk's pass and kept them in the neighbour's
+    /// own: the two then disagreed about the light under it along their
+    /// shared border.
+    pub fn light_fresh_chunk(space: &mut Space, registry: &Registry, config: &WorldConfig) {
+        let chunk_size = config.chunk_size as i32;
+        let rings = (config.max_light_level as f32 / config.chunk_size as f32).ceil() as i32;
+        let Vec2(cx, cz) = space.coords.to_owned();
+        let seed_min = Vec3((cx - rings) * chunk_size, 0, (cz - rings) * chunk_size);
+        let seed_width = (chunk_size * (rings * 2 + 1)) as usize;
+        let seed_shape = Vec3(seed_width, config.max_height as usize, seed_width);
+
+        let started = std::time::Instant::now();
+        let queues = Lights::propagate(space, &seed_min, &seed_shape, registry, config);
+        super::gen_profiler::record("lights: propagate scan", started.elapsed());
+
+        let flood_min = space.min.to_owned();
+        let flood_shape = space.shape.to_owned();
+        let colors = [
+            LightColor::Sunlight,
+            LightColor::Red,
+            LightColor::Green,
+            LightColor::Blue,
+        ];
+        let started = std::time::Instant::now();
+        for (queue, color) in queues.into_iter().zip(colors.iter()) {
+            if !queue.is_empty() {
+                Lights::flood_light(
+                    space,
+                    queue,
+                    color,
+                    registry,
+                    config,
+                    Some(&flood_min),
+                    Some(&flood_shape),
+                );
+            }
+        }
+        super::gen_profiler::record("lights: flood", started.elapsed());
     }
 
     #[allow(clippy::too_many_arguments)]

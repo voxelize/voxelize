@@ -260,6 +260,12 @@ pub struct Pipeline {
     /// A map of leftover changes from processing chunk stages.
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
 
+    /// Stage writes aimed at a chunk whose Load pass is in flight. The pass
+    /// lit a clone taken at dispatch, so a write landing now would be baked
+    /// in raw, unlit and unsent (a leftover); these are replayed through
+    /// the updating lane once that pass lands and the chunk is ready.
+    pub(crate) deferred: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
+
     /// Chunks that received requests while being processed - need regeneration after current processing completes.
     pub(crate) pending_regenerate: HashSet<Vec2<i32>>,
 
@@ -280,6 +286,7 @@ impl Pipeline {
             receiver: Arc::new(receiver),
             chunks: HashSet::new(),
             leftovers: HashMap::new(),
+            deferred: HashMap::new(),
             pending_regenerate: HashSet::new(),
             demanded: HashSet::new(),
             queue: VecDeque::new(),
@@ -293,6 +300,7 @@ impl Pipeline {
         self.chunks.clear();
         self.queue.clear();
         self.leftovers.clear();
+        self.deferred.clear();
         self.pending_regenerate.clear();
         self.demanded.clear();
     }

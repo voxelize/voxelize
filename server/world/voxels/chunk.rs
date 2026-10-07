@@ -97,6 +97,14 @@ pub struct Chunk {
     /// persisted form and clears it.
     pub(crate) is_save_dirty: bool,
 
+    /// Counts every voxel or light write that reaches this chunk through the
+    /// live `Chunks` map. A Load pass lights a clone taken at dispatch; when
+    /// its result lands with a different epoch than the live chunk, light or
+    /// blocks arrived in between (a neighbour's flood across the border, a
+    /// fluid step, a structure's late write) and the result would erase
+    /// them, so the chunk is lit again from its live state instead.
+    pub write_epoch: u64,
+
     pub waterlogging_rules: Option<Arc<super::waterlogging::WaterloggingRules>>,
 }
 

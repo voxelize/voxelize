@@ -1233,6 +1233,7 @@ impl VoxelAccess for Chunks {
     fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
             chunk.set_raw_voxel(vx, vy, vz, id);
+            chunk.write_epoch = chunk.write_epoch.wrapping_add(1);
             self.add_updated_level_at(vx, vy, vz);
 
             return true;
@@ -1258,6 +1259,7 @@ impl VoxelAccess for Chunks {
     fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
             chunk.set_raw_light(vx, vy, vz, level);
+            chunk.write_epoch = chunk.write_epoch.wrapping_add(1);
             self.add_updated_level_at(vx, vy, vz);
 
             return true;
