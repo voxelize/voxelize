@@ -584,6 +584,11 @@ export class MeshPipeline {
     return (state?.inFlightGenerations.size ?? 0) > 0;
   }
 
+  /** Whether a mesh job for this section is waiting to be dispatched. */
+  isDirty(key: string): boolean {
+    return this.dirty.has(key);
+  }
+
   inFlightJobCount(): number {
     let count = 0;
     for (const state of this.states.values()) {

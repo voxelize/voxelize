@@ -39,6 +39,7 @@ import {
   FarTileKey,
   farTileSpan,
   farTilesToEvict,
+  pendingChunksWithin,
   selectFarTiles,
 } from "./far-terrain-tiles";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
@@ -48,6 +49,14 @@ export const FAR_TERRAIN_METHOD = "vox-builtin:far-terrain";
 
 /** Texels per side of the chunk-coverage mask (chunk columns). */
 const COVERAGE_SIZE = 128;
+
+/**
+ * While columns are still on their way the mask is rebuilt on this cadence
+ * as well as on every change, so a column that outlives its grace
+ * (`CHUNK_PENDING_GRACE_MS`) uncovers without waiting for another chunk to
+ * load.
+ */
+const PENDING_RECHECK_MS = 500;
 
 type ShaderUniform<T> = { value: T };
 
@@ -154,6 +163,10 @@ export type FarTerrainStats = {
   updates: number;
   /** Mask rebuilds. */
   maskRebuilds: number;
+  /** Chunk columns inside the render radius the last mask covered because
+   * they were still on their way (not loaded yet): many right after
+   * arriving somewhere, 0 once everything inside has landed. */
+  pendingCovered: number;
   /** Triangles across every built tile mesh in the scene. */
   triangles: number;
   /** Main-thread ms the last tile mesh took to build, and the highest since the peaks were reset. */
@@ -274,6 +287,7 @@ export class FarTerrain extends Group {
     totalUpdateMs: 0,
     updates: 0,
     maskRebuilds: 0,
+    pendingCovered: 0,
     triangles: 0,
     lastBuildMs: 0,
     peakBuildMs: 0,
@@ -304,6 +318,10 @@ export class FarTerrain extends Group {
   private coverageGeneration = -1;
 
   private coverageCenter: [number, number] | null = null;
+
+  private coverageRadius = -1;
+
+  private coverageBuiltAt = 0;
 
   private rings: FarRing[] = [];
 
@@ -455,6 +473,12 @@ export class FarTerrain extends Group {
    * One frame: pick the rings for the viewer, ask for missing tiles, drop
    * tiles out of reach, refresh the chunk-coverage mask when chunks changed,
    * and build a tile mesh or two within the budget.
+   *
+   * `isChunkPending` says whether a chunk column inside the render radius
+   * still owes its terrain (not loaded, or loaded with its mesh still being
+   * built; a loaded, meshed chunk with nothing to draw is not pending): the
+   * mask covers those too, so the far layer never shows through a hole that
+   * real terrain is about to fill.
    */
   update(
     position: Vector3,
@@ -463,6 +487,7 @@ export class FarTerrain extends Group {
       chunkSize: number;
       loadedGeneration: number;
       forEachMeshedChunk: (callback: (cx: number, cz: number) => void) => void;
+      isChunkPending: (cx: number, cz: number) => boolean;
     },
   ) {
     const started = performance.now();
@@ -640,9 +665,11 @@ export class FarTerrain extends Group {
   private updateCoverage(
     position: Vector3,
     world: {
+      renderRadius: number;
       chunkSize: number;
       loadedGeneration: number;
       forEachMeshedChunk: (callback: (cx: number, cz: number) => void) => void;
+      isChunkPending: (cx: number, cz: number) => boolean;
     },
   ) {
     const cx = Math.floor(position.x / world.chunkSize);
@@ -653,13 +680,39 @@ export class FarTerrain extends Group {
       !this.coverageCenter ||
       this.coverageCenter[0] !== cx ||
       this.coverageCenter[1] !== cz;
-    if (!centerMoved && this.coverageGeneration === world.loadedGeneration)
+    // Pending columns change when a chunk loads (the generation), when
+    // the radius they are counted within does, and, while any are still
+    // counted, as their grace runs out.
+    const now = performance.now();
+    const isRecheckDue =
+      this.stats.pendingCovered > 0 &&
+      now - this.coverageBuiltAt >= PENDING_RECHECK_MS;
+    if (
+      !centerMoved &&
+      this.coverageGeneration === world.loadedGeneration &&
+      this.coverageRadius === world.renderRadius &&
+      !isRecheckDue
+    )
       return;
+    this.coverageBuiltAt = now;
     this.coverageCenter = [cx, cz];
     this.coverageGeneration = world.loadedGeneration;
-    const meshed: [number, number][] = [];
-    world.forEachMeshedChunk((x, z) => meshed.push([x, z]));
-    buildCoverageMask(meshed, originCx, originCz, COVERAGE_SIZE, this.coverage);
+    this.coverageRadius = world.renderRadius;
+    const covered: [number, number][] = pendingChunksWithin(
+      cx,
+      cz,
+      world.renderRadius,
+      world.isChunkPending,
+    );
+    this.stats.pendingCovered = covered.length;
+    world.forEachMeshedChunk((x, z) => covered.push([x, z]));
+    buildCoverageMask(
+      covered,
+      originCx,
+      originCz,
+      COVERAGE_SIZE,
+      this.coverage,
+    );
     this.shared.farCover.value.set(
       originCx,
       originCz,

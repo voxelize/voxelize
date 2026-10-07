@@ -534,9 +534,80 @@ export function buildFarSkyArrays(
 }
 
 /**
+ * How long after loading a chunk column may still count as pending while it
+ * owes its mesh. Past this the far layer may show through it again: a
+ * section a missing neighbour keeps failing to mesh (the loaded disc's
+ * perimeter has no outer halo) must not pin sky over the far layer for the
+ * rest of the session, and a chunk that is simply slow gets the old
+ * behaviour back, the far layer standing in until its terrain lands.
+ */
+export const CHUNK_PENDING_GRACE_MS = 6000;
+
+/** What the world knows of one chunk column, for `isChunkColumnPending`. */
+export type ChunkColumnState = {
+  /** The chunk pipeline's stage for the column; null when nothing is known of it. */
+  stage: "requested" | "processing" | "loaded" | null;
+  /** A loaded chunk whose data and light are in place. */
+  isReady: boolean;
+  /** A loaded chunk with a mesh job queued or running at some level. */
+  isMeshOwed: boolean;
+  /** Milliseconds since the chunk loaded; meaningless until it has. */
+  loadedForMs: number;
+};
+
+/**
+ * Whether a chunk column still owes the viewer its terrain: not loaded at
+ * all (not even asked for, asked for, or in flight), or loaded within the
+ * grace and not ready or with a mesh still being built. A loaded, ready
+ * column with no mesh owed is settled: what it draws, which may be
+ * nothing, is final until it changes, so the far layer may show where it
+ * is genuinely empty. So is one that has owed its mesh past the grace.
+ */
+export function isChunkColumnPending(
+  column: ChunkColumnState,
+  graceMs: number = CHUNK_PENDING_GRACE_MS,
+): boolean {
+  if (column.stage !== "loaded") return true;
+  if (column.isReady && !column.isMeshOwed) return false;
+  return column.loadedForMs < graceMs;
+}
+
+/**
+ * The chunk columns inside the render radius that still owe their terrain
+ * (`isChunkColumnPending`): not loaded yet, or loaded with the mesh still
+ * being built. Right after arriving
+ * somewhere these are the holes the far layer would show through, and from
+ * inside a canyon that reads as seeing through the walls for a second; the
+ * coverage mask counts them as covered, so sky and fog show there instead
+ * until the chunk's own terrain lands. The disc is the one the chunk
+ * requests walk; `isPending` answers for one column (a column outside the
+ * world, or one loaded and meshed with nothing to draw, is not pending).
+ */
+export function pendingChunksWithin(
+  centerCx: number,
+  centerCz: number,
+  renderRadius: number,
+  isPending: (cx: number, cz: number) => boolean,
+): [number, number][] {
+  const radius = Math.max(0, Math.floor(renderRadius));
+  const radiusSquared = radius * radius;
+  const pending: [number, number][] = [];
+  for (let ox = -radius; ox <= radius; ox++) {
+    for (let oz = -radius; oz <= radius; oz++) {
+      if (ox * ox + oz * oz > radiusSquared) continue;
+      const cx = centerCx + ox;
+      const cz = centerCz + oz;
+      if (isPending(cx, cz)) pending.push([cx, cz]);
+    }
+  }
+  return pending;
+}
+
+/**
  * The chunk-coverage mask: `size x size` texels of chunk columns from
- * `(originCx, originCz)`, 255 where a chunk draws real terrain and 0 where
- * the far layer may show. Chunks outside the window are ignored.
+ * `(originCx, originCz)`, 255 where a chunk draws real terrain (or is still
+ * on its way, `pendingChunksWithin`) and 0 where the far layer may show.
+ * Chunks outside the window are ignored.
  */
 export function buildCoverageMask(
   meshedChunks: Iterable<readonly [number, number]>,

@@ -12,6 +12,7 @@ import {
   buildCoverageMask,
   buildFarLandArrays,
   buildFarSkyArrays,
+  CHUNK_PENDING_GRACE_MS,
   decodeFarTerrainReply,
   farTerrainRings,
   FarTerrainDescriptor,
@@ -20,7 +21,9 @@ import {
   farTileId,
   farTilesToEvict,
   farTileSpan,
+  isChunkColumnPending,
   isCoveredAt,
+  pendingChunksWithin,
   selectFarTiles,
 } from "./far-terrain-tiles";
 import { computeFogRange } from "./fog-range";
@@ -517,6 +520,132 @@ describe("coverage mask", () => {
     const mask = buildCoverageMask([], 0, 0, 2, into);
     expect(mask).toBe(into);
     expect(Array.from(mask)).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe("isChunkColumnPending", () => {
+  const settled = {
+    stage: "loaded",
+    isReady: true,
+    isMeshOwed: false,
+    loadedForMs: 0,
+  } as const;
+
+  it("owes terrain until loaded, ready and meshed", () => {
+    expect(isChunkColumnPending({ ...settled, stage: null })).toBe(true);
+    expect(isChunkColumnPending({ ...settled, stage: "requested" })).toBe(true);
+    expect(isChunkColumnPending({ ...settled, stage: "processing" })).toBe(
+      true,
+    );
+    expect(isChunkColumnPending({ ...settled, isReady: false })).toBe(true);
+    // Loaded, with the mesh still being built: the hole real terrain is
+    // about to fill.
+    expect(isChunkColumnPending({ ...settled, isMeshOwed: true })).toBe(true);
+    expect(
+      isChunkColumnPending({
+        ...settled,
+        isMeshOwed: true,
+        loadedForMs: CHUNK_PENDING_GRACE_MS - 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("is settled once loaded, ready and meshed, whatever it drew", () => {
+    // Loaded and empty draws nothing, and that is final: the far layer may show.
+    expect(isChunkColumnPending(settled)).toBe(false);
+    expect(isChunkColumnPending({ ...settled, loadedForMs: 1e9 })).toBe(false);
+  });
+
+  it("gives up on a loaded column that still owes its mesh past the grace", () => {
+    // A perimeter section a missing neighbour keeps failing to mesh: the
+    // far layer stands in again rather than sky for the rest of the session.
+    expect(
+      isChunkColumnPending({
+        ...settled,
+        isMeshOwed: true,
+        loadedForMs: CHUNK_PENDING_GRACE_MS,
+      }),
+    ).toBe(false);
+    expect(
+      isChunkColumnPending(
+        { ...settled, isReady: false, loadedForMs: 2000 },
+        1000,
+      ),
+    ).toBe(false);
+    // Not loaded at all is pending however long it has been asked for.
+    expect(
+      isChunkColumnPending({
+        ...settled,
+        stage: "requested",
+        loadedForMs: 1e9,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("pendingChunksWithin", () => {
+  it("walks the render disc and keeps the columns still on their way", () => {
+    // Everything inside is pending but the centre column and one neighbour.
+    const loaded = new Set(["10,20", "11,20"]);
+    const pending = pendingChunksWithin(
+      10,
+      20,
+      3,
+      (cx, cz) => !loaded.has(`${cx},${cz}`),
+    );
+    const disc: string[] = [];
+    for (let ox = -3; ox <= 3; ox++)
+      for (let oz = -3; oz <= 3; oz++)
+        if (ox * ox + oz * oz <= 9) disc.push(`${10 + ox},${20 + oz}`);
+    expect(pending.map(([x, z]) => `${x},${z}`).sort()).toEqual(
+      disc.filter((key) => !loaded.has(key)).sort(),
+    );
+    // The corners of the square are outside the disc, so never asked about.
+    expect(pending).not.toContainEqual([13, 23]);
+  });
+
+  it("is empty once everything inside is loaded, and at a radius of zero but the centre", () => {
+    expect(pendingChunksWithin(0, 0, 4, () => false)).toEqual([]);
+    expect(pendingChunksWithin(5, -5, 0, () => true)).toEqual([[5, -5]]);
+  });
+});
+
+describe("coverage mask after a fresh arrival", () => {
+  // The viewer lands at chunk (0, 0) with a render radius of 2. Only the
+  // centre chunk is meshed so far; (1, 0) is loaded with nothing to draw
+  // (an empty column); the rest are still on their way.
+  const meshed: [number, number][] = [[0, 0]];
+  const loadedEmpty = new Set(["1,0"]);
+  const isPending = (cx: number, cz: number) =>
+    !(cx === 0 && cz === 0) && !loadedEmpty.has(`${cx},${cz}`);
+  const covered = [...pendingChunksWithin(0, 0, 2, isPending), ...meshed];
+  const mask = buildCoverageMask(covered, -4, -4, 8);
+  const coveredAt = (x: number, z: number) =>
+    isCoveredAt(mask, -4, -4, 8, 16, x, z);
+
+  it("hides the far layer under chunks inside the radius that have not loaded yet", () => {
+    expect(coveredAt(8, 8)).toBe(true); // the meshed centre
+    expect(coveredAt(-8, 8)).toBe(true); // (-1, 0): requested, not here yet
+    expect(coveredAt(8, 40)).toBe(true); // (0, 2): the far edge of the disc
+    expect(coveredAt(-24, 8)).toBe(true); // (-2, 0)
+  });
+
+  it("still shows it where a chunk loaded with nothing to draw, and past the radius", () => {
+    expect(coveredAt(24, 8)).toBe(false); // (1, 0): loaded and empty
+    expect(coveredAt(40, 40)).toBe(false); // (2, 2): outside the disc
+    expect(coveredAt(56, 8)).toBe(false); // (3, 0): past the radius
+  });
+
+  it("settles to the meshed-only mask once every chunk inside has loaded (no gap, no double surface)", () => {
+    const steady = buildCoverageMask(
+      [...pendingChunksWithin(0, 0, 2, () => false), ...meshed],
+      -4,
+      -4,
+      8,
+    );
+    expect(Array.from(steady)).toEqual(
+      Array.from(buildCoverageMask(meshed, -4, -4, 8)),
+    );
   });
 });
 

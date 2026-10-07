@@ -162,6 +162,7 @@ import { worldDefinitionSignature } from "./definition-signature";
 import { displayCopyMaterialOptions } from "./display-copy-material";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
 import { FarTerrain, FAR_TERRAIN_METHOD } from "./far-terrain";
+import { isChunkColumnPending } from "./far-terrain-tiles";
 import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
 import { HeldServerUpdates } from "./held-server-updates";
@@ -4879,6 +4880,49 @@ export class World<T = any> extends Scene implements NetIntercept {
       forEachMeshedChunk: (callback) => {
         this.chunkPipeline.forEachLoaded((chunk) => {
           if (chunk.group.parent) callback(chunk.coords[0], chunk.coords[1]);
+        });
+      },
+      // Inside the world and still owing its terrain: not loaded yet
+      // (requested or not), or loaded moments ago with its mesh still being
+      // built at some level. The far layer must not show through it
+      // meanwhile. A loaded, meshed chunk with nothing to draw is not
+      // pending, so the far layer keeps showing where the world is
+      // genuinely empty; nor is one that has owed its mesh past the grace
+      // (`CHUNK_PENDING_GRACE_MS`), so a section a missing neighbour keeps
+      // failing never pins sky over the far layer.
+      isChunkPending: (cx, cz) => {
+        if (!this.isWithinWorld(cx, cz)) return false;
+        const name = ChunkUtils.getChunkName([cx, cz]);
+        const stage = this.chunkPipeline.getStage(name);
+        const chunk =
+          stage === "loaded"
+            ? this.chunkPipeline.getLoadedChunk(name)
+            : undefined;
+        // Owed means scheduled: a section's job waiting to be dispatched
+        // or running. A generation left behind by a failed job is not
+        // owed, so a stranded section never pins sky over the far layer.
+        let isMeshOwed = false;
+        if (chunk) {
+          for (let level = 0; level < this.options.subChunks; level++) {
+            const key = MeshPipeline.makeKey(cx, cz, level);
+            if (
+              this.meshPipeline.isDirty(key) ||
+              this.meshPipeline.hasInFlightJob(key)
+            ) {
+              isMeshOwed = true;
+              break;
+            }
+          }
+        }
+        const loadedAt = this.chunkPipeline.getTiming(name)?.loadedAt;
+        return isChunkColumnPending({
+          stage,
+          isReady: !!chunk?.isReady,
+          isMeshOwed,
+          loadedForMs:
+            loadedAt === null || loadedAt === undefined
+              ? 0
+              : performance.now() - loadedAt,
         });
       },
     });
