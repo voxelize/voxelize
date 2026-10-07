@@ -310,6 +310,36 @@ export type WorldClientOptions = {
   cloudsOptions: Partial<CloudsOptions>;
 
   /**
+   * How far the far-terrain layer reaches past the viewer, in blocks, in a
+   * world that serves far terrain (`farTerrain` in its INIT options). `0`
+   * (the default) draws none. Change it through `world.farTerrainDistance`.
+   */
+  farTerrainDistance: number;
+
+  /**
+   * RGB in 0..1 per colour class the world's far-terrain sampler emits,
+   * flattened (`[r0, g0, b0, r1, ...]`). The classes are the game's; an
+   * empty palette (the default) draws every class grey.
+   */
+  farTerrainPalette: number[];
+
+  /** The far water plane's colour. Defaults to a deep sea blue. */
+  farTerrainWaterColor: string;
+
+  /** Top colour of far floating land. */
+  farTerrainSkyTopColor: string;
+
+  /** Underside and wall colour of far floating land. */
+  farTerrainSkySideColor: string;
+
+  /**
+   * With the far layer on, fog starts at this fraction of the render
+   * distance and closes at the far layer's edge, so loaded terrain stays
+   * nearly clear and the far layer fades into haze. Defaults to `0.6`.
+   */
+  farTerrainFogNearRatio: number;
+
+  /**
    * The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`.
    */
   chunkUniformsOverwrite: Partial<ChunkRenderer["uniforms"]>;
@@ -482,6 +512,12 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   chunkLoadExponent: 8,
   skyOptions: {},
   cloudsOptions: {},
+  farTerrainDistance: 0,
+  farTerrainPalette: [],
+  farTerrainWaterColor: "#2d6a9a",
+  farTerrainSkyTopColor: "#6f9d4e",
+  farTerrainSkySideColor: "#6e665c",
+  farTerrainFogNearRatio: 0.6,
   chunkUniformsOverwrite: {},
   sunlightStartTimeFrac: 0.25,
   sunlightEndTimeFrac: 0.7,

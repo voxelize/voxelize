@@ -161,6 +161,7 @@ import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { worldDefinitionSignature } from "./definition-signature";
 import { displayCopyMaterialOptions } from "./display-copy-material";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
+import { FarTerrain, FAR_TERRAIN_METHOD } from "./far-terrain";
 import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
 import { HeldServerUpdates } from "./held-server-updates";
@@ -248,6 +249,8 @@ export * from "./coupled-blocks";
 export * from "./crusted-fluid-shader";
 export * from "./csm-renderer";
 export * from "./entity-light";
+export * from "./far-terrain";
+export * from "./far-terrain-tiles";
 export * from "./entity-shadow-uniforms";
 export * from "./items";
 export * from "./light-cones";
@@ -593,6 +596,16 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The clouds that renders the cubical clouds.
    */
   public clouds: Clouds;
+
+  /**
+   * Coarse terrain past the loaded chunks, drawn from server-sampled tiles
+   * when the world serves them (`farTerrain` in the INIT options) and
+   * `farTerrainDistance` is above 0. See {@link FarTerrain}.
+   */
+  public farTerrain: FarTerrain;
+
+  /** Bumped when a chunk's meshes land or leave, for the far layer's mask. */
+  private meshGeneration = 0;
 
   /**
    * The camera-driven underwater optics state, updated via
@@ -4231,6 +4244,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { blocks, items, options, stats, ...extra } = this.initialData;
     this.extraInitData = extra;
 
+    // The far layer draws only for a world that samples it; the fog range
+    // follows (it reaches the far layer's edge when there is one).
+    this.farTerrain.configure(options?.farTerrain ?? null);
+    this.applyBaseFogRange();
+
     this._time = stats.time;
     this._day = stats.day ?? 0;
 
@@ -4421,6 +4439,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const updateSkyAndCloudsDuration =
       performance.now() - startUpdateSkyAndClouds;
 
+    this.updateFarTerrain(position);
+
     const startEmitServerUpdates = performance.now();
     this.emitServerUpdates();
     const emitServerUpdatesDuration =
@@ -4492,6 +4512,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { type } = message;
 
     switch (type) {
+      case "METHOD": {
+        const method = message.method;
+        if (method?.name === FAR_TERRAIN_METHOD) {
+          this.farTerrain.onMethodReply(method.name, method.payload);
+        }
+        break;
+      }
       case "INIT": {
         const { json, entities } = message;
 
@@ -4795,8 +4822,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   getBaseFogRange(): WorldFogRange {
-    const { chunkSize, fogNearRenderRatio, fogFarRenderRatio, fogDistance } =
-      this.options;
+    const {
+      chunkSize,
+      fogNearRenderRatio,
+      fogFarRenderRatio,
+      fogDistance,
+      farTerrainFogNearRatio,
+    } = this.options;
 
     return computeFogRange({
       chunkSize,
@@ -4804,7 +4836,54 @@ export class World<T = any> extends Scene implements NetIntercept {
       fogNearRenderRatio,
       fogFarRenderRatio,
       fogDistance,
+      // Before the constructor builds the layer there is nothing far to fog into.
+      farTerrainDistance: this.farTerrain?.reach ?? 0,
+      farTerrainFogNearRatio,
     });
+  }
+
+  /**
+   * How far the far-terrain layer reaches past the viewer, in blocks; 0
+   * turns it off. Takes effect only in a world that serves far terrain.
+   * The fog range follows it. See `WorldOptions.farTerrainDistance`.
+   */
+  get farTerrainDistance(): number {
+    return this.options.farTerrainDistance;
+  }
+
+  set farTerrainDistance(distance: number) {
+    const next = Math.max(0, Math.floor(distance));
+    this.options.farTerrainDistance = next;
+    this.farTerrain.distance = next;
+    if (this.isInitialized) this.applyBaseFogRange();
+  }
+
+  /** Write the base fog range into the chunk uniforms. */
+  private applyBaseFogRange() {
+    const fogRange = this.getBaseFogRange();
+    this.chunkRenderer.uniforms.fogNear.value = fogRange.near;
+    this.chunkRenderer.uniforms.fogFar.value = fogRange.far;
+  }
+
+  /**
+   * Drive the far layer and send the tile requests it queued. Runs after the
+   * sky so the frame's sun and fog are already current.
+   */
+  private updateFarTerrain(position: Vector3) {
+    const far = this.farTerrain;
+    far.update(position, {
+      renderRadius: this._renderRadius,
+      chunkSize: this.options.chunkSize,
+      loadedGeneration:
+        this.chunkPipeline.loadedGeneration + this.meshGeneration,
+      forEachMeshedChunk: (callback) => {
+        this.chunkPipeline.forEachLoaded((chunk) => {
+          if (chunk.group.parent) callback(chunk.coords[0], chunk.coords[1]);
+        });
+      },
+    });
+    const packets = far.takePackets();
+    if (packets.length) this.packets.push(...packets);
   }
 
   get deleteRadius() {
@@ -6441,6 +6520,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     // voxel that changed state between the two starts its swing here, one
     // that did not carries its swing over onto the new mesh.
     this.on("chunk-mesh-loaded", ({ coords: [cx, cz], level, meshes }) => {
+      this.meshGeneration += 1;
       this.blockAnimations.handleSectionMeshed(
         cx,
         cz,
@@ -6450,6 +6530,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     });
     this.on("chunk-mesh-unloaded", ({ coords: [cx, cz], level }) => {
+      this.meshGeneration += 1;
       this.blockAnimations.handleSectionUnloaded(cx, cz, level);
     });
     // Opacity oracle for mount-aware shadow-face skipping: a face buried in
@@ -6553,6 +6634,46 @@ export class World<T = any> extends Scene implements NetIntercept {
         cloudsOptions.uUnderwaterAmbient ?? chunkUniforms.underwaterAmbient,
     });
     this.add(this.sky, this.clouds);
+
+    const lighting = this.chunkRenderer.shaderLightingUniforms;
+    this.farTerrain = new FarTerrain(
+      {
+        fogColor: chunkUniforms.fogColor,
+        fogNear: chunkUniforms.fogNear,
+        fogFar: chunkUniforms.fogFar,
+        fogHeightOrigin: chunkUniforms.fogHeightOrigin,
+        fogHeightDensity: chunkUniforms.fogHeightDensity,
+        fogVerticalBlend: chunkUniforms.fogVerticalBlend,
+        skyFogTopColor: chunkUniforms.skyFogTopColor,
+        skyFogMiddleColor: chunkUniforms.skyFogMiddleColor,
+        skyFogBottomColor: chunkUniforms.skyFogBottomColor,
+        skyFogOffset: chunkUniforms.skyFogOffset,
+        skyFogVoidOffset: chunkUniforms.skyFogVoidOffset,
+        skyFogExponent: chunkUniforms.skyFogExponent,
+        skyFogExponent2: chunkUniforms.skyFogExponent2,
+        skyFogDimension: chunkUniforms.skyFogDimension,
+        skyFogStrength: chunkUniforms.skyFogStrength,
+        sunlightIntensity: chunkUniforms.sunlightIntensity,
+        minLightLevel: chunkUniforms.minLightLevel,
+        baseAmbient: chunkUniforms.baseAmbient,
+        faceShades: chunkUniforms.faceShades,
+        cameraSubmersion: chunkUniforms.cameraSubmersion,
+        cameraWaterPlaneY: chunkUniforms.cameraWaterPlaneY,
+        underwaterAmbient: chunkUniforms.underwaterAmbient,
+        underwaterViewScale: chunkUniforms.underwaterViewScale,
+        sunDirection: lighting.sunDirection,
+        sunColor: lighting.sunColor,
+        ambientColor: lighting.ambientColor,
+      },
+      {
+        distance: this.options.farTerrainDistance,
+        palette: this.options.farTerrainPalette,
+        waterColor: this.options.farTerrainWaterColor,
+        skyTopColor: this.options.farTerrainSkyTopColor,
+        skySideColor: this.options.farTerrainSkySideColor,
+      },
+    );
+    this.add(this.farTerrain);
 
     this.physics = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {

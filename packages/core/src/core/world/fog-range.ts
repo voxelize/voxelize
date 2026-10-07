@@ -17,10 +17,22 @@ export type FogRangeInputs = {
    * default): fog moves every time the radius changes, so a vista capture
    * at a higher radius also pushes fog out to match. A number holds fog at
    * that distance across radius changes, clamped down to at most the
-   * current render distance — there is nothing loaded past the radius to
-   * fog into, so an unclamped value would just show void past the fog.
+   * current reach — there is nothing drawn past the loaded chunks (or past
+   * the far layer, when there is one) to fog into, so an unclamped value
+   * would just show void past the fog.
    */
   fogDistance?: number | null;
+  /**
+   * How far the far-terrain layer draws past the viewer, in blocks; 0 or
+   * absent when it is off. When it reaches past the loaded chunks, fog
+   * closes at its edge instead of inside the loaded disc.
+   */
+  farTerrainDistance?: number;
+  /**
+   * With the far layer on, the fraction of the render distance where fog
+   * starts. Defaults to `0.6`.
+   */
+  farTerrainFogNearRatio?: number;
 };
 
 /**
@@ -34,19 +46,35 @@ export function computeFogRange({
   fogNearRenderRatio,
   fogFarRenderRatio,
   fogDistance,
+  farTerrainDistance = 0,
+  farTerrainFogNearRatio = 0.6,
 }: FogRangeInputs): WorldFogRange {
   const renderDistance = renderRadius * chunkSize;
+  const hasFarLayer = farTerrainDistance > renderDistance;
+  const reach = hasFarLayer ? farTerrainDistance : renderDistance;
 
   if (fogDistance == null) {
+    if (hasFarLayer) {
+      // Loaded terrain stays nearly clear to its edge; the far layer takes
+      // the haze and dissolves at its own edge.
+      return {
+        near: renderDistance * farTerrainFogNearRatio,
+        far: farTerrainDistance,
+      };
+    }
     return {
       near: renderDistance * fogNearRenderRatio,
       far: renderDistance * fogFarRenderRatio,
     };
   }
 
-  const far = Math.max(0, Math.min(fogDistance, renderDistance));
-  const ratio =
-    fogFarRenderRatio > 0 ? fogNearRenderRatio / fogFarRenderRatio : 0;
+  const far = Math.max(0, Math.min(fogDistance, reach));
+  const ratio = hasFarLayer
+    ? (renderDistance * farTerrainFogNearRatio) /
+      Math.max(farTerrainDistance, 1)
+    : fogFarRenderRatio > 0
+      ? fogNearRenderRatio / fogFarRenderRatio
+      : 0;
 
   return { near: Math.min(far, far * ratio), far };
 }

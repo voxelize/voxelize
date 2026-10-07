@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+use super::far_terrain::FarTerrainDescriptor;
 use super::fixed_step::FixedStepConfig;
 use super::generators::NoiseOptions;
 use super::lag_comp::LagCompConfig;
@@ -250,6 +251,12 @@ pub struct WorldConfig {
     /// tick-anchored; a `Some` here without a fixed step is rejected at build
     /// time.
     pub lag_comp: Option<LagCompConfig>,
+
+    /// The far-terrain layer this world serves, as every client learns it
+    /// from the INIT options; `None` (the default) is a world with no far
+    /// layer. Set through `World::set_far_terrain`, not the builder, because
+    /// it comes with the sampler that answers the tiles.
+    pub far_terrain: Option<FarTerrainDescriptor>,
 }
 
 impl Default for WorldConfig {
@@ -906,6 +913,7 @@ impl WorldConfigBuilder {
             peer_visible_radius: self.peer_visible_radius,
             fixed_timestep: self.fixed_timestep,
             lag_comp: self.lag_comp,
+            far_terrain: None,
         }
     }
 }

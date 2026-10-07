@@ -589,6 +589,8 @@ export type RenderStats = {
   textures: number;
   sceneObjects: number;
   chunkGroups: number;
+  /** The world's far-terrain layer counters, when it has one. */
+  farTerrain?: Record<string, unknown> | null;
   /** Loaded columns that have produced terrain geometry, including arenas.
    * Missing columns may be truly empty; useful alongside drained mesh queues
    * to diagnose terrain that was loaded but never scheduled for meshing. */
