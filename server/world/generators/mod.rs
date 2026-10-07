@@ -6,6 +6,8 @@ mod noise;
 mod pathfinding;
 mod pipeline;
 mod spline;
+#[cfg(test)]
+mod tall_world_tests;
 mod terrain;
 mod trees;
 
