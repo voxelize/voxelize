@@ -1,0 +1,32 @@
+[
+  {
+    "id": 59, "key": "skystone", "name": "Skystone", "material": "rock",
+    "hardness": 25, "resistance": 1200, "texture": { "all": "skystone" },
+    "tool": { "kind": "pickaxe", "minTier": 2, "required": true },
+    "drops": [{ "item": "skystone" }]
+  },
+  {
+    "id": 60, "key": "sky_rift", "name": "Sky Rift", "material": "crystal",
+    "hardness": -1, "resistance": 0, "texture": { "all": "sky_rift" },
+    "transparent": true, "collision": false, "lightEmission": 11,
+    "behaviors": ["rift"], "portal": { "frame": "skystone", "to": "sky" }, "drops": []
+  },
+  {
+    "id": 61, "key": "cloudrock", "name": "Cloudrock", "material": "rock",
+    "hardness": 1.2, "resistance": 4, "texture": { "all": "cloudrock" },
+    "tool": { "kind": "pickaxe", "minTier": 0, "required": true },
+    "drops": [{ "item": "cloudrock" }]
+  },
+  {
+    "id": 62, "key": "cloud", "name": "Cloud", "material": "wool",
+    "hardness": 0.2, "resistance": 0.2, "texture": { "all": "cloud" },
+    "drops": [{ "item": "cloud" }]
+  },
+  {
+    "id": 63, "key": "sunstone_ore", "name": "Sunstone Ore", "material": "rock",
+    "hardness": 3, "resistance": 3, "texture": { "all": "sunstone_ore" },
+    "lightEmission": 6,
+    "tool": { "kind": "pickaxe", "minTier": 2, "required": true },
+    "xp": [3, 7], "drops": [{ "item": "sun_shard" }]
+  }
+]

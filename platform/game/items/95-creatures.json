@@ -1,0 +1,7 @@
+[
+  { "id": 115, "key": "raw_fish", "name": "Raw Fish", "type": "food", "food": 2, "value": 2 },
+  { "id": 116, "key": "cooked_fish", "name": "Grilled Fish", "type": "food", "food": 6, "value": 6 },
+  { "id": 117, "key": "ember_sigil", "name": "Ember Sigil", "type": "misc", "stackSize": 1, "value": 60 },
+  { "id": 118, "key": "warden_core", "name": "Warden Core", "type": "material", "stackSize": 16, "value": 250 },
+  { "id": 119, "key": "wisp_essence", "name": "Wisp Essence", "type": "material", "value": 8 }
+]

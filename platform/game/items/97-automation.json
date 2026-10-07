@@ -1,0 +1,6 @@
+[
+  { "id": 125, "key": "door", "name": "Plank Door", "type": "block", "placesBlock": "door", "value": 4 },
+  { "id": 126, "key": "grip_actuator", "name": "Grip Thrust Block", "type": "block", "placesBlock": "grip_actuator", "value": 14 },
+  { "id": 127, "key": "watcher", "name": "Watcher", "type": "block", "placesBlock": "watcher", "value": 8 },
+  { "id": 128, "key": "gauge", "name": "Fill Gauge", "type": "block", "placesBlock": "gauge", "value": 8 }
+]

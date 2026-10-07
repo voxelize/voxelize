@@ -1,0 +1,31 @@
+[
+  {
+    "key": "cinder_wraith",
+    "name": "Cinder Wraith",
+    "kind": "hostile",
+    "health": 16,
+    "speed": 2.6,
+    "damage": 4,
+    "size": [0.6, 1.8],
+    "spawn": {
+      "light": "dark",
+      "on": ["cinderstone"],
+      "biomes": ["ashen_wastes"],
+      "weight": 10,
+      "groupMin": 1,
+      "groupMax": 2
+    },
+    "drops": [{ "item": "ember_dust", "min": 0, "max": 2 }],
+    "burnsInDaylight": false,
+    "sight": 24,
+    "model": [
+      { "name": "body", "size": [0.5, 0.8, 0.3], "offset": [0, 1.1, 0], "color": "#3a2320" },
+      { "name": "head", "size": [0.48, 0.48, 0.48], "offset": [0, 1.75, 0], "color": "#5a2e22" },
+      { "name": "eyes", "size": [0.34, 0.07, 0.02], "offset": [0, 1.8, 0.25], "color": "#ff7a1a" },
+      { "name": "arm_l", "size": [0.16, 0.72, 0.16], "offset": [0.34, 1.15, 0.2], "color": "#5a2e22" },
+      { "name": "arm_r", "size": [0.16, 0.72, 0.16], "offset": [-0.34, 1.15, 0.2], "color": "#5a2e22" },
+      { "name": "leg_l", "size": [0.22, 0.72, 0.22], "offset": [0.12, 0.36, 0], "color": "#241614", "leg": true },
+      { "name": "leg_r", "size": [0.22, 0.72, 0.22], "offset": [-0.12, 0.36, 0], "color": "#241614", "leg": true }
+    ]
+  }
+]

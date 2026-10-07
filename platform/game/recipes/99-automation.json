@@ -1,0 +1,6 @@
+[
+  { "type": "shaped", "key": "door", "pattern": ["pp", "pp", "pp"], "symbols": { "p": "planks" }, "result": { "item": "door", "count": 3 } },
+  { "type": "shaped", "key": "grip_actuator", "pattern": ["t", "a"], "symbols": { "t": "silk_thread", "a": "actuator" }, "result": { "item": "grip_actuator" } },
+  { "type": "shaped", "key": "watcher", "pattern": ["rrr", "vvg", "rrr"], "symbols": { "r": "rubble", "v": "volt_dust", "g": "glass" }, "result": { "item": "watcher" } },
+  { "type": "shaped", "key": "gauge", "pattern": [" t ", "tgt", "sss"], "symbols": { "t": "torch", "g": "glass", "s": "stone" }, "result": { "item": "gauge" } }
+]

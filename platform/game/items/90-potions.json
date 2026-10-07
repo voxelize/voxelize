@@ -1,0 +1,157 @@
+[
+  {
+    "id": 103,
+    "key": "glass_bottle",
+    "name": "Glass Bottle",
+    "type": "material",
+    "stackSize": 16,
+    "value": 1
+  },
+  {
+    "id": 104,
+    "key": "water_bottle",
+    "name": "Water Bottle",
+    "type": "misc",
+    "stackSize": 1,
+    "value": 1
+  },
+  {
+    "id": 105,
+    "key": "potion_regeneration",
+    "name": "Potion of Regeneration",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "regeneration",
+      "level": 0,
+      "seconds": 45
+    }
+  },
+  {
+    "id": 106,
+    "key": "potion_swiftness",
+    "name": "Potion of Swiftness",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "speed",
+      "level": 0,
+      "seconds": 180
+    }
+  },
+  {
+    "id": 107,
+    "key": "potion_fire_resistance",
+    "name": "Potion of Fire Resistance",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "fire_resistance",
+      "level": 0,
+      "seconds": 180
+    }
+  },
+  {
+    "id": 108,
+    "key": "potion_night_vision",
+    "name": "Potion of Night Vision",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "night_vision",
+      "level": 0,
+      "seconds": 180
+    }
+  },
+  {
+    "id": 109,
+    "key": "potion_strength",
+    "name": "Potion of Strength",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "strength",
+      "level": 0,
+      "seconds": 180
+    }
+  },
+  {
+    "id": 110,
+    "key": "potion_healing",
+    "name": "Potion of Healing",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "healing",
+      "level": 0
+    }
+  },
+  {
+    "id": 111,
+    "key": "potion_water_breathing",
+    "name": "Potion of Water Breathing",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "water_breathing",
+      "level": 0,
+      "seconds": 180
+    }
+  },
+  {
+    "id": 112,
+    "key": "potion_poison",
+    "name": "Potion of Poison",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "poison",
+      "level": 0,
+      "seconds": 45
+    }
+  },
+  {
+    "id": 113,
+    "key": "potion_leaping",
+    "name": "Potion of Leaping",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "jump_boost",
+      "level": 0,
+      "seconds": 180
+    }
+  },
+  {
+    "id": 114,
+    "key": "potion_slowness",
+    "name": "Potion of Slowness",
+    "type": "misc",
+    "stackSize": 1,
+    "rarity": "uncommon",
+    "value": 8,
+    "potion": {
+      "effect": "slowness",
+      "level": 0,
+      "seconds": 90
+    }
+  }
+]

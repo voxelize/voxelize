@@ -1,0 +1,32 @@
+[
+  {
+    "id": 53, "key": "riftstone", "name": "Riftstone", "material": "rock",
+    "hardness": 25, "resistance": 1200, "texture": { "all": "riftstone" },
+    "tool": { "kind": "pickaxe", "minTier": 2, "required": true },
+    "drops": [{ "item": "riftstone" }]
+  },
+  {
+    "id": 54, "key": "rift", "name": "Rift", "material": "crystal",
+    "hardness": -1, "resistance": 0, "texture": { "all": "rift" },
+    "transparent": true, "collision": false, "lightEmission": 11,
+    "behaviors": ["rift"], "portal": { "frame": "riftstone", "to": "underworld" }, "drops": []
+  },
+  {
+    "id": 55, "key": "cinderstone", "name": "Cinderstone", "material": "rock",
+    "hardness": 0.4, "resistance": 0.4, "texture": { "all": "cinderstone" },
+    "tool": { "kind": "pickaxe", "minTier": 0, "required": true },
+    "drops": [{ "item": "cinderstone" }]
+  },
+  {
+    "id": 56, "key": "emberglass", "name": "Emberglass", "material": "glass",
+    "hardness": 0.3, "resistance": 0.3, "texture": { "all": "emberglass" },
+    "lightEmission": 15,
+    "drops": [{ "item": "ember_dust", "min": 2, "max": 4 }]
+  },
+  {
+    "id": 57, "key": "ember_quartz_ore", "name": "Ember Quartz Ore", "material": "rock",
+    "hardness": 3, "resistance": 3, "texture": { "all": "ember_quartz_ore" },
+    "tool": { "kind": "pickaxe", "minTier": 1, "required": true },
+    "xp": [2, 5], "drops": [{ "item": "ember_quartz" }]
+  }
+]

@@ -1,0 +1,166 @@
+{
+  "stations": [
+    {
+      "key": "furnace",
+      "name": "Furnace",
+      "block": "furnace",
+      "fueled": true
+    }
+  ],
+  "fuels": [
+    {
+      "item": "coal",
+      "ticks": 1600
+    },
+    {
+      "item": "planks",
+      "ticks": 300
+    },
+    {
+      "item": "oak_log",
+      "ticks": 300
+    },
+    {
+      "item": "spruce_log",
+      "ticks": 300
+    },
+    {
+      "item": "stick",
+      "ticks": 100
+    }
+  ],
+  "recipes": [
+    {
+      "key": "smelt_iron",
+      "station": "furnace",
+      "input": {
+        "item": "raw_iron"
+      },
+      "output": {
+        "item": "iron_ingot"
+      },
+      "ticks": 200,
+      "experience": 0.7
+    },
+    {
+      "key": "smelt_copper",
+      "station": "furnace",
+      "input": {
+        "item": "raw_copper"
+      },
+      "output": {
+        "item": "copper_ingot"
+      },
+      "ticks": 200,
+      "experience": 0.7
+    },
+    {
+      "key": "smelt_gold",
+      "station": "furnace",
+      "input": {
+        "item": "raw_gold"
+      },
+      "output": {
+        "item": "gold_ingot"
+      },
+      "ticks": 200,
+      "experience": 1.0
+    },
+    {
+      "key": "smelt_glass",
+      "station": "furnace",
+      "input": {
+        "item": "sand"
+      },
+      "output": {
+        "item": "glass"
+      },
+      "ticks": 200,
+      "experience": 0.1
+    },
+    {
+      "key": "smelt_stone",
+      "station": "furnace",
+      "input": {
+        "item": "rubble"
+      },
+      "output": {
+        "item": "stone"
+      },
+      "ticks": 200,
+      "experience": 0.1
+    },
+    {
+      "key": "fire_clay",
+      "station": "furnace",
+      "input": {
+        "item": "clay_ball"
+      },
+      "output": {
+        "item": "fired_clay"
+      },
+      "ticks": 200,
+      "experience": 0.3
+    },
+    {
+      "key": "bake_bread",
+      "station": "furnace",
+      "input": {
+        "item": "wheat"
+      },
+      "output": {
+        "item": "bread"
+      },
+      "ticks": 100,
+      "experience": 0.35
+    },
+    {
+      "key": "cook_meat",
+      "station": "furnace",
+      "input": {
+        "item": "raw_meat"
+      },
+      "output": {
+        "item": "cooked_meat"
+      },
+      "ticks": 200,
+      "experience": 0.35
+    },
+    {
+      "key": "cook_poultry",
+      "station": "furnace",
+      "input": {
+        "item": "raw_poultry"
+      },
+      "output": {
+        "item": "cooked_poultry"
+      },
+      "ticks": 200,
+      "experience": 0.35
+    },
+    {
+      "key": "cook_fish",
+      "station": "furnace",
+      "input": {
+        "item": "raw_fish"
+      },
+      "output": {
+        "item": "cooked_fish"
+      },
+      "ticks": 200,
+      "experience": 0.35
+    },
+    {
+      "key": "bake_potato",
+      "station": "furnace",
+      "input": {
+        "item": "potato"
+      },
+      "output": {
+        "item": "baked_potato"
+      },
+      "ticks": 200,
+      "experience": 0.35
+    }
+  ]
+}

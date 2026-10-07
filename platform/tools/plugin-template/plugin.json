@@ -1,0 +1,8 @@
+{
+  "key": "my_plugin",
+  "name": "My plugin",
+  "version": "0.1.0",
+  "description": "What it does, in one line.",
+  "script": "main.rhai",
+  "commands": ["hello"]
+}

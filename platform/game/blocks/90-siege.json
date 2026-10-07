@@ -1,0 +1,10 @@
+[
+  {
+    "id": 66, "key": "siege_banner", "name": "Siege Banner", "material": "wood",
+    "hardness": 1, "resistance": 1,
+    "texture": { "all": "siege_banner", "top": "planks", "bottom": "planks" },
+    "transparent": true, "collision": false,
+    "tool": { "kind": "axe", "required": false },
+    "drops": [{ "item": "siege_banner" }]
+  }
+]

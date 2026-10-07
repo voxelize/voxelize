@@ -1,0 +1,165 @@
+// Land ownership end to end: a player pays for a claim through the API,
+// the game server picks it up from the backend's internal feed and refuses
+// a stranger's digging there until the owner makes them a builder.
+//
+//   FUND_CMD='php artisan economy:grant {player} {player} 500 --reason=land-test' \
+//     node land.mjs <api base> <game base>
+//
+// FUND_CMD gives the new player currency ({player} is replaced; with
+// docker: `docker compose exec -T api php artisan economy:grant …`).
+
+import assert from "node:assert/strict";
+import { execSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+
+import { api, Bot, registerPlayer } from "./bot.mjs";
+
+const API = process.argv[2] ?? "http://127.0.0.1:8080";
+const GAME = process.argv[3] ?? API;
+assert.ok(process.env.FUND_CMD, "FUND_CMD funds the claiming player");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const step = (text) => console.log(`✓ ${text}`);
+const EYE = 1.425;
+
+const stamp = Date.now().toString(36).slice(-5);
+const names = { alice: `al_${stamp}`, bob: `bo_${stamp}` };
+const tokens = {
+  alice: await registerPlayer(API, names.alice),
+  bob: await registerPlayer(API, names.bob),
+};
+execSync(process.env.FUND_CMD.replaceAll("{player}", names.alice), { stdio: "inherit", shell: "/bin/sh" });
+
+const connect = async (who) => {
+  const bot = new Bot({ api: API, game: GAME, token: tokens[who], name: names[who] });
+  await bot.connect();
+  bot.requestChunks(1);
+  for (let i = 0; i < 100 && bot.chunks.size < 9; i++) await sleep(200);
+  return bot;
+};
+const alice = await connect("alice");
+const bob = await connect("bob");
+
+// A land chunk nobody holds yet (the test can run again on one backend),
+// with dry ground at its middle.
+const content = await (await fetch(`${GAME}/platform/content`)).json();
+const def = (v) => content.blocks.find((b) => b.id === v);
+const standable = (v) => v !== 0 && (def(v)?.collision !== false || def(v)?.fluid != null);
+const taken = (await api(API, "/lands?world=main&dimension=overworld", { token: tokens.alice })).lands;
+let chunk, x, z;
+let y = null;
+for (let attempt = 0; attempt < 30 && y === null; attempt++) {
+  do chunk = [3 + Math.floor(Math.random() * 8), 3 + Math.floor(Math.random() * 8)];
+  while (taken.some((l) => chunk[0] >= l.min[0] && chunk[0] <= l.max[0] && chunk[1] >= l.min[1] && chunk[1] <= l.max[1]));
+  [x, z] = [chunk[0] * 16 + 8, chunk[1] * 16 + 8];
+  let top = null;
+  for (let i = 0; i < 100 && top === null; i++) {
+    alice.position = [x + 0.5, 100, z + 0.5];
+    alice.requestChunks(1);
+    bob.position = alice.position;
+    bob.requestChunks(1);
+    await sleep(200);
+    top = alice.surface(x, z, standable);
+  }
+  // Water is no place to dig.
+  if (top !== null && def(alice.voxel(x, top, z))?.fluid == null && alice.voxel(x, top + 1, z) === 0) y = top;
+}
+assert.ok(y !== null, "terrain at the claim");
+for (const bot of [alice, bob]) await bot.moveTo([x + 0.5, y + 1 + EYE, z + 2.5], 10);
+await sleep(5500); // join grace
+
+const tryDig = async (bot) => {
+  bot.call("platform.mine.start", { voxel: [x, y, z] });
+  return bot.result("mine.start");
+};
+const open = await tryDig(bob);
+assert.equal(open.ok, true, `unclaimed land is open to everyone (${open.code})`);
+step("unclaimed ground is open to everyone");
+
+// Alice claims the chunk; the price leaves her wallet.
+const before = (await api(API, "/wallets", { token: tokens.alice })).wallets.find((w) => w.currency === "CRN")?.balance;
+const { land } = await api(API, "/lands", {
+  token: tokens.alice,
+  headers: { "Idempotency-Key": randomUUID().replace(/-/g, "") },
+  body: { world: "main", dimension: "overworld", min: chunk, max: chunk, name: "Test Acre" },
+});
+const after = (await api(API, "/wallets", { token: tokens.alice })).wallets.find((w) => w.currency === "CRN").balance;
+assert.ok(after < before, `the claim was paid: ${before} -> ${after}`);
+step(`claimed land chunk (${chunk}) for ${before - after} CRN`);
+
+// The game server enforces it once the feed refreshes.
+let refused = null;
+for (let i = 0; i < 40; i++) {
+  const r = await tryDig(bob);
+  if (!r.ok && r.code === "land_protected") {
+    refused = r;
+    break;
+  }
+  await sleep(500);
+}
+assert.ok(refused, "a stranger may not dig in claimed land");
+const owner = await tryDig(alice);
+assert.equal(owner.ok, true, `the owner may (${owner.code})`);
+step("the game server refuses a stranger and lets the owner dig");
+
+// Entering the land is announced.
+const notice = alice.event("platform.land", (p) => p.land?.id === land.id, 8000);
+await alice.moveTo([x + 0.5 - 40, y + 1 + EYE, z + 0.5], 3);
+await sleep(600);
+await alice.moveTo([x + 0.5, y + 1 + EYE, z + 2.5], 3);
+const seen = await notice;
+assert.equal(seen.land.owner.name, names.alice);
+assert.equal(seen.land.role, "owner");
+step("walking in announces the land and its owner");
+
+// Membership opens it to Bob.
+await api(API, `/lands/${land.id}/members`, { token: tokens.alice, body: { player: names.bob, role: "builder" } });
+let allowed = false;
+for (let i = 0; i < 40 && !allowed; i++) {
+  allowed = (await tryDig(bob)).ok;
+  if (!allowed) await sleep(500);
+}
+assert.ok(allowed, "a builder may dig");
+step("a builder added through the API may dig");
+
+// Bob leaves; Alice grows the land by a ring of chunks.
+await api(API, `/lands/${land.id}/members/${names.bob}`, { token: tokens.alice, method: "DELETE" });
+const waitDig = async (bot, voxel, want) => {
+  for (let i = 0; i < 40; i++) {
+    bot.call("platform.mine.start", { voxel });
+    const r = await bot.result("mine.start");
+    if (want === "ok" ? r.ok : r.code === want) return true;
+    await sleep(500);
+  }
+  return false;
+};
+const nx = x + 16;
+const ny = bob.surface(nx, z, standable);
+assert.ok(ny !== null, "ground in the next chunk");
+await bob.moveTo([nx + 0.5, ny + 1 + EYE, z + 2.5], 3);
+assert.ok(await waitDig(bob, [nx, ny, z], "ok"), "the next chunk is still open");
+await api(API, `/lands/${land.id}/resize`, {
+  token: tokens.alice,
+  headers: { "Idempotency-Key": randomUUID().replace(/-/g, "") },
+  body: { min: [chunk[0] - 1, chunk[1] - 1], max: [chunk[0] + 1, chunk[1] + 1] },
+});
+assert.ok(await waitDig(bob, [nx, ny, z], "land_protected"), "the grown land covers the next chunk");
+step("growing the land by a ring of chunks protects the new ground");
+
+// Alice offers it for sale and Bob buys it: the land changes hands.
+execSync(process.env.FUND_CMD.replaceAll("{player}", names.bob), { stdio: "inherit", shell: "/bin/sh" });
+await api(API, `/lands/${land.id}/sale`, { token: tokens.alice, method: "PUT", body: { price: 40 } });
+const forSale = await bob.event("platform.land", (p) => p.land?.sale === 40, 15000).catch(() => null);
+await api(API, `/lands/${land.id}/buy`, {
+  token: tokens.bob,
+  headers: { "Idempotency-Key": randomUUID().replace(/-/g, "") },
+  body: { price: 40 },
+});
+await bob.moveTo([x + 0.5, y + 1 + EYE, z + 2.5], 3);
+assert.ok(await waitDig(alice, [x, y, z], "land_protected"), "the seller is a stranger now");
+assert.ok(await waitDig(bob, [x, y, z], "ok"), "the buyer digs");
+step(`Alice sold the land to Bob for 40 CRN${forSale ? " (the offer showed in game)" : ""}; it is his now`);
+
+alice.close();
+bob.close();
+console.log("land: all checks passed");
+process.exit(0);

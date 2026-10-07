@@ -1,0 +1,3 @@
+[
+  { "type": "shapeless", "key": "fertiliser", "ingredients": ["bone"], "result": { "item": "fertiliser", "count": 3 } }
+]

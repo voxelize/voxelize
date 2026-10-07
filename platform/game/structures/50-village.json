@@ -1,0 +1,57 @@
+[
+  {
+    "key": "village_well",
+    "name": "Village Well",
+    "placement": "village",
+    "spacing": 0,
+    "chance": 0,
+    "yOffset": -2,
+    "foundation": "rubble",
+    "palette": { "R": "rubble", "W": "water", "P": "planks", "L": "oak_log" },
+    "layers": [
+      ["RRRRR", "RWWWR", "RWWWR", "RWWWR", "RRRRR"],
+      ["RRRRR", "RWWWR", "RWWWR", "RWWWR", "RRRRR"],
+      ["RRRRR", "RWWWR", "RWWWR", "RWWWR", "RRRRR"],
+      ["L...L", ".....", ".....", ".....", "L...L"],
+      ["L...L", ".....", ".....", ".....", "L...L"],
+      ["PPPPP", "PPPPP", "PPPPP", "PPPPP", "PPPPP"]
+    ]
+  },
+  {
+    "key": "village_house",
+    "name": "Village House",
+    "placement": "village",
+    "spacing": 0,
+    "chance": 0,
+    "foundation": "rubble",
+    "palette": { "P": "planks", "L": "oak_log", "G": "glass", "D": "door", "U": "door_top", "C": "chest", "W": "crafting_table", "F": "furnace", "T": "torch", "R": "rubble" },
+    "layers": [
+      ["RRRRRRR", "RPPPPPR", "RPPPPPR", "RPPPPPR", "RPPPPPR", "RPPPPPR", "RRRRRRR"],
+      ["LPPDPPL", "P....WP", "P.....P", "P.....P", "P.....P", "PC...FP", "LPPPPPL"],
+      ["LPPUPPL", "P.....P", "G.....G", "G.....G", "P.....P", "P.....P", "LPGGGPL"],
+      ["LPPPPPL", "PT...TP", "P.....P", "P.....P", "P.....P", "PT...TP", "LPPPPPL"],
+      ["LLLLLLL", "LPPPPPL", "LPPPPPL", "LPPPPPL", "LPPPPPL", "LPPPPPL", "LLLLLLL"]
+    ],
+    "loot": [
+      { "item": "bread", "min": 1, "max": 3, "chance": 0.6 },
+      { "item": "wheat_seeds", "min": 2, "max": 6 },
+      { "item": "carrot", "min": 1, "max": 3, "chance": 0.5 },
+      { "item": "potato", "min": 1, "max": 3, "chance": 0.5 },
+      { "item": "iron_ingot", "min": 1, "max": 2, "chance": 0.25 },
+      { "item": "fertiliser", "min": 2, "max": 5, "chance": 0.4 }
+    ]
+  },
+  {
+    "key": "village_farm",
+    "name": "Village Farm",
+    "placement": "village",
+    "spacing": 0,
+    "chance": 0,
+    "foundation": "dirt",
+    "palette": { "L": "oak_log", "F": "farmland", "W": "water", "w": "wheat_crop", "c": "carrot_crop", "p": "potato_crop" },
+    "layers": [
+      ["LLLLLLL", "LFFFFFL", "LFFFFFL", "LWWWWWL", "LFFFFFL", "LFFFFFL", "LLLLLLL"],
+      [".......", ".wwwww.", ".ccccc.", ".......", ".ppppp.", ".wwwww.", "......."]
+    ]
+  }
+]

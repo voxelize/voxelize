@@ -1,0 +1,16 @@
+[
+  {
+    "id": 64, "key": "guild_hall", "name": "Town Hall", "material": "wood",
+    "hardness": 4, "resistance": 30,
+    "texture": { "all": "guild_hall_side", "top": "guild_hall_top", "bottom": "planks" },
+    "tool": { "kind": "axe", "required": false },
+    "drops": [{ "item": "guild_hall" }]
+  },
+  {
+    "id": 65, "key": "guild_vault", "name": "Guild Vault", "material": "rock",
+    "hardness": 6, "resistance": 600,
+    "texture": { "all": "guild_vault_side", "top": "guild_vault_top", "bottom": "guild_vault_top" },
+    "tool": { "kind": "pickaxe", "minTier": 1, "required": true },
+    "drops": [{ "item": "guild_vault" }]
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "name": "@platform/bots",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Protocol-level bot clients: end-to-end smoke test and load generation.",
+  "scripts": {
+    "smoke": "node smoke.mjs",
+    "load": "node load.mjs"
+  },
+  "dependencies": {
+    "@voxelize/protocol": "workspace:*",
+    "@voxelize/transport": "workspace:*"
+  }
+}

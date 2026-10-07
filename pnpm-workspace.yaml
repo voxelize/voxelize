@@ -3,6 +3,8 @@ packages:
   - packages/*
   - crates/wasm-mesher
   - examples/client
+  - platform/apps/*
+  - platform/tests/bots
 
 onlyBuiltDependencies:
   - '@parcel/watcher'

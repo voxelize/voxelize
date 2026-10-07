@@ -1,0 +1,234 @@
+[
+  {
+    "id": 83,
+    "key": "hide_helmet",
+    "name": "Hide Helmet",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 55,
+    "rarity": "common",
+    "value": 5,
+    "armor": {
+      "slot": "head",
+      "points": 1
+    }
+  },
+  {
+    "id": 84,
+    "key": "hide_chestplate",
+    "name": "Hide Chestplate",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 80,
+    "rarity": "common",
+    "value": 15,
+    "armor": {
+      "slot": "chest",
+      "points": 3
+    }
+  },
+  {
+    "id": 85,
+    "key": "hide_leggings",
+    "name": "Hide Leggings",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 75,
+    "rarity": "common",
+    "value": 10,
+    "armor": {
+      "slot": "legs",
+      "points": 2
+    }
+  },
+  {
+    "id": 86,
+    "key": "hide_boots",
+    "name": "Hide Boots",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 65,
+    "rarity": "common",
+    "value": 5,
+    "armor": {
+      "slot": "feet",
+      "points": 1
+    }
+  },
+  {
+    "id": 87,
+    "key": "copper_helmet",
+    "name": "Copper Helmet",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 110,
+    "rarity": "common",
+    "value": 10,
+    "armor": {
+      "slot": "head",
+      "points": 2
+    }
+  },
+  {
+    "id": 88,
+    "key": "copper_chestplate",
+    "name": "Copper Chestplate",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 160,
+    "rarity": "common",
+    "value": 20,
+    "armor": {
+      "slot": "chest",
+      "points": 4
+    }
+  },
+  {
+    "id": 89,
+    "key": "copper_leggings",
+    "name": "Copper Leggings",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 150,
+    "rarity": "common",
+    "value": 15,
+    "armor": {
+      "slot": "legs",
+      "points": 3
+    }
+  },
+  {
+    "id": 90,
+    "key": "copper_boots",
+    "name": "Copper Boots",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 130,
+    "rarity": "common",
+    "value": 5,
+    "armor": {
+      "slot": "feet",
+      "points": 1
+    }
+  },
+  {
+    "id": 91,
+    "key": "iron_helmet",
+    "name": "Iron Helmet",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 165,
+    "rarity": "uncommon",
+    "value": 10,
+    "armor": {
+      "slot": "head",
+      "points": 2
+    }
+  },
+  {
+    "id": 92,
+    "key": "iron_chestplate",
+    "name": "Iron Chestplate",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 240,
+    "rarity": "uncommon",
+    "value": 30,
+    "armor": {
+      "slot": "chest",
+      "points": 6
+    }
+  },
+  {
+    "id": 93,
+    "key": "iron_leggings",
+    "name": "Iron Leggings",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 225,
+    "rarity": "uncommon",
+    "value": 25,
+    "armor": {
+      "slot": "legs",
+      "points": 5
+    }
+  },
+  {
+    "id": 94,
+    "key": "iron_boots",
+    "name": "Iron Boots",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 195,
+    "rarity": "uncommon",
+    "value": 10,
+    "armor": {
+      "slot": "feet",
+      "points": 2
+    }
+  },
+  {
+    "id": 95,
+    "key": "ember_helmet",
+    "name": "Ember Quartz Helmet",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 363,
+    "rarity": "rare",
+    "value": 15,
+    "armor": {
+      "slot": "head",
+      "points": 3
+    }
+  },
+  {
+    "id": 96,
+    "key": "ember_chestplate",
+    "name": "Ember Quartz Chestplate",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 528,
+    "rarity": "rare",
+    "value": 40,
+    "armor": {
+      "slot": "chest",
+      "points": 8
+    }
+  },
+  {
+    "id": 97,
+    "key": "ember_leggings",
+    "name": "Ember Quartz Leggings",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 495,
+    "rarity": "rare",
+    "value": 30,
+    "armor": {
+      "slot": "legs",
+      "points": 6
+    }
+  },
+  {
+    "id": 98,
+    "key": "ember_boots",
+    "name": "Ember Quartz Boots",
+    "type": "armor",
+    "stackSize": 1,
+    "durability": 429,
+    "rarity": "rare",
+    "value": 15,
+    "armor": {
+      "slot": "feet",
+      "points": 3
+    }
+  },
+  {
+    "id": 99,
+    "key": "anvil",
+    "name": "Anvil",
+    "type": "block",
+    "placesBlock": "anvil",
+    "value": 60
+  }
+]

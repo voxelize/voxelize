@@ -1,0 +1,25 @@
+[
+  {
+    "id": 67,
+    "key": "anvil",
+    "name": "Anvil",
+    "material": "rock",
+    "hardness": 5,
+    "resistance": 1200,
+    "texture": {
+      "all": "anvil_side",
+      "top": "anvil_top"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 0,
+      "required": true
+    },
+    "orientation": "horizontal",
+    "drops": [
+      {
+        "item": "anvil"
+      }
+    ]
+  }
+]

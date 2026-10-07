@@ -1,0 +1,8 @@
+[
+  { "type": "shaped", "key": "blast_charge", "pattern": ["ses", "ese", "ses"],
+    "symbols": { "s": "sand", "e": "ember_dust" }, "result": { "item": "blast_charge" } },
+  { "type": "shaped", "key": "bow", "pattern": [" #t", "# t", " #t"],
+    "symbols": { "#": "stick", "t": "silk_thread" }, "result": { "item": "bow" } },
+  { "type": "shaped", "key": "arrow", "pattern": ["r", "s", "f"],
+    "symbols": { "r": "rubble", "s": "stick", "f": "feather" }, "result": { "item": "arrow", "count": 4 } }
+]

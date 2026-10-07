@@ -1,0 +1,137 @@
+[
+  {
+    "type": "shaped",
+    "key": "lever",
+    "pattern": [
+      "s",
+      "r"
+    ],
+    "symbols": {
+      "s": "stick",
+      "r": "rubble"
+    },
+    "result": {
+      "item": "lever"
+    }
+  },
+  {
+    "type": "shapeless",
+    "key": "push_button",
+    "ingredients": [
+      "stone"
+    ],
+    "result": {
+      "item": "push_button"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "pressure_plate",
+    "pattern": [
+      "pp"
+    ],
+    "symbols": {
+      "p": "planks"
+    },
+    "result": {
+      "item": "pressure_plate"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "pulse_clock",
+    "pattern": [
+      " v ",
+      "vrv",
+      " v "
+    ],
+    "symbols": {
+      "v": "volt_dust",
+      "r": "rubble"
+    },
+    "result": {
+      "item": "pulse_clock"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "volt_lamp",
+    "pattern": [
+      " v ",
+      "vgv",
+      " v "
+    ],
+    "symbols": {
+      "v": "volt_dust",
+      "g": "glass"
+    },
+    "result": {
+      "item": "volt_lamp"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "repeater",
+    "pattern": [
+      "tvt",
+      "rrr"
+    ],
+    "symbols": {
+      "t": "torch",
+      "v": "volt_dust",
+      "r": "stone"
+    },
+    "result": {
+      "item": "repeater"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "inverter",
+    "pattern": [
+      " t ",
+      "vrv"
+    ],
+    "symbols": {
+      "t": "torch",
+      "v": "volt_dust",
+      "r": "stone"
+    },
+    "result": {
+      "item": "inverter"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "gate",
+    "pattern": [
+      "sps",
+      "sps"
+    ],
+    "symbols": {
+      "s": "stick",
+      "p": "planks"
+    },
+    "result": {
+      "item": "gate"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "actuator",
+    "pattern": [
+      "ppp",
+      "rir",
+      "rvr"
+    ],
+    "symbols": {
+      "p": "planks",
+      "r": "rubble",
+      "i": "iron_ingot",
+      "v": "volt_dust"
+    },
+    "result": {
+      "item": "actuator"
+    }
+  }
+]

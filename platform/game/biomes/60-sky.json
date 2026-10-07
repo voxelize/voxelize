@@ -1,0 +1,15 @@
+[
+  {
+    "key": "sky_islands",
+    "name": "Sky Islands",
+    "dimension": "sky",
+    "temperature": 0.2,
+    "humidity": 0.3,
+    "continentalness": 0.0,
+    "erosion": 0.0,
+    "terrain": { "heightOffset": 0, "roughness": 0 },
+    "surface": "turf",
+    "subsurface": "dirt",
+    "weather": []
+  }
+]

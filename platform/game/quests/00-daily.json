@@ -1,0 +1,11 @@
+[
+  { "key": "stone_cutter", "name": "Stone Cutter", "description": "Mine 64 stone.", "objective": { "kind": "mine", "target": "stone", "count": 64 }, "crowns": 30, "xp": 10, "icon": "rubble" },
+  { "key": "timber", "name": "Timber!", "description": "Chop 32 oak logs.", "objective": { "kind": "mine", "target": "oak_log", "count": 32 }, "crowns": 25, "xp": 8, "icon": "oak_log" },
+  { "key": "iron_works", "name": "Iron Works", "description": "Smelt 16 iron ingots.", "objective": { "kind": "smelt", "target": "iron_ingot", "count": 16 }, "crowns": 50, "xp": 15, "icon": "iron_ingot" },
+  { "key": "night_watch", "name": "Night Watch", "description": "Defeat 5 Shamblers.", "objective": { "kind": "kill", "target": "shambler", "count": 5 }, "crowns": 40, "xp": 15, "icon": "rotten_flesh" },
+  { "key": "baker", "name": "Village Baker", "description": "Bake 8 loaves of bread.", "objective": { "kind": "craft", "target": "bread", "count": 8 }, "crowns": 30, "xp": 10, "icon": "bread" },
+  { "key": "sowing_season", "name": "Sowing Season", "description": "Plant 20 wheat crops.", "objective": { "kind": "place", "target": "wheat_crop", "count": 20 }, "crowns": 20, "xp": 8, "icon": "wheat_seeds" },
+  { "key": "angler", "name": "Angler", "description": "Catch 3 river fish.", "objective": { "kind": "kill", "target": "river_fish", "count": 3 }, "crowns": 20, "xp": 8, "icon": "raw_fish" },
+  { "key": "builder", "name": "Builder", "description": "Place 100 blocks.", "objective": { "kind": "place", "count": 100 }, "crowns": 25, "xp": 10, "icon": "planks" },
+  { "key": "table_maker", "name": "Table Maker", "description": "Craft a crafting table.", "objective": { "kind": "craft", "target": "crafting_table", "count": 1 }, "crowns": 5, "xp": 2, "icon": "crafting_table" }
+]

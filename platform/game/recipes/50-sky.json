@@ -1,0 +1,6 @@
+[
+  { "type": "shaped", "key": "skystone", "pattern": ["qgq", "grg", "qgq"],
+    "symbols": { "q": "ember_quartz", "g": "glass", "r": "riftstone" }, "result": { "item": "skystone", "count": 2 } },
+  { "type": "shaped", "key": "skystone_from_shards", "pattern": ["ss", "ss"],
+    "symbols": { "s": "sun_shard" }, "result": { "item": "skystone", "count": 1 } }
+]

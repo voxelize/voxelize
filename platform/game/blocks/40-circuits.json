@@ -1,0 +1,306 @@
+[
+  {
+    "id": 40,
+    "key": "voltite_ore",
+    "name": "Voltite Vein",
+    "material": "crystal",
+    "hardness": 3.0,
+    "resistance": 3.0,
+    "texture": {
+      "all": "voltite_ore"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 1
+    },
+    "lightEmission": 4,
+    "drops": [
+      {
+        "item": "volt_dust",
+        "min": 3,
+        "max": 5
+      }
+    ]
+  },
+  {
+    "id": 41,
+    "key": "conduit",
+    "name": "Volt Conduit",
+    "material": "circuit",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "conduit"
+    },
+    "transparent": true,
+    "collision": false,
+    "behaviors": [
+      "conduit"
+    ],
+    "drops": [
+      {
+        "item": "volt_dust"
+      }
+    ]
+  },
+  {
+    "id": 42,
+    "key": "lever",
+    "name": "Lever",
+    "material": "circuit",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "rubble",
+      "top": "lever_top"
+    },
+    "behaviors": [
+      "lever"
+    ],
+    "drops": [
+      {
+        "item": "lever"
+      }
+    ]
+  },
+  {
+    "id": 43,
+    "key": "push_button",
+    "name": "Push Button",
+    "material": "circuit",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "stone",
+      "top": "button_top"
+    },
+    "behaviors": [
+      "button"
+    ],
+    "drops": [
+      {
+        "item": "push_button"
+      }
+    ]
+  },
+  {
+    "id": 44,
+    "key": "pressure_plate",
+    "name": "Pressure Plate",
+    "material": "circuit",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "pressure_plate"
+    },
+    "transparent": true,
+    "collision": false,
+    "behaviors": [
+      "plate"
+    ],
+    "support": [
+      "stone",
+      "rubble",
+      "planks",
+      "dirt",
+      "turf",
+      "sand",
+      "sandstone",
+      "fired_clay",
+      "gravel",
+      "snowpack",
+      "glass",
+      "farmland"
+    ],
+    "drops": [
+      {
+        "item": "pressure_plate"
+      }
+    ]
+  },
+  {
+    "id": 45,
+    "key": "pulse_clock",
+    "name": "Pulse Clock",
+    "material": "circuit",
+    "hardness": 1.0,
+    "resistance": 1.0,
+    "texture": {
+      "all": "clock_side",
+      "top": "clock_top"
+    },
+    "behaviors": [
+      "clock"
+    ],
+    "drops": [
+      {
+        "item": "pulse_clock"
+      }
+    ]
+  },
+  {
+    "id": 46,
+    "key": "volt_lamp",
+    "name": "Volt Lamp",
+    "material": "glass",
+    "hardness": 0.3,
+    "resistance": 0.3,
+    "texture": {
+      "all": "lamp_off"
+    },
+    "behaviors": [
+      "consumer"
+    ],
+    "powerSwap": "volt_lamp_lit",
+    "drops": [
+      {
+        "item": "volt_lamp"
+      }
+    ]
+  },
+  {
+    "id": 47,
+    "key": "volt_lamp_lit",
+    "name": "Volt Lamp (lit)",
+    "material": "glass",
+    "hardness": 0.3,
+    "resistance": 0.3,
+    "texture": {
+      "all": "lamp_on"
+    },
+    "behaviors": [
+      "consumer"
+    ],
+    "powerSwap": "volt_lamp",
+    "powered": true,
+    "lightEmission": 15,
+    "drops": [
+      {
+        "item": "volt_lamp"
+      }
+    ]
+  },
+  {
+    "id": 48,
+    "key": "repeater",
+    "name": "Repeater",
+    "material": "circuit",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "repeater_side",
+      "top": "repeater_top"
+    },
+    "orientation": "horizontal",
+    "behaviors": [
+      "repeater"
+    ],
+    "drops": [
+      {
+        "item": "repeater"
+      }
+    ]
+  },
+  {
+    "id": 49,
+    "key": "inverter",
+    "name": "Inverter",
+    "material": "circuit",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "inverter_side",
+      "top": "inverter_top"
+    },
+    "orientation": "horizontal",
+    "behaviors": [
+      "inverter"
+    ],
+    "drops": [
+      {
+        "item": "inverter"
+      }
+    ]
+  },
+  {
+    "id": 50,
+    "key": "gate",
+    "name": "Plank Gate",
+    "material": "wood",
+    "hardness": 2.0,
+    "resistance": 2.0,
+    "texture": {
+      "all": "gate_closed"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "orientation": "horizontal",
+    "transparent": true,
+    "behaviors": [
+      "consumer"
+    ],
+    "powerSwap": "gate_open",
+    "usable": true,
+    "drops": [
+      {
+        "item": "gate"
+      }
+    ]
+  },
+  {
+    "id": 51,
+    "key": "gate_open",
+    "name": "Plank Gate (open)",
+    "material": "wood",
+    "hardness": 2.0,
+    "resistance": 2.0,
+    "texture": {
+      "all": "gate_open"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "orientation": "horizontal",
+    "transparent": true,
+    "collision": false,
+    "behaviors": [
+      "consumer"
+    ],
+    "powerSwap": "gate",
+    "powered": true,
+    "usable": true,
+    "drops": [
+      {
+        "item": "gate"
+      }
+    ]
+  },
+  {
+    "id": 52,
+    "key": "actuator",
+    "name": "Thrust Block",
+    "material": "circuit",
+    "hardness": 1.5,
+    "resistance": 1.5,
+    "texture": {
+      "all": "actuator_side",
+      "top": "actuator_front"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "required": false
+    },
+    "orientation": "full",
+    "behaviors": [
+      "actuator"
+    ],
+    "drops": [
+      {
+        "item": "actuator"
+      }
+    ]
+  }
+]

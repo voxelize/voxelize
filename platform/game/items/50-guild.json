@@ -1,0 +1,4 @@
+[
+  { "id": 80, "key": "guild_hall", "name": "Town Hall", "type": "block", "placesBlock": "guild_hall", "value": 120 },
+  { "id": 81, "key": "guild_vault", "name": "Guild Vault", "type": "block", "placesBlock": "guild_vault", "value": 80 }
+]

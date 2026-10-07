@@ -1,0 +1,15 @@
+[
+  {
+    "key": "ashen_wastes",
+    "name": "Ashen Wastes",
+    "dimension": "underworld",
+    "temperature": 1.0,
+    "humidity": -1.0,
+    "continentalness": 0.0,
+    "erosion": 0.0,
+    "terrain": { "heightOffset": 0, "roughness": 0 },
+    "surface": "cinderstone",
+    "subsurface": "cinderstone",
+    "weather": []
+  }
+]

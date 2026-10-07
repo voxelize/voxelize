@@ -536,7 +536,11 @@ impl Server {
         let name = world.name.clone();
         let saving = world.config().saving;
         let save_dir = world.config().save_dir.clone();
-        let registry = self.registry.clone();
+        // A world that brings its own registry (the same blocks with
+        // world-specific behaviour closures) keeps it; others share the
+        // server's.
+        let own = world.ecs().try_fetch::<Registry>().map(|r| (*r).clone());
+        let registry = own.unwrap_or_else(|| self.registry.clone());
         world.ecs_mut().insert(registry.clone());
         world
             .ecs_mut()

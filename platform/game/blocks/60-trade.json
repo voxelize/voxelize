@@ -1,0 +1,10 @@
+[
+  {
+    "id": 58, "key": "trade_stall", "name": "Trade Stall", "material": "wood",
+    "hardness": 2.5, "resistance": 2.5,
+    "texture": { "all": "stall_side", "top": "stall_top", "bottom": "planks" },
+    "tool": { "kind": "axe", "required": false },
+    "orientation": "horizontal", "flammable": true,
+    "drops": [{ "item": "trade_stall" }]
+  }
+]

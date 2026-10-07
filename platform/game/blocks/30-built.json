@@ -1,0 +1,121 @@
+[
+  {
+    "id": 12,
+    "key": "planks",
+    "name": "Timber Planks",
+    "material": "wood",
+    "hardness": 2.0,
+    "resistance": 3,
+    "texture": {
+      "all": "planks"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "flammable": true,
+    "drops": [
+      {
+        "item": "planks"
+      }
+    ]
+  },
+  {
+    "id": 25,
+    "key": "glass",
+    "name": "Glass",
+    "material": "glass",
+    "hardness": 0.3,
+    "resistance": 0.3,
+    "texture": {
+      "all": "glass"
+    },
+    "transparent": true
+  },
+  {
+    "id": 22,
+    "key": "torch",
+    "name": "Torch",
+    "material": "decoration",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "torch"
+    },
+    "transparent": true,
+    "collision": false,
+    "lightEmission": 14,
+    "drops": [
+      {
+        "item": "torch"
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "key": "crafting_table",
+    "name": "Workbench",
+    "material": "wood",
+    "hardness": 2.5,
+    "resistance": 2.5,
+    "texture": {
+      "all": "workbench_side",
+      "top": "workbench_top",
+      "bottom": "planks"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "flammable": true,
+    "drops": [
+      {
+        "item": "crafting_table"
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "key": "furnace",
+    "name": "Furnace",
+    "material": "rock",
+    "hardness": 3.5,
+    "resistance": 3.5,
+    "texture": {
+      "all": "furnace_side",
+      "top": "furnace_top",
+      "side": "furnace_side"
+    },
+    "tool": {
+      "kind": "pickaxe"
+    },
+    "orientation": "horizontal",
+    "drops": [
+      {
+        "item": "furnace"
+      }
+    ]
+  },
+  {
+    "id": 29,
+    "key": "chest",
+    "name": "Storage Chest",
+    "material": "wood",
+    "hardness": 2.5,
+    "resistance": 2.5,
+    "texture": {
+      "all": "chest"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "orientation": "horizontal",
+    "flammable": true,
+    "drops": [
+      {
+        "item": "chest"
+      }
+    ]
+  }
+]

@@ -1,0 +1,286 @@
+# Development stack. Every data store listens only on the private network
+# (or on 127.0.0.1 for local tools); only Nginx is published.
+#
+#   cp .env.example .env    # fill in the secrets
+#   docker compose up --build
+name: platform
+
+x-api-env: &api-env
+  APP_NAME: Platform
+  APP_ENV: ${APP_ENV:-local}
+  APP_KEY: ${APP_KEY:?set APP_KEY in .env}
+  APP_DEBUG: ${APP_DEBUG:-true}
+  APP_URL: http://localhost:${HTTP_PORT:-8080}
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: 3306
+  DB_DATABASE: platform
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: redis
+  REDIS_CLIENT: predis
+  REDIS_HOST: redis
+  # Object storage (the `storage` service, S3 API) for blueprint layouts.
+  FILESYSTEM_DISK: local
+  AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:-platform}
+  AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:?set STORAGE_SECRET_KEY in .env}
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_BUCKET: platform
+  AWS_ENDPOINT: http://storage:8333
+  AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  GAME_TICKET_SECRETS: ${GAME_TICKET_SECRETS:?set GAME_TICKET_SECRETS in .env}
+  GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN:?set GAME_SERVICE_TOKEN in .env}
+  # Blueprint layouts live in object storage (S3 API, the AWS_* values above).
+  BLUEPRINT_DISK: s3
+  GAME_SERVER_PUBLIC_URL: ws://localhost:${HTTP_PORT:-8080}/ws/
+  # Email (password resets, address confirmation). Development: the
+  # "mail" profile's Mailpit (http://127.0.0.1:8025) catches everything.
+  MAIL_MAILER: ${MAIL_MAILER:-smtp}
+  MAIL_HOST: ${MAIL_HOST:-mailpit}
+  MAIL_PORT: ${MAIL_PORT:-1025}
+  MAIL_USERNAME: ${MAIL_USERNAME:-}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@localhost}
+  MAIL_FROM_NAME: Platform
+  # Links in emails open the web client here.
+  PLATFORM_CLIENT_URL: ${PLATFORM_CLIENT_URL:-http://localhost:8080}
+  AUTH_REQUIRE_VERIFIED_EMAIL: ${AUTH_REQUIRE_VERIFIED_EMAIL:-false}
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: platform
+      MYSQL_USER: platform_migrator
+      MYSQL_PASSWORD: ${DB_MIGRATOR_PASSWORD:?set DB_MIGRATOR_PASSWORD in .env}
+    command: ["--binlog-expire-logs-seconds=604800", "--innodb-flush-log-at-trx-commit=1", "--sync-binlog=1"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infrastructure/mysql/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  # Object storage with an S3 API (SeaweedFS): blueprint layouts, and a
+  # bucket for world backups. Credentials come from .env; nothing is
+  # anonymous. Not published outside the stack.
+  storage:
+    image: chrislusf/seaweedfs:3.97
+    restart: unless-stopped
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        printf '{"identities":[{"name":"platform","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' "$$STORAGE_ACCESS_KEY" "$$STORAGE_SECRET_KEY" > /tmp/s3.json
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json -master.volumeSizeLimitMB=1024 -volume.max=100
+    environment:
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-platform}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?set STORAGE_SECRET_KEY in .env}
+    volumes:
+      - storage-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
+      interval: 5s
+      retries: 30
+
+  # One-shot: the buckets.
+  storage-init:
+    image: chrislusf/seaweedfs:3.97
+    depends_on:
+      storage:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          printf 's3.bucket.create -name platform\ns3.bucket.create -name platform-backups\n' | weed shell -master=storage:9333 2>&1 | tee /tmp/out
+          grep -q 'platform-backups' /tmp/out && exit 0
+          sleep 3
+        done
+        exit 1
+
+  # One-shot: run migrations with the migrator account, then give the
+  # runtime account its restricted grants.
+  migrate:
+    build:
+      context: ./backend/laravel-api
+      dockerfile: Dockerfile
+    image: platform-api:dev
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      DB_USERNAME: platform_migrator
+      DB_PASSWORD: ${DB_MIGRATOR_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      APP_DB_USER: platform
+      APP_DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      # The game servers' account: player_states only.
+      GAME_DB_USER: platform_game
+      GAME_DB_PASSWORD: ${GAME_DB_PASSWORD:?set GAME_DB_PASSWORD in .env}
+    volumes:
+      - ./infrastructure/mysql/apply-grants.sh:/usr/local/bin/apply-grants.sh:ro
+    user: root
+    command: ["sh", "-c", "php artisan migrate --force && sh /usr/local/bin/apply-grants.sh"]
+    restart: "no"
+
+  api:
+    image: platform-api:dev
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *api-env
+      DB_USERNAME: platform
+      DB_PASSWORD: ${DB_PASSWORD}
+
+  scheduler:
+    image: platform-api:dev
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *api-env
+      DB_USERNAME: platform
+      DB_PASSWORD: ${DB_PASSWORD}
+    command: ["php", "artisan", "schedule:work"]
+
+  game-server:
+    build:
+      context: ..
+      dockerfile: platform/infrastructure/docker/game-server.Dockerfile
+    image: platform-game-server:dev
+    depends_on:
+      # Player records live in tables the migrations create.
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      GAME_WORLD_NAME: main
+      GAME_WORLD_SEED: ${GAME_WORLD_SEED:-20260101}
+      GAME_TICKET_SECRETS: ${GAME_TICKET_SECRETS}
+      GAME_TRANSPORT_SECRET: ${GAME_TRANSPORT_SECRET:?set GAME_TRANSPORT_SECRET in .env}
+      GAME_PRELOAD_RADIUS: ${GAME_PRELOAD_RADIUS:-3}
+      # The backend's internal API (land claims, market), over the private
+      # nginx listener.
+      GAME_BACKEND_URL: http://nginx:8081/api/internal/v1
+      GAME_SERVICE_TOKEN: ${GAME_SERVICE_TOKEN}
+      # Player records (inventories, positions, progress) in MySQL.
+      GAME_DATABASE_URL: mysql://platform_game:${GAME_DB_PASSWORD}@mysql:3306/platform
+      # /platform/metrics asks for it (Prometheus, profile "observability").
+      GAME_METRICS_TOKEN: ${GAME_METRICS_TOKEN:-}
+      # Movement checks; `off` only for scripted test bots, which set positions.
+      GAME_ANTICHEAT: ${GAME_ANTICHEAT:-on}
+      # Voice relay (the `voice` profile): per-player credentials signed with
+      # the TURN server's secret. Empty: direct connections only.
+      GAME_TURN_URLS: ${GAME_TURN_URLS:-}
+      GAME_TURN_SECRET: ${TURN_SECRET:-}
+    volumes:
+      - world-data:/srv/worlds
+    stop_grace_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - api
+      - game-server
+    volumes:
+      - ./infrastructure/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Gateway for player-made worlds (w-<id>.<domain>).
+      - ./infrastructure/nginx/worlds.conf:/etc/nginx/conf.d/worlds.conf:ro
+      - ./apps/web-client/dist:/usr/share/nginx/html:ro
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+
+  # Development mail catcher: `docker compose --profile mail up`.
+  mailpit:
+    profiles: ["mail"]
+    image: axllent/mailpit:v1.20
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+
+  # Voice relay for players behind strict NATs: `docker compose --profile
+  # voice up`. Set TURN_SECRET, TURN_EXTERNAL_IP (the host's public address)
+  # and GAME_TURN_URLS (turn:<host>:3478?transport=udp,turn:<host>:3478?transport=tcp).
+  # It never relays into private networks, so it cannot reach the stack.
+  turn:
+    profiles: ["voice"]
+    image: coturn/coturn:4.6.2
+    restart: unless-stopped
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
+    command:
+      - -n
+      - --log-file=stdout
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:-}
+      - --realm=${TURN_REALM:-platform}
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --external-ip=${TURN_EXTERNAL_IP:-}
+      - --no-multicast-peers
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --user-quota=4
+      - --total-quota=400
+
+  # Metrics and dashboards: `docker compose --profile observability up`.
+  # Put the metrics and service tokens in infrastructure/observability/secrets/.
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./infrastructure/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./infrastructure/observability/secrets:/etc/prometheus/secrets:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:11.2.0
+    depends_on:
+      - prometheus
+    volumes:
+      - ./infrastructure/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+
+volumes:
+  prometheus-data:
+  mysql-data:
+  redis-data:
+  storage-data:
+  world-data:

@@ -1,0 +1,249 @@
+[
+  {
+    "type": "shaped",
+    "key": "hide_helmet",
+    "pattern": [
+      "###",
+      "# #"
+    ],
+    "symbols": {
+      "#": "hide"
+    },
+    "result": {
+      "item": "hide_helmet"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "hide_chestplate",
+    "pattern": [
+      "# #",
+      "###",
+      "###"
+    ],
+    "symbols": {
+      "#": "hide"
+    },
+    "result": {
+      "item": "hide_chestplate"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "hide_leggings",
+    "pattern": [
+      "###",
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "hide"
+    },
+    "result": {
+      "item": "hide_leggings"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "hide_boots",
+    "pattern": [
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "hide"
+    },
+    "result": {
+      "item": "hide_boots"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "copper_helmet",
+    "pattern": [
+      "###",
+      "# #"
+    ],
+    "symbols": {
+      "#": "copper_ingot"
+    },
+    "result": {
+      "item": "copper_helmet"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "copper_chestplate",
+    "pattern": [
+      "# #",
+      "###",
+      "###"
+    ],
+    "symbols": {
+      "#": "copper_ingot"
+    },
+    "result": {
+      "item": "copper_chestplate"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "copper_leggings",
+    "pattern": [
+      "###",
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "copper_ingot"
+    },
+    "result": {
+      "item": "copper_leggings"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "copper_boots",
+    "pattern": [
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "copper_ingot"
+    },
+    "result": {
+      "item": "copper_boots"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_helmet",
+    "pattern": [
+      "###",
+      "# #"
+    ],
+    "symbols": {
+      "#": "iron_ingot"
+    },
+    "result": {
+      "item": "iron_helmet"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_chestplate",
+    "pattern": [
+      "# #",
+      "###",
+      "###"
+    ],
+    "symbols": {
+      "#": "iron_ingot"
+    },
+    "result": {
+      "item": "iron_chestplate"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_leggings",
+    "pattern": [
+      "###",
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "iron_ingot"
+    },
+    "result": {
+      "item": "iron_leggings"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "iron_boots",
+    "pattern": [
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "iron_ingot"
+    },
+    "result": {
+      "item": "iron_boots"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "ember_helmet",
+    "pattern": [
+      "###",
+      "# #"
+    ],
+    "symbols": {
+      "#": "ember_quartz"
+    },
+    "result": {
+      "item": "ember_helmet"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "ember_chestplate",
+    "pattern": [
+      "# #",
+      "###",
+      "###"
+    ],
+    "symbols": {
+      "#": "ember_quartz"
+    },
+    "result": {
+      "item": "ember_chestplate"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "ember_leggings",
+    "pattern": [
+      "###",
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "ember_quartz"
+    },
+    "result": {
+      "item": "ember_leggings"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "ember_boots",
+    "pattern": [
+      "# #",
+      "# #"
+    ],
+    "symbols": {
+      "#": "ember_quartz"
+    },
+    "result": {
+      "item": "ember_boots"
+    }
+  },
+  {
+    "type": "shaped",
+    "key": "anvil",
+    "pattern": [
+      "iii",
+      " i ",
+      "iii"
+    ],
+    "symbols": {
+      "i": "iron_ingot"
+    },
+    "result": {
+      "item": "anvil"
+    }
+  }
+]

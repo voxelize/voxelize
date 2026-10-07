@@ -1,0 +1,8 @@
+{
+  "key": "welcome",
+  "name": "Welcome",
+  "version": "1.0.0",
+  "description": "Greets players (first visit or welcome back) and answers /stats with what they have mined and crafted.",
+  "script": "main.rhai",
+  "commands": ["stats"]
+}

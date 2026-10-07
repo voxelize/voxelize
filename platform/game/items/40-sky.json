@@ -1,0 +1,6 @@
+[
+  { "id": 76, "key": "skystone", "name": "Skystone", "type": "block", "placesBlock": "skystone", "value": 60 },
+  { "id": 77, "key": "cloudrock", "name": "Cloudrock", "type": "block", "placesBlock": "cloudrock", "value": 1 },
+  { "id": 78, "key": "cloud", "name": "Cloud", "type": "block", "placesBlock": "cloud", "value": 2 },
+  { "id": 79, "key": "sun_shard", "name": "Sun Shard", "type": "material", "value": 10 }
+]

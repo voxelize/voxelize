@@ -1,0 +1,5 @@
+[
+  { "type": "shaped", "key": "trade_stall", "pattern": ["SSS", "PCP"],
+    "symbols": { "S": "stick", "P": "planks", "C": "chest" },
+    "result": { "item": "trade_stall", "count": 1 } }
+]

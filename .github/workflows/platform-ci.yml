@@ -1,0 +1,224 @@
+name: Platform CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Content pack validation, world generation, tickets and the game server.
+  # The platform depends on the engine, so it runs on every change.
+  rust:
+    name: platform rust
+    runs-on: ubuntu-latest
+    # Player records live in MySQL: the store's tests run against the
+    # backend's real schema.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: platform
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, bcmath
+          coverage: none
+
+      - name: Database schema (backend migrations)
+        working-directory: platform/backend/laravel-api
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          cp .env.example .env
+          php artisan key:generate
+          DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3306 DB_DATABASE=platform DB_USERNAME=root DB_PASSWORD=root \
+            php artisan migrate --force
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: platform -> ../target
+
+      - name: Format
+        working-directory: platform
+        # Only the platform packages: the engine (a path dependency) keeps
+        # its own formatting.
+        run: cargo fmt -p platform-content -p platform-ticket -p platform-worldgen -p platform-game-server --check
+
+      - name: Test
+        working-directory: platform
+        env:
+          PLATFORM_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/platform
+        run: cargo test --workspace --locked
+
+  laravel:
+    name: platform api
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend/laravel-api
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: platform_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, pdo_sqlite, bcmath
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Code style
+        run: vendor/bin/pint --test
+
+      - name: Tests (SQLite)
+        run: php artisan test
+
+      - name: Tests (MySQL 8, including concurrency)
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: platform_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: php vendor/bin/phpunit
+
+  web:
+    name: platform web client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The version comes from package.json's packageManager.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      # Pure client modules (mining-rule parity with the server, procedural
+      # textures covering every texture the content pack names).
+      - name: Unit tests
+        run: pnpm exec vitest --run platform/apps
+
+  stack:
+    name: platform stack config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker compose
+        working-directory: platform
+        run: |
+          cp .env.example .env
+          sed -i 's/^\([A-Z_]*\(KEY\|PASSWORD\|SECRETS\|SECRET\|TOKEN\)\)=$/\1=ci-placeholder-value-0123456789abcdef/' .env
+          docker compose config --quiet
+          docker compose --profile observability config --quiet
+      - name: Backup and restore scripts
+        run: sh platform/infrastructure/backup/test-backups.sh
+      - name: World hosting script
+        run: sh platform/infrastructure/worlds/test-host-worlds.sh
+      - name: Nginx configuration
+        working-directory: platform
+        run: |
+          docker run --rm --add-host game-server:127.0.0.1 --add-host api:127.0.0.1 \
+            -v "$PWD/infrastructure/nginx:/etc/nginx/conf.d:ro" nginx:1.27-alpine nginx -t
+
+  # The whole stack from its Dockerfiles and docker compose, then players
+  # through the public entry point (nginx): register, join with a ticket,
+  # mine and place; report a player and resolve the report as a moderator;
+  # mute and suspend a player. Runs on main (image builds take a while).
+  e2e:
+    name: platform stack end to end
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Bot client packages
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @voxelize/protocol --filter @voxelize/transport build
+      - name: Environment
+        working-directory: platform
+        run: |
+          cp .env.example .env
+          for key in MYSQL_ROOT_PASSWORD DB_MIGRATOR_PASSWORD DB_PASSWORD GAME_DB_PASSWORD STORAGE_SECRET_KEY \
+                     GAME_TICKET_SECRETS GAME_TRANSPORT_SECRET GAME_SERVICE_TOKEN; do
+            sed -i "s/^$key=$/$key=$(openssl rand -hex 24)/" .env
+          done
+          sed -i "s|^APP_KEY=$|APP_KEY=base64:$(openssl rand -base64 32)|" .env
+          { echo "MAIL_MAILER=log"; echo "GAME_ANTICHEAT=off"; } >> .env
+      - name: Build and start
+        working-directory: platform
+        run: |
+          docker compose build
+          docker compose up -d
+          for i in $(seq 1 90); do
+            curl -fsS localhost:8080/game/health >/dev/null 2>&1 \
+              && [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'accept: application/json' localhost:8080/api/v1/me)" = 401 ] \
+              && break
+            sleep 5
+          done
+          docker compose ps
+      - name: Smoke (register, ticket, mine, place)
+        run: node platform/tests/bots/smoke.mjs http://127.0.0.1:8080 http://127.0.0.1:8080
+      - name: Reports and moderation
+        working-directory: platform/tests/bots
+        env:
+          ROLE_CMD: docker compose -f ../../docker-compose.yml exec -T api php artisan user:role {player} {role}
+        run: |
+          node report.mjs http://127.0.0.1:8080 http://127.0.0.1:8080
+          node moderation.mjs http://127.0.0.1:8080 http://127.0.0.1:8080
+      - name: Player records reached MySQL through the game server's own account
+        working-directory: platform
+        run: |
+          rows=$(docker compose exec -T mysql sh -c 'mysql -N -uroot -p"$MYSQL_ROOT_PASSWORD" platform -e "select count(*) from player_states"')
+          echo "player_states rows: $rows"
+          [ "$rows" -gt 0 ]
+      - name: Logs
+        if: failure()
+        working-directory: platform
+        run: docker compose logs --tail 200
+

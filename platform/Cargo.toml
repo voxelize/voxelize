@@ -1,0 +1,34 @@
+# The platform workspace is a consumer of the Voxelize engine at the repo
+# root. It is its own workspace so the engine's workspace (and its CI) never
+# depends on game code: the dependency points one way, platform -> engine.
+[workspace]
+members = [
+  "crates/content",
+  "crates/ticket",
+  "crates/worldgen",
+  "servers/game-server",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+publish = false
+
+[workspace.dependencies]
+platform-content = { path = "crates/content" }
+platform-ticket = { path = "crates/ticket" }
+platform-worldgen = { path = "crates/worldgen" }
+voxelize = { path = ".." }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+noise = "0.9.0"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+log = "0.4"
+actix-web = "4.5.1"
+actix-cors = "0.7.0"

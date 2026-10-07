@@ -1,0 +1,4 @@
+[
+  {"type": "shaped", "key": "wisp_lantern", "pattern": [" g ", "gwg", " g "], "symbols": {"g": "glass", "w": "wisp_essence"}, "result": {"item": "wisp_lantern", "count": 2}},
+  {"type": "shaped", "key": "core_lamp", "pattern": ["iii", "gcg", "iii"], "symbols": {"i": "iron_ingot", "g": "glass", "c": "warden_core"}, "result": {"item": "core_lamp", "count": 4}}
+]

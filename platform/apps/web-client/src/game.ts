@@ -1,0 +1,1032 @@
+// The in-world client: renders the world, sends intents, shows results.
+// Every change to the world or the inventory is decided by the server; the
+// client only predicts its own movement and shows progress.
+
+import * as VOXELIZE from "@voxelize/core";
+import "@voxelize/core/styles.css";
+import * as THREE from "three";
+
+import { applyColourVision } from "./colour-vision";
+import { Content, miningMillis, secondaryAction } from "./content";
+import { CrackView } from "./crack";
+import { actionFor, DEFAULT_KEYS, ENGINE_MOVES, KeyMap } from "./keybindings";
+import { GuildPanel, landNotice, siegeLine } from "./guild";
+import { pickPlayer } from "./pvp";
+import { AchievementsPanel } from "./achievements";
+import { ChatBox, type ChatLine } from "./chat";
+import { applyLook, sanitizeLook, WardrobePanel } from "./cosmetics";
+import { SERVER_KEY, WORLD_KEY } from "./worlds";
+import { VoiceChat } from "./voice";
+import { accountPanel } from "./account";
+import { api, type Look } from "./api";
+import { FriendsPanel } from "./friends";
+import { NpcPanel, type Offer } from "./npc";
+import { rewardLine, WorkPanel, type WorkState } from "./work";
+import { BorderView } from "./borders";
+import { LandPanel, type LandHere } from "./land";
+import { MarketPanel } from "./market";
+import { StallPanel, type StallView } from "./stall";
+import { BlueprintPanel } from "./blueprints";
+import { nearest, TradePanel, type TradeView } from "./trade";
+import { DropsView } from "./drops";
+import { Sfx } from "./audio";
+import { moodFor, Music } from "./music";
+import { MobInfo, MobsView, nearestBoss } from "./mobs-view";
+import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
+import { EffectInfo, WeatherInfo, WeatherView, effectLine, flash, movement } from "./weather";
+import { loadSettings, Settings, settingsPanel } from "./settings";
+import { isTouchDevice, mountTouchControls } from "./touch";
+import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
+import { textureCanvas } from "./textures";
+import { WindowState, WindowUi } from "./window-ui";
+
+type ResultEvent = { intent: string; ok: boolean; code?: string; voxel?: [number, number, number] };
+
+// The engine world this tab is in (the browser chose it; the server sends
+// players between dimensions).
+const storedWorld = (() => {
+  try {
+    return sessionStorage.getItem(WORLD_KEY);
+  } catch {
+    return null;
+  }
+})();
+const WORLD = storedWorld && /^[a-z0-9_]{1,64}$/.test(storedWorld) ? storedWorld : "main";
+/** The dimension this world is (`main_underworld`, `main_sky`). */
+const DIMENSION = WORLD.endsWith("_underworld") ? "underworld" : WORLD.endsWith("_sky") ? "sky" : "overworld";
+const UNDERWORLD = DIMENSION === "underworld";
+const FACE_ROLES: Record<string, "top" | "bottom" | "side"> = {
+  py: "top",
+  ny: "bottom",
+  px: "side",
+  nx: "side",
+  pz: "side",
+  nz: "side",
+};
+
+const MESSAGES: Record<string, string> = {
+  out_of_reach: "Too far away",
+  unbreakable: "This cannot be broken",
+  inventory_full: "Inventory full",
+  not_placeable: "Select a placeable block",
+  slot_empty: "Nothing selected",
+  occupied: "Something is already there",
+  collides_with_player: "Someone is standing there",
+  needs_workbench: "Stand near a workbench for this recipe",
+  missing_ingredients: "Missing ingredients",
+  not_hungry: "You are not hungry",
+  dead: "You are dead",
+  needs_support: "That cannot stand there",
+  cannot_use: "Nothing happens",
+  too_fast: "",
+  not_loaded: "That area is still loading",
+  land_protected: "This land is protected",
+  market_unavailable: "The market is closed on this server",
+  survival_only: "Only survival goods can be sold",
+  bad_listing: "Check the price, buyout and duration",
+  not_owner: "That belongs to someone else",
+  busy: "A sale is still being paid",
+  bad_blueprint: "That is not a blueprint that can be captured or built",
+  creative_only: "Only in creative worlds",
+  no_arrows: "You have no arrows",
+  not_at_war: "Your guilds are not at war",
+  bad_ticket: "Could not change your look; try again",
+  muted: "You are muted",
+  siege_underway: "A siege already stands on that land",
+  not_in_settlement: "Town halls and vaults stand on guild land in a settlement",
+};
+
+class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
+  /** Players in spectator mode: never drawn. */
+  readonly spectators = new Set<string>();
+  /** What each player wears (`platform.look`), painted when their body exists. */
+  readonly looks = new Map<string, Look>();
+
+  createPeer = (id: string) => {
+    const character = new VOXELIZE.Character();
+    const look = this.looks.get(id);
+    if (look) applyLook(character, look);
+    return character;
+  };
+
+  onPeerUpdate = (object: VOXELIZE.Character, data: { position: number[]; direction: number[] }, info: { id: string }) => {
+    object.set(data.position as VOXELIZE.Coords3, data.direction as VOXELIZE.Coords3);
+    object.visible = !this.spectators.has(info.id);
+  };
+
+  /** Someone's look changed: remember it and repaint them if they are here. */
+  dress(id: string, look: Look | null) {
+    if (look) this.looks.set(id, look);
+    else this.looks.delete(id);
+    const peer = this.map.get(id);
+    if (peer) applyLook(peer, look);
+  }
+}
+
+export async function startGame(content: Content, getTicket: () => Promise<string>, hud: Hud, server = location.origin) {
+  const canvas = document.getElementById("main") as HTMLCanvasElement;
+
+  const world = new VOXELIZE.World({ textureUnitDimension: 16 });
+  const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 3000);
+  camera.layers.enable(VOXELIZE.SCENE_OVERLAY_LAYER);
+  const renderer = new THREE.WebGLRenderer({ canvas, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // Our own sky palette; the underworld is a sealed cavern with a smoky
+  // red void instead of a sky, and the sky dimension stays pale and bright
+  // above a white void.
+  if (DIMENSION === "sky") {
+    world.sky.setShadingPhases([
+      { name: "sky-day", color: { top: "#6fa8ff", middle: "#cfe4ff", bottom: "#f4f8ff" }, skyOffset: 0, voidOffset: 0.4, start: 0.2 },
+      { name: "sky-dusk", color: { top: "#7f78c8", middle: "#f2b7a0", bottom: "#e8e4f4" }, skyOffset: 0.05, voidOffset: 0.4, start: 0.7 },
+      { name: "sky-night", color: { top: "#141a3a", middle: "#2c3768", bottom: "#4a5488" }, skyOffset: 0.1, voidOffset: 0.4, start: 0.78 },
+    ]);
+  } else if (UNDERWORLD) {
+    const ember = { top: "#1a0806", middle: "#3a120a", bottom: "#120403" };
+    world.sky.setShadingPhases([
+      { name: "ember", color: ember, skyOffset: 0, voidOffset: 0.6, start: 0 },
+      { name: "ember-late", color: ember, skyOffset: 0, voidOffset: 0.6, start: 0.5 },
+    ]);
+  } else world.sky.setShadingPhases([
+    { name: "dawn", color: { top: "#5d7cc0", middle: "#d9875f", bottom: "#1d1f24" }, skyOffset: 0.05, voidOffset: 0.6, start: 0.2 },
+    { name: "day", color: { top: "#4f8fe8", middle: "#a9cdf5", bottom: "#1d1f24" }, skyOffset: 0, voidOffset: 0.6, start: 0.26 },
+    { name: "dusk", color: { top: "#5a4f8a", middle: "#e8784a", bottom: "#1d1f24" }, skyOffset: 0.05, voidOffset: 0.6, start: 0.7 },
+    { name: "night", color: { top: "#04060c", middle: "#0b1020", bottom: "#000000" }, skyOffset: 0.1, voidOffset: 0.6, start: 0.76 },
+  ]);
+  if (!UNDERWORLD) {
+    world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
+    world.sky.paint("top", VOXELIZE.artFunctions.drawStars());
+    world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
+  }
+
+  const inputs = new VOXELIZE.Inputs<"in-game" | "menu">();
+  const touch = isTouchDevice();
+  const controlOptions = { initialPosition: [0, 120, 0] as VOXELIZE.Coords3, flyForce: 120 };
+  const controls = touch
+    ? new VOXELIZE.MobileRigidControls(camera, renderer.domElement, world, controlOptions)
+    : new VOXELIZE.RigidControls(camera, renderer.domElement, world, controlOptions);
+  controls.connect(inputs, "in-game");
+  // Movement keys come from the player's key map, not the engine's fixed
+  // ones (touch devices move with the on-screen stick instead).
+  if (!touch) {
+    for (const move of Object.values(ENGINE_MOVES)) {
+      for (const occasion of ["keydown", "keyup"] as const) {
+        inputs.unbind(move!.code, { identifier: VOXELIZE.RigidControls.INPUT_IDENTIFIER, occasion });
+      }
+    }
+  }
+  let keys: KeyMap = { ...DEFAULT_KEYS };
+  // The player's own body, seen from behind or in front (camera key).
+  const self = new VOXELIZE.Character();
+  self.options.positionLerp = 1;
+  world.add(self);
+  controls.character = self;
+  const perspective = new VOXELIZE.Perspective(controls, world);
+
+  // ---- settings and sound ----------------------------------------------------
+
+  const sfx = new Sfx();
+  const music = new Music();
+  const applySettings = (s: Settings) => {
+    controls.options.sensitivity = s.sensitivity;
+    controls.options.invertY = s.invertY;
+    camera.fov = s.fov;
+    camera.updateProjectionMatrix();
+    world.renderRadius = s.renderDistance;
+    document.documentElement.style.setProperty("--ui-scale", String(s.uiScale));
+    sfx.setVolume(s.volume);
+    music.setVolume(s.music);
+    applyColourVision(s.colourVision, [canvas, document.getElementById("hud") ?? document.body]);
+    keys = s.keys;
+    Object.keys(controls.movements).forEach((m) => ((controls.movements as Record<string, boolean>)[m] = false));
+  };
+  const settings = loadSettings();
+  const settingsEl = settingsPanel(settings, applySettings);
+  // Account (password, confirmation email, data, deleting it) from the settings.
+  void api.me().then((me) => {
+    const account = accountPanel(me);
+    const open = Object.assign(document.createElement("button"), { type: "button", textContent: "Account…", className: "link" });
+    open.addEventListener("click", () => {
+      settingsEl.hidden = true;
+      account.hidden = false;
+    });
+    settingsEl.insertBefore(open, settingsEl.lastElementChild);
+  }).catch(() => undefined);
+  const gear = document.createElement("button");
+  gear.id = "settings-button";
+  gear.type = "button";
+  gear.textContent = "⚙";
+  gear.setAttribute("aria-label", "Settings");
+  gear.addEventListener("click", () => {
+    settingsEl.hidden = !settingsEl.hidden;
+    if (!settingsEl.hidden) controls.unlock();
+  });
+  document.body.append(gear);
+  // Leave for the world browser.
+  const leave = document.createElement("button");
+  leave.id = "worlds-button";
+  leave.type = "button";
+  leave.textContent = "⇄";
+  leave.title = "Change world";
+  leave.setAttribute("aria-label", "Change world");
+  leave.addEventListener("click", () => {
+    try {
+      sessionStorage.removeItem(WORLD_KEY);
+      sessionStorage.removeItem(SERVER_KEY);
+    } catch {
+      // Nothing stored.
+    }
+    location.reload();
+  });
+  document.body.append(leave);
+
+  const cracks = new CrackView();
+  world.add(cracks.mesh);
+
+  const interact = new VOXELIZE.VoxelInteract(controls.object, world, {
+    highlightType: "outline",
+    highlightColor: new THREE.Color("#101010"),
+    highlightOpacity: 0.6,
+    inverseDirection: true,
+    reachDistance: 6,
+  });
+  world.add(interact);
+
+  const players = new Players(controls.object);
+  world.add(players);
+
+  const network = new VOXELIZE.Network();
+  const method = new VOXELIZE.Method();
+  const events = new VOXELIZE.Events();
+  const chat = new VOXELIZE.Chat();
+  network.register(world).register(players).register(method).register(events).register(controls).register(chat);
+  // Chat: Enter to talk, "/" for a command; whispers, local and guild lines
+  // arrive as platform.chat events.
+  const chatBox = new ChatBox(
+    (body) => chat.send({ type: "CLIENT", sender: "", body }),
+    (open) => {
+      if (open) controls.unlock();
+    },
+  );
+  chat.onChat = (line) => {
+    if (line.type === "SYSTEM") chatBox.add({ channel: "system", body: line.body });
+    else chatBox.add({ channel: "public", from: line.sender, body: line.body });
+  };
+  chat.onHistory = (update) => {
+    if (!update.isJoin) return;
+    for (const entry of update.entries) chatBox.add({ channel: "public", from: entry.sender || entry.senderName, body: entry.body });
+  };
+  events.on<ChatLine & { from?: { name: string } | null }>("platform.chat", (line) => {
+    if (!line) return;
+    chatBox.add({ ...line, from: line.from?.name ?? null });
+    if (line.channel === "whisper") sfx.play("pickup");
+  });
+  addEventListener("keydown", (event) => {
+    if (chatBox.isOpen || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    if (event.code === "Enter" || event.code === "Slash") {
+      event.preventDefault();
+      chatBox.open(event.code === "Slash" ? "/" : "");
+    }
+  });
+
+  // ---- server answers -------------------------------------------------------
+
+  let lastMinedMaterial = "soil";
+  let mining: { voxel: VOXELIZE.Coords3; started: number; total: number; finishing: boolean } | null = null;
+  let leftDown = false;
+  let realm = "survival";
+
+  events.on<InventorySnapshot>("platform.inventory", (snapshot) => {
+    if (!snapshot) return;
+    realm = snapshot.realm;
+    hud.setInventory(snapshot);
+    npcPanel.refresh();
+  });
+
+  const npcPanel = new NpcPanel(content, {
+    trade: (mob, offer) => method.call("platform.npc.trade", { mob, offer }),
+    have: (key) => {
+      const id = content.itemsByKey.get(key)?.id;
+      return hud.inventory.slots.reduce((n, s) => n + (s && s.item === id ? s.count : 0), 0);
+    },
+  });
+  const materialAt = (voxel?: [number, number, number]) =>
+    voxel ? content.blocksById.get(world.getVoxelAt(...voxel))?.material ?? "soil" : "soil";
+  events.on<ResultEvent>("platform.result", (result) => {
+    if (!result) return;
+    const trades = (result as { trades?: Offer[] }).trades;
+    if (result.ok && result.intent === "interact" && trades) {
+      const r = result as unknown as { mob: number; name: string };
+      npcPanel.open(r.mob, r.name, trades);
+      controls.unlock();
+    }
+    if (result.ok && result.intent === "npc.trade") sfx.play("pickup");
+    if (result.ok) {
+      if (result.intent === "mine.finish") sfx.play("break", lastMinedMaterial);
+      if (result.intent === "build.place") sfx.play("place", materialAt(result.voxel));
+      if (result.intent === "attack") sfx.play("hit");
+      if (result.intent === "eat") sfx.play("eat");
+      if (result.intent === "use") sfx.play("dig", "soil");
+    }
+    if (result.intent === "mine.finish") {
+      if (result.ok || result.code !== "too_fast") mining = null;
+      else if (mining) {
+        mining.finishing = false;
+        mining.total += 150;
+      }
+    }
+    if (!result.ok && result.code && result.code !== "too_fast" && result.code !== "nothing_there") {
+      hud.toast(MESSAGES[result.code] ?? result.code.replace(/_/g, " "));
+    }
+  });
+
+  const vitalsHud = new VitalsHud();
+  let lastHealth = 20;
+  // Effects: movement, night vision and the list in the corner.
+  const baseSpeed = controls.options.maxSpeed;
+  const baseJump = controls.options.jumpImpulse;
+  const showEffects = (effects: EffectInfo[]) => {
+    const m = movement(effects);
+    controls.options.maxSpeed = baseSpeed * m.speed;
+    controls.options.jumpImpulse = baseJump * m.jump;
+    canvas.style.filter = effects.some((e) => e.kind === "night_vision") ? "brightness(1.8)" : "";
+    const list = document.getElementById("effects");
+    if (list) list.replaceChildren(...effects.map((e) => Object.assign(document.createElement("div"), { textContent: effectLine(e) })));
+  };
+  events.on<Vitals>("platform.vitals", (vitals) => {
+    if (!vitals) return;
+    showEffects((vitals as Vitals & { effects?: EffectInfo[] }).effects ?? []);
+    if (vitals.health < lastHealth) sfx.play("hurt");
+    lastHealth = vitals.health;
+    vitalsHud.set(vitals);
+    // Spectators fly through blocks; leaving the mode lands them again.
+    const spectating = (vitals as Vitals & { mode?: string }).mode === "spectator";
+    if (spectating !== controls.ghostMode && !touch) controls.toggleGhostMode();
+    document.body.classList.toggle("spectating", spectating);
+    if (vitals.dead) {
+      mining = null;
+      controls.unlock();
+    }
+  });
+  vitalsHud.onRespawn = () => method.call("platform.respawn", {});
+  // The server places the player: where they left, or at a portal on
+  // arrival. Feet cell coordinates; waits for the chunk to exist.
+  let pendingFeet: [number, number, number] | null = null;
+  const placeFeet = ([x, y, z]: [number, number, number]) => {
+    const [cx, cz] = VOXELIZE.ChunkUtils.mapVoxelToChunk([x, 0, z], world.options.chunkSize);
+    const go = () => controls.teleport(x, y - 1, z);
+    if (world.getChunkByCoords(cx, cz)?.isReady) go();
+    else world.addChunkInitListener([cx, cz], go);
+  };
+  events.on<{ feet: [number, number, number] }>("platform.teleport", ({ feet }) => {
+    if (world.isInitialized) placeFeet(feet);
+    else pendingFeet = feet;
+  });
+  // Guild (G): roster, treasury, invitations.
+  const guildPanel = new GuildPanel({ notify: (text) => hud.toast(text) });
+  void guildPanel.refresh().then(() => guildPanel.startChat());
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyG" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    guildPanel.toggle();
+    if (guildPanel.isOpen) controls.unlock();
+  });
+
+  // Land: a notice when entering someone's land, and the panel (L).
+  const landPanel = new LandPanel({
+    world: "main",
+    dimension: DIMENSION,
+    position: () => controls.object.position,
+    guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
+    notify: (text) => hud.toast(text),
+  });
+  // Achievements (H): earned on the server; a toast when one is.
+  const achievements = new AchievementsPanel(content);
+  events.on<{ unlocked: { key: string; name: string; xp: number }[]; done: string[] }>("platform.progress", (p) => {
+    if (!p) return;
+    achievements.setDone(p.done);
+    for (const u of p.unlocked) {
+      hud.toast(`Achievement: ${u.name}${u.xp ? ` (+${u.xp} xp)` : ""}`);
+      sfx.play("pickup");
+    }
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyH" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
+    achievements.toggle();
+    if (achievements.isOpen) controls.unlock();
+  });
+
+  // Work (J): today's quests and the player's job.
+  const work = new WorkPanel(content, {
+    setJob: (job) => method.call("platform.job.set", { job }),
+  });
+  events.on<WorkState & { finished?: { name: string; crowns: number; xp: number }[] }>("platform.work", (w) => {
+    if (!w) return;
+    work.set(w);
+    for (const q of w.finished ?? []) hud.toast(`Quest done: ${q.name} (+${q.crowns} Crowns, +${q.xp} xp)`);
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyJ" || ["INPUT", "SELECT"].includes((event.target as HTMLElement)?.tagName)) return;
+    work.toggle();
+    if (work.isOpen) controls.unlock();
+  });
+
+  // Wardrobe (K): buy and wear outfits and hats; everyone sees them.
+  events.on<{ player: string; look: unknown }>("platform.look", ({ player, look }) => {
+    const clean = sanitizeLook(look);
+    if (player === players.ownID) applyLook(self, clean);
+    else players.dress(player, clean);
+  });
+  const wardrobe = new WardrobePanel({
+    notify: (text) => hud.toast(text),
+    // The new look travels in a fresh ticket the server checks.
+    dressed: async () => {
+      method.call("platform.look.set", { ticket: await getTicket() });
+    },
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyK" || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    wardrobe.toggle();
+    if (wardrobe.isOpen) controls.unlock();
+  });
+
+  // A moderator suspended or banned the account: this session is over.
+  events.on<{ status: string; reason?: string | null }>("platform.kicked", ({ status, reason }) => {
+    if (voice.enabled) voice.stop();
+    network.disconnect();
+    controls.unlock();
+    const box = Object.assign(document.createElement("section"), { id: "kicked", className: "panel" });
+    box.append(
+      Object.assign(document.createElement("h2"), {
+        textContent: status === "banned" ? "Your account is banned" : status === "deleted" ? "This account was deleted" : "Your account is suspended",
+      }),
+      Object.assign(document.createElement("p"), { textContent: reason ? `Reason: ${reason}` : "A moderator ended this session." }),
+    );
+    document.body.append(box);
+    api.forget();
+  });
+
+  // Proximity voice (V): nearby players hear each other.
+  const voice = new VoiceChat({
+    me: () => players.ownID,
+    call: (intent, payload) => method.call(intent, payload),
+    positionOf: (id) => {
+      const p = players.map.get(id)?.position;
+      return p ? [p.x, p.y + 1.5, p.z] : null;
+    },
+    listener: () => {
+      const d = camera.getWorldDirection(new THREE.Vector3());
+      return { at: [camera.position.x, camera.position.y, camera.position.z], forward: [d.x, d.y, d.z] };
+    },
+    notify: (text) => hud.toast(text),
+  });
+  (window as unknown as { voice?: VoiceChat }).voice = voice;
+  events.on<{ peers: { id: string }[] }>("platform.voice.peers", ({ peers }) => voice.setPeers(peers ?? []));
+  events.on<{ from: string; kind: "offer" | "answer" | "ice"; data: unknown }>("platform.voice.signal", (s) => void voice.signal(s));
+  events.on<ResultEvent & { ice_servers?: RTCIceServer[] }>("platform.result", (r) => {
+    if (r?.ok && r.intent === "voice.join") voice.joined(r);
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyV" || event.repeat || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    void voice.toggle();
+  });
+
+  // Friends (O): requests, who is online, whisper them.
+  const friends = new FriendsPanel({
+    notify: (text) => hud.toast(text),
+    whisper: (name) => {
+      friends.toggle();
+      chatBox.open(`/w ${name} `);
+    },
+  });
+  friends.start();
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyO" || ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+    friends.toggle();
+    if (friends.isOpen) controls.unlock();
+  });
+
+  const borders = new BorderView();
+  world.add(borders.lines);
+  events.on<{ land: LandHere }>("platform.land", ({ land }) => {
+    landPanel.setHere(land);
+    hud.toast(landNotice(land));
+    if (land) borders.show({ min: land.min, max: land.max, mine: land.role !== null }, 10);
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyL" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    if (!landPanel.isOpen) void guildPanel.refresh();
+    landPanel.toggle();
+    if (landPanel.isOpen) controls.unlock();
+  });
+
+  // Market (M): selling goes through the game server, the rest to the API.
+  const marketPanel = new MarketPanel({
+    world: "main",
+    content,
+    inventory: () => hud.inventory,
+    sell: (payload) => method.call("platform.market.list", payload),
+    deliver: (contract, slot, count) => method.call("platform.contract.deliver", { contract, slot, count }),
+    guild: () => (guildPanel.guild ? { id: guildPanel.guild.id, tag: guildPanel.guild.tag, role: guildPanel.guild.my_role } : null),
+    notify: (text) => hud.toast(text),
+  });
+  const stallPanel = new StallPanel({
+    itemName: (key) => (key ? content.itemsByKey.get(key)?.name ?? key : "?"),
+    buy: (at, slot) => method.call("platform.stall.buy", { at, slot }),
+    price: (at, slot, price) => method.call("platform.stall.price", { at, slot, price }),
+    setGuild: (at, guild) => method.call("platform.stall.guild", { at, guild }),
+    hasGuild: () => guildPanel.guild !== null,
+    notify: (text) => hud.toast(text),
+  });
+  events.on<StallView>("platform.stall", (view) => {
+    stallPanel.show(view);
+    controls.unlock();
+  });
+  const blueprintPanel = new BlueprintPanel({
+    world: "main",
+    content,
+    target: () => (interact.target ? ([...interact.target] as [number, number, number]) : null),
+    placeAt: () => (interact.potential ? ([...interact.potential.voxel] as [number, number, number]) : null),
+    capture: (min, max, name, update) => method.call("platform.blueprint.capture", { min, max, name, ...(update ? { update } : {}) }),
+    build: (id, at, turn, mirror) => method.call("platform.blueprint.build", { id, at, turn, mirror }),
+    notify: (text) => hud.toast(text),
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyB" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    blueprintPanel.toggle();
+    if (blueprintPanel.isOpen) controls.unlock();
+  });
+  const tradePanel = new TradePanel({
+    itemName: (key) => (key ? content.itemsByKey.get(key)?.name ?? key : "?"),
+    heldSlot: () => {
+      const slot = hud.inventory.selected;
+      const s = hud.inventory.slots[slot];
+      return s ? { slot, count: s.count } : null;
+    },
+    call: (intent, payload) => method.call(intent, payload),
+    notify: (text) => hud.toast(text),
+  });
+  events.on<{ invite?: { from: string; name: string }; trade?: TradeView | null; ended?: string; refused?: string; received?: unknown }>(
+    "platform.trade",
+    (e) => {
+      if (e.invite) {
+        tradePanel.invite = e.invite;
+        hud.toast(`${e.invite.name} wants to trade: press Y to accept`);
+      }
+      if (e.trade !== undefined) {
+        tradePanel.show(e.trade);
+        if (e.trade) controls.unlock();
+      }
+      if (e.ended) hud.toast(e.ended === "done" ? "Trade complete" : "Trade cancelled");
+      if (e.refused) hud.toast(`Trade not paid: ${e.refused.replace(/_/g, " ")}`);
+    },
+  );
+  addEventListener("keydown", (event) => {
+    if ((event.target as HTMLElement)?.tagName === "INPUT") return;
+    if (event.code === "KeyT") {
+      const me = controls.object.position;
+      const others = [...players.map.entries()].map(([id, c]) => [id, c.position] as [string, { x: number; y: number; z: number }]);
+      const partner = nearest(me, others);
+      if (!partner) return hud.toast("Stand next to the player you want to trade with");
+      method.call("platform.trade.request", { player: partner });
+    } else if (event.code === "KeyY" && tradePanel.invite) {
+      method.call("platform.trade.accept", { player: tradePanel.invite.from });
+      tradePanel.invite = null;
+    }
+  });
+  type MarketNotice = {
+    blueprint?: { stored?: string; built?: string; refused?: string; blocks?: number };
+    bought?: { item: string; count: number; price: number };
+    sold?: { item: string; count: number; price: number };
+    refused?: { code: string; item: string; count: number };
+    listed?: { item: string; count: number };
+    rejected?: { code: string; item: string; count: number };
+    received?: { item: string; count: number; reason: string };
+    waiting?: { item: string; count: number };
+  };
+  const itemName = (key: string) => content.itemsByKey.get(key)?.name ?? key;
+  events.on<MarketNotice>("platform.market", (n) => {
+    if (n.listed) hud.toast(`Listed ${n.listed.count} × ${itemName(n.listed.item)}`);
+    if (n.rejected) hud.toast(`Not listed (${n.rejected.code}); ${itemName(n.rejected.item)} returned`);
+    if ((n as { fulfilled?: { count: number; item: string } }).fulfilled) hud.toast("Contract fulfilled: the reward is yours");
+    if ((n as { war_kill?: unknown }).war_kill) hud.toast("War: an enemy falls, your guild scores");
+    if (n.received) hud.toast(`Received ${n.received.count} × ${itemName(n.received.item)}`);
+    const reward = (n as { reward?: { source: string; reason: string; paid: number; requested: number } }).reward;
+    if (reward) hud.toast(rewardLine(reward));
+    if (n.waiting) hud.toast(`A delivery of ${itemName(n.waiting.item)} waits for room in your inventory`);
+    if (n.blueprint?.stored) hud.toast(`Blueprint saved (${n.blueprint.blocks} blocks)`);
+    if (n.blueprint?.built) hud.toast(`Built ${n.blueprint.blocks} blocks from the blueprint`);
+    if (n.blueprint?.refused) hud.toast(MESSAGES[n.blueprint.refused] || `Blueprint: ${n.blueprint.refused.replace(/_/g, " ")}`);
+    if (n.blueprint) blueprintPanel.refresh();
+    if (n.bought) hud.toast(`Bought ${n.bought.count} × ${itemName(n.bought.item)} for ${n.bought.price} CRN`);
+    if (n.sold) hud.toast(`Your stall sold ${n.sold.count} × ${itemName(n.sold.item)} for ${n.sold.price} CRN`);
+    if (n.refused) hud.toast(`Not bought: ${n.refused.code.replace("_", " ")}`);
+    marketPanel.refresh();
+  });
+  addEventListener("keydown", (event) => {
+    if (event.code !== "KeyM" || (event.target as HTMLElement)?.tagName === "INPUT") return;
+    marketPanel.toggle();
+    if (marketPanel.isOpen) controls.unlock();
+  });
+
+  // Travel to another dimension: this tab joins that world from now on.
+  events.on<{ world: string }>("platform.travel", ({ world: target }) => {
+    if (!/^[a-z0-9_]{1,64}$/.test(target) || target === WORLD) return;
+    hud.setStatus("Travelling…");
+    try {
+      sessionStorage.setItem(WORLD_KEY, target);
+    } catch {
+      return;
+    }
+    location.reload();
+  });
+  events.on<{ x: number; z: number; feet?: [number, number, number] }>("platform.respawn", (spawn) => {
+    if (!spawn) return;
+    // At the player's town hall, or on top of the spawn column.
+    if (spawn.feet) placeFeet(spawn.feet);
+    else controls.teleportToTop(spawn.x, spawn.z, 2);
+    controls.lock();
+  });
+  // Sieges: progress near a banner, and the outcome.
+  events.on<{ progress?: number; needed?: number; contested?: boolean; captured?: string; failed?: string; code?: string }>("platform.siege", (s) => {
+    if (s.captured) hud.toast("The siege succeeded: the land is captured");
+    else if (s.failed) hud.toast(`The siege failed (${s.code})`);
+    else if (s.needed) hud.toast(siegeLine({ progress: s.progress ?? 0, needed: s.needed, contested: !!s.contested }));
+  });
+  // Using a town hall: the guild panel opens.
+  events.on<{ guild: { tag: string }; home: boolean }>("platform.guild.hall", ({ guild, home }) => {
+    hud.toast(home ? `Town hall of [${guild.tag}]: you will respawn here` : `Town hall of [${guild.tag}]`);
+    if (!guildPanel.isOpen) guildPanel.toggle();
+    controls.unlock();
+  });
+
+  // ---- windows: inventory screen, workbench, furnace, chest ---------------
+
+  const windowUi = new WindowUi(content, hud, {
+    click: (slot, click) => method.call("platform.window.click", { slot, click }),
+    drag: (slots, oneEach) => method.call("platform.window.drag", { slots, oneEach }),
+    fill: (recipe, max) => method.call("platform.window.fill", { recipe, max }),
+    close: () => closeWindow(),
+    creative: (item) => method.call("platform.inventory.creative", { slot: hud.inventory.selected, item }),
+  });
+  const closeWindow = () => {
+    windowUi.wantPlayer = false;
+    windowUi.hide();
+    method.call("platform.window.close", {});
+  };
+  const openWindow = (voxel?: VOXELIZE.Coords3) => {
+    windowUi.wantPlayer = !voxel;
+    method.call("platform.window.open", voxel ? { voxel } : {});
+    controls.unlock();
+  };
+  events.on<WindowState>("platform.window", (state) => {
+    if (!state) return;
+    windowUi.set(state);
+  });
+
+  const mobs = new MobsView(content);
+  world.add(mobs.group);
+  const bossBar = document.getElementById("boss-bar") as HTMLElement;
+  events.on<{ player: string; mode: string }>("platform.mode", (payload) => {
+    if (!payload) return;
+    if (payload.mode === "spectator") players.spectators.add(payload.player);
+    else players.spectators.delete(payload.player);
+    const peer = players.getPeerById(payload.player);
+    if (peer) peer.visible = payload.mode !== "spectator";
+  });
+  events.on<{ mobs: MobInfo[] }>("platform.mobs", (payload) => {
+    if (!payload) return;
+    mobs.set(payload.mobs);
+    const me = controls.object.position;
+    const boss = nearestBoss(payload.mobs, content, [me.x, me.y, me.z]);
+    bossBar.hidden = !boss;
+    if (boss) {
+      (document.getElementById("boss-name") as HTMLElement).textContent = boss.name;
+      (document.getElementById("boss-fill") as HTMLElement).style.width = `${Math.round(boss.fraction * 100)}%`;
+    }
+  });
+
+  // Weather: rain or snow, storm tint, lightning.
+  const weather = new WeatherView();
+  world.add(weather.points);
+  events.on<WeatherInfo>("platform.weather", (w) => w && weather.set(w));
+  events.on<{ at: [number, number, number] }>("platform.lightning", (payload) => {
+    if (!payload) return;
+    flash();
+    sfx.play("break");
+  });
+
+  // Arrows, lit charges, explosions and the push of a blast.
+  const combat = new CombatView();
+  world.add(combat.group);
+  events.on<{ arrows: ArrowInfo[]; fuses: FuseInfo[] }>("platform.combat", (payload) => payload && combat.set(payload));
+  events.on<{ at: [number, number, number]; power: number }>("platform.explosion", (payload) => {
+    if (!payload) return;
+    sfx.play("break");
+    const d = controls.object.position.distanceTo(new THREE.Vector3(...payload.at));
+    if (d < 24) hud.toast("Boom!");
+  });
+  events.on<{ velocity: [number, number, number] }>("platform.push", (payload) => {
+    if (!payload) return;
+    const body = (controls as unknown as { body?: { applyImpulse: (v: number[]) => void } }).body;
+    body?.applyImpulse(payload.velocity);
+  });
+
+  const drops = new DropsView(content, hud);
+  world.add(drops.group);
+  events.on<{ items: { id: number; item: number; count: number; p: [number, number, number] }[] }>(
+    "platform.drops",
+    (payload) => payload && drops.set(payload.items),
+  );
+  events.on<{ items: [number, number][] }>("platform.pickup", (payload) => {
+    if (!payload) return;
+    sfx.play("pickup");
+    for (const [item, count] of payload.items) {
+      hud.toast(`+${count} ${content.itemsById.get(item)?.name ?? "item"}`);
+    }
+  });
+
+  // ---- input ----------------------------------------------------------------
+
+  const same = (a: VOXELIZE.Coords3, b: VOXELIZE.Coords3) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+
+  const startMining = () => {
+    const target = interact.target;
+    if (!target) return;
+    const block = content.blocksById.get(world.getVoxelAt(...target));
+    if (!block) return;
+    const total = realm === "creative" ? 0 : miningMillis(block, hud.heldItem());
+    if (total === null) {
+      hud.toast(MESSAGES.unbreakable);
+      return;
+    }
+    lastMinedMaterial = block.material ?? "soil";
+    mining = { voxel: [...target] as VOXELIZE.Coords3, started: performance.now(), total, finishing: false };
+    method.call("platform.mine.start", { voxel: target });
+  };
+
+  // A creature in front of the block under the crosshair takes the action.
+  const mobInFront = () => {
+    const mob = mobs.pick(camera, 4.5);
+    const blockDistance = interact.target
+      ? camera.position.distanceTo(new THREE.Vector3(...interact.target).addScalar(0.5))
+      : Infinity;
+    return mob && mob.distance < blockDistance ? mob : null;
+  };
+  // Another player in front of the block under the crosshair.
+  const playerInFront = () => {
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const others = [...players.map.entries()].map(([id, c]) => [id, c.position] as [string, { x: number; y: number; z: number }]);
+    const hit = pickPlayer(camera.position, dir, others);
+    const blockDistance = interact.target
+      ? camera.position.distanceTo(new THREE.Vector3(...interact.target).addScalar(0.5))
+      : Infinity;
+    return hit && hit.distance < blockDistance ? hit : null;
+  };
+  const primary = (down: boolean) => {
+    if (!down) {
+      leftDown = false;
+      mining = null;
+      return;
+    }
+    if (vitalsHud.dead) return;
+    const mob = mobInFront();
+    if (mob) {
+      method.call("platform.attack", { mob: mob.id });
+      return;
+    }
+    const enemy = playerInFront();
+    if (enemy) {
+      method.call("platform.attack.player", { player: enemy.id });
+      return;
+    }
+    leftDown = true;
+    startMining();
+  };
+  const secondary = (sneaking: boolean) => {
+    if (vitalsHud.dead) return;
+    const mob = mobInFront();
+    if (mob) {
+      method.call("platform.interact", { mob: mob.id });
+      return;
+    }
+    secondaryOnBlock(sneaking);
+  };
+  // A bow: hold the right button to draw, release to shoot.
+  let drawing = false;
+  canvas.addEventListener("mousedown", (event) => {
+    if (!controls.isLocked || touch) return;
+    if (event.button === 2 && hud.heldItem()?.key === "bow" && !vitalsHud.dead) {
+      drawing = true;
+      method.call("platform.bow.draw", {});
+      return;
+    }
+    if (event.button === 0) primary(true);
+    else if (event.button === 2) secondary(event.shiftKey || controls.movements.down);
+  });
+  addEventListener("mouseup", (event) => {
+    if (event.button !== 2 || !drawing) return;
+    drawing = false;
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    method.call("platform.bow.shoot", { direction: [dir.x, dir.y, dir.z] });
+    sfx.play("hit");
+  });
+  // Using a workbench, furnace or chest opens it (sneak to place against
+  // it); a hoe tills soil; food in hand is eaten; anything else is placed.
+  const secondaryOnBlock = (sneaking: boolean) => {
+    const target = interact.target;
+    const targetDef = target ? content.blocksById.get(world.getVoxelAt(...target)) : undefined;
+    const held = hud.heldItem();
+    const action = secondaryAction(targetDef, held, sneaking);
+    if (action === "open" && target) {
+      openWindow([...target] as VOXELIZE.Coords3);
+    } else if (action === "use" && target) {
+      // Usable blocks, and tools used on blocks: a hoe tills, a striker
+      // lights, fertiliser grows plants.
+      method.call("platform.use", { voxel: target });
+    } else if (action === "eat") {
+      method.call("platform.eat", {});
+    } else if (action === "fill") {
+      method.call("platform.bottle.fill", {});
+    } else if (action === "place" && interact.potential) {
+      const { voxel, rotation, yRotation4 } = interact.potential;
+      method.call("platform.build.place", { voxel, rotation, yRotation: yRotation4 });
+    }
+  };
+  addEventListener("mouseup", (event) => {
+    if (event.button === 0) primary(false);
+  });
+  canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+  // Music starts with the first touch or click (browsers need a gesture).
+  addEventListener("pointerdown", () => music.start(), { once: true });
+  canvas.addEventListener("click", () => {
+    if (!controls.isLocked && !windowUi.isOpen && !vitalsHud.dead) controls.lock();
+  });
+
+  for (let i = 1; i <= 9; i++) {
+    inputs.bind(
+      `Digit${i}`,
+      () => {
+        method.call("platform.inventory.select", { slot: i - 1 });
+      },
+      "in-game",
+    );
+  }
+  addEventListener("wheel", (event) => {
+    if (!controls.isLocked) return;
+    const next = (hud.inventory.selected + (event.deltaY > 0 ? 1 : 8)) % 9;
+    method.call("platform.inventory.select", { slot: next });
+  });
+  hud.onSelect = (slot) => method.call("platform.inventory.select", { slot });
+  if (touch) {
+    const mobile = controls as VOXELIZE.MobileRigidControls;
+    mountTouchControls({
+      move: (x, y) => mobile.setMovementVector(x, y),
+      look: (dx, dy) => mobile.setLookDirection(dx, dy),
+      jump: (down) => (mobile.movements.up = down),
+      crouch: (down) => (mobile.movements.down = down),
+      sprint: (on) => (mobile.options.alwaysSprint = on),
+      primary,
+      secondary: () => secondary(false),
+      inventory: () => (windowUi.isOpen ? closeWindow() : openWindow()),
+      drop: () => method.call("platform.inventory.drop", { all: false }),
+      menu: [{ label: "Camera", run: () => perspective.toggle() }],
+    });
+    document.body.classList.add("touch");
+  }
+  const typing = (event: KeyboardEvent) => ["INPUT", "SELECT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName);
+  const setMove = (event: KeyboardEvent, on: boolean) => {
+    const action = actionFor(keys, event.code);
+    const move = action && ENGINE_MOVES[action];
+    if (!move || touch) return false;
+    (controls.movements as Record<string, boolean>)[move.movement] = on && controls.isLocked;
+    return true;
+  };
+  addEventListener("keyup", (event) => setMove(event, false));
+  addEventListener("blur", () => Object.keys(controls.movements).forEach((m) => ((controls.movements as Record<string, boolean>)[m] = false)));
+  addEventListener("keydown", (event) => {
+    if (typing(event) || vitalsHud.dead) return;
+    if (setMove(event, true)) return;
+    const action = actionFor(keys, event.code);
+    if (event.code === "Escape" && windowUi.isOpen) {
+      closeWindow();
+    } else if (action === "inventory") {
+      if (windowUi.isOpen) closeWindow();
+      else openWindow();
+    } else if (action === "drop" && controls.isLocked && !windowUi.isOpen) {
+      method.call("platform.inventory.drop", { all: event.ctrlKey });
+    } else if (action === "fly" && controls.isLocked) {
+      if (realm === "creative") controls.toggleFly();
+      else hud.toast("Flight is for creative worlds");
+    } else if (action === "camera" && controls.isLocked) {
+      perspective.toggle();
+    }
+  });
+
+  // ---- connect --------------------------------------------------------------
+
+  hud.setStatus("Connecting…");
+  await network.connect(server, { getTicket, reconnectTimeout: 3000 });
+  await network.join(WORLD);
+  await world.initialize();
+
+  // Original procedural textures for every block face.
+  for (const block of content.pack.blocks) {
+    const engineBlock = world.getBlockByIdSafe(block.id);
+    if (!engineBlock) continue;
+    for (const face of engineBlock.faces) {
+      const role = FACE_ROLES[face.name];
+      const name = (role && block.texture[role]) || block.texture.all;
+      const texture = new THREE.CanvasTexture(textureCanvas(name));
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      world.applyBlockTexture(block.id, face.name, texture);
+    }
+  }
+
+  applySettings(settings);
+  if (pendingFeet) placeFeet(pendingFeet);
+  else if (DIMENSION === "overworld") controls.teleportToTop(0, 0, 2);
+  method.call("platform.inventory.get", {});
+  hud.show();
+
+  // ---- frame loop -----------------------------------------------------------
+
+  const direction = new THREE.Vector3();
+  const lastStep = controls.object.position.clone();
+  let lastDigTick = 0;
+  let lastStatus = 0;
+
+  const frame = () => {
+    requestAnimationFrame(frame);
+    if (!world.isInitialized) return;
+
+    controls.update();
+    perspective.update();
+    borders.update(controls.object.position.x, controls.object.position.y, controls.object.position.z, landPanel.isOpen);
+    interact.update();
+    camera.getWorldDirection(direction);
+    world.update(controls.object.position, direction);
+    players.update();
+    combat.update();
+    weather.update(controls.object.position, 1 / 60);
+    drops.update(performance.now());
+    mobs.update(performance.now());
+
+    // Footsteps while walking on the ground.
+    const pos = controls.object.position;
+    const moved = Math.hypot(pos.x - lastStep.x, pos.z - lastStep.z);
+    if (moved > 1.6 && Math.abs(pos.y - lastStep.y) < 0.6) {
+      const below = content.blocksById.get(world.getVoxelAt(Math.floor(pos.x), Math.floor(pos.y - 1.5), Math.floor(pos.z)));
+      if (below) sfx.play("step", below.material);
+      lastStep.copy(pos);
+    } else if (moved > 1.6) lastStep.copy(pos);
+
+    if (mining) {
+      if (Math.floor(performance.now() / 250) !== lastDigTick) {
+        lastDigTick = Math.floor(performance.now() / 250);
+        sfx.play("dig", lastMinedMaterial);
+      }
+      const target = interact.target;
+      if (!leftDown || !target || !same(target, mining.voxel)) {
+        mining = null;
+        if (leftDown && target) startMining();
+      } else {
+        const elapsed = performance.now() - mining.started;
+        hud.setMining(mining.total === 0 ? 1 : elapsed / mining.total);
+        cracks.show(mining.voxel, mining.total === 0 ? 1 : elapsed / mining.total);
+        if (elapsed >= mining.total && !mining.finishing) {
+          mining.finishing = true;
+          method.call("platform.mine.finish", { voxel: mining.voxel });
+        }
+      }
+    }
+    if (!mining) {
+      hud.setMining(null);
+      cracks.show(null);
+    }
+
+    const now = performance.now();
+    if (now - lastStatus > 250) {
+      lastStatus = now;
+      const [x, y, z] = controls.voxel;
+      const time = world.time / world.options.timePerDay;
+      music.setMood(moodFor(DIMENSION, time));
+      const clock = `${String(Math.floor(time * 24)).padStart(2, "0")}:${String(Math.floor((time * 1440) % 60)).padStart(2, "0")}`;
+      hud.setStatus(`${x}, ${y}, ${z} · ${clock} · ${realm}`);
+    }
+
+    voice.update();
+    renderer.render(world, camera);
+  };
+  frame();
+}

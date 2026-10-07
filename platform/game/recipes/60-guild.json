@@ -1,0 +1,6 @@
+[
+  { "type": "shaped", "key": "guild_hall", "pattern": ["ggg", "pcp", "ppp"],
+    "symbols": { "g": "gold_ingot", "p": "planks", "c": "crafting_table" }, "result": { "item": "guild_hall", "count": 1 } },
+  { "type": "shaped", "key": "guild_vault", "pattern": ["iii", "ici", "iii"],
+    "symbols": { "i": "iron_ingot", "c": "chest" }, "result": { "item": "guild_vault", "count": 1 } }
+]

@@ -1,0 +1,189 @@
+{
+  "stations": [
+    {
+      "key": "smelter",
+      "name": "Smelter",
+      "block": "smelter",
+      "fueled": true
+    },
+    {
+      "key": "crusher",
+      "name": "Crusher",
+      "block": "crusher",
+      "fueled": true
+    }
+  ],
+  "recipes": [
+    {
+      "key": "crush_iron",
+      "station": "crusher",
+      "input": {
+        "item": "raw_iron"
+      },
+      "output": {
+        "item": "crushed_iron",
+        "count": 2
+      },
+      "ticks": 160,
+      "experience": 0.2
+    },
+    {
+      "key": "crush_copper",
+      "station": "crusher",
+      "input": {
+        "item": "raw_copper"
+      },
+      "output": {
+        "item": "crushed_copper",
+        "count": 2
+      },
+      "ticks": 160,
+      "experience": 0.2
+    },
+    {
+      "key": "crush_gold",
+      "station": "crusher",
+      "input": {
+        "item": "raw_gold"
+      },
+      "output": {
+        "item": "crushed_gold",
+        "count": 2
+      },
+      "ticks": 160,
+      "experience": 0.3
+    },
+    {
+      "key": "crush_stone",
+      "station": "crusher",
+      "input": {
+        "item": "stone"
+      },
+      "output": {
+        "item": "rubble"
+      },
+      "ticks": 40,
+      "experience": 0
+    },
+    {
+      "key": "crush_rubble",
+      "station": "crusher",
+      "input": {
+        "item": "rubble"
+      },
+      "output": {
+        "item": "sand"
+      },
+      "ticks": 80,
+      "experience": 0
+    },
+    {
+      "key": "smelter_raw_iron",
+      "station": "smelter",
+      "input": {
+        "item": "raw_iron"
+      },
+      "output": {
+        "item": "iron_ingot"
+      },
+      "ticks": 100,
+      "experience": 0.7
+    },
+    {
+      "key": "smelter_crushed_iron",
+      "station": "smelter",
+      "input": {
+        "item": "crushed_iron"
+      },
+      "output": {
+        "item": "iron_ingot"
+      },
+      "ticks": 100,
+      "experience": 0.35
+    },
+    {
+      "key": "smelt_crushed_iron",
+      "station": "furnace",
+      "input": {
+        "item": "crushed_iron"
+      },
+      "output": {
+        "item": "iron_ingot"
+      },
+      "ticks": 200,
+      "experience": 0.35
+    },
+    {
+      "key": "smelter_raw_copper",
+      "station": "smelter",
+      "input": {
+        "item": "raw_copper"
+      },
+      "output": {
+        "item": "copper_ingot"
+      },
+      "ticks": 100,
+      "experience": 0.7
+    },
+    {
+      "key": "smelter_crushed_copper",
+      "station": "smelter",
+      "input": {
+        "item": "crushed_copper"
+      },
+      "output": {
+        "item": "copper_ingot"
+      },
+      "ticks": 100,
+      "experience": 0.35
+    },
+    {
+      "key": "smelt_crushed_copper",
+      "station": "furnace",
+      "input": {
+        "item": "crushed_copper"
+      },
+      "output": {
+        "item": "copper_ingot"
+      },
+      "ticks": 200,
+      "experience": 0.35
+    },
+    {
+      "key": "smelter_raw_gold",
+      "station": "smelter",
+      "input": {
+        "item": "raw_gold"
+      },
+      "output": {
+        "item": "gold_ingot"
+      },
+      "ticks": 100,
+      "experience": 1.0
+    },
+    {
+      "key": "smelter_crushed_gold",
+      "station": "smelter",
+      "input": {
+        "item": "crushed_gold"
+      },
+      "output": {
+        "item": "gold_ingot"
+      },
+      "ticks": 100,
+      "experience": 0.5
+    },
+    {
+      "key": "smelt_crushed_gold",
+      "station": "furnace",
+      "input": {
+        "item": "crushed_gold"
+      },
+      "output": {
+        "item": "gold_ingot"
+      },
+      "ticks": 200,
+      "experience": 0.5
+    }
+  ]
+}

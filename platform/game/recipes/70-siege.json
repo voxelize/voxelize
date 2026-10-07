@@ -1,0 +1,4 @@
+[
+  { "type": "shaped", "key": "siege_banner", "pattern": ["iii", "iii", " s "],
+    "symbols": { "i": "iron_ingot", "s": "stick" }, "result": { "item": "siege_banner", "count": 1 } }
+]

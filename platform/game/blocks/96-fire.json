@@ -1,0 +1,8 @@
+[
+  {
+    "id": 68, "key": "fire", "name": "Fire", "material": "plant",
+    "hardness": 0, "resistance": 0, "texture": { "all": "fire" },
+    "transparent": true, "collision": false, "lightEmission": 15,
+    "behaviors": ["burns"], "drops": []
+  }
+]
