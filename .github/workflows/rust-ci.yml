@@ -88,3 +88,36 @@ jobs:
       # gated here (the wall-clock gate needs GEN_BUDGET_GATE=1 on a bench host).
       - name: Walk benchmark smoke
         run: cargo run -p voxelize-gen --release --example walk_bench -- --quick --workers 1
+
+      # The plain preset's JSON twin must match its Rust builder.
+      - name: Landscape preset twin is current
+        run: cargo run -p voxelize-gen --release --features unstable-landscape --example export_preset -- --check
+
+      # The deterministic half of the budget gate: the plain walk's work
+      # counters (single worker) against budgets/plain.json, enforced on any
+      # machine. Wall-clock rows are reported only.
+      - name: Landscape work counters gate
+        run: cargo run -p voxelize-gen --release --features unstable-landscape,gen-counters --example walk_bench -- --fixtures plain --workloads spiral --workers 1 --gate crates/gen/budgets/plain.json
+
+  # The same generator tests on macOS arm64. The v1 and landscape goldens
+  # (tests/golden/) are pinned once and checked here and on Linux x86_64, so
+  # the two architectures are compared digest for digest: the bit-stability
+  # claim holds only while both pass the same files.
+  gen-macos:
+    name: cargo test -p voxelize-gen --release (macOS arm64)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protoc
+        run: brew install protobuf
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run generator tests
+        run: cargo test -p voxelize-gen --release
+
+      - name: Run landscape tests
+        run: cargo test -p voxelize-gen --release --features unstable-landscape,kit,gen-counters
