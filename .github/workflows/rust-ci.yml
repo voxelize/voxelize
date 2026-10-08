@@ -49,3 +49,31 @@ jobs:
       # so it exercises the `voxelize` crate whose lib downstream consumers pin.
       - name: Run library tests
         run: cargo test --lib
+
+  # `cargo test --lib` above runs only the root `voxelize` package, so the
+  # generator crate's tests (including the v1 goldens that pin its output for
+  # every world built on it) need their own job. Release, because generation
+  # tests walk real chunks.
+  gen:
+    name: cargo test -p voxelize-gen --release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # voxelize-gen depends on voxelize, whose build.rs shells out to protoc.
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run generator tests
+        run: cargo test -p voxelize-gen --release
+
+      # Proves the walk benchmark still runs; timings are reported, never
+      # gated here (the wall-clock gate needs GEN_BUDGET_GATE=1 on a bench host).
+      - name: Walk benchmark smoke
+        run: cargo run -p voxelize-gen --release --example walk_bench -- --quick --workers 1
