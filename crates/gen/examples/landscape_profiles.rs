@@ -504,9 +504,9 @@ fn main() {
         out = PathBuf::from(args.get(i + 1).expect("--out needs a path"));
     }
 
-    let wall = Wall::new(1.35, 0.07).unwrap();
-    let wall_lo = Wall::new(1.0, 0.07).unwrap();
-    let wall_hi = Wall::new(1.755, 0.07).unwrap();
+    let wall = Wall::new(1.35, 0.07, 0.07).unwrap();
+    let wall_lo = Wall::new(1.0, 0.07, 0.07).unwrap();
+    let wall_hi = Wall::new(1.755, 0.07, 0.07).unwrap();
     let cone = Cone::new(1.875, 0.94).unwrap();
     let cone_alt = Cone::new(1.9, 0.85).unwrap();
     let face_spec = FaceSpec {
@@ -570,8 +570,8 @@ fn main() {
         Plot {
             number: 1,
             title: "WALL",
-            params: "EXP 1.35  RIM ROUND 0.07".into(),
-            recipe: "POW_SMOOTH(U, P), THEN A HERMITE RIM TO LEVEL. FAINT: P 1.0, 1.755",
+            params: "EXP 1.35  FOOT 0.07  RIM 0.07".into(),
+            recipe: "QUADRATIC FOOT, POW_SMOOTH(U, P) BODY, QUADRATIC RIM. FAINT: P 1.0, 1.755",
             sample: Box::new(|u| wall.sample(u)),
             variants: vec![
                 Box::new(|u| wall_lo.height(u)),
@@ -682,7 +682,7 @@ fn main() {
 
     let mut c = Canvas::new(W * SS, H * SS, PAPER);
     c.text(28.0, 22.0, 4, "LANDSCAPE KERNEL: WORN PROFILES", INK);
-    c.text(28.0, 66.0, 2, "OFFLINE KERNEL PLOT - NOT IN-GAME.  EVERY PIECE STARTS FROM THE VALUE AND SLOPE THE PIECE BEFORE IT ENDS ON.", MUTED);
+    c.text(28.0, 66.0, 2, "OFFLINE KERNEL PLOT - NOT AN IN-ENGINE CAPTURE.  EVERY PIECE STARTS FROM THE VALUE AND SLOPE THE PIECE BEFORE IT ENDS ON.", MUTED);
     let legend_y = 92.0;
     let mut x = 28.0;
     c.rect(x, legend_y, x + 26.0, legend_y + 14.0, ROCK);

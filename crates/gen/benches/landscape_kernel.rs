@@ -1,20 +1,21 @@
 //! Landscape kernel costs: nanoseconds per operation for the bit-stable
 //! math and the profiles, per fold for the strata, per node and per voxel
-//! for lattices, the cull ratio of the flagship tunnel recipe, and the
-//! floods. Criterion reports throughput in elements per second; ns/op is
-//! 1e3 / (Melem/s).
+//! for lattices, the cull ratio of the reference tunnel recipe, the floods,
+//! and `ClockCache` lookups from one and from several threads. Criterion
+//! reports throughput in elements per second; ns/op is 1e3 / (Melem/s).
 //!
 //! `cargo bench -p voxelize-gen --features unstable-landscape --bench landscape_kernel`
 
 use std::hint::black_box;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use voxelize_gen::landscape::channels::{ChannelNet, ChannelVertex};
+use voxelize_gen::landscape::cache::ClockCache;
 use voxelize_gen::landscape::flood::{lake_flood, priority_flood, Divide, LakeLimits};
 use voxelize_gen::landscape::geometry::{tile_gate_bound, Footprint};
 use voxelize_gen::landscape::lattice::{Lattice, LatticeSpec, VoxelBox};
 use voxelize_gen::landscape::math::*;
+use voxelize_gen::landscape::network::{ChannelNet, NetVertex};
 use voxelize_gen::landscape::profile::{
     Cone, DuneWave, Face, FaceSpec, Monotone, Profile, SWall, SlotLedge, SlotSection, SlotSpec,
     Wall,
@@ -83,7 +84,7 @@ fn bench_profiles(c: &mut Criterion) {
     let mut g = c.benchmark_group("profile");
     g.throughput(Throughput::Elements(N as u64));
     let unit = inputs(4, 0.0, 1.0);
-    let wall = Wall::new(1.35, 0.07).unwrap();
+    let wall = Wall::new(1.35, 0.07, 0.07).unwrap();
     let cone = Cone::new(1.875, 0.94).unwrap();
     let face = Face::new(FaceSpec {
         h: 60.0,
@@ -178,7 +179,7 @@ fn bench_strata(c: &mut Criterion) {
     g.finish();
 }
 
-/// Share of stride-6 cells the flagship tunnel recipe culls: two fields at
+/// Share of stride-6 cells the reference tunnel recipe culls: two fields at
 /// f 0.0085 with a 1.6 vertical squash, a cell skipped when either field's
 /// corners all lie beyond the largest half width.
 fn tunnel_cull_ratio(chunks: i32) -> (usize, usize) {
@@ -374,14 +375,14 @@ fn bench_floods_and_geometry(c: &mut Criterion) {
         })
     });
     let mut s = HashStream::new(3);
-    let lines: Vec<Vec<ChannelVertex<f64>>> = (0..8)
+    let lines: Vec<Vec<NetVertex<f64>>> = (0..8)
         .map(|_| {
             let (mut x, mut z) = (s.range_f((-300.0, 300.0)), s.range_f((-300.0, 300.0)));
             (0..24)
                 .map(|i| {
                     x += s.range_f((-40.0, 40.0));
                     z += s.range_f((-40.0, 40.0));
-                    ChannelVertex::new(x, z, i as f64)
+                    NetVertex::new(x, z, i as f64)
                 })
                 .collect()
         })
@@ -410,12 +411,50 @@ fn bench_floods_and_geometry(c: &mut Criterion) {
     g.finish();
 }
 
+/// `ClockCache` hits from 1, 4 and 8 threads at once. Throughput is the
+/// total over all threads, so a lock that serialises them shows as a flat
+/// or falling rate as threads are added.
+fn bench_cache(c: &mut Criterion) {
+    const OPS: u64 = 1 << 16;
+    const KEYS: u64 = 2048;
+    let mut g = c.benchmark_group("cache");
+    let cache: ClockCache<u64, u64> = ClockCache::new(4096);
+    for k in 0..KEYS {
+        cache.insert(k, k);
+    }
+    for threads in [1u64, 4, 8] {
+        g.throughput(Throughput::Elements(OPS * threads));
+        g.bench_function(format!("hit_{threads}_threads"), |b| {
+            b.iter_custom(|iters| {
+                let start = Instant::now();
+                for _ in 0..iters {
+                    std::thread::scope(|scope| {
+                        for t in 0..threads {
+                            let cache = &cache;
+                            scope.spawn(move || {
+                                let mut acc = 0u64;
+                                for i in 0..OPS {
+                                    let k = (i * 7 + t * 13) % KEYS;
+                                    acc ^= cache.get_or_insert_with(k, || k);
+                                }
+                                black_box(acc)
+                            });
+                        }
+                    });
+                }
+                start.elapsed()
+            })
+        });
+    }
+    g.finish();
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default()
         .warm_up_time(Duration::from_millis(500))
         .measurement_time(Duration::from_millis(1500))
         .sample_size(30);
-    targets = bench_math, bench_profiles, bench_strata, bench_lattice, bench_floods_and_geometry
+    targets = bench_math, bench_profiles, bench_strata, bench_lattice, bench_floods_and_geometry, bench_cache
 }
 criterion_main!(benches);

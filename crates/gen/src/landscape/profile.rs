@@ -16,13 +16,15 @@
 use std::fmt;
 
 use super::math::{
-    pow_smooth, pow_smooth_d, pow_smooth_vd, smootherstep, smootherstep_d, smoothstep,
+    pow_smooth, pow_smooth_d, pow_smooth_vd, smootherstep, smootherstep_d, smoothstep, MinMax,
 };
 
 /// Why a profile's spec was refused.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProfileError {
+    /// The profile refused.
     pub profile: &'static str,
+    /// Why, in words.
     pub reason: String,
 }
 
@@ -83,10 +85,12 @@ pub trait Profile {
         self.piece(i, u)
     }
 
+    /// Height at `u`.
     fn height(&self, u: f64) -> f64 {
         self.sample(u).0
     }
 
+    /// Slope at `u`.
     fn slope(&self, u: f64) -> f64 {
         self.sample(u).1
     }
@@ -183,6 +187,8 @@ pub struct Hermite {
 }
 
 impl Hermite {
+    /// The piece from `(x0, y0)` with slope `m0` to `(x1, y1)` with slope `m1`
+    /// (`x1 > x0`).
     pub fn new(x0: f64, x1: f64, y0: f64, y1: f64, m0: f64, m1: f64) -> Self {
         let w = x1 - x0;
         let dy = y1 - y0;
@@ -255,57 +261,107 @@ impl Quad {
             return self.x0;
         }
         // Stable root of c·dx² + s0·dx − y = 0.
-        let disc = (self.s0 * self.s0 + 4.0 * self.c * y).max(0.0);
+        let disc = (self.s0 * self.s0 + 4.0 * self.c * y).fmax(0.0);
         self.x0 + 2.0 * y / (self.s0 + disc.sqrt())
     }
 }
 
-/// A wall that steepens from its foot and rounds over at its rim: the
-/// canyon wall.
+/// A wall that rounds up off its floor, steepens, and rounds over at its
+/// rim: the canyon wall.
 ///
-/// On `u ∈ [0, 1]` (foot to rim) the height is `pow_smooth(u, exp)` up to
-/// `u0 = 1 − rim_round`, then a cubic Hermite from `pow_smooth(u0, exp)` with
-/// slope `pow_smooth_d(u0, exp)` to `(1, 1)` with slope 0: C1 everywhere,
-/// level at the rim, level at the foot for `exp > 1`.
+/// On `u ∈ [0, 1]` (foot to rim), with `P(u) = pow_smooth(u, exp)`:
+/// - **foot**, `[0, uf)` with `uf = foot_round`: the quadratic
+///   `g_f·u²/(2·uf)`, its slope rising from 0 to `g_f = P'(uf)`;
+/// - **body**, `[uf, u0)` with `u0 = 1 − rim_round`: `P(u) + c`, the power
+///   curve lifted by `c = g_f·uf/2 − P(uf)` so it meets the foot with the
+///   same value and slope;
+/// - **rim**, `[u0, 1]`: the quadratic `r0 + g0·x − g0·x²/(2·rim_round)`
+///   with `x = u − u0` and `r0`, `g0` the body's value and slope at `u0`, its
+///   slope falling from `g0` to 0;
+///
+/// all divided by the top, `r0 + g0·rim_round/2`, so the wall rises from 0
+/// to 1. The slope climbs through the foot, follows the power curve's
+/// steepening (`P'` never falls for `exp ≥ 1`), and only falls through the
+/// rim: level at both ends for every exponent, steepest at the brink, and
+/// never creased at the floor or bulged at the rim.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Wall {
     exp: f64,
+    uf: f64,
     u0: f64,
-    rim: Hermite,
+    foot: Quad,
+    lift: f64,
+    rim: Quad,
+    top: f64,
+    inv_top: f64,
 }
 
 impl Wall {
-    /// `exp` in [1, 8] (at exactly 1 the foot meets the floor at slope 1;
-    /// above 1 it is level); `rim_round` in (0, 1).
-    pub fn new(exp: f64, rim_round: f64) -> Result<Self, ProfileError> {
+    /// `exp` in [1, 8]; `foot_round` and `rim_round` in (0, 1), shares of
+    /// the wall's run, with `foot_round + rim_round ≤ 1`.
+    pub fn new(exp: f64, foot_round: f64, rim_round: f64) -> Result<Self, ProfileError> {
         const NAME: &str = "Wall";
         require((1.0..=8.0).contains(&exp), NAME, "exp must be in [1, 8]")?;
+        require(
+            foot_round > 0.0 && foot_round < 1.0,
+            NAME,
+            "foot_round must be in (0, 1)",
+        )?;
         require(
             rim_round > 0.0 && rim_round < 1.0,
             NAME,
             "rim_round must be in (0, 1)",
         )?;
-        let u0 = 1.0 - rim_round;
-        let w0 = pow_smooth(u0, exp);
-        let g0 = pow_smooth_d(u0, exp);
-        // The rim Hermite is monotone when g0·s ≤ 3(1 − w0) (Fritsch–Carlson).
-        // For exp ≥ 1 the mean value theorem gives g0·s ≤ 1 − w0, so this
-        // always holds; the assertion guards the argument, not the input.
-        debug_assert!(
-            g0 * rim_round <= 3.0 * (1.0 - w0),
-            "Wall rim would overshoot"
-        );
+        require(
+            foot_round + rim_round <= 1.0,
+            NAME,
+            "foot_round + rim_round must be at most 1",
+        )?;
+        let (uf, u0) = (foot_round, 1.0 - rim_round);
+        let (pf, gf) = pow_smooth_vd(uf, exp);
+        let foot = Quad {
+            x0: 0.0,
+            y0: 0.0,
+            s0: 0.0,
+            c: gf / (2.0 * uf),
+        };
+        let lift = foot.at(uf).0 - pf;
+        let (p0, g0) = pow_smooth_vd(u0, exp);
+        let rim = Quad {
+            x0: u0,
+            y0: p0 + lift,
+            s0: g0,
+            c: -g0 / (2.0 * rim_round),
+        };
+        let top = rim.at(1.0).0;
+        require(
+            top > 0.0 && (1.0 / top).is_finite(),
+            NAME,
+            "the wall rises too little to normalise",
+        )?;
         Ok(Self {
             exp,
+            uf,
             u0,
-            rim: Hermite::new(u0, 1.0, w0, 1.0, g0, 0.0),
+            foot,
+            lift,
+            rim,
+            top,
+            inv_top: 1.0 / top,
         })
     }
 
-    pub fn exp(&self) -> f64 {
+    /// The power curve's exponent.
+    pub fn exponent(&self) -> f64 {
         self.exp
     }
 
+    /// The foot's share of the run.
+    pub fn foot_round(&self) -> f64 {
+        self.uf
+    }
+
+    /// The rim's share of the run.
     pub fn rim_round(&self) -> f64 {
         1.0 - self.u0
     }
@@ -316,21 +372,42 @@ impl Profile for Wall {
         (0.0, 1.0)
     }
     fn knot_count(&self) -> usize {
-        1
+        2
     }
-    fn knot(&self, _: usize) -> f64 {
-        self.u0
+    fn knot(&self, i: usize) -> f64 {
+        if i == 0 {
+            self.uf
+        } else {
+            self.u0
+        }
     }
     fn piece(&self, i: usize, u: f64) -> (f64, f64) {
-        if i == 0 {
-            pow_smooth_vd(u, self.exp)
-        } else {
-            self.rim.at(u)
-        }
+        let (v, d) = match i {
+            0 => self.foot.at(u),
+            1 => {
+                let (v, d) = pow_smooth_vd(u, self.exp);
+                (v + self.lift, d)
+            }
+            _ => self.rim.at(u),
+        };
+        (v * self.inv_top, d * self.inv_top)
     }
 }
 
-impl Monotone for Wall {}
+impl Monotone for Wall {
+    /// Analytic on the foot and rim (one square root), a bracketed solve on
+    /// the body.
+    fn inverse(&self, v: f64) -> f64 {
+        let raw = v * self.top;
+        if raw <= self.rim.y0 {
+            if raw <= self.foot.at(self.uf).0 {
+                return self.foot.inverse(raw).fmin(self.uf);
+            }
+            return invert_increasing(|u| self.piece(1, u), self.uf, self.u0, v);
+        }
+        self.rim.inverse(raw).fmin(1.0)
+    }
+}
 
 /// A cone that steepens toward its summit and rounds over into it: the
 /// volcano flank.
@@ -339,6 +416,11 @@ impl Monotone for Wall {}
 /// shoulder `ts`, then the quadratic `h_s + g_s·x − g_s·x²/(2(1 − ts))`
 /// (`x = t − ts`, `h_s`, `g_s` the power's value and slope at `ts`), level at
 /// `t = 1`; the whole profile is divided by its summit value so it ends at 1.
+///
+/// The flank is level at its foot for `exp ≥ 9/8` (`pow_smooth`'s slope at 0
+/// is `1 − 8(exp − 1)` below that). A cone is built up from the ground, so
+/// the composition's build clamp rounds its junction with the plain over its
+/// own width either way.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cone {
     exp: f64,
@@ -361,6 +443,11 @@ impl Cone {
         let hs = pow_smooth(shoulder, exp);
         let gs = pow_smooth_d(shoulder, exp);
         let norm = hs + 0.5 * gs * (1.0 - shoulder);
+        require(
+            norm > 0.0 && (1.0 / norm).is_finite(),
+            NAME,
+            "the cone rises too little to normalise (shoulder too small for exp)",
+        )?;
         Ok(Self {
             exp,
             ts: shoulder,
@@ -370,10 +457,12 @@ impl Cone {
         })
     }
 
-    pub fn exp(&self) -> f64 {
+    /// The flank's exponent.
+    pub fn exponent(&self) -> f64 {
         self.exp
     }
 
+    /// Where the shoulder begins, as a share of the run.
     pub fn shoulder(&self) -> f64 {
         self.ts
     }
@@ -414,8 +503,8 @@ impl Monotone for Cone {
         // in the stable form.
         let l = 1.0 - self.ts;
         let y = raw - self.hs;
-        let r = (1.0 - 2.0 * y / (self.gs * l)).max(0.0);
-        (self.ts + (2.0 * y / self.gs) / (1.0 + r.sqrt())).min(1.0)
+        let r = (1.0 - 2.0 * y / (self.gs * l)).fmax(0.0);
+        (self.ts + (2.0 * y / self.gs) / (1.0 + r.sqrt())).fmin(1.0)
     }
 }
 
@@ -433,11 +522,17 @@ pub const SHELF_RISE: f64 = 0.3;
 /// blocks into the cliff top at `h`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FaceSpec {
+    /// Height of the cliff top over the foot, blocks.
     pub h: f64,
+    /// Height of the shelf's front edge over the foot, blocks.
     pub ledge: f64,
+    /// Horizontal run of the lower wall, blocks.
     pub run1: f64,
+    /// Width of the shelf, blocks (0 for none).
     pub shelf: f64,
+    /// Horizontal run of the upper wall's base, blocks.
     pub run2: f64,
+    /// Horizontal run of the rim's rounding, blocks.
     pub rim: f64,
 }
 
@@ -456,6 +551,8 @@ pub struct Face {
 }
 
 impl Face {
+    /// Validates `spec` and builds the four pieces; refuses a face whose pieces
+    /// cannot climb to `h` without overshooting.
     pub fn new(spec: FaceSpec) -> Result<Self, ProfileError> {
         const NAME: &str = "Face";
         let FaceSpec {
@@ -524,6 +621,7 @@ impl Face {
         })
     }
 
+    /// The spec the face was built from.
     pub fn spec(&self) -> FaceSpec {
         self.spec
     }
@@ -535,7 +633,7 @@ impl Face {
 
     /// The steepest slope on the face (at the top of the wall base).
     pub fn steepest(&self) -> f64 {
-        self.pieces[3].s0.max(self.pieces[0].s0)
+        self.pieces[3].s0.fmax(self.pieces[0].s0)
     }
 
     /// How far into the land the face stands at height `v` over its foot:
@@ -555,7 +653,7 @@ impl Face {
                 self.top
             };
             if v < end || i == 3 {
-                return piece.inverse(v).min(self.knots[i]);
+                return piece.inverse(v).fmin(self.knots[i]);
             }
         }
         unreachable!()
@@ -579,7 +677,7 @@ impl Profile for Face {
 
 impl Monotone for Face {
     fn inverse(&self, v: f64) -> f64 {
-        self.offset(v).min(self.knots[3])
+        self.offset(v).fmin(self.knots[3])
     }
 }
 
@@ -613,10 +711,12 @@ impl SWall {
         Ok(Self { share, slump })
     }
 
+    /// The wall's share of the radius.
     pub fn share(&self) -> f64 {
         self.share
     }
 
+    /// The slump bump's amplitude.
     pub fn slump(&self) -> f64 {
         self.slump
     }
@@ -649,10 +749,11 @@ impl Monotone for SWall {}
 /// A ledge part-way down a slot canyon's wall.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SlotLedge {
-    /// Ledge width, blocks (the flagship recipe keeps it at 4 or less).
+    /// Ledge width, blocks (recipes keep it at 4 or less, so it reads as a
+    /// ledge on the wall rather than a second floor).
     pub width: f64,
     /// Depth of the ledge below the rim datum, as a share of the slot's
-    /// depth (the recipe uses 0.25 to 0.5).
+    /// depth (recipes use 0.25 to 0.5).
     pub depth_share: f64,
     /// Horizontal run of the wall above the ledge, blocks.
     pub run: f64,
@@ -666,17 +767,23 @@ pub struct SlotLedge {
 /// its own `half` width.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SlotSpec {
+    /// Depth of the floor below the rim datum, blocks.
     pub depth: f64,
+    /// Half width at the top of the lower wall (the ledge's inner edge, or
+    /// the rim when there is no ledge), blocks from the centre line.
     pub half: f64,
     /// Share of `half` that is level floor; the rest is the lower wall.
     pub flat: f64,
+    /// An optional ledge part-way down the wall.
     pub ledge: Option<SlotLedge>,
-    /// The rim's quadratic lip: depth (1 to 3) and reach (3), blocks.
+    /// Depth of the rim's quadratic lip, blocks (recipes use 1 to 3).
     pub lip: f64,
+    /// How far beyond the wall top the lip reaches, blocks (recipes use 3).
     pub lip_reach: f64,
-    /// The bench sloping in toward the rim, `pow_smooth(·, 1.5)`: depth
-    /// (1 to 3) and reach (9), blocks.
+    /// Depth of the bench sloping in toward the rim, `pow_smooth(·, 1.5)`,
+    /// blocks (recipes use 1 to 3).
     pub bench: f64,
+    /// How far beyond the wall top the bench reaches, blocks (recipes use 9).
     pub bench_reach: f64,
 }
 
@@ -700,6 +807,9 @@ pub struct SlotSection {
 }
 
 impl SlotSection {
+    /// Validates `spec` and builds the pieces; refuses a section whose walls
+    /// would overshoot or whose ledge would not sit between the floor and the
+    /// rim's wear.
     pub fn new(spec: SlotSpec) -> Result<Self, ProfileError> {
         const NAME: &str = "SlotSection";
         require(spec.depth > 0.0, NAME, "depth must be positive")?;
@@ -771,8 +881,8 @@ impl SlotSection {
             }
         }
         push(rim_start, SlotPiece::Rim { at: rim_start });
-        let reach = spec.lip_reach.max(spec.bench_reach);
-        let near = spec.lip_reach.min(spec.bench_reach);
+        let reach = spec.lip_reach.fmax(spec.bench_reach);
+        let near = spec.lip_reach.fmin(spec.bench_reach);
         if near < reach {
             // Split where the shorter wear term ends, so every knot is a join.
             push(rim_start + near, SlotPiece::Rim { at: rim_start });
@@ -786,6 +896,7 @@ impl SlotSection {
         })
     }
 
+    /// The spec the section was built from.
     pub fn spec(&self) -> SlotSpec {
         self.spec
     }
@@ -804,8 +915,8 @@ impl SlotSection {
 
 /// The rim's wear at distance `o` beyond the wall top: height and slope.
 fn rim_at(spec: &SlotSpec, o: f64) -> (f64, f64) {
-    let q = (1.0 - o / spec.lip_reach).max(0.0);
-    let b = (1.0 - o / spec.bench_reach).max(0.0);
+    let q = (1.0 - o / spec.lip_reach).fmax(0.0);
+    let b = (1.0 - o / spec.bench_reach).fmax(0.0);
     (
         -(spec.lip * q * q + spec.bench * pow_smooth(b, 1.5)),
         2.0 * spec.lip * q / spec.lip_reach + spec.bench * pow_smooth_d(b, 1.5) / spec.bench_reach,
@@ -816,7 +927,7 @@ impl Profile for SlotSection {
     fn domain(&self) -> (f64, f64) {
         (
             0.0,
-            self.rim_start + self.spec.lip_reach.max(self.spec.bench_reach),
+            self.rim_start + self.spec.lip_reach.fmax(self.spec.bench_reach),
         )
     }
     fn knot_count(&self) -> usize {
@@ -857,6 +968,7 @@ impl DuneWave {
         Ok(Self { stoss })
     }
 
+    /// The windward share of a wavelength.
     pub fn stoss(&self) -> f64 {
         self.stoss
     }
@@ -907,7 +1019,7 @@ impl Profile for DuneWave {
                 smootherstep_d(0.0, self.stoss, u),
             )
         } else {
-            let t = ((u - self.stoss) / (1.0 - self.stoss)).max(0.0).min(1.0);
+            let t = ((u - self.stoss) / (1.0 - self.stoss)).fclamp(0.0, 1.0);
             (
                 1.0 - smoothstep(self.stoss, 1.0, u),
                 -6.0 * t * (1.0 - t) / (1.0 - self.stoss),

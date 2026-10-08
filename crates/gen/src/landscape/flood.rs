@@ -6,16 +6,32 @@
 //! probes, never coarse ones, so water never hangs or spills), never
 //! excavate, and are deterministic: every queue orders ties by a fixed key
 //! (cell coordinates, or insertion sequence), and no output depends on hash
-//! iteration order.
+//! iteration order. Heights must not be NaN (a flood panics on one, on
+//! every platform alike), and −0.0 queues as +0.0, so a zero's sign never
+//! reorders a flood.
 
 use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
 
 use hashbrown::HashSet;
 
+use super::math::MinMax;
+
 /// A height with a total order (`f64::total_cmp`), for priority queues.
+/// Built only by [`Key::new`], which refuses NaN and folds −0.0 into +0.0,
+/// so `total_cmp` orders exactly as `<` does.
 #[derive(Clone, Copy, Debug)]
 struct Key(f64);
+
+impl Key {
+    #[inline]
+    fn new(h: f64) -> Self {
+        assert!(!h.is_nan(), "flood: a height is NaN");
+        // −0.0 + 0.0 is +0.0 under round-to-nearest; every other value is
+        // unchanged.
+        Key(h + 0.0)
+    }
+}
 
 impl PartialEq for Key {
     fn eq(&self, o: &Self) -> bool {
@@ -69,6 +85,7 @@ pub struct Lake {
 }
 
 impl Lake {
+    /// Depth of the lake at its seed: level minus floor.
     pub fn depth(&self) -> f64 {
         self.level - self.floor
     }
@@ -78,11 +95,17 @@ impl Lake {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LakeReject {
     /// The probe budget ran out first.
-    Budget { probes: u32 },
+    Budget {
+        /// Cells probed when it ran out.
+        probes: u32,
+    },
     /// The flood reached past the radius limit.
     Radius,
     /// The depression is deeper than allowed.
-    TooDeep { level: f64 },
+    TooDeep {
+        /// The spill level the flood had reached.
+        level: f64,
+    },
 }
 
 /// Fill the depression holding `seed` to its spill point: grow a region
@@ -98,7 +121,7 @@ pub fn lake_flood(
     seed: (i32, i32),
     limits: &LakeLimits,
 ) -> Result<Lake, LakeReject> {
-    let floor = height(seed.0, seed.1);
+    let floor = Key::new(height(seed.0, seed.1)).0;
     let mut probes = 1u32;
     let mut seen: HashSet<(i32, i32)> = HashSet::new();
     let mut region: Vec<((i32, i32), f64)> = vec![(seed, floor)];
@@ -118,7 +141,7 @@ pub fn lake_flood(
                     return Err(LakeReject::Budget { probes: *probes });
                 }
                 *probes += 1;
-                heap.push(Reverse((Key(height(n.0, n.1)), n.0, n.1)));
+                heap.push(Reverse((Key::new(height(n.0, n.1)), n.0, n.1)));
             }
         }
         Ok(())
@@ -141,7 +164,7 @@ pub fn lake_flood(
                 probes,
             });
         }
-        if (x - seed.0).abs().max((z - seed.1).abs()) > limits.max_radius {
+        if Ord::max((x - seed.0).abs(), (z - seed.1).abs()) > limits.max_radius {
             return Err(LakeReject::Radius);
         }
         if h > level {
@@ -163,7 +186,9 @@ pub fn lake_flood(
 /// to the border in cells.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Divide {
+    /// Height added at the border itself, blocks.
     pub rise: f64,
+    /// How many cells in from the border the divide reaches.
     pub width: u32,
 }
 
@@ -175,15 +200,20 @@ pub const NO_RECEIVER: u32 = u32::MAX;
 /// cell comes after its receiver).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Drainage {
+    /// Grid width in cells (the `i` axis, fastest in every row-major array).
     pub width: usize,
+    /// Grid height in cells (the `j` axis).
     pub height: usize,
     /// Heights after the divide.
     pub ground: Vec<f64>,
     /// The filled surface: the lowest surface at or above `ground` that
     /// drains every reached cell to an outlet.
     pub filled: Vec<f64>,
+    /// Each cell's downstream neighbour, or [`NO_RECEIVER`].
     pub receiver: Vec<u32>,
+    /// Cells in the order the flood reached them, outlets first.
     pub order: Vec<u32>,
+    /// Whether an outlet drains the cell.
     pub reached: Vec<bool>,
 }
 
@@ -234,7 +264,9 @@ pub fn priority_flood(
             let c = j * width + i;
             is_outlet[c] = outlet(i, j);
             if let (Some(d), false) = (divide, is_outlet[c]) {
-                let edge = i.min(j).min(width - 1 - i).min(height - 1 - j) as f64;
+                let edge = [i, j, width - 1 - i, height - 1 - j]
+                    .into_iter()
+                    .fold(usize::MAX, Ord::min) as f64;
                 if d.width > 0 && edge < d.width as f64 {
                     ground[c] += d.rise * (1.0 - edge / d.width as f64);
                 }
@@ -250,7 +282,7 @@ pub fn priority_flood(
     for c in 0..n {
         if is_outlet[c] {
             reached[c] = true;
-            heap.push(Reverse((Key(filled[c]), seq, c as u32)));
+            heap.push(Reverse((Key::new(filled[c]), seq, c as u32)));
             seq += 1;
         }
     }
@@ -269,8 +301,8 @@ pub fn priority_flood(
             }
             reached[nc] = true;
             receiver[nc] = c as u32;
-            filled[nc] = ground[nc].max(level);
-            heap.push(Reverse((Key(filled[nc]), seq, nc as u32)));
+            filled[nc] = Key::new(ground[nc]).0.fmax(level);
+            heap.push(Reverse((Key::new(filled[nc]), seq, nc as u32)));
             seq += 1;
         }
     }

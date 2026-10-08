@@ -7,9 +7,8 @@
 
 use std::collections::BTreeSet;
 
-use voxelize::{Block, FluidConfig, Registry, VoxelPacker};
+use voxelize::{Block, BlockUtils, FluidConfig, Registry, VoxelPacker};
 use voxelize_gen::landscape::cache::ClockCache;
-use voxelize_gen::landscape::channels::{ChannelNet, ChannelVertex};
 use voxelize_gen::landscape::flood::{
     lake_flood, priority_flood, Divide, LakeLimits, LakeReject, NO_RECEIVER,
 };
@@ -19,13 +18,14 @@ use voxelize_gen::landscape::geometry::{
 };
 use voxelize_gen::landscape::lattice::{Interval, Lattice, LatticeSpec, VoxelBox};
 use voxelize_gen::landscape::math::*;
+use voxelize_gen::landscape::network::{ChannelNet, NetVertex};
 use voxelize_gen::landscape::profile::{
     Cone, DuneWave, Face, FaceSpec, Monotone, Profile, SWall, SlotLedge, SlotSection, SlotSpec,
     Wall,
 };
 use voxelize_gen::landscape::settle::{FluidRules, SettleBox, Settler};
 use voxelize_gen::landscape::strata::{BandPart, BandSpec, BandTable};
-use voxelize_gen::landscape::Lane;
+use voxelize_gen::landscape::{SeedLane, SeedPhase};
 use voxelize_gen::{fnv1a_64, mix64, stream_seed_lane, HashStream, Perlin, FIRST_LAYER_LANE};
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,8 @@ fn eval_pin(name: &str, a: [f64; 3]) -> f64 {
         "ring_noise" => ring_noise(linear, (10.0, 20.0), (a[0], a[1]), a[2]),
         "exp2_p" => exp2_p(a[0]),
         "log2_p" => log2_p(a[0]),
+        "fmax" => a[0].fmax(a[1]),
+        "fmin" => a[0].fmin(a[1]),
         other => panic!("no pin evaluator for {other}"),
     }
 }
@@ -87,7 +89,7 @@ fn reference(name: &str, a: [f64; 3]) -> Option<(f64, f64)> {
         "soft_up" => (a[0] + ramp(a[1] - a[0], a[2]), rel(a[0], 1e-14)),
         "soft_ramp" => (ramp(a[0], a[1]), 1e-14),
         "psin_turns" => ((std::f64::consts::TAU * a[0]).sin(), 2e-7),
-        "smin" => (
+        "smin" if a[2] > 0.0 => (
             a[0].min(a[1]) - ((a[2] - (a[0] - a[1]).abs()).max(0.0) / a[2]).powi(2) * a[2] / 4.0,
             1e-14,
         ),
@@ -205,6 +207,29 @@ fn pin_inputs() -> Vec<(&'static str, [f64; 3])> {
     ] {
         v.push(("log2_p", [x, 0.0, 0.0]));
     }
+    // Signed zeros and NaN: the tie and NaN rules of `MinMax`, and the
+    // functions that clamp with it, give one answer on every platform.
+    let nan = f64::NAN;
+    v.extend([
+        ("fmax", [-0.0, 0.0, 0.0]),
+        ("fmax", [0.0, -0.0, 0.0]),
+        ("fmin", [0.0, -0.0, 0.0]),
+        ("fmin", [-0.0, 0.0, 0.0]),
+        ("fmax", [nan, 1.0, 0.0]),
+        ("fmax", [1.0, nan, 0.0]),
+        ("fmin", [nan, -2.0, 0.0]),
+        ("fmin", [-2.0, nan, 0.0]),
+        ("clamp01", [-0.0, 0.0, 0.0]),
+        ("clamp01", [nan, 0.0, 0.0]),
+        ("pow_smooth", [-0.0, 1.0, 0.0]),
+        ("pow_smooth_d", [-0.0, 1.5, 0.0]),
+        ("soft_down", [-0.0, 0.0, 1.0]),
+        ("soft_down", [0.5, -0.0, 1.0]),
+        ("smin", [-0.0, 0.0, 0.0]),
+        ("smoothstep", [-0.0, 1.0, -0.0]),
+        ("smoothstep_d", [1.0, 1.0, 1.0]),
+        ("smootherstep_d", [1.0, 1.0, 2.0]),
+    ]);
     v
 }
 
@@ -322,6 +347,24 @@ const MATH_PINS: &[u64] = &[
     0x40248a21f60ffaf4, // log2_p[1234.5678, 0.0, 0.0] = 1.0269790353251189e1
     0x3fe0000000000001, // log2_p[1.4142135623730951, 0.0, 0.0] = 5.000000000000001e-1
     0x3fe2b803473f7ad2, // log2_p[1.5, 0.0, 0.0] = 5.849625007211563e-1
+    0x0000000000000000, // fmax[-0.0, 0.0, 0.0] = 0e0
+    0x8000000000000000, // fmax[0.0, -0.0, 0.0] = -0e0
+    0x8000000000000000, // fmin[0.0, -0.0, 0.0] = -0e0
+    0x0000000000000000, // fmin[-0.0, 0.0, 0.0] = 0e0
+    0x3ff0000000000000, // fmax[NaN, 1.0, 0.0] = 1e0
+    0x3ff0000000000000, // fmax[1.0, NaN, 0.0] = 1e0
+    0xc000000000000000, // fmin[NaN, -2.0, 0.0] = -2e0
+    0xc000000000000000, // fmin[-2.0, NaN, 0.0] = -2e0
+    0x0000000000000000, // clamp01[-0.0, 0.0, 0.0] = 0e0
+    0x0000000000000000, // clamp01[NaN, 0.0, 0.0] = 0e0
+    0x0000000000000000, // pow_smooth[-0.0, 1.0, 0.0] = 0e0
+    0x0000000000000000, // pow_smooth_d[-0.0, 1.5, 0.0] = 0e0
+    0x8000000000000000, // soft_down[-0.0, 0.0, 1.0] = -0e0
+    0x3fd8000000000000, // soft_down[0.5, -0.0, 1.0] = 3.75e-1
+    0x0000000000000000, // smin[-0.0, 0.0, 0.0] = 0e0
+    0x0000000000000000, // smoothstep[-0.0, 1.0, -0.0] = 0e0
+    0x0000000000000000, // smoothstep_d[1.0, 1.0, 1.0] = 0e0
+    0x0000000000000000, // smootherstep_d[1.0, 1.0, 2.0] = 0e0
 ];
 
 #[test]
@@ -710,19 +753,29 @@ fn slots() -> Vec<SlotSection> {
     .collect()
 }
 
+/// Walls under test: (exp, foot_round, rim_round). The canyon recipe and
+/// its ±30% (clamped at 1), the exponents just above 1 whose power curve
+/// alone would meet the floor at a slope, an empty body, and the extremes.
+const WALLS: [(f64, f64, f64); 10] = [
+    (1.35, 0.07, 0.07),
+    (1.755, 0.1, 0.07),
+    (1.0, 0.07, 0.2),
+    (1.02, 0.07, 0.07),
+    (1.05, 0.04, 0.07),
+    (1.1, 0.07, 0.1),
+    (1.124, 0.02, 0.07),
+    (2.4, 0.05, 0.15),
+    (1.5, 0.6, 0.4),
+    (8.0, 0.2, 0.5),
+];
+
 /// Every monotone profile under test, by name.
 fn monotone_profiles() -> Vec<(String, Box<dyn Monotone>)> {
     let mut out: Vec<(String, Box<dyn Monotone>)> = Vec::new();
-    for (e, s) in [
-        (1.35, 0.07),
-        (1.755, 0.07),
-        (1.0, 0.2),
-        (2.4, 0.15),
-        (8.0, 0.5),
-    ] {
+    for (e, f, s) in WALLS {
         out.push((
-            format!("Wall({e}, {s})"),
-            Box::new(Wall::new(e, s).unwrap()),
+            format!("Wall({e}, {f}, {s})"),
+            Box::new(Wall::new(e, f, s).unwrap()),
         ));
     }
     for (e, s) in [(1.875, 0.94), (1.9, 0.9), (1.0, 0.5), (3.0, 0.8)] {
@@ -779,21 +832,103 @@ fn profiles_are_level_where_they_meet_their_surroundings() {
     for (name, p) in monotone_profiles() {
         let (lo, hi) = p.domain();
         // Every profile tops out level; all but the sea-cliff face (which
-        // rises from the water) and the exponent-1 wall and cone also start
-        // level.
+        // rises from the water) and the exponent-1 cone (which the build
+        // clamp rounds into the plain) also start level. Walls start level
+        // at every exponent: their foot is its own piece.
         assert!(
             p.sample(hi).1.abs() <= 1e-12,
             "{name}: slope {:e} at its top",
             p.sample(hi).1
         );
-        if !name.starts_with("Face") && !name.starts_with("Wall(1,") && !name.starts_with("Cone(1,")
-        {
+        if !name.starts_with("Face") && !name.starts_with("Cone(1,") {
             assert!(
                 p.sample(lo).1.abs() <= 1e-12,
                 "{name}: slope {:e} at its foot",
                 p.sample(lo).1
             );
         }
+    }
+}
+
+/// Steepest slope of `p` on `[a, b]`, and whether its slope ever rises
+/// (`rising`) or falls (`!rising`) by more than `tol` between samples.
+fn slope_trend(p: &dyn Profile, a: f64, b: f64, rising: bool, tol: f64) -> Option<(f64, f64)> {
+    let n = 4_000;
+    let mut prev = p.slope(a);
+    for i in 1..=n {
+        let u = a + (b - a) * i as f64 / n as f64;
+        let s = p.slope(u);
+        let wrong = if rising {
+            s < prev - tol
+        } else {
+            s > prev + tol
+        };
+        if wrong {
+            return Some((u, s - prev));
+        }
+        prev = s;
+    }
+    None
+}
+
+#[test]
+fn wall_feet_round_off_the_floor_at_every_exponent() {
+    // pow_smooth's own slope at 0 is 1 − 8(exp − 1) below exp 9/8, and its
+    // slope climbs steeply just above 0 for exponents near 1: a wall built
+    // on it alone meets the floor with a crease. The foot piece rounds it.
+    for (e, f, s) in WALLS {
+        let wall = Wall::new(e, f, s).unwrap();
+        let name = format!("Wall({e}, {f}, {s})");
+        assert_eq!(wall.slope(0.0), 0.0, "{name}: level at the foot");
+        assert!(
+            slope_trend(&wall, 0.0, wall.knot(1), true, 1e-12).is_none(),
+            "{name}: the slope falls somewhere between foot and rim"
+        );
+        // Curvature at the foot is bounded: the slope reaches the body's
+        // slope over the whole foot, not in a sliver of it.
+        let reach = wall.slope(f * 0.5) / wall.slope(f);
+        assert!(
+            (reach - 0.5).abs() < 1e-9,
+            "{name}: the foot's slope rises linearly ({reach})"
+        );
+    }
+    for e in [1.0, 1.01, 1.05, 1.1, 1.12, 1.124_999] {
+        assert!(
+            pow_smooth_d(0.0, e) > 0.0,
+            "the bare power is creased at {e}"
+        );
+        let wall = Wall::new(e, 0.07, 0.07).unwrap();
+        assert_eq!(wall.slope(0.0), 0.0);
+    }
+}
+
+#[test]
+fn rims_round_over_without_steepening() {
+    // From the last join to the top, the slope only falls: a rim rolls
+    // over, it never bulges out before it does.
+    for (name, p) in monotone_profiles() {
+        if name.starts_with("SWall") {
+            // An S-wall's last piece is the whole wall, rising and falling.
+            continue;
+        }
+        let last = p.knot_count() - 1;
+        let (_, hi) = p.domain();
+        let scale = p.slope(p.knot(last)).abs().max(1.0);
+        if let Some((u, d)) = slope_trend(p.as_ref(), p.knot(last), hi, false, 1e-12 * scale) {
+            panic!("{name}: the slope rises by {d:e} at {u} past the rim's join");
+        }
+    }
+    // A wall is steepest exactly at the brink, where body meets rim.
+    for (e, f, s) in WALLS {
+        let wall = Wall::new(e, f, s).unwrap();
+        let brink = wall.slope(wall.knot(1));
+        let steepest = (0..=10_000)
+            .map(|i| wall.slope(i as f64 / 10_000.0))
+            .fold(0.0, f64::max);
+        assert!(
+            steepest <= brink * (1.0 + 1e-12),
+            "Wall({e}, {f}, {s}): steepest {steepest} above the brink's {brink}"
+        );
     }
 }
 
@@ -906,8 +1041,14 @@ fn dune_wave_is_c1_across_the_wrap() {
 
 #[test]
 fn profiles_refuse_specs_that_would_overshoot_or_make_no_sense() {
-    assert!(Wall::new(0.9, 0.07).is_err());
-    assert!(Wall::new(1.35, 1.0).is_err());
+    assert!(Wall::new(0.9, 0.07, 0.07).is_err());
+    assert!(Wall::new(1.35, 0.07, 1.0).is_err());
+    assert!(Wall::new(1.35, 0.0, 0.07).is_err(), "a wall needs a foot");
+    assert!(Wall::new(1.35, 0.6, 0.5).is_err(), "foot and rim overlap");
+    assert!(
+        Cone::new(8.0, 1e-300).is_err(),
+        "a cone too flat to normalise"
+    );
     assert!(Cone::new(1.875, 0.0).is_err());
     assert!(SWall::new(0.42, 0.2).is_err());
     assert!(SWall::new(0.0, 0.0).is_err());
@@ -978,7 +1119,7 @@ fn profile_digests_are_pinned() {
     assert_eq!(h, PROFILE_DIGEST, "profile arithmetic drifted");
 }
 
-const PROFILE_DIGEST: u64 = 0x3087_c0e7_f975_b794;
+const PROFILE_DIGEST: u64 = 0x00b7_0c33_f821_0ee0;
 
 // ---------------------------------------------------------------------------
 // Strata.
@@ -1127,6 +1268,166 @@ fn band_table_refuses_crossing_boundaries() {
     spec.wander = 5.0;
     spec.jitter = 0.5;
     assert!(BandTable::new(spec, 1).is_err());
+}
+
+/// A Lipschitz bound on the folded height at a fixed raw height, per unit
+/// of one slow field. With `H = lo + v(f)·span` and `f = (yt − lo)/span`:
+/// boundaries move by at most `A` (so `lo` by `A`, `span` by `2A`); the
+/// fold's gain is at most `G = 3/MIN_CLIFF_SHARE` (a monotone Hermite piece
+/// is never steeper than three times its secant, and no secant exceeds
+/// `1/MIN_CLIFF_SHARE`); tread and cliff shares move by at most
+/// `tread·(1 + roll)·vary` and `cliff·(1 + roll)·vary/2`, which moves the
+/// pieces' knots, and the talus's rise follows its share through a
+/// smoothstep of slope at most `1.5/TALUS_FADE_SHARE`.
+fn fold_lipschitz(spec: &BandSpec) -> f64 {
+    use voxelize_gen::landscape::strata::{MIN_CLIFF_SHARE, TALUS_FADE_SHARE};
+    let a = spec.wander;
+    let g = 3.0 / MIN_CLIFF_SHARE;
+    let span = spec.band * (1.0 + 2.0 * spec.jitter) + 2.0 * a;
+    let tread = spec.tread * (1.0 + spec.roll) * spec.vary;
+    let cliff = 0.5 * spec.cliff * (1.0 + spec.roll) * spec.vary;
+    let rise = spec.talus_rise * 1.5 / TALUS_FADE_SHARE * (tread + cliff);
+    3.0 * a + 3.0 * a * g + span * (g * (2.0 * tread + cliff) + rise)
+}
+
+/// Sweeps of `n1` at fixed raw heights, with steps of `h`: the largest
+/// |Δ folded height|/h seen, and the steps that made the largest jumps
+/// (column, raw height, n1 at the step's end).
+#[allow(clippy::type_complexity)]
+fn fold_sweeps(
+    table: &BandTable,
+    stream: &mut HashStream,
+    lines: usize,
+    h: f64,
+) -> (f64, Vec<(f64, (f64, f64, f64), f64, f64)>) {
+    let mut worst: f64 = 0.0;
+    let mut jumps = Vec::new();
+    for _ in 0..lines {
+        let raw = stream.range_f((-300.0, 300.0));
+        let n2 = stream.range_f((-1.0, 1.0));
+        let (x, z) = (
+            stream.range_f((-2000.0, 2000.0)),
+            stream.range_f((-2000.0, 2000.0)),
+        );
+        let steps = (2.0 / h) as usize;
+        let mut prev = table.column(x, z, [-1.0, n2]).fold(raw).height;
+        let mut line_worst = (0.0, (x, z, n2), raw, 0.0);
+        for k in 1..=steps {
+            let n1 = -1.0 + k as f64 * h;
+            let f = table.column(x, z, [n1, n2]).fold(raw).height;
+            let jump = (f - prev).abs();
+            worst = worst.max(jump / h);
+            if jump > line_worst.0 {
+                line_worst = (jump, (x, z, n2), raw, n1);
+            }
+            prev = f;
+        }
+        jumps.push(line_worst);
+    }
+    (worst, jumps)
+}
+
+#[test]
+fn band_fold_is_continuous_from_column_to_column() {
+    // Along the ground the slow fields and the dip's lift change a little
+    // per block, so the folded height at one raw height must change a
+    // little too: no talus, cliff or tread may appear or vanish with a step.
+    let mut stream = HashStream::new(0xc0c0);
+    for (i, spec) in band_specs().into_iter().enumerate() {
+        let bound = fold_lipschitz(&spec);
+        for seed in 0..3u64 {
+            let table = BandTable::new(spec, seed * 31 + i as u64).unwrap();
+            let h = 4e-4;
+            let (rate, jumps) = fold_sweeps(&table, &mut HashStream::new(seed), 24, h);
+            assert!(
+                rate <= bound,
+                "spec {i} seed {seed}: the fold changes at {rate} per unit field, above its Lipschitz bound {bound}"
+            );
+            // Refine every line's largest step a thousandfold: across a
+            // step (a discontinuity) the largest sub-step keeps the whole
+            // jump; across a steep but continuous stretch it shrinks with
+            // the step.
+            let mut worst_ratio = f64::INFINITY;
+            for (jump, (x, z, n2), raw, n1) in jumps {
+                if jump < 1e-9 {
+                    continue;
+                }
+                let sub = h / 1000.0;
+                let mut prev = table.column(x, z, [n1 - h, n2]).fold(raw).height;
+                let mut sub_worst: f64 = 0.0;
+                for k in 1..=1000 {
+                    let f = table
+                        .column(x, z, [n1 - h + k as f64 * sub, n2])
+                        .fold(raw)
+                        .height;
+                    sub_worst = sub_worst.max((f - prev).abs());
+                    prev = f;
+                }
+                worst_ratio = worst_ratio.min(jump / sub_worst.max(1e-300));
+            }
+            println!(
+                "strata spec {i} seed {seed}: fold rate {rate:.1} per unit field (bound {bound:.0}); refining the largest steps 1000x shrinks them at least {worst_ratio:.0}x"
+            );
+            assert!(
+                worst_ratio > 20.0,
+                "spec {i} seed {seed}: a step keeps 1/{worst_ratio:.1} of its jump when refined 1000x: a discontinuity"
+            );
+        }
+        // Along the dip, at fixed slow fields: the lift moves the fold by at
+        // most (1 + gain)·tilt per block.
+        let table = BandTable::new(spec, 5).unwrap();
+        let slow = [stream.range_f((-1.0, 1.0)), stream.range_f((-1.0, 1.0))];
+        let gain = 3.0 / voxelize_gen::landscape::strata::MIN_CLIFF_SHARE;
+        for _ in 0..8 {
+            let raw = stream.range_f((-200.0, 200.0));
+            let mut prev = table.column(0.0, 0.0, slow).fold(raw).height;
+            for k in 1..=20_000 {
+                let x = k as f64 * 0.05;
+                let f = table.column(x, 0.0, slow).fold(raw).height;
+                assert!(
+                    (f - prev).abs() <= (1.0 + gain) * spec.tilt.abs() * 0.05 + 1e-9,
+                    "spec {i}: the fold steps along the dip at x {x}"
+                );
+                prev = f;
+            }
+        }
+    }
+}
+
+#[test]
+fn a_thinning_talus_slopes_away_instead_of_stepping() {
+    // The case the old cutoff got wrong: a talus whose share shrinks to 0
+    // along the wall. Its rise must shrink with it.
+    let spec = band_specs()[0];
+    let table = BandTable::new(spec, 3).unwrap();
+    let mut stream = HashStream::new(0x7a1);
+    let mut seen_thin = 0;
+    for _ in 0..400 {
+        let slow = [stream.range_f((-1.0, 1.0)), stream.range_f((-1.0, 1.0))];
+        let column = table.column(0.0, 0.0, slow);
+        for k in -6..6 {
+            let lo = table.boundary(k, slow);
+            let band = column.band_at(lo + 0.01);
+            if band.talus_end > 0.0 && band.talus_end < 0.02 {
+                seen_thin += 1;
+            }
+            // The talus's mean slope (rise over share) stays bounded.
+            if band.talus_end > 0.0 {
+                let top = band.fold(band.lo + band.talus_end * (band.hi - band.lo)).0;
+                let rise = (top - band.lo) / (band.hi - band.lo);
+                let secant = rise / band.talus_end;
+                assert!(
+                    secant
+                        <= 1.125 * spec.talus_rise
+                            / voxelize_gen::landscape::strata::TALUS_FADE_SHARE
+                            + 1e-9,
+                    "a talus {} of the band rises {rise}: a step, not a slope",
+                    band.talus_end
+                );
+            }
+        }
+    }
+    assert!(seen_thin > 0, "the sweep never met a thin talus");
 }
 
 // ---------------------------------------------------------------------------
@@ -1351,6 +1652,62 @@ fn arc_schedule_and_feature_frame() {
     assert_eq!(frame.length(), 150.0);
 }
 
+#[test]
+fn geometry_refuses_inputs_that_would_hang_or_lie() {
+    let caught = |f: &dyn Fn()| std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err();
+    // Arc schedules: a spacing below the ulp of the arc position, an
+    // infinite arc, NaN.
+    assert!(caught(&|| {
+        ArcSchedule::new(f64::INFINITY);
+    }));
+    assert!(caught(&|| {
+        ArcSchedule::new(1e6).place(0.0, 1e-300, 0.0, 1.0, 1.0, &mut HashStream::new(1));
+    }));
+    assert!(caught(&|| {
+        ArcSchedule::new(1e6).place(f64::NAN, 10.0, 0.0, 1.0, 1.0, &mut HashStream::new(1));
+    }));
+    assert!(caught(&|| {
+        ArcSchedule::new(1e6).place(0.0, 0.0, 0.0, 1.0, 1.0, &mut HashStream::new(1));
+    }));
+    // A start beyond the arc places nothing; a start next to its end walks
+    // a bounded number of candidates.
+    let mut arc = ArcSchedule::new(1e6);
+    assert!(arc
+        .place(2e6, 10.0, 0.0, 1.0, 1.0, &mut HashStream::new(1))
+        .is_empty());
+    let near_end = arc.place(1e6 - 1e-10, 1e-12, 0.0, 0.0, 1.0, &mut HashStream::new(1));
+    assert!(
+        (1..=2).contains(&near_end.len()),
+        "steps below the position's precision collapse onto at most two points"
+    );
+    // Tile gates: no samples, bad strides, an undefined field.
+    assert!(caught(&|| {
+        gate_upper_bound(&[], 1.0, 4.0);
+    }));
+    assert!(caught(&|| {
+        tile_gate_bound(|_, _| 0.0, 0.0, 0.0, 64.0, 0.0, 1.0);
+    }));
+    assert!(caught(&|| {
+        tile_gate_bound(|_, _| 0.0, f64::NAN, 0.0, 64.0, 4.0, 1.0);
+    }));
+    assert!(caught(&|| {
+        tile_gate_bound(|_, _| 0.0, 1e300, 0.0, 64.0, 4.0, 1.0);
+    }));
+    assert_eq!(gate_upper_bound(&[1.0, f64::NAN], 1.0, 4.0), f64::INFINITY);
+    assert_eq!(
+        tile_gate_bound(
+            |x, _| if x > 20.0 { f64::NAN } else { 0.0 },
+            0.0,
+            0.0,
+            64.0,
+            4.0,
+            1.0
+        ),
+        f64::INFINITY,
+        "a field undefined somewhere in the tile admits it"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Lattices.
 
@@ -1436,6 +1793,69 @@ fn lattice_samples_never_leave_their_corner_bounds() {
             }
         }
     }
+}
+
+#[test]
+fn lattice_sample_f_matches_sample_at_voxels() {
+    let mut stream = HashStream::new(0x5f);
+    for spec in [
+        LatticeSpec::cubic(3),
+        LatticeSpec::new(6, 4),
+        LatticeSpec::cubic(5),
+    ] {
+        let region = VoxelBox::new([-20, -13, 7], [20, 27, 47]);
+        let lattice = Lattice::build(spec, region, 0, noise_node(stream.raw(), 0.03));
+        for x in region.min[0]..=region.max[0] {
+            for y in region.min[1]..=region.max[1] {
+                for z in region.min[2]..=region.max[2] {
+                    assert_eq!(
+                        lattice.sample(x, y, z).to_bits(),
+                        lattice.sample_f(x as f64, y as f64, z as f64).to_bits(),
+                        "({x}, {y}, {z})"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn lattice_refuses_samples_outside_its_coverage() {
+    let field = |x: i32, y: i32, z: i32| (x * 10_000 + y * 100 + z) as f64;
+    let lattice = Lattice::build(
+        LatticeSpec::cubic(4),
+        VoxelBox::new([0, 0, 0], [15, 15, 15]),
+        0,
+        field,
+    );
+    let cover = lattice.coverage();
+    assert_eq!(cover, VoxelBox::new([0, 0, 0], [15, 15, 15]));
+    for p in [[0, 0, 0], [15, 15, 15], [7, 3, 11]] {
+        assert_eq!(lattice.sample(p[0], p[1], p[2]), field(p[0], p[1], p[2]));
+    }
+    // Every voxel just past the coverage, on every face, panics instead of
+    // reading the next row's nodes.
+    for p in [
+        [0, 0, 16],
+        [0, 0, 19],
+        [0, 16, 0],
+        [0, 19, 1],
+        [16, 0, 0],
+        [-1, 0, 0],
+        [0, -1, 0],
+        [0, 0, -1],
+    ] {
+        let hit = std::panic::catch_unwind(|| lattice.sample(p[0], p[1], p[2]));
+        assert!(hit.is_err(), "sample({p:?}) answered outside the coverage");
+        let hit =
+            std::panic::catch_unwind(|| lattice.sample_f(p[0] as f64, p[1] as f64, p[2] as f64));
+        assert!(
+            hit.is_err(),
+            "sample_f({p:?}) answered outside the coverage"
+        );
+    }
+    assert!(std::panic::catch_unwind(|| lattice.node([5, 0, 0])).is_err());
+    assert!(std::panic::catch_unwind(|| lattice.corners([3, 3, 4])).is_err());
 }
 
 /// Carve or fill one region densely and with culling; return both sets and
@@ -1613,7 +2033,7 @@ fn culled_evaluation_equals_unculled_on_random_fields() {
 #[test]
 fn channel_net_matches_brute_force() {
     let mut stream = HashStream::new(0xc4a);
-    let lines: Vec<Vec<ChannelVertex<f64>>> = (0..6)
+    let lines: Vec<Vec<NetVertex<f64>>> = (0..6)
         .map(|_| {
             let (mut x, mut z) = (
                 stream.range_f((-400.0, 400.0)),
@@ -1623,7 +2043,7 @@ fn channel_net_matches_brute_force() {
                 .map(|i| {
                     x += stream.range_f((-60.0, 60.0));
                     z += stream.range_f((-60.0, 60.0));
-                    ChannelVertex::new(x, z, i as f64 * 10.0)
+                    NetVertex::new(x, z, i as f64 * 10.0)
                 })
                 .collect()
         })
@@ -1932,6 +2352,45 @@ fn priority_flood_drains_every_reached_cell_to_an_outlet() {
     assert_eq!(at_outlets, reached, "accumulation conserves runoff");
 }
 
+#[test]
+fn floods_refuse_nan_and_treat_signed_zeros_alike() {
+    let caught = |f: &dyn Fn()| std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err();
+    let limits = LakeLimits {
+        max_probes: 1000,
+        max_radius: 20,
+        max_depth: 50.0,
+    };
+    assert!(caught(&|| {
+        let _ = lake_flood(
+            |x, z| {
+                if (x, z) == (1, 0) {
+                    f64::NAN
+                } else {
+                    (x * x + z * z) as f64
+                }
+            },
+            (0, 0),
+            &limits,
+        );
+    }));
+    let mut grid = vec![1.0; 25];
+    grid[12] = f64::NAN;
+    assert!(caught(&|| {
+        priority_flood(5, 5, &grid, |i, _| i == 0, None);
+    }));
+    // A grid of zeros with mixed signs drains exactly like all +0.0.
+    let mut stream = HashStream::new(0x2e);
+    let mixed: Vec<f64> = (0..400)
+        .map(|_| if stream.unit() < 0.5 { -0.0 } else { 0.0 })
+        .collect();
+    let plain = vec![0.0; 400];
+    let (a, b) = (
+        priority_flood(20, 20, &mixed, |i, j| i == 0 && j == 7, None),
+        priority_flood(20, 20, &plain, |i, j| i == 0 && j == 7, None),
+    );
+    assert_eq!((a.receiver, a.order), (b.receiver, b.order));
+}
+
 // ---------------------------------------------------------------------------
 // Settle: a synthetic falls under three fluid configurations.
 
@@ -2055,6 +2514,29 @@ fn fluid_rules_mirror_the_engine_config() {
     assert!(!none.refills(4));
 }
 
+#[test]
+fn fluid_level_answers_only_for_the_fluid_asked() {
+    const LAVA: u32 = 101;
+    let mut registry = fluid_registry();
+    registry.register_block(&Block::new("Lava").id(LAVA).is_fluid(true).build());
+    let stone = VoxelPacker::new().with_id(STONE).pack();
+    let mut b = SettleBox::new(VoxelBox::new([0, 0, 0], [3, 3, 3]), stone);
+    b.place_fluid(0, 0, 0, WATER, 2);
+    b.place_fluid(1, 0, 0, LAVA, 3);
+    let logged = BlockUtils::insert_waterlogged(VoxelPacker::new().with_id(STONE).pack(), true);
+    b.set(2, 0, 0, BlockUtils::insert_waterlog_level(logged, 4));
+    assert_eq!(b.fluid_level(&registry, 0, 0, 0, WATER), Some(2));
+    assert_eq!(b.fluid_level(&registry, 0, 0, 0, LAVA), None);
+    assert_eq!(b.fluid_level(&registry, 1, 0, 0, LAVA), Some(3));
+    assert_eq!(b.fluid_level(&registry, 2, 0, 0, WATER), Some(4));
+    assert_eq!(
+        b.fluid_level(&registry, 2, 0, 0, LAVA),
+        None,
+        "a waterlogged block holds the waterlogging fluid, not lava"
+    );
+    assert_eq!(b.fluid_level(&registry, 3, 0, 0, WATER), None);
+}
+
 // ---------------------------------------------------------------------------
 // Caches and lanes.
 
@@ -2106,28 +2588,77 @@ fn clock_cache_is_cost_only() {
 }
 
 #[test]
-fn lane_discriminants_are_pinned() {
+fn clock_cache_solves_each_cold_key_once_under_contention() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, OnceLock};
+    let keys = 200u64;
+    let solves = AtomicUsize::new(0);
+    let cache: ClockCache<u64, Arc<OnceLock<u64>>> = ClockCache::new(4096);
+    let cells: ClockCache<u64, Arc<OnceLock<u64>>> = ClockCache::new(4096);
+    std::thread::scope(|scope| {
+        for t in 0..8u64 {
+            let (cache, cells, solves) = (&cache, &cells, &solves);
+            scope.spawn(move || {
+                // Every thread walks every key, from its own starting point,
+                // so cold keys are raced.
+                for i in 0..keys {
+                    let k = (i + t * 25) % keys;
+                    let v = cache.get_or_solve(k, || {
+                        solves.fetch_add(1, Ordering::Relaxed);
+                        std::thread::yield_now();
+                        costly(k)
+                    });
+                    assert_eq!(v, costly(k));
+                    // Racing inserts of fresh cells all leave with the first.
+                    let fresh = Arc::new(OnceLock::new());
+                    let held = cells.insert(k, fresh.clone());
+                    let again = cells.get_or_insert_with(k, || Arc::new(OnceLock::new()));
+                    assert!(Arc::ptr_eq(&held, &again));
+                }
+            });
+        }
+    });
+    assert_eq!(
+        solves.load(Ordering::Relaxed),
+        keys as usize,
+        "a cold key was solved twice"
+    );
+    // First writer wins on a plain cache too.
+    let plain: ClockCache<u64, u64> = ClockCache::new(4);
+    assert_eq!(plain.insert(1, 10), 10);
+    assert_eq!(plain.insert(1, 11), 10);
+    assert_eq!(plain.get(&1), Some(10));
+}
+
+#[test]
+fn seed_lanes_are_pinned_and_split_plan_from_build() {
     let expected = [
-        (Lane::Landforms, 6u8),
-        (Lane::Water, 7),
-        (Lane::Sites, 8),
-        (Lane::Volume, 9),
-        (Lane::Spawn, 10),
+        (SeedLane::Landforms, 6u8),
+        (SeedLane::Water, 7),
+        (SeedLane::Sites, 8),
+        (SeedLane::Volume, 9),
+        (SeedLane::Spawn, 10),
     ];
-    assert_eq!(Lane::ALL.len(), expected.len());
+    assert_eq!(SeedLane::ALL.len(), expected.len());
+    let mut seeds = BTreeSet::new();
     for (lane, id) in expected {
-        assert_eq!(lane.id(), id, "{lane:?} moved");
-        assert!(lane.id() >= FIRST_LAYER_LANE);
-        assert_eq!(
-            lane.seed(7, "overworld", b"node", 42),
-            stream_seed_lane(7, "overworld", id, b"node", 42)
-        );
+        assert_eq!(lane.id(SeedPhase::Plan), id, "{lane:?} moved");
+        assert_eq!(lane.id(SeedPhase::Build), id | 0x80, "{lane:?} build moved");
+        assert!(lane.id(SeedPhase::Plan) >= FIRST_LAYER_LANE);
+        for phase in [SeedPhase::Plan, SeedPhase::Build] {
+            let seed = lane.seed(phase, 7, "surface", b"node", 42);
+            assert_eq!(
+                seed,
+                stream_seed_lane(7, "surface", lane.id(phase), b"node", 42)
+            );
+            seeds.insert(seed);
+        }
     }
-    let seeds: BTreeSet<u64> = Lane::ALL
-        .iter()
-        .map(|l| l.seed(7, "overworld", b"node", 42))
-        .collect();
-    assert_eq!(seeds.len(), Lane::ALL.len());
+    assert_eq!(
+        seeds.len(),
+        2 * SeedLane::ALL.len(),
+        "every stream is its own"
+    );
 }
 
 #[cfg(feature = "kit")]

@@ -1,11 +1,14 @@
 //! Bit-stable scalar math: the worn-not-cut kit's arithmetic.
 //!
 //! Every function here is built from IEEE-754 add, sub, mul, div, sqrt,
-//! floor, abs, min, max and comparisons, evaluated in a fixed order, so its
+//! floor, abs, comparisons and selects, evaluated in a fixed order, so its
 //! output is the same bits on every platform, compiler and optimisation
-//! level. Nothing calls the platform maths library (`tests/no_libm.rs`
-//! enforces that for all of `landscape`), and nothing uses fused
-//! multiply-add, which Rust never introduces on its own.
+//! level. Nothing calls the platform maths library, nothing uses fused
+//! multiply-add (which Rust never introduces on its own), and nothing calls
+//! `f64::max` or `f64::min`, whose result for +0.0 against −0.0 is left to
+//! the platform: [`MinMax`] replaces them with comparisons that pick the
+//! same operand everywhere. `tests/no_libm.rs` enforces all three for the
+//! whole of `landscape`.
 //!
 //! Where a true transcendental is wanted, this module supplies a pinned
 //! replacement: [`psin`] and [`pcos`] (a minimax polynomial after range
@@ -25,10 +28,56 @@ pub const INV_TAU: f64 = core::f64::consts::FRAC_1_PI * 0.5;
 /// Largest exponent [`pow_smooth`] accepts; larger exponents are clamped.
 pub const POW_SMOOTH_MAX_EXP: f64 = 64.0;
 
-/// Clamp to `[0, 1]`. NaN maps to 0.
+/// Minimum and maximum with one rule on every platform.
+///
+/// `f64::max` and `f64::min` may return either zero when handed +0.0 and
+/// −0.0 (the Rust documentation leaves it open, and x86 `maxsd` and AArch64
+/// `fmaxnm` do differ). Comparisons treat the two zeros alike, but `to_bits`,
+/// digests and a later division do not, so `landscape` uses these instead:
+/// plain comparisons and selects, which round nothing.
+///
+/// - NaN on one side returns the other side, as `f64::max` does.
+/// - Otherwise the larger (for `fmax`) or smaller (`fmin`) value.
+/// - A tie returns `other`. Only the two zeros tie with different bits, so
+///   `x.fmax(0.0)` and `x.fclamp(0.0, 1.0)` turn −0.0 into +0.0.
+pub trait MinMax: Copy {
+    /// The larger of `self` and `other`; `other` on a tie.
+    fn fmax(self, other: Self) -> Self;
+    /// The smaller of `self` and `other`; `other` on a tie.
+    fn fmin(self, other: Self) -> Self;
+    /// `self.fmax(lo).fmin(hi)`: NaN maps to `lo`.
+    fn fclamp(self, lo: Self, hi: Self) -> Self;
+}
+
+impl MinMax for f64 {
+    #[inline]
+    fn fmax(self, other: f64) -> f64 {
+        if other.is_nan() || self > other {
+            self
+        } else {
+            other
+        }
+    }
+
+    #[inline]
+    fn fmin(self, other: f64) -> f64 {
+        if other.is_nan() || self < other {
+            self
+        } else {
+            other
+        }
+    }
+
+    #[inline]
+    fn fclamp(self, lo: f64, hi: f64) -> f64 {
+        self.fmax(lo).fmin(hi)
+    }
+}
+
+/// Clamp to `[0, 1]`. NaN and −0.0 map to +0.0.
 #[inline]
 pub fn clamp01(t: f64) -> f64 {
-    t.max(0.0).min(1.0)
+    t.fclamp(0.0, 1.0)
 }
 
 /// `a + (b − a)·t`.
@@ -45,9 +94,13 @@ pub fn smoothstep(e0: f64, e1: f64, x: f64) -> f64 {
     t * t * (3.0 - 2.0 * t)
 }
 
-/// d/dx of [`smoothstep`]: `6t(1 − t)/(e1 − e0)` inside the window, 0 outside.
+/// d/dx of [`smoothstep`]: `6t(1 − t)/(e1 − e0)` inside the window, 0 outside
+/// it and 0 for a degenerate window (the step's slope away from its edge).
 #[inline]
 pub fn smoothstep_d(e0: f64, e1: f64, x: f64) -> f64 {
+    if e1 == e0 {
+        return 0.0;
+    }
     let t = clamp01((x - e0) / (e1 - e0));
     6.0 * t * (1.0 - t) / (e1 - e0)
 }
@@ -59,9 +112,13 @@ pub fn smootherstep(e0: f64, e1: f64, x: f64) -> f64 {
     t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
 }
 
-/// d/dx of [`smootherstep`]: `30t²(1 − t)²/(e1 − e0)` inside the window.
+/// d/dx of [`smootherstep`]: `30t²(1 − t)²/(e1 − e0)` inside the window, 0
+/// outside it and 0 for a degenerate window.
 #[inline]
 pub fn smootherstep_d(e0: f64, e1: f64, x: f64) -> f64 {
+    if e1 == e0 {
+        return 0.0;
+    }
     let t = clamp01((x - e0) / (e1 - e0));
     let s = t * (1.0 - t);
     30.0 * s * s / (e1 - e0)
@@ -118,7 +175,7 @@ pub fn soft_down(cur: f64, h: f64, k: f64) -> f64 {
     // operation is monotone in `cur`, and the clamp keeps rounding inside
     // [h, cur] so the junction with the identity branch cannot step back.
     let q = k - d;
-    (engaged - q * q / (2.0 * k)).max(h).min(cur)
+    (engaged - q * q / (2.0 * k)).fclamp(h, cur)
 }
 
 /// d/dcur of [`soft_down`]: `1 − r_k'(cur − h)`.
@@ -149,10 +206,10 @@ pub fn soft_up_d(cur: f64, h: f64, k: f64) -> f64 {
 #[inline]
 pub fn smin(a: f64, b: f64, k: f64) -> f64 {
     if !(k > 0.0) {
-        return a.min(b);
+        return a.fmin(b);
     }
-    let h = (k - (a - b).abs()).max(0.0) / k;
-    a.min(b) - h * h * k * 0.25
+    let h = (k - (a - b).abs()).fmax(0.0) / k;
+    a.fmin(b) - h * h * k * 0.25
 }
 
 /// Polynomial smooth maximum, `−smin(−a, −b, k)`.
@@ -164,9 +221,10 @@ pub fn smax(a: f64, b: f64, k: f64) -> f64 {
 /// Rational soft ceiling: `h` below `knee`; above it
 /// `knee + (cap − knee)·s/√(1 + s²)` with `s = (h − knee)/(cap − knee)`.
 /// Slope 1 at the knee, monotone, approaches `cap` without crossing it
-/// (it rounds to `cap` only for `s` beyond about 1e8).
+/// (it rounds to `cap` only for `s` beyond about 1e8). Needs `cap > knee`.
 #[inline]
 pub fn soft_ceiling(h: f64, knee: f64, cap: f64) -> f64 {
+    debug_assert!(cap > knee, "soft_ceiling needs cap > knee");
     if !(h > knee) {
         return h;
     }
@@ -178,6 +236,7 @@ pub fn soft_ceiling(h: f64, knee: f64, cap: f64) -> f64 {
 /// d/dh of [`soft_ceiling`]: `(1 + s²)^(−3/2)` above the knee, 1 below.
 #[inline]
 pub fn soft_ceiling_d(h: f64, knee: f64, cap: f64) -> f64 {
+    debug_assert!(cap > knee, "soft_ceiling needs cap > knee");
     if !(h > knee) {
         return 1.0;
     }
@@ -238,7 +297,7 @@ fn d8(t: f64, k: u32, r2: f64, r4: f64, r8: f64) -> f64 {
 
 #[inline]
 fn pow_smooth_split(e: f64) -> (u32, f64) {
-    let s = 8.0 * e.max(0.0).min(POW_SMOOTH_MAX_EXP);
+    let s = 8.0 * e.fclamp(0.0, POW_SMOOTH_MAX_EXP);
     let kf = s.floor();
     (kf as u32, s - kf)
 }
@@ -251,7 +310,7 @@ fn pow_smooth_split(e: f64) -> (u32, f64) {
 /// continuous in `e`, and monotone in `t`.
 #[inline]
 pub fn pow_smooth(t: f64, e: f64) -> f64 {
-    let t = t.max(0.0);
+    let t = t.fmax(0.0);
     let (k, f) = pow_smooth_split(e);
     let r2 = t.sqrt();
     let r4 = r2.sqrt();
@@ -269,7 +328,7 @@ pub fn pow_smooth(t: f64, e: f64) -> f64 {
 /// `t = 0` (the true slope of a root).
 #[inline]
 pub fn pow_smooth_d(t: f64, e: f64) -> f64 {
-    let t = t.max(0.0);
+    let t = t.fmax(0.0);
     let (k, f) = pow_smooth_split(e);
     let r2 = t.sqrt();
     let r4 = r2.sqrt();
@@ -285,7 +344,7 @@ pub fn pow_smooth_d(t: f64, e: f64) -> f64 {
 /// same bits as the two calls, for about the cost of one.
 #[inline]
 pub fn pow_smooth_vd(t: f64, e: f64) -> (f64, f64) {
-    let t = t.max(0.0);
+    let t = t.fmax(0.0);
     let (k, f) = pow_smooth_split(e);
     let r2 = t.sqrt();
     let r4 = r2.sqrt();
@@ -341,7 +400,7 @@ pub fn psin_turns(u: f64) -> f64 {
     let v = u * TAU;
     let v2 = v * v;
     let p = v * (SIN_C1 + v2 * (SIN_C3 + v2 * (SIN_C5 + v2 * (SIN_C7 + v2 * SIN_C9))));
-    p.max(-1.0).min(1.0)
+    p.fclamp(-1.0, 1.0)
 }
 
 /// Bit-stable sine: within 2e-7 of sin(x) (6.3e-9 measured) for |x| up to

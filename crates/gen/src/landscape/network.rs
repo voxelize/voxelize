@@ -11,9 +11,12 @@
 use hashbrown::HashMap;
 
 use super::geometry::{segment_distance, Aabb2};
+use super::math::MinMax;
 
 /// Payloads that can be interpolated along a segment.
 pub trait Lerp: Copy {
+    /// The payload a share `t ∈ [0, 1]` of the way from `a` to `b`
+    /// (`a + (b − a)·t` for numbers).
     fn lerp(a: Self, b: Self, t: f64) -> Self;
 }
 
@@ -44,13 +47,17 @@ impl<const N: usize> Lerp for [f64; N] {
 
 /// A polyline vertex with its payload.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ChannelVertex<P> {
+pub struct NetVertex<P> {
+    /// World x of the vertex.
     pub x: f64,
+    /// World z of the vertex.
     pub z: f64,
+    /// The landform's data at this vertex.
     pub payload: P,
 }
 
-impl<P> ChannelVertex<P> {
+impl<P> NetVertex<P> {
+    /// A vertex at `(x, z)` carrying `payload`.
     pub fn new(x: f64, z: f64, payload: P) -> Self {
         Self { x, z, payload }
     }
@@ -58,7 +65,7 @@ impl<P> ChannelVertex<P> {
 
 /// Where a query point lies relative to one segment of a network.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ChannelHit<P> {
+pub struct NetHit<P> {
     /// Distance to the segment.
     pub dist: f64,
     /// Signed distance: positive on the side a direction turns toward when
@@ -68,14 +75,17 @@ pub struct ChannelHit<P> {
     pub t: f64,
     /// Arc length of the nearest point from its line's first vertex.
     pub s: f64,
+    /// Index of the line the segment belongs to.
     pub line: u32,
+    /// Index of the segment in the network.
     pub segment: u32,
-    /// The segment's end payloads.
+    /// The payload at the segment's first vertex.
     pub a: P,
+    /// The payload at the segment's second vertex.
     pub b: P,
 }
 
-impl<P: Lerp> ChannelHit<P> {
+impl<P: Lerp> NetHit<P> {
     /// The payload interpolated at the nearest point.
     pub fn payload(&self) -> P {
         P::lerp(self.a, self.b, self.t)
@@ -93,7 +103,7 @@ struct Segment {
 /// A network of polylines with per-vertex payloads.
 #[derive(Clone, Debug)]
 pub struct ChannelNet<P: Copy> {
-    vertices: Vec<ChannelVertex<P>>,
+    vertices: Vec<NetVertex<P>>,
     /// First vertex and vertex count of each line.
     lines: Vec<(u32, u32)>,
     segments: Vec<Segment>,
@@ -108,11 +118,12 @@ impl<P: Copy> ChannelNet<P> {
     pub const BUCKET: f64 = 32.0;
 
     /// Builds a network answering queries within `reach` of any segment.
-    pub fn new(lines: &[Vec<ChannelVertex<P>>], reach: f64) -> Self {
+    pub fn new(lines: &[Vec<NetVertex<P>>], reach: f64) -> Self {
         Self::with_bucket(lines, reach, Self::BUCKET)
     }
 
-    pub fn with_bucket(lines: &[Vec<ChannelVertex<P>>], reach: f64, bucket: f64) -> Self {
+    /// [`ChannelNet::new`] with segments bucketed in `bucket`-block squares.
+    pub fn with_bucket(lines: &[Vec<NetVertex<P>>], reach: f64, bucket: f64) -> Self {
         assert!(
             bucket > 0.0 && reach >= 0.0,
             "bucket must be positive and reach non-negative"
@@ -145,10 +156,10 @@ impl<P: Copy> ChannelNet<P> {
         let mut buckets: HashMap<(i32, i32), Vec<u32>> = HashMap::new();
         for (index, seg) in segments.iter().enumerate() {
             let (p, q) = (vertices[seg.a as usize], vertices[seg.a as usize + 1]);
-            let b0 = ((p.x.min(q.x) - reach) / bucket).floor() as i32;
-            let b1 = ((p.x.max(q.x) + reach) / bucket).floor() as i32;
-            let c0 = ((p.z.min(q.z) - reach) / bucket).floor() as i32;
-            let c1 = ((p.z.max(q.z) + reach) / bucket).floor() as i32;
+            let b0 = ((p.x.fmin(q.x) - reach) / bucket).floor() as i32;
+            let b1 = ((p.x.fmax(q.x) + reach) / bucket).floor() as i32;
+            let c0 = ((p.z.fmin(q.z) - reach) / bucket).floor() as i32;
+            let c1 = ((p.z.fmax(q.z) + reach) / bucket).floor() as i32;
             for bx in b0..=b1 {
                 for bz in c0..=c1 {
                     buckets.entry((bx, bz)).or_default().push(index as u32);
@@ -166,10 +177,12 @@ impl<P: Copy> ChannelNet<P> {
         }
     }
 
+    /// Whether the network has no segment.
     pub fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }
 
+    /// How far from a segment queries see it, blocks.
     pub fn reach(&self) -> f64 {
         self.reach
     }
@@ -179,12 +192,13 @@ impl<P: Copy> ChannelNet<P> {
         self.bounds
     }
 
+    /// Number of lines.
     pub fn line_count(&self) -> usize {
         self.lines.len()
     }
 
     /// The vertices of line `index`.
-    pub fn line(&self, index: usize) -> &[ChannelVertex<P>] {
+    pub fn line(&self, index: usize) -> &[NetVertex<P>] {
         let (first, count) = self.lines[index];
         &self.vertices[first as usize..(first + count) as usize]
     }
@@ -198,7 +212,7 @@ impl<P: Copy> ChannelNet<P> {
             .sum()
     }
 
-    fn hit(&self, index: u32, x: f64, z: f64) -> ChannelHit<P> {
+    fn hit(&self, index: u32, x: f64, z: f64) -> NetHit<P> {
         let seg = self.segments[index as usize];
         let (p, q) = (
             self.vertices[seg.a as usize],
@@ -206,7 +220,7 @@ impl<P: Copy> ChannelNet<P> {
         );
         let (t, dist) = segment_distance((x, z), (p.x, p.z), (q.x, q.z));
         let cross = (q.x - p.x) * (z - p.z) - (q.z - p.z) * (x - p.x);
-        ChannelHit {
+        NetHit {
             dist,
             side: if cross < 0.0 { -dist } else { dist },
             t,
@@ -219,7 +233,7 @@ impl<P: Copy> ChannelNet<P> {
     }
 
     /// Visit every segment within reach of `(x, z)`, in segment order.
-    pub fn visit(&self, x: f64, z: f64, mut f: impl FnMut(&ChannelHit<P>)) {
+    pub fn visit(&self, x: f64, z: f64, mut f: impl FnMut(&NetHit<P>)) {
         let key = (
             (x / self.bucket).floor() as i32,
             (z / self.bucket).floor() as i32,
@@ -236,8 +250,8 @@ impl<P: Copy> ChannelNet<P> {
     }
 
     /// The nearest segment within reach (ties to the lower segment index).
-    pub fn nearest(&self, x: f64, z: f64) -> Option<ChannelHit<P>> {
-        let mut best: Option<ChannelHit<P>> = None;
+    pub fn nearest(&self, x: f64, z: f64) -> Option<NetHit<P>> {
+        let mut best: Option<NetHit<P>> = None;
         self.visit(x, z, |hit| {
             if best.is_none_or(|b| hit.dist < b.dist) {
                 best = Some(*hit);
@@ -260,6 +274,6 @@ impl<P: Copy> ChannelNet<P> {
         if !(lens > 0.0) {
             return 0.0;
         }
-        ((ux * wz - uz * wx) / lens).max(-1.0).min(1.0)
+        ((ux * wz - uz * wx) / lens).fclamp(-1.0, 1.0)
     }
 }

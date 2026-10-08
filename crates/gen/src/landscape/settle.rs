@@ -5,10 +5,15 @@
 //! configuration, which the engine bakes into each fluid block's updater.
 //! So this module never models the simulation itself: [`Settler`] runs the
 //! engine's real updater (built from the same `FluidConfig` the game bakes
-//! into its block) over a closed [`SettleBox`], tick by tick, with the same
-//! tick semantics as the engine's update system (every wet voxel plans
-//! against the committed state, in x, y, z order; two offers of one fluid
-//! into one voxel keep the fuller; then everything commits).
+//! into its block) over a closed [`SettleBox`], tick by tick. Within a tick
+//! it follows the engine update system's rules (every voxel plans against
+//! the committed state, in x, y, z order; two offers of one fluid into one
+//! voxel keep the fuller; then everything commits), but it runs every wet
+//! voxel every tick, where the engine runs only the voxels whose ticker is
+//! due. So the two agree on what is still (a still box is a fixed point of
+//! both, which is what [`Settler::check`] proves), while the still state
+//! [`Settler::presettle`] reaches from a restless start may differ from the
+//! one the live engine would reach.
 //!
 //! [`FluidRules`] mirrors the few level rules that stamping needs as pure
 //! functions (the falling level, the reach, refills), so a stamp can be
@@ -26,26 +31,46 @@ use crate::stream::{fnv1a_64, mix64};
 
 use super::lattice::VoxelBox;
 
-/// The level rules of a fluid configuration, as pure functions.
+/// The level rules of a fluid configuration, as pure functions: every
+/// `FluidConfig` field that shapes a steady state (the tick rate only sets
+/// how fast it is reached).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FluidRules {
+    /// Highest stage (lowest level) a flow reaches before it stops.
     pub max_stage: u32,
+    /// Whether flowing fluid between sources becomes a source.
     pub infinite_source: bool,
+    /// How many source neighbours make a new source.
     pub infinite_source_count: u32,
+    /// Whether fluid falling a block becomes a source.
     pub flows_down_as_source: bool,
+    /// Whether a fall restores a flow's horizontal reach.
     pub renews_reach_on_fall: bool,
+    /// How far a flow looks for a way down before spreading evenly.
     pub slope_find_distance: u32,
 }
 
 impl From<&FluidConfig> for FluidRules {
     fn from(c: &FluidConfig) -> Self {
+        // Destructured field by field, so a new `FluidConfig` field fails to
+        // compile here until it is mirrored (and digested) or named as
+        // irrelevant to steady states.
+        let FluidConfig {
+            max_stage,
+            tick_rate: _,
+            infinite_source,
+            infinite_source_count,
+            flows_down_as_source,
+            renews_reach_on_fall,
+            slope_find_distance,
+        } = *c;
         Self {
-            max_stage: c.max_stage,
-            infinite_source: c.infinite_source,
-            infinite_source_count: c.infinite_source_count,
-            flows_down_as_source: c.flows_down_as_source,
-            renews_reach_on_fall: c.renews_reach_on_fall,
-            slope_find_distance: c.slope_find_distance,
+            max_stage,
+            infinite_source,
+            infinite_source_count,
+            flows_down_as_source,
+            renews_reach_on_fall,
+            slope_find_distance,
         }
     }
 }
@@ -63,7 +88,7 @@ impl FluidRules {
         } else if self.renews_reach_on_fall {
             1
         } else {
-            stage.max(1)
+            Ord::max(stage, 1)
         }
     }
 
@@ -110,6 +135,13 @@ impl FluidRules {
     }
 }
 
+/// Whether voxel word `raw` holds fluid `id`: a voxel of block `id`, or a
+/// waterlogged voxel when `id` is the registry's waterlogging fluid.
+fn holds(registry: &Registry, raw: u32, id: u32) -> bool {
+    BlockUtils::extract_id(raw) == id
+        || (BlockUtils::extract_waterlogged(raw) && registry.waterlogging_fluid_id() == Some(id))
+}
+
 /// A closed box of voxels for settling: inside it the voxels are stored,
 /// outside every voxel reads as `outside` (normally a solid), so water can
 /// neither leak out nor see unloaded ground.
@@ -134,6 +166,7 @@ impl SettleBox {
         }
     }
 
+    /// The voxels the box stores.
     pub fn bounds(&self) -> VoxelBox {
         self.bounds
     }
@@ -190,11 +223,12 @@ impl SettleBox {
         );
     }
 
-    /// The fluid level at a voxel holding fluid `id`, if it does.
-    pub fn fluid_level(&self, x: i32, y: i32, z: i32, id: u32) -> Option<u32> {
+    /// The fluid level at a voxel holding fluid `id`, if it does: a voxel of
+    /// block `id`, or a waterlogged voxel when `id` is the registry's
+    /// waterlogging fluid.
+    pub fn fluid_level(&self, registry: &Registry, x: i32, y: i32, z: i32, id: u32) -> Option<u32> {
         let raw = self.raw(x, y, z);
-        (BlockUtils::extract_id(raw) == id || BlockUtils::extract_waterlogged(raw))
-            .then(|| BlockUtils::extract_fluid_level(raw))
+        holds(registry, raw, id).then(|| BlockUtils::extract_fluid_level(raw))
     }
 
     /// Every position in the box, in x, y, z order.
@@ -259,9 +293,15 @@ impl SettleReport {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettleError {
     /// Still changing after the tick budget.
-    Restless { ticks: u32 },
+    Restless {
+        /// Ticks run.
+        ticks: u32,
+    },
     /// More water voxels than the budget allows.
-    TooWet { wet: usize },
+    TooWet {
+        /// Fluid voxels held when the budget was exceeded.
+        wet: usize,
+    },
 }
 
 /// Runs a fluid's own updater over a settle box.
@@ -290,6 +330,7 @@ impl<'a> Settler<'a> {
         }
     }
 
+    /// The level rules mirrored from the configuration.
     pub fn rules(&self) -> FluidRules {
         self.rules
     }
@@ -299,10 +340,7 @@ impl<'a> Settler<'a> {
     }
 
     fn is_wet(&self, b: &SettleBox, p: [i32; 3]) -> bool {
-        let raw = b.raw(p[0], p[1], p[2]);
-        BlockUtils::extract_id(raw) == self.fluid_id
-            || (BlockUtils::extract_waterlogged(raw)
-                && self.registry.waterlogging_fluid_id() == Some(self.fluid_id))
+        holds(self.registry, b.raw(p[0], p[1], p[2]), self.fluid_id)
     }
 
     /// Count of voxels holding this fluid.

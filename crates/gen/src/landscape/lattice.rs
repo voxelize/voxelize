@@ -16,16 +16,25 @@
 //! separable forms built on lattices: rounding is monotone, so evaluating
 //! the same expression on interval ends, in the same order, bounds the
 //! evaluated value exactly.
+//!
+//! A lattice answers only inside its [`Lattice::coverage`]: sampling a voxel
+//! outside it, or asking for a cell or node it does not store, panics in
+//! every build rather than reading a neighbouring row's nodes.
+
+use super::math::MinMax;
 
 /// Node spacing of a lattice, in blocks: `stride` horizontally, `stride_y`
 /// vertically.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LatticeSpec {
+    /// Horizontal node spacing, blocks.
     pub stride: i32,
+    /// Vertical node spacing, blocks.
     pub stride_y: i32,
 }
 
 impl LatticeSpec {
+    /// Strides `stride` across and `stride_y` up; both must be positive.
     pub const fn new(stride: i32, stride_y: i32) -> Self {
         assert!(
             stride > 0 && stride_y > 0,
@@ -34,6 +43,7 @@ impl LatticeSpec {
         Self { stride, stride_y }
     }
 
+    /// The same stride on all three axes.
     pub const fn cubic(stride: i32) -> Self {
         Self::new(stride, stride)
     }
@@ -47,24 +57,30 @@ impl LatticeSpec {
 /// An inclusive box of voxels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct VoxelBox {
+    /// The lowest corner (inclusive).
     pub min: [i32; 3],
+    /// The highest corner (inclusive).
     pub max: [i32; 3],
 }
 
 impl VoxelBox {
+    /// The box from `min` to `max`, both inclusive.
     pub const fn new(min: [i32; 3], max: [i32; 3]) -> Self {
         Self { min, max }
     }
 
+    /// Whether the box holds no voxel.
     pub fn is_empty(&self) -> bool {
         (0..3).any(|a| self.max[a] < self.min[a])
     }
 
+    /// Whether voxel `(x, y, z)` lies in the box.
     pub fn contains(&self, x: i32, y: i32, z: i32) -> bool {
         let p = [x, y, z];
         (0..3).all(|a| p[a] >= self.min[a] && p[a] <= self.max[a])
     }
 
+    /// Number of voxels in the box.
     pub fn volume(&self) -> usize {
         if self.is_empty() {
             return 0;
@@ -74,13 +90,15 @@ impl VoxelBox {
             .product()
     }
 
+    /// The voxels in both boxes (possibly empty).
     pub fn intersect(&self, o: &Self) -> Self {
         Self {
-            min: [0, 1, 2].map(|a| self.min[a].max(o.min[a])),
-            max: [0, 1, 2].map(|a| self.max[a].min(o.max[a])),
+            min: [0, 1, 2].map(|a| Ord::max(self.min[a], o.min[a])),
+            max: [0, 1, 2].map(|a| Ord::min(self.max[a], o.max[a])),
         }
     }
 
+    /// This box grown by `by` voxels on every side.
     pub fn grow(&self, by: i32) -> Self {
         Self {
             min: self.min.map(|v| v - by),
@@ -92,15 +110,19 @@ impl VoxelBox {
 /// A closed interval `[lo, hi]` of field values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Interval {
+    /// The lower end.
     pub lo: f64,
+    /// The upper end.
     pub hi: f64,
 }
 
 impl Interval {
+    /// The interval from `lo` to `hi`.
     pub const fn new(lo: f64, hi: f64) -> Self {
         Self { lo, hi }
     }
 
+    /// The interval holding only `v`.
     pub const fn point(v: f64) -> Self {
         Self { lo: v, hi: v }
     }
@@ -122,10 +144,11 @@ impl Interval {
     }
 
     #[inline]
+    /// The smallest interval holding both.
     pub fn hull(self, o: Self) -> Self {
         Self {
-            lo: self.lo.min(o.lo),
-            hi: self.hi.max(o.hi),
+            lo: self.lo.fmin(o.lo),
+            hi: self.hi.fmax(o.hi),
         }
     }
 
@@ -154,7 +177,7 @@ impl std::ops::Add for Interval {
 #[inline]
 fn lerp_hull(a: f64, b: f64, t: f64) -> f64 {
     let v = a + (b - a) * t;
-    v.max(a.min(b)).min(a.max(b))
+    v.fclamp(a.fmin(b), a.fmax(b))
 }
 
 /// The eight corners of a lattice cell, indexed `dx·4 + dy·2 + dz`.
@@ -162,12 +185,14 @@ fn lerp_hull(a: f64, b: f64, t: f64) -> f64 {
 pub struct CellCorners(pub [f64; 8]);
 
 impl CellCorners {
+    /// The smallest corner value.
     pub fn min(&self) -> f64 {
-        self.0.iter().copied().fold(f64::INFINITY, f64::min)
+        self.0.iter().fold(f64::INFINITY, |m, &v| m.fmin(v))
     }
 
+    /// The largest corner value.
     pub fn max(&self) -> f64 {
-        self.0.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+        self.0.iter().fold(f64::NEG_INFINITY, |m, &v| m.fmax(v))
     }
 
     /// Bounds of every interpolated value in the cell.
@@ -194,7 +219,9 @@ impl CellCorners {
 /// the region it interpolates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LatticeCell {
+    /// World index of the cell.
     pub cell: [i32; 3],
+    /// The voxels of the region the cell interpolates.
     pub voxels: VoxelBox,
 }
 
@@ -239,15 +266,18 @@ impl Lattice {
         }
     }
 
+    /// The lattice's strides.
     pub fn spec(&self) -> LatticeSpec {
         self.spec
     }
 
+    /// Number of nodes stored.
     pub fn node_count(&self) -> usize {
         self.values.len()
     }
 
-    /// The voxels this lattice can interpolate.
+    /// The voxels this lattice can interpolate: [`Lattice::sample`] answers
+    /// exactly these, and panics anywhere else.
     pub fn coverage(&self) -> VoxelBox {
         let s = self.spec.strides();
         VoxelBox {
@@ -256,19 +286,28 @@ impl Lattice {
         }
     }
 
+    /// Local node offsets of world node `n`, checked so that `n + extra`
+    /// is stored on every axis.
     #[inline]
-    fn index(&self, n: [i32; 3]) -> usize {
-        let l = [0, 1, 2].map(|a| (n[a] - self.node0[a]) as usize);
-        debug_assert!(
-            (0..3).all(|a| l[a] < self.dims[a]),
-            "node {n:?} outside the lattice"
+    fn local(&self, n: [i32; 3], extra: usize) -> [usize; 3] {
+        let l = [0, 1, 2].map(|a| n[a] as i64 - self.node0[a] as i64);
+        assert!(
+            (0..3).all(|a| l[a] >= 0 && l[a] + (extra as i64) < self.dims[a] as i64),
+            "lattice: node {n:?} (+{extra}) is outside the stored nodes (coverage {:?})",
+            self.coverage()
         );
+        l.map(|v| v as usize)
+    }
+
+    #[inline]
+    fn flat(&self, l: [usize; 3]) -> usize {
         (l[0] * self.dims[1] + l[1]) * self.dims[2] + l[2]
     }
 
-    /// The value at world node index `n`.
+    /// The value at world node index `n`. Panics if the lattice does not
+    /// store it.
     pub fn node(&self, n: [i32; 3]) -> f64 {
-        self.values[self.index(n)]
+        self.values[self.flat(self.local(n, 0))]
     }
 
     /// The world cell index holding voxel `(x, y, z)`.
@@ -278,10 +317,11 @@ impl Lattice {
         [x.div_euclid(s[0]), y.div_euclid(s[1]), z.div_euclid(s[2])]
     }
 
-    /// The corners of world cell `cell`.
+    /// The corners of world cell `cell`. Panics if the lattice does not
+    /// store all eight.
     #[inline]
     pub fn corners(&self, cell: [i32; 3]) -> CellCorners {
-        let b = self.index(cell);
+        let b = self.flat(self.local(cell, 1));
         let (sy, sx) = (self.dims[2], self.dims[1] * self.dims[2]);
         let v = &self.values;
         CellCorners([
@@ -296,7 +336,8 @@ impl Lattice {
         ])
     }
 
-    /// The field at voxel `(x, y, z)`.
+    /// The field at voxel `(x, y, z)`. Panics outside
+    /// [`Lattice::coverage`].
     #[inline]
     pub fn sample(&self, x: i32, y: i32, z: i32) -> f64 {
         let s = self.spec.strides();
@@ -306,13 +347,17 @@ impl Lattice {
         self.corners(cell).lerp(f[0], f[1], f[2])
     }
 
-    /// The field at a continuous world position.
+    /// The field at a continuous world position: the same bits as
+    /// [`Lattice::sample`] at integer positions. Panics outside the cells
+    /// the lattice stores.
     pub fn sample_f(&self, x: f64, y: f64, z: f64) -> f64 {
         let s = self.spec.strides();
         let p = [x, y, z];
-        let q = [0, 1, 2].map(|a| p[a] / s[a] as f64);
-        let cell = q.map(|v| v.floor() as i32);
-        let f = [0, 1, 2].map(|a| q[a] - cell[a] as f64);
+        let cell = [0, 1, 2].map(|a| (p[a] / s[a] as f64).floor() as i32);
+        // The same arithmetic as `sample`: offset within the cell (exact
+        // for integer positions), then one division by the stride.
+        let f =
+            [0, 1, 2].map(|a| ((p[a] - (cell[a] * s[a]) as f64) / s[a] as f64).fclamp(0.0, 1.0));
         self.corners(cell).lerp(f[0], f[1], f[2])
     }
 

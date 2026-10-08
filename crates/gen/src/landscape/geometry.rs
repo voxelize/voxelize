@@ -9,18 +9,23 @@ use std::f64::consts::FRAC_1_SQRT_2;
 use crate::stream::HashStream;
 
 pub use super::math::ring_noise;
-use super::math::smootherstep;
+use super::math::{smootherstep, MinMax};
 
 /// An axis-aligned box in the (x, z) plane, inclusive of its bounds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Aabb2 {
+    /// Smallest x inside.
     pub min_x: f64,
+    /// Smallest z inside.
     pub min_z: f64,
+    /// Largest x inside.
     pub max_x: f64,
+    /// Largest z inside.
     pub max_z: f64,
 }
 
 impl Aabb2 {
+    /// The empty box: the identity of [`Aabb2::union`].
     pub const EMPTY: Self = Self {
         min_x: f64::INFINITY,
         min_z: f64::INFINITY,
@@ -28,6 +33,7 @@ impl Aabb2 {
         max_z: f64::NEG_INFINITY,
     };
 
+    /// The box of the disc of radius `r` about `(x, z)`.
     pub fn around(x: f64, z: f64, r: f64) -> Self {
         Self {
             min_x: x - r,
@@ -37,15 +43,17 @@ impl Aabb2 {
         }
     }
 
+    /// The smallest box holding both.
     pub fn union(self, o: Self) -> Self {
         Self {
-            min_x: self.min_x.min(o.min_x),
-            min_z: self.min_z.min(o.min_z),
-            max_x: self.max_x.max(o.max_x),
-            max_z: self.max_z.max(o.max_z),
+            min_x: self.min_x.fmin(o.min_x),
+            min_z: self.min_z.fmin(o.min_z),
+            max_x: self.max_x.fmax(o.max_x),
+            max_z: self.max_z.fmax(o.max_z),
         }
     }
 
+    /// This box grown by `r` on every side.
     pub fn grow(self, r: f64) -> Self {
         Self {
             min_x: self.min_x - r,
@@ -55,10 +63,12 @@ impl Aabb2 {
         }
     }
 
+    /// Whether `(x, z)` lies inside (bounds included).
     pub fn contains(&self, x: f64, z: f64) -> bool {
         x >= self.min_x && x <= self.max_x && z >= self.min_z && z <= self.max_z
     }
 
+    /// Whether the two boxes share any point.
     pub fn intersects(&self, o: &Self) -> bool {
         self.min_x <= o.max_x
             && o.min_x <= self.max_x
@@ -74,9 +84,7 @@ pub fn segment_distance(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> (f64, f6
     let (vx, vz) = (b.0 - a.0, b.1 - a.1);
     let len_sq = vx * vx + vz * vz;
     let t = if len_sq > 0.0 {
-        (((p.0 - a.0) * vx + (p.1 - a.1) * vz) / len_sq)
-            .max(0.0)
-            .min(1.0)
+        (((p.0 - a.0) * vx + (p.1 - a.1) * vz) / len_sq).fclamp(0.0, 1.0)
     } else {
         0.0
     };
@@ -89,31 +97,42 @@ pub fn segment_distance(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> (f64, f6
 /// outside, zero on the bound.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Footprint {
+    /// A disc.
     Disc {
+        /// Centre `(x, z)`.
         center: (f64, f64),
+        /// Radius, blocks.
         radius: f64,
     },
+    /// An axis-aligned rectangle.
     Rect {
+        /// Corner with the smallest x and z.
         min: (f64, f64),
+        /// Corner with the largest x and z.
         max: (f64, f64),
     },
     /// Capsules along a polyline, the radius varying linearly along each
     /// segment; the union of the capsules. Channels lower to this.
     Capsules {
+        /// The polyline's points `(x, z)`.
         points: Vec<(f64, f64)>,
+        /// Radius at each point, blocks.
         radii: Vec<f64>,
     },
     /// A simple polygon (either winding), even–odd inside test.
     Polygon {
+        /// The polygon's corners `(x, z)`, in order.
         points: Vec<(f64, f64)>,
     },
 }
 
 impl Footprint {
+    /// A disc of `radius` about `center`.
     pub fn disc(center: (f64, f64), radius: f64) -> Self {
         Self::Disc { center, radius }
     }
 
+    /// The rectangle spanning `min` to `max`.
     pub fn rect(min: (f64, f64), max: (f64, f64)) -> Self {
         Self::Rect { min, max }
     }
@@ -130,6 +149,7 @@ impl Footprint {
         Self::Capsules { points, radii }
     }
 
+    /// A simple polygon through `points`, in order.
     pub fn polygon(points: Vec<(f64, f64)>) -> Self {
         Self::Polygon { points }
     }
@@ -137,7 +157,7 @@ impl Footprint {
     /// The footprint of every line of a channel network, each vertex's half
     /// width read from its payload.
     pub fn channel<P: Copy>(
-        net: &super::channels::ChannelNet<P>,
+        net: &super::network::ChannelNet<P>,
         half_width: impl Fn(&P) -> f64,
     ) -> Vec<Self> {
         (0..net.line_count())
@@ -159,12 +179,12 @@ impl Footprint {
                 radius - (dx * dx + dz * dz).sqrt()
             }
             Self::Rect { min, max } => {
-                let dx = (min.0 - x).max(x - max.0);
-                let dz = (min.1 - z).max(z - max.1);
+                let dx = (min.0 - x).fmax(x - max.0);
+                let dz = (min.1 - z).fmax(z - max.1);
                 if dx <= 0.0 && dz <= 0.0 {
-                    -dx.max(dz)
+                    -dx.fmax(dz)
                 } else {
-                    let (ox, oz) = (dx.max(0.0), dz.max(0.0));
+                    let (ox, oz) = (dx.fmax(0.0), dz.fmax(0.0));
                     -(ox * ox + oz * oz).sqrt()
                 }
             }
@@ -177,7 +197,7 @@ impl Footprint {
                 for i in 0..points.len().saturating_sub(1) {
                     let (t, d) = segment_distance((x, z), points[i], points[i + 1]);
                     let r = radii[i] + (radii[i + 1] - radii[i]) * t;
-                    best = best.max(r - d);
+                    best = best.fmax(r - d);
                 }
                 best
             }
@@ -188,7 +208,7 @@ impl Footprint {
                 for i in 0..n {
                     let a = points[i];
                     let b = points[(i + 1) % n];
-                    d = d.min(segment_distance((x, z), a, b).1);
+                    d = d.fmin(segment_distance((x, z), a, b).1);
                     if (a.1 > z) != (b.1 > z) && x < a.0 + (z - a.1) * (b.0 - a.0) / (b.1 - a.1) {
                         inside = !inside;
                     }
@@ -214,7 +234,7 @@ impl Footprint {
             },
             Self::Capsules { points, radii } => {
                 points.iter().zip(radii).fold(Aabb2::EMPTY, |b, (p, r)| {
-                    b.union(Aabb2::around(p.0, p.1, r.max(0.0)))
+                    b.union(Aabb2::around(p.0, p.1, r.fmax(0.0)))
                 })
             }
             Self::Polygon { points } => points
@@ -237,15 +257,20 @@ impl Footprint {
 /// scaled by it is C0 at the bound by construction.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FadedFootprint {
+    /// The footprint faded.
     pub footprint: Footprint,
+    /// Width of the fade inside the bound, blocks.
     pub width: f64,
 }
 
 impl FadedFootprint {
+    /// The fade at `(x, z)`: 0 on and outside the bound, 1 deeper than the
+    /// width inside.
     pub fn edge(&self, x: f64, z: f64) -> f64 {
         smootherstep(0.0, self.width, self.footprint.sdf_inside(x, z))
     }
 
+    /// Bounds of the footprint: the fade is 0 outside them.
     pub fn bounds(&self) -> Aabb2 {
         self.footprint.bounds()
     }
@@ -283,12 +308,12 @@ pub fn zero_line_distance(
     eps: f64,
 ) -> ZeroLine {
     let (f0, gx, gz) = eval(x, z);
-    let g2 = (gx * gx + gz * gz).max(eps * eps);
+    let g2 = (gx * gx + gz * gz).fmax(eps * eps);
     let first = f0.abs() / g2.sqrt();
     let step = f0 / g2;
     let (x1, z1) = (x - gx * step, z - gz * step);
     let (f1, hx, hz) = eval(x1, z1);
-    let h = (hx * hx + hz * hz).sqrt().max(eps);
+    let h = (hx * hx + hz * hz).sqrt().fmax(eps);
     let (dx, dz) = (x1 - x, z1 - z);
     ZeroLine {
         first,
@@ -300,9 +325,13 @@ pub fn zero_line_distance(
 /// (pointing up the field).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IsoNode {
+    /// World x of the node.
     pub x: f64,
+    /// World z of the node.
     pub z: f64,
+    /// x of the field's unit gradient there (pointing up the field).
     pub nx: f64,
+    /// z of the field's unit gradient there.
     pub nz: f64,
 }
 
@@ -326,7 +355,9 @@ pub enum IsoEnd {
 /// The result of [`IsoTracer::trace`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsoTrace {
+    /// The nodes, in tracing order.
     pub nodes: Vec<IsoNode>,
+    /// Why the trace stopped.
     pub end: IsoEnd,
     /// Field evaluations spent: a deterministic step count for plan budgets.
     pub probes: u32,
@@ -387,7 +418,7 @@ impl IsoTracer {
             let (nx, nz, g) = self.gradient(f, q.0, q.1, probes)?;
             let r = f(q.0, q.1) - iso;
             *probes += 1;
-            let k = (-r / g).max(-limit).min(limit);
+            let k = (-r / g).fclamp(-limit, limit);
             q = (q.0 + nx * k, q.1 + nz * k);
             let r = f(q.0, q.1) - iso;
             *probes += 1;
@@ -476,18 +507,29 @@ pub struct ArcSchedule {
     taken: Vec<(f64, f64)>,
 }
 
+/// Most candidates one [`ArcSchedule::place`] call walks.
+pub const MAX_ARC_CANDIDATES: f64 = (1u64 << 24) as f64;
+
 impl ArcSchedule {
+    /// An empty schedule over `[0, length]`. Panics unless `length` is
+    /// finite and not negative.
     pub fn new(length: f64) -> Self {
+        assert!(
+            length >= 0.0 && length.is_finite(),
+            "ArcSchedule: length must be finite and not negative, got {length}"
+        );
         Self {
             length,
             taken: Vec::new(),
         }
     }
 
+    /// Length of the arc.
     pub fn length(&self) -> f64 {
         self.length
     }
 
+    /// The reserved intervals `(s0, s1)`, sorted and disjoint.
     pub fn reserved(&self) -> &[(f64, f64)] {
         &self.taken
     }
@@ -510,10 +552,13 @@ impl ArcSchedule {
         true
     }
 
-    /// Walk the arc from `start` every `spacing` (each step jittered by up to
-    /// ±`jitter`/2 of a spacing), keep a candidate with probability `chance`,
-    /// and reserve `half` either side of it when free. Returns the centres
-    /// placed, in arc order.
+    /// Walk the arc from `start` every `spacing` (candidate `i` at
+    /// `start + i·spacing`, jittered by up to ±`jitter`/2 of a spacing), keep
+    /// a candidate with probability `chance`, and reserve `half` either side
+    /// of it when free. Returns the centres placed, in arc order.
+    ///
+    /// Panics unless `start` is finite and `spacing` positive and finite, or
+    /// if the walk would take more than [`MAX_ARC_CANDIDATES`] candidates.
     pub fn place(
         &mut self,
         start: f64,
@@ -523,18 +568,29 @@ impl ArcSchedule {
         chance: f64,
         stream: &mut HashStream,
     ) -> Vec<f64> {
+        assert!(
+            start.is_finite() && spacing > 0.0 && spacing.is_finite(),
+            "ArcSchedule::place: start must be finite and spacing positive and finite"
+        );
         let mut placed = Vec::new();
-        if !(spacing > 0.0) {
+        if start > self.length {
             return placed;
         }
-        let mut s = start;
-        while s <= self.length {
+        let steps = ((self.length - start) / spacing).floor();
+        assert!(
+            steps < MAX_ARC_CANDIDATES,
+            "ArcSchedule::place: {steps} candidates is more than one walk takes"
+        );
+        for i in 0..=steps as u64 {
+            let s = start + i as f64 * spacing;
+            if s > self.length {
+                break;
+            }
             let at = s + spacing * jitter * (stream.unit() - 0.5);
             let roll = stream.unit();
             if roll < chance && self.reserve(at - half, at + half) {
                 placed.push(at);
             }
-            s += spacing;
         }
         placed
     }
@@ -550,6 +606,7 @@ pub struct FramePoint {
     pub d: f64,
     /// Nearest segment and the parameter along it.
     pub segment: usize,
+    /// Parameter of the nearest point along that segment, in [0, 1].
     pub t: f64,
 }
 
@@ -562,6 +619,7 @@ pub struct FeatureFrame {
 }
 
 impl FeatureFrame {
+    /// A frame along the polyline through `points` (at least two).
     pub fn new(points: Vec<(f64, f64)>) -> Self {
         assert!(points.len() >= 2, "a feature frame needs two points");
         let mut arc = Vec::with_capacity(points.len());
@@ -575,10 +633,12 @@ impl FeatureFrame {
         Self { points, arc }
     }
 
+    /// Arc length of the whole line.
     pub fn length(&self) -> f64 {
         *self.arc.last().unwrap()
     }
 
+    /// The line's points.
     pub fn points(&self) -> &[(f64, f64)] {
         &self.points
     }
@@ -614,8 +674,11 @@ impl FeatureFrame {
     /// The point at arc length `s` (clamped to the line) and the unit
     /// tangent there.
     pub fn at(&self, s: f64) -> ((f64, f64), (f64, f64)) {
-        let s = s.max(0.0).min(self.length());
-        let i = (self.arc.partition_point(|&a| a <= s).max(1) - 1).min(self.points.len() - 2);
+        let s = s.fclamp(0.0, self.length());
+        let i = Ord::min(
+            Ord::max(self.arc.partition_point(|&a| a <= s), 1) - 1,
+            self.points.len() - 2,
+        );
         let (a, b) = (self.points[i], self.points[i + 1]);
         let len = self.arc[i + 1] - self.arc[i];
         let t = if len > 0.0 {
@@ -633,16 +696,38 @@ impl FeatureFrame {
 /// stride-`stride` lattice covering the tile: every point of the tile lies
 /// within `stride/√2` of a sample, so with Lipschitz bound `lipschitz` the
 /// field there is at most `max(samples) + lipschitz·stride/√2`. It can only
-/// over-dispatch a tile, never miss one. (The `f64` constant for 1/√2 rounds
+/// over-dispatch a tile, never miss one: a NaN sample (a field undefined
+/// somewhere) bounds the tile at +∞. (The `f64` constant for 1/√2 rounds
 /// up, so the margin is not under-estimated.)
+///
+/// Panics on no samples, or unless `lipschitz` is not negative and
+/// `stride` is positive, both finite.
 pub fn gate_upper_bound(samples: &[f64], lipschitz: f64, stride: f64) -> f64 {
-    let max = samples.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    assert!(!samples.is_empty(), "gate_upper_bound: no samples");
+    assert!(
+        lipschitz >= 0.0 && lipschitz.is_finite() && stride > 0.0 && stride.is_finite(),
+        "gate_upper_bound: lipschitz must be finite and not negative, stride finite and positive"
+    );
+    let mut max = f64::NEG_INFINITY;
+    for &v in samples {
+        if v.is_nan() {
+            return f64::INFINITY;
+        }
+        max = max.fmax(v);
+    }
     max + lipschitz * stride * FRAC_1_SQRT_2
 }
+
+/// Most samples per axis [`tile_gate_bound`] takes.
+pub const MAX_GATE_SAMPLES: f64 = 4096.0;
 
 /// [`gate_upper_bound`] over the square tile `[x0, x0 + size] × [z0, z0 +
 /// size]`, sampling `f` at world-aligned multiples of `stride` that cover
 /// the tile plus a one-sample ring.
+///
+/// Panics unless `size ≥ 0`, `stride` is positive and finite, the tile
+/// spans at most [`MAX_GATE_SAMPLES`] strides, and it lies within 2^52
+/// strides of the origin (so sample indices are exact).
 pub fn tile_gate_bound(
     mut f: impl FnMut(f64, f64) -> f64,
     x0: f64,
@@ -651,6 +736,16 @@ pub fn tile_gate_bound(
     stride: f64,
     lipschitz: f64,
 ) -> f64 {
+    assert!(
+        stride > 0.0 && stride.is_finite() && size >= 0.0 && size / stride <= MAX_GATE_SAMPLES,
+        "tile_gate_bound: stride must be positive and finite, and the tile at most {MAX_GATE_SAMPLES} strides"
+    );
+    assert!(
+        x0.is_finite()
+            && z0.is_finite()
+            && (x0.abs().fmax(z0.abs()) + size) / stride < (1u64 << 52) as f64,
+        "tile_gate_bound: the tile must be finite and within 2^52 strides of the origin"
+    );
     let i0 = (x0 / stride).floor() as i64 - 1;
     let i1 = ((x0 + size) / stride).ceil() as i64 + 1;
     let j0 = (z0 / stride).floor() as i64 - 1;
@@ -658,7 +753,15 @@ pub fn tile_gate_bound(
     let mut max = f64::NEG_INFINITY;
     for i in i0..=i1 {
         for j in j0..=j1 {
-            max = max.max(f(i as f64 * stride, j as f64 * stride));
+            let v = f(i as f64 * stride, j as f64 * stride);
+            if v.is_nan() {
+                max = v;
+                break;
+            }
+            max = max.fmax(v);
+        }
+        if max.is_nan() {
+            break;
         }
     }
     gate_upper_bound(&[max], lipschitz, stride)

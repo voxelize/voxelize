@@ -12,6 +12,10 @@
 //! `powi`, the `geology_prior` solver's own per-platform goldens) and v1
 //! channel curvature (`hypot`), which `landscape` never calls.
 //!
+//! `landscape` also writes no `f64::max`/`f64::min` (they may return either
+//! zero for ±0.0; `landscape::math::MinMax` decides by comparison), checked
+//! by the scanner's companion `find_minmax`.
+//!
 //! The scanner is shared with the kit's `assert_no_libm!`, and this test
 //! includes it as a file so it runs in every build, with or without the
 //! landscape features.
@@ -21,7 +25,10 @@ mod no_libm;
 
 use std::path::{Path, PathBuf};
 
-use no_libm::{find_calls, rust_files, scan_dir, scan_file, strip_non_code, LibmHit};
+use no_libm::{
+    find_calls, find_minmax, rust_files, scan_dir, scan_dir_minmax, scan_file, strip_non_code,
+    LibmHit,
+};
 
 fn crate_path(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
@@ -76,6 +83,16 @@ fn landscape_calls_no_platform_maths() {
 }
 
 #[test]
+fn landscape_uses_no_platform_min_or_max() {
+    let hits = scan_dir_minmax(&crate_path("src/landscape"));
+    assert!(
+        hits.is_empty(),
+        "{}use `MinMax::fmax`/`fmin`/`fclamp` for floats and `Ord::max(a, b)` for integers",
+        no_libm::report(&hits)
+    );
+}
+
+#[test]
 fn audited_v1_files_hold_exactly_their_allowlist() {
     let mut found: Vec<(String, String, String)> = Vec::new();
     for rel in AUDITED_V1 {
@@ -111,10 +128,38 @@ fn scanner_reads_only_code() {
         let spaced = x . cbrt ();
         let field = obj.exp;
         let name = sin(x);
+        let mapped = xs.iter().map(|x| x.abs()).map(f64::sin);
+        let handle = f64::powf;
+        use libm::cos;
+        let fine = core::f64::consts::LN_2 + x.exp2_p() + x.sinh_like();
     "##;
     let calls: Vec<String> = find_calls(&strip_non_code(src))
         .into_iter()
         .map(|(_, c)| c)
         .collect();
-    assert_eq!(calls, ["sin", "powf", "mul_add", "cbrt"]);
+    assert_eq!(
+        calls,
+        ["sin", "powf", "mul_add", "cbrt", "sin", "powf", "libm", "cos"]
+    );
+}
+
+#[test]
+fn minmax_scan_finds_float_extrema_only() {
+    let src = r##"
+        let a = x.max(0.0);
+        let b = y . min ( z );
+        let c = values.iter().fold(0.0, f64::max);
+        let d = <f32>::min(p, q);
+        let e = f32::min;
+        let ok1 = Ord::max(i, j) + std::cmp::min(i, j);
+        let ok2 = corners.max() + list.iter().copied().min();
+        let ok3 = x.fmax(0.0).fclamp(0.0, 1.0) + self.max[a] + b.max_x;
+        // y.max(1.0) in a comment
+        let ok4 = "z.min(2.0)";
+    "##;
+    let found: Vec<(usize, String)> = find_minmax(&strip_non_code(src));
+    let names: Vec<&str> = found.iter().map(|(_, n)| n.as_str()).collect();
+    assert_eq!(names, ["max", "min", "max", "min", "min"]);
+    let lines: Vec<usize> = found.iter().map(|(l, _)| *l).collect();
+    assert_eq!(lines, [2, 3, 4, 5, 6]);
 }
