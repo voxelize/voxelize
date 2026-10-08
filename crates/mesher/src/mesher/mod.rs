@@ -1,3 +1,6 @@
+mod branch;
+#[cfg(test)]
+mod branch_tests;
 mod connected;
 #[cfg(test)]
 mod connected_tests;
@@ -12,6 +15,10 @@ mod tests;
 mod types;
 mod vertex_light;
 
+pub use branch::{
+    BranchBeyond, BranchLayout, BranchPart, BranchPartKind, BranchQuad, BranchSeat, BranchShape,
+    BranchSide, BranchSocket, BranchTexture,
+};
 pub use connectivity::{
     compute_section_connectivity, connectivity_pair_bit, CONNECTIVITY_FACES, CONNECTIVITY_FULL,
     CONNECTIVITY_SEALED,
@@ -20,6 +27,7 @@ pub use greedy::mesh_space_greedy;
 pub use types::*;
 pub use vertex_light::*;
 
+use branch::*;
 use connected::*;
 use connectivity::*;
 use faces::*;

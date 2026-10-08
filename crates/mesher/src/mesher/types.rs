@@ -56,6 +56,13 @@ pub struct Block {
     /// outline of the joined sheet. Never greedy-meshed. See `connected`.
     #[serde(default)]
     pub connected: Option<ConnectedFrame>,
+    /// Draws every voxel of this block as a branch of the radius its stage
+    /// holds, joined to its neighbours. Never greedy-meshed. See `branch`.
+    #[serde(default)]
+    pub branch: Option<BranchShape>,
+    /// The branches this block takes without being one.
+    #[serde(default)]
+    pub branch_sockets: Vec<BranchSocket>,
 }
 
 /// A frame baked into the border of a block's face texture, drawn only where
