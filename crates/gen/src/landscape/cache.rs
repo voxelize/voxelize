@@ -21,13 +21,16 @@
 //! up with the first cell inserted, and the solve runs inside that cell,
 //! outside the cache's lock, once.
 //!
-//! The cache is striped: keys are spread over up to [`MAX_STRIPES`]
-//! independently locked CLOCK rings by a fixed hash of the key, so threads
-//! hitting different keys rarely wait on one another (one mutex over the
-//! whole cache made the total hit rate fall as threads were added; the
-//! landscape kernel bench's `cache` group measures it). Which stripe holds
-//! a key changes cost only. Small caches keep a single stripe, so a cache
-//! of capacity 1 holds exactly one entry, as the determinism suite needs.
+//! The cache is striped: keys are spread over up to [`MAX_STRIPES`] CLOCK
+//! rings, each on its own cache lines behind its own reader-writer lock,
+//! by a fixed, cheap hash of the key. A hit takes the read lock only: the
+//! reference bit is an atomic set only when it is clear, so the entries a
+//! hot loop reads stay shared between cores instead of bouncing, and only
+//! inserts and evictions take the write lock. (One mutex over the whole
+//! cache made the total hit rate fall as threads were added; the landscape
+//! kernel bench's `cache` group measures it.) Which stripe holds a key
+//! changes cost only. Small caches keep a single stripe, so a cache of
+//! capacity 1 holds exactly one entry, as the determinism suite needs.
 //!
 //! A cache may also be capped by weight instead of by count
 //! ([`ClockCache::weighed`]): every value is weighed when stored, and each
@@ -35,8 +38,9 @@
 //! capped in bytes this way). A stripe always keeps the entry it just
 //! stored, even one heavier than its whole share.
 
-use std::hash::{BuildHasher, Hash, Hasher};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use hashbrown::HashMap;
 
@@ -51,7 +55,9 @@ struct Slot<K, V> {
     key: K,
     value: V,
     weight: usize,
-    referenced: bool,
+    /// Set by hits under the read lock; cleared by the hand under the
+    /// write lock.
+    referenced: AtomicBool,
 }
 
 struct Clock<K, V> {
@@ -64,8 +70,6 @@ struct Clock<K, V> {
     budget: usize,
     used: usize,
     weigh: Option<fn(&V) -> usize>,
-    hits: u64,
-    misses: u64,
     evictions: u64,
 }
 
@@ -80,33 +84,26 @@ impl<K: Eq + Hash + Clone, V: Clone> Clock<K, V> {
             budget,
             used: 0,
             weigh,
-            hits: 0,
-            misses: 0,
             evictions: 0,
         }
     }
 
-    fn get(&mut self, key: &K) -> Option<V> {
-        match self.index.get(key) {
-            Some(&i) => {
-                self.hits += 1;
-                let slot = &mut self.slots[i];
-                slot.referenced = true;
-                Some(slot.value.clone())
-            }
-            None => {
-                self.misses += 1;
-                None
-            }
+    /// The resident value for `key`, marking it referenced (read lock).
+    fn get(&self, key: &K) -> Option<V> {
+        let i = *self.index.get(key)?;
+        let slot = &self.slots[i];
+        // Write the bit only when it changes, so hits on hot entries keep
+        // their cache line shared.
+        if !slot.referenced.load(Ordering::Relaxed) {
+            slot.referenced.store(true, Ordering::Relaxed);
         }
+        Some(slot.value.clone())
     }
 
     /// Store `value` unless `key` is resident; returns the resident value.
     fn insert(&mut self, key: K, value: V) -> V {
-        if let Some(&i) = self.index.get(&key) {
-            let slot = &mut self.slots[i];
-            slot.referenced = true;
-            return slot.value.clone();
+        if let Some(v) = self.get(&key) {
+            return v;
         }
         let weight = self.weigh.map_or(1, |w| w(&value));
         // Evict one entry at a time until the new one fits, never the new
@@ -121,7 +118,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Clock<K, V> {
             key,
             value: value.clone(),
             weight,
-            referenced: false,
+            referenced: AtomicBool::new(false),
         });
         self.used += weight;
         value
@@ -134,8 +131,8 @@ impl<K: Eq + Hash + Clone, V: Clone> Clock<K, V> {
         if self.hand >= n {
             self.hand = 0;
         }
-        while self.slots[self.hand].referenced {
-            self.slots[self.hand].referenced = false;
+        while *self.slots[self.hand].referenced.get_mut() {
+            *self.slots[self.hand].referenced.get_mut() = false;
             self.hand = (self.hand + 1) % n;
         }
         let victim = self.slots.swap_remove(self.hand);
@@ -169,23 +166,86 @@ pub struct CacheStats {
     pub stripes: usize,
 }
 
-/// A fixed, process-independent hasher for choosing a key's stripe. Which
-/// stripe holds a key is cost only, but a fixed choice keeps cache costs
-/// reproducible from run to run.
+/// A fixed, process-independent, cheap hasher for choosing a key's stripe
+/// (a multiply-rotate fold with a final avalanche). Which stripe holds a
+/// key is cost only, but a fixed choice keeps cache costs reproducible
+/// from run to run.
 #[derive(Clone, Copy, Default)]
-struct StripeHasher;
+struct StripeHasher(u64);
 
-impl BuildHasher for StripeHasher {
-    type Hasher = std::collections::hash_map::DefaultHasher;
-    fn build_hasher(&self) -> Self::Hasher {
-        // `DefaultHasher::new` is SipHash with fixed zero keys.
-        std::collections::hash_map::DefaultHasher::new()
+impl Hasher for StripeHasher {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(8) {
+            let mut word = [0u8; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            self.write_u64(u64::from_le_bytes(word));
+        }
+    }
+
+    #[inline]
+    fn write_u64(&mut self, v: u64) {
+        self.0 = (self.0.rotate_left(5) ^ v).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+
+    #[inline]
+    fn write_u32(&mut self, v: u32) {
+        self.write_u64(v as u64);
+    }
+
+    #[inline]
+    fn write_i32(&mut self, v: i32) {
+        self.write_u64(v as u32 as u64);
+    }
+
+    #[inline]
+    fn write_i64(&mut self, v: i64) {
+        self.write_u64(v as u64);
+    }
+
+    #[inline]
+    fn write_usize(&mut self, v: usize) {
+        self.write_u64(v as u64);
+    }
+
+    #[inline]
+    fn finish(&self) -> u64 {
+        crate::stream::mix64(self.0)
+    }
+}
+
+/// One stripe, aligned to its own cache lines so work in one stripe never
+/// invalidates a line another thread is reading in its neighbour.
+#[repr(align(128))]
+struct Stripe<K, V> {
+    clock: RwLock<Clock<K, V>>,
+    hits: AtomicU64,
+    misses: AtomicU64,
+}
+
+impl<K, V> Stripe<K, V> {
+    fn new(clock: Clock<K, V>) -> Self {
+        Self {
+            clock: RwLock::new(clock),
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
+        }
+    }
+
+    // A panic while holding a lock cannot leave a half-written entry that
+    // matters: entries are cost-only, so recover the guard.
+    fn read(&self) -> RwLockReadGuard<'_, Clock<K, V>> {
+        self.clock.read().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn write(&self) -> RwLockWriteGuard<'_, Clock<K, V>> {
+        self.clock.write().unwrap_or_else(|p| p.into_inner())
     }
 }
 
 /// A bounded cache with CLOCK eviction, safe to share between threads.
 pub struct ClockCache<K, V> {
-    stripes: Box<[Mutex<Clock<K, V>>]>,
+    stripes: Box<[Stripe<K, V>]>,
     capacity: usize,
 }
 
@@ -211,7 +271,7 @@ impl<K: Eq + Hash + Clone, V: Clone> ClockCache<K, V> {
         let capacity = Ord::max(capacity, 1);
         let n = stripe_count(capacity);
         let stripes = (0..n)
-            .map(|i| Mutex::new(Clock::new(share(capacity, n, i), usize::MAX, None)))
+            .map(|i| Stripe::new(Clock::new(share(capacity, n, i), usize::MAX, None)))
             .collect();
         Self { stripes, capacity }
     }
@@ -224,7 +284,7 @@ impl<K: Eq + Hash + Clone, V: Clone> ClockCache<K, V> {
         let budget = Ord::max(budget, 1);
         let n = stripe_count(budget);
         let stripes = (0..n)
-            .map(|i| Mutex::new(Clock::new(usize::MAX, share(budget, n, i), Some(weigh))))
+            .map(|i| Stripe::new(Clock::new(usize::MAX, share(budget, n, i), Some(weigh))))
             .collect();
         Self {
             stripes,
@@ -232,35 +292,37 @@ impl<K: Eq + Hash + Clone, V: Clone> ClockCache<K, V> {
         }
     }
 
-    fn stripe(&self, key: &K) -> std::sync::MutexGuard<'_, Clock<K, V>> {
+    fn stripe(&self, key: &K) -> &Stripe<K, V> {
         let i = if self.stripes.len() == 1 {
             0
         } else {
-            let mut h = StripeHasher.build_hasher();
+            let mut h = StripeHasher::default();
             key.hash(&mut h);
-            // High bits: SipHash mixes them as well as the low ones, and a
-            // shift keeps the choice independent of the stripe count's
-            // relation to any key pattern.
+            // High bits, after the avalanche: independent of any pattern in
+            // the keys' low bits.
             (h.finish() >> 32) as usize & (self.stripes.len() - 1)
         };
-        // A panic while holding the lock cannot leave a half-written entry
-        // that matters: entries are cost-only, so recover the guard.
-        self.stripes[i]
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        &self.stripes[i]
     }
 
     /// The value cached for `key`, if resident.
     pub fn get(&self, key: &K) -> Option<V> {
-        self.stripe(key).get(key)
+        let stripe = self.stripe(key);
+        let found = stripe.read().get(key);
+        let counter = if found.is_some() {
+            &stripe.hits
+        } else {
+            &stripe.misses
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+        found
     }
 
     /// Cache `value` for `key` unless a value is already resident, and
     /// return the resident one: the first writer wins, so threads racing to
     /// fill one key all leave with the same value.
     pub fn insert(&self, key: K, value: V) -> V {
-        let mut stripe = self.stripe(&key);
-        stripe.insert(key, value)
+        self.stripe(&key).write().insert(key, value)
     }
 
     /// The cached value, or `compute()` cached and returned. `compute` runs
@@ -285,9 +347,9 @@ impl<K: Eq + Hash + Clone, V: Clone> ClockCache<K, V> {
             ..CacheStats::default()
         };
         for stripe in self.stripes.iter() {
-            let c = stripe.lock().unwrap_or_else(|p| p.into_inner());
-            out.hits += c.hits;
-            out.misses += c.misses;
+            out.hits += stripe.hits.load(Ordering::Relaxed);
+            out.misses += stripe.misses.load(Ordering::Relaxed);
+            let c = stripe.read();
             out.evictions += c.evictions;
             out.len += c.slots.len();
             out.weight += c.used;
