@@ -46,6 +46,10 @@ required-features = ["unstable-landscape"]
 name = "landscape_kernel"
 required-features = ["unstable-landscape"]
 
+[[example]]
+name = "landscape_profiles"
+required-features = ["unstable-landscape"]
+
 # `cargo test` runs this example's own tests (its SHA-256 known answers and
 # the budget gate's rules), which it would otherwise only build.
 [[example]]
