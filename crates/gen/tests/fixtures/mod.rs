@@ -70,8 +70,13 @@ pub fn fixture_registry() -> Registry {
 }
 
 pub fn fixture_config() -> WorldConfig {
+    fixture_config_seeded(SEED)
+}
+
+/// The fixture world config with another world seed (golden seed sweeps).
+pub fn fixture_config_seeded(seed: u32) -> WorldConfig {
     WorldConfig::new()
-        .seed(SEED)
+        .seed(seed)
         .chunk_size(CHUNK)
         .max_height(HEIGHT)
         .sub_chunks(4)
@@ -871,8 +876,12 @@ pub fn harness() -> Harness {
 }
 
 pub fn harness_for(spec: GeneratorSpec) -> Harness {
+    harness_for_seed(spec, SEED)
+}
+
+pub fn harness_for_seed(spec: GeneratorSpec, seed: u32) -> Harness {
     let registry = fixture_registry();
-    let config = fixture_config();
+    let config = fixture_config_seeded(seed);
     let generator = compile(&spec, &registry, &config).expect("fixture compiles");
     let mut stages: Vec<Box<dyn ChunkStage + Send + Sync>> = vec![
         Box::new(stages::GenShapeStage::new(Arc::clone(&generator))),
