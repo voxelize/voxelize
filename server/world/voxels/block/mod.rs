@@ -20,7 +20,10 @@ pub use voxelize_core::{
     BlockRotation, CornerData, NX_ROTATION, NY_ROTATION, NZ_ROTATION, PX_ROTATION, PY_ROTATION,
     PZ_ROTATION, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
 };
-pub use voxelize_mesher::ConnectedFrame;
+pub use voxelize_mesher::{
+    BranchLayout, BranchPart, BranchPartKind, BranchSeat, BranchShape, BranchSide, BranchSocket,
+    ConnectedFrame,
+};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -190,6 +193,18 @@ pub struct Block {
     #[serde(default)]
     pub connected: Option<ConnectedFrame>,
 
+    /// Draws every voxel of this block as a branch of the radius its stage
+    /// holds, joined to its neighbours; collision and picking follow the
+    /// drawn shape ([`Block::branch_layout_at`]). Declared with
+    /// [`BlockBuilder::branch`].
+    #[serde(default)]
+    pub branch: Option<BranchShape>,
+
+    /// The branches this block takes without being one. Declared with
+    /// [`BlockBuilder::branch_socket`].
+    #[serde(default)]
+    pub branch_sockets: Vec<BranchSocket>,
+
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
     pub dynamic_fn: Option<
@@ -253,12 +268,42 @@ impl Block {
         self.is_light
     }
 
+    /// How the branch voxel at `pos` is put together: its radius, what each
+    /// side joins and the boxes it is drawn and collides as. `None` for a
+    /// block that is not a branch.
+    pub fn branch_layout_at(
+        &self,
+        pos: &Vec3<i32>,
+        space: &dyn VoxelAccess,
+        registry: &Registry,
+    ) -> Option<BranchLayout> {
+        let shape = self.branch.as_ref()?;
+        let &Vec3(vx, vy, vz) = pos;
+        let sides = voxelize_mesher::VOXEL_NEIGHBORS.map(|[dx, dy, dz]| {
+            let (x, y, z) = (vx + dx, vy + dy, vz + dz);
+            let neighbor = registry.get_block_by_id(space.get_voxel(x, y, z));
+            shape.side(
+                neighbor.branch.as_ref(),
+                &neighbor.branch_sockets,
+                space.get_voxel_stage(x, y, z),
+            )
+        });
+        Some(BranchLayout::new(
+            shape,
+            space.get_voxel_stage(vx, vy, vz),
+            sides,
+        ))
+    }
+
     pub fn get_aabbs(
         &self,
         pos: &Vec3<i32>,
         space: &dyn VoxelAccess,
         registry: &Registry,
     ) -> Vec<AABB> {
+        if let Some(layout) = self.branch_layout_at(pos, space, registry) {
+            return layout.aabbs();
+        }
         if self.is_dynamic {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
@@ -282,6 +327,11 @@ impl Block {
         space: &dyn VoxelAccess,
         registry: &Registry,
     ) -> Vec<BlockFace> {
+        if self.branch.is_some() {
+            // The mesher lays a branch out from its neighbours; the faces
+            // here are the textures it wears.
+            return self.faces.clone();
+        }
         if self.is_dynamic {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
@@ -452,6 +502,8 @@ impl Block {
                 .as_ref()
                 .map(|patterns| patterns.iter().map(|p| p.to_mesher_pattern()).collect()),
             connected: self.connected.clone(),
+            branch: self.branch.clone(),
+            branch_sockets: self.branch_sockets.clone(),
         }
     }
 }
