@@ -1,6 +1,7 @@
 import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
 
 import { Coords3 } from "../../../types";
+import { type BranchShape, type BranchSocket } from "../branch";
 import { type WorldOptions } from "../index";
 import { computeQuadLightTwist } from "../quad-light";
 import { type SerializedChunkPayload } from "../raw-chunk";
@@ -94,6 +95,11 @@ type WasmBlock = {
       }[]
     | null;
   connected: ConnectedFrame | null;
+  // Mirror `branch` and `branch_sockets` on the mesher's `Block`. Dropping
+  // either would mesh a branch as its plain texture cube, or leave twigs
+  // short of their leaves, the moment a chunk re-meshes locally.
+  branch: BranchShape | null;
+  branchSockets: BranchSocket[];
 };
 
 // Mirrors `ConnectedFrame` in crates/mesher/src/mesher/types.rs. Dropping it
@@ -172,6 +178,8 @@ type RawWasmBlock = {
   aabbs: RawWasmAabb[];
   dynamicPatterns?: RawWasmDynamicPattern[] | null;
   connected?: ConnectedFrame | null;
+  branch?: BranchShape | null;
+  branchSockets?: BranchSocket[];
 };
 
 type GeometryProtocol = {
@@ -459,6 +467,8 @@ export function convertRegistryToWasm(rawRegistry: {
           ? convertDynamicPatterns(block.dynamicPatterns)
           : null,
         connected: block.connected ?? null,
+        branch: block.branch ?? null,
+        branchSockets: block.branchSockets ?? [],
       };
       return [id, wasmBlock];
     },

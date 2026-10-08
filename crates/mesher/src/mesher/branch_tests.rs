@@ -1,0 +1,508 @@
+//! Branches, laid out and meshed. Every face a branch voxel draws samples its
+//! texture at one density on both axes, whatever its radius and joints; the
+//! joints follow the thinner radius; and only what can be seen is drawn.
+
+use voxelize_core::{BlockFace, CornerData, AABB, UV};
+
+use super::*;
+
+const T: u32 = 16;
+const KEY: u32 = 7;
+
+fn shape(seat: BranchSeat) -> BranchShape {
+    BranchShape {
+        key: KEY,
+        seat,
+        texels_per_block: T,
+        radius_mask: 0b0111,
+        side_face: "bark".into(),
+        end_face: "rings".into(),
+    }
+}
+
+fn branch(radius: u32) -> BranchSide {
+    BranchSide::Branch {
+        radius,
+        seat: BranchSeat::Centre,
+    }
+}
+
+fn root(radius: u32) -> BranchSide {
+    BranchSide::Branch {
+        radius,
+        seat: BranchSeat::Floor,
+    }
+}
+
+fn socket(max_radius: u32) -> BranchSide {
+    BranchSide::Socket { max_radius }
+}
+
+fn stage(radius: u32) -> u32 {
+    shape(BranchSeat::Centre).with_radius(0, radius)
+}
+
+fn layout(radius: u32, sides: [BranchSide; 6]) -> BranchLayout {
+    BranchLayout::new(&shape(BranchSeat::Centre), stage(radius), sides)
+}
+
+const APART: BranchSide = BranchSide::Apart;
+const NOTHING: [BranchBeyond; 6] = [BranchBeyond::Other; 6];
+
+/// Every combination of what can lie on a side, for a voxel of `radius`.
+fn side_options() -> Vec<BranchSide> {
+    vec![
+        APART,
+        branch(1),
+        branch(3),
+        branch(8),
+        root(2),
+        root(6),
+        socket(1),
+        socket(8),
+    ]
+}
+
+/// (world span, uv span) along each of the quad's two edges.
+fn spans(corners: &[CornerData; 4]) -> [(f32, f32); 2] {
+    let edge = |a: &CornerData, b: &CornerData| {
+        let world = (0..3)
+            .map(|i| (a.pos[i] - b.pos[i]).powi(2))
+            .sum::<f32>()
+            .sqrt();
+        let uv = (0..2)
+            .map(|i| (a.uv[i] - b.uv[i]).powi(2))
+            .sum::<f32>()
+            .sqrt();
+        (world, uv)
+    };
+    [
+        edge(&corners[0], &corners[1]),
+        edge(&corners[0], &corners[2]),
+    ]
+}
+
+#[test]
+fn radius_rides_the_masked_stage_bits_and_keeps_the_rest() {
+    let shape = shape(BranchSeat::Centre);
+    for radius in 1..=8 {
+        let stage = shape.with_radius(0b1000, radius);
+        assert_eq!(shape.radius(stage), radius);
+        assert_eq!(stage & 0b1000, 0b1000, "the spare bit survives");
+    }
+    assert_eq!(shape.radius(0), 1, "stage 0 is the thinnest twig");
+    assert_eq!(shape.with_radius(0, 20), 7, "radius clamps to half a block");
+}
+
+#[test]
+fn joints_take_the_thinner_radius_and_sockets_take_what_fits() {
+    let sides = [branch(3), branch(8), socket(1), socket(8), APART, root(2)];
+    let layout = layout(5, sides);
+    assert_eq!(layout.joints, [3, 5, 0, 5, 0, 2]);
+    let twig = BranchLayout::new(&shape(BranchSeat::Centre), stage(1), sides);
+    assert_eq!(twig.joints, [1, 1, 1, 1, 0, 1]);
+}
+
+#[test]
+fn every_face_keeps_one_texel_density_on_both_axes() {
+    let options = side_options();
+    let mut checked = 0;
+    for seat in [BranchSeat::Centre, BranchSeat::Floor] {
+        for radius in 1..=8 {
+            // Each side cycles through the options at its own rate, so the
+            // sweep covers every option on every side in a few hundred cases.
+            for case in 0..options.len().pow(3) {
+                let sides = std::array::from_fn(|side| {
+                    options[(case / options.len().pow((side % 3) as u32) + side) % options.len()]
+                });
+                let layout = BranchLayout::new(&shape(seat), stage(radius), sides);
+                for beyond in [NOTHING, [BranchBeyond::SeeThrough; 6]] {
+                    for quad in layout.faces(&beyond) {
+                        let corners = quad.corners(T as i32);
+                        for (world, uv) in spans(&corners) {
+                            assert!(
+                                (world - uv).abs() < 1e-6,
+                                "{seat:?} r{radius} {sides:?}: {quad:?} spans {world} of the \
+                                 voxel but {uv} of its texture"
+                            );
+                        }
+                        for corner in &corners {
+                            assert!(
+                                corner.uv.iter().all(|v| (-1e-6..=1.0 + 1e-6).contains(v)),
+                                "{quad:?} samples outside its tile: {:?}",
+                                corner.uv
+                            );
+                        }
+                        checked += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked > 10_000, "the sweep drew {checked} faces");
+}
+
+#[test]
+fn a_twig_shows_a_two_texel_strip_of_bark_and_the_middle_of_the_rings() {
+    // A one-radius twig rising from its parent below: free at the top.
+    let layout = layout(1, [APART, APART, APART, branch(4), APART, APART]);
+    let quads = layout.faces(&NOTHING);
+    let tip: Vec<_> = quads
+        .iter()
+        .filter(|quad| quad.texture == BranchTexture::End)
+        .collect();
+    assert_eq!(tip.len(), 1, "one ring face, at the free end: {quads:?}");
+    assert_eq!(tip[0].side, 2);
+    let uvs: Vec<[f32; 2]> = tip[0].corners(16).iter().map(|c| c.uv).collect();
+    for uv in uvs {
+        for value in uv {
+            assert!(
+                (value - 7.0 / 16.0).abs() < 1e-6 || (value - 9.0 / 16.0).abs() < 1e-6,
+                "the tip samples the rings' middle 2x2, got {value}"
+            );
+        }
+    }
+    for quad in quads.iter().filter(|q| q.texture == BranchTexture::Side) {
+        let corners = quad.corners(16);
+        let us: Vec<f32> = corners.iter().map(|c| c.uv[0]).collect();
+        let lo = us.iter().cloned().fold(f32::MAX, f32::min);
+        let hi = us.iter().cloned().fold(f32::MIN, f32::max);
+        assert!(
+            (hi - lo - 2.0 / 16.0).abs() < 1e-6,
+            "a twig's bark is two texels across, got {}",
+            (hi - lo) * 16.0
+        );
+    }
+}
+
+#[test]
+fn a_straight_trunk_draws_four_sides_and_no_ends() {
+    let layout = layout(6, [APART, APART, branch(6), branch(7), APART, APART]);
+    assert_eq!(
+        layout.parts.len(),
+        1,
+        "same-radius joints carry the core on"
+    );
+    let quads = layout.faces(&NOTHING);
+    assert_eq!(quads.len(), 4, "{quads:?}");
+    assert!(quads.iter().all(|q| q.texture == BranchTexture::Side));
+}
+
+#[test]
+fn a_taper_leaves_a_ledge_and_the_thinner_voxel_meets_it() {
+    // A seven above a six: the six reaches the boundary at seven's radius
+    // on neither side, so its core ends in a ledge of bark below the arm.
+    let lower = layout(7, [APART, APART, branch(6), APART, APART, APART]);
+    let arm = lower
+        .parts
+        .iter()
+        .find(|part| part.kind == BranchPartKind::Arm(2))
+        .expect("an arm up to the thinner voxel");
+    assert_eq!((arm.min, arm.max), ([2, 15, 2], [14, 16, 14]));
+    let ledge = lower
+        .faces(&NOTHING)
+        .into_iter()
+        .find(|quad| quad.side == 2 && quad.plane == 15)
+        .expect("the core's top shows around the arm");
+    assert_eq!(ledge.texture, BranchTexture::Side);
+}
+
+#[test]
+fn joined_ends_stay_open_and_opaque_neighbours_hide_flush_faces() {
+    let trunk = layout(8, [APART, APART, branch(8), socket(8), branch(3), APART]);
+    let beyond = [
+        BranchBeyond::Opaque,
+        BranchBeyond::Other,
+        BranchBeyond::Other,
+        BranchBeyond::Opaque,
+        BranchBeyond::Other,
+        BranchBeyond::Other,
+    ];
+    let sides: Vec<usize> = trunk.faces(&beyond).iter().map(|q| q.side).collect();
+    // +x hidden by stone, +y and -y open into the trunk and its soil, +z
+    // drawn whole around the thinner limb, -x and -z drawn.
+    assert_eq!(sides, vec![1, 4, 5]);
+}
+
+#[test]
+fn a_twig_draws_its_end_inside_a_leaf_but_not_inside_soil() {
+    let twig = layout(1, [socket(1), APART, APART, branch(2), APART, APART]);
+    let mut beyond = NOTHING;
+    beyond[0] = BranchBeyond::SeeThrough;
+    let cap = |beyond: &[BranchBeyond; 6]| {
+        twig.faces(beyond)
+            .into_iter()
+            .filter(|q| q.side == 0 && q.plane == 16)
+            .count()
+    };
+    assert_eq!(cap(&beyond), 1, "the end shows through the leaf's holes");
+    beyond[0] = BranchBeyond::Opaque;
+    assert_eq!(cap(&beyond), 0, "soil hides it");
+}
+
+#[test]
+fn a_thick_limb_passes_a_leaf_by() {
+    let limb = layout(4, [socket(1), APART, APART, APART, APART, APART]);
+    assert_eq!(limb.joints[0], 0);
+    assert_eq!(limb.parts.len(), 1);
+}
+
+#[test]
+fn a_root_lies_half_sunk_along_the_floor() {
+    let root_shape = shape(BranchSeat::Floor);
+    let layout = BranchLayout::new(
+        &root_shape,
+        stage(4),
+        [root(3), branch(8), APART, socket(8), APART, APART],
+    );
+    for part in &layout.parts {
+        assert_eq!(part.min[1], 0, "every part rests on the floor: {part:?}");
+        assert!(part.max[1] <= 4, "and rises no higher than its radius");
+    }
+    assert_eq!(layout.axis, 0, "its grain runs along the ground");
+    let arm = layout
+        .parts
+        .iter()
+        .find(|part| part.kind == BranchPartKind::Arm(0))
+        .unwrap();
+    assert_eq!((arm.min, arm.max), ([12, 0, 5], [16, 3, 11]));
+    let bottom = layout
+        .faces(&[BranchBeyond::Opaque; 6])
+        .into_iter()
+        .filter(|quad| quad.side == 3)
+        .count();
+    assert_eq!(bottom, 0, "nothing is drawn under the ground");
+}
+
+#[test]
+fn a_trunk_flares_into_the_root_beside_it_along_the_floor() {
+    let base = layout(5, [root(3), APART, branch(5), socket(8), APART, APART]);
+    let flare = base
+        .parts
+        .iter()
+        .find(|part| part.kind == BranchPartKind::Arm(0))
+        .expect("an arm toward the root");
+    assert_eq!((flare.min, flare.max), ([13, 0, 5], [16, 3, 11]));
+}
+
+#[test]
+fn a_root_end_centres_the_rings_on_its_own_axis() {
+    let layout = BranchLayout::new(
+        &shape(BranchSeat::Floor),
+        stage(2),
+        [APART, root(3), APART, APART, APART, APART],
+    );
+    let tip = layout
+        .faces(&NOTHING)
+        .into_iter()
+        .find(|quad| quad.texture == BranchTexture::End)
+        .expect("the free end shows rings");
+    let corners = tip.corners(16);
+    // The end spans the floor up to two texels and two texels either side
+    // of the middle: the half-disc of rings above their centre.
+    let along_floor: Vec<f32> = corners.iter().map(|c| c.uv[0]).collect();
+    assert!(along_floor
+        .iter()
+        .all(|u| (*u - 0.5).abs() < 1e-6 || (*u - 10.0 / 16.0).abs() < 1e-6));
+}
+
+#[test]
+fn a_lone_voxel_shows_rings_on_both_ends() {
+    let quads = layout(8, [APART; 6]).faces(&NOTHING);
+    let ends: Vec<usize> = quads
+        .iter()
+        .filter(|q| q.texture == BranchTexture::End)
+        .map(|q| q.side)
+        .collect();
+    assert_eq!(ends, vec![2, 3]);
+}
+
+#[test]
+fn collision_boxes_are_the_drawn_parts() {
+    let layout = layout(2, [branch(1), APART, APART, branch(2), APART, APART]);
+    let aabbs = layout.aabbs();
+    assert_eq!(aabbs.len(), layout.parts.len());
+    let core = &aabbs[0];
+    assert_eq!(
+        [core.min_x, core.min_y, core.max_x, core.max_y],
+        [6.0 / 16.0, 0.0, 10.0 / 16.0, 10.0 / 16.0]
+    );
+}
+
+fn texture_face(name: &str, start_u: f32) -> BlockFace {
+    BlockFace {
+        name: name.into(),
+        name_lower: name.into(),
+        dir: [1, 0, 0],
+        range: UV {
+            start_u,
+            end_u: start_u + 0.25,
+            start_v: 0.0,
+            end_v: 0.25,
+        },
+        ..Default::default()
+    }
+}
+
+fn block(id: u32, name: &str) -> Block {
+    Block {
+        id,
+        name: name.into(),
+        name_lower: name.to_lowercase(),
+        rotatable: false,
+        y_rotatable: false,
+        is_empty: false,
+        is_fluid: false,
+        is_waterloggable: false,
+        is_waterlogging_fluid: false,
+        is_opaque: false,
+        is_see_through: false,
+        is_transparent: [true; 6],
+        transparent_standalone: false,
+        standalone_face_depth: 0,
+        occludes_fluid: false,
+        is_plant: false,
+        stack_group: 0,
+        is_animated: false,
+        faces: vec![],
+        aabbs: vec![AABB {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 1.0,
+            max_z: 1.0,
+        }],
+        dynamic_patterns: None,
+        connected: None,
+        branch: None,
+        branch_sockets: vec![],
+    }
+}
+
+const AIR: u32 = 0;
+const STONE: u32 = 1;
+const LIMB: u32 = 2;
+const LEAF: u32 = 3;
+
+fn registry() -> Registry {
+    let mut registry = Registry::new(vec![
+        (
+            AIR,
+            Block {
+                is_empty: true,
+                aabbs: vec![],
+                ..block(AIR, "Air")
+            },
+        ),
+        (
+            STONE,
+            Block {
+                is_opaque: true,
+                is_transparent: [false; 6],
+                ..block(STONE, "Stone")
+            },
+        ),
+        (
+            LIMB,
+            Block {
+                faces: vec![texture_face("bark", 0.0), texture_face("rings", 0.5)],
+                branch: Some(shape(BranchSeat::Centre)),
+                ..block(LIMB, "Limb")
+            },
+        ),
+        (
+            LEAF,
+            Block {
+                is_see_through: true,
+                branch_sockets: vec![BranchSocket {
+                    key: KEY,
+                    max_radius: 1,
+                }],
+                ..block(LEAF, "Leaf")
+            },
+        ),
+    ]);
+    registry.build_cache();
+    registry
+}
+
+/// Meshes one chunk holding `voxels` (raw voxel words at local positions).
+fn mesh(voxels: &[([usize; 3], u32)]) -> Vec<GeometryProtocol> {
+    const SIZE: usize = 8;
+    let mut data = vec![0u32; SIZE * SIZE * SIZE];
+    for &([x, y, z], raw) in voxels {
+        data[x * SIZE * SIZE + y * SIZE + z] = raw;
+    }
+    let mut chunks: Vec<Option<ChunkData>> = (0..9).map(|_| None).collect();
+    chunks[4] = Some(ChunkData {
+        voxels: data,
+        lights: vec![15 << 12; SIZE * SIZE * SIZE],
+        shape: [SIZE, SIZE, SIZE],
+        min: [0, 0, 0],
+    });
+    mesh_chunk_with_registry_chunks(
+        &chunks,
+        [0, 0, 0],
+        [SIZE as i32; 3],
+        MeshConfig {
+            chunk_size: SIZE as i32,
+        },
+        &registry(),
+    )
+    .geometries
+}
+
+fn limb(radius: u32) -> u32 {
+    LIMB | (stage(radius) << 24)
+}
+
+#[test]
+fn the_mesher_draws_a_tapering_limb_with_its_faces_textures() {
+    let geometries = mesh(&[
+        ([2, 1, 2], limb(4)),
+        ([2, 2, 2], limb(2)),
+        ([2, 3, 2], limb(1)),
+        ([2, 4, 2], LEAF),
+    ]);
+    let limb = geometries
+        .iter()
+        .find(|g| g.voxel == LIMB)
+        .expect("the limb meshes");
+    let quads = limb.positions.len() / 12;
+    // Bottom voxel: four sides, a lone bottom end, a ledge; middle: four
+    // sides, a ledge, four sides of its arm down; top: four sides, a ledge
+    // where it meets the thicker one, and its end into the leaf.
+    assert!(quads >= 12, "{quads} quads");
+    for uv in limb.uvs.chunks(2) {
+        let in_bark = (0.0..=0.25).contains(&uv[0]);
+        let in_rings = (0.5..=0.75).contains(&uv[0]);
+        assert!(
+            in_bark || in_rings,
+            "every vertex samples the bark or the rings tile, got {uv:?}"
+        );
+    }
+}
+
+#[test]
+fn a_branch_is_never_greedy_merged_with_its_neighbour() {
+    let geometries = mesh(&[([2, 1, 2], limb(8)), ([3, 1, 2], limb(8))]);
+    let limb = geometries.iter().find(|g| g.voxel == LIMB).unwrap();
+    // Two full-radius voxels side by side join through the shared face, so
+    // ten faces show; a greedy merge would draw six.
+    assert_eq!(limb.positions.len() / 12, 10);
+}
+
+#[test]
+fn opaque_stone_hides_a_full_trunk_face() {
+    let alone = mesh(&[([2, 1, 2], limb(8))]);
+    let walled = mesh(&[([2, 1, 2], limb(8)), ([3, 1, 2], STONE)]);
+    let quads = |g: &[GeometryProtocol]| {
+        g.iter()
+            .find(|g| g.voxel == LIMB)
+            .map(|g| g.positions.len() / 12)
+            .unwrap()
+    };
+    assert_eq!(quads(&alone), 6);
+    assert_eq!(quads(&walled), 5);
+}
