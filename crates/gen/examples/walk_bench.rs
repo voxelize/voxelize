@@ -438,7 +438,6 @@ fn row(
     compile_ms: Option<f64>,
     wall_ms: f64,
     times: &[f64],
-    calibration_ms: f64,
 ) -> Row {
     let p50 = percentile(times, 0.5);
     Row {
@@ -453,13 +452,13 @@ fn row(
         p95_ms: percentile(times, 0.95),
         max_ms: *times.last().expect("times"),
         mean_ms: times.iter().sum::<f64>() / times.len() as f64,
-        p50_cal: p50 / calibration_ms,
+        p50_cal: f64::NAN,
     }
 }
 
-/// 1M 2D noise octaves plus 1M trilinear samples of a 17^3 lattice, in ms
-/// (the fastest of three runs, which is the least disturbed by load).
-fn calibrate() -> f64 {
+/// 1M 2D noise octaves plus 1M trilinear samples of a 17^3 lattice, in ms:
+/// the fastest of `runs` runs, which is the one least disturbed by load.
+fn calibrate(runs: usize) -> f64 {
     let noise = Perlin::new(0x0ca1_1b8a7e);
     let lattice: Vec<f64> = {
         let mut state = 0x9e37_79b9_7f4a_7c15u64;
@@ -472,7 +471,7 @@ fn calibrate() -> f64 {
     };
     let at = |x: usize, y: usize, z: usize| lattice[(x * 17 + y) * 17 + z];
     let mut best = f64::INFINITY;
-    for _ in 0..3 {
+    for _ in 0..runs {
         let started = Instant::now();
         let mut sum = 0.0;
         for i in 0..1_000_000u32 {
@@ -499,7 +498,9 @@ fn calibrate() -> f64 {
     best
 }
 
-fn measure(options: &Options, calibration_ms: f64) -> Vec<Row> {
+/// Walks every (fixture, workload, workers) once. `p50_cal` is filled in by
+/// the caller once the calibration is final.
+fn measure(options: &Options) -> Vec<Row> {
     let mut rows = Vec::new();
     for fixture_name in &options.fixtures {
         let spec = fixture(fixture_name);
@@ -530,7 +531,6 @@ fn measure(options: &Options, calibration_ms: f64) -> Vec<Row> {
                     Some(compile_ms),
                     cold_wall,
                     &cold,
-                    calibration_ms,
                 ));
                 rows.push(row(
                     fixture_name,
@@ -540,7 +540,6 @@ fn measure(options: &Options, calibration_ms: f64) -> Vec<Row> {
                     None,
                     warm_wall,
                     &warm,
-                    calibration_ms,
                 ));
             }
         }
@@ -563,7 +562,6 @@ fn median_rows(runs: &[Vec<Row>]) -> Vec<Row> {
         row.p95_ms = pick(&|r| r.p95_ms);
         row.max_ms = pick(&|r| r.max_ms);
         row.mean_ms = pick(&|r| r.mean_ms);
-        row.p50_cal = pick(&|r| r.p50_cal);
     }
     out
 }
@@ -741,8 +739,8 @@ fn gate(report: &Report, budget_path: &Path) -> bool {
         budget.gate_workers
     );
     println!(
-        "{:<34} {:>10} {:>10} {:>8}  verdict",
-        "row", "pinned cal", "now cal", "delta"
+        "{:<34} {:>10} {:>10} {:>8} {:>9}  verdict (on the cal delta)",
+        "row", "pinned cal", "now cal", "delta", "ms delta"
     );
     let mut ok = true;
     let mut compared = 0;
@@ -751,6 +749,14 @@ fn gate(report: &Report, budget_path: &Path) -> bool {
         let Some(pin) = pinned.get(key.as_str()) else {
             continue;
         };
+        if pin.chunks != row.chunks {
+            // A different route (for example `--quick`) is not comparable.
+            println!(
+                "{key:<34} route differs ({} chunks pinned, {} walked): skipped",
+                pin.chunks, row.chunks
+            );
+            continue;
+        }
         compared += 1;
         let delta = row.p50_cal / pin.p50_cal - 1.0;
         let gates = budget.gate_workers.contains(&row.workers);
@@ -759,11 +765,12 @@ fn gate(report: &Report, budget_path: &Path) -> bool {
             ok = false;
         }
         println!(
-            "{:<34} {:>10.5} {:>10.5} {:>+7.1}%  {}",
+            "{:<34} {:>10.5} {:>10.5} {:>+7.1}% {:>+8.1}%  {}",
             key,
             pin.p50_cal,
             row.p50_cal,
             delta * 100.0,
+            (row.p50_ms / pin.p50_ms - 1.0) * 100.0,
             match (gates, within) {
                 (true, true) => "ok",
                 (true, false) => "OVER",
@@ -899,11 +906,15 @@ fn main() {
         return;
     }
 
-    let calibration_ms = calibrate();
-    let runs: Vec<Vec<Row>> = (0..options.repeat)
-        .map(|_| measure(&options, calibration_ms))
-        .collect();
-    let rows = median_rows(&runs);
+    // Calibrate on both sides of the walks and keep the fastest run, so a
+    // load spike during one calibration does not skew every ratio.
+    let calibration_before = calibrate(5);
+    let runs: Vec<Vec<Row>> = (0..options.repeat).map(|_| measure(&options)).collect();
+    let calibration_ms = calibration_before.min(calibrate(5));
+    let mut rows = median_rows(&runs);
+    for row in &mut rows {
+        row.p50_cal = row.p50_ms / calibration_ms;
+    }
     print_rows(&rows, calibration_ms);
 
     let binary = stamp(&std::env::current_exe().expect("own binary"));
