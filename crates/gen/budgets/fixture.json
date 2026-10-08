@@ -1,0 +1,120 @@
+{
+  "about": "Walk budgets for the v1 fixtures, written by `walk_bench --pin`. The gate compares p50 in calibration units (p50 divided by the calibration kernel's time) and fails only when GEN_BUDGET_GATE=1.",
+  "generator": "v1",
+  "max_p50_regression": 0.03,
+  "gate_workers": [
+    1
+  ],
+  "measured": {
+    "note": "pre-change baseline: v1 source at 9b181735c (P0 base)",
+    "binary_sha256": "31902642d89454677455695238babd7e6aa0ca1119628487f630cbbd54db7e70",
+    "host": {
+      "os": "macos",
+      "arch": "aarch64",
+      "cpus": 18,
+      "load_average": "30.33 20.92 21.96",
+      "unix_time": 1791421093
+    },
+    "repeat": 5,
+    "quick": false,
+    "calibration_ms": 14.265417000000001
+  },
+  "rows": [
+    {
+      "key": "fixture/spiral/w1/cold",
+      "chunks": 256,
+      "p50_ms": 0.616125,
+      "p95_ms": 0.7051660000000001,
+      "max_ms": 0.81025,
+      "p50_cal": 0.04319011494721815
+    },
+    {
+      "key": "fixture/spiral/w1/warm",
+      "chunks": 256,
+      "p50_ms": 0.617667,
+      "p95_ms": 0.688917,
+      "max_ms": 0.7317079999999999,
+      "p50_cal": 0.04329820852765818
+    },
+    {
+      "key": "fixture/spiral/w4/cold",
+      "chunks": 256,
+      "p50_ms": 0.625333,
+      "p95_ms": 0.7352920000000001,
+      "max_ms": 1.033458,
+      "p50_cal": 0.04383559204753706
+    },
+    {
+      "key": "fixture/spiral/w4/warm",
+      "chunks": 256,
+      "p50_ms": 0.659041,
+      "p95_ms": 0.9724160000000001,
+      "max_ms": 1.707125,
+      "p50_cal": 0.046198509304004216
+    },
+    {
+      "key": "fixture/spiral/w8/cold",
+      "chunks": 256,
+      "p50_ms": 0.713042,
+      "p95_ms": 1.0514999999999999,
+      "max_ms": 1.807417,
+      "p50_cal": 0.049983957706949605
+    },
+    {
+      "key": "fixture/spiral/w8/warm",
+      "chunks": 256,
+      "p50_ms": 0.735875,
+      "p95_ms": 1.149209,
+      "max_ms": 1.956041,
+      "p50_cal": 0.05158454183288157
+    },
+    {
+      "key": "fixture/teleport/w1/cold",
+      "chunks": 200,
+      "p50_ms": 0.641166,
+      "p95_ms": 0.7298330000000001,
+      "max_ms": 0.799625,
+      "p50_cal": 0.04494547898599809
+    },
+    {
+      "key": "fixture/teleport/w1/warm",
+      "chunks": 200,
+      "p50_ms": 0.627459,
+      "p95_ms": 0.698666,
+      "max_ms": 0.7555,
+      "p50_cal": 0.0439846237933318
+    },
+    {
+      "key": "fixture/teleport/w4/cold",
+      "chunks": 200,
+      "p50_ms": 0.646,
+      "p95_ms": 0.8664999999999999,
+      "max_ms": 1.0577500000000002,
+      "p50_cal": 0.04528434044374588
+    },
+    {
+      "key": "fixture/teleport/w4/warm",
+      "chunks": 200,
+      "p50_ms": 0.675875,
+      "p95_ms": 0.933334,
+      "max_ms": 1.43925,
+      "p50_cal": 0.0473785659402736
+    },
+    {
+      "key": "fixture/teleport/w8/cold",
+      "chunks": 200,
+      "p50_ms": 0.733209,
+      "p95_ms": 1.230333,
+      "max_ms": 2.159167,
+      "p50_cal": 0.05139765630405336
+    },
+    {
+      "key": "fixture/teleport/w8/warm",
+      "chunks": 200,
+      "p50_ms": 0.763167,
+      "p95_ms": 1.231584,
+      "max_ms": 2.02225,
+      "p50_cal": 0.05349770006723252
+    }
+  ]
+}
