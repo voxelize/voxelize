@@ -10,11 +10,11 @@ repository = "https://github.com/voxelize/voxelize"
 default = []
 # The `landscape` generator (docs/landscape.md) stays behind this non-default
 # feature until its design is frozen, so no consumer compiles or links it.
-# Declared ahead of the module: today it compiles nothing and pulls no
-# dependency. It must never enable a feature on a shared dependency (serde_json
+# It must never enable a feature on a shared dependency (serde_json
 # `float_roundtrip`, `arbitrary_precision`, `preserve_order`): Cargo unifies
 # features across a consumer's whole build, so that would change the
-# consumer's own parsing.
+# consumer's own parsing. Optional dependencies join it with the first code
+# that uses them.
 unstable-landscape = []
 # The landscape test kit (landform, province and structure suites).
 kit = ["unstable-landscape"]

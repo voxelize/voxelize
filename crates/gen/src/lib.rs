@@ -24,6 +24,8 @@ pub mod field;
 pub mod flora;
 pub mod geology;
 pub mod hydro;
+#[cfg(feature = "unstable-landscape")]
+pub mod landscape;
 pub mod lane;
 pub mod mosaic;
 pub mod noise;
