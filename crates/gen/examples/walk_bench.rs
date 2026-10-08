@@ -17,7 +17,10 @@
 //! `unstable-landscape` feature, the landscape presets join them (`plain`,
 //! at H = 512 with the demo blocks; `plain@facts1` is the same preset with
 //! a one-byte facts cache, so its warm pass re-evaluates fields over warm
-//! tiles), and with `gen-counters` every row also reports the deterministic
+//! tiles; with the `kit` feature, `proving` is the plain preset with the
+//! kit's test landforms and the sinkhole of `examples/sinkhole.rs`, so the
+//! two rows on one route price the plugin system), and with `gen-counters`
+//! every row also reports the deterministic
 //! work counters per chunk (median and p95), which `--pin` records and
 //! `--gate` compares on single-worker rows (deterministic on any machine,
 //! so that half of the gate always enforces, and fails when it compared no
@@ -57,6 +60,9 @@ mod fixtures;
 #[cfg(feature = "unstable-landscape")]
 #[path = "../tests/fixtures/landscape.rs"]
 mod land;
+#[cfg(feature = "kit")]
+#[path = "sinkhole.rs"]
+mod sinkhole;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -389,8 +395,11 @@ fn fixture_name(name: &str) -> &'static str {
         "geology_fixture" | "geology" => "geology_fixture",
         "walker_fixture" | "walker" => "walker_fixture",
         "plain" => "plain",
+        "proving" => "proving",
         other => {
-            panic!("unknown fixture {other} (fixture, geology_fixture, walker_fixture, plain)")
+            panic!(
+                "unknown fixture {other} (fixture, geology_fixture, walker_fixture, plain, proving)"
+            )
         }
     }
 }
@@ -405,7 +414,7 @@ fn fixture(name: &str) -> GeneratorSpec {
 
 /// Whether a fixture is a landscape preset.
 fn is_landscape(name: &str) -> bool {
-    fixture_name(name) == "plain"
+    matches!(fixture_name(name), "plain" | "proving")
 }
 
 /// A generator ready to walk: a v1 harness or a landscape preset.
@@ -431,7 +440,10 @@ impl Gen {
                 if let Some(bytes) = facts_bytes {
                     compile.facts_bytes = bytes;
                 }
-                let land = land::plain(land::BENCH_SEED, 512, &compile);
+                let land = match fixture_name(name) {
+                    "plain" => land::plain(land::BENCH_SEED, 512, &compile),
+                    _ => proving(&compile),
+                };
                 return Gen::Land(LandHarness {
                     registry: land::demo_registry(),
                     config: land::config(land::BENCH_SEED, 512),
@@ -469,6 +481,35 @@ impl Gen {
                 )
             }
         }
+    }
+}
+
+/// The proving preset at H = 512 (needs the `kit` feature).
+#[cfg(feature = "unstable-landscape")]
+fn proving(
+    compile: &voxelize_gen::landscape::CompileOptions,
+) -> std::sync::Arc<voxelize_gen::landscape::Landscape> {
+    #[cfg(feature = "kit")]
+    {
+        let mut kinds = voxelize_gen::landscape::kit::test_kinds();
+        sinkhole::register(&mut kinds);
+        let spec = sinkhole::with_sinkholes(voxelize_gen::landscape::kit::proving_landscape(
+            &voxelize_gen::landscape::Knobs::default(),
+        ));
+        return voxelize_gen::landscape::compile_with(
+            &spec,
+            &kinds,
+            &voxelize_gen::landscape::RoleBinding::demo(),
+            &land::demo_registry(),
+            &land::config(land::BENCH_SEED, 512),
+            compile,
+        )
+        .unwrap_or_else(|e| panic!("the proving preset compiles: {e}"));
+    }
+    #[allow(unreachable_code)]
+    {
+        let _ = compile;
+        panic!("fixture proving needs --features kit");
     }
 }
 

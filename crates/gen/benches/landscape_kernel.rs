@@ -5,6 +5,7 @@
 //! reports throughput in elements per second; ns/op is 1e3 / (Melem/s).
 //!
 //! `cargo bench -p voxelize-gen --features unstable-landscape --bench landscape_kernel`
+//! (with `kit`, also the `dispatch` group: plugin dispatch per chunk).
 
 use std::hint::black_box;
 use std::time::{Duration, Instant};
@@ -449,6 +450,109 @@ fn bench_cache(c: &mut Criterion) {
     g.finish();
 }
 
+/// Plugin dispatch: what a chunk pays to learn which instances touch it,
+/// with the feature index warm. `empty_*` walks chunks no instance
+/// touches (the cost a chunk without features pays, against a plain
+/// landscape with no nodes at all); `touched` walks chunks around a mesa.
+/// Needs the `kit` feature (the test landforms).
+#[cfg(feature = "kit")]
+fn bench_dispatch(c: &mut Criterion) {
+    use voxelize::{Registry, WorldConfig};
+    use voxelize_gen::landscape::presets::{demo_blocks, plain_landscape, Knobs, RoleBinding};
+    use voxelize_gen::landscape::{compile, kit, KindRegistry};
+
+    let binding = RoleBinding::demo();
+    let mut blocks = Registry::new();
+    blocks.register_blocks(&demo_blocks(1, &binding));
+    let config = WorldConfig::new()
+        .seed(7)
+        .chunk_size(16)
+        .max_height(512)
+        .build();
+    let mut kinds = kit::test_kinds();
+    sinkhole::register(&mut kinds);
+    let proving = compile(
+        &sinkhole::with_sinkholes(kit::proving_landscape(&Knobs::default())),
+        &kinds,
+        &binding,
+        &blocks,
+        &config,
+    )
+    .expect("the proving preset compiles");
+    let plain = compile(
+        &plain_landscape(&Knobs::default()),
+        &KindRegistry::with_builtins(),
+        &binding,
+        &blocks,
+        &config,
+    )
+    .expect("the plain preset compiles");
+    // Chunks within 2 km of the origin, split by whether anything touches
+    // them (warming the index on the way).
+    let mut empty = Vec::new();
+    let mut touched = Vec::new();
+    for cz in (-120..120).step_by(3) {
+        for cx in (-120..120).step_by(3) {
+            if proving.chunk_dispatch_len((cx, cz)) == 0 {
+                empty.push((cx, cz));
+            } else {
+                touched.push((cx, cz));
+            }
+        }
+    }
+    let empty: Vec<(i32, i32)> = empty.into_iter().take(1024).collect();
+    let touched: Vec<(i32, i32)> = touched.into_iter().take(1024).collect();
+    for &k in &empty {
+        plain.chunk_dispatch_len(k);
+    }
+    let mut g = c.benchmark_group("dispatch");
+    g.throughput(Throughput::Elements(empty.len() as u64));
+    g.bench_function("empty_chunk_proving", |b| {
+        b.iter(|| {
+            let mut n = 0;
+            for &k in &empty {
+                n += proving.chunk_dispatch_len(black_box(k));
+            }
+            black_box(n)
+        })
+    });
+    g.bench_function("empty_chunk_plain", |b| {
+        b.iter(|| {
+            let mut n = 0;
+            for &k in &empty {
+                n += plain.chunk_dispatch_len(black_box(k));
+            }
+            black_box(n)
+        })
+    });
+    g.throughput(Throughput::Elements(touched.len() as u64));
+    g.bench_function("touched_chunk_proving", |b| {
+        b.iter(|| {
+            let mut n = 0;
+            for &k in &touched {
+                n += proving.chunk_dispatch_len(black_box(k));
+            }
+            black_box(n)
+        })
+    });
+    g.finish();
+}
+
+#[cfg(feature = "kit")]
+#[path = "../examples/sinkhole.rs"]
+#[allow(dead_code)]
+mod sinkhole;
+
+#[cfg(feature = "kit")]
+criterion_group! {
+    name = benches;
+    config = Criterion::default()
+        .warm_up_time(Duration::from_millis(500))
+        .measurement_time(Duration::from_millis(1500))
+        .sample_size(30);
+    targets = bench_math, bench_profiles, bench_strata, bench_lattice, bench_floods_and_geometry, bench_cache, bench_dispatch
+}
+#[cfg(not(feature = "kit"))]
 criterion_group! {
     name = benches;
     config = Criterion::default()
