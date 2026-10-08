@@ -71,6 +71,11 @@ required-features = ["unstable-landscape"]
 name = "showcase"
 required-features = ["unstable-landscape"]
 
+# A game's landform in one file (docs/landscape.md, section 9).
+[[example]]
+name = "sinkhole"
+required-features = ["unstable-landscape", "kit"]
+
 [[test]]
 name = "landscape_spec"
 required-features = ["unstable-landscape"]
