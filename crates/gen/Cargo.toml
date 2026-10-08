@@ -100,6 +100,18 @@ required-features = ["unstable-landscape"]
 name = "landscape_determinism"
 required-features = ["unstable-landscape", "kit"]
 
+[[test]]
+name = "landscape_dag"
+required-features = ["unstable-landscape", "kit"]
+
+[[test]]
+name = "landscape_compose"
+required-features = ["unstable-landscape", "kit"]
+
+[[test]]
+name = "landscape_spawn"
+required-features = ["unstable-landscape", "kit"]
+
 # `cargo test` runs this example's own tests (its SHA-256 known answers and
 # the budget gate's rules), which it would otherwise only build.
 [[example]]
