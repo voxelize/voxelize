@@ -57,6 +57,30 @@ required-features = ["unstable-landscape"]
 name = "landscape_profiles"
 required-features = ["unstable-landscape"]
 
+[[test]]
+name = "landscape_spec"
+required-features = ["unstable-landscape"]
+
+[[test]]
+name = "landscape_fields"
+required-features = ["unstable-landscape"]
+
+[[test]]
+name = "landscape_facts"
+required-features = ["unstable-landscape"]
+
+[[test]]
+name = "landscape_identity"
+required-features = ["unstable-landscape"]
+
+[[test]]
+name = "landscape_writer"
+required-features = ["unstable-landscape"]
+
+[[test]]
+name = "landscape_determinism"
+required-features = ["unstable-landscape", "kit"]
+
 # `cargo test` runs this example's own tests (its SHA-256 known answers and
 # the budget gate's rules), which it would otherwise only build.
 [[example]]

@@ -1,0 +1,180 @@
+{
+  "about": "Golden digests of the plain preset at H = 256: identity hashes, spawn, and per-chunk voxel and facts digests for three seeds. Every platform must reproduce these bits; UPDATE_GOLDENS=1 rewrites (with a content-version or ENGINE_ALGO bump).",
+  "height": 256,
+  "seeds": {
+    "1": {
+      "spec_hash": "f65a5ea5ee238f81",
+      "roles_digest": "a110c49a383c7d51",
+      "spawn": [
+        0,
+        0
+      ],
+      "chunks": {
+        "-1,-1": [
+          "b37dcb911d351949",
+          "ac0f0ba2657aeaec"
+        ],
+        "-1,0": [
+          "b37dcb911d351949",
+          "25f8963da75d1bde"
+        ],
+        "-1,1": [
+          "a31ab1930997087e",
+          "0f97b9b0dfeadfc5"
+        ],
+        "-25,60": [
+          "d09ee9feae4f6b9e",
+          "339ee3ca6fe36c61"
+        ],
+        "-640,128": [
+          "7cc1f28836b789ca",
+          "a30c29373dc9205e"
+        ],
+        "0,-1": [
+          "016e25830fbc6689",
+          "5ffd03d0affa3f7c"
+        ],
+        "0,0": [
+          "b7c04bbf89db40e8",
+          "51b58ed35ef2a96a"
+        ],
+        "0,1": [
+          "c6cad1e58d55881a",
+          "173ed873cb1bd1d6"
+        ],
+        "1,0": [
+          "65030b342769b057",
+          "968e271a1bffc330"
+        ],
+        "1,1": [
+          "019ee014e2b71db1",
+          "c6365abd66d5b5d6"
+        ],
+        "300,300": [
+          "66568fa0a58fda21",
+          "7be0f1f6b5916dca"
+        ],
+        "40,-3": [
+          "37b4d40a52076990",
+          "038513029d2b57b9"
+        ]
+      }
+    },
+    "123123123": {
+      "spec_hash": "f65a5ea5ee238f81",
+      "roles_digest": "a110c49a383c7d51",
+      "spawn": [
+        0,
+        0
+      ],
+      "chunks": {
+        "-1,-1": [
+          "0bcefb3e4d8b28d6",
+          "bd59b57a53df04ba"
+        ],
+        "-1,0": [
+          "5abac6c989b6357a",
+          "261486b11e820e7c"
+        ],
+        "-1,1": [
+          "27bfd16fd3a01b5b",
+          "62a459e940f9e155"
+        ],
+        "-25,60": [
+          "6aa07b37165db7dd",
+          "26518d422f13bbed"
+        ],
+        "-640,128": [
+          "b835e5b991998380",
+          "a3e4e1b3805e2064"
+        ],
+        "0,-1": [
+          "ac557ad6bd6f6b6e",
+          "c14f4e2726ece62a"
+        ],
+        "0,0": [
+          "c34d94ddacc48c42",
+          "7dc7817992d8749c"
+        ],
+        "0,1": [
+          "d7a5521314e79fc9",
+          "58fd3d0062178cc7"
+        ],
+        "1,0": [
+          "ca9c931d1b02b813",
+          "70d1ca754726a8e4"
+        ],
+        "1,1": [
+          "fa1e026adfb51a6e",
+          "8f7e0bdffddd5c10"
+        ],
+        "300,300": [
+          "e98f99954653d395",
+          "2a627bcfaf45d227"
+        ],
+        "40,-3": [
+          "0ebd3f541fb66d3f",
+          "eed70f246b93de3c"
+        ]
+      }
+    },
+    "7": {
+      "spec_hash": "f65a5ea5ee238f81",
+      "roles_digest": "a110c49a383c7d51",
+      "spawn": [
+        0,
+        0
+      ],
+      "chunks": {
+        "-1,-1": [
+          "b37dcb911d351949",
+          "d98d2dd812b0db86"
+        ],
+        "-1,0": [
+          "49b61cbc79d6d1fd",
+          "4b8161935dd31f40"
+        ],
+        "-1,1": [
+          "24ffb2adc9f75884",
+          "9932d4128fd564c8"
+        ],
+        "-25,60": [
+          "25048a3218275631",
+          "7fc1cfea158749cb"
+        ],
+        "-640,128": [
+          "2d02153a89167472",
+          "db3e077725051f08"
+        ],
+        "0,-1": [
+          "b37dcb911d351949",
+          "15a3afe5b3d04879"
+        ],
+        "0,0": [
+          "4b0415c0251927c0",
+          "19cb552859e68821"
+        ],
+        "0,1": [
+          "e2f320f78061062a",
+          "7b11085c776e9277"
+        ],
+        "1,0": [
+          "c9dc4dfb65d7f686",
+          "501881187c8d30f8"
+        ],
+        "1,1": [
+          "d0c96fa72827d5b6",
+          "be4a11a508b102ec"
+        ],
+        "300,300": [
+          "dd537fd6b038f1a2",
+          "3100577fe4be1eb2"
+        ],
+        "40,-3": [
+          "d9d250658f8facb6",
+          "b507c16647c61dcf"
+        ]
+      }
+    }
+  }
+}

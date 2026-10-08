@@ -1,0 +1,308 @@
+{
+  "about": "Walk budgets for landscape, written by `walk_bench --pin`. The wall-clock gate compares p50 in calibration units (p50 divided by the calibration kernel's time), only for runs with the pinned routes and at least the pinned --repeat, and fails only when GEN_BUDGET_GATE=1. The work-counter gate (single-worker rows, deterministic) fails whenever a counter's per-chunk median or p95 grows past its pin by max_counter_growth.",
+  "generator": "landscape",
+  "max_p50_regression": 0.03,
+  "gate_workers": [
+    1
+  ],
+  "measured": {
+    "note": "P2a pin: plain preset at H=512, seed 7, demo blocks, gen-counters on (phase base b5097e45a)",
+    "binary_sha256": "20b0d1fff030ee0aca0cf40c1e35ba05568ccfc1eb5f041534c254bf61b1fab3",
+    "host": {
+      "os": "macos",
+      "arch": "aarch64",
+      "cpus": 18,
+      "load_average": "51.96 45.07 36.12",
+      "unix_time": 1791441045
+    },
+    "repeat": 3,
+    "quick": false,
+    "calibration_ms": 14.889375
+  },
+  "rows": [
+    {
+      "key": "plain/spiral/w1/cold",
+      "chunks": 256,
+      "p50_ms": 0.274458,
+      "p95_ms": 0.349708,
+      "max_ms": 0.750042,
+      "p50_cal": 0.01843314444024682
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "chunks": 256,
+      "p50_ms": 0.037166000000000005,
+      "p95_ms": 0.044625,
+      "max_ms": 0.06658299999999999,
+      "p50_cal": 0.00249614238341099
+    },
+    {
+      "key": "plain/spiral/w4/cold",
+      "chunks": 256,
+      "p50_ms": 0.317875,
+      "p95_ms": 0.382416,
+      "max_ms": 0.752584,
+      "p50_cal": 0.021349116400117534
+    },
+    {
+      "key": "plain/spiral/w4/warm",
+      "chunks": 256,
+      "p50_ms": 0.048041,
+      "p95_ms": 0.062708,
+      "max_ms": 0.36824999999999997,
+      "p50_cal": 0.0032265289845947198
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "chunks": 200,
+      "p50_ms": 0.303541,
+      "p95_ms": 0.443834,
+      "max_ms": 4.694666,
+      "p50_cal": 0.020386416488267643
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "chunks": 200,
+      "p50_ms": 0.036625000000000005,
+      "p95_ms": 0.044292000000000005,
+      "max_ms": 0.068417,
+      "p50_cal": 0.0024598077488141717
+    },
+    {
+      "key": "plain/teleport/w4/cold",
+      "chunks": 200,
+      "p50_ms": 0.314,
+      "p95_ms": 0.63,
+      "max_ms": 0.798125,
+      "p50_cal": 0.02108886370314402
+    },
+    {
+      "key": "plain/teleport/w4/warm",
+      "chunks": 200,
+      "p50_ms": 0.044792,
+      "p95_ms": 0.06724999999999999,
+      "max_ms": 0.125833,
+      "p50_cal": 0.003008319691054863
+    }
+  ],
+  "baselines": [],
+  "counters": [
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "noise_octaves_2d",
+      "median": 13120.0,
+      "p95": 14152.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "field_columns",
+      "median": 1060.0,
+      "p95": 1162.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "facts_built",
+      "median": 1.0,
+      "p95": 4.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "point_columns",
+      "median": 0.0,
+      "p95": 3.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "voxels_written",
+      "median": 29817.0,
+      "p95": 33516.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "tree_voxels",
+      "median": 4.0,
+      "p95": 323.0
+    },
+    {
+      "key": "plain/spiral/w1/cold",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 13.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "noise_octaves_2d",
+      "median": 768.0,
+      "p95": 768.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "field_columns",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "facts_built",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "point_columns",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "voxels_written",
+      "median": 29817.0,
+      "p95": 33516.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "tree_voxels",
+      "median": 4.0,
+      "p95": 323.0
+    },
+    {
+      "key": "plain/spiral/w1/warm",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 13.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "noise_octaves_2d",
+      "median": 13464.0,
+      "p95": 21432.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "field_columns",
+      "median": 1060.0,
+      "p95": 1196.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 1792.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 7.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "facts_built",
+      "median": 1.0,
+      "p95": 5.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "point_columns",
+      "median": 0.0,
+      "p95": 4.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "voxels_written",
+      "median": 25526.0,
+      "p95": 33008.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "tree_voxels",
+      "median": 0.0,
+      "p95": 338.0
+    },
+    {
+      "key": "plain/teleport/w1/cold",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 14.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "noise_octaves_2d",
+      "median": 768.0,
+      "p95": 768.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "field_columns",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "facts_built",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "point_columns",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "voxels_written",
+      "median": 25526.0,
+      "p95": 33008.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "tree_voxels",
+      "median": 0.0,
+      "p95": 338.0
+    },
+    {
+      "key": "plain/teleport/w1/warm",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 14.0
+    }
+  ],
+  "max_counter_growth": 0.1
+}
