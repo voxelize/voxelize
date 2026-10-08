@@ -37,6 +37,11 @@ criterion = { version = "0.5", features = ["html_reports"] }
 name = "gen_bench"
 harness = false
 
+[[bench]]
+name = "landscape_kernel"
+harness = false
+required-features = ["unstable-landscape"]
+
 [[test]]
 name = "landscape_kernel"
 required-features = ["unstable-landscape"]
