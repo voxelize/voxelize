@@ -3,9 +3,10 @@
 //! A water layer is (body, level, bed): writers declare it, the engine
 //! resolves it after composition against final ground, so later ground
 //! motion can never leave water hanging or buried (docs/landscape.md,
-//! section 5). This phase carries the types, the implicit sea layer,
+//! section 5). So far it carries the types, the implicit sea layer,
 //! `Sources` stamping and the column queries; declarations, beds, the
-//! void-fill rule, aquifers and the other stamp modes arrive in P4.
+//! void-fill rule, aquifers and the other stamp modes arrive with the water
+//! producers.
 //!
 //! `frame.sea` is the sea level in the same sense as a layer's `level`:
 //! the y of the highest sea water voxel. Every column whose final top is
@@ -69,7 +70,7 @@ pub enum Flow {
     Falling,
 }
 
-/// How a layer becomes voxels. This phase stamps `Sources` only.
+/// How a layer becomes voxels. Only `Sources` is stamped so far.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StampMode {
     /// Stage 0 throughout (sea, lakes, ponds, aquifers, pools).

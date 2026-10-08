@@ -19,12 +19,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::landscape::math::smoothstep;
 use crate::landscape::spec::{Height, Size, SpecError, Validate, Validator};
-use crate::landscape::surface::{MaterialRuns, PaintColumn, PaintCtx, PatchNoise, Surfacer};
+use crate::landscape::surface::{
+    MaterialRuns, PaintColumn, PaintCtx, PatchNoise, RoleBlock, Surfacer,
+};
 
 /// The patch field every edge wanders by.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct PatchM {
+pub struct PatchParams {
     /// Its salt.
     pub salt: String,
     /// Its wavelength.
@@ -34,7 +36,7 @@ pub struct PatchM {
 /// Snow cover.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SnowM {
+pub struct SnowParams {
     /// Snow role.
     pub role: String,
     /// Temperature at which snow starts.
@@ -52,7 +54,7 @@ pub struct SnowM {
 /// Bare rock above a height.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RockLineM {
+pub struct RockLineParams {
     /// Rock role.
     pub role: String,
     /// The line.
@@ -68,7 +70,7 @@ pub struct RockLineM {
 /// Rock on steep faces.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CliffM {
+pub struct CliffParams {
     /// Rock role.
     pub role: String,
     /// The slope window of the smoothstep.
@@ -82,7 +84,7 @@ pub struct CliffM {
 /// Scree on mid slopes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct TalusM {
+pub struct TalusParams {
     /// Scree role.
     pub role: String,
     /// The slope window `[lo, hi)`.
@@ -98,17 +100,17 @@ pub struct TalusM {
 #[serde(deny_unknown_fields)]
 pub struct EcotonesParams {
     /// The patch field.
-    pub patch: PatchM,
+    pub patch: PatchParams,
     /// Salt of the fraying hash.
     pub hash_salt: String,
     /// Snow, if any.
-    pub snow: Option<SnowM>,
+    pub snow: Option<SnowParams>,
     /// The rock line, if any.
-    pub rock_line: Option<RockLineM>,
+    pub rock_line: Option<RockLineParams>,
     /// Cliff rock, if any.
-    pub cliff: Option<CliffM>,
+    pub cliff: Option<CliffParams>,
     /// Talus, if any.
-    pub talus: Option<TalusM>,
+    pub talus: Option<TalusParams>,
 }
 
 impl Validate for EcotonesParams {
@@ -144,24 +146,24 @@ impl Validate for EcotonesParams {
 }
 
 struct Snow {
-    block: Option<u32>,
-    m: SnowM,
+    block: Option<RoleBlock>,
+    m: SnowParams,
 }
 
 struct RockLine {
-    block: Option<u32>,
+    block: Option<RoleBlock>,
     y: f64,
-    m: RockLineM,
+    m: RockLineParams,
 }
 
 struct Cliff {
-    block: Option<u32>,
-    m: CliffM,
+    block: Option<RoleBlock>,
+    m: CliffParams,
 }
 
 struct Talus {
-    block: Option<u32>,
-    m: TalusM,
+    block: Option<RoleBlock>,
+    m: TalusParams,
 }
 
 /// Snow, rock line, cliff rock and talus.

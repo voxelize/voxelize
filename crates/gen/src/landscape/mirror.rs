@@ -77,6 +77,7 @@ pub struct ClimateRegionM {
 
 /// How biomes partition climate.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum PartitionM {
     /// One biome everywhere.
     Single(String),
@@ -97,6 +98,7 @@ pub enum PartitionM {
 
 /// An overlay applied after shape, by final ground.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum OverlayM {
     /// Columns whose top lies within `[sea - below, sea + above]`.
     ShoreBand {

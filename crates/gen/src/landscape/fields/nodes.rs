@@ -99,6 +99,7 @@ pub struct CellularM {
 
 /// A named field's expression.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum FieldExpr {
     /// A constant.
     Const(f64),

@@ -8,9 +8,11 @@
 //! hash covers: an absent `Option` and an explicit `null`, or `1` and
 //! `1.0` for an `f64` field, hash alike.
 //!
-//! This phase registers surfacers; landforms, region solvers, provinces
-//! and site sets join in P2b. (Named apart from `voxelize::Registry`,
-//! which appears in the same compile call.)
+//! It registers surfacers so far; landforms, region solvers, provinces and
+//! site sets join with the planner. A kind registers once: a second
+//! registration under the same key is a programming error and panics,
+//! unless it says it replaces (`replace_surfacer`). (Named apart from
+//! `voxelize::Registry`, which appears in the same compile call.)
 
 use std::collections::BTreeMap;
 
@@ -38,7 +40,7 @@ fn build_surfacer<S: Surfacer>(
     params: Value,
     cx: &mut PaintCtx<'_>,
 ) -> Result<(Box<dyn DynSurfacer>, Value), SpecError> {
-    let path = format!("{}.params", cx.path());
+    let path = cx.path().to_string();
     let typed: S::Params = json::from_value(params).map_err(|e| SpecError {
         path: if e.at.is_empty() {
             path.clone()
@@ -71,8 +73,25 @@ impl KindRegistry {
         r
     }
 
-    /// Register surfacer `S` under `S::KIND` (replacing any earlier one).
+    /// Register surfacer `S` under `S::KIND`.
+    ///
+    /// # Panics
+    ///
+    /// When a surfacer is already registered under `S::KIND` (a built-in
+    /// or an earlier game kind): replacing one is `replace_surfacer`.
     pub fn surfacer<S: Surfacer>(&mut self) -> &mut Self {
+        assert!(
+            !self.surfacers.contains_key(S::KIND),
+            "surfacer kind {:?} is already registered; use replace_surfacer to replace it on purpose",
+            S::KIND
+        );
+        self.replace_surfacer::<S>()
+    }
+
+    /// Register surfacer `S` under `S::KIND`, replacing any earlier kind
+    /// with that key (its version stamps identity, so saved worlds see the
+    /// change).
+    pub fn replace_surfacer<S: Surfacer>(&mut self) -> &mut Self {
         self.surfacers.insert(
             S::KIND,
             SurfacerEntry {
@@ -90,13 +109,14 @@ impl KindRegistry {
 
     pub(crate) fn build_surfacer(
         &self,
+        kind_path: &str,
         kind: &str,
         params: Value,
         cx: &mut PaintCtx<'_>,
     ) -> Result<(Box<dyn DynSurfacer>, Value, u32), SpecError> {
         let entry = self.surfacers.get(kind).ok_or_else(|| {
             SpecError::new(
-                format!("{}.kind", cx.path()),
+                kind_path,
                 format!(
                     "unknown surfacer kind {kind:?} (registered: {})",
                     self.surfacers

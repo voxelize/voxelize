@@ -12,10 +12,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::climate::BiomeId;
 use crate::landscape::spec::{Height, SpecError, Validate, Validator};
-use crate::landscape::surface::{KeptRef, MaterialRuns, PaintColumn, PaintCtx, Surfacer, ZoneKey};
+use crate::landscape::surface::{
+    KeptRef, MaterialRuns, PaintColumn, PaintCtx, RoleBlock, Surfacer, ZoneKey,
+};
 
 /// One paint condition.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum PaintCondM {
     /// Depth below the top, inclusive (the top voxel is depth 0).
     Depth {
@@ -169,7 +172,7 @@ enum Cond {
 
 struct Rule {
     when: Vec<Cond>,
-    place: Option<u32>,
+    place: Option<RoleBlock>,
 }
 
 struct Table {

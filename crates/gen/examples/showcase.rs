@@ -15,7 +15,6 @@
 //! `http://localhost:3000/?world=showcase` (add `&serverPort=<port>` when
 //! the showcase is not on 4000).
 
-use log::info;
 use voxelize::{Registry, Server, Voxelize, World, WorldConfig};
 use voxelize_gen::landscape::presets::{demo_blocks, plain_landscape, Knobs, RoleBinding};
 use voxelize_gen::landscape::{compile, install, DriftPolicy, IdentityFile, KindRegistry, Tier};
@@ -120,15 +119,19 @@ async fn main() -> std::io::Result<()> {
                 report.saved_chunks,
                 if report.wrote { ", written" } else { "" }
             );
+            if let Some(w) = &report.warning {
+                println!("warning: {w}");
+            }
         }
         None => println!("identity: saving is off, nothing persisted"),
     }
     let (sx, sy, sz) = land.spawn_point();
     let spawn = land.column(sx, sz, Tier::Full);
     println!(
-        "spawn ({sx}, {sy}, {sz}): biome {}, slope {:.3}",
+        "spawn ({sx}, {sy}, {sz}): biome {}, slope {:.3}, {:?}",
         land.biome_keys()[spawn.biome.id.0 as usize],
-        spawn.slope
+        spawn.slope,
+        land.spawn_report().outcome
     );
 
     let mut world = World::new("showcase", &config);
@@ -145,7 +148,6 @@ async fn main() -> std::io::Result<()> {
     server
         .add_world(world)
         .expect("the showcase world is added");
-    info!("showcase serving world `showcase` on port {}", o.port);
     println!("showcase serving world `showcase` on port {}", o.port);
     Voxelize::run(server).await
 }

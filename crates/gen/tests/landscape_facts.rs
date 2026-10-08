@@ -10,7 +10,7 @@ mod land;
 
 use voxelize::Vec2;
 use voxelize_gen::landscape::facts::{solid_top, Tier};
-use voxelize_gen::landscape::{CompileOptions, QualityBands, QualityReport, Query};
+use voxelize_gen::landscape::{CompileOptions, QualityBands, QualityReport, Query, SpawnOutcome};
 
 /// The bands the plain preset passes (measured values with margins).
 fn plain_bands() -> QualityBands {
@@ -76,7 +76,13 @@ fn plain_compiles_strict_and_facts_hold_their_invariants() {
 fn spawn_is_dry_calm_and_in_its_windows() {
     for seed in [1u32, 7, 123123123] {
         let land = land::plain(seed, 512, &CompileOptions::default());
+        let report = land.spawn_report();
+        assert!(
+            matches!(report.outcome, SpawnOutcome::Found { .. }),
+            "seed {seed}: the spawn search fell back: {report:?}"
+        );
         let (x, y, z) = land.spawn_point();
+        assert_eq!((x, z), report.column);
         let c = land.column(x, z, Tier::Full);
         assert_eq!(y, c.top + 1);
         assert!(c.water.is_dry(), "seed {seed}: spawn is wet");

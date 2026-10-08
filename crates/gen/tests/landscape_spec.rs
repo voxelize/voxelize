@@ -239,3 +239,72 @@ fn identity_changes_with_what_decides_output() {
     assert_eq!(a.identity().format, 2);
     assert_eq!(a.identity().algo, voxelize_gen::landscape::ENGINE_ALGO);
 }
+
+#[test]
+fn enum_struct_variants_refuse_unknown_fields() {
+    use voxelize_gen::landscape::library::PaintCondM;
+    use voxelize_gen::landscape::spec::SpawnSpec;
+    let e = json::from_str::<FieldExpr>(r#"{"SAbs":{"x":{"Const":1.0},"k":2.0,"bogus":3}}"#)
+        .unwrap_err();
+    assert!(e.message.contains("unknown field"), "{e:?}");
+    let e = json::from_str::<PaintCondM>(r#"{"Depth":{"min":0,"max":3,"maxx":9}}"#).unwrap_err();
+    assert!(e.message.contains("unknown field"), "{e:?}");
+    let e = json::from_str::<SpawnSpec>(r#"{"Fixed":{"x":0,"z":0,"elevation":3}}"#).unwrap_err();
+    assert!(e.message.contains("unknown field"), "{e:?}");
+    // A typo in a merge patch refuses instead of patching nothing.
+    let e = plain()
+        .patched(&json!({"biomes": {"partition": {"Climate": {"transitionn": 0.5}}}}))
+        .unwrap_err();
+    assert!(
+        e.path.starts_with("biomes.partition") && e.message.contains("unknown field"),
+        "{e}"
+    );
+    let mut v = serde_json::to_value(plain()).unwrap();
+    v["biomes"]["overlays"][0]["ShoreBand"]["wide"] = json!(2);
+    let e = read_spec(&v.to_string()).unwrap_err();
+    assert!(e.message.contains("unknown field"), "{e}");
+}
+
+#[test]
+fn paint_errors_name_their_params_path() {
+    use voxelize_gen::landscape::presets::RoleBinding;
+    use voxelize_gen::landscape::KindRegistry;
+    let refuse = |spec: &LandscapeSpec| {
+        voxelize_gen::landscape::compile(
+            spec,
+            &KindRegistry::with_builtins(),
+            &RoleBinding::demo(),
+            &land::demo_registry(),
+            &land::config(7, 512),
+        )
+        .unwrap_err()
+    };
+    let mut spec = plain();
+    spec.paint[0].params["default"][0]["place"] = json!("soil.topp");
+    let e = refuse(&spec);
+    assert_eq!(e.path, "paint.0.params.default.0.place", "{e}");
+    let mut spec = plain();
+    spec.paint[2].params["zones"] = json!({"clif": {"role": "rock.base", "depth": 2}});
+    let e = refuse(&spec);
+    assert_eq!(e.path, "paint.2.params.zones.clif", "{e}");
+    let mut spec = plain();
+    spec.paint[1].params["rock_line"]["role"] = json!("rock.bas");
+    let e = refuse(&spec);
+    assert_eq!(e.path, "paint.1.params.rock_line.role", "{e}");
+    let mut spec = plain();
+    spec.paint[1].kind = "ecotone".into();
+    let e = refuse(&spec);
+    assert_eq!(e.path, "paint.1.kind", "{e}");
+}
+
+#[test]
+fn frame_height_stays_inside_the_facts_storage() {
+    use voxelize_gen::landscape::spec::MAX_FRAME_HEIGHT;
+    use voxelize_gen::landscape::WorldFrame;
+    let mut frame = plain().frame.clone();
+    for height in [MAX_FRAME_HEIGHT + 16, 32768, 65536] {
+        frame.height = height;
+        let e = WorldFrame::from_spec(&frame).unwrap_err();
+        assert_eq!(e.path, "frame.height", "{e}");
+    }
+}

@@ -14,7 +14,8 @@
 //!
 //! `landscape` also writes no `f64::max`/`f64::min` (they may return either
 //! zero for ±0.0; `landscape::math::MinMax` decides by comparison), checked
-//! by the scanner's companion `find_minmax`.
+//! by the scanner's companion `find_minmax`, and the audited v1 files hold
+//! exactly the `max`/`min` calls in `AUDITED_MINMAX`.
 //!
 //! The scanner is shared with the kit's `assert_no_libm!`, and this test
 //! includes it as a file so it runs in every build, with or without the
@@ -110,6 +111,129 @@ fn audited_v1_files_hold_exactly_their_allowlist() {
         found, allowed,
         "the audited v1 files' platform-maths calls changed; a new call breaks the bit-stability claim, \
          and a removed one must leave the allowlist"
+    );
+}
+
+/// Every `max`/`min` the audited files may hold, as the text scan sees
+/// them: (file, method, trimmed source line), once per call. A float
+/// `max`/`min` may return either zero for a `+0.0`/`-0.0` pair, so each was
+/// audited for one reaching `landscape`'s output:
+///
+/// - against a nonzero constant (`1e-9`, `1.0`, `2.0`), or between two
+///   `abs()` values, or `a - b` against `0.0` (an exact difference is
+///   `+0.0`): no such pair;
+/// - integers the text scan cannot tell from floats (`crown_step`,
+///   `octaves`, `range`): no zeros of two signs;
+/// - outside `landscape`'s paths: v1 field-program `Op::Max`/`Op::Min`
+///   (like `PowI` above), the zoned partition's `transition` (landscape
+///   partitions are single or climate-matched), v1 flora's `reach` (a
+///   ceiling), and `noise.rs` test code.
+///
+/// A new call must be audited and listed, or written with `MinMax`.
+const AUDITED_MINMAX: &[(&str, &str, &str)] = &[
+    (
+        "src/climate.rs",
+        "max",
+        "let margin = (second.0 - best.0).max(0.0);",
+    ),
+    (
+        "src/climate.rs",
+        "max",
+        "let margin = (second.0 - best.0).max(0.0);",
+    ),
+    (
+        "src/climate.rs",
+        "max",
+        "region_cell: region_cell.max(1.0),",
+    ),
+    ("src/climate.rs", "max", "transition: transition.max(0.0),"),
+    ("src/climate.rs", "max", "transition: transition.max(1e-9),"),
+    (
+        "src/ecology.rs",
+        "max",
+        "let ecotone = (ecotone * cell).max(1e-9);",
+    ),
+    (
+        "src/field.rs",
+        "max",
+        "Op::Max(a, b) => regs[*a as usize].max(regs[*b as usize]),",
+    ),
+    (
+        "src/field.rs",
+        "min",
+        "Op::Min(a, b) => regs[*a as usize].min(regs[*b as usize]),",
+    ),
+    (
+        "src/field.rs",
+        "min",
+        "let bound = 2.0 * d0.abs().min(d1.abs());",
+    ),
+    (
+        "src/field.rs",
+        "min",
+        "let lat = (fz.abs() / half_world_z).min(1.0);",
+    ),
+    (
+        "src/field.rs",
+        "min",
+        "let magnitude = parabola.abs().min(bound);",
+    ),
+    ("src/flora.rs", "max", ".fold(0.0f64, f64::max);"),
+    ("src/flora.rs", "max", "let disc = (3 + crown_step).max(2);"),
+    (
+        "src/flora.rs",
+        "max",
+        "let mut radius: i32 = (2 + crown_step).max(1);",
+    ),
+    (
+        "src/flora.rs",
+        "max",
+        "let norm = (px * px + pz * pz).sqrt().max(1e-9);",
+    ),
+    (
+        "src/flora.rs",
+        "max",
+        "let radius: i32 = ([2, 2, 1][layer as usize] + crown_step).max(1);",
+    ),
+    (
+        "src/flora.rs",
+        "max",
+        "let scaled = |base: i32| -> i32 { ((base as f64) * size).round().max(2.0) as i32 };",
+    ),
+    ("src/flora.rs", "max", "let wide = (3 + crown_step).max(2);"),
+    (
+        "src/noise.rs",
+        "max",
+        "let octaves: Vec<Perlin> = (0..octaves.max(1))",
+    ),
+    ("src/noise.rs", "max", "max = max.max(v);"),
+    ("src/noise.rs", "min", "let damped = weight.min(1.0);"),
+    ("src/noise.rs", "min", "min = min.min(v);"),
+    (
+        "src/stream.rs",
+        "max",
+        "let span = (range.1 - range.0).max(0) as f64 + 1.0;",
+    ),
+];
+
+#[test]
+fn audited_v1_files_hold_exactly_their_minmax_allowlist() {
+    let mut found: Vec<(String, String, String)> = Vec::new();
+    for rel in AUDITED_V1 {
+        for LibmHit { call, text, .. } in no_libm::scan_file_with(&crate_path(rel), find_minmax) {
+            found.push((rel.to_string(), call, text));
+        }
+    }
+    let mut allowed: Vec<(String, String, String)> = AUDITED_MINMAX
+        .iter()
+        .map(|(f, c, t)| (f.to_string(), c.to_string(), t.to_string()))
+        .collect();
+    found.sort();
+    allowed.sort();
+    assert_eq!(
+        found, allowed,
+        "the audited v1 files' float max/min calls changed; audit a new call for a +0.0/-0.0 pair \
+         reaching output and list it, and a removed one must leave the allowlist"
     );
 }
 

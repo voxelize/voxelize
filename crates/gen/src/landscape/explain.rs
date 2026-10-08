@@ -1,10 +1,10 @@
 //! Per-column provenance: everything that decided one column, as text and
 //! JSON (`landscape_render --explain x,z`).
 //!
-//! This phase has no landforms, so a column's story is its fields, the
+//! There are no landforms yet, so a column's story is its fields, the
 //! floor and ceiling clamps, the climate and the partition, the water, and
 //! the paint. The full fold (instances, ground ops, claims, bands) joins
-//! with composition in P2b.
+//! with composition.
 
 use std::fmt::Write as _;
 

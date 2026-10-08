@@ -26,8 +26,9 @@
 //!   jittered border channel; the lapse cools high ground.
 //!
 //! Biomes are climate descriptors assigned after shape; paint is calm
-//! (soil, a rock line, cliff rock, scree in patches, snow by temperature);
-//! woods are places: a community field gives each patch of ground to a
+//! (soil, a rock line, cliff rock, scree in patches, snow by temperature;
+//! no per-voxel speckle); trees root only on soil, so woods stop at the
+//! rock line and off rock faces; woods are places: a community field gives each patch of ground to a
 //! broadleaf, pale or conifer wood or to an open meadow, stands roll their
 //! species per stand, and dry lowlands carry scattered parasol groves.
 
@@ -35,8 +36,8 @@ use std::collections::BTreeMap;
 
 use crate::landscape::fields::nodes::{fx::*, FieldExpr, TermRole};
 use crate::landscape::library::{
-    CliffM, EcotonesParams, PaintCondM, PaintRuleM, PatchM, RockLineM, SnowM, SurfaceRulesParams,
-    TalusM, ZonesParams,
+    CliffParams, EcotonesParams, PaintCondM, PaintRuleM, PatchParams, RockLineParams, SnowParams,
+    SurfaceRulesParams, TalusParams, ZonesParams,
 };
 use crate::landscape::mirror::{
     AxisM, AxisSourceM, BiomeM, BiomeSpecM, CanopyM, ClimateBoxM, ClimateM, ClimateRegionM,
@@ -445,19 +446,11 @@ pub fn plain_landscape(knobs: &Knobs) -> LandscapeSpec {
             rule(vec![depth(3, 4)], "soil.sub"),
         ],
     );
+    // No per-voxel speckle anywhere: stone shows as patch-gated talus,
+    // cliff rock and the rock line (ecotones), never as scattered voxels.
     tables.insert(
         "cold.alpine".into(),
         vec![
-            rule(
-                vec![
-                    depth(0, 0),
-                    PaintCondM::Speckle {
-                        salt: "plain.paint.alpine_stones".into(),
-                        chance: 0.12,
-                    },
-                ],
-                "gravel",
-            ),
             rule(vec![depth(0, 0)], "soil.top"),
             rule(vec![depth(1, 2)], "soil.sub"),
         ],
@@ -497,16 +490,6 @@ pub fn plain_landscape(knobs: &Knobs) -> LandscapeSpec {
                 vec![depth(0, 2), PaintCondM::WaterDepth { min: 0, max: 18 }],
                 "shore",
             ),
-            rule(
-                vec![
-                    depth(0, 1),
-                    PaintCondM::Speckle {
-                        salt: "plain.paint.sea_stones".into(),
-                        chance: 0.08,
-                    },
-                ],
-                "gravel",
-            ),
             rule(vec![depth(0, 1)], "bed.lake"),
         ],
     );
@@ -518,12 +501,12 @@ pub fn plain_landscape(knobs: &Knobs) -> LandscapeSpec {
         ],
     };
     let ecotones = EcotonesParams {
-        patch: PatchM {
+        patch: PatchParams {
             salt: "plain.paint.patch".into(),
             wavelength: blocks(56.0),
         },
         hash_salt: "plain.paint.fray".into(),
-        snow: Some(SnowM {
+        snow: Some(SnowParams {
             role: "snow".into(),
             temperature: 0.16,
             full: 0.06,
@@ -531,20 +514,20 @@ pub fn plain_landscape(knobs: &Knobs) -> LandscapeSpec {
             slope_gain: 0.045,
             depth: 1,
         }),
-        rock_line: Some(RockLineM {
+        rock_line: Some(RockLineParams {
             role: "rock.base".into(),
             above: Height::ShareOfRelief(0.30),
             jitter: 3.0,
             patch: 10.0,
             depth: 2,
         }),
-        cliff: Some(CliffM {
+        cliff: Some(CliffParams {
             role: "rock.base".into(),
             slope: (1.0, 2.0),
             patch_gain: 0.2,
             depth: 3,
         }),
-        talus: Some(TalusM {
+        talus: Some(TalusParams {
             role: "talus".into(),
             slope: (0.6, 1.0),
             patch_above: 0.25,
@@ -734,7 +717,7 @@ pub fn plain_landscape(knobs: &Knobs) -> LandscapeSpec {
     LandscapeSpec {
         format: LANDSCAPE_FORMAT,
         preset: PLAIN.to_string(),
-        content_version: ContentVersion::new(0, 1, 0),
+        content_version: ContentVersion::new(0, 2, 0),
         frame: FrameSpec {
             height: knobs.height,
             sea: knobs.sea,

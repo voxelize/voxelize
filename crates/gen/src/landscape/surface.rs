@@ -1,12 +1,13 @@
 //! Surfacers: paint after shape.
 //!
 //! A [`Surfacer`] is one of the five plugin kinds (the other four arrive
-//! with the planner in P2b). It runs once per column after composition,
-//! reading the column's final facts through a [`PaintColumn`] and writing
+//! with the planner). It runs once per column after composition, reading
+//! the column's final facts through a [`PaintColumn`] and writing
 //! [`MaterialRuns`]: the column is filled with the spec's `fill` role up to
 //! its top, and surfacers override runs near the top, in `spec.paint`
 //! order (a later surfacer wins where two overlap). Blocks enter only as
-//! resolved roles.
+//! resolved roles: a [`RoleBlock`] comes from [`PaintCtx::role`] (or is
+//! [`RoleBlock::AIR`], which carves), never from a raw id.
 //!
 //! Built-in surfacers live in `library/` (`surface_rules`, `ecotones`,
 //! `zones`); games register their own exactly as the built-ins do, through
@@ -28,7 +29,7 @@ use super::water::WaterColumn;
 /// A zone key: built-in keys registered by the kinds that write them, and
 /// game keys declared in `spec.zones`. `ZoneKey::NONE` is "no zone".
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ZoneKey(pub u16);
+pub struct ZoneKey(pub(crate) u16);
 
 impl ZoneKey {
     /// No zone.
@@ -95,9 +96,25 @@ impl ZoneTable {
     }
 }
 
-/// A handle to a kept field, readable from a [`PaintColumn`].
+/// A handle to a kept field, readable from a [`PaintColumn`]; only
+/// [`PaintCtx::field`] makes one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct KeptRef(pub u16);
+pub struct KeptRef(pub(crate) u16);
+
+/// A block a surfacer may write: a declared role resolved by
+/// [`PaintCtx::role`], or [`RoleBlock::AIR`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RoleBlock(pub(crate) u32);
+
+impl RoleBlock {
+    /// Air: a paint run of air carves the column below its top.
+    pub const AIR: Self = Self(0);
+
+    /// The block id.
+    pub fn id(self) -> u32 {
+        self.0
+    }
+}
 
 /// One column's final facts, as a surfacer reads them.
 #[derive(Clone, Copy, Debug)]
@@ -189,17 +206,18 @@ impl MaterialRuns {
         self.fill
     }
 
-    /// Set `[lo, hi]` (clamped to `[0, top]`) to `block`.
-    pub fn set(&mut self, lo: i32, hi: i32, block: u32) {
+    /// Set `[lo, hi]` (clamped to `[0, top]`) to `block`; the writer
+    /// writes it as given, so [`RoleBlock::AIR`] carves.
+    pub fn set(&mut self, lo: i32, hi: i32, block: RoleBlock) {
         let lo = Ord::max(lo, 0);
         let hi = Ord::min(hi, self.top);
         if lo <= hi {
-            self.overrides.push((lo, hi, block));
+            self.overrides.push((lo, hi, block.0));
         }
     }
 
     /// Set depths `[d0, d1]` below the top (depth 0 is the top voxel).
-    pub fn set_depth(&mut self, d0: i32, d1: i32, block: u32) {
+    pub fn set_depth(&mut self, d0: i32, d1: i32, block: RoleBlock) {
         self.set(self.top - d1, self.top - d0, block);
     }
 
@@ -237,9 +255,11 @@ impl PatchNoise {
 }
 
 /// What a surfacer may acquire while it is built. Every acquisition is
-/// checked here, with the spec path of the surfacer, so a typo fails at
-/// compile, never in a hot loop.
+/// checked here and names its spec path (the surfacer's params path, then
+/// `at`, the param it came from), so a typo fails at compile, never in a
+/// hot loop.
 pub struct PaintCtx<'a> {
+    /// `paint.<i>.params`.
     pub(crate) path: String,
     pub(crate) frame: &'a WorldFrame,
     pub(crate) world_seed: u32,
@@ -249,7 +269,6 @@ pub struct PaintCtx<'a> {
     pub(crate) kept: &'a [String],
     pub(crate) biomes: &'a [String],
     pub(crate) salts: &'a mut SaltClaims,
-    pub(crate) roles_used: Vec<String>,
 }
 
 impl PaintCtx<'_> {
@@ -258,47 +277,46 @@ impl PaintCtx<'_> {
         self.frame
     }
 
-    /// The spec path of this surfacer (for errors).
+    /// The spec path of this surfacer's params, `paint.<i>.params` (for
+    /// errors).
     pub fn path(&self) -> &str {
         &self.path
     }
 
-    /// A declared role's block, or `None` for an optional role left
-    /// unbound (skip what uses it).
-    pub fn role(&mut self, field: &str, role: &str) -> Result<Option<u32>, SpecError> {
+    /// The block of role `role`, named at param `at`, or `None` for an
+    /// optional role left unbound (skip what uses it).
+    pub fn role(&self, at: &str, role: &str) -> Result<Option<RoleBlock>, SpecError> {
         match self.roles.get(role) {
-            Some(b) => {
-                self.roles_used.push(role.to_string());
-                Ok(*b)
-            }
+            Some(b) => Ok(b.map(RoleBlock)),
             None => Err(SpecError::new(
-                format!("{}.{field}", self.path),
+                format!("{}.{at}", self.path),
                 format!("undeclared role {role:?}"),
             )),
         }
     }
 
-    /// A role that must resolve to a block.
-    pub fn required_role(&mut self, field: &str, role: &str) -> Result<u32, SpecError> {
-        self.role(field, role)?.ok_or_else(|| {
+    /// The block of role `role`, named at param `at`, which must be bound.
+    pub fn required_role(&self, at: &str, role: &str) -> Result<RoleBlock, SpecError> {
+        self.role(at, role)?.ok_or_else(|| {
             SpecError::new(
-                format!("{}.{field}", self.path),
+                format!("{}.{at}", self.path),
                 format!("optional role {role:?} is unbound but required here"),
             )
         })
     }
 
-    /// A built-in or declared zone key.
-    pub fn zone(&self, field: &str, key: &str) -> Result<ZoneKey, SpecError> {
+    /// The built-in or declared zone `key`, named at param `at`.
+    pub fn zone(&self, at: &str, key: &str) -> Result<ZoneKey, SpecError> {
         self.zones.get(key).ok_or_else(|| {
             SpecError::new(
-                format!("{}.{field}", self.path),
+                format!("{}.{at}", self.path),
                 format!("unknown zone key {key:?}"),
             )
         })
     }
 
-    /// A kept field (declared with `keep: true`).
+    /// The kept field `name` (declared with `keep: true`), named at param
+    /// `at`.
     pub fn field(&self, at: &str, name: &str) -> Result<KeptRef, SpecError> {
         self.kept
             .iter()
@@ -312,7 +330,7 @@ impl PaintCtx<'_> {
             })
     }
 
-    /// A biome by key.
+    /// The biome `key`, named at param `at`.
     pub fn biome(&self, at: &str, key: &str) -> Result<BiomeId, SpecError> {
         self.biomes
             .iter()
@@ -331,7 +349,8 @@ impl PaintCtx<'_> {
         self.biomes
     }
 
-    /// A patch field: normalized fbm, its salt claimed world-wide.
+    /// A patch field named at param `at`: normalized fbm, its salt claimed
+    /// world-wide.
     pub fn patch(
         &mut self,
         at: &str,
@@ -370,7 +389,8 @@ impl PaintCtx<'_> {
         })
     }
 
-    /// A seed for this surfacer's hash rolls, from a claimed salt.
+    /// A seed for this surfacer's hash rolls, from a salt claimed at param
+    /// `at`.
     pub fn hash_seed(&mut self, at: &str, salt: &str) -> Result<u64, SpecError> {
         let owner = format!("{}.{at}", self.path);
         self.salts.claim(salt, &owner, "hash")?;

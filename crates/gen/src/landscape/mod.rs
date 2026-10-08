@@ -5,7 +5,7 @@
 //! builds `voxelize-gen` without that feature compiles or links any of it.
 //! The design lives in `crates/gen/docs/landscape.md`.
 //!
-//! **The heightfield core** (this phase): a [`LandscapeSpec`] (owned
+//! **The heightfield core**: a [`LandscapeSpec`] (owned
 //! data, read strictly from JSON with correctly rounded numbers, written
 //! canonically, merge-patchable) compiles against a [`KindRegistry`], a
 //! game's [`RoleBinding`] and the block registry into an immutable
@@ -106,14 +106,14 @@ pub use facts::{BiomeCell, ChunkFacts, ColumnFact, Tier};
 pub use identity::{Compat, DriftPolicy, IdentityFile, KindStamp, LandscapeIdentity, ENGINE_ALGO};
 pub use presets::{Knobs, RoleBinding};
 pub use quality::{QualityBands, QualityReport};
-pub use query::Query;
+pub use query::{Query, SpawnOutcome, SpawnReport};
 pub use registry::KindRegistry;
 pub use spec::{
     merge_patch, read_spec, FieldDef, Height, LandscapeSpec, Size, SpecError, TasteGuards,
     WorldFrame, LANDSCAPE_FORMAT,
 };
-pub use stage::{install, LandscapeStage};
-pub use surface::{MaterialRuns, PaintColumn, PaintCtx, Surfacer, ZoneKey};
+pub use stage::{install, LandscapeStage, ROOT_DEPTH};
+pub use surface::{MaterialRuns, PaintColumn, PaintCtx, RoleBlock, Surfacer, ZoneKey};
 pub use water::{WaterBodyId, WaterColumn, WaterHit, WaterKind, WaterLayer};
 
 /// The names a game's landscape code reaches for.
@@ -124,8 +124,11 @@ pub mod prelude {
     pub use super::spec::{
         Domain, FieldDef, Height, LandscapeSpec, Resolution, Size, SpecError, Validate, Validator,
     };
-    pub use super::surface::{MaterialRuns, PaintColumn, PaintCtx, Surfacer, ZoneKey};
-    pub use super::{compile, install, KindRegistry, Knobs, Landscape, RoleBinding, Tier};
+    pub use super::surface::{MaterialRuns, PaintColumn, PaintCtx, RoleBlock, Surfacer, ZoneKey};
+    // `compile` and `install` stay out: v1 has crate-root items of those
+    // names, so a game globbing both preludes would get ambiguity errors.
+    // Call them as `landscape::compile` and `landscape::install`.
+    pub use super::{KindRegistry, Knobs, Landscape, RoleBinding, Tier};
 }
 
 use crate::stream::{stream_seed_lane, FIRST_LAYER_LANE};

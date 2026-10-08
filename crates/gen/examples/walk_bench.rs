@@ -15,11 +15,16 @@
 //! as in `tests/golden/v1.json`; `geology` and `walker` are accepted as
 //! short forms) come from `tests/fixtures`. Built with the
 //! `unstable-landscape` feature, the landscape presets join them (`plain`,
-//! at H = 512 with the demo blocks), and with `gen-counters` every row
-//! also reports the deterministic work counters per chunk (median and
-//! p95), which `--pin` records and `--gate` compares on single-worker rows
-//! (deterministic on any machine, so that half of the gate always
-//! enforces). A calibration kernel (1M 2D
+//! at H = 512 with the demo blocks; `plain@facts1` is the same preset with
+//! a one-byte facts cache, so its warm pass re-evaluates fields over warm
+//! tiles), and with `gen-counters` every row also reports the deterministic
+//! work counters per chunk (median and p95), which `--pin` records and
+//! `--gate` compares on single-worker rows (deterministic on any machine,
+//! so that half of the gate always enforces, and fails when it compared no
+//! pin at all). A run is compared only with a pin measured the same way:
+//! the facts budget is part of the row key, and a run built with or
+//! without `gen-counters` is not comparable with a pin built the other
+//! way. A calibration kernel (1M 2D
 //! noise octaves plus 1M trilinear lattice samples, on a frozen private
 //! copy of the noise so the yardstick never moves with the code it
 //! measures) runs first, and every p50 is also reported in calibration
@@ -36,8 +41,8 @@
 //!   --json FILE                        write the report as JSON
 //!   --note TEXT                        stamp the report (for example the commit it measured)
 //!   --pin FILE                         write the measured rows as a budget file
-//!   --facts-bytes N                    facts cache budget for landscape fixtures (1 makes the
-//!                                      warm pass re-evaluate fields with warm tiles)
+//!   --facts-bytes N                    facts cache budget for landscape fixtures without
+//!                                      their own `@factsN` (rows are keyed `plain@factsN`)
 //!   --gate FILE                        compare against a budget file; fails only when
 //!                                      GEN_BUDGET_GATE=1 (locally it prints and passes).
 //!                                      It compares only runs measured like the pin: the
@@ -81,6 +86,9 @@ struct Report {
     quick: bool,
     repeat: usize,
     calibration_ms: f64,
+    /// Built with `gen-counters` (whose bumps cost time).
+    #[serde(default)]
+    counters: bool,
     rows: Vec<Row>,
 }
 
@@ -190,6 +198,9 @@ struct Measured {
     repeat: usize,
     quick: bool,
     calibration_ms: f64,
+    /// Built with `gen-counters`.
+    #[serde(default)]
+    counters: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -364,7 +375,15 @@ fn parse_options() -> Options {
 
 /// The canonical fixture name (the golden file's key) for a name or its
 /// short form.
+/// A fixture spec's facts budget suffix: `plain@facts1` is `plain` with
+/// a one-byte facts cache.
+fn fixture_facts(name: &str) -> Option<usize> {
+    name.split_once("@facts")
+        .map(|(_, n)| n.parse().expect("@facts takes a byte count"))
+}
+
 fn fixture_name(name: &str) -> &'static str {
+    let name = name.split_once("@facts").map_or(name, |(base, _)| base);
     match name {
         "fixture" => "fixture",
         "geology_fixture" | "geology" => "geology_fixture",
@@ -802,7 +821,15 @@ fn calibrate(runs: usize) -> f64 {
 fn measure(options: &Options) -> Vec<Row> {
     let mut rows = Vec::new();
     for name in &options.fixtures {
-        let fixture_name = fixture_name(name);
+        let base = fixture_name(name);
+        // The facts budget is part of the row's key, so a run with a
+        // different budget never compares against the default pins.
+        let facts_bytes = fixture_facts(name).or(options.facts_bytes);
+        let fixture_label = match facts_bytes {
+            Some(bytes) if is_landscape(base) => format!("{base}@facts{bytes}"),
+            _ => base.to_string(),
+        };
+        let fixture_name = fixture_label.as_str();
         for workload in &options.workloads {
             let walk_route = route(workload, options.quick);
             // Rows name a trace by its file name, not its full path.
@@ -818,7 +845,7 @@ fn measure(options: &Options) -> Vec<Row> {
             };
             for &workers in &options.workers {
                 let compile_started = Instant::now();
-                let gen = Gen::build(fixture_name, options.facts_bytes);
+                let gen = Gen::build(base, facts_bytes);
                 let compile_ms = compile_started.elapsed().as_secs_f64() * 1e3;
                 let (cold_wall, cold, cold_counts) = walk(&gen, &walk_route, workers);
                 let (warm_wall, warm, warm_counts) = walk(&gen, &walk_route, workers);
@@ -1064,6 +1091,14 @@ fn gate_against(report: &Report, budget: &Budget) -> GateOutcome {
             report.repeat, budget.measured.repeat
         ));
     }
+    if report.counters != budget.measured.counters {
+        let on = |b: bool| if b { "with" } else { "without" };
+        return GateOutcome::NotComparable(format!(
+            "measured {} gen-counters, the budget was pinned {} them",
+            on(report.counters),
+            on(budget.measured.counters)
+        ));
+    }
     println!(
         "{:<34} {:>10} {:>10} {:>8} {:>9}  verdict (on the cal delta)",
         "row", "pinned cal", "now cal", "delta", "ms delta"
@@ -1136,6 +1171,7 @@ fn gate_counters(report: &Report, budget: &Budget) -> Vec<String> {
     let mut failures = Vec::new();
     let growth = 1.0 + budget.max_counter_growth;
     let mut table_printed = false;
+    let mut compared = 0;
     for pin in &budget.counters {
         let Some(row) = report.rows.iter().find(|r| r.key() == pin.key) else {
             continue;
@@ -1151,6 +1187,7 @@ fn gate_counters(report: &Report, budget: &Budget) -> Vec<String> {
         let Some(now) = row.counters.iter().find(|c| c.name == pin.name) else {
             continue;
         };
+        compared += 1;
         if !table_printed {
             println!(
                 "{:<34} {:<20} {:>12} {:>12} {:>12} {:>12}",
@@ -1175,6 +1212,13 @@ fn gate_counters(report: &Report, budget: &Budget) -> Vec<String> {
                 pin.key, pin.name, now.median, pin.median, now.p95, pin.p95
             ));
         }
+    }
+    // A gate that compared nothing must not pass silently.
+    if !budget.counters.is_empty() && compared == 0 {
+        failures.push(
+            "no counter pin was compared: build with gen-counters and walk a pinned single-worker row on its pinned route"
+                .to_string(),
+        );
     }
     failures
 }
@@ -1323,6 +1367,7 @@ fn main() {
         quick: options.quick,
         repeat: options.repeat,
         calibration_ms,
+        counters: cfg!(feature = "gen-counters"),
         rows,
     };
     if let Some(path) = &options.json {
@@ -1368,6 +1413,7 @@ fn main() {
                 repeat: report.repeat,
                 quick: report.quick,
                 calibration_ms,
+                counters: report.counters,
             },
             rows: report
                 .rows
@@ -1453,6 +1499,7 @@ mod tests {
             quick: false,
             repeat,
             calibration_ms: 10.0,
+            counters: false,
             rows,
         }
     }
@@ -1470,6 +1517,7 @@ mod tests {
                 repeat,
                 quick: false,
                 calibration_ms: 10.0,
+                counters: false,
             },
             rows: vec![BudgetRow {
                 key: "fixture/spiral/w1/cold".into(),
@@ -1504,11 +1552,47 @@ mod tests {
             gate_against(&quick, &budget),
             GateOutcome::NotComparable(_)
         ));
+        // A run built with gen-counters (whose bumps cost time) against a
+        // pin built without.
+        let mut counted = test_report(5, vec![test_row("fixture", 1, 256, 0.6, 0.061)]);
+        counted.counters = true;
+        assert!(matches!(
+            gate_against(&counted, &budget),
+            GateOutcome::NotComparable(_)
+        ));
         // Rows outside `gate_workers` are reported, never failed.
         let mut budget = budget;
         budget.rows[0].key = "fixture/spiral/w8/cold".into();
         let busy = test_report(5, vec![test_row("fixture", 8, 256, 0.6, 0.09)]);
         assert_eq!(gate_against(&busy, &budget), GateOutcome::Within);
+    }
+
+    #[test]
+    fn counter_gate_fails_when_it_compares_nothing() {
+        let mut budget = test_budget(1);
+        budget.counters = vec![CounterBudget {
+            key: "fixture/spiral/w1/cold".into(),
+            name: "noise_octaves".into(),
+            median: 10.0,
+            p95: 12.0,
+        }];
+        // A run without counters compares no pin.
+        let bare = test_report(1, vec![test_row("fixture", 1, 256, 0.6, 0.06)]);
+        assert_eq!(gate_counters(&bare, &budget).len(), 1);
+        let mut counted = test_row("fixture", 1, 256, 0.6, 0.06);
+        counted.counters = vec![CounterStat {
+            name: "noise_octaves".into(),
+            median: 10.0,
+            p95: 12.0,
+        }];
+        assert!(gate_counters(&test_report(1, vec![counted]), &budget).is_empty());
+    }
+
+    #[test]
+    fn a_facts_budget_keys_its_own_rows() {
+        assert_eq!(fixture_name("plain@facts1"), "plain");
+        assert_eq!(fixture_facts("plain@facts1"), Some(1));
+        assert_eq!(fixture_facts("plain"), None);
     }
 
     #[test]

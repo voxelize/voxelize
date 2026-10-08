@@ -3,8 +3,9 @@
 //! [`LandscapeSpec`] is plain owned data: strings and `BTreeMap`s, never a
 //! `&'static str`, so a spec can be authored in Rust (the presets), read
 //! from JSON ([`read_spec`]), merge-patched ([`merge_patch`],
-//! RFC 7396) and hot reloaded alike. Every struct refuses unknown fields,
-//! and every optional field is an explicit `Option`, so a typo fails with
+//! RFC 7396) and hot reloaded alike. Every struct, and every struct
+//! variant of an enum, refuses unknown fields, and every optional field is
+//! an explicit `Option`, so a typo (in a spec or in a merge patch) fails with
 //! its path (`frame.sea: unknown variant ...`) instead of being ignored,
 //! and an exported spec writes every field.
 //!
@@ -208,6 +209,22 @@ pub enum Height {
     ShareOfWorld(f64),
 }
 
+/// The tallest world frame: facts store tops and sea bottoms as `i16`
+/// (with `i16::MAX` reserved), so heights stay well inside it.
+pub const MAX_FRAME_HEIGHT: u32 = 16384;
+
+impl Height {
+    /// The authored number, whatever it is relative to.
+    pub fn raw(self) -> f64 {
+        match self {
+            Height::Abs(v)
+            | Height::AboveSea(v)
+            | Height::ShareOfRelief(v)
+            | Height::ShareOfWorld(v) => v,
+        }
+    }
+}
+
 /// A horizontal size: `Span` follows the `scale` knob, `Blocks` never
 /// scales (wear, grain, strata periods, soft-clamp widths, fades).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -283,10 +300,13 @@ impl WorldFrame {
                 format!("{} is outside 0.5..=2.0", spec.scale),
             ));
         }
-        if spec.height < 64 || spec.height % 16 != 0 {
+        if spec.height < 64 || spec.height > MAX_FRAME_HEIGHT || spec.height % 16 != 0 {
             return Err(SpecError::new(
                 "frame.height",
-                format!("{} must be a multiple of 16, at least 64", spec.height),
+                format!(
+                    "{} must be a multiple of 16 in 64..={MAX_FRAME_HEIGHT}",
+                    spec.height
+                ),
             ));
         }
         let h = spec.height as f64;
@@ -473,7 +493,7 @@ pub struct FieldDef {
 }
 
 /// A landform, region solver or site set, keyed by id in `spec.nodes`.
-/// The plugin kinds arrive in P2b; this phase compiles only disabled nodes.
+/// No plugin kind compiles yet, so only disabled nodes do.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodeSpec {
@@ -509,7 +529,7 @@ pub struct PaintNode {
     pub params: Value,
 }
 
-/// Water as data (this phase: the implicit sea).
+/// Water as data (so far: the implicit sea).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WaterSpec {
@@ -539,12 +559,13 @@ pub struct SpawnSearch {
     pub moisture: (f64, f64),
     /// Open sea within this many blocks, if set.
     pub coast_within: Option<i32>,
-    /// Blocks spawn readers keep clear (used from P2b).
+    /// Blocks spawn readers keep clear (read once landforms exist).
     pub clear_radius: i32,
 }
 
 /// Where players arrive.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum SpawnSpec {
     /// A fixed column.
     Fixed {
@@ -623,7 +644,8 @@ impl TasteGuards {
     }
 }
 
-/// Deterministic plan step budgets (part of `spec_hash`; used from P2b).
+/// Deterministic plan step budgets (part of `spec_hash`; read once the
+/// planner exists).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlanBudgets {

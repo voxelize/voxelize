@@ -1,11 +1,14 @@
 //! The field compiler: dead-node elimination and hash-consing (same bits
 //! either way), the bandwidth, Lipschitz and range analyses (checked
-//! against dense samples), the taste refusals in both modes, reference
+//! against dense samples), the taste refusals in both modes (including
+//! terms scaled, referenced or creased past a per-node check), reference
 //! errors, and grid equals point for strided and stencil fields.
 
 use std::collections::BTreeMap;
 
-use voxelize_gen::landscape::fields::nodes::{fx::*, FieldExpr, NoiseM, TermRole, WarpM};
+use voxelize_gen::landscape::fields::nodes::{
+    fx::*, CellMode, CellularM, FieldExpr, NoiseM, TermRole, WarpM,
+};
 use voxelize_gen::landscape::fields::{
     compile_fields, Area, CompiledFields, FieldsConfig, MacroTiles, SaltClaims,
 };
@@ -314,6 +317,229 @@ fn taste_refuses_cut_and_cavity_terms_and_warns_in_warn_mode() {
         def(noise("t.s", Size::Blocks(4.0), 1, 1.0), Resolution::Full),
     );
     compile(&d, &["ground", "speckle"], &TasteGuards::strict(), true).unwrap();
+}
+
+fn grain(salt: &str, wavelength: f64, amp: f64) -> FieldExpr {
+    FieldExpr::Noise(NoiseM {
+        salt: salt.into(),
+        wavelength: Size::Blocks(wavelength),
+        octaves: 1,
+        persistence: 0.5,
+        lacunarity: 2.0,
+        amp,
+        role: TermRole::Grain,
+        warp: None,
+    })
+}
+
+fn warp_of(amp_in: f64, wavelength_in: Size, amp: Size) -> FieldExpr {
+    FieldExpr::Noise(NoiseM {
+        salt: "t.w".into(),
+        wavelength: Size::Span(4000.0),
+        octaves: 1,
+        persistence: 0.5,
+        lacunarity: 2.0,
+        amp: 1.0,
+        role: TermRole::Shape,
+        warp: Some(WarpM {
+            x: Box::new(noise("t.wx", wavelength_in, 1, amp_in)),
+            z: Box::new(noise("t.wz", wavelength_in, 1, amp_in)),
+            amp,
+        }),
+    })
+}
+
+fn strict_err(d: &BTreeMap<String, FieldDef>) -> String {
+    compile(d, &["ground"], &TasteGuards::strict(), true).unwrap_err()
+}
+
+fn strict_ok(d: &BTreeMap<String, FieldDef>) {
+    if let Err(e) = compile(d, &["ground"], &TasteGuards::strict(), true) {
+        panic!("{e}");
+    }
+}
+
+#[test]
+fn taste_follows_terms_through_scaling_references_and_creases() {
+    // A warp folds by its inputs' amplitude too: one displacement written
+    // two ways folds alike, and a loud input at a long wavelength folds.
+    let e = strict_err(&ground_only(warp_of(
+        1.0,
+        Size::Span(1000.0),
+        Size::Span(480.0),
+    )));
+    assert!(e.contains("folds at 3.016"), "{e}");
+    let e = strict_err(&ground_only(warp_of(
+        4.0,
+        Size::Span(1000.0),
+        Size::Span(120.0),
+    )));
+    assert!(e.contains("folds at 3.016"), "{e}");
+    let e = strict_err(&ground_only(warp_of(
+        30.0,
+        Size::Span(4000.0),
+        Size::Span(80.0),
+    )));
+    assert!(e.contains("folds at 3.770"), "{e}");
+    strict_ok(&ground_only(warp_of(
+        1.0,
+        Size::Span(1000.0),
+        Size::Span(100.0),
+    )));
+    // A warp mixing Span and Blocks sizes.
+    let e = strict_err(&ground_only(warp_of(
+        1.0,
+        Size::Span(1000.0),
+        Size::Blocks(20.0),
+    )));
+    assert!(e.contains("MixedScale"), "{e}");
+
+    // Grain the per-term cap passes, scaled past it by a constant, in the
+    // same field or through a reference, or read through a stencil.
+    strict_ok(&ground_only(grain("t.g", 6.0, 0.3) + c(90.0)));
+    let e = strict_err(&ground_only(grain("t.g", 6.0, 0.3) * c(100.0)));
+    assert!(e.contains("cavity") && e.contains("±60.000"), "{e}");
+    let mut d = ground_only(c(90.0) + r("g") * c(20.0));
+    d.insert("g".into(), def(grain("t.g", 6.0, 0.3), Resolution::Full));
+    let e = strict_err(&d);
+    assert!(e.contains("cavity") && e.contains("fields.g.graph"), "{e}");
+    let mut d = ground_only(c(90.0) + smoothstep(slope_of("g"), 0.5, 4.0) * c(30.0));
+    d.insert(
+        "g".into(),
+        def(grain("t.g", 6.0, 0.3) + c(1.0), Resolution::Full),
+    );
+    let e = strict_err(&d);
+    assert!(e.contains("cavity"), "{e}");
+    // Two quiet grains add up.
+    let e = strict_err(&ground_only(
+        grain("t.g1", 6.0, 0.25) + grain("t.g2", 9.0, 0.25) + c(90.0),
+    ));
+    assert!(e.contains("cavity") && e.contains("±1.000"), "{e}");
+
+    // Cellular pits on small cells; on large cells, a crease.
+    let cell = |w: f64, amp: f64| {
+        FieldExpr::Cellular(CellularM {
+            salt: "t.cell".into(),
+            wavelength: Size::Blocks(w),
+            mode: CellMode::F1,
+            jitter: 0.8,
+            amp,
+        })
+    };
+    let e = strict_err(&ground_only(c(90.0) - cell(5.0, 20.0)));
+    assert!(e.contains("digs pits on 5.00-block cells"), "{e}");
+    let e = strict_err(&ground_only(c(90.0) - cell(64.0, 20.0)));
+    assert!(e.contains("CreaseOnGround: cellular"), "{e}");
+
+    // Terraces are bench terms on ground.
+    let h = || noise("t.h", Size::Span(400.0), 2, 30.0) + c(90.0);
+    let terrace = |step: f64, softness: f64| FieldExpr::Terrace {
+        x: Box::new(h()),
+        step,
+        softness,
+    };
+    let e = strict_err(&ground_only(terrace(2.0, 0.02)));
+    assert!(e.contains("cuts its risers"), "{e}");
+    let e = strict_err(&ground_only(terrace(2.0, 0.5)));
+    assert!(e.contains("rises 2.00 blocks per step"), "{e}");
+    strict_ok(&ground_only(terrace(12.0, 0.5)));
+
+    // Creases: a raw fold, a hard select, a clamp inside its range, a min
+    // of overlapping terms, a literal height.
+    let n = || noise("t.n", Size::Span(300.0), 2, 1.0);
+    let e = strict_err(&ground_only(
+        FieldExpr::Abs(Box::new(n())) * c(-40.0) + c(120.0),
+    ));
+    assert!(e.contains("CreaseOnGround: Abs"), "{e}");
+    let select = |blend: f64| FieldExpr::Select {
+        cond: Box::new(n()),
+        a: Box::new(c(90.0)),
+        b: Box::new(c(120.0)),
+        at: 0.0,
+        blend,
+    };
+    let e = strict_err(&ground_only(select(0.0)));
+    assert!(
+        e.contains("hard Select") && e.contains("steps ground"),
+        "{e}"
+    );
+    strict_ok(&ground_only(select(0.4)));
+    let e = strict_err(&ground_only(clamp(n(), -0.5, 0.5) * c(30.0) + c(90.0)));
+    assert!(e.contains("CreaseOnGround: Clamp"), "{e}");
+    let e = strict_err(&ground_only(
+        FieldExpr::Min(Box::new(n() * c(20.0)), Box::new(c(5.0))) + c(90.0),
+    ));
+    assert!(e.contains("CreaseOnGround: Min"), "{e}");
+    let e = strict_err(&ground_only(height(Height::Abs(90.0)) + n()));
+    assert!(e.contains("LiteralHeight"), "{e}");
+
+    // What stays legal: a smoothstep flat where a fold creases (the plain
+    // preset's gully channel), a smooth fold, a clamp the input never
+    // reaches, a min of separate ranges, a crease inside a strided field,
+    // and a slope gate that starts above zero.
+    strict_ok(&ground_only(
+        smoothstep(FieldExpr::Abs(Box::new(n())), 0.0, 0.22) * c(-10.0) + c(100.0),
+    ));
+    strict_ok(&ground_only(sabs(n(), 0.1) * c(-40.0) + c(120.0)));
+    strict_ok(&ground_only(clamp(n(), -2.5, 2.5) * c(30.0) + c(90.0)));
+    strict_ok(&ground_only(
+        FieldExpr::Min(Box::new(n() + c(10.0)), Box::new(c(50.0))) + c(40.0),
+    ));
+    let mut d = ground_only(r("s") * c(20.0) + c(90.0));
+    d.insert(
+        "s".into(),
+        def(FieldExpr::Abs(Box::new(n())), Resolution::Stride(16)),
+    );
+    strict_ok(&d);
+    let mut d = ground_only(r("b") + smoothstep(slope_of("b"), 0.8, 2.0) * c(4.0));
+    d.insert("b".into(), def(n() * c(40.0) + c(90.0), Resolution::Full));
+    strict_ok(&d);
+
+    // Warn mode lists what strict refuses.
+    let warned = compile(
+        &ground_only(FieldExpr::Abs(Box::new(n())) * c(-40.0) + c(120.0)),
+        &["ground"],
+        &TasteGuards::warn(),
+        true,
+    )
+    .unwrap();
+    assert!(warned
+        .lints
+        .iter()
+        .any(|l| l.starts_with("taste:") && l.contains("CreaseOnGround")));
+}
+
+#[test]
+fn product_bandwidth_combines_harmonically_and_knots_must_be_finite() {
+    // Two 200-block terms multiplied carry a 100-block component.
+    let mut d = BTreeMap::new();
+    d.insert(
+        "m".into(),
+        FieldDef {
+            graph: noise("t.a", Size::Span(200.0), 1, 1.0)
+                * noise("t.b", Size::Span(200.0), 1, 1.0),
+            domain: Domain::Macro,
+            resolution: Resolution::Full,
+            range: None,
+            keep: false,
+        },
+    );
+    let e = compile(&d, &["m"], &TasteGuards::strict(), true).unwrap_err();
+    assert!(e.contains("a 100.0-block wavelength"), "{e}");
+    // A router knot at minus infinity refuses (JSON cannot carry one, Rust can).
+    let d = ground_only(router(
+        n_unit(),
+        vec![(f64::NEG_INFINITY, c(0.0)), (1.0, c(10.0))],
+    ));
+    let e = compile(&d, &["ground"], &TasteGuards::strict(), true).unwrap_err();
+    assert!(e.contains("router knots need finite"), "{e}");
+    let d = ground_only(affine(n_unit(), f64::NAN, 0.0));
+    let e = compile(&d, &["ground"], &TasteGuards::strict(), true).unwrap_err();
+    assert!(e.contains("Affine needs a finite"), "{e}");
+}
+
+fn n_unit() -> FieldExpr {
+    noise("t.u", Size::Span(300.0), 1, 1.0)
 }
 
 #[test]

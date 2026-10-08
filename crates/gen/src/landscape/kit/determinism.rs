@@ -29,8 +29,9 @@ use voxelize::{
     Chunk, ChunkOptions, ChunkStage, Registry, Resources, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
-use crate::landscape::facts::Tier;
+use crate::landscape::facts::{ColumnFact, Tier};
 use crate::landscape::stage::LandscapeStage;
+use crate::landscape::water::{Flow, StampMode};
 use crate::landscape::{CompileOptions, Landscape};
 use crate::stream::HashStream;
 
@@ -180,6 +181,51 @@ pub fn assert_caches_cost_only(case: &Case<'_>) {
     assert_same(case, "caches at capacity one", &reference, &got);
 }
 
+/// Every channel of a column as bits, so `-0.0` and `0.0` (equal as
+/// floats) differ.
+fn column_bits(c: &ColumnFact) -> Vec<u64> {
+    let f = |v: f64| v.to_bits();
+    let mut out = vec![
+        c.x as i64 as u64,
+        c.z as i64 as u64,
+        c.top as i64 as u64,
+        f(c.ground),
+        f(c.slope),
+        f(c.aspect[0]),
+        f(c.aspect[1]),
+        f(c.curvature),
+        f(c.temperature),
+        f(c.moisture),
+        c.biome.id.0 as u64,
+        c.biome.primary.0 as u64,
+        c.biome.secondary.0 as u64,
+        c.biome.edge as u64,
+        c.zone.0 as u64,
+    ];
+    for l in &c.water.layers {
+        out.push(l.body.0);
+        out.push(l.kind.0 as u64);
+        out.push(l.fluid as u64);
+        out.push(l.level as i64 as u64);
+        out.push(l.bottom as i64 as u64);
+        match l.flow {
+            Flow::Still => out.push(0),
+            Flow::Downstream { dx, dz, speed } => out.extend([
+                1,
+                dx.to_bits() as u64,
+                dz.to_bits() as u64,
+                speed.to_bits() as u64,
+            ]),
+            Flow::Falling => out.push(2),
+        }
+        out.push(match l.stamp {
+            StampMode::Sources => 0,
+        });
+    }
+    out.extend(c.kept.iter().map(|k| k.to_bits() as u64));
+    out
+}
+
 /// Every stored column of every chunk's facts equals its point query.
 pub fn assert_grid_equals_point(case: &Case<'_>) {
     // A landscape with a one-entry facts cache, so point queries cannot be
@@ -202,7 +248,7 @@ pub fn assert_grid_equals_point(case: &Case<'_>) {
                     .column(x, z, land.sea())
                     .expect("built");
                 assert!(
-                    grid.ground.to_bits() == point.ground.to_bits() && grid == point,
+                    column_bits(&grid) == column_bits(&point),
                     "{}: column ({x}, {z}) of chunk ({cx}, {cz}): grid {grid:?} != point {point:?}",
                     case.name
                 );

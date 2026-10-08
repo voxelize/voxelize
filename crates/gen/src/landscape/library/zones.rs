@@ -2,20 +2,22 @@
 //!
 //! Landforms write a column's zone (`cliff`, `beach`, `dune`, a game key
 //! declared in `spec.zones`); this surfacer gives each zone its material
-//! at the top. Zone writers arrive with the landforms (P2b on); until then
-//! no column carries a zone and this surfacer paints nothing.
+//! at the top. Zone writers arrive with the landforms; until then no
+//! column carries a zone and this surfacer paints nothing.
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
 use crate::landscape::spec::{SpecError, Validate, Validator};
-use crate::landscape::surface::{MaterialRuns, PaintColumn, PaintCtx, Surfacer, ZoneKey};
+use crate::landscape::surface::{
+    MaterialRuns, PaintColumn, PaintCtx, RoleBlock, Surfacer, ZoneKey,
+};
 
 /// One zone's paint.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ZonePaintM {
+pub struct ZonePaintParams {
     /// Role painted.
     pub role: String,
     /// Depth of the paint below the top, in voxels.
@@ -27,7 +29,7 @@ pub struct ZonePaintM {
 #[serde(deny_unknown_fields)]
 pub struct ZonesParams {
     /// Paint by zone key.
-    pub zones: BTreeMap<String, ZonePaintM>,
+    pub zones: BTreeMap<String, ZonePaintParams>,
 }
 
 impl Validate for ZonesParams {
@@ -44,7 +46,7 @@ impl Validate for ZonesParams {
 
 /// Zone paint.
 pub struct Zones {
-    paint: Vec<(ZoneKey, Option<u32>, i32)>,
+    paint: Vec<(ZoneKey, Option<RoleBlock>, i32)>,
 }
 
 impl Surfacer for Zones {

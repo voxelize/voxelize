@@ -4,7 +4,8 @@
 //!
 //! - [`nodes`]: the authored expression ([`FieldExpr`]);
 //! - [`ir`]: hash-consed register programs;
-//! - [`compile`]: names to stage programs, analyses, taste guards;
+//! - [`compile`]: names to stage programs and analyses;
+//! - [`taste`]: the taste guards over the spine's reach;
 //! - [`eval`]: kernels, splines, the bicubic and the register machine;
 //! - [`grid`]: windows of columns over strided lattices.
 //!
@@ -16,6 +17,7 @@ pub mod eval;
 pub mod grid;
 pub mod ir;
 pub mod nodes;
+pub mod taste;
 
 pub use compile::{
     compile_fields, Analysis, CompiledFields, FieldInfo, FieldsConfig, SaltClaims, SPINE,

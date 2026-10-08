@@ -34,7 +34,7 @@ use super::json;
 use super::spec::ContentVersion;
 
 /// Bumped whenever engine arithmetic changes output for an unchanged spec.
-pub const ENGINE_ALGO: u32 = 1;
+pub const ENGINE_ALGO: u32 = 2;
 
 /// The identity file's name inside the chunks folder.
 pub const IDENTITY_FILE: &str = "landscape.identity";
@@ -116,8 +116,8 @@ impl fmt::Display for Compat {
 pub enum DriftPolicy {
     /// Refuse to start.
     Refuse,
-    /// Log the verdict with the saved-chunk count, rewrite, and append to
-    /// the drift log.
+    /// Return the verdict with the saved-chunk count as a warning
+    /// (`IdentityCheck::warning`), rewrite, and append to the drift log.
     Warn,
     /// Rewrite and append silently.
     Allow,
@@ -166,6 +166,9 @@ pub struct IdentityCheck {
     pub wrote: bool,
     /// The identity file's path.
     pub path: PathBuf,
+    /// Under `DriftPolicy::Warn`, the drift warning for the caller to log
+    /// (the library prints nothing).
+    pub warning: Option<String>,
 }
 
 /// The identity file next to a world's chunks.
@@ -237,6 +240,7 @@ impl IdentityFile {
                         saved_chunks,
                         wrote: true,
                         path,
+                        warning: None,
                     });
                 }
                 Compat::Unknown
@@ -249,8 +253,10 @@ impl IdentityFile {
                 saved_chunks,
                 wrote: false,
                 path,
+                warning: None,
             });
         }
+        let mut warning = None;
         if saved_chunks > 0 {
             match policy {
                 DriftPolicy::Refuse => {
@@ -261,10 +267,12 @@ impl IdentityFile {
                         ),
                     })
                 }
-                DriftPolicy::Warn => eprintln!(
-                    "warning: landscape identity drift ({verdict}) with {saved_chunks} saved chunk(s) in {}; saved chunks will seam against regenerated ones",
-                    dir.display()
-                ),
+                DriftPolicy::Warn => {
+                    warning = Some(format!(
+                        "landscape identity drift ({verdict}) with {saved_chunks} saved chunk(s) in {}; saved chunks will seam against regenerated ones",
+                        dir.display()
+                    ))
+                }
                 DriftPolicy::Allow => {}
             }
             let mut log = std::fs::OpenOptions::new()
@@ -289,6 +297,7 @@ impl IdentityFile {
             saved_chunks,
             wrote: true,
             path,
+            warning,
         })
     }
 

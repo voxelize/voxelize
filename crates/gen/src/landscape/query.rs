@@ -20,6 +20,34 @@ use super::spec::SpawnSpec;
 use super::water::{hit_in, WaterColumn, WaterHit};
 use super::Landscape;
 
+/// How the spawn column was chosen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpawnOutcome {
+    /// `SpawnSpec::Fixed`.
+    Fixed,
+    /// The search found a column passing every test, after `tested`
+    /// candidates.
+    Found {
+        /// Candidates tested, this one included.
+        tested: u32,
+    },
+    /// No candidate within `max_radius` passed; spawn fell back to the
+    /// search origin, which may be wet, steep or outside the windows.
+    Fallback {
+        /// Candidates tested.
+        tested: u32,
+    },
+}
+
+/// The spawn column and how it was chosen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpawnReport {
+    /// The column.
+    pub column: (i32, i32),
+    /// How it was chosen.
+    pub outcome: SpawnOutcome,
+}
+
 /// An answer that may not be ready without computing.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Query<T> {
@@ -53,7 +81,7 @@ impl Landscape {
         self.columns.insert((x, z), c)
     }
 
-    /// One column's facts at `tier` (this phase has no landforms, so every
+    /// One column's facts at `tier` (there are no landforms yet, so every
     /// tier reads final ground).
     pub fn column(&self, x: i32, z: i32, tier: Tier) -> ColumnFact {
         let _ = tier;
@@ -220,6 +248,12 @@ impl Landscape {
 
     /// The spawn column (searched once, then fixed).
     pub fn spawn(&self) -> (i32, i32) {
+        self.spawn_report().column
+    }
+
+    /// The spawn column and how it was chosen: a `Fallback` means the
+    /// search's windows found nothing within its radius.
+    pub fn spawn_report(&self) -> SpawnReport {
         *self.spawn.get_or_init(|| self.search_spawn())
     }
 
@@ -229,16 +263,23 @@ impl Landscape {
         (x, self.column_arc(x, z).top + 1, z)
     }
 
-    fn search_spawn(&self) -> (i32, i32) {
+    fn search_spawn(&self) -> SpawnReport {
         let s = match &self.spec.spawn {
-            SpawnSpec::Fixed { x, z } => return (*x, *z),
+            SpawnSpec::Fixed { x, z } => {
+                return SpawnReport {
+                    column: (*x, *z),
+                    outcome: SpawnOutcome::Fixed,
+                }
+            }
             SpawnSpec::Search(s) => s,
         };
         let lo = self.frame.resolve(s.ground.0);
         let hi = self.frame.resolve(s.ground.1);
         let rings = s.max_radius / s.stride;
+        let mut tested = 0u32;
         for k in 0..=rings {
             for (dx, dz) in ring(k) {
+                tested += 1;
                 let x = s.origin.0 + dx * s.stride;
                 let z = s.origin.1 + dz * s.stride;
                 let c = self.column_arc(x, z);
@@ -258,10 +299,16 @@ impl Landscape {
                         continue;
                     }
                 }
-                return (x, z);
+                return SpawnReport {
+                    column: (x, z),
+                    outcome: SpawnOutcome::Found { tested },
+                };
             }
         }
-        s.origin
+        SpawnReport {
+            column: s.origin,
+            outcome: SpawnOutcome::Fallback { tested },
+        }
     }
 
     /// Whether open sea lies within `r` blocks, probed along 16 rays every

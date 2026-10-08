@@ -26,8 +26,8 @@ use super::water::{SeaModel, WaterColumn};
 use super::Landscape;
 
 /// Which intermediate state of the pipeline a query reads. A tier's answer
-/// equals the full pipeline's state after that layer. This phase has no
-/// landforms, so every tier reads the same final ground.
+/// equals the full pipeline's state after that layer. There are no
+/// landforms yet, so every tier reads the same final ground.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tier {
     /// After the base fields.
@@ -67,7 +67,7 @@ impl Default for BiomeCell {
     }
 }
 
-/// Resolved water per column (this phase: the sea).
+/// Resolved water per column (so far: the sea).
 #[derive(Clone, Debug)]
 pub struct WaterTile {
     /// The bottom y of the sea layer per column, or `i16::MAX` when dry.

@@ -239,7 +239,7 @@
   "claim_keys": {},
   "content_version": {
     "major": 0,
-    "minor": 1,
+    "minor": 2,
     "patch": 0
   },
   "fields": {
@@ -1729,23 +1729,6 @@
         "tables": {
           "cold.alpine": [
             {
-              "place": "gravel",
-              "when": [
-                {
-                  "Depth": {
-                    "max": 0,
-                    "min": 0
-                  }
-                },
-                {
-                  "Speckle": {
-                    "chance": 0.12,
-                    "salt": "plain.paint.alpine_stones"
-                  }
-                }
-              ]
-            },
-            {
               "place": "soil.top",
               "when": [
                 {
@@ -1854,23 +1837,6 @@
                   "WaterDepth": {
                     "max": 18,
                     "min": 0
-                  }
-                }
-              ]
-            },
-            {
-              "place": "gravel",
-              "when": [
-                {
-                  "Depth": {
-                    "max": 1,
-                    "min": 0
-                  }
-                },
-                {
-                  "Speckle": {
-                    "chance": 0.08,
-                    "salt": "plain.paint.sea_stones"
                   }
                 }
               ]

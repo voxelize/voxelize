@@ -19,6 +19,10 @@
 //! shared maturity, and members repeat the dominant with probability
 //! `cohesion`, so trees come in coherent groves, never sprinkled.
 //!
+//! The landscape keeps a placed tree only where its trunk column roots
+//! (`stage::ROOT_DEPTH`: no bare fill within the top voxels after paint),
+//! judged from that column alone.
+//!
 //! A canopy crossing a chunk border writes identical voxels from both
 //! sides: every chunk re-derives the same trees in the same order (sets in
 //! key order, then communities in key order; clusters in lattice order;
@@ -32,7 +36,6 @@ use crate::landscape::math::MinMax;
 use crate::noise::Fractal;
 use crate::stream::{cell_id, mix64, HashStream};
 
-use super::counters::{bump, Counter};
 use super::facts::ColumnFact;
 
 /// Members per cluster are indexed `cluster_x * MAX + point` (v1's rule).
@@ -334,7 +337,6 @@ impl LoweredFlora {
                 );
             }
         }
-        bump(Counter::Trees, trees.len() as u64);
         trees
     }
 
@@ -553,5 +555,38 @@ mod tests {
         let got: Vec<_> = got.iter().filter(inside).map(key_of).collect();
         assert!(want.len() > 20, "the fixture plants trees ({})", want.len());
         assert_eq!(want, got);
+    }
+
+    /// `MAX_CANOPY` covers every form's reach at every size a tree can
+    /// take, so the writer's pad never cuts a canopy at a chunk border.
+    #[test]
+    fn max_canopy_covers_every_form() {
+        use crate::flora::TreeForm as F;
+        let mut widest = 0;
+        for form in [
+            F::Round,
+            F::Slender,
+            F::Conic,
+            F::Umbrella,
+            F::Broad,
+            F::Snag,
+        ] {
+            for size in [0.6, 0.8, 1.0, 1.25, 1.5] {
+                for seed in 0..256u64 {
+                    let tree = TreeInstance {
+                        x: 0,
+                        y: 64,
+                        z: 0,
+                        species: 0,
+                        size,
+                        seed: mix64(seed),
+                    };
+                    crate::flora::stamp_form(form, 1, 2, &tree, &mut |x, _, z, _, _| {
+                        widest = Ord::max(widest, Ord::max(x.abs(), z.abs()));
+                    });
+                }
+            }
+        }
+        assert_eq!(widest, MAX_CANOPY, "the widest reach is {widest}");
     }
 }

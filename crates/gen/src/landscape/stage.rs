@@ -9,10 +9,13 @@
 //! - `Arc::make_mut(&mut chunk.voxels)` once per chunk (the job owns the
 //!   chunk, so this does not clone in the normal case), then runs written
 //!   straight into the voxel array in the chunk's `[x, y, z]` layout
-//!   (z contiguous); air is never written, because new chunks are zeroed;
-//! - `chunk.top_filled_y = Some(max_y)`, the highest y written (or
-//!   `Some(-1)` when nothing was), so the engine's height map scans from
-//!   the right row (`calculate_max_height` stops at the watermark);
+//!   (z contiguous). The fill run skips air (new chunks are zeroed), but a
+//!   paint override that asks for air writes it, so a surfacer can carve;
+//! - the watermark: the highest y written by a solid run or a tree. An
+//!   unknown watermark (`None`, left by an earlier stage's bulk write)
+//!   stays unknown, and a known one only rises, so whatever an earlier
+//!   stage put above the terrain stays in the height map
+//!   (`calculate_max_height` scans down from the watermark);
 //! - never `set_raw_voxel`, which costs a bounds check and a set insert
 //!   per voxel; new chunks already mark every sub-chunk level updated.
 //!
@@ -29,6 +32,12 @@ use super::flora::MAX_CANOPY;
 use super::math::MinMax;
 use super::surface::{MaterialRuns, PaintColumn};
 use super::Landscape;
+
+/// Voxels of soil a tree needs under its trunk: no tree stands where the
+/// fill role (the bare ground every column is filled with before paint)
+/// shows within the top `ROOT_DEPTH` voxels after paint, so trees keep off
+/// rock faces, ground above a rock line, and rock under a one-voxel cover.
+pub const ROOT_DEPTH: i32 = 2;
 
 /// The landscape as one chunk stage.
 pub struct LandscapeStage {
@@ -76,12 +85,15 @@ impl Writer<'_> {
         ((lx * self.height + y) * self.size + lz) as usize
     }
 
-    /// Fill `[lo, hi]` in local column `(lx, lz)` with `block`.
+    /// Fill `[lo, hi]` in local column `(lx, lz)` with `block`. Air is
+    /// written only when `carve` is set (a paint override); the fill run
+    /// and the sea leave the zeroed chunk alone. Air never raises the
+    /// watermark.
     #[inline]
-    fn run(&mut self, lx: i32, lz: i32, lo: i32, hi: i32, block: u32) {
+    fn run(&mut self, lx: i32, lz: i32, lo: i32, hi: i32, block: u32, carve: bool) {
         let lo = Ord::max(lo, 0);
         let hi = Ord::min(hi, self.height - 1);
-        if lo > hi || block == 0 {
+        if lo > hi || (block == 0 && !carve) {
             return;
         }
         let mut i = self.index(lx, lo, lz);
@@ -91,7 +103,9 @@ impl Writer<'_> {
             i += step;
         }
         bump(Counter::VoxelsWritten, (hi - lo + 1) as u64);
-        self.max_y = Ord::max(self.max_y, hi);
+        if block != 0 {
+            self.max_y = Ord::max(self.max_y, hi);
+        }
     }
 
     /// Write one voxel at world `(x, y, z)` if it lies in the chunk; a soft
@@ -137,11 +151,75 @@ impl Landscape {
     /// every chunk stamps them in (empty without flora).
     pub fn trees_in(&self, min: (i32, i32), max: (i32, i32)) -> Vec<crate::flora::TreeInstance> {
         match &self.flora {
-            Some(flora) => flora.trees_in(min, max, self.sea.level, &mut |x, z| {
+            Some(flora) => self.place_trees(flora, min, max, &mut |x, z| {
                 (*self.column_arc(x, z)).clone()
             }),
             None => Vec::new(),
         }
+    }
+
+    /// Stamp `tree` with `set(x, y, z, block, soft)` (soft writes fill only
+    /// air), as the writer does; nothing without flora.
+    pub fn stamp_tree(
+        &self,
+        tree: &crate::flora::TreeInstance,
+        set: &mut dyn FnMut(i32, i32, i32, u32, bool),
+    ) {
+        if let Some(flora) = &self.flora {
+            flora.stamp(tree, set);
+        }
+    }
+
+    /// Flora's trees in `[min, max)`, keeping those whose trunk column
+    /// roots (see [`ROOT_DEPTH`]). Each tree is kept or dropped by its own
+    /// column alone, so every chunk keeps the same trees in the same order.
+    fn place_trees(
+        &self,
+        flora: &super::flora::LoweredFlora,
+        min: (i32, i32),
+        max: (i32, i32),
+        column: &mut dyn FnMut(i32, i32) -> ColumnFact,
+    ) -> Vec<crate::flora::TreeInstance> {
+        let mut trees = flora.trees_in(min, max, self.sea.level, column);
+        trees.retain(|t| self.roots(&column(t.x, t.z)));
+        bump(Counter::Trees, trees.len() as u64);
+        trees
+    }
+
+    /// Whether a tree may stand on column `c`: no fill (bare ground) within
+    /// its top [`ROOT_DEPTH`] voxels after paint.
+    fn roots(&self, c: &ColumnFact) -> bool {
+        let runs = self.paint_fact(c);
+        (0..ROOT_DEPTH).all(|d| runs.at(c.top - d) != self.fill)
+    }
+
+    /// The materials of column `c` after every surfacer (the same bits as
+    /// [`Landscape::paint_column`] on the chunk that stores it).
+    pub fn paint_fact(&self, c: &ColumnFact) -> MaterialRuns {
+        self.paint(&PaintColumn {
+            x: c.x,
+            z: c.z,
+            top: c.top,
+            ground: c.ground,
+            slope: c.slope,
+            aspect: c.aspect,
+            curvature: c.curvature,
+            temperature: c.temperature,
+            moisture: c.moisture,
+            biome: c.biome.id,
+            zone: c.zone,
+            water: &c.water,
+            frame: &self.frame,
+            kept: &c.kept,
+        })
+    }
+
+    fn paint(&self, col: &PaintColumn<'_>) -> MaterialRuns {
+        let mut runs = MaterialRuns::new(col.top, self.fill);
+        for s in &self.surfacers {
+            s.paint(col, &mut runs);
+        }
+        runs
     }
 
     /// The materials of one column of `facts` after every surfacer.
@@ -167,11 +245,7 @@ impl Landscape {
             frame: &self.frame,
             kept: &kept,
         };
-        let mut runs = MaterialRuns::new(col.top, self.fill);
-        for s in &self.surfacers {
-            s.paint(&col, &mut runs);
-        }
-        runs
+        self.paint(&col)
     }
 
     /// Write chunk `chunk` from its `facts` (the run writer).
@@ -200,28 +274,27 @@ impl Landscape {
             for lz in 0..size {
                 let (x, z) = (x0 + lx, z0 + lz);
                 let runs = self.paint_column(facts, x, z);
-                w.run(lx, lz, 0, runs.top(), runs.fill());
+                w.run(lx, lz, 0, runs.top(), runs.fill(), false);
                 for &(lo, hi, b) in runs.overrides() {
-                    w.run(lx, lz, lo, hi, b);
+                    w.run(lx, lz, lo, hi, b, true);
                 }
                 let i = facts.index(x, z).expect("a stored column");
                 for layer in facts.water_at(i, &self.sea).layers {
                     // Sources: stage 0, which packs to the bare id.
-                    w.run(lx, lz, layer.bottom, layer.level, layer.fluid);
+                    w.run(lx, lz, layer.bottom, layer.level, layer.fluid, false);
                 }
             }
         }
         if let Some(flora) = &self.flora {
             let lo = (x0 - MAX_CANOPY, z0 - MAX_CANOPY);
             let hi = (x0 + size + MAX_CANOPY, z0 + size + MAX_CANOPY);
-            let trees = flora.trees_in(lo, hi, self.sea.level, &mut |x, z| {
-                self.column_near(facts, x, z)
-            });
+            let trees = self.place_trees(flora, lo, hi, &mut |x, z| self.column_near(facts, x, z));
             for t in &trees {
                 flora.stamp(t, &mut |x, y, z, b, soft| w.voxel(x, y, z, b, soft));
             }
         }
-        chunk.top_filled_y = Some(w.max_y);
+        // Raise a known watermark; keep an unknown one unknown.
+        chunk.top_filled_y = chunk.top_filled_y.map(|t| Ord::max(t, w.max_y));
         if self.has_tints {
             chunk.biome_tints = Some(self.corner_tints(facts, x0, z0, size));
         }

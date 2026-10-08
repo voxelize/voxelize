@@ -9,7 +9,6 @@ use std::sync::{Arc, OnceLock};
 use serde_json::Value;
 use voxelize::{Registry, WorldConfig};
 
-use crate::spec::GenError;
 use crate::stream::{fnv1a_64, stream_seed_bytes, Subsystem};
 
 use super::cache::ClockCache;
@@ -106,7 +105,7 @@ pub struct Landscape {
     pub(crate) tiles: MacroTiles,
     pub(crate) facts_cache: ClockCache<(i32, i32), Arc<ChunkFacts>>,
     pub(crate) columns: ClockCache<(i32, i32), Arc<ColumnFact>>,
-    pub(crate) spawn: OnceLock<(i32, i32)>,
+    pub(crate) spawn: OnceLock<super::query::SpawnReport>,
     pub(crate) lints: Vec<String>,
     pub(crate) has_tints: bool,
     pub(crate) explain_fields: OnceLock<CompiledFields>,
@@ -123,13 +122,17 @@ impl std::fmt::Debug for Landscape {
 }
 
 /// Compile `spec` with default options.
+///
+/// A refusal is a [`SpecError`]: its `path` names the spec field at fault
+/// (`fields.ground.graph`, `paint.1.params.snow.full`), and it converts
+/// into the crate's `GenError` with `?`.
 pub fn compile(
     spec: &LandscapeSpec,
     kinds: &KindRegistry,
     bindings: &RoleBinding,
     blocks: &Registry,
     config: &WorldConfig,
-) -> Result<Arc<Landscape>, GenError> {
+) -> Result<Arc<Landscape>, SpecError> {
     compile_with(
         spec,
         kinds,
@@ -148,7 +151,7 @@ pub fn compile_with(
     blocks: &Registry,
     config: &WorldConfig,
     options: &CompileOptions,
-) -> Result<Arc<Landscape>, GenError> {
+) -> Result<Arc<Landscape>, SpecError> {
     Ok(Arc::new(build(
         spec, kinds, bindings, blocks, config, options,
     )?))
@@ -189,7 +192,7 @@ fn build(
     if spec.claim_keys.len() > 16 {
         return Err(SpecError::new("claim_keys", "at most 16 game claim keys"));
     }
-    // Plugin kinds arrive in P2b: only disabled nodes compile here.
+    // No plugin kind compiles yet: only disabled nodes do.
     for (id, node) in &spec.nodes {
         if node.enabled {
             return Err(SpecError::new(
@@ -303,7 +306,7 @@ fn build(
     let mut stamps: Vec<KindStamp> = Vec::new();
     for (i, node) in spec.paint.iter().enumerate() {
         let mut cx = PaintCtx {
-            path: format!("paint.{i}"),
+            path: format!("paint.{i}.params"),
             frame: &frame,
             world_seed,
             dimension,
@@ -312,9 +315,13 @@ fn build(
             kept: &kept_names,
             biomes: &climate.biome_keys,
             salts: &mut salts,
-            roles_used: Vec::new(),
         };
-        let (s, typed, version) = kinds.build_surfacer(&node.kind, node.params.clone(), &mut cx)?;
+        let (s, typed, version) = kinds.build_surfacer(
+            &format!("paint.{i}.kind"),
+            &node.kind,
+            node.params.clone(),
+            &mut cx,
+        )?;
         surfacers.push(s);
         typed_paint.push(typed);
         let stamp = KindStamp {

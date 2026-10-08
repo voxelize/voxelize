@@ -22,10 +22,12 @@
 //! block (unknown where no safe bound is known), used by tile gates and by
 //! the product rule.
 //!
-//! **Taste guards** run over every field the spine `ground` reads: Shape
-//! terms at or above `min_ground_wavelength`, Grain terms at most
-//! `max_fine_amplitude`, strata and bench pulses at or above their periods,
-//! and every warp within the fold limit.
+//! **Taste guards** run over every field the spine `ground` reads
+//! ([`super::taste`]): Shape and cellular terms at or above
+//! `min_ground_wavelength`, fine Grain amplitude on ground (through every
+//! enclosing node's gain) at most `max_fine_amplitude`, strata and bench
+//! terms at or above their periods, every warp within the fold limit, and
+//! no unabsorbed crease or step on ground.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -44,7 +46,7 @@ pub const SPINE: &str = "ground";
 /// range (the 2D Catmull-Rom weights' negative mass, rounded up).
 const STRIDED_OVERSHOOT: f64 = 0.3;
 /// Lipschitz growth through the bicubic, rounded up.
-const STRIDED_LIPSCHITZ: f64 = 1.6;
+pub(super) const STRIDED_LIPSCHITZ: f64 = 1.6;
 
 /// What the analyses know about a field or node.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -67,7 +69,8 @@ impl Analysis {
         }
     }
 
-    fn max_abs(&self) -> f64 {
+    /// The larger magnitude of the range's ends.
+    pub fn max_abs(&self) -> f64 {
         self.range.0.abs().fmax(self.range.1.abs())
     }
 }
@@ -75,6 +78,16 @@ impl Analysis {
 fn min_wave(a: Option<f64>, b: Option<f64>) -> Option<f64> {
     match (a, b) {
         (Some(a), Some(b)) => Some(a.fmin(b)),
+        _ => None,
+    }
+}
+
+/// The shortest wavelength of a product: components at `a` and `b`
+/// multiply into one at `1 / (1/a + 1/b)` (a constant, at infinity, leaves
+/// the other's).
+fn product_wave(a: Option<f64>, b: Option<f64>) -> Option<f64> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(1.0 / (1.0 / a + 1.0 / b)),
         _ => None,
     }
 }
@@ -251,20 +264,20 @@ impl SaltClaims {
     }
 }
 
-struct Ctx<'a> {
-    defs: &'a BTreeMap<String, FieldDef>,
-    cfg: &'a FieldsConfig<'a>,
+pub(super) struct Ctx<'a> {
+    pub(super) defs: &'a BTreeMap<String, FieldDef>,
+    pub(super) cfg: &'a FieldsConfig<'a>,
     salts: &'a mut SaltClaims,
     noise: Vec<NoiseKernel>,
     noise_by_salt: BTreeMap<String, u32>,
     cells: Vec<CellKernel>,
     cell_by_salt: BTreeMap<String, u32>,
     analyses: BTreeMap<String, Analysis>,
-    lints: Vec<String>,
-    strict_errors: Vec<SpecError>,
+    pub(super) lints: Vec<String>,
+    pub(super) strict_errors: Vec<SpecError>,
 }
 
-fn path_of(name: &str) -> String {
+pub(super) fn path_of(name: &str) -> String {
     format!("fields.{name}.graph")
 }
 
@@ -392,17 +405,7 @@ pub fn compile_fields(
 
     // Taste guards over everything the spine reads.
     if defs.contains_key(SPINE) {
-        let mut ground_reach: BTreeSet<String> = BTreeSet::new();
-        let mut stack = vec![SPINE.to_string()];
-        while let Some(n) = stack.pop() {
-            if ground_reach.insert(n.clone()) {
-                stack.extend(deps[&n].refs.iter().cloned());
-                stack.extend(deps[&n].stencils.iter().cloned());
-            }
-        }
-        for name in &ground_reach {
-            ctx.taste(name, &defs[name].graph)?;
-        }
+        ctx.taste(&deps)?;
     }
     if let Some(e) = ctx.strict_errors.first() {
         return Err(e.clone());
@@ -565,9 +568,9 @@ pub fn compile_fields(
 }
 
 #[derive(Default, Debug)]
-struct Deps {
-    refs: BTreeSet<String>,
-    stencils: BTreeSet<String>,
+pub(super) struct Deps {
+    pub(super) refs: BTreeSet<String>,
+    pub(super) stencils: BTreeSet<String>,
 }
 
 fn dependencies(defs: &BTreeMap<String, FieldDef>) -> Result<BTreeMap<String, Deps>, SpecError> {
@@ -723,6 +726,8 @@ fn validate_def(name: &str, def: &FieldDef) -> Result<(), SpecError> {
     };
     def.graph.walk(&mut |e| match e {
         FieldExpr::Const(v) if !v.is_finite() => fail("a constant is not finite".into()),
+        FieldExpr::Relief(v) if !v.is_finite() => fail("a relief share is not finite".into()),
+        FieldExpr::Height(h) if !h.raw().is_finite() => fail("a height is not finite".into()),
         FieldExpr::Noise(n) => {
             if !(1..=8).contains(&n.octaves) {
                 fail(format!(
@@ -752,7 +757,7 @@ fn validate_def(name: &str, def: &FieldDef) -> Result<(), SpecError> {
             }
         }
         FieldExpr::Cellular(c) => {
-            if !(c.wavelength.raw() > 0.0) {
+            if !(c.wavelength.raw() > 0.0 && c.wavelength.raw().is_finite()) {
                 fail(format!(
                     "cellular {:?}: wavelength must be positive",
                     c.salt
@@ -761,14 +766,24 @@ fn validate_def(name: &str, def: &FieldDef) -> Result<(), SpecError> {
             if !(0.0..=1.0).contains(&c.jitter) {
                 fail(format!("cellular {:?}: jitter must be in 0..=1", c.salt));
             }
+            if !c.amp.is_finite() {
+                fail(format!("cellular {:?}: amp must be finite", c.salt));
+            }
         }
-        FieldExpr::Div { eps, .. } if !(*eps > 0.0) => fail("Div eps must be positive".into()),
+        FieldExpr::Div { eps, .. } if !(*eps > 0.0 && eps.is_finite()) => {
+            fail("Div eps must be positive and finite".into())
+        }
         FieldExpr::SMin { k, .. } | FieldExpr::SMax { k, .. } | FieldExpr::SAbs { k, .. }
-            if !(*k > 0.0) =>
+            if !(*k > 0.0 && k.is_finite()) =>
         {
-            fail("smooth min, max and abs need k > 0".into())
+            fail("smooth min, max and abs need a finite k > 0".into())
         }
-        FieldExpr::Clamp { lo, hi, .. } if !(lo <= hi) => fail("Clamp needs lo <= hi".into()),
+        FieldExpr::Clamp { lo, hi, .. } if !(lo <= hi && lo.is_finite() && hi.is_finite()) => {
+            fail("Clamp needs finite lo <= hi".into())
+        }
+        FieldExpr::Affine { mul, add, .. } if !(mul.is_finite() && add.is_finite()) => {
+            fail("Affine needs a finite factor and offset".into())
+        }
         FieldExpr::Smoothstep { e0, e1, .. } | FieldExpr::Smootherstep { e0, e1, .. }
             if !(e0 != e1 && e0.is_finite() && e1.is_finite()) =>
         {
@@ -780,7 +795,7 @@ fn validate_def(name: &str, def: &FieldDef) -> Result<(), SpecError> {
             fail("PowSmooth needs 0 < e <= 64".into())
         }
         FieldExpr::Terrace { step, softness, .. }
-            if !(*step > 0.0 && *softness > 0.0 && *softness <= 1.0) =>
+            if !(*step > 0.0 && step.is_finite() && *softness > 0.0 && *softness <= 1.0) =>
         {
             fail("Terrace needs step > 0 and 0 < softness <= 1".into())
         }
@@ -790,15 +805,17 @@ fn validate_def(name: &str, def: &FieldDef) -> Result<(), SpecError> {
             role,
             ..
         } => {
-            if !(*period > 0.0 && *softness > 0.0 && *softness <= 1.0) {
+            if !(*period > 0.0 && period.is_finite() && *softness > 0.0 && *softness <= 1.0) {
                 fail("Pulse needs period > 0 and 0 < softness <= 1".into());
             }
             if !matches!(role, TermRole::Strata | TermRole::Bench) {
                 fail("a Pulse is a Strata or Bench term".into());
             }
         }
-        FieldExpr::Select { blend, .. } if !(*blend >= 0.0) => {
-            fail("Select blend must be >= 0".into())
+        FieldExpr::Select { at, blend, .. }
+            if !(*blend >= 0.0 && blend.is_finite() && at.is_finite()) =>
+        {
+            fail("Select needs a finite threshold and a finite blend >= 0".into())
         }
         FieldExpr::Spline { knots, .. } => {
             if knots.len() < 2 || knots.len() > MAX_KNOTS {
@@ -812,8 +829,10 @@ fn validate_def(name: &str, def: &FieldDef) -> Result<(), SpecError> {
         FieldExpr::Router { knots, .. } => {
             if knots.len() < 2 || knots.len() > MAX_KNOTS {
                 fail(format!("a router needs 2..={MAX_KNOTS} knots"));
-            } else if !knots.windows(2).all(|w| w[0].0 < w[1].0) {
-                fail("router knots need strictly increasing x".into());
+            } else if !knots.windows(2).all(|w| w[0].0 < w[1].0)
+                || knots.iter().any(|k| !k.0.is_finite())
+            {
+                fail("router knots need finite, strictly increasing x".into());
             }
         }
         FieldExpr::Sum(v) | FieldExpr::Product(v) if v.is_empty() => {
@@ -846,7 +865,7 @@ impl Ctx<'_> {
         Ok(a)
     }
 
-    fn noise_lipschitz(&self, n: &NoiseM) -> f64 {
+    pub(super) fn noise_lipschitz(&self, n: &NoiseM) -> f64 {
         let f = 1.0 / self.cfg.frame.span(n.wavelength);
         let mut num = 0.0;
         let mut den = 0.0;
@@ -861,7 +880,7 @@ impl Ctx<'_> {
         n.amp.abs() * NOISE_GAIN * PERLIN_GRADIENT_BOUND * num / den
     }
 
-    fn noise_wavelength(&self, n: &NoiseM) -> f64 {
+    pub(super) fn noise_wavelength(&self, n: &NoiseM) -> f64 {
         let mut w = self.cfg.frame.span(n.wavelength);
         for _ in 1..n.octaves {
             w /= n.lacunarity;
@@ -869,7 +888,7 @@ impl Ctx<'_> {
         w
     }
 
-    fn analyze(&mut self, field: &str, e: &FieldExpr) -> Result<Analysis, SpecError> {
+    pub(super) fn analyze(&mut self, field: &str, e: &FieldExpr) -> Result<Analysis, SpecError> {
         use FieldExpr as E;
         let frame = self.cfg.frame;
         Ok(match e {
@@ -906,11 +925,21 @@ impl Ctx<'_> {
                     let ax = self.analyze(field, &w.x)?;
                     let az = self.analyze(field, &w.z)?;
                     let amp = frame.span(w.amp);
-                    let wl = min_wave(ax.wavelength, az.wavelength);
-                    wavelength = match (wavelength, wl) {
-                        (Some(base), Some(wl)) => {
-                            Some(base / (1.0 + amp * crate::landscape::math::TAU / wl))
+                    // A warp shortens wavelengths by 1 + its fold: amp times
+                    // the inputs' steepest slope, in sinusoid units (amp 2 pi
+                    // / lambda for a unit fbm input at lambda).
+                    let fold = match (
+                        min_wave(ax.wavelength, az.wavelength),
+                        ax.lipschitz,
+                        az.lipschitz,
+                    ) {
+                        (Some(_), Some(lx), Some(lz)) => {
+                            Some(amp * lx.fmax(lz) * super::taste::FOLD_PER_LIPSCHITZ)
                         }
+                        _ => None,
+                    };
+                    wavelength = match (wavelength, fold) {
+                        (Some(base), Some(fold)) => Some(base / (1.0 + fold)),
                         _ => None,
                     };
                     lipschitz = match (lipschitz, add_l(ax.lipschitz, az.lipschitz)) {
@@ -963,7 +992,7 @@ impl Ctx<'_> {
                     };
                     acc = Analysis {
                         range: mul_range(acc.range, a.range),
-                        wavelength: min_wave(acc.wavelength, a.wavelength),
+                        wavelength: product_wave(acc.wavelength, a.wavelength),
                         lipschitz: l,
                     };
                 }
@@ -1338,94 +1367,6 @@ impl Ctx<'_> {
         let i = (self.cells.len() - 1) as u32;
         self.cell_by_salt.insert(c.salt.clone(), i);
         Ok(i)
-    }
-
-    fn violate(&mut self, path: String, message: String) {
-        if self.cfg.taste.strict {
-            self.strict_errors.push(SpecError::new(path, message));
-        } else {
-            self.lints.push(format!("taste: {path}: {message}"));
-        }
-    }
-
-    fn taste(&mut self, field: &str, e: &FieldExpr) -> Result<(), SpecError> {
-        let mut terms: Vec<FieldExpr> = Vec::new();
-        e.walk(&mut |n| {
-            if matches!(n, FieldExpr::Noise(_) | FieldExpr::Pulse { .. }) {
-                terms.push(n.clone());
-            }
-        });
-        let path = path_of(field);
-        let guards = self.cfg.taste.clone();
-        for t in terms {
-            match t {
-                FieldExpr::Noise(n) => {
-                    let w = self.noise_wavelength(&n);
-                    match n.role {
-                        TermRole::Shape | TermRole::Strata | TermRole::Bench => {
-                            if w < guards.min_ground_wavelength {
-                                self.violate(
-                                    path.clone(),
-                                    format!(
-                                        "noise {:?} puts a {w:.2}-block wavelength on ground; Shape terms need at least {} (fine texture is a Grain term)",
-                                        n.salt, guards.min_ground_wavelength
-                                    ),
-                                );
-                            }
-                        }
-                        TermRole::Grain => {
-                            let amp = n.amp.abs() * NOISE_GAIN;
-                            if w < guards.min_ground_wavelength && amp > guards.max_fine_amplitude {
-                                self.violate(
-                                    path.clone(),
-                                    format!(
-                                        "grain {:?} reaches ±{amp:.3} blocks below a {}-block wavelength; the cap is {} (no cavity-like fine erosion)",
-                                        n.salt, guards.min_ground_wavelength, guards.max_fine_amplitude
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                    if let Some(warp) = &n.warp {
-                        let ax = self.analyze(field, &warp.x)?;
-                        let az = self.analyze(field, &warp.z)?;
-                        let amp = self.cfg.frame.span(warp.amp);
-                        match min_wave(ax.wavelength, az.wavelength) {
-                            Some(wl) => {
-                                let fold = amp * crate::landscape::math::TAU / wl;
-                                if fold > guards.warp_fold_limit {
-                                    self.violate(
-                                        path.clone(),
-                                        format!(
-                                            "warp of {:?} folds at {fold:.3} (amp {amp:.1} over a {wl:.1}-block wavelength); the limit is {}",
-                                            n.salt, guards.warp_fold_limit
-                                        ),
-                                    );
-                                }
-                            }
-                            None => self.violate(
-                                path.clone(),
-                                format!("warp of {:?} has an unknown bandwidth, so its fold cannot be bounded", n.salt),
-                            ),
-                        }
-                    }
-                }
-                FieldExpr::Pulse { period, role, .. } => {
-                    let min = match role {
-                        TermRole::Strata => guards.min_strata_period,
-                        _ => guards.min_bench_period,
-                    };
-                    if period < min {
-                        self.violate(
-                            path.clone(),
-                            format!("a {role:?} pulse with period {period} is below the {min}-block minimum"),
-                        );
-                    }
-                }
-                _ => unreachable!(),
-            }
-        }
-        Ok(())
     }
 }
 

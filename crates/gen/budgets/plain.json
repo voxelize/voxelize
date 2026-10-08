@@ -6,83 +6,148 @@
     1
   ],
   "measured": {
-    "note": "P2a pin: plain preset at H=512, seed 7, demo blocks, gen-counters on (phase base b5097e45a)",
-    "binary_sha256": "8036ece0130ff29d52564c9b81c49defba3341eb1aa600805e05fc9c5e1b7387",
+    "note": "P2a review pin: plain preset 0.2.0 at H=512, seed 7, demo blocks, ENGINE_ALGO 2, gen-counters on; plain@facts1 keeps a one-byte facts cache",
+    "binary_sha256": "48d4b384abb741432eaa19e1e4840f3072df66b31ac73b7b41768664dc25f0cc",
     "host": {
       "os": "macos",
       "arch": "aarch64",
       "cpus": 18,
-      "load_average": "22.28 23.32 28.49",
-      "unix_time": 1791441975
+      "load_average": "26.97 36.02 41.16",
+      "unix_time": 1791449349
     },
     "repeat": 3,
     "quick": false,
-    "calibration_ms": 14.056249999999999
+    "calibration_ms": 13.741375,
+    "counters": true
   },
   "rows": [
     {
       "key": "plain/spiral/w1/cold",
       "chunks": 256,
-      "p50_ms": 0.24600000000000002,
-      "p95_ms": 0.29,
-      "max_ms": 0.5957920000000001,
-      "p50_cal": 0.01750111160515785
+      "p50_ms": 0.248375,
+      "p95_ms": 0.294291,
+      "max_ms": 0.559042,
+      "p50_cal": 0.018074974302062206
     },
     {
       "key": "plain/spiral/w1/warm",
       "chunks": 256,
-      "p50_ms": 0.037042000000000005,
-      "p95_ms": 0.042082999999999995,
-      "max_ms": 0.052792,
-      "p50_cal": 0.0026352690084482
+      "p50_ms": 0.035667000000000004,
+      "p95_ms": 0.040707999999999994,
+      "max_ms": 0.08079199999999999,
+      "p50_cal": 0.0025955917802985514
     },
     {
       "key": "plain/spiral/w4/cold",
       "chunks": 256,
-      "p50_ms": 0.25416700000000003,
-      "p95_ms": 0.32249999999999995,
-      "max_ms": 0.587542,
-      "p50_cal": 0.018082134281903074
+      "p50_ms": 0.254458,
+      "p95_ms": 0.298209,
+      "max_ms": 0.587333,
+      "p50_cal": 0.01851765198169761
     },
     {
       "key": "plain/spiral/w4/warm",
       "chunks": 256,
-      "p50_ms": 0.0425,
-      "p95_ms": 0.054542,
-      "max_ms": 0.081375,
-      "p50_cal": 0.0030235660293463766
+      "p50_ms": 0.042083999999999996,
+      "p95_ms": 0.051959000000000005,
+      "max_ms": 0.094208,
+      "p50_cal": 0.00306257561561343
     },
     {
       "key": "plain/teleport/w1/cold",
       "chunks": 200,
-      "p50_ms": 0.249209,
-      "p95_ms": 0.325834,
-      "max_ms": 0.583917,
-      "p50_cal": 0.01772940862605603
+      "p50_ms": 0.24825,
+      "p95_ms": 0.32162500000000005,
+      "max_ms": 0.57425,
+      "p50_cal": 0.0180658776869127
     },
     {
       "key": "plain/teleport/w1/warm",
       "chunks": 200,
-      "p50_ms": 0.035708,
-      "p95_ms": 0.042792,
-      "max_ms": 0.061666000000000006,
-      "p50_cal": 0.002540364606491774
+      "p50_ms": 0.034666,
+      "p95_ms": 0.041625,
+      "max_ms": 0.075875,
+      "p50_cal": 0.0025227460861813322
     },
     {
       "key": "plain/teleport/w4/cold",
       "chunks": 200,
-      "p50_ms": 0.32475,
-      "p95_ms": 0.603125,
-      "max_ms": 2.591959,
-      "p50_cal": 0.02310360160071143
+      "p50_ms": 0.2615,
+      "p95_ms": 0.533208,
+      "max_ms": 0.63075,
+      "p50_cal": 0.019030118892760007
     },
     {
       "key": "plain/teleport/w4/warm",
       "chunks": 200,
-      "p50_ms": 0.041417,
-      "p95_ms": 0.05725,
-      "max_ms": 0.09191600000000001,
-      "p50_cal": 0.0029465184526456206
+      "p50_ms": 0.039458,
+      "p95_ms": 0.053042,
+      "max_ms": 0.080166,
+      "p50_cal": 0.002871473924552674
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "chunks": 256,
+      "p50_ms": 0.249417,
+      "p95_ms": 0.31208400000000003,
+      "max_ms": 0.5478339999999999,
+      "p50_cal": 0.018150803685948458
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "chunks": 256,
+      "p50_ms": 0.242875,
+      "p95_ms": 0.277584,
+      "max_ms": 0.338458,
+      "p50_cal": 0.017674723235484077
+    },
+    {
+      "key": "plain@facts1/spiral/w4/cold",
+      "chunks": 256,
+      "p50_ms": 0.259542,
+      "p95_ms": 0.323875,
+      "max_ms": 0.590916,
+      "p50_cal": 0.018887629513058193
+    },
+    {
+      "key": "plain@facts1/spiral/w4/warm",
+      "chunks": 256,
+      "p50_ms": 0.252583,
+      "p95_ms": 0.282291,
+      "max_ms": 0.33125,
+      "p50_cal": 0.018381202754455067
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "chunks": 200,
+      "p50_ms": 0.251417,
+      "p95_ms": 0.334625,
+      "max_ms": 0.565917,
+      "p50_cal": 0.018296349528340507
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "chunks": 200,
+      "p50_ms": 0.241333,
+      "p95_ms": 0.27008400000000005,
+      "max_ms": 0.336375,
+      "p50_cal": 0.01756250739099981
+    },
+    {
+      "key": "plain@facts1/teleport/w4/cold",
+      "chunks": 200,
+      "p50_ms": 0.26733300000000004,
+      "p95_ms": 0.5361250000000001,
+      "max_ms": 0.6398750000000001,
+      "p50_cal": 0.01945460334209641
+    },
+    {
+      "key": "plain@facts1/teleport/w4/warm",
+      "chunks": 200,
+      "p50_ms": 0.251417,
+      "p95_ms": 0.281125,
+      "max_ms": 0.329084,
+      "p50_cal": 0.018296349528340507
     }
   ],
   "baselines": [],
@@ -90,8 +155,8 @@
     {
       "key": "plain/spiral/w1/cold",
       "name": "noise_octaves_2d",
-      "median": 13120.0,
-      "p95": 14152.0
+      "median": 13135.0,
+      "p95": 14188.0
     },
     {
       "key": "plain/spiral/w1/cold",
@@ -144,8 +209,8 @@
     {
       "key": "plain/spiral/w1/warm",
       "name": "noise_octaves_2d",
-      "median": 768.0,
-      "p95": 768.0
+      "median": 777.0,
+      "p95": 807.0
     },
     {
       "key": "plain/spiral/w1/warm",
@@ -198,7 +263,7 @@
     {
       "key": "plain/teleport/w1/cold",
       "name": "noise_octaves_2d",
-      "median": 13464.0,
+      "median": 13491.0,
       "p95": 21432.0
     },
     {
@@ -252,8 +317,8 @@
     {
       "key": "plain/teleport/w1/warm",
       "name": "noise_octaves_2d",
-      "median": 768.0,
-      "p95": 768.0
+      "median": 777.0,
+      "p95": 810.0
     },
     {
       "key": "plain/teleport/w1/warm",
@@ -299,6 +364,222 @@
     },
     {
       "key": "plain/teleport/w1/warm",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 14.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "noise_octaves_2d",
+      "median": 13141.0,
+      "p95": 14538.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "field_columns",
+      "median": 1060.0,
+      "p95": 1196.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "facts_built",
+      "median": 1.0,
+      "p95": 5.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "point_columns",
+      "median": 0.0,
+      "p95": 4.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "voxels_written",
+      "median": 29817.0,
+      "p95": 33516.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "tree_voxels",
+      "median": 4.0,
+      "p95": 323.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/cold",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 13.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "noise_octaves_2d",
+      "median": 13129.0,
+      "p95": 13159.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "field_columns",
+      "median": 1060.0,
+      "p95": 1060.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "facts_built",
+      "median": 1.0,
+      "p95": 1.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "point_columns",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "voxels_written",
+      "median": 29817.0,
+      "p95": 33516.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "tree_voxels",
+      "median": 4.0,
+      "p95": 323.0
+    },
+    {
+      "key": "plain@facts1/spiral/w1/warm",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 13.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "noise_octaves_2d",
+      "median": 13817.0,
+      "p95": 21432.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "field_columns",
+      "median": 1094.0,
+      "p95": 1230.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 1792.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 7.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "facts_built",
+      "median": 2.0,
+      "p95": 6.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "point_columns",
+      "median": 1.0,
+      "p95": 5.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "voxels_written",
+      "median": 25526.0,
+      "p95": 33008.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "tree_voxels",
+      "median": 0.0,
+      "p95": 338.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/cold",
+      "name": "trees",
+      "median": 3.0,
+      "p95": 14.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "noise_octaves_2d",
+      "median": 13144.0,
+      "p95": 13947.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "field_columns",
+      "median": 1060.0,
+      "p95": 1060.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "lattice_nodes",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "macro_tile_misses",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "facts_built",
+      "median": 1.0,
+      "p95": 1.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "point_columns",
+      "median": 0.0,
+      "p95": 0.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "voxels_written",
+      "median": 25526.0,
+      "p95": 33008.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
+      "name": "tree_voxels",
+      "median": 0.0,
+      "p95": 338.0
+    },
+    {
+      "key": "plain@facts1/teleport/w1/warm",
       "name": "trees",
       "median": 3.0,
       "p95": 14.0
