@@ -2,6 +2,8 @@ import { AABB } from "@voxelize/aabb";
 
 import { Coords3 } from "../../types";
 
+import type { BranchShape, BranchSocket } from "./branch";
+
 import { UV } from "./uv";
 
 /**
@@ -267,6 +269,17 @@ export type Block = {
   isDynamic: boolean;
 
   dynamicPatterns: BlockDynamicPattern[];
+
+  /**
+   * Draws every voxel of this block as a branch of the radius its stage
+   * holds, joined to its neighbours. `null` for an ordinary block. Mirrors
+   * the server `branch` field; collision and picking follow the drawn shape
+   * through {@link branchAABBs}.
+   */
+  branch: BranchShape | null;
+
+  /** The branches this block takes without being one (a leaf, a soil). */
+  branchSockets: BranchSocket[];
 
   /**
    * If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this

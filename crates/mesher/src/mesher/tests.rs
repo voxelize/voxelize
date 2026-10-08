@@ -299,6 +299,8 @@ fn full_block_diagonal_block() -> Block {
         }],
         dynamic_patterns: None,
         connected: None,
+        branch: None,
+        branch_sockets: vec![],
     }
 }
 
@@ -696,6 +698,8 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         aabbs: stairs_aabbs(),
         dynamic_patterns: None,
         connected: None,
+        branch: None,
+        branch_sockets: vec![],
     };
 
     let stone_block = Block {
@@ -728,6 +732,8 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         }],
         dynamic_patterns: None,
         connected: None,
+        branch: None,
+        branch_sockets: vec![],
     };
 
     let mut registry = Registry::new(vec![(1, stair_block), (2, stone_block)]);
@@ -828,6 +834,8 @@ fn plain_block(id: u32, name: &str) -> Block {
         aabbs: full_cube_aabb(),
         dynamic_patterns: None,
         connected: None,
+        branch: None,
+        branch_sockets: vec![],
     }
 }
 
