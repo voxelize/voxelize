@@ -28,14 +28,22 @@ pub fn fnv1a_64(bytes: &[u8]) -> u64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct SaltPath(pub &'static str);
 
+/// The subsystem lane of a seed stream.
+///
+/// Order is identity: each discriminant is hashed into every seed its
+/// subsystem derives (`lane << 56`), so renumbering, reordering or inserting
+/// a variant changes every world built on this crate. The values are
+/// written out so that cannot happen by accident. Lanes 6 and above belong
+/// to layers built on top of these (`stream_seed_lane`); this enum gains no
+/// variant for them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum Subsystem {
-    Fields,
-    Partition,
-    Carvers,
-    Hydrology,
-    Structures,
-    Ecology,
+    Fields = 0,
+    Partition = 1,
+    Carvers = 2,
+    Hydrology = 3,
+    Structures = 4,
+    Ecology = 5,
 }
 
 pub fn stream_seed(
@@ -45,11 +53,45 @@ pub fn stream_seed(
     content: &SaltPath,
     owner_cell: u64,
 ) -> u64 {
+    stream_seed_bytes(
+        world_seed,
+        dimension,
+        subsystem,
+        content.0.as_bytes(),
+        owner_cell,
+    )
+}
+
+/// `stream_seed` with the content salt as bytes, for callers that own
+/// their salts instead of holding `&'static str`. Returns exactly what
+/// `stream_seed` returns for the same text.
+#[inline]
+pub fn stream_seed_bytes(
+    world_seed: u32,
+    dimension: &str,
+    subsystem: Subsystem,
+    salt: &[u8],
+    owner_cell: u64,
+) -> u64 {
+    stream_seed_lane(world_seed, dimension, subsystem as u8, salt, owner_cell)
+}
+
+/// The five-component derivation over a raw lane number. Lanes 0..=5 are
+/// the `Subsystem` values; layers built on this crate claim lanes from 6
+/// up without adding `Subsystem` variants.
+#[inline]
+pub fn stream_seed_lane(
+    world_seed: u32,
+    dimension: &str,
+    lane: u8,
+    salt: &[u8],
+    owner_cell: u64,
+) -> u64 {
     mix64(
         (world_seed as u64)
             ^ fnv1a_64(dimension.as_bytes())
-            ^ ((subsystem as u64) << 56)
-            ^ fnv1a_64(content.0.as_bytes())
+            ^ ((lane as u64) << 56)
+            ^ fnv1a_64(salt)
             ^ mix64(owner_cell),
     )
 }
@@ -160,6 +202,111 @@ mod tests {
                 (draw - expected).abs() < 1e-15,
                 "stream drifted: {draw} vs {expected}"
             );
+        }
+    }
+
+    #[test]
+    fn subsystem_discriminants_are_pinned() {
+        // Order is identity: these values are hashed into every seed.
+        let pinned = [
+            (Subsystem::Fields, 0u8),
+            (Subsystem::Partition, 1),
+            (Subsystem::Carvers, 2),
+            (Subsystem::Hydrology, 3),
+            (Subsystem::Structures, 4),
+            (Subsystem::Ecology, 5),
+        ];
+        for (subsystem, lane) in pinned {
+            assert_eq!(subsystem as u8, lane, "{subsystem:?} moved");
+            assert_eq!(subsystem as u64, lane as u64, "{subsystem:?} moved");
+        }
+    }
+
+    /// The pre-refactor derivation, kept verbatim as the reference the
+    /// byte and lane entry points must reproduce.
+    fn reference_stream_seed(
+        world_seed: u32,
+        dimension: &str,
+        subsystem: Subsystem,
+        content: &str,
+        owner_cell: u64,
+    ) -> u64 {
+        mix64(
+            (world_seed as u64)
+                ^ fnv1a_64(dimension.as_bytes())
+                ^ ((subsystem as u64) << 56)
+                ^ fnv1a_64(content.as_bytes())
+                ^ mix64(owner_cell),
+        )
+    }
+
+    #[test]
+    fn byte_and_lane_seeds_equal_stream_seed() {
+        const SUBSYSTEMS: [Subsystem; 6] = [
+            Subsystem::Fields,
+            Subsystem::Partition,
+            Subsystem::Carvers,
+            Subsystem::Hydrology,
+            Subsystem::Structures,
+            Subsystem::Ecology,
+        ];
+        const DIMENSIONS: [&str; 4] = ["", "overworld", "fixture_dim", "a/b c"];
+        // `stream_seed` takes `&'static str` salts; leak a small fixed set.
+        let salts: Vec<&'static str> = {
+            let mut draws = HashStream::new(0x5a17);
+            let mut salts: Vec<&'static str> = vec!["", "a", "engine.populate.dressing"];
+            for i in 0..29 {
+                let length = (draws.raw() % 24) as usize;
+                let text: String = (0..length)
+                    .map(|_| (b'a' + (draws.raw() % 26) as u8) as char)
+                    .collect();
+                salts.push(Box::leak(format!("{text}.{i}").into_boxed_str()));
+            }
+            salts
+        };
+        let mut draws = HashStream::new(0xb17e);
+        for _ in 0..20_000 {
+            let world_seed = draws.raw() as u32;
+            let dimension = DIMENSIONS[(draws.raw() % 4) as usize];
+            let subsystem = SUBSYSTEMS[(draws.raw() % 6) as usize];
+            let salt = salts[(draws.raw() % salts.len() as u64) as usize];
+            let cell = match draws.raw() % 3 {
+                0 => cell_id(
+                    draws.range_i((-9999, 9999)) as i64,
+                    draws.range_i((-9999, 9999)) as i64,
+                ),
+                1 => draws.raw(),
+                _ => 0,
+            };
+            let reference = reference_stream_seed(world_seed, dimension, subsystem, salt, cell);
+            let seed = stream_seed(world_seed, dimension, subsystem, &SaltPath(salt), cell);
+            let bytes = stream_seed_bytes(world_seed, dimension, subsystem, salt.as_bytes(), cell);
+            let lane = stream_seed_lane(
+                world_seed,
+                dimension,
+                subsystem as u8,
+                salt.as_bytes(),
+                cell,
+            );
+            assert_eq!(seed, reference, "stream_seed drifted");
+            assert_eq!(bytes, seed, "stream_seed_bytes differs from stream_seed");
+            assert_eq!(
+                lane, bytes,
+                "stream_seed_lane differs from stream_seed_bytes"
+            );
+        }
+    }
+
+    #[test]
+    fn lanes_past_the_subsystems_are_distinct_streams() {
+        let salt = b"layer.node";
+        let seeds: Vec<u64> = (0u8..=10)
+            .map(|lane| stream_seed_lane(7, "overworld", lane, salt, cell_id(3, -4)))
+            .collect();
+        for (i, a) in seeds.iter().enumerate() {
+            for b in &seeds[i + 1..] {
+                assert_ne!(a, b, "two lanes share a stream");
+            }
         }
     }
 
