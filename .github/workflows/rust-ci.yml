@@ -79,6 +79,11 @@ jobs:
       - name: Run landscape tests
         run: cargo test -p voxelize-gen --release --features unstable-landscape,kit,gen-counters
 
+      # The kernel bench is not run here (timings need a quiet host), but it
+      # must keep compiling.
+      - name: Build landscape benches
+        run: cargo bench -p voxelize-gen --features unstable-landscape --no-run
+
       # Proves the walk benchmark still runs; timings are reported, never
       # gated here (the wall-clock gate needs GEN_BUDGET_GATE=1 on a bench host).
       - name: Walk benchmark smoke
