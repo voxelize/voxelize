@@ -6,6 +6,21 @@ description = "Deterministic, content-free world generation mechanisms for Voxel
 license = "MIT"
 repository = "https://github.com/voxelize/voxelize"
 
+[features]
+default = []
+# The `landscape` generator (docs/landscape.md) stays behind this non-default
+# feature until its design is frozen, so no consumer compiles or links it.
+# Declared ahead of the module: today it compiles nothing and pulls no
+# dependency. It must never enable a feature on a shared dependency (serde_json
+# `float_roundtrip`, `arbitrary_precision`, `preserve_order`): Cargo unifies
+# features across a consumer's whole build, so that would change the
+# consumer's own parsing.
+unstable-landscape = []
+# The landscape test kit (landform, province and structure suites).
+kit = ["unstable-landscape"]
+# Deterministic work counters for the budget gate: cost only, never output.
+gen-counters = ["unstable-landscape"]
+
 [dependencies]
 voxelize = { path = "../..", version = "3.0.0" }
 serde = { version = "1.0", features = ["derive"] }
