@@ -1420,9 +1420,12 @@ network
 /*                                UNSORTED CODE                               */
 /* -------------------------------------------------------------------------- */
 const PAGE_PARAMS = new URLSearchParams(window.location.search);
-// The server lives at the page's origin; in dev it listens on 4000, or on
-// `?serverPort=` when another server (a showcase on its own port) is meant.
-const BACKEND_SERVER_INSTANCE = new URL(window.location.origin);
+// The server lives at the page's URL (its path kept, its query dropped);
+// in dev it listens on 4000, or on `?serverPort=` when another server (a
+// showcase on its own port) is meant.
+const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+BACKEND_SERVER_INSTANCE.search = "";
+BACKEND_SERVER_INSTANCE.hash = "";
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
 
 const currentWorldName =

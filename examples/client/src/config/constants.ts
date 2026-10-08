@@ -1,5 +1,9 @@
 // Server configuration
-export const BACKEND_SERVER_INSTANCE = new URL(window.location.origin);
+// The page's own URL (its path kept, for a deployment under a subpath),
+// without its query (`?world=`, `?serverPort=`, `?agent=`).
+export const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+BACKEND_SERVER_INSTANCE.search = "";
+BACKEND_SERVER_INSTANCE.hash = "";
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
   BACKEND_SERVER_INSTANCE.port =
     new URLSearchParams(window.location.search).get("serverPort") ?? "4000";
