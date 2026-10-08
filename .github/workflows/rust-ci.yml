@@ -82,7 +82,7 @@ jobs:
       # The kernel bench is not run here (timings need a quiet host), but it
       # must keep compiling.
       - name: Build landscape benches
-        run: cargo bench -p voxelize-gen --features unstable-landscape --no-run
+        run: cargo bench -p voxelize-gen --features unstable-landscape,kit --no-run
 
       # Proves the walk benchmark still runs; timings are reported, never
       # gated here (the wall-clock gate needs GEN_BUDGET_GATE=1 on a bench host).
@@ -98,6 +98,12 @@ jobs:
       # machine. Wall-clock rows are reported only.
       - name: Landscape work counters gate
         run: cargo run -p voxelize-gen --release --features unstable-landscape,gen-counters --example walk_bench -- --fixtures plain --workloads spiral --workers 1 --gate crates/gen/budgets/plain.json
+
+      # The same gate for the plugin system: the proving preset (the kit's
+      # test landforms and the sinkhole example) on walks whose cold first
+      # touches solve plans and admit Field tiles, against budgets/proving.json.
+      - name: Landscape plugin work counters gate
+        run: cargo run -p voxelize-gen --release --features unstable-landscape,kit,gen-counters --example walk_bench -- --fixtures proving --workloads spiral,teleport --workers 1 --gate crates/gen/budgets/proving.json
 
   # The same generator tests on macOS arm64. The v1 and landscape goldens
   # (tests/golden/) are pinned once and checked here and on Linux x86_64, so
