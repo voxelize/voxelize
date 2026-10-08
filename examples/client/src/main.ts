@@ -18,6 +18,7 @@ import {
   BOT_HEAD_FRONT_COLOR,
   BOT_SCALE,
 } from "./config/constants";
+import { installAgentBridge } from "./agent-bridge";
 import { Map } from "./map";
 import { setupWorld } from "./world";
 
@@ -1418,16 +1419,19 @@ network
 /* -------------------------------------------------------------------------- */
 /*                                UNSORTED CODE                               */
 /* -------------------------------------------------------------------------- */
-const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+const PAGE_PARAMS = new URLSearchParams(window.location.search);
+// The server lives at the page's origin; in dev it listens on 4000, or on
+// `?serverPort=` when another server (a showcase on its own port) is meant.
+const BACKEND_SERVER_INSTANCE = new URL(window.location.origin);
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
 
 const currentWorldName =
-  new URLSearchParams(window.location.search).get("world") ??
+  PAGE_PARAMS.get("world") ??
   localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ??
   "terrain";
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
-  BACKEND_SERVER_INSTANCE.port = "4000";
+  BACKEND_SERVER_INSTANCE.port = PAGE_PARAMS.get("serverPort") ?? "4000";
 }
 
 const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
@@ -1941,6 +1945,24 @@ const animate = () => {
   renderer.render(armScene, armCamera);
 };
 
+// `@voxelize/agent` sessions (`?agent=true`) drive the page through a small
+// in-page bridge, ready once the world has joined and set up.
+let resolveAgentReady: () => void = () => undefined;
+const agentReady = new Promise<void>((resolve) => {
+  resolveAgentReady = resolve;
+});
+if (PAGE_PARAMS.get("agent") === "true") {
+  installAgentBridge({
+    world,
+    controls,
+    network,
+    renderer,
+    composer,
+    worldName: currentWorldName,
+    ready: agentReady,
+  });
+}
+
 const start = async () => {
   let clearUpdate: any;
 
@@ -1970,6 +1992,7 @@ const start = async () => {
 
   await world.initialize();
   await setupWorld(world);
+  resolveAgentReady();
 
   gui
     .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
@@ -1978,7 +2001,12 @@ const start = async () => {
     });
 
   gui
-    .add({ world: currentWorldName }, "world", ["terrain", "flat", "test"])
+    .add({ world: currentWorldName }, "world", [
+      "terrain",
+      "flat",
+      "test",
+      "showcase",
+    ])
     .onChange((worldName: string) => {
       localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
       window.location.reload();

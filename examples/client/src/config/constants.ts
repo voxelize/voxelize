@@ -1,7 +1,8 @@
 // Server configuration
-export const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+export const BACKEND_SERVER_INSTANCE = new URL(window.location.origin);
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
-  BACKEND_SERVER_INSTANCE.port = "4000";
+  BACKEND_SERVER_INSTANCE.port =
+    new URLSearchParams(window.location.search).get("serverPort") ?? "4000";
 }
 export const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
 

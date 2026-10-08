@@ -37,11 +37,46 @@ import YellowConcreteImage from "./assets/own/yellow_concrete.png";
 
 const BIOME_SHADE_WEIGHT = 0.2;
 
+// Flat colours for the landscape demo block pack's blocks that have no
+// texture here (the showcase world registers only that pack).
+const DEMO_PACK_COLORS: [string, string][] = [
+  ["Limestone", "#cfc8b4"],
+  ["Sandstone", "#d8bc84"],
+  ["Clay", "#a8786a"],
+  ["Mudstone", "#8a7a6c"],
+  ["Basalt", "#4a4a50"],
+  ["Scoria", "#6e4a40"],
+  ["Tuff", "#a39a86"],
+  ["Gravel", "#8f8a85"],
+  ["Ice", "#bcd8f0"],
+  ["Moss", "#5c7a3a"],
+  ["Vines", "#3f6a2c"],
+  ["Glow Stone", "#f4d58a"],
+  ["Dripstone", "#9a8470"],
+  ["Cobblestone", "#7d7d7d"],
+  ["Lava", "#e0561c"],
+];
+
 export async function setupWorld(world: VOXELIZE.World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
-  world.applyBlockTexture(50000, all, new THREE.Color("#f99999"));
+  // Each world registers its own blocks; skip paint for blocks it lacks.
+  const hasBlock = (idOrName: number | string) =>
+    typeof idOrName === "number"
+      ? world.registry.blocksById.has(idOrName)
+      : world.registry.blocksByName.has(idOrName.toLowerCase());
+  const applyKnown = (
+    data: {
+      idOrName: number | string;
+      faceNames: string | string[];
+      source: string | THREE.Color;
+    }[],
+  ) => world.applyBlockTextures(data.filter((d) => hasBlock(d.idOrName)));
+
+  if (hasBlock(50000)) {
+    world.applyBlockTexture(50000, all, new THREE.Color("#f99999"));
+  }
 
   // world.applyBlockGifByName("Sand", "nx", FunnyGif);
   // world.setResolutionOfByName("Sand", "nx", 120);
@@ -95,7 +130,7 @@ export async function setupWorld(world: VOXELIZE.World) {
     return biome;
   });
 
-  await world.applyBlockTextures(biomeTextures);
+  await applyKnown(biomeTextures);
 
   // const biomesDOM = document.getElementById("biomes") as HTMLUListElement;
 
@@ -119,7 +154,15 @@ export async function setupWorld(world: VOXELIZE.World) {
 
   const diagonalFaces = ["one", "two"];
 
-  await world.applyBlockTextures([
+  await applyKnown(
+    DEMO_PACK_COLORS.map(([name, color]) => ({
+      idOrName: name,
+      faceNames: all,
+      source: new THREE.Color(color),
+    })),
+  );
+
+  await applyKnown([
     { idOrName: "Dirt", faceNames: all, source: DirtImage },
     { idOrName: "Lol", faceNames: all, source: new THREE.Color("#8479E1") },
     { idOrName: "Lol", faceNames: ["py"], source: LolImage },
@@ -224,10 +267,12 @@ export async function setupWorld(world: VOXELIZE.World) {
     },
   ]);
 
-  diagonalFaces.forEach((face) => {
-    const mat = world.getBlockFaceMaterial("Grass", face);
-    mat.depthWrite = false;
-  });
+  if (hasBlock("Grass")) {
+    diagonalFaces.forEach((face) => {
+      const mat = world.getBlockFaceMaterial("Grass", face);
+      mat.depthWrite = false;
+    });
+  }
 
   // await world.applyBlockFrames(
   //   "Water",
@@ -241,21 +286,25 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   300
   // );
 
-  world.customizeMaterialShaders(
-    "Grass",
-    null,
-    VOXELIZE.customShaders.sway({
-      rooted: true,
-    }),
-  );
+  if (hasBlock("Grass")) {
+    world.customizeMaterialShaders(
+      "Grass",
+      null,
+      VOXELIZE.customShaders.sway({
+        rooted: true,
+      }),
+    );
+  }
 
-  world.customizeMaterialShaders(
-    "Oak Leaves",
-    null,
-    VOXELIZE.customShaders.sway({
-      yScale: 0,
-    }),
-  );
+  if (hasBlock("Oak Leaves")) {
+    world.customizeMaterialShaders(
+      "Oak Leaves",
+      null,
+      VOXELIZE.customShaders.sway({
+        yScale: 0,
+      }),
+    );
+  }
 
   // world.setResolutionOf("Sand", "nx", 128);
   // await world.applyBlockGif("Sand", "nx", FunnyGif);
@@ -280,6 +329,8 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   ],
   //   50
   // );
+
+  if (!hasBlock("Water")) return;
 
   world.customizeBlockDynamic("Water", (pos) => {
     const [vx, vy, vz] = pos;

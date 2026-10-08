@@ -39,6 +39,9 @@ serde_path_to_error = { version = "0.1", optional = true }
 [dev-dependencies]
 rayon = "1.10"
 criterion = { version = "0.5", features = ["html_reports"] }
+# The showcase example's server (an in-engine world serving a preset).
+actix-web = "4"
+log = "0.4"
 
 [[bench]]
 name = "gen_bench"
@@ -63,6 +66,10 @@ required-features = ["unstable-landscape"]
 
 [[example]]
 name = "export_preset"
+required-features = ["unstable-landscape"]
+
+[[example]]
+name = "showcase"
 required-features = ["unstable-landscape"]
 
 [[test]]
