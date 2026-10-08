@@ -16,6 +16,15 @@
 //!   waves);
 //! - [`strata`]: wandering absolute-height bands that bench a wall without
 //!   ever inverting its slope;
+//! - [`geometry`]: footprints and fades, zero-line distance, iso-contour
+//!   tracing, arc schedules, feature frames and conservative tile gates;
+//! - [`lattice`]: world-aligned trilinear lattices with exact cell bounds,
+//!   so culled evaluation equals unculled evaluation;
+//! - [`channels`]: polyline networks with a payload per vertex;
+//! - [`flood`]: lake spill floods and priority floods with synthetic
+//!   divides;
+//! - [`settle`]: fluid steady-state checks and pre-settling, run with the
+//!   game's own fluid configuration;
 //! - [`cache`]: `ClockCache`, the cost-only cache every tier uses.
 //!
 //! Every value is a pure function of its inputs, and all arithmetic under
@@ -29,8 +38,13 @@
 #![allow(clippy::neg_cmp_op_on_partial_ord, clippy::manual_clamp)]
 
 pub mod cache;
+pub mod channels;
+pub mod flood;
+pub mod geometry;
+pub mod lattice;
 pub mod math;
 pub mod profile;
+pub mod settle;
 pub mod strata;
 
 use crate::stream::{stream_seed_lane, FIRST_LAYER_LANE};
