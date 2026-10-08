@@ -16,7 +16,9 @@ default = []
 # consumer's own parsing. Optional dependencies join it with the first code
 # that uses them.
 unstable-landscape = []
-# The landscape test kit (landform, province and structure suites).
+# The landscape test kit: `assert_no_libm!` for game crates now; the
+# landform, province, structure and determinism suites join as the plugin
+# kinds they test land.
 kit = ["unstable-landscape"]
 # Deterministic work counters for the budget gate: cost only, never output.
 gen-counters = ["unstable-landscape"]

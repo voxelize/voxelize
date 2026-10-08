@@ -63,7 +63,7 @@ Every phase (P0 to P8, with P2 split into P2a and P2b) is independently shippabl
 
 **G5. Deterministic and bit-stable.**
 - Every value is a pure function of (seed, dimension, salt, cell or coordinates).
-- Arithmetic in the scope stated in section 2.14 is IEEE add, sub, mul, div, sqrt, floor, abs, min and max only.
+- Arithmetic in the scope stated in section 2.14 is IEEE add, sub, mul, div, sqrt, floor, abs, comparisons and selects only (minimum and maximum through `math::MinMax`, never `f64::max`/`f64::min`).
 - Golden chunk digests exist per preset.
 - Identity includes the engine algorithm version, kind versions (with their provinces), typed parameters and resolved roles. It is persisted next to the chunks and checked on load.
 
@@ -100,30 +100,41 @@ Every phase (P0 to P8, with P2 split into P2a and P2b) is independently shippabl
 
 `voxelize-gen` depends on `voxelize`, and `voxelize` never depends on `voxelize-gen` (`crates/gen/Cargo.toml`). `landscape` therefore needs no engine change on its critical path; optional engine additions are listed in section 13, question 12.
 
-**Cargo wiring** (added in P1; the CI job in P0):
+**Cargo wiring** (as built in P1; the CI job in P0):
 
 ```toml
 # crates/gen/Cargo.toml
 [features]
 default = []
-unstable-landscape = ["dep:ryu", "dep:serde_path_to_error"]
-kit = ["unstable-landscape"]            # landform_suite!, province_suite!, structure_suite!, determinism suite
+unstable-landscape = []                 # optional dependencies join with their first user (below)
+kit = ["unstable-landscape"]            # assert_no_libm! (P1); landform_suite!, province_suite!, structure_suite!
+                                        # and the determinism suite join as their plugin kinds land
 gen-counters = ["unstable-landscape"]   # deterministic work counters (cost only, never output)
 
-[dependencies]
-ryu = { version = "1", optional = true }                  # pinned float formatter for the canonical writer
-serde_path_to_error = { version = "0.1", optional = true } # path-qualified spec errors
+# Added with their first user, never before:
+# [dependencies] (P2a, the spec reader and the canonical writer)
+#   ryu = { version = "1", optional = true }                  # pinned float formatter
+#   serde_path_to_error = { version = "0.1", optional = true } # path-qualified spec errors
+#   unstable-landscape gains "dep:ryu", "dep:serde_path_to_error"
+# [dev-dependencies] (the showcase example)
+#   actix-web = "4", log = "0.4"
 
 [dev-dependencies]
 rayon = "1.10"
 criterion = { version = "0.5", features = ["html_reports"] }
-actix-web = "4"        # showcase example: #[actix_web::main], optional debug HTTP route
-log = "0.4"            # showcase example logging
+
+[[bench]]
+name = "landscape_kernel"
+required-features = ["unstable-landscape"]
+
+[[test]]
+name = "landscape_kernel"
+required-features = ["unstable-landscape"]
 
 [[example]]
-name = "showcase"
+name = "landscape_profiles"
 required-features = ["unstable-landscape"]
-# likewise landscape_render, landscape_census, landscape_profiles, export_preset;
+# likewise showcase, landscape_render, landscape_census, export_preset as they land;
 # walk_bench builds without the feature (v1 fixture) and gains landscape workloads with it
 ```
 
@@ -151,16 +162,18 @@ Every tier is a pure function of its inputs. Caches change cost, never results.
 crates/gen/src/
   stream.rs                 (P0) explicit Subsystem discriminants; + stream_seed_bytes
   landscape/                (cfg feature = "unstable-landscape")
-    mod.rs                  prelude, re-exports, module docs (game-agnostic)
-    cache.rs                ClockCache<K, V>: CLOCK eviction, one entry at a time, cost-only
-    math.rs                 pow_smooth (+ derivative), psin, pcos, pseudo_angle, soft clamps, smin/smax,
-                            soft_ceiling, smoothstep/smootherstep, bias/gain, exp2_p/log2_p
-    profile.rs              Wall, Cone, Face, SWall, SlotSection, DuneWave, Talus, relax; slopes + inverses
-    strata.rs               BandTable, BandCursor (wandering absolute-height strata)
+    mod.rs                  prelude, re-exports, module docs (game-agnostic); SeedLane, SeedPhase
+    cache.rs                ClockCache<K, V>: CLOCK eviction, one entry at a time, cost-only, first writer wins
+    math.rs                 MinMax (fmax/fmin/fclamp), pow_smooth (+ derivative), psin, pcos, pseudo_angle,
+                            soft clamps, smin/smax, soft_ceiling, smoothstep/smootherstep, bias/gain, exp2_p/log2_p
+    profile.rs              Wall, Cone, Face, SWall, SlotSection, DuneWave; slopes + inverses
+                            (Talus and relax join in P3 with ColumnBatch::scratch)
+    strata.rs               BandTable, BandCursor (wandering absolute-height strata), BandError
     geometry.rs             Footprint SDFs + fade, zero_line_distance, trace_iso, ArcSchedule,
                             FeatureFrame, ring_noise, Lipschitz gate bounds
     lattice.rs              world-aligned trilinear lattices, CellCorners, exact interval bounds
-    channels.rs             ChannelNet<P: Copy>: polyline field with a per-vertex payload, sqrt not hypot
+    network.rs              ChannelNet<P: Copy>, NetVertex<P>, NetHit<P>: polyline field with a per-vertex payload,
+                            sqrt not hypot (named apart from v1's crate-root `channels` module and `ChannelPoint`)
     flood.rs                bounded lowest-frontier flood; priority flood with synthetic divides
     settle.rs               fluid steady-state check and pre-settle via a binding's fluid rules
     json.rs                 strict spec reader: correctly rounded numbers, duplicate-key refusal
@@ -278,7 +291,7 @@ So `landscape` never embeds a v1 named type. It defines owned mirrors (`mirror.r
 | v1 component | Mirror | Lowering target | Phase |
 |---|---|---|---|
 | `SaltPath` + `stream_seed` | salts as `String` | two additive v1 functions in P0: `stream_seed_lane(world, dim, lane: u8, salt: &[u8], cell)` and `stream_seed_bytes(world, dim, subsystem, salt: &[u8], cell)`, with `stream_seed` rewritten as a call to them. All three hash `lane << 56` and FNV over the same bytes, so `stream_seed_bytes` returns exactly what `stream_seed` returns for the same text (pinned by a P0 test). | P0 |
-| `Subsystem` | none | landscape lanes are a landscape-local `Lane` enum passed to `stream_seed_lane` at values from `FIRST_LAYER_LANE` (6, added in P0) up (`Landforms = 6, Water = 7, Sites = 8, Volume = 9, Spawn = 10`), so v1's public `Subsystem` enum gains no variant and no downstream exhaustive match breaks | P1 |
+| `Subsystem` | none | landscape lanes are a landscape-local `SeedLane` enum passed to `stream_seed_lane` at values from `FIRST_LAYER_LANE` (6, added in P0) up (`Landforms = 6, Water = 7, Sites = 8, Volume = 9, Spawn = 10`), each split by `SeedPhase` into a plan lane (the value) and a build lane (the value with bit 7 set), so v1's public `Subsystem` enum gains no variant and no downstream exhaustive match breaks | P1 |
 | `Version` | `ContentVersion { major, minor, patch }` | `From<ContentVersion> for Version` | P2a |
 | climate partitions (`ClimateSpec`, `BiomePartition`, overlays) | `BiomeSpecM` | resolved partition over field indices and `BiomeId(u16)`; evaluated by v1's partition math through a name-free entry point | P2a |
 | surface tables | `PaintRuleM { when: Vec<PaintCondM>, place: String /* role */ }` | landscape `PaintTable` (role ids → block ids); conditions reimplemented, since landscape adds many | P2a |
@@ -807,12 +820,12 @@ The volume model is a heightfield everywhere, with density only inside declared 
 
 ### 2.14 Determinism model
 
-- **D1. Pure derivation.** Seeds come from `stream_seed_bytes(world, dim, Subsystem, salt, cell)` for reused v1 lanes and `stream_seed_lane(world, dim, lane, salt, cell)` for landscape lanes (values 6 and up, section 2.4.2). P0 pins v1's `Subsystem` discriminants explicitly (`Fields = 0` … `Ecology = 5`), which is byte-identical. Each node's salt is claimed world-wide; sub-noises are `"<salt>.<sub>"`; plan and build streams are separate lanes. This rules out identical warps from reused salts and two subsystems sharing one salt.
+- **D1. Pure derivation.** Seeds come from `stream_seed_bytes(world, dim, Subsystem, salt, cell)` for reused v1 lanes and `stream_seed_lane(world, dim, lane, salt, cell)` for landscape lanes (values 6 and up, section 2.4.2). P0 pins v1's `Subsystem` discriminants explicitly (`Fields = 0` … `Ecology = 5`), which is byte-identical. Each node's salt is claimed world-wide; sub-noises are `"<salt>.<sub>"`; plan and build streams are separate lanes: `SeedLane::seed(phase, ..)` hashes lane `v` for `SeedPhase::Plan` and `v | 0x80` for `SeedPhase::Build` (pinned in P1), so a salt reused between planning and building still draws from two streams. This rules out identical warps from reused salts and two subsystems sharing one salt.
 - **D2. Arithmetic, and the scope of the claim.**
-  - Allowed: add, sub, mul, div, sqrt, floor, abs, min, max and comparisons. No `mul_add`; Rust never contracts to FMA on its own. `math` provides everything else.
+  - Allowed: add, sub, mul, div, sqrt, floor, abs, comparisons and selects. No `mul_add`; Rust never contracts to FMA on its own. No `f64::max`/`f64::min` either: for +0.0 against −0.0 their result is left to the platform (x86 `maxsd` and AArch64 `fmaxnm` differ), which no comparison sees but `to_bits`, digests and a division do. `math::MinMax` (`fmax`, `fmin`, `fclamp`) decides by comparison: NaN on one side returns the other, a tie returns the second operand, so `x.fmax(0.0)` turns −0.0 into +0.0. Floods queue heights with −0.0 folded into +0.0 and refuse NaN. With that, the claim holds down to the sign of a zero. `math` provides everything else.
   - **Scope.** The cross-platform bit-stability claim covers (1) all code under `src/landscape/**`, and (2) the v1 code that landscape calls on output paths, which is audited: stream hashing (integer only), the noise kernels, spline math, climate partition math, and flora and ecology placement. That placement contains one `powi(2)` (`crates/gen/src/ecology.rs:278`), which equals `x·x` bit for bit whether the compiler lowers it to a multiply or to its runtime's repeated-squaring routine (`1·(x·x)`).
   - **Outside the claim.** The `geology_prior` solver (v1 geology uses `powi` with a variable exponent, `crates/gen/src/geology/solve.rs:659`, and `powi(2)` sums at `crates/gen/src/geology/query.rs:300`), v1 `FieldProgram`'s `PowI` (`crates/gen/src/field.rs:1033`) and v1 channel curvature's `hypot` (`crates/gen/src/channels.rs:70, 91`). Landscape never calls the last two. Presets that enable `geology_prior` get per-platform goldens.
-  - `tests/no_libm.rs` refuses `.sin(`, `.cos(`, `.tan(`, `.powf(`, `.powi(`, `.hypot(`, `.exp(`, `.ln(`, `.log2(`, `.log10(`, `.tanh(`, `.atan(`, `.atan2(`, `.cbrt(` and `mul_add` under `src/landscape/**`, and checks the audited v1 files against an allowlist of exactly the lines above, so a new libm call in a reachable v1 file fails the test. `kit::assert_no_libm!("src/worldgen")` gives game crates the same check.
+  - `tests/no_libm.rs` refuses, under `src/landscape/**`, every method call `.name(` and every path segment `::name` (called or not, so `.map(f64::sin)` counts) for the platform maths functions (`sin`, `cos`, `tan`, `powf`, `powi`, `hypot`, `exp`, `ln`, `log2`, `log10`, `tanh`, `atan`, `atan2`, `cbrt` and the rest of `LIBM_METHODS`), any path into a maths crate (`libm::`), `mul_add`, and float `max`/`min` (method calls with an argument and `f64::max`-style paths; integer extrema are written `Ord::max(a, b)`), and checks the audited v1 files against an allowlist of exactly the lines above, so a new libm call in a reachable v1 file fails the test. `kit::assert_no_libm!("src/worldgen")` gives game crates the same check.
 - **D3. Acyclic planners.** Strict DAG, no thread-local guards, no provisional answers.
 - **D4. Total composition order.** Layer, then explicit edges with the default order, then id, then cell (section 2.8).
 - **D5. No unordered iteration in output paths.** hashbrown with ahash may seed differently per process. Output paths use sorted Vecs or BTreeMaps; scoped parallel solves join in index order.
@@ -823,7 +836,7 @@ The volume model is a heightfield everywhere, with density only inside declared 
 
 ### 2.15 Caching
 
-`ClockCache<K, V>` (in `landscape/cache.rs`; the name avoids v1's existing `voxelize_gen::CellCache`, `crates/gen/src/ecology.rs:119`) evicts one entry at a time with the CLOCK algorithm. Every cache below is cost-only.
+`ClockCache<K, V>` (in `landscape/cache.rs`; the name avoids v1's existing `voxelize_gen::CellCache`, `crates/gen/src/ecology.rs:119`) evicts one entry at a time with the CLOCK algorithm. Every cache below is cost-only. The first value stored for a key stays until evicted (a later insert returns the resident value), so threads racing on a cold key leave with the same value; `get_or_solve` holds an `Arc<OnceLock<T>>` per key and runs the solve inside that cell, outside the cache's lock, once while the key stays resident. One mutex guards each cache. The kernel bench's `cache` group measures hits from 1, 4 and 8 threads at once, and at P1 the total rate fell as threads were added (about 179, 28 and 22 million hits per second on a loaded 18-core host), so P2a stripes the cache by key hash before wiring it into the chunk path; which stripe holds a key changes cost only.
 
 | Cache | Key → value | Default size | Eviction |
 |---|---|---|---|
@@ -864,7 +877,8 @@ Every formula uses only allowed operations, and every output is golden-pinned.
 | Function | Definition |
 |---|---|
 | `smoothstep(a,b,x)` | `t = clamp((x−a)/(b−a)); t²(3−2t)` |
-| `smootherstep(a,b,x)` | `t³(t(6t−15)+10)` (C2; used for edge fade) |
+| `smootherstep(a,b,x)` | `t³(t(6t−15)+10)` (C2; used for edge fade). Its derivative, like `smoothstep_d`, is 0 on a degenerate window. |
+| `x.fmax(y)`, `x.fmin(y)`, `x.fclamp(lo, hi)` | `MinMax`: by comparison, NaN on one side returns the other, a tie returns the second operand. The kit's only minimum and maximum. |
 | `soft_down(cur, h, k)` | `cur − r_k(cur − h)`, with `r_k(d) = 0` (d ≤ 0), `d²/(2k)` (0 < d < k), `d − k/2` (d ≥ k). The `Carve` op. Identity for h ≥ cur; C1; monotone; engaged result h + k/2. |
 | `soft_up(cur, h, k)` | `cur + r_k(h − cur)`. The `Build` op. |
 | `smin(a,b,k)` | `h = max(k − |a−b|, 0)/k; min(a,b) − h²·k/4`. Field node only (symmetric blend). |
@@ -885,8 +899,8 @@ Each profile returns `height(u)`, `slope(u)` and an inverse, either analytic or 
 
 | Profile | Form | Proven recipe |
 |---|---|---|
-| `Wall { exp: p, rim_round: s }` | For `u < u0 = 1−s`: `w = pow_smooth(u, p)`. Over `[u0, 1]`: a cubic Hermite from `(w0, g0)` to `(1, 0)` with `w0 = pow_smooth(u0, p)` and `g0 = pow_smooth_d(u0, p)`; with `t = (u−u0)/s` and `a = g0·s`: `w = w0 + a t + (3(1−w0) − 2a) t² + (a − 2(1−w0)) t³`. C1 everywhere with zero slope at the rim; monotone when `a ≤ 3(1−w0)`, and validation refuses otherwise. | canyon walls, exponent 1.35 ± 30%, rim rounding 0.07 |
-| `Cone { exp: p, shoulder: ts }` | `t < ts`: `pow_smooth(t, p)`. Then `h_s + g_s(t−ts) − g_s(t−ts)²/(2(1−ts))` with `h_s = pow_smooth(ts, p)`, `g_s = pow_smooth_d(ts, p)`, renormalized by its value at t = 1, `h_s + g_s(1−ts)/2`. Zero slope at t = 1. | volcano cones, exponent 1.875 |
+| `Wall { exp: p, foot_round: f, rim_round: s }` | Three pieces (P1 as built), with `P = pow_smooth(·, p)`: a quadratic foot `g_f·u²/(2f)` on `[0, f)` whose slope rises from 0 to `g_f = P'(f)`; the body `P(u) + c` on `[f, 1−s)`, lifted by `c = g_f·f/2 − P(f)` to meet the foot C1; a quadratic rim `r0 + g0·x − g0·x²/(2s)` (`x = u − (1−s)`) whose slope falls from the body's `g0` to 0; all divided by the top `r0 + g0·s/2`. The slope climbs through the foot and body and only falls through the rim, so the wall is level at both ends for every `p ≥ 1` (the bare power is creased at the foot below `p = 9/8`: its slope there is `1 − 8(p − 1)`) and steepest at the brink, never bulging before it rolls over. Analytic inverse on foot and rim. | canyon walls, exponent 1.35 ± 30% (clamped to ≥ 1), foot rounding 0.07, rim rounding 0.07 |
+| `Cone { exp: p, shoulder: ts }` | `t < ts`: `pow_smooth(t, p)`. Then `h_s + g_s(t−ts) − g_s(t−ts)²/(2(1−ts))` with `h_s = pow_smooth(ts, p)`, `g_s = pow_smooth_d(ts, p)`, renormalized by its value at t = 1, `h_s + g_s(1−ts)/2` (validation refuses a cone too flat to renormalize). Zero slope at t = 1; level at the foot for `p ≥ 9/8`, and below that the Build clamp's `k` rounds the junction with the plain. | volcano cones, exponent 1.875 |
 | `Face { h, ledge, run1, shelf, run2, rim }` | Four quadratic pieces joined C1 (P1 as built): a steep foot rising `ledge` over `run1` (starting at slope `2·ledge/run1 − 0.3`) and rounding onto a worn shelf rising 0.3 per block (≤ 4.5 wide), a wall base steepening off the shelf over `run2`, and a rim rounding over `rim` (3–7) blocks into the top `h`. Analytic `offset(v)` with one square root per call: how far in the face lies at height v. | sea cliffs |
 | `SWall { share, slump }` | Smoothstep S-wall plus `16v²(1−v)²·slump` roughness: zero with zero slope at floor and rim, monotone for \|slump\| ≤ 0.1875 (a `4v(1−v)` bump kinks both ends) | calderas |
 | `SlotSection` | Level floor, near-vertical monotone Hermite walls, an optional ledge ≤ 4 at 25–50% depth, a quadratic rim lip of 1–3 blocks and a bench dip `pow_smooth(·, 1.5)`; independent wall bulges of 35% by evaluating each side with its own half width | slot canyons |
@@ -897,8 +911,9 @@ Each profile returns `height(u)`, `slope(u)` and an inverse, either analytic or 
 **`strata::BandTable`.**
 - Ledge k sits at `y_k = (k + j_k)·B − tilt·⟨(x,z), dir⟩`.
 - Each boundary wanders along the wall: `b_k = y_k + A·(α_k·n1 + (1−α_k)·n2)`, with two slow fields at λ 83 and 48.
-- Each band has tread, cliff and talus parts that vary on their own.
+- Each band has tread, cliff and talus parts that vary on their own. Every per-band roll hashes `key ^ (lane << 56) ^ (k mod 2^56)`, so no two rolls of a table share a hash input and nothing ties one band's jitter to another band's wander.
 - The fold returns a slope gain, so slope rules stay honest, and it never inverts a slope.
+- The fold is C1 in raw height within a column and continuous from column to column: every share and boundary is a continuous function of the slow fields and the lift, and a talus thinner than 10% of its band carries only `talus_rise·smoothstep(0, 0.1, share)`, so a thinning talus slopes away instead of standing as a step. The kernel suite bounds the fold's change per unit slow field by a Lipschitz constant derived from the spec.
 - `BandCursor` walks a column without re-deriving the band per voxel.
 
 **`geometry`.**
@@ -913,8 +928,8 @@ Each profile returns `height(u)`, `slope(u)` and an inverse, either analytic or 
 ```rust
 pub struct WearSpec {
     pub rim_round: Size,             // Blocks: Wall.rim_round / Build k
-    pub foot_round: Size,            // Blocks: soft-clamp k at the foot (no knife junction with the plain)
-    pub talus: Option<TalusSpec>,
+    pub foot_round: Size,            // Blocks: Wall.foot_round, and the soft-clamp k at the foot (no knife junction with the plain)
+    pub talus: Option<TalusWear>,    // named apart from v1's crate-root `TalusSpec`
     pub relax: Option<RelaxSpec>,    // cap (≤ 3), summit exemption
     pub gully: Option<GullySpec>,    // octaves ≤ 3, wavelength ≥ 24 (taste guard)
     pub benches: Option<BenchSpec>,  // TermRole::Bench
@@ -1001,7 +1016,7 @@ Axis names are neutral: `continentality`, `ruggedness`, `variety`, `ridge_fold`.
 | `strata_cliffs` (Uplift, under `range`) | `Field`, gate `cliff_country` (a region window field); contribution × `smoothstep(1.15, 2.1, SlopeOf(ground))` | `BandTable` ledges (Strata terms): band 10 ± 3 blocks, tilt 14, riser softness 0.1, irregularity 0.35 | `shelf` Refine province: shelters at 25% coverage, room 3–5 tall, roof ≥ 3 | — | P3 |
 | `dunes` (Uplift) | `Field`, gate: hot, dry, low axes (smoothstep windows ≥ 0.05 wide). Two modes, below. | Ripple: `pow_smooth(0.5 + 0.5·psin(0.13x + 0.042z + 5·eco), 2.2)·7 − 2` (λ ≈ 46 blocks). Erg (new): giant dunes 60–120 tall, below. | — | — | P3 |
 | `stratovolcano` (Uplift, over `horn`) | Cells 2816, roll 0.5, 5×5 grid over 50% of the cell. Centre on full land, 14–112 above sea, not arid. 8 foot probes at 0.78 r. Score `−σ − 0.3·(base − 14) − 10·offcentre`. A spawn reader keeping ≥ 1200 from spawn. Hero variant: `Once`, ring 1500–3500. Reads `canyon` occupancy. **Island** variant (new), below. | Rise `ShareOfRelief(0.47–0.70)`, cap 0.86 H; radius = rise × 2.2–2.7. `Cone` plus ring gullies (scale 90, azimuth warp 0.3, channel 0.2, depth 12 ± 75%). Lobed flows (2–4 tongues, lift 3). Rim rise and dip ±8/±3. `Build{k = 5}`. | Caldera `SWall` (depth 38–62, share 0.42 ± 20%) with a `LAKE` 10–22 deep or a dry floor with vents and a `LAVA_POOL`. Outlet notch snapped to a grid axis, giving a 28–42 block `FALL` into an alcove pool (r 5). Lava tubes under the flank (cone_t < 0.82, roof ≥ 7): carve where `((roof − (12 + 5·m))/4.5)² + (A/0.075)² < 1`. Anchors `caldera_rim`, `outlet_pool`, `flank_pad`. | exclusive, HYDRO, ROCK, NO_CAVES (cone core) | P5 |
-| `canyon` (Incise) | Cells 3072, roll 0.62, 22×22 jittered heads (land ≥ 0.98, macro height ≥ `Abs(140)` scaled, temperature ≥ 0.46, moisture ≤ 0.46). Trace in 48-block steps; cost `0.5h + 50·wet − 80·(1−land) + 5·|turn| + meander`; the floor never climbs (≤ 0.25 per block); ends at the sea or a terminal lake; length 1000–3000. | Depth 58 → 150 over 560 (shares), 7-node moving average, shallowing at sea mouths. Section: `Wall{exp 1.35 ± 30%, rim_round 0.07}`, floor share 0.26, rim dip 6, written as `h = cur − profile·(cur − F + k/2)` (section 2.8). Fades over 2.1 half widths, keeping 30% of land relief, via `Footprint::channel`. Overlapping canyons meet as soft-clamp carves (lowest wins, no crease). Benches 27 ± 22% (Bench terms), wandering ±5; buttes; ±20% width scalloping. | Trunk `RIVER` declaration with flow. Side canyons from 300 every 360, hanging 42–78, with a `FALL` into an alcove (half width 11) and a `PLUNGE_POOL` (r 4.5, depth 3). Anchors `rim`, `lip`, `pool`, `mouth`. `ChannelNet<CanyonVertex{arc, side}>`. | exclusive, HYDRO (floor), ROCK (walls), NO_CAVES, FALLS_OK | P4 |
+| `canyon` (Incise) | Cells 3072, roll 0.62, 22×22 jittered heads (land ≥ 0.98, macro height ≥ `Abs(140)` scaled, temperature ≥ 0.46, moisture ≤ 0.46). Trace in 48-block steps; cost `0.5h + 50·wet − 80·(1−land) + 5·|turn| + meander`; the floor never climbs (≤ 0.25 per block); ends at the sea or a terminal lake; length 1000–3000. | Depth 58 → 150 over 560 (shares), 7-node moving average, shallowing at sea mouths. Section: `Wall{exp 1.35 ± 30% (clamped to ≥ 1), foot_round 0.07, rim_round 0.07}`, floor share 0.26, rim dip 6, written as `h = cur − profile·(cur − F + k/2)` (section 2.8). Fades over 2.1 half widths, keeping 30% of land relief, via `Footprint::channel`. Overlapping canyons meet as soft-clamp carves (lowest wins, no crease). Benches 27 ± 22% (Bench terms), wandering ±5; buttes; ±20% width scalloping. | Trunk `RIVER` declaration with flow. Side canyons from 300 every 360, hanging 42–78, with a `FALL` into an alcove (half width 11) and a `PLUNGE_POOL` (r 4.5, depth 3). Anchors `rim`, `lip`, `pool`, `mouth`. `ChannelNet<CanyonVertex{arc, side}>`. | exclusive, HYDRO (floor), ROCK (walls), NO_CAVES, FALLS_OK | P4 |
 | `slot_canyon` (Incise, under `canyon`) | `Field`, gate: f 0.0011 field > 0.38 (smoothstep window 0.38–0.44) times dry and hot axes. Climate axes only, never biome identity. | Zero-line course through warps of 8 at f 0.022 and 2.5 at f 0.05; width via `zero_line_distance` (half width 1.5–3 blocks); `SlotSection`; wear × `clamp((depth−2)/14)`; slot floors keep tunnels 4 blocks below (`cave_ceiling`) | Optional seep `SPRING` declarations. Open ravine elsewhere: depth 48 × exposure × shoulder. | NO_CAVES near | P5 |
 | `coast` (Shore) | Cells 1536, roll 0.62 for cliffs and 0.10 for a pillar bay; 14×14 probes; not polar. `trace_iso` shoreline with steps of 24; stops on a sharp turn or shallow sea; length ≥ 380; trimmed short of canyon and volcano berths (reads their occupancy). Hero variant: `Once`, within 1.5 km of spawn, a spawn reader with clear 256. | `Face` per node; height 30–90 by random walk × swell, tapered over 4 nodes; face-line warp 2.5, ribs 1.4, headlands ±16; sea shelf 5–12 deep over 56–90 | `coast_face` Refine province with inward-only cuts: arches (ridge 24–40 long, opening 45–66%) and a wave notch 2.5. Sea caves (26–40 long, r 3.5–5) are a Carve province with `WetPolicy::Fill(Sea)`. Stacks as analytic spans (2–4, r 3.5–9, shrinking 14%, facets at 76–92% of r, grain 0.25). Cove beaches (`ArcSchedule`: headlands 330, coves 560); cliff `FALL`s every 430 where height ≥ 40. Pillar bay: 40-block jittered grid, r 5–14, height 40–120, taper 0.12, lean 0.35 r; crowns `classify_as(lowland)`. Anchors `headland`, `cove`, `cliff_top`, `fall_lip`. | exclusive, ROCK | P5 |
 | `tor` (Detail) | Cells 128, roll 0.36, 6 candidates within ±26; hill-climb 4 × 8 directions at stride 8 on `Through::Layer(Layer::Detail)` (final hydrology). Two-ring crest test (r 20: none more than 2 above; r 40: none more than 4 above and ≥ 6 of 8 dropped by 4). Footing relief ≤ 6. A spawn reader with clear 48. | Bared apron zone; clitter downhill only | 5–7 superellipse slabs (power 4–8, turned ≤ 8.6°, tilt ≤ 0.11, buried 2) as analytic spans; 55% chance of a companion stack. Anchor `crest`. | ROCK (apron), NO_SITES | P3 |
@@ -1585,7 +1600,7 @@ impl Landform for Sinkhole {
         let rim_min = cx.probe_ring_min(&self.probe, (x, z), r, 16);             // lowest of 16 rim probes
         let floor = lip - cx.frame().resolve_range(self.p.depth, &mut s);
         let pool = (s.unit() < self.p.pool_chance)
-            .then(|| (floor + 0.5 * self.p.round + 2.0).min(rim_min - 1.0).floor() as i32)
+            .then(|| (floor + 0.5 * self.p.round + 2.0).fmin(rim_min - 1.0).floor() as i32)
             .filter(|&level| level as f64 > floor);                                // never above the lowest rim
         Some(Planned::new(SinkholePlan { c: (x, z), r, floor, lip, pool, body: cx.body_id(0) })
             .footprint(Footprint::disc((x, z), r * 1.6).fade(r * 0.6))   // edge(): 0 at 1.6 r, 1 inside 1.0 r
@@ -1595,18 +1610,18 @@ impl Landform for Sinkhole {
     }
 
     fn columns(&self, p: &SinkholePlan, batch: &mut ColumnBatch<'_, SinkholeCell>) {
-        let bowl = profile::Wall::new(2.2, 0.15);                 // C1: flat floor, zero slope at the rim
+        let bowl = profile::Wall::new(2.2, 0.1, 0.15).expect("a valid bowl"); // C1: rounded floor, level rim
         let k = self.p.round;
         for mut col in batch.iter() {
             let wob = 1.0 + 0.08 * self.outline.ring(p.c, (col.xf(), col.zf()), 4.0 * p.r);
             let (dx, dz) = (col.xf() - p.c.0, col.zf() - p.c.1);
             let dist = (dx * dx + dz * dz).sqrt();
             let d = dist / (p.r * wob);
-            let profile = bowl.height((1.0 - d).clamp(0.0, 1.0));   // 1 at the centre, 0 at and beyond the rim
+            let profile = bowl.height(clamp01(1.0 - d));            // 1 at the centre, 0 at and beyond the rim
             let cur = col.ground();
             // Engaged, the soft clamp lands on the floor; where profile == 0 (rim, fade ring) h == cur,
             // so the op is the identity there and the bowl leaves no ring outside itself.
-            let h = cur - profile * (cur - p.floor + 0.5 * k).max(0.0);
+            let h = cur - profile * (cur - p.floor + 0.5 * k).fmax(0.0);
             col.ground_op(GroundOp::Carve { h, k });               // the engine multiplies by col.weight()
             col.claim_scaled(Claims::NO_SITES.into(), 1.0 - smoothstep(0.9, 1.05, d)); // the bowl, not the rim
             if profile > 0.0 { col.zone(self.wall); }
@@ -1745,28 +1760,35 @@ Every phase is independently shippable: it lands as its own reviewed PR series o
 ### P1. Kernel toolkits (behind `unstable-landscape`)
 
 - **Change:** `crates/gen/Cargo.toml` (features, optional dependencies, dev-dependencies, `required-features` on landscape examples, section 2.1); `crates/gen/src/lib.rs` (`#[cfg(feature = "unstable-landscape")] pub mod landscape;`); the CI job adds `cargo test -p voxelize-gen --release --features unstable-landscape,kit,gen-counters`.
-- **Create:** `landscape/{mod, cache, math, profile, strata, geometry, lattice, channels, flood, settle}.rs`; `tests/landscape_kernel.rs`; `tests/no_libm.rs`; `benches/landscape_kernel.rs`; `examples/landscape_profiles.rs`.
+- **Create:** `landscape/{mod, cache, math, profile, strata, geometry, lattice, network, flood, settle}.rs`; `landscape/kit/{mod, no_libm}.rs`; `tests/landscape_kernel.rs`; `tests/no_libm.rs`; `benches/landscape_kernel.rs`; `examples/landscape_profiles.rs`.
 - **Tests:**
   - golden pins for every `math` function, with error bounds (psin ≤ 2e-7);
   - `soft_down`/`soft_up`: bitwise identity where the target is at or beyond the ground, monotone, C1, engaged offset exactly k/2;
   - `pow_smooth_d` matches a central difference within 1e-9 and is exact at multiples of 1/8;
   - profiles monotone, joins C1 within 1e-12, inverse round-trips within 1e-6; `DuneWave` C1 across the wrap;
-  - `BandTable` never inverts a slope;
-  - lattice seam continuity, and culled == unculled on random fields;
-  - Lipschitz gate bounds never below dense-sampled maxima on random fields;
-  - `ClockCache` cost-only (capacity 1 vs large);
-  - flood determinism; settle on synthetic falls under three `FluidConfig`s;
-  - no libm under `landscape/`, and the v1 allowlist.
-- **Benchmarks:** ns per op for math; lattice ns per node; cull ratio.
+  - `BandTable` never inverts a slope, and its fold is continuous from column to column (bounded by a spec-derived Lipschitz constant, and every large step shrinks a thousandfold when refined); no two per-band rolls share a hash input;
+  - walls level at the foot for every exponent in [1, 8]; every rim's slope only falls past its join;
+  - lattice seam continuity, culled == unculled on random fields, `sample_f == sample` at voxels, and a panic for any read outside the coverage;
+  - Lipschitz gate bounds never below dense-sampled maxima on random fields, and +∞ for a NaN sample;
+  - `ClockCache` cost-only (capacity 1 vs large), and each cold key solved once under 8-thread contention;
+  - flood determinism, NaN refused, ±0.0 alike; settle on synthetic falls under three `FluidConfig`s;
+  - no libm and no float `max`/`min` under `landscape/`, and the v1 allowlist; pins with ±0.0 and NaN inputs.
+- **Benchmarks:** ns per op for math; lattice ns per node; cull ratio; `ClockCache` hits from 1, 4 and 8 threads.
 - **Acceptance:** all pins; zero libm; v1 goldens unchanged; a build without the feature compiles no landscape code and adds no dependency (`cargo tree -e features -p voxelize-gen`).
 - **Proof:** the `landscape_profiles` sheet: Wall, Cone, Face, SWall, SlotSection and DuneWave cross sections with slopes.
-- **As built** (where P1 settled what the plan left open):
-  - `Lane` (`Landforms = 6` … `Spawn = 10`) lives in `landscape/mod.rs`.
-  - `FluidRules` lives in `settle.rs`; P4's `water.rs` re-exports it. `Settler` runs the fluid's own engine updater (`create_fluid_active_fn` with the binding's `FluidConfig`) over a closed `SettleBox`, with the engine update system's tick rules (plan against committed state in x, y, z order; the fuller of two fluid offers wins). Under `flows_down_as_source` a curtain is a column of sources, and sources spread into the open air beside them, so `FluidRules::open_curtain_holds()` is false and such falls are pre-settled (`StampMode::Settled`); the settle test proves both paths.
-  - `Face`, `SWall` and `SlotSection` take the forms in the section 3.2 table. `Wall` and `Cone` take exponents in [1, 8]; the canyon recipe's `1.35 ± 30%` reaches 0.945, so P4 clamps it at 1 (below 1 the foot stands vertical).
-  - `BandTable` folds each band through monotone Hermite parts (talus, cliff, tread), level at every boundary; a talus under 2% of a band is dropped.
-  - Monotone profiles invert piece by piece: Newton inside a bracket, bisection when a step leaves it, stopping at 1e-13 of the piece's range. `psin` uses minimax coefficients constrained to `p(π/2) = 1, p'(π/2) = 0`, so folded copies join C1 (measured error 6.3e-9).
-  - `kit::assert_no_libm!` and its scanner (`landscape/kit/no_libm.rs`) land here; `tests/no_libm.rs` includes the scanner file, so the scan runs in every build, with or without the features.
+- **As built** (where P1 settled what the plan left open, including the review fixes that closed it):
+  - `SeedLane` (`Landforms = 6` … `Spawn = 10`) and `SeedPhase` live in `landscape/mod.rs`: a subsystem's plan lane is its value and its build lane the value with bit 7 set (`SeedLane::seed(phase, ..)`), settling D1's "plan and build streams are separate lanes" before P2b pins any seed.
+  - `math::MinMax` (`fmax`, `fmin`, `fclamp`) replaces every float `max`/`min` in `landscape`, so the bit-stability claim holds for the sign of zero too (D2); `tests/no_libm.rs` refuses float `max`/`min`, and integer extrema are written `Ord::max(a, b)`.
+  - `FluidRules` lives in `settle.rs`; P4's `water.rs` re-exports it. It destructures `FluidConfig` field by field, so a new engine field fails to compile until it is mirrored and digested or named as irrelevant (`tick_rate`). `Settler` runs the fluid's own engine updater (`create_fluid_active_fn` with the binding's `FluidConfig`) over a closed `SettleBox` with the engine update system's per-tick rules (plan against committed state in x, y, z order; the fuller of two fluid offers wins), but over every wet voxel every tick where the engine runs only due voxels: the two agree on what is still, while `presettle` may reach a different still state than the live engine would from a restless start. Under `flows_down_as_source` a curtain is a column of sources, and sources spread into the open air beside them, so `FluidRules::open_curtain_holds()` is false and such falls are pre-settled (`StampMode::Settled`); the settle test proves both paths. `SettleBox::fluid_level` takes the registry and answers only for the fluid asked (a waterlogged voxel holds the waterlogging fluid).
+  - `Face`, `SWall` and `SlotSection` take the forms in the section 3.2 table. `Wall` takes `(exp, foot_round, rim_round)`: a quadratic foot, the lifted power body and a quadratic rim, level at both ends for every exponent in [1, 8] and never steeper anywhere than at the brink; the canyon recipe's `1.35 ± 30%` reaches 0.945, so P4 clamps it at 1 and the foot piece keeps even that wall uncreased. `Cone` takes exponents in [1, 8] and refuses a shoulder too small to renormalize.
+  - `BandTable` folds each band through monotone Hermite parts (talus, cliff, tread), level at every boundary. A talus's rise fades in over its first 10% of share (`TALUS_FADE_SHARE`) instead of a hard cutoff, so the fold is continuous from column to column; every per-band roll has its own hash input (`key ^ lane << 56 ^ k`). It refuses with its own `BandError`, and `band_at` panics on a non-finite height or one beyond 2^40 bands.
+  - `Lattice` checks every read: `sample`, `sample_f`, `corners` and `node` panic outside what the lattice stores, in every build. `sample_f` returns `sample`'s bits at voxel positions.
+  - `ClockCache` keeps the first value stored for a key (`insert` returns the resident value), and `get_or_solve` runs a costly solve once per resident key under contention.
+  - Floods refuse NaN heights and queue −0.0 as +0.0. `ArcSchedule` and the tile gates refuse non-finite or unbounded inputs instead of looping or culling everything; a NaN sample admits its tile.
+  - The channel network module is `landscape::network` (`ChannelNet`, `NetVertex`, `NetHit`), named apart from v1's crate-root `channels` module and `ChannelPoint`; WearSpec's talus field takes `TalusWear` in P3, named apart from v1's `TalusSpec`.
+  - Monotone profiles invert piece by piece: analytic on quadratic pieces, otherwise Newton inside a bracket, bisection when a step leaves it, stopping at 1e-13 of the piece's range. `psin` uses minimax coefficients constrained to `p(π/2) = 1, p'(π/2) = 0`, so folded copies join C1 (measured error 6.3e-9).
+  - `kit::assert_no_libm!` and its scanner (`landscape/kit/no_libm.rs`) land here; `tests/no_libm.rs` includes the scanner file, so the scan runs in every build, with or without the features. The scanner reports method calls, path references (`.map(f64::sin)`) and paths into maths crates (`use libm::sin`).
+  - Every public item under `landscape` is documented (`#![warn(missing_docs)]` on the module).
   - Deferred to their first users: `Talus` and `relax` (they need `ColumnBatch::scratch`; P3), the optional dependencies `ryu` and `serde_path_to_error` (P2a), and the `actix-web` and `log` dev-dependencies (the showcase).
 
 ### P2a. Heightfield core and the `plain` preset
@@ -1775,7 +1797,7 @@ Every phase is independently shippable: it lands as its own reviewed PR series o
   - `landscape/{json, canon, spec, mirror, lower, identity, facts, surface, stage, query, quality, counters, explain}.rs`;
   - `landscape/water.rs`, sea only: the types, the implicit sea layer, `Sources` stamping and `water_at` (declarations, beds, void fill, aquifers and the other stamp modes arrive in P4);
   - `fields/{ir, compile, eval, grid, nodes}.rs`;
-  - `kit/{mod, determinism}.rs`;
+  - `kit/determinism.rs` (`kit/mod.rs` exists since P1 and gains the suite);
   - `library/{surface_rules, ecotones, zones}.rs`;
   - `presets/{plain, roles, demo_blocks}.rs`;
   - examples `landscape_render.rs` (maps, hillshade, `--explain`), `showcase.rs` (plain), `export_preset.rs`;
@@ -1784,7 +1806,8 @@ Every phase is independently shippable: it lands as its own reviewed PR series o
 - **Change:**
   - v1 (byte-identical): name-free `from_resolved` entry points for climate partitions, flora and ecology, with v1 compile resolving names and then calling them;
   - client: `examples/client/src/world.ts` (flat colours for demo blocks) and `main.ts` (add `showcase` to the world list);
-  - CI: a macOS arm64 job runs the same gen tests and compares golden digests with Linux.
+  - CI: a macOS arm64 job runs the same gen tests and compares golden digests with Linux;
+  - `ClockCache` striped by key hash (P1's `cache` bench group showed the single lock's total hit rate falling from 1 to 8 threads), proven by the same cost-only and contention tests, before it is wired into the chunk path.
 - **Scope.** The plain preset is fields, paint, biomes, flora and the sea, with no plugins: the stage runs steps 1, 2, 4, 4b (sea only), 6, 7 (sea only), 9 and 10.
 - **Tests:**
   - JSON reader (duplicate keys, NaN, depth, path-qualified errors) and round trip: builder == JSON twin hash, including floats needing 17 digits and values ≥ 1e16;
