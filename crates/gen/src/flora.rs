@@ -445,8 +445,6 @@ impl CompiledFlora {
         trees
     }
 
-    /// Shared cluster-lattice walk: rolls each cell's existence and
-    /// jittered center, then hands the stream to the caller.
     fn each_cluster(
         &self,
         seed: u64,
@@ -456,42 +454,11 @@ impl CompiledFlora {
         max: (i32, i32),
         visit: &mut dyn FnMut(i64, i64, i32, i32, &mut HashStream),
     ) {
-        let lo_cx = (min.0 as f64 / cell).floor() as i64;
-        let hi_cx = (max.0 as f64 / cell).floor() as i64;
-        let lo_cz = (min.1 as f64 / cell).floor() as i64;
-        let hi_cz = (max.1 as f64 / cell).floor() as i64;
-        for cluster_x in lo_cx..=hi_cx {
-            for cluster_z in lo_cz..=hi_cz {
-                let mut cluster_stream =
-                    HashStream::new(seed ^ mix64(cell_id(cluster_x, cluster_z) ^ 0xC1));
-                if cluster_stream.unit() > chance {
-                    continue;
-                }
-                let center_x =
-                    ((cluster_x as f64 + 0.2 + cluster_stream.unit() * 0.6) * cell) as i32;
-                let center_z =
-                    ((cluster_z as f64 + 0.2 + cluster_stream.unit() * 0.6) * cell) as i32;
-                visit(
-                    cluster_x,
-                    cluster_z,
-                    center_x,
-                    center_z,
-                    &mut cluster_stream,
-                );
-            }
-        }
+        each_cluster(seed, cell, chance, min, max, visit);
     }
 
     fn pick_weighted(entries: &[(usize, f64)], stream: &mut HashStream) -> usize {
-        let total: f64 = entries.iter().map(|(_, w)| w).sum();
-        let mut roll = stream.unit() * total;
-        for (index, weight) in entries {
-            roll -= weight;
-            if roll <= 0.0 {
-                return *index;
-            }
-        }
-        entries.last().map(|(index, _)| *index).unwrap_or(0)
+        pick_weighted(entries, stream)
     }
 
     /// Stamp one tree through `set`: the closure receives world coords, the
@@ -501,139 +468,199 @@ impl CompiledFlora {
     /// grown trees, and emergents instead of one repeated silhouette.
     pub fn stamp(&self, tree: &TreeInstance, set: &mut dyn FnMut(i32, i32, i32, u32, bool)) {
         let species = &self.species[tree.species];
-        let mut stream = HashStream::new(tree.seed);
-        let (x, y, z) = (tree.x, tree.y + 1, tree.z);
-        let log = species.log;
-        let leaves = species.leaves;
-        let size = tree.size;
-        let scaled = |base: i32| -> i32 { ((base as f64) * size).round().max(2.0) as i32 };
-        let crown_step: i32 = if size >= 1.25 {
-            1
-        } else if size <= 0.8 {
-            -1
-        } else {
-            0
-        };
+        stamp_form(species.form, species.log, species.leaves, tree, set);
+    }
+}
 
-        match species.form {
-            TreeForm::Round => {
-                let trunk = scaled(4 + stream.range_i((0, 2)));
-                for dy in 0..trunk {
-                    set(x, y + dy, z, log, false);
-                }
-                let base = y + trunk - 2;
-                for layer in 0..3 {
-                    let radius: i32 = ([2, 2, 1][layer as usize] + crown_step).max(1);
-                    for dx in -radius..=radius {
-                        for dz in -radius..=radius {
-                            if dx.abs() == radius && dz.abs() == radius && layer < 2 {
-                                continue;
-                            }
-                            set(x + dx, base + layer, z + dz, leaves, true);
-                        }
-                    }
-                }
-                set(x, base + 3, z, leaves, true);
+/// Shared cluster-lattice walk: rolls each cell's existence and jittered
+/// center, then hands the stream to the caller. Name-free: the landscape
+/// module's flora places on the same lattice.
+pub(crate) fn each_cluster(
+    seed: u64,
+    cell: f64,
+    chance: f64,
+    min: (i32, i32),
+    max: (i32, i32),
+    visit: &mut dyn FnMut(i64, i64, i32, i32, &mut HashStream),
+) {
+    let lo_cx = (min.0 as f64 / cell).floor() as i64;
+    let hi_cx = (max.0 as f64 / cell).floor() as i64;
+    let lo_cz = (min.1 as f64 / cell).floor() as i64;
+    let hi_cz = (max.1 as f64 / cell).floor() as i64;
+    for cluster_x in lo_cx..=hi_cx {
+        for cluster_z in lo_cz..=hi_cz {
+            let mut cluster_stream =
+                HashStream::new(seed ^ mix64(cell_id(cluster_x, cluster_z) ^ 0xC1));
+            if cluster_stream.unit() > chance {
+                continue;
             }
-            TreeForm::Slender => {
-                let trunk = scaled(6 + stream.range_i((0, 2)));
-                for dy in 0..trunk {
-                    set(x, y + dy, z, log, false);
-                }
-                let base = y + trunk - 2;
-                for layer in 0..2 {
-                    for dx in -1..=1 {
-                        for dz in -1..=1 {
-                            if dx == 0 && dz == 0 && layer == 0 {
-                                continue;
-                            }
-                            set(x + dx, base + layer, z + dz, leaves, true);
-                        }
-                    }
-                }
-                set(x, base + 2, z, leaves, true);
-                set(x, base + 3, z, leaves, true);
+            let center_x = ((cluster_x as f64 + 0.2 + cluster_stream.unit() * 0.6) * cell) as i32;
+            let center_z = ((cluster_z as f64 + 0.2 + cluster_stream.unit() * 0.6) * cell) as i32;
+            visit(
+                cluster_x,
+                cluster_z,
+                center_x,
+                center_z,
+                &mut cluster_stream,
+            );
+        }
+    }
+}
+
+/// One weighted pick from `entries` (index, weight).
+pub(crate) fn pick_weighted(entries: &[(usize, f64)], stream: &mut HashStream) -> usize {
+    let total: f64 = entries.iter().map(|(_, w)| w).sum();
+    let mut roll = stream.unit() * total;
+    for (index, weight) in entries {
+        roll -= weight;
+        if roll <= 0.0 {
+            return *index;
+        }
+    }
+    entries.last().map(|(index, _)| *index).unwrap_or(0)
+}
+
+/// Stamp one tree of `form` with resolved `log` and `leaves` ids: the
+/// closure receives world coords, the block id, and whether the write is
+/// soft (leaves, only into air). Name-free, shared by v1's species table
+/// and the landscape module's lowered species.
+pub(crate) fn stamp_form(
+    form: TreeForm,
+    log: u32,
+    leaves: u32,
+    tree: &TreeInstance,
+    set: &mut dyn FnMut(i32, i32, i32, u32, bool),
+) {
+    let mut stream = HashStream::new(tree.seed);
+    let (x, y, z) = (tree.x, tree.y + 1, tree.z);
+    let size = tree.size;
+    let scaled = |base: i32| -> i32 { ((base as f64) * size).round().max(2.0) as i32 };
+    let crown_step: i32 = if size >= 1.25 {
+        1
+    } else if size <= 0.8 {
+        -1
+    } else {
+        0
+    };
+
+    match form {
+        TreeForm::Round => {
+            let trunk = scaled(4 + stream.range_i((0, 2)));
+            for dy in 0..trunk {
+                set(x, y + dy, z, log, false);
             }
-            TreeForm::Conic => {
-                let trunk = scaled(7 + stream.range_i((0, 3)));
-                for dy in 0..trunk {
-                    set(x, y + dy, z, log, false);
-                }
-                let mut radius: i32 = (2 + crown_step).max(1);
-                let mut layer_y = y + 2;
-                while layer_y < y + trunk {
-                    for dx in -radius..=radius {
-                        for dz in -radius..=radius {
-                            if dx.abs() == radius && dz.abs() == radius {
-                                continue;
-                            }
-                            set(x + dx, layer_y, z + dz, leaves, true);
-                        }
-                    }
-                    layer_y += 2;
-                    if radius > 1 {
-                        radius -= 1;
-                    }
-                }
-                set(x, y + trunk, z, leaves, true);
-                set(x, y + trunk + 1, z, leaves, true);
-            }
-            TreeForm::Umbrella => {
-                let trunk = scaled(4 + stream.range_i((0, 2)));
-                let lean_x = stream.range_i((-1, 1));
-                for dy in 0..trunk {
-                    let bend = if dy > trunk / 2 { lean_x } else { 0 };
-                    set(x + bend, y + dy, z, log, false);
-                }
-                let top = y + trunk;
-                let cx = x + lean_x;
-                let disc = (3 + crown_step).max(2);
-                let disc_sq = disc * disc;
-                for dx in -disc..=disc {
-                    for dz in -disc..=disc {
-                        let d2 = dx * dx + dz * dz;
-                        if d2 <= disc_sq && d2 >= 2 {
-                            set(cx + dx, top, z + dz, leaves, true);
-                        }
-                    }
-                }
-                for dx in -1i32..=1 {
-                    for dz in -1i32..=1 {
-                        set(cx + dx, top + 1, z + dz, leaves, true);
-                    }
-                }
-            }
-            TreeForm::Broad => {
-                let trunk = scaled(4 + stream.range_i((0, 2)));
-                for dy in 0..trunk {
-                    set(x, y + dy, z, log, false);
-                }
-                set(x - 1, y + trunk - 2, z, log, false);
-                set(x + 1, y + trunk - 2, z + 1, log, false);
-                let base = y + trunk - 1;
-                let wide = (3 + crown_step).max(2);
-                for dx in -wide..=wide {
-                    for dz in -wide..=wide {
-                        if dx.abs() == wide && dz.abs() == wide {
+            let base = y + trunk - 2;
+            for layer in 0..3 {
+                let radius: i32 = ([2, 2, 1][layer as usize] + crown_step).max(1);
+                for dx in -radius..=radius {
+                    for dz in -radius..=radius {
+                        if dx.abs() == radius && dz.abs() == radius && layer < 2 {
                             continue;
                         }
-                        set(x + dx, base, z + dz, leaves, true);
-                    }
-                }
-                for dx in -1i32..=1 {
-                    for dz in -1i32..=1 {
-                        set(x + dx, base + 1, z + dz, leaves, true);
+                        set(x + dx, base + layer, z + dz, leaves, true);
                     }
                 }
             }
-            TreeForm::Snag => {
-                let trunk = scaled(3 + stream.range_i((0, 3)));
-                for dy in 0..trunk {
-                    set(x, y + dy, z, log, false);
-                }
-                set(x + 1, y + trunk - 1, z, log, false);
-                set(x, y + trunk, z + 1, log, false);
+            set(x, base + 3, z, leaves, true);
+        }
+        TreeForm::Slender => {
+            let trunk = scaled(6 + stream.range_i((0, 2)));
+            for dy in 0..trunk {
+                set(x, y + dy, z, log, false);
             }
+            let base = y + trunk - 2;
+            for layer in 0..2 {
+                for dx in -1..=1 {
+                    for dz in -1..=1 {
+                        if dx == 0 && dz == 0 && layer == 0 {
+                            continue;
+                        }
+                        set(x + dx, base + layer, z + dz, leaves, true);
+                    }
+                }
+            }
+            set(x, base + 2, z, leaves, true);
+            set(x, base + 3, z, leaves, true);
+        }
+        TreeForm::Conic => {
+            let trunk = scaled(7 + stream.range_i((0, 3)));
+            for dy in 0..trunk {
+                set(x, y + dy, z, log, false);
+            }
+            let mut radius: i32 = (2 + crown_step).max(1);
+            let mut layer_y = y + 2;
+            while layer_y < y + trunk {
+                for dx in -radius..=radius {
+                    for dz in -radius..=radius {
+                        if dx.abs() == radius && dz.abs() == radius {
+                            continue;
+                        }
+                        set(x + dx, layer_y, z + dz, leaves, true);
+                    }
+                }
+                layer_y += 2;
+                if radius > 1 {
+                    radius -= 1;
+                }
+            }
+            set(x, y + trunk, z, leaves, true);
+            set(x, y + trunk + 1, z, leaves, true);
+        }
+        TreeForm::Umbrella => {
+            let trunk = scaled(4 + stream.range_i((0, 2)));
+            let lean_x = stream.range_i((-1, 1));
+            for dy in 0..trunk {
+                let bend = if dy > trunk / 2 { lean_x } else { 0 };
+                set(x + bend, y + dy, z, log, false);
+            }
+            let top = y + trunk;
+            let cx = x + lean_x;
+            let disc = (3 + crown_step).max(2);
+            let disc_sq = disc * disc;
+            for dx in -disc..=disc {
+                for dz in -disc..=disc {
+                    let d2 = dx * dx + dz * dz;
+                    if d2 <= disc_sq && d2 >= 2 {
+                        set(cx + dx, top, z + dz, leaves, true);
+                    }
+                }
+            }
+            for dx in -1i32..=1 {
+                for dz in -1i32..=1 {
+                    set(cx + dx, top + 1, z + dz, leaves, true);
+                }
+            }
+        }
+        TreeForm::Broad => {
+            let trunk = scaled(4 + stream.range_i((0, 2)));
+            for dy in 0..trunk {
+                set(x, y + dy, z, log, false);
+            }
+            set(x - 1, y + trunk - 2, z, log, false);
+            set(x + 1, y + trunk - 2, z + 1, log, false);
+            let base = y + trunk - 1;
+            let wide = (3 + crown_step).max(2);
+            for dx in -wide..=wide {
+                for dz in -wide..=wide {
+                    if dx.abs() == wide && dz.abs() == wide {
+                        continue;
+                    }
+                    set(x + dx, base, z + dz, leaves, true);
+                }
+            }
+            for dx in -1i32..=1 {
+                for dz in -1i32..=1 {
+                    set(x + dx, base + 1, z + dz, leaves, true);
+                }
+            }
+        }
+        TreeForm::Snag => {
+            let trunk = scaled(3 + stream.range_i((0, 3)));
+            for dy in 0..trunk {
+                set(x, y + dy, z, log, false);
+            }
+            set(x + 1, y + trunk - 1, z, log, false);
+            set(x, y + trunk, z + 1, log, false);
         }
     }
 }
@@ -642,7 +669,7 @@ impl CompiledFlora {
 /// unit square: trigonometry is not bit-stable across platforms, and
 /// four attempts accept with probability ~0.996. The rare full miss
 /// pulls the last attempt onto the unit circle.
-fn disc_offset(stream: &mut HashStream, radius: f64) -> (i32, i32) {
+pub(crate) fn disc_offset(stream: &mut HashStream, radius: f64) -> (i32, i32) {
     let mut px = 0.0;
     let mut pz = 0.0;
     let mut is_inside = false;

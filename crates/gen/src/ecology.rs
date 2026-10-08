@@ -188,13 +188,7 @@ impl CompiledEcology {
 
     /// Jittered site of one lattice cell.
     fn site(&self, cell_x: i64, cell_z: i64) -> (f64, f64) {
-        let id = mix64(self.seed ^ mix64(cell_id(cell_x, cell_z)));
-        let jx = (hash_unit(id) - 0.5) * 0.85;
-        let jz = (hash_unit(mix64(id ^ 0x11)) - 0.5) * 0.85;
-        (
-            (cell_x as f64 + 0.5 + jx) * self.spec.cell,
-            (cell_z as f64 + 0.5 + jz) * self.spec.cell,
-        )
+        ecology_site(self.seed, self.spec.cell, cell_x, cell_z)
     }
 
     /// The community a cell's site elects, if any. Pure per cell; the
@@ -240,18 +234,7 @@ impl CompiledEcology {
             if eligible.is_empty() {
                 None
             } else {
-                let mut stream =
-                    HashStream::new(mix64(self.seed ^ mix64(cell_id(cell_x, cell_z)) ^ 0x99));
-                let mut roll = stream.unit() * total;
-                let mut picked = eligible[eligible.len() - 1].0;
-                for (index, weight) in &eligible {
-                    roll -= weight;
-                    if roll <= 0.0 {
-                        picked = *index;
-                        break;
-                    }
-                }
-                Some(picked)
+                Some(ecology_elect(self.seed, cell_x, cell_z, &eligible, total))
             }
         };
         cache.cells.insert((cell_x, cell_z), owner);
@@ -261,34 +244,9 @@ impl CompiledEcology {
     /// Patch ownership at a point: nearest site's community plus the
     /// interior parameter from the two nearest site distances.
     pub fn owner_at(&self, x: i32, z: i32, env: &Env, cache: &mut CellCache) -> Option<Owner> {
-        let cell = self.spec.cell;
-        let fx = x as f64;
-        let fz = z as f64;
-        let base_x = (fx / cell).floor() as i64;
-        let base_z = (fz / cell).floor() as i64;
-
-        let mut best = f64::MAX;
-        let mut second = f64::MAX;
-        let mut best_cell = (base_x, base_z);
-        for dx in -1..=1i64 {
-            for dz in -1..=1i64 {
-                let cx = base_x + dx;
-                let cz = base_z + dz;
-                let (sx, sz) = self.site(cx, cz);
-                let d = ((sx - fx).powi(2) + (sz - fz).powi(2)).sqrt();
-                if d < best {
-                    second = best;
-                    best = d;
-                    best_cell = (cx, cz);
-                } else if d < second {
-                    second = d;
-                }
-            }
-        }
-
+        let (best_cell, interior) =
+            ecology_nearest(self.seed, self.spec.cell, self.spec.ecotone, x, z);
         let community = self.cell_owner(best_cell.0, best_cell.1, env, cache)?;
-        let ecotone = (self.spec.ecotone * cell).max(1e-9);
-        let interior = ((second - best) / ecotone).clamp(0.0, 1.0);
         Some(Owner {
             community: community as usize,
             interior,
@@ -328,6 +286,78 @@ impl CompiledEcology {
         out.push(("open", counts[self.spec.communities.len()]));
         out
     }
+}
+
+/// Jittered site of one community-lattice cell. Name-free: the landscape
+/// module's lowered communities share the lattice.
+pub(crate) fn ecology_site(seed: u64, cell: f64, cell_x: i64, cell_z: i64) -> (f64, f64) {
+    let id = mix64(seed ^ mix64(cell_id(cell_x, cell_z)));
+    let jx = (hash_unit(id) - 0.5) * 0.85;
+    let jz = (hash_unit(mix64(id ^ 0x11)) - 0.5) * 0.85;
+    (
+        (cell_x as f64 + 0.5 + jx) * cell,
+        (cell_z as f64 + 0.5 + jz) * cell,
+    )
+}
+
+/// The weighted election of one cell among its eligible communities
+/// (index, weight), `total` their summed weight.
+pub(crate) fn ecology_elect(
+    seed: u64,
+    cell_x: i64,
+    cell_z: i64,
+    eligible: &[(u16, f64)],
+    total: f64,
+) -> u16 {
+    let mut stream = HashStream::new(mix64(seed ^ mix64(cell_id(cell_x, cell_z)) ^ 0x99));
+    let mut roll = stream.unit() * total;
+    let mut picked = eligible[eligible.len() - 1].0;
+    for (index, weight) in eligible {
+        roll -= weight;
+        if roll <= 0.0 {
+            picked = *index;
+            break;
+        }
+    }
+    picked
+}
+
+/// The cell whose site is nearest `(x, z)`, and how interior the point
+/// sits (0 at the border between the two nearest sites, 1 past the
+/// ecotone band).
+pub(crate) fn ecology_nearest(
+    seed: u64,
+    cell: f64,
+    ecotone: f64,
+    x: i32,
+    z: i32,
+) -> ((i64, i64), f64) {
+    let fx = x as f64;
+    let fz = z as f64;
+    let base_x = (fx / cell).floor() as i64;
+    let base_z = (fz / cell).floor() as i64;
+
+    let mut best = f64::MAX;
+    let mut second = f64::MAX;
+    let mut best_cell = (base_x, base_z);
+    for dx in -1..=1i64 {
+        for dz in -1..=1i64 {
+            let cx = base_x + dx;
+            let cz = base_z + dz;
+            let (sx, sz) = ecology_site(seed, cell, cx, cz);
+            let d = ((sx - fx).powi(2) + (sz - fz).powi(2)).sqrt();
+            if d < best {
+                second = best;
+                best = d;
+                best_cell = (cx, cz);
+            } else if d < second {
+                second = d;
+            }
+        }
+    }
+    let ecotone = (ecotone * cell).max(1e-9);
+    let interior = ((second - best) / ecotone).clamp(0.0, 1.0);
+    (best_cell, interior)
 }
 
 #[inline]

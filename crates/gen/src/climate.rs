@@ -204,6 +204,18 @@ impl CompiledClimate {
     }
 }
 
+/// Samples one climate axis at a column: the zoned partition's site
+/// constraints read axes at their site, through this.
+pub(crate) trait AxisSampler {
+    fn sample_axis(&self, axis: usize, x: i32, z: i32) -> f64;
+}
+
+impl AxisSampler for CompiledClimate {
+    fn sample_axis(&self, axis: usize, x: i32, z: i32) -> f64 {
+        self.programs[axis].sample2(x, z)
+    }
+}
+
 pub(crate) fn compile_climate(
     spec: &ClimateSpec,
     world_seed: u32,
@@ -260,18 +272,18 @@ enum CompiledPartitionKind {
     },
 }
 
-struct CompiledZoneEntry {
-    biome: BiomeId,
-    weight: f64,
-    constraint: Option<(usize, f64, f64)>,
+pub(crate) struct CompiledZoneEntry {
+    pub biome: BiomeId,
+    pub weight: f64,
+    pub constraint: Option<(usize, f64, f64)>,
 }
 
-struct CompiledRegion {
-    share: f64,
-    entries: Vec<(BiomeId, Vec<(f64, f64)>)>,
+pub(crate) struct CompiledRegion {
+    pub share: f64,
+    pub entries: Vec<(BiomeId, Vec<(f64, f64)>)>,
 }
 
-enum CompiledOverlay {
+pub(crate) enum CompiledOverlay {
     ShoreBand {
         biome: BiomeId,
         from_below: i32,
@@ -284,6 +296,35 @@ enum CompiledOverlay {
     Peaks {
         biome: BiomeId,
         surface_above: i32,
+    },
+}
+
+/// A partition with every name already resolved: biome ids, axis indices
+/// and stream seeds. v1's compile resolves its named spec into this and
+/// calls [`CompiledPartition::from_resolved`]; other front ends (the
+/// landscape module's owned mirrors) build it directly and share v1's
+/// partition math.
+pub(crate) struct ResolvedPartition {
+    pub kind: ResolvedPartitionKind,
+    pub overlays: Vec<CompiledOverlay>,
+}
+
+pub(crate) enum ResolvedPartitionKind {
+    Single(BiomeId),
+    Zoned {
+        seed: u64,
+        cell_size: f64,
+        jitter: f64,
+        transition: f64,
+        warp_amplitude: f64,
+        entries: Vec<CompiledZoneEntry>,
+    },
+    Climate {
+        axis_indices: Vec<usize>,
+        regions: Vec<CompiledRegion>,
+        region_seed: u64,
+        region_cell: f64,
+        transition: f64,
     },
 }
 
@@ -302,7 +343,7 @@ impl CompiledPartition {
         used_salts: &mut hashbrown::HashSet<&'static str>,
     ) -> Result<Self, GenError> {
         let kind = match &set.partition {
-            BiomePartition::Single(key) => CompiledPartitionKind::Single(resolve(key)?),
+            BiomePartition::Single(key) => ResolvedPartitionKind::Single(resolve(key)?),
             BiomePartition::Zoned(zoned) => {
                 crate::spec::claim_salt(&zoned.salt, used_salts)?;
                 if zoned.entries.is_empty() {
@@ -338,28 +379,12 @@ impl CompiledPartition {
                     });
                 }
                 let seed = stream_seed(world_seed, dimension, Subsystem::Partition, &zoned.salt, 0);
-                CompiledPartitionKind::Zoned {
+                ResolvedPartitionKind::Zoned {
                     seed,
                     cell_size: zoned.cell_size,
-                    jitter: zoned.jitter.clamp(0.0, 0.45),
-                    transition: zoned.transition.width.max(0.0),
+                    jitter: zoned.jitter,
+                    transition: zoned.transition.width,
                     warp_amplitude: zoned.warp_amplitude,
-                    warp_x: Fractal::new(
-                        seed ^ 0xA1,
-                        1.0 / (zoned.cell_size * 0.45),
-                        2,
-                        0.5,
-                        2.0,
-                        NoiseKind::Fbm,
-                    ),
-                    warp_z: Fractal::new(
-                        seed ^ 0xB2,
-                        1.0 / (zoned.cell_size * 0.45),
-                        2,
-                        0.5,
-                        2.0,
-                        NoiseKind::Fbm,
-                    ),
                     entries,
                 }
             }
@@ -412,7 +437,7 @@ impl CompiledPartition {
                         entries,
                     });
                 }
-                CompiledPartitionKind::Climate {
+                ResolvedPartitionKind::Climate {
                     axis_indices,
                     regions,
                     region_seed: stream_seed(
@@ -422,8 +447,8 @@ impl CompiledPartition {
                         &matched.region_salt,
                         0,
                     ),
-                    region_cell: matched.region_cell.max(1.0),
-                    transition: matched.transition.width.max(1e-9),
+                    region_cell: matched.region_cell,
+                    transition: matched.transition.width,
                 }
             }
         };
@@ -454,19 +479,73 @@ impl CompiledPartition {
             });
         }
 
-        Ok(Self { kind, overlays })
+        Ok(Self::from_resolved(ResolvedPartition { kind, overlays }))
+    }
+
+    /// The name-free constructor: normalizes the resolved parameters and
+    /// bakes the zoned warp fields.
+    pub fn from_resolved(resolved: ResolvedPartition) -> Self {
+        let ResolvedPartition { kind, overlays } = resolved;
+        let kind = match kind {
+            ResolvedPartitionKind::Single(id) => CompiledPartitionKind::Single(id),
+            ResolvedPartitionKind::Zoned {
+                seed,
+                cell_size,
+                jitter,
+                transition,
+                warp_amplitude,
+                entries,
+            } => CompiledPartitionKind::Zoned {
+                seed,
+                cell_size,
+                jitter: jitter.clamp(0.0, 0.45),
+                transition: transition.max(0.0),
+                warp_amplitude,
+                warp_x: Fractal::new(
+                    seed ^ 0xA1,
+                    1.0 / (cell_size * 0.45),
+                    2,
+                    0.5,
+                    2.0,
+                    NoiseKind::Fbm,
+                ),
+                warp_z: Fractal::new(
+                    seed ^ 0xB2,
+                    1.0 / (cell_size * 0.45),
+                    2,
+                    0.5,
+                    2.0,
+                    NoiseKind::Fbm,
+                ),
+                entries,
+            },
+            ResolvedPartitionKind::Climate {
+                axis_indices,
+                regions,
+                region_seed,
+                region_cell,
+                transition,
+            } => CompiledPartitionKind::Climate {
+                axis_indices,
+                regions,
+                region_seed,
+                region_cell: region_cell.max(1.0),
+                transition: transition.max(1e-9),
+            },
+        };
+        Self { kind, overlays }
     }
 
     /// Base blend from the partition alone (no overlays). Pure in
     /// (seed, column, axis values). Zoned site constraints sample the axis
     /// programs at the site position, so a site's identity is one answer
     /// world-wide regardless of which column asks.
-    pub fn base_blend(
+    pub fn base_blend<A: AxisSampler + ?Sized>(
         &self,
         x: i32,
         z: i32,
         axes: &SmallVec<[f64; MAX_AXES]>,
-        climate: &CompiledClimate,
+        climate: &A,
     ) -> BiomeBlend {
         match &self.kind {
             CompiledPartitionKind::Single(id) => BiomeBlend::pure(*id),
@@ -578,18 +657,18 @@ impl CompiledPartition {
         }
     }
 
-    fn zone_site_biome(
+    fn zone_site_biome<A: AxisSampler + ?Sized>(
         entries: &[CompiledZoneEntry],
         stream: &mut HashStream,
         site_x: i32,
         site_z: i32,
-        climate: &CompiledClimate,
+        climate: &A,
     ) -> BiomeId {
         let passes = |entry: &CompiledZoneEntry| -> bool {
             match entry.constraint {
                 None => true,
                 Some((axis, low, high)) => {
-                    let v = climate.programs[axis].sample2(site_x, site_z);
+                    let v = climate.sample_axis(axis, site_x, site_z);
                     v >= low && v <= high
                 }
             }
