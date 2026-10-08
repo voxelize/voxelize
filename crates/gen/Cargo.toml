@@ -57,6 +57,14 @@ required-features = ["unstable-landscape"]
 name = "landscape_profiles"
 required-features = ["unstable-landscape"]
 
+[[example]]
+name = "landscape_render"
+required-features = ["unstable-landscape"]
+
+[[example]]
+name = "export_preset"
+required-features = ["unstable-landscape"]
+
 [[test]]
 name = "landscape_spec"
 required-features = ["unstable-landscape"]

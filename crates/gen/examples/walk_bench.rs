@@ -13,7 +13,13 @@
 //!
 //! The v1 fixtures (`fixture`, `geology_fixture`, `walker_fixture`, named
 //! as in `tests/golden/v1.json`; `geology` and `walker` are accepted as
-//! short forms) come from `tests/fixtures`. A calibration kernel (1M 2D
+//! short forms) come from `tests/fixtures`. Built with the
+//! `unstable-landscape` feature, the landscape presets join them (`plain`,
+//! at H = 512 with the demo blocks), and with `gen-counters` every row
+//! also reports the deterministic work counters per chunk (median and
+//! p95), which `--pin` records and `--gate` compares on single-worker rows
+//! (deterministic on any machine, so that half of the gate always
+//! enforces). A calibration kernel (1M 2D
 //! noise octaves plus 1M trilinear lattice samples, on a frozen private
 //! copy of the noise so the yardstick never moves with the code it
 //! measures) runs first, and every p50 is also reported in calibration
@@ -30,6 +36,8 @@
 //!   --json FILE                        write the report as JSON
 //!   --note TEXT                        stamp the report (for example the commit it measured)
 //!   --pin FILE                         write the measured rows as a budget file
+//!   --facts-bytes N                    facts cache budget for landscape fixtures (1 makes the
+//!                                      warm pass re-evaluate fields with warm tiles)
 //!   --gate FILE                        compare against a budget file; fails only when
 //!                                      GEN_BUDGET_GATE=1 (locally it prints and passes).
 //!                                      It compares only runs measured like the pin: the
@@ -41,6 +49,9 @@
 
 #[path = "../tests/fixtures/mod.rs"]
 mod fixtures;
+#[cfg(feature = "unstable-landscape")]
+#[path = "../tests/fixtures/landscape.rs"]
+mod land;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -105,6 +116,27 @@ struct Row {
     mean_ms: f64,
     /// p50 divided by the calibration kernel's time.
     p50_cal: f64,
+    /// Work counters per chunk (with `gen-counters`).
+    #[serde(default)]
+    counters: Vec<CounterStat>,
+}
+
+/// One work counter's per-chunk median and p95 on a row.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct CounterStat {
+    name: String,
+    median: f64,
+    p95: f64,
+}
+
+/// A pinned counter: a row key, the counter, and its per-chunk median and
+/// p95 limits.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CounterBudget {
+    key: String,
+    name: String,
+    median: f64,
+    p95: f64,
 }
 
 impl Row {
@@ -132,6 +164,12 @@ struct Budget {
     /// them over from the file it replaces.
     #[serde(default)]
     baselines: Vec<Baseline>,
+    /// Work counter limits for single-worker rows (with `gen-counters`).
+    #[serde(default)]
+    counters: Vec<CounterBudget>,
+    /// Share a counter may grow past its pinned median or p95.
+    #[serde(default)]
+    max_counter_growth: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +244,9 @@ struct Options {
     rounds: usize,
     /// Arguments forwarded to both binaries in `--ab` mode.
     forwarded: Vec<String>,
+    /// Facts cache budget for landscape fixtures (1 evicts every chunk's
+    /// facts, so a warm pass measures field evaluation with warm tiles).
+    facts_bytes: Option<usize>,
 }
 
 fn parse_options() -> Options {
@@ -222,6 +263,7 @@ fn parse_options() -> Options {
         ab: None,
         rounds: 4,
         forwarded: Vec::new(),
+        facts_bytes: None,
     };
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut index = 0;
@@ -302,6 +344,13 @@ fn parse_options() -> Options {
                     .max(1);
                 forward = false;
             }
+            "--facts-bytes" => {
+                let v = value(&mut index, &flag);
+                options.forwarded.push(flag.clone());
+                options.forwarded.push(v.clone());
+                options.facts_bytes = Some(v.parse().expect("facts bytes"));
+                forward = false;
+            }
             "--bench" => forward = false,
             other => panic!("unknown option {other}"),
         }
@@ -320,7 +369,10 @@ fn fixture_name(name: &str) -> &'static str {
         "fixture" => "fixture",
         "geology_fixture" | "geology" => "geology_fixture",
         "walker_fixture" | "walker" => "walker_fixture",
-        other => panic!("unknown fixture {other} (fixture, geology_fixture, walker_fixture)"),
+        "plain" => "plain",
+        other => {
+            panic!("unknown fixture {other} (fixture, geology_fixture, walker_fixture, plain)")
+        }
     }
 }
 
@@ -330,6 +382,96 @@ fn fixture(name: &str) -> GeneratorSpec {
         "geology_fixture" => geology_fixture_spec(),
         _ => walker_fixture_spec(),
     }
+}
+
+/// Whether a fixture is a landscape preset.
+fn is_landscape(name: &str) -> bool {
+    fixture_name(name) == "plain"
+}
+
+/// A generator ready to walk: a v1 harness or a landscape preset.
+enum Gen {
+    V1(Harness),
+    #[cfg(feature = "unstable-landscape")]
+    Land(LandHarness),
+}
+
+#[cfg(feature = "unstable-landscape")]
+struct LandHarness {
+    registry: voxelize::Registry,
+    config: voxelize::WorldConfig,
+    stage: voxelize_gen::landscape::LandscapeStage,
+}
+
+impl Gen {
+    fn build(name: &str, facts_bytes: Option<usize>) -> Gen {
+        if is_landscape(name) {
+            #[cfg(feature = "unstable-landscape")]
+            {
+                let mut compile = voxelize_gen::landscape::CompileOptions::default();
+                if let Some(bytes) = facts_bytes {
+                    compile.facts_bytes = bytes;
+                }
+                let land = land::plain(land::BENCH_SEED, 512, &compile);
+                return Gen::Land(LandHarness {
+                    registry: land::demo_registry(),
+                    config: land::config(land::BENCH_SEED, 512),
+                    stage: voxelize_gen::landscape::LandscapeStage::new(land),
+                });
+            }
+            #[cfg(not(feature = "unstable-landscape"))]
+            {
+                let _ = facts_bytes;
+                panic!("fixture {name} needs --features unstable-landscape");
+            }
+        }
+        Gen::V1(harness_for(fixture(name)))
+    }
+
+    fn generate_chunk(&self, cx: i32, cz: i32) -> voxelize::Chunk {
+        match self {
+            Gen::V1(h) => h.generate_chunk(cx, cz),
+            #[cfg(feature = "unstable-landscape")]
+            Gen::Land(h) => {
+                use voxelize::ChunkStage;
+                let options = voxelize::ChunkOptions {
+                    size: h.config.chunk_size,
+                    max_height: h.config.max_height,
+                    sub_chunks: h.config.sub_chunks,
+                };
+                let chunk = voxelize::Chunk::new("bench", cx, cz, &options);
+                h.stage.process(
+                    chunk,
+                    voxelize::Resources {
+                        registry: &h.registry,
+                        config: &h.config,
+                    },
+                    None,
+                )
+            }
+        }
+    }
+}
+
+/// This thread's work counters, as `(name, value)` (empty without
+/// `gen-counters`).
+fn counter_snapshot() -> Vec<(&'static str, u64)> {
+    #[cfg(feature = "gen-counters")]
+    {
+        use voxelize_gen::landscape::counters::{snapshot, Counter};
+        let s = snapshot();
+        return Counter::ALL
+            .iter()
+            .map(|c| (c.name(), s[*c as usize]))
+            .collect();
+    }
+    #[allow(unreachable_code)]
+    Vec::new()
+}
+
+fn counter_reset() {
+    #[cfg(feature = "gen-counters")]
+    voxelize_gen::landscape::counters::reset();
 }
 
 /// The first `count` chunks of a square spiral walked out from `origin`.
@@ -431,39 +573,73 @@ fn median(values: &[f64]) -> f64 {
 /// Walks the route on `workers` threads, which take chunks in route order
 /// from a shared cursor (the engine's pool does the same with its queue).
 /// Returns the wall time and every chunk's time, both in ms.
-fn walk(harness: &Harness, route: &[(i32, i32)], workers: usize) -> (f64, Vec<f64>) {
+/// Per-chunk counter samples of one walk: `(name, values)` per counter.
+type CounterSamples = Vec<(&'static str, Vec<u64>)>;
+
+fn walk(gen: &Gen, route: &[(i32, i32)], workers: usize) -> (f64, Vec<f64>, CounterSamples) {
     let cursor = AtomicUsize::new(0);
     let started = Instant::now();
-    let mut times: Vec<f64> = std::thread::scope(|scope| {
+    let parts: Vec<(Vec<f64>, Vec<Vec<(&'static str, u64)>>)> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers.max(1))
             .map(|_| {
                 scope.spawn(|| {
                     let mut local = Vec::new();
+                    let mut counts = Vec::new();
                     loop {
                         let index = cursor.fetch_add(1, Ordering::Relaxed);
                         let Some(&(cx, cz)) = route.get(index) else {
                             break;
                         };
+                        counter_reset();
                         let chunk_started = Instant::now();
-                        let chunk = harness.generate_chunk(cx, cz);
+                        let chunk = gen.generate_chunk(cx, cz);
                         local.push(chunk_started.elapsed().as_secs_f64() * 1e3);
+                        counts.push(counter_snapshot());
                         let size = CHUNK as i32;
                         std::hint::black_box(chunk.get_voxel(cx * size, 40, cz * size));
                     }
-                    local
+                    (local, counts)
                 })
             })
             .collect();
         handles
             .into_iter()
-            .flat_map(|handle| handle.join().expect("worker"))
+            .map(|handle| handle.join().expect("worker"))
             .collect()
     });
     let wall = started.elapsed().as_secs_f64() * 1e3;
+    let mut times: Vec<f64> = parts.iter().flat_map(|(t, _)| t.iter().copied()).collect();
     times.sort_by(f64::total_cmp);
-    (wall, times)
+    let mut samples: CounterSamples = Vec::new();
+    for (_, counts) in &parts {
+        for chunk in counts {
+            for (k, &(name, v)) in chunk.iter().enumerate() {
+                if samples.len() <= k {
+                    samples.push((name, Vec::new()));
+                }
+                samples[k].1.push(v);
+            }
+        }
+    }
+    (wall, times, samples)
 }
 
+fn counter_stats(samples: &CounterSamples) -> Vec<CounterStat> {
+    samples
+        .iter()
+        .map(|(name, values)| {
+            let mut v: Vec<f64> = values.iter().map(|&x| x as f64).collect();
+            v.sort_by(f64::total_cmp);
+            CounterStat {
+                name: name.to_string(),
+                median: median(&v),
+                p95: percentile(&v, 0.95),
+            }
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
 fn row(
     fixture: &str,
     workload: &str,
@@ -472,6 +648,7 @@ fn row(
     compile_ms: Option<f64>,
     wall_ms: f64,
     times: &[f64],
+    counters: &CounterSamples,
 ) -> Row {
     let p50 = percentile(times, 0.5);
     Row {
@@ -487,6 +664,7 @@ fn row(
         max_ms: *times.last().expect("times"),
         mean_ms: times.iter().sum::<f64>() / times.len() as f64,
         p50_cal: f64::NAN,
+        counters: counter_stats(counters),
     }
 }
 
@@ -625,7 +803,6 @@ fn measure(options: &Options) -> Vec<Row> {
     let mut rows = Vec::new();
     for name in &options.fixtures {
         let fixture_name = fixture_name(name);
-        let spec = fixture(fixture_name);
         for workload in &options.workloads {
             let walk_route = route(workload, options.quick);
             // Rows name a trace by its file name, not its full path.
@@ -641,10 +818,10 @@ fn measure(options: &Options) -> Vec<Row> {
             };
             for &workers in &options.workers {
                 let compile_started = Instant::now();
-                let harness = harness_for(spec.clone());
+                let gen = Gen::build(fixture_name, options.facts_bytes);
                 let compile_ms = compile_started.elapsed().as_secs_f64() * 1e3;
-                let (cold_wall, cold) = walk(&harness, &walk_route, workers);
-                let (warm_wall, warm) = walk(&harness, &walk_route, workers);
+                let (cold_wall, cold, cold_counts) = walk(&gen, &walk_route, workers);
+                let (warm_wall, warm, warm_counts) = walk(&gen, &walk_route, workers);
                 rows.push(row(
                     fixture_name,
                     &label,
@@ -653,6 +830,7 @@ fn measure(options: &Options) -> Vec<Row> {
                     Some(compile_ms),
                     cold_wall,
                     &cold,
+                    &cold_counts,
                 ));
                 rows.push(row(
                     fixture_name,
@@ -662,6 +840,7 @@ fn measure(options: &Options) -> Vec<Row> {
                     None,
                     warm_wall,
                     &warm,
+                    &warm_counts,
                 ));
             }
         }
@@ -937,6 +1116,69 @@ fn gate_against(report: &Report, budget: &Budget) -> GateOutcome {
     }
 }
 
+/// The generator a report measured, for its stamp.
+fn generator_of(fixtures: &[String]) -> String {
+    let landscape = fixtures.iter().any(|f| is_landscape(f));
+    let v1 = fixtures.iter().any(|f| !is_landscape(f));
+    match (v1, landscape) {
+        (true, true) => "v1+landscape".into(),
+        (false, true) => "landscape".into(),
+        _ => "v1".into(),
+    }
+}
+
+/// Share a work counter may grow past its pin before the gate fails.
+const DEFAULT_MAX_COUNTER_GROWTH: f64 = 0.10;
+
+/// Counter rows over their pins (single-worker rows walked with the
+/// pinned route; counters are deterministic there, so any growth is real).
+fn gate_counters(report: &Report, budget: &Budget) -> Vec<String> {
+    let mut failures = Vec::new();
+    let growth = 1.0 + budget.max_counter_growth;
+    let mut table_printed = false;
+    for pin in &budget.counters {
+        let Some(row) = report.rows.iter().find(|r| r.key() == pin.key) else {
+            continue;
+        };
+        let pinned_chunks = budget
+            .rows
+            .iter()
+            .find(|r| r.key == pin.key)
+            .map(|r| r.chunks);
+        if pinned_chunks != Some(row.chunks) {
+            continue;
+        }
+        let Some(now) = row.counters.iter().find(|c| c.name == pin.name) else {
+            continue;
+        };
+        if !table_printed {
+            println!(
+                "{:<34} {:<20} {:>12} {:>12} {:>12} {:>12}",
+                "row", "counter", "pinned p50", "now p50", "pinned p95", "now p95"
+            );
+            table_printed = true;
+        }
+        let over = now.median > pin.median * growth || now.p95 > pin.p95 * growth;
+        println!(
+            "{:<34} {:<20} {:>12.0} {:>12.0} {:>12.0} {:>12.0}{}",
+            pin.key,
+            pin.name,
+            pin.median,
+            now.median,
+            pin.p95,
+            now.p95,
+            if over { "  OVER" } else { "" }
+        );
+        if over {
+            failures.push(format!(
+                "{} {}: median {} (pin {}), p95 {} (pin {})",
+                pin.key, pin.name, now.median, pin.median, now.p95, pin.p95
+            ));
+        }
+    }
+    failures
+}
+
 fn run_ab(options: &Options, before: &Path, after: &Path) -> bool {
     let before_stamp = stamp(before);
     let after_stamp = stamp(after);
@@ -1070,10 +1312,11 @@ fn main() {
     print_rows(&rows, calibration_ms);
 
     let binary = stamp(&std::env::current_exe().expect("own binary"));
+    let generator = generator_of(&options.fixtures);
     let report = Report {
         tool: "walk_bench".into(),
         format: 1,
-        generator: "v1".into(),
+        generator: generator.clone(),
         note: options.note.clone(),
         binary,
         host: host(),
@@ -1092,13 +1335,30 @@ fn main() {
         } else {
             Vec::new()
         };
+        let counters: Vec<CounterBudget> = report
+            .rows
+            .iter()
+            .filter(|row| row.workers == 1)
+            .flat_map(|row| {
+                row.counters.iter().map(move |c| CounterBudget {
+                    key: row.key(),
+                    name: c.name.clone(),
+                    median: c.median,
+                    p95: c.p95,
+                })
+            })
+            .collect();
         let budget = Budget {
-            about: "Walk budgets for the v1 fixtures, written by `walk_bench --pin`. The gate \
-                    compares p50 in calibration units (p50 divided by the calibration kernel's \
-                    time), only for runs with the pinned routes and at least the pinned \
-                    --repeat, and fails only when GEN_BUDGET_GATE=1."
-                .into(),
-            generator: "v1".into(),
+            about: format!(
+                "Walk budgets for {}, written by `walk_bench --pin`. The wall-clock gate \
+                 compares p50 in calibration units (p50 divided by the calibration kernel's \
+                 time), only for runs with the pinned routes and at least the pinned \
+                 --repeat, and fails only when GEN_BUDGET_GATE=1. The work-counter gate \
+                 (single-worker rows, deterministic) fails whenever a counter's per-chunk \
+                 median or p95 grows past its pin by max_counter_growth.",
+                generator
+            ),
+            generator: generator.clone(),
             max_p50_regression: DEFAULT_MAX_P50_REGRESSION,
             gate_workers: vec![1],
             measured: Measured {
@@ -1122,10 +1382,20 @@ fn main() {
                 })
                 .collect(),
             baselines,
+            counters,
+            max_counter_growth: DEFAULT_MAX_COUNTER_GROWTH,
         };
         write_json(path, &budget);
     }
     if let Some(path) = &options.gate {
+        // The deterministic half first: it enforces on any machine.
+        let counter_failures = gate_counters(&report, &read_budget(path));
+        if !counter_failures.is_empty() {
+            for f in &counter_failures {
+                println!("counter OVER: {f}");
+            }
+            std::process::exit(1);
+        }
         let outcome = gate(&report, path);
         println!(
             "budget gate: {}{}",
@@ -1165,6 +1435,7 @@ mod tests {
             max_ms: p50_ms,
             mean_ms: p50_ms,
             p50_cal,
+            counters: Vec::new(),
         }
     }
 
@@ -1209,6 +1480,8 @@ mod tests {
                 p50_cal: 0.06,
             }],
             baselines: Vec::new(),
+            counters: Vec::new(),
+            max_counter_growth: 0.0,
         }
     }
 
