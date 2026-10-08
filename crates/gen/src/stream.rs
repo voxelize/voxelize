@@ -28,14 +28,20 @@ pub fn fnv1a_64(bytes: &[u8]) -> u64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct SaltPath(pub &'static str);
 
-/// The subsystem lane of a seed stream.
+/// The subsystem lane of a seed stream: a seed-derivation id, not a
+/// topology lane (`crate::lane`) and not a `site_stream` sub-stream.
 ///
 /// Order is identity: each discriminant is hashed into every seed its
 /// subsystem derives (`lane << 56`), so renumbering, reordering or inserting
 /// a variant changes every world built on this crate. The values are
-/// written out so that cannot happen by accident. Lanes 6 and above belong
-/// to layers built on top of these (`stream_seed_lane`); this enum gains no
-/// variant for them.
+/// written out so that cannot happen by accident. Lanes from
+/// [`FIRST_LAYER_LANE`] up belong to layers built on top of these
+/// (`stream_seed_lane`); this enum gains no variant for them.
+///
+/// There is deliberately no `#[repr(u8)]`: it would change the derived
+/// `Hash` (which hashes the discriminant at its repr width) of a frozen
+/// public type. The unit tests pin every discriminant below
+/// `FIRST_LAYER_LANE`, so `as u8` cannot truncate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum Subsystem {
     Fields = 0,
@@ -45,6 +51,11 @@ pub enum Subsystem {
     Structures = 4,
     Ecology = 5,
 }
+
+/// The first subsystem lane free for layers built on this crate: every
+/// `Subsystem` discriminant is below it, and a layer's own lanes start
+/// here (passed to `stream_seed_lane`).
+pub const FIRST_LAYER_LANE: u8 = 6;
 
 pub fn stream_seed(
     world_seed: u32,
@@ -76,9 +87,11 @@ pub fn stream_seed_bytes(
     stream_seed_lane(world_seed, dimension, subsystem as u8, salt, owner_cell)
 }
 
-/// The five-component derivation over a raw lane number. Lanes 0..=5 are
-/// the `Subsystem` values; layers built on this crate claim lanes from 6
-/// up without adding `Subsystem` variants.
+/// The five-component derivation over a raw subsystem lane number (a seed
+/// lane, not a topology lane; see `crate::lane`). Lanes below
+/// [`FIRST_LAYER_LANE`] are the `Subsystem` values; layers built on this
+/// crate claim lanes from `FIRST_LAYER_LANE` up without adding `Subsystem`
+/// variants.
 #[inline]
 pub fn stream_seed_lane(
     world_seed: u32,
@@ -205,20 +218,41 @@ mod tests {
         }
     }
 
+    /// Exhaustive on purpose: a new `Subsystem` variant does not compile
+    /// until it is pinned here (and added to the list below).
+    fn pinned_lane(subsystem: Subsystem) -> u64 {
+        match subsystem {
+            Subsystem::Fields => 0,
+            Subsystem::Partition => 1,
+            Subsystem::Carvers => 2,
+            Subsystem::Hydrology => 3,
+            Subsystem::Structures => 4,
+            Subsystem::Ecology => 5,
+        }
+    }
+
     #[test]
     fn subsystem_discriminants_are_pinned() {
         // Order is identity: these values are hashed into every seed.
-        let pinned = [
-            (Subsystem::Fields, 0u8),
-            (Subsystem::Partition, 1),
-            (Subsystem::Carvers, 2),
-            (Subsystem::Hydrology, 3),
-            (Subsystem::Structures, 4),
-            (Subsystem::Ecology, 5),
+        let all = [
+            Subsystem::Fields,
+            Subsystem::Partition,
+            Subsystem::Carvers,
+            Subsystem::Hydrology,
+            Subsystem::Structures,
+            Subsystem::Ecology,
         ];
-        for (subsystem, lane) in pinned {
-            assert_eq!(subsystem as u8, lane, "{subsystem:?} moved");
-            assert_eq!(subsystem as u64, lane as u64, "{subsystem:?} moved");
+        for subsystem in all {
+            let lane = pinned_lane(subsystem);
+            assert_eq!(subsystem as u64, lane, "{subsystem:?} moved");
+            assert_eq!(
+                subsystem as u8 as u64, lane,
+                "{subsystem:?} truncates to a u8"
+            );
+            assert!(
+                lane < FIRST_LAYER_LANE as u64,
+                "{subsystem:?} reaches the layer lanes"
+            );
         }
     }
 

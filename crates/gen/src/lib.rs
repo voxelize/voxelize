@@ -72,7 +72,7 @@ pub use spec::{
 pub use stages::install;
 pub use stream::{
     cell_id, fnv1a_64, hash_unit, mix64, stream_seed, stream_seed_bytes, stream_seed_lane,
-    HashStream, SaltPath, Subsystem,
+    HashStream, SaltPath, Subsystem, FIRST_LAYER_LANE,
 };
 pub use structures::{
     AdaptationSpec, Dir4, PieceBuilder, PieceCellState, PieceDef, PlacementConstraint,
