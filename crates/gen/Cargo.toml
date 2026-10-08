@@ -37,6 +37,10 @@ criterion = { version = "0.5", features = ["html_reports"] }
 name = "gen_bench"
 harness = false
 
+[[test]]
+name = "landscape_kernel"
+required-features = ["unstable-landscape"]
+
 # `cargo test` runs this example's own tests (its SHA-256 known answers and
 # the budget gate's rules), which it would otherwise only build.
 [[example]]

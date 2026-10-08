@@ -74,6 +74,11 @@ jobs:
       - name: Run generator tests
         run: cargo test -p voxelize-gen --release
 
+      # The unstable landscape module and its kit, which a default build
+      # never compiles.
+      - name: Run landscape tests
+        run: cargo test -p voxelize-gen --release --features unstable-landscape,kit,gen-counters
+
       # Proves the walk benchmark still runs; timings are reported, never
       # gated here (the wall-clock gate needs GEN_BUDGET_GATE=1 on a bench host).
       - name: Walk benchmark smoke
