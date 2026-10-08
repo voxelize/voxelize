@@ -70,6 +70,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # Includes walk_bench's own tests (`test = true` in its manifest).
       - name: Run generator tests
         run: cargo test -p voxelize-gen --release
 

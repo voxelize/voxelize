@@ -11,14 +11,18 @@
 //! - `trace:<file>`: a recorded request order, one chunk per line as
 //!   `cx cz` or `cx,cz` (blank lines and `#` comments are skipped).
 //!
-//! The v1 fixtures (`fixture`, `geology`, `walker`) come from
-//! `tests/fixtures`. A calibration kernel (1M 2D noise octaves plus 1M
-//! trilinear lattice samples) runs first, and every p50 is also reported in
-//! calibration units, so budgets survive a slower or busier machine.
+//! The v1 fixtures (`fixture`, `geology_fixture`, `walker_fixture`, named
+//! as in `tests/golden/v1.json`; `geology` and `walker` are accepted as
+//! short forms) come from `tests/fixtures`. A calibration kernel (1M 2D
+//! noise octaves plus 1M trilinear lattice samples, on a frozen private
+//! copy of the noise so the yardstick never moves with the code it
+//! measures) runs first, and every p50 is also reported in calibration
+//! units, so budgets survive a slower or busier machine.
 //!
 //! ```text
 //! cargo run -p voxelize-gen --release --example walk_bench -- [options]
-//!   --fixtures fixture,geology,walker  fixtures to walk (default: fixture)
+//!   --fixtures fixture,geology_fixture,walker_fixture
+//!                                      fixtures to walk (default: fixture)
 //!   --workloads spiral,teleport        workloads (default: spiral,teleport)
 //!   --workers 1,4,8                    worker counts (default: 1,4,8)
 //!   --quick                            short routes (a smoke run)
@@ -27,7 +31,9 @@
 //!   --note TEXT                        stamp the report (for example the commit it measured)
 //!   --pin FILE                         write the measured rows as a budget file
 //!   --gate FILE                        compare against a budget file; fails only when
-//!                                      GEN_BUDGET_GATE=1 (locally it prints and passes)
+//!                                      GEN_BUDGET_GATE=1 (locally it prints and passes).
+//!                                      It compares only runs measured like the pin: the
+//!                                      same routes and at least the pinned --repeat
 //!   --ab BEFORE AFTER [--rounds N]     alternate two walk_bench binaries (ABBA order) with
 //!                                      the other options, and report each one's median p50
 //!                                      and the delta; records both binaries' sha256
@@ -44,9 +50,11 @@ use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 use voxelize::VoxelAccess;
-use voxelize_gen::{GeneratorSpec, Perlin};
+use voxelize_gen::GeneratorSpec;
 
-use fixtures::{fixture_spec, geology_fixture_spec, harness_for, walker_fixture_spec, Harness};
+use fixtures::{
+    fixture_spec, geology_fixture_spec, harness_for, walker_fixture_spec, Harness, CHUNK,
+};
 
 /// Default share a p50 may grow past its pinned value before the gate fails.
 const DEFAULT_MAX_P50_REGRESSION: f64 = 0.03;
@@ -119,6 +127,21 @@ struct Budget {
     gate_workers: Vec<usize>,
     measured: Measured,
     rows: Vec<BudgetRow>,
+    /// Baselines other tools measured for the same generator, kept here so
+    /// later phases compare against a committed number. `--pin` carries
+    /// them over from the file it replaces.
+    #[serde(default)]
+    baselines: Vec<Baseline>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Baseline {
+    /// The command that measures it.
+    tool: String,
+    metric: String,
+    value: f64,
+    unit: String,
+    note: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,12 +313,22 @@ fn parse_options() -> Options {
     options
 }
 
-fn fixture(name: &str) -> GeneratorSpec {
+/// The canonical fixture name (the golden file's key) for a name or its
+/// short form.
+fn fixture_name(name: &str) -> &'static str {
     match name {
+        "fixture" => "fixture",
+        "geology_fixture" | "geology" => "geology_fixture",
+        "walker_fixture" | "walker" => "walker_fixture",
+        other => panic!("unknown fixture {other} (fixture, geology_fixture, walker_fixture)"),
+    }
+}
+
+fn fixture(name: &str) -> GeneratorSpec {
+    match fixture_name(name) {
         "fixture" => fixture_spec(),
-        "geology" => geology_fixture_spec(),
-        "walker" => walker_fixture_spec(),
-        other => panic!("unknown fixture {other} (fixture, geology, walker)"),
+        "geology_fixture" => geology_fixture_spec(),
+        _ => walker_fixture_spec(),
     }
 }
 
@@ -414,7 +447,8 @@ fn walk(harness: &Harness, route: &[(i32, i32)], workers: usize) -> (f64, Vec<f6
                         let chunk_started = Instant::now();
                         let chunk = harness.generate_chunk(cx, cz);
                         local.push(chunk_started.elapsed().as_secs_f64() * 1e3);
-                        std::hint::black_box(chunk.get_voxel(cx * 16, 40, cz * 16));
+                        let size = CHUNK as i32;
+                        std::hint::black_box(chunk.get_voxel(cx * size, 40, cz * size));
                     }
                     local
                 })
@@ -456,16 +490,103 @@ fn row(
     }
 }
 
+/// The calibration kernel's arithmetic: a frozen private copy of the 2D
+/// gradient noise and seed mixer voxelize-gen shipped when the budgets were
+/// first pinned. The yardstick must not share code with what it measures:
+/// a faster crate noise would otherwise raise every ratio (a false
+/// regression) and a slower one would hide part of a real one.
+mod kernel {
+    #[inline]
+    pub fn mix64(mut x: u64) -> u64 {
+        x ^= x >> 30;
+        x = x.wrapping_mul(0xbf58476d1ce4e5b9);
+        x ^= x >> 27;
+        x = x.wrapping_mul(0x94d049bb133111eb);
+        x ^= x >> 31;
+        x
+    }
+
+    #[inline]
+    pub fn unit(h: u64) -> f64 {
+        (h >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    pub struct Noise2 {
+        perm: Box<[u8; 512]>,
+    }
+
+    impl Noise2 {
+        pub fn new(seed: u64) -> Self {
+            let mut table: [u8; 256] = [0; 256];
+            for (i, slot) in table.iter_mut().enumerate() {
+                *slot = i as u8;
+            }
+            let mut state = seed;
+            for i in (1..256usize).rev() {
+                state = mix64(state.wrapping_add(0x9e3779b97f4a7c15));
+                let j = (state % (i as u64 + 1)) as usize;
+                table.swap(i, j);
+            }
+            let mut perm = Box::new([0u8; 512]);
+            for i in 0..512 {
+                perm[i] = table[i & 255];
+            }
+            Self { perm }
+        }
+
+        #[inline]
+        fn fade(t: f64) -> f64 {
+            t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+        }
+
+        #[inline]
+        fn grad(hash: u8, x: f64, y: f64) -> f64 {
+            match hash & 7 {
+                0 => x + y,
+                1 => x - y,
+                2 => -x + y,
+                3 => -x - y,
+                4 => x,
+                5 => -x,
+                6 => y,
+                _ => -y,
+            }
+        }
+
+        pub fn sample(&self, x: f64, y: f64) -> f64 {
+            let xf = x.floor();
+            let yf = y.floor();
+            let xi = (xf as i64 & 255) as usize;
+            let yi = (yf as i64 & 255) as usize;
+            let dx = x - xf;
+            let dy = y - yf;
+            let u = Self::fade(dx);
+            let v = Self::fade(dy);
+            let p = &self.perm;
+            let a = p[xi] as usize + yi;
+            let b = p[xi + 1] as usize + yi;
+            let lerp = |a: f64, b: f64, t: f64| a + (b - a) * t;
+            let x1 = lerp(Self::grad(p[a], dx, dy), Self::grad(p[b], dx - 1.0, dy), u);
+            let x2 = lerp(
+                Self::grad(p[a + 1], dx, dy - 1.0),
+                Self::grad(p[b + 1], dx - 1.0, dy - 1.0),
+                u,
+            );
+            lerp(x1, x2, v) * std::f64::consts::FRAC_1_SQRT_2
+        }
+    }
+}
+
 /// 1M 2D noise octaves plus 1M trilinear samples of a 17^3 lattice, in ms:
 /// the fastest of `runs` runs, which is the one least disturbed by load.
 fn calibrate(runs: usize) -> f64 {
-    let noise = Perlin::new(0x0ca1_1b8a7e);
+    let noise = kernel::Noise2::new(0x0ca1_1b8a7e);
     let lattice: Vec<f64> = {
         let mut state = 0x9e37_79b9_7f4a_7c15u64;
         (0..17 * 17 * 17)
             .map(|_| {
-                state = voxelize_gen::mix64(state.wrapping_add(0x9e37_79b9_7f4a_7c15));
-                voxelize_gen::hash_unit(state)
+                state = kernel::mix64(state.wrapping_add(0x9e37_79b9_7f4a_7c15));
+                kernel::unit(state)
             })
             .collect()
     };
@@ -477,7 +598,7 @@ fn calibrate(runs: usize) -> f64 {
         for i in 0..1_000_000u32 {
             let x = (i % 1000) as f64 * 0.731 + 0.13;
             let z = (i / 1000) as f64 * 0.517 + 0.71;
-            sum += noise.sample2(x, z);
+            sum += noise.sample(x, z);
         }
         for i in 0..1_000_000u32 {
             let fx = (i % 997) as f64 * (15.999 / 997.0);
@@ -502,7 +623,8 @@ fn calibrate(runs: usize) -> f64 {
 /// the caller once the calibration is final.
 fn measure(options: &Options) -> Vec<Row> {
     let mut rows = Vec::new();
-    for fixture_name in &options.fixtures {
+    for name in &options.fixtures {
+        let fixture_name = fixture_name(name);
         let spec = fixture(fixture_name);
         for workload in &options.workloads {
             let walk_route = route(workload, options.quick);
@@ -721,23 +843,48 @@ fn gate_enabled() -> bool {
     std::env::var("GEN_BUDGET_GATE").as_deref() == Ok("1")
 }
 
-/// Compares measured rows with a pinned budget, in calibration units.
-/// Returns whether every gating row is within budget.
-fn gate(report: &Report, budget_path: &Path) -> bool {
-    let text = std::fs::read_to_string(budget_path)
-        .unwrap_or_else(|error| panic!("cannot read {}: {error}", budget_path.display()));
-    let budget: Budget = serde_json::from_str(&text).expect("budget parses");
+/// What a gate run concluded.
+#[derive(Debug, Clone, PartialEq)]
+enum GateOutcome {
+    /// Every gating row is within budget.
+    Within,
+    /// At least one gating row grew past the budget.
+    Over,
+    /// Nothing measured is comparable with the pin (the reason says why).
+    NotComparable(String),
+}
+
+fn read_budget(path: &Path) -> Budget {
+    let text = std::fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+    serde_json::from_str(&text).expect("budget parses")
+}
+
+/// Compares measured rows with a pinned budget, in calibration units. A
+/// run measured with fewer repeats than the pin is not compared at all:
+/// single runs drift by about the tolerance, so they would flap.
+fn gate(report: &Report, budget_path: &Path) -> GateOutcome {
+    println!("budget {}", budget_path.display());
+    gate_against(report, &read_budget(budget_path))
+}
+
+fn gate_against(report: &Report, budget: &Budget) -> GateOutcome {
     let pinned: BTreeMap<&str, &BudgetRow> = budget
         .rows
         .iter()
         .map(|row| (row.key.as_str(), row))
         .collect();
     println!(
-        "budget {} (p50 may grow {:.0}% in calibration units; gating workers {:?})",
-        budget_path.display(),
+        "p50 may grow {:.0}% in calibration units; gating workers {:?}",
         budget.max_p50_regression * 100.0,
         budget.gate_workers
     );
+    if report.repeat < budget.measured.repeat {
+        return GateOutcome::NotComparable(format!(
+            "measured with --repeat {}, the budget was pinned at --repeat {}",
+            report.repeat, budget.measured.repeat
+        ));
+    }
     println!(
         "{:<34} {:>10} {:>10} {:>8} {:>9}  verdict (on the cal delta)",
         "row", "pinned cal", "now cal", "delta", "ms delta"
@@ -779,10 +926,15 @@ fn gate(report: &Report, budget_path: &Path) -> bool {
         );
     }
     if compared == 0 {
-        println!("no measured row matches the budget");
-        ok = false;
+        return GateOutcome::NotComparable(
+            "no measured row matches a pinned row (same key and route)".into(),
+        );
     }
-    ok
+    if ok {
+        GateOutcome::Within
+    } else {
+        GateOutcome::Over
+    }
 }
 
 fn run_ab(options: &Options, before: &Path, after: &Path) -> bool {
@@ -934,10 +1086,17 @@ fn main() {
         write_json(path, &report);
     }
     if let Some(path) = &options.pin {
+        // Baselines measured by other tools outlive a re-pin.
+        let baselines = if path.exists() {
+            read_budget(path).baselines
+        } else {
+            Vec::new()
+        };
         let budget = Budget {
             about: "Walk budgets for the v1 fixtures, written by `walk_bench --pin`. The gate \
                     compares p50 in calibration units (p50 divided by the calibration kernel's \
-                    time) and fails only when GEN_BUDGET_GATE=1."
+                    time), only for runs with the pinned routes and at least the pinned \
+                    --repeat, and fails only when GEN_BUDGET_GATE=1."
                 .into(),
             generator: "v1".into(),
             max_p50_regression: DEFAULT_MAX_P50_REGRESSION,
@@ -962,21 +1121,27 @@ fn main() {
                     p50_cal: row.p50_cal,
                 })
                 .collect(),
+            baselines,
         };
         write_json(path, &budget);
     }
     if let Some(path) = &options.gate {
-        let ok = gate(&report, path);
+        let outcome = gate(&report, path);
         println!(
             "budget gate: {}{}",
-            if ok { "within budget" } else { "OVER budget" },
+            match &outcome {
+                GateOutcome::Within => "within budget".to_string(),
+                GateOutcome::Over => "OVER budget".to_string(),
+                GateOutcome::NotComparable(reason) => format!("not comparable ({reason})"),
+            },
             if gate_enabled() {
                 ""
             } else {
                 " (GEN_BUDGET_GATE unset: reporting only)"
             }
         );
-        if !ok && gate_enabled() {
+        // An enforced gate that compared nothing must not pass silently.
+        if outcome != GateOutcome::Within && gate_enabled() {
             std::process::exit(1);
         }
     }
@@ -985,6 +1150,119 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_row(fixture: &str, workers: usize, chunks: usize, p50_ms: f64, p50_cal: f64) -> Row {
+        Row {
+            fixture: fixture.into(),
+            workload: "spiral".into(),
+            workers,
+            pass: "cold".into(),
+            chunks,
+            compile_ms: None,
+            wall_ms: 1.0,
+            p50_ms,
+            p95_ms: p50_ms,
+            max_ms: p50_ms,
+            mean_ms: p50_ms,
+            p50_cal,
+        }
+    }
+
+    fn test_report(repeat: usize, rows: Vec<Row>) -> Report {
+        Report {
+            tool: "walk_bench".into(),
+            format: 1,
+            generator: "v1".into(),
+            note: None,
+            binary: BinaryStamp {
+                path: String::new(),
+                sha256: String::new(),
+            },
+            host: host(),
+            quick: false,
+            repeat,
+            calibration_ms: 10.0,
+            rows,
+        }
+    }
+
+    fn test_budget(repeat: usize) -> Budget {
+        Budget {
+            about: String::new(),
+            generator: "v1".into(),
+            max_p50_regression: 0.03,
+            gate_workers: vec![1],
+            measured: Measured {
+                note: None,
+                binary_sha256: String::new(),
+                host: host(),
+                repeat,
+                quick: false,
+                calibration_ms: 10.0,
+            },
+            rows: vec![BudgetRow {
+                key: "fixture/spiral/w1/cold".into(),
+                chunks: 256,
+                p50_ms: 0.6,
+                p95_ms: 0.7,
+                max_ms: 0.8,
+                p50_cal: 0.06,
+            }],
+            baselines: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn gate_compares_only_like_for_like_runs() {
+        let budget = test_budget(5);
+        let within = test_report(5, vec![test_row("fixture", 1, 256, 0.6, 0.061)]);
+        assert_eq!(gate_against(&within, &budget), GateOutcome::Within);
+        let over = test_report(5, vec![test_row("fixture", 1, 256, 0.6, 0.0625)]);
+        assert_eq!(gate_against(&over, &budget), GateOutcome::Over);
+        // Fewer repeats than the pin: single runs drift by the tolerance.
+        let single = test_report(1, vec![test_row("fixture", 1, 256, 0.6, 0.0625)]);
+        assert!(matches!(
+            gate_against(&single, &budget),
+            GateOutcome::NotComparable(_)
+        ));
+        // A `--quick` route walks fewer chunks than the pinned route.
+        let quick = test_report(5, vec![test_row("fixture", 1, 64, 0.6, 0.0625)]);
+        assert!(matches!(
+            gate_against(&quick, &budget),
+            GateOutcome::NotComparable(_)
+        ));
+        // Rows outside `gate_workers` are reported, never failed.
+        let mut budget = budget;
+        budget.rows[0].key = "fixture/spiral/w8/cold".into();
+        let busy = test_report(5, vec![test_row("fixture", 8, 256, 0.6, 0.09)]);
+        assert_eq!(gate_against(&busy, &budget), GateOutcome::Within);
+    }
+
+    #[test]
+    fn calibration_kernel_is_frozen() {
+        // The yardstick's arithmetic is pinned: editing the kernel would
+        // move every calibration-unit budget. (At pinning time this equals
+        // the crate's own 2D noise, which its goldens pin separately.)
+        let noise = kernel::Noise2::new(0x0ca1_1b8a7e);
+        let mut sum = 0.0;
+        for i in 0..1000u32 {
+            let x = (i % 1000) as f64 * 0.731 + 0.13;
+            let z = (i / 7) as f64 * 0.517 + 0.71;
+            sum += noise.sample(x, z);
+        }
+        assert_eq!(
+            f64::to_bits(sum),
+            0x4010a22eacc62c05,
+            "kernel drifted: {sum}"
+        );
+    }
+
+    #[test]
+    fn fixture_names_match_the_golden_keys() {
+        assert_eq!(fixture_name("geology"), "geology_fixture");
+        assert_eq!(fixture_name("walker_fixture"), "walker_fixture");
+        assert_eq!(fixture_name("fixture"), "fixture");
+    }
 
     #[test]
     fn sha256_matches_known_digests() {

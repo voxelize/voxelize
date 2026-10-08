@@ -1,120 +1,129 @@
 {
-  "about": "Walk budgets for the v1 fixtures, written by `walk_bench --pin`. The gate compares p50 in calibration units (p50 divided by the calibration kernel's time) and fails only when GEN_BUDGET_GATE=1.",
+  "about": "Walk budgets for the v1 fixtures, written by `walk_bench --pin`. The gate compares p50 in calibration units (p50 divided by the calibration kernel's time), only for runs with the pinned routes and at least the pinned --repeat, and fails only when GEN_BUDGET_GATE=1.",
   "generator": "v1",
   "max_p50_regression": 0.03,
   "gate_workers": [
     1
   ],
   "measured": {
-    "note": "pre-change baseline: v1 source at 9b181735c (P0 base)",
-    "binary_sha256": "ad8cb1eec70cf7971676c66712591d132843a053880d4f916c6eee3bf5067424",
+    "note": "pre-change baseline: v1 source at 9b181735c (P0 base), frozen calibration kernel",
+    "binary_sha256": "eb3439259661a3a29a987437a4751b705e157dd66cb14b972ef0a6fe4c4d91f4",
     "host": {
       "os": "macos",
       "arch": "aarch64",
       "cpus": 18,
-      "load_average": "13.15 23.27 22.70",
-      "unix_time": 1791421588
+      "load_average": "60.55 43.07 33.86",
+      "unix_time": 1791425177
     },
     "repeat": 5,
     "quick": false,
-    "calibration_ms": 13.731958
+    "calibration_ms": 13.889458000000001
   },
   "rows": [
     {
       "key": "fixture/spiral/w1/cold",
       "chunks": 256,
-      "p50_ms": 0.616125,
-      "p95_ms": 0.6847920000000001,
-      "max_ms": 0.727417,
-      "p50_cal": 0.04486796420437639
+      "p50_ms": 0.614791,
+      "p95_ms": 0.685459,
+      "max_ms": 0.719625,
+      "p50_cal": 0.04426313827364609
     },
     {
       "key": "fixture/spiral/w1/warm",
       "chunks": 256,
-      "p50_ms": 0.617416,
-      "p95_ms": 0.684542,
-      "max_ms": 0.731792,
-      "p50_cal": 0.04496197847386366
+      "p50_ms": 0.615875,
+      "p95_ms": 0.684,
+      "max_ms": 0.7306250000000001,
+      "p50_cal": 0.044341183075682286
     },
     {
       "key": "fixture/spiral/w4/cold",
       "chunks": 256,
-      "p50_ms": 0.624375,
-      "p95_ms": 0.7004589999999999,
-      "max_ms": 0.745709,
-      "p50_cal": 0.04546875252604181
+      "p50_ms": 0.626917,
+      "p95_ms": 0.705833,
+      "max_ms": 0.8982079999999999,
+      "p50_cal": 0.045136174500113674
     },
     {
       "key": "fixture/spiral/w4/warm",
       "chunks": 256,
-      "p50_ms": 0.625209,
-      "p95_ms": 0.696084,
-      "max_ms": 0.741333,
-      "p50_cal": 0.045529486763650165
+      "p50_ms": 0.628291,
+      "p95_ms": 0.702083,
+      "max_ms": 0.8206669999999999,
+      "p50_cal": 0.04523509844660605
     },
     {
       "key": "fixture/spiral/w8/cold",
       "chunks": 256,
-      "p50_ms": 0.667084,
-      "p95_ms": 1.040708,
-      "max_ms": 1.8461249999999998,
-      "p50_cal": 0.048578942638770085
+      "p50_ms": 0.65975,
+      "p95_ms": 1.001041,
+      "max_ms": 1.238083,
+      "p50_cal": 0.04750005363780213
     },
     {
       "key": "fixture/spiral/w8/warm",
       "chunks": 256,
-      "p50_ms": 0.663583,
-      "p95_ms": 1.00625,
-      "max_ms": 1.406209,
-      "p50_cal": 0.04832398992190334
+      "p50_ms": 0.6523329999999999,
+      "p95_ms": 0.9807920000000001,
+      "max_ms": 1.228875,
+      "p50_cal": 0.046966051519072946
     },
     {
       "key": "fixture/teleport/w1/cold",
       "chunks": 200,
-      "p50_ms": 0.628875,
-      "p95_ms": 0.700709,
-      "max_ms": 0.7436670000000001,
-      "p50_cal": 0.04579645524695021
+      "p50_ms": 0.626,
+      "p95_ms": 0.697208,
+      "max_ms": 0.751417,
+      "p50_cal": 0.04507015320540225
     },
     {
       "key": "fixture/teleport/w1/warm",
       "chunks": 200,
-      "p50_ms": 0.626667,
-      "p95_ms": 0.7006249999999999,
-      "max_ms": 0.749541,
-      "p50_cal": 0.04563566244522449
+      "p50_ms": 0.625583,
+      "p95_ms": 0.6977920000000001,
+      "max_ms": 0.745708,
+      "p50_cal": 0.045040130435615264
     },
     {
       "key": "fixture/teleport/w4/cold",
       "chunks": 200,
-      "p50_ms": 0.647916,
-      "p95_ms": 0.7505,
-      "max_ms": 0.958917,
-      "p50_cal": 0.047183074693354
+      "p50_ms": 0.636459,
+      "p95_ms": 0.71075,
+      "max_ms": 0.7600830000000001,
+      "p50_cal": 0.04582317034977174
     },
     {
       "key": "fixture/teleport/w4/warm",
       "chunks": 200,
-      "p50_ms": 0.6392909999999999,
-      "p95_ms": 0.723,
-      "max_ms": 0.7632920000000001,
-      "p50_cal": 0.04655497781161288
+      "p50_ms": 0.638209,
+      "p95_ms": 0.713,
+      "max_ms": 0.7665420000000001,
+      "p50_cal": 0.04594916518700729
     },
     {
       "key": "fixture/teleport/w8/cold",
       "chunks": 200,
-      "p50_ms": 0.671875,
-      "p95_ms": 1.110625,
-      "max_ms": 1.318292,
-      "p50_cal": 0.04892783680229724
+      "p50_ms": 0.6767500000000001,
+      "p95_ms": 1.011917,
+      "max_ms": 1.3905,
+      "p50_cal": 0.04872400348523319
     },
     {
       "key": "fixture/teleport/w8/warm",
       "chunks": 200,
-      "p50_ms": 0.674125,
-      "p95_ms": 1.04925,
-      "max_ms": 1.3403340000000001,
-      "p50_cal": 0.04909168816275144
+      "p50_ms": 0.67325,
+      "p95_ms": 1.0117909999999999,
+      "max_ms": 1.282208,
+      "p50_cal": 0.048472013810762084
+    }
+  ],
+  "baselines": [
+    {
+      "tool": "cargo test -p voxelize-gen --release --test generation generation_cost_smoke -- --nocapture",
+      "metric": "p50 generation cost per 16x16x128 fixture chunk",
+      "value": 649.0,
+      "unit": "us",
+      "note": "P0 baseline (crates/gen/docs/landscape.md, section 7.3): median of 5 runs of the test binary built at the P0 base 9b181735c (649, 645, 651, 647, 653), macOS aarch64, 18 cpus, load 10-33; the P0 build measured 649 (median of 5 alternated runs). Later phases may not regress it by more than 3%."
     }
   ]
 }
