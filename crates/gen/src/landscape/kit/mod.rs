@@ -5,13 +5,23 @@
 //!   shuffles, caches at capacity one, grid equals point, two processes,
 //!   and the run writer's height-map contract.
 //!
-//! The landform, province and structure suites arrive with the plugin kinds
-//! they test.
+//! - [`landform`] and [`landform_suite!`]: the landform suite, and the
+//!   test landforms [`TestMesa`] (Cells) and [`TestSwell`] (Field) with
+//!   the `kit.proving` preset that enables them.
+//!
+//! The province and structure suites arrive with the volume pass and the
+//! structure system.
 
 pub mod determinism;
+pub mod landform;
 pub mod no_libm;
 
 pub use determinism::determinism_suite;
+pub use landform::{
+    landform_suite, mesa_node, nearest_instance, paint_zone, proving_landscape,
+    register_test_kinds, swell_node, test_kinds, LandformCase, MesaCell, MesaPlan, SwellPlan,
+    TestMesa, TestMesaParams, TestSwell, TestSwellParams,
+};
 
 /// Fails the calling test if any `.rs` file under `dir` (relative to the
 /// calling crate's manifest directory) calls the platform maths library:
