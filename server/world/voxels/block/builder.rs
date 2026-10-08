@@ -6,7 +6,8 @@ use super::super::fluids::create_fluid_active_fn;
 use super::coupled::coupled_guard_fns;
 use super::rules::{attached_support_fns, solid_below_support_fns};
 use super::{
-    Block, BlockDynamicPattern, ConnectedFrame, CoupledPart, SupportRequirement, YRotatableSegments,
+    Block, BlockDynamicPattern, BranchShape, BranchSocket, ConnectedFrame, CoupledPart,
+    SupportRequirement, YRotatableSegments,
 };
 
 #[derive(Default)]
@@ -57,6 +58,8 @@ pub struct BlockBuilder {
     face_emissives: Vec<(String, f32)>,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     connected: Option<ConnectedFrame>,
+    branch: Option<BranchShape>,
+    branch_sockets: Vec<BranchSocket>,
     dynamic_fn: Option<
         Arc<
             dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -478,6 +481,23 @@ impl BlockBuilder {
         self
     }
 
+    /// Draw every voxel of this block as a branch: a square-section tube of
+    /// the radius its stage holds, joined to neighbours of the same key at
+    /// the thinner of the two radii. Collision and picking follow the drawn
+    /// shape. The block's `faces` must include the shape's side and end
+    /// faces, whose textures the branch wears.
+    pub fn branch(mut self, shape: BranchShape) -> Self {
+        self.branch = Some(shape);
+        self
+    }
+
+    /// Let branches of `socket.key` up to `socket.max_radius` run into this
+    /// block, as a twig runs into a leaf or a trunk into its soil.
+    pub fn branch_socket(mut self, socket: BranchSocket) -> Self {
+        self.branch_sockets.push(socket);
+        self
+    }
+
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
         F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -546,7 +566,10 @@ impl BlockBuilder {
             );
         }
         for (prefix, mask) in &self.face_pigments {
-            for face in faces.iter_mut().filter(|face| face.name.starts_with(prefix)) {
+            for face in faces
+                .iter_mut()
+                .filter(|face| face.name.starts_with(prefix))
+            {
                 face.pigment_mask = *mask;
             }
         }
@@ -573,6 +596,50 @@ impl BlockBuilder {
                 self.name,
                 frame.texels_per_block
             );
+        }
+        if let Some(shape) = &self.branch {
+            assert!(
+                !self.rotatable && !self.y_rotatable,
+                "{}: a branch is laid in world space and cannot rotate",
+                self.name
+            );
+            assert!(
+                self.dynamic_fn.is_none() && self.dynamic_patterns.is_none(),
+                "{}: a branch's shape comes from its radius and joints alone",
+                self.name
+            );
+            assert!(
+                shape.texels_per_block >= 2 && shape.texels_per_block % 2 == 0,
+                "{}: a branch needs an even number of texels per block, not {}",
+                self.name,
+                shape.texels_per_block
+            );
+            let bits = shape.radius_mask >> shape.radius_mask.trailing_zeros().min(31);
+            assert!(
+                shape.radius_mask != 0 && (bits & (bits + 1)) == 0,
+                "{}: the radius must sit in one run of stage bits, not {:#06b}",
+                self.name,
+                shape.radius_mask
+            );
+            assert!(
+                shape.radius_mask <= 0xF && bits < shape.max_radius(),
+                "{}: radius bits {:#06b} reach past half a block of {} texels",
+                self.name,
+                shape.radius_mask,
+                shape.texels_per_block
+            );
+            assert!(
+                self.stage_tint_mask == 0 && self.face_pigments.is_empty(),
+                "{}: a branch's stage holds its radius, not a tint",
+                self.name
+            );
+            for name in [&shape.side_face, &shape.end_face] {
+                assert!(
+                    faces.iter().any(|face| &face.name == name),
+                    "{}: the branch wears face {name:?}, which the block does not have",
+                    self.name
+                );
+            }
         }
 
         // A coupled block is always active: the orphan guard wraps whatever
@@ -638,9 +705,13 @@ impl BlockBuilder {
                 self.is_nz_transparent,
             ],
             light_attenuation: self.light_attenuation,
-            is_dynamic: self.dynamic_fn.is_some() || self.dynamic_patterns.is_some(),
+            is_dynamic: self.dynamic_fn.is_some()
+                || self.dynamic_patterns.is_some()
+                || self.branch.is_some(),
             dynamic_patterns: self.dynamic_patterns,
             connected: self.connected,
+            branch: self.branch,
+            branch_sockets: self.branch_sockets,
             dynamic_fn: self.dynamic_fn,
             is_active: active_updater.is_some() && active_ticker.is_some(),
             active_ticker,

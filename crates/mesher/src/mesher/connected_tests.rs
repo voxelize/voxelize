@@ -173,6 +173,8 @@ fn block(id: u32, name: &str) -> Block {
         aabbs: vec![unit_aabb()],
         dynamic_patterns: None,
         connected: None,
+        branch: None,
+        branch_sockets: vec![],
     }
 }
 
