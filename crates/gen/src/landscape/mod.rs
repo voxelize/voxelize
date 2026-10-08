@@ -5,6 +5,14 @@
 //! builds `voxelize-gen` without that feature compiles or links any of it.
 //! The design lives in `crates/gen/docs/landscape.md`.
 //!
+//! **Plugins and composition**: the five plugin kinds ([`Landform`],
+//! [`RegionSolver`], [`Province`], [`Surfacer`] and [`SiteSet`]) acquire
+//! every input as a typed handle from [`BuildCtx`], which records the
+//! planner [`Dag`]; instances live in a spatial index and are dispatched
+//! once per chunk with a masked [`ColumnBatch`]; ground ops are one-sided
+//! soft clamps faded by an engine-computed footprint edge, and claims carry
+//! continuous weights ([`compose`]).
+//!
 //! **The heightfield core**: a [`LandscapeSpec`] (owned
 //! data, read strictly from JSON with correctly rounded numbers, written
 //! canonically, merge-patchable) compiles against a [`KindRegistry`], a
@@ -25,6 +33,11 @@
 //!   engine stage and run writer, public queries, provenance;
 //! - [`surface`], [`library`], [`water`], [`flora`]: paint, the built-in
 //!   surfacers, the sea, trees;
+//! - [`plugin`], [`build`], [`registry`], [`dag`], [`compose`], [`index`],
+//!   [`plan`], [`volume`]: the plugin kinds, typed handles, the kind
+//!   registry, the planner DAG and composition order, the composition
+//!   contract, the plan index and dispatch, planning with budgets, and the
+//!   province volume;
 //! - [`identity`]: identity persisted next to the chunks;
 //! - [`quality`], [`counters`]: taste and cost as numbers;
 //! - [`presets`]: the `plain` preset, the standard roles, the demo blocks.
@@ -68,10 +81,13 @@
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 #![warn(missing_docs)]
 
+pub mod build;
 pub mod cache;
 pub mod canon;
 pub mod compile;
+pub mod compose;
 pub mod counters;
+pub mod dag;
 pub mod explain;
 pub mod facts;
 pub mod fields;
@@ -79,6 +95,7 @@ pub mod flood;
 pub mod flora;
 pub mod geometry;
 pub mod identity;
+pub mod index;
 pub mod json;
 #[cfg(feature = "kit")]
 pub mod kit;
@@ -88,6 +105,8 @@ pub mod lower;
 pub mod math;
 pub mod mirror;
 pub mod network;
+pub mod plan;
+pub mod plugin;
 pub mod presets;
 pub mod profile;
 pub mod quality;
@@ -98,12 +117,27 @@ pub mod spec;
 pub mod stage;
 pub mod strata;
 pub mod surface;
+pub mod volume;
 pub mod water;
 
+pub use build::{
+    BuildCtx, ClaimReader, FactKey, FieldRef, Noise, NoiseSpec, PlanReader, ProbeReader,
+    ProvinceHandle, RoleId, SpawnReader, Through,
+};
 pub use compile::{compile, compile_with, CompileOptions, Landscape};
+pub use compose::{
+    ClaimEntry, Claims, Col, ColumnBatch, ColumnClaims, ComposeLog, GroundOp, SolidSpan,
+};
+pub use dag::{Dag, DagEdge, DagNode};
 pub use explain::ColumnExplain;
 pub use facts::{BiomeCell, ChunkFacts, ColumnFact, Tier};
 pub use identity::{Compat, DriftPolicy, IdentityFile, KindStamp, LandscapeIdentity, ENGINE_ALGO};
+pub use index::{InstanceInfo, PlanStats};
+pub use plan::{forbid_solves, ForbidSolves, ItemCtx, PlanCtx, Work, WorkMeter};
+pub use plugin::{
+    Effect, Fact, Landform, LatticeView, Layer, Layout, Planned, Province, RegionSolver, Reject,
+    Site, SiteSet, TileId, TileLattice, TileSet, VoxelAt,
+};
 pub use presets::{Knobs, RoleBinding};
 pub use quality::{QualityBands, QualityReport};
 pub use query::{Query, SpawnOutcome, SpawnReport};
@@ -118,9 +152,22 @@ pub use water::{WaterBodyId, WaterColumn, WaterHit, WaterKind, WaterLayer};
 
 /// The names a game's landscape code reaches for.
 pub mod prelude {
+    pub use super::build::{
+        BuildCtx, ClaimReader, FactKey, FieldRef, Noise, NoiseSpec, PlanReader, ProbeReader,
+        ProvinceHandle, RoleId, SpawnReader, Through,
+    };
+    pub use super::compose::{Claims, Col, ColumnBatch, ColumnClaims, GroundOp};
     pub use super::fields::nodes::fx;
     pub use super::fields::{FieldExpr, NoiseM, TermRole};
-    pub use super::math::MinMax;
+    pub use super::geometry::{Aabb2, FadedFootprint, Footprint};
+    pub use super::lattice::LatticeSpec;
+    pub use super::math::{clamp01, smootherstep, smoothstep, MinMax};
+    pub use super::plan::{PlanCtx, WorkMeter};
+    pub use super::plugin::{
+        Effect, Fact, Landform, LatticeView, Layer, Layout, Planned, Province, RegionSolver, Site,
+        SiteSet, TileId, TileLattice, TileSet, VoxelAt,
+    };
+    pub use super::profile;
     pub use super::spec::{
         Domain, FieldDef, Height, LandscapeSpec, Resolution, Size, SpecError, Validate, Validator,
     };

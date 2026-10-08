@@ -545,6 +545,8 @@ mod tests {
             zone: super::super::surface::ZoneKey::NONE,
             water: WaterColumn::default(),
             kept: Default::default(),
+            claims: Default::default(),
+            cave_ceiling: None,
         };
         let got = ours.trees_in(min, max, sea, &mut column);
         // v1 also lists trunks in a padded ring around the window; both

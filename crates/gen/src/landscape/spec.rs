@@ -133,6 +133,34 @@ impl Validator {
         );
     }
 
+    /// `value` must be a `Size::Span` whose authored value lies in `range`.
+    pub fn span(&mut self, field: &str, value: Size, range: std::ops::RangeInclusive<f64>) {
+        match value {
+            Size::Span(v) => self.range(field, v, range),
+            Size::Blocks(_) => {
+                self.check(field, false, "must be a Span (it follows the scale knob)")
+            }
+        }
+    }
+
+    /// `(lo, hi)` must be two `Size::Span`s in `range` with `lo <= hi`.
+    pub fn ordered_span(
+        &mut self,
+        field: &str,
+        pair: (Size, Size),
+        range: std::ops::RangeInclusive<f64>,
+    ) {
+        self.span(&format!("{field}.0"), pair.0, range.clone());
+        self.span(&format!("{field}.1"), pair.1, range);
+        self.ordered(field, (pair.0.raw(), pair.1.raw()));
+    }
+
+    /// A size's authored value (validation runs before the frame scales
+    /// spans, so comparisons between spans use authored values).
+    pub fn size(&self, value: Size) -> f64 {
+        value.raw()
+    }
+
     /// Validate `inner` with paths under `field`.
     pub fn nested(&mut self, field: &str, inner: &impl Validate) {
         let mut sub = Validator::new(self.at(field));
@@ -493,7 +521,8 @@ pub struct FieldDef {
 }
 
 /// A landform, region solver or site set, keyed by id in `spec.nodes`.
-/// No plugin kind compiles yet, so only disabled nodes do.
+/// Compile builds every enabled node from its kind's factory and types and
+/// validates a disabled node's params without building it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodeSpec {
@@ -516,6 +545,95 @@ pub struct NodeSpec {
 
 fn yes() -> bool {
     true
+}
+
+impl NodeSpec {
+    /// A node of `kind` with `salt`, enabled, with no edges and null
+    /// params (set them with [`NodeSpec::params`]).
+    pub fn new(kind: &str, salt: &str) -> Self {
+        Self {
+            kind: kind.to_string(),
+            salt: salt.to_string(),
+            enabled: true,
+            over: Vec::new(),
+            under: Vec::new(),
+            params: Value::Null,
+        }
+    }
+
+    /// Compose after these same-layer nodes.
+    pub fn over(mut self, ids: &[&str]) -> Self {
+        self.over.extend(ids.iter().map(|s| s.to_string()));
+        self
+    }
+
+    /// Compose before these same-layer nodes.
+    pub fn under(mut self, ids: &[&str]) -> Self {
+        self.under.extend(ids.iter().map(|s| s.to_string()));
+        self
+    }
+
+    /// The kind's typed params.
+    pub fn params<P: Serialize>(mut self, p: P) -> Result<Self, SpecError> {
+        self.params = serde_json::to_value(p)
+            .map_err(|e| SpecError::new("params", format!("params do not serialize: {e}")))?;
+        Ok(self)
+    }
+
+    /// The A/B flag.
+    pub fn enabled(mut self, on: bool) -> Self {
+        self.enabled = on;
+        self
+    }
+}
+
+impl FieldDef {
+    /// A Detail-domain field at full resolution, not kept.
+    pub fn detail(graph: FieldExpr) -> Self {
+        Self {
+            graph,
+            domain: Domain::Detail,
+            resolution: Resolution::Full,
+            range: None,
+            keep: false,
+        }
+    }
+
+    /// The same field evaluated on a lattice of `stride` (4 or 16).
+    pub fn strided(mut self, stride: u8) -> Self {
+        self.resolution = Resolution::Stride(stride);
+        self
+    }
+
+    /// The same field in the Macro domain.
+    pub fn macro_domain(mut self) -> Self {
+        self.domain = Domain::Macro;
+        self
+    }
+
+    /// The same field, kept in the facts.
+    pub fn kept(mut self) -> Self {
+        self.keep = true;
+        self
+    }
+}
+
+impl ZoneDecl {
+    /// A zone documented by `doc`.
+    pub fn doc(doc: &str) -> Self {
+        Self {
+            doc: doc.to_string(),
+        }
+    }
+}
+
+impl ClaimKeyDecl {
+    /// A claim key documented by `doc`.
+    pub fn doc(doc: &str) -> Self {
+        Self {
+            doc: doc.to_string(),
+        }
+    }
 }
 
 /// One surfacer, applied in list order.
@@ -755,6 +873,18 @@ impl LandscapeSpec {
     /// Add or replace a zone key.
     pub fn with_zone(mut self, key: &str, decl: ZoneDecl) -> Self {
         self.zones.insert(key.to_string(), decl);
+        self
+    }
+
+    /// Add or replace a node.
+    pub fn with_node(mut self, id: &str, node: NodeSpec) -> Self {
+        self.nodes.insert(id.to_string(), node);
+        self
+    }
+
+    /// Add or replace a game claim key.
+    pub fn with_claim_key(mut self, key: &str, decl: ClaimKeyDecl) -> Self {
+        self.claim_keys.insert(key.to_string(), decl);
         self
     }
 

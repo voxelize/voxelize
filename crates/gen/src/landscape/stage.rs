@@ -3,8 +3,10 @@
 //!
 //! One stage avoids the pipeline's height-map rescans between fused inner
 //! stages. Per chunk it reads the chunk's facts (from the facts cache, or
-//! builds them), paints every column through the surfacers, stamps the
-//! sea, places and stamps trees, and writes everything as runs:
+//! builds them, composing every landform that touches the chunk), paints
+//! every column through the surfacers, applies the volume (analytic spans
+//! and province entries, section 2.12), stamps the sea, places and stamps
+//! trees, and writes everything as runs:
 //!
 //! - `Arc::make_mut(&mut chunk.voxels)` once per chunk (the job owns the
 //!   chunk, so this does not clone in the normal case), then runs written
@@ -26,11 +28,13 @@ use std::sync::Arc;
 
 use voxelize::{Chunk, ChunkStage, Pipeline, Resources, Space, Vec2};
 
+use super::compose::{ProvinceEntry, SolidSpan};
 use super::counters::{bump, Counter};
 use super::facts::{ChunkFacts, ColumnFact};
 use super::flora::MAX_CANOPY;
 use super::math::MinMax;
 use super::surface::{MaterialRuns, PaintColumn};
+use super::volume::{column_volume, VoxelChange};
 use super::Landscape;
 
 /// Voxels of soil a tree needs under its trunk: no tree stands where the
@@ -105,6 +109,20 @@ impl Writer<'_> {
         bump(Counter::VoxelsWritten, (hi - lo + 1) as u64);
         if block != 0 {
             self.max_y = Ord::max(self.max_y, hi);
+        }
+    }
+
+    /// Set local voxel `(lx, y, lz)` to `block` (air included).
+    #[inline]
+    fn put(&mut self, lx: i32, y: i32, lz: i32, block: u32) {
+        if y < 0 || y >= self.height {
+            return;
+        }
+        let i = self.index(lx, y, lz);
+        self.data[i] = block;
+        bump(Counter::VoxelsWritten, 1);
+        if block != 0 {
+            self.max_y = Ord::max(self.max_y, y);
         }
     }
 
@@ -270,6 +288,17 @@ impl Landscape {
             z0,
             max_y: -1,
         };
+        // Spans and province entries grouped by stored column.
+        let mut volume: Vec<(Vec<SolidSpan>, Vec<&ProvinceEntry>)> = Vec::new();
+        if !facts.spans.is_empty() || !facts.provinces.is_empty() {
+            volume = vec![(Vec::new(), Vec::new()); facts.cells()];
+            for (i, sp) in &facts.spans {
+                volume[*i as usize].0.push(*sp);
+            }
+            for (i, e) in &facts.provinces {
+                volume[*i as usize].1.push(e);
+            }
+        }
         for lx in 0..size {
             for lz in 0..size {
                 let (x, z) = (x0 + lx, z0 + lz);
@@ -279,6 +308,29 @@ impl Landscape {
                     w.run(lx, lz, lo, hi, b, true);
                 }
                 let i = facts.index(x, z).expect("a stored column");
+                if let Some((spans, entries)) = volume.get(i) {
+                    if !spans.is_empty() || !entries.is_empty() {
+                        let claims = facts.claims_at(i);
+                        let fill = self.fill;
+                        column_volume(
+                            x,
+                            z,
+                            facts.ground[i],
+                            spans,
+                            entries,
+                            &self.provinces,
+                            &claims,
+                            facts.cave_ceiling_at(i).unwrap_or(i32::MAX),
+                            self.spec.taste.min_band_fade,
+                            height,
+                            &mut |y, change| match change {
+                                VoxelChange::Solid => w.put(lx, y, lz, fill),
+                                VoxelChange::Air => w.put(lx, y, lz, 0),
+                                VoxelChange::Span(b) => w.put(lx, y, lz, b),
+                            },
+                        );
+                    }
+                }
                 for layer in facts.water_at(i, &self.sea).layers {
                     // Sources: stage 0, which packs to the bare id.
                     w.run(lx, lz, layer.bottom, layer.level, layer.fluid, false);

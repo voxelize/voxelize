@@ -32,11 +32,29 @@ pub enum Counter {
     TreeVoxels,
     /// Trees placed.
     Trees,
+    /// Plan and region-tile solves (cells past the roll).
+    PlanSolves,
+    /// Feature-index cells built.
+    IndexCells,
+    /// Field dispatch tiles bounded.
+    GateTiles,
+    /// Instances, Field nodes and region solvers dispatched.
+    InstancesDispatched,
+    /// Masked columns handed to `columns()`.
+    ComposedColumns,
+    /// Exact probe columns composed (probe cache misses).
+    ProbeColumns,
+    /// Solves inside `forbid_solves()` (release builds without the kit;
+    /// elsewhere they panic).
+    ForbiddenSolves,
 }
+
+/// How many counters there are.
+pub const COUNTERS: usize = 16;
 
 impl Counter {
     /// Every counter, in report order.
-    pub const ALL: [Counter; 9] = [
+    pub const ALL: [Counter; COUNTERS] = [
         Counter::NoiseOctaves2d,
         Counter::FieldColumns,
         Counter::LatticeNodes,
@@ -46,6 +64,13 @@ impl Counter {
         Counter::VoxelsWritten,
         Counter::TreeVoxels,
         Counter::Trees,
+        Counter::PlanSolves,
+        Counter::IndexCells,
+        Counter::GateTiles,
+        Counter::InstancesDispatched,
+        Counter::ComposedColumns,
+        Counter::ProbeColumns,
+        Counter::ForbiddenSolves,
     ];
 
     /// The counter's report name.
@@ -60,6 +85,13 @@ impl Counter {
             Counter::VoxelsWritten => "voxels_written",
             Counter::TreeVoxels => "tree_voxels",
             Counter::Trees => "trees",
+            Counter::PlanSolves => "plan_solves",
+            Counter::IndexCells => "index_cells",
+            Counter::GateTiles => "gate_tiles",
+            Counter::InstancesDispatched => "instances_dispatched",
+            Counter::ComposedColumns => "composed_columns",
+            Counter::ProbeColumns => "probe_columns",
+            Counter::ForbiddenSolves => "forbidden_solves",
         }
     }
 }
@@ -70,7 +102,7 @@ mod imp {
     use std::cell::Cell;
 
     thread_local! {
-        static COUNTS: [Cell<u64>; 9] = Default::default();
+        static COUNTS: [Cell<u64>; super::COUNTERS] = Default::default();
     }
 
     #[inline]
@@ -85,9 +117,9 @@ mod imp {
         COUNTS.with(|a| a.iter().for_each(|c| c.set(0)));
     }
 
-    pub fn snapshot() -> [u64; 9] {
+    pub fn snapshot() -> [u64; super::COUNTERS] {
         COUNTS.with(|a| {
-            let mut out = [0u64; 9];
+            let mut out = [0u64; super::COUNTERS];
             for (o, c) in out.iter_mut().zip(a.iter()) {
                 *o = c.get();
             }
@@ -105,8 +137,8 @@ mod imp {
 
     pub fn reset() {}
 
-    pub fn snapshot() -> [u64; 9] {
-        [0; 9]
+    pub fn snapshot() -> [u64; super::COUNTERS] {
+        [0; super::COUNTERS]
     }
 }
 
@@ -122,7 +154,7 @@ pub fn reset() {
 }
 
 /// This thread's counters, indexed like [`Counter::ALL`].
-pub fn snapshot() -> [u64; 9] {
+pub fn snapshot() -> [u64; COUNTERS] {
     imp::snapshot()
 }
 

@@ -11,18 +11,23 @@ use voxelize::{Registry, WorldConfig};
 
 use crate::stream::{fnv1a_64, stream_seed_bytes, Subsystem};
 
+use super::build::{BuildCtx, BuildShared, Read, ThroughRec};
 use super::cache::ClockCache;
 use super::canon;
-use super::facts::{ChunkFacts, ColumnFact};
+use super::dag::{self, Dag, DagInput};
+use super::facts::{ChunkFacts, ColumnFact, Tier};
 use super::fields::{compile_fields, CompiledFields, FieldsConfig, MacroTiles, SaltClaims, SPINE};
 use super::flora::LoweredFlora;
 use super::identity::{KindStamp, LandscapeIdentity, ENGINE_ALGO};
+use super::index::{IndexEntry, NodeRt, NodeSet, PlanCounts};
 use super::lower::{lower_climate, lower_flora, LoweredClimate};
+use super::plugin::Layer;
 use super::presets::roles::RoleBinding;
-use super::registry::KindRegistry;
+use super::registry::{KindRegistry, LayoutRt, NodeClass, NodeImp};
 use super::settle::FluidRules;
-use super::spec::{LandscapeSpec, SpecError, WorldFrame, LANDSCAPE_FORMAT};
+use super::spec::{LandscapeSpec, SpawnSpec, SpecError, WorldFrame, LANDSCAPE_FORMAT};
 use super::surface::{DynSurfacer, PaintCtx, ZoneTable};
+use super::volume::ProvinceRt;
 use super::water::SeaModel;
 
 /// Wavelength of the biome border dither field, in blocks.
@@ -45,6 +50,17 @@ pub struct CompileOptions {
     pub halo: u8,
     /// Hash-consing in the field compiler (off only in its own tests).
     pub cse: bool,
+    /// Plans held per node.
+    pub plans: usize,
+    /// Feature-index cells held.
+    pub index_cells: usize,
+    /// Exact probe columns held.
+    pub probes: usize,
+    /// Region tiles held per solver.
+    pub region_tiles: usize,
+    /// Threads `PlanCtx::par_map` uses (cost only: results join in index
+    /// order).
+    pub planner_threads: usize,
 }
 
 impl Default for CompileOptions {
@@ -56,6 +72,11 @@ impl Default for CompileOptions {
             columns: 1 << 16,
             halo: 2,
             cse: true,
+            plans: 4096,
+            index_cells: 16384,
+            probes: 1 << 16,
+            region_tiles: 64,
+            planner_threads: 4,
         }
     }
 }
@@ -67,6 +88,10 @@ impl CompileOptions {
             facts_bytes: 1,
             macro_tiles: 1,
             columns: 1,
+            plans: 1,
+            index_cells: 1,
+            probes: 1,
+            region_tiles: 1,
             ..Self::default()
         }
     }
@@ -110,6 +135,31 @@ pub struct Landscape {
     pub(crate) has_tints: bool,
     pub(crate) explain_fields: OnceLock<CompiledFields>,
     pub(crate) tiles_explain: MacroTiles,
+    /// One program per acquired field (by `FieldRef` index), its only
+    /// output that field, each with its own macro tiles: plan reads, gate
+    /// samples and `Col::field` evaluate the field's cone alone.
+    pub(crate) point_fields: Vec<CompiledFields>,
+    pub(crate) point_tiles: Vec<MacroTiles>,
+    /// Runtime nodes by node index (spec order); `None` when disabled.
+    pub(crate) nodes: Vec<Option<NodeRt>>,
+    /// Ground writers in composition order.
+    pub(crate) order: Vec<u16>,
+    pub(crate) all_nodes: NodeSet,
+    /// Node sets of the tiers, `Tier` order.
+    pub(crate) tier_sets: [NodeSet; 5],
+    pub(crate) probe_sets: Vec<NodeSet>,
+    pub(crate) occupancy_sets: Vec<Vec<u16>>,
+    /// The spawn search's shape set (below Water) and verification set
+    /// (through Detail), both without spawn readers.
+    pub(crate) spawn_shape: NodeSet,
+    pub(crate) spawn_verify: NodeSet,
+    pub(crate) provinces: Vec<ProvinceRt>,
+    pub(crate) index: ClockCache<(i32, i32), Arc<OnceLock<Arc<Vec<IndexEntry>>>>>,
+    pub(crate) probes: ClockCache<(u16, i32, i32), f64>,
+    pub(crate) dag: Dag,
+    /// What each node reads (node to node).
+    pub(crate) deps: BTreeMap<u16, std::collections::BTreeSet<u16>>,
+    pub(crate) planner_threads: usize,
 }
 
 impl std::fmt::Debug for Landscape {
@@ -192,19 +242,6 @@ fn build(
     if spec.claim_keys.len() > 16 {
         return Err(SpecError::new("claim_keys", "at most 16 game claim keys"));
     }
-    // No plugin kind compiles yet: only disabled nodes do.
-    for (id, node) in &spec.nodes {
-        if node.enabled {
-            return Err(SpecError::new(
-                format!("nodes.{id}.kind"),
-                format!(
-                    "unknown kind {:?}: landform, region solver and site set kinds are not registered in this build",
-                    node.kind
-                ),
-            ));
-        }
-    }
-
     // Roles.
     let (roles, roles_digest, block_roles) = resolve_roles(spec, bindings, blocks)?;
     let fill = roles
@@ -219,6 +256,94 @@ fn build(
             &format!("nodes.{id}.salt"),
             &format!("node:{id}"),
         )?;
+    }
+    let zones = ZoneTable::new(spec.zones.keys())?;
+
+    // Nodes: every enabled one is built (recording what it reads); every
+    // disabled one has its params typed and validated.
+    let node_ids: Vec<String> = spec.nodes.keys().cloned().collect();
+    let enabled: Vec<bool> = spec.nodes.values().map(|n| n.enabled).collect();
+    let mut shared = BuildShared::default();
+    let mut built: Vec<Option<(super::registry::BuiltNode, u32, Vec<(Read, &'static str)>)>> =
+        Vec::new();
+    let mut typed_nodes: Vec<Value> = Vec::new();
+    let mut node_versions: Vec<u32> = Vec::new();
+    for (idx, (id, node)) in spec.nodes.iter().enumerate() {
+        let kind_path = format!("nodes.{id}.kind");
+        let params_path = format!("nodes.{id}.params");
+        if !node.enabled {
+            let (typed, version) = kinds.type_node_params(
+                &kind_path,
+                &node.kind,
+                node.params.clone(),
+                &params_path,
+            )?;
+            typed_nodes.push(typed);
+            node_versions.push(version);
+            built.push(None);
+            continue;
+        }
+        let mut cx = BuildCtx {
+            node: idx as u16,
+            id,
+            path: params_path,
+            salt: &node.salt,
+            frame: &frame,
+            world_seed,
+            dimension,
+            spec,
+            kinds,
+            roles: &roles,
+            zones: &zones,
+            node_ids: &node_ids,
+            salts: &mut salts,
+            shared: &mut shared,
+            reads: Vec::new(),
+        };
+        let (b, version) =
+            kinds.build_node(&kind_path, &node.kind, node.params.clone(), &mut cx)?;
+        let reads = std::mem::take(&mut cx.reads);
+        typed_nodes.push(b.typed.clone());
+        node_versions.push(version);
+        built.push(Some((b, version, reads)));
+    }
+    let spawn_clear = match &spec.spawn {
+        SpawnSpec::Search(s) => Some(s.clear_radius),
+        SpawnSpec::Fixed { .. } => None,
+    };
+    let inputs: Vec<DagInput> = built
+        .iter()
+        .enumerate()
+        .filter_map(|(i, b)| {
+            let (b, _, reads) = b.as_ref()?;
+            let id = &node_ids[i];
+            let n = &spec.nodes[id];
+            Some(DagInput {
+                idx: i as u16,
+                id: id.clone(),
+                kind: n.kind.clone(),
+                class: kinds
+                    .node_class(&n.kind)
+                    .expect("a built kind is registered"),
+                layer: b.layer,
+                builtin: kinds.builtin_rank(&n.kind),
+                over: n.over.clone(),
+                under: n.under.clone(),
+                reads: reads.clone(),
+            })
+        })
+        .collect();
+    let resolved = dag::resolve(&inputs, &node_ids, &enabled, spawn_clear)?;
+    for input in &inputs {
+        if input.class == NodeClass::SiteSet {
+            return Err(SpecError::new(
+                format!("nodes.{}.kind", input.id),
+                format!(
+                    "site set {:?} validates but places nothing in this build (siting, fits and pieces arrive with the structure system); disable the node until then",
+                    input.kind
+                ),
+            ));
+        }
     }
 
     // Fields: the spine, climate, axes and kept fields are outputs.
@@ -284,9 +409,23 @@ fn build(
         &mut salts,
         &mut axis_slot,
     )?;
+    // Fields the nodes acquired are not outputs of the chunk program: the
+    // point program below evaluates them, and only where an instance is
+    // dispatched, so a chunk no landform touches pays nothing for them.
     let outputs = climate_outputs;
+    let merged_fields;
+    let field_defs = if shared.local_fields.is_empty() {
+        &spec.fields
+    } else {
+        let mut m = spec.fields.clone();
+        for (k, v) in &shared.local_fields {
+            m.insert(k.clone(), v.clone());
+        }
+        merged_fields = m;
+        &merged_fields
+    };
     let fields = compile_fields(
-        &spec.fields,
+        field_defs,
         &outputs,
         &FieldsConfig {
             frame: &frame,
@@ -297,8 +436,33 @@ fn build(
         },
         &mut salts,
     )?;
-
-    let zones = ZoneTable::new(spec.zones.keys())?;
+    // The acquired fields, read by plans and gates one column at a time
+    // and by composition over the areas instances are dispatched to. Each
+    // has a program of its own whose one output it is, so a read evaluates
+    // that field's cone and nothing else (dead-code elimination never
+    // changes bits, so a value equals what any program computes at that
+    // column): a gate sample costs a lattice lookup instead of the whole
+    // field graph. Validation and the spec's taste guards ran on the chunk
+    // program above, over every field.
+    let mut point_fields = Vec::with_capacity(shared.fields.len());
+    for name in &shared.fields {
+        point_fields.push(compile_fields(
+            field_defs,
+            std::slice::from_ref(name),
+            &FieldsConfig {
+                frame: &frame,
+                world_seed,
+                dimension,
+                taste: &super::spec::TasteGuards::warn(),
+                cse: options.cse,
+            },
+            &mut SaltClaims::default(),
+        )?);
+    }
+    let point_tiles = point_fields
+        .iter()
+        .map(|_| ClockCache::new(options.macro_tiles))
+        .collect();
 
     // Surfacers.
     let mut surfacers = Vec::new();
@@ -328,6 +492,25 @@ fn build(
             kind: node.kind.clone(),
             version,
             provinces: Vec::new(),
+        };
+        if !stamps.contains(&stamp) {
+            stamps.push(stamp);
+        }
+    }
+    for (i, (id, node)) in spec.nodes.iter().enumerate() {
+        let _ = id;
+        let mut provinces: Vec<(String, u32)> = shared
+            .provinces
+            .iter()
+            .filter(|p| p.owner == i as u16)
+            .map(|p| (p.kind.to_string(), p.version))
+            .collect();
+        provinces.sort();
+        provinces.dedup();
+        let stamp = KindStamp {
+            kind: node.kind.clone(),
+            version: node_versions[i],
+            provinces,
         };
         if !stamps.contains(&stamp) {
             stamps.push(stamp);
@@ -393,6 +576,11 @@ fn build(
             node["params"] = typed;
         }
     }
+    if let Some(Value::Object(nodes)) = value.get_mut("nodes") {
+        for ((_, node), typed) in nodes.iter_mut().zip(typed_nodes) {
+            node["params"] = typed;
+        }
+    }
     let identity = LandscapeIdentity {
         preset: spec.preset.clone(),
         format: spec.format,
@@ -408,7 +596,139 @@ fn build(
 
     let has_tints = climate.tints.iter().any(|t| t.is_some());
     let mut lints = fields.lints.clone();
+    lints.extend(resolved.dag.lints.iter().cloned());
     lints.sort();
+
+    // Runtime nodes.
+    let rank_of: BTreeMap<u16, u16> = resolved
+        .order
+        .iter()
+        .enumerate()
+        .map(|(r, &i)| (i, r as u16))
+        .collect();
+    let mut nodes: Vec<Option<NodeRt>> = Vec::with_capacity(built.len());
+    for (i, b) in built.into_iter().enumerate() {
+        let Some((b, _, _)) = b else {
+            nodes.push(None);
+            continue;
+        };
+        let id = &node_ids[i];
+        let path = format!("nodes.{id}");
+        let mut field_plan = None;
+        let mut gate = None;
+        if let LayoutRt::Field { gate: g, .. } = b.layout {
+            let name = &shared.fields[g.0 as usize];
+            let lipschitz = fields
+                .analysis(name)
+                .and_then(|a| a.lipschitz)
+                .filter(|l| l.is_finite())
+                .ok_or_else(|| {
+                    SpecError::new(
+                        path.clone(),
+                        format!(
+                            "a Field layout's gate {name:?} has no known Lipschitz bound (a crease, a hard select or another node with no safe bound), so its dispatch tiles cannot be bounded"
+                        ),
+                    )
+                })?;
+            gate = Some((g.0 as usize, lipschitz));
+            let NodeImp::Landform(imp) = &b.imp else {
+                unreachable!("Field layouts are landforms")
+            };
+            field_plan = Some(imp.field_plan().ok_or_else(|| {
+                SpecError::new(
+                    path.clone(),
+                    "a Field layout needs field_plan(): its one world-constant plan",
+                )
+            })?);
+        }
+        let spawn_clear = resolved
+            .spawn_readers
+            .iter()
+            .find(|(n, _)| *n == i as u16)
+            .map(|(_, c)| *c);
+        let plans_cap = match b.layout {
+            LayoutRt::Once { .. } => 1,
+            _ => options.plans,
+        };
+        nodes.push(Some(NodeRt {
+            idx: i as u16,
+            id: id.clone(),
+            kind: spec.nodes[id].kind.clone(),
+            salt: spec.nodes[id].salt.clone(),
+            layer: b.layer,
+            rank: rank_of.get(&(i as u16)).copied().unwrap_or(u16::MAX),
+            layout: b.layout,
+            imp: b.imp,
+            field_plan,
+            gate,
+            spawn_clear,
+            cell_type: kinds.landform_cell_type(&spec.nodes[id].kind),
+            plans: ClockCache::new(plans_cap),
+            admit: ClockCache::new(options.plans),
+            tiles: ClockCache::new(options.region_tiles),
+            counts: PlanCounts::default(),
+        }));
+    }
+    let layer_of = |n: u16| nodes[n as usize].as_ref().map(|r| r.layer);
+    let order = resolved.order.clone();
+    let set_of = |members: Vec<u16>| {
+        let all = members.len() == order.len();
+        NodeSet::from_nodes(&members, all)
+    };
+    let upto = |l: Layer| -> Vec<u16> {
+        order
+            .iter()
+            .copied()
+            .filter(|&n| layer_of(n).is_some_and(|x| x <= l))
+            .collect()
+    };
+    let tier_sets = [
+        set_of(Vec::new()),
+        set_of(upto(Layer::Shore)),
+        set_of(upto(Layer::Water)),
+        set_of(upto(Layer::Detail)),
+        set_of(order.clone()),
+    ];
+    let all_nodes = set_of(order.clone());
+    let probe_sets: Vec<NodeSet> = shared
+        .probes
+        .iter()
+        .map(|(_, rec)| {
+            let members: Vec<u16> = match rec {
+                ThroughRec::Macro => Vec::new(),
+                ThroughRec::Layer(l) => order
+                    .iter()
+                    .copied()
+                    .filter(|&n| layer_of(n).is_some_and(|x| x < *l))
+                    .collect(),
+                ThroughRec::With(targets) => {
+                    // The targets and every ground writer they read.
+                    let mut set: std::collections::BTreeSet<u16> =
+                        targets.iter().copied().collect();
+                    let mut stack: Vec<u16> = targets.clone();
+                    while let Some(n) = stack.pop() {
+                        for &d in resolved.deps.get(&n).into_iter().flatten() {
+                            if set.insert(d) {
+                                stack.push(d);
+                            }
+                        }
+                    }
+                    order.iter().copied().filter(|n| set.contains(n)).collect()
+                }
+            };
+            set_of(members)
+        })
+        .collect();
+    let spawn_shape = set_of(
+        resolved
+            .spawn_set
+            .iter()
+            .copied()
+            .filter(|&n| layer_of(n).is_some_and(|l| l < Layer::Water))
+            .collect(),
+    );
+    let spawn_verify = set_of(resolved.spawn_set.clone());
+
     Ok(Landscape {
         spec: spec.clone(),
         frame,
@@ -453,6 +773,22 @@ fn build(
         has_tints,
         explain_fields: OnceLock::new(),
         tiles_explain: ClockCache::new(64),
+        point_fields,
+        point_tiles,
+        nodes,
+        order,
+        all_nodes,
+        tier_sets,
+        probe_sets,
+        occupancy_sets: shared.occupancy,
+        spawn_shape,
+        spawn_verify,
+        provinces: shared.provinces,
+        index: ClockCache::new(options.index_cells),
+        probes: ClockCache::new(options.probes),
+        dag: resolved.dag,
+        deps: resolved.deps,
+        planner_threads: Ord::max(options.planner_threads, 1),
     })
 }
 
@@ -611,5 +947,31 @@ impl Landscape {
     /// The facts cache's counts and weight in bytes (cost only).
     pub fn facts_cache_stats(&self) -> super::cache::CacheStats {
         self.facts_cache.stats()
+    }
+
+    /// The planner DAG and the composition order.
+    pub fn dag(&self) -> &Dag {
+        &self.dag
+    }
+
+    /// The node set a tier composes.
+    pub(crate) fn tier_set(&self, tier: Tier) -> &NodeSet {
+        &self.tier_sets[tier as usize]
+    }
+
+    /// Whether any landform or region solver is enabled.
+    pub fn has_nodes(&self) -> bool {
+        !self.order.is_empty()
+    }
+
+    /// Final ground from composed ground: the floor clamp, then the soft
+    /// ceiling.
+    pub fn final_ground(&self, composed: f64) -> f64 {
+        self.finish_ground(composed)
+    }
+
+    /// The facts halo.
+    pub fn halo(&self) -> i32 {
+        self.halo
     }
 }

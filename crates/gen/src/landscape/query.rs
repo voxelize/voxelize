@@ -2,16 +2,25 @@
 //!
 //! Point queries stay cheap and exact: they read the facts cache first
 //! (O(1) for generated chunks), then a bounded column cache, and on a cold
-//! miss build one column's facts through the same code as a chunk, so a
-//! point answer equals the chunk's bit for bit. `column_ground` composes
-//! one column without the slope stencil. `*_if_ready` queries never
-//! compute: they answer from the caches or return `Query::Pending`, so a
-//! game's tick systems can ask without ever paying for generation.
+//! miss build one column's facts through the same code as a chunk
+//! (composing the landforms that touch it), so a point answer equals the
+//! chunk's bit for bit. `column_ground` composes one column without the
+//! slope stencil. A tier below `Tier::Full` composes only the layers up to
+//! it. `*_if_ready` queries never compute: they answer from the caches or
+//! return `Query::Pending`, so a game's tick systems can ask without ever
+//! paying for generation (or solving a plan).
+//!
+//! **Spawn** is the engine node `engine.spawn`: candidates in a fixed
+//! spiral are tested against ground composed through every node below the
+//! Water layer that does not read the spawn anchor (directly or through
+//! its inputs), and the first that passes is verified through the Detail
+//! layer: dry, calm, and with no ROCK, HYDRO or NO_SITES claim.
 
 use std::sync::Arc;
 
 use voxelize::Vec2;
 
+use super::compose::Claims;
 use super::counters::{bump, Counter};
 use super::facts::{ColumnFact, Tier};
 use super::fields::Area;
@@ -81,37 +90,42 @@ impl Landscape {
         self.columns.insert((x, z), c)
     }
 
-    /// One column's facts at `tier` (there are no landforms yet, so every
-    /// tier reads final ground).
+    /// One column's facts at `tier`: the full pipeline's state after the
+    /// tier's last layer (the final state for `Tier::Full`).
     pub fn column(&self, x: i32, z: i32, tier: Tier) -> ColumnFact {
-        let _ = tier;
-        (*self.column_arc(x, z)).clone()
+        let set = self.tier_set(tier);
+        if set.all {
+            return (*self.column_arc(x, z)).clone();
+        }
+        bump(Counter::PointColumns, 1);
+        self.build_facts_in((x, z), 1, 0, set)
+            .column(x, z, &self.sea)
+            .expect("the built column")
     }
 
-    /// One column's facts if cached; never computes.
+    /// One column's facts at `tier` if cached; never computes (a tier
+    /// below the final state is never cached).
     pub fn column_if_ready(&self, x: i32, z: i32, tier: Tier) -> Query<ColumnFact> {
-        let _ = tier;
+        if !self.tier_set(tier).all {
+            return Query::Pending;
+        }
         match self.cached_column(x, z) {
             Some(c) => Query::Ready((*c).clone()),
             None => Query::Pending,
         }
     }
 
-    /// Final ground at one column, composed alone (no slope stencil).
+    /// Ground at one column at `tier`, composed alone (no slope stencil),
+    /// after the floor and the ceiling.
     pub fn column_ground(&self, x: i32, z: i32, tier: Tier) -> f64 {
-        let _ = tier;
-        if let Some(c) = self.cached_column(x, z) {
-            return c.ground;
+        let set = self.tier_set(tier);
+        if set.all {
+            if let Some(c) = self.cached_column(x, z) {
+                return c.ground;
+            }
         }
         bump(Counter::PointColumns, 1);
-        let area = Area {
-            x0: x,
-            z0: z,
-            w: 1,
-            d: 1,
-        };
-        let grid = self.fields.evaluate(area, 0, &self.tiles);
-        self.finish_ground(grid.output(self.slots.ground, x, z))
+        self.finish_ground(self.compose_point(set, x, z))
     }
 
     /// Final ground over a window, sampled every `stride` columns: `w x d`
@@ -142,11 +156,20 @@ impl Landscape {
                                 d: nrows,
                             };
                             let grid = self.fields.evaluate(area, 0, &self.tiles);
+                            let mut g = Vec::with_capacity(area.len());
                             for jj in 0..nrows {
                                 for ii in 0..tw {
                                     let (x, z) = (area.x0 + ii as i32, area.z0 + jj as i32);
-                                    rows[jj * w + i0 + ii] =
-                                        self.finish_ground(grid.output(self.slots.ground, x, z));
+                                    g.push(grid.output(self.slots.ground, x, z));
+                                }
+                            }
+                            let d = self.dispatch(area, &self.all_nodes);
+                            if !d.is_empty() {
+                                g = self.compose(area, g, &d, None).ground;
+                            }
+                            for jj in 0..nrows {
+                                for ii in 0..tw {
+                                    rows[jj * w + i0 + ii] = self.finish_ground(g[jj * tw + ii]);
                                 }
                             }
                             i0 += tw;
@@ -156,15 +179,8 @@ impl Landscape {
                             for i in 0..w {
                                 let x = x0 + i as i32 * stride;
                                 let z = z0 + (j0 + jj) as i32 * stride;
-                                let area = Area {
-                                    x0: x,
-                                    z0: z,
-                                    w: 1,
-                                    d: 1,
-                                };
-                                let grid = self.fields.evaluate(area, 0, &self.tiles);
                                 rows[jj * w + i] =
-                                    self.finish_ground(grid.output(self.slots.ground, x, z));
+                                    self.finish_ground(self.compose_point(&self.all_nodes, x, z));
                             }
                         }
                     }
@@ -277,12 +293,46 @@ impl Landscape {
         let hi = self.frame.resolve(s.ground.1);
         let rings = s.max_radius / s.stride;
         let mut tested = 0u32;
+        // The shape search composes every ground writer below the Water
+        // layer, the verification every writer through Detail, both without
+        // spawn readers (which keep clear of spawn) and their dependents.
+        let shape = |x: i32, z: i32| -> Arc<ColumnFact> {
+            if self.spawn_shape.all {
+                self.column_arc(x, z)
+            } else {
+                Arc::new(
+                    self.build_facts_in((x, z), 1, 0, &self.spawn_shape)
+                        .column(x, z, &self.sea)
+                        .expect("the built column"),
+                )
+            }
+        };
+        let verify = |x: i32, z: i32, shaped: &Arc<ColumnFact>| -> bool {
+            let c = if self.spawn_verify == self.spawn_shape {
+                shaped.clone()
+            } else if self.spawn_verify.all {
+                self.column_arc(x, z)
+            } else {
+                Arc::new(
+                    self.build_facts_in((x, z), 1, 0, &self.spawn_verify)
+                        .column(x, z, &self.sea)
+                        .expect("the built column"),
+                )
+            };
+            let banned = Claims::ROCK | Claims::HYDRO | Claims::NO_SITES;
+            c.water.is_dry()
+                && c.slope <= s.max_slope
+                && !c
+                    .claims
+                    .iter()
+                    .any(|e| banned.0 & (1 << e.bit) != 0 && e.weight > 0.0)
+        };
         for k in 0..=rings {
             for (dx, dz) in ring(k) {
                 tested += 1;
                 let x = s.origin.0 + dx * s.stride;
                 let z = s.origin.1 + dz * s.stride;
-                let c = self.column_arc(x, z);
+                let c = shape(x, z);
                 let top = c.top as f64;
                 if top < lo || top > hi || !c.water.is_dry() || c.slope > s.max_slope {
                     continue;
@@ -298,6 +348,9 @@ impl Landscape {
                     if !self.sea_within(x, z, r) {
                         continue;
                     }
+                }
+                if !verify(x, z, &c) {
+                    continue;
                 }
                 return SpawnReport {
                     column: (x, z),
@@ -321,7 +374,12 @@ impl Landscape {
                 let (ux, uz) = unit_dir(i, 16);
                 let px = x + (ux * d as f64).floor() as i32;
                 let pz = z + (uz * d as f64).floor() as i32;
-                if self.column_ground(px, pz, Tier::Full) < sea - 2.0 {
+                let g = if self.spawn_shape.all {
+                    self.column_ground(px, pz, Tier::Full)
+                } else {
+                    self.finish_ground(self.compose_point(&self.spawn_shape, px, pz))
+                };
+                if g < sea - 2.0 {
                     return true;
                 }
             }
