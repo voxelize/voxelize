@@ -887,9 +887,9 @@ Each profile returns `height(u)`, `slope(u)` and an inverse, either analytic or 
 |---|---|---|
 | `Wall { exp: p, rim_round: s }` | For `u < u0 = 1−s`: `w = pow_smooth(u, p)`. Over `[u0, 1]`: a cubic Hermite from `(w0, g0)` to `(1, 0)` with `w0 = pow_smooth(u0, p)` and `g0 = pow_smooth_d(u0, p)`; with `t = (u−u0)/s` and `a = g0·s`: `w = w0 + a t + (3(1−w0) − 2a) t² + (a − 2(1−w0)) t³`. C1 everywhere with zero slope at the rim; monotone when `a ≤ 3(1−w0)`, and validation refuses otherwise. | canyon walls, exponent 1.35 ± 30%, rim rounding 0.07 |
 | `Cone { exp: p, shoulder: ts }` | `t < ts`: `pow_smooth(t, p)`. Then `h_s + g_s(t−ts) − g_s(t−ts)²/(2(1−ts))` with `h_s = pow_smooth(ts, p)`, `g_s = pow_smooth_d(ts, p)`, renormalized by its value at t = 1, `h_s + g_s(1−ts)/2`. Zero slope at t = 1. | volcano cones, exponent 1.875 |
-| `Face { h, ledge, run1, shelf, run2, rim }` | A cubic foot, then a worn shelf rising 0.3 per block (≤ 4.5 wide), then an upper wall `1 − pow_smooth(1−u, 2.6)`, rounding over 3–7 blocks. Analytic `offset(v)`: how far in the face lies at height v. | sea cliffs |
-| `SWall { share, slump }` | Smoothstep S-wall plus `4v(1−v)·slump` roughness | calderas |
-| `SlotSection` | Quadratic rim lip of 1–3 blocks; bench dip `pow_smooth(·, 1.5)`; ledge ≤ 4 at 25–50% depth; independent wall bulges of 35% | slot canyons |
+| `Face { h, ledge, run1, shelf, run2, rim }` | Four quadratic pieces joined C1 (P1 as built): a steep foot rising `ledge` over `run1` (starting at slope `2·ledge/run1 − 0.3`) and rounding onto a worn shelf rising 0.3 per block (≤ 4.5 wide), a wall base steepening off the shelf over `run2`, and a rim rounding over `rim` (3–7) blocks into the top `h`. Analytic `offset(v)` with one square root per call: how far in the face lies at height v. | sea cliffs |
+| `SWall { share, slump }` | Smoothstep S-wall plus `16v²(1−v)²·slump` roughness: zero with zero slope at floor and rim, monotone for \|slump\| ≤ 0.1875 (a `4v(1−v)` bump kinks both ends) | calderas |
+| `SlotSection` | Level floor, near-vertical monotone Hermite walls, an optional ledge ≤ 4 at 25–50% depth, a quadratic rim lip of 1–3 blocks and a bench dip `pow_smooth(·, 1.5)`; independent wall bulges of 35% by evaluating each side with its own half width | slot canyons |
 | `DuneWave { stoss: a }` | On the phase `u ∈ [0, 1)`: stoss `smootherstep(0, a, u)` for `u < a`; lee `1 − smoothstep(a, 1, u)` for `u ≥ a`. C1 at the crest and trough (zero slope on both sides), so crests are rounded. Maximum lee slope is `A·1.5/((1 − a)·λ)` for height A and wavelength λ; validation refuses it above the angle of repose. | giant dunes (section 4.2) |
 | `Talus { repose, apron, wander }` | Apron zone where slope > repose and ∇² ≥ −0.05, with a wander window | scree |
 | `relax(h, lap, cap, σ)` | `h + clamp(1.6·∇²h, −cap, cap)·(1 − σ²)`, with σ the summit share, using `ColumnBatch::scratch` for the stencil | range flanks |
@@ -1760,6 +1760,14 @@ Every phase is independently shippable: it lands as its own reviewed PR series o
 - **Benchmarks:** ns per op for math; lattice ns per node; cull ratio.
 - **Acceptance:** all pins; zero libm; v1 goldens unchanged; a build without the feature compiles no landscape code and adds no dependency (`cargo tree -e features -p voxelize-gen`).
 - **Proof:** the `landscape_profiles` sheet: Wall, Cone, Face, SWall, SlotSection and DuneWave cross sections with slopes.
+- **As built** (where P1 settled what the plan left open):
+  - `Lane` (`Landforms = 6` … `Spawn = 10`) lives in `landscape/mod.rs`.
+  - `FluidRules` lives in `settle.rs`; P4's `water.rs` re-exports it. `Settler` runs the fluid's own engine updater (`create_fluid_active_fn` with the binding's `FluidConfig`) over a closed `SettleBox`, with the engine update system's tick rules (plan against committed state in x, y, z order; the fuller of two fluid offers wins). Under `flows_down_as_source` a curtain is a column of sources, and sources spread into the open air beside them, so `FluidRules::open_curtain_holds()` is false and such falls are pre-settled (`StampMode::Settled`); the settle test proves both paths.
+  - `Face`, `SWall` and `SlotSection` take the forms in the section 3.2 table. `Wall` and `Cone` take exponents in [1, 8]; the canyon recipe's `1.35 ± 30%` reaches 0.945, so P4 clamps it at 1 (below 1 the foot stands vertical).
+  - `BandTable` folds each band through monotone Hermite parts (talus, cliff, tread), level at every boundary; a talus under 2% of a band is dropped.
+  - Monotone profiles invert piece by piece: Newton inside a bracket, bisection when a step leaves it, stopping at 1e-13 of the piece's range. `psin` uses minimax coefficients constrained to `p(π/2) = 1, p'(π/2) = 0`, so folded copies join C1 (measured error 6.3e-9).
+  - `kit::assert_no_libm!` and its scanner (`landscape/kit/no_libm.rs`) land here; `tests/no_libm.rs` includes the scanner file, so the scan runs in every build, with or without the features.
+  - Deferred to their first users: `Talus` and `relax` (they need `ColumnBatch::scratch`; P3), the optional dependencies `ryu` and `serde_path_to_error` (P2a), and the `actix-web` and `log` dev-dependencies (the showcase).
 
 ### P2a. Heightfield core and the `plain` preset
 
