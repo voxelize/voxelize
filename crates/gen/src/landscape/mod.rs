@@ -5,7 +5,31 @@
 //! builds `voxelize-gen` without that feature compiles or links any of it.
 //! The design lives in `crates/gen/docs/landscape.md`.
 //!
-//! This phase holds the kernel toolkits every later layer builds on:
+//! **The heightfield core** (this phase): a [`LandscapeSpec`] (owned
+//! data, read strictly from JSON with correctly rounded numbers, written
+//! canonically, merge-patchable) compiles against a [`KindRegistry`], a
+//! game's [`RoleBinding`] and the block registry into an immutable
+//! [`Landscape`]. Named fields compile into hash-consed stage programs
+//! with range, bandwidth and Lipschitz analyses and compile-time taste
+//! guards; every chunk gets one [`ChunkFacts`] record (structure of arrays
+//! with a halo, kept in a byte-capped cache); surfacers paint material
+//! runs; the implicit sea is water as data; the run writer fills the chunk
+//! in one pass and keeps the engine's height watermark. Point queries read
+//! the same facts, and [`QualityReport`] measures cut-ness and spectrum in
+//! both directions. The `plain` preset exercises all of it.
+//!
+//! - [`spec`], [`json`], [`canon`], [`mirror`], [`lower`]: the spec, its
+//!   number path, owned mirrors of v1 configs and their lowering;
+//! - [`fields`]: the field compiler, evaluator and grid;
+//! - [`facts`], [`stage`], [`query`], [`explain`]: per-chunk facts, the
+//!   engine stage and run writer, public queries, provenance;
+//! - [`surface`], [`library`], [`water`], [`flora`]: paint, the built-in
+//!   surfacers, the sea, trees;
+//! - [`identity`]: identity persisted next to the chunks;
+//! - [`quality`], [`counters`]: taste and cost as numbers;
+//! - [`presets`]: the `plain` preset, the standard roles, the demo blocks.
+//!
+//! The kernel toolkits every layer builds on:
 //!
 //! - [`math`]: bit-stable scalar math (`pow_smooth` with its analytic
 //!   derivative, `psin`/`pcos`, the diamond angle, ring noise, smooth
@@ -26,9 +50,9 @@
 //!   divides;
 //! - [`settle`]: fluid steady-state checks and pre-settling, run with the
 //!   game's own fluid configuration;
-//! - [`cache`]: `ClockCache`, the cost-only cache every tier uses;
-//! - `kit` (feature `kit`): `assert_no_libm!`, the bit-stability scan for
-//!   game crates.
+//! - [`cache`]: `ClockCache`, the striped cost-only cache every tier uses;
+//! - `kit` (feature `kit`): `assert_no_libm!`, the determinism suite and
+//!   the writer's height-map check, for game crates too.
 //!
 //! Every value is a pure function of its inputs, and all arithmetic under
 //! this module is IEEE add, sub, mul, div, sqrt, floor, abs, comparisons and
@@ -45,16 +69,64 @@
 #![warn(missing_docs)]
 
 pub mod cache;
+pub mod canon;
+pub mod compile;
+pub mod counters;
+pub mod explain;
+pub mod facts;
+pub mod fields;
 pub mod flood;
+pub mod flora;
 pub mod geometry;
+pub mod identity;
+pub mod json;
 #[cfg(feature = "kit")]
 pub mod kit;
 pub mod lattice;
+pub mod library;
+pub mod lower;
 pub mod math;
+pub mod mirror;
 pub mod network;
+pub mod presets;
 pub mod profile;
+pub mod quality;
+pub mod query;
+pub mod registry;
 pub mod settle;
+pub mod spec;
+pub mod stage;
 pub mod strata;
+pub mod surface;
+pub mod water;
+
+pub use compile::{compile, compile_with, CompileOptions, Landscape};
+pub use explain::ColumnExplain;
+pub use facts::{BiomeCell, ChunkFacts, ColumnFact, Tier};
+pub use identity::{Compat, DriftPolicy, IdentityFile, KindStamp, LandscapeIdentity, ENGINE_ALGO};
+pub use presets::{Knobs, RoleBinding};
+pub use quality::{QualityBands, QualityReport};
+pub use query::Query;
+pub use registry::KindRegistry;
+pub use spec::{
+    merge_patch, read_spec, FieldDef, Height, LandscapeSpec, Size, SpecError, TasteGuards,
+    WorldFrame, LANDSCAPE_FORMAT,
+};
+pub use stage::{install, LandscapeStage};
+pub use surface::{MaterialRuns, PaintColumn, PaintCtx, Surfacer, ZoneKey};
+pub use water::{WaterBodyId, WaterColumn, WaterHit, WaterKind, WaterLayer};
+
+/// The names a game's landscape code reaches for.
+pub mod prelude {
+    pub use super::fields::nodes::fx;
+    pub use super::fields::{FieldExpr, NoiseM, TermRole};
+    pub use super::math::MinMax;
+    pub use super::spec::{
+        Domain, FieldDef, Height, LandscapeSpec, Resolution, Size, SpecError, Validate, Validator,
+    };
+    pub use super::surface::{MaterialRuns, PaintColumn, PaintCtx, Surfacer, ZoneKey};
+    pub use super::{compile, install, KindRegistry, Knobs, Landscape, RoleBinding, Tier};
+}
 
 use crate::stream::{stream_seed_lane, FIRST_LAYER_LANE};
 

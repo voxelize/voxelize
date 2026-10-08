@@ -1,0 +1,2312 @@
+{
+  "biomes": {
+    "axes": [
+      {
+        "key": "temperature",
+        "source": "Temperature"
+      },
+      {
+        "key": "moisture",
+        "source": "Moisture"
+      },
+      {
+        "key": "height",
+        "source": "HeightShare"
+      }
+    ],
+    "biomes": {
+      "cold.alpine": {
+        "doc": "cold high ground",
+        "tint": null
+      },
+      "dry.high": {
+        "doc": "dry upland",
+        "tint": null
+      },
+      "dry.low": {
+        "doc": "dry lowland",
+        "tint": null
+      },
+      "frozen": {
+        "doc": "frozen ground",
+        "tint": null
+      },
+      "seabed": {
+        "doc": "the sea floor",
+        "tint": null
+      },
+      "shore": {
+        "doc": "beaches and shallows",
+        "tint": null
+      },
+      "temperate.high": {
+        "doc": "temperate upland",
+        "tint": null
+      },
+      "temperate.low": {
+        "doc": "temperate lowland",
+        "tint": null
+      },
+      "wet.low": {
+        "doc": "wet lowland",
+        "tint": null
+      }
+    },
+    "climate": {
+      "lapse": 0.55,
+      "moisture": "moisture",
+      "temperature": "temperature"
+    },
+    "overlays": [
+      {
+        "ShoreBand": {
+          "above": 2,
+          "below": 3,
+          "biome": "shore"
+        }
+      },
+      {
+        "OpenWater": {
+          "biome": "seabed",
+          "min_depth": 4
+        }
+      }
+    ],
+    "partition": {
+      "Climate": {
+        "axes": [
+          "temperature",
+          "moisture",
+          "height"
+        ],
+        "region_cell": {
+          "Span": 2048.0
+        },
+        "region_salt": "plain.biomes.region",
+        "regions": [
+          {
+            "boxes": [
+              {
+                "biome": "frozen",
+                "bounds": [
+                  [
+                    -9.0,
+                    0.08
+                  ],
+                  [
+                    -9.0,
+                    9.0
+                  ],
+                  [
+                    -9.0,
+                    9.0
+                  ]
+                ]
+              },
+              {
+                "biome": "cold.alpine",
+                "bounds": [
+                  [
+                    0.08,
+                    0.3
+                  ],
+                  [
+                    -9.0,
+                    9.0
+                  ],
+                  [
+                    0.2,
+                    9.0
+                  ]
+                ]
+              },
+              {
+                "biome": "temperate.low",
+                "bounds": [
+                  [
+                    0.08,
+                    0.3
+                  ],
+                  [
+                    -9.0,
+                    9.0
+                  ],
+                  [
+                    -9.0,
+                    0.2
+                  ]
+                ]
+              },
+              {
+                "biome": "temperate.high",
+                "bounds": [
+                  [
+                    0.3,
+                    0.62
+                  ],
+                  [
+                    0.34,
+                    9.0
+                  ],
+                  [
+                    0.16,
+                    9.0
+                  ]
+                ]
+              },
+              {
+                "biome": "temperate.low",
+                "bounds": [
+                  [
+                    0.3,
+                    0.66
+                  ],
+                  [
+                    0.36,
+                    0.7
+                  ],
+                  [
+                    -9.0,
+                    0.16
+                  ]
+                ]
+              },
+              {
+                "biome": "wet.low",
+                "bounds": [
+                  [
+                    0.36,
+                    0.8
+                  ],
+                  [
+                    0.7,
+                    9.0
+                  ],
+                  [
+                    -9.0,
+                    0.16
+                  ]
+                ]
+              },
+              {
+                "biome": "dry.low",
+                "bounds": [
+                  [
+                    0.62,
+                    9.0
+                  ],
+                  [
+                    -9.0,
+                    0.36
+                  ],
+                  [
+                    -9.0,
+                    0.16
+                  ]
+                ]
+              },
+              {
+                "biome": "dry.high",
+                "bounds": [
+                  [
+                    0.55,
+                    9.0
+                  ],
+                  [
+                    -9.0,
+                    0.34
+                  ],
+                  [
+                    0.16,
+                    9.0
+                  ]
+                ]
+              }
+            ],
+            "key": "all",
+            "share": 1.0
+          }
+        ],
+        "transition": 0.04
+      }
+    }
+  },
+  "budgets": {
+    "flood_cells": 65536,
+    "probe_calls": 65536,
+    "trace_steps": 16384
+  },
+  "claim_keys": {},
+  "content_version": {
+    "major": 0,
+    "minor": 1,
+    "patch": 0
+  },
+  "fields": {
+    "base_ground": {
+      "domain": "Detail",
+      "graph": {
+        "Sum": [
+          {
+            "Ref": "seabed"
+          },
+          {
+            "Ref": "seabed_rough"
+          },
+          {
+            "Product": [
+              {
+                "Sub": [
+                  {
+                    "Ref": "land_h"
+                  },
+                  {
+                    "Sum": [
+                      {
+                        "Ref": "seabed"
+                      },
+                      {
+                        "Ref": "seabed_rough"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "PowSmooth": {
+                  "e": 0.75,
+                  "x": {
+                    "Ref": "land"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "continentality": {
+      "domain": "Macro",
+      "graph": {
+        "Sum": [
+          {
+            "Noise": {
+              "amp": 0.75,
+              "lacunarity": 2.0,
+              "octaves": 4,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.continent",
+              "warp": {
+                "amp": {
+                  "Span": 380.0
+                },
+                "x": {
+                  "Noise": {
+                    "amp": 1.0,
+                    "lacunarity": 2.0,
+                    "octaves": 1,
+                    "persistence": 0.5,
+                    "role": "Shape",
+                    "salt": "plain.continent.warp_x",
+                    "warp": null,
+                    "wavelength": {
+                      "Span": 3200.0
+                    }
+                  }
+                },
+                "z": {
+                  "Noise": {
+                    "amp": 0.71,
+                    "lacunarity": 2.0,
+                    "octaves": 1,
+                    "persistence": 0.5,
+                    "role": "Shape",
+                    "salt": "plain.continent.warp_z",
+                    "warp": null,
+                    "wavelength": {
+                      "Span": 3200.0
+                    }
+                  }
+                }
+              },
+              "wavelength": {
+                "Span": 4200.0
+              }
+            }
+          },
+          {
+            "Const": 0.08
+          }
+        ]
+      },
+      "keep": true,
+      "range": null,
+      "resolution": {
+        "Stride": 16
+      }
+    },
+    "ground": {
+      "domain": "Detail",
+      "graph": {
+        "Sum": [
+          {
+            "Ref": "base_ground"
+          },
+          {
+            "Product": [
+              {
+                "Smoothstep": {
+                  "e0": 0.86,
+                  "e1": 2.1,
+                  "x": {
+                    "SlopeOf": "base_ground"
+                  }
+                }
+              },
+              {
+                "Sum": [
+                  {
+                    "Noise": {
+                      "amp": 8.0,
+                      "lacunarity": 2.0,
+                      "octaves": 2,
+                      "persistence": 0.5,
+                      "role": "Shape",
+                      "salt": "plain.wear.face",
+                      "warp": null,
+                      "wavelength": {
+                        "Blocks": 64.0
+                      }
+                    }
+                  },
+                  {
+                    "Noise": {
+                      "amp": 2.0,
+                      "lacunarity": 2.0,
+                      "octaves": 1,
+                      "persistence": 0.5,
+                      "role": "Shape",
+                      "salt": "plain.wear.face_fine",
+                      "warp": null,
+                      "wavelength": {
+                        "Blocks": 16.0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "Product": [
+              {
+                "Smoothstep": {
+                  "e0": 1.3,
+                  "e1": 2.1,
+                  "x": {
+                    "SlopeOf": "base_ground"
+                  }
+                }
+              },
+              {
+                "Sub": [
+                  {
+                    "Product": [
+                      {
+                        "Smoothstep": {
+                          "e0": 0.3,
+                          "e1": 0.75,
+                          "x": {
+                            "Noise": {
+                              "amp": 1.0,
+                              "lacunarity": 2.0,
+                              "octaves": 1,
+                              "persistence": 0.5,
+                              "role": "Shape",
+                              "salt": "plain.wear.gully",
+                              "warp": null,
+                              "wavelength": {
+                                "Blocks": 48.0
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "Const": 6.0
+                      }
+                    ]
+                  },
+                  {
+                    "Product": [
+                      {
+                        "Sub": [
+                          {
+                            "Const": 1.0
+                          },
+                          {
+                            "Smoothstep": {
+                              "e0": 0.0,
+                              "e1": 0.22,
+                              "x": {
+                                "Abs": {
+                                  "Noise": {
+                                    "amp": 1.0,
+                                    "lacunarity": 2.0,
+                                    "octaves": 1,
+                                    "persistence": 0.5,
+                                    "role": "Shape",
+                                    "salt": "plain.wear.gully",
+                                    "warp": null,
+                                    "wavelength": {
+                                      "Blocks": 48.0
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "Const": 10.0
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "hills": {
+      "domain": "Detail",
+      "graph": {
+        "Product": [
+          {
+            "Noise": {
+              "amp": 1.0,
+              "lacunarity": 2.0,
+              "octaves": 3,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.hills",
+              "warp": null,
+              "wavelength": {
+                "Span": 260.0
+              }
+            }
+          },
+          {
+            "Affine": {
+              "add": 3.0,
+              "mul": 0.14,
+              "x": {
+                "Ref": "relief"
+              }
+            }
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "interior": {
+      "domain": "Macro",
+      "graph": {
+        "Smoothstep": {
+          "e0": 0.08,
+          "e1": 0.48,
+          "x": {
+            "Ref": "continentality"
+          }
+        }
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "land": {
+      "domain": "Macro",
+      "graph": {
+        "Smoothstep": {
+          "e0": -0.08,
+          "e1": 0.08,
+          "x": {
+            "Ref": "continentality"
+          }
+        }
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "land_h": {
+      "domain": "Detail",
+      "graph": {
+        "Sum": [
+          {
+            "Ref": "plains"
+          },
+          {
+            "Ref": "relief"
+          },
+          {
+            "Ref": "hills"
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "moisture": {
+      "domain": "Detail",
+      "graph": {
+        "Sum": [
+          {
+            "Const": 0.52
+          },
+          {
+            "Noise": {
+              "amp": 0.45,
+              "lacunarity": 2.0,
+              "octaves": 3,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.moisture",
+              "warp": null,
+              "wavelength": {
+                "Span": 1800.0
+              }
+            }
+          },
+          {
+            "Product": [
+              {
+                "Ref": "interior"
+              },
+              {
+                "Const": -0.1
+              }
+            ]
+          },
+          {
+            "Noise": {
+              "amp": 0.03,
+              "lacunarity": 2.0,
+              "octaves": 3,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.moisture.jitter",
+              "warp": null,
+              "wavelength": {
+                "Blocks": 90.0
+              }
+            }
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "plains": {
+      "domain": "Detail",
+      "graph": {
+        "Sum": [
+          {
+            "Sum": [
+              {
+                "Height": {
+                  "AboveSea": 2.0
+                }
+              },
+              {
+                "Product": [
+                  {
+                    "Ref": "interior"
+                  },
+                  {
+                    "Const": 5.0
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "Product": [
+              {
+                "Sub": [
+                  {
+                    "Height": {
+                      "AboveSea": 7.0
+                    }
+                  },
+                  {
+                    "Sum": [
+                      {
+                        "Height": {
+                          "AboveSea": 2.0
+                        }
+                      },
+                      {
+                        "Product": [
+                          {
+                            "Ref": "interior"
+                          },
+                          {
+                            "Const": 5.0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "Smoothstep": {
+                  "e0": -0.85,
+                  "e1": -0.35,
+                  "x": {
+                    "Ref": "ridge_fold"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "Product": [
+              {
+                "Noise": {
+                  "amp": 5.0,
+                  "lacunarity": 2.0,
+                  "octaves": 3,
+                  "persistence": 0.5,
+                  "role": "Shape",
+                  "salt": "plain.plains",
+                  "warp": null,
+                  "wavelength": {
+                    "Span": 160.0
+                  }
+                }
+              },
+              {
+                "Affine": {
+                  "add": 0.12,
+                  "mul": 0.88,
+                  "x": {
+                    "Smoothstep": {
+                      "e0": -0.85,
+                      "e1": -0.35,
+                      "x": {
+                        "Ref": "ridge_fold"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "relief": {
+      "domain": "Macro",
+      "graph": {
+        "Sum": [
+          {
+            "Product": [
+              {
+                "Router": {
+                  "knots": [
+                    [
+                      -1.0,
+                      {
+                        "Const": 0.0
+                      }
+                    ],
+                    [
+                      -0.75,
+                      {
+                        "Router": {
+                          "knots": [
+                            [
+                              -1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.012
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.04
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.25
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              0.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.012
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.04
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.6
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.012
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.04
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 1.1
+                                  }
+                                ]
+                              }
+                            ]
+                          ],
+                          "x": {
+                            "Ref": "ruggedness"
+                          }
+                        }
+                      }
+                    ],
+                    [
+                      -0.05,
+                      {
+                        "Router": {
+                          "knots": [
+                            [
+                              -1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.07
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.3
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.25
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              0.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.07
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.3
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.6
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.07
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.3
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 1.1
+                                  }
+                                ]
+                              }
+                            ]
+                          ],
+                          "x": {
+                            "Ref": "ruggedness"
+                          }
+                        }
+                      }
+                    ],
+                    [
+                      0.65,
+                      {
+                        "Router": {
+                          "knots": [
+                            [
+                              -1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.15
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.55
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.25
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              0.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.15
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.55
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.6
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.15
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.55
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 1.1
+                                  }
+                                ]
+                              }
+                            ]
+                          ],
+                          "x": {
+                            "Ref": "ruggedness"
+                          }
+                        }
+                      }
+                    ],
+                    [
+                      1.0,
+                      {
+                        "Router": {
+                          "knots": [
+                            [
+                              -1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.17
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.62
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.25
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              0.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.17
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.62
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 0.6
+                                  }
+                                ]
+                              }
+                            ],
+                            [
+                              1.0,
+                              {
+                                "Product": [
+                                  {
+                                    "Router": {
+                                      "knots": [
+                                        [
+                                          -1.0,
+                                          {
+                                            "Relief": 0.17
+                                          }
+                                        ],
+                                        [
+                                          1.0,
+                                          {
+                                            "Relief": 0.62
+                                          }
+                                        ]
+                                      ],
+                                      "x": {
+                                        "Ref": "ridge_fold"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "Const": 1.1
+                                  }
+                                ]
+                              }
+                            ]
+                          ],
+                          "x": {
+                            "Ref": "ruggedness"
+                          }
+                        }
+                      }
+                    ]
+                  ],
+                  "x": {
+                    "Ref": "continentality"
+                  }
+                }
+              },
+              {
+                "Affine": {
+                  "add": 0.35,
+                  "mul": 1.0,
+                  "x": {
+                    "Ref": "upland"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "Product": [
+              {
+                "Ref": "upland"
+              },
+              {
+                "Relief": 0.08
+              },
+              {
+                "Ref": "land"
+              }
+            ]
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "ridge_fold": {
+      "domain": "Macro",
+      "graph": {
+        "Sub": [
+          {
+            "Const": 1.0
+          },
+          {
+            "Product": [
+              {
+                "SAbs": {
+                  "k": 0.15,
+                  "x": {
+                    "Sub": [
+                      {
+                        "SAbs": {
+                          "k": 0.25,
+                          "x": {
+                            "Ref": "variety"
+                          }
+                        }
+                      },
+                      {
+                        "Const": 0.6666666666666666
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "Const": 3.0
+              }
+            ]
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "ruggedness": {
+      "domain": "Macro",
+      "graph": {
+        "Noise": {
+          "amp": 1.0,
+          "lacunarity": 2.0,
+          "octaves": 3,
+          "persistence": 0.5,
+          "role": "Shape",
+          "salt": "plain.ruggedness",
+          "warp": null,
+          "wavelength": {
+            "Span": 909.0
+          }
+        }
+      },
+      "keep": false,
+      "range": null,
+      "resolution": {
+        "Stride": 16
+      }
+    },
+    "seabed": {
+      "domain": "Macro",
+      "graph": {
+        "Spline": {
+          "knots": [
+            [
+              -1.2,
+              33.792
+            ],
+            [
+              -0.6,
+              46.08
+            ],
+            [
+              -0.15,
+              61.952
+            ],
+            [
+              0.1,
+              75.776
+            ],
+            [
+              0.6,
+              83.968
+            ],
+            [
+              1.4,
+              97.792
+            ]
+          ],
+          "x": {
+            "Sum": [
+              {
+                "Ref": "continentality"
+              },
+              {
+                "Noise": {
+                  "amp": 0.35,
+                  "lacunarity": 2.0,
+                  "octaves": 3,
+                  "persistence": 0.5,
+                  "role": "Shape",
+                  "salt": "plain.seabed",
+                  "warp": null,
+                  "wavelength": {
+                    "Span": 900.0
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "keep": false,
+      "range": null,
+      "resolution": {
+        "Stride": 16
+      }
+    },
+    "seabed_rough": {
+      "domain": "Detail",
+      "graph": {
+        "Product": [
+          {
+            "Noise": {
+              "amp": 4.5,
+              "lacunarity": 2.0,
+              "octaves": 2,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.seabed.rough",
+              "warp": null,
+              "wavelength": {
+                "Blocks": 96.0
+              }
+            }
+          },
+          {
+            "Sub": [
+              {
+                "Const": 1.0
+              },
+              {
+                "Ref": "land"
+              }
+            ]
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "temperature": {
+      "domain": "Detail",
+      "graph": {
+        "Sum": [
+          {
+            "Const": 0.5
+          },
+          {
+            "Noise": {
+              "amp": 0.62,
+              "lacunarity": 2.0,
+              "octaves": 3,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.temperature",
+              "warp": null,
+              "wavelength": {
+                "Span": 2200.0
+              }
+            }
+          },
+          {
+            "Noise": {
+              "amp": 0.03,
+              "lacunarity": 2.0,
+              "octaves": 3,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.temperature.jitter",
+              "warp": null,
+              "wavelength": {
+                "Blocks": 90.0
+              }
+            }
+          }
+        ]
+      },
+      "keep": false,
+      "range": null,
+      "resolution": "Full"
+    },
+    "upland": {
+      "domain": "Macro",
+      "graph": {
+        "Smoothstep": {
+          "e0": -0.15,
+          "e1": 0.55,
+          "x": {
+            "Noise": {
+              "amp": 1.0,
+              "lacunarity": 2.0,
+              "octaves": 2,
+              "persistence": 0.5,
+              "role": "Shape",
+              "salt": "plain.upland",
+              "warp": null,
+              "wavelength": {
+                "Span": 2400.0
+              }
+            }
+          }
+        }
+      },
+      "keep": false,
+      "range": null,
+      "resolution": {
+        "Stride": 16
+      }
+    },
+    "variety": {
+      "domain": "Macro",
+      "graph": {
+        "Noise": {
+          "amp": 1.0,
+          "lacunarity": 2.0,
+          "octaves": 2,
+          "persistence": 0.5,
+          "role": "Shape",
+          "salt": "plain.variety",
+          "warp": null,
+          "wavelength": {
+            "Span": 720.0
+          }
+        }
+      },
+      "keep": false,
+      "range": null,
+      "resolution": {
+        "Stride": 16
+      }
+    }
+  },
+  "fill": "rock.base",
+  "flora": {
+    "ecology": {
+      "cell": {
+        "Span": 110.0
+      },
+      "communities": {
+        "meadow": {
+          "biomes": [
+            "temperate.low",
+            "temperate.high",
+            "wet.low",
+            "cold.alpine"
+          ],
+          "canopy": null,
+          "edge_species": [],
+          "ground": [
+            {
+              "AboveSea": 2.0
+            },
+            {
+              "ShareOfRelief": 0.45
+            }
+          ],
+          "max_slope": 0.9,
+          "moisture": [
+            0.0,
+            1.0
+          ],
+          "weight": 2.5
+        },
+        "wood.broadleaf": {
+          "biomes": [
+            "temperate.low",
+            "wet.low"
+          ],
+          "canopy": {
+            "age_spread": 0.3,
+            "cell": {
+              "Span": 18.0
+            },
+            "chance": 0.8,
+            "cohesion": 0.75,
+            "max_slope": 0.9,
+            "points": [
+              3,
+              7
+            ],
+            "species": [
+              [
+                "broadleaf",
+                3.0
+              ],
+              [
+                "broadleaf.wide",
+                1.0
+              ]
+            ],
+            "spread": 7.0
+          },
+          "edge_species": [
+            [
+              "pale",
+              1.0
+            ]
+          ],
+          "ground": [
+            {
+              "AboveSea": 2.0
+            },
+            {
+              "ShareOfRelief": 0.45
+            }
+          ],
+          "max_slope": 0.9,
+          "moisture": [
+            0.35,
+            1.0
+          ],
+          "weight": 3.0
+        },
+        "wood.conifer": {
+          "biomes": [
+            "temperate.high",
+            "cold.alpine"
+          ],
+          "canopy": {
+            "age_spread": 0.3,
+            "cell": {
+              "Span": 22.0
+            },
+            "chance": 0.7,
+            "cohesion": 1.0,
+            "max_slope": 0.9,
+            "points": [
+              2,
+              6
+            ],
+            "species": [
+              [
+                "conifer",
+                1.0
+              ]
+            ],
+            "spread": 6.0
+          },
+          "edge_species": [
+            [
+              "pale",
+              1.0
+            ]
+          ],
+          "ground": [
+            {
+              "AboveSea": 2.0
+            },
+            {
+              "ShareOfRelief": 0.45
+            }
+          ],
+          "max_slope": 0.9,
+          "moisture": [
+            0.2,
+            1.0
+          ],
+          "weight": 2.0
+        },
+        "wood.pale": {
+          "biomes": [
+            "temperate.low",
+            "temperate.high"
+          ],
+          "canopy": {
+            "age_spread": 0.3,
+            "cell": {
+              "Span": 20.0
+            },
+            "chance": 0.75,
+            "cohesion": 0.8,
+            "max_slope": 0.9,
+            "points": [
+              3,
+              6
+            ],
+            "species": [
+              [
+                "pale",
+                3.0
+              ],
+              [
+                "broadleaf",
+                1.0
+              ]
+            ],
+            "spread": 6.0
+          },
+          "edge_species": [
+            [
+              "broadleaf",
+              1.0
+            ]
+          ],
+          "ground": [
+            {
+              "AboveSea": 2.0
+            },
+            {
+              "ShareOfRelief": 0.45
+            }
+          ],
+          "max_slope": 0.9,
+          "moisture": [
+            0.3,
+            0.8
+          ],
+          "weight": 2.0
+        }
+      },
+      "ecotone": 0.3,
+      "salt": "plain.flora.communities"
+    },
+    "sets": {
+      "groves.dry": {
+        "age_spread": 0.3,
+        "biomes": [
+          "dry.low"
+        ],
+        "cell": {
+          "Span": 72.0
+        },
+        "chance": 0.2,
+        "cohesion": 1.0,
+        "gate": null,
+        "ground": null,
+        "max_slope": 0.6,
+        "points": [
+          1,
+          2
+        ],
+        "salt": "plain.flora.dry",
+        "species": [
+          [
+            "parasol",
+            1.0
+          ]
+        ],
+        "spread": 4.0
+      }
+    },
+    "species": {
+      "broadleaf": {
+        "form": "Round",
+        "leaves": "flora.broadleaf.leaf",
+        "log": "flora.broadleaf.log"
+      },
+      "broadleaf.wide": {
+        "form": "Broad",
+        "leaves": "flora.broadleaf.leaf",
+        "log": "flora.broadleaf.log"
+      },
+      "conifer": {
+        "form": "Conic",
+        "leaves": "flora.broadleaf.leaf",
+        "log": "flora.broadleaf.log"
+      },
+      "pale": {
+        "form": "Slender",
+        "leaves": "flora.broadleaf.leaf",
+        "log": "flora.pale.log"
+      },
+      "parasol": {
+        "form": "Umbrella",
+        "leaves": "flora.broadleaf.leaf",
+        "log": "flora.broadleaf.log"
+      }
+    }
+  },
+  "format": 2,
+  "frame": {
+    "bedrock": {
+      "Abs": 2.0
+    },
+    "ceiling": {
+      "cap": {
+        "Abs": 498.0
+      },
+      "knee": {
+        "ShareOfWorld": 0.88
+      }
+    },
+    "height": 512,
+    "scale": 1.0,
+    "sea": {
+      "ShareOfWorld": 0.168
+    }
+  },
+  "nodes": {},
+  "paint": [
+    {
+      "kind": "surface_rules",
+      "params": {
+        "default": [
+          {
+            "place": "soil.top",
+            "when": [
+              {
+                "Depth": {
+                  "max": 0,
+                  "min": 0
+                }
+              }
+            ]
+          },
+          {
+            "place": "soil.sub",
+            "when": [
+              {
+                "Depth": {
+                  "max": 2,
+                  "min": 1
+                }
+              }
+            ]
+          }
+        ],
+        "tables": {
+          "cold.alpine": [
+            {
+              "place": "gravel",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 0,
+                    "min": 0
+                  }
+                },
+                {
+                  "Speckle": {
+                    "chance": 0.12,
+                    "salt": "plain.paint.alpine_stones"
+                  }
+                }
+              ]
+            },
+            {
+              "place": "soil.top",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 0,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "soil.sub",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 2,
+                    "min": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "dry.high": [
+            {
+              "place": "soil.dry",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 1,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "rock.layer.0",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 8,
+                    "min": 2
+                  }
+                }
+              ]
+            }
+          ],
+          "dry.low": [
+            {
+              "place": "soil.dry",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 3,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "rock.layer.0",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 9,
+                    "min": 4
+                  }
+                }
+              ]
+            }
+          ],
+          "frozen": [
+            {
+              "place": "snow",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 0,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "soil.sub",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 2,
+                    "min": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "seabed": [
+            {
+              "place": "shore",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 2,
+                    "min": 0
+                  }
+                },
+                {
+                  "WaterDepth": {
+                    "max": 18,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "gravel",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 1,
+                    "min": 0
+                  }
+                },
+                {
+                  "Speckle": {
+                    "chance": 0.08,
+                    "salt": "plain.paint.sea_stones"
+                  }
+                }
+              ]
+            },
+            {
+              "place": "bed.lake",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 1,
+                    "min": 0
+                  }
+                }
+              ]
+            }
+          ],
+          "shore": [
+            {
+              "place": "shore",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 3,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "gravel",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 5,
+                    "min": 4
+                  }
+                }
+              ]
+            }
+          ],
+          "temperate.high": [
+            {
+              "place": "soil.top",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 0,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "soil.sub",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 2,
+                    "min": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "temperate.low": [
+            {
+              "place": "soil.top",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 0,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "soil.sub",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 3,
+                    "min": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "wet.low": [
+            {
+              "place": "soil.top",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 0,
+                    "min": 0
+                  }
+                }
+              ]
+            },
+            {
+              "place": "soil.wet",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 2,
+                    "min": 1
+                  }
+                }
+              ]
+            },
+            {
+              "place": "soil.sub",
+              "when": [
+                {
+                  "Depth": {
+                    "max": 4,
+                    "min": 3
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "ecotones",
+      "params": {
+        "cliff": {
+          "depth": 3,
+          "patch_gain": 0.2,
+          "role": "rock.base",
+          "slope": [
+            1.0,
+            2.0
+          ]
+        },
+        "hash_salt": "plain.paint.fray",
+        "patch": {
+          "salt": "plain.paint.patch",
+          "wavelength": {
+            "Blocks": 56.0
+          }
+        },
+        "rock_line": {
+          "above": {
+            "ShareOfRelief": 0.3
+          },
+          "depth": 2,
+          "jitter": 3.0,
+          "patch": 10.0,
+          "role": "rock.base"
+        },
+        "snow": {
+          "depth": 1,
+          "full": 0.06,
+          "patch_gain": 0.09,
+          "role": "snow",
+          "slope_gain": 0.045,
+          "temperature": 0.16
+        },
+        "talus": {
+          "depth": 1,
+          "patch_above": 0.25,
+          "role": "talus",
+          "slope": [
+            0.6,
+            1.0
+          ]
+        }
+      }
+    },
+    {
+      "kind": "zones",
+      "params": {
+        "zones": {}
+      }
+    }
+  ],
+  "preset": "voxelize.plain",
+  "roles": {
+    "bed.lake": {
+      "doc": "lake and deep sea beds",
+      "fallback": "soil.sub",
+      "fluid": false,
+      "optional": false
+    },
+    "bed.river": {
+      "doc": "river beds",
+      "fallback": "gravel",
+      "fluid": false,
+      "optional": false
+    },
+    "build.masonry": {
+      "doc": "dressed stone for structures",
+      "fallback": "rock.base",
+      "fluid": false,
+      "optional": false
+    },
+    "build.timber": {
+      "doc": "sawn timber for structures",
+      "fallback": "flora.broadleaf.log",
+      "fluid": false,
+      "optional": false
+    },
+    "cave.cover": {
+      "doc": "moss in upper caves",
+      "fallback": "cover.moss",
+      "fluid": false,
+      "optional": false
+    },
+    "cave.glow": {
+      "doc": "rare glowing accents in upper caves",
+      "fallback": null,
+      "fluid": false,
+      "optional": true
+    },
+    "cave.rubble": {
+      "doc": "rubble on cave floors",
+      "fallback": "gravel",
+      "fluid": false,
+      "optional": false
+    },
+    "cave.spike": {
+      "doc": "ceiling and floor spikes",
+      "fallback": "rock.soft",
+      "fluid": false,
+      "optional": false
+    },
+    "cave.strand": {
+      "doc": "hanging strands in upper caves",
+      "fallback": null,
+      "fluid": false,
+      "optional": true
+    },
+    "cover.moss": {
+      "doc": "moss cover",
+      "fallback": "soil.top",
+      "fluid": false,
+      "optional": false
+    },
+    "flora.broadleaf.leaf": {
+      "doc": "broadleaf foliage",
+      "fallback": null,
+      "fluid": false,
+      "optional": false
+    },
+    "flora.broadleaf.log": {
+      "doc": "broadleaf trunks",
+      "fallback": null,
+      "fluid": false,
+      "optional": false
+    },
+    "flora.pale.log": {
+      "doc": "pale-barked trunks",
+      "fallback": "flora.broadleaf.log",
+      "fluid": false,
+      "optional": false
+    },
+    "fluid.lava": {
+      "doc": "lava",
+      "fallback": "rock.glass",
+      "fluid": true,
+      "optional": false
+    },
+    "fluid.water": {
+      "doc": "water",
+      "fallback": null,
+      "fluid": true,
+      "optional": false
+    },
+    "gravel": {
+      "doc": "loose stones",
+      "fallback": "rock.base",
+      "fluid": false,
+      "optional": false
+    },
+    "ice": {
+      "doc": "sea ice and ice shelves",
+      "fallback": "snow",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.base": {
+      "doc": "the common rock every column is filled with",
+      "fallback": null,
+      "fluid": false,
+      "optional": false
+    },
+    "rock.glass": {
+      "doc": "volcanic glass",
+      "fallback": "rock.volcanic",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.hard": {
+      "doc": "hard crystalline rock",
+      "fallback": "rock.base",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.layer.0": {
+      "doc": "the first soft stratum",
+      "fallback": "rock.soft",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.layer.1": {
+      "doc": "the second soft stratum",
+      "fallback": "rock.soft",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.layer.2": {
+      "doc": "the third soft stratum",
+      "fallback": "rock.soft",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.soft": {
+      "doc": "soft sedimentary rock",
+      "fallback": "rock.base",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.tuff": {
+      "doc": "ash rock",
+      "fallback": "rock.volcanic",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.volcanic": {
+      "doc": "dark volcanic rock",
+      "fallback": "rock.hard",
+      "fluid": false,
+      "optional": false
+    },
+    "rock.volcanic.fine": {
+      "doc": "fine volcanic rubble",
+      "fallback": "rock.volcanic",
+      "fluid": false,
+      "optional": false
+    },
+    "shore": {
+      "doc": "beaches and shallow sea floors",
+      "fallback": "soil.sub",
+      "fluid": false,
+      "optional": false
+    },
+    "snow": {
+      "doc": "snow cover",
+      "fallback": null,
+      "fluid": false,
+      "optional": false
+    },
+    "soil.dry": {
+      "doc": "loose dry ground",
+      "fallback": "soil.sub",
+      "fluid": false,
+      "optional": false
+    },
+    "soil.sub": {
+      "doc": "subsoil under the top",
+      "fallback": null,
+      "fluid": false,
+      "optional": false
+    },
+    "soil.top": {
+      "doc": "the living top of temperate soil",
+      "fallback": null,
+      "fluid": false,
+      "optional": false
+    },
+    "soil.wet": {
+      "doc": "wet heavy ground",
+      "fallback": "soil.sub",
+      "fluid": false,
+      "optional": false
+    },
+    "talus": {
+      "doc": "scree under steep faces",
+      "fallback": "gravel",
+      "fluid": false,
+      "optional": false
+    }
+  },
+  "spawn": {
+    "Search": {
+      "clear_radius": 256,
+      "coast_within": 1500,
+      "ground": [
+        {
+          "AboveSea": 3.0
+        },
+        {
+          "AboveSea": 40.0
+        }
+      ],
+      "max_radius": 3072,
+      "max_slope": 0.35,
+      "moisture": [
+        0.35,
+        0.8
+      ],
+      "origin": [
+        0,
+        0
+      ],
+      "stride": 32,
+      "temperature": [
+        0.4,
+        0.75
+      ]
+    }
+  },
+  "taste": {
+    "forbid_literal_heights": true,
+    "max_band_grain": 0.5,
+    "max_dune_lee_slope": 0.65,
+    "max_fine_amplitude": 0.75,
+    "max_gully_octaves": 3,
+    "min_band_fade": 1.0,
+    "min_band_stride": 3,
+    "min_bench_period": 8.0,
+    "min_ground_wavelength": 16.0,
+    "min_gully_wavelength": 24.0,
+    "min_medium_amplitude": 0.02,
+    "min_strata_period": 6.0,
+    "strict": true,
+    "warp_fold_limit": 0.8
+  },
+  "water": {
+    "sea": true,
+    "sea_fluid": "fluid.water"
+  },
+  "water_kinds": {},
+  "zones": {}
+}

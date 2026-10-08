@@ -1,9 +1,17 @@
 //! The landscape test kit (feature `kit`).
 //!
-//! This phase carries the libm scan; the landform, province and structure
-//! suites arrive with the plugin kinds they test.
+//! - [`no_libm`] and [`assert_no_libm!`]: the bit-stability scan;
+//! - [`determinism`] and [`determinism_suite!`]: order and thread
+//!   shuffles, caches at capacity one, grid equals point, two processes,
+//!   and the run writer's height-map contract.
+//!
+//! The landform, province and structure suites arrive with the plugin kinds
+//! they test.
 
+pub mod determinism;
 pub mod no_libm;
+
+pub use determinism::determinism_suite;
 
 /// Fails the calling test if any `.rs` file under `dir` (relative to the
 /// calling crate's manifest directory) calls the platform maths library:

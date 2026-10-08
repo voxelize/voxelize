@@ -15,10 +15,10 @@ default = []
 # features across a consumer's whole build, so that would change the
 # consumer's own parsing. Optional dependencies join it with the first code
 # that uses them.
-unstable-landscape = []
-# The landscape test kit: `assert_no_libm!` for game crates now; the
-# landform, province, structure and determinism suites join as the plugin
-# kinds they test land.
+unstable-landscape = ["dep:ryu", "dep:serde_path_to_error"]
+# The landscape test kit: `assert_no_libm!` and the determinism suite for
+# game crates; the landform, province and structure suites join as the
+# plugin kinds they test land.
 kit = ["unstable-landscape"]
 # Deterministic work counters for the budget gate: cost only, never output.
 gen-counters = ["unstable-landscape"]
@@ -30,6 +30,11 @@ serde_json = "1.0"
 smallvec = { version = "1.13", features = ["serde"] }
 hashbrown = "0.14"
 png = "0.17"
+# The landscape spec's own number path (docs/landscape.md, section 2.4.3):
+# a pinned float formatter for the canonical writer, and path-qualified
+# deserialization errors. Neither enables a feature on a shared dependency.
+ryu = { version = "1", optional = true }
+serde_path_to_error = { version = "0.1", optional = true }
 
 [dev-dependencies]
 rayon = "1.10"

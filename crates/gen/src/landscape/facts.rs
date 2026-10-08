@@ -1,0 +1,437 @@
+//! `ChunkFacts`: one record per chunk, the single source of truth for every
+//! later pass, public query, flora rule and tool.
+//!
+//! Facts are structure-of-arrays over the chunk and a halo of `h` columns
+//! on every side (default 2, cap 4), x fastest. They hold the continuous
+//! final ground (one definition of ground), the solid top, the L2 slope,
+//! aspect and curvature of final ground, temperature after the lapse,
+//! moisture, the dithered biome, the zone, the resolved water and the
+//! fields declared `keep: true` (as `f32`). Fields not kept are evaluated
+//! into scratch and dropped.
+//!
+//! A point query builds the same record over a window of one column with
+//! no halo, through the same code, so it equals the chunk's record bit for
+//! bit (the determinism suite's `grid_equals_point`).
+
+use smallvec::SmallVec;
+
+use crate::climate::{BiomeBlend, BiomeId, MAX_AXES};
+
+use super::counters::{bump, Counter};
+use super::fields::Area;
+use super::lower::AxisSource;
+use super::math::{soft_ceiling, soft_up, MinMax};
+use super::surface::ZoneKey;
+use super::water::{SeaModel, WaterColumn};
+use super::Landscape;
+
+/// Which intermediate state of the pipeline a query reads. A tier's answer
+/// equals the full pipeline's state after that layer. This phase has no
+/// landforms, so every tier reads the same final ground.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Tier {
+    /// After the base fields.
+    Macro,
+    /// After the Shore layer.
+    Shaped,
+    /// After the Water layer.
+    Hydro,
+    /// After the Detail layer (everything but fits).
+    PreFit,
+    /// Everything.
+    Full,
+}
+
+/// A column's biome: the dithered id paint and flora use, and the blend
+/// it came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BiomeCell {
+    /// The biome that owns the column after the border dither.
+    pub id: BiomeId,
+    /// The blend's primary biome.
+    pub primary: BiomeId,
+    /// The blend's runner-up (equal to `primary` when pure).
+    pub secondary: BiomeId,
+    /// The runner-up's weight, in 1/65535 units.
+    pub edge: u16,
+}
+
+impl Default for BiomeCell {
+    fn default() -> Self {
+        Self {
+            id: BiomeId(0),
+            primary: BiomeId(0),
+            secondary: BiomeId(0),
+            edge: 0,
+        }
+    }
+}
+
+/// Resolved water per column (this phase: the sea).
+#[derive(Clone, Debug)]
+pub struct WaterTile {
+    /// The bottom y of the sea layer per column, or `i16::MAX` when dry.
+    pub sea_bottom: Box<[i16]>,
+}
+
+/// One chunk's facts (see the module docs).
+#[derive(Clone, Debug)]
+pub struct ChunkFacts {
+    /// The chunk's first interior column `(x, z)`.
+    pub origin: (i32, i32),
+    /// Interior columns per side.
+    pub size: u16,
+    /// Halo columns on every side.
+    pub halo: u8,
+    /// Continuous final ground.
+    pub ground: Box<[f64]>,
+    /// Solid top of the heightfield (voxel y is solid iff `y <= top`).
+    pub top: Box<[i16]>,
+    /// L2 slope of final ground.
+    pub slope: Box<[f32]>,
+    /// Unit downhill vector, `[0, 0]` on flats.
+    pub aspect: Box<[[f32; 2]]>,
+    /// Laplacian of final ground.
+    pub curvature: Box<[f32]>,
+    /// Temperature after the lapse.
+    pub temperature: Box<[f32]>,
+    /// Moisture.
+    pub moisture: Box<[f32]>,
+    /// Biome.
+    pub biome: Box<[BiomeCell]>,
+    /// Zone.
+    pub zone: Box<[ZoneKey]>,
+    /// Water.
+    pub water: WaterTile,
+    /// Kept fields, field-major: `kept[f * cells + i]`.
+    pub kept: Box<[f32]>,
+    /// Number of kept fields.
+    pub kept_count: u16,
+}
+
+/// One column's facts, as a point query returns them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ColumnFact {
+    /// World x.
+    pub x: i32,
+    /// World z.
+    pub z: i32,
+    /// Continuous final ground.
+    pub ground: f64,
+    /// Solid top.
+    pub top: i32,
+    /// L2 slope (stored as `f32`, widened).
+    pub slope: f64,
+    /// Unit downhill vector.
+    pub aspect: [f64; 2],
+    /// Laplacian.
+    pub curvature: f64,
+    /// Temperature after the lapse.
+    pub temperature: f64,
+    /// Moisture.
+    pub moisture: f64,
+    /// Biome.
+    pub biome: BiomeCell,
+    /// Zone.
+    pub zone: ZoneKey,
+    /// Water layers.
+    pub water: WaterColumn,
+    /// Kept fields, in declaration order.
+    pub kept: SmallVec<[f32; 8]>,
+}
+
+impl ChunkFacts {
+    /// Columns per side of the stored area.
+    pub fn side(&self) -> usize {
+        self.size as usize + 2 * self.halo as usize
+    }
+
+    /// Stored columns.
+    pub fn cells(&self) -> usize {
+        self.side() * self.side()
+    }
+
+    /// The stored area.
+    pub fn area(&self) -> Area {
+        Area {
+            x0: self.origin.0 - self.halo as i32,
+            z0: self.origin.1 - self.halo as i32,
+            w: self.side(),
+            d: self.side(),
+        }
+    }
+
+    /// Index of world column `(x, z)`, if stored.
+    #[inline]
+    pub fn index(&self, x: i32, z: i32) -> Option<usize> {
+        let h = self.halo as i32;
+        let dx = x - (self.origin.0 - h);
+        let dz = z - (self.origin.1 - h);
+        let side = self.side() as i32;
+        if dx < 0 || dz < 0 || dx >= side || dz >= side {
+            None
+        } else {
+            Some((dz * side + dx) as usize)
+        }
+    }
+
+    /// Kept field `f` at stored index `i`.
+    pub fn kept_at(&self, f: usize, i: usize) -> f32 {
+        self.kept[f * self.cells() + i]
+    }
+
+    /// The water column at stored index `i`.
+    pub fn water_at(&self, i: usize, sea: &SeaModel) -> WaterColumn {
+        let b = self.water.sea_bottom[i];
+        if b == i16::MAX {
+            WaterColumn::default()
+        } else {
+            sea.column(b as i32 - 1)
+        }
+    }
+
+    /// The column at world `(x, z)`, if stored.
+    pub fn column(&self, x: i32, z: i32, sea: &SeaModel) -> Option<ColumnFact> {
+        let i = self.index(x, z)?;
+        Some(ColumnFact {
+            x,
+            z,
+            ground: self.ground[i],
+            top: self.top[i] as i32,
+            slope: self.slope[i] as f64,
+            aspect: [self.aspect[i][0] as f64, self.aspect[i][1] as f64],
+            curvature: self.curvature[i] as f64,
+            temperature: self.temperature[i] as f64,
+            moisture: self.moisture[i] as f64,
+            biome: self.biome[i],
+            zone: self.zone[i],
+            water: self.water_at(i, sea),
+            kept: (0..self.kept_count as usize)
+                .map(|f| self.kept_at(f, i))
+                .collect(),
+        })
+    }
+
+    /// Approximate heap bytes (the facts cache is capped by this).
+    pub fn bytes(&self) -> usize {
+        let n = self.cells();
+        std::mem::size_of::<Self>()
+            + n * (8 + 2 + 4 + 8 + 4 + 4 + 4 + std::mem::size_of::<BiomeCell>() + 2 + 2)
+            + self.kept.len() * 4
+    }
+
+    /// FNV digest of every channel's bits (golden and determinism tests).
+    pub fn digest(&self) -> u64 {
+        let mut h: u64 = 0xcbf29ce484222325;
+        let mut eat = |v: u64| {
+            h ^= v;
+            h = h.wrapping_mul(0x100000001b3);
+        };
+        for i in 0..self.cells() {
+            eat(self.ground[i].to_bits());
+            eat(self.top[i] as u16 as u64);
+            eat(self.slope[i].to_bits() as u64);
+            eat(self.aspect[i][0].to_bits() as u64);
+            eat(self.aspect[i][1].to_bits() as u64);
+            eat(self.curvature[i].to_bits() as u64);
+            eat(self.temperature[i].to_bits() as u64);
+            eat(self.moisture[i].to_bits() as u64);
+            let b = self.biome[i];
+            eat(((b.id.0 as u64) << 48)
+                | ((b.primary.0 as u64) << 32)
+                | ((b.secondary.0 as u64) << 16)
+                | b.edge as u64);
+            eat(self.zone[i].0 as u64);
+            eat(self.water.sea_bottom[i] as u16 as u64);
+        }
+        for v in self.kept.iter() {
+            eat(v.to_bits() as u64);
+        }
+        h
+    }
+}
+
+/// The solid top of a column of continuous ground `g`: voxel `y` is solid
+/// where the heightfield density `g + 0.5 - y` is positive.
+#[inline]
+pub fn solid_top(g: f64) -> i32 {
+    (g + 0.5).ceil() as i32 - 1
+}
+
+/// Slope (L2), downhill aspect and Laplacian from final ground at a column
+/// and its four neighbours (east, west, south, north).
+#[inline]
+pub fn stencil(c: f64, e: f64, w: f64, s: f64, n: f64) -> (f64, [f64; 2], f64) {
+    let gx = (e - w) * 0.5;
+    let gz = (s - n) * 0.5;
+    let slope = (gx * gx + gz * gz).sqrt();
+    let aspect = if slope > 1e-9 {
+        [-gx / slope, -gz / slope]
+    } else {
+        [0.0, 0.0]
+    };
+    (slope, aspect, e + w + s + n - 4.0 * c)
+}
+
+struct NoZoned;
+
+impl crate::climate::AxisSampler for NoZoned {
+    fn sample_axis(&self, _: usize, _: i32, _: i32) -> f64 {
+        unreachable!("landscape partitions are single or climate-matched")
+    }
+}
+
+impl Landscape {
+    /// Final ground from the spine field's value: the floor clamp, then
+    /// the soft ceiling (always last).
+    #[inline]
+    pub(crate) fn finish_ground(&self, g: f64) -> f64 {
+        let f = &self.frame;
+        let floored = soft_up(g, f.bedrock + 0.5 * FLOOR_ROUND, FLOOR_ROUND);
+        soft_ceiling(floored, f.knee, f.cap)
+    }
+
+    /// The biome of a column from its axis values and top.
+    pub(crate) fn biome_of(
+        &self,
+        x: i32,
+        z: i32,
+        axes: &SmallVec<[f64; MAX_AXES]>,
+        top: i32,
+    ) -> BiomeCell {
+        let base = self.climate.partition.base_blend(x, z, axes, &NoZoned);
+        let sea = if self.sea.enabled {
+            Some(self.sea.level)
+        } else {
+            None
+        };
+        let blend: BiomeBlend = self.climate.partition.apply_overlays(base, top, sea);
+        let (secondary, weight) = blend.secondary().unwrap_or((blend.primary, 0.0));
+        let id = if weight > 0.0 {
+            // A smooth field, not a per-column hash: the runner-up takes
+            // the column where the field dips under its weight, so a border
+            // frays in tongues that widen toward the line.
+            let n = self.dither.sample(x as f64 + 0.5, z as f64 + 0.5);
+            let roll = (0.5 + 0.5 * n).fclamp(0.0, 1.0);
+            if (roll as f32) < weight {
+                secondary
+            } else {
+                blend.primary
+            }
+        } else {
+            blend.primary
+        };
+        BiomeCell {
+            id,
+            primary: blend.primary,
+            secondary,
+            edge: ((weight as f64).fclamp(0.0, 1.0) * 65535.0) as u16,
+        }
+    }
+
+    /// Build facts for the `size x size` columns from `origin`, with `halo`
+    /// columns around them.
+    pub fn build_facts(&self, origin: (i32, i32), size: usize, halo: i32) -> ChunkFacts {
+        bump(Counter::FactsBuilt, 1);
+        let stored = Area {
+            x0: origin.0 - halo,
+            z0: origin.1 - halo,
+            w: size + 2 * halo as usize,
+            d: size + 2 * halo as usize,
+        };
+        let grid = self.fields.evaluate(stored, 1, &self.tiles);
+        // Final ground over the stored area grown by one (for the stencil).
+        let wide = stored.grow(1);
+        let mut ground_wide = vec![0.0f64; wide.len()];
+        for dz in 0..wide.d {
+            let z = wide.z0 + dz as i32;
+            for dx in 0..wide.w {
+                let x = wide.x0 + dx as i32;
+                ground_wide[dz * wide.w + dx] =
+                    self.finish_ground(grid.output(self.slots.ground, x, z));
+            }
+        }
+        let n = stored.len();
+        let kept_count = self.slots.kept.len();
+        let mut f = ChunkFacts {
+            origin,
+            size: size as u16,
+            halo: halo as u8,
+            ground: vec![0.0; n].into(),
+            top: vec![0; n].into(),
+            slope: vec![0.0; n].into(),
+            aspect: vec![[0.0; 2]; n].into(),
+            curvature: vec![0.0; n].into(),
+            temperature: vec![0.0; n].into(),
+            moisture: vec![0.0; n].into(),
+            biome: vec![BiomeCell::default(); n].into(),
+            zone: vec![ZoneKey::NONE; n].into(),
+            water: WaterTile {
+                sea_bottom: vec![i16::MAX; n].into(),
+            },
+            kept: vec![0.0; kept_count * n].into(),
+            kept_count: kept_count as u16,
+        };
+        let h = self.frame.height as i32;
+        let sea = self.frame.sea as f64;
+        let relief = self.frame.relief;
+        let mut axes: SmallVec<[f64; MAX_AXES]> = SmallVec::new();
+        for dz in 0..stored.d {
+            let z = stored.z0 + dz as i32;
+            for dx in 0..stored.w {
+                let x = stored.x0 + dx as i32;
+                let i = dz * stored.w + dx;
+                let wi = (dz + 1) * wide.w + dx + 1;
+                let g = ground_wide[wi];
+                let (slope, aspect, curvature) = stencil(
+                    g,
+                    ground_wide[wi + 1],
+                    ground_wide[wi - 1],
+                    ground_wide[wi + wide.w],
+                    ground_wide[wi - wide.w],
+                );
+                let top = solid_top(g).fclamp_i(0, h - 1);
+                let temperature = grid.output(self.slots.temperature, x, z)
+                    - self.climate.lapse * (g - sea) / relief;
+                let moisture = grid.output(self.slots.moisture, x, z);
+                axes.clear();
+                for a in &self.climate.axes {
+                    axes.push(match *a {
+                        AxisSource::Temperature => temperature,
+                        AxisSource::Moisture => moisture,
+                        AxisSource::HeightShare => (g - sea) / relief,
+                        AxisSource::Field(slot) => grid.output(slot, x, z),
+                    });
+                }
+                f.ground[i] = g;
+                f.top[i] = top as i16;
+                f.slope[i] = slope as f32;
+                f.aspect[i] = [aspect[0] as f32, aspect[1] as f32];
+                f.curvature[i] = curvature as f32;
+                f.temperature[i] = temperature as f32;
+                f.moisture[i] = moisture as f32;
+                f.biome[i] = self.biome_of(x, z, &axes, top);
+                if let Some(layer) = self.sea.layer(top) {
+                    f.water.sea_bottom[i] = layer.bottom as i16;
+                }
+                for (k, &slot) in self.slots.kept.iter().enumerate() {
+                    f.kept[k * n + i] = grid.output(slot, x, z) as f32;
+                }
+            }
+        }
+        f
+    }
+}
+
+/// Rounding width of the floor clamp, in blocks.
+pub const FLOOR_ROUND: f64 = 4.0;
+
+trait ClampI {
+    fn fclamp_i(self, lo: i32, hi: i32) -> i32;
+}
+
+impl ClampI for i32 {
+    fn fclamp_i(self, lo: i32, hi: i32) -> i32 {
+        Ord::min(Ord::max(self, lo), hi)
+    }
+}
