@@ -25,7 +25,9 @@
 //!   divides;
 //! - [`settle`]: fluid steady-state checks and pre-settling, run with the
 //!   game's own fluid configuration;
-//! - [`cache`]: `ClockCache`, the cost-only cache every tier uses.
+//! - [`cache`]: `ClockCache`, the cost-only cache every tier uses;
+//! - `kit` (feature `kit`): `assert_no_libm!`, the bit-stability scan for
+//!   game crates.
 //!
 //! Every value is a pure function of its inputs, and all arithmetic under
 //! this module is IEEE add, sub, mul, div, sqrt, floor, abs, min and max
@@ -41,6 +43,8 @@ pub mod cache;
 pub mod channels;
 pub mod flood;
 pub mod geometry;
+#[cfg(feature = "kit")]
+pub mod kit;
 pub mod lattice;
 pub mod math;
 pub mod profile;
