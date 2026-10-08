@@ -11,6 +11,11 @@
 //!   derivative, `psin`/`pcos`, the diamond angle, ring noise, smooth
 //!   min/max, the rational soft ceiling, and the one-sided soft clamps that
 //!   are the identity wherever the target equals the ground);
+//! - [`profile`]: C1 cross-sections with analytic slopes and inverses
+//!   (walls, cones, sea-cliff faces, caldera S-walls, slot sections, dune
+//!   waves);
+//! - [`strata`]: wandering absolute-height bands that bench a wall without
+//!   ever inverting its slope;
 //! - [`cache`]: `ClockCache`, the cost-only cache every tier uses.
 //!
 //! Every value is a pure function of its inputs, and all arithmetic under
@@ -25,6 +30,8 @@
 
 pub mod cache;
 pub mod math;
+pub mod profile;
+pub mod strata;
 
 use crate::stream::{stream_seed_lane, FIRST_LAYER_LANE};
 
