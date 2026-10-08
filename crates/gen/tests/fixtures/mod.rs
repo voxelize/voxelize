@@ -10,8 +10,8 @@
 use std::sync::Arc;
 
 use voxelize::{
-    Block, BlockFaces, Chunk, ChunkOptions, ChunkStage, Registry, Resources, Vec3, VoxelAccess,
-    WorldConfig,
+    Block, BlockFaces, Chunk, ChunkOptions, ChunkStage, Pipeline, Registry, Resources, Vec3,
+    VoxelAccess, WorldConfig,
 };
 use voxelize_gen::*;
 
@@ -868,7 +868,8 @@ pub struct Harness {
     pub registry: Registry,
     pub config: WorldConfig,
     pub generator: Arc<CompiledGenerator>,
-    pub stages: Vec<Box<dyn ChunkStage + Send + Sync>>,
+    /// Exactly the stages `install` adds to a pipeline, in its order.
+    pub stages: Vec<Arc<dyn ChunkStage + Send + Sync>>,
 }
 
 pub fn harness() -> Harness {
@@ -883,21 +884,16 @@ pub fn harness_for_seed(spec: GeneratorSpec, seed: u32) -> Harness {
     let registry = fixture_registry();
     let config = fixture_config_seeded(seed);
     let generator = compile(&spec, &registry, &config).expect("fixture compiles");
-    let mut stages: Vec<Box<dyn ChunkStage + Send + Sync>> = vec![
-        Box::new(stages::GenShapeStage::new(Arc::clone(&generator))),
-        Box::new(stages::GenSurfaceStage::new(Arc::clone(&generator))),
-        Box::new(stages::GenCarveStage::new(Arc::clone(&generator))),
-        Box::new(stages::GenPopulateStage::new(Arc::clone(&generator))),
-    ];
-    if generator.geo().is_some() || generator.walker_rivers().is_some() {
-        stages.push(Box::new(stages::RiverStage::new(Arc::clone(&generator))));
-    }
-    stages.push(Box::new(stages::FloraStage::new(Arc::clone(&generator))));
+    // Run what a world runs: the stage list comes from `install` itself, so
+    // the goldens and every harness test exercise the frozen entry point
+    // rather than a hand-kept copy of its stage order.
+    let mut pipeline = Pipeline::new();
+    install(&mut pipeline, Arc::clone(&generator));
     Harness {
         registry,
         config,
         generator,
-        stages,
+        stages: pipeline.stages,
     }
 }
 
