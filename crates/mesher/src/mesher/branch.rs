@@ -463,7 +463,7 @@ impl BranchLayout {
     }
 
     /// Lay out a cell of a wide section: the boxes of its slice of the
-    /// section's round tube, the whole height of the voxel, and an arm from
+    /// section's square tube, the whole height of the voxel, and an arm from
     /// the tube's surface out to each one-voxel branch or fin it joins beside
     /// it. An arm starts where the slice ends across its cross-section, so no
     /// two parts overlap. A cut core lays out nothing.
@@ -876,13 +876,12 @@ fn arm(side: usize, j: i32, start: i32, end: i32, floor: bool, height: u32, c: i
     }
 }
 
-/// A branch section wider than one voxel: one round tube of `radius` texels
-/// round the axis through the middle of its core cell, drawn at texel
-/// resolution and cut into the cells it covers. A texel belongs to the tube
-/// when its centre lies within `radius` of the axis. Each cell draws,
-/// collides with and weighs only the texels of the tube inside its own
-/// square, as a few boxes ([`WideBranchSection::cell_boxes`]), so a
-/// section's cells add up to the whole tube.
+/// A branch section wider than one voxel: one square tube reaching `radius`
+/// texels each way from the axis through the middle of its core cell, cut
+/// into the cells it covers. Each cell draws, collides with and weighs only
+/// the part of the tube inside its own square, one box
+/// ([`WideBranchSection::cell_boxes`]), so a section's cells add up to the
+/// whole tube: a one-voxel branch's square core, grown past its voxel.
 ///
 /// Cells are counted from the core on the two axes across the tube's axis:
 /// `a` along x, `b` along z for an upright tube.
@@ -899,79 +898,40 @@ impl WideBranchSection {
         ((self.radius + t / 2).saturating_sub(1) / t) as i32
     }
 
-    /// The tube's extent along `b` in the texel column at `a` (both counted
-    /// in the core cell's texels from its corner), `[low, high)`, or `None`
-    /// where the column misses the tube. Integer throughout, so every
-    /// mesher and the client cut the same circle.
-    fn column(&self, a: i64) -> Option<(i64, i64)> {
+    /// The tube's span across the cell `d` cells from the core along one
+    /// axis, in that cell's own texels (within `0..=texels_per_block`), or
+    /// `None` where the tube does not reach it.
+    pub fn span(&self, d: i32) -> Option<(u32, u32)> {
         let t = i64::from(self.texels_per_block);
-        let centre = t / 2;
-        // Twice the column centre's distance from the axis, and twice the
-        // radius: the circle test (u/2)² + (v/2)² <= r² in whole numbers.
-        let u = 2 * a + 1 - 2 * centre;
-        let reach = 4 * i64::from(self.radius).pow(2) - u * u;
-        if reach < 1 {
-            return None;
-        }
-        let half = (isqrt(reach) + 1) / 2;
-        (half > 0).then(|| (centre - half, centre + half))
+        let (centre, radius) = (t / 2, i64::from(self.radius));
+        let start = i64::from(d) * t;
+        let low = (centre - radius).max(start);
+        let high = (centre + radius).min(start + t);
+        (high > low).then(|| ((low - start) as u32, (high - start) as u32))
     }
 
-    /// The boxes the tube fills in the cell `(da, db)` from the core, as
-    /// `[a0, b0, a1, b1]` in that cell's own texels: one per run of texel
-    /// columns along `a` with the same extent along `b`. Empty where the tube
+    /// The box the tube fills in the cell `(da, db)` from the core, as
+    /// `[a0, b0, a1, b1]` in that cell's own texels; none where the tube
     /// misses the cell.
     pub fn cell_boxes(&self, da: i32, db: i32) -> Vec<[u32; 4]> {
-        let t = i64::from(self.texels_per_block);
-        let (start_a, start_b) = (i64::from(da) * t, i64::from(db) * t);
-        let mut boxes: Vec<[u32; 4]> = Vec::new();
-        for i in 0..t {
-            let Some((low, high)) = self.column(start_a + i) else {
-                continue;
-            };
-            let (b0, b1) = (low.max(start_b) - start_b, high.min(start_b + t) - start_b);
-            if b1 <= b0 {
-                continue;
-            }
-            let (b0, b1) = (b0 as u32, b1 as u32);
-            match boxes.last_mut() {
-                Some(last) if last[2] == i as u32 && last[1] == b0 && last[3] == b1 => last[2] += 1,
-                _ => boxes.push([i as u32, b0, i as u32 + 1, b1]),
-            }
+        match (self.span(da), self.span(db)) {
+            (Some((a0, a1)), Some((b0, b1))) => vec![[a0, b0, a1, b1]],
+            _ => Vec::new(),
         }
-        boxes
     }
 
     /// The tube's area inside the cell `(da, db)` from the core, in texel²:
-    /// `texels_per_block²` where it fills the cell, 0 where it misses it.
+    /// `texels_per_block²` where it fills the cell, 0 past its reach.
     pub fn cell_area(&self, da: i32, db: i32) -> u32 {
-        self.cell_boxes(da, db)
-            .iter()
-            .map(|[a0, b0, a1, b1]| (a1 - a0) * (b1 - b0))
-            .sum()
+        let width = |d: i32| self.span(d).map_or(0, |(low, high)| high - low);
+        width(da) * width(db)
     }
 
-    /// The whole tube's section in texel²: the sum of its cells' areas, a
-    /// texel-resolution disc of about π × radius².
+    /// The whole tube's section in texel², `(2 × radius)²`: the sum of its
+    /// cells' areas.
     pub fn area(&self) -> u32 {
-        let reach = self.reach();
-        (-reach..=reach)
-            .flat_map(|da| (-reach..=reach).map(move |db| (da, db)))
-            .map(|(da, db)| self.cell_area(da, db))
-            .sum()
+        (2 * self.radius).pow(2)
     }
-}
-
-/// The largest whole number whose square is at most `n`.
-fn isqrt(n: i64) -> i64 {
-    let mut root = (n as f64).sqrt() as i64;
-    while root * root > n {
-        root -= 1;
-    }
-    while (root + 1) * (root + 1) <= n {
-        root += 1;
-    }
-    root
 }
 
 /// What lies beyond one side of a branch voxel, for what its faces there show.
