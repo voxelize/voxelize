@@ -5,6 +5,8 @@ mod random_tick_catch_up;
 mod requests;
 mod saving;
 mod sending;
+#[cfg(test)]
+mod state_bits_tests;
 mod updating;
 
 pub use current::CurrentChunkSystem;
