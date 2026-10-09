@@ -24,7 +24,7 @@ pub use voxelize_core::{
 };
 pub use voxelize_mesher::{
     BranchLayout, BranchPart, BranchPartKind, BranchSeat, BranchShape, BranchSide, BranchSocket,
-    ConnectedFrame,
+    ConnectedFrame, WideBranchSection,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
