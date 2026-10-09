@@ -725,7 +725,9 @@ varying vec3 vCanvasBoxShadowPosition;
               `#include <worldpos_vertex>
 vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
 ${ENTITY_SHADOW_VERTEX_MAIN}
-vCanvasBoxShadowNormal = normalize(mat3(modelMatrix) * normal);
+vCanvasBoxShadowNormal = normalize(
+  mat3(uShadowWorldMatrix) * mat3(modelMatrix) * normal
+);
 vCanvasBoxShadowPosition = shadowWorldPos.xyz;
 `,
             );

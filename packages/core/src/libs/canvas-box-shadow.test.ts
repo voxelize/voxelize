@@ -59,7 +59,7 @@ describe("canvas box entity shadows", () => {
       const { vertexShader, fragmentShader } = compiled(material);
 
       expect(vertexShader).toContain(
-        "vCanvasBoxShadowNormal = normalize(mat3(modelMatrix) * normal);",
+        "vCanvasBoxShadowNormal = normalize(\n  mat3(uShadowWorldMatrix) * mat3(modelMatrix) * normal\n);",
       );
       expect(vertexShader).toContain(
         "vCanvasBoxShadowPosition = shadowWorldPos.xyz;",

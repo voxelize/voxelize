@@ -73,6 +73,13 @@ export type ArmOptions = {
   receiveShadows?: boolean;
   receiveHeldObjectShadows?: boolean;
   minOccluderDepth?: number;
+  /**
+   * How far the viewmodel reaches into the world, as a share of the
+   * distance it is drawn at: placed with {@link Arm.updateShadowUniforms},
+   * its shadows are looked up at that scale about the eye, so a block drawn
+   * two blocks down the screen is shaded where a hand would hold it.
+   */
+  shadowReach?: number;
 };
 
 type ArmObjectOptions = {
@@ -100,7 +107,10 @@ const defaultOptions: ArmOptions = {
     swingTimes: SWING_TIMES,
   },
   armColor: defaultArmsOptions.color,
+  shadowReach: 0.35,
 };
+
+const shadowReachScale = new THREE.Matrix4();
 
 export class Arm extends THREE.Group {
   public options: ArmOptions;
@@ -131,7 +141,13 @@ export class Arm extends THREE.Group {
   private targetArmY = 0;
   private currentArmObject: THREE.Object3D | null = null;
 
-  private heldObjectShadowUniforms: EntityShadowUniforms[] = [];
+  /** One block every held object's shadowed material reads. */
+  private heldObjectShadowUniforms: EntityShadowUniforms =
+    createEntityShadowUniforms();
+
+  private shadowSelfBounds: THREE.Vector4 | null = null;
+  private readonly noShadowSelfBounds = new THREE.Vector4();
+  private readonly shadowWorldMatrix = new THREE.Matrix4();
 
   public heldLightColor = new THREE.Color(1, 1, 1);
 
@@ -191,37 +207,71 @@ export class Arm extends THREE.Group {
     this.setArm();
   }
 
+  /**
+   * Copy the frame's lighting into the arm's and the held object's shadows.
+   *
+   * @param viewToWorld Where the viewmodel's scene sits in the world: the eye
+   * camera's world matrix times the viewmodel camera's inverse. The
+   * viewmodel is then shaded where it would be held, at
+   * {@link ArmOptions.shadowReach} of the distance it is drawn at, and
+   * nothing inside the body it belongs to ({@link setShadowSelfBounds})
+   * shades any of its faces. A vector instead offsets the viewmodel's own,
+   * unrotated frame into the world.
+   */
   updateShadowUniforms(
     lightingUniforms: ShaderLightingUniforms,
-    playerWorldPosition?: THREE.Vector3,
+    viewToWorld?: THREE.Matrix4 | THREE.Vector3,
   ): void {
     const receiveArmShadows = this.shouldReceiveArmShadows();
     const receiveHeldObjectShadows = this.shouldReceiveHeldObjectShadows();
     if (!receiveArmShadows && !receiveHeldObjectShadows) return;
 
     const minDepth = this.options.minOccluderDepth ?? 0.0;
+    const isPlaced = viewToWorld instanceof THREE.Matrix4;
+    if (isPlaced) {
+      const reach = this.options.shadowReach ?? 1;
+      this.shadowWorldMatrix
+        .copy(viewToWorld)
+        .multiply(shadowReachScale.makeScale(reach, reach, reach));
+    }
+
+    const apply = (uniforms: EntityShadowUniforms) => {
+      updateEntityShadowUniforms(uniforms, lightingUniforms);
+      uniforms.uMinOccluderDepth.value = minDepth;
+      uniforms.uShadowSelfBounds.value =
+        this.shadowSelfBounds ?? this.noShadowSelfBounds;
+      uniforms.uShadowIgnoresSelf.value = isPlaced ? 1 : 0;
+      if (isPlaced) {
+        uniforms.uShadowWorldMatrix.value.copy(this.shadowWorldMatrix);
+        uniforms.uWorldOffset.value.set(0, 0, 0);
+      } else {
+        uniforms.uShadowWorldMatrix.value.identity();
+        if (viewToWorld) uniforms.uWorldOffset.value.copy(viewToWorld);
+      }
+    };
 
     if (receiveArmShadows) {
       this.traverse((child) => {
         if (child instanceof CanvasBox && child.shadowUniforms) {
-          updateEntityShadowUniforms(child.shadowUniforms, lightingUniforms);
-          child.shadowUniforms.uMinOccluderDepth.value = minDepth;
-          if (playerWorldPosition) {
-            child.shadowUniforms.uWorldOffset.value.copy(playerWorldPosition);
-          }
+          apply(child.shadowUniforms);
         }
       });
     }
 
     if (receiveHeldObjectShadows) {
-      for (const uniforms of this.heldObjectShadowUniforms) {
-        updateEntityShadowUniforms(uniforms, lightingUniforms);
-        uniforms.uMinOccluderDepth.value = minDepth;
-        if (playerWorldPosition) {
-          uniforms.uWorldOffset.value.copy(playerWorldPosition);
-        }
-      }
+      apply(this.heldObjectShadowUniforms);
     }
+  }
+
+  /**
+   * The body the viewmodel belongs to, as its world-space bounding sphere
+   * (`Character.shadowSelfBounds`), shared by reference so the body keeps it
+   * current. With a placed viewmodel nothing inside it shades the arm or
+   * the held object, which lets the body cast its own shadow from just
+   * behind the eye. `null` for none.
+   */
+  setShadowSelfBounds(bounds: THREE.Vector4 | null) {
+    this.shadowSelfBounds = bounds;
   }
 
   /**
@@ -299,8 +349,6 @@ export class Arm extends THREE.Group {
   };
 
   private setArm = () => {
-    this.heldObjectShadowUniforms = [];
-
     const arm = new CanvasBox({
       width: 0.5,
       height: 1,
@@ -348,7 +396,11 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
-    this.injectHeldObjectLighting(object);
+    if (this.shouldReceiveHeldObjectShadows()) {
+      this.injectShadowShaders(object);
+    } else {
+      this.injectHeldObjectLighting(object);
+    }
 
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
@@ -388,8 +440,6 @@ export class Arm extends THREE.Group {
   };
 
   private injectHeldObjectLighting(object: THREE.Object3D): void {
-    this.heldObjectShadowUniforms = [];
-
     object.traverse((child) => {
       if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
@@ -436,8 +486,8 @@ gl_FragColor.rgb *= uLightColor;
   }
 
   private injectShadowShaders(object: THREE.Object3D): void {
-    this.heldObjectShadowUniforms = [];
     if (!this.shouldReceiveHeldObjectShadows()) return;
+    const shadowUniforms = this.heldObjectShadowUniforms;
 
     object.traverse((child) => {
       if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
@@ -448,13 +498,12 @@ gl_FragColor.rgb *= uLightColor;
 
       for (const material of materials) {
         if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
+        // A viewmodel kept between equips is set up once, either way.
+        if (material.userData.heldObjectLighting === true) continue;
         if (isSelfIlluminated(material)) continue;
 
         material.userData.heldObjectLighting = true;
         material.userData.lightEffectSetup = true;
-
-        const shadowUniforms = createEntityShadowUniforms();
-        this.heldObjectShadowUniforms.push(shadowUniforms);
 
         const lightColorRef = this.heldLightColor;
         const oldOnBeforeCompile = material.onBeforeCompile;
@@ -471,6 +520,8 @@ gl_FragColor.rgb *= uLightColor;
               "#include <uv_pars_vertex>",
               `#include <uv_pars_vertex>
 ${ENTITY_SHADOW_VERTEX_PARS}
+varying vec3 vHeldShadowNormal;
+varying vec3 vHeldShadowPosition;
 `,
             )
             .replace(
@@ -478,6 +529,12 @@ ${ENTITY_SHADOW_VERTEX_PARS}
               `#include <worldpos_vertex>
 vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
 ${ENTITY_SHADOW_VERTEX_MAIN}
+// Item shapes carry no normals, and a zero vector does not normalize.
+vec3 heldShadowNormal = mat3(uShadowWorldMatrix) * mat3(modelMatrix) * normal;
+vHeldShadowNormal = dot(heldShadowNormal, heldShadowNormal) > 0.0
+  ? normalize(heldShadowNormal)
+  : vec3(0.0, 1.0, 0.0);
+vHeldShadowPosition = shadowWorldPos.xyz;
 `,
             );
 
@@ -487,12 +544,17 @@ ${ENTITY_SHADOW_VERTEX_MAIN}
               `#include <common>
 ${ENTITY_SHADOW_FRAGMENT_PARS}
 uniform vec3 uLightColor;
+varying vec3 vHeldShadowNormal;
+varying vec3 vHeldShadowPosition;
 `,
             )
             .replace(
               "#include <dithering_fragment>",
               `#include <dithering_fragment>
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
+float shadow = getEntityShadowAt(
+  normalize(vHeldShadowNormal),
+  vHeldShadowPosition
+);
 gl_FragColor.rgb *= shadow * uLightColor;
 `,
             );

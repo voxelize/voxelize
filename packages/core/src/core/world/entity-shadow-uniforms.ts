@@ -33,6 +33,19 @@ export interface EntityShadowUniforms {
    * A body shares one vector across all of its parts' uniforms.
    */
   uShadowSelfBounds: IUniform<Vector4>;
+  /**
+   * 1 when nothing inside `uShadowSelfBounds` may shade the surface on any
+   * face: a first-person viewmodel, held at the eye while the body behind
+   * it still casts. 0 (the default) keeps a body's own shadow on the faces
+   * that look toward the sun, as a head shades the shoulders below it.
+   */
+  uShadowIgnoresSelf: IUniform<number>;
+  /**
+   * Carries the frame a surface is drawn in into the world its shadows are
+   * cast in; identity for anything drawn in the world. A viewmodel drawn in
+   * a scene of its own about the eye sets where that scene sits.
+   */
+  uShadowWorldMatrix: IUniform<Matrix4>;
   /** Near-cascade shadow-map depth per block along the light. */
   uShadowDepthPerBlock: IUniform<number>;
 }
@@ -57,6 +70,8 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
     uWorldOffset: { value: new Vector3(0, 0, 0) },
     uMinOccluderDepth: { value: 0.0 },
     uShadowSelfBounds: { value: new Vector4(0, 0, 0, 0) },
+    uShadowIgnoresSelf: { value: 0 },
+    uShadowWorldMatrix: { value: new Matrix4() },
     uShadowDepthPerBlock: { value: 0.0 },
   };
 }
@@ -107,6 +122,7 @@ uniform mat4 uShadowMatrix0;
 uniform mat4 uShadowMatrix1;
 uniform mat4 uShadowMatrix2;
 uniform vec3 uWorldOffset;
+uniform mat4 uShadowWorldMatrix;
 
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
@@ -134,7 +150,10 @@ vec4 entityShadowBoundsToWorld(mat4 toWorld, vec4 localSphere) {
 `;
 
 export const ENTITY_SHADOW_VERTEX_MAIN = `
-vec4 shadowWorldPos = vec4(worldPosition.xyz + uWorldOffset, 1.0);
+vec4 shadowWorldPos = vec4(
+  (uShadowWorldMatrix * vec4(worldPosition.xyz, 1.0)).xyz + uWorldOffset,
+  1.0
+);
 vShadowCoord0 = uShadowMatrix0 * shadowWorldPos;
 vShadowCoord1 = uShadowMatrix1 * shadowWorldPos;
 vShadowCoord2 = uShadowMatrix2 * shadowWorldPos;
@@ -157,6 +176,7 @@ uniform vec3 uSunDirection;
 uniform vec3 uSunColor;
 uniform float uMinOccluderDepth;
 uniform vec4 uShadowSelfBounds;
+uniform float uShadowIgnoresSelf;
 uniform float uShadowDepthPerBlock;
 
 varying vec4 vShadowCoord0;
@@ -221,6 +241,7 @@ float entityShadowSelfDepth(vec3 worldPosition) {
 // reaches past those bounds, so whatever lies beyond them (a deck, a
 // canopy, another body) still shades every face. For bounds that differ per
 // draw or per instance (see ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS).
+// With uShadowIgnoresSelf, nothing inside the bounds shades any face.
 float getEntityShadowWithin(
   vec3 worldNormal,
   vec3 worldPosition,
@@ -228,10 +249,11 @@ float getEntityShadowWithin(
 ) {
   float cosTheta = clamp(dot(worldNormal, uSunDirection), 0.0, 1.0);
   float slopeBias = uShadowNormalBias * (1.0 - cosTheta);
-  return entityShadowWithBias(
-    uShadowBias
-      + min(slopeBias, entityShadowSelfDepthWithin(worldPosition, selfBounds))
-  );
+  float selfDepth = entityShadowSelfDepthWithin(worldPosition, selfBounds);
+  float selfBias = uShadowIgnoresSelf > 0.5
+    ? (selfDepth < 1e8 ? selfDepth : 0.0)
+    : min(slopeBias, selfDepth);
+  return entityShadowWithBias(uShadowBias + selfBias);
 }
 
 // getEntityShadowWithin, bounded by uShadowSelfBounds.
