@@ -43,6 +43,15 @@ export type MemorySamplerOptions = {
    * asked for. The browser can take many seconds to answer one. */
   detailedIntervalMs?: number;
   readHeap?: HeapReader;
+  /**
+   * Off unless a caller passes one (e.g. {@link measureUserAgentSpecificMemory}).
+   * A detailed measurement is not free: Chrome answers it with a collection
+   * it schedules 10-20 s later, and on a page allocating tens of megabytes a
+   * second that collection stalled the page's isolate. It stopped collecting
+   * at all, every allocation landed in the old generation, and the renderer
+   * ran out of its shared heap cage within a minute. One call on a page that
+   * had been collecting normally reproduced it on its own.
+   */
   measureDetailed?: DetailedMemoryMeasurer | null;
 };
 
@@ -77,7 +86,10 @@ export const readPerformanceMemory: HeapReader = () => {
 
 /** The precise, cross-origin-isolated measurement. Unlike the legacy counters
  * it sees every realm the page owns -- dedicated workers included -- which is
- * where a mesher or lighting cache grows without the main heap ever moving. */
+ * where a mesher or lighting cache grows without the main heap ever moving.
+ * Ask for it on demand, never on a timer: each call makes the page collect
+ * on the browser's schedule, which on a busy page stalled collection outright
+ * (see {@link MemorySamplerOptions.measureDetailed}). */
 export const measureUserAgentSpecificMemory: DetailedMemoryMeasurer | null =
   typeof performance !== "undefined" &&
   typeof (performance as PerformanceWithMemory)
@@ -165,10 +177,7 @@ export class MemorySampler {
     this.trendGraceMs = options.trendGraceMs ?? 60_000;
     this.detailedIntervalMs = options.detailedIntervalMs ?? 20_000;
     this.readHeap = options.readHeap ?? readPerformanceMemory;
-    this.measureDetailed =
-      options.measureDetailed === undefined
-        ? measureUserAgentSpecificMemory
-        : options.measureDetailed;
+    this.measureDetailed = options.measureDetailed ?? null;
   }
 
   update(): void {

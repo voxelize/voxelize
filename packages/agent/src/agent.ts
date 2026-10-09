@@ -284,11 +284,12 @@ export function truncateLogText(
  * The measurement escape hatch: `--disable-gpu-vsync --disable-frame-rate-limit`
  * uncaps the frame rate so `fps` reports the frame the GPU actually takes
  * instead of the display's refresh. Only well-formed switches pass, so a
- * typo here can never keep the browser from launching.
+ * typo here can never keep the browser from launching. V8's own flags go in
+ * `AGENT_JS_FLAGS` (`--trace-gc-nvp --trace-gc-verbose`): `--js-flags` is one
+ * switch with a space-separated value, which the split cannot carry.
  */
 function extraChromeArgs(): string[] {
-  const raw = process.env.AGENT_CHROME_ARGS;
-  if (raw === undefined || raw.trim() === "") return [];
+  const raw = process.env.AGENT_CHROME_ARGS ?? "";
   const args = raw
     .split(/\s+/)
     .filter((arg) => /^--[a-z0-9][a-z0-9-]*(=[^\s]*)?$/i.test(arg));
@@ -297,6 +298,10 @@ function extraChromeArgs(): string[] {
     console.warn(
       `[voxelize-agent] ignoring malformed AGENT_CHROME_ARGS entries: ${dropped.join(" ")}`,
     );
+  }
+  const jsFlags = process.env.AGENT_JS_FLAGS?.trim();
+  if (jsFlags) {
+    args.push(`--js-flags=${jsFlags}`);
   }
   if (args.length > 0) {
     console.log(`[voxelize-agent] extra chrome args: ${args.join(" ")}`);

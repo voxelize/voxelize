@@ -243,6 +243,29 @@ describe("MemorySampler trend", () => {
 });
 
 describe("MemorySampler availability", () => {
+  it("never asks the browser for a detailed measurement unless given a measurer", async () => {
+    // Present before the module loads, the way a cross-origin-isolated page
+    // has it: each call makes the page collect on the browser's schedule,
+    // which on a busy page stalled collection until the renderer died.
+    const host = performance as { measureUserAgentSpecificMemory?: unknown };
+    const measure = vi.fn(async () => ({ bytes: 1, breakdown: [] }));
+    host.measureUserAgentSpecificMemory = measure;
+    vi.resetModules();
+    try {
+      const { MemorySampler: FreshSampler } = await import("./memory-sampler");
+      const sampler = new FreshSampler({
+        readHeap: () => ({ usedBytes: 1, totalBytes: 2, limitBytes: 4 }),
+      });
+      sampler.update();
+      await flushMicrotasks();
+      expect(measure).not.toHaveBeenCalled();
+      expect(sampler.detailedReading).toBeNull();
+    } finally {
+      delete host.measureUserAgentSpecificMemory;
+      vi.resetModules();
+    }
+  });
+
   it("reports unavailable when the browser exposes no heap", () => {
     useClock();
     const sampler = new MemorySampler({
