@@ -3,8 +3,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 
+import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
 import { Sky } from "./sky";
-import { SKY_FOG_FRAGMENT } from "./sky-fog";
+import {
+  createSkyAtmosphereFragment,
+  SKY_FOG_COMMON_UNIFORM_DECLARATIONS,
+  SKY_FOG_FRAGMENT,
+} from "./sky-fog";
 
 describe("camera-relative sky sampling", () => {
   it("removes camera translation before sampling the sky gradient", () => {
@@ -23,6 +28,24 @@ describe("camera-relative sky sampling", () => {
     expect(SKY_FOG_FRAGMENT).not.toContain(
       "cameraPosition + fogRay * uSkyFogDimension",
     );
+  });
+});
+
+describe("the sun's halo in the haze", () => {
+  it("is the beam's: every fog shader gates it by the weather's direct sunlight", () => {
+    expect(SKY_FOG_COMMON_UNIFORM_DECLARATIONS).toContain(
+      "uniform float uDirectSunlight;",
+    );
+    for (const fragment of [SKY_FOG_FRAGMENT, createSkyAtmosphereFragment()]) {
+      expect(fragment).toMatch(
+        /fogTint \+= uSunColor \* sunAlignment \* uSunlightIntensity \* uDirectSunlight/,
+      );
+    }
+  });
+
+  it("is declared once in the chunk shader, with the fog's uniforms", () => {
+    const chunk = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
+    expect(chunk.split("uniform float uDirectSunlight;")).toHaveLength(2);
   });
 });
 

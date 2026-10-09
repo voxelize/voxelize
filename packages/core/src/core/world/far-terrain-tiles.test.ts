@@ -10,25 +10,15 @@ import {
 } from "./far-terrain-seam";
 import {
   buildCoverageMask,
-  buildFarLandArrays,
-  buildFarSkyArrays,
   CHUNK_PENDING_GRACE_MS,
   decodeFarTerrainReply,
-  farClassLooks,
-  FarFaceLook,
-  farLooksFromPalette,
-  farTerrainRings,
   FarTerrainDescriptor,
-  farTileBounds,
-  FarTileData,
   farTileId,
-  farTilesToEvict,
   farTileSpan,
   isChunkColumnPending,
   isCoveredAt,
   meanLinearRgb,
   pendingChunksWithin,
-  selectFarTiles,
 } from "./far-terrain-tiles";
 import { computeFogRange } from "./fog-range";
 
@@ -60,38 +50,13 @@ const u16Bytes = (values: number[]) => {
   return bytes;
 };
 
-const tileOf = (
-  size: number,
-  height: (i: number, j: number) => number,
-  sky?: (i: number, j: number) => [number, number] | null,
-): FarTileData => {
-  const heights = new Uint16Array(size * size);
-  const colors = new Uint8Array(size * size);
-  const skyValues = sky ? new Uint16Array(size * size * 2) : null;
-  for (let j = 0; j < size; j++) {
-    for (let i = 0; i < size; i++) {
-      heights[j * size + i] = height(i, j);
-      colors[j * size + i] = (i + j) % 3;
-      if (sky && skyValues) {
-        const s = sky(i, j);
-        if (s) {
-          skyValues[(j * size + i) * 2] = s[0];
-          skyValues[(j * size + i) * 2 + 1] = s[1];
-        }
-      }
-    }
-  }
-  return {
-    key: { level: 0, tx: 1, tz: -1 },
-    step: 8,
-    size,
-    heights,
-    colors,
-    sky: skyValues,
-    tints: null,
-    bytes: 0,
-  };
-};
+describe("tile keys", () => {
+  it("spans 32 cells of its level's step and names itself by level and position", () => {
+    expect(farTileSpan(descriptor, 0)).toBe(32 * 8);
+    expect(farTileSpan(descriptor, 2)).toBe(32 * 32);
+    expect(farTileId({ level: 1, tx: -3, tz: 4 })).toBe("1:-3:4");
+  });
+});
 
 describe("decodeFarTerrainReply", () => {
   it("reads a reply's fixed-width samples back", () => {
@@ -141,6 +106,33 @@ describe("decodeFarTerrainReply", () => {
     ).toBeNull();
   });
 
+  it("reads the crowns over each cell and refuses a canopy that does not fit", () => {
+    const reply = {
+      level: 0,
+      tx: 0,
+      tz: 0,
+      step: 2,
+      size: 2,
+      heights: base64(u16Bytes([90, 90, 90, 90])),
+      colors: base64(Uint8Array.from([0, 0, 0, 0])),
+      canopy: base64(
+        Uint8Array.from([
+          16, 6, 255, 0x81, 0, 0, 0, 0, 12, 4, 128, 2, 0, 0, 0, 0,
+        ]),
+      ),
+    };
+    const tile = must(decodeFarTerrainReply(reply));
+    expect(Array.from(must(tile.canopy))).toEqual([
+      16, 6, 255, 0x81, 0, 0, 0, 0, 12, 4, 128, 2, 0, 0, 0, 0,
+    ]);
+    expect(
+      decodeFarTerrainReply({ ...reply, canopy: base64(Uint8Array.from([1])) }),
+    ).toBeNull();
+    expect(
+      must(decodeFarTerrainReply({ ...reply, canopy: undefined })).canopy,
+    ).toBeNull();
+  });
+
   it("rejects a reply whose arrays do not fit its size", () => {
     const bad = JSON.stringify({
       level: 0,
@@ -157,348 +149,9 @@ describe("decodeFarTerrainReply", () => {
   });
 });
 
-describe("farTerrainRings", () => {
-  it("doubles the reach per level and stops at the distance", () => {
-    expect(farTerrainRings(descriptor, 128, 512)).toEqual([
-      { level: 0, inner: 0, outer: 256 },
-      { level: 1, inner: 256, outer: 512 },
-    ]);
-    expect(farTerrainRings(descriptor, 128, 1024)).toEqual([
-      { level: 0, inner: 0, outer: 256 },
-      { level: 1, inner: 256, outer: 512 },
-      { level: 2, inner: 512, outer: 1024 },
-    ]);
-  });
-
-  it("gives the finest ring at least the render distance", () => {
-    expect(farTerrainRings(descriptor, 384, 512)).toEqual([
-      { level: 0, inner: 0, outer: 384 },
-      { level: 1, inner: 384, outer: 512 },
-    ]);
-  });
-
-  it("stretches the last level the server offers to the distance", () => {
-    expect(farTerrainRings({ ...descriptor, levels: 1 }, 128, 900)).toEqual([
-      { level: 0, inner: 0, outer: 900 },
-    ]);
-    expect(farTerrainRings(descriptor, 128, 3000)).toEqual([
-      { level: 0, inner: 0, outer: 256 },
-      { level: 1, inner: 256, outer: 512 },
-      { level: 2, inner: 512, outer: 3000 },
-    ]);
-  });
-
-  it("is empty when the layer is off", () => {
-    expect(farTerrainRings(descriptor, 128, 0)).toEqual([]);
-  });
-});
-
-describe("selectFarTiles", () => {
-  const span = farTileSpan(descriptor, 0);
-
-  it("spans 256 blocks per fine tile", () => {
-    expect(span).toBe(256);
-    expect(farTileSpan(descriptor, 2)).toBe(1024);
-  });
-
-  it("picks every tile touching the ring, nearest first", () => {
-    const ring = { level: 0, inner: 0, outer: 256 };
-    const tiles = selectFarTiles(10, 10, ring, span);
-    const ids = tiles.map(farTileId);
-    // The viewer's own tile first, then its neighbours; nothing two tiles out.
-    expect(ids[0]).toBe("0:0:0");
-    expect(ids).toContain("0:-1:-1");
-    expect(ids).toContain("0:1:0");
-    expect(ids).not.toContain("0:2:0");
-    for (let i = 1; i < tiles.length; i++) {
-      const d = (t: { tx: number; tz: number }) =>
-        Math.hypot(t.tx * span + span / 2 - 10, t.tz * span + span / 2 - 10);
-      expect(d(tiles[i - 1])).toBeLessThanOrEqual(d(tiles[i]));
-    }
-  });
-
-  it("skips tiles wholly inside the ring's inner radius", () => {
-    const outerRing = { level: 1, inner: 256, outer: 512 };
-    const coarse = farTileSpan(descriptor, 1);
-    const ids = selectFarTiles(0, 0, outerRing, coarse).map(farTileId);
-    // Coarse tiles are 512 wide: the four around the origin all reach past 256.
-    expect(ids).toEqual(
-      expect.arrayContaining(["1:0:0", "1:-1:0", "1:0:-1", "1:-1:-1"]),
-    );
-    expect(ids).not.toContain("1:2:2");
-    const tiny = { level: 0, inner: 1000, outer: 1100 };
-    expect(selectFarTiles(128, 128, tiny, span).map(farTileId)).not.toContain(
-      "0:0:0",
-    );
-  });
-});
-
 /** Each triangle's outward normal (right-hand rule), one vec3 per triangle. */
-const normalsOf = ({
-  positions,
-  indices,
-}: {
-  positions: Float32Array;
-  indices: Uint32Array;
-}) => {
-  const out: [number, number, number][] = [];
-  const p = (k: number) =>
-    [positions[k * 3], positions[k * 3 + 1], positions[k * 3 + 2]] as const;
-  for (let t = 0; t < indices.length; t += 3) {
-    const a = p(indices[t]);
-    const b = p(indices[t + 1]);
-    const c = p(indices[t + 2]);
-    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    const n: [number, number, number] = [
-      u[1] * v[2] - u[2] * v[1],
-      u[2] * v[0] - u[0] * v[2],
-      u[0] * v[1] - u[1] * v[0],
-    ];
-    const len = Math.hypot(...n) || 1;
-    out.push([n[0] / len, n[1] / len, n[2] / len]);
-  }
-  return out;
-};
 
 /** The y of every vertex of the triangles whose normal passes `pick`. */
-const ysWhere = (
-  mesh: { positions: Float32Array; indices: Uint32Array },
-  pick: (n: [number, number, number]) => boolean,
-) => {
-  const ys = new Set<number>();
-  normalsOf(mesh).forEach((n, t) => {
-    if (!pick(n)) return;
-    for (let k = 0; k < 3; k++)
-      ys.add(mesh.positions[mesh.indices[t * 3 + k] * 3 + 1]);
-  });
-  return ys;
-};
-
-const isUp = (n: [number, number, number]) => n[1] > 0.99;
-const isDown = (n: [number, number, number]) => n[1] < -0.99;
-const isSide = (n: [number, number, number]) => Math.abs(n[1]) < 0.01;
-
-describe("buildFarLandArrays", () => {
-  it("draws a flat plain as one flat-topped quad per cell and no walls", () => {
-    const tile = tileOf(3, () => 100);
-    const palette = Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    const mesh = buildFarLandArrays(tile, farLooksFromPalette(palette));
-    // Four cells, two triangles each, four vertices each.
-    expect(mesh.indices.length).toBe(4 * 6);
-    expect(mesh.positions.length).toBe(4 * 4 * 3);
-    expect(normalsOf(mesh).every(isUp)).toBe(true);
-    for (let k = 1; k < mesh.positions.length; k += 3)
-      expect(mesh.positions[k]).toBe(100);
-  });
-
-  it("puts each top at its sample's height, rounded to a whole block, over the cell it starts", () => {
-    const tile = tileOf(3, (i, j) => 100 + i + 10 * j);
-    tile.heights[0] = 100;
-    const palette = Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    const mesh = buildFarLandArrays(tile, farLooksFromPalette(palette));
-    const span = 2 * 8;
-    // Cell (1, 1): x in [tx*span + 8, +16], z in [tz*span + 8, +16], y = 111.
-    const tops = normalsOf(mesh)
-      .map((n, t) => (isUp(n) ? t : -1))
-      .filter((t) => t >= 0);
-    const cell = tops.filter((t) => {
-      const k = mesh.indices[t * 3];
-      return mesh.positions[k * 3 + 1] === 111;
-    });
-    expect(cell.length).toBe(2);
-    const xs = new Set<number>();
-    const zs = new Set<number>();
-    for (const t of cell)
-      for (let k = 0; k < 3; k++) {
-        const v = mesh.indices[t * 3 + k];
-        xs.add(mesh.positions[v * 3]);
-        zs.add(mesh.positions[v * 3 + 2]);
-      }
-    expect(xs).toEqual(new Set([1 * span + 8, 1 * span + 16]));
-    expect(zs).toEqual(new Set([-1 * span + 8, -1 * span + 16]));
-    // Class (i + j) % 3 = 0 at the origin: red on every vertex of its top.
-    expect(Array.from(mesh.colors.subarray(0, 12))).toEqual([
-      1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
-    ]);
-    // Every top winds counter-clockwise seen from above: a negative signed
-    // area in the xz plane.
-    const p = (k: number) => [mesh.positions[k * 3], mesh.positions[k * 3 + 2]];
-    const [ax, az] = p(mesh.indices[0]);
-    const [bx, bz] = p(mesh.indices[1]);
-    const [cx, cz] = p(mesh.indices[2]);
-    expect((bx - ax) * (cz - az) - (cx - ax) * (bz - az)).toBeLessThan(0);
-  });
-
-  it("walls a step only where a neighbour is lower, facing the lower cell", () => {
-    // A 2x2-cell tile: the west column of cells is 100, the east is 90.
-    const tile = tileOf(3, (i) => (i === 0 ? 100 : 90));
-    const palette = Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    const mesh = buildFarLandArrays(tile, farLooksFromPalette(palette));
-    const normals = normalsOf(mesh);
-    // 4 tops (8 triangles) + 2 walls along the one step (4 triangles).
-    expect(normals.length).toBe(12);
-    const walls = normals.filter(isSide);
-    expect(walls.length).toBe(4);
-    // The wall faces +x, toward the lower eastern cells, from 90 up to 100.
-    for (const n of walls) expect(n[0]).toBeCloseTo(1, 5);
-    expect(ysWhere(mesh, isSide)).toEqual(new Set([90, 100]));
-    const wallXs = new Set<number>();
-    normals.forEach((n, t) => {
-      if (!isSide(n)) return;
-      for (let k = 0; k < 3; k++)
-        wallXs.add(mesh.positions[mesh.indices[t * 3 + k] * 3]);
-    });
-    expect(wallXs).toEqual(new Set([1 * 16 + 8]));
-    // The wall is coloured as the higher column (class 0 at i = 0, j = 0;
-    // class 1 at i = 0, j = 1): red and green, never the lower cell's.
-    const wallColors = new Set<string>();
-    normals.forEach((n, t) => {
-      if (!isSide(n)) return;
-      const v = mesh.indices[t * 3];
-      wallColors.add(Array.from(mesh.colors.subarray(v * 3, v * 3 + 3)).join());
-    });
-    expect(wallColors).toEqual(new Set(["1,0,0", "0,1,0"]));
-  });
-
-  it("walls the shared edge with the next tile from both heights, and never its own low edge", () => {
-    // Three samples: the last row is the next tile's first cell. The middle
-    // cell sits at 90 and the shared row at 100, so the step up belongs to
-    // the next tile's column but is walled here, facing -x.
-    const tile = tileOf(3, (i) => (i === 2 ? 100 : 90));
-    const palette = Float32Array.from([1, 0, 0]);
-    const mesh = buildFarLandArrays(tile, farLooksFromPalette(palette));
-    const normals = normalsOf(mesh);
-    const walls = normals.filter(isSide);
-    expect(walls.length).toBe(4);
-    for (const n of walls) expect(n[0]).toBeCloseTo(-1, 5);
-    const xs = new Set<number>();
-    normals.forEach((n, t) => {
-      if (!isSide(n)) return;
-      for (let k = 0; k < 3; k++)
-        xs.add(mesh.positions[mesh.indices[t * 3 + k] * 3]);
-    });
-    // At the tile's east edge (x = tx * span + span), not its west edge.
-    expect(xs).toEqual(new Set([1 * 16 + 16]));
-  });
-
-  it("rounds fractional heights to whole blocks", () => {
-    const tile = tileOf(2, () => 90);
-    // Heights are u16 on the wire; a decoded-then-scaled value still lands
-    // on a block.
-    (tile as { heights: Uint16Array | Float32Array }).heights =
-      Float32Array.from([90.4, 90.6, 89.5, 90]);
-    const palette = Float32Array.from([1, 0, 0]);
-    const mesh = buildFarLandArrays(tile, farLooksFromPalette(palette));
-    const ys = new Set<number>();
-    for (let k = 1; k < mesh.positions.length; k += 3)
-      ys.add(mesh.positions[k]);
-    expect(ys).toEqual(new Set([90, 91]));
-  });
-
-  it("takes the last palette entry for an unknown class", () => {
-    const tile = tileOf(2, () => 90);
-    tile.colors.fill(7);
-    const palette = Float32Array.from([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
-    const { colors } = buildFarLandArrays(tile, farLooksFromPalette(palette));
-    expect(Array.from(colors.subarray(0, 3))).toEqual(
-      [0.4, 0.5, 0.6].map((v) => expect.closeTo(v, 5)),
-    );
-  });
-});
-
-describe("farClassLooks", () => {
-  // Block 1 a tinted grass, 2 an untinted dirt, 3 a tinted leaf canopy.
-  const faces: Record<string, FarFaceLook> = {
-    "1:top": { color: [0.1, 0.4, 0.1], isTinted: true },
-    "1:side": { color: [0.3, 0.2, 0.1], isTinted: true },
-    "2:top": { color: [0.3, 0.2, 0.1], isTinted: false },
-    "2:side": { color: [0.3, 0.2, 0.1], isTinted: false },
-    "3:top": { color: [0.0, 0.1, 0.0], isTinted: true },
-  };
-  const look = (block: number, side: "top" | "side") =>
-    faces[`${block}:${side}`];
-
-  it("blends covers over the ground by share and keeps tinted faces apart", () => {
-    const looks = farClassLooks(
-      [
-        { top: 1, side: 2 },
-        { top: 2, side: 2, covers: [{ block: 3, share: 0.5 }] },
-      ],
-      look,
-    );
-    expect(looks.classes).toBe(2);
-    // Class 0: tinted grass on top, its tinted side on a wall's cap, the
-    // untinted dirt below.
-    expect(Array.from(looks.topTinted.subarray(0, 3))).toEqual(
-      [0.1, 0.4, 0.1].map((v) => expect.closeTo(v, 6)),
-    );
-    expect(Array.from(looks.topFixed.subarray(0, 3))).toEqual([0, 0, 0]);
-    expect(Array.from(looks.capTinted.subarray(0, 3))).toEqual(
-      [0.3, 0.2, 0.1].map((v) => expect.closeTo(v, 6)),
-    );
-    expect(Array.from(looks.wallFixed.subarray(0, 3))).toEqual(
-      [0.3, 0.2, 0.1].map((v) => expect.closeTo(v, 6)),
-    );
-    // Class 1: half dirt (fixed), half tinted canopy.
-    expect(Array.from(looks.topFixed.subarray(3, 6))).toEqual(
-      [0.15, 0.1, 0.05].map((v) => expect.closeTo(v, 6)),
-    );
-    expect(Array.from(looks.topTinted.subarray(3, 6))).toEqual(
-      [0, 0.05, 0].map((v) => expect.closeTo(v, 6)),
-    );
-  });
-
-  it("scales covers that claim more than the whole ground down to it", () => {
-    const looks = farClassLooks(
-      [
-        {
-          top: 2,
-          side: 2,
-          covers: [
-            { block: 3, share: 1 },
-            { block: 1, share: 1 },
-          ],
-        },
-      ],
-      look,
-    );
-    expect(Array.from(looks.topFixed)).toEqual([0, 0, 0]);
-    expect(Array.from(looks.topTinted)).toEqual(
-      [0.05, 0.25, 0.05].map((v) => expect.closeTo(v, 6)),
-    );
-  });
-
-  it("tints each sample's tinted part and walls with what the slope would bare", () => {
-    const looks = farClassLooks([{ top: 1, side: 2 }], look);
-    const wallColor = (drop: number) => {
-      // Two cells: the west at 100, the east `drop` lower, one wall facing +x.
-      const tile = tileOf(3, (i) => (i === 0 ? 100 : 100 - drop));
-      tile.colors.fill(0);
-      const tints = new Uint8Array(9 * 3).fill(128);
-      // Sample (0, 0) is arid: red up, blue down.
-      tints.set([192, 128, 64], 0);
-      tile.tints = tints;
-      const mesh = buildFarLandArrays(tile, looks);
-      // The first quad is the top of cell (0, 0): grass times its tint.
-      expect(Array.from(mesh.colors.subarray(0, 3))).toEqual(
-        [0.15, 0.4, 0.05].map((v) => expect.closeTo(v, 5)),
-      );
-      const wall = normalsOf(mesh).findIndex(isSide);
-      const v = mesh.indices[wall * 3];
-      return Array.from(mesh.colors.subarray(v * 3, v * 3 + 3));
-    };
-    // The grass block's tinted side, and the untinted dirt under it.
-    const cap = [0.3 * 1.5, 0.2, 0.1 * 0.5];
-    const dirt = [0.3, 0.2, 0.1];
-    // Four blocks over an eight-block step is a staircase of grass risers.
-    expect(wallColor(4)).toEqual(cap.map((v) => expect.closeTo(v, 5)));
-    // Sixteen over eight bares a grass block over a block of dirt.
-    expect(wallColor(16)).toEqual(
-      [0, 1, 2].map((c) => expect.closeTo((cap[c] + dirt[c]) / 2, 5)),
-    );
-  });
-});
 
 describe("meanLinearRgb", () => {
   it("averages in linear light, weighting by alpha", () => {
@@ -514,128 +167,6 @@ describe("meanLinearRgb", () => {
   it("is null when every texel is transparent", () => {
     expect(meanLinearRgb([10, 20, 30, 0])).toBeNull();
     expect(meanLinearRgb([])).toBeNull();
-  });
-});
-
-describe("farTileBounds", () => {
-  it("spans the tile and runs from its lowest to its highest surface", () => {
-    const tile = tileOf(3, (i, j) => 100 + i + 10 * j);
-    expect(farTileBounds(tile)).toEqual({
-      x0: 16,
-      y0: 100,
-      z0: -16,
-      x1: 32,
-      y1: 122,
-      z1: 0,
-    });
-    const island = tileOf(
-      3,
-      () => 90,
-      (i, j) => (i === 1 && j === 1 ? [200, 60] : null),
-    );
-    expect(farTileBounds(island)).toMatchObject({ y0: 60, y1: 200 });
-  });
-});
-
-describe("buildFarSkyArrays", () => {
-  it("is null without floating land", () => {
-    expect(
-      buildFarSkyArrays(
-        tileOf(3, () => 90),
-        [0, 1, 0],
-        [0.5, 0.5, 0.5],
-      ),
-    ).toBeNull();
-    const empty = tileOf(
-      3,
-      () => 90,
-      () => null,
-    );
-    expect(buildFarSkyArrays(empty, [0, 1, 0], [0.5, 0.5, 0.5])).toBeNull();
-  });
-
-  it("makes a boxy slab: flat top, flat underside and four full walls for one island cell", () => {
-    // A 3x3-cell tile with land in the middle cell only, so all four of its
-    // walls are drawn here (an edge cell's low walls come from the tile
-    // before it, see the shared-edge test).
-    const tile = tileOf(
-      4,
-      () => 90,
-      (i, j) => (i === 1 && j === 1 ? [200, 180] : null),
-    );
-    const sky = must(buildFarSkyArrays(tile, [0, 1, 0], [0.5, 0.5, 0.5]));
-    expect(sky).not.toBeNull();
-    // 1 cell: top (2 tris) + bottom (2) + 4 walls (2 each) = 12 triangles.
-    expect(sky.indices.length).toBe(12 * 3);
-    const normals = normalsOf(sky);
-    expect(normals.filter(isUp).length).toBe(2);
-    expect(normals.filter(isDown).length).toBe(2);
-    expect(normals.filter(isSide).length).toBe(8);
-    expect(ysWhere(sky, isUp)).toEqual(new Set([200]));
-    expect(ysWhere(sky, isDown)).toEqual(new Set([180]));
-    expect(ysWhere(sky, isSide)).toEqual(new Set([200, 180]));
-    // The walls face away from the cell, one per direction.
-    const facings = new Set(
-      normals
-        .filter(isSide)
-        .map((n) => `${Math.round(n[0])},${Math.round(n[2])}`),
-    );
-    expect(facings).toEqual(new Set(["1,0", "-1,0", "0,1", "0,-1"]));
-  });
-
-  it("steps between two island cells only where their tops or bottoms differ", () => {
-    // Cells (1,1) and (2,1) carry land; the second is a block higher on top
-    // and hangs a block deeper. Everything else is air.
-    const tile = tileOf(
-      4,
-      () => 90,
-      (i, j) =>
-        j === 1 && i === 1
-          ? [200, 180]
-          : j === 1 && i === 2
-            ? [201, 179]
-            : null,
-    );
-    const sky = must(buildFarSkyArrays(tile, [0, 1, 0], [0.5, 0.5, 0.5]));
-    const normals = normalsOf(sky);
-    // 2 tops + 2 bottoms + outside walls (3 per cell: north, south and the
-    // far side) + a top step and a bottom step between them = 4 + 6 + 2 =
-    // 12 quads.
-    expect(sky.indices.length).toBe(12 * 2 * 3);
-    const stepWalls = normals
-      .map((n, t) => [n, t] as const)
-      .filter(([n, t]) => {
-        // Walls in the plane of the shared edge: tx * span + 2 cells, span
-        // being 3 * 8.
-        if (!isSide(n) || Math.abs(n[0]) < 0.99) return false;
-        return sky.positions[sky.indices[t * 3] * 3] === 1 * 24 + 16;
-      });
-    // Two quads at the shared edge: the top step faces -x (toward the lower
-    // top), the bottom step faces -x too (toward the shallower bottom).
-    expect(stepWalls.length).toBe(4);
-    for (const [n] of stepWalls) expect(n[0]).toBeCloseTo(-1, 5);
-    const stepYs = new Set<number>();
-    for (const [, t] of stepWalls)
-      for (let k = 0; k < 3; k++)
-        stepYs.add(sky.positions[sky.indices[t * 3 + k] * 3 + 1]);
-    expect(stepYs).toEqual(new Set([200, 201, 179, 180]));
-  });
-
-  it("walls the shared edge with the next tile where land ends or begins there", () => {
-    // Land only in the shared row (the next tile's first column): this tile
-    // still draws the wall that faces its own empty cells.
-    const tile = tileOf(
-      3,
-      () => 90,
-      (i) => (i === 2 ? [200, 180] : null),
-    );
-    const sky = must(buildFarSkyArrays(tile, [0, 1, 0], [0.5, 0.5, 0.5]));
-    const normals = normalsOf(sky);
-    expect(normals.filter(isUp).length).toBe(0);
-    const walls = normals.filter(isSide);
-    expect(walls.length).toBe(4);
-    for (const n of walls) expect(n[0]).toBeCloseTo(-1, 5);
-    expect(ysWhere(sky, isSide)).toEqual(new Set([200, 180]));
   });
 });
 
@@ -792,34 +323,6 @@ describe("coverage mask after a fresh arrival", () => {
     expect(Array.from(steady)).toEqual(
       Array.from(buildCoverageMask(meshed, -4, -4, 8)),
     );
-  });
-});
-
-describe("farTilesToEvict", () => {
-  const rings = [
-    { level: 0, inner: 0, outer: 256 },
-    { level: 1, inner: 256, outer: 512 },
-  ];
-  const spanOf = (level: number) => farTileSpan(descriptor, level);
-
-  it("keeps tiles a ring still wants or that sit within a tile of it", () => {
-    const resident = [
-      { level: 0, tx: 0, tz: 0 },
-      { level: 0, tx: 1, tz: 0 },
-      { level: 0, tx: 5, tz: 5 },
-      { level: 2, tx: 0, tz: 0 },
-    ];
-    const needed = new Set([farTileId(resident[0])]);
-    const gone = farTilesToEvict(resident, needed, 10, 10, rings, spanOf).map(
-      farTileId,
-    );
-    // Tile (1,0) starts 246 blocks away: inside outer + span, kept.
-    expect(gone).not.toContain("0:1:0");
-    // Tile (5,5) is over a thousand blocks out: dropped.
-    expect(gone).toContain("0:5:5");
-    // A level no ring draws any more goes at once.
-    expect(gone).toContain("2:0:0");
-    expect(gone).not.toContain("0:0:0");
   });
 });
 

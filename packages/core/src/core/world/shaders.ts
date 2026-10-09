@@ -661,10 +661,7 @@ uniform float uWaterAbsorption;
 uniform float uWaterLevel;
 uniform float uWaterStreakStrength;
 uniform float uBedCausticScale;
-// The share of the sun reaching the world as a beam (directSunlight in
-// chunk-renderer.ts): glints, caustics and the sun's glitter through the
-// surface scale by it; diffuse daylight does not.
-uniform float uDirectSunlight;
+// uDirectSunlight (the sun's beam) is declared with the sky fog's uniforms.
 uniform float uSurfaceUndersideScale;
 // The underside's continuous ceiling (style 4, A/B): film brightness against
 // the water's scatter, scene shown straight up and at grazing, ripple shading.

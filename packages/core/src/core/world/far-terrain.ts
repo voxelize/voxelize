@@ -4,22 +4,49 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  DataArrayTexture,
   DataTexture,
   DoubleSide,
+  FloatType,
   Group,
+  Int16BufferAttribute,
   LinearFilter,
+  LinearMipmapLinearFilter,
   Mesh,
+  NearestFilter,
   PlaneGeometry,
   RedFormat,
+  RepeatWrapping,
+  RGBAFormat,
   ShaderMaterial,
   Sphere,
+  SRGBColorSpace,
   Texture,
+  Uint8BufferAttribute,
   UnsignedByteType,
   Vector2,
   Vector3,
   Vector4,
 } from "three";
 
+import { WorkerPool } from "../../libs/worker-pool";
+
+import { DEFAULT_FAR_LOD, FarLodOptions, planFarLod } from "./far-terrain-lod";
+import {
+  buildFarMaterialTable,
+  FAR_LAYER_SIZE,
+  FAR_MATERIAL_TEXELS,
+  FAR_TINTED_LAYER,
+  farMaterialFaces,
+  FarMaterialTable,
+  farPaletteTable,
+} from "./far-terrain-materials";
+import {
+  FAR_FACE_KIND,
+  FarMeshCounts,
+  FarMeshData,
+  FarMeshInput,
+} from "./far-terrain-mesh";
 import {
   FAR_SEAM_FUNCTIONS,
   FAR_SEAM_UNIFORM_DECLARATIONS,
@@ -27,32 +54,26 @@ import {
 } from "./far-terrain-seam";
 import {
   buildCoverageMask,
-  buildFarLandArrays,
-  buildFarSkyArrays,
   decodeFarTerrainReply,
-  FarClassLooks,
-  farClassLooks,
   FarFaceLook,
   FarFaceSide,
-  farLooksFromPalette,
-  FarRing,
-  farTerrainRings,
   FarTerrainDescriptor,
-  farTileBounds,
-  FarTileBounds,
   FarTileData,
   farTileId,
   FarTileKey,
   farTileSpan,
-  farTilesToEvict,
   pendingChunksWithin,
-  selectFarTiles,
 } from "./far-terrain-tiles";
 import {
   createSkyAtmosphereFragment,
   SKY_FOG_UNIFORM_DECLARATIONS,
 } from "./sky-fog";
-import { createUnderwaterFogFragment } from "./water-optics";
+import {
+  createUnderwaterFogFragment,
+  WATER_DOWNWELLING_EXTINCTION_GLSL,
+  WATER_OPTICS,
+} from "./water-optics";
+import FarTerrainWorker from "./workers/far-terrain-worker.ts?worker&inline";
 
 /** The method a client calls for far-terrain tiles, and its reply's name. */
 export const FAR_TERRAIN_METHOD = "vox-builtin:far-terrain";
@@ -67,6 +88,16 @@ const COVERAGE_SIZE = 128;
  * load.
  */
 const PENDING_RECHECK_MS = 500;
+
+/**
+ * The sea-depth map the far water reads: texels per side, blocks per texel
+ * (2048 blocks across, past any reach), the depth one byte spans, and how
+ * far the viewer may drift from its centre before it is laid out again.
+ */
+const DEPTH_TEXELS = 256;
+const DEPTH_BLOCKS_PER_TEXEL = 8;
+const DEPTH_RANGE = 32;
+const DEPTH_RECENTER = 256;
 
 type ShaderUniform<T> = { value: T };
 
@@ -88,6 +119,8 @@ export type FarTerrainSharedUniforms = {
   skyFogDimension: ShaderUniform<number>;
   skyFogStrength: ShaderUniform<number>;
   sunlightIntensity: ShaderUniform<number>;
+  /** The share of the sun reaching the world as a beam (the weather's). */
+  directSunlight?: ShaderUniform<number>;
   minLightLevel: ShaderUniform<number>;
   baseAmbient: ShaderUniform<number>;
   faceShades: ShaderUniform<{ x: number; y: number; z: number; w: number }>;
@@ -99,6 +132,13 @@ export type FarTerrainSharedUniforms = {
   sunColor: ShaderUniform<Color>;
   ambientColor: ShaderUniform<Color>;
   /**
+   * The sky the chunk water mirrors and how strongly it does, so the far
+   * sea mirrors the same sky; without them it mirrors none.
+   */
+  skyTopColor?: ShaderUniform<Color>;
+  skyMiddleColor?: ShaderUniform<Color>;
+  waterFresnelStrength?: ShaderUniform<number>;
+  /**
    * The chunk shader's side of the seam, written here: the coverage mask,
    * its placement `(originCx, originCz, chunkSize, texels)` and the seam
    * band's ramp scale (0 while the layer is off).
@@ -106,6 +146,13 @@ export type FarTerrainSharedUniforms = {
   farCoverMask: ShaderUniform<Texture | null>;
   farCover: ShaderUniform<Vector4>;
   farSeam: ShaderUniform<number>;
+};
+
+/** A tile's meshes, built off the main thread. */
+export type FarBuiltTile = {
+  land: FarMeshData | null;
+  sky: FarMeshData | null;
+  buildMs: number;
 };
 
 export type FarTerrainOptions = {
@@ -120,9 +167,9 @@ export type FarTerrainOptions = {
    */
   palette: ArrayLike<number>;
   /**
-   * What a block face looks like from afar (the world reads its texels off
-   * the atlas), or null while its texture is not painted yet. Used to paint
-   * the descriptor's `materials`.
+   * What a block face looks like from afar, texels included (the world
+   * reads them off the atlas), or null while its texture is not painted
+   * yet. Used to paint the descriptor's `materials`.
    */
   faceLook: ((block: number, side: FarFaceSide) => FarFaceLook | null) | null;
   /**
@@ -143,13 +190,28 @@ export type FarTerrainOptions = {
    * haze, reaching it at the reach, so its edge never cuts against the sky.
    */
   edgeBand: number;
+  /** How the layer chooses each tile's level of detail. */
+  lod: FarLodOptions;
+  /** How long a tile takes to dissolve in or out when the detail changes. */
+  fadeMs: number;
+  /** Tiles kept resident at most; the least recently drawn leave first. */
+  maxResidentTiles: number;
+  /** A tile no plan has drawn for this long leaves even under the cap. */
+  evictAfterMs: number;
+  /** Tile builds in flight at once. */
+  maxBuildsInFlight: number;
+  /**
+   * Builds a tile's meshes; the default hands it to a worker. A test, or a
+   * host without workers, passes its own.
+   */
+  buildMesh: ((input: FarMeshInput) => Promise<FarBuiltTile | null>) | null;
   /** Tiles one request may name; the server caps it too. */
   maxTilesPerRequest: number;
   /** Least time between two requests. */
   requestIntervalMs: number;
   /** A requested tile that has not arrived in this long is asked again. */
   retryAfterMs: number;
-  /** Main-thread time one update may spend building tile meshes. */
+  /** Main-thread time one update may spend reading faces. */
   buildBudgetMs: number;
   /**
    * Blocks of the loaded area's outer edge that hand over to the far layer
@@ -167,6 +229,12 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
   skyTopColor: "#6f9d4e",
   skySideColor: "#6e665c",
   edgeBand: 0.1,
+  lod: DEFAULT_FAR_LOD,
+  fadeMs: 450,
+  maxResidentTiles: 640,
+  evictAfterMs: 4000,
+  maxBuildsInFlight: 4,
+  buildMesh: null,
   maxTilesPerRequest: 16,
   requestIntervalMs: 120,
   retryAfterMs: 6000,
@@ -178,6 +246,7 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
 export type FarTerrainStats = {
   isActive: boolean;
   distance: number;
+  /** Detail levels drawn this frame. */
   rings: number;
   tilesRequested: number;
   tilesReceived: number;
@@ -185,9 +254,14 @@ export type FarTerrainStats = {
   bytesReceived: number;
   tilesBuilt: number;
   tilesResident: number;
+  /** Tiles drawn this frame, and those the detail rules want. */
+  tilesDrawn: number;
+  tilesWanted: number;
+  /** Tiles drawn this frame at each level, finest first. */
+  levelCounts: number[];
   /** Tile meshes (land + sky) in the scene; each is one draw call when in view. */
   meshes: number;
-  /** Main-thread ms the last update spent (requests, mask, builds). */
+  /** Main-thread ms the last update spent (planning, requests, mask). */
   lastUpdateMs: number;
   /** Highest `lastUpdateMs` since the counters were last read. */
   peakUpdateMs: number;
@@ -202,9 +276,18 @@ export type FarTerrainStats = {
   pendingCovered: number;
   /** Triangles across every built tile mesh in the scene. */
   triangles: number;
-  /** Main-thread ms the last tile mesh took to build, and the highest since the peaks were reset. */
+  /** Worker ms the last tile build took, and the highest since the peaks were reset. */
   lastBuildMs: number;
   peakBuildMs: number;
+  /** Builds handed to the worker and not back yet. */
+  buildsInFlight: number;
+  /** Main-thread ms the last built tile took to become a mesh, and the highest. */
+  lastUploadMs: number;
+  peakUploadMs: number;
+  /** Bytes of vertex and index data across resident meshes. */
+  meshBytes: number;
+  /** Quads of the drawn land by what they are. */
+  quads: FarMeshCounts;
   /**
    * Block faces read for the descriptor's materials, those still waiting
    * for their texture, those painted grey because they never became
@@ -217,13 +300,21 @@ export type FarTerrainStats = {
 };
 
 const VERTEX_SHADER = `
-attribute vec3 aFarColor;
+attribute vec2 aFarColumn;
+attribute vec4 aFarMaterial;
+attribute vec4 aFarTint;
 varying vec3 vWorldPosition;
-varying vec3 vFarColor;
+varying float vFarOcclusion;
+flat varying vec4 vFarMaterial;
+flat varying vec2 vFarColumn;
+flat varying vec3 vFarTint;
 void main() {
   vec4 worldPosition = modelMatrix * vec4(position, 1.0);
   vWorldPosition = worldPosition.xyz;
-  vFarColor = aFarColor;
+  vFarMaterial = aFarMaterial;
+  vFarOcclusion = aFarMaterial.z / 255.0;
+  vFarColumn = aFarColumn;
+  vFarTint = aFarTint.rgb * (1.0 / 128.0);
   gl_Position = projectionMatrix * viewMatrix * worldPosition;
 }
 `;
@@ -263,48 +354,20 @@ export const CHUNK_DAYLIGHT = {
 
 const D = CHUNK_DAYLIGHT;
 
+/** The face kinds as GLSL integer constants. */
+const KIND_GLSL = Object.entries(FAR_FACE_KIND)
+  .map(
+    ([name, value]) => `const int FAR_KIND_${name.toUpperCase()} = ${value};`,
+  )
+  .join("\n");
+
 /**
- * The shared fragment body: hide under meshed chunks and outside the ring,
- * light a flat face exactly as the chunk shader lights an open face in full
- * sun ({@link CHUNK_DAYLIGHT}), wear the same sky fog the chunks wear, and
- * thin into that haze across the outer `uFarEdge` band.
+ * Light an albedo as the chunk shader lights an open face in full sun
+ * ({@link CHUNK_DAYLIGHT}), with `occlusion` where the chunks have their
+ * vertex occlusion, then wear the chunks' sky fog and thin into it across
+ * the outer `uFarEdge` band.
  */
-const fragmentShader = (colorExpression: string, isWater: boolean) => `
-${SKY_FOG_UNIFORM_DECLARATIONS}
-uniform vec3 uAmbientColor;
-uniform float uMinLightLevel;
-uniform float uBaseAmbient;
-uniform vec4 uFaceShades;
-uniform float uRingInner;
-uniform float uRingOuter;
-uniform vec2 uRingCenter;
-uniform vec2 uFarEdge;
-${FAR_SEAM_UNIFORM_DECLARATIONS}
-${isWater ? "uniform vec3 uWaterColor;" : "varying vec3 vFarColor;"}
-varying vec3 vWorldPosition;
-${FAR_SEAM_FUNCTIONS}
-
-void main() {
-  // Hidden under every chunk that draws real terrain, except the pixels the
-  // chunk's outer half yields across the seam band (far-terrain-seam).
-  vec2 farTexel = farCoverTexel(vWorldPosition.xz);
-  if (farCoverInside(farTexel) && farCoverHard(farTexel) > 0.5) {
-    if (uFarSeam <= 0.0 || farSeamWeight(farTexel) > farSeamDither(gl_FragCoord.xy)) discard;
-  }
-  // Rings are measured from where the tiles were picked around (the
-  // viewer's position), not from the camera, which a third-person or an
-  // orthographic view puts far from it.
-  float horizontal = length(vWorldPosition.xz - uRingCenter);
-  if (horizontal < uRingInner || horizontal >= uRingOuter) discard;
-
-  ${
-    isWater
-      ? "vec3 normal = vec3(0.0, 1.0, 0.0);"
-      : `vec3 normal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
-  if (dot(normal, cameraPosition - vWorldPosition) < 0.0) normal = -normal;`
-  }
-
-  vec3 albedo = ${colorExpression};
+const lightAndFog = (afterLight = "") => `
   float NdotL = max(dot(normal, uSunDirection) * ${D.sunWrap.scale} + ${D.sunWrap.bias}, 0.0);
   float brightTexture = smoothstep(${D.brightTexture.from}, ${D.brightTexture.to}, dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
   vec3 sun = uSunColor * NdotL * uSunlightIntensity * mix(1.0, ${D.brightTextureSun}, brightTexture);
@@ -316,11 +379,12 @@ void main() {
   weights /= max(weights.x + weights.y + weights.z, 0.0001);
   float verticalShade = normal.y > 0.0 ? uFaceShades.w : uFaceShades.z;
   float faceShade = weights.x * uFaceShades.x + weights.z * uFaceShades.y + weights.y * verticalShade;
-  vec3 light = (skyAmbient + sun + globalAmbient) * vec3(${D.daylightBalance}) * faceShade;
+  vec3 light = (skyAmbient + sun + globalAmbient) * vec3(${D.daylightBalance}) * occlusion * faceShade;
   light = (light * (${D.toneMap.a} * light + ${D.toneMap.b})) / (light * (${D.toneMap.c} * light + ${D.toneMap.d}) + ${D.toneMap.e});
   light = max(light, vec3(ambientFloor) * faceShade);
 
   gl_FragColor = vec4(albedo * light, 1.0);
+  ${afterLight}
   ${createSkyAtmosphereFragment()}
   gl_FragColor.rgb = mix(
     gl_FragColor.rgb,
@@ -328,6 +392,207 @@ void main() {
     smoothstep(uFarEdge.x, uFarEdge.y, horizontal) * (1.0 - uCameraSubmersion)
   );
   ${createUnderwaterFogFragment(false)}
+`;
+
+const COMMON_DECLARATIONS = `
+${SKY_FOG_UNIFORM_DECLARATIONS}
+uniform vec3 uAmbientColor;
+uniform float uMinLightLevel;
+uniform float uBaseAmbient;
+uniform vec4 uFaceShades;
+uniform float uRingOuter;
+uniform vec2 uRingCenter;
+uniform vec2 uFarEdge;
+${FAR_SEAM_UNIFORM_DECLARATIONS}
+varying vec3 vWorldPosition;
+${FAR_SEAM_FUNCTIONS}
+`;
+
+/**
+ * Hide under every chunk that draws real terrain, except the pixels the
+ * chunk's outer half yields across the seam band (far-terrain-seam), and
+ * past the reach, measured from the viewer the tiles were picked around.
+ */
+const COVER_DISCARD = `
+  vec2 farTexel = farCoverTexel(vWorldPosition.xz);
+  if (farCoverInside(farTexel) && farCoverHard(farTexel) > 0.5) {
+    if (uFarSeam <= 0.0 || farSeamWeight(farTexel) > farSeamDither(gl_FragCoord.xy)) discard;
+  }
+  float horizontal = length(vWorldPosition.xz - uRingCenter);
+  if (horizontal >= uRingOuter) discard;
+`;
+
+/**
+ * The land: each face's block picked from the class table by what the
+ * face is (a top dithers its flat covers in per block, a wall shows the
+ * strata down from its column's ground, a crown its leaves), sampled at
+ * the block's own 16 texels a block in world space, so mips track the
+ * footprint and the smallest is the face's mean; the climate tint on the
+ * faces that take it.
+ */
+const LAND_FRAGMENT_SHADER = `
+precision highp sampler2DArray;
+${COMMON_DECLARATIONS}
+uniform highp sampler2DArray uFarLayers;
+uniform highp sampler2D uFarMaterials;
+uniform vec2 uFarFade;
+varying float vFarOcclusion;
+flat varying vec4 vFarMaterial;
+flat varying vec2 vFarColumn;
+flat varying vec3 vFarTint;
+${KIND_GLSL}
+
+float farCoverHash(vec2 cell) {
+  uvec2 q = uvec2(ivec2(floor(cell)));
+  uint h = (q.x * 0x8da6b343u) ^ (q.y * 0xd8163841u);
+  h = (h ^ (h >> 13u)) * 0x5bd1e995u;
+  h ^= h >> 15u;
+  return float(h & 0xffffffu) / 16777216.0;
+}
+
+vec3 farLayerColor(float code, vec2 uv, vec2 dx, vec2 dy) {
+  bool tinted = code >= ${FAR_TINTED_LAYER}.0;
+  float layer = tinted ? code - ${FAR_TINTED_LAYER}.0 : code;
+  vec3 color = textureGrad(uFarLayers, vec3(uv, max(layer, 0.0)), dx, dy).rgb;
+  return tinted ? color * vFarTint : color;
+}
+
+void main() {
+  // A tile dissolving in draws the pixels under its opacity; one
+  // dissolving out the rest, so a swap never shows both or neither.
+  float fadeDither = farSeamDither(gl_FragCoord.xy);
+  if (uFarFade.y > 0.0 ? fadeDither >= uFarFade.x : fadeDither < 1.0 - uFarFade.x) discard;
+  ${COVER_DISCARD}
+
+  vec3 normal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
+  if (dot(normal, cameraPosition - vWorldPosition) < 0.0) normal = -normal;
+
+  int cls = int(vFarMaterial.x + 0.5);
+  int kind = int(vFarMaterial.y + 0.5);
+  vec4 m0 = texelFetch(uFarMaterials, ivec2(0, cls), 0);
+  vec4 m1 = texelFetch(uFarMaterials, ivec2(1, cls), 0);
+  vec4 m2 = texelFetch(uFarMaterials, ivec2(2, cls), 0);
+
+  vec3 p = vWorldPosition;
+  bool isFlat = abs(normal.y) > 0.5;
+  // The chunk mesher's face orientation (greedyFaceUv), unwrapped.
+  vec2 uv = isFlat
+    ? (normal.y > 0.0 ? vec2(-p.x, p.z) : vec2(p.x, -p.z))
+    : (abs(normal.x) > 0.5
+        ? vec2(normal.x > 0.0 ? -p.z : p.z, p.y)
+        : vec2(normal.z > 0.0 ? p.x : -p.x, p.y));
+  vec2 dx = dFdx(uv);
+  vec2 dy = dFdy(uv);
+
+  vec3 albedo;
+  if (kind == FAR_KIND_TOP) {
+    // Flat covers are whole blocks of their own, chosen per block. Once a
+    // block shrinks under a couple of pixels the choice would sparkle, so
+    // the covers blend in by share instead.
+    float choice = farCoverHash(p.xz);
+    float code = choice < m1.x ? m0.y : choice < m1.y ? m0.z : choice < m1.z ? m0.w : m0.x;
+    vec3 chosen = farLayerColor(code, uv, dx, dy);
+    float footprint = max(length(dx), length(dy));
+    float blend = smoothstep(0.35, 0.8, footprint);
+    if (blend > 0.0) {
+      vec3 mixed = farLayerColor(m0.x, uv, dx, dy) * (1.0 - m1.z);
+      if (m1.x > 0.0) mixed += farLayerColor(m0.y, uv, dx, dy) * m1.x;
+      if (m1.y > m1.x) mixed += farLayerColor(m0.z, uv, dx, dy) * (m1.y - m1.x);
+      if (m1.z > m1.y) mixed += farLayerColor(m0.w, uv, dx, dy) * (m1.z - m1.y);
+      chosen = mix(chosen, mixed, blend);
+    }
+    albedo = chosen;
+  } else if (kind == FAR_KIND_CROWN) {
+    // A crown's class is its species': leaves on every face.
+    albedo = farLayerColor(m0.x, uv, dx, dy);
+  } else if (kind == FAR_KIND_TRUNK) {
+    albedo = farLayerColor(m2.y, uv, dx, dy);
+  } else if (kind == FAR_KIND_BOTTOM) {
+    albedo = farLayerColor(m2.z, uv, dx, dy);
+  } else {
+    // A wall: the ground block's side for its top block, the side block for
+    // sideDepth more, and the deep block below.
+    float depth = vFarColumn.x - p.y;
+    float code = depth < 1.0 ? m2.x : depth < 1.0 + m1.w ? m2.y : m2.z;
+    albedo = farLayerColor(code, uv, dx, dy);
+  }
+  float occlusion = vFarOcclusion;
+  ${lightAndFog()}
+}
+`;
+
+/**
+ * The chunk water's Fresnel on a top face (`fresnelBase` and `fresnelMax`
+ * in shaders.ts, at `topWaterFace` 1), as the literals both shaders carry;
+ * far-terrain.test.ts fails when either side changes alone.
+ */
+export const CHUNK_WATER_FRESNEL = { base: "0.04", max: "0.56" };
+
+/**
+ * The far water, seen from above by the chunk water's own optics (the
+ * refraction branch of its top face in shaders.ts): the sea floor dimmed
+ * over the path down and back, the water's in-scatter growing with
+ * thickness and toward grazing angles, past a few blocks the deep haze, and
+ * the sky mirrored by the same Fresnel. The depth comes from the far tiles'
+ * own floor heights.
+ */
+const FAR_WATER_FN = `
+float farWaterFresnel(float cosView) {
+  float fresnel = ${CHUNK_WATER_FRESNEL.base}
+    + uWaterFresnelStrength * pow(1.0 - clamp(cosView, 0.0, 1.0), 5.0);
+  return clamp(fresnel, 0.01, ${CHUNK_WATER_FRESNEL.max})
+    * ${WATER_OPTICS.distantFresnelFactor.toFixed(4)};
+}
+vec3 farWaterAlbedo(float seaDepth, float fresnel) {
+  float floorDepth = min(seaDepth, ${WATER_OPTICS.floorAbsorptionMaxDepth.toFixed(4)});
+  vec3 floorShade = exp(
+    -${WATER_DOWNWELLING_EXTINCTION_GLSL}
+    * floorDepth
+    * ${WATER_OPTICS.floorAbsorptionPathScale.toFixed(4)}
+  ) * ${WATER_OPTICS.wetFloorDarken.toFixed(4)};
+  float thicknessScatter = (1.0 - exp(
+    -floorDepth * ${WATER_OPTICS.shallowScatterDensity.toFixed(4)}
+  )) * ${WATER_OPTICS.shallowScatterMaxMix.toFixed(4)};
+  vec3 shallow = mix(
+    uSeabedColor * floorShade,
+    uWaterColor,
+    clamp(0.12 + fresnel * 0.28 + thicknessScatter, 0.0, 1.0)
+  );
+  float deepTransmit = exp(
+    -max(seaDepth - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0)
+    * ${WATER_OPTICS.deepSurfaceExtinction.toFixed(4)}
+  );
+  return mix(uWaterColor, shallow, deepTransmit);
+}
+vec3 farSkyMirror(vec3 toCamera) {
+  vec3 reflectDir = reflect(-toCamera, vec3(0.0, 1.0, 0.0));
+  float skyH = normalize(reflectDir * uSkyFogDimension + uSkyFogOffset).y;
+  return mix(uSkyMiddleColor, uSkyTopColor, pow(max(skyH, 0.0), uSkyFogExponent));
+}
+`;
+
+const WATER_FRAGMENT_SHADER = `
+${COMMON_DECLARATIONS}
+uniform vec3 uWaterColor;
+uniform vec3 uSeabedColor;
+uniform sampler2D uFarDepthMap;
+uniform vec4 uFarDepth;
+uniform vec3 uSkyTopColor;
+uniform vec3 uSkyMiddleColor;
+uniform float uWaterFresnelStrength;
+${FAR_WATER_FN}
+void main() {
+  ${COVER_DISCARD}
+  vec3 normal = vec3(0.0, 1.0, 0.0);
+  vec2 depthUv = (vWorldPosition.xz - uFarDepth.xy) / (uFarDepth.z * uFarDepth.w);
+  float seaDepth = texture2D(uFarDepthMap, depthUv).r * ${DEPTH_RANGE}.0;
+  vec3 toCamera = normalize(cameraPosition - vWorldPosition);
+  float fresnel = farWaterFresnel(toCamera.y);
+  vec3 albedo = farWaterAlbedo(seaDepth, fresnel);
+  float occlusion = 1.0;
+  ${lightAndFog(
+    "gl_FragColor.rgb = mix(gl_FragColor.rgb, farSkyMirror(toCamera), fresnel);",
+  )}
 }
 `;
 
@@ -336,16 +601,57 @@ type ResidentTile = {
   land: Mesh | null;
   sky: Mesh | null;
   isBuilt: boolean;
+  isBuilding: boolean;
+  /** 0 hidden, 1 fully drawn; eases toward 1 while drawn, 0 when not. */
+  opacity: number;
+  isDrawn: boolean;
+  lastDrawnAt: number;
+  bytes: number;
+  /** Builds that failed; past MAX_BUILD_ATTEMPTS the tile is not tried again. */
+  failedBuilds: number;
+  counts: FarMeshCounts | null;
+};
+
+let sharedPool: WorkerPool | null = null;
+
+const workerBuild = (input: FarMeshInput): Promise<FarBuiltTile | null> => {
+  if (!sharedPool) {
+    sharedPool = new WorkerPool(FarTerrainWorker, {
+      maxWorker: 2,
+      name: "far-terrain-worker",
+    });
+  }
+  const pool = sharedPool;
+  return new Promise((resolve) => {
+    pool.addJob({
+      message: { input },
+      resolve: (data: FarBuiltTile | null) => resolve(data),
+      timeoutMs: 20000,
+    });
+  });
+};
+
+const reliefOf = (tile: FarTileData) => {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let at = 0; at < tile.heights.length; at++) {
+    const h = tile.heights[at];
+    if (h < lo) lo = h;
+    if (h > hi) hi = h;
+  }
+  return Number.isFinite(lo) ? hi - lo : 0;
 };
 
 /**
- * Coarse terrain past the loaded chunks: a few detail rings of vertex
- * coloured heightfield tiles the server samples from its generator, lit by
- * the sun and fogged with the chunk shader's atmosphere, hidden wherever a
- * chunk draws real terrain, with a flat water plane at sea level. The
- * `World` owns one, feeds it the server's descriptor from the INIT options,
- * drives `update` once a frame, hands it method replies and sends the
- * requests it queues.
+ * Coarse terrain past the loaded chunks: a quadtree of stepped-column tiles
+ * the server samples from its generator, finer near the viewer and on tall
+ * relief, painted from the textures of the blocks each surface is made of
+ * and lit and fogged as the chunks are, hidden wherever a chunk draws real
+ * terrain, with a flat water plane at sea level. Tiles are meshed off the
+ * main thread and dissolve in and out as the detail changes. The `World`
+ * owns one, feeds it the server's descriptor from the INIT options, drives
+ * `update` once a frame, hands it method replies and sends the requests it
+ * queues.
  */
 export class FarTerrain extends Group {
   public options: FarTerrainOptions;
@@ -362,6 +668,9 @@ export class FarTerrain extends Group {
     bytesReceived: 0,
     tilesBuilt: 0,
     tilesResident: 0,
+    tilesDrawn: 0,
+    tilesWanted: 0,
+    levelCounts: [],
     meshes: 0,
     lastUpdateMs: 0,
     peakUpdateMs: 0,
@@ -372,6 +681,11 @@ export class FarTerrain extends Group {
     triangles: 0,
     lastBuildMs: 0,
     peakBuildMs: 0,
+    buildsInFlight: 0,
+    lastUploadMs: 0,
+    peakUploadMs: 0,
+    meshBytes: 0,
+    quads: { tops: 0, risers: 0, skirts: 0, crowns: 0 },
     facesResolved: 0,
     facesPending: 0,
     facesMissing: 0,
@@ -380,24 +694,12 @@ export class FarTerrain extends Group {
 
   private resident = new Map<string, ResidentTile>();
 
-  /** Every class's colours, once each face they need has been read. */
-  private looks: FarClassLooks | null = null;
-
-  private skyLooks: {
-    top: readonly [number, number, number];
-    side: readonly [number, number, number];
-  } | null = null;
-
-  /** Faces read so far, by `block:side`. */
-  private faceLooks = new Map<string, FarFaceLook>();
-
-  /** When each still unreadable face was first asked for. */
-  private faceWaitingSince = new Map<string, number>();
-
-  /** `(start, end)` of the band across which the layer thins into haze. */
-  private farEdge: ShaderUniform<Vector2> = {
-    value: new Vector2(Infinity, Infinity),
-  };
+  /**
+   * Every tile's relief once seen, kept past its mesh: a tile split for its
+   * relief is never drawn, so it leaves, and without its relief the plan
+   * would stop splitting and fetch it again.
+   */
+  private reliefs = new Map<string, number>();
 
   private pending = new Map<string, number>();
 
@@ -405,7 +707,22 @@ export class FarTerrain extends Group {
 
   private lastRequestAt = -Infinity;
 
+  private lastUpdateAt = -Infinity;
+
   private palette: Float32Array;
+
+  /** The materials as GPU data, once every face they need has been read. */
+  private materialTable: FarMaterialTable | null = null;
+
+  /** Faces read so far, by `block:side`. */
+  private faceLooks = new Map<string, FarFaceLook>();
+
+  /** When each still unreadable face was first asked for. */
+  private faceWaitingSince = new Map<string, number>();
+
+  private layersTexture: DataArrayTexture;
+
+  private materialsTexture: DataTexture;
 
   private landMaterial: ShaderMaterial;
 
@@ -427,14 +744,19 @@ export class FarTerrain extends Group {
 
   private coverageBuiltAt = 0;
 
-  private rings: FarRing[] = [];
+  /** Sea depth per texel (0 dry, 255 at DEPTH_RANGE or deeper), around the viewer. */
+  private depth = new Uint8Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(255);
 
-  private ringUniforms: {
-    inner: ShaderUniform<number>;
-    outer: ShaderUniform<number>;
-  }[] = [];
+  private depthTexture: DataTexture;
 
-  private ringMaterials: ShaderMaterial[] = [];
+  /** `(originX, originZ, blocks per texel, texels)` of the depth map. */
+  private depthWindow: ShaderUniform<Vector4> = {
+    value: new Vector4(0, 0, DEPTH_BLOCKS_PER_TEXEL, DEPTH_TEXELS),
+  };
+
+  private depthCenter: [number, number] | null = null;
+
+  private seabedColor: ShaderUniform<Color> = { value: new Color() };
 
   private skyTop: [number, number, number];
 
@@ -442,8 +764,19 @@ export class FarTerrain extends Group {
 
   private chunkSize = 16;
 
-  /** Horizontal centre the rings are cut around, shared by every material. */
+  /** Horizontal centre the reach is measured from, shared by every material. */
   private ringCenter: ShaderUniform<Vector2> = { value: new Vector2() };
+
+  /** `(start, end)` of the band across which the layer thins into haze. */
+  private farEdge: ShaderUniform<Vector2> = {
+    value: new Vector2(Infinity, Infinity),
+  };
+
+  /** The fade of the mesh about to draw, written per draw. */
+  private farFade: ShaderUniform<Vector2> = { value: new Vector2(1, 1) };
+
+  /** Bumped by configure and clearTiles, so a build in flight that was asked for an older layer is dropped. */
+  private epoch = 0;
 
   private shared: FarTerrainSharedUniforms;
 
@@ -476,6 +809,32 @@ export class FarTerrain extends Group {
     shared.farCover.value.set(0, 0, this.chunkSize, COVERAGE_SIZE);
     shared.farSeam.value = 0;
 
+    this.depthTexture = new DataTexture(
+      this.depth,
+      DEPTH_TEXELS,
+      DEPTH_TEXELS,
+      RedFormat,
+      UnsignedByteType,
+    );
+    this.depthTexture.magFilter = LinearFilter;
+    this.depthTexture.minFilter = LinearFilter;
+    this.depthTexture.needsUpdate = true;
+    this.seabedColor.value.set(this.options.waterColor);
+
+    this.layersTexture = new DataArrayTexture(
+      new Uint8Array(FAR_LAYER_SIZE * FAR_LAYER_SIZE * 4).fill(128),
+      FAR_LAYER_SIZE,
+      FAR_LAYER_SIZE,
+      1,
+    );
+    this.materialsTexture = new DataTexture(
+      new Float32Array(FAR_MATERIAL_TEXELS * 4),
+      FAR_MATERIAL_TEXELS,
+      1,
+      RGBAFormat,
+      FloatType,
+    );
+
     const common = () => ({
       uFogColor: shared.fogColor,
       uFogNear: shared.fogNear,
@@ -500,6 +859,7 @@ export class FarTerrain extends Group {
       uSunDirection: shared.sunDirection,
       uSunColor: shared.sunColor,
       uSunlightIntensity: shared.sunlightIntensity,
+      uDirectSunlight: shared.directSunlight ?? { value: 1 },
       uAmbientColor: shared.ambientColor,
       uMinLightLevel: shared.minLightLevel,
       uBaseAmbient: shared.baseAmbient,
@@ -507,7 +867,6 @@ export class FarTerrain extends Group {
       uFarCoverMask: shared.farCoverMask,
       uFarCover: shared.farCover,
       uFarSeam: shared.farSeam,
-      uRingInner: { value: 0 },
       uRingOuter: { value: 0 },
       uRingCenter: this.ringCenter,
       uFarEdge: this.farEdge,
@@ -515,16 +874,27 @@ export class FarTerrain extends Group {
 
     this.landMaterial = new ShaderMaterial({
       vertexShader: VERTEX_SHADER,
-      fragmentShader: fragmentShader("vFarColor", false),
-      uniforms: common(),
+      fragmentShader: LAND_FRAGMENT_SHADER,
+      uniforms: {
+        ...common(),
+        uFarLayers: { value: this.layersTexture },
+        uFarMaterials: { value: this.materialsTexture },
+        uFarFade: this.farFade,
+      },
       side: DoubleSide,
     });
     this.waterMaterial = new ShaderMaterial({
       vertexShader: WATER_VERTEX_SHADER,
-      fragmentShader: fragmentShader("uWaterColor", true),
+      fragmentShader: WATER_FRAGMENT_SHADER,
       uniforms: {
         ...common(),
         uWaterColor: { value: new Color(this.options.waterColor) },
+        uSeabedColor: this.seabedColor,
+        uFarDepthMap: { value: this.depthTexture },
+        uFarDepth: this.depthWindow,
+        uSkyTopColor: shared.skyTopColor ?? shared.skyFogTopColor,
+        uSkyMiddleColor: shared.skyMiddleColor ?? shared.skyFogMiddleColor,
+        uWaterFresnelStrength: shared.waterFresnelStrength ?? { value: 0 },
       },
       side: DoubleSide,
     });
@@ -553,8 +923,7 @@ export class FarTerrain extends Group {
     if (JSON.stringify(valid) === JSON.stringify(this.descriptor)) return;
     this.descriptor = valid;
     this.clearTiles();
-    this.looks = null;
-    this.skyLooks = null;
+    this.materialTable = null;
   }
 
   /**
@@ -565,10 +934,7 @@ export class FarTerrain extends Group {
    */
   setPalette(palette: ArrayLike<number>) {
     this.palette = Float32Array.from(palette);
-    if (!this.descriptor?.materials?.length) {
-      this.looks = null;
-      this.skyLooks = null;
-    }
+    if (!this.descriptor?.materials?.length) this.materialTable = null;
   }
 
   /**
@@ -576,11 +942,11 @@ export class FarTerrain extends Group {
    * for a load phase to await once the block textures are painted: each
    * atlas read waits on the GPU, a stall that belongs behind a loading
    * screen, not in the frame a player switches the layer on. Settles once
-   * the colours are known (a face that never becomes readable is greyed
+   * the materials are ready (a face that never becomes readable is greyed
    * after `faceLookTimeoutMs`), at once for a world without materials.
    */
   async warmLooks() {
-    while (!this.resolveLooks(performance.now())) {
+    while (!this.resolveMaterials(performance.now())) {
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
   }
@@ -609,15 +975,15 @@ export class FarTerrain extends Group {
   }
 
   /**
-   * One frame: pick the rings for the viewer, ask for missing tiles, drop
-   * tiles out of reach, refresh the chunk-coverage mask when chunks changed,
-   * and build a tile mesh or two within the budget.
+   * One frame: plan which tiles to draw, ask for the missing ones, ease the
+   * detail changes, drop what is no longer wanted, refresh the chunk-coverage
+   * mask when chunks changed, and hand new tiles to the mesher.
    *
    * `isChunkPending` says whether a chunk column inside the render radius
    * still owes its terrain (not loaded, or loaded with its mesh still being
-   * built; a loaded, meshed chunk with nothing to draw is not pending): the
-   * mask covers those too, so the far layer never shows through a hole that
-   * real terrain is about to fill.
+   * built at some level; a loaded, meshed chunk with nothing to draw is not
+   * pending): the mask covers those too, so the far layer never shows
+   * through a hole that real terrain is about to fill.
    */
   update(
     position: Vector3,
@@ -630,6 +996,10 @@ export class FarTerrain extends Group {
     },
   ) {
     const started = performance.now();
+    const elapsed = Number.isFinite(this.lastUpdateAt)
+      ? Math.min(250, started - this.lastUpdateAt)
+      : 0;
+    this.lastUpdateAt = started;
     const descriptor = this.descriptor;
     this.chunkSize = world.chunkSize;
     if (!descriptor || this.options.distance <= 0) {
@@ -648,42 +1018,29 @@ export class FarTerrain extends Group {
       world.chunkSize,
       this.options.seamBand,
     );
+    this.landMaterial.uniforms.uRingOuter.value = this.options.distance;
+    this.waterMaterial.uniforms.uRingOuter.value = this.options.distance;
 
-    const renderDistance = world.renderRadius * world.chunkSize;
-    this.rings = farTerrainRings(
+    const plan = planFarLod(
       descriptor,
-      renderDistance,
+      position.x,
+      position.z,
       this.options.distance,
+      this.options.lod,
+      (key) => this.resident.get(farTileId(key))?.isBuilt === true,
+      (key) => this.reliefs.get(farTileId(key)) ?? null,
     );
-    this.stats.rings = this.rings.length;
-    this.syncRingMaterials();
-
-    const needed = new Set<string>();
-    const wanted: FarTileKey[] = [];
-    for (const ring of this.rings) {
-      const span = farTileSpan(descriptor, ring.level);
-      for (const key of selectFarTiles(
-        position.x,
-        position.z,
-        ring,
-        span,
-        span / 4,
-      )) {
-        const id = farTileId(key);
-        needed.add(id);
-        if (!this.resident.has(id)) wanted.push(key);
-      }
-    }
-
-    this.requestTiles(wanted, started);
-    this.evictTiles(needed, position);
+    this.stats.tilesWanted = plan.wanted.length;
+    this.requestTiles([...plan.fallback, ...plan.wanted], started);
+    this.applyDrawn(plan.drawn, plan.wanted, plan.fallback, started, elapsed);
     this.updateCoverage(position, world);
+    this.updateDepth(position);
     this.updateWater(position, descriptor);
     this.farEdge.value.set(
       this.options.distance * (1 - this.options.edgeBand),
       this.options.distance,
     );
-    if (this.resolveLooks(started)) this.buildTiles(started);
+    if (this.resolveMaterials(started)) this.dispatchBuilds();
 
     this.stats.tilesResident = this.resident.size;
     this.stats.lastUpdateMs = performance.now() - started;
@@ -710,11 +1067,20 @@ export class FarTerrain extends Group {
     if (!this.descriptor) return;
     const existing = this.resident.get(id);
     if (existing) this.disposeTile(existing);
+    if (this.depthCenter) this.writeDepth(tile);
+    this.reliefs.set(id, reliefOf(tile));
     this.resident.set(id, {
       data: tile,
       land: null,
       sky: null,
       isBuilt: false,
+      isBuilding: false,
+      opacity: 0,
+      isDrawn: false,
+      lastDrawnAt: performance.now(),
+      bytes: 0,
+      failedBuilds: 0,
+      counts: null,
     });
   }
 
@@ -732,17 +1098,23 @@ export class FarTerrain extends Group {
     this.stats.totalUpdateMs = 0;
     this.stats.updates = 0;
     this.stats.peakBuildMs = 0;
+    this.stats.peakUploadMs = 0;
   }
 
   /** Drop every tile and forget what was asked for. */
   clearTiles() {
     for (const tile of this.resident.values()) this.disposeTile(tile);
     this.resident.clear();
+    this.reliefs.clear();
     this.pending.clear();
     this.queuedRequests = [];
+    this.epoch += 1;
     this.stats.tilesResident = 0;
+    this.stats.tilesDrawn = 0;
     this.stats.meshes = 0;
     this.stats.triangles = 0;
+    this.stats.meshBytes = 0;
+    this.stats.buildsInFlight = 0;
     this.water.visible = false;
   }
 
@@ -750,9 +1122,11 @@ export class FarTerrain extends Group {
     this.clearTiles();
     this.landMaterial.dispose();
     this.waterMaterial.dispose();
-    for (const material of this.ringMaterials) material.dispose();
     this.water.geometry.dispose();
     this.coverageTexture.dispose();
+    this.layersTexture.dispose();
+    this.materialsTexture.dispose();
+    this.depthTexture.dispose();
   }
 
   private requestTiles(wanted: FarTileKey[], now: number) {
@@ -761,6 +1135,7 @@ export class FarTerrain extends Group {
     const tiles: [number, number, number][] = [];
     for (const key of wanted) {
       const id = farTileId(key);
+      if (this.resident.has(id)) continue;
       const askedAt = this.pending.get(id);
       if (askedAt !== undefined && now - askedAt < this.options.retryAfterMs)
         continue;
@@ -780,30 +1155,375 @@ export class FarTerrain extends Group {
     } as MessageProtocol);
   }
 
-  private evictTiles(needed: ReadonlySet<string>, position: Vector3) {
-    const descriptor = this.descriptor;
-    if (!descriptor) return;
-    const keys = Array.from(this.resident.values(), (tile) => tile.data.key);
-    const gone = farTilesToEvict(
-      keys,
-      needed,
-      position.x,
-      position.z,
-      this.rings,
-      (level) => farTileSpan(descriptor, level),
-    );
-    for (const key of gone) {
-      const id = farTileId(key);
-      const tile = this.resident.get(id);
-      if (tile) this.disposeTile(tile);
+  /**
+   * Ease every resident tile toward drawn or hidden, and drop the ones no
+   * plan wants that have faded out: least recently drawn first once there
+   * are more than `maxResidentTiles`, and any no plan has wanted for a few
+   * seconds. Pending asks no plan wants any more are forgotten too.
+   */
+  private applyDrawn(
+    drawn: FarTileKey[],
+    wanted: FarTileKey[],
+    fallback: FarTileKey[],
+    now: number,
+    elapsed: number,
+  ) {
+    const drawnIds = new Set(drawn.map(farTileId));
+    const keepIds = new Set([...wanted, ...fallback].map(farTileId));
+    const step = this.options.fadeMs > 0 ? elapsed / this.options.fadeMs : 1;
+    const levels = new Map<number, number>();
+    let meshes = 0;
+    let triangles = 0;
+    let bytes = 0;
+    const quads: FarMeshCounts = { tops: 0, risers: 0, skirts: 0, crowns: 0 };
+    const idle: [string, ResidentTile][] = [];
+    for (const [id, tile] of this.resident) {
+      const isDrawn = drawnIds.has(id);
+      if (isDrawn) {
+        tile.lastDrawnAt = now;
+        levels.set(
+          tile.data.key.level,
+          (levels.get(tile.data.key.level) ?? 0) + 1,
+        );
+        if (tile.counts) {
+          quads.tops += tile.counts.tops;
+          quads.risers += tile.counts.risers;
+          quads.skirts += tile.counts.skirts;
+          quads.crowns += tile.counts.crowns;
+        }
+      }
+      tile.isDrawn = isDrawn;
+      tile.opacity = Math.min(
+        1,
+        Math.max(0, tile.opacity + (isDrawn ? step : -step)),
+      );
+      for (const mesh of [tile.land, tile.sky]) {
+        if (!mesh) continue;
+        mesh.visible = tile.opacity > 0;
+        if (mesh.visible) {
+          meshes += 1;
+          triangles += (mesh.geometry.getIndex()?.count ?? 0) / 3;
+        }
+      }
+      bytes += tile.bytes;
+      if (!isDrawn && tile.opacity === 0 && !keepIds.has(id)) {
+        idle.push([id, tile]);
+      }
+    }
+    // Idle tiles leave after a short stay, so turning back is free; the
+    // oldest leave at once past the cap.
+    idle.sort((a, b) => a[1].lastDrawnAt - b[1].lastDrawnAt);
+    let excess = this.resident.size - this.options.maxResidentTiles;
+    for (const [id, tile] of idle) {
+      if (excess <= 0 && now - tile.lastDrawnAt < this.options.evictAfterMs)
+        continue;
+      this.disposeTile(tile);
       this.resident.delete(id);
-      this.pending.delete(id);
+      excess -= 1;
     }
-    // Pending asks for tiles no ring wants any more are forgotten too, so a
-    // late reply does not pin them.
     for (const id of Array.from(this.pending.keys())) {
-      if (!needed.has(id)) this.pending.delete(id);
+      if (!keepIds.has(id)) this.pending.delete(id);
     }
+    this.stats.tilesDrawn = drawnIds.size;
+    this.stats.meshes = meshes;
+    this.stats.triangles = triangles;
+    this.stats.meshBytes = bytes;
+    this.stats.quads = quads;
+    this.stats.rings = levels.size;
+    const counts: number[] = [];
+    for (let level = 0; level < (this.descriptor?.levels ?? 0); level++) {
+      counts.push(levels.get(level) ?? 0);
+    }
+    this.stats.levelCounts = counts;
+  }
+
+  /**
+   * Whether the materials are on the GPU, reading the faces the
+   * descriptor's materials name off the atlas, as many a frame as the build
+   * budget allows (at least one). Tiles wait for it: a tile built before
+   * would wear placeholder colours. A face still unreadable after
+   * `faceLookTimeoutMs` is painted grey, and the layer says which.
+   */
+  private resolveMaterials(started: number): boolean {
+    if (this.materialTable) return true;
+    const materials = this.descriptor?.materials;
+    const faceLook = this.options.faceLook;
+    if (!materials?.length || !faceLook) {
+      const table = farPaletteTable(this.palette, this.skyTop, this.skySide);
+      this.installMaterials(table, table.classes - 1);
+      return true;
+    }
+    let pending = 0;
+    let read = 0;
+    const trees = this.descriptor?.trees ?? [];
+    for (const [block, side] of farMaterialFaces(materials, trees)) {
+      const key = `${block}:${side}`;
+      if (this.faceLooks.has(key)) continue;
+      if (
+        read > 0 &&
+        performance.now() - started > this.options.buildBudgetMs
+      ) {
+        pending += 1;
+        continue;
+      }
+      const readAt = performance.now();
+      const look = faceLook(block, side);
+      read += 1;
+      this.stats.faceLookMs += performance.now() - readAt;
+      if (look) {
+        this.faceLooks.set(key, look);
+        this.faceWaitingSince.delete(key);
+        continue;
+      }
+      const since = this.faceWaitingSince.get(key) ?? started;
+      this.faceWaitingSince.set(key, since);
+      if (started - since < this.options.faceLookTimeoutMs) {
+        pending += 1;
+        continue;
+      }
+      console.warn(
+        `[far-terrain] block ${block}'s ${side} face never became readable in ${this.options.faceLookTimeoutMs} ms; the far layer paints it grey`,
+      );
+      this.faceLooks.set(key, GREY_LOOK);
+      this.stats.facesMissing += 1;
+    }
+    this.stats.facesResolved = this.faceLooks.size;
+    this.stats.facesPending = pending;
+    if (pending > 0) return false;
+    const table = buildFarMaterialTable(
+      materials,
+      (block, side) => this.faceLooks.get(`${block}:${side}`) ?? GREY_LOOK,
+      trees,
+    );
+    const seabed = this.descriptor?.seabedMaterial;
+    if (seabed !== undefined && materials[seabed]) {
+      const look = this.faceLooks.get(`${materials[seabed].top}:top`);
+      if (look) this.seabedColor.value.setRGB(...look.color);
+    }
+    const sky = this.descriptor?.skyMaterial;
+    this.installMaterials(
+      table,
+      sky !== undefined && sky >= 0 && sky < table.classes ? sky : null,
+    );
+    return true;
+  }
+
+  private skyClass = 0;
+
+  private installMaterials(table: FarMaterialTable, skyClass: number | null) {
+    const previous = this.materialTable;
+    const sameClasses =
+      previous !== null &&
+      previous.treeClass === table.treeClass &&
+      this.skyClass === (skyClass ?? 0);
+    this.materialTable = table;
+    this.layersTexture.dispose();
+    const layers = new DataArrayTexture(
+      table.layers,
+      FAR_LAYER_SIZE,
+      FAR_LAYER_SIZE,
+      table.layerCount,
+    );
+    layers.format = RGBAFormat;
+    layers.type = UnsignedByteType;
+    layers.colorSpace = SRGBColorSpace;
+    layers.wrapS = RepeatWrapping;
+    layers.wrapT = RepeatWrapping;
+    layers.magFilter = NearestFilter;
+    layers.minFilter = LinearMipmapLinearFilter;
+    layers.generateMipmaps = true;
+    layers.anisotropy = 8;
+    layers.needsUpdate = true;
+    this.layersTexture = layers;
+    this.landMaterial.uniforms.uFarLayers.value = layers;
+
+    this.materialsTexture.dispose();
+    const rows = new DataTexture(
+      table.table,
+      FAR_MATERIAL_TEXELS,
+      table.classes,
+      RGBAFormat,
+      FloatType,
+    );
+    rows.magFilter = NearestFilter;
+    rows.minFilter = NearestFilter;
+    rows.needsUpdate = true;
+    this.materialsTexture = rows;
+    this.landMaterial.uniforms.uFarMaterials.value = rows;
+
+    this.skyClass = skyClass ?? 0;
+    // Faces paint from the table at draw time; tiles bake only class
+    // indices, so they rebuild only when those move.
+    if (sameClasses) return;
+    for (const tile of this.resident.values()) {
+      tile.isBuilt = false;
+      tile.isBuilding = false;
+    }
+  }
+
+  /** Hand unbuilt tiles to the mesher, nearest drawn-or-wanted first. */
+  private dispatchBuilds() {
+    const table = this.materialTable;
+    if (!table) return;
+    const build = this.options.buildMesh ?? workerBuild;
+    const center = this.ringCenter.value;
+    const queue = Array.from(this.resident.values())
+      .filter(
+        (tile) =>
+          !tile.isBuilt &&
+          !tile.isBuilding &&
+          tile.failedBuilds < MAX_BUILD_ATTEMPTS,
+      )
+      .sort(
+        (a, b) => this.tileDistance(a, center) - this.tileDistance(b, center),
+      );
+    for (const tile of queue) {
+      if (this.stats.buildsInFlight >= this.options.maxBuildsInFlight) break;
+      const { data } = tile;
+      const span = (data.size - 1) * data.step;
+      const input: FarMeshInput = {
+        originX: data.key.tx * span,
+        originZ: data.key.tz * span,
+        step: data.step,
+        size: data.size,
+        heights: data.heights,
+        classes: data.colors,
+        tints: data.tints,
+        sky: data.sky,
+        canopy: data.canopy,
+        classCount: table.treeClass,
+        treeClass: table.treeClass,
+        skyClass: this.skyClass,
+        waterSurface: this.descriptor?.waterSurface ?? null,
+      };
+      tile.isBuilding = true;
+      this.stats.buildsInFlight += 1;
+      const epoch = this.epoch;
+      build(input).then((built) => {
+        if (epoch !== this.epoch) return;
+        this.stats.buildsInFlight = Math.max(0, this.stats.buildsInFlight - 1);
+        const id = farTileId(data.key);
+        if (this.resident.get(id) !== tile) return;
+        tile.isBuilding = false;
+        if (!built) {
+          tile.failedBuilds += 1;
+          if (tile.failedBuilds >= MAX_BUILD_ATTEMPTS) {
+            console.error(
+              `[far-terrain] tile ${id} failed to build ${tile.failedBuilds} times; its coarser tile stands in for it`,
+            );
+          } else {
+            console.warn(
+              `[far-terrain] tile ${id} failed to build; trying again`,
+            );
+          }
+          return;
+        }
+        this.installTile(tile, built, input.originX, input.originZ, span);
+      });
+    }
+  }
+
+  private tileDistance(tile: ResidentTile, center: Vector2) {
+    const { key, size, step } = tile.data;
+    const span = (size - 1) * step;
+    const cx = key.tx * span + span / 2;
+    const cz = key.tz * span + span / 2;
+    return Math.hypot(cx - center.x, cz - center.y);
+  }
+
+  private installTile(
+    tile: ResidentTile,
+    built: FarBuiltTile,
+    originX: number,
+    originZ: number,
+    span: number,
+  ) {
+    const started = performance.now();
+    for (const mesh of [tile.land, tile.sky]) {
+      if (!mesh) continue;
+      this.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    tile.bytes = 0;
+    const name = farTileId(tile.data.key);
+    tile.land = built.land
+      ? this.meshFrom(built.land, originX, originZ, span, tile)
+      : null;
+    tile.sky = built.sky
+      ? this.meshFrom(built.sky, originX, originZ, span, tile)
+      : null;
+    if (tile.land) {
+      tile.land.name = `far-terrain-${name}`;
+      this.add(tile.land);
+    }
+    if (tile.sky) {
+      tile.sky.name = `far-terrain-sky-${name}`;
+      this.add(tile.sky);
+    }
+    tile.counts = built.land?.counts ?? null;
+    tile.isBuilt = true;
+    this.stats.tilesBuilt += 1;
+    this.stats.lastBuildMs = built.buildMs;
+    this.stats.peakBuildMs = Math.max(this.stats.peakBuildMs, built.buildMs);
+    this.stats.lastUploadMs = performance.now() - started;
+    this.stats.peakUploadMs = Math.max(
+      this.stats.peakUploadMs,
+      this.stats.lastUploadMs,
+    );
+  }
+
+  private meshFrom(
+    data: FarMeshData,
+    originX: number,
+    originZ: number,
+    span: number,
+    tile: ResidentTile,
+  ) {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new Int16BufferAttribute(data.position, 3),
+    );
+    geometry.setAttribute(
+      "aFarColumn",
+      new Int16BufferAttribute(data.column, 2),
+    );
+    geometry.setAttribute(
+      "aFarMaterial",
+      new Uint8BufferAttribute(data.material, 4),
+    );
+    geometry.setAttribute("aFarTint", new Uint8BufferAttribute(data.tint, 4));
+    geometry.setIndex(new BufferAttribute(data.index, 1));
+    // Local bounds from the tile's own extent: cheaper than a pass over the
+    // vertices, and the frustum test only needs them conservative.
+    geometry.boundingBox = new Box3(
+      new Vector3(0, data.minY, 0),
+      new Vector3(span, data.maxY, span),
+    );
+    geometry.boundingSphere = new Sphere();
+    geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
+    const mesh = new Mesh(geometry, this.landMaterial);
+    // Far tiles stay out of the shadow cascades: they lie past the cascades'
+    // reach, and each would otherwise cost a draw per cascade.
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.position.set(originX, 0, originZ);
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    mesh.visible = false;
+    const fade = this.farFade;
+    const material = this.landMaterial;
+    mesh.onBeforeRender = () => {
+      fade.value.set(tile.opacity, tile.isDrawn ? 1 : -1);
+      material.uniformsNeedUpdate = true;
+    };
+    tile.bytes +=
+      data.position.byteLength +
+      data.column.byteLength +
+      data.material.byteLength +
+      data.tint.byteLength +
+      data.index.byteLength;
+    return mesh;
   }
 
   private updateCoverage(
@@ -867,8 +1587,87 @@ export class FarTerrain extends Group {
     this.stats.maskRebuilds += 1;
   }
 
+  /**
+   * Lay the sea-depth map out around the viewer again once it has drifted
+   * far enough from its centre, from every resident tile, coarse first so
+   * the finer ones land on top.
+   */
+  private updateDepth(position: Vector3) {
+    const center = this.depthCenter;
+    if (
+      center &&
+      Math.abs(position.x - center[0]) < DEPTH_RECENTER &&
+      Math.abs(position.z - center[1]) < DEPTH_RECENTER
+    )
+      return;
+    const half = (DEPTH_TEXELS * DEPTH_BLOCKS_PER_TEXEL) / 2;
+    const originX =
+      Math.floor((position.x - half) / DEPTH_BLOCKS_PER_TEXEL) *
+      DEPTH_BLOCKS_PER_TEXEL;
+    const originZ =
+      Math.floor((position.z - half) / DEPTH_BLOCKS_PER_TEXEL) *
+      DEPTH_BLOCKS_PER_TEXEL;
+    this.depthCenter = [position.x, position.z];
+    this.depthWindow.value.set(
+      originX,
+      originZ,
+      DEPTH_BLOCKS_PER_TEXEL,
+      DEPTH_TEXELS,
+    );
+    this.depth.fill(255);
+    const tiles = Array.from(this.resident.values(), (tile) => tile.data).sort(
+      (a, b) => b.key.level - a.key.level,
+    );
+    for (const tile of tiles) this.writeDepth(tile);
+  }
+
+  /** A tile's sea depths into the map, over each sample's own cell. */
+  private writeDepth(tile: FarTileData) {
+    const surface = this.descriptor?.waterSurface;
+    if (surface === undefined) return;
+    const { x: originX, y: originZ } = this.depthWindow.value;
+    const span = (tile.size - 1) * tile.step;
+    const tileX = tile.key.tx * span;
+    const tileZ = tile.key.tz * span;
+    const per = DEPTH_BLOCKS_PER_TEXEL;
+    let touched = false;
+    for (let j = 0; j < tile.size - 1; j++) {
+      const z = tileZ + j * tile.step;
+      const tz0 = Math.max(0, Math.floor((z - originZ) / per));
+      const tz1 = Math.min(
+        DEPTH_TEXELS,
+        Math.ceil((z + tile.step - originZ) / per),
+      );
+      if (tz0 >= tz1) continue;
+      for (let i = 0; i < tile.size - 1; i++) {
+        const x = tileX + i * tile.step;
+        const tx0 = Math.max(0, Math.floor((x - originX) / per));
+        const tx1 = Math.min(
+          DEPTH_TEXELS,
+          Math.ceil((x + tile.step - originX) / per),
+        );
+        if (tx0 >= tx1) continue;
+        const height = tile.heights[j * tile.size + i];
+        const value = Math.round(
+          Math.min(1, Math.max(0, (surface - height) / DEPTH_RANGE)) * 255,
+        );
+        for (let tz = tz0; tz < tz1; tz++) {
+          this.depth.fill(
+            value,
+            tz * DEPTH_TEXELS + tx0,
+            tz * DEPTH_TEXELS + tx1,
+          );
+        }
+        touched = true;
+      }
+    }
+    if (touched) this.depthTexture.needsUpdate = true;
+  }
+
   private updateWater(position: Vector3, descriptor: FarTerrainDescriptor) {
-    const span = (this.options.distance + farTileSpan(descriptor, 0)) * 2;
+    const span =
+      (this.options.distance + farTileSpan(descriptor, descriptor.levels - 1)) *
+      2;
     if (span !== this.waterSpan) {
       this.water.geometry.dispose();
       this.water.geometry = new PlaneGeometry(span, span);
@@ -876,222 +1675,26 @@ export class FarTerrain extends Group {
     }
     this.water.position.set(position.x, descriptor.waterSurface, position.z);
     this.water.visible = true;
-    const outer = this.rings.length
-      ? this.rings[this.rings.length - 1].outer
-      : 0;
-    this.waterMaterial.uniforms.uRingInner.value = 0;
-    this.waterMaterial.uniforms.uRingOuter.value = outer;
-  }
-
-  /** One material per ring so each cuts at its own radii. */
-  private syncRingMaterials() {
-    while (this.ringMaterials.length < this.rings.length) {
-      const material = this.landMaterial.clone();
-      material.uniforms = { ...this.landMaterial.uniforms };
-      material.uniforms.uRingInner = { value: 0 };
-      material.uniforms.uRingOuter = { value: 0 };
-      this.ringMaterials.push(material);
-      this.ringUniforms.push({
-        inner: material.uniforms.uRingInner,
-        outer: material.uniforms.uRingOuter,
-      });
-    }
-    this.rings.forEach((ring, index) => {
-      this.ringUniforms[index].inner.value = ring.inner;
-      this.ringUniforms[index].outer.value = ring.outer;
-    });
-  }
-
-  /**
-   * Whether every class's colours are known, reading the faces the
-   * descriptor's materials name off the atlas, as many a frame as the build
-   * budget allows (at least one). Tiles wait for it: a tile built before
-   * would wear placeholder colours. A face still unreadable after
-   * `faceLookTimeoutMs` is painted grey, and the layer says which.
-   */
-  private resolveLooks(started: number): boolean {
-    if (this.looks) return true;
-    const materials = this.descriptor?.materials;
-    const faceLook = this.options.faceLook;
-    if (!materials?.length || !faceLook) {
-      this.looks = farLooksFromPalette(this.palette);
-      this.skyLooks = { top: this.skyTop, side: this.skySide };
-      return true;
-    }
-    const faces: [number, FarFaceSide][] = [];
-    for (const material of materials) {
-      faces.push([material.top, "top"], [material.top, "side"]);
-      faces.push([material.side, "side"]);
-      for (const cover of material.covers ?? [])
-        faces.push([cover.block, "top"]);
-    }
-    let pending = 0;
-    let read = 0;
-    for (const [block, side] of faces) {
-      const key = `${block}:${side}`;
-      if (this.faceLooks.has(key)) continue;
-      if (
-        read > 0 &&
-        performance.now() - started > this.options.buildBudgetMs
-      ) {
-        pending += 1;
-        continue;
-      }
-      const readAt = performance.now();
-      const look = faceLook(block, side);
-      read += 1;
-      this.stats.faceLookMs += performance.now() - readAt;
-      if (look) {
-        this.faceLooks.set(key, look);
-        this.faceWaitingSince.delete(key);
-        continue;
-      }
-      const since = this.faceWaitingSince.get(key) ?? started;
-      this.faceWaitingSince.set(key, since);
-      if (started - since < this.options.faceLookTimeoutMs) {
-        pending += 1;
-        continue;
-      }
-      console.warn(
-        `[far-terrain] block ${block}'s ${side} face never became readable in ${this.options.faceLookTimeoutMs} ms; the far layer paints it grey`,
-      );
-      this.faceLooks.set(key, GREY_LOOK);
-      this.stats.facesMissing += 1;
-    }
-    this.stats.facesResolved = this.faceLooks.size;
-    this.stats.facesPending = pending;
-    if (pending > 0) return false;
-
-    const looks = farClassLooks(
-      materials,
-      (block, side) => this.faceLooks.get(`${block}:${side}`) ?? GREY_LOOK,
-    );
-    this.looks = looks;
-    const sky = this.descriptor?.skyMaterial;
-    if (sky !== undefined && sky >= 0 && sky < looks.classes) {
-      const at = sky * 3;
-      const untinted = (fixed: Float32Array, tinted: Float32Array) =>
-        [0, 1, 2].map((c) => fixed[at + c] + tinted[at + c]) as [
-          number,
-          number,
-          number,
-        ];
-      this.skyLooks = {
-        top: untinted(looks.topFixed, looks.topTinted),
-        side: untinted(looks.wallFixed, looks.wallTinted),
-      };
-    } else {
-      this.skyLooks = { top: this.skyTop, side: this.skySide };
-    }
-    return true;
-  }
-
-  private buildTiles(started: number) {
-    let built = 0;
-    for (const tile of this.resident.values()) {
-      if (tile.isBuilt) continue;
-      // At least one tile a frame, then as many as the budget allows.
-      if (built > 0 && performance.now() - started > this.options.buildBudgetMs)
-        break;
-      this.buildTile(tile);
-      built += 1;
-    }
-  }
-
-  private buildTile(tile: ResidentTile) {
-    const started = performance.now();
-    const ringIndex = this.rings.findIndex(
-      (ring) => ring.level === tile.data.key.level,
-    );
-    const material =
-      this.ringMaterials[ringIndex >= 0 ? ringIndex : 0] ?? this.landMaterial;
-    const bounds = farTileBounds(tile.data);
-    const looks = this.looks ?? farLooksFromPalette(this.palette);
-    const skyLooks = this.skyLooks ?? { top: this.skyTop, side: this.skySide };
-    const land = buildFarLandArrays(tile.data, looks);
-    tile.land = this.meshFrom(
-      land.positions,
-      land.colors,
-      land.indices,
-      material,
-      bounds,
-    );
-    tile.land.name = `far-terrain-${farTileId(tile.data.key)}`;
-    this.add(tile.land);
-    this.stats.triangles += land.indices.length / 3;
-    const sky = buildFarSkyArrays(tile.data, skyLooks.top, skyLooks.side);
-    if (sky) {
-      tile.sky = this.meshFrom(
-        sky.positions,
-        sky.colors,
-        sky.indices,
-        material,
-        bounds,
-      );
-      tile.sky.name = `far-terrain-sky-${farTileId(tile.data.key)}`;
-      this.add(tile.sky);
-      this.stats.triangles += sky.indices.length / 3;
-    }
-    tile.isBuilt = true;
-    this.stats.tilesBuilt += 1;
-    this.stats.meshes += sky ? 2 : 1;
-    this.stats.lastBuildMs = performance.now() - started;
-    this.stats.peakBuildMs = Math.max(
-      this.stats.peakBuildMs,
-      this.stats.lastBuildMs,
-    );
-  }
-
-  private meshFrom(
-    positions: Float32Array,
-    colors: Float32Array,
-    indices: Uint32Array,
-    material: ShaderMaterial,
-    bounds: FarTileBounds,
-  ) {
-    const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(positions, 3));
-    geometry.setAttribute("aFarColor", new BufferAttribute(colors, 3));
-    geometry.setIndex(new BufferAttribute(indices, 1));
-    // The bounds from the tile's own extent: cheaper than a pass over the
-    // vertices, and the frustum test only needs them conservative.
-    geometry.boundingBox = new Box3(
-      new Vector3(bounds.x0, bounds.y0, bounds.z0),
-      new Vector3(bounds.x1, bounds.y1, bounds.z1),
-    );
-    geometry.boundingSphere = new Sphere();
-    geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
-    const mesh = new Mesh(geometry, material);
-    // Far tiles stay out of the shadow cascades: they lie past the cascades'
-    // reach, and each would otherwise cost a draw per cascade.
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    mesh.matrixAutoUpdate = false;
-    mesh.updateMatrix();
-    return mesh;
   }
 
   private disposeTile(tile: ResidentTile) {
     for (const mesh of [tile.land, tile.sky]) {
       if (!mesh) continue;
       this.remove(mesh);
-      const index = mesh.geometry.getIndex();
-      if (index) {
-        this.stats.triangles = Math.max(
-          0,
-          this.stats.triangles - index.count / 3,
-        );
-      }
       mesh.geometry.dispose();
-      this.stats.meshes = Math.max(0, this.stats.meshes - 1);
     }
     tile.land = null;
     tile.sky = null;
     tile.isBuilt = false;
+    tile.isBuilding = false;
+    tile.bytes = 0;
   }
 }
 
 const GREY_LOOK: FarFaceLook = { color: [0.5, 0.5, 0.5], isTinted: false };
+
+/** How often one tile's build may fail before it is given up on. */
+const MAX_BUILD_ATTEMPTS = 3;
 
 function colorTriple(color: Color | string | number): [number, number, number] {
   const c = new Color(color);

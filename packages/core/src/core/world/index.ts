@@ -3055,8 +3055,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /**
    * What a block's upward (`top`) or sideways (`side`) face looks like from
-   * far away, for the far-terrain layer: the mean of the texels the chunks
-   * paint it with, in linear RGB, and whether it takes the regional tint.
+   * far away, for the far-terrain layer: the texels the chunks paint it
+   * with, their mean in linear RGB, and whether it takes the regional tint.
    * Null while its texture is not painted yet. A block the registry lacks,
    * or a face whose material is not an atlas, answers grey and says so: the
    * far layer still draws.
@@ -3092,7 +3092,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!pixels) return null;
     const color = meanLinearRgb(pixels);
     if (!color) return null;
-    return { color, isTinted: (face.stageTintMask ?? 0) !== 0 };
+    return {
+      color,
+      isTinted: (face.stageTintMask ?? 0) !== 0,
+      pixels,
+      size: Math.round(Math.sqrt(pixels.length / 4)),
+    };
   }
 
   /**
@@ -6793,6 +6798,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkRenderer.shaderLightingUniforms.sunColor,
       uSunlightIntensity:
         cloudsOptions.uSunlightIntensity ?? chunkUniforms.sunlightIntensity,
+      uDirectSunlight:
+        cloudsOptions.uDirectSunlight ??
+        this.chunkRenderer.shaderLightingUniforms.directSunlight,
       uCameraSubmersion:
         cloudsOptions.uCameraSubmersion ?? chunkUniforms.cameraSubmersion,
       uCameraWaterPlaneY:
@@ -6821,6 +6829,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         skyFogDimension: chunkUniforms.skyFogDimension,
         skyFogStrength: chunkUniforms.skyFogStrength,
         sunlightIntensity: chunkUniforms.sunlightIntensity,
+        directSunlight: lighting.directSunlight,
         minLightLevel: chunkUniforms.minLightLevel,
         baseAmbient: chunkUniforms.baseAmbient,
         faceShades: chunkUniforms.faceShades,
@@ -6831,6 +6840,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         sunDirection: lighting.sunDirection,
         sunColor: lighting.sunColor,
         ambientColor: lighting.ambientColor,
+        skyTopColor: lighting.skyTopColor,
+        skyMiddleColor: lighting.skyMiddleColor,
+        waterFresnelStrength: lighting.waterFresnelStrength,
         farCoverMask: chunkUniforms.farCoverMask,
         farCover: chunkUniforms.farCover,
         farSeam: chunkUniforms.farSeam,

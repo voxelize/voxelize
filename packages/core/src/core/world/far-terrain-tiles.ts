@@ -1,8 +1,9 @@
 /**
- * The pure half of the far-terrain layer: what a tile is on the wire, which
- * tiles a viewer needs for each detail ring, the geometry a tile becomes,
- * and the chunk-coverage mask that hides the layer under loaded chunks. No
- * three.js objects here so every rule is a plain unit test.
+ * The pure half of the far-terrain layer: what a tile is on the wire and
+ * the chunk-coverage mask that hides the layer under loaded chunks. Which
+ * tiles a viewer draws is far-terrain-lod.ts, the geometry a tile becomes
+ * far-terrain-mesh.ts. No three.js objects here so every rule is a plain
+ * unit test.
  */
 
 /** What the server tells every client about its far terrain (INIT options). */
@@ -22,7 +23,14 @@ export type FarTerrainDescriptor = {
   materials?: FarTerrainMaterial[];
   /** The class floating land is painted with. */
   skyMaterial?: number;
+  /** The class of the sea floor, which shallow far water shows through. */
+  seabedMaterial?: number;
+  /** The tree species tiles' canopy samples name, by index. */
+  trees?: FarTerrainTree[];
 };
+
+/** A tree species: the block its crown is made of and the log it stands on. */
+export type FarTerrainTree = { leaves: number; log: number };
 
 /** The blocks one material class is made of (registry block ids). */
 export type FarTerrainMaterial = {
@@ -30,21 +38,31 @@ export type FarTerrainMaterial = {
   top: number;
   /**
    * The block under it: a wall shows `top`'s side face on its highest
-   * block and this block's side face below.
+   * block, this block's below for `sideDepth` blocks, and `deep` under that.
    */
   side: number;
-  /** Blocks hiding part of the ground from above, with the share each hides. */
+  /** The block below the side block (rock under soil); `side` when absent. */
+  deep?: number;
+  /** Blocks of `side` under the top block before `deep`; 3 when absent. */
+  sideDepth?: number;
+  /**
+   * Blocks lying flat over part of the ground (snow, an outcrop), with the
+   * share of it each hides.
+   */
   covers?: { block: number; share: number }[];
 };
 
 /**
  * What one block face looks like from far away: the mean of its texels in
- * linear RGB, and whether it takes a sample's regional tint (the face's
- * `stageTintMask`).
+ * linear RGB, whether it takes a sample's regional tint (the face's
+ * `stageTintMask`), and the texels themselves (RGBA8 sRGB, `size` square,
+ * top row first) when the face has a texture.
  */
 export type FarFaceLook = {
   color: readonly [number, number, number];
   isTinted: boolean;
+  pixels?: ArrayLike<number>;
+  size?: number;
 };
 
 export type FarFaceSide = "top" | "side";
@@ -72,6 +90,13 @@ export type FarTileData = {
    * unchanged (a chunk's `biomeTints` encoding); or null for none.
    */
   tints: Uint8Array | null;
+  /**
+   * The tree crowns over each sample's cell as `(top, bottom, cover, kind)`:
+   * top and underside in blocks above the surface, the share of the cell
+   * covered (255 all), and the species index with bit 7 on the cell its
+   * trunk stands in; or null for none.
+   */
+  canopy: Uint8Array | null;
   /** Bytes of the reply payload, for the wire budget. */
   bytes: number;
 };
@@ -138,11 +163,22 @@ export function decodeFarTerrainReply(payload: unknown): FarTileData | null {
     tints = toU8(r.tints);
     if (tints.length !== count * 3) return null;
   }
+  let canopy: Uint8Array | null = null;
+  if (typeof r.canopy === "string") {
+    canopy = toU8(r.canopy);
+    if (canopy.length !== count * 4) return null;
+  }
   if (bytes === 0) {
     // Already-parsed payloads count their base64 bodies plus the header.
-    const skyLength = typeof r.sky === "string" ? r.sky.length : 0;
-    const tintLength = typeof r.tints === "string" ? r.tints.length : 0;
-    bytes = r.heights.length + r.colors.length + skyLength + tintLength + 64;
+    const length = (field: unknown) =>
+      typeof field === "string" ? field.length : 0;
+    bytes =
+      r.heights.length +
+      r.colors.length +
+      length(r.sky) +
+      length(r.tints) +
+      length(r.canopy) +
+      64;
   }
   return {
     key: { level, tx, tz },
@@ -152,102 +188,9 @@ export function decodeFarTerrainReply(payload: unknown): FarTileData | null {
     colors,
     sky,
     tints,
+    canopy,
     bytes,
   };
-}
-
-/**
- * Every class's colours, linear RGB triples flattened by class, each split
- * into the part no tint touches and the part a sample's tint multiplies, so
- * one tile build turns a class and a tint into a colour with a multiply-add:
- * `top`, the ground seen from above with its covers blended in by share;
- * `cap`, the ground block's own side face (a wall's highest block); `wall`,
- * the side block's side face (the rest of the wall).
- */
-export type FarClassLooks = {
-  classes: number;
-  topFixed: Float32Array;
-  topTinted: Float32Array;
-  capFixed: Float32Array;
-  capTinted: Float32Array;
-  wallFixed: Float32Array;
-  wallTinted: Float32Array;
-};
-
-const emptyLooks = (classes: number): FarClassLooks => ({
-  classes,
-  topFixed: new Float32Array(classes * 3),
-  topTinted: new Float32Array(classes * 3),
-  capFixed: new Float32Array(classes * 3),
-  capTinted: new Float32Array(classes * 3),
-  wallFixed: new Float32Array(classes * 3),
-  wallTinted: new Float32Array(classes * 3),
-});
-
-const addLook = (
-  fixed: Float32Array,
-  tinted: Float32Array,
-  at: number,
-  look: FarFaceLook,
-  weight: number,
-) => {
-  const target = look.isTinted ? tinted : fixed;
-  for (let c = 0; c < 3; c++) target[at + c] += look.color[c] * weight;
-};
-
-/**
- * The looks of `materials` from the faces `look` resolves. Cover shares
- * past 1 are scaled down to 1 so the ground never shows through negatively.
- */
-export function farClassLooks(
-  materials: readonly FarTerrainMaterial[],
-  look: (block: number, side: FarFaceSide) => FarFaceLook,
-): FarClassLooks {
-  const looks = emptyLooks(Math.max(1, materials.length));
-  materials.forEach((material, index) => {
-    const at = index * 3;
-    const covers = material.covers ?? [];
-    const covered = covers.reduce((sum, c) => sum + Math.max(0, c.share), 0);
-    const scale = covered > 1 ? 1 / covered : 1;
-    addLook(
-      looks.topFixed,
-      looks.topTinted,
-      at,
-      look(material.top, "top"),
-      1 - covered * scale,
-    );
-    for (const cover of covers) {
-      addLook(
-        looks.topFixed,
-        looks.topTinted,
-        at,
-        look(cover.block, "top"),
-        Math.max(0, cover.share) * scale,
-      );
-    }
-    addLook(looks.capFixed, looks.capTinted, at, look(material.top, "side"), 1);
-    addLook(
-      looks.wallFixed,
-      looks.wallTinted,
-      at,
-      look(material.side, "side"),
-      1,
-    );
-  });
-  return looks;
-}
-
-/** Looks from a flat palette (linear RGB per class): one untinted colour per class. */
-export function farLooksFromPalette(palette: ArrayLike<number>): FarClassLooks {
-  const classes = Math.max(1, Math.floor(palette.length / 3));
-  const looks = emptyLooks(classes);
-  for (let i = 0; i < classes * 3; i++) {
-    const value = palette.length >= 3 ? palette[i] : 0.5;
-    looks.topFixed[i] = value;
-    looks.capFixed[i] = value;
-    looks.wallFixed[i] = value;
-  }
-  return looks;
 }
 
 const SRGB_TO_LINEAR = (() => {
@@ -285,441 +228,6 @@ export function meanLinearRgb(
 /** World blocks one tile of `level` spans along x and z. */
 export function farTileSpan(descriptor: FarTerrainDescriptor, level: number) {
   return (descriptor.tileSamples - 1) * (descriptor.baseStep << level);
-}
-
-/** A detail ring: horizontal distances from the viewer it draws between. */
-export type FarRing = { level: number; inner: number; outer: number };
-
-/**
- * The rings a far layer reaching `distance` blocks needs. The finest level
- * reaches `max(256, renderDistance)` and each coarser level doubles that,
- * so the cells of every ring subtend about the same angle; the last ring
- * the server offers stretches to the distance. Inside the render distance
- * the chunk-coverage mask does the hiding, so ring 0 starts at 0.
- */
-export function farTerrainRings(
-  descriptor: FarTerrainDescriptor,
-  renderDistance: number,
-  distance: number,
-): FarRing[] {
-  if (distance <= 0 || descriptor.levels <= 0) return [];
-  const rings: FarRing[] = [];
-  let inner = 0;
-  let reach = Math.max(256, renderDistance);
-  for (let level = 0; level < descriptor.levels; level++) {
-    const isLast = level === descriptor.levels - 1;
-    const outer = isLast ? distance : Math.min(distance, reach);
-    if (outer > inner) rings.push({ level, inner, outer });
-    if (outer >= distance) break;
-    inner = outer;
-    reach *= 2;
-  }
-  return rings;
-}
-
-/**
- * The tiles of `span` blocks a viewer at `(x, z)` needs for `ring`, nearest
- * first: every tile whose square comes within `margin` of the annulus.
- */
-export function selectFarTiles(
-  x: number,
-  z: number,
-  ring: FarRing,
-  span: number,
-  margin = 0,
-): FarTileKey[] {
-  const outer = ring.outer + margin;
-  const inner = Math.max(0, ring.inner - margin);
-  const txMin = Math.floor((x - outer) / span);
-  const txMax = Math.floor((x + outer) / span);
-  const tzMin = Math.floor((z - outer) / span);
-  const tzMax = Math.floor((z + outer) / span);
-  const picked: { key: FarTileKey; distance: number }[] = [];
-  for (let tx = txMin; tx <= txMax; tx++) {
-    for (let tz = tzMin; tz <= tzMax; tz++) {
-      const x0 = tx * span;
-      const z0 = tz * span;
-      const x1 = x0 + span;
-      const z1 = z0 + span;
-      // Nearest and farthest points of the square from the viewer.
-      const nx = Math.max(0, x0 - x, x - x1);
-      const nz = Math.max(0, z0 - z, z - z1);
-      const nearest = Math.hypot(nx, nz);
-      if (nearest > outer) continue;
-      const fx = Math.max(Math.abs(x - x0), Math.abs(x - x1));
-      const fz = Math.max(Math.abs(z - z0), Math.abs(z - z1));
-      const farthest = Math.hypot(fx, fz);
-      if (farthest < inner) continue;
-      const cx = x0 + span / 2;
-      const cz = z0 + span / 2;
-      picked.push({
-        key: { level: ring.level, tx, tz },
-        distance: Math.hypot(cx - x, cz - z),
-      });
-    }
-  }
-  picked.sort((a, b) => a.distance - b.distance);
-  return picked.map((p) => p.key);
-}
-
-/** The world-space box a tile's land and floating land fit in. */
-export type FarTileBounds = {
-  x0: number;
-  y0: number;
-  z0: number;
-  x1: number;
-  y1: number;
-  z1: number;
-};
-
-/**
- * The box every mesh of `tile` fits in: its span in x and z, and from its
- * lowest height (or sky bottom) to its highest (or sky top) in y.
- */
-export function farTileBounds(tile: FarTileData): FarTileBounds {
-  const { size, step, heights, sky, key } = tile;
-  const span = (size - 1) * step;
-  let y0 = Infinity;
-  let y1 = -Infinity;
-  for (let at = 0; at < heights.length; at++) {
-    const h = heights[at];
-    if (h < y0) y0 = h;
-    if (h > y1) y1 = h;
-  }
-  if (sky) {
-    for (let at = 0; at < sky.length; at += 2) {
-      if (sky[at] === 0) continue;
-      if (sky[at] > y1) y1 = sky[at];
-      if (sky[at + 1] < y0) y0 = sky[at + 1];
-    }
-  }
-  if (!Number.isFinite(y0)) y0 = 0;
-  if (!Number.isFinite(y1)) y1 = 0;
-  return {
-    x0: key.tx * span,
-    y0: Math.round(y0),
-    z0: key.tz * span,
-    x1: key.tx * span + span,
-    y1: Math.round(y1),
-    z1: key.tz * span + span,
-  };
-}
-
-/** Flat typed arrays for one tile's land mesh. */
-export type FarMeshArrays = {
-  positions: Float32Array;
-  colors: Float32Array;
-  indices: Uint32Array;
-};
-
-/**
- * Axis-aligned quads into flat typed arrays, four vertices each so every
- * face keeps its own flat colour. `a b c d` run counter-clockwise seen from
- * the side the face shows; the triangles are `a b c` and `a c d`.
- */
-class FarQuadWriter {
-  positions: Float32Array;
-
-  colors: Float32Array;
-
-  indices: Uint32Array;
-
-  vertices = 0;
-
-  indexCount = 0;
-
-  constructor(maxQuads: number) {
-    this.positions = new Float32Array(maxQuads * 12);
-    this.colors = new Float32Array(maxQuads * 12);
-    this.indices = new Uint32Array(maxQuads * 6);
-  }
-
-  private vertex(x: number, y: number, z: number, c: readonly number[]) {
-    const at = this.vertices * 3;
-    this.positions[at] = x;
-    this.positions[at + 1] = y;
-    this.positions[at + 2] = z;
-    this.colors[at] = c[0];
-    this.colors[at + 1] = c[1];
-    this.colors[at + 2] = c[2];
-    return this.vertices++;
-  }
-
-  private close(a: number) {
-    const n = this.indexCount;
-    this.indices[n] = a;
-    this.indices[n + 1] = a + 1;
-    this.indices[n + 2] = a + 2;
-    this.indices[n + 3] = a;
-    this.indices[n + 4] = a + 2;
-    this.indices[n + 5] = a + 3;
-    this.indexCount = n + 6;
-  }
-
-  /** A horizontal quad over `[x0, x1] x [z0, z1]` at `y`, facing up or down. */
-  flat(
-    x0: number,
-    x1: number,
-    z0: number,
-    z1: number,
-    y: number,
-    isUp: boolean,
-    c: readonly number[],
-  ) {
-    const a = this.vertex(x0, y, z0, c);
-    if (isUp) {
-      this.vertex(x0, y, z1, c);
-      this.vertex(x1, y, z1, c);
-      this.vertex(x1, y, z0, c);
-    } else {
-      this.vertex(x1, y, z0, c);
-      this.vertex(x1, y, z1, c);
-      this.vertex(x0, y, z1, c);
-    }
-    this.close(a);
-  }
-
-  /** A wall in the plane `x = x`, from `y0` up to `y1`, facing +x or -x. */
-  wallX(
-    x: number,
-    z0: number,
-    z1: number,
-    y0: number,
-    y1: number,
-    facesPositive: boolean,
-    c: readonly number[],
-  ) {
-    const a = this.vertex(x, y0, z0, c);
-    if (facesPositive) {
-      this.vertex(x, y1, z0, c);
-      this.vertex(x, y1, z1, c);
-      this.vertex(x, y0, z1, c);
-    } else {
-      this.vertex(x, y0, z1, c);
-      this.vertex(x, y1, z1, c);
-      this.vertex(x, y1, z0, c);
-    }
-    this.close(a);
-  }
-
-  /** A wall in the plane `z = z`, from `y0` up to `y1`, facing +z or -z. */
-  wallZ(
-    z: number,
-    x0: number,
-    x1: number,
-    y0: number,
-    y1: number,
-    facesPositive: boolean,
-    c: readonly number[],
-  ) {
-    const a = this.vertex(x0, y0, z, c);
-    if (facesPositive) {
-      this.vertex(x1, y0, z, c);
-      this.vertex(x1, y1, z, c);
-      this.vertex(x0, y1, z, c);
-    } else {
-      this.vertex(x0, y1, z, c);
-      this.vertex(x1, y1, z, c);
-      this.vertex(x1, y0, z, c);
-    }
-    this.close(a);
-  }
-
-  get isEmpty() {
-    return this.indexCount === 0;
-  }
-
-  /** The arrays, trimmed to what was written when that is less. */
-  finish(): FarMeshArrays {
-    const full = this.vertices * 3 === this.positions.length;
-    return {
-      positions: full
-        ? this.positions
-        : this.positions.subarray(0, this.vertices * 3),
-      colors: full ? this.colors : this.colors.subarray(0, this.vertices * 3),
-      indices: full ? this.indices : this.indices.subarray(0, this.indexCount),
-    };
-  }
-}
-
-/**
- * The land of a tile as flat-topped columns, so the far layer steps like
- * distant blocks instead of rolling: one quad per cell at its sample's
- * height (whole blocks), and a vertical wall along every cell edge whose
- * two sides differ in height, from the lower top up to the higher one,
- * facing the lower side and painted as the higher column. The cell of
- * sample `(i, j)` spans `[i, i + 1) x [j, j + 1)` steps, so the last sample
- * row is the first cell of the next tile: this tile walls that shared edge
- * from both heights and the next tile leaves its low edge alone, so no edge
- * is walled twice and none is missed. A top wears its class's `top` look;
- * a wall the mix of its column's `cap` and `wall` the slope it stands for
- * would bare (all `cap` up to a block of rise per block of run); the
- * sample's tint multiplies each look's tinted part. A class past the looks
- * takes the last one.
- */
-export function buildFarLandArrays(
-  tile: FarTileData,
-  looks: FarClassLooks,
-): FarMeshArrays {
-  const { size, step, heights, colors, tints, key } = tile;
-  const span = (size - 1) * step;
-  const originX = key.tx * span;
-  const originZ = key.tz * span;
-  const cells = size - 1;
-  const last = looks.classes - 1;
-  const top = [0, 0, 0];
-  const wall = [0, 0, 0];
-  const topOf = (i: number, j: number) => {
-    const sample = j * size + i;
-    const at = Math.min(colors[sample], last) * 3;
-    for (let c = 0; c < 3; c++) {
-      const tint = tints ? tints[sample * 3 + c] / 128 : 1;
-      top[c] = looks.topFixed[at + c] + looks.topTinted[at + c] * tint;
-    }
-    return top;
-  };
-  const wallOf = (i: number, j: number, height: number) => {
-    const sample = j * size + i;
-    const at = Math.min(colors[sample], last) * 3;
-    // The wall stands for a slope over one step. Up to a block of rise per
-    // block of run the ground is a staircase whose every riser is the
-    // ground block's own side; steeper, each column bares one such block
-    // over `slope - 1` of the block beneath.
-    const capShare = Math.min(1, step / Math.max(1, height));
-    for (let c = 0; c < 3; c++) {
-      const tint = tints ? tints[sample * 3 + c] / 128 : 1;
-      const cap = looks.capFixed[at + c] + looks.capTinted[at + c] * tint;
-      const below = looks.wallFixed[at + c] + looks.wallTinted[at + c] * tint;
-      wall[c] = cap * capShare + below * (1 - capShare);
-    }
-    return wall;
-  };
-  const heightOf = (i: number, j: number) => Math.round(heights[j * size + i]);
-
-  // A top per cell and a wall on each of its +x and +z edges that steps;
-  // counted first so the arrays are allocated once at their final size.
-  let quads = cells * cells;
-  for (let j = 0; j < cells; j++) {
-    for (let i = 0; i < cells; i++) {
-      const y = heightOf(i, j);
-      if (heightOf(i + 1, j) !== y) quads++;
-      if (heightOf(i, j + 1) !== y) quads++;
-    }
-  }
-  const writer = new FarQuadWriter(quads);
-  for (let j = 0; j < cells; j++) {
-    const z0 = originZ + j * step;
-    const z1 = z0 + step;
-    for (let i = 0; i < cells; i++) {
-      const x0 = originX + i * step;
-      const x1 = x0 + step;
-      const y = heightOf(i, j);
-      writer.flat(x0, x1, z0, z1, y, true, topOf(i, j));
-      const east = heightOf(i + 1, j);
-      if (east < y)
-        writer.wallX(x1, z0, z1, east, y, true, wallOf(i, j, y - east));
-      else if (east > y)
-        writer.wallX(x1, z0, z1, y, east, false, wallOf(i + 1, j, east - y));
-      const south = heightOf(i, j + 1);
-      if (south < y)
-        writer.wallZ(z1, x0, x1, south, y, true, wallOf(i, j, y - south));
-      else if (south > y)
-        writer.wallZ(z1, x0, x1, y, south, false, wallOf(i, j + 1, south - y));
-    }
-  }
-  return writer.finish();
-}
-
-/**
- * Floating land of a tile as boxy slabs, one column per cell whose sample
- * carries sky land: a flat top at the land's top, a flat underside at its
- * bottom, a full wall from bottom to top along every edge where the land
- * ends, and between two land cells a wall for each step in their tops (from
- * the lower top up, facing it) and in their bottoms (from the deeper bottom
- * up, facing the shallower). Edges are shared with the next tile the same
- * way as the land's. Returns null when the tile has no floating land.
- */
-export function buildFarSkyArrays(
-  tile: FarTileData,
-  topColor: readonly [number, number, number],
-  sideColor: readonly [number, number, number],
-): FarMeshArrays | null {
-  const { sky, size, step, key } = tile;
-  if (!sky) return null;
-  let present = 0;
-  for (let at = 0; at < size * size; at++) if (sky[at * 2] > 0) present++;
-  if (present === 0) return null;
-  const span = (size - 1) * step;
-  const originX = key.tx * span;
-  const originZ = key.tz * span;
-  const cells = size - 1;
-  const has = (i: number, j: number) => sky[(j * size + i) * 2] > 0;
-  const top = (i: number, j: number) => Math.round(sky[(j * size + i) * 2]);
-  const bottom = (i: number, j: number) =>
-    Math.round(sky[(j * size + i) * 2 + 1]);
-
-  // Top, underside and up to two walls on each of the +x and +z edges.
-  const writer = new FarQuadWriter(cells * cells * 6);
-  for (let j = 0; j < cells; j++) {
-    const z0 = originZ + j * step;
-    const z1 = z0 + step;
-    for (let i = 0; i < cells; i++) {
-      const x0 = originX + i * step;
-      const x1 = x0 + step;
-      const here = has(i, j);
-      if (here) {
-        writer.flat(x0, x1, z0, z1, top(i, j), true, topColor);
-        writer.flat(x0, x1, z0, z1, bottom(i, j), false, sideColor);
-      }
-      const east = has(i + 1, j);
-      if (here && !east) {
-        writer.wallX(x1, z0, z1, bottom(i, j), top(i, j), true, sideColor);
-      } else if (!here && east) {
-        writer.wallX(
-          x1,
-          z0,
-          z1,
-          bottom(i + 1, j),
-          top(i + 1, j),
-          false,
-          sideColor,
-        );
-      } else if (here && east) {
-        const t0 = top(i, j);
-        const t1 = top(i + 1, j);
-        if (t0 > t1) writer.wallX(x1, z0, z1, t1, t0, true, sideColor);
-        else if (t1 > t0) writer.wallX(x1, z0, z1, t0, t1, false, sideColor);
-        const b0 = bottom(i, j);
-        const b1 = bottom(i + 1, j);
-        if (b0 < b1) writer.wallX(x1, z0, z1, b0, b1, true, sideColor);
-        else if (b1 < b0) writer.wallX(x1, z0, z1, b1, b0, false, sideColor);
-      }
-      const south = has(i, j + 1);
-      if (here && !south) {
-        writer.wallZ(z1, x0, x1, bottom(i, j), top(i, j), true, sideColor);
-      } else if (!here && south) {
-        writer.wallZ(
-          z1,
-          x0,
-          x1,
-          bottom(i, j + 1),
-          top(i, j + 1),
-          false,
-          sideColor,
-        );
-      } else if (here && south) {
-        const t0 = top(i, j);
-        const t1 = top(i, j + 1);
-        if (t0 > t1) writer.wallZ(z1, x0, x1, t1, t0, true, sideColor);
-        else if (t1 > t0) writer.wallZ(z1, x0, x1, t0, t1, false, sideColor);
-        const b0 = bottom(i, j);
-        const b1 = bottom(i, j + 1);
-        if (b0 < b1) writer.wallZ(z1, x0, x1, b0, b1, true, sideColor);
-        else if (b1 < b0) writer.wallZ(z1, x0, x1, b1, b0, false, sideColor);
-      }
-    }
-  }
-  return writer.isEmpty ? null : writer.finish();
 }
 
 /**
@@ -831,36 +339,4 @@ export function isCoveredAt(
   const j = Math.floor(z / chunkSize) - originCz;
   if (i < 0 || j < 0 || i >= size || j >= size) return false;
   return mask[j * size + i] > 127;
-}
-
-/**
- * Tiles to drop: resident tiles no ring needs any more, with a tile of
- * hysteresis so a viewer pacing a boundary does not churn.
- */
-export function farTilesToEvict(
-  resident: Iterable<FarTileKey>,
-  needed: ReadonlySet<string>,
-  x: number,
-  z: number,
-  rings: FarRing[],
-  spanOf: (level: number) => number,
-): FarTileKey[] {
-  const ringOf = new Map(rings.map((ring) => [ring.level, ring]));
-  const evict: FarTileKey[] = [];
-  for (const key of resident) {
-    if (needed.has(farTileId(key))) continue;
-    const ring = ringOf.get(key.level);
-    if (!ring) {
-      evict.push(key);
-      continue;
-    }
-    const span = spanOf(key.level);
-    const x0 = key.tx * span;
-    const z0 = key.tz * span;
-    const nx = Math.max(0, x0 - x, x - (x0 + span));
-    const nz = Math.max(0, z0 - z, z - (z0 + span));
-    const nearest = Math.hypot(nx, nz);
-    if (nearest > ring.outer + span) evict.push(key);
-  }
-  return evict;
 }
