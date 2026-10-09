@@ -20,8 +20,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use crate::{
-    Block, BlockFaces, BranchSeat, BranchShape, BranchSocket, LightUtils, Registry, Vec3,
-    VoxelAccess,
+    Block, BlockFaces, BranchKind, BranchSeat, BranchShape, BranchSocket, LightUtils, Registry,
+    Vec3, VoxelAccess, WideBranchBits, WideBranchSection,
 };
 
 const FIXTURE: &str = concat!(
@@ -36,19 +36,24 @@ const SOIL: u32 = 2;
 const LIMB: u32 = 3;
 const ROOT: u32 = 4;
 const LEAF: u32 = 5;
+const TRUNK: u32 = 6;
+const FIN: u32 = 7;
+const SHELL: u32 = 8;
+const INNER: u32 = 9;
 
-fn shape(seat: BranchSeat) -> BranchShape {
+fn shape(seat: BranchSeat, kind: BranchKind) -> BranchShape {
     BranchShape {
         key: KEY,
         seat,
+        kind,
         texels_per_block: 16,
-        radius_mask: 0b0111,
+        radius_mask: if kind == BranchKind::Core { 0 } else { 0b0111 },
         side_face: "px".into(),
         end_face: "py".into(),
     }
 }
 
-fn wood(name: &str, id: u32, seat: BranchSeat) -> Block {
+fn wood(name: &str, id: u32, seat: BranchSeat, kind: BranchKind) -> Block {
     let mut faces = BlockFaces::six_faces().texture_group("bark").build();
     for face in faces.iter_mut() {
         if face.name == "py" || face.name == "ny" {
@@ -58,8 +63,17 @@ fn wood(name: &str, id: u32, seat: BranchSeat) -> Block {
     Block::new(name)
         .id(id)
         .faces(&faces)
-        .branch(shape(seat))
+        .branch(shape(seat, kind))
         .is_transparent(true)
+        .build()
+}
+
+fn shell(name: &str, id: u32, opaque: bool) -> Block {
+    Block::new(name)
+        .id(id)
+        .faces(&BlockFaces::six_faces().texture_group("bark").build())
+        .branch_shell()
+        .is_transparent(!opaque)
         .build()
 }
 
@@ -77,8 +91,12 @@ fn registry() -> Registry {
             })
             .build(),
     );
-    registry.register_block(&wood("Limb", LIMB, BranchSeat::Centre));
-    registry.register_block(&wood("Root", ROOT, BranchSeat::Floor));
+    registry.register_block(&wood("Limb", LIMB, BranchSeat::Centre, BranchKind::Voxel));
+    registry.register_block(&wood("Root", ROOT, BranchSeat::Floor, BranchKind::Voxel));
+    registry.register_block(&wood("Trunk", TRUNK, BranchSeat::Centre, BranchKind::Core));
+    registry.register_block(&wood("Fin", FIN, BranchSeat::Floor, BranchKind::Fin));
+    registry.register_block(&shell("Shell", SHELL, false));
+    registry.register_block(&shell("Inner", INNER, true));
     registry.register_block(
         &Block::new("Leaf")
             .id(LEAF)
@@ -108,6 +126,40 @@ fn voxel(id: u32, radius: u32) -> u32 {
 }
 
 type Voxels = Vec<[u32; 4]>;
+
+/// A fin `height` texels tall.
+fn fin(radius: u32, height: u32) -> u32 {
+    WideBranchBits::with_size(voxel(FIN, radius), height)
+}
+
+/// One level of a wide section around a core at `x, y, z`: the core holding
+/// `radius` (cut or not), a shell pointing at it in every other cell the
+/// tube reaches, opaque where the tube fills the cell.
+fn level(x: u32, y: u32, z: u32, radius: u32, cut: bool) -> Voxels {
+    let section = WideBranchSection {
+        radius,
+        texels_per_block: 16,
+    };
+    let reach = section.reach();
+    let mut cells = Vec::new();
+    for dx in -reach..=reach {
+        for dz in -reach..=reach {
+            let (cx, cz) = ((x as i32 + dx) as u32, (z as i32 + dz) as u32);
+            let word = if (dx, dz) == (0, 0) {
+                WideBranchBits::with_cut(WideBranchBits::with_size(TRUNK, radius), cut)
+            } else {
+                let id = if section.cell_area(dx, dz) == 256 {
+                    INNER
+                } else {
+                    SHELL
+                };
+                WideBranchBits::with_shell_offset(id, -dx, -dz)
+            };
+            cells.push([cx, y, cz, word]);
+        }
+    }
+    cells
+}
 
 /// Later voxels overwrite earlier ones at the same position.
 fn scenes() -> Vec<(&'static str, Voxels)> {
@@ -175,6 +227,45 @@ fn scenes() -> Vec<(&'static str, Voxels)> {
                 [10, 4, 10, voxel(LIMB, 3)],
             ],
         ),
+        (
+            "a three-wide trunk on soil narrowing into one voxel",
+            [
+                vec![[6, 2, 6, SOIL]],
+                level(6, 3, 6, 20, false),
+                level(6, 4, 6, 20, false),
+                level(6, 5, 6, 12, false),
+                column(6, 6, &[8, 6], 6),
+            ]
+            .concat(),
+        ),
+        (
+            "a five-wide bole stepping in to three, its core cut",
+            [level(6, 3, 6, 40, false), level(6, 4, 6, 24, true)].concat(),
+        ),
+        (
+            "a limb and fins leaving a wide level",
+            [
+                vec![[6, 2, 6, SOIL], [4, 2, 6, SOIL], [3, 2, 6, SOIL]],
+                level(6, 3, 6, 20, false),
+                level(6, 4, 6, 20, false),
+                vec![
+                    [8, 4, 6, voxel(LIMB, 3)],
+                    [9, 4, 6, voxel(LIMB, 2)],
+                    [4, 3, 6, fin(3, 16)],
+                    [3, 3, 6, fin(2, 10)],
+                    [2, 3, 6, fin(2, 5)],
+                    [4, 4, 6, fin(3, 8)],
+                ],
+            ]
+            .concat(),
+        ),
+        (
+            "a shell whose core is gone draws nothing",
+            vec![
+                [10, 4, 10, WideBranchBits::with_shell_offset(SHELL, 1, 0)],
+                [6, 4, 6, voxel(LIMB, 4)],
+            ],
+        ),
     ]
 }
 
@@ -232,7 +323,9 @@ fn aabbs(registry: &Registry, voxels: &Voxels) -> Vec<Value> {
         .iter()
         .filter_map(|(&(x, y, z), &raw)| {
             let block = registry.get_block_by_id(raw & 0xFFFF);
-            block.branch.as_ref()?;
+            if block.branch.is_none() && !block.branch_shell {
+                return None;
+            }
             let aabbs = block.get_aabbs(&Vec3(x, y, z), &space, registry);
             Some(json!({
                 "at": [x, y, z],

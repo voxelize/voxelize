@@ -278,12 +278,19 @@ export type Block = {
    * Draws every voxel of this block as a branch of the radius its stage
    * holds, joined to its neighbours. `null` for an ordinary block. Mirrors
    * the server `branch` field; collision and picking follow the drawn shape
-   * through {@link branchAABBs}.
+   * through {@link branchAABBsAt}.
    */
   branch: BranchShape | null;
 
   /** The branches this block takes without being one (a leaf, a soil). */
   branchSockets: BranchSocket[];
+
+  /**
+   * Draws every voxel of this block as a cell of a wide branch section: its
+   * slice of the tube of the core its raw bits point at, wearing that core's
+   * faces. Mirrors the server `branch_shell`.
+   */
+  branchShell: boolean;
 
   /**
    * Raw bits 16-23 of this block's voxels hold the block's own state, not a

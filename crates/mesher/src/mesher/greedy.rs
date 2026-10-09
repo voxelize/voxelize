@@ -590,8 +590,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             })
                             .map(|f| (f, false))
                             .collect()
-                    } else if let Some(shape) = &block.branch {
-                        branch_faces(block, shape, [vx, vy, vz], space, registry)
+                    } else if block.branch.is_some() || block.branch_shell {
+                        branch_faces([vx, vy, vz], space, registry)
                     } else if block.dynamic_patterns.is_some() {
                         get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
                     } else {
