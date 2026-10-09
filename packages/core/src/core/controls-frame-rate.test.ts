@@ -14,7 +14,11 @@ const FLUID_DENSITY = 0.8;
 const FRAME_RATES = [30, 60, 120];
 const SETTLE_SECONDS = 2;
 
-type Scene = "sky" | "floor" | "water" | "ladder";
+/** Water over a bed whose top is y = 1, up to `surface`, for z >= 0; a bank
+ * whose top is `bankTop` for z < 0, ahead of a body facing forward (-z). */
+type Pool = { surface: number; bankTop: number };
+type Scene = "sky" | "floor" | "water" | "ladder" | Pool;
+const POOL_BED_TOP = 1;
 type Held = Partial<RigidControls["movements"]>;
 /** Keys held from `at` seconds into a run, for `for` seconds. */
 type Press = { keys: Held; at: number; for: number };
@@ -24,6 +28,27 @@ type Press = { keys: Held; at: number; for: number };
  * y = 200; or the floor with a ladder standing on it at x = 0, z = 0.
  */
 function sceneEngine(scene: Scene) {
+  const engineOptions = {
+    gravity: GRAVITY,
+    minBounceImpulse: 0,
+    airDrag: AIR_DRAG,
+    fluidDrag: FLUID_DRAG,
+    fluidDensity: FLUID_DENSITY,
+  };
+  if (typeof scene === "object") {
+    const { surface, bankTop } = scene;
+    return new Engine(
+      (vx, vy, vz) =>
+        vy < (vz < 0 ? bankTop : POOL_BED_TOP)
+          ? [new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1)]
+          : [],
+      (_vx, vy, vz) => vz >= 0 && vy >= POOL_BED_TOP && vy < surface,
+      () => [],
+      () => 0,
+      () => 0,
+      engineOptions,
+    );
+  }
   const hasFloor = scene === "floor" || scene === "ladder";
   return new Engine(
     (vx, vy, vz) =>
@@ -37,13 +62,7 @@ function sceneEngine(scene: Scene) {
         : [],
     () => 0,
     () => 0,
-    {
-      gravity: GRAVITY,
-      minBounceImpulse: 0,
-      airDrag: AIR_DRAG,
-      fluidDrag: FLUID_DRAG,
-      fluidDensity: FLUID_DENSITY,
-    },
+    engineOptions,
   );
 }
 
@@ -80,7 +99,7 @@ function rig(
     new PerspectiveCamera(),
     {} as HTMLElement,
     world,
-    { ...options, initialPosition: start, autoJump: false },
+    { autoJump: false, ...options, initialPosition: start },
   );
 
   const run = (fps: number, seconds: number, presses: Press[] = []) => {
@@ -100,12 +119,16 @@ function rig(
   };
 
   const position = () => controls.body.getPosition();
+  /** Stands the body with its feet at `feet`. */
+  const place = ([x, y, z]: [number, number, number]) =>
+    controls.body.setPosition([x, y + controls.body.aabb.height / 2, z]);
+  const feet = () => controls.body.aabb.minY;
   const speed = () => {
     const [vx, , vz] = controls.body.velocity;
     return Math.hypot(vx, vz);
   };
 
-  return { controls, run, position, speed };
+  return { controls, run, position, speed, place, feet };
 }
 
 /** `measure` run at every frame rate, keyed by frame rate. */
@@ -327,6 +350,86 @@ describe("RigidControls jumps and ladders at 30, 60 and 120 fps", () => {
       const y0 = body.position()[1];
       body.run(fps, 1, [{ keys: { up: true }, at: 0, for: 1 }]);
       expect(body.position()[1] - y0, `${fps} fps`).toBeGreaterThan(4);
+    }
+  });
+});
+
+/** A body in `pool` with its feet at `feet`; `nearBank` stands it with its
+ * front a hair short of the bank. */
+function inPool(
+  pool: Pool,
+  feet: [number, number, number],
+  options: Partial<RigidControlsOptions> = {},
+) {
+  const body = rig(pool, [0, 0, 0], options);
+  body.place(feet);
+  return body;
+}
+
+const nearBank = (body: ReturnType<typeof inPool>, back = 0) =>
+  body.controls.body.aabb.depth / 2 + 0.02 + back;
+
+/** Past the bank's edge with its feet on (or above) its top. */
+const isOnBank = (body: ReturnType<typeof inPool>, bankTop: number) =>
+  body.position()[2] < 0 && body.feet() >= bankTop - 0.01;
+
+describe("RigidControls getting out of water at 30, 60 and 120 fps", () => {
+  it("swims up from a deep bed with Space held once the jump has spent its push", () => {
+    const pool = { surface: POOL_BED_TOP + 3, bankTop: POOL_BED_TOP + 3 };
+    for (const fps of FRAME_RATES) {
+      const body = inPool(pool, [0.5, POOL_BED_TOP, 3.5]);
+      body.run(fps, 0.5);
+      let highest = body.feet();
+      for (let frame = 0; frame < fps * 2; frame++) {
+        body.run(fps, 1 / fps, [{ keys: { up: true }, at: 0, for: 1 }]);
+        highest = Math.max(highest, body.feet());
+      }
+      // A jump from this bed alone peaks about 1.6 up; swimming on reaches
+      // the surface, three up.
+      expect(highest - POOL_BED_TOP, `${fps} fps`).toBeGreaterThan(3);
+    }
+  });
+
+  it("climbs out onto a bank a block above the surface with Space and forward", () => {
+    const pool = { surface: POOL_BED_TOP + 3, bankTop: POOL_BED_TOP + 4 };
+    for (const fps of FRAME_RATES) {
+      const treading = inPool(pool, [0.5, POOL_BED_TOP + 0.5, 0]);
+      treading.place([0.5, POOL_BED_TOP + 0.5, nearBank(treading)]);
+      treading.run(fps, 1.5, [{ keys: { up: true }, at: 0, for: 1.5 }]);
+      treading.run(fps, 2, [
+        { keys: { up: true, front: true }, at: 0, for: 2 },
+      ]);
+      expect(isOnBank(treading, pool.bankTop), `treading, ${fps} fps`).toBe(
+        true,
+      );
+
+      const swimming = inPool(pool, [0.5, POOL_BED_TOP + 1.2, 4]);
+      swimming.run(fps, 0.3, [
+        { keys: { front: true, sprint: true }, at: 0, for: 0.3 },
+      ]);
+      expect(swimming.controls.isSwimming, `${fps} fps`).toBe(true);
+      swimming.run(fps, 2.5, [
+        { keys: { front: true, sprint: true, up: true }, at: 0, for: 2.5 },
+      ]);
+      expect(isOnBank(swimming, pool.bankTop), `swimming, ${fps} fps`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("walks or jumps out of shallow water onto a bank at the surface", () => {
+    const pool = { surface: POOL_BED_TOP + 1, bankTop: POOL_BED_TOP + 1 };
+    for (const fps of FRAME_RATES) {
+      for (const keys of [{ front: true }, { front: true, up: true }]) {
+        const wading = inPool(pool, [0.5, POOL_BED_TOP, 0], { autoJump: true });
+        wading.place([0.5, POOL_BED_TOP, nearBank(wading, 1)]);
+        wading.run(fps, 0.5);
+        wading.run(fps, 2, [{ keys, at: 0, for: 2 }]);
+        expect(
+          isOnBank(wading, pool.bankTop),
+          `${JSON.stringify(keys)}, ${fps} fps`,
+        ).toBe(true);
+      }
     }
   });
 });

@@ -144,6 +144,14 @@ export type RigidControlsOptions = {
   fluidPushForce: number;
 
   /**
+   * Upward speed, in blocks per second, a body in fluid is lifted to while
+   * its head is out, it presses into a wall and its jump key is held: enough
+   * for its feet to clear a bank a block above the surface and climb out
+   * onto it. `0` turns the lift off. Defaults to `8`.
+   */
+  fluidExitSpeed: number;
+
+  /**
    * Target speed while swimming. Defaults to `4.5`.
    */
   swimSpeed: number;
@@ -459,6 +467,7 @@ const defaultOptions: RigidControlsOptions = {
   alwaysSprint: false,
   airMoveMult: 0.7,
   fluidPushForce: 0.3,
+  fluidExitSpeed: 8,
   swimSpeed: 4.5,
   swimForce: 28,
   swimFriction: 0.05,
@@ -1628,6 +1637,24 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     return (gap * mass * (1 - Math.exp((-responsiveness * dt) / mass))) / dt;
   };
 
+  /**
+   * A body in fluid with its head out, pressing into a wall with the jump
+   * key held, climbs out: its upward speed is raised to `fluidExitSpeed`,
+   * counting impulses already queued this frame so a jump starting now is
+   * not lifted twice.
+   */
+  private assistFluidExit = () => {
+    const { fluidExitSpeed } = this.options;
+    const { body } = this;
+    if (fluidExitSpeed <= 0 || !this.state.jumping || body.onClimbable) return;
+    if (!body.inFluid || body.ratioInFluid >= 1) return;
+    if (body.resting[0] === 0 && body.resting[2] === 0) return;
+    const queued = body.impulses[1] / body.mass;
+    if (body.velocity[1] + queued >= fluidExitSpeed) return;
+    body.velocity[1] = fluidExitSpeed - queued;
+    body.markActive();
+  };
+
   private applySwimmingMovement = (dt: number, frames: number) => {
     const {
       swimSpeed,
@@ -1729,7 +1756,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     ) {
       return false;
     }
-    if (this.body.onClimbable || this.body.inFluid) return false;
+    // Wading on a bed counts as the ground; swimming does not.
+    if (this.body.onClimbable || this.body.isSwimming) return false;
 
     // What the jump can actually clear, from the same impulse and gravity
     // the jump itself will use.
@@ -1874,16 +1902,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         // process jump input (skip if on climbable - handled above)
         if ((this.state.jumping || isAutoJumping) && !this.body.onClimbable) {
-          if (this.state.isJumping) {
+          if (this.state.isJumping && this.state.currentJumpTime > 0) {
             // continue previous jump
-            if (this.state.currentJumpTime > 0) {
-              let jf = jumpForce;
-              if (this.state.currentJumpTime < dt)
-                jf *= this.state.currentJumpTime / dt;
-              this.body.applyForce([0, jf, 0]);
-              this.state.currentJumpTime -= dt;
-            }
-          } else if (canjump) {
+            let jf = jumpForce;
+            if (this.state.currentJumpTime < dt)
+              jf *= this.state.currentJumpTime / dt;
+            this.body.applyForce([0, jf, 0]);
+            this.state.currentJumpTime -= dt;
+          } else if (!this.state.isJumping && canjump) {
             // start new jump
             this.state.isJumping = true;
             if (!onGround) this.state.jumpCount++;
@@ -1893,7 +1919,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             if (!onGround && this.body.velocity[1] < 0)
               this.body.velocity[1] = 0;
           } else if (this.body.ratioInFluid > 0) {
-            // apply impulse to swim
+            // swim up, and keep swimming once a jump held from the bed has
+            // spent its push
             this.body.applyImpulse([0, fluidPushForce * frames, 0]);
           }
         } else if (!this.body.onClimbable) {
@@ -1965,6 +1992,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             standingFriction * fluidFrictionMult * groundFrictionMult;
         }
       }
+
+      this.assistFluidExit();
     } else {
       this._swimState = "upright";
       this._swimIdleStartedAt = -1;
