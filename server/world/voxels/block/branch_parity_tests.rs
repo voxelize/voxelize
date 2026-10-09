@@ -134,7 +134,7 @@ fn fin(radius: u32, height: u32) -> u32 {
 
 /// One level of a wide section around a core at `x, y, z`: the core holding
 /// `radius` (cut or not), a shell pointing at it in every other cell the
-/// tube reaches, opaque where the tube fills the cell.
+/// round tube touches, opaque where the tube fills the cell.
 fn level(x: u32, y: u32, z: u32, radius: u32, cut: bool) -> Voxels {
     let section = WideBranchSection {
         radius,
@@ -145,6 +145,9 @@ fn level(x: u32, y: u32, z: u32, radius: u32, cut: bool) -> Voxels {
     for dx in -reach..=reach {
         for dz in -reach..=reach {
             let (cx, cz) = ((x as i32 + dx) as u32, (z as i32 + dz) as u32);
+            if section.cell_area(dx, dz) == 0 {
+                continue;
+            }
             let word = if (dx, dz) == (0, 0) {
                 WideBranchBits::with_cut(WideBranchBits::with_size(TRUNK, radius), cut)
             } else {

@@ -73,10 +73,19 @@ export const WideBranchBits = {
   ],
 };
 
+/** The largest whole number whose square is at most `n`. */
+function isqrt(n: number): number {
+  let root = Math.floor(Math.sqrt(n));
+  while (root * root > n) root -= 1;
+  while ((root + 1) * (root + 1) <= n) root += 1;
+  return root;
+}
+
 /**
- * A branch section wider than one voxel: one square tube of half-width
- * `radius` texels round the axis through its core cell's centre. Mirrors
- * `WideBranchSection` in the mesher crate.
+ * A branch section wider than one voxel: one round tube of `radius` texels
+ * round the axis through its core cell's centre, at texel resolution (a
+ * texel belongs when its centre lies within the radius). Mirrors
+ * `WideBranchSection` in the mesher crate, integer for integer.
  */
 export const WideBranchSection = {
   /** Cells the section reaches on each side of its core. */
@@ -84,17 +93,48 @@ export const WideBranchSection = {
     const t = Math.max(texelsPerBlock, 1);
     return Math.floor(Math.max(radius + Math.floor(t / 2) - 1, 0) / t);
   },
-  /** The tube's span across the cell `d` from the core, in its own texels. */
-  span(
+  /** The tube's extent along b in the texel column at `a` (core texels). */
+  column(
     radius: number,
     texelsPerBlock: number,
-    d: number,
+    a: number,
   ): [number, number] | null {
+    const centre = Math.floor(texelsPerBlock / 2);
+    const u = 2 * a + 1 - 2 * centre;
+    const reach = 4 * radius * radius - u * u;
+    if (reach < 1) return null;
+    const half = Math.floor((isqrt(reach) + 1) / 2);
+    return half > 0 ? [centre - half, centre + half] : null;
+  },
+  /**
+   * The boxes the tube fills in the cell `(da, db)` from the core, as
+   * `[a0, b0, a1, b1]` in that cell's texels: one per run of columns along
+   * `a` with the same extent along `b`.
+   */
+  cellBoxes(
+    radius: number,
+    texelsPerBlock: number,
+    da: number,
+    db: number,
+  ): [number, number, number, number][] {
     const t = texelsPerBlock;
-    const start = d * t;
-    const low = Math.max(Math.floor(t / 2) - radius, start);
-    const high = Math.min(Math.floor(t / 2) + radius, start + t);
-    return high > low ? [low - start, high - start] : null;
+    const startA = da * t;
+    const startB = db * t;
+    const boxes: [number, number, number, number][] = [];
+    for (let i = 0; i < t; i += 1) {
+      const column = WideBranchSection.column(radius, t, startA + i);
+      if (!column) continue;
+      const b0 = Math.max(column[0], startB) - startB;
+      const b1 = Math.min(column[1], startB + t) - startB;
+      if (b1 <= b0) continue;
+      const last = boxes[boxes.length - 1];
+      if (last && last[2] === i && last[1] === b0 && last[3] === b1) {
+        last[2] += 1;
+      } else {
+        boxes.push([i, b0, i + 1, b1]);
+      }
+    }
+    return boxes;
   },
 };
 
@@ -364,26 +404,43 @@ function wideBoxes(
 ): Box[] {
   const t = shape.texelsPerBlock;
   const c = Math.floor(t / 2);
+  if (cell.cut) return [];
+  const boxes = WideBranchSection.cellBoxes(
+    cell.radius,
+    t,
+    cell.offset[0],
+    cell.offset[1],
+  );
+  if (boxes.length === 0) return [];
   const joints = sides.map((side) => jointRadius(cell.radius, side));
-  const spanX = WideBranchSection.span(cell.radius, t, cell.offset[0]);
-  const spanZ = WideBranchSection.span(cell.radius, t, cell.offset[1]);
-  if (cell.cut || !spanX || !spanZ) return [];
-  const sliceMin = [spanX[0], 0, spanZ[0]];
-  const sliceMax = [spanX[1], t, spanZ[1]];
-  const boxes: Box[] = [[sliceMin, sliceMax]];
+  const parts: Box[] = boxes.map(([x0, z0, x1, z1]) => [
+    [x0, 0, z0],
+    [x1, t, z1],
+  ]);
   for (const side of [0, 1, 4, 5]) {
     const j = joints[side];
     const s = sides[side];
     if (j === 0 || s.kind === "section" || s.kind === "socket") continue;
     const along = Math.floor(side / 2);
-    const [start, end] =
-      side % 2 === 0 ? [sliceMax[along], t] : [0, sliceMin[along]];
+    const [lo, hi] = along === 0 ? [1, 3] : [0, 2];
+    const across = boxes.filter((b) => b[lo] < c + j && b[hi] > c - j);
+    let start: number;
+    let end: number;
+    if (side % 2 === 0) {
+      const far = along === 0 ? 2 : 3;
+      start = across.length ? Math.max(...across.map((b) => b[far])) : 0;
+      end = t;
+    } else {
+      const near = along === 0 ? 0 : 1;
+      start = 0;
+      end = across.length ? Math.min(...across.map((b) => b[near])) : t;
+    }
     if (start >= end) continue;
     const floor = liesAlongFloor("centre", sides, side);
     const height = s.kind === "fin" ? Math.min(s.height, t) : j;
-    boxes.push(arm(side, j, start, end, floor, height, c));
+    parts.push(arm(side, j, start, end, floor, height, c));
   }
-  return boxes;
+  return parts;
 }
 
 /**
