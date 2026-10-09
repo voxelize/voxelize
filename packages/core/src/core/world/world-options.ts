@@ -239,6 +239,16 @@ export type WorldClientOptions = {
   chunkRerequestIntervalMs: number;
 
   /**
+   * How long a chunk may stay asked for with no data arriving before the
+   * world reports it as unanswered, in milliseconds. The request itself is
+   * retried every `chunkRerequestIntervalMs` meanwhile; the report names each
+   * stuck chunk once per interval while it stays stuck, with how often it
+   * was asked for and whether any request left this client. `0` turns the
+   * report off. Defaults to `60000`ms.
+   */
+  chunkRequestOverdueMs: number;
+
+  /**
    * The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks.
    */
   defaultRenderRadius: number;
@@ -525,6 +535,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   clientOnlyMeshing: true,
   minLightLevel: 0.04,
   chunkRerequestIntervalMs: 5000,
+  chunkRequestOverdueMs: 60_000,
   defaultRenderRadius: 6,
   fogNearRenderRatio: 0.45,
   fogFarRenderRatio: 0.78,
