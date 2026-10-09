@@ -110,6 +110,45 @@ export function assetUrl(
   return `${prefix}/${index}/${relative}`;
 }
 
+/**
+ * A stylesheet built from a source file elsewhere (a Tailwind input, say)
+ * keeps that file's relative `url()`s, which the browser resolves against
+ * wherever the build is served instead. Points each at the asset URL of the
+ * file it names from `base`, the source file's directory; absolute,
+ * root-relative, `data:` and fragment URLs stay as they are. `outside`
+ * lists the relative ones naming no file under `roots`, which no route
+ * serves.
+ */
+export function rebaseStylesheetUrls(
+  css: string,
+  base: string,
+  roots: string[],
+  prefix = "/asset",
+): { css: string; outside: string[] } {
+  const outside: string[] = [];
+  const rebased = css.replace(
+    /url\(\s*(["']?)([^"')]*)\1\s*\)/g,
+    (match, quote: string, url: string) => {
+      if (url === "" || /^(?:[a-z][a-z\d+.-]*:|\/|#)/i.test(url)) return match;
+      const cut = url.search(/[?#]/);
+      const file = cut < 0 ? url : url.slice(0, cut);
+      const query = cut < 0 ? "" : url.slice(cut);
+      const absolute = path.resolve(base, decodeURI(file));
+      if (!fs.existsSync(absolute)) {
+        outside.push(url);
+        return match;
+      }
+      try {
+        return `url(${quote}${assetUrl(absolute, roots, prefix)}${query}${quote})`;
+      } catch {
+        outside.push(url);
+        return match;
+      }
+    },
+  );
+  return { css: rebased, outside };
+}
+
 export async function bundlePage(
   options: PageBundleOptions,
 ): Promise<PageBundle> {

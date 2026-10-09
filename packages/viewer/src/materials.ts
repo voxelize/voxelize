@@ -12,6 +12,7 @@ import {
   type Block,
   ChunkRenderer,
   type CustomChunkShaderMaterial,
+  forkChunkMaterial,
   isOwnTextureFace,
   LightCones,
   loadChunkMaterials,
@@ -20,6 +21,8 @@ import {
   makeOwnFaceTexture,
   Registry,
   setOwnFaceTexture,
+  SHADER_LIGHTING_CHUNK_SHADERS,
+  SHARED_OPAQUE_MATERIAL_KEY,
 } from "@voxelize/core";
 import { Color, type Texture, Uniform } from "three";
 
@@ -46,6 +49,42 @@ const DEFAULT_MATERIAL_OPTIONS: MaterialOptions = {
 };
 
 type TextureSource = string | Color | HTMLImageElement | Texture;
+
+/** An atlas slot nothing painted, and every block face that samples it. */
+export type UnpaintedSlot = {
+  block: string;
+  face: string;
+  group: string | null;
+  faces: string[];
+};
+
+/** A face with a texture of its own that nothing painted. */
+export type UnpaintedFace = {
+  block: string;
+  face: string;
+  group: string | null;
+};
+
+/**
+ * What the host's texture setup left on the unknown checker, counted the
+ * way the game's `World.textureCensus` counts it: atlas slots once each,
+ * and own-texture faces (independent faces, isolated faces' defaults).
+ */
+export type TextureCensus = {
+  /** Distinct atlas slots non-empty blocks sample. */
+  slots: number;
+  painted: number;
+  unpainted: number;
+  unpaintedSlots: UnpaintedSlot[];
+  ownFaces: number;
+  unpaintedOwnFaces: UnpaintedFace[];
+  /** Paints whose source never loaded, each with its call and error. */
+  failures: string[];
+  /** Texture calls that named no block, face or texture group the source has. */
+  misses: string[];
+  /** World members the host's setup used that the facade only absorbs, with call counts. */
+  absorbed: Record<string, number>;
+};
 
 /** Normalizes the INIT `blocks` record exactly as `World.initialize` does. */
 function normalizeBlock(raw: Record<string, unknown>): Block {
@@ -97,6 +136,18 @@ export class ViewerMaterials {
 
   /** Texture calls that named no known block or face, for the census. */
   readonly misses: string[] = [];
+
+  /** World members the host's setup reached for that the facade does not have, with call counts. */
+  readonly absorbed = new Map<string, number>();
+
+  /** Paints whose source never loaded, for the census. */
+  readonly failures: string[] = [];
+
+  /** Paints still loading their image: a setup may fire them without awaiting. */
+  private inFlight = new Set<Promise<unknown>>();
+
+  /** Blocks a block-level shader took out of their shared material bucket. */
+  private customBlockIds = new Set<number>();
 
   private atlas: AtlasTexture | null = null;
 
@@ -165,8 +216,49 @@ export class ViewerMaterials {
     }
   }
 
-  hasCustomBlockMaterial(): boolean {
-    return false;
+  hasCustomBlockMaterial(id: number): boolean {
+    return this.customBlockIds.has(id);
+  }
+
+  /**
+   * The game's own block and face shaders (a frame strip that shows one
+   * flame, cross-shaded plants, a glow mask), installed the way `World`
+   * installs them. Their clocks hold still here, so an animated one shows
+   * its first frame.
+   */
+  customizeMaterialShaders(
+    idOrName: number | string,
+    faceName: string | null = null,
+    data: {
+      vertexShader?: string;
+      fragmentShader?: string;
+      uniforms?: Record<string, Uniform>;
+    } = {},
+  ) {
+    const block = this.getBlockOf(idOrName);
+    // Opting out precedes the lookup: a block-level shader lands on the
+    // block's own material, never on the bucket it shares.
+    if (faceName === null) this.customBlockIds.add(block.id);
+    let material = this.getBlockFaceMaterial(block.id, faceName ?? undefined);
+    if (!material) {
+      throw new Error(
+        `Could not find material for block ${block.name} and face ${faceName}`,
+      );
+    }
+    if (
+      faceName === null &&
+      material === this.chunkRenderer.materials.get(SHARED_OPAQUE_MATERIAL_KEY)
+    ) {
+      material = forkChunkMaterial(material);
+      this.chunkRenderer.materials.set(`${block.id}`, material);
+    }
+    material.vertexShader =
+      data.vertexShader ?? SHADER_LIGHTING_CHUNK_SHADERS.vertex;
+    material.fragmentShader =
+      data.fragmentShader ?? SHADER_LIGHTING_CHUNK_SHADERS.fragment;
+    material.uniforms = { ...material.uniforms, ...data.uniforms };
+    material.needsUpdate = true;
+    return material;
   }
 
   getBlockById(id: number): Block {
@@ -253,7 +345,14 @@ export class ViewerMaterials {
     atlas.needsUpdate = true;
   }
 
-  async applyTextureGroup(groupName: string, source: TextureSource) {
+  applyTextureGroup(groupName: string, source: TextureSource) {
+    return this.track(
+      `applyTextureGroup(${groupName})`,
+      this.paintGroup(groupName, source),
+    );
+  }
+
+  private async paintGroup(groupName: string, source: TextureSource) {
     const members: { block: Block; face: Block["faces"][number] }[] = [];
     for (const block of this.registry.blocksById.values()) {
       for (const face of block.faces) {
@@ -282,7 +381,18 @@ export class ViewerMaterials {
     );
   }
 
-  async applyBlockTexture(
+  applyBlockTexture(
+    idOrName: number | string,
+    faceNames: string | string[],
+    source: TextureSource,
+  ) {
+    return this.track(
+      `applyBlockTexture(${idOrName}, ${String(faceNames)})`,
+      this.paintBlock(idOrName, faceNames, source),
+    );
+  }
+
+  private async paintBlock(
     idOrName: number | string,
     faceNames: string | string[],
     source: TextureSource,
@@ -295,7 +405,10 @@ export class ViewerMaterials {
       return;
     }
     const faces = this.getBlockFacesByFaceNames(block.id, faceNames);
-    if (faces.length === 0) return;
+    if (faces.length === 0) {
+      this.misses.push(`face ${block.name}:${String(faceNames)}`);
+      return;
+    }
     const data = await this.resolve(source);
     for (const face of faces) this.paint(block, face, data);
   }
@@ -326,12 +439,42 @@ export class ViewerMaterials {
   }
 
   /**
+   * Remembers a paint until it lands. One whose source fails is recorded by
+   * its call (the game's fire-and-forget paints would leave the checker), so
+   * it reaches the census instead of an unhandled rejection; a caller that
+   * awaits the paint still sees it reject.
+   */
+  private track<T>(call: string, paint: Promise<T>): Promise<T> {
+    this.inFlight.add(paint);
+    void paint
+      .catch((error: unknown) => {
+        this.failures.push(
+          `${call}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      })
+      .finally(() => this.inFlight.delete(paint));
+    return paint;
+  }
+
+  /**
+   * Resolves once every paint the setup started has landed or failed,
+   * including those it fired without awaiting.
+   */
+  async settled() {
+    while (this.inFlight.size > 0) {
+      await Promise.allSettled([...this.inFlight]);
+    }
+  }
+
+  /**
    * A stand-in for the game's `World` during its registry setup: the
-   * texture calls and lookups above are real, anything else it touches is
-   * absorbed (a light profile, a sway table, a shader hook), since the
-   * viewer neither animates nor lights locally.
+   * texture calls, shader customizations and lookups above are real,
+   * anything else it touches is absorbed (a light profile, a sway table, a
+   * clock) and counted, since the viewer neither animates nor lights
+   * locally.
    */
   worldFacade(): unknown {
+    const absorbed = this.absorbed;
     const absorber: unknown = new Proxy(function absorbed() {}, {
       get(_, property) {
         if (property === "then") return undefined;
@@ -359,12 +502,17 @@ export class ViewerMaterials {
       "getBlockOf",
       "getBlockFacesByFaceNames",
       "getBlockFaceMaterial",
+      "customizeMaterialShaders",
+      "hasCustomBlockMaterial",
     ]);
     return new Proxy(this, {
       get: (target, property, receiver) => {
         if (known.has(property)) {
           const value = Reflect.get(target, property, receiver);
           return typeof value === "function" ? value.bind(target) : value;
+        }
+        if (typeof property === "string") {
+          absorbed.set(property, (absorbed.get(property) ?? 0) + 1);
         }
         return absorber;
       },
@@ -396,38 +544,64 @@ export class ViewerMaterials {
   }
 
   /**
-   * How many atlas slots the setup painted, and which blocks it left on the
-   * unknown checker (they render magenta and black).
+   * How many atlas slots and own-texture faces the setup painted, and every
+   * one it left on the unknown checker (they render magenta and black),
+   * with the faces that read it.
    */
-  textureCensus(): {
-    painted: number;
-    unpainted: number;
-    unpaintedBlocks: string[];
-    misses: string[];
-  } {
+  textureCensus(): TextureCensus {
+    const unknown = AtlasTexture.makeUnknownTexture(
+      this.options.textureUnitDimension,
+    );
     let painted = 0;
-    let unpainted = 0;
-    const names = new Set<string>();
+    let ownFaces = 0;
+    const unpainted = new Map<string, UnpaintedSlot>();
+    const unpaintedOwnFaces: UnpaintedFace[] = [];
     const seen = new Set<string>();
     for (const block of this.registry.blocksById.values()) {
       if (block.isEmpty) continue;
+      // The same faces the game's World census walks, so the counts compare.
       for (const face of block.faces) {
-        if (isOwnTextureFace(face)) continue;
+        if (isOwnTextureFace(face)) {
+          ownFaces += 1;
+          const map = this.getBlockFaceMaterial(block.id, face.name)?.map;
+          if (!map || map === unknown) {
+            unpaintedOwnFaces.push({
+              block: block.name,
+              face: face.name,
+              group: face.textureGroup ?? null,
+            });
+          }
+          continue;
+        }
         const key = `${face.range.startU}|${face.range.startV}`;
+        const slot = unpainted.get(key);
+        if (slot) {
+          slot.faces.push(`${block.name}:${face.name}`);
+          continue;
+        }
         if (seen.has(key)) continue;
         seen.add(key);
         if (this.atlas?.isRangePainted(face.range)) painted += 1;
         else {
-          unpainted += 1;
-          names.add(block.name);
+          unpainted.set(key, {
+            block: block.name,
+            face: face.name,
+            group: face.textureGroup ?? null,
+            faces: [`${block.name}:${face.name}`],
+          });
         }
       }
     }
     return {
+      slots: seen.size,
       painted,
-      unpainted,
-      unpaintedBlocks: [...names].slice(0, 24),
-      misses: this.misses.slice(0, 24),
+      unpainted: unpainted.size,
+      unpaintedSlots: [...unpainted.values()],
+      ownFaces,
+      unpaintedOwnFaces,
+      failures: [...this.failures],
+      misses: [...this.misses],
+      absorbed: Object.fromEntries(this.absorbed),
     };
   }
 

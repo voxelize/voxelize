@@ -14,7 +14,7 @@ import type { Bookmark, Pose, Preset, Vec3 } from "../pose";
 
 import { BackendProcess, type SpawnSpec } from "./backend";
 import { captionHtml, HeadlessBrowser, renderHtml, sheetHtml } from "./browser";
-import { bundlePage, type PageBundle } from "./bundle";
+import { bundlePage, type PageBundle, rebaseStylesheetUrls } from "./bundle";
 import { pruneDirectory } from "./cache";
 
 export type ResolvedSource = {
@@ -44,6 +44,13 @@ export type ViewerServerConfig = {
     publicDir?: string;
     /** Builds (or returns) the page's stylesheet, served at `/page.css`. */
     stylesheet?: () => Promise<string>;
+    /**
+     * The directory the stylesheet's relative `url()`s were written against
+     * (its source file's): served from `/page.css` they would resolve
+     * against the server root, so they are pointed at the asset files they
+     * name (see `rebaseStylesheetUrls`).
+     */
+    stylesheetBase?: string;
     /** Path prefixes whose edits reload the headless session (default: the entry's directory and this package). */
     watch?: string[];
     /** How `.svg` imports bundle (see `PageBundleOptions.svg`). */
@@ -126,6 +133,9 @@ export class ViewerServer {
   private bundling: Promise<PageBundle> | null = null;
 
   private bundleInputs: { file: string; mtime: number }[] = [];
+
+  /** Stylesheet urls already reported as served by nothing. */
+  private unservedStylesheetUrls = new Set<string>();
 
   private browser: HeadlessBrowser;
 
@@ -441,6 +451,26 @@ export class ViewerServer {
     return out;
   }
 
+  /** The host's stylesheet, its relative `url()`s rebased on `page.stylesheetBase`. */
+  private async pageStylesheet(build: () => Promise<string>) {
+    const page = this.config.page;
+    const css = fs.readFileSync(await build(), "utf8");
+    if (!page.stylesheetBase) return css;
+    const rebased = rebaseStylesheetUrls(
+      css,
+      page.stylesheetBase,
+      page.assetRoots,
+    );
+    for (const url of rebased.outside) {
+      if (this.unservedStylesheetUrls.has(url)) continue;
+      this.unservedStylesheetUrls.add(url);
+      this.log(
+        `stylesheet url(${url}) names no file under the asset roots from ${page.stylesheetBase}; the page's request for it will 404`,
+      );
+    }
+    return rebased.css;
+  }
+
   private html() {
     const page = this.config.page;
     const css = page.stylesheet
@@ -530,12 +560,12 @@ export class ViewerServer {
       url.pathname === "/page.css" &&
       this.config.page.stylesheet
     ) {
-      const file = await this.config.page.stylesheet();
+      const css = await this.pageStylesheet(this.config.page.stylesheet);
       res.writeHead(200, {
         "content-type": "text/css",
         "cache-control": "no-store",
       });
-      fs.createReadStream(file).pipe(res);
+      res.end(css);
       return;
     }
     if (parts[0] !== "api") {
@@ -553,7 +583,8 @@ export class ViewerServer {
         fs.createReadStream(file).pipe(res);
         return;
       }
-      res.writeHead(404);
+      // Every page asks for one; a host without one is not missing a file.
+      res.writeHead(url.pathname === "/favicon.ico" ? 204 : 404);
       res.end();
       return;
     }

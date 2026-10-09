@@ -4,6 +4,7 @@
  * `window.__voxelizeViewer`. Everything is plain data in and out.
  */
 import type { FlightOptions, FlightResult } from "./camera";
+import type { TextureCensus } from "./materials";
 import { applyOptionPairs, parseOptions, type ViewerOptions } from "./options";
 import type { PinActionResult } from "./pin-layer";
 import type { Pin } from "./pins";
@@ -64,6 +65,8 @@ export type ViewerControl = {
     options?: { label?: string },
   ): Promise<Pin>;
   pins(): Pin[];
+  /** Every atlas slot and own-texture face of source A's (or B's) view, with the ones nothing painted listed by block and face. */
+  textureCensus(which?: "a" | "b"): TextureCensus | null;
   removePin(pin: string): boolean;
   renamePin(pin: string, label: string): boolean;
   /**
@@ -190,6 +193,7 @@ export function installControl(
       return viewer.pins.drop([x, height, z], options.label);
     },
     pins: () => viewer.pins.list(),
+    textureCensus: (which = "a") => viewer.textureCensus(which),
     removePin(pin) {
       const found = viewer.pins.find(pin);
       return found ? viewer.pins.remove(found.id) : false;

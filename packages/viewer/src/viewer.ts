@@ -37,7 +37,11 @@ import { ChunkLayer, type ChunkLayerOptions } from "./chunk-layer";
 import { FarLayer, FarTileClient, type FarPalette } from "./far-layer";
 import { nearRadiusFor } from "./lod";
 import { applyLook, defaultLook, type LookProvider } from "./look";
-import { ViewerMaterials, type MaterialOptions } from "./materials";
+import {
+  type MaterialOptions,
+  type TextureCensus,
+  ViewerMaterials,
+} from "./materials";
 import { DEFAULT_OPTIONS, type ViewerOptions } from "./options";
 import {
   BUILTIN_OVERLAYS,
@@ -119,7 +123,17 @@ type View = {
   sky: Mesh;
   target: WebGLRenderTarget;
   csm: CSMRenderer;
-  textures: ReturnType<ViewerMaterials["textureCensus"]> | null;
+  textures: TextureSummary;
+};
+
+/** How a source's textures came out of the host's texture setup (`textureCensus()` lists the misses). */
+export type TextureSummary = {
+  slots: number;
+  painted: number;
+  unpainted: number;
+  ownFaces: number;
+  unpaintedOwnFaces: number;
+  failures: number;
 };
 
 export type ViewerState = {
@@ -140,7 +154,7 @@ export type ViewerState = {
     chunks: ChunkLayer["stats"];
     far: FarLayer["stats"];
     idle: boolean;
-    textures: ReturnType<ViewerMaterials["textureCensus"]> | null;
+    textures: TextureSummary;
   }[];
 };
 
@@ -570,12 +584,27 @@ export class WorldViewer {
     await materials.build();
     if (this.host.setupTextures)
       await this.host.setupTextures(materials.worldFacade(), meta);
-    const textures = materials.textureCensus();
-    if (textures.unpainted > 0) {
-      console.warn(
-        `[viewer] ${ref.label}: ${textures.unpainted} atlas slots left unpainted (${textures.unpaintedBlocks.slice(0, 8).join(", ")})`,
+    await materials.settled();
+    const census = materials.textureCensus();
+    const left = [
+      ...census.unpaintedSlots.map((s) => `${s.block}:${s.face}`),
+      ...census.unpaintedOwnFaces.map((f) => `${f.block}:${f.face}`),
+    ];
+    if (left.length > 0 || census.failures.length > 0) {
+      const named = left.slice(0, 8).join(", ");
+      const failed = census.failures.slice(0, 4).join("; ");
+      console.error(
+        `[viewer] ${ref.label}: ${census.unpainted} of ${census.slots} atlas slots and ${census.unpaintedOwnFaces.length} of ${census.ownFaces} own-texture faces left unpainted (${named}), ${census.failures.length} paints failed (${failed}); textureCensus() lists them all`,
       );
     }
+    const textures: TextureSummary = {
+      slots: census.slots,
+      painted: census.painted,
+      unpainted: census.unpainted,
+      ownFaces: census.ownFaces,
+      unpaintedOwnFaces: census.unpaintedOwnFaces.length,
+      failures: census.failures.length,
+    };
     const scene = new Scene();
     scene.matrixAutoUpdate = false;
     const chunks = new ChunkLayer(`${base}/chunks`, materials, meta.chunkSize, {
@@ -725,6 +754,11 @@ export class WorldViewer {
   /** Stops a flight where it is. */
   cancelFlight() {
     this.rig.cancelFlight();
+  }
+
+  /** Every atlas slot and own-texture face of a source's view, painted or not, as of now. */
+  textureCensus(which: "a" | "b" = "a"): TextureCensus | null {
+    return this.views[which]?.materials.textureCensus() ?? null;
   }
 
   /** The game's link for `pose` in source A's world, or null when the host has none. */

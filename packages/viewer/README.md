@@ -166,6 +166,23 @@ voxelize-viewer --config my.config.ts query 12,40
 `shot` prints the image path and one JSON line: source provenance, pose,
 options, settle state and timings.
 
+**Textures.** The host's `setupTextures(world)` runs the game's own registry
+setup against a stand-in `World`: texture groups, block textures, frames
+(the first one: the viewer holds still) and `customizeMaterialShaders` are
+real; anything else it reaches for is absorbed and counted. Paints the setup
+fires without awaiting are waited for before anything renders, and then
+`textureCensus()` (on the control surface too) counts what is still on the
+unknown checker the way `World.textureCensus` counts it: atlas slots once
+each, plus own-texture faces, with every paint whose source failed. A source
+that comes out with anything unpainted says so on the console, by block and
+face.
+
+**Stylesheet.** `page.stylesheet` builds the page's CSS, served at
+`/page.css`; when it is built from a file elsewhere (a Tailwind input), set
+`page.stylesheetBase` to that file's directory and its relative `url()`s
+(a font, say) are pointed at the asset files they name instead of
+resolving against the server root.
+
 ## Demo
 
 The demo server's worlds through their real pipelines:
