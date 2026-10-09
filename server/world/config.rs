@@ -59,6 +59,20 @@ pub struct WorldConfig {
     /// Default is 50000, i.e. effectively unbounded.
     pub max_active_updates_per_tick: usize,
 
+    /// Milliseconds a tick may spend asking active tickers when they next
+    /// want to run, for the voxels its writes touched (each written voxel
+    /// and its neighbors). The consults a tick does not reach carry into the
+    /// next one, ahead of that tick's own, and none is dropped: a bulk edit
+    /// beside costly tickers wakes its neighbors over a few ticks instead of
+    /// in one long one. At least one consult runs a tick. Default is 4.
+    pub max_ticker_consult_ms_per_tick: f64,
+
+    /// Milliseconds a tick may spend planning due active voxels (running
+    /// their updaters). The due voxels it does not reach keep the deadline
+    /// they missed and plan first the next tick; none is dropped. At least
+    /// one plans a tick. Default is 4.
+    pub max_active_plan_ms_per_tick: f64,
+
     /// Subchunk random-tick sampler rate: each loaded/interested
     /// 16x16x(section) subchunk samples this many random positions per world
     /// tick and, if the block is `is_random_tickable`, schedules its
@@ -294,6 +308,10 @@ const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 64;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 50000;
 const DEFAULT_MAX_ACTIVE_UPDATES_PER_TICK: usize = 50000;
+// The wake work a tick does for its writes, held to a few milliseconds each
+// so a bulk edit beside costly tickers stays inside a 60 Hz tick.
+const DEFAULT_MAX_TICKER_CONSULT_MS_PER_TICK: f64 = 4.0;
+const DEFAULT_MAX_ACTIVE_PLAN_MS_PER_TICK: f64 = 4.0;
 /// Three random-tick samples per 16^3 subchunk section per world tick.
 const DEFAULT_RANDOM_TICK_SPEED: usize = 3;
 const DEFAULT_MAX_RANDOM_TICKS_PER_TICK: usize = 2048;
@@ -356,6 +374,8 @@ pub struct WorldConfigBuilder {
     max_chunks_per_tick: usize,
     max_updates_per_tick: usize,
     max_active_updates_per_tick: usize,
+    max_ticker_consult_ms_per_tick: f64,
+    max_active_plan_ms_per_tick: f64,
     random_tick_speed: usize,
     max_random_ticks_per_tick: usize,
     max_response_per_tick: usize,
@@ -424,6 +444,8 @@ impl WorldConfigBuilder {
             max_chunks_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
             max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
             max_active_updates_per_tick: DEFAULT_MAX_ACTIVE_UPDATES_PER_TICK,
+            max_ticker_consult_ms_per_tick: DEFAULT_MAX_TICKER_CONSULT_MS_PER_TICK,
+            max_active_plan_ms_per_tick: DEFAULT_MAX_ACTIVE_PLAN_MS_PER_TICK,
             random_tick_speed: DEFAULT_RANDOM_TICK_SPEED,
             max_random_ticks_per_tick: DEFAULT_MAX_RANDOM_TICKS_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
@@ -544,6 +566,22 @@ impl WorldConfigBuilder {
     /// Default is 50000.
     pub fn max_active_updates_per_tick(mut self, max_active_updates_per_tick: usize) -> Self {
         self.max_active_updates_per_tick = max_active_updates_per_tick;
+        self
+    }
+
+    /// Configure the milliseconds a tick may spend consulting the active
+    /// tickers its writes touched; the rest carry into later ticks. At least
+    /// one consult runs a tick. Default is 4.
+    pub fn max_ticker_consult_ms_per_tick(mut self, max_ticker_consult_ms_per_tick: f64) -> Self {
+        self.max_ticker_consult_ms_per_tick = max_ticker_consult_ms_per_tick;
+        self
+    }
+
+    /// Configure the milliseconds a tick may spend planning due active
+    /// voxels; the rest keep their deadline and plan first the next tick.
+    /// At least one plans a tick. Default is 4.
+    pub fn max_active_plan_ms_per_tick(mut self, max_active_plan_ms_per_tick: f64) -> Self {
+        self.max_active_plan_ms_per_tick = max_active_plan_ms_per_tick;
         self
     }
 
@@ -821,6 +859,21 @@ impl WorldConfigBuilder {
             panic!("Entity motion max age must be positive.");
         }
 
+        for (name, ms) in [
+            (
+                "max_ticker_consult_ms_per_tick",
+                self.max_ticker_consult_ms_per_tick,
+            ),
+            (
+                "max_active_plan_ms_per_tick",
+                self.max_active_plan_ms_per_tick,
+            ),
+        ] {
+            if !ms.is_finite() || ms < 0.0 {
+                panic!("{name} must be a finite, non-negative number of milliseconds, not {ms}.");
+            }
+        }
+
         if self.entity_flush_base_bytes_per_tick == 0 {
             panic!("Entity flush base bytes per tick must be positive.");
         }
@@ -852,6 +905,8 @@ impl WorldConfigBuilder {
             max_chunks_per_tick: self.max_chunks_per_tick,
             max_updates_per_tick: self.max_updates_per_tick,
             max_active_updates_per_tick: self.max_active_updates_per_tick,
+            max_ticker_consult_ms_per_tick: self.max_ticker_consult_ms_per_tick,
+            max_active_plan_ms_per_tick: self.max_active_plan_ms_per_tick,
             random_tick_speed: self.random_tick_speed,
             max_random_ticks_per_tick: self.max_random_ticks_per_tick,
             max_response_per_tick: self.max_response_per_tick,
