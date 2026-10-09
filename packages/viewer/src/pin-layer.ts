@@ -1,13 +1,14 @@
 /**
- * Pins on the terrain and the action wheel around them. A click drops a
- * pin (a double-click that follows turns into a flight and takes the pin
- * back); clicking a pin, right-clicking anywhere, or holding a pin or the
+ * The pin on the terrain and the action wheel around it. There is only
+ * ever one: a click drops it there, moving it from wherever it stood (a
+ * double-click that follows turns into a flight and puts the pin back);
+ * clicking the pin, right-clicking anywhere, or holding the pin or the
  * right button opens the wheel; actions run on the pin, or on the bare
  * ground point when the wheel was opened over terrain.
  *
- * Pins are voxel banners in every view's scene, with a pixel tag over each
- * and a card for the selected one. The list lives in the URL, so a link to
- * the viewer carries its pins.
+ * The pin is a voxel banner in every view's scene, with a card of what
+ * the source knows about its column. It lives in the URL (`pin=x,y,z`),
+ * so a link to the viewer carries it.
  */
 import type { Camera, PerspectiveCamera, Scene } from "three";
 import { Vector3 } from "three";
@@ -18,18 +19,17 @@ import {
   formatCoordinates,
   measure,
   type Measurement,
-  nextPinLabel,
-  parsePins,
   type Pin,
   type PinFact,
-  serializePins,
+  pinFromUrl,
+  serializePin,
   standingPose,
 } from "./pins";
 import type { Bookmark, Pose, Vec3 } from "./pose";
 import { type ViewerTheme, themeCss } from "./theme";
 import { RadialWheel, type WheelMode } from "./wheel";
 
-/** What an action runs on: a pin, or a ground point the wheel was opened over. */
+/** What an action runs on: the pin, or a ground point the wheel was opened over. */
 export type PinTarget = { pin: Pin | null; point: Vec3 };
 
 export type PinActionResult = {
@@ -84,7 +84,7 @@ export type PinLayerOptions = {
   prefix: string;
   /** Blocks from the top face to the eyes of a player standing there. */
   standingEyeHeight: number;
-  /** How tall a pin stays on screen, CSS pixels (it is never drawn smaller than life). */
+  /** How tall the pin stays on screen, CSS pixels (it is never drawn smaller than life). */
   screenHeight: number;
   /** A press held this long, still, opens the wheel in hold mode. */
   holdMs: number;
@@ -95,14 +95,14 @@ export type PinLayerOptions = {
   /** Turns the column the backend reports into lines on the pin card. */
   describe?: (column: unknown) => PinFact[];
   actions?: PinAction[];
-  /** Keep the pins in the page URL (`pins=`). */
+  /** Keep the pin in the page URL (`pin=`). */
   persistInUrl: boolean;
 };
 
 type PinScene = {
   scene: Scene;
   lighting: PinLighting;
-  models: Map<string, PinModel>;
+  model: PinModel | null;
 };
 
 type Press = {
@@ -110,30 +110,36 @@ type Press = {
   y: number;
   button: number;
   at: number;
-  pin: Pin | null;
+  onPin: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   held: boolean;
   moved: boolean;
 };
 
-const URL_PARAM = "pins";
+type ScreenAnchor = {
+  base: [number, number];
+  top: [number, number];
+  visible: boolean;
+};
+
+const URL_PARAM = "pin";
+/** What links from before the pin was one carried; read for their first pin, then dropped. */
+const LEGACY_URL_PARAM = "pins";
 /** Stepped drop: the banner falls to the ground in three whole steps. */
 const DROP_STEPS = [0.7, 0.3, 0];
 const DROP_STEP_MS = 45;
-/** A hovered or selected pin stands this much taller, in one step. */
+/** The hovered or selected pin stands this much taller, in one step. */
 const POP = 1.12;
-/** Camera pitch past which a banner starts leaning back toward it, and the step it leans in. */
+/** Camera pitch past which the banner starts leaning back toward it, and the step it leans in. */
 const LEAN_FROM = 0.6;
 const LEAN_STEP = Math.PI / 12;
 
 export class PinLayer {
   readonly ui: HTMLDivElement;
 
-  private pins: Pin[] = [];
+  private pin: Pin | null = null;
 
   private scenes: PinScene[] = [];
-
-  private tags = new Map<string, HTMLDivElement>();
 
   private card: HTMLDivElement;
 
@@ -143,19 +149,21 @@ export class PinLayer {
 
   private wheel: RadialWheel;
 
-  private selected: string | null = null;
+  private selected = false;
 
-  private hovered: string | null = null;
+  private hovered = false;
 
-  private dropped = new Map<string, number>();
+  /** When the pin last dropped, for its stepped fall. */
+  private droppedAt: number | null = null;
 
   private press: Press | null = null;
 
-  private lastClickPin: {
-    id: string;
+  /** The last click's drop, and the pin it moved, so a double-click can put that one back. */
+  private lastDrop: {
     at: number;
     x: number;
     y: number;
+    previous: Pin | null;
   } | null = null;
 
   /** How the last press ended, so the click event that follows it can be read. */
@@ -166,22 +174,16 @@ export class PinLayer {
     handled: boolean;
   } | null = null;
 
-  private measuring: { from: string } | null = null;
+  /** Waiting for a click on the spot to measure to. */
+  private measuring = false;
 
-  private measurement: {
-    from: string;
-    to: string;
-    result: Measurement;
-  } | null = null;
+  private measurement: { to: Vec3; result: Measurement } | null = null;
 
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private nextId = 1;
+  private screen: ScreenAnchor | null = null;
 
-  private screen = new Map<
-    string,
-    { base: [number, number]; top: [number, number]; visible: boolean }
-  >();
+  private measureScreen: ScreenAnchor | null = null;
 
   private actions: PinAction[];
 
@@ -210,12 +212,11 @@ export class PinLayer {
     this.actions = [...builtinActions(), ...(options.actions ?? [])];
   }
 
-  list(): Pin[] {
-    return this.pins.map((p) => ({
-      ...p,
-      point: [...p.point] as Vec3,
-      facts: [...p.facts],
-    }));
+  /** The pin, or null when there is none. */
+  current(): Pin | null {
+    return this.pin
+      ? { point: [...this.pin.point] as Vec3, facts: [...this.pin.facts] }
+      : null;
   }
 
   get wheelOpen() {
@@ -226,89 +227,49 @@ export class PinLayer {
     return this.wheel.highlighted;
   }
 
-  /** The views' scenes and lighting; models follow them across source changes. */
-  attach(views: { scene: Scene; lighting: PinLighting }[]) {
-    for (const old of this.scenes) {
-      for (const model of old.models.values()) {
-        old.scene.remove(model.group);
-        model.dispose();
-      }
-    }
-    this.scenes = views.map((v) => ({ ...v, models: new Map() }));
-    for (const pin of this.pins) this.addModels(pin);
+  /** Where the pin stands on the canvas, CSS pixels: its foot and its top; null when none is on screen. */
+  onScreen(): { base: [number, number]; top: [number, number] } | null {
+    return this.pin && this.screen?.visible
+      ? { base: [...this.screen.base], top: [...this.screen.top] }
+      : null;
   }
 
-  /** Drops a pin at `point`; resolves once the source has described the column. */
-  async drop(point: Vec3, label?: string): Promise<Pin> {
-    const pin: Pin = {
-      id: `pin-${this.nextId++}`,
-      label: label?.trim() || nextPinLabel(this.pins),
-      point: [point[0], point[1], point[2]],
-      facts: [],
-    };
-    this.pins.push(pin);
-    this.dropped.set(pin.id, performance.now());
-    this.addModels(pin);
-    this.selected = pin.id;
+  /** The views' scenes and lighting; the banner follows them across source changes. */
+  attach(views: { scene: Scene; lighting: PinLighting }[]) {
+    for (const old of this.scenes) this.dropModel(old);
+    this.scenes = views.map((v) => ({ ...v, model: null }));
+    if (this.pin) this.addModels();
+  }
+
+  /** Drops the pin at `point`, moving it from wherever it stood; resolves once the source has described the column. */
+  async drop(point: Vec3): Promise<Pin> {
+    const pin: Pin = { point: [point[0], point[1], point[2]], facts: [] };
+    this.place(pin);
+    this.selected = true;
     this.changed();
     pin.facts = await this.describe(pin.point);
     this.changed();
-    return { ...pin };
+    return { point: [...pin.point] as Vec3, facts: [...pin.facts] };
   }
 
-  /** Restores pins (from a URL); facts load in the background. */
-  restore(entries: { label: string; point: Vec3 }[]) {
-    for (const entry of entries) void this.drop(entry.point, entry.label);
-    this.selected = null;
-  }
-
+  /** Restores the pin a URL carries (`pin=`, or an older link's first `pins=` entry); its facts load in the background. */
   restoreFromUrl(search: string) {
-    const text = new URLSearchParams(search).get(URL_PARAM);
-    if (text) this.restore(parsePins(text));
+    const point = pinFromUrl(search);
+    if (!point) return;
+    void this.drop(point);
+    this.selected = false;
   }
 
-  remove(id: string): boolean {
-    const index = this.pins.findIndex((p) => p.id === id);
-    if (index < 0) return false;
-    this.pins.splice(index, 1);
-    for (const s of this.scenes) {
-      const model = s.models.get(id);
-      if (model) {
-        s.scene.remove(model.group);
-        model.dispose();
-        s.models.delete(id);
-      }
-    }
-    this.tags.get(id)?.remove();
-    this.tags.delete(id);
-    if (this.selected === id) this.selected = null;
-    if (this.measuring?.from === id) this.measuring = null;
-    if (
-      this.measurement &&
-      (this.measurement.from === id || this.measurement.to === id)
-    ) {
-      this.measurement = null;
-    }
+  remove(): boolean {
+    if (!this.pin) return false;
+    this.pin = null;
+    for (const s of this.scenes) this.dropModel(s);
+    this.selected = false;
+    this.hovered = false;
+    this.measuring = false;
+    this.measurement = null;
     this.changed();
     return true;
-  }
-
-  rename(id: string, label: string): boolean {
-    const pin = this.find(id);
-    if (!pin || !label.trim()) return false;
-    pin.label = label.trim();
-    this.restyle(pin);
-    this.changed();
-    return true;
-  }
-
-  /** A pin by id or by label. */
-  find(idOrLabel: string): Pin | null {
-    return (
-      this.pins.find((p) => p.id === idOrLabel) ??
-      this.pins.find((p) => p.label === idOrLabel) ??
-      null
-    );
   }
 
   /** The actions a target offers, with why each one cannot run, if it cannot. */
@@ -356,13 +317,12 @@ export class PinLayer {
       icon: this.iconFor(action),
       disabled,
     }));
-    const name = target.pin ? `${target.pin.label} · ` : "";
     this.wheel.open({
       x,
       y,
       items,
       mode,
-      title: `${name}${formatCoordinates(target.point)}`,
+      title: `${target.pin ? "Pin · " : ""}${formatCoordinates(target.point)}`,
       onPick: (id) => {
         void this.run(target, id).catch((error: Error) =>
           this.say(error.message),
@@ -383,22 +343,22 @@ export class PinLayer {
       this.press = null;
       return true;
     }
-    const pin = this.hitPin(x, y);
+    const onPin = this.hitPin(x, y);
     const press: Press = {
       x,
       y,
       button,
       at: performance.now(),
-      pin,
+      onPin,
       timer: null,
       held: false,
       moved: false,
     };
-    if ((button === 0 && pin) || button === 2) {
+    if ((button === 0 && onPin) || button === 2) {
       press.timer = setTimeout(() => this.hold(press), this.options.holdMs);
     }
     this.press = press;
-    return pin !== null && button === 0;
+    return onPin && button === 0;
   }
 
   /** True when the press under way turned into a hold, so the camera must let go of it. */
@@ -422,7 +382,7 @@ export class PinLayer {
       return;
     }
     if (!press) {
-      const hovered = this.hitPin(x, y)?.id ?? null;
+      const hovered = this.hitPin(x, y);
       if (hovered !== this.hovered) {
         this.hovered = hovered;
         this.container.style.cursor = hovered ? "pointer" : "";
@@ -458,14 +418,12 @@ export class PinLayer {
       return "moved";
     }
     if (button === 2) {
-      const target = press.pin
-        ? { pin: press.pin, point: press.pin.point }
-        : this.groundTarget(x, y);
+      const target = this.targetAt(press.onPin, x, y);
       if (target) this.openWheel(target, x, y, "click");
       return true;
     }
-    if (button === 0 && press.pin) {
-      this.clickPin(press.pin, x, y);
+    if (button === 0 && press.onPin) {
+      this.clickPin(x, y);
       return true;
     }
     return false;
@@ -479,31 +437,40 @@ export class PinLayer {
     if (detail !== 1) return detail > 1;
     const point = this.host.pickGround(x, y);
     if (!point) return false;
-    void this.drop(point).then((pin) => {
-      if (this.measuring) this.finishMeasure(pin.id);
-    });
-    const id = this.pins[this.pins.length - 1]?.id;
-    if (id) this.lastClickPin = { id, at: performance.now(), x, y };
+    if (this.measuring && this.pin) {
+      this.say(describeMeasurement(this.measureTo(point)));
+      return true;
+    }
+    this.lastDrop = { at: performance.now(), x, y, previous: this.current() };
+    void this.drop(point);
     return true;
   }
 
   /**
-   * A double-click at (x, y): takes back the pin its first click dropped and
-   * returns the point to fly to (a pin's own, when it was on one).
+   * A double-click at (x, y): puts back the pin its first click moved (or
+   * takes it away, when there was none) and returns the point to fly to
+   * (the pin's own, when it was on the pin).
    */
   doubleClick(x: number, y: number): Vec3 | null {
-    const last = this.lastClickPin;
-    this.lastClickPin = null;
+    const last = this.lastDrop;
+    this.lastDrop = null;
     if (
       last &&
       performance.now() - last.at < this.options.doubleClickMs &&
       Math.hypot(x - last.x, y - last.y) <= this.options.clickSlop * 2
     ) {
-      this.remove(last.id);
+      if (last.previous) {
+        this.place(last.previous, false);
+        this.selected = false;
+        this.changed();
+      } else {
+        this.remove();
+      }
     }
     this.wheel.close(false);
-    const pin = this.hitPin(x, y);
-    return pin ? pin.point : this.host.pickGround(x, y);
+    return this.pin && this.hitPin(x, y)
+      ? this.pin.point
+      : this.host.pickGround(x, y);
   }
 
   /** A key; true when the layer used it (the camera must not). */
@@ -513,8 +480,8 @@ export class PinLayer {
       event.key === "Escape" &&
       (this.selected || this.measuring || this.measurement)
     ) {
-      this.selected = null;
-      this.measuring = null;
+      this.selected = false;
+      this.measuring = false;
       this.measurement = null;
       this.changed();
       return true;
@@ -523,39 +490,38 @@ export class PinLayer {
       (event.key === "Delete" || event.key === "Backspace") &&
       this.selected
     ) {
-      this.remove(this.selected);
+      this.remove();
       return true;
     }
     return false;
   }
 
-  /** Starts or completes a measurement from `fromId`. */
-  measureFrom(fromId: string, toId?: string): Measurement | null {
-    const other =
-      toId ?? [...this.pins].reverse().find((p) => p.id !== fromId)?.id ?? null;
-    if (!other) {
-      this.measuring = { from: fromId };
-      this.changed();
-      return null;
-    }
-    return this.measureBetween(fromId, other);
+  /** Waits for a click on the spot to measure the pin to. */
+  startMeasure() {
+    this.measuring = true;
+    this.changed();
   }
 
-  measureBetween(fromId: string, toId: string): Measurement {
-    const from = this.find(fromId);
-    const to = this.find(toId);
-    if (!from || !to)
-      throw new Error(`no pin ${from ? toId : fromId} to measure with`);
-    const result = measure(from.point, to.point);
-    this.measurement = { from: from.id, to: to.id, result };
-    this.measuring = null;
+  /** Measures from the pin to `to` and draws it. */
+  measureTo(to: Vec3): Measurement {
+    if (!this.pin) throw new Error("no pin to measure from");
+    const result = measure(this.pin.point, to);
+    this.measurement = { to: [to[0], to[1], to[2]], result };
+    this.measuring = false;
     this.changed();
     return result;
   }
 
-  /** Per frame: models scaled, turned and dropped; tags, card and measuring line placed. */
+  /** Per frame: the banner scaled, turned and dropped; its card and the measuring line placed. */
   update(camera: Camera, viewWidth: number, height: number) {
-    const now = performance.now();
+    const pin = this.pin;
+    if (!pin) {
+      this.screen = null;
+      this.measureScreen = null;
+      this.placeCard();
+      this.placeMeasure();
+      return;
+    }
     const facing =
       Math.round(this.host.cameraYaw() / (Math.PI / 4)) * (Math.PI / 4);
     // Seen from high above a standing banner is a sliver; it leans back
@@ -563,39 +529,41 @@ export class PinLayer {
     const lean =
       Math.round(Math.max(0, this.host.cameraPitch() - LEAN_FROM) / LEAN_STEP) *
       LEAN_STEP;
-    for (const pin of this.pins) {
-      const scale = this.scaleAt(camera, pin.point, height);
-      const lift = this.dropLift(pin.id, now) * PIN_HEIGHT * scale;
-      const pop = pin.id === this.hovered || pin.id === this.selected ? POP : 1;
-      for (const s of this.scenes) {
-        const model = s.models.get(pin.id);
-        if (!model) continue;
-        model.group.position.set(
-          pin.point[0],
-          pin.point[1] + lift,
-          pin.point[2],
-        );
-        model.group.rotation.set(-lean, facing, 0, "YXZ");
-        model.group.scale.setScalar(scale * pop);
-        model.group.updateMatrixWorld(true);
-      }
-      const base = project(camera, pin.point, viewWidth, height);
-      const top = project(
-        camera,
-        [
-          pin.point[0],
-          pin.point[1] + lift + PIN_HEIGHT * scale * pop,
-          pin.point[2],
-        ],
-        viewWidth,
-        height,
+    const scale = this.scaleAt(camera, pin.point, height);
+    const lift = this.dropLift(performance.now()) * PIN_HEIGHT * scale;
+    const pop = this.hovered || this.selected ? POP : 1;
+    for (const s of this.scenes) {
+      if (!s.model) continue;
+      s.model.group.position.set(
+        pin.point[0],
+        pin.point[1] + lift,
+        pin.point[2],
       );
-      this.screen.set(pin.id, {
-        base: base.xy,
-        top: top.xy,
-        visible: base.visible && top.visible,
-      });
-      this.placeTag(pin, top.xy, base.visible && top.visible);
+      s.model.group.rotation.set(-lean, facing, 0, "YXZ");
+      s.model.group.scale.setScalar(scale * pop);
+      s.model.group.updateMatrixWorld(true);
+    }
+    const base = project(camera, pin.point, viewWidth, height);
+    const top = project(
+      camera,
+      [
+        pin.point[0],
+        pin.point[1] + lift + PIN_HEIGHT * scale * pop,
+        pin.point[2],
+      ],
+      viewWidth,
+      height,
+    );
+    this.screen = {
+      base: base.xy,
+      top: top.xy,
+      visible: base.visible && top.visible,
+    };
+    if (this.measurement) {
+      const to = project(camera, this.measurement.to, viewWidth, height);
+      this.measureScreen = { base: to.xy, top: to.xy, visible: to.visible };
+    } else {
+      this.measureScreen = null;
     }
     this.placeCard();
     this.placeMeasure();
@@ -603,10 +571,8 @@ export class PinLayer {
 
   /** The measuring line, drawn as whole-pixel dashes on the HUD canvas. */
   drawHud(context: CanvasRenderingContext2D) {
-    const m = this.measurement;
-    if (!m) return;
-    const a = this.screen.get(m.from);
-    const b = this.screen.get(m.to);
+    const a = this.screen;
+    const b = this.measureScreen;
     if (!a?.visible || !b?.visible) return;
     const [ax, ay] = a.base;
     const [bx, by] = b.base;
@@ -621,9 +587,9 @@ export class PinLayer {
     }
   }
 
-  /** Pins as a URL parameter value. */
+  /** The pin as a URL parameter value; empty when there is none. */
   serialized() {
-    return serializePins(this.pins);
+    return this.pin ? serializePin(this.pin.point) : "";
   }
 
   dispose() {
@@ -646,41 +612,44 @@ export class PinLayer {
     return this.options.standingEyeHeight;
   }
 
-  private clickPin(pin: Pin, x: number, y: number) {
-    if (this.measuring && this.measuring.from !== pin.id) {
-      this.finishMeasure(pin.id);
-      return;
-    }
-    this.selected = pin.id;
-    const at = this.screen.get(pin.id);
-    const [wx, wy] = at ? at.top : [x, y];
-    this.openWheel({ pin, point: pin.point }, wx, wy - 10, "click");
+  /** Puts `pin` up as the one pin, falling into place when `animate`. */
+  private place(pin: Pin, animate = true) {
+    this.pin = pin;
+    this.measuring = false;
+    this.measurement = null;
+    this.droppedAt = animate ? performance.now() : null;
+    this.addModels();
+  }
+
+  private clickPin(x: number, y: number) {
+    if (!this.pin) return;
+    this.selected = true;
+    const [wx, wy] = this.screen?.visible ? this.screen.top : [x, y];
+    this.openWheel(
+      { pin: this.pin, point: this.pin.point },
+      wx,
+      wy - 10,
+      "click",
+    );
   }
 
   private hold(press: Press) {
     if (this.press !== press || press.moved) return;
     press.held = true;
     press.timer = null;
-    const target = press.pin
-      ? { pin: press.pin, point: press.pin.point }
-      : this.groundTarget(press.x, press.y);
+    const target = this.targetAt(press.onPin, press.x, press.y);
     if (!target) {
       press.held = false;
       return;
     }
-    if (press.pin) this.selected = press.pin.id;
+    if (press.onPin) this.selected = true;
     this.host.releaseCamera();
     this.openWheel(target, press.x, press.y, "hold");
   }
 
-  private finishMeasure(toId: string) {
-    const from = this.measuring?.from;
-    if (!from || from === toId) return;
-    const result = this.measureBetween(from, toId);
-    this.say(describeMeasurement(result));
-  }
-
-  private groundTarget(x: number, y: number): PinTarget | null {
+  /** The pin when the press was on it, else the ground under (x, y). */
+  private targetAt(onPin: boolean, x: number, y: number): PinTarget | null {
+    if (onPin && this.pin) return { pin: this.pin, point: this.pin.point };
     const point = this.host.pickGround(x, y);
     return point ? { pin: null, point } : null;
   }
@@ -715,33 +684,26 @@ export class PinLayer {
     return facts;
   }
 
-  private addModels(pin: Pin) {
-    const colors = this.colorsFor(pin);
-    for (const s of this.scenes) {
-      if (s.models.has(pin.id)) continue;
-      const model = new PinModel(colors, pin.label, s.lighting);
-      s.scene.add(model.group);
-      s.models.set(pin.id, model);
-    }
-  }
-
-  private restyle(pin: Pin) {
-    for (const s of this.scenes)
-      s.models.get(pin.id)?.restyle(this.colorsFor(pin), pin.label);
-  }
-
-  private colorsFor(pin: Pin) {
+  private addModels() {
     const t = this.options.theme;
-    const index = Number(pin.id.replace(/\D/g, "")) - 1;
-    return {
-      cloth:
-        t.pinCloth[
-          ((index % t.pinCloth.length) + t.pinCloth.length) % t.pinCloth.length
-        ],
+    const colors = {
+      cloth: t.pinCloth[0],
       pole: t.pinPole,
       cap: t.pinCap,
       letter: t.pinLetter,
     };
+    for (const s of this.scenes) {
+      if (s.model) continue;
+      s.model = new PinModel(colors, "", s.lighting);
+      s.scene.add(s.model.group);
+    }
+  }
+
+  private dropModel(s: PinScene) {
+    if (!s.model) return;
+    s.scene.remove(s.model.group);
+    s.model.dispose();
+    s.model = null;
   }
 
   private iconFor(action: PinAction): string {
@@ -757,7 +719,7 @@ export class PinLayer {
     return icon;
   }
 
-  /** The scale that keeps a pin `screenHeight` pixels tall, never below life size. */
+  /** The scale that keeps the pin `screenHeight` pixels tall, never below life size. */
   private scaleAt(camera: Camera, point: Vec3, height: number): number {
     let pixelsPerBlock: number;
     if ((camera as PerspectiveCamera).isPerspectiveCamera) {
@@ -784,62 +746,39 @@ export class PinLayer {
     );
   }
 
-  private dropLift(id: string, now: number): number {
-    const at = this.dropped.get(id);
-    if (at === undefined) return 0;
-    const step = Math.floor((now - at) / DROP_STEP_MS);
+  private dropLift(now: number): number {
+    if (this.droppedAt === null) return 0;
+    const step = Math.floor((now - this.droppedAt) / DROP_STEP_MS);
     if (step >= DROP_STEPS.length - 1) {
-      this.dropped.delete(id);
+      this.droppedAt = null;
       return 0;
     }
     return DROP_STEPS[step];
   }
 
-  private hitPin(x: number, y: number): Pin | null {
-    let best: { pin: Pin; depth: number } | null = null;
-    for (const pin of this.pins) {
-      const s = this.screen.get(pin.id);
-      if (!s?.visible) continue;
-      const tall = Math.max(12, s.base[1] - s.top[1]);
-      const left = s.base[0] - tall * 0.12;
-      const right = s.base[0] + tall * 0.42;
-      if (x < left || x > right || y < s.top[1] - 4 || y > s.base[1] + 4)
-        continue;
-      const depth = -s.base[1];
-      if (!best || depth < best.depth) best = { pin, depth };
-    }
-    return best?.pin ?? null;
-  }
-
-  private placeTag(pin: Pin, at: [number, number], visible: boolean) {
-    let tag = this.tags.get(pin.id);
-    if (!tag) {
-      tag = document.createElement("div");
-      tag.className = `${this.options.prefix}-tag`;
-      tag.dataset.pin = pin.id;
-      this.ui.append(tag);
-      this.tags.set(pin.id, tag);
-    }
-    if (tag.textContent !== pin.label) tag.textContent = pin.label;
-    tag.classList.toggle("is-selected", pin.id === this.selected);
-    tag.style.display = visible ? "" : "none";
-    tag.style.transform = `translate(${Math.round(at[0] - tag.offsetWidth / 2)}px, ${Math.round(at[1] - tag.offsetHeight - 4)}px)`;
+  private hitPin(x: number, y: number): boolean {
+    const s = this.screen;
+    if (!this.pin || !s?.visible) return false;
+    const tall = Math.max(12, s.base[1] - s.top[1]);
+    const left = s.base[0] - tall * 0.12;
+    const right = s.base[0] + tall * 0.42;
+    return !(x < left || x > right || y < s.top[1] - 4 || y > s.base[1] + 4);
   }
 
   private placeCard() {
-    const pin = this.selected ? this.find(this.selected) : null;
-    const s = pin ? this.screen.get(pin.id) : null;
-    if (!pin || !s?.visible || this.wheel.isOpen) {
+    const pin = this.pin;
+    const s = this.screen;
+    if (!pin || !this.selected || !s?.visible || this.wheel.isOpen) {
       this.card.style.display = "none";
       return;
     }
-    const signature = JSON.stringify([pin.label, pin.facts]);
+    const signature = JSON.stringify(pin.facts);
     if (this.card.dataset.signature !== signature) {
       this.card.dataset.signature = signature;
       this.card.replaceChildren();
       const title = document.createElement("div");
       title.className = `${this.options.prefix}-card-title`;
-      title.textContent = `Pin ${pin.label}`;
+      title.textContent = "Pin";
       this.card.append(title);
       const facts = pin.facts.length
         ? pin.facts
@@ -861,8 +800,8 @@ export class PinLayer {
 
   private placeMeasure() {
     const m = this.measurement;
-    const a = m ? this.screen.get(m.from) : null;
-    const b = m ? this.screen.get(m.to) : null;
+    const a = this.screen;
+    const b = this.measureScreen;
     if (!m || !a?.visible || !b?.visible) {
       this.measureLabel.style.display = "none";
       return;
@@ -902,6 +841,7 @@ export class PinLayer {
       const text = this.serialized();
       if (text) url.searchParams.set(URL_PARAM, text);
       else url.searchParams.delete(URL_PARAM);
+      url.searchParams.delete(LEGACY_URL_PARAM);
       if (url.href !== window.location.href)
         history.replaceState(history.state, "", url);
     }
@@ -939,6 +879,11 @@ async function copy(text: string): Promise<string | null> {
     return (error as Error).message || "the clipboard refused";
   }
 }
+
+const isPoint = (value: unknown): value is Vec3 =>
+  Array.isArray(value) &&
+  value.length === 3 &&
+  value.every((v) => typeof v === "number" && Number.isFinite(v));
 
 /** The built-in actions, in wheel order (clockwise from the top). */
 function builtinActions(): PinAction[] {
@@ -1003,41 +948,36 @@ function builtinActions(): PinAction[] {
     },
     {
       id: "measure",
-      label: "Measure",
+      label: "Measure from the pin",
       key: "m",
+      unavailable: (ctx) =>
+        ctx.pins.current() ? null : "drop a pin to measure from",
       run(ctx) {
-        const pin = ctx.target.pin;
-        if (!pin)
+        // On the pin it waits for a spot; over the ground it measures there.
+        const to = ctx.args.to ?? (ctx.target.pin ? null : ctx.target.point);
+        if (to === null) {
+          ctx.pins.startMeasure();
           return {
             action: "measure",
-            ok: false,
-            message: "pin this spot first",
-          };
-        const to =
-          typeof ctx.args.to === "string"
-            ? ctx.pins.find(ctx.args.to)?.id
-            : undefined;
-        if (typeof ctx.args.to === "string" && !to) {
-          return {
-            action: "measure",
-            ok: false,
-            message: `no pin ${ctx.args.to}`,
+            ok: true,
+            waiting: true,
+            message: "Click a spot to measure to",
           };
         }
-        const result = ctx.pins.measureFrom(pin.id, to);
-        return result
-          ? {
-              action: "measure",
-              ok: true,
-              measurement: result,
-              message: describeMeasurement(result),
-            }
-          : {
-              action: "measure",
-              ok: true,
-              waiting: true,
-              message: "Click a spot or a pin to measure to",
-            };
+        if (!isPoint(to)) {
+          return {
+            action: "measure",
+            ok: false,
+            message: `cannot measure to ${JSON.stringify(to)}; give x,y,z`,
+          };
+        }
+        const result = ctx.pins.measureTo(to);
+        return {
+          action: "measure",
+          ok: true,
+          measurement: result,
+          message: describeMeasurement(result),
+        };
       },
     },
     {
@@ -1045,14 +985,14 @@ function builtinActions(): PinAction[] {
       label: "Bookmark",
       key: "b",
       async run(ctx) {
-        const { point, pin } = ctx.target;
+        const { point } = ctx.target;
         const current = ctx.host.pose();
         const eye: Vec3 = [
           point[0] + current.eye[0] - current.look[0],
           point[1] + current.eye[1] - current.look[1],
           point[2] + current.eye[2] - current.look[2],
         ];
-        const label = `${pin ? `${pin.label} ` : ""}${formatCoordinates(point)}`;
+        const label = formatCoordinates(point);
         const bookmark = await ctx.host.addBookmark({
           id: `pin-${Math.floor(point[0])}-${Math.floor(point[2])}-${Date.now().toString(36)}`,
           label,
@@ -1107,15 +1047,12 @@ function builtinActions(): PinAction[] {
       label: "Remove pin",
       key: "x",
       run(ctx) {
-        const pin = ctx.target.pin;
-        if (!pin)
-          return {
-            action: "remove",
-            ok: false,
-            message: "nothing pinned here",
-          };
-        ctx.pins.remove(pin.id);
-        return { action: "remove", ok: true, message: `Removed ${pin.label}` };
+        const removed = ctx.pins.remove();
+        return {
+          action: "remove",
+          ok: removed,
+          message: removed ? "Removed the pin" : "nothing pinned here",
+        };
       },
     },
     {
@@ -1124,7 +1061,12 @@ function builtinActions(): PinAction[] {
       key: "p",
       async run(ctx) {
         const pin = await ctx.pins.drop(ctx.target.point);
-        return { action: "pin", ok: true, pin, message: `Pinned ${pin.label}` };
+        return {
+          action: "pin",
+          ok: true,
+          pin,
+          message: `Pinned ${formatCoordinates(pin.point)}`,
+        };
       },
     },
   ];

@@ -108,6 +108,22 @@ type ActiveFlight =
 
 const MIN_PITCH = -1.45;
 const ORTHO_DEPTH = 6000;
+/**
+ * The perspective camera's near plane, blocks: close up for a walking
+ * eye, pushed out as an orbit pulls back, up to a cap. Depth precision far
+ * off goes with it: on the near plane alone, faces a tenth of a block apart
+ * (a sea-ice sheet over the far water) fight for every pixel past a
+ * thousand blocks or so.
+ */
+const NEAR = 0.5;
+const NEAR_PER_ORBIT_DISTANCE = 1 / 256;
+const NEAR_MAX = 8;
+const FAR = 24000;
+
+/** The near plane for an orbit `distance` blocks from its look point. */
+export function orbitNear(distance: number): number {
+  return Math.min(NEAR_MAX, Math.max(NEAR, distance * NEAR_PER_ORBIT_DISTANCE));
+}
 /** Blocks (and blocks per second) within which an easing counts as done. */
 const SETTLE_TOLERANCE = 0.01;
 
@@ -197,7 +213,7 @@ export class CameraRig {
     private element: HTMLElement,
     fov = 60,
   ) {
-    this.perspective = new PerspectiveCamera(fov, 1, 0.5, 24000);
+    this.perspective = new PerspectiveCamera(fov, 1, NEAR, FAR);
     this.orthographic = new OrthographicCamera(
       -1,
       1,
@@ -721,9 +737,11 @@ export class CameraRig {
       const e = this.fly.eye;
       persp.position.set(...e);
       persp.lookAt(e[0] + d[0], e[1] + d[1], e[2] + d[2]);
+      persp.near = NEAR;
     } else {
       persp.position.set(...this.orbitEyeLifted());
       persp.lookAt(...this.orbit.target);
+      persp.near = orbitNear(this.orbit.distance);
     }
     persp.updateProjectionMatrix();
     persp.updateMatrixWorld();

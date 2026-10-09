@@ -1,17 +1,14 @@
 /**
- * Pins as plain data: a labelled point on the terrain, what the source
- * knows about the column under it, and the arithmetic the pin actions
- * share (measuring between two pins, the pose a player would stand in at
- * one, the compact form a URL carries).
+ * The pin as plain data: a point on the terrain, what the source knows
+ * about the column under it, and the arithmetic the pin actions share
+ * (measuring from the pin to another point, the pose a player would stand
+ * in at it, the compact form a URL carries).
  */
 import type { Pose, Vec3 } from "./pose";
 
 export type PinFact = { label: string; value: string };
 
 export type Pin = {
-  id: string;
-  /** Short name shown on the pin's banner and tag: A, B, ... unless renamed. */
-  label: string;
   /** The ground point: x and z where it was dropped, y the top face there. */
   point: Vec3;
   /** What the source reported for the column, once it answered. */
@@ -45,26 +42,6 @@ export function measure(from: Vec3, to: Vec3): Measurement {
   };
 }
 
-/** A, B, ... Z, then AA, AB: the n-th pin's default label (0-based). */
-export function pinLabel(index: number): string {
-  let n = Math.max(0, Math.floor(index));
-  let label = "";
-  do {
-    label = String.fromCharCode(65 + (n % 26)) + label;
-    n = Math.floor(n / 26) - 1;
-  } while (n >= 0);
-  return label;
-}
-
-/** The first default label no current pin uses. */
-export function nextPinLabel(pins: readonly Pin[]): string {
-  const used = new Set(pins.map((p) => p.label));
-  for (let i = 0; ; i++) {
-    const label = pinLabel(i);
-    if (!used.has(label)) return label;
-  }
-}
-
 /**
  * Where a player would stand at `point`, eyes `eyeHeight` over the top face
  * of the column (the block's centre), looking level along `yaw` (the
@@ -93,36 +70,29 @@ export function formatCoordinates(point: Vec3): string {
 
 const number = (v: number) => String(Number(v.toFixed(1)));
 
-/** Pins as `label:x,y,z` joined by `;`, for a URL parameter. */
-export function serializePins(pins: readonly Pin[]): string {
-  return pins
-    .map(
-      (p) => `${encodeURIComponent(p.label)}:${p.point.map(number).join(",")}`,
-    )
-    .join(";");
+/** The pin's point as `x,y,z`, the `pin` URL parameter. */
+export function serializePin(point: Vec3): string {
+  return point.map(number).join(",");
 }
 
-/** The inverse of `serializePins`; refuses anything it cannot read. */
-export function parsePins(text: string): { label: string; point: Vec3 }[] {
-  if (!text.trim()) return [];
-  return text.split(";").map((part) => {
-    const at = part.lastIndexOf(":");
-    const coords = part
-      .slice(at + 1)
-      .split(",")
-      .map(Number);
-    if (
-      at <= 0 ||
-      coords.length !== 3 ||
-      coords.some((n) => !Number.isFinite(n))
-    ) {
-      throw new Error(
-        `expected label:x,y,z in pins, got ${JSON.stringify(part)}`,
-      );
-    }
-    return {
-      label: decodeURIComponent(part.slice(0, at)),
-      point: coords as Vec3,
-    };
-  });
+function parsePoint(text: string, param: string): Vec3 {
+  const coords = text.split(",").map(Number);
+  if (coords.length !== 3 || coords.some((n) => !Number.isFinite(n))) {
+    throw new Error(`expected x,y,z in ${param}, got ${JSON.stringify(text)}`);
+  }
+  return coords as Vec3;
+}
+
+/**
+ * The pin a URL carries: `pin=x,y,z`, or the first entry of an older
+ * link's `pins=label:x,y,z;...`; null when it carries none. Refuses
+ * anything it cannot read.
+ */
+export function pinFromUrl(search: string): Vec3 | null {
+  const params = new URLSearchParams(search);
+  const single = params.get("pin");
+  if (single?.trim()) return parsePoint(single, "pin");
+  const first = params.get("pins")?.split(";")[0];
+  if (!first?.trim()) return null;
+  return parsePoint(first.slice(first.lastIndexOf(":") + 1), "pins");
 }

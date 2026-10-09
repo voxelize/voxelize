@@ -49,11 +49,12 @@ commands:
   fly-to x,y,z | x,z [--duration SEC] [--keep-zoom]
                              fly the headless page's camera there, as a double-click does,
                              and print where it landed
-  pin x,y,z | x,z [--label L]  drop a pin on the headless page; prints what the source knows there
-  pins                       the headless page's pins
-  pin-action PIN|x,y,z ACTION [--to PIN] [--open]
-                             run a wheel action: spawn, fly, look, measure, bookmark, copy-link,
-                             copy-coords, remove, pin (spawn prints the game link; --open opens it)
+  pin [x,y,z | x,z]          drop the pin there on the headless page (it moves; there is one) and
+                             print what the source knows there; with no point, print the pin
+  pin-action pin|x,y,z ACTION [--to x,y,z|x,z] [--open]
+                             run a wheel action on the pin or a point: spawn, fly, look, measure
+                             (from the pin, --to), bookmark, copy-link, copy-coords, remove, pin
+                             (spawn prints the game link; --open opens it)
   sources SPEC               start (or reuse) a source and print where it came from
   bookmarks | state | stop
 
@@ -411,33 +412,30 @@ export async function main(argv: string[]) {
         return;
       }
       case "pin":
-      case "pins":
       case "pin-action": {
         const base = await ensureServer(configFile, config, port);
         let action: string;
         let args: unknown[];
         if (p.command === "pin") {
-          const [x, y, z] = parseFlyPoint(p.rest[0] ?? "", "pin");
-          action = "dropPin";
-          args = [x, y, z, { label: one(p, "label") }];
-        } else if (p.command === "pins") {
-          action = "pins";
-          args = [];
+          action = p.rest[0] ? "dropPin" : "pin";
+          args = p.rest[0] ? parseFlyPoint(p.rest[0], "pin") : [];
         } else {
           const [targetText, name] = p.rest;
           if (!targetText || !name)
             throw new UsageError(
-              "pin-action needs a pin (or x,y,z) and an action",
+              "pin-action needs the pin (pin) or x,y,z, and an action",
             );
-          const target = /^-?[\d.]+,/.test(targetText)
-            ? parseFlyPoint(targetText, "pin-action")
-            : targetText;
+          const target =
+            targetText === "pin"
+              ? "pin"
+              : parseFlyPoint(targetText, "pin-action");
+          const to = one(p, "to");
           action = "pinAction";
           args = [
             target,
             name,
             {
-              ...(one(p, "to") ? { to: one(p, "to") } : {}),
+              ...(to ? { to: parseFlyPoint(to, "--to") } : {}),
               ...(p.flags.has("open") ? { open: true } : {}),
             },
           ];

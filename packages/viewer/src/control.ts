@@ -57,26 +57,24 @@ export type ViewerControl = {
   cancelFlight(): ViewerState;
   /** The ground point under canvas pixel (x, y), as a double-click there would fly to; null for sky. */
   pick(x: number, y: number): Vec3 | null;
-  /** Drops a pin as a click there does; a null y takes the ground. Resolves with what the source knows of the column. */
-  dropPin(
-    x: number,
-    y: number | null,
-    z: number,
-    options?: { label?: string },
-  ): Promise<Pin>;
-  pins(): Pin[];
+  /** Drops the pin as a click there does, moving it from wherever it stood; a null y takes the ground. Resolves with what the source knows of the column. */
+  dropPin(x: number, y: number | null, z: number): Promise<Pin>;
+  /** The pin, or null when there is none. */
+  pin(): Pin | null;
+  /** Where the pin's banner stands on the canvas, CSS pixels (the middle of its cloth); null when it is not on screen. */
+  pinOnScreen(): { x: number; y: number } | null;
   /** Every atlas slot and own-texture face of source A's (or B's) view, with the ones nothing painted listed by block and face. */
   textureCensus(which?: "a" | "b"): TextureCensus | null;
-  removePin(pin: string): boolean;
-  renamePin(pin: string, label: string): boolean;
+  removePin(): boolean;
   /**
-   * Runs a wheel action on a pin (by id or label) or on a bare point: spawn,
-   * fly, look, measure (`{ to }`), bookmark, copy-link, copy-coords, remove,
-   * pin, and any the host added. Spawn returns the game link without opening
-   * it unless `{ open: true }`.
+   * Runs a wheel action on the pin (`"pin"`) or on a bare point: spawn, fly,
+   * look, measure (from the pin; `{ to: [x, y, z] }`, a null y taking the
+   * ground), bookmark, copy-link, copy-coords, remove, pin, and any the
+   * host added. Spawn returns the game link without opening it unless
+   * `{ open: true }`.
    */
   pinAction(
-    target: string | [number, number | null, number],
+    target: "pin" | [number, number | null, number],
     action: string,
     args?: Record<string, unknown>,
   ): Promise<PinActionResult>;
@@ -183,49 +181,48 @@ export function installControl(
       return viewer.state();
     },
     pick: (x, y) => viewer.pickGround(x, y),
-    dropPin(x, y, z, options = {}) {
+    dropPin(x, y, z) {
       const height = y ?? viewer.surfaceAt(x, z);
       if (height === null) {
         return Promise.reject(
           new Error(`nothing loaded at ${x},${z} to pin; pass its height`),
         );
       }
-      return viewer.pins.drop([x, height, z], options.label);
+      return viewer.pins.drop([x, height, z]);
     },
-    pins: () => viewer.pins.list(),
+    pin: () => viewer.pins.current(),
+    pinOnScreen() {
+      const at = viewer.pins.onScreen();
+      if (!at) return null;
+      // The cloth hangs off the pole's right side, over its top quarter.
+      const tall = at.base[1] - at.top[1];
+      return { x: at.base[0] + tall * 0.15, y: at.top[1] + tall * 0.25 };
+    },
     textureCensus: (which = "a") => viewer.textureCensus(which),
-    removePin(pin) {
-      const found = viewer.pins.find(pin);
-      return found ? viewer.pins.remove(found.id) : false;
-    },
-    renamePin(pin, label) {
-      const found = viewer.pins.find(pin);
-      return found ? viewer.pins.rename(found.id, label) : false;
-    },
+    removePin: () => viewer.pins.remove(),
     pinAction(target, action, args = {}) {
-      let resolved: { pin: Pin | null; point: Vec3 };
-      if (typeof target === "string") {
-        const pin = viewer.pins.find(target);
-        if (!pin) {
-          return Promise.reject(
-            new Error(
-              `no pin ${target}; pins: ${
-                viewer.pins
-                  .list()
-                  .map((p) => p.label)
-                  .join(", ") || "none"
-              }`,
-            ),
-          );
-        }
-        resolved = { pin, point: pin.point };
-      } else {
-        const [x, y, z] = target;
+      const ground = ([x, y, z]: [number, number | null, number]) => {
         const height = y ?? viewer.surfaceAt(x, z);
-        if (height === null) {
-          return Promise.reject(new Error(`nothing loaded at ${x},${z}`));
+        if (height === null) throw new Error(`nothing loaded at ${x},${z}`);
+        return [x, height, z] as Vec3;
+      };
+      let resolved: { pin: Pin | null; point: Vec3 };
+      try {
+        if (target === "pin") {
+          const pin = viewer.pins.current();
+          if (!pin) throw new Error("there is no pin; drop one first");
+          resolved = { pin, point: pin.point };
+        } else {
+          resolved = { pin: null, point: ground(target) };
         }
-        resolved = { pin: null, point: [x, height, z] };
+        if (Array.isArray(args.to)) {
+          args = {
+            ...args,
+            to: ground(args.to as [number, number | null, number]),
+          };
+        }
+      } catch (error) {
+        return Promise.reject(error);
       }
       return viewer.pins.run(resolved, action, { open: false, ...args });
     },

@@ -101,7 +101,7 @@ export type ViewerHost = {
     standingEyeHeight?: number;
     /** How tall a pin stays on screen, CSS pixels. */
     screenHeight?: number;
-    /** Keep the pins in the page URL (`pins=`); on by default. */
+    /** Keep the pin in the page URL (`pin=x,y,z`); on by default. */
     persistInUrl?: boolean;
     /** Lines for the pin card from the column the backend reports (its `source` field). */
     describe?: (column: unknown) => PinFact[];
@@ -146,7 +146,7 @@ export type ViewerState = {
   fps: number;
   /** A flight under way, or the camera still easing after a move. */
   camera: { flying: boolean; settling: boolean };
-  pins: Pin[];
+  pin: Pin | null;
   bookmarks: Bookmark[];
   views: {
     id: string;
@@ -899,7 +899,7 @@ export class WorldViewer {
       shareLink: this.shareLink(),
       fps: this.fps,
       camera: { flying: this.rig.flying, settling: this.rig.isSettling() },
-      pins: this.pins.list(),
+      pin: this.pins.current(),
       bookmarks: [...this.bookmarks],
       views,
     };

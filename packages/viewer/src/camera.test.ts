@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CameraRig } from "./camera";
+import { CameraRig, orbitNear } from "./camera";
 import type { Pose, Vec3 } from "./pose";
 
 /** Enough of an element for the rig's listeners, driven with plain events. */
@@ -292,5 +292,20 @@ describe("flights", () => {
     const pose = camera.pose();
     pose.eye.forEach((v, i) => expect(v).toBeCloseTo(target.eye[i], 6));
     pose.look.forEach((v, i) => expect(v).toBeCloseTo(target.look[i], 6));
+  });
+});
+
+describe("the near plane", () => {
+  it("stays close for a walking eye and pulls out with an orbit, up to a cap", () => {
+    expect(orbitNear(40)).toBe(0.5);
+    expect(orbitNear(1024)).toBe(4);
+    expect(orbitNear(1e6)).toBe(8);
+    const camera = new CameraRig(element());
+    camera.setPose(orbitPose([0, 80, 0], 1024), "orbit");
+    camera.sync();
+    expect(camera.perspective.near).toBeCloseTo(4, 6);
+    camera.setPose(orbitPose([0, 80, 0], 1024), "free");
+    camera.sync();
+    expect(camera.perspective.near).toBe(0.5);
   });
 });

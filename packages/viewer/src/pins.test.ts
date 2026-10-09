@@ -10,21 +10,11 @@ import {
 import {
   formatCoordinates,
   measure,
-  nextPinLabel,
-  parsePins,
-  type Pin,
-  pinLabel,
-  serializePins,
+  pinFromUrl,
+  serializePin,
   standingPose,
 } from "./pins";
 import { sectorAt, slotOffset } from "./wheel";
-
-const pin = (label: string, point: [number, number, number]): Pin => ({
-  id: label,
-  label,
-  point,
-  facts: [],
-});
 
 describe("measure", () => {
   it("reports run, rise, distance and slope", () => {
@@ -44,27 +34,6 @@ describe("measure", () => {
   });
 });
 
-describe("pin labels", () => {
-  it("counts A to Z, then AA", () => {
-    expect([0, 1, 25, 26, 27, 51, 52, 701, 702].map(pinLabel)).toEqual([
-      "A",
-      "B",
-      "Z",
-      "AA",
-      "AB",
-      "AZ",
-      "BA",
-      "ZZ",
-      "AAA",
-    ]);
-  });
-
-  it("hands out the first label no pin uses", () => {
-    expect(nextPinLabel([])).toBe("A");
-    expect(nextPinLabel([pin("A", [0, 0, 0]), pin("C", [0, 0, 0])])).toBe("B");
-  });
-});
-
 describe("standingPose", () => {
   it("stands at the block's centre with the eyes over its top face, looking along the camera's heading", () => {
     const pose = standingPose([10.8, 70, -3.2], 0, 1.5);
@@ -81,20 +50,25 @@ describe("standingPose", () => {
   });
 });
 
-describe("pins in a URL", () => {
-  it("round-trips labels and points", () => {
-    const pins = [pin("A", [-106.25, 109, 127.5]), pin("camp; 2", [1, 2, 3])];
-    const text = serializePins(pins);
-    expect(parsePins(text)).toEqual([
-      { label: "A", point: [-106.3, 109, 127.5] },
-      { label: "camp; 2", point: [1, 2, 3] },
-    ]);
+describe("the pin in a URL", () => {
+  it("round-trips its point as pin=x,y,z", () => {
+    const text = serializePin([-106.25, 109, 127.5]);
+    expect(text).toBe("-106.3,109,127.5");
+    expect(pinFromUrl(`?a=new&pin=${text}`)).toEqual([-106.3, 109, 127.5]);
   });
 
-  it("refuses what it cannot read", () => {
-    expect(parsePins("")).toEqual([]);
-    expect(() => parsePins("A:1,2")).toThrow(/label:x,y,z/);
-    expect(() => parsePins("1,2,3")).toThrow(/label:x,y,z/);
+  it("takes the first pin of a link from before there was one", () => {
+    expect(pinFromUrl("?pins=A:-106.3,109,127.5;camp%3B%202:1,2,3")).toEqual([
+      -106.3, 109, 127.5,
+    ]);
+    expect(pinFromUrl("?pin=4,5,6&pins=A:1,2,3")).toEqual([4, 5, 6]);
+  });
+
+  it("carries none when the link has none, and refuses what it cannot read", () => {
+    expect(pinFromUrl("?a=new")).toBeNull();
+    expect(pinFromUrl("?pin=")).toBeNull();
+    expect(() => pinFromUrl("?pin=1,2")).toThrow(/x,y,z in pin/);
+    expect(() => pinFromUrl("?pins=A:1,x,3")).toThrow(/x,y,z in pins/);
   });
 });
 
