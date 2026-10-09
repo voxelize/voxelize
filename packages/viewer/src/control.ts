@@ -3,6 +3,7 @@
  * session API and a puppeteer script call, installed on
  * `window.__voxelizeViewer`. Everything is plain data in and out.
  */
+import type { FlightOptions, FlightResult } from "./camera";
 import { applyOptionPairs, parseOptions, type ViewerOptions } from "./options";
 import {
   type Bookmark,
@@ -10,6 +11,7 @@ import {
   type Pose,
   type Preset,
   PRESETS,
+  type Vec3,
 } from "./pose";
 import type { IdleReport, SourceRef, ViewerState, WorldViewer } from "./viewer";
 
@@ -28,7 +30,30 @@ export type ViewerControl = {
     settleFrames?: number;
   }): Promise<IdleReport>;
   bookmarks(): Bookmark[];
-  goTo(bookmarkId: string): ViewerState;
+  /** Jumps to a bookmark; `fly` eases there the way the toolbar does. */
+  goTo(
+    bookmarkId: string,
+    options?: { fly?: boolean } & FlightOptions,
+  ): ViewerState | Promise<ViewerState>;
+  /**
+   * Flies the camera to frame (x, y, z) as a double-click does, keeping the
+   * preset; a null y takes the ground there. Resolves when it lands or is
+   * cut short.
+   */
+  flyTo(
+    x: number,
+    y: number | null,
+    z: number,
+    options?: FlightOptions,
+  ): Promise<FlightResult>;
+  flyToPose(
+    pose: Pose,
+    preset?: Preset,
+    options?: FlightOptions,
+  ): Promise<FlightResult>;
+  cancelFlight(): ViewerState;
+  /** The ground point under canvas pixel (x, y), as a double-click there would fly to; null for sky. */
+  pick(x: number, y: number): Vec3 | null;
   query(x: number, z: number, which?: "a" | "b"): Promise<unknown>;
   shareLink(): string | null;
   /** Frame times over `ms` of real frames, for a frame-budget claim. */
@@ -108,15 +133,29 @@ export function installControl(
     },
     waitIdle: (options) => viewer.waitIdle(options),
     bookmarks: () => bookmarks,
-    goTo(id) {
+    goTo(id, options = {}) {
       const bookmark = bookmarks.find((b) => b.id === id);
       if (!bookmark)
         throw new Error(
           `no bookmark ${id}; known: ${bookmarks.map((b) => b.id).join(", ")}`,
         );
-      viewer.setPose(bookmark.pose, bookmark.preset ?? viewer.rig.preset);
+      const preset = bookmark.preset ?? viewer.rig.preset;
+      if (options.fly) {
+        return viewer
+          .flyToPose(bookmark.pose, preset, options)
+          .then(() => viewer.state());
+      }
+      viewer.setPose(bookmark.pose, preset);
       return viewer.state();
     },
+    flyTo: (x, y, z, options) => viewer.flyTo([x, y, z], options),
+    flyToPose: (pose, preset, options) =>
+      viewer.flyToPose(pose, preset, options),
+    cancelFlight() {
+      viewer.cancelFlight();
+      return viewer.state();
+    },
+    pick: (x, y) => viewer.pickGround(x, y),
     query: (x, z, which) => viewer.query(x, z, which),
     shareLink: () => viewer.shareLink(),
     measureFrames,

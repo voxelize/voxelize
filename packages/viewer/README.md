@@ -69,6 +69,45 @@ source names. Overlays are drawn in a composite pass that reconstructs each
 pixel's world position from depth, so they lie on near meshes and far tiles
 alike.
 
+## Camera
+
+Drag to orbit, right-drag (or Shift-drag) to pan, wheel to zoom, WASD to
+move, Space and Shift to rise and sink, Q and E to turn a quarter. In the
+free preset WASD keeps the camera's height (`levelFlight`; off flies along
+the view).
+
+The camera's height only changes because of something the user did. Once
+he pans, the look point follows the ground under it, read as the median of
+a footprint that scales with the view, so a tree, a pillar or a cliff step
+does not register, and eases there; at rest it ignores the heightfield
+refining as tiles stream in, unless the ground turns out to be a sizeable
+share of the view away. In the orbit preset the eye keeps a clearance over
+the ground beneath it, eased the same way. All of it is a critically
+damped spring solved per elapsed second (`dampTo` in `src/smoothing.ts`),
+so it moves the same at 30 frames a second as at 144. `smoothing` (seconds
+to cover 90% of a height change; 0 snaps, as the first version did) is a
+user option; `ViewerHost.camera` tunes the rest (`DEFAULT_CAMERA_FEEL`:
+footprint, dead bands, clearance, flight timing).
+
+Double-click a spot to fly there: the ground under the cursor is ray
+marched, then the camera eases (smootherstep, no overshoot, 0.6 to 1.2 s
+by distance) to frame it, closing in a step as a map does, in whatever
+preset it is in; on the top-down and isometric maps that is "zoom in
+here". Alt keeps the zoom. Any input during a flight stops it where it
+is. Bookmarks fly the same way, widening the frame mid-way when the trip
+is longer than the view.
+
+```ts
+viewer.flyTo([x, y, z]);                   // y may be null: the ground there
+viewer.flyToPose(pose, "orbit", { duration: 1 });
+window.__voxelizeViewer.flyTo(x, null, z); // the control surface; also pick(px, py), cancelFlight()
+```
+
+```bash
+voxelize-viewer --config my.config.ts fly-to 120,40         # the headless page's camera, as a double-click
+voxelize-viewer --config my.config.ts shot --bookmark a --fly-to 120,64,40
+```
+
 ## Hosting it
 
 A config module default-exports `{ port, server }` (`ViewerConfigModule`):

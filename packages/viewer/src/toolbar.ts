@@ -24,7 +24,7 @@ export function mountToolbar(
     return b;
   };
   const toggle = (
-    key: "water" | "plants" | "far" | "shadows" | "hud",
+    key: "water" | "plants" | "far" | "shadows" | "hud" | "levelFlight",
     text: string,
   ) => {
     const label = document.createElement("label");
@@ -49,6 +49,17 @@ export function mountToolbar(
   toggle("far", "far");
   toggle("shadows", "shadows");
   toggle("hud", "hud");
+  toggle("levelFlight", "level flight");
+  const smoothing = document.createElement("input");
+  smoothing.type = "range";
+  smoothing.min = "0";
+  smoothing.max = "2";
+  smoothing.step = "0.05";
+  smoothing.value = String(viewer.options.smoothing);
+  smoothing.title = "seconds the camera eases height changes over (0 snaps)";
+  smoothing.oninput = () =>
+    viewer.setOptions({ smoothing: Number(smoothing.value) });
+  bar.append("smoothing ", smoothing);
   for (const overlay of viewer.availableOverlays()) {
     const label = document.createElement("label");
     const box = document.createElement("input");
@@ -69,7 +80,7 @@ export function mountToolbar(
     for (const b of bookmarks) select.append(new Option(b.label, b.id));
     select.onchange = () => {
       const b = bookmarks.find((x) => x.id === select.value);
-      if (b) viewer.setPose(b.pose, b.preset ?? viewer.rig.preset);
+      if (b) void viewer.flyToPose(b.pose, b.preset ?? viewer.rig.preset);
       select.value = "";
     };
     bar.append(select);

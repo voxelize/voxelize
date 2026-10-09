@@ -75,6 +75,8 @@ export type CaptureRequest = {
   preset?: Preset;
   /** Centre (x, z) and half-size for a framed top or iso view. */
   around?: [number, number, number];
+  /** After posing, fly to frame this point as a double-click does; a null y takes the ground. */
+  flyTo?: [number, number | null, number];
   options?: string[];
   size?: [number, number];
   out?: string;
@@ -776,6 +778,23 @@ export class ViewerServer {
       }
       aroundPose = { eye: [x, ground + r, z + r], look: [x, ground, z] };
     }
+    if (request.flyTo && request.flyTo[1] === null) {
+      const [x, , z] = request.flyTo;
+      const reply = await a.backend.request<{
+        points: {
+          ground?: { y: number } | null;
+          source?: { surface?: number };
+        }[];
+      }>("query", { points: [[x, z]] });
+      const p = reply.points[0];
+      const ground = p?.ground?.y ?? p?.source?.surface;
+      if (ground === undefined) {
+        throw new Error(
+          `${a.resolved.label} has no ground at ${x},${z} to fly to; pass its height`,
+        );
+      }
+      request.flyTo = [x, ground, z];
+    }
     const state = await page.evaluate(
       async (req, refs, around) => {
         const control = window.__voxelizeViewer;
@@ -794,6 +813,10 @@ export class ViewerServer {
           control.setPose(around, "orbit");
           control.setPreset(req.preset ?? "top", req.around[2] * 2);
         } else if (req.preset) control.setPreset(req.preset);
+        if (req.flyTo) {
+          const [x, y, z] = req.flyTo;
+          await control.flyTo(x, y, z);
+        }
         return control.state();
       },
       request,

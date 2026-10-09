@@ -32,6 +32,14 @@ export type ViewerOptions = {
   swipe: number;
   /** Coordinates, legend and labels drawn over the canvas. */
   hud: boolean;
+  /**
+   * Seconds the camera takes to cover 90% of a height change it makes on
+   * its own (following the ground under the look point, clearing a ridge)
+   * and, in part, a wheel zoom; 0 snaps.
+   */
+  smoothing: number;
+  /** Free flight keeps its height unless Space or Shift asks; off flies along the view. */
+  levelFlight: boolean;
 };
 
 export const DEFAULT_OPTIONS: Readonly<ViewerOptions> = Object.freeze({
@@ -48,18 +56,28 @@ export const DEFAULT_OPTIONS: Readonly<ViewerOptions> = Object.freeze({
   split: "none",
   swipe: 0.5,
   hud: true,
+  smoothing: 0.75,
+  levelFlight: true,
 });
 
 const FOG_MODES: readonly FogMode[] = ["off", "distance", "game"];
 const SPLIT_MODES: readonly SplitMode[] = ["none", "side", "swipe"];
 
-const BOOLEAN_KEYS = ["water", "plants", "far", "shadows", "hud"] as const;
+const BOOLEAN_KEYS = [
+  "water",
+  "plants",
+  "far",
+  "shadows",
+  "hud",
+  "levelFlight",
+] as const;
 const NUMBER_KEYS = {
   time: [0, 1],
   overlayOpacity: [0, 1],
   nearRadius: [1, 48],
   farDistance: [0, 16384],
   swipe: [0, 1],
+  smoothing: [0, 3],
 } as const;
 
 function parseBoolean(key: string, value: string): boolean {

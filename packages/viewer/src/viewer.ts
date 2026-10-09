@@ -27,7 +27,12 @@ import {
   type Camera,
 } from "three";
 
-import { CameraRig } from "./camera";
+import {
+  type CameraFeel,
+  CameraRig,
+  type FlightOptions,
+  type FlightResult,
+} from "./camera";
 import { ChunkLayer, type ChunkLayerOptions } from "./chunk-layer";
 import { FarLayer, FarTileClient, type FarPalette } from "./far-layer";
 import { nearRadiusFor } from "./lod";
@@ -78,6 +83,8 @@ export type ViewerHost = {
   labelFont?: string;
   fov?: number;
   chunkLayer?: Partial<ChunkLayerOptions>;
+  /** Tunes how the camera follows the ground and flies (`DEFAULT_CAMERA_FEEL`). */
+  camera?: Partial<CameraFeel>;
 };
 
 type View = {
@@ -102,6 +109,8 @@ export type ViewerState = {
   hover: Vec3 | null;
   shareLink: string | null;
   fps: number;
+  /** A flight under way, or the camera still easing after a move. */
+  camera: { flying: boolean; settling: boolean };
   views: {
     id: string;
     label: string;
@@ -299,6 +308,9 @@ export class WorldViewer {
 
   private pointer: { x: number; y: number } | null = null;
 
+  /** Where the last double-click sent the camera, ringed on the HUD while it flies. */
+  private flightMark: { point: Vec3; at: number } | null = null;
+
   private lastNotify = 0;
 
   constructor(
@@ -329,6 +341,8 @@ export class WorldViewer {
     this.rig = new CameraRig(this.canvas, host.fov ?? 60);
     this.rig.groundAt = (x, z) => this.groundAt(x, z);
     this.rig.onChange = () => this.notify();
+    Object.assign(this.rig.feel, host.camera ?? {});
+    this.applyCameraOptions();
 
     this.composite = new ShaderMaterial({
       vertexShader: COMPOSITE_VERTEX,
@@ -373,6 +387,23 @@ export class WorldViewer {
     this.canvas.addEventListener("pointerleave", () => {
       this.pointer = null;
       this.hover = null;
+    });
+    // The second press of a double-click would select page text near the canvas.
+    this.canvas.addEventListener("mousedown", (e) => {
+      if (e.detail > 1) e.preventDefault();
+    });
+    // Double-click flies to the ground under the cursor; Alt keeps the zoom
+    // (Shift is already the zoom-out key and the pan modifier).
+    this.canvas.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      const rect = this.canvas.getBoundingClientRect();
+      const point = this.pickGround(
+        e.clientX - rect.left,
+        e.clientY - rect.top,
+      );
+      if (!point) return;
+      this.flightMark = { point, at: performance.now() };
+      void this.flyTo(point, { keepZoom: e.altKey });
     });
 
     new ResizeObserver(() => this.resize()).observe(container);
@@ -563,7 +594,104 @@ export class WorldViewer {
     const split = this.options.split;
     this.options = { ...this.options, ...next };
     if (this.options.split !== split) this.resize();
+    this.applyCameraOptions();
     this.notify(true);
+  }
+
+  /**
+   * Flies the camera to frame (x, y, z), keeping the preset; a null y takes
+   * the ground there. Resolves when it lands, or as not completed when input
+   * or another move cuts it short.
+   */
+  flyTo(
+    point: [number, number | null, number],
+    options: FlightOptions = {},
+  ): Promise<FlightResult> {
+    const [x, given, z] = point;
+    const y = given ?? this.surfaceAt(x, z);
+    if (y === null) {
+      return Promise.reject(
+        new Error(`nothing loaded at ${x},${z} to fly to; pass its height`),
+      );
+    }
+    return this.rig
+      .flyToPoint([x, y, z], options)
+      .finally(() => this.notify(true));
+  }
+
+  /** Flies to `pose` in `preset` (default: the current one). */
+  flyToPose(
+    pose: Pose,
+    preset?: Preset,
+    options: FlightOptions = {},
+  ): Promise<FlightResult> {
+    return this.rig
+      .flyToPose(pose, preset ?? this.rig.preset, options)
+      .finally(() => this.notify(true));
+  }
+
+  /** Stops a flight where it is. */
+  cancelFlight() {
+    this.rig.cancelFlight();
+  }
+
+  /**
+   * The ground point under canvas pixel (px, py), in either half of a side
+   * by side split, or null where the ray meets nothing loaded.
+   */
+  pickGround(px: number, py: number): Vec3 | null {
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
+    const split = this.options.split === "side" && this.views.b;
+    const viewWidth = split ? width / 2 : width;
+    const x = split && px > viewWidth ? px - viewWidth : px;
+    const camera = this.rig.camera;
+    const ndc = new Vector3(
+      (x / viewWidth) * 2 - 1,
+      -(py / height) * 2 + 1,
+      -1,
+    );
+    const origin = ndc.clone().unproject(camera);
+    const direction = new Vector3(ndc.x, ndc.y, 1)
+      .unproject(camera)
+      .sub(origin)
+      .normalize();
+    const at = (t: number) => origin.clone().addScaledVector(direction, t);
+    const below = (p: Vector3) => {
+      const ground = this.surfaceAt(p.x, p.z);
+      return ground !== null && p.y <= ground;
+    };
+    let last = 0;
+    let t = 0;
+    for (let i = 0; i < 6000 && t < 12000; i++) {
+      if (below(at(t))) {
+        // March back between the last step above the ground and this one.
+        let lo = last;
+        let hi = t;
+        for (let k = 0; k < 16; k++) {
+          const mid = (lo + hi) / 2;
+          if (below(at(mid))) hi = mid;
+          else lo = mid;
+        }
+        const p = at(hi);
+        return [p.x, this.surfaceAt(p.x, p.z) ?? p.y, p.z];
+      }
+      last = t;
+      t += Math.max(0.5, t * 0.004);
+    }
+    return null;
+  }
+
+  private applyCameraOptions() {
+    this.rig.smoothing = this.options.smoothing;
+    this.rig.levelFlight = this.options.levelFlight;
+  }
+
+  /** Top of the column at (x, z) from the near chunks, else the far layer. */
+  private surfaceAt(x: number, z: number): number | null {
+    const view = this.views.a;
+    if (!view) return null;
+    return view.chunks.heightAt(x, z) ?? view.far.heightAt(x, z);
   }
 
   pose(): Pose {
@@ -614,6 +742,7 @@ export class WorldViewer {
       hover: this.hover,
       shareLink: this.shareLink(),
       fps: this.fps,
+      camera: { flying: this.rig.flying, settling: this.rig.isSettling() },
       views,
     };
   }
@@ -629,7 +758,10 @@ export class WorldViewer {
     while (performance.now() - started < timeoutMs) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const views = this.state().views;
-      const idle = views.length > 0 && views.every((v) => v.idle);
+      const idle =
+        views.length > 0 &&
+        views.every((v) => v.idle) &&
+        !this.rig.isSettling();
       steady = idle ? steady + 1 : 0;
       if (steady >= settleFrames) {
         return {
@@ -841,45 +973,48 @@ export class WorldViewer {
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.quadScene, this.quadCamera);
 
-    this.updateHover(camera);
+    this.updateHover();
     this.drawHud(camera, overlays);
     this.notify();
   }
 
-  private updateHover(camera: Camera) {
+  private updateHover() {
     if (!this.pointer || this.frame % 4 !== 0) return;
-    const width = this.canvas.clientWidth;
-    const height = this.canvas.clientHeight;
-    const split = this.options.split === "side" && this.views.b;
-    const viewWidth = split ? width / 2 : width;
-    const px =
-      split && this.pointer.x > viewWidth
-        ? this.pointer.x - viewWidth
-        : this.pointer.x;
-    const ndc = new Vector3(
-      (px / viewWidth) * 2 - 1,
-      -(this.pointer.y / height) * 2 + 1,
-      -1,
-    );
-    const origin = ndc.clone().unproject(camera);
-    const toward = new Vector3(ndc.x, ndc.y, 1).unproject(camera);
-    const direction = toward.sub(origin).normalize();
-    let t = 0;
-    for (let i = 0; i < 6000 && t < 12000; i++) {
-      const x = origin.x + direction.x * t;
-      const y = origin.y + direction.y * t;
-      const z = origin.z + direction.z * t;
-      const ground =
-        this.views.a?.chunks.heightAt(x, z) ??
-        this.views.a?.far.heightAt(x, z) ??
-        null;
-      if (ground !== null && y <= ground) {
-        this.hover = [x, ground, z];
-        return;
-      }
-      t += Math.max(0.5, t * 0.004);
+    this.hover = this.pickGround(this.pointer.x, this.pointer.y);
+  }
+
+  /** A ring at the double-clicked spot that closes in and fades as the camera arrives. */
+  private drawFlightMark(
+    context: CanvasRenderingContext2D,
+    camera: Camera,
+    width: number,
+    height: number,
+  ) {
+    const mark = this.flightMark;
+    if (!mark) return;
+    const age = (performance.now() - mark.at) / 1000;
+    const life = this.rig.feel.flightMax + 0.4;
+    if (age > life) {
+      this.flightMark = null;
+      return;
     }
-    this.hover = null;
+    const p = new Vector3(...mark.point).project(camera);
+    if (p.z < -1 || p.z > 1) return;
+    const x = ((p.x + 1) / 2) * width;
+    const y = ((1 - p.y) / 2) * height;
+    const share = age / life;
+    context.save();
+    context.globalAlpha = 1 - share;
+    context.strokeStyle = "#ffd24a";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.arc(x, y, 22 - 14 * share, 0, Math.PI * 2);
+    context.stroke();
+    context.beginPath();
+    context.arc(x, y, 2.5, 0, Math.PI * 2);
+    context.fillStyle = "#ffd24a";
+    context.fill();
+    context.restore();
   }
 
   private drawHud(camera: Camera, overlays: ViewerOverlay[]) {
@@ -907,6 +1042,7 @@ export class WorldViewer {
       context.fillStyle = color;
       context.fillText(text, x, y);
     };
+    this.drawFlightMark(context, camera, width, height);
     const annotationsOn = overlays.some((o) => o.kind === "annotations");
     if (annotationsOn && this.views.a && this.options.split !== "side") {
       const seen: { x: number; y: number }[] = [];
