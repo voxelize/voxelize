@@ -4568,10 +4568,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         this.initialData = json;
 
-        if (entities) {
-          this.initialEntities = entities;
-        }
-
         // An INIT on an already-initialized world is a rejoin after a
         // reconnect. The server process behind it may be brand new, holding
         // none of the chunks this client renders, so resync every chunk
@@ -4580,6 +4576,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         // immediately instead of idling until the rerequest interval.
         if (this.isInitialized) {
           this.resyncChunkStagesAfterRejoin();
+          this.resyncBlockEntitiesAfterRejoin(entities ?? []);
+        } else if (entities) {
+          this.initialEntities = entities;
         }
 
         break;
@@ -5030,6 +5029,41 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  /**
+   * A rejoin's INIT carries every block entity in the world, and the server
+   * counts each one as delivered: it sends none of them again, and never a
+   * delete for one removed while this client was away. Those entities used
+   * to be parked as initial entities, which only a first join ever reads,
+   * so a rejoined client kept whatever it had from before the drop. The
+   * INIT is the whole truth: record what it carries, and delete what it no
+   * longer has.
+   */
+  private resyncBlockEntitiesAfterRejoin(entities: EntityProtocol<any>[]) {
+    const present = new Set<string>();
+    for (const { type, metadata } of entities) {
+      if (!type.startsWith("block::") || !metadata?.voxel) continue;
+      const [px, py, pz] = metadata.voxel;
+      present.add(
+        ChunkUtils.getVoxelName([
+          Math.floor(px),
+          Math.floor(py),
+          Math.floor(pz),
+        ]),
+      );
+    }
+    const gone: EntityProtocol<any>[] = [];
+    for (const [voxelId, entry] of this.blockEntities.entries()) {
+      if (present.has(voxelId)) continue;
+      gone.push({
+        id: entry.id,
+        type: entry.etype,
+        operation: "DELETE",
+        metadata: { voxel: ChunkUtils.parseVoxelName(voxelId), json: null },
+      });
+    }
+    this.handleEntities([...gone, ...entities]);
+  }
+
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
@@ -5378,10 +5412,20 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.releaseBorderSwaps(x, z);
     });
 
+    const { renderRadius } = this;
+    const { chunkRerequestIntervalMs } = this.options;
     this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
+      const distanceSquared = (x - centerX) ** 2 + (z - centerZ) ** 2;
 
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+      // `requestChunks` retries a lost request only inside the render
+      // radius. One lost past it, but short of the delete radius that
+      // would evict it, stayed requested for as long as the player stood
+      // there: a hole that counted as pending work forever.
+      const isLostOutsideView =
+        distanceSquared > renderRadius ** 2 &&
+        this.chunkPipeline.isRequestStale(name, chunkRerequestIntervalMs);
+      if (distanceSquared > deleteRadius ** 2 || isLostOutsideView) {
         this.chunkPipeline.remove(name);
         this.sectionVisibility?.removeChunk(x, z);
         deleted.push([x, z]);
