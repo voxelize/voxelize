@@ -14,6 +14,7 @@ import {
   FAR_TERRAIN_METHOD,
   FarBuiltTile,
   FarTerrain,
+  FarTerrainOptions,
   FarTerrainSharedUniforms,
 } from "./far-terrain";
 import {
@@ -210,7 +211,7 @@ describe("FarTerrain materials", () => {
 });
 
 describe("FarTerrain detail", () => {
-  it("dissolves a tile in over the fade, then draws it whole", async () => {
+  it("draws a tile that lands where nothing is shown", async () => {
     const far = new FarTerrain(shared(), {
       distance: 256,
       buildMesh: syncBuild,
@@ -221,7 +222,7 @@ describe("FarTerrain detail", () => {
     far.onMethodReply(FAR_TERRAIN_METHOD, tileReply());
     await settle(far, () => landMeshes(far).length > 0);
     const [mesh] = landMeshes(far);
-    // The frame after it lands, the tile is drawn and starts dissolving in.
+    // The frame after it lands, the tile is drawn.
     far.update(new Vector3(2, 120, 2), world);
     expect(far.stats.tilesDrawn).toBe(1);
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -351,18 +352,19 @@ describe("FarTerrain detail", () => {
 });
 
 describe("FarTerrain coverage", () => {
-  it("stands in for a chunk on its way only with the detail the plan wants there", async () => {
-    // Two levels of 9-sample tiles: a level-0 tile is one chunk column.
+  // Two levels of 9-sample tiles: a level-0 tile is one chunk column, and
+  // the viewer stands in column (0, 0), the one still on its way.
+  const coverage = (options: Partial<FarTerrainOptions>) => {
     const uniforms = shared();
     const far = new FarTerrain(uniforms, {
       distance: 1,
       buildMesh: syncBuild,
       faceLook: () => grass,
       fadeMs: 1,
-      evictAfterMs: 60_000,
       requestIntervalMs: 0,
       retryAfterMs: 60_000,
       maxTilesPerRequest: 100,
+      ...options,
     });
     far.configure({ ...descriptor, tileSamples: 9, levels: 2 });
     let isLanded = false;
@@ -407,39 +409,115 @@ describe("FarTerrain coverage", () => {
         await new Promise((resolve) => setTimeout(resolve, 2));
       }
     };
+    const land = () => {
+      isLanded = true;
+      chunks.loadedGeneration = 1;
+      far.update(at, chunks);
+    };
+    return { far, coveredAt, reply, run, land };
+  };
 
-    // Only the coarser tile has landed: it stands in for the layer, but
-    // not for the chunk, whose column keeps showing sky.
+  it("stands in for a chunk on its way with any tile it draws", async () => {
+    const { far, coveredAt, reply, run, land } = coverage({
+      pendingGuardRadius: 0,
+    });
+
+    // Only the coarser tile has landed, drawn in place of the one the
+    // plan wants: it keeps the column's terrain rather than a hole of sky.
     reply(1);
-    await run(() => far.stats.levelCounts[1] === 1);
-    await run(() => false);
-    expect(far.stats.levelCounts).toEqual([0, 1]);
-    expect(coveredAt(0, 0)).toBe(255);
-    expect(far.stats.pendingCovered).toBe(1);
-    expect(far.stats.pendingStoodIn).toBe(0);
-    expect(far.drawsColumn(0, 0)).toBe(false);
-
-    // The tile the plan wants arrives and dissolves in: it keeps drawing
-    // the column until the chunk lands.
-    reply(0);
     await run(() => far.stats.pendingStoodIn === 1);
-    expect(far.stats.levelCounts).toEqual([1, 0]);
+    expect(far.stats.levelCounts).toEqual([0, 1]);
     expect(coveredAt(0, 0)).toBe(0);
     expect(far.stats.pendingCovered).toBe(0);
     expect(far.drawsColumn(0, 0)).toBe(true);
-    expect(far.drawsColumn(1, 0)).toBe(false);
+    // The coarser tile spans two columns; the third lies past it.
+    expect(far.drawsColumn(2, 0)).toBe(false);
+
+    // The tile the plan wants takes over, and keeps standing in.
+    reply(0);
+    await run(() => far.stats.levelCounts[0] === 1);
+    await run(() => far.stats.pendingStoodIn === 1);
+    expect(far.stats.levelCounts).toEqual([1, 0]);
+    expect(coveredAt(0, 0)).toBe(0);
 
     // The chunk lands and draws: the far layer leaves it.
-    isLanded = true;
-    chunks.loadedGeneration = 1;
-    far.update(at, chunks);
+    land();
     expect(coveredAt(0, 0)).toBe(255);
     expect(far.stats.pendingStoodIn).toBe(0);
 
     // A layer switched off draws nothing, whatever it last stood in for.
     far.distance = 0;
-    far.update(at, chunks);
+    land();
     expect(far.drawsColumn(0, 0)).toBe(false);
+  });
+
+  it("shows a tile over nothing whole at once, but dissolves one over a coarser tile", async () => {
+    const { far, reply, run } = coverage({
+      pendingGuardRadius: 0,
+      fadeMs: 60_000,
+    });
+    // Nothing of the column's ground is on screen: the coarser tile is
+    // whole on its first frame, so it stands in at once.
+    reply(1);
+    await run(() => far.stats.levelCounts[1] === 1);
+    expect(far.drawsColumn(0, 0)).toBe(true);
+    // The finer tile lands over it and dissolves in over the minute's
+    // fade; the coarser one keeps standing in while it dissolves out.
+    reply(0);
+    await run(() => far.stats.levelCounts[0] === 1);
+    await run(() => false);
+    expect(far.stats.levelCounts).toEqual([1, 0]);
+    expect(far.drawsColumn(0, 0)).toBe(true);
+    expect(far.stats.pendingCovered).toBe(0);
+  });
+
+  it("keeps sky over a chunk on its way right by the viewer", async () => {
+    const { far, coveredAt, reply, run } = coverage({});
+    reply(0);
+    await run(() => far.stats.levelCounts[0] === 1);
+    await run(() => false);
+    // The tile is drawn, but a column inside the guard radius never shows
+    // a stand-in: from a canyon floor it would show through the walls.
+    expect(far.stats.levelCounts).toEqual([1, 0]);
+    expect(coveredAt(0, 0)).toBe(255);
+    expect(far.stats.pendingCovered).toBe(1);
+    expect(far.stats.pendingStoodIn).toBe(0);
+    expect(far.drawsColumn(0, 0)).toBe(false);
+  });
+
+  it("keeps a tile it stopped drawing for a minute, under the cap", async () => {
+    const far = new FarTerrain(shared(), {
+      distance: 1,
+      buildMesh: syncBuild,
+      faceLook: () => grass,
+      fadeMs: 1,
+      requestIntervalMs: 0,
+      retryAfterMs: 60_000,
+    });
+    far.configure({ ...descriptor, levels: 1 });
+    far.update(new Vector3(2, 120, 2), world);
+    far.onMethodReply(FAR_TERRAIN_METHOD, tileReply());
+    await settle(far, () => far.stats.levelCounts[0] === 1);
+    // Far away, the tile is drawn no more and dissolves out.
+    const away = new Vector3(82, 120, 2);
+    for (let i = 0; i < 6; i++) {
+      far.update(away, world);
+      await flush();
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    expect(far.stats.tilesDrawn).toBe(0);
+    expect(far.stats.tilesResident).toBe(1);
+    // Twenty seconds on it is still there for the way back; past a minute
+    // it leaves.
+    const left = performance.now();
+    const clock = vi.spyOn(performance, "now");
+    clock.mockReturnValue(left + 20_000);
+    far.update(away, world);
+    expect(far.stats.tilesResident).toBe(1);
+    clock.mockReturnValue(left + 61_000);
+    far.update(away, world);
+    expect(far.stats.tilesResident).toBe(0);
+    vi.restoreAllMocks();
   });
 });
 

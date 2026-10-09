@@ -196,8 +196,19 @@ export type FarTerrainOptions = {
   fadeMs: number;
   /** Tiles kept resident at most; the least recently drawn leave first. */
   maxResidentTiles: number;
-  /** A tile no plan has drawn for this long leaves even under the cap. */
+  /**
+   * A tile no plan has drawn for this long leaves even under the cap: long
+   * enough that a trip away and back (a teleport home) finds the tiles it
+   * left still resident.
+   */
   evictAfterMs: number;
+  /**
+   * Chunk columns nearer the viewer's than this, in chunks, show sky and
+   * fog while still on their way, whatever tile could stand in: right by
+   * the viewer, a coarse tile shows through the walls of a canyon. Further
+   * out any drawn tile stands in. 0 lets one stand in everywhere.
+   */
+  pendingGuardRadius: number;
   /** Tile builds in flight at once. */
   maxBuildsInFlight: number;
   /**
@@ -238,7 +249,8 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
   lod: DEFAULT_FAR_LOD,
   fadeMs: 450,
   maxResidentTiles: 640,
-  evictAfterMs: 4000,
+  evictAfterMs: 60_000,
+  pendingGuardRadius: 3,
   maxBuildsInFlight: 4,
   buildMesh: null,
   maxTilesPerRequest: 16,
@@ -278,14 +290,13 @@ export type FarTerrainStats = {
   /** Mask rebuilds. */
   maskRebuilds: number;
   /** Chunk columns inside the render radius the last mask covered because
-   * they were still on their way (not loaded yet) with no tile fit to stand
-   * in: many right after arriving somewhere, 0 once everything inside has
-   * landed. */
+   * they were still on their way (not loaded yet), inside the guard radius
+   * or under no drawn tile: 0 once everything inside has landed. */
   pendingCovered: number;
   /**
    * Chunk columns still on their way the last mask left to the far layer,
-   * under tiles drawn at the detail the plan wants: the strip a flight or
-   * a walk brings inside the render radius keeps the terrain it showed.
+   * under drawn tiles: the strip a flight brings inside the render radius,
+   * or the ground around a teleport's end, keeps the terrain it showed.
    */
   pendingStoodIn: number;
   /** Triangles across every built tile mesh in the scene. */
@@ -769,10 +780,10 @@ export class FarTerrain extends Group {
   private coverageBuiltAt = 0;
 
   /**
-   * Tiles drawn at the detail the plan wants and fully dissolved in: the
-   * only ones trusted to stand in for a chunk column still on its way. A
-   * coarser stand-in drawn while finer tiles load is not, so a fresh
-   * arrival still shows sky and fog there rather than blocky ground.
+   * Tiles drawn and fully dissolved in, at whatever detail, and those still
+   * dissolving out under their replacement: the ones that stand in for a
+   * chunk column still on its way outside the guard radius
+   * (`pendingGuardRadius`).
    */
   private standIns = new Set<string>();
 
@@ -1023,10 +1034,10 @@ export class FarTerrain extends Group {
    * `isChunkPending` says whether a chunk column inside the render radius
    * still owes its terrain (not loaded, or loaded with its mesh still being
    * built at some level; a loaded, meshed chunk with nothing to draw is not
-   * pending): the mask covers those too, so a coarse stand-in never shows
-   * through a hole that real terrain is about to fill. Where a tile drawn
-   * at the detail the plan wants lies over such a column, that tile keeps
-   * drawing until the chunk lands instead of opening a hole of sky.
+   * pending): the mask covers those within `pendingGuardRadius` of the
+   * viewer, so a coarse tile never shows through the walls around it.
+   * Further out, a drawn tile over such a column keeps drawing until the
+   * chunk lands instead of opening a hole of sky.
    */
   update(
     position: Vector3,
@@ -1281,11 +1292,23 @@ export class FarTerrain extends Group {
         }
       }
       tile.isDrawn = isDrawn;
+      // With nothing of its ground on screen there is nothing to dissolve
+      // over (a teleport's end, a tile kept from an earlier visit): it shows
+      // whole at once instead of rising out of the sky.
+      if (isDrawn && tile.opacity === 0 && !this.isGroundShown(tile.data.key)) {
+        tile.opacity = 1;
+      }
       tile.opacity = Math.min(
         1,
         Math.max(0, tile.opacity + (isDrawn ? step : -step)),
       );
-      if (isDrawn && wantedIds.has(id) && tile.opacity >= 1) standIns.add(id);
+      // A stand-in keeps standing in while it dissolves out under what
+      // replaces it: together the two draw every pixel of their ground.
+      if (
+        isDrawn ? tile.opacity >= 1 : tile.opacity > 0 && this.standIns.has(id)
+      ) {
+        standIns.add(id);
+      }
       for (const mesh of [tile.land, tile.sky]) {
         if (!mesh) continue;
         mesh.visible = tile.opacity > 0;
@@ -1672,7 +1695,11 @@ export class FarTerrain extends Group {
       world.renderRadius,
       world.isChunkPending,
     )) {
-      if (this.isStoodIn(column[0], column[1], world.chunkSize)) stoodIn += 1;
+      if (
+        !this.isGuarded(column[0], column[1]) &&
+        this.isStoodIn(column[0], column[1], world.chunkSize)
+      )
+        stoodIn += 1;
       else covered.push(column);
     }
     this.stats.pendingCovered = covered.length;
@@ -1696,14 +1723,51 @@ export class FarTerrain extends Group {
   }
 
   /**
-   * Whether the layer draws the whole of a chunk column at the detail its
-   * plan wants, as it does over a column still on its way. A chunk landing
+   * Whether the layer draws the whole of a chunk column, as it does over a
+   * column still on its way outside the guard radius. A chunk landing
    * there replaces terrain already on screen, so a host can land it as
    * itself rather than reveal it out of the fog, which would flash over
    * that terrain.
    */
   drawsColumn(cx: number, cz: number) {
-    return this.visible && this.isStoodIn(cx, cz, this.chunkSize);
+    return (
+      this.visible &&
+      !this.isGuarded(cx, cz) &&
+      this.isStoodIn(cx, cz, this.chunkSize)
+    );
+  }
+
+  /** Whether a coarser or finer tile over the same ground is on screen. */
+  private isGroundShown(key: FarTileKey) {
+    const isShown = (level: number, tx: number, tz: number) =>
+      (this.resident.get(farTileId({ level, tx, tz }))?.opacity ?? 0) > 0;
+    const top = (this.descriptor?.levels ?? 1) - 1;
+    let { tx, tz } = key;
+    for (let level = key.level + 1; level <= top; level++) {
+      tx = Math.floor(tx / 2);
+      tz = Math.floor(tz / 2);
+      if (isShown(level, tx, tz)) return true;
+    }
+    let span = 1;
+    for (let level = key.level - 1; level >= 0; level--) {
+      span *= 2;
+      for (let i = 0; i < span; i++) {
+        for (let j = 0; j < span; j++) {
+          if (isShown(level, key.tx * span + i, key.tz * span + j)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** Whether a column lies within `pendingGuardRadius` of the viewer's. */
+  private isGuarded(cx: number, cz: number) {
+    const center = this.coverageCenter;
+    if (!center) return true;
+    const dx = cx - center[0];
+    const dz = cz - center[1];
+    const radius = this.options.pendingGuardRadius;
+    return dx * dx + dz * dz < radius * radius;
   }
 
   /**

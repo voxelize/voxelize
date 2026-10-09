@@ -289,7 +289,7 @@ export function isChunkColumnPending(
  * inside a canyon that reads as seeing through the walls for a second; the
  * coverage mask counts them as covered, so sky and fog show there instead
  * until the chunk's own terrain lands, unless the far layer already draws
- * that column at the detail its plan wants. The disc is the one the chunk
+ * that column away from the viewer. The disc is the one the chunk
  * requests walk; `isPending` answers for one column (a column outside the
  * world, or one loaded and meshed with nothing to draw, is not pending).
  */
