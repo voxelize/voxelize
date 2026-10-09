@@ -269,7 +269,7 @@ pub struct BranchLayout {
 }
 
 /// A cell of a wide section, as its layout needs it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WideCell {
     pub section: WideBranchSection,
     /// Cells from the core, on x and z.
@@ -279,8 +279,9 @@ pub struct WideCell {
     /// Whether the trunk carries on below and above this level: a face
     /// there is the bark of a ledge, not the rings of an end.
     pub carries_on: [bool; 2],
-    /// Whether the cell below and above draws a slice covering this one's.
-    pub covered: [bool; 2],
+    /// The boxes the level below and above draws in this cell's column
+    /// (`[x0, z0, x1, z1]`), which cover that much of its bottom and top.
+    pub beyond: [Vec<[u32; 4]>; 2],
 }
 
 /// The joint a branch of `radius` makes with what lies on one side.
@@ -457,10 +458,11 @@ impl BranchLayout {
         }
     }
 
-    /// Lay out a cell of a wide section: its slice of the section's tube,
-    /// the whole height of the voxel, and an arm from the tube's surface out
-    /// to each one-voxel branch or fin it joins beside it. A cut core lays
-    /// out nothing.
+    /// Lay out a cell of a wide section: the boxes of its slice of the
+    /// section's round tube, the whole height of the voxel, and an arm from
+    /// the tube's surface out to each one-voxel branch or fin it joins beside
+    /// it. An arm starts where the slice ends across its cross-section, so no
+    /// two parts overlap. A cut core lays out nothing.
     pub fn wide(shape: &BranchShape, cell: WideCell, sides: [BranchSide; SIDES]) -> Self {
         let t = shape.texels_per_block as i32;
         let c = t / 2;
@@ -478,31 +480,39 @@ impl BranchLayout {
         });
 
         let mut parts = Vec::new();
-        let spans = (
-            cell.section.span(cell.offset[0]),
-            cell.section.span(cell.offset[1]),
-        );
-        if let (false, Some((x0, x1)), Some((z0, z1))) = (cell.cut, spans.0, spans.1) {
-            let slice_min = [x0 as i32, 0, z0 as i32];
-            let slice_max = [x1 as i32, t, z1 as i32];
-            parts.push(BranchPart {
-                kind: BranchPartKind::Core,
-                min: slice_min,
-                max: slice_max,
-                axis: 1,
-                centre: [c; 3],
-            });
+        if !cell.cut {
+            let boxes = cell.section.cell_boxes(cell.offset[0], cell.offset[1]);
+            for &[x0, z0, x1, z1] in &boxes {
+                parts.push(BranchPart {
+                    kind: BranchPartKind::Core,
+                    min: [x0 as i32, 0, z0 as i32],
+                    max: [x1 as i32, t, z1 as i32],
+                    axis: 1,
+                    centre: [c; 3],
+                });
+            }
             for side in [0, 1, 4, 5] {
                 let j = joints[side] as i32;
-                if j == 0 || matches!(sides[side], BranchSide::Section | BranchSide::Socket { .. })
+                if boxes.is_empty()
+                    || j == 0
+                    || matches!(sides[side], BranchSide::Section | BranchSide::Socket { .. })
                 {
                     continue;
                 }
                 let along = side_axis(side);
+                // The slice boxes lying across the arm's cross-section, on
+                // the other horizontal axis.
+                let (lo, hi) = if along == 0 { (1, 3) } else { (0, 2) };
+                let across: Vec<&[u32; 4]> = boxes
+                    .iter()
+                    .filter(|b| (b[lo] as i32) < c + j && (b[hi] as i32) > c - j)
+                    .collect();
                 let (start, end) = if side_is_positive(side) {
-                    (slice_max[along], t)
+                    let far = if along == 0 { 2 } else { 3 };
+                    (across.iter().map(|b| b[far] as i32).max().unwrap_or(0), t)
                 } else {
-                    (0, slice_min[along])
+                    let near = if along == 0 { 0 } else { 1 };
+                    (0, across.iter().map(|b| b[near] as i32).min().unwrap_or(t))
                 };
                 if start >= end {
                     continue;
@@ -612,7 +622,7 @@ impl BranchLayout {
 
     /// Every face this voxel shows, given what lies beyond each of its sides.
     pub fn faces(&self, beyond: &[BranchBeyond; SIDES]) -> Vec<BranchQuad> {
-        if let Some(cell) = self.wide {
+        if let Some(cell) = &self.wide {
             return self.wide_faces(cell, beyond);
         }
         let t = self.texels_per_block;
@@ -675,14 +685,19 @@ impl BranchLayout {
     }
 
     /// The faces of a wide section's cell. Its slice shows bark on the
-    /// tube's surface. A face on the boundary with the section's next cell
-    /// is dropped, and where that cell is gone (felled, or the cut core) the
-    /// face shows the cut wood's rings. The top and bottom show the bark of a
-    /// ledge, or the rings of the trunk's end where nothing carries it on,
-    /// and are dropped where the level beyond covers them. An arm's far end
-    /// is open: the branch it joins carries on.
-    fn wide_faces(&self, cell: WideCell, beyond: &[BranchBeyond; SIDES]) -> Vec<BranchQuad> {
+    /// tube's surface and on the risers between its boxes. Where the
+    /// section's next cell carries the tube on, the face on their boundary
+    /// is dropped as far as that cell's boxes reach; where the cell is gone
+    /// (felled, or the cut core) the face shows the cut wood's rings. The top
+    /// and bottom show the bark of a ledge, or the rings of the trunk's end
+    /// where nothing carries it on, less what the level beyond covers. An
+    /// arm's far end is open: the branch it joins carries on.
+    fn wide_faces(&self, cell: &WideCell, beyond: &[BranchBeyond; SIDES]) -> Vec<BranchQuad> {
         let t = self.texels_per_block;
+        let neighbour_boxes = |step: [i32; 2]| {
+            cell.section
+                .cell_boxes(cell.offset[0] + step[0], cell.offset[1] + step[1])
+        };
         let mut quads = Vec::new();
         for (index, part) in self.parts.iter().enumerate() {
             for side in 0..SIDES {
@@ -695,48 +710,120 @@ impl BranchLayout {
                 };
                 let [u, v] = cross_axes(axis);
                 let rect = [part.min[u], part.min[v], part.max[u], part.max[v]];
-                if self.covered(index, side, plane, rect) {
-                    continue;
-                }
                 let at_boundary = plane == if positive { t } else { 0 };
                 if at_boundary && beyond[side] == BranchBeyond::Opaque {
                     continue;
                 }
+                if part.kind != BranchPartKind::Core && at_boundary && axis == part.axis {
+                    continue;
+                }
+                // What presses on this face from the far side: the other
+                // parts here, and on the boundary the cells beyond.
+                let mut covers: Vec<[i32; 4]> = self
+                    .parts
+                    .iter()
+                    .enumerate()
+                    .filter(|&(other, box_)| {
+                        other != index
+                            && if positive {
+                                box_.min[axis] == plane
+                            } else {
+                                box_.max[axis] == plane
+                            }
+                    })
+                    .map(|(_, box_)| [box_.min[u], box_.min[v], box_.max[u], box_.max[v]])
+                    .collect();
                 let mut texture = BranchTexture::Side;
-                if part.kind == BranchPartKind::Core {
+                if part.kind == BranchPartKind::Core && at_boundary {
                     if axis == 1 {
                         let k = usize::from(positive);
-                        if cell.covered[k] {
-                            continue;
-                        }
+                        covers.extend(
+                            cell.beyond[k]
+                                .iter()
+                                .map(|b| [b[0] as i32, b[1] as i32, b[2] as i32, b[3] as i32]),
+                        );
                         if !cell.carries_on[k] {
                             texture = BranchTexture::End;
                         }
-                    } else if at_boundary {
+                    } else {
+                        let sign = if positive { 1 } else { -1 };
+                        let step = if axis == 0 { [sign, 0] } else { [0, sign] };
+                        let next = neighbour_boxes(step);
                         if self.sides[side] == BranchSide::Section {
-                            continue;
-                        }
-                        let step = if positive { 1 } else { -1 };
-                        let next = cell.offset[if axis == 0 { 0 } else { 1 }] + step;
-                        if cell.section.span(next).is_some() {
+                            let touching = |b: &&[u32; 4]| {
+                                let edge = if axis == 0 {
+                                    [b[0], b[2]]
+                                } else {
+                                    [b[1], b[3]]
+                                };
+                                if positive {
+                                    edge[0] == 0
+                                } else {
+                                    edge[1] == t as u32
+                                }
+                            };
+                            covers.extend(next.iter().filter(touching).map(|b| {
+                                if axis == 0 {
+                                    [0, b[1] as i32, t, b[3] as i32]
+                                } else {
+                                    [b[0] as i32, 0, b[2] as i32, t]
+                                }
+                            }));
+                        } else if !next.is_empty() {
                             texture = BranchTexture::End;
                         }
                     }
-                } else if at_boundary && axis == part.axis {
-                    continue;
                 }
-                quads.push(BranchQuad {
-                    side,
-                    plane,
-                    rect,
-                    axis: part.axis,
-                    centre: part.centre,
-                    texture,
-                });
+                for piece in subtract_rects(rect, &covers) {
+                    quads.push(BranchQuad {
+                        side,
+                        plane,
+                        rect: piece,
+                        axis: part.axis,
+                        centre: part.centre,
+                        texture,
+                    });
+                }
             }
         }
         quads
     }
+}
+
+/// What is left of `rect` (`[u0, v0, u1, v1]`) once every rectangle of
+/// `covers` is taken out of it, as rectangles that only touch.
+fn subtract_rects(rect: [i32; 4], covers: &[[i32; 4]]) -> Vec<[i32; 4]> {
+    let mut left = vec![rect];
+    for cover in covers {
+        let mut next = Vec::with_capacity(left.len());
+        for piece in left {
+            let [u0, v0, u1, v1] = piece;
+            let (cu0, cv0, cu1, cv1) = (
+                cover[0].max(u0),
+                cover[1].max(v0),
+                cover[2].min(u1),
+                cover[3].min(v1),
+            );
+            if cu0 >= cu1 || cv0 >= cv1 {
+                next.push(piece);
+                continue;
+            }
+            if u0 < cu0 {
+                next.push([u0, v0, cu0, v1]);
+            }
+            if cu1 < u1 {
+                next.push([cu1, v0, u1, v1]);
+            }
+            if v0 < cv0 {
+                next.push([cu0, v0, cu1, cv0]);
+            }
+            if cv1 < v1 {
+                next.push([cu0, cv1, cu1, v1]);
+            }
+        }
+        left = next;
+    }
+    left
 }
 
 /// The arm toward `side`, `j` texels from the axis, running from `start` to
@@ -763,14 +850,16 @@ fn arm(side: usize, j: i32, start: i32, end: i32, floor: bool, height: u32, c: i
     }
 }
 
-/// A branch section wider than one voxel: one square tube of half-width
-/// `radius` texels round the axis through the middle of its core cell, cut
-/// into the cells it covers. Each cell draws, collides with and weighs only
-/// the tube's overlap with its own square, so a section's cells add up to the
-/// whole tube, and a section no wider than half a block is its core cell
-/// alone, as wide as a one-voxel branch's core.
+/// A branch section wider than one voxel: one round tube of `radius` texels
+/// round the axis through the middle of its core cell, drawn at texel
+/// resolution and cut into the cells it covers. A texel belongs to the tube
+/// when its centre lies within `radius` of the axis. Each cell draws,
+/// collides with and weighs only the texels of the tube inside its own
+/// square, as a few boxes ([`WideBranchSection::cell_boxes`]), so a
+/// section's cells add up to the whole tube.
 ///
-/// Cells are counted from the core on the two axes across the tube's axis.
+/// Cells are counted from the core on the two axes across the tube's axis:
+/// `a` along x, `b` along z for an upright tube.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WideBranchSection {
     pub radius: u32,
@@ -784,30 +873,79 @@ impl WideBranchSection {
         ((self.radius + t / 2).saturating_sub(1) / t) as i32
     }
 
-    /// The tube's span across the cell `d` cells from the core along one
-    /// axis, in that cell's own texels (within `0..=texels_per_block`), or
-    /// `None` where the tube does not reach it.
-    pub fn span(&self, d: i32) -> Option<(u32, u32)> {
+    /// The tube's extent along `b` in the texel column at `a` (both counted
+    /// in the core cell's texels from its corner), `[low, high)`, or `None`
+    /// where the column misses the tube. Integer throughout, so every
+    /// mesher and the client cut the same circle.
+    fn column(&self, a: i64) -> Option<(i64, i64)> {
         let t = i64::from(self.texels_per_block);
-        let (centre, radius) = (t / 2, i64::from(self.radius));
-        let start = i64::from(d) * t;
-        let low = (centre - radius).max(start);
-        let high = (centre + radius).min(start + t);
-        (high > low).then(|| ((low - start) as u32, (high - start) as u32))
+        let centre = t / 2;
+        // Twice the column centre's distance from the axis, and twice the
+        // radius: the circle test (u/2)² + (v/2)² <= r² in whole numbers.
+        let u = 2 * a + 1 - 2 * centre;
+        let reach = 4 * i64::from(self.radius).pow(2) - u * u;
+        if reach < 1 {
+            return None;
+        }
+        let half = (isqrt(reach) + 1) / 2;
+        (half > 0).then(|| (centre - half, centre + half))
+    }
+
+    /// The boxes the tube fills in the cell `(da, db)` from the core, as
+    /// `[a0, b0, a1, b1]` in that cell's own texels: one per run of texel
+    /// columns along `a` with the same extent along `b`. Empty where the tube
+    /// misses the cell.
+    pub fn cell_boxes(&self, da: i32, db: i32) -> Vec<[u32; 4]> {
+        let t = i64::from(self.texels_per_block);
+        let (start_a, start_b) = (i64::from(da) * t, i64::from(db) * t);
+        let mut boxes: Vec<[u32; 4]> = Vec::new();
+        for i in 0..t {
+            let Some((low, high)) = self.column(start_a + i) else {
+                continue;
+            };
+            let (b0, b1) = (low.max(start_b) - start_b, high.min(start_b + t) - start_b);
+            if b1 <= b0 {
+                continue;
+            }
+            let (b0, b1) = (b0 as u32, b1 as u32);
+            match boxes.last_mut() {
+                Some(last) if last[2] == i as u32 && last[1] == b0 && last[3] == b1 => last[2] += 1,
+                _ => boxes.push([i as u32, b0, i as u32 + 1, b1]),
+            }
+        }
+        boxes
     }
 
     /// The tube's area inside the cell `(da, db)` from the core, in texel²:
-    /// `texels_per_block²` where it fills the cell, 0 past its reach.
+    /// `texels_per_block²` where it fills the cell, 0 where it misses it.
     pub fn cell_area(&self, da: i32, db: i32) -> u32 {
-        let width = |d: i32| self.span(d).map_or(0, |(low, high)| high - low);
-        width(da) * width(db)
+        self.cell_boxes(da, db)
+            .iter()
+            .map(|[a0, b0, a1, b1]| (a1 - a0) * (b1 - b0))
+            .sum()
     }
 
-    /// The whole tube's section in texel², `(2 × radius)²`: the sum of its
-    /// cells' areas.
+    /// The whole tube's section in texel²: the sum of its cells' areas, a
+    /// texel-resolution disc of about π × radius².
     pub fn area(&self) -> u32 {
-        (2 * self.radius).pow(2)
+        let reach = self.reach();
+        (-reach..=reach)
+            .flat_map(|da| (-reach..=reach).map(move |db| (da, db)))
+            .map(|(da, db)| self.cell_area(da, db))
+            .sum()
     }
+}
+
+/// The largest whole number whose square is at most `n`.
+fn isqrt(n: i64) -> i64 {
+    let mut root = (n as f64).sqrt() as i64;
+    while root * root > n {
+        root -= 1;
+    }
+    while (root + 1) * (root + 1) <= n {
+        root += 1;
+    }
+    root
 }
 
 /// What lies beyond one side of a branch voxel, for what its faces there show.
@@ -1123,21 +1261,15 @@ fn wide_cell<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
             .iter()
             .any(|socket| socket.key == shape.key),
     };
-    let own = (section.span(offset[0]), section.span(offset[1]));
-    let covers = |dy: i32| match branch_cell([voxel[0], voxel[1] + dy, voxel[2]], raw_at, blocks) {
+    let beyond = |dy: i32| match branch_cell([voxel[0], voxel[1] + dy, voxel[2]], raw_at, blocks) {
         Some(BranchCell::Wide {
             shape: other,
-            section: beyond,
+            section: level,
             offset: at,
             cut: false,
             ..
-        }) if other.key == shape.key => match (own, (beyond.span(at[0]), beyond.span(at[1]))) {
-            ((Some(a), Some(b)), (Some(c), Some(d))) => {
-                c.0 <= a.0 && c.1 >= a.1 && d.0 <= b.0 && d.1 >= b.1
-            }
-            _ => false,
-        },
-        _ => false,
+        }) if other.key == shape.key => level.cell_boxes(at[0], at[1]),
+        _ => Vec::new(),
     };
     Some(WideCell {
         section,
@@ -1147,7 +1279,7 @@ fn wide_cell<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
             wood([core[0], core[1] - 1, core[2]]),
             wood([core[0], core[1] + 1, core[2]]),
         ],
-        covered: [covers(-1), covers(1)],
+        beyond: [beyond(-1), beyond(1)],
     })
 }
 

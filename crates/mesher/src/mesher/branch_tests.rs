@@ -357,56 +357,90 @@ fn wide(radius: u32, texels_per_block: u32) -> WideBranchSection {
 }
 
 #[test]
-fn a_wide_section_is_the_sum_of_its_cells_and_reaches_no_further() {
+fn a_wide_section_is_the_circle_at_texel_resolution() {
     for t in [8, 16, 32] {
-        for radius in 1..=4 * t {
+        for radius in [1, 3, 8, 9, 12, 20, 24, 33, 40, 56, 64]
+            .into_iter()
+            .filter(|&r| r <= 4 * t)
+        {
             let section = wide(radius, t);
             let reach = section.reach();
-            let mut sum = 0;
+            let c = (t / 2) as i64;
+            let r2 = 4 * (radius as i64).pow(2);
+            let mut drawn = std::collections::HashSet::new();
             for da in -reach - 1..=reach + 1 {
                 for db in -reach - 1..=reach + 1 {
-                    let area = section.cell_area(da, db);
-                    let inside = da.abs() <= reach && db.abs() <= reach;
-                    assert_eq!(area > 0, inside, "t{t} R{radius} cell ({da}, {db})");
-                    sum += area;
+                    let boxes = section.cell_boxes(da, db);
+                    if da.abs() > reach || db.abs() > reach {
+                        assert!(boxes.is_empty(), "t{t} R{radius} reaches past ({da}, {db})");
+                    }
+                    for [a0, b0, a1, b1] in boxes {
+                        assert!(a0 < a1 && b0 < b1 && a1 <= t && b1 <= t);
+                        for i in a0..a1 {
+                            for k in b0..b1 {
+                                let x = da as i64 * t as i64 + i as i64;
+                                let z = db as i64 * t as i64 + k as i64;
+                                assert!(drawn.insert((x, z)), "t{t} R{radius}: ({x}, {z}) twice");
+                            }
+                        }
+                    }
                 }
             }
-            assert_eq!(sum, section.area(), "t{t} R{radius}");
+            // Every texel whose centre lies within the radius, and no other.
+            let span = (reach as i64 + 2) * t as i64;
+            for x in -span..span {
+                for z in -span..span {
+                    let (u, v) = (2 * x + 1 - 2 * c, 2 * z + 1 - 2 * c);
+                    assert_eq!(
+                        drawn.contains(&(x, z)),
+                        u * u + v * v <= r2,
+                        "t{t} R{radius} texel ({x}, {z})"
+                    );
+                }
+            }
+            assert_eq!(section.area() as usize, drawn.len(), "t{t} R{radius}");
         }
     }
 }
 
 #[test]
-fn wide_sections_keep_the_agreed_widths() {
+fn wide_sections_keep_their_reach_and_round_their_corners() {
     let at = |radius| wide(radius, T);
     assert_eq!(at(8).reach(), 0, "half a block is one voxel");
-    assert_eq!(at(24).reach(), 1, "a full 3x3");
-    assert_eq!(at(24).cell_area(1, 1), 256);
+    assert_eq!(at(24).reach(), 1, "three cells across");
     assert_eq!(at(64).reach(), 4, "R 64 is nine cells across, not eight");
-    assert_eq!(at(64).cell_area(4, 0), 8 * 16, "outer cells half filled");
-    assert_eq!(at(9).cell_area(1, 0), 16, "one texel spills into each side");
-    assert_eq!(at(9).span(1), Some((0, 1)));
-    assert_eq!(at(9).span(-1), Some((15, 16)));
-    assert_eq!(at(9).span(2), None);
-}
-
-#[test]
-fn a_section_within_one_voxel_is_a_branch_core_and_weighs_its_wood() {
-    for r in 1..=8 {
-        let section = wide(r, T);
-        let (low, high) = section
-            .span(0)
-            .expect("the core cell always holds the tube");
-        let core = layout(r, [APART; 6]).parts[0];
-        for axis in [0, 2] {
-            assert_eq!(
-                [core.min[axis], core.max[axis]],
-                [low as i32, high as i32],
-                "r{r} across axis {axis}"
-            );
+    assert_eq!(at(24).cell_area(0, 0), 256, "the core cell is full");
+    assert!(
+        (240..256).contains(&at(24).cell_area(1, 0)),
+        "a side is nearly full, its far edge rounded off"
+    );
+    assert!(
+        (1..256).contains(&at(24).cell_area(1, 1)),
+        "a corner holds only its quarter of the round"
+    );
+    assert_eq!(
+        at(9).cell_area(1, 1),
+        0,
+        "R 9 reaches the sides but not the corners"
+    );
+    assert!(at(9).cell_area(1, 0) > 0);
+    for radius in [12, 20, 24, 40, 56, 64] {
+        let section = at(radius);
+        let disc = std::f64::consts::PI * (radius as f64).powi(2);
+        let area = section.area() as f64;
+        assert!(
+            (area - disc).abs() / disc < 0.05,
+            "R{radius}: {area} against {disc}"
+        );
+        let reach = section.reach();
+        for da in -reach..=reach {
+            for db in -reach..=reach {
+                let area = section.cell_area(da, db);
+                for (a, b) in [(-da, db), (da, -db), (db, da)] {
+                    assert_eq!(section.cell_area(a, b), area, "R{radius} is round");
+                }
+            }
         }
-        let run = layout(r, [APART, APART, branch(r), branch(r), APART, APART]);
-        assert_eq!(section.cell_area(0, 0) * T, run.volume(), "r{r}");
     }
 }
 
@@ -598,6 +632,9 @@ fn level(core: [i32; 3], radius: u32, cut: bool) -> Vec<([i32; 3], u32)> {
     for dx in -reach..=reach {
         for dz in -reach..=reach {
             let at = [core[0] + dx, core[1], core[2] + dz];
+            if section.cell_area(dx, dz) == 0 {
+                continue;
+            }
             let word = if (dx, dz) == (0, 0) {
                 WideBranchBits::with_cut(WideBranchBits::with_size(TRUNK, radius), cut)
             } else if section.cell_area(dx, dz) == T * T {
@@ -742,9 +779,9 @@ fn opaque_stone_hides_a_full_trunk_face() {
 
 #[test]
 fn a_bole_level_between_its_neighbours_draws_only_its_bark() {
-    // Three stacked 3x3 levels: the middle one covers and is covered, and
-    // its cells meet one another, so only its outer bark is left: one quad
-    // per cell face round the outside.
+    // Three stacked round levels: the middle one covers and is covered, and
+    // its cells meet one another, so only its outer bark is left: the
+    // tube's surface and the risers of its round.
     let words = [
         level([2, 1, 2], 24, false),
         level([2, 2, 2], 24, false),
@@ -757,12 +794,37 @@ fn a_bole_level_between_its_neighbours_draws_only_its_bark() {
             quads.extend(quads_at(&words, [x, 2, z]));
         }
     }
-    assert_eq!(quads.len(), 12, "{quads:?}");
+    assert!(
+        quads.len() > 12,
+        "a round level has risers as well as sides"
+    );
     assert!(quads.iter().all(|quad| quad.texture == BranchTexture::Side));
     assert!(
         quads.iter().all(|quad| quad.side / 2 != 1),
         "no top or bottom faces"
     );
+    // Nothing is drawn on a boundary another cell of the level carries on
+    // across: a face on a cell's boundary looks out of the tube there.
+    let section = wide(24, T);
+    for x in 1..=3 {
+        for z in 1..=3 {
+            for quad in quads_at(&words, [x, 2, z]) {
+                if quad.plane != 0 && quad.plane != T as i32 {
+                    continue;
+                }
+                let step = if quad.side % 2 == 0 { 1 } else { -1 };
+                let (nx, nz) = if quad.side / 2 == 0 {
+                    (x + step, z)
+                } else {
+                    (x, z + step)
+                };
+                assert!(
+                    section.cell_area(nx - 2, nz - 2) < 256,
+                    "({x}, {z}) draws a face toward the full cell ({nx}, {nz}): {quad:?}"
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -801,7 +863,13 @@ fn a_cut_core_draws_nothing_and_its_neighbours_show_the_cut() {
     let (layout, dressed_by) =
         branch_layout_at([3, 1, 2], &raw, &registry()).expect("the shell still has its core");
     assert_eq!(dressed_by, TRUNK, "a shell wears its core's faces");
-    assert_eq!(layout.parts.len(), 1);
+    assert!(
+        layout
+            .parts
+            .iter()
+            .all(|part| part.kind == BranchPartKind::Core),
+        "the shell draws its slice and nothing else"
+    );
     let toward_core = quads_at(&words, [3, 1, 2])
         .into_iter()
         .find(|quad| quad.side == 1)
@@ -881,4 +949,46 @@ fn every_wide_face_keeps_one_texel_density_on_both_axes() {
         }
     }
     assert!(checked > 1_000, "the sweep drew {checked} faces");
+}
+
+#[test]
+fn an_arm_starts_where_the_round_slice_ends_and_never_overlaps_it() {
+    let mut words = level([2, 1, 2], 20, false);
+    words.push(([4, 1, 2], LIMB | (stage(3) << 24)));
+    let raw = raw_space(&words);
+    let (layout, _) = branch_layout_at([3, 1, 2], &raw, &registry()).expect("the +x shell");
+    let arm = layout
+        .parts
+        .iter()
+        .find(|part| part.kind == BranchPartKind::Arm(0))
+        .expect("an arm out to the limb");
+    let slice: Vec<_> = layout
+        .parts
+        .iter()
+        .filter(|part| part.kind == BranchPartKind::Core)
+        .collect();
+    assert_eq!(arm.max[0], T as i32, "the arm reaches the limb");
+    for part in &slice {
+        let overlaps =
+            (0..3).all(|axis| part.min[axis] < arm.max[axis] && arm.min[axis] < part.max[axis]);
+        assert!(!overlaps, "{part:?} overlaps the arm {arm:?}");
+    }
+    assert!(
+        slice.iter().any(|part| part.max[0] == arm.min[0]),
+        "the arm starts on the slice's surface"
+    );
+    let parts: u32 = layout
+        .parts
+        .iter()
+        .map(|p| {
+            (0..3)
+                .map(|a| (p.max[a] - p.min[a]) as u32)
+                .product::<u32>()
+        })
+        .sum();
+    assert_eq!(
+        layout.volume(),
+        parts,
+        "the wood is the parts, counted once"
+    );
 }
