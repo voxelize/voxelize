@@ -360,6 +360,10 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         bool,
         bool,
     )> = Vec::new();
+    // Branch faces wait here for the faces beside them on their plane, so
+    // runs of them are drawn as single quads once every voxel has drawn.
+    let mut coplanar = CoplanarQuads::default();
+    let mut scratch = GeometryProtocol::default();
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
@@ -699,6 +703,67 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     (false, false) => block.get_name_lower().to_string(),
                 };
 
+                if world_space
+                    && (block.branch.is_some() || block.branch_shell)
+                    && !is_per_voxel
+                    && !is_per_face
+                    && uv_follows_world(&face)
+                {
+                    scratch.positions.clear();
+                    scratch.indices.clear();
+                    scratch.uvs.clear();
+                    scratch.lights.clear();
+                    let mut uv_map = HashMap::new();
+                    uv_map.insert(face.name.clone(), uv_range.clone());
+                    let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                    process_face(
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        &rotation,
+                        &face,
+                        block,
+                        &uv_map,
+                        registry,
+                        space,
+                        &neighbors,
+                        is_see_through,
+                        is_fluid,
+                        &mut scratch.positions,
+                        &mut scratch.indices,
+                        &mut scratch.uvs,
+                        &mut scratch.lights,
+                        min,
+                        world_space,
+                    );
+                    if scratch.positions.is_empty()
+                        || coplanar.hold(
+                            voxel_id,
+                            face.dir,
+                            &uv_range,
+                            &scratch.positions,
+                            &scratch.uvs,
+                            &scratch.lights,
+                            &scratch.indices,
+                        )
+                    {
+                        continue;
+                    }
+                    let geometry = map.entry(geo_key).or_insert_with(|| GeometryProtocol {
+                        voxel: voxel_id,
+                        ..Default::default()
+                    });
+                    let base = (geometry.positions.len() / 3) as i32;
+                    geometry.positions.extend_from_slice(&scratch.positions);
+                    geometry.uvs.extend_from_slice(&scratch.uvs);
+                    geometry.lights.extend_from_slice(&scratch.lights);
+                    geometry
+                        .indices
+                        .extend(scratch.indices.iter().map(|&index| base + index));
+                    continue;
+                }
+
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
                     g.voxel = voxel_id;
@@ -739,6 +804,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
             }
         }
     }
+
+    coplanar.emit(registry, &mut map);
 
     map.into_iter()
         .map(|(_, geometry)| geometry)

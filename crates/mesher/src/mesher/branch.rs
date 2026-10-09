@@ -282,6 +282,10 @@ pub struct WideCell {
     /// The boxes the level below and above draws in this cell's column
     /// (`[x0, z0, x1, z1]`), which cover that much of its bottom and top.
     pub beyond: [Vec<[u32; 4]>; 2],
+    /// The joint radius of a one-voxel branch standing on this cell or
+    /// hanging under it, 0 for none: it carries the wood on through that
+    /// square of the cell's top or bottom, which is then no face.
+    pub carried_by: [u32; 2],
 }
 
 /// The joint a branch of `radius` makes with what lies on one side.
@@ -742,6 +746,11 @@ impl BranchLayout {
                                 .iter()
                                 .map(|b| [b[0] as i32, b[1] as i32, b[2] as i32, b[3] as i32]),
                         );
+                        let j = cell.carried_by[k] as i32;
+                        if j > 0 {
+                            let c = t / 2;
+                            covers.push([c - j, c - j, c + j, c + j]);
+                        }
                         if !cell.carries_on[k] {
                             texture = BranchTexture::End;
                         }
@@ -772,9 +781,26 @@ impl BranchLayout {
                         } else if !next.is_empty() {
                             texture = BranchTexture::End;
                         }
+                        // Where the slice reaches the boundary there is no
+                        // arm, and the branch or fin joined across it carries
+                        // the wood on through its joint.
+                        if matches!(
+                            self.sides[side],
+                            BranchSide::Branch { .. } | BranchSide::Fin { .. }
+                        ) {
+                            covers.extend(self.joint_rect(side));
+                        }
                     }
                 }
-                for piece in subtract_rects(rect, &covers) {
+                // Everything that covers a face is wood pressed against it,
+                // so a face showing in several pieces is drawn whole: the
+                // covered parts lie inside the wood, and one quad draws what
+                // the pieces drew, as a one-voxel ledge does.
+                let mut pieces = subtract_rects(rect, &covers);
+                if pieces.len() > 1 {
+                    pieces = vec![rect];
+                }
+                for piece in pieces {
                     quads.push(BranchQuad {
                         side,
                         plane,
@@ -1271,6 +1297,20 @@ fn wide_cell<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
         }) if other.key == shape.key => level.cell_boxes(at[0], at[1]),
         _ => Vec::new(),
     };
+    let carried_by =
+        |dy: i32| match branch_cell([voxel[0], voxel[1] + dy, voxel[2]], raw_at, blocks) {
+            Some(BranchCell::Voxel {
+                shape: other, raw, ..
+            }) if other.key == shape.key
+                && other.kind == BranchKind::Voxel
+                && other.seat == BranchSeat::Centre =>
+            {
+                other
+                    .radius(BlockUtils::extract_stage(raw))
+                    .min(section.radius)
+            }
+            _ => 0,
+        };
     Some(WideCell {
         section,
         offset,
@@ -1280,6 +1320,7 @@ fn wide_cell<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
             wood([core[0], core[1] + 1, core[2]]),
         ],
         beyond: [beyond(-1), beyond(1)],
+        carried_by: [carried_by(-1), carried_by(1)],
     })
 }
 

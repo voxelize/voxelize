@@ -992,3 +992,371 @@ fn an_arm_starts_where_the_round_slice_ends_and_never_overlaps_it() {
         "the wood is the parts, counted once"
     );
 }
+
+/// Meshes one chunk holding `voxels`, lit by `light` (a light word per
+/// local position).
+fn mesh_lit(
+    voxels: &[([usize; 3], u32)],
+    light: impl Fn([usize; 3]) -> u32,
+) -> Vec<GeometryProtocol> {
+    const SIZE: usize = 8;
+    let mut data = vec![0u32; SIZE * SIZE * SIZE];
+    let mut lights = vec![0u32; SIZE * SIZE * SIZE];
+    for x in 0..SIZE {
+        for y in 0..SIZE {
+            for z in 0..SIZE {
+                lights[x * SIZE * SIZE + y * SIZE + z] = light([x, y, z]);
+            }
+        }
+    }
+    for &([x, y, z], raw) in voxels {
+        data[x * SIZE * SIZE + y * SIZE + z] = raw;
+    }
+    let mut chunks: Vec<Option<ChunkData>> = (0..9).map(|_| None).collect();
+    chunks[4] = Some(ChunkData {
+        voxels: data,
+        lights,
+        shape: [SIZE, SIZE, SIZE],
+        min: [0, 0, 0],
+    });
+    mesh_chunk_with_registry_chunks(
+        &chunks,
+        [0, 0, 0],
+        [SIZE as i32; 3],
+        MeshConfig {
+            chunk_size: SIZE as i32,
+        },
+        &registry(),
+    )
+    .geometries
+}
+
+fn local(words: &[([i32; 3], u32)]) -> Vec<([usize; 3], u32)> {
+    words
+        .iter()
+        .map(|&(at, raw)| (at.map(|v| v as usize), raw))
+        .collect()
+}
+
+/// Each quad of the geometries of `voxel`: its four corners, and whether it
+/// is drawn on the greedy path.
+fn quads_of(geometries: &[GeometryProtocol], voxel: u32) -> Vec<([[f32; 3]; 4], bool)> {
+    geometries
+        .iter()
+        .filter(|g| g.voxel == voxel)
+        .flat_map(|g| {
+            g.positions
+                .chunks_exact(12)
+                .zip(g.lights.chunks_exact(4))
+                .map(|(p, lights)| {
+                    (
+                        std::array::from_fn(|v| [p[v * 3], p[v * 3 + 1], p[v * 3 + 2]]),
+                        lights.iter().all(|light| light & GREEDY_BIT != 0),
+                    )
+                })
+        })
+        .collect()
+}
+
+/// The axis a quad faces along, and its extent on the other two.
+fn plane_of(corners: &[[f32; 3]; 4]) -> (usize, [f32; 2], [f32; 2]) {
+    let axis = (0..3)
+        .find(|&a| corners.iter().all(|c| c[a] == corners[0][a]))
+        .expect("a flat quad");
+    let across: Vec<usize> = (0..3).filter(|&a| a != axis).collect();
+    let span = |a: usize| {
+        corners.iter().fold((f32::MAX, f32::MIN), |(lo, hi), c| {
+            (lo.min(c[a]), hi.max(c[a]))
+        })
+    };
+    let (u, v) = (span(across[0]), span(across[1]));
+    (axis, [u.0, v.0], [u.1, v.1])
+}
+
+const SUN: u32 = 15 << 12;
+
+#[test]
+fn a_straight_trunk_draws_each_side_as_one_quad_however_tall() {
+    let column: Vec<_> = (1..=5).map(|y| ([2, y, 2], limb(4))).collect();
+    let geometries = mesh_lit(&column, |_| SUN);
+    let quads = quads_of(&geometries, LIMB);
+    // Four sides, each one quad five blocks tall, and the two ends.
+    assert_eq!(quads.len(), 6, "{quads:?}");
+    let tall: Vec<_> = quads
+        .iter()
+        .filter(|(corners, _)| plane_of(corners).0 != 1)
+        .collect();
+    assert_eq!(tall.len(), 4);
+    for (corners, greedy) in tall {
+        let (axis, lo, hi) = plane_of(corners);
+        // The column's ends sit its radius in from the outer voxels' faces.
+        let tall_axis = if axis == 0 { 0 } else { 1 };
+        assert_eq!(
+            hi[tall_axis] - lo[tall_axis],
+            4.5,
+            "a side spans the whole column: {corners:?}"
+        );
+        assert!(greedy, "a joined quad is drawn on the greedy path");
+    }
+    let ends: Vec<_> = quads
+        .iter()
+        .filter(|(corners, _)| plane_of(corners).0 == 1)
+        .collect();
+    assert!(
+        ends.iter().all(|(_, greedy)| !greedy),
+        "a quad nothing joined keeps its own texture coordinates"
+    );
+}
+
+#[test]
+fn a_run_of_equal_levels_draws_its_round_outline_once() {
+    let one = mesh_lit(&local(&level([3, 1, 3], 24, false)), |_| SUN);
+    let four: Vec<_> = (1..=4).flat_map(|y| level([3, y, 3], 24, false)).collect();
+    let four = mesh_lit(&local(&four), |_| SUN);
+    for voxel in [SHELL, TRUNK] {
+        assert_eq!(
+            quads_of(&four, voxel).len(),
+            quads_of(&one, voxel).len(),
+            "block {voxel}: four equal levels draw no more quads than one"
+        );
+    }
+}
+
+/// The area the quads cover on each plane (axis, position in texels), in
+/// square texels.
+fn area_by_plane(quads: &[([[f32; 3]; 4], bool)]) -> std::collections::BTreeMap<(usize, i64), i64> {
+    let mut areas = std::collections::BTreeMap::new();
+    for (corners, _) in quads {
+        let (axis, lo, hi) = plane_of(corners);
+        let texels = |value: f32| (value * T as f32).round() as i64;
+        *areas.entry((axis, texels(corners[0][axis]))).or_insert(0) +=
+            (texels(hi[0]) - texels(lo[0])) * (texels(hi[1]) - texels(lo[1]));
+    }
+    areas
+}
+
+/// A tapering bole with a one-voxel trunk above, a limb and a fin.
+fn mixed_bole() -> Vec<([i32; 3], u32)> {
+    let fin = WideBranchBits::with_size(FIN | (stage(3) << 24), 12);
+    [
+        level([4, 1, 4], 40, false),
+        level([4, 2, 4], 40, false),
+        level([4, 3, 4], 32, false),
+        vec![
+            ([4, 4, 4], limb(8)),
+            ([4, 5, 4], limb(6)),
+            ([7, 2, 4], limb(3)),
+            ([1, 1, 4], fin),
+        ],
+    ]
+    .concat()
+}
+
+#[test]
+fn joined_quads_cover_exactly_what_their_voxels_drew() {
+    let words = mixed_bole();
+    let geometries = mesh_lit(&local(&words), |_| SUN);
+    for voxel in [SHELL, INNER, TRUNK, LIMB, FIN] {
+        let quads = quads_of(&geometries, voxel);
+        let mut drawn: std::collections::BTreeMap<(usize, i64), i64> = Default::default();
+        for &(at, raw) in &words {
+            if BlockUtils::extract_id(raw) != voxel {
+                continue;
+            }
+            for quad in quads_at(&words, at) {
+                let axis = quad.side / 2;
+                let [u0, v0, u1, v1] = quad.rect;
+                let plane = i64::from(at[axis]) * i64::from(T) + i64::from(quad.plane);
+                *drawn.entry((axis, plane)).or_insert(0) += i64::from((u1 - u0) * (v1 - v0));
+            }
+        }
+        assert!(!drawn.is_empty() || quads.is_empty(), "block {voxel} draws");
+        assert_eq!(
+            area_by_plane(&quads),
+            drawn,
+            "block {voxel}: the mesh covers each plane as its voxels' faces do"
+        );
+    }
+}
+
+#[test]
+fn quads_lit_apart_along_their_seam_stay_apart() {
+    let column: Vec<_> = (1..=5).map(|y| ([2, y, 2], limb(4))).collect();
+    let shaded = mesh_lit(&column, |[_, y, _]| if y == 3 { 8 << 12 } else { SUN });
+    let sides = quads_of(&shaded, LIMB)
+        .into_iter()
+        .filter(|(corners, _)| plane_of(corners).0 != 1)
+        .count();
+    // Each side: the two voxels below the shade, the shaded one, the two
+    // above it.
+    assert_eq!(sides, 12);
+}
+
+/// Every texel of wood the voxels of `words` lay out, in world texels.
+fn wood_texels(words: &[([i32; 3], u32)]) -> std::collections::HashSet<[i64; 3]> {
+    let registry = registry();
+    let raw = raw_space(words);
+    let t = i64::from(T);
+    let mut wood = std::collections::HashSet::new();
+    for &(at, _) in words {
+        let Some((layout, _)) = branch_layout_at(at, &raw, &registry) else {
+            continue;
+        };
+        for part in &layout.parts {
+            for x in part.min[0]..part.max[0] {
+                for y in part.min[1]..part.max[1] {
+                    for z in part.min[2]..part.max[2] {
+                        wood.insert([
+                            i64::from(at[0]) * t + i64::from(x),
+                            i64::from(at[1]) * t + i64::from(y),
+                            i64::from(at[2]) * t + i64::from(z),
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+    wood
+}
+
+#[test]
+fn the_mesh_closes_the_wood_and_draws_nothing_outside_it() {
+    let words = mixed_bole();
+    let wood = wood_texels(&words);
+    let geometries = mesh_lit(&local(&words), |_| SUN);
+    let texels = |value: f32| (value * T as f32).round() as i64;
+    // Every texel of face drawn: the axis it faces along, its plane, and its
+    // two coordinates across, in world texels.
+    let mut drawn = std::collections::HashSet::new();
+    for voxel in [SHELL, INNER, TRUNK, LIMB, FIN] {
+        for (corners, _) in quads_of(&geometries, voxel) {
+            let (axis, lo, hi) = plane_of(&corners);
+            let across: Vec<usize> = (0..3).filter(|&a| a != axis).collect();
+            let plane = texels(corners[0][axis]);
+            let mut shows = false;
+            for u in texels(lo[0])..texels(hi[0]) {
+                for v in texels(lo[1])..texels(hi[1]) {
+                    let at = |along: i64| {
+                        let mut cell = [0; 3];
+                        cell[axis] = along;
+                        cell[across[0]] = u;
+                        cell[across[1]] = v;
+                        cell
+                    };
+                    let (ahead, behind) =
+                        (wood.contains(&at(plane)), wood.contains(&at(plane - 1)));
+                    assert!(
+                        ahead || behind,
+                        "block {voxel}: a face floats in air at ({u}, {v}): {corners:?}"
+                    );
+                    shows |= ahead != behind;
+                    assert!(
+                        drawn.insert((axis, plane, u, v)),
+                        "block {voxel}: two faces share the texel ({u}, {v}) of {corners:?}"
+                    );
+                }
+            }
+            assert!(
+                shows,
+                "block {voxel}: a quad lies wholly inside the wood: {corners:?}"
+            );
+        }
+    }
+    for texel in &wood {
+        for axis in 0..3 {
+            let across: Vec<usize> = (0..3).filter(|&a| a != axis).collect();
+            for step in [-1, 1] {
+                let mut next = *texel;
+                next[axis] += step;
+                if wood.contains(&next) {
+                    continue;
+                }
+                let plane = if step > 0 {
+                    texel[axis] + 1
+                } else {
+                    texel[axis]
+                };
+                assert!(
+                    drawn.contains(&(axis, plane, texel[across[0]], texel[across[1]])),
+                    "the wood at {texel:?} is open toward {step} on axis {axis}"
+                );
+            }
+        }
+    }
+    assert!(wood.len() > 100_000, "{} texels of wood", wood.len());
+}
+
+/// A giant's bole (a flared foot, a long straight run, a taper) and its
+/// one-voxel leader, meshed in one chunk under the sun:
+/// quads per block and the median mesh time. `cargo test -p voxelize-mesher
+/// bole_census -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn bole_census() {
+    let mut radii: Vec<u32> = vec![60, 58, 56, 54, 52, 50, 48, 46, 44, 42];
+    radii.extend([40; 19]);
+    radii.extend([36, 34, 32, 30, 28]);
+    radii.extend([24; 6]);
+    radii.extend([20, 16, 12, 10]);
+    let mut words: Vec<([i32; 3], u32)> = Vec::new();
+    for (y, &radius) in radii.iter().enumerate() {
+        words.extend(level([12, 1 + y as i32, 12], radius, false));
+    }
+    for (i, radius) in [8, 8, 7, 7, 6, 5, 4, 3, 2].into_iter().enumerate() {
+        words.push(([12, 1 + (radii.len() + i) as i32, 12], limb(radius)));
+    }
+    let shape = [24, 64, 24];
+    let mut data = vec![0u32; shape[0] * shape[1] * shape[2]];
+    for &([x, y, z], raw) in &words {
+        data[x as usize * shape[1] * shape[2] + y as usize * shape[2] + z as usize] = raw;
+    }
+    let mut chunks: Vec<Option<ChunkData>> = (0..9).map(|_| None).collect();
+    chunks[4] = Some(ChunkData {
+        voxels: data,
+        lights: vec![SUN; shape[0] * shape[1] * shape[2]],
+        shape,
+        min: [0, 0, 0],
+    });
+    let registry = registry();
+    let mut times = Vec::new();
+    let mut geometries = Vec::new();
+    for _ in 0..9 {
+        let started = std::time::Instant::now();
+        geometries = mesh_chunk_with_registry_chunks(
+            &chunks,
+            [0, 0, 0],
+            [24, 64, 24],
+            MeshConfig { chunk_size: 24 },
+            &registry,
+        )
+        .geometries;
+        times.push(started.elapsed().as_secs_f64() * 1000.0);
+    }
+    times.sort_by(f64::total_cmp);
+    let mut total = 0;
+    for (voxel, name) in [
+        (TRUNK, "core"),
+        (SHELL, "shell"),
+        (INNER, "inner"),
+        (LIMB, "leader"),
+    ] {
+        let quads = quads_of(&geometries, voxel);
+        let thin = quads
+            .iter()
+            .filter(|(corners, _)| {
+                let (_, lo, hi) = plane_of(corners);
+                (hi[0] - lo[0]).min(hi[1] - lo[1]) <= 1.0 / T as f32 + 1e-4
+            })
+            .count();
+        let joined = quads.iter().filter(|(_, greedy)| *greedy).count();
+        eprintln!(
+            "{name}: {} quads ({thin} thin, {joined} joined)",
+            quads.len()
+        );
+        total += quads.len();
+    }
+    eprintln!(
+        "bole + leader: {total} quads, mesh {:.2} ms median",
+        times[times.len() / 2]
+    );
+}
