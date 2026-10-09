@@ -11,7 +11,7 @@ const AIR_DRAG = 0.1;
 const FLUID_DRAG = 1.4;
 const FLUID_DENSITY = 0.8;
 /** Every hold below lasts a whole number of frames at each of these. */
-const FRAME_RATES = [30, 60, 120];
+const FRAME_RATES = [30, 60, 120, 240];
 const SETTLE_SECONDS = 2;
 
 /** Water over a bed whose top is y = 1, up to `surface`, for z >= 0; a bank
@@ -145,7 +145,7 @@ function spreadFrom120(values: Record<number, number>) {
   );
 }
 
-describe("RigidControls over the same wall time at 30, 60 and 120 fps", () => {
+describe("RigidControls over the same wall time at 30, 60, 120 and 240 fps", () => {
   it("climbs and descends as far for a held fly key, as tuned at the reference rate", () => {
     const hold = 0.4;
     const { flyImpulse, flyInertia, referenceFrameRate } = rig("sky", [0, 0, 0])
@@ -259,12 +259,14 @@ describe("RigidControls over the same wall time at 30, 60 and 120 fps", () => {
       return body.position()[1] - y0;
     });
 
-    expect(treading[120]).toBeGreaterThan(5);
-    expect(swimming[120]).toBeGreaterThan(5);
-    // What is left is the water's own drag, applied once per physics step
-    // after the push (first order in frame time).
+    // Up at the swim speed, once the stroke has brought it up to speed.
+    const { swimSpeed } = rig("water", [0, 100, 0]).controls.options;
+    for (const rise of [treading[120], swimming[120]]) {
+      expect(rise).toBeGreaterThan(0.75 * swimSpeed);
+      expect(rise).toBeLessThan(swimSpeed);
+    }
     expect(spreadFrom120(treading)).toBeLessThan(0.01);
-    expect(spreadFrom120(swimming)).toBeLessThan(0.03);
+    expect(spreadFrom120(swimming)).toBeLessThan(0.01);
   });
 
   it("climbs a ladder as far", () => {
@@ -311,7 +313,7 @@ function jumpFromFloor(
   return { apex, speedAt };
 }
 
-describe("RigidControls jumps and ladders at 30, 60 and 120 fps", () => {
+describe("RigidControls jumps and ladders at 30, 60, 120 and 240 fps", () => {
   it("pushes a held jump for jumpTime milliseconds and no longer", () => {
     const { jumpForce, jumpTime } = rig("sky", [0, 0, 0]).controls.options;
     for (const fps of FRAME_RATES) {
@@ -373,36 +375,148 @@ const nearBank = (body: ReturnType<typeof inPool>, back = 0) =>
 const isOnBank = (body: ReturnType<typeof inPool>, bankTop: number) =>
   body.position()[2] < 0 && body.feet() >= bankTop - 0.01;
 
-describe("RigidControls getting out of water at 30, 60 and 120 fps", () => {
-  it("swims up from a deep bed with Space held once the jump has spent its push", () => {
-    const pool = { surface: POOL_BED_TOP + 3, bankTop: POOL_BED_TOP + 3 };
-    for (const fps of FRAME_RATES) {
-      const body = inPool(pool, [0.5, POOL_BED_TOP, 3.5]);
-      body.run(fps, 0.5);
-      let highest = body.feet();
-      for (let frame = 0; frame < fps * 2; frame++) {
-        body.run(fps, 1 / fps, [{ keys: { up: true }, at: 0, for: 1 }]);
-        highest = Math.max(highest, body.feet());
+/** Where `body` comes to rest treading `pool`: standing, its eyes
+ * `fluidTreadEyeHeight` over the surface. */
+const treadFeet = (body: ReturnType<typeof inPool>, pool: Pool) => {
+  const { fluidTreadEyeHeight, bodyHeight, eyeHeight } = body.controls.options;
+  return pool.surface + fluidTreadEyeHeight - bodyHeight * eyeHeight;
+};
+
+/** Where the body's feet are, and how far along z, every frame of `seconds`
+ * with `keys` held. */
+function framesWhile(
+  body: ReturnType<typeof inPool>,
+  fps: number,
+  seconds: number,
+  keys: Held,
+) {
+  const frames: { feet: number; z: number }[] = [];
+  for (let frame = 0; frame < Math.round(seconds * fps); frame++) {
+    body.run(fps, 1 / fps, [{ keys, at: 0, for: 1 }]);
+    frames.push({ feet: body.feet(), z: body.position()[2] });
+  }
+  return frames;
+}
+
+const highestFeet = (frames: { feet: number }[]) =>
+  Math.max(...frames.map(({ feet }) => feet));
+
+/** The largest difference between two frame rates' values. */
+const spread = (values: Record<number, number>) =>
+  Math.max(...Object.values(values)) - Math.min(...Object.values(values));
+
+/** Treads up against the bank of `pool`, then holds Space and forward:
+ * whether it got out, and how high its feet peaked before they landed. */
+function climbOut(fps: number, pool: Pool) {
+  const body = inPool(pool, [0.5, POOL_BED_TOP, 0]);
+  body.place([0.5, POOL_BED_TOP, nearBank(body)]);
+  body.run(fps, 1.5, [{ keys: { up: true }, at: 0, for: 1.5 }]);
+  const frames = framesWhile(body, fps, 2, { up: true, front: true });
+  const landed = frames.findIndex(
+    ({ feet, z }) => z < 0 && feet >= pool.bankTop - 0.01,
+  );
+  return {
+    isOut: isOnBank(body, pool.bankTop),
+    apex: highestFeet(landed < 0 ? frames : frames.slice(0, landed + 1)),
+  };
+}
+
+describe("RigidControls treading and leaving water at 30, 60, 120 and 240 fps", () => {
+  it("treads up from a deep bed and rests with its eyes out, never leaping clear", () => {
+    for (const depth of [3, 6]) {
+      const pool = {
+        surface: POOL_BED_TOP + depth,
+        bankTop: POOL_BED_TOP + depth,
+      };
+      const overshoot = atEveryFrameRate((fps) => {
+        const body = inPool(pool, [0.5, POOL_BED_TOP, 4]);
+        body.run(fps, 0.5);
+        const frames = framesWhile(body, fps, 4, { up: true });
+        const rest = treadFeet(body, pool);
+        expect(
+          frames[frames.length - 1].feet - rest,
+          `${depth} deep, ${fps} fps`,
+        ).toBeCloseTo(0, 3);
+        return highestFeet(frames) - rest;
+      });
+      for (const fps of FRAME_RATES) {
+        expect(overshoot[fps], `${depth} deep, ${fps} fps`).toBeLessThan(0.01);
       }
-      // A jump from this bed alone peaks about 1.6 up; swimming on reaches
-      // the surface, three up.
-      expect(highest - POOL_BED_TOP, `${fps} fps`).toBeGreaterThan(3);
+      expect(spread(overshoot), `${depth} deep`).toBeLessThan(0.01);
     }
   });
 
-  it("climbs out onto a bank a block above the surface with Space and forward", () => {
+  it("swims up in the swim pose and stands up into the same tread", () => {
+    const pool = { surface: POOL_BED_TOP + 6, bankTop: POOL_BED_TOP + 6 };
+    const overshoot = atEveryFrameRate((fps) => {
+      const body = inPool(pool, [0.5, POOL_BED_TOP + 0.5, 60]);
+      body.run(fps, 0.3, [
+        { keys: { front: true, sprint: true }, at: 0, for: 0.3 },
+      ]);
+      expect(body.controls.isSwimming, `${fps} fps`).toBe(true);
+      const frames = framesWhile(body, fps, 4, {
+        front: true,
+        sprint: true,
+        up: true,
+      });
+      expect(body.controls.isSwimming, `${fps} fps`).toBe(false);
+      const rest = treadFeet(body, pool);
+      expect(frames[frames.length - 1].feet - rest, `${fps} fps`).toBeCloseTo(
+        0,
+        3,
+      );
+      return highestFeet(frames) - rest;
+    });
+    for (const fps of FRAME_RATES) {
+      expect(overshoot[fps], `${fps} fps`).toBeLessThan(0.05);
+    }
+    expect(spread(overshoot)).toBeLessThan(0.05);
+  });
+
+  it("climbs out onto a bank a block over the surface, peaking as high at every rate", () => {
+    const pool = { surface: POOL_BED_TOP + 3, bankTop: POOL_BED_TOP + 4 };
+    const { fluidExitClearance } = rig(pool, [0, 0, 0]).controls.options;
+    const apex = atEveryFrameRate((fps) => {
+      const { isOut, apex } = climbOut(fps, pool);
+      expect(isOut, `${fps} fps`).toBe(true);
+      return apex;
+    });
+    for (const fps of FRAME_RATES) {
+      // Short of the arc's peak by what the air's drag takes.
+      expect(
+        pool.bankTop + fluidExitClearance - apex[fps],
+        `${fps} fps`,
+      ).toBeLessThan(0.05);
+    }
+    expect(spread(apex)).toBeLessThan(0.01);
+  });
+
+  it("hops out onto a bank level with the surface", () => {
+    const pool = { surface: POOL_BED_TOP + 3, bankTop: POOL_BED_TOP + 3 };
+    const apex = atEveryFrameRate((fps) => {
+      const { isOut, apex } = climbOut(fps, pool);
+      expect(isOut, `${fps} fps`).toBe(true);
+      return apex;
+    });
+    expect(spread(apex)).toBeLessThan(0.02);
+  });
+
+  it("treads at a bank too tall to climb instead of hopping at it", () => {
+    const pool = { surface: POOL_BED_TOP + 3, bankTop: POOL_BED_TOP + 5 };
+    for (const fps of FRAME_RATES) {
+      const body = inPool(pool, [0.5, POOL_BED_TOP, 0]);
+      body.place([0.5, POOL_BED_TOP, nearBank(body)]);
+      const frames = framesWhile(body, fps, 3, { up: true, front: true });
+      expect(
+        highestFeet(frames) - treadFeet(body, pool),
+        `${fps} fps`,
+      ).toBeLessThan(0.01);
+    }
+  });
+
+  it("swims out onto a bank a block over the surface in the swim pose", () => {
     const pool = { surface: POOL_BED_TOP + 3, bankTop: POOL_BED_TOP + 4 };
     for (const fps of FRAME_RATES) {
-      const treading = inPool(pool, [0.5, POOL_BED_TOP + 0.5, 0]);
-      treading.place([0.5, POOL_BED_TOP + 0.5, nearBank(treading)]);
-      treading.run(fps, 1.5, [{ keys: { up: true }, at: 0, for: 1.5 }]);
-      treading.run(fps, 2, [
-        { keys: { up: true, front: true }, at: 0, for: 2 },
-      ]);
-      expect(isOnBank(treading, pool.bankTop), `treading, ${fps} fps`).toBe(
-        true,
-      );
-
       const swimming = inPool(pool, [0.5, POOL_BED_TOP + 1.2, 4]);
       swimming.run(fps, 0.3, [
         { keys: { front: true, sprint: true }, at: 0, for: 0.3 },
@@ -411,9 +525,7 @@ describe("RigidControls getting out of water at 30, 60 and 120 fps", () => {
       swimming.run(fps, 2.5, [
         { keys: { front: true, sprint: true, up: true }, at: 0, for: 2.5 },
       ]);
-      expect(isOnBank(swimming, pool.bankTop), `swimming, ${fps} fps`).toBe(
-        true,
-      );
+      expect(isOnBank(swimming, pool.bankTop), `${fps} fps`).toBe(true);
     }
   });
 

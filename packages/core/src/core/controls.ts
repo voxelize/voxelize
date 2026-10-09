@@ -16,7 +16,7 @@ import { Arm, Character } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
-import { planAutoJump } from "./auto-jump";
+import { findLedgeTop, planAutoJump } from "./auto-jump";
 import { Inputs } from "./inputs";
 import { NetIntercept } from "./network";
 import { StepEyeSmoother } from "./step-smoothing";
@@ -137,19 +137,32 @@ export type RigidControlsOptions = {
   rotationLerp: number;
 
   /**
-   * The upward impulse a held jump key gives in water: what one frame at
-   * `referenceFrameRate` adds, scaled by frame time at any other rate.
-   * Defaults to `0.3`.
+   * The strongest upward impulse a held jump key gives in fluid: what one
+   * frame at `referenceFrameRate` may add, scaled by frame time at any other
+   * rate. Treading water spends it swimming up at the swim speed and holding
+   * the body at `fluidTreadEyeHeight`. Defaults to `0.3`.
    */
   fluidPushForce: number;
 
   /**
-   * Upward speed, in blocks per second, a body in fluid is lifted to while
-   * its head is out, it presses into a wall and its jump key is held: enough
-   * for its feet to clear a bank a block above the surface and climb out
-   * onto it. `0` turns the lift off. Defaults to `8`.
+   * Height of the eyes over a fluid's surface where a body treading it, its
+   * jump key held, comes to rest. Defaults to `0.25`.
    */
-  fluidExitSpeed: number;
+  fluidTreadEyeHeight: number;
+
+  /**
+   * A body treading fluid with its head out that presses into a bank no
+   * taller than `fluidExitMaxHeight` over the surface climbs out: launched
+   * so its feet peak this far over the bank's top. `0` turns the climb off.
+   * Defaults to `0.3`.
+   */
+  fluidExitClearance: number;
+
+  /**
+   * Tallest bank, over a fluid's surface, a body treading it climbs out
+   * onto. Defaults to `1.2`.
+   */
+  fluidExitMaxHeight: number;
 
   /**
    * Target speed while swimming. Defaults to `4.5`.
@@ -178,7 +191,8 @@ export type RigidControlsOptions = {
   swimBodyHeight: number;
 
   /**
-   * Lerp factor for the swim hitbox height transition. Defaults to `0.08`.
+   * Lerp factor for the swim hitbox height transition, per frame at
+   * `referenceFrameRate`. Defaults to `0.08`.
    */
   swimAABBLerp: number;
 
@@ -421,7 +435,8 @@ export type RigidControlsOptions = {
 
   /**
    * The frame rate, in frames per second, that the per-frame tunables
-   * (`flyImpulse`, `fluidPushForce`, the ladder's easing) were tuned at.
+   * (`flyImpulse`, `fluidPushForce`, `swimAABBLerp`, the ladder's easing)
+   * were tuned at.
    * Each frame applies them scaled by how many of these frames it lasted,
    * so a held key climbs, swims or flies the same distance per second at
    * any frame rate, and exactly as tuned at this one. Defaults to `120`.
@@ -467,7 +482,9 @@ const defaultOptions: RigidControlsOptions = {
   alwaysSprint: false,
   airMoveMult: 0.7,
   fluidPushForce: 0.3,
-  fluidExitSpeed: 8,
+  fluidTreadEyeHeight: 0.25,
+  fluidExitClearance: 0.3,
+  fluidExitMaxHeight: 1.2,
   swimSpeed: 4.5,
   swimForce: 28,
   swimFriction: 0.05,
@@ -633,6 +650,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private _swimIdleStartedAt = -1;
 
   private _swimAABBBlend = 0;
+
+  /** How hard treading pushed last frame, in blocks per second squared. */
+  private _treadPush = 0;
 
   /**
    * The new position of the controls. This is used to lerp the position of the controls.
@@ -1520,8 +1540,47 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     return front || back || left || right || up || down || this.state.jumping;
   };
 
-  private updateSwimState = (): SwimState => {
-    if (!this.isSubmergedForSwimming() || this.state.crouching) {
+  /** Upward speed a held jump key swims at, in fluid. */
+  private treadRiseSpeed = () => {
+    const { swimSpeed, statusSwimFactor, sprintFactor } = this.options;
+    const speed = swimSpeed * this.getSwimSpeedMultiplier() * statusSwimFactor;
+    return this.state.sprinting ? speed * sprintFactor : speed;
+  };
+
+  /**
+   * How far the feet sit below where a body treading fluid comes to rest,
+   * standing, eyes `fluidTreadEyeHeight` over the surface (`surface`).
+   */
+  private treadGap = (surface: number) => {
+    const { fluidTreadEyeHeight, bodyHeight, eyeHeight } = this.options;
+    return (
+      surface +
+      fluidTreadEyeHeight -
+      bodyHeight * eyeHeight -
+      this.body.aabb.minY
+    );
+  };
+
+  /**
+   * A swimmer holding the jump key stands up into treading once it has
+   * swum up to where treading holds it, rather than surfacing in the pose.
+   */
+  private hasSwumUpToTread = (dt: number) => {
+    if (!this.state.jumping) return false;
+    const surface = this.world.physics.fluidSurfaceOver(
+      this.body.aabb,
+      this.options.bodyHeight,
+    );
+    if (surface === null || surface === Infinity) return false;
+    return this.treadGap(surface) <= this.treadRiseSpeed() * dt;
+  };
+
+  private updateSwimState = (dt: number): SwimState => {
+    if (
+      !this.isSubmergedForSwimming() ||
+      this.state.crouching ||
+      this.hasSwumUpToTread(dt)
+    ) {
       this._swimState = "upright";
       this._swimIdleStartedAt = -1;
       return this._swimState;
@@ -1581,10 +1640,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     aabb.maxZ = cz + bodyDepth / 2;
   };
 
-  private updateSwimAABB = () => {
+  private updateSwimAABB = (frames = 1) => {
     const swimAABBTarget = this.isSwimPoseActive ? 1 : 0;
     this._swimAABBBlend +=
-      (swimAABBTarget - this._swimAABBBlend) * this.options.swimAABBLerp;
+      (swimAABBTarget - this._swimAABBBlend) *
+      (1 - (1 - this.options.swimAABBLerp) ** frames);
 
     if (this._swimAABBBlend < 0.001) {
       this._swimAABBBlend = 0;
@@ -1638,32 +1698,127 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   /**
-   * A body in fluid with its head out, pressing into a wall with the jump
-   * key held, climbs out: its upward speed is raised to `fluidExitSpeed`,
-   * counting impulses already queued this frame so a jump starting now is
-   * not lifted twice.
+   * The top of the bank the body presses into, if one stands no higher
+   * than `maxTop`, with room to rise `apexAbove` over it and stand on it.
    */
-  private assistFluidExit = () => {
-    const { fluidExitSpeed } = this.options;
-    const { body } = this;
-    if (fluidExitSpeed <= 0 || !this.state.jumping || body.onClimbable) return;
-    if (!body.inFluid || body.ratioInFluid >= 1) return;
-    if (body.resting[0] === 0 && body.resting[2] === 0) return;
-    const queued = body.impulses[1] / body.mass;
-    if (body.velocity[1] + queued >= fluidExitSpeed) return;
-    body.velocity[1] = fluidExitSpeed - queued;
-    body.markActive();
+  private bankTopAhead = (maxTop: number, apexAbove: number) => {
+    const { aabb, resting } = this.body;
+    let lowest: number | null = null;
+    for (const axis of [0, 2]) {
+      const dir = resting[axis];
+      if (dir === 0) continue;
+      const top = findLedgeTop(
+        this.world.physics,
+        aabb,
+        axis === 0 ? [dir, 0] : [0, dir],
+        maxTop,
+        apexAbove,
+      );
+      if (top !== null && (lowest === null || top < lowest)) lowest = top;
+    }
+    return lowest;
   };
 
-  private applySwimmingMovement = (dt: number, frames: number) => {
+  /**
+   * A held jump key in fluid treads it: the body swims up at its swim speed
+   * and stops with its eyes `fluidTreadEyeHeight` over the surface, braking
+   * no harder than gravity stops it once the stroke eases off, so it
+   * surfaces without leaping clear and never cuts a jump short. With its
+   * head out and pressing into a bank it can climb, it is launched instead,
+   * on the arc that peaks `fluidExitClearance` over the bank's top.
+   *
+   * The push is solved for the speed the body should average over this
+   * frame, through the gravity, buoyancy and drag the physics step is about
+   * to apply, so the body treads the same path at any frame rate; a launch
+   * averaged over the frame carries on exactly under the step's integration
+   * once the body leaves the fluid.
+   */
+  private treadFluid = (dt: number) => {
     const {
-      swimSpeed,
-      swimForce,
-      sprintFactor,
-      crouchFactor,
-      swimFriction,
       fluidPushForce,
+      fluidExitClearance,
+      fluidExitMaxHeight,
+      referenceFrameRate,
     } = this.options;
+    const { body } = this;
+    const { physics } = this.world;
+    const { aabb, mass } = body;
+    const lastPush = this._treadPush;
+    this._treadPush = 0;
+    const gravity = -physics.options.gravity[1] * body.gravityMultiplier;
+    if (dt <= 0 || gravity <= 0 || body.onClimbable) return;
+
+    const height = aabb.height;
+    const stroke = fluidPushForce * referenceFrameRate;
+    const uprightBuoyancy =
+      (physics.options.fluidDensity *
+        aabb.width *
+        height *
+        aabb.depth *
+        gravity) /
+      mass;
+    // Gravity stops a rising upright body at least this hard once the stroke
+    // eases off, and the stroke stops a sinking one at least this hard.
+    const braking = Math.min(gravity - uprightBuoyancy, stroke - gravity);
+    const riseSpeed = this.treadRiseSpeed();
+
+    const brakingDistance = braking > 0 ? riseSpeed ** 2 / (2 * braking) : 0;
+    const surface = physics.fluidSurfaceOver(aabb, brakingDistance);
+    if (surface === null) return;
+
+    const ratio = Math.min(Math.max((surface - aabb.minY) / height, 0), 1);
+    const buoyancy = (body.isSwimming ? gravity : uprightBuoyancy) * ratio;
+    const fluidDrag =
+      body.fluidDrag >= 0 ? body.fluidDrag : physics.options.fluidDrag;
+    const kept = 1 - (fluidDrag * (1 - (1 - ratio) ** 2) * dt) / mass;
+    if (kept <= 0) return;
+    const unpushed =
+      body.velocity[1] +
+      body.impulses[1] / mass +
+      (body.forces[1] / mass + buoyancy - gravity) * dt;
+    const pushFor = (averageSpeed: number) => averageSpeed / kept - unpushed;
+
+    if (fluidExitClearance > 0 && ratio < 1) {
+      const top = this.bankTopAhead(
+        surface + fluidExitMaxHeight,
+        fluidExitClearance,
+      );
+      if (top !== null) {
+        const rise = Math.max(top + fluidExitClearance - aabb.minY, 0);
+        const push = pushFor(
+          Math.sqrt(2 * gravity * rise) - (gravity * dt) / 2,
+        );
+        if (push > 0) body.applyImpulse([0, push * mass, 0]);
+        return;
+      }
+    }
+
+    const below = this.treadGap(surface);
+    const speed = Math.min(
+      riseSpeed,
+      Math.abs(below) / dt,
+      braking > 0 ? Math.sqrt(2 * braking * Math.abs(below)) : riseSpeed,
+    );
+    // Neutrally buoyant in the swim pose, nothing else slows a rising body.
+    let push = Math.max(
+      pushFor(Math.sign(below) * speed),
+      body.isSwimming ? -stroke * dt : 0,
+    );
+    if (push >= stroke * dt) {
+      // The step moves the body at the speed it ends the frame with, so a
+      // stroke that strengthens all at once would run the whole climb half
+      // a frame early: its first frame averages it with last frame's push.
+      push = lastPush < stroke ? ((lastPush + stroke) * dt) / 2 : stroke * dt;
+      this._treadPush = stroke;
+    } else {
+      this._treadPush = push / dt;
+    }
+    if (push !== 0) body.applyImpulse([0, push * mass, 0]);
+  };
+
+  private applySwimmingMovement = (dt: number) => {
+    const { swimSpeed, swimForce, sprintFactor, crouchFactor, swimFriction } =
+      this.options;
 
     this._lookDirection.set(0, 0, -1);
     this._lookDirection.applyQuaternion(this.object.quaternion).normalize();
@@ -1675,9 +1830,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const fb = front ? (back ? 0 : 1) : back ? -1 : 0;
     const side = right ? (left ? 0 : 1) : left ? -1 : 0;
 
-    if (this.state.jumping) {
-      this.body.applyImpulse([0, fluidPushForce * frames, 0]);
-    }
     this.state.isJumping = false;
 
     if (this.state.running && (fb !== 0 || side !== 0)) {
@@ -1828,7 +1980,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       flyPitchSteering,
       flyDiveSpeedBoost,
       flyClimbSpeedPenalty,
-      fluidPushForce,
       referenceFrameRate,
     } = this.options;
 
@@ -1837,7 +1988,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const frames = dt * referenceFrameRate;
 
     if (this.body.gravityMultiplier) {
-      const isSwimming = this.updateSwimState() === "swimming";
+      const isSwimming = this.updateSwimState(dt) === "swimming";
       this.body.isSwimming = isSwimming;
 
       // ladder climbing
@@ -1878,7 +2029,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       }
 
       if (isSwimming) {
-        this.applySwimmingMovement(dt, frames);
+        this.applySwimmingMovement(dt);
       } else {
         // jumping
         const onGround = this.body.atRestY < 0;
@@ -1909,7 +2060,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
               jf *= this.state.currentJumpTime / dt;
             this.body.applyForce([0, jf, 0]);
             this.state.currentJumpTime -= dt;
-          } else if (!this.state.isJumping && canjump) {
+          } else if (
+            !this.state.isJumping &&
+            canjump &&
+            // with its head under, a held key swims it up (`treadFluid`)
+            (isAutoJumping || !this.body.inFluid || this.body.ratioInFluid < 1)
+          ) {
             // start new jump
             this.state.isJumping = true;
             if (!onGround) this.state.jumpCount++;
@@ -1918,10 +2074,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             // clear downward velocity on airjump
             if (!onGround && this.body.velocity[1] < 0)
               this.body.velocity[1] = 0;
-          } else if (this.body.ratioInFluid > 0) {
-            // swim up, and keep swimming once a jump held from the bed has
-            // spent its push
-            this.body.applyImpulse([0, fluidPushForce * frames, 0]);
           }
         } else if (!this.body.onClimbable) {
           this.state.isJumping = false;
@@ -1993,7 +2145,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         }
       }
 
-      this.assistFluidExit();
+      if (this.state.jumping) this.treadFluid(dt);
+      else this._treadPush = 0;
     } else {
       this._swimState = "upright";
       this._swimIdleStartedAt = -1;
@@ -2104,7 +2257,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     }
 
     this.updateCrouchAABB();
-    this.updateSwimAABB();
+    this.updateSwimAABB(frames);
   };
 
   /**
