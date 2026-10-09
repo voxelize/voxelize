@@ -4,6 +4,7 @@ import path from "node:path";
 
 import puppeteer, { Browser, Page } from "puppeteer";
 
+import { signInThrough } from "./auth-url";
 import type {
   AgentEventMap,
   AgentEventName,
@@ -77,7 +78,6 @@ import { composeClientUrl } from "./client-url";
 import { assertUncappedWindow } from "./frame-rate-guard";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
-  PageRole,
   PageUnavailableError,
   openPage,
   resolveNavigationRetryMs,
@@ -107,11 +107,13 @@ export type AgentLaunchOptions = {
   /**
    * Visited before joining the world so the response can set session
    * cookies (e.g. a dev-login endpoint), letting the agent run as an
-   * authenticated user with admin-only commands available.
+   * authenticated user with admin-only commands available. An answer other
+   * than 2xx (or 304) rejects the launch with an AuthUrlError, browser
+   * closed, instead of joining without the account.
    */
   authUrl?: string;
   /**
-   * How long a launch page that answers like a server mid-restart (5xx, a
+   * How long a client page that answers like a server mid-restart (5xx, a
    * refused connection) is retried before the launch gives up; a 404 gives
    * up at once (page-availability.ts). Defaults to AGENT_NAVIGATION_RETRY_MS.
    */
@@ -579,8 +581,18 @@ export class Agent {
     });
 
     if (authUrl) {
-      await agent.openLaunchPage("auth", authUrl, navigationRetryMs);
-      console.log(`[voxelize-agent] visited auth url: ${authUrl}`);
+      let status: number;
+      try {
+        status = await signInThrough(page, authUrl);
+      } catch (error) {
+        // Nothing else would close this browser: the daemon registers its
+        // exit hooks only once launch returns.
+        await agent.close();
+        throw error;
+      }
+      console.log(
+        `[voxelize-agent] visited auth url: ${authUrl} (answered ${status})`,
+      );
     }
 
     // Visual tests of held items opt into rendering the first-person arm,
@@ -592,7 +604,7 @@ export class Agent {
     });
     agent.targetUrl = targetUrl;
 
-    await agent.openLaunchPage("page", targetUrl, navigationRetryMs);
+    await agent.openClientPage(targetUrl, navigationRetryMs);
 
     const ready = Agent.waitForBridge(page, waitReadyTimeoutMs);
 
@@ -601,15 +613,12 @@ export class Agent {
   }
 
   /**
-   * Open one of the launch's pages under page-availability's rule. One that
-   * cannot load closes this browser before the error reaches the daemon: a
-   * session that can never mount must not hold a browser while it exits.
+   * Open the client page under page-availability's rule. One that cannot
+   * load closes this browser before the error reaches the daemon: nothing
+   * else would (the daemon registers its exit hooks only once launch
+   * returns), and a session that can never mount must not hold one.
    */
-  private async openLaunchPage(
-    role: PageRole,
-    url: string,
-    retryMs: number,
-  ): Promise<void> {
+  private async openClientPage(url: string, retryMs: number): Promise<void> {
     try {
       await openPage(
         async () => {
@@ -620,14 +629,14 @@ export class Agent {
             ? null
             : { status: response.status(), statusText: response.statusText() };
         },
-        { role, url, retryMs },
+        { url, retryMs },
       );
     } catch (error) {
       if (error instanceof PageUnavailableError) {
         const pid = this.browserPid();
         await this.close();
         console.log(
-          `[voxelize-agent] closed browser pid=${pid ?? "?"}: its ${role === "auth" ? "auth url" : "page"} cannot load, so the session ends instead of waiting for a bridge`,
+          `[voxelize-agent] closed browser pid=${pid ?? "?"}: its page cannot load, so the session ends instead of waiting for a bridge`,
         );
       }
       throw error;

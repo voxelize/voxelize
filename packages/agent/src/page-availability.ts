@@ -1,13 +1,13 @@
 /**
- * Whether a page a launch opens can ever mount, judged from the navigation
- * itself instead of by waiting for a bridge it will never install.
+ * Whether the client page a launch opens can ever mount, judged from the
+ * navigation itself instead of by waiting for a bridge it will never install.
  *
  * The daemon gives a page minutes to install its bridge, because a loaded
  * box can take that long to join a world. A document that came back 404 will
  * not install it however long the wait, and the session would hold its
  * browser (and its host's session slot) until the mount deadline ended it.
- * So each navigation a launch makes, the auth url and then the client page,
- * is judged as it lands:
+ * So the page's navigation is judged as it lands (the auth url before it has
+ * its own check, auth-url.ts):
  *
  * - 2xx/3xx, or no response at all (a same-document navigation): loaded.
  * - 4xx other than 408/425/429: permanent. Nothing is served there, so it
@@ -25,14 +25,10 @@
  * parsePageUnavailableLine.
  */
 
-export type PageRole = "page" | "auth";
-
 /** One navigation's answer: its document status, or null for no response. */
 export type PageLoad = { status: number; statusText: string } | null;
 
 export type PageUnavailable = {
-  /** The client page the session joins through, or the auth url before it. */
-  role: PageRole;
   url: string;
   /** The last document status, or null when the load itself failed. */
   status: number | null;
@@ -46,7 +42,6 @@ export type PageUnavailable = {
 };
 
 export type PageUnavailableLine = {
-  role: PageRole;
   url: string;
   status: number | null;
   outcome: string;
@@ -75,7 +70,7 @@ const TRANSIENT_LOAD_ERRORS = [
   "net::ERR_NETWORK_CHANGED",
   "net::ERR_ADDRESS_UNREACHABLE",
 ];
-const LINE_PATTERN = /page unavailable: (auth url )?(\S+) (.+?) — (.+)$/;
+const LINE_PATTERN = /page unavailable: (\S+) (.+?) — (.+)$/;
 const STATUS_PATTERN = /^(?:answered|kept answering) (\d{3})\b/;
 
 export function resolveNavigationRetryMs(
@@ -147,11 +142,6 @@ function describeAnswer(report: PageUnavailable): string {
 
 function adviceFor(report: PageUnavailable): string {
   const { status } = report;
-  if (report.role === "auth") {
-    return status !== null && status < 500
-      ? "the auth url is wrong, or its server refuses it; check --authUrl"
-      : "the auth server is not answering; check that it is running";
-  }
   if (status === null) {
     return report.isTransient
       ? "nothing answered there; is the client running?"
@@ -173,8 +163,7 @@ function adviceFor(report: PageUnavailable): string {
 
 /** The one log line a give-up prints; parsePageUnavailableLine reads it back. */
 export function formatPageUnavailable(report: PageUnavailable): string {
-  const subject = `${report.role === "auth" ? "auth url " : ""}${report.url}`;
-  return `page unavailable: ${subject} ${describeAnswer(report)} — ${adviceFor(report)}`;
+  return `page unavailable: ${report.url} ${describeAnswer(report)} — ${adviceFor(report)}`;
 }
 
 export function parsePageUnavailableLine(
@@ -182,13 +171,12 @@ export function parsePageUnavailableLine(
 ): PageUnavailableLine | null {
   const match = line.match(LINE_PATTERN);
   if (!match) return null;
-  const status = match[3].match(STATUS_PATTERN);
+  const status = match[2].match(STATUS_PATTERN);
   return {
-    role: match[1] ? "auth" : "page",
-    url: match[2],
+    url: match[1],
     status: status ? Number(status[1]) : null,
-    outcome: match[3],
-    advice: match[4],
+    outcome: match[2],
+    advice: match[3],
   };
 }
 
@@ -211,7 +199,6 @@ export function findPageUnavailableLine(
 export async function openPage(
   load: () => Promise<PageLoad>,
   options: {
-    role: PageRole;
     url: string;
     retryMs: number;
     log?: (line: string) => void;
@@ -220,14 +207,12 @@ export async function openPage(
   },
 ): Promise<PageLoad> {
   const {
-    role,
     url,
     retryMs,
     log = console.log,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     now = Date.now,
   } = options;
-  const subject = `${role === "auth" ? "auth url " : ""}${url}`;
   const startedAt = now();
   for (let attempt = 1; ; attempt++) {
     let report: PageUnavailable;
@@ -239,13 +224,12 @@ export async function openPage(
       ) {
         if (attempt > 1) {
           log(
-            `[voxelize-agent] ${subject} loaded on attempt ${attempt}, ${formatSeconds(now() - startedAt)} after the first`,
+            `[voxelize-agent] ${url} loaded on attempt ${attempt}, ${formatSeconds(now() - startedAt)} after the first`,
           );
         }
         return loaded;
       }
       report = {
-        role,
         url,
         status: loaded.status,
         statusText: loaded.statusText,
@@ -256,7 +240,6 @@ export async function openPage(
       };
     } catch (error) {
       report = {
-        role,
         url,
         status: null,
         statusText: "",
@@ -275,7 +258,7 @@ export async function openPage(
         ? `failed to load (${report.error})`
         : `answered ${report.status}${report.statusText ? ` ${report.statusText}` : ""}`;
     log(
-      `[voxelize-agent] ${subject} ${answer} on attempt ${attempt}; retrying in ${formatSeconds(delayMs)} ` +
+      `[voxelize-agent] ${url} ${answer} on attempt ${attempt}; retrying in ${formatSeconds(delayMs)} ` +
         `(a dev server compiling or restarting answers like this for a moment; gives up after ${formatSeconds(retryMs)})`,
     );
     await sleep(delayMs);

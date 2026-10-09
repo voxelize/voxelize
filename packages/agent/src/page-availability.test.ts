@@ -39,7 +39,6 @@ function scripted(answers: (PageLoad | Error)[]) {
     calls,
     lines,
     options: {
-      role: "page" as const,
       url: URL,
       log: (line: string) => lines.push(line),
       sleep: async (ms: number) => {
@@ -153,7 +152,6 @@ describe("openPage", () => {
     );
     expect(page.calls).toEqual([0]);
     expect(error.report).toMatchObject({
-      role: "page",
       url: URL,
       status: 404,
       attempts: 1,
@@ -248,18 +246,13 @@ describe("openPage", () => {
     );
   });
 
-  it("names the auth url and points at --authUrl when it is refused", async () => {
-    const page = scripted([{ status: 404, statusText: "Not Found" }]);
+  it("points a refused page at signing in first", async () => {
+    const page = scripted([{ status: 403, statusText: "Forbidden" }]);
     const error = await giveUp(
-      openPage(page.load, {
-        ...page.options,
-        role: "auth",
-        url: "http://localhost:8081/auth/nope",
-        retryMs: 60_000,
-      }),
+      openPage(page.load, { ...page.options, retryMs: 60_000 }),
     );
     expect(error.message).toBe(
-      "page unavailable: auth url http://localhost:8081/auth/nope answered 404 Not Found — the auth url is wrong, or its server refuses it; check --authUrl",
+      `page unavailable: ${URL} answered 403 Forbidden — the client refused the page; sign in first (--authUrl) or check who may open it`,
     );
   });
 });
@@ -275,7 +268,6 @@ describe("retryDelayMs", () => {
 describe("the give-up line", () => {
   it("reads back what formatPageUnavailable wrote, status included", () => {
     const line = `[voxelize-agent] ${formatPageUnavailable({
-      role: "page",
       url: URL,
       status: 404,
       statusText: "Not Found",
@@ -285,7 +277,6 @@ describe("the give-up line", () => {
       isTransient: false,
     })}`;
     expect(parsePageUnavailableLine(line)).toEqual({
-      role: "page",
       url: URL,
       status: 404,
       outcome: "answered 404 Not Found",
@@ -294,10 +285,9 @@ describe("the give-up line", () => {
     });
   });
 
-  it("reads a retried status, a load failure and the auth url", () => {
+  it("reads a retried status and a load failure", () => {
     const retried = parsePageUnavailableLine(
       formatPageUnavailable({
-        role: "page",
         url: URL,
         status: 503,
         statusText: "",
@@ -312,21 +302,20 @@ describe("the give-up line", () => {
 
     const failed = parsePageUnavailableLine(
       formatPageUnavailable({
-        role: "auth",
-        url: "http://localhost:8081/auth/dev-login?agent=4100",
+        url: URL,
         status: null,
         statusText: "",
-        error:
-          "net::ERR_CONNECTION_REFUSED at http://localhost:8081/auth/dev-login?agent=4100",
+        error: `net::ERR_CONNECTION_REFUSED at ${URL}`,
         attempts: 1,
         elapsedMs: 0,
         isTransient: true,
       }),
     );
-    expect(failed).toMatchObject({
-      role: "auth",
-      url: "http://localhost:8081/auth/dev-login?agent=4100",
+    expect(failed).toEqual({
+      url: URL,
       status: null,
+      outcome: `failed to load: net::ERR_CONNECTION_REFUSED at ${URL}`,
+      advice: "nothing answered there; is the client running?",
     });
   });
 
