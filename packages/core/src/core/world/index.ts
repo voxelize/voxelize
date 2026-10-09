@@ -210,6 +210,7 @@ import {
   VoxelBoxWork,
 } from "./voxel-box";
 import type { VoxelDelta } from "./voxel-delta";
+import { stateBitsOf, withStateBits } from "./voxel-state";
 import {
   WATER_OPTICS,
   WaterOptics,
@@ -4317,6 +4318,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       const type = BlockUtils.extractID(voxel);
       const rotation = BlockUtils.extractRotation(voxel);
       const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
+      // A block whose rotation bits are state keeps its byte as it came: the
+      // rotation decode above folds most of its values to "up".
+      const stateBits = stateBitsOf(this.getBlockByIdSafe(type), voxel);
       const stage = BlockUtils.extractStage(voxel);
       const isWaterlogged = BlockUtils.extractWaterlogged(voxel);
       const waterlogLevel = BlockUtils.extractWaterlogLevel(voxel);
@@ -4333,7 +4337,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         currentRotation.yRotation !== rotation.yRotation ||
         currentStage !== stage ||
         isCurrentWaterlogged !== isWaterlogged ||
-        currentWaterlogLevel !== waterlogLevel;
+        currentWaterlogLevel !== waterlogLevel ||
+        (stateBits !== undefined &&
+          stateBits !== ((this.getRawVoxelAt(vx, vy, vz) >>> 16) & 0xff));
 
       if (needsUpdate) {
         blockUpdates.push({
@@ -4345,6 +4351,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             type,
             rotation: rotationValue,
             yRotation: yRotationValue,
+            stateBits,
             stage,
             isWaterlogged,
             waterlogLevel,
@@ -7515,6 +7522,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           vz,
           rotation,
           yRotation,
+          stateBits,
           stage,
           isWaterlogged,
           waterlogLevel,
@@ -7530,13 +7538,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       const currentStage = this.getVoxelStageAt(vx, vy, vz);
       const newRotation = BlockRotation.encode(rotation, yRotation);
 
-      const newValue = BlockUtils.insertAll(
+      const packed = BlockUtils.insertAll(
         newBlock.id,
         newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
         stage,
         isWaterlogged,
         waterlogLevel,
       );
+      const newValue = newBlock.rotationBitsAreState
+        ? withStateBits(packed, stateBits ?? 0)
+        : packed;
       this.attemptBlockCache(vx, vy, vz, newValue, source);
       const oldRaw = this.getRawVoxelAt(vx, vy, vz);
 
@@ -7547,7 +7558,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.setVoxelWaterloggedAt(vx, vy, vz, isWaterlogged ?? false);
         this.setVoxelWaterlogLevelAt(vx, vy, vz, waterlogLevel ?? 0);
 
-        if (newBlock.rotatable || newBlock.yRotatable) {
+        if (newBlock.rotationBitsAreState) {
+          const chunk = this.getChunkByPosition(vx, vy, vz);
+          chunk?.setRawValue(
+            vx,
+            vy,
+            vz,
+            withStateBits(chunk.getRawValue(vx, vy, vz), stateBits ?? 0),
+          );
+        } else if (newBlock.rotatable || newBlock.yRotatable) {
           this.setVoxelRotationAt(vx, vy, vz, newRotation);
         }
 
