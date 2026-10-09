@@ -31,6 +31,27 @@ export const IDLE_TTL_EXIT_CODE = 66;
 export const MOUNT_FAILED_EXIT_CODE = 67;
 
 /**
+ * Exit code of a daemon whose launch page cannot load (page-availability.ts:
+ * a 404, or a 5xx that outlasted the retry budget). Unlike a page that never
+ * mounted, waiting or relaunching cannot fix it, so a launcher must not
+ * re-queue it. Host tooling mirrors this value the same way as the others.
+ */
+export const PAGE_UNAVAILABLE_EXIT_CODE = 68;
+
+export {
+  DEFAULT_NAVIGATION_RETRY_MS,
+  findPageUnavailableLine,
+  formatPageUnavailable,
+  parsePageUnavailableLine,
+  resolveNavigationRetryMs,
+} from "./page-availability";
+export type {
+  PageRole,
+  PageUnavailable,
+  PageUnavailableLine,
+} from "./page-availability";
+
+/**
  * How long a freshly launched page may take to mount (its client renders
  * the element AGENT_MOUNT_SELECTOR names, or installs the bridge) before the
  * daemon gives up on it. Separate from the bridge wait, which a loaded box

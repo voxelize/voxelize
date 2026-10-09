@@ -77,6 +77,12 @@ import { composeClientUrl } from "./client-url";
 import { assertUncappedWindow } from "./frame-rate-guard";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
+  PageRole,
+  PageUnavailableError,
+  openPage,
+  resolveNavigationRetryMs,
+} from "./page-availability";
+import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
   logAgentPerf,
@@ -104,6 +110,12 @@ export type AgentLaunchOptions = {
    * authenticated user with admin-only commands available.
    */
   authUrl?: string;
+  /**
+   * How long a launch page that answers like a server mid-restart (5xx, a
+   * refused connection) is retried before the launch gives up; a 404 gives
+   * up at once (page-availability.ts). Defaults to AGENT_NAVIGATION_RETRY_MS.
+   */
+  navigationRetryMs?: number;
 };
 
 export type ScreenshotOptions = {
@@ -415,6 +427,7 @@ export class Agent {
       waitReadyTimeoutMs = readyTimeout.timeoutMs,
       port = DEFAULT_DAEMON_PORT,
       authUrl,
+      navigationRetryMs = resolveNavigationRetryMs(process.env),
     } = options;
     if (options.waitReadyTimeoutMs === undefined && readyTimeout.isScaled) {
       console.log(
@@ -566,7 +579,7 @@ export class Agent {
     });
 
     if (authUrl) {
-      await page.goto(authUrl, { waitUntil: "domcontentloaded" });
+      await agent.openLaunchPage("auth", authUrl, navigationRetryMs);
       console.log(`[voxelize-agent] visited auth url: ${authUrl}`);
     }
 
@@ -579,12 +592,46 @@ export class Agent {
     });
     agent.targetUrl = targetUrl;
 
-    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+    await agent.openLaunchPage("page", targetUrl, navigationRetryMs);
 
     const ready = Agent.waitForBridge(page, waitReadyTimeoutMs);
 
     agent.trackReadyPromise(ready);
     return agent;
+  }
+
+  /**
+   * Open one of the launch's pages under page-availability's rule. One that
+   * cannot load closes this browser before the error reaches the daemon: a
+   * session that can never mount must not hold a browser while it exits.
+   */
+  private async openLaunchPage(
+    role: PageRole,
+    url: string,
+    retryMs: number,
+  ): Promise<void> {
+    try {
+      await openPage(
+        async () => {
+          const response = await this.page.goto(url, {
+            waitUntil: "domcontentloaded",
+          });
+          return response === null
+            ? null
+            : { status: response.status(), statusText: response.statusText() };
+        },
+        { role, url, retryMs },
+      );
+    } catch (error) {
+      if (error instanceof PageUnavailableError) {
+        const pid = this.browserPid();
+        await this.close();
+        console.log(
+          `[voxelize-agent] closed browser pid=${pid ?? "?"}: its ${role === "auth" ? "auth url" : "page"} cannot load, so the session ends instead of waiting for a bridge`,
+        );
+      }
+      throw error;
+    }
   }
 
   private trackReadyPromise(ready: Promise<void>): void {

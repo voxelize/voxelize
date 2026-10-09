@@ -5,10 +5,16 @@ import { Agent } from "../src/agent";
 import {
   IDLE_TTL_EXIT_CODE,
   MOUNT_FAILED_EXIT_CODE,
+  PAGE_UNAVAILABLE_EXIT_CODE,
   resolveIdleTtlMs,
   resolveMountTimeoutMs,
 } from "../src/browser-lifecycle";
 import { AgentDaemon } from "../src/daemon";
+import {
+  DEFAULT_NAVIGATION_RETRY_MS,
+  PageUnavailableError,
+  resolveNavigationRetryMs,
+} from "../src/page-availability";
 import {
   SESSION_META_ENV,
   SESSION_ORIGIN_ENV,
@@ -54,6 +60,7 @@ async function main(): Promise<void> {
     values["lease-minutes"],
     process.env,
   );
+  const navigationRetryMs = resolveNavigationRetryMs(process.env);
   // Labels and provenance are validated here too, before a browser exists:
   // a malformed note is a launcher bug worth a loud exit, not a session that
   // boots with half of what it was told.
@@ -73,14 +80,31 @@ async function main(): Promise<void> {
     }${origin?.cursor?.conversationId ? ` cursor=${origin.cursor.conversationId}` : ""}`,
   );
 
-  const agent = await Agent.launch({
-    url,
-    world,
-    name,
-    isHeadless,
-    port,
-    authUrl: values.authUrl,
-  });
+  let agent: Agent;
+  try {
+    agent = await Agent.launch({
+      url,
+      world,
+      name,
+      isHeadless,
+      port,
+      authUrl: values.authUrl,
+      navigationRetryMs,
+    });
+  } catch (error) {
+    if (!(error instanceof PageUnavailableError)) throw error;
+    // The launch already closed its browser. Exit before the HTTP listener
+    // exists: a page that cannot load never mounts, and waiting out the
+    // bridge or mount deadline would only hold the browser and its slot.
+    console.error(`[voxelize-agent] ${error.message}`);
+    console.error(
+      `[voxelize-agent] exiting with code ${PAGE_UNAVAILABLE_EXIT_CODE}, ${
+        Math.round(process.uptime() * 10) / 10
+      }s after the daemon started: a page that cannot load never mounts, and relaunching cannot fix it`,
+    );
+    await new Promise((resolve) => process.stderr.write("", resolve));
+    process.exit(PAGE_UNAVAILABLE_EXIT_CODE);
+  }
 
   process.on("exit", () => {
     agent.killBrowserSync();
@@ -227,6 +251,12 @@ Options:
 Environment:
   AGENT_IDLE_TTL_MS        Same as --idle-ttl-ms (flag wins).
   AGENT_LEASE_MINUTES      Same as --lease-minutes (flag wins).
+  AGENT_NAVIGATION_RETRY_MS
+                           How long a launch page answering 5xx (or a refused
+                           connection) is retried, default ${DEFAULT_NAVIGATION_RETRY_MS}ms;
+                           0 never retries. A 404 or other 4xx gives up at once.
+                           Either way the daemon exits ${PAGE_UNAVAILABLE_EXIT_CODE} instead of waiting
+                           for a bridge the page will never install.
   ${SESSION_META_ENV}       JSON object of initial session notes (--meta merges over it).
   ${SESSION_ORIGIN_ENV}     JSON provenance captured by the launcher (cwd, user,
                            terminal, parent processes, Cursor conversation);

@@ -69,10 +69,28 @@ export {
   DEFAULT_IDLE_TTL_MS,
   IDLE_TTL_EXIT_CODE,
   MOUNT_FAILED_EXIT_CODE,
+  PAGE_UNAVAILABLE_EXIT_CODE,
   agentPidFile,
   resolveIdleTtlMs,
   watchdogLogFile,
 } from "./browser-lifecycle";
+export {
+  DEFAULT_NAVIGATION_RETRY_MS,
+  PageUnavailableError,
+  classifyDocumentStatus,
+  findPageUnavailableLine,
+  formatPageUnavailable,
+  isTransientLoadError,
+  openPage,
+  parsePageUnavailableLine,
+  resolveNavigationRetryMs,
+} from "./page-availability";
+export type {
+  PageLoad,
+  PageRole,
+  PageUnavailable,
+  PageUnavailableLine,
+} from "./page-availability";
 export * from "./bridge";
 export { formatProfileSummary, summarizeProfile } from "./profile-summary";
 export type {
