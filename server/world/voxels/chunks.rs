@@ -120,9 +120,9 @@ fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
     !submerged.is_empty()
 }
 
-/// Wake work carried past a tick's budget, from the tick it first was.
+/// Work carried past a tick's budget, from the tick it first was.
 #[derive(Clone, Debug)]
-pub(crate) struct WakeBacklog {
+pub(crate) struct CarriedBacklog {
     pub since_tick: u64,
     pub peak: usize,
 }
@@ -227,7 +227,12 @@ pub struct Chunks {
     /// Since when wake work (`overdue_active_voxels`, `ticker_consults`) has
     /// been carried past a tick's budget, and the most that waited at once:
     /// reported once the backlog clears.
-    pub(crate) wake_backlog: Option<WakeBacklog>,
+    pub(crate) wake_backlog: Option<CarriedBacklog>,
+
+    /// Since when external writes have been carried past a tick's write
+    /// budget (`max_update_ms_per_tick`), and the most that waited at once:
+    /// reported once the lane empties.
+    pub(crate) write_backlog: Option<CarriedBacklog>,
 
     /// A listener for when a chunk is done generating or meshing.
     pub(crate) listeners: HashMap<Vec2<i32>, Vec<Vec2<i32>>>,
@@ -358,6 +363,7 @@ impl Chunks {
         self.ticker_consults.clear();
         self.ticker_consult_written.clear();
         self.wake_backlog = None;
+        self.write_backlog = None;
         self.listeners.clear();
         self.cache.clear();
         self.freshly_created.clear();
@@ -1167,11 +1173,34 @@ impl Chunks {
                 .take()
                 .map(|backlog| (tick.saturating_sub(backlog.since_tick), backlog.peak));
         }
-        let backlog = self.wake_backlog.get_or_insert(WakeBacklog {
+        let backlog = self.wake_backlog.get_or_insert(CarriedBacklog {
             since_tick: tick,
             peak: 0,
         });
         backlog.peak = backlog.peak.max(carried);
+        None
+    }
+
+    /// Note the external writes still queued as `tick` ends; `is_cut` when
+    /// the tick's write budget, rather than its count, stopped the lane. A
+    /// backlog starts on a cut tick and lasts until the lane empties; then
+    /// this returns for how many ticks it was carried and the most that
+    /// waited at once.
+    pub(crate) fn note_write_backlog(&mut self, tick: u64, is_cut: bool) -> Option<(u64, usize)> {
+        let waiting = self.updates.len();
+        if waiting == 0 {
+            return self
+                .write_backlog
+                .take()
+                .map(|backlog| (tick.saturating_sub(backlog.since_tick), backlog.peak));
+        }
+        if is_cut || self.write_backlog.is_some() {
+            let backlog = self.write_backlog.get_or_insert(CarriedBacklog {
+                since_tick: tick,
+                peak: 0,
+            });
+            backlog.peak = backlog.peak.max(waiting);
+        }
         None
     }
 
