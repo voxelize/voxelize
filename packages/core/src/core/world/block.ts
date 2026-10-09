@@ -362,6 +362,14 @@ export type BlockUpdate = {
   yRotation?: number;
 
   /**
+   * Bits 16-23 of the word for a block whose rotation bits are state
+   * ({@link Block.rotationBitsAreState}), written exactly as they are and
+   * never decoded as a rotation. Only the server authors them; a client
+   * update leaves them zero.
+   */
+  stateBits?: number;
+
+  /**
    * The optional stage of the updated block.
    */
   stage?: number;
