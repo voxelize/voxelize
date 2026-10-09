@@ -1,4 +1,4 @@
-import { MessageProtocol } from "@voxelize/protocol";
+import { EntityProtocol, MessageProtocol } from "@voxelize/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Coords2 } from "../../types";
@@ -31,7 +31,9 @@ vi.mock("../../libs/workers/interval-worker?worker&inline", () => ({
   default: SilentWorker,
 }));
 
-import { World } from "./index";
+import { Block } from "./block";
+
+import { BlockEntityUpdateData, World } from "./index";
 
 type WorldInternals = {
   maintainChunks: (center: Coords2) => void;
@@ -123,5 +125,73 @@ describe("World requests past the render radius", () => {
     expect(world.chunkPipeline.getStage(ChunkUtils.getChunkName([2, 1]))).toBe(
       "requested",
     );
+  });
+});
+
+describe("World rejoin INIT", () => {
+  type Sign = { text: string };
+
+  const handshake = (entities: EntityProtocol<unknown>[]): MessageProtocol =>
+    ({
+      type: "INIT",
+      json: {
+        id: "client",
+        blocks: {},
+        items: [],
+        options: { chunkSize: 16, maxHeight: 256, subChunks: 8 },
+      },
+      entities,
+    }) as unknown as MessageProtocol;
+
+  const sign = (
+    id: string,
+    voxel: [number, number, number],
+    text: string,
+  ): EntityProtocol<unknown> => ({
+    id,
+    type: "block::sign",
+    operation: "UPDATE",
+    metadata: { voxel, json: { text } },
+  });
+
+  /** A world that joined once and has since been told of two signs. */
+  const worldWithSigns = () => {
+    const world = new World<Sign>({});
+    world.onMessage(handshake([]));
+    world.isInitialized = true;
+    world.registry.blocksByName.set("sign", { faces: [] } as unknown as Block);
+    world.onMessage({
+      type: "ENTITY",
+      entities: [
+        sign("a", [1, 2, 3], "before the drop"),
+        sign("b", [4, 5, 6], "removed while away"),
+      ],
+    } as unknown as MessageProtocol);
+    return world;
+  };
+
+  it("applies the block entities it carries and drops the ones it no longer has", () => {
+    const world = worldWithSigns();
+    const updates: BlockEntityUpdateData<Sign>[] = [];
+    world.addBlockEntityUpdateListener((update) => updates.push(update));
+
+    world.onMessage(handshake([sign("a", [1, 2, 3], "changed while away")]));
+
+    expect(world.getBlockEntityDataAt(1, 2, 3)).toEqual({
+      text: "changed while away",
+    });
+    expect(world.getBlockEntityDataAt(4, 5, 6)).toBeNull();
+    expect(updates).toContainEqual(
+      expect.objectContaining({ operation: "DELETE", voxel: [4, 5, 6] }),
+    );
+  });
+
+  it("still leaves a first join's block entities to initialize", () => {
+    const world = new World<Sign>({});
+
+    world.onMessage(handshake([sign("a", [1, 2, 3], "at the join")]));
+
+    world.isInitialized = true;
+    expect(world.getBlockEntityDataAt(1, 2, 3)).toBeNull();
   });
 });
