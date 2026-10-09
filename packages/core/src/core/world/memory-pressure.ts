@@ -44,15 +44,6 @@ export type MemoryPressureOptions = {
    * Minimum milliseconds between two shed actions while pressure persists.
    */
   shedCooldownMs: number;
-
-  /**
-   * Per pool and per shed, how many idle workers whose replacement needs the
-   * pool's init broadcasts replayed may be replaced: each replay
-   * structured-clones them on the main thread, and the replacement rebuilds
-   * that state (and the heap it takes) before it can run a job. Pools with
-   * nothing to replay replace every idle worker.
-   */
-  maxReplayedWorkerRecycles: number;
 };
 
 export const defaultMemoryPressureOptions: MemoryPressureOptions = {
@@ -61,7 +52,6 @@ export const defaultMemoryPressureOptions: MemoryPressureOptions = {
   recoveryHeapRatio: 0.65,
   sheddingSampleCount: 2,
   shedCooldownMs: 5000,
-  maxReplayedWorkerRecycles: 1,
 };
 
 /**
