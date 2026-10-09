@@ -62,6 +62,21 @@ export class BorrowedCasterScene {
   }
 }
 
+/**
+ * Mark `object` as something no depth pass may ever draw, whatever it is
+ * drawn with: the sky and the cloud deck occlude nothing, while a depth
+ * pass draws every mesh under them as a solid. Honoured on the scene's
+ * direct children (`CSMRenderer.hideNonCasters`), so any scene they are
+ * added to keeps them out without registering them anywhere.
+ */
+export function markNeverCaster(object: Object3D): void {
+  object.userData.isNeverCaster = true;
+}
+
+export function isMarkedNeverCaster(object: Object3D): boolean {
+  return object.userData?.isNeverCaster === true;
+}
+
 type MaterialCarrier = { material?: Material | Material[] | null };
 
 function isNonCasterMaterial(material: Material | null | undefined): boolean {

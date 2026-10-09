@@ -19,7 +19,11 @@ import {
 } from "three";
 
 import { boundsIntersectSphere } from "./dynamic-caster-bounds";
-import { BorrowedCasterScene, isNonCasterEffect } from "./shadow-casters";
+import {
+  BorrowedCasterScene,
+  isMarkedNeverCaster,
+  isNonCasterEffect,
+} from "./shadow-casters";
 
 export interface CSMConfig {
   cascades: number;
@@ -649,7 +653,9 @@ export class CSMRenderer {
 
   /**
    * Hide everything no depth pass may draw, for one shadow frame: the
-   * never-casters, the registered exclusions and every direct child of `scene` that
+   * never-casters (registered, or direct children of `scene` that
+   * {@link isMarkedNeverCaster} marks), the registered exclusions and every
+   * direct child of `scene` that
    * {@link isNonCasterEffect} identifies. Call once before the frame's
    * first depth pass (cascades and local lights alike) and pair with
    * {@link restoreNonCasters}.
@@ -661,6 +667,14 @@ export class CSMRenderer {
       if (object.visible) {
         hidden.push(object);
         object.visible = false;
+      }
+    }
+    const sceneChildren = scene.children;
+    for (let i = 0; i < sceneChildren.length; i++) {
+      const child = sceneChildren[i];
+      if (child.visible && isMarkedNeverCaster(child)) {
+        hidden.push(child);
+        child.visible = false;
       }
     }
     if (!this.isExcludingNonCasters) return;

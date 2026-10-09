@@ -18,6 +18,7 @@ import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
+import { markNeverCaster } from "./shadow-casters";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
 
@@ -421,6 +422,10 @@ export class Clouds extends Group {
 
     this.material.toneMapped = false;
     this.baseColorHSL = new Color(color).getHSL({ h: 0, s: 0, l: 0 });
+    // A depth pass would draw the see-through deck as solid slabs, and a
+    // cascade reaches it only from high enough up, so a flier would see a
+    // hard dark wedge on ground that nobody walking it sees.
+    markNeverCaster(this);
 
     this.initialize();
   }
