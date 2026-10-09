@@ -54,6 +54,15 @@ export type WorkerPoolOptions = {
    * treat a `null` result as a retryable failure.
    */
   maxQueuedJobs?: number;
+
+  /**
+   * The `type` of the message a worker posts once its start-up has finished,
+   * for workers whose start-up is asynchronous (a wasm module instantiating
+   * on `init`). Until a worker has posted it the pool hands it no job, a
+   * replacement included, and a job's reply is never mistaken for it.
+   * Without it a worker takes jobs as soon as it exists.
+   */
+  readyMessageType?: string;
 };
 
 const defaultOptions: WorkerPoolOptions = {
@@ -105,6 +114,13 @@ export class WorkerPool {
   private available: number[] = [];
 
   /**
+   * Whether each slot's worker has finished starting (see
+   * {@link WorkerPoolOptions.readyMessageType}); one still starting is in
+   * neither `available` nor flight.
+   */
+  private isReady: boolean[] = [];
+
+  /**
    * Broadcast messages (worker init/registry state), replayed onto
    * replacement workers so a swapped-in worker is indistinguishable from
    * the original.
@@ -129,9 +145,33 @@ export class WorkerPool {
         : undefined;
       const worker = new Proto(workerOptions);
       this.workers.push(worker);
-      this.available.push(i);
+      if (options.readyMessageType === undefined) {
+        this.isReady.push(true);
+        this.available.push(i);
+      } else {
+        this.isReady.push(false);
+        this.joinWhenReady(i, worker);
+      }
     }
   }
+
+  /**
+   * Puts a slot's worker into `available` once it posts the ready message.
+   * The slot is out of flight by then: a replacement is swapped in by a job's
+   * own settling, whose cleanup leaves a starting worker's slot alone.
+   */
+  private joinWhenReady = (index: number, worker: Worker) => {
+    const { readyMessageType } = this.options;
+    const onMessage = ({ data }: MessageEvent) => {
+      if (data?.type !== readyMessageType) return;
+      worker.removeEventListener("message", onMessage);
+      if (this.workers[index] !== worker) return;
+      this.isReady[index] = true;
+      this.available.unshift(index);
+      this.process();
+    };
+    worker.addEventListener("message", onMessage);
+  };
 
   /**
    * Append a new job to be executed by a worker.
@@ -200,6 +240,7 @@ export class WorkerPool {
     this.queue = [];
     this.workers = [];
     this.available = [];
+    this.isReady = [];
   };
 
   /**
@@ -228,13 +269,22 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         worker.removeEventListener("error", workerError);
         worker.removeEventListener("messageerror", workerError);
-        this.available.unshift(index);
+        // A replacement still starting rejoins when it reports ready.
+        if (this.isReady[index]) this.available.unshift(index);
         if (this.queue.length > 0) {
           queueMicrotask(this.process);
         }
       };
 
       const workerCallback = ({ data }: any) => {
+        // A worker re-running `init` (a registry update) reports ready
+        // again; that is not this job's answer.
+        if (
+          this.options.readyMessageType !== undefined &&
+          data?.type === this.options.readyMessageType
+        ) {
+          return;
+        }
         if (isSettled) return;
         isSettled = true;
         // A wasm trap poisons the worker's module state permanently (see
@@ -307,6 +357,12 @@ export class WorkerPool {
       worker.postMessage(message);
     }
     this.workers[index] = worker;
+    // The replayed `init` has not run yet; a job handed over now would reach
+    // a worker that cannot serve it (the mesh worker answers with nothing).
+    if (this.options.readyMessageType !== undefined) {
+      this.isReady[index] = false;
+      this.joinWhenReady(index, worker);
+    }
   };
 
   /**
@@ -320,7 +376,11 @@ export class WorkerPool {
    * The number of workers that are simultaneously working.
    */
   get workingCount() {
-    return this.workers.length - this.available.length;
+    let starting = 0;
+    for (let i = 0; i < this.workers.length; i++) {
+      if (!this.isReady[i]) starting++;
+    }
+    return this.workers.length - this.available.length - starting;
   }
 
   /**
