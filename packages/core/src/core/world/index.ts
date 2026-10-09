@@ -53,6 +53,7 @@ import {
   sortTransparentMesh,
 } from "../../core/transparent-sorter";
 import { BoundedLruMap, WorkerPool } from "../../libs";
+import { createBudgetedDrain } from "../../libs/instancing/frame-budget";
 import {
   getMeshTransferStatus,
   MeshTransferBenchmarkOptions,
@@ -189,12 +190,15 @@ import {
   quantizeUvs,
 } from "./vertex-quantization";
 import {
+  createVoxelBoxBand,
+  fillVoxelBoxBand,
   maxVoxelBoxSide,
-  voxelBoxBand,
+  splitVoxelBoxGeometry,
   voxelBoxBandRows,
   type VoxelBoxBand,
   type VoxelBoxInput,
   type VoxelBoxMesh,
+  VoxelBoxWork,
 } from "./voxel-box";
 import type { VoxelDelta } from "./voxel-delta";
 import {
@@ -258,6 +262,17 @@ export * from "./world-options";
 
 const warnedUnknownBlockIds = new Set<number>();
 const warnedUnloadedUpdateChunks = new Set<string>();
+
+/** Main-thread time a frame gives every voxel box being built, together: a
+ * felled giant baking several boxes at once still costs one budget. */
+const VOXEL_BOX_FRAME_BUDGET_MS = 2;
+/** The most triangles one unit of a box's build takes on. */
+const VOXEL_BOX_UNIT_TRIANGLES = 1_024;
+/** The most cells one unit of a band's layout takes on. */
+const VOXEL_BOX_UNIT_CELLS = 4_096;
+/** A pause between two units of box work longer than this is a new frame's
+ * slice. */
+const VOXEL_BOX_SLICE_GAP_MS = 1;
 
 export type TextureInfo = {
   blockId: number;
@@ -1616,9 +1631,21 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The meshes stay out of the sun's shadow passes: those are cached, and
    * would keep a moving box's shadow where they last drew it.
    */
+  private voxelBoxWorkQueue: VoxelBoxWork | null = null;
+
+  /** The voxel-box work every box shares, a budgeted slice per frame. */
+  private get voxelBoxWork(): VoxelBoxWork {
+    this.voxelBoxWorkQueue ??= new VoxelBoxWork({
+      createDrain: (work) =>
+        createBudgetedDrain(VOXEL_BOX_FRAME_BUDGET_MS, work),
+      now: () => performance.now(),
+      sliceGapMs: VOXEL_BOX_SLICE_GAP_MS,
+    });
+    return this.voxelBoxWorkQueue;
+  }
+
   async meshVoxelBox(box: VoxelBoxInput): Promise<VoxelBoxMesh> {
     const startedAt = performance.now();
-    let mainThreadMs = 0;
     const [sx, sy, sz] = box.size;
     if (box.voxels.length !== sx * sy * sz) {
       throw new Error(
@@ -1687,18 +1714,30 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
       });
 
-    const fillStart = performance.now();
     const bands = voxelBoxBandRows({ rows: sy, bandHeight }).map(
       ({ firstRow, rows }) =>
-        voxelBoxBand({
-          size: box.size,
-          voxels: box.voxels,
-          firstRow,
-          rows,
-          lightAt,
-        }),
+        createVoxelBoxBand({ size: box.size, firstRow, rows }),
     );
-    mainThreadMs += performance.now() - fillStart;
+    const fillUnits: (() => void)[] = [];
+    for (const band of bands) {
+      const columns = Math.max(
+        1,
+        Math.floor(VOXEL_BOX_UNIT_CELLS / (band.height * band.side)),
+      );
+      for (let fromColumn = 0; fromColumn < band.side; fromColumn += columns) {
+        fillUnits.push(() =>
+          fillVoxelBoxBand({
+            band,
+            size: box.size,
+            voxels: box.voxels,
+            lightAt,
+            fromColumn,
+            toColumn: fromColumn + columns,
+          }),
+        );
+      }
+    }
+    const fill = await this.voxelBoxWork.run(fillUnits);
 
     const results = await Promise.all(
       bands.map(async (band) => {
@@ -1714,12 +1753,25 @@ export class World<T = any> extends Scene implements NetIntercept {
       }),
     );
 
-    const buildStart = performance.now();
+    // The build runs as bounded units under the shared frame budget: every
+    // piece of a mesher geometry is built on its own, a merge takes a bounded
+    // run of a bucket's pieces, and the opaque wood fills its batch a piece
+    // at a time.
     const group = new Group();
     group.name = "voxel-box";
     const geometriesToDispose: BufferGeometry[] = [];
     const isArenaBucketed = this.options.regionArenas !== null;
-    const opaqueParts: { geometry: BufferGeometry; matrix: Matrix4 }[] = [];
+    const opaqueMaterial = this.chunkRenderer.materials.get(
+      SHARED_OPAQUE_MATERIAL_KEY,
+    );
+    type Piece = {
+      protocol: GeometryProtocol;
+      geometry: BufferGeometry | null;
+    };
+    const units: (() => void)[] = [];
+    const opaquePieces: { piece: Piece; offset: Coords3 }[] = [];
+    let opaqueVertices = 0;
+    let opaqueIndices = 0;
     let triangles = 0;
 
     for (const { band, geometries } of results) {
@@ -1731,11 +1783,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ];
       const buckets = new Map<
         string,
-        {
-          parts: BufferGeometry[];
-          material: CustomChunkShaderMaterial;
-          voxels: Set<number>;
-        }
+        { material: CustomChunkShaderMaterial; pieces: Piece[] }
       >();
       for (const geo of geometries) {
         const at = geo.at && geo.at.length ? geo.at : undefined;
@@ -1743,117 +1791,103 @@ export class World<T = any> extends Scene implements NetIntercept {
         // display): it has no shared material for a box to borrow.
         const material = this.getBlockFaceMaterial(geo.voxel, geo.faceName, at);
         if (!material) continue;
-        const geometry = this.makeVoxelBoxGeometry(geo, tintOrigin);
-        triangles += (geometry.getIndex()?.count ?? 0) / 3;
         const key = this.getChunkMaterialBucket(geo.voxel, geo.faceName, at);
-        const bucket = buckets.get(key) ?? {
-          parts: [],
-          material,
-          voxels: new Set<number>(),
-        };
-        bucket.parts.push(geometry);
-        bucket.voxels.add(geo.voxel);
+        const bucket = buckets.get(key) ?? { material, pieces: [] };
+        for (const protocol of splitVoxelBoxGeometry({
+          geometry: geo,
+          maxTriangles: VOXEL_BOX_UNIT_TRIANGLES,
+        })) {
+          const piece: Piece = { protocol, geometry: null };
+          bucket.pieces.push(piece);
+          units.push(() => {
+            piece.geometry = this.makeVoxelBoxGeometry(protocol, tintOrigin);
+            triangles += (piece.geometry.getIndex()?.count ?? 0) / 3;
+          });
+        }
         buckets.set(key, bucket);
       }
 
       for (const [key, bucket] of buckets) {
-        const merged =
-          bucket.parts.length === 1
-            ? bucket.parts[0]
-            : mergeGeometries(bucket.parts, false);
-        if (bucket.parts.length > 1) {
-          for (const part of bucket.parts) part.dispose();
-        }
-        if (!merged) {
-          console.error(
-            `meshVoxelBox: the ${key} geometries of rows ${band.firstRow}+ failed to merge and were dropped`,
-          );
+        // The opaque wood rides one batch on the region arenas' own
+        // material, so it draws with the shader program the arenas compiled.
+        if (
+          isArenaBucketed &&
+          key === SHARED_OPAQUE_MATERIAL_KEY &&
+          opaqueMaterial
+        ) {
+          for (const piece of bucket.pieces) {
+            opaquePieces.push({ piece, offset });
+            opaqueVertices += piece.protocol.positions.length / 3;
+            opaqueIndices += piece.protocol.indices.length;
+          }
           continue;
         }
-        const isQuantized =
-          merged.getAttribute("position").array instanceof Uint16Array;
-        const matrix = new Matrix4();
-        if (isQuantized) {
-          matrix
-            .makeScale(
-              1 / this.chunkPositionUnits,
-              1 / this.chunkPositionUnits,
-              1 / this.chunkPositionUnits,
-            )
-            .setPosition(
-              offset[0] - POSITION_BLOCK_BIAS,
-              offset[1] - POSITION_BLOCK_BIAS,
-              offset[2] - POSITION_BLOCK_BIAS,
-            );
-        } else {
-          matrix.makeTranslation(offset[0], offset[1], offset[2]);
-        }
-
-        if (isArenaBucketed && key === SHARED_OPAQUE_MATERIAL_KEY) {
-          opaqueParts.push({ geometry: merged, matrix });
-          continue;
-        }
-
-        merged.computeBoundingSphere();
-        geometriesToDispose.push(merged);
-        const mesh = new Mesh(merged, bucket.material);
-        mesh.matrixAutoUpdate = false;
-        mesh.matrix.copy(matrix);
-        const voxel =
-          bucket.voxels.size === 1 ? [...bucket.voxels][0] : undefined;
-        mesh.userData = {
-          isVoxelBox: true,
-          materialBucket: key,
-          voxel,
-          isPlant: voxel !== undefined && this.isPlantVoxel(voxel),
-        };
-        if (bucket.material.transparent) {
-          this.configureTransparentChunkMesh(
-            mesh,
-            voxel ?? geometries[0].voxel,
-            bucket.material,
+        let run: Piece[] = [];
+        let runTriangles = 0;
+        const flush = (pieces: Piece[]) =>
+          units.push(() =>
+            this.addVoxelBoxMesh({
+              group,
+              pieces: pieces.map((piece) => piece.geometry),
+              key,
+              material: bucket.material,
+              voxels: new Set(pieces.map((piece) => piece.protocol.voxel)),
+              offset,
+              geometriesToDispose,
+              rowsLabel: `rows ${band.firstRow}+`,
+            }),
           );
+        for (const piece of bucket.pieces) {
+          const pieceTriangles = piece.protocol.indices.length / 3;
+          if (
+            run.length > 0 &&
+            runTriangles + pieceTriangles > VOXEL_BOX_UNIT_TRIANGLES
+          ) {
+            flush(run);
+            run = [];
+            runTriangles = 0;
+          }
+          run.push(piece);
+          runTriangles += pieceTriangles;
         }
+        if (run.length > 0) flush(run);
+      }
+    }
+
+    const batch: { mesh: BatchedMesh | null } = { mesh: null };
+    if (opaquePieces.length > 0 && opaqueMaterial) {
+      units.push(() => {
+        const mesh = new BatchedMesh(
+          opaquePieces.length,
+          opaqueVertices,
+          opaqueIndices,
+          opaqueMaterial,
+        );
+        mesh.frustumCulled = false;
+        mesh.perObjectFrustumCulled = true;
+        mesh.userData.isVoxelBox = true;
         group.add(mesh);
-      }
-    }
-
-    // The opaque wood rides one batch on the region arenas' own material, so
-    // it draws with the shader program the arenas already compiled.
-    let batched: BatchedMesh | null = null;
-    const opaqueMaterial = this.chunkRenderer.materials.get(
-      SHARED_OPAQUE_MATERIAL_KEY,
-    );
-    if (opaqueParts.length > 0 && opaqueMaterial) {
-      let vertexCount = 0;
-      let indexCount = 0;
-      for (const { geometry } of opaqueParts) {
-        vertexCount += geometry.getAttribute("position").count;
-        indexCount += geometry.getIndex()?.count ?? 0;
-      }
-      batched = new BatchedMesh(
-        opaqueParts.length,
-        vertexCount,
-        indexCount,
-        opaqueMaterial,
-      );
-      batched.frustumCulled = false;
-      batched.perObjectFrustumCulled = true;
-      batched.userData.isVoxelBox = true;
+        batch.mesh = mesh;
+      });
       const white = new Color(1, 1, 1);
-      for (const { geometry, matrix } of opaqueParts) {
-        const instance = batched.addInstance(batched.addGeometry(geometry));
-        batched.setMatrixAt(instance, matrix);
-        batched.setColorAt(instance, white);
-        geometry.dispose();
+      for (const { piece, offset } of opaquePieces) {
+        units.push(() => {
+          const geometry = piece.geometry;
+          piece.geometry = null;
+          if (!geometry || !batch.mesh) return;
+          const instance = batch.mesh.addInstance(
+            batch.mesh.addGeometry(geometry),
+          );
+          batch.mesh.setMatrixAt(
+            instance,
+            this.voxelBoxMatrix(geometry, offset),
+          );
+          batch.mesh.setColorAt(instance, white);
+          geometry.dispose();
+        });
       }
-      group.add(batched);
-    } else {
-      for (const { geometry } of opaqueParts) geometry.dispose();
     }
-
-    this.csmRenderer?.addShadowExclusion(group);
-    mainThreadMs += performance.now() - buildStart;
+    units.push(() => this.csmRenderer?.addShadowExclusion(group));
 
     const dispose = () => {
       this.csmRenderer?.removeShadowExclusion(group);
@@ -1862,18 +1896,104 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const child of group.children) {
         this.csmRenderer?.removeSkipShadowObject(child);
       }
-      batched?.dispose();
+      batch.mesh?.dispose();
       group.clear();
     };
+
+    let build: { mainThreadMs: number; maxSliceMs: number };
+    try {
+      build = await this.voxelBoxWork.run(units);
+    } catch (error) {
+      dispose();
+      throw error;
+    }
 
     return {
       group,
       triangles,
       bands: results.length,
       totalMs: performance.now() - startedAt,
-      mainThreadMs,
+      mainThreadMs: fill.mainThreadMs + build.mainThreadMs,
+      maxSliceMs: Math.max(fill.maxSliceMs, build.maxSliceMs),
       dispose,
     };
+  }
+
+  /** Where a box's geometry sits in its group: quantized positions carry
+   * their scale and bias. */
+  private voxelBoxMatrix(geometry: BufferGeometry, offset: Coords3): Matrix4 {
+    const matrix = new Matrix4();
+    if (geometry.getAttribute("position").array instanceof Uint16Array) {
+      return matrix
+        .makeScale(
+          1 / this.chunkPositionUnits,
+          1 / this.chunkPositionUnits,
+          1 / this.chunkPositionUnits,
+        )
+        .setPosition(
+          offset[0] - POSITION_BLOCK_BIAS,
+          offset[1] - POSITION_BLOCK_BIAS,
+          offset[2] - POSITION_BLOCK_BIAS,
+        );
+    }
+    return matrix.makeTranslation(offset[0], offset[1], offset[2]);
+  }
+
+  /** One run of a bucket's built pieces, merged into a mesh of the box. */
+  private addVoxelBoxMesh({
+    group,
+    pieces,
+    key,
+    material,
+    voxels,
+    offset,
+    geometriesToDispose,
+    rowsLabel,
+  }: {
+    group: Group;
+    pieces: (BufferGeometry | null)[];
+    key: string;
+    material: CustomChunkShaderMaterial;
+    voxels: Set<number>;
+    offset: Coords3;
+    geometriesToDispose: BufferGeometry[];
+    rowsLabel: string;
+  }): void {
+    const parts = pieces.filter(
+      (part): part is BufferGeometry => part !== null,
+    );
+    if (parts.length === 0) return;
+    const merged =
+      parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+    if (parts.length > 1) {
+      for (const part of parts) part.dispose();
+    }
+    if (!merged) {
+      console.error(
+        `meshVoxelBox: the ${key} geometries of ${rowsLabel} failed to merge and were dropped`,
+      );
+      return;
+    }
+    merged.computeBoundingSphere();
+    geometriesToDispose.push(merged);
+    const mesh = new Mesh(merged, material);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.copy(this.voxelBoxMatrix(merged, offset));
+    const voxel = voxels.size === 1 ? [...voxels][0] : undefined;
+    mesh.userData = {
+      isVoxelBox: true,
+      materialBucket: key,
+      voxel,
+      isPlant: voxel !== undefined && this.isPlantVoxel(voxel),
+    };
+    if (material.transparent) {
+      this.configureTransparentChunkMesh(
+        mesh,
+        voxel ?? [...voxels][0],
+        material,
+      );
+    }
+    group.add(mesh);
   }
 
   /** A box's geometry, like a chunk's, tinted by where the box stands. */
