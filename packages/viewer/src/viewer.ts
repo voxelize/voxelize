@@ -516,6 +516,7 @@ export class WorldViewer {
     });
     csm.addNeverCaster(far.terrain);
     csm.addNeverCaster(sky);
+    chunks.setShadowCasters(csm);
     return {
       ref,
       meta,

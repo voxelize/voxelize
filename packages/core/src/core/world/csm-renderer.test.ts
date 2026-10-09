@@ -18,7 +18,11 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CSMRenderer } from "./csm-renderer";
-import { BorrowedCasterScene, isNonCasterEffect } from "./shadow-casters";
+import {
+  BorrowedCasterScene,
+  isNonCasterEffect,
+  markNeverCaster,
+} from "./shadow-casters";
 
 const SUN = new Vector3(-0.4, -1, 0.3).normalize();
 
@@ -548,6 +552,40 @@ describe("CSMRenderer never-casters", () => {
       expect(farLayer.visible).toBe(true);
       expect(ground.visible).toBe(true);
     }
+  });
+
+  it("keeps never-casters out of a pass the host never bracketed", () => {
+    const csm = new CSMRenderer({ entityShadowFrameInterval: 1 });
+    const scene = new Scene();
+    const ground = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const farLayer = new Group();
+    farLayer.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    const deck = new Group();
+    deck.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    markNeverCaster(deck);
+    scene.add(ground, farLayer, deck);
+    csm.addNeverCaster(farLayer);
+
+    const seen: { far: boolean; deck: boolean; ground: boolean }[] = [];
+    const stub = {
+      setRenderTarget: () => undefined,
+      clear: () => undefined,
+      render: () => {
+        seen.push({
+          far: farLayer.visible,
+          deck: deck.visible,
+          ground: ground.visible,
+        });
+      },
+    } as Partial<WebGLRenderer> as WebGLRenderer;
+    const position = new Vector3(0, 40, 0);
+    const camera = makeCamera(position, new Vector3(10, 40, 0));
+    csm.update(camera, SUN, position);
+    csm.render(stub, scene);
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((s) => !s.far && !s.deck && s.ground)).toBe(true);
+    expect(farLayer.visible && deck.visible && ground.visible).toBe(true);
   });
 });
 

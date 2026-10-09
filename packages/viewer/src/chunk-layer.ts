@@ -5,7 +5,7 @@
  * buffers is the only main-thread work, and it is spent under a byte budget
  * per frame so a burst of arrivals never lands as one long frame.
  */
-import { SHARED_OPAQUE_MATERIAL_KEY } from "@voxelize/core";
+import { SHARED_OPAQUE_MATERIAL_KEY, type CSMRenderer } from "@voxelize/core";
 import {
   Box3,
   BufferAttribute,
@@ -69,6 +69,12 @@ export type ChunkLayerStats = {
   peakUploadMs: number;
 };
 
+/** The slice of the sun's shadow maps a chunk layer reports its meshes to. */
+export type ChunkShadowCasters = Pick<
+  CSMRenderer,
+  "addSkipShadowObject" | "removeSkipShadowObject"
+>;
+
 export class ChunkLayer {
   readonly group = new Group();
 
@@ -110,6 +116,8 @@ export class ChunkLayer {
 
   private visibility = { water: true, plants: true };
 
+  private shadowCasters: ChunkShadowCasters | null = null;
+
   private options: ChunkLayerOptions;
 
   constructor(
@@ -129,6 +137,22 @@ export class ChunkLayer {
       worker.postMessage(init);
       this.workers.push(worker);
     }
+  }
+
+  /**
+   * Report every mesh, now and as they stream, to the sun's shadow maps. A
+   * depth pass draws every visible mesh whatever its `castShadow`, so a mesh
+   * whose material skips shadows (water, glass) has to be on their list or
+   * it shades the ground beneath it.
+   */
+  setShadowCasters(casters: ChunkShadowCasters | null) {
+    for (const r of this.resident.values()) {
+      for (const mesh of r.meshes) {
+        this.shadowCasters?.removeSkipShadowObject(mesh);
+        casters?.addSkipShadowObject(mesh);
+      }
+    }
+    this.shadowCasters = casters;
   }
 
   /** Sets what is wanted around (x, z) and spends this frame's budget. */
@@ -333,11 +357,13 @@ export class ChunkLayer {
     mesh.visible = this.isVisible(g.material);
     this.group.add(mesh);
     mesh.updateMatrixWorld();
+    this.shadowCasters?.addSkipShadowObject(mesh);
     return mesh;
   }
 
   private release(r: Resident) {
     for (const mesh of r.meshes) {
+      this.shadowCasters?.removeSkipShadowObject(mesh);
       this.group.remove(mesh);
       mesh.geometry.dispose();
     }
