@@ -69,6 +69,15 @@ export interface ShaderLightingUniforms {
   shadowSideFaceBiasScale: { value: number };
   shadowStrength: { value: number };
   sunlightIntensity: { value: number };
+  /**
+   * The share of the sun (the moon by night) that reaches the world as a
+   * direct beam, 0..1: 1 under a clear sky, falling as cloud veils the
+   * disc. What only a beam draws (glints on water, caustics, the disc seen
+   * through the surface from below) scales by it; diffuse daylight
+   * (`sunlightIntensity`) does not. The engine leaves it at 1; a host with
+   * weather lowers it.
+   */
+  directSunlight: { value: number };
   waterTint: { value: Color };
   waterAbsorption: { value: number };
   waterLevel: { value: number };
@@ -226,6 +235,7 @@ export class ChunkRenderer {
     shadowSideFaceBiasScale: { value: 1.0 },
     shadowStrength: { value: 1.0 },
     sunlightIntensity: { value: 1.0 },
+    directSunlight: { value: 1.0 },
     waterTint: { value: new Color("#1F8BD8") },
     waterAbsorption: { value: 1 },
     waterLevel: { value: 86 },

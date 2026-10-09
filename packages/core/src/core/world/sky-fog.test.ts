@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { Mesh, ShaderMaterial } from "three";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 
+import { Sky } from "./sky";
 import { SKY_FOG_FRAGMENT } from "./sky-fog";
 
 describe("camera-relative sky sampling", () => {
@@ -42,5 +44,43 @@ describe("the sky from under water", () => {
       "floor(vec2(dot(airDir, sunSide), dot(airDir, sunUp)) / SNELL_SUN_PIXEL)",
     );
     expect(SkyFragmentShader).not.toContain("outsideWindow");
+  });
+});
+
+describe("the sun through the window under a veiled sky", () => {
+  beforeAll(() => {
+    const context = new Proxy(
+      {},
+      { get: (_target, key) => (key === "canvas" ? undefined : () => ({})) },
+    );
+    vi.stubGlobal("document", {
+      createElement: () => ({ width: 0, height: 0, getContext: () => context }),
+    });
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("draws the refracted disc only as bright as the beam the sky lets through", () => {
+    expect(SkyFragmentShader).toContain("uniform float uDirectSunlight;");
+    expect(SkyFragmentShader).toContain(
+      "windowSky += uSunColor * uSunlightIntensity * uDirectSunlight",
+    );
+    // Bound on the dome, clear by default: a host without weather keeps
+    // the disc it always had.
+    const sky = new Sky();
+    const bound: { value: number }[] = [];
+    sky.traverse((object) => {
+      const material = (object as Mesh).material;
+      if (
+        material instanceof ShaderMaterial &&
+        material.uniforms.uDirectSunlight
+      )
+        bound.push(material.uniforms.uDirectSunlight);
+    });
+    expect(bound).toHaveLength(1);
+    expect(bound[0]).toBe(sky.uDirectSunlight);
+    expect(sky.uDirectSunlight.value).toBe(1);
   });
 });

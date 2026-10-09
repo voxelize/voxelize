@@ -5735,6 +5735,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.sky.uSunColor.value.copy(lighting.sunColor.value);
     this.sky.uSunlightIntensity.value =
       this.chunkRenderer.uniforms.sunlightIntensity.value;
+    this.sky.uDirectSunlight.value = lighting.directSunlight.value;
 
     const hideClouds = this.waterOptics.submersion >= 0.5;
     if (hideClouds !== this.cloudsHiddenUnderwater && this.clouds) {

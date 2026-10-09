@@ -261,6 +261,7 @@ export function makeChunkShaderMaterial(
       world.chunkRenderer.shaderLightingUniforms.waterFresnelStrength,
     uBedCausticScale:
       world.chunkRenderer.shaderLightingUniforms.bedCausticScale,
+    uDirectSunlight: world.chunkRenderer.shaderLightingUniforms.directSunlight,
     uSurfaceUndersideScale:
       world.chunkRenderer.shaderLightingUniforms.surfaceUndersideScale,
     uSurfaceUndersideTuning:
