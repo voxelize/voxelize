@@ -3,7 +3,6 @@ import { AABB } from "@voxelize/aabb";
 import { Coords3 } from "../../types";
 
 import type { BranchShape, BranchSocket } from "./branch";
-
 import { UV } from "./uv";
 
 /**

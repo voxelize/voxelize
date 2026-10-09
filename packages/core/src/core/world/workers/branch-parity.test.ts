@@ -94,7 +94,8 @@ describe("branches mesh and collide the same on the client as on the server", ()
       blocksByName: [],
     });
     for (const [id, block] of converted.blocksById) {
-      const sent = fixture.blocks.find((b) => b.id === id)!;
+      const sent = fixture.blocks.find((b) => b.id === id);
+      if (!sent) throw new Error(`block ${id} is not in the fixture`);
       expect(block.branch).toEqual(sent.branch ?? null);
       expect(block.branchSockets).toEqual(sent.branchSockets ?? []);
       expect(block.faces.map((face) => face.regionalTint)).toEqual(
@@ -150,8 +151,9 @@ describe("branches mesh and collide the same on the client as on the server", ()
       };
       for (const { at, aabbs } of scene.aabbs) {
         const [x, y, z] = at;
-        const block = lookup.getBlockById(lookup.getVoxelAt(x, y, z))!;
-        const client = branchAABBs(block.branch!, x, y, z, lookup).map((a) => [
+        const shape = lookup.getBlockById(lookup.getVoxelAt(x, y, z))?.branch;
+        if (!shape) throw new Error(`no branch at ${at}`);
+        const client = branchAABBs(shape, x, y, z, lookup).map((a) => [
           a.minX,
           a.minY,
           a.minZ,
