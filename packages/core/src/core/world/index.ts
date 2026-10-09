@@ -15,6 +15,7 @@ import { raycast } from "@voxelize/raycast";
 import {
   Box3,
   BackSide,
+  BatchedMesh,
   BufferAttribute,
   BufferGeometry,
   Camera,
@@ -52,6 +53,7 @@ import {
   sortTransparentMesh,
 } from "../../core/transparent-sorter";
 import { BoundedLruMap, WorkerPool } from "../../libs";
+import { createBudgetedDrain } from "../../libs/instancing/frame-budget";
 import {
   getMeshTransferStatus,
   MeshTransferBenchmarkOptions,
@@ -84,7 +86,7 @@ function computeFlatNormals(geometry: BufferGeometry) {
   );
 }
 
-import { biomeTintAttribute } from "./biome-tint";
+import { biomeTintAttribute, biomeTintAttributeAt } from "./biome-tint";
 import {
   Block,
   BlockDynamicPattern,
@@ -196,6 +198,17 @@ import {
   quantizePositions,
   quantizeUvs,
 } from "./vertex-quantization";
+import {
+  createVoxelBoxBand,
+  fillVoxelBoxBand,
+  maxVoxelBoxSide,
+  splitVoxelBoxGeometry,
+  voxelBoxBandRows,
+  type VoxelBoxBand,
+  type VoxelBoxInput,
+  type VoxelBoxMesh,
+  VoxelBoxWork,
+} from "./voxel-box";
 import type { VoxelDelta } from "./voxel-delta";
 import {
   WATER_OPTICS,
@@ -250,6 +263,7 @@ export * from "./texture-census";
 export * from "./textures";
 export * from "./uv";
 export * from "./vertex-quantization";
+export * from "./voxel-box";
 export * from "./voxel-native-shading";
 export * from "./water-optics";
 export * from "./block-light-transfer";
@@ -261,6 +275,17 @@ const warnedUnloadedUpdateChunks = new Set<string>();
 
 /** Overdue chunk requests one report names before summing up the rest. */
 const MAX_OVERDUE_CHUNKS_NAMED = 8;
+
+/** Main-thread time a frame gives every voxel box being built, together: a
+ * felled giant baking several boxes at once still costs one budget. */
+const VOXEL_BOX_FRAME_BUDGET_MS = 2;
+/** The most triangles one unit of a box's build takes on. */
+const VOXEL_BOX_UNIT_TRIANGLES = 1_024;
+/** The most cells one unit of a band's layout takes on. */
+const VOXEL_BOX_UNIT_CELLS = 4_096;
+/** A pause between two units of box work longer than this is a new frame's
+ * slice. */
+const VOXEL_BOX_SLICE_GAP_MS = 1;
 
 export type TextureInfo = {
   blockId: number;
@@ -1606,6 +1631,442 @@ export class World<T = any> extends Scene implements NetIntercept {
       (cx, cz) => this.getChunkByCoords(cx, cz),
       options,
     );
+  }
+
+  /**
+   * Meshes a box of voxels on its own, through the mesh workers and onto the
+   * chunk materials, as it would mesh standing in the world: the same
+   * geometry, light, regional tint and shader programs. Past the box's edges
+   * everything reads as air, so cut ends show their end grain. Lights and
+   * tints come from the world where the box stands (`origin`); a cell with no
+   * loaded chunk reads as open sky.
+   *
+   * The meshes stay out of the sun's shadow passes: those are cached, and
+   * would keep a moving box's shadow where they last drew it.
+   */
+  private voxelBoxWorkQueue: VoxelBoxWork | null = null;
+
+  /** The voxel-box work every box shares, a budgeted slice per frame. */
+  private get voxelBoxWork(): VoxelBoxWork {
+    this.voxelBoxWorkQueue ??= new VoxelBoxWork({
+      createDrain: (work) =>
+        createBudgetedDrain(VOXEL_BOX_FRAME_BUDGET_MS, work),
+      now: () => performance.now(),
+      sliceGapMs: VOXEL_BOX_SLICE_GAP_MS,
+    });
+    return this.voxelBoxWorkQueue;
+  }
+
+  async meshVoxelBox(box: VoxelBoxInput): Promise<VoxelBoxMesh> {
+    const startedAt = performance.now();
+    const [sx, sy, sz] = box.size;
+    if (box.voxels.length !== sx * sy * sz) {
+      throw new Error(
+        `meshVoxelBox: ${box.voxels.length} voxels for a ${sx}x${sy}x${sz} box`,
+      );
+    }
+    const side = Math.max(sx, sz) + 2;
+    const maxSide = maxVoxelBoxSide({
+      positionUnits: this.chunkPositionUnits,
+      positionBias: POSITION_BLOCK_BIAS,
+    });
+    if (side > maxSide) {
+      throw new Error(
+        `meshVoxelBox: a box ${side} blocks wide is past the ${maxSide} this world's vertices can hold`,
+      );
+    }
+
+    const { maxHeight, subChunks, maxLightLevel } = this.options;
+    const sectionHeight = Math.floor(maxHeight / subChunks);
+    const bandHeight = Math.min(box.bandHeight ?? sectionHeight, sectionHeight);
+    const [ox, oy, oz] = box.origin;
+    const openSky = LightUtils.insertSunlight(0, maxLightLevel);
+    const lightAt = (x: number, y: number, z: number) => {
+      const wx = ox + x;
+      const wy = oy + y;
+      const wz = oz + z;
+      if (wy < 0 || wy >= maxHeight) return openSky;
+      const chunk = this.getChunkByPosition(wx, wy, wz);
+      if (!chunk || !chunk.isReady) return openSky;
+      return chunk.getRawLight(wx, wy, wz);
+    };
+    const pool = box.isUrgent ? this.urgentMeshWorkerPool : this.meshWorkerPool;
+
+    const meshBand = (band: VoxelBoxBand) =>
+      new Promise<GeometryProtocol[] | null>((resolve) => {
+        const chunkData = {
+          x: 0,
+          z: 0,
+          voxels: band.voxels.slice().buffer,
+          lights: band.lights.slice().buffer,
+          options: { size: band.side, maxHeight: band.height },
+        };
+        pool.addJob({
+          message: {
+            chunksData: [
+              null,
+              null,
+              null,
+              null,
+              chunkData,
+              null,
+              null,
+              null,
+              null,
+            ],
+            options: this.options,
+            min: [0, 1, 0],
+            max: [band.side, band.height - 1, band.side],
+            meshChunkSize: band.side,
+          },
+          buffers: [chunkData.voxels, chunkData.lights],
+          timeoutMs: this.options.meshJobTimeoutMs,
+          resolve: (
+            result: { geometries?: GeometryProtocol[] | null } | null,
+          ) => resolve(result?.geometries ?? null),
+        });
+      });
+
+    const bands = voxelBoxBandRows({ rows: sy, bandHeight }).map(
+      ({ firstRow, rows }) =>
+        createVoxelBoxBand({ size: box.size, firstRow, rows }),
+    );
+    const fillUnits: (() => void)[] = [];
+    for (const band of bands) {
+      const columns = Math.max(
+        1,
+        Math.floor(VOXEL_BOX_UNIT_CELLS / (band.height * band.side)),
+      );
+      for (let fromColumn = 0; fromColumn < band.side; fromColumn += columns) {
+        fillUnits.push(() =>
+          fillVoxelBoxBand({
+            band,
+            size: box.size,
+            voxels: box.voxels,
+            lightAt,
+            fromColumn,
+            toColumn: fromColumn + columns,
+          }),
+        );
+      }
+    }
+    const fill = await this.voxelBoxWork.run(fillUnits);
+
+    const results = await Promise.all(
+      bands.map(async (band) => {
+        // A worker that died or trapped mid-job resolves empty; one retry
+        // on a fresh worker, then the box fails loudly.
+        const geometries = (await meshBand(band)) ?? (await meshBand(band));
+        if (!geometries) {
+          throw new Error(
+            `meshVoxelBox: the mesh workers could not mesh rows ${band.firstRow}-${band.firstRow + band.rows - 1} of the box at ${box.origin.join(",")}`,
+          );
+        }
+        return { band, geometries };
+      }),
+    );
+
+    // The build runs as bounded units under the shared frame budget: every
+    // piece of a mesher geometry is built on its own, a merge takes a bounded
+    // run of a bucket's pieces, and the opaque wood fills its batch a piece
+    // at a time.
+    const group = new Group();
+    group.name = "voxel-box";
+    const geometriesToDispose: BufferGeometry[] = [];
+    const isArenaBucketed = this.options.regionArenas !== null;
+    const opaqueMaterial = this.chunkRenderer.materials.get(
+      SHARED_OPAQUE_MATERIAL_KEY,
+    );
+    type Piece = {
+      protocol: GeometryProtocol;
+      geometry: BufferGeometry | null;
+    };
+    const units: (() => void)[] = [];
+    const opaquePieces: { piece: Piece; offset: Coords3 }[] = [];
+    let opaqueVertices = 0;
+    let opaqueIndices = 0;
+    let triangles = 0;
+
+    for (const { band, geometries } of results) {
+      const offset: Coords3 = [-1, band.firstRow, -1];
+      const tintOrigin: [number, number, number] = [
+        ox + offset[0],
+        oy + offset[1],
+        oz + offset[2],
+      ];
+      const buckets = new Map<
+        string,
+        { material: CustomChunkShaderMaterial; pieces: Piece[] }
+      >();
+      for (const geo of geometries) {
+        const at = geo.at && geo.at.length ? geo.at : undefined;
+        // An isolated face draws a texture of its own for one voxel (a
+        // display): it has no shared material for a box to borrow.
+        const material = this.getBlockFaceMaterial(geo.voxel, geo.faceName, at);
+        if (!material) continue;
+        const key = this.getChunkMaterialBucket(geo.voxel, geo.faceName, at);
+        const bucket = buckets.get(key) ?? { material, pieces: [] };
+        for (const protocol of splitVoxelBoxGeometry({
+          geometry: geo,
+          maxTriangles: VOXEL_BOX_UNIT_TRIANGLES,
+        })) {
+          const piece: Piece = { protocol, geometry: null };
+          bucket.pieces.push(piece);
+          units.push(() => {
+            piece.geometry = this.makeVoxelBoxGeometry(protocol, tintOrigin);
+            triangles += (piece.geometry.getIndex()?.count ?? 0) / 3;
+          });
+        }
+        buckets.set(key, bucket);
+      }
+
+      for (const [key, bucket] of buckets) {
+        // The opaque wood rides one batch on the region arenas' own
+        // material, so it draws with the shader program the arenas compiled.
+        if (
+          isArenaBucketed &&
+          key === SHARED_OPAQUE_MATERIAL_KEY &&
+          opaqueMaterial
+        ) {
+          for (const piece of bucket.pieces) {
+            opaquePieces.push({ piece, offset });
+            opaqueVertices += piece.protocol.positions.length / 3;
+            opaqueIndices += piece.protocol.indices.length;
+          }
+          continue;
+        }
+        let run: Piece[] = [];
+        let runTriangles = 0;
+        const flush = (pieces: Piece[]) =>
+          units.push(() =>
+            this.addVoxelBoxMesh({
+              group,
+              pieces: pieces.map((piece) => piece.geometry),
+              key,
+              material: bucket.material,
+              voxels: new Set(pieces.map((piece) => piece.protocol.voxel)),
+              offset,
+              geometriesToDispose,
+              rowsLabel: `rows ${band.firstRow}+`,
+            }),
+          );
+        for (const piece of bucket.pieces) {
+          const pieceTriangles = piece.protocol.indices.length / 3;
+          if (
+            run.length > 0 &&
+            runTriangles + pieceTriangles > VOXEL_BOX_UNIT_TRIANGLES
+          ) {
+            flush(run);
+            run = [];
+            runTriangles = 0;
+          }
+          run.push(piece);
+          runTriangles += pieceTriangles;
+        }
+        if (run.length > 0) flush(run);
+      }
+    }
+
+    const batch: { mesh: BatchedMesh | null } = { mesh: null };
+    if (opaquePieces.length > 0 && opaqueMaterial) {
+      units.push(() => {
+        const mesh = new BatchedMesh(
+          opaquePieces.length,
+          opaqueVertices,
+          opaqueIndices,
+          opaqueMaterial,
+        );
+        mesh.frustumCulled = false;
+        mesh.perObjectFrustumCulled = true;
+        mesh.userData.isVoxelBox = true;
+        group.add(mesh);
+        batch.mesh = mesh;
+      });
+      const white = new Color(1, 1, 1);
+      for (const { piece, offset } of opaquePieces) {
+        units.push(() => {
+          const geometry = piece.geometry;
+          piece.geometry = null;
+          if (!geometry || !batch.mesh) return;
+          const instance = batch.mesh.addInstance(
+            batch.mesh.addGeometry(geometry),
+          );
+          batch.mesh.setMatrixAt(
+            instance,
+            this.voxelBoxMatrix(geometry, offset),
+          );
+          batch.mesh.setColorAt(instance, white);
+          geometry.dispose();
+        });
+      }
+    }
+    units.push(() => this.csmRenderer?.addShadowExclusion(group));
+
+    const dispose = () => {
+      this.csmRenderer?.removeShadowExclusion(group);
+      group.removeFromParent();
+      for (const geometry of geometriesToDispose) geometry.dispose();
+      for (const child of group.children) {
+        this.csmRenderer?.removeSkipShadowObject(child);
+      }
+      batch.mesh?.dispose();
+      group.clear();
+    };
+
+    let build: { mainThreadMs: number; maxSliceMs: number };
+    try {
+      build = await this.voxelBoxWork.run(units);
+    } catch (error) {
+      dispose();
+      throw error;
+    }
+
+    return {
+      group,
+      triangles,
+      bands: results.length,
+      totalMs: performance.now() - startedAt,
+      mainThreadMs: fill.mainThreadMs + build.mainThreadMs,
+      maxSliceMs: Math.max(fill.maxSliceMs, build.maxSliceMs),
+      dispose,
+    };
+  }
+
+  /** Where a box's geometry sits in its group: quantized positions carry
+   * their scale and bias. */
+  private voxelBoxMatrix(geometry: BufferGeometry, offset: Coords3): Matrix4 {
+    const matrix = new Matrix4();
+    if (geometry.getAttribute("position").array instanceof Uint16Array) {
+      return matrix
+        .makeScale(
+          1 / this.chunkPositionUnits,
+          1 / this.chunkPositionUnits,
+          1 / this.chunkPositionUnits,
+        )
+        .setPosition(
+          offset[0] - POSITION_BLOCK_BIAS,
+          offset[1] - POSITION_BLOCK_BIAS,
+          offset[2] - POSITION_BLOCK_BIAS,
+        );
+    }
+    return matrix.makeTranslation(offset[0], offset[1], offset[2]);
+  }
+
+  /** One run of a bucket's built pieces, merged into a mesh of the box. */
+  private addVoxelBoxMesh({
+    group,
+    pieces,
+    key,
+    material,
+    voxels,
+    offset,
+    geometriesToDispose,
+    rowsLabel,
+  }: {
+    group: Group;
+    pieces: (BufferGeometry | null)[];
+    key: string;
+    material: CustomChunkShaderMaterial;
+    voxels: Set<number>;
+    offset: Coords3;
+    geometriesToDispose: BufferGeometry[];
+    rowsLabel: string;
+  }): void {
+    const parts = pieces.filter(
+      (part): part is BufferGeometry => part !== null,
+    );
+    if (parts.length === 0) return;
+    const merged =
+      parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+    if (parts.length > 1) {
+      for (const part of parts) part.dispose();
+    }
+    if (!merged) {
+      console.error(
+        `meshVoxelBox: the ${key} geometries of ${rowsLabel} failed to merge and were dropped`,
+      );
+      return;
+    }
+    merged.computeBoundingSphere();
+    geometriesToDispose.push(merged);
+    const mesh = new Mesh(merged, material);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.copy(this.voxelBoxMatrix(merged, offset));
+    const voxel = voxels.size === 1 ? [...voxels][0] : undefined;
+    mesh.userData = {
+      isVoxelBox: true,
+      materialBucket: key,
+      voxel,
+      isPlant: voxel !== undefined && this.isPlantVoxel(voxel),
+    };
+    if (material.transparent) {
+      this.configureTransparentChunkMesh(
+        mesh,
+        voxel ?? [...voxels][0],
+        material,
+      );
+    }
+    group.add(mesh);
+  }
+
+  /** A box's geometry, like a chunk's, tinted by where the box stands. */
+  private makeVoxelBoxGeometry(
+    geo: GeometryProtocol,
+    tintOrigin: [number, number, number],
+  ): BufferGeometry {
+    const canonical = this.canonicalizeChunkGeometry(
+      geo as MeshProtocol["geometries"][number],
+    );
+    const isQuantized = canonical.positions instanceof Uint16Array;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new BufferAttribute(canonical.positions, 3),
+    );
+    geometry.setAttribute(
+      "uv",
+      new BufferAttribute(canonical.uvs, 2, isQuantized),
+    );
+    geometry.setAttribute("light", new BufferAttribute(canonical.lights, 1));
+    geometry.setAttribute(
+      "lightTwist",
+      new BufferAttribute(
+        canonical.lightTwist ??
+          computeQuadLightTwist(canonical.lights, canonical.indices),
+        4,
+      ),
+    );
+    geometry.setAttribute(
+      "biomeTint",
+      biomeTintAttributeAt({
+        positions: canonical.positions,
+        lights: canonical.lights,
+        origin: tintOrigin,
+        positionUnits: isQuantized ? this.chunkPositionUnits : 1,
+        positionBias: isQuantized ? POSITION_BLOCK_BIAS : 0,
+        chunkSize: this.options.chunkSize,
+        cornersAt: (cx, cz) => this.getChunkByCoords(cx, cz)?.biomeTints,
+      }),
+    );
+    geometry.setIndex(new BufferAttribute(canonical.indices, 1));
+    if (canonical.normals && canonical.normals.length > 0) {
+      geometry.setAttribute(
+        "normal",
+        new BufferAttribute(canonical.normals, 3, isQuantized),
+      );
+    } else {
+      computeFlatNormals(geometry);
+    }
+    if (
+      !this.customMaterialBlockIds.has(canonical.voxel) &&
+      sharedCutoutMaterialKeyFor(this.getBlockById(canonical.voxel))
+    ) {
+      const profiles = new Uint8Array(canonical.positions.length / 3).fill(
+        this.swayProfileIndexByVoxel.get(canonical.voxel) ?? 0,
+      );
+      geometry.setAttribute("swayProfile", new BufferAttribute(profiles, 1));
+    }
+    return geometry;
   }
 
   private applyMeshResult(

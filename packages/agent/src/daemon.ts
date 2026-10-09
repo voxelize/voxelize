@@ -39,6 +39,7 @@ import {
   EMPTY_POSE_INTENT,
   describePose,
   isNewJoin,
+  isPoseSuperseded,
   mergePoseIntent,
   rememberPose,
   resolvePoseRestore,
@@ -207,6 +208,10 @@ const POSE_CHANGING_ACTIONS = new Set([
   "view",
   "follow",
 ]);
+// The pose commands that move the agent: one of these after the pose was
+// remembered means a restore must leave the position alone. Turning the head
+// is not one; it must not cost the restore its position.
+const MOVING_ACTIONS = new Set(["teleport", "walk", "walk-to", "view", "follow"]);
 // The in-page network layer retries on its own every ~3s; the daemon only
 // intervenes after this grace so it never races a reconnect already landing.
 const RECOVERY_GRACE_MS = 10_000;
@@ -428,7 +433,8 @@ export class AgentDaemon {
   private poseRestoreCount = 0;
   private lastPoseRestore: PoseRestoreRecord | null = null;
   private poseSync: Promise<void> | null = null;
-  private lastPoseCommandAt = 0;
+  private lastMoveCommandAt = 0;
+  private moveCommandsInFlight = 0;
   private isNextRestoreSkipped = false;
   private pageStalledSinceAt: number | null = null;
   private isStallNoted = false;
@@ -885,17 +891,33 @@ export class AgentDaemon {
       to,
       error: null,
     };
-    const isOverridden = () => this.lastPoseCommandAt > detectedAt;
+    const isOverridden = () =>
+      isPoseSuperseded(pose, this.lastMoveCommandAt, this.moveCommandsInFlight);
     try {
-      // Flying first, so a pose staged in mid-air does not start to fall.
-      if (pose.isFlying !== null) await this.agent.setFlying(pose.isFlying);
+      // Place first, then fly: a rejoin can come back standing on the floor
+      // (a world that saves no player starts every join at its spawn), and
+      // flight that cannot take off there must not cost the position too.
       if (!isOverridden()) await this.agent.teleport(pose.position);
       if (!isOverridden()) await this.agent.face({ ...pose.facing });
+      let flightError: string | null = null;
+      if (pose.isFlying !== null) {
+        try {
+          await this.agent.setFlying(pose.isFlying);
+          // Taking off kicks the body up; put the staged pose back exactly.
+          if (pose.isFlying && !isOverridden()) {
+            await this.agent.teleport(pose.position);
+          }
+        } catch (error) {
+          flightError = error instanceof Error ? error.message : String(error);
+        }
+      }
       if (pose.renderRadius !== null) {
         await this.agent.setRenderRadius(pose.renderRadius);
       }
       if (isOverridden()) {
         record.error = "a command moved the agent first; left where it put it";
+      } else if (flightError !== null) {
+        record.error = `placed, but ${flightError}`;
       }
     } catch (error) {
       record.error = error instanceof Error ? error.message : String(error);
@@ -924,11 +946,18 @@ export class AgentDaemon {
 
   /** A command that moves the agent: remember where it ended up at once. */
   private async notePoseCommand(): Promise<void> {
-    this.lastPoseCommandAt = Date.now();
     const snapshot = this.freshness.lastConnection;
-    if (this.freshness.isStale || !snapshot || !this.pose) return;
+    if (!snapshot || !this.pose) return;
     try {
       const sample = await this.agent.poseSample();
+      // A page mid-rejoin still knows where its own body is, and that is the
+      // pose the rejoin must put back; only a new document has lost it.
+      if (
+        this.freshness.isStale &&
+        sample.documentId !== this.pose.join.documentId
+      ) {
+        return;
+      }
       this.pose = rememberPose(
         sample,
         this.pose.join.documentId === sample.documentId
@@ -2472,7 +2501,19 @@ export class AgentDaemon {
   private async executeAction(
     action: z.infer<typeof actSchema>,
   ): Promise<unknown> {
-    const result = await this.runAction(action);
+    // Counted from the start: a rejoin noticed while this command is still
+    // running must not put an older position back over it.
+    const isMoveCommand = MOVING_ACTIONS.has(action.type);
+    if (isMoveCommand) {
+      this.lastMoveCommandAt = Date.now();
+      this.moveCommandsInFlight += 1;
+    }
+    let result: unknown;
+    try {
+      result = await this.runAction(action);
+    } finally {
+      if (isMoveCommand) this.moveCommandsInFlight -= 1;
+    }
     // Flying and the view radius cannot be read back from the page, so the
     // commands that set them are what a restore replays.
     if (action.type === "set-flying" || action.type === "set-render-radius") {

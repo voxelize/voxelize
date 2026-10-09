@@ -210,6 +210,105 @@ fn schedule_active(chunks: &mut Chunks, voxel: &Vec3<i32>, delay: u64, current_t
     chunks.mark_voxel_active(voxel, delay.saturating_add(current_tick));
 }
 
+/// The milliseconds a tick allows one kind of wake work, spent rather than
+/// reserved: checked after each unit, because a unit cannot be split, so at
+/// least one unit runs a tick and the carried work always drains.
+struct WakeBudget {
+    started: std::time::Instant,
+    limit: std::time::Duration,
+    units: usize,
+}
+
+impl WakeBudget {
+    fn new(limit_ms: f64) -> Self {
+        // Past what a `Duration` holds, the budget never runs out.
+        let limit = std::time::Duration::try_from_secs_f64(limit_ms.max(0.0) / 1000.0)
+            .unwrap_or(std::time::Duration::MAX);
+        Self {
+            started: std::time::Instant::now(),
+            limit,
+            units: 0,
+        }
+    }
+
+    /// Whether the next unit waits for a later tick.
+    fn is_spent(&self) -> bool {
+        self.units > 0 && self.started.elapsed() >= self.limit
+    }
+
+    fn spend(&mut self) {
+        self.units += 1;
+    }
+}
+
+/// Whether `voxel`'s active ticker is asked, as a written voxel or as a
+/// neighbor. A written voxel consults whatever it became, including active
+/// air (destruction propagation). A neighbor only consults real blocks and
+/// fluids, so plain air around an edit never schedules itself.
+fn asks_ticker(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>, is_written: bool) -> bool {
+    let id = chunks.get_voxel(voxel.0, voxel.1, voxel.2);
+    let block = registry.get_block_by_id(id);
+    if is_written {
+        block.is_active
+    } else {
+        block.is_active && (block.is_fluid || !registry.is_air(id))
+    }
+}
+
+/// Whether consulting `voxel` would do anything as the world stands: ask its
+/// ticker, or tick the fluid it holds. Only those queue; whatever later makes
+/// another voxel worth consulting is a write of its own, which queues it.
+fn wants_consult(
+    chunks: &Chunks,
+    registry: &Registry,
+    voxel: &Vec3<i32>,
+    is_written: bool,
+) -> bool {
+    asks_ticker(chunks, registry, voxel, is_written)
+        || chunks.get_voxel_waterlogged(voxel.0, voxel.1, voxel.2)
+}
+
+/// Ask `voxel`'s active ticker when it next wants to run, and schedule it.
+fn consult_ticker(
+    chunks: &mut Chunks,
+    registry: &Registry,
+    voxel: Vec3<i32>,
+    is_written: bool,
+    current_tick: u64,
+) {
+    let Vec3(vx, vy, vz) = voxel;
+    if asks_ticker(chunks, registry, &voxel, is_written) {
+        let block = registry.get_block_by_id(chunks.get_voxel(vx, vy, vz));
+        let ticks = (block.active_ticker.as_ref().unwrap())(Vec3(vx, vy, vz), &*chunks, registry);
+        schedule_active(chunks, &Vec3(vx, vy, vz), ticks, current_tick);
+        return;
+    }
+
+    if chunks.get_voxel_waterlogged(vx, vy, vz) {
+        mark_waterlogged_fluid_active(chunks, registry, Vec3(vx, vy, vz), current_tick);
+    }
+}
+
+/// Consult queued tickers, oldest first, until `budget` is spent; the rest
+/// wait for a later tick. Returns how many it consulted.
+fn drain_ticker_consults(
+    chunks: &mut Chunks,
+    registry: &Registry,
+    current_tick: u64,
+    budget: &mut WakeBudget,
+) -> usize {
+    let mut consulted = 0;
+    while !budget.is_spent() {
+        let Some((voxel, is_written)) = chunks.pop_ticker_consult() else {
+            break;
+        };
+        consult_ticker(chunks, registry, voxel, is_written, current_tick);
+        budget.spend();
+        consulted += 1;
+    }
+    consulted
+}
+
 /// The writes one tick's worth of active updaters want to make, keyed by
 /// target voxel. Every updater reads the *pre-tick* world and proposes into
 /// this plan; nothing commits until the whole due list has run. See
@@ -291,7 +390,17 @@ fn offer_planned_update(plan: &mut ActivePlan, registry: &Registry, position: Ve
     }
 }
 
-fn collect_due_active_voxels(chunks: &mut Chunks, current_tick: u64) -> Vec<Vec3<i32>> {
+/// Plan due voxels until `budget` is spent: first the ones an earlier tick's
+/// budget did not reach, oldest first, then this tick's, in (x, y, z) order.
+/// The ones it does not reach wait in `overdue_active_voxels`; none is
+/// dropped. Returns how many it planned.
+fn plan_due_active_voxels(
+    chunks: &mut Chunks,
+    plan: &mut ActivePlan,
+    registry: &Registry,
+    current_tick: u64,
+    budget: &mut WakeBudget,
+) -> usize {
     let mut due = Vec::new();
     while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
         if active.tick > current_tick {
@@ -307,7 +416,20 @@ fn collect_due_active_voxels(chunks: &mut Chunks, current_tick: u64) -> Vec<Vec3
         }
     }
     due.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
-    due
+    for voxel in due {
+        chunks.queue_overdue_active_voxel(voxel);
+    }
+
+    let mut planned = 0;
+    while !budget.is_spent() {
+        let Some(voxel) = chunks.pop_overdue_active_voxel() else {
+            break;
+        };
+        plan_active_updates(chunks, plan, registry, &voxel);
+        budget.spend();
+        planned += 1;
+    }
+    planned
 }
 
 /// Schedule a waterlogged voxel to tick as the fluid it holds.
@@ -393,7 +515,12 @@ fn process_pending_updates(
     chunks.flush_staged_updates();
     chunks.readmit_parked_updates();
 
-    if chunks.updates.is_empty() && chunks.active_updates.is_empty() {
+    // Consults carried from an earlier tick drain even when nothing is
+    // written this one.
+    if chunks.updates.is_empty()
+        && chunks.active_updates.is_empty()
+        && chunks.ticker_consults.is_empty()
+    {
         return results;
     }
 
@@ -599,6 +726,9 @@ fn process_pending_updates(
         }
     }
 
+    record_profile("update: writes", phase_started.elapsed());
+    let phase_started = std::time::Instant::now();
+
     // Ticker consults run only after every write in this call has committed.
     // Consulting inline read half-applied state: when a door pair committed in
     // one batch, the top's write consulted the bottom's ticker while the
@@ -607,41 +737,35 @@ fn process_pending_updates(
     // scheduled a moment later could never override it, so the door slammed
     // shut in the tick a button opened it. Post-commit, a ticker always sees
     // the state the tick actually produced.
+    //
+    // They queue rather than run outright, and drain under the tick's consult
+    // budget: costly tickers beside a bulk edit (blocks whose ticker searches
+    // their surroundings, woken by every write next to them) wake over a few
+    // ticks instead of holding one for a tenth of a second. What a tick does
+    // not reach waits at the head of the queue and runs after the next tick's
+    // writes, so a carried consult still reads committed state; none is
+    // dropped.
     neighbor_voxels.retain(|voxel| !written_voxels.contains(voxel));
-    let mut ticker_consults: Vec<(Vec3<i32>, bool)> = written_voxels
+    let mut touched: Vec<(Vec3<i32>, bool)> = written_voxels
         .into_iter()
         .map(|voxel| (voxel, true))
         .chain(neighbor_voxels.into_iter().map(|voxel| (voxel, false)))
         .collect();
-    ticker_consults.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
-
-    for (voxel, is_written) in ticker_consults {
-        let Vec3(vx, vy, vz) = voxel;
-        let id = chunks.get_voxel(vx, vy, vz);
-        let block = registry.get_block_by_id(id);
-
-        // A written voxel consults whatever it became, including active air
-        // (destruction propagation). A neighbor only consults real blocks and
-        // fluids, so plain air around an edit never schedules itself.
-        let should_consult = if is_written {
-            block.is_active
-        } else {
-            block.is_active && (block.is_fluid || !registry.is_air(id))
-        };
-
-        if should_consult {
-            let ticks =
-                (block.active_ticker.as_ref().unwrap())(Vec3(vx, vy, vz), &*chunks, registry);
-            schedule_active(chunks, &Vec3(vx, vy, vz), ticks, current_tick);
-            continue;
-        }
-
-        if chunks.get_voxel_waterlogged(vx, vy, vz) {
-            mark_waterlogged_fluid_active(chunks, registry, Vec3(vx, vy, vz), current_tick);
+    touched.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
+    for (voxel, is_written) in touched {
+        if wants_consult(chunks, registry, &voxel, is_written) {
+            chunks.queue_ticker_consult(voxel, is_written);
         }
     }
 
-    record_profile("update: writes + tickers", phase_started.elapsed());
+    drain_ticker_consults(
+        chunks,
+        registry,
+        current_tick,
+        &mut WakeBudget::new(config.max_ticker_consult_ms_per_tick),
+    );
+
+    record_profile("update: ticker consults", phase_started.elapsed());
     let phase_started = std::time::Instant::now();
 
     // Removals across the whole batch are collected first and executed as one
@@ -1148,14 +1272,20 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         // Plan, then commit. Every due updater reads the committed world and
         // proposes into one plan; the plan is queued on the simulation lane
         // and commits below, so lighting, persistence, replication, and
-        // remeshing still flush once per tick.
+        // remeshing still flush once per tick. Planning stops when the tick's
+        // plan budget is spent, and the due voxels it did not reach plan
+        // first next tick.
         let plan_started = std::time::Instant::now();
         let mut plan = ActivePlan::new();
-        let due_voxels = collect_due_active_voxels(&mut chunks, current_tick);
-        for voxel in &due_voxels {
-            plan_active_updates(&chunks, &mut plan, &registry, voxel);
-        }
-        if !due_voxels.is_empty() {
+        let mut plan_budget = WakeBudget::new(config.max_active_plan_ms_per_tick);
+        let planned = plan_due_active_voxels(
+            &mut chunks,
+            &mut plan,
+            &registry,
+            current_tick,
+            &mut plan_budget,
+        );
+        if planned > 0 {
             record_profile("update: plan active", plan_started.elapsed());
         }
 
@@ -1184,10 +1314,13 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             );
         }
 
-        let random_due = collect_due_active_voxels(&mut chunks, current_tick);
-        for voxel in &random_due {
-            plan_active_updates(&chunks, &mut plan, &registry, voxel);
-        }
+        plan_due_active_voxels(
+            &mut chunks,
+            &mut plan,
+            &registry,
+            current_tick,
+            &mut plan_budget,
+        );
 
         let mut active_updates = plan.into_iter().collect::<Vec<_>>();
         active_updates.sort_by_key(|(voxel, _)| (voxel.0, voxel.1, voxel.2));
@@ -1253,5 +1386,258 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 message_queue.push((new_message, ClientFilter::Direct(client_id)));
             }
         }
+        if let Some((ticks, peak)) = chunks.note_wake_backlog(current_tick) {
+            log::info!(
+                "[chunk-updating] caught up on wake work carried for {ticks} tick(s): at most {peak} ticker consults and due voxels waited past their tick's budget"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod wake_budget_tests {
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    use super::*;
+    use crate::world::generators::FlatlandStage;
+    use crate::{Block, Chunk, ChunkOptions, ChunkStatus, World};
+
+    const WAKER: u32 = 7;
+    const STONE: u32 = 8;
+
+    type Calls = Arc<Mutex<Vec<Vec3<i32>>>>;
+
+    /// An active block that never schedules itself and writes nothing,
+    /// recording every consult of its ticker and every run of its updater.
+    fn registry(consulted: &Calls, planned: &Calls) -> Registry {
+        let (consulted, planned) = (consulted.clone(), planned.clone());
+        let mut registry = Registry::new();
+        registry.register_block(
+            &Block::new("Waker")
+                .id(WAKER)
+                .active_fn(
+                    move |voxel, _, _| {
+                        consulted.lock().unwrap().push(voxel);
+                        u64::MAX
+                    },
+                    move |voxel, _, _| {
+                        planned.lock().unwrap().push(voxel);
+                        vec![]
+                    },
+                )
+                .build(),
+        );
+        registry.register_block(&Block::new("Stone").id(STONE).build());
+        registry
+    }
+
+    /// One ready chunk at the origin, a waker at each of `wakers`.
+    fn chunks_with(wakers: &[Vec3<i32>]) -> Chunks {
+        let config = WorldConfig::new()
+            .chunk_size(16)
+            .max_height(16)
+            .sub_chunks(1)
+            .build();
+        let mut chunks = Chunks::new(&config);
+        let mut chunk = Chunk::new(
+            "test",
+            0,
+            0,
+            &ChunkOptions {
+                size: 16,
+                max_height: 16,
+                sub_chunks: 1,
+            },
+        );
+        chunk.status = ChunkStatus::Ready;
+        for Vec3(x, y, z) in wakers {
+            chunk.set_raw_voxel(*x, *y, *z, BlockUtils::insert_id(0, WAKER));
+        }
+        chunks.add(chunk);
+        chunks
+    }
+
+    fn calls(calls: &Calls) -> Vec<Vec3<i32>> {
+        calls.lock().unwrap().clone()
+    }
+
+    /// A budget spent before it starts: one unit a tick.
+    fn one_unit() -> WakeBudget {
+        WakeBudget::new(0.0)
+    }
+
+    #[test]
+    fn due_voxels_past_the_plan_budget_plan_first_the_next_tick() {
+        let (consulted, planned) = (Calls::default(), Calls::default());
+        let registry = registry(&consulted, &planned);
+        let (a, b, c, late) = (Vec3(1, 1, 1), Vec3(2, 1, 1), Vec3(3, 1, 1), Vec3(0, 1, 1));
+        let mut chunks = chunks_with(&[a.clone(), b.clone(), c.clone(), late.clone()]);
+        for voxel in [&a, &b, &c] {
+            chunks.mark_voxel_active(voxel, 5);
+        }
+        chunks.mark_voxel_active(&late, 6);
+
+        let mut plan = ActivePlan::new();
+        for tick in 5..=9 {
+            plan_due_active_voxels(&mut chunks, &mut plan, &registry, tick, &mut one_unit());
+        }
+        // `late` comes due at 6 and sorts first, but tick 5's leftovers go
+        // ahead of it.
+        assert_eq!(calls(&planned), vec![a, b, c, late]);
+        assert_eq!(chunks.overdue_active_voxel_count(), 0);
+        assert_eq!(chunks.active_voxel_count(), 0);
+    }
+
+    #[test]
+    fn a_voxel_woken_while_overdue_runs_again_as_after_an_on_time_run() {
+        let (consulted, planned) = (Calls::default(), Calls::default());
+        let registry = registry(&consulted, &planned);
+        let (a, b) = (Vec3(1, 1, 1), Vec3(2, 1, 1));
+        let mut chunks = chunks_with(&[a.clone(), b.clone()]);
+        chunks.mark_voxel_active(&a, 5);
+        chunks.mark_voxel_active(&b, 5);
+
+        let mut plan = ActivePlan::new();
+        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 5, &mut one_unit());
+        assert_eq!(chunks.overdue_active_voxel_count(), 1);
+        chunks.mark_voxel_active(&b, 8);
+        for tick in 6..=9 {
+            plan_due_active_voxels(&mut chunks, &mut plan, &registry, tick, &mut one_unit());
+        }
+        assert_eq!(calls(&planned), vec![a, b.clone(), b]);
+    }
+
+    #[test]
+    fn a_voxel_due_again_while_it_waits_runs_once() {
+        let (consulted, planned) = (Calls::default(), Calls::default());
+        let registry = registry(&consulted, &planned);
+        let (a, b, c) = (Vec3(1, 1, 1), Vec3(2, 1, 1), Vec3(3, 1, 1));
+        let mut chunks = chunks_with(&[a.clone(), b.clone(), c.clone()]);
+        for voxel in [&a, &b, &c] {
+            chunks.mark_voxel_active(voxel, 5);
+        }
+
+        let mut plan = ActivePlan::new();
+        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 5, &mut one_unit());
+        chunks.mark_voxel_active(&c, 6);
+        for tick in 6..=9 {
+            plan_due_active_voxels(&mut chunks, &mut plan, &registry, tick, &mut one_unit());
+        }
+        assert_eq!(calls(&planned), vec![a, b, c]);
+    }
+
+    #[test]
+    fn ticker_consults_past_the_budget_wait_in_order_and_none_is_dropped() {
+        let (consulted, planned) = (Calls::default(), Calls::default());
+        let registry = registry(&consulted, &planned);
+        let wakers = [Vec3(1, 1, 1), Vec3(2, 1, 1), Vec3(3, 1, 1)];
+        let mut chunks = chunks_with(&wakers);
+        for voxel in &wakers {
+            chunks.queue_ticker_consult(voxel.clone(), true);
+        }
+
+        assert_eq!(
+            drain_ticker_consults(&mut chunks, &registry, 5, &mut one_unit()),
+            1
+        );
+        assert_eq!(chunks.pending_ticker_consults(), 2);
+        let mut tick = 6;
+        while drain_ticker_consults(&mut chunks, &registry, tick, &mut one_unit()) > 0 {
+            tick += 1;
+        }
+        assert_eq!(calls(&consulted), wakers.to_vec());
+        assert_eq!(chunks.pending_ticker_consults(), 0);
+    }
+
+    #[test]
+    fn a_carried_consult_reads_the_world_it_runs_in() {
+        let (consulted, planned) = (Calls::default(), Calls::default());
+        let registry = registry(&consulted, &planned);
+        let waker = Vec3(1, 1, 1);
+        let mut chunks = chunks_with(&[waker.clone()]);
+        chunks.queue_ticker_consult(waker.clone(), false);
+        chunks.set_voxel_hard(1, 1, 1, STONE);
+
+        assert_eq!(
+            drain_ticker_consults(&mut chunks, &registry, 5, &mut one_unit()),
+            1
+        );
+        assert!(calls(&consulted).is_empty());
+    }
+
+    #[test]
+    fn a_voxel_queued_as_neighbor_and_written_consults_once_as_written() {
+        let mut chunks = chunks_with(&[]);
+        let voxel = Vec3(1, 1, 1);
+        chunks.queue_ticker_consult(voxel.clone(), false);
+        chunks.queue_ticker_consult(voxel.clone(), true);
+        chunks.queue_ticker_consult(voxel.clone(), false);
+
+        assert_eq!(chunks.pending_ticker_consults(), 1);
+        assert_eq!(chunks.pop_ticker_consult(), Some((voxel, true)));
+        assert_eq!(chunks.pop_ticker_consult(), None);
+    }
+
+    /// The whole pass, through real ticks: a write's consults past the
+    /// budget run on the ticks after it, which write nothing at all.
+    #[test]
+    fn a_bulk_edit_wakes_its_wakers_over_the_ticks_after_it() {
+        actix::System::new().block_on(async {
+            let (consulted, planned) = (Calls::default(), Calls::default());
+            let config = WorldConfig::new()
+                .saving(false)
+                .min_chunk([-3, -3])
+                .max_chunk([3, 3])
+                .max_ticker_consult_ms_per_tick(0.0)
+                .build();
+            let mut world = World::new("wake-budget", &config);
+            world.ecs_mut().insert(registry(&consulted, &planned));
+            world.pipeline_mut().add_stage(FlatlandStage::new());
+            world.prepare();
+            for x in -1..=1 {
+                for z in -1..=1 {
+                    world.pipeline_mut().add_chunk(&Vec2(x, z), false);
+                }
+            }
+            let deadline = Instant::now() + Duration::from_secs(60);
+            while !world.chunks().is_update_footprint_ready(&Vec2(0, 0)) {
+                world.tick();
+                assert!(Instant::now() < deadline, "the chunks never got ready");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+
+            let wakers: Vec<Vec3<i32>> = (1..=3).map(|x| Vec3(x, 1, 1)).collect();
+            let writes: Vec<(Vec3<i32>, u32)> = wakers
+                .iter()
+                .map(|voxel| (voxel.clone(), BlockUtils::insert_id(0, WAKER)))
+                .collect();
+            world.chunks_mut().update_voxels(&writes);
+            world.tick();
+            assert_eq!(
+                world.chunks().get_voxel(1, 1, 1),
+                WAKER,
+                "the write committed"
+            );
+            assert!(
+                calls(&consulted).len() <= 1,
+                "a spent budget consults one voxel a tick"
+            );
+            assert_eq!(
+                world.chunks().pending_ticker_consults(),
+                wakers.len() - calls(&consulted).len(),
+                "only the wakers queue: the plain air round them has no ticker to ask"
+            );
+
+            while world.chunks().pending_ticker_consults() > 0 {
+                world.tick();
+                assert!(
+                    Instant::now() < deadline,
+                    "the carried consults never drained"
+                );
+            }
+            assert_eq!(calls(&consulted), wakers);
+            assert!(calls(&planned).is_empty());
+        });
     }
 }

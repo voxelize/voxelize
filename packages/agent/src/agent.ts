@@ -53,6 +53,7 @@ import type {
 } from "./bridge";
 import {
   DEFAULT_MOUNT_SELECTOR,
+  agentBrowserFlag,
   agentPidFile,
   clearAgentPidFile,
   reapStaleAgentBrowser,
@@ -438,7 +439,7 @@ export class Agent {
     }
 
     const pidFile = agentPidFile(port);
-    reapStaleAgentBrowser(pidFile);
+    reapStaleAgentBrowser(pidFile, port);
 
     const launchOptions = {
       headless: isHeadless,
@@ -455,6 +456,9 @@ export class Agent {
         waitReadyTimeoutMs + DEFAULT_PAGE_CALL_TIMEOUT_MS,
       ),
       args: [
+        // The agent's own mark: the watchdog and every reaper know this
+        // browser by it, whichever Chrome runs (browser-lifecycle.ts).
+        agentBrowserFlag(port),
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",

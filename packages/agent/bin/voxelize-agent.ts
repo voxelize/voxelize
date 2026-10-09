@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { writeSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import { Agent } from "../src/agent";
@@ -8,6 +9,8 @@ import {
   IDLE_TTL_EXIT_CODE,
   MOUNT_FAILED_EXIT_CODE,
   PAGE_UNAVAILABLE_EXIT_CODE,
+  agentPidFile,
+  killOwnAgentBrowserSync,
   resolveIdleTtlMs,
   resolveMountTimeoutMs,
 } from "../src/browser-lifecycle";
@@ -82,6 +85,34 @@ async function main(): Promise<void> {
     }${origin?.cursor?.conversationId ? ` cursor=${origin.cursor.conversationId}` : ""}`,
   );
 
+  // A stop that lands while Agent.launch still runs (its browser starting,
+  // or its first page loading) comes before anything here could close the
+  // browser gracefully, and puppeteer's own handler for it reads to the
+  // launch as a failure: a starting browser was relaunched at default
+  // priority, a loading page reported unavailable. So it exits at once, and
+  // takes the browser first: the one this process recorded is killed here,
+  // and one still launching by puppeteer's exit hook. Neither outlives the
+  // daemon, nor the `session stop` waiting on it.
+  const pidFile = agentPidFile(port);
+  let shutdown: (reason: string, exitCode: number) => void | Promise<void> = (
+    reason,
+    exitCode,
+  ) => {
+    const pid = killOwnAgentBrowserSync(pidFile, port);
+    writeSync(
+      process.stdout.fd,
+      `[voxelize-agent] ${reason} while booting: ${
+        pid === null
+          ? "no browser recorded yet (one still launching dies with this process)"
+          : `killed browser pid=${pid}`
+      }; exiting before the daemon starts\n`,
+    );
+    process.exit(exitCode);
+  };
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.on(signal, () => void shutdown(signal, 0));
+  }
+
   const agent = await Agent.launch({
     url,
     world,
@@ -128,7 +159,7 @@ async function main(): Promise<void> {
   });
 
   let isShuttingDown = false;
-  const shutdown = async (reason: string, exitCode: number) => {
+  shutdown = async (reason: string, exitCode: number) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log(`[voxelize-agent] shutting down (${reason})...`);
@@ -145,9 +176,6 @@ async function main(): Promise<void> {
     process.exit(exitCode);
   };
 
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
-    process.on(signal, () => void shutdown(signal, 0));
-  }
   process.on("uncaughtException", (err) => {
     console.error("[voxelize-agent] uncaught exception:", err);
     void shutdown("uncaughtException", 1);
