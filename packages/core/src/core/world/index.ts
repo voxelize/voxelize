@@ -204,6 +204,7 @@ import {
 } from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
+import { WORKER_READY_MESSAGE_TYPE } from "./workers/worker-ready";
 import {
   advanceWorldClock,
   elapsedSeconds,
@@ -1114,6 +1115,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxWorker: maxMeshWorkers,
       name: "mesh-worker",
       maxQueuedJobs: maxQueuedWorkerJobs,
+      readyMessageType: WORKER_READY_MESSAGE_TYPE,
     });
 
     this.urgentMeshWorkerPool = new WorkerPool(MeshWorker, {
@@ -1123,6 +1125,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ),
       name: "mesh-worker-urgent",
       maxQueuedJobs: maxQueuedWorkerJobs,
+      readyMessageType: WORKER_READY_MESSAGE_TYPE,
     });
 
     this.lightWorkerPool = new WorkerPool(LightWorker, {

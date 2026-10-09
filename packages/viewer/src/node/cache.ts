@@ -18,8 +18,11 @@ export function pruneDirectory(
       const full = path.join(d, entry.name);
       if (entry.isDirectory()) walk(full);
       else {
-        const stat = fs.statSync(full);
-        files.push({ file: full, size: stat.size, mtime: stat.mtimeMs });
+        // A writer's temporary file can be renamed away between the listing
+        // and the stat; it is gone, so there is nothing to prune.
+        const stat = fs.statSync(full, { throwIfNoEntry: false });
+        if (stat)
+          files.push({ file: full, size: stat.size, mtime: stat.mtimeMs });
       }
     }
   };
