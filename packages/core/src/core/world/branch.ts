@@ -255,6 +255,28 @@ function sidesOf(
   });
 }
 
+const UP = 2;
+const DOWN = 3;
+
+/** `grain_axis` in crates/mesher/src/mesher/branch.rs. */
+function grainAxis(joints: number[], candidates: number[]): number {
+  let axis = candidates[0];
+  let best: [number, number] = [0, 0];
+  for (const candidate of candidates) {
+    const a = joints[candidate * 2];
+    const b = joints[candidate * 2 + 1];
+    const score: [number, number] = [
+      Math.max(a, b),
+      (a > 0 ? 1 : 0) + (b > 0 ? 1 : 0),
+    ];
+    if (score[0] > best[0] || (score[0] === best[0] && score[1] > best[1])) {
+      best = score;
+      axis = candidate;
+    }
+  }
+  return axis;
+}
+
 function jointRadius(radius: number, side: BranchSide): number {
   switch (side.kind) {
     case "apart":
@@ -316,7 +338,33 @@ function voxelBoxes(
   const t = shape.texelsPerBlock;
   const c = Math.floor(t / 2);
   const seat = shape.seat ?? "centre";
-  const joints = sides.map((side) => jointRadius(radius, side));
+  const candidates = seat === "centre" ? [1, 0, 2] : [0, 2];
+  const offered = sides.map((side) => jointRadius(radius, side));
+  const isSocket = (side: number) => sides[side].kind === "socket";
+  const own = offered.map((j, side) => (isSocket(side) ? 0 : j));
+  const ownCount = own.filter((j) => j > 0).length;
+  const only = Math.max(
+    0,
+    own.findIndex((j) => j > 0),
+  );
+  const ground = (side: number) =>
+    side === DOWN && (seat === "floor" || own[UP] > 0);
+  const joints = offered.map((j, side) =>
+    !isSocket(side) ||
+    ownCount === 0 ||
+    ground(side) ||
+    (ownCount === 1 && side === (only ^ 1))
+      ? j
+      : 0,
+  );
+  const axis = grainAxis(joints, candidates);
+  if (ownCount === 0) {
+    for (let side = 0; side < 6; side += 1) {
+      if (isSocket(side) && Math.floor(side / 2) !== axis && !ground(side)) {
+        joints[side] = 0;
+      }
+    }
+  }
   const floorJoint = (side: number) => liesAlongFloor(seat, sides, side);
   const floorHeight = (side: number) => {
     const s = sides[side];
@@ -333,22 +381,6 @@ function voxelBoxes(
     }
     return joints[side];
   });
-
-  const candidates = seat === "centre" ? [1, 0, 2] : [0, 2];
-  let axis = candidates[0];
-  let best: [number, number] = [0, 0];
-  for (const candidate of candidates) {
-    const a = joints[candidate * 2];
-    const b = joints[candidate * 2 + 1];
-    const score: [number, number] = [
-      Math.max(a, b),
-      (a > 0 ? 1 : 0) + (b > 0 ? 1 : 0),
-    ];
-    if (score[0] > best[0] || (score[0] === best[0] && score[1] > best[1])) {
-      best = score;
-      axis = candidate;
-    }
-  }
 
   const r = radius;
   const coreMin = [c - r, seat === "floor" ? 0 : c - r, c - r];
