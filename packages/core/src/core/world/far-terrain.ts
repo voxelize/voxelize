@@ -15,6 +15,7 @@ import {
   Sphere,
   Texture,
   UnsignedByteType,
+  Vector2,
   Vector3,
   Vector4,
 } from "three";
@@ -209,6 +210,7 @@ uniform float uBaseAmbient;
 uniform vec4 uFaceShades;
 uniform float uRingInner;
 uniform float uRingOuter;
+uniform vec2 uRingCenter;
 ${FAR_SEAM_UNIFORM_DECLARATIONS}
 ${isWater ? "uniform vec3 uWaterColor;" : "varying vec3 vFarColor;"}
 varying vec3 vWorldPosition;
@@ -221,7 +223,10 @@ void main() {
   if (farCoverInside(farTexel) && farCoverHard(farTexel) > 0.5) {
     if (uFarSeam <= 0.0 || farSeamWeight(farTexel) > farSeamDither(gl_FragCoord.xy)) discard;
   }
-  float horizontal = length(vWorldPosition.xz - cameraPosition.xz);
+  // Rings are measured from where the tiles were picked around (the
+  // viewer's position), not from the camera, which a third-person or an
+  // orthographic view puts far from it.
+  float horizontal = length(vWorldPosition.xz - uRingCenter);
   if (horizontal < uRingInner || horizontal >= uRingOuter) discard;
 
   ${
@@ -338,6 +343,9 @@ export class FarTerrain extends Group {
 
   private chunkSize = 16;
 
+  /** Horizontal centre the rings are cut around, shared by every material. */
+  private ringCenter: ShaderUniform<Vector2> = { value: new Vector2() };
+
   private shared: FarTerrainSharedUniforms;
 
   constructor(
@@ -402,6 +410,7 @@ export class FarTerrain extends Group {
       uFarSeam: shared.farSeam,
       uRingInner: { value: 0 },
       uRingOuter: { value: 0 },
+      uRingCenter: this.ringCenter,
     });
 
     this.landMaterial = new ShaderMaterial({
@@ -444,6 +453,15 @@ export class FarTerrain extends Group {
     if (JSON.stringify(valid) === JSON.stringify(this.descriptor)) return;
     this.descriptor = valid;
     this.clearTiles();
+  }
+
+  /**
+   * Replaces the colour of every class (linear RGB, flattened); tiles built
+   * from here on use it. A source whose classes are discovered as tiles
+   * arrive (block ids, say) grows its palette before handing each tile in.
+   */
+  setPalette(palette: ArrayLike<number>) {
+    this.palette = Float32Array.from(palette);
   }
 
   /** The reach in blocks; 0 switches the layer off and frees its tiles. */
@@ -504,6 +522,7 @@ export class FarTerrain extends Group {
     this.visible = true;
     this.stats.isActive = true;
     this.stats.distance = this.options.distance;
+    this.ringCenter.value.set(position.x, position.z);
     this.shared.farSeam.value = farSeamScale(
       world.chunkSize,
       this.options.seamBand,

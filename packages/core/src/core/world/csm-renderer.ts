@@ -41,16 +41,20 @@ export interface CSMConfig {
    */
   shadowStrengthRenderFloor: number;
   /**
-   * Per-frame light-direction delta above which direction changes stop
-   * marking cascades dirty. The day-cycle drift moves the light a few
-   * hundred-thousandths of a radian per frame; the dusk sun-to-moon
-   * handoff swings it thirty times faster, fast enough that shadows
+   * Light-direction speed, in radians per second, above which direction
+   * changes stop marking cascades dirty. The day-cycle drift turns the
+   * light at most 0.005 rad/s on a twenty-minute day; the dusk sun-to-moon
+   * handoff swings it twenty times faster, fast enough that shadows
    * re-rendered mid-swing are stale by the time they are sampled. The
    * skipped motion keeps accumulating against the dirty threshold, so the
    * first calm frame after a swing (or a time-command jump) still
    * refreshes every cascade at the settled direction.
+   *
+   * A speed rather than a per-frame step: the same drift is a bigger step
+   * on a longer frame, and a per-frame cap read it as a swing on every page
+   * below about 52 fps, so the cascades stopped following the sun there.
    */
-  maxLightSwingPerFrame: number;
+  maxLightSwingPerSecond: number;
   /**
    * Player movement (blocks per frame) below which the camera counts as
    * still. Control smoothing approaches its target asymptotically and
@@ -114,7 +118,7 @@ const defaultConfig: CSMConfig = {
   shadowMapSize: 2048,
   farShadowMapSize: 2048,
   shadowStrengthRenderFloor: 0.15,
-  maxLightSwingPerFrame: 0.0001,
+  maxLightSwingPerSecond: 0.01,
   stillCameraPositionEpsilon: 0.0005,
   stillCameraMatrixEpsilon: 0.0005,
   maxShadowDistance: 128,
@@ -166,6 +170,8 @@ export class CSMRenderer {
   private isCameraStill = false;
   private currentShadowStrength = 1;
   private lastFrameLightSwing = 0;
+  private lastLightSwingPerSecond = 0;
+  private lastUpdateAt: number | null = null;
   private lastMainCamera: Camera | null = null;
   private cascadeDirty: boolean[] = [];
   private cascadeNeedsRender: boolean[] = [];
@@ -342,19 +348,37 @@ export class CSMRenderer {
     });
   }
 
+  /**
+   * @param deltaSeconds Time since the previous update. Measured between
+   * calls when omitted; a caller stepping a simulated clock passes its own.
+   */
   update(
     mainCamera: Camera,
     sunDirection: Vector3,
     playerPosition?: Vector3,
     shadowStrength = 1,
+    deltaSeconds?: number,
   ) {
+    const now = performance.now();
+    const elapsedSeconds =
+      deltaSeconds ??
+      (this.lastUpdateAt === null ? 0 : (now - this.lastUpdateAt) / 1000);
+    this.lastUpdateAt = now;
+
     const frameLightSwing = this.tempVec3
       .copy(sunDirection)
       .normalize()
       .sub(this.lightDirection)
       .length();
     this.lastFrameLightSwing = frameLightSwing;
-    const isLightSwinging = frameLightSwing > this.config.maxLightSwingPerFrame;
+    this.lastLightSwingPerSecond =
+      elapsedSeconds > 0
+        ? frameLightSwing / elapsedSeconds
+        : frameLightSwing > 0
+          ? Infinity
+          : 0;
+    const isLightSwinging =
+      frameLightSwing > this.config.maxLightSwingPerSecond * elapsedSeconds;
 
     this.lightDirection.copy(sunDirection).normalize();
     this.currentShadowStrength = shadowStrength;
@@ -1108,6 +1132,8 @@ export class CSMRenderer {
     cascadeNeedsRender: boolean[];
     currentShadowStrength: number;
     lastFrameLightSwing: number;
+    lastLightSwingPerSecond: number;
+    lightLagRadians: number;
   } {
     return {
       isCameraStill: this.isCameraStill,
@@ -1115,7 +1141,17 @@ export class CSMRenderer {
       cascadeNeedsRender: [...this.cascadeNeedsRender],
       currentShadowStrength: this.currentShadowStrength,
       lastFrameLightSwing: this.lastFrameLightSwing,
+      lastLightSwingPerSecond: this.lastLightSwingPerSecond,
+      lightLagRadians: this.lightLagRadians,
     };
+  }
+
+  /**
+   * The angle between the live light and the direction the cascades were
+   * last fitted to: how far drawn shadows lag the sun.
+   */
+  get lightLagRadians(): number {
+    return this.renderLightDirection.angleTo(this.lightDirection);
   }
 
   get shadowBias(): number {

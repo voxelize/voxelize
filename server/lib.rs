@@ -6,6 +6,7 @@ mod perf;
 mod runtime;
 mod server;
 mod types;
+pub mod viewer;
 pub mod webrtc;
 mod world;
 

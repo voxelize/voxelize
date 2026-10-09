@@ -10,6 +10,7 @@ import type {
   BlockInfo,
   CameraShot,
   CameraShotStatus,
+  CaptureCaveat,
   ChatMsgIn,
   ChunkCoord,
   ChunkSnapshot,
@@ -73,6 +74,7 @@ import {
   resolveHmrUrlPatterns,
 } from "./client-updates";
 import { composeClientUrl } from "./client-url";
+import { assertUncappedWindow } from "./frame-rate-guard";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
   createAgentPerfTraceId,
@@ -145,6 +147,25 @@ export type VideoRecordingOptions = VideoRecordingRequest &
 export type VideoRecordingStartReport = VideoRecordingStarted & {
   viewport: CaptureViewport;
 };
+
+/**
+ * The V8 heap of every isolate in the page's renderer: the page itself and
+ * each worker, summed and per worker pool (workers named `pool-N`).
+ */
+export type IsolateHeaps = {
+  /** The page plus every worker found, read or not. */
+  count: number;
+  unreadWorkers: number;
+  heapUsedBytes: number;
+  heapTotalBytes: number;
+  pageHeapTotalBytes: number;
+  pools: Record<
+    string,
+    { workers: number; heapUsedBytes: number; heapTotalBytes: number }
+  >;
+};
+
+type HeapUsage = { usedSize: number; totalSize: number };
 
 export type VideoRecordingFile = VideoRecordingResult & {
   path: string;
@@ -1212,6 +1233,8 @@ export class Agent {
     /** The debug bar's sampler: heap floor and leak trend. Null where the
      * client has no debug UI or the browser exposes no heap counters. */
     trend: MemoryTrend | null;
+    /** Every isolate's V8 heap: the page's and each worker's. */
+    isolates: IsolateHeaps;
   }> {
     const metrics = await this.withPageTimeout(
       "pageMetrics",
@@ -1242,7 +1265,71 @@ export class Agent {
       heapTotalBytes: metrics.JSHeapTotalSize ?? 0,
       counters,
       trend,
+      isolates: await this.withPageTimeout(
+        "isolateHeaps",
+        this.defaultPageTimeoutMs,
+        () => this.isolateHeaps(),
+      ),
     };
+  }
+
+  /**
+   * The V8 heap of the page and of every worker it runs, read over each
+   * one's own DevTools session. Every isolate in a renderer allocates from
+   * one shared pointer-compression cage, so the renderer dies when their sum
+   * reaches it, while the page alone reads small and `performance.memory`
+   * sees no worker at all. A worker that cannot be read is counted as
+   * unread, never as an empty heap.
+   */
+  async isolateHeaps(): Promise<IsolateHeaps> {
+    const client = await this.page.createCDPSession();
+    try {
+      const page = (await client.send("Runtime.getHeapUsage")) as HeapUsage;
+      const pools: IsolateHeaps["pools"] = {};
+      let workerTotalBytes = 0;
+      let workerUsedBytes = 0;
+      let unreadWorkers = 0;
+      const workers = this.page.workers();
+      await Promise.all(
+        workers.map(async (worker) => {
+          try {
+            const [usage, named] = await Promise.all([
+              worker.client.send("Runtime.getHeapUsage") as Promise<HeapUsage>,
+              worker.client.send("Runtime.evaluate", {
+                expression: "self.name",
+                returnByValue: true,
+              }) as Promise<{ result: { value?: unknown } }>,
+            ]);
+            const name =
+              typeof named.result.value === "string" && named.result.value
+                ? named.result.value.replace(/-\d+$/, "")
+                : "(unnamed)";
+            const pool = (pools[name] ??= {
+              workers: 0,
+              heapUsedBytes: 0,
+              heapTotalBytes: 0,
+            });
+            pool.workers += 1;
+            pool.heapUsedBytes += usage.usedSize;
+            pool.heapTotalBytes += usage.totalSize;
+            workerUsedBytes += usage.usedSize;
+            workerTotalBytes += usage.totalSize;
+          } catch {
+            unreadWorkers += 1;
+          }
+        }),
+      );
+      return {
+        count: 1 + workers.length,
+        unreadWorkers,
+        heapUsedBytes: page.usedSize + workerUsedBytes,
+        heapTotalBytes: page.totalSize + workerTotalBytes,
+        pageHeapTotalBytes: page.totalSize,
+        pools,
+      };
+    } finally {
+      await client.detach().catch(() => {});
+    }
   }
 
   /**
@@ -1332,6 +1419,18 @@ export class Agent {
   async facing(): Promise<YawPitch> {
     return this.withPageTimeout("facing", this.defaultPageTimeoutMs, () =>
       this.page.evaluate(() => window.__agentRequired__().facing()),
+    );
+  }
+
+  /** What makes a frame captured now mislead (`AgentBridge.captureCaveats`). */
+  async captureCaveats(): Promise<CaptureCaveat[]> {
+    return this.withPageTimeout(
+      "captureCaveats",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(
+          () => window.__agentRequired__().captureCaveats?.() ?? [],
+        ),
     );
   }
 
@@ -2004,10 +2103,25 @@ export class Agent {
     const durationMs = opts.durationMs ?? 10_000;
     const warmupMs = opts.warmupMs ?? 1_000;
 
-    return this.withPageTimeout(
+    const measurement = await this.withPageTimeout(
       "measureFrameRate",
       durationMs + warmupMs + PAGE_CALL_GRACE_MS,
       () => this.evaluateFrameRateMeasurement(durationMs, warmupMs),
+    );
+    assertUncappedWindow(measurement.drawThrottle, measurement.frameCount);
+    return measurement;
+  }
+
+  /** The page's own report of its draw cap, not the daemon's bookkeeping. */
+  async drawThrottleStatus(): Promise<DrawThrottleStatus> {
+    return this.withPageTimeout("drawThrottle", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => {
+        const bridge = window.__agent__;
+        if (typeof bridge?.drawThrottle !== "function") {
+          return { intervalMs: null, isSupported: false };
+        }
+        return bridge.drawThrottle();
+      }),
     );
   }
 
@@ -2023,6 +2137,36 @@ export class Agent {
           let measurementStartedAt = 0;
           let lastFrameAt = 0;
 
+          // Every frame of the window, warmup included, asks the page for
+          // its cap: one capped frame anywhere refuses the measurement.
+          const bridge = window.__agent__;
+          const readCap = () =>
+            typeof bridge?.drawThrottle === "function"
+              ? bridge.drawThrottle()
+              : null;
+          const firstCap = readCap();
+          const draws: FrameRateMeasurement["drawThrottle"] = {
+            isReported: firstCap !== null && firstCap.isSupported,
+            intervalAtStartMs: firstCap?.intervalMs ?? null,
+            intervalAtEndMs: null,
+            cappedFrames: 0,
+            maxIntervalMs: null,
+            drawnFrames: null,
+          };
+          let drawnAtStart: number | null = null;
+          const observeCap = () => {
+            const cap = readCap();
+            if (cap?.intervalMs != null) {
+              draws.cappedFrames += 1;
+              draws.maxIntervalMs = Math.max(
+                draws.maxIntervalMs ?? 0,
+                cap.intervalMs,
+              );
+            }
+            return cap;
+          };
+          observeCap();
+
           const percentile = (sorted: number[], value: number): number => {
             if (sorted.length === 0) return 0;
             const index = Math.min(
@@ -2033,6 +2177,7 @@ export class Agent {
           };
 
           const tick = (now: number): void => {
+            const cap = observeCap();
             if (warmupStartedAt === 0) {
               warmupStartedAt = now;
               requestAnimationFrame(tick);
@@ -2047,6 +2192,7 @@ export class Agent {
             if (measurementStartedAt === 0) {
               measurementStartedAt = now;
               lastFrameAt = now;
+              drawnAtStart = cap?.drawnFrames ?? null;
               requestAnimationFrame(tick);
               return;
             }
@@ -2057,6 +2203,11 @@ export class Agent {
             if (now - measurementStartedAt < measuredDurationMs) {
               requestAnimationFrame(tick);
               return;
+            }
+
+            draws.intervalAtEndMs = cap?.intervalMs ?? null;
+            if (drawnAtStart !== null && cap?.drawnFrames != null) {
+              draws.drawnFrames = cap.drawnFrames - drawnAtStart;
             }
 
             const elapsedMs = lastFrameAt - measurementStartedAt;
@@ -2087,6 +2238,7 @@ export class Agent {
               p95FrameMs,
               p99FrameMs,
               maxFrameMs,
+              drawThrottle: draws,
             });
           };
 
