@@ -5,11 +5,12 @@ use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect, WriteStorage};
 
 use crate::{
-    beer_lambert_transmit, expand_coupled_updates, record_profile, sample_random_ticks, BlockUtils,
-    ChunkInterests, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag,
-    IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
-    MetadataComp, PerfToggle, RandomTickCatchUp, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3,
-    VoxelAccess, VoxelComp, VoxelPacker, WorldConfig, perf_toggle, ROTATION_BYTE_MASK,
+    beer_lambert_transmit, expand_coupled_updates, perf_toggle, record_profile,
+    sample_random_ticks, BlockUtils, ChunkInterests, ChunkUtils, Chunks, ClientFilter,
+    CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode, Lights,
+    Mesher, Message, MessageQueues, MessageType, MetadataComp, PerfToggle, RandomTickCatchUp,
+    Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker,
+    WorldConfig, ROTATION_BYTE_MASK,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -339,7 +340,28 @@ fn mark_waterlogged_fluid_active(
 /// fluid simulation drain a waterlogged voxel by clearing the bit. Any
 /// disagreement heals on the next fluid tick, since waterloggable voxels are
 /// themselves flow targets.
+///
+/// A word that would leave water in a branch voxel too full to hold it (a
+/// waterlogged twig thickened to a full block) is invalid: it is committed
+/// dry, and the water it carried is reported lost.
 fn resolve_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>, raw: u32) -> u32 {
+    let resolved = carry_waterlogging(chunks, registry, voxel, raw);
+    if !registry.is_overfull_waterlog(resolved) {
+        return resolved;
+    }
+    log::error!(
+        "{} at {:?} cannot hold water at stage {}: committed it dry, losing water at level {}",
+        registry
+            .get_block_by_id(BlockUtils::extract_id(resolved))
+            .name,
+        voxel,
+        BlockUtils::extract_stage(resolved),
+        BlockUtils::extract_waterlog_level(resolved),
+    );
+    BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(resolved, false), 0)
+}
+
+fn carry_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>, raw: u32) -> u32 {
     let Some(fluid_id) = registry.waterlogging_fluid_id() else {
         return raw;
     };
@@ -367,7 +389,7 @@ fn resolve_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>,
     }
 
     let holds_fluid = is_current_waterlogged || current_id == fluid_id;
-    if holds_fluid && registry.is_waterloggable(updated_id) {
+    if holds_fluid && registry.is_waterloggable_voxel(raw) {
         return BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(raw, true), level);
     }
 
@@ -501,7 +523,9 @@ fn process_pending_updates(
             let preserve_entity = current_id == updated_id
                 && BlockUtils::extract_rotation(current_raw) == rotation
                 && chunks.block_entities.contains_key(&voxel);
-            let existing_entity = if preserve_entity { None } else {
+            let existing_entity = if preserve_entity {
+                None
+            } else {
                 chunks.block_entities.remove(&voxel)
             };
             if let Some(existing_entity) = existing_entity {
@@ -1070,8 +1094,8 @@ fn process_pending_updates(
         // Under client-only meshing the remesh job would only clear meshes
         // that are already empty and hand the chunk back a tick later, so the
         // chunk goes straight onto this tick's send queue instead.
-        let is_sending_directly = config.client_only_meshing
-            && perf_toggle(PerfToggle::SkipNoopRemesh);
+        let is_sending_directly =
+            config.client_only_meshing && perf_toggle(PerfToggle::SkipNoopRemesh);
         let mut processes = Vec::new();
         for coords in cache {
             if !chunks.is_chunk_ready(&coords) {
