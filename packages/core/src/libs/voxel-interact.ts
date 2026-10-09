@@ -133,6 +133,13 @@ export class VoxelInteract extends Group {
   public active = true;
 
   /**
+   * Hide the highlight while targeting carries on. A capture that must not
+   * draw the outline still needs {@link VoxelInteract.target} for whatever
+   * reads it (breaking, placing); `toggle(false)` stops targeting itself.
+   */
+  public isHighlightHidden = false;
+
+  /**
    * The potential orientation and location of the block placement. If no block placement is possible, this will be `null`.
    */
   public potential: {
@@ -281,7 +288,7 @@ export class VoxelInteract extends Group {
     this.potential = null;
     this.target = null;
 
-    this.visible = this.active;
+    this.visible = this.active && !this.isHighlightHidden;
   };
 
   /**
@@ -345,7 +352,7 @@ export class VoxelInteract extends Group {
       return;
     }
 
-    this.visible = true;
+    this.visible = !this.isHighlightHidden;
     // The target is the block being looked at: an override cell that names
     // its owner resolves to that block's voxel, so every reader (HUD, right
     // click, breaking) sees the panel rather than the air in front of its
