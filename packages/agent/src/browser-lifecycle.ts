@@ -9,7 +9,46 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-const CHROME_FOR_TESTING_MARKER = "Google Chrome for Testing";
+/**
+ * The switch every agent browser is launched with, naming its daemon's
+ * port. Identity is the agent's own mark, never the Chrome build: a system
+ * Chrome launched through PUPPETEER_EXECUTABLE_PATH matched none of the
+ * old "Chrome for Testing" markers, so the watchdog called it "not an agent
+ * browser" and left it running after its daemon died, and host reapers did
+ * not see it at all. Chromium ignores a switch it does not know.
+ */
+export const AGENT_BROWSER_FLAG = "--voxelize-agent-port";
+
+export function agentBrowserFlag(port: number): string {
+  return `${AGENT_BROWSER_FLAG}=${port}`;
+}
+
+/**
+ * The one test of whether a command line belongs to an agent browser (that
+ * port's, when `port` is given), as an extended regular expression that
+ * JavaScript and the watchdog's `grep -E` read alike: the agent's flag, or
+ * the persistent profile (`--user-data-dir=…/profiles/port-N`, see
+ * agentProfileDir) of a browser launched before the flag existed. A host
+ * reaper must use the same test: mirror this pattern and assert the two
+ * agree, as with the exit codes.
+ */
+export function agentBrowserPattern(port?: number): string {
+  const portPattern = port === undefined ? "[0-9]+" : String(port);
+  return [
+    `(^| )${AGENT_BROWSER_FLAG}=${portPattern}( |$)`,
+    `(^| )--user-data-dir=[^ ]*/profiles/port-${portPattern}( |$)`,
+  ].join("|");
+}
+
+export function isAgentBrowserCommand(
+  command: string | null | undefined,
+  port?: number,
+): boolean {
+  return (
+    typeof command === "string" &&
+    new RegExp(agentBrowserPattern(port)).test(command)
+  );
+}
 
 /**
  * Exit code the daemon uses when it shuts itself down because its idle TTL
@@ -124,9 +163,11 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-function processCommand(pid: number): string | null {
+// -ww: the whole command line. A browser's runs to kilobytes, and the
+// agent's mark is wherever puppeteer puts it.
+function processField(pid: number, field: string): string | null {
   try {
-    return execFileSync("ps", ["-o", "command=", "-p", String(pid)], {
+    return execFileSync("ps", ["-ww", "-o", `${field}=`, "-p", String(pid)], {
       encoding: "utf8",
     }).trim();
   } catch {
@@ -134,7 +175,12 @@ function processCommand(pid: number): string | null {
   }
 }
 
-export function reapStaleAgentBrowser(pidFile: string): void {
+/**
+ * Kills the browser a previous daemon on `port` recorded, once it is proven
+ * to be that port's agent browser and no live daemon owns it: killing the
+ * browser of a live daemon is never correct (it reads as a crash).
+ */
+export function reapStaleAgentBrowser(pidFile: string, port: number): void {
   if (!existsSync(pidFile)) return;
 
   const pid = Number(readFileSync(pidFile, "utf8").trim());
@@ -143,15 +189,32 @@ export function reapStaleAgentBrowser(pidFile: string): void {
   if (!Number.isInteger(pid) || pid <= 0) return;
   if (!isProcessAlive(pid)) return;
 
-  const command = processCommand(pid);
-  if (!command || !command.includes(CHROME_FOR_TESTING_MARKER)) return;
+  if (!isAgentBrowserCommand(processField(pid, "command"), port)) return;
+  const parentPid = Number(processField(pid, "ppid"));
+  if (
+    parentPid > 1 &&
+    parentPid !== process.pid &&
+    processField(parentPid, "command")?.includes("voxelize-agent")
+  ) {
+    console.log(
+      `[voxelize-agent] left browser pid=${pid} alone: port ${port}'s agent browser, but its daemon pid=${parentPid} is alive`,
+    );
+    return;
+  }
 
   try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // not a process group leader, or gone already
+  }
+  try {
     process.kill(pid, "SIGKILL");
-    console.log(`[voxelize-agent] reaped stale browser pid=${pid}`);
   } catch {
     // already gone between the alive check and the kill
   }
+  console.log(
+    `[voxelize-agent] reaped stale browser pid=${pid}: port ${port}'s agent browser, left by a daemon that is gone`,
+  );
 }
 
 export function recordAgentBrowser(
@@ -179,9 +242,10 @@ const WATCHDOG_LOG_MAX_BYTES = 1024 * 1024;
 // daemon does not SIGINT the browser), which means killing the daemon's group
 // cannot reach the browser either. A detached /bin/sh loop polls both pids and
 // SIGKILLs the browser's group within seconds of the daemon dying for any
-// reason. It verifies process identity (command string) before every kill so a
-// recycled pid is never shot, and it exits on its own as soon as the browser
-// is gone, so a clean shutdown leaves nothing behind.
+// reason. It verifies process identity before every kill, by the agent's own
+// mark for its port (agentBrowserPattern), so a recycled pid is never shot,
+// and it exits on its own as soon as the browser is gone, so a clean shutdown
+// leaves nothing behind.
 const WATCHDOG_SCRIPT = `
 exec >> "$WATCHDOG_LOG" 2>&1
 echo "$(date +%FT%T) [watchdog] watching daemon pid=$DAEMON_PID browser pid=$BROWSER_PID port=$AGENT_PORT"
@@ -190,18 +254,18 @@ while :; do
     echo "$(date +%FT%T) [watchdog] browser pid=$BROWSER_PID exited; nothing to guard"
     exit 0
   fi
-  if ! ps -o command= -p "$DAEMON_PID" 2>/dev/null | grep -q "voxelize-agent"; then
+  if ! ps -ww -o command= -p "$DAEMON_PID" 2>/dev/null | grep -q "voxelize-agent"; then
     break
   fi
   sleep ${WATCHDOG_POLL_SECONDS}
 done
-if ps -o command= -p "$BROWSER_PID" 2>/dev/null | grep -Eq "Google Chrome for Testing|[.]cache/puppeteer"; then
-  echo "$(date +%FT%T) [watchdog] daemon pid=$DAEMON_PID died with browser pid=$BROWSER_PID still alive; killing orphaned browser group"
+if ps -ww -o command= -p "$BROWSER_PID" 2>/dev/null | grep -Eq -- "$BROWSER_PATTERN"; then
+  echo "$(date +%FT%T) [watchdog] daemon pid=$DAEMON_PID died with browser pid=$BROWSER_PID still alive (it carries port $AGENT_PORT's agent mark); killing orphaned browser group"
   kill -9 -- "-$BROWSER_PID" 2>/dev/null
   kill -9 "$BROWSER_PID" 2>/dev/null
   echo "$(date +%FT%T) [watchdog] killed orphaned browser pid=$BROWSER_PID (daemon port=$AGENT_PORT)"
 else
-  echo "$(date +%FT%T) [watchdog] daemon pid=$DAEMON_PID died; browser pid=$BROWSER_PID already gone or not an agent browser; nothing to kill"
+  echo "$(date +%FT%T) [watchdog] daemon pid=$DAEMON_PID died; browser pid=$BROWSER_PID is gone, or its pid now runs something without port $AGENT_PORT's agent mark; nothing to kill"
 fi
 `;
 
@@ -245,6 +309,7 @@ export function spawnBrowserWatchdog(options: {
         DAEMON_PID: String(daemonPid),
         BROWSER_PID: String(browserPid),
         AGENT_PORT: String(port),
+        BROWSER_PATTERN: agentBrowserPattern(port),
         PATH: process.env.PATH ?? "/usr/bin:/bin",
       },
     });
