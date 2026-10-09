@@ -16,8 +16,9 @@ mod types;
 mod vertex_light;
 
 pub use branch::{
-    BranchBeyond, BranchLayout, BranchPart, BranchPartKind, BranchQuad, BranchSeat, BranchShape,
-    BranchSide, BranchSocket, BranchTexture, WideBranchSection,
+    branch_cell, branch_layout_at, BranchBeyond, BranchBlocks, BranchCell, BranchKind,
+    BranchLayout, BranchPart, BranchPartKind, BranchQuad, BranchSeat, BranchShape, BranchSide,
+    BranchSocket, BranchTexture, WideBranchBits, WideBranchSection, WideCell,
 };
 pub use connectivity::{
     compute_section_connectivity, connectivity_pair_bit, CONNECTIVITY_FACES, CONNECTIVITY_FULL,

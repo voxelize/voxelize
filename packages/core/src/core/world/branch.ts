@@ -9,6 +9,15 @@ import { AABB } from "@voxelize/aabb";
 export type BranchSeat = "centre" | "floor";
 
 /**
+ * What a branch block's voxels are, beyond their joints. Mirrors
+ * `BranchKind`: `voxel` is one voxel thick with its radius in its stage,
+ * `core` is the core cell of a section wider than one voxel (its radius and
+ * cut flag in {@link WideBranchBits}), `fin` a floor-seated fin as thick as
+ * its stage says and as tall as its raw bits say.
+ */
+export type BranchKind = "voxel" | "core" | "fin";
+
+/**
  * Draws a block as a branch: a square-section tube of the radius each voxel
  * holds in its stage, joined to face neighbours of the same key at the
  * thinner of the two radii. Mirrors `BranchShape` in the mesher crate.
@@ -16,6 +25,7 @@ export type BranchSeat = "centre" | "floor";
 export type BranchShape = {
   key: number;
   seat?: BranchSeat;
+  kind?: BranchKind;
   texelsPerBlock: number;
   /** The contiguous run of stage bits holding the radius less one. */
   radiusMask: number;
@@ -30,18 +40,62 @@ export type BranchSocket = { key: number; maxRadius: number };
 type BranchSide =
   | { kind: "apart" }
   | { kind: "branch"; radius: number; seat: BranchSeat }
-  | { kind: "socket"; maxRadius: number };
+  | { kind: "fin"; radius: number; height: number }
+  | { kind: "socket"; maxRadius: number }
+  | { kind: "section" };
 
 /** What the branch functions need to know about the blocks around one. */
 export type BranchBlockLookup = {
-  getVoxelAt: (vx: number, vy: number, vz: number) => number;
-  getVoxelStageAt: (vx: number, vy: number, vz: number) => number;
-  getBlockById: (
-    id: number,
-  ) =>
-    | { branch?: BranchShape | null; branchSockets?: BranchSocket[] }
+  getRawVoxelAt: (vx: number, vy: number, vz: number) => number;
+  getBlockById: (id: number) =>
+    | {
+        branch?: BranchShape | null;
+        branchSockets?: BranchSocket[];
+        branchShell?: boolean;
+      }
     | null
     | undefined;
+};
+
+/**
+ * The state wide branch voxels keep in raw bits 16-23. Mirrors
+ * `WideBranchBits` in the mesher crate.
+ */
+export const WideBranchBits = {
+  /** A core's radius, or a fin's height, in texels (1-64). */
+  size: (raw: number) => ((raw >>> 16) & 0x3f) + 1,
+  /** Stage bit 0 of a core: its own slice is cut away. */
+  isCut: (raw: number) => ((raw >>> 24) & 1) !== 0,
+  /** A shell's offset to its core, `[dx, dz]`, each -8..7. */
+  shellOffset: (raw: number): [number, number] => [
+    ((raw >>> 16) & 0xf) - 8,
+    ((raw >>> 20) & 0xf) - 8,
+  ],
+};
+
+/**
+ * A branch section wider than one voxel: one square tube of half-width
+ * `radius` texels round the axis through its core cell's centre. Mirrors
+ * `WideBranchSection` in the mesher crate.
+ */
+export const WideBranchSection = {
+  /** Cells the section reaches on each side of its core. */
+  reach(radius: number, texelsPerBlock: number) {
+    const t = Math.max(texelsPerBlock, 1);
+    return Math.floor(Math.max(radius + Math.floor(t / 2) - 1, 0) / t);
+  },
+  /** The tube's span across the cell `d` from the core, in its own texels. */
+  span(
+    radius: number,
+    texelsPerBlock: number,
+    d: number,
+  ): [number, number] | null {
+    const t = texelsPerBlock;
+    const start = d * t;
+    const low = Math.max(Math.floor(t / 2) - radius, start);
+    const high = Math.min(Math.floor(t / 2) + radius, start + t);
+    return high > low ? [low - start, high - start] : null;
+  },
 };
 
 /** +x, -x, +y, -y, +z, -z: the mesher's `VOXEL_NEIGHBORS` order. */
@@ -84,23 +138,103 @@ export function withBranchRadius(
   );
 }
 
-function sideOf(
-  shape: BranchShape,
-  neighbor: ReturnType<BranchBlockLookup["getBlockById"]>,
-  stage: number,
-): BranchSide {
-  const other = neighbor?.branch;
-  if (other && other.key === shape.key) {
+const stageOf = (raw: number) => (raw >>> 24) & 0xf;
+const finHeight = (shape: BranchShape, raw: number) =>
+  Math.min(WideBranchBits.size(raw), shape.texelsPerBlock);
+
+type BranchCell =
+  | { kind: "voxel"; shape: BranchShape; raw: number }
+  | {
+      kind: "wide";
+      shape: BranchShape;
+      core: [number, number, number];
+      radius: number;
+      offset: [number, number];
+      cut: boolean;
+    };
+
+/** The branch voxel at `vx, vy, vz`, as the mesher's `branch_cell`. */
+function branchCellAt(
+  vx: number,
+  vy: number,
+  vz: number,
+  lookup: BranchBlockLookup,
+): BranchCell | null {
+  const raw = lookup.getRawVoxelAt(vx, vy, vz);
+  const block = lookup.getBlockById(raw & 0xffff);
+  const shape = block?.branch;
+  if (shape) {
+    if ((shape.kind ?? "voxel") !== "core")
+      return { kind: "voxel", shape, raw };
     return {
-      kind: "branch",
-      radius: branchRadius(other, stage),
-      seat: other.seat ?? "centre",
+      kind: "wide",
+      shape,
+      core: [vx, vy, vz],
+      radius: WideBranchBits.size(raw),
+      offset: [0, 0],
+      cut: WideBranchBits.isCut(raw),
     };
   }
-  const socket = neighbor?.branchSockets?.find((s) => s.key === shape.key);
-  return socket
-    ? { kind: "socket", maxRadius: socket.maxRadius }
-    : { kind: "apart" };
+  if (!block?.branchShell) return null;
+  const [dx, dz] = WideBranchBits.shellOffset(raw);
+  if (dx === 0 && dz === 0) return null;
+  const core: [number, number, number] = [vx + dx, vy, vz + dz];
+  const coreRaw = lookup.getRawVoxelAt(...core);
+  const coreShape = lookup.getBlockById(coreRaw & 0xffff)?.branch;
+  if (!coreShape || coreShape.kind !== "core") return null;
+  const radius = WideBranchBits.size(coreRaw);
+  const reach = WideBranchSection.reach(radius, coreShape.texelsPerBlock);
+  if (Math.abs(dx) > reach || Math.abs(dz) > reach) return null;
+  return {
+    kind: "wide",
+    shape: coreShape,
+    core,
+    radius,
+    offset: [-dx, -dz],
+    cut: false,
+  };
+}
+
+function sideOf(
+  shape: BranchShape,
+  other: BranchShape,
+  raw: number,
+): BranchSide {
+  const radius = branchRadius(other, stageOf(raw));
+  return other.kind === "fin"
+    ? { kind: "fin", radius, height: finHeight(other, raw) }
+    : { kind: "branch", radius, seat: other.seat ?? "centre" };
+}
+
+function sidesOf(
+  cell: BranchCell,
+  vx: number,
+  vy: number,
+  vz: number,
+  lookup: BranchBlockLookup,
+): BranchSide[] {
+  const { shape } = cell;
+  return SIDES.map(([dx, dy, dz]) => {
+    const [x, y, z] = [vx + dx, vy + dy, vz + dz];
+    const other = branchCellAt(x, y, z, lookup);
+    if (other && other.shape.key === shape.key) {
+      if (other.kind === "voxel") return sideOf(shape, other.shape, other.raw);
+      if (other.cut) return { kind: "apart" };
+      if (
+        cell.kind === "wide" &&
+        cell.core.every((value, i) => value === other.core[i])
+      ) {
+        return { kind: "section" };
+      }
+      return { kind: "branch", radius: other.radius, seat: "centre" };
+    }
+    const socket = lookup
+      .getBlockById(lookup.getRawVoxelAt(x, y, z) & 0xffff)
+      ?.branchSockets?.find((s) => s.key === shape.key);
+    return socket
+      ? { kind: "socket", maxRadius: socket.maxRadius }
+      : { kind: "apart" };
+  });
 }
 
 function jointRadius(radius: number, side: BranchSide): number {
@@ -108,45 +242,79 @@ function jointRadius(radius: number, side: BranchSide): number {
     case "apart":
       return 0;
     case "branch":
+    case "fin":
       return Math.min(radius, side.radius);
     case "socket":
       return radius <= side.maxRadius ? radius : 0;
+    case "section":
+      return radius;
   }
 }
 
-/**
- * The boxes the branch voxel at `vx, vy, vz` is drawn as, in blocks of the
- * voxel: what bodies collide with and rays pick. The same layout as
- * `BranchLayout::new` in crates/mesher/src/mesher/branch.rs, box for box
- * (branch-parity.test.ts holds the two to the server's numbers).
- */
-export function branchAABBs(
+function liesAlongFloor(
+  ownSeat: BranchSeat,
+  sides: BranchSide[],
+  side: number,
+): boolean {
+  const s = sides[side];
+  return (
+    Math.floor(side / 2) !== 1 &&
+    (ownSeat === "floor" ||
+      (s.kind === "branch" && s.seat === "floor") ||
+      s.kind === "fin")
+  );
+}
+
+type Box = [number[], number[]];
+
+function arm(
+  side: number,
+  j: number,
+  start: number,
+  end: number,
+  floor: boolean,
+  height: number,
+  c: number,
+): Box {
+  const along = Math.floor(side / 2);
+  const min = [c - j, c - j, c - j];
+  const max = [c + j, c + j, c + j];
+  if (floor) {
+    min[1] = 0;
+    max[1] = height;
+  }
+  min[along] = start;
+  max[along] = end;
+  return [min, max];
+}
+
+/** A one-voxel branch or fin, box for box as `BranchLayout::laid`. */
+function voxelBoxes(
   shape: BranchShape,
-  vx: number,
-  vy: number,
-  vz: number,
-  lookup: BranchBlockLookup,
-): AABB[] {
+  radius: number,
+  finHeightOrNull: number | null,
+  sides: BranchSide[],
+): Box[] {
   const t = shape.texelsPerBlock;
   const c = Math.floor(t / 2);
   const seat = shape.seat ?? "centre";
-  const radius = branchRadius(shape, lookup.getVoxelStageAt(vx, vy, vz));
-  const sides = SIDES.map(([dx, dy, dz]) => {
-    const [x, y, z] = [vx + dx, vy + dy, vz + dz];
-    return sideOf(
-      shape,
-      lookup.getBlockById(lookup.getVoxelAt(x, y, z)),
-      lookup.getVoxelStageAt(x, y, z),
-    );
-  });
   const joints = sides.map((side) => jointRadius(radius, side));
-  const floorJoint = (side: number) => {
+  const floorJoint = (side: number) => liesAlongFloor(seat, sides, side);
+  const floorHeight = (side: number) => {
     const s = sides[side];
-    return (
-      Math.floor(side / 2) !== 1 &&
-      (seat === "floor" || (s.kind === "branch" && s.seat === "floor"))
-    );
+    if (s.kind === "fin") return s.height;
+    if (s.kind === "branch" && s.seat === "floor") return s.radius;
+    return t;
   };
+  const ownFloor =
+    finHeightOrNull !== null ? finHeightOrNull : seat === "floor" ? radius : t;
+  const jointHeights = sides.map((s, side) => {
+    if (!floorJoint(side)) return 0;
+    if (finHeightOrNull !== null || s.kind === "fin") {
+      return Math.min(ownFloor, floorHeight(side), t);
+    }
+    return joints[side];
+  });
 
   const candidates = seat === "centre" ? [1, 0, 2] : [0, 2];
   let axis = candidates[0];
@@ -166,14 +334,14 @@ export function branchAABBs(
 
   const r = radius;
   const coreMin = [c - r, seat === "floor" ? 0 : c - r, c - r];
-  const coreMax = [c + r, seat === "floor" ? r : c + r, c + r];
+  const coreMax = [c + r, seat === "floor" ? ownFloor : c + r, c + r];
   const absorbs = (side: number) =>
     joints[side] === radius &&
     floorJoint(side) === (seat === "floor" && axis !== 1);
   if (absorbs(axis * 2)) coreMax[axis] = t;
   if (absorbs(axis * 2 + 1)) coreMin[axis] = 0;
 
-  const boxes: [number[], number[]][] = [[coreMin, coreMax]];
+  const boxes: Box[] = [[coreMin, coreMax]];
   for (let side = 0; side < 6; side += 1) {
     const j = joints[side];
     if (j === 0) continue;
@@ -181,17 +349,73 @@ export function branchAABBs(
     const [start, end] =
       side % 2 === 0 ? [coreMax[along], t] : [0, coreMin[along]];
     if (start >= end) continue;
-    const min = [c - j, c - j, c - j];
-    const max = [c + j, c + j, c + j];
-    if (floorJoint(side)) {
-      min[1] = 0;
-      max[1] = j;
-    }
-    min[along] = start;
-    max[along] = end;
-    boxes.push([min, max]);
+    boxes.push(
+      arm(side, j, start, end, floorJoint(side), jointHeights[side], c),
+    );
   }
+  return boxes;
+}
 
+/** A wide section's cell, box for box as `BranchLayout::wide`. */
+function wideBoxes(
+  shape: BranchShape,
+  cell: Extract<BranchCell, { kind: "wide" }>,
+  sides: BranchSide[],
+): Box[] {
+  const t = shape.texelsPerBlock;
+  const c = Math.floor(t / 2);
+  const joints = sides.map((side) => jointRadius(cell.radius, side));
+  const spanX = WideBranchSection.span(cell.radius, t, cell.offset[0]);
+  const spanZ = WideBranchSection.span(cell.radius, t, cell.offset[1]);
+  if (cell.cut || !spanX || !spanZ) return [];
+  const sliceMin = [spanX[0], 0, spanZ[0]];
+  const sliceMax = [spanX[1], t, spanZ[1]];
+  const boxes: Box[] = [[sliceMin, sliceMax]];
+  for (const side of [0, 1, 4, 5]) {
+    const j = joints[side];
+    const s = sides[side];
+    if (j === 0 || s.kind === "section" || s.kind === "socket") continue;
+    const along = Math.floor(side / 2);
+    const [start, end] =
+      side % 2 === 0 ? [sliceMax[along], t] : [0, sliceMin[along]];
+    if (start >= end) continue;
+    const floor = liesAlongFloor("centre", sides, side);
+    const height = s.kind === "fin" ? Math.min(s.height, t) : j;
+    boxes.push(arm(side, j, start, end, floor, height, c));
+  }
+  return boxes;
+}
+
+/**
+ * The boxes the branch voxel at `vx, vy, vz` is drawn as, in blocks of the
+ * voxel: what bodies collide with and rays pick. A one-voxel branch, a fin,
+ * or a cell of a wide section (a core, or a shell drawing its core's tube);
+ * none for a cut core or a shell whose core is gone. The same layout as
+ * `branch_layout_at` in crates/mesher/src/mesher/branch.rs, box for box
+ * (branch-parity.test.ts holds the two to the server's numbers).
+ */
+export function branchAABBsAt(
+  vx: number,
+  vy: number,
+  vz: number,
+  lookup: BranchBlockLookup,
+): AABB[] {
+  const cell = branchCellAt(vx, vy, vz, lookup);
+  if (!cell) return [];
+  const sides = sidesOf(cell, vx, vy, vz, lookup);
+  const t = cell.shape.texelsPerBlock;
+  let boxes: Box[];
+  if (cell.kind === "wide") {
+    boxes = wideBoxes(cell.shape, cell, sides);
+  } else {
+    const radius = branchRadius(cell.shape, stageOf(cell.raw));
+    boxes = voxelBoxes(
+      cell.shape,
+      radius,
+      cell.shape.kind === "fin" ? finHeight(cell.shape, cell.raw) : null,
+      sides,
+    );
+  }
   return boxes.map(
     ([min, max]) =>
       new AABB(

@@ -63,6 +63,11 @@ pub struct Block {
     /// The branches this block takes without being one.
     #[serde(default)]
     pub branch_sockets: Vec<BranchSocket>,
+    /// Draws every voxel of this block as a cell of a wide branch section:
+    /// its slice of the tube of the core its raw bits point at, wearing that
+    /// core's faces. Never greedy-meshed. See `branch`.
+    #[serde(default)]
+    pub branch_shell: bool,
 }
 
 /// A frame baked into the border of a block's face texture, drawn only where

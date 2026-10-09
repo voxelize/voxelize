@@ -97,11 +97,13 @@ type WasmBlock = {
       }[]
     | null;
   connected: ConnectedFrame | null;
-  // Mirror `branch` and `branch_sockets` on the mesher's `Block`. Dropping
-  // either would mesh a branch as its plain texture cube, or leave twigs
-  // short of their leaves, the moment a chunk re-meshes locally.
+  // Mirror `branch`, `branch_sockets` and `branch_shell` on the mesher's
+  // `Block`. Dropping any would mesh a branch as its plain texture cube,
+  // leave twigs short of their leaves, or draw a wide trunk's shells as
+  // cubes the moment a chunk re-meshes locally.
   branch: BranchShape | null;
   branchSockets: BranchSocket[];
+  branchShell: boolean;
 };
 
 // Mirrors `ConnectedFrame` in crates/mesher/src/mesher/types.rs. Dropping it
@@ -183,6 +185,7 @@ type RawWasmBlock = {
   connected?: ConnectedFrame | null;
   branch?: BranchShape | null;
   branchSockets?: BranchSocket[];
+  branchShell?: boolean;
 };
 
 type GeometryProtocol = {
@@ -472,6 +475,7 @@ export function convertRegistryToWasm(rawRegistry: {
         connected: block.connected ?? null,
         branch: block.branch ?? null,
         branchSockets: block.branchSockets ?? [],
+        branchShell: block.branchShell ?? false,
       };
       return [id, wasmBlock];
     },

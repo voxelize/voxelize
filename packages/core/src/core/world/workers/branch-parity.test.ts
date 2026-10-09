@@ -4,7 +4,7 @@ import path from "node:path";
 import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { branchAABBs, type BranchShape, type BranchSocket } from "../branch";
+import { branchAABBsAt, type BranchShape, type BranchSocket } from "../branch";
 
 // The client's half of the branch parity check. The fixture holds the blocks
 // exactly as the server sends them, a set of neighbourhoods, the geometry the
@@ -29,6 +29,7 @@ type FixtureBlock = {
   name: string;
   branch: BranchShape | null;
   branchSockets: BranchSocket[];
+  branchShell?: boolean;
   faces: { regionalTint?: boolean }[];
 };
 
@@ -98,6 +99,7 @@ describe("branches mesh and collide the same on the client as on the server", ()
       if (!sent) throw new Error(`block ${id} is not in the fixture`);
       expect(block.branch).toEqual(sent.branch ?? null);
       expect(block.branchSockets).toEqual(sent.branchSockets ?? []);
+      expect(block.branchShell).toEqual(sent.branchShell ?? false);
       expect(block.faces.map((face) => face.regionalTint)).toEqual(
         sent.faces.map((face) => face.regionalTint ?? false),
       );
@@ -106,6 +108,9 @@ describe("branches mesh and collide the same on the client as on the server", ()
     expect(
       converted.blocksById.some(([, block]) => block.branchSockets.length),
     ).toBe(true);
+    expect(converted.blocksById.some(([, block]) => block.branchShell)).toBe(
+      true,
+    );
   });
 
   for (const scene of fixture.scenes) {
@@ -144,16 +149,12 @@ describe("branches mesh and collide the same on the client as on the server", ()
       const raw = (x: number, y: number, z: number) =>
         voxels.get(`${x},${y},${z}`) ?? 0;
       const lookup = {
-        getVoxelAt: (x: number, y: number, z: number) => raw(x, y, z) & 0xffff,
-        getVoxelStageAt: (x: number, y: number, z: number) =>
-          (raw(x, y, z) >>> 24) & 0xf,
+        getRawVoxelAt: raw,
         getBlockById: (id: number) => fixture.blocks.find((b) => b.id === id),
       };
       for (const { at, aabbs } of scene.aabbs) {
         const [x, y, z] = at;
-        const shape = lookup.getBlockById(lookup.getVoxelAt(x, y, z))?.branch;
-        if (!shape) throw new Error(`no branch at ${at}`);
-        const client = branchAABBs(shape, x, y, z, lookup).map((a) => [
+        const client = branchAABBsAt(x, y, z, lookup).map((a) => [
           a.minX,
           a.minY,
           a.minZ,

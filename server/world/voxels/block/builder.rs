@@ -6,8 +6,8 @@ use super::super::fluids::create_fluid_active_fn;
 use super::coupled::coupled_guard_fns;
 use super::rules::{attached_support_fns, solid_below_support_fns};
 use super::{
-    Block, BlockDynamicPattern, BranchShape, BranchSocket, ConnectedFrame, CoupledPart,
-    SupportRequirement, YRotatableSegments,
+    Block, BlockDynamicPattern, BranchKind, BranchSeat, BranchShape, BranchSocket, ConnectedFrame,
+    CoupledPart, SupportRequirement, YRotatableSegments,
 };
 
 #[derive(Default)]
@@ -61,6 +61,7 @@ pub struct BlockBuilder {
     connected: Option<ConnectedFrame>,
     branch: Option<BranchShape>,
     branch_sockets: Vec<BranchSocket>,
+    branch_shell: bool,
     rotation_bits_are_state: bool,
     dynamic_fn: Option<
         Arc<
@@ -496,9 +497,23 @@ impl BlockBuilder {
     /// the radius its stage holds, joined to neighbours of the same key at
     /// the thinner of the two radii. Collision and picking follow the drawn
     /// shape. The block's `faces` must include the shape's side and end
-    /// faces, whose textures the branch wears.
+    /// faces, whose textures the branch wears. A wide core or a fin keeps its
+    /// size in its rotation bits, so declaring one makes them state.
     pub fn branch(mut self, shape: BranchShape) -> Self {
+        if shape.kind != BranchKind::Voxel {
+            self.rotation_bits_are_state = true;
+        }
         self.branch = Some(shape);
+        self
+    }
+
+    /// Draw every voxel of this block as a cell of a wide branch section,
+    /// pointing at its core through its rotation bits (which become state)
+    /// and wearing the core's faces. One shell block serves every species'
+    /// sections; it declares no shape of its own.
+    pub fn branch_shell(mut self) -> Self {
+        self.branch_shell = true;
+        self.rotation_bits_are_state = true;
         self
     }
 
@@ -641,19 +656,32 @@ impl BlockBuilder {
                 self.name,
                 shape.texels_per_block
             );
-            let bits = shape.radius_mask >> shape.radius_mask.trailing_zeros().min(31);
+            if shape.kind == BranchKind::Core {
+                assert!(
+                    shape.radius_mask == 0,
+                    "{}: a wide core keeps its radius in its rotation bits and its cut flag in stage bit 0, so its stage holds no radius",
+                    self.name
+                );
+            } else {
+                let bits = shape.radius_mask >> shape.radius_mask.trailing_zeros().min(31);
+                assert!(
+                    shape.radius_mask != 0 && (bits & (bits + 1)) == 0,
+                    "{}: the radius must sit in one run of stage bits, not {:#06b}",
+                    self.name,
+                    shape.radius_mask
+                );
+                assert!(
+                    shape.radius_mask <= 0xF && bits < shape.max_radius(),
+                    "{}: radius bits {:#06b} reach past half a block of {} texels",
+                    self.name,
+                    shape.radius_mask,
+                    shape.texels_per_block
+                );
+            }
             assert!(
-                shape.radius_mask != 0 && (bits & (bits + 1)) == 0,
-                "{}: the radius must sit in one run of stage bits, not {:#06b}",
-                self.name,
-                shape.radius_mask
-            );
-            assert!(
-                shape.radius_mask <= 0xF && bits < shape.max_radius(),
-                "{}: radius bits {:#06b} reach past half a block of {} texels",
-                self.name,
-                shape.radius_mask,
-                shape.texels_per_block
+                shape.kind != BranchKind::Fin || shape.seat == BranchSeat::Floor,
+                "{}: a fin stands on its voxel's floor",
+                self.name
             );
             assert!(
                 self.stage_tint_mask == 0 && self.face_pigments.is_empty(),
@@ -669,6 +697,18 @@ impl BlockBuilder {
             }
         }
 
+        if self.branch_shell {
+            assert!(
+                self.branch.is_none(),
+                "{}: a shell wears its core's shape, not one of its own",
+                self.name
+            );
+            assert!(
+                self.dynamic_fn.is_none() && self.dynamic_patterns.is_none(),
+                "{}: a shell's shape comes from its core alone",
+                self.name
+            );
+        }
         if self.rotation_bits_are_state {
             assert!(
                 !self.rotatable && !self.y_rotatable,
@@ -755,11 +795,13 @@ impl BlockBuilder {
             light_attenuation: self.light_attenuation,
             is_dynamic: self.dynamic_fn.is_some()
                 || self.dynamic_patterns.is_some()
-                || self.branch.is_some(),
+                || self.branch.is_some()
+                || self.branch_shell,
             dynamic_patterns: self.dynamic_patterns,
             connected: self.connected,
             branch: self.branch,
             branch_sockets: self.branch_sockets,
+            branch_shell: self.branch_shell,
             rotation_bits_are_state: self.rotation_bits_are_state,
             dynamic_fn: self.dynamic_fn,
             is_active: active_updater.is_some() && active_ticker.is_some(),

@@ -23,7 +23,7 @@
 //! and both servers and clients collide and pick against [`BranchLayout::aabbs`].
 
 use serde::{Deserialize, Serialize};
-use voxelize_core::{BlockFace, CornerData, VoxelAccess, AABB};
+use voxelize_core::{BlockFace, BlockUtils, CornerData, VoxelAccess, AABB};
 
 use super::*;
 
@@ -39,6 +39,22 @@ pub enum BranchSeat {
     Floor,
 }
 
+/// What a branch block's voxels are, beyond their joints.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BranchKind {
+    /// One voxel thick, with its radius in the stage's radius bits.
+    #[default]
+    Voxel,
+    /// The core cell of a section wider than one voxel ([`WideBranchSection`]).
+    /// Its radius and cut flag live in [`WideBranchBits`]; the section's
+    /// other cells are shells ([`Block::branch_shell`]) pointing at it.
+    Core,
+    /// A floor-seated fin: as thick as its radius bits say and as tall as its
+    /// height in [`WideBranchBits`], up to the voxel's top.
+    Fin,
+}
+
 /// Draws a block as a branch. Declared on the block, read by the mesher and
 /// by every collision and picking query.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,6 +65,8 @@ pub struct BranchShape {
     pub key: u32,
     #[serde(default)]
     pub seat: BranchSeat,
+    #[serde(default)]
+    pub kind: BranchKind,
     /// Texels per block the faces are drawn at, and radii are counted in.
     pub texels_per_block: u32,
     /// The contiguous run of stage bits holding the radius less one.
@@ -77,10 +95,69 @@ pub enum BranchSide {
     /// Nothing the branch joins.
     #[default]
     Apart,
-    /// A branch of the same key.
+    /// A branch of the same key. A wide section's cell reads as a centred
+    /// branch of the section's radius.
     Branch { radius: u32, seat: BranchSeat },
+    /// A fin of the same key, `height` texels tall.
+    Fin { radius: u32, height: u32 },
     /// A block that takes this key's branches up to `max_radius`.
     Socket { max_radius: u32 },
+    /// Another drawn cell of the same wide section: the tube carries on.
+    Section,
+}
+
+/// The state wide branch voxels keep in raw bits 16-23, which their blocks
+/// declare as state rather than a rotation.
+pub struct WideBranchBits;
+
+impl WideBranchBits {
+    const SHIFT: u32 = 16;
+    const SIZE_MASK: u32 = 0x3F;
+    const OFFSET_MASK: u32 = 0xF;
+    const OFFSET_BIAS: i32 = 8;
+    const CUT_STAGE_BIT: u32 = 1;
+
+    /// A core's radius, or a fin's height, in texels (1-64): bits 16-21.
+    pub fn size(raw: u32) -> u32 {
+        ((raw >> Self::SHIFT) & Self::SIZE_MASK) + 1
+    }
+
+    pub fn with_size(raw: u32, size: u32) -> u32 {
+        let size = size.clamp(1, Self::SIZE_MASK + 1);
+        (raw & !(Self::SIZE_MASK << Self::SHIFT)) | ((size - 1) << Self::SHIFT)
+    }
+
+    /// Stage bit 0 of a core: its own slice is cut away, but it still lends
+    /// its radius to its shells.
+    pub fn is_cut(raw: u32) -> bool {
+        BlockUtils::extract_stage(raw) & Self::CUT_STAGE_BIT != 0
+    }
+
+    pub fn with_cut(raw: u32, cut: bool) -> u32 {
+        let stage = BlockUtils::extract_stage(raw);
+        let stage = if cut {
+            stage | Self::CUT_STAGE_BIT
+        } else {
+            stage & !Self::CUT_STAGE_BIT
+        };
+        BlockUtils::insert_stage(raw, stage)
+    }
+
+    /// A shell's offset to its core, `(dx, dz)`, each -8..7: bits 16-19 and
+    /// 20-23. The core stands at the shell's position plus this offset.
+    pub fn shell_offset(raw: u32) -> (i32, i32) {
+        let field = |shift: u32| ((raw >> shift) & Self::OFFSET_MASK) as i32 - Self::OFFSET_BIAS;
+        (field(Self::SHIFT), field(Self::SHIFT + 4))
+    }
+
+    pub fn with_shell_offset(raw: u32, dx: i32, dz: i32) -> u32 {
+        assert!(
+            (-8..8).contains(&dx) && (-8..8).contains(&dz),
+            "a shell reaches its core within -8..7, got ({dx}, {dz})"
+        );
+        let field = (((dz + Self::OFFSET_BIAS) as u32) << 4) | (dx + Self::OFFSET_BIAS) as u32;
+        (raw & !(0xFF << Self::SHIFT)) | (field << Self::SHIFT)
+    }
 }
 
 impl BranchShape {
@@ -104,18 +181,25 @@ impl BranchShape {
         (stage & !self.radius_mask) | (((radius - 1) << self.radius_shift()) & self.radius_mask)
     }
 
-    /// How a voxel of this shape sees a neighbour that is `branch` (its
-    /// shape, if any) with `sockets`, at `stage`.
+    /// How a voxel of this shape sees a neighbour that is a one-voxel branch
+    /// or fin (`branch`) holding `raw`, or a block with `sockets`.
     pub fn side(
         &self,
         branch: Option<&BranchShape>,
         sockets: &[BranchSocket],
-        stage: u32,
+        raw: u32,
     ) -> BranchSide {
         if let Some(other) = branch.filter(|other| other.key == self.key) {
-            return BranchSide::Branch {
-                radius: other.radius(stage),
-                seat: other.seat,
+            let radius = other.radius(BlockUtils::extract_stage(raw));
+            return match other.kind {
+                BranchKind::Fin => BranchSide::Fin {
+                    radius,
+                    height: other.fin_height(raw),
+                },
+                _ => BranchSide::Branch {
+                    radius,
+                    seat: other.seat,
+                },
             };
         }
         sockets
@@ -124,6 +208,12 @@ impl BranchShape {
             .map_or(BranchSide::Apart, |socket| BranchSide::Socket {
                 max_radius: socket.max_radius,
             })
+    }
+
+    /// How tall a fin of this shape holding `raw` stands, in texels, up to
+    /// its voxel's top.
+    pub fn fin_height(&self, raw: u32) -> u32 {
+        WideBranchBits::size(raw).min(self.texels_per_block)
     }
 }
 
@@ -169,16 +259,37 @@ pub struct BranchLayout {
     pub sides: [BranchSide; SIDES],
     /// The radius of the joint toward each side, 0 where it does not join.
     pub joints: [u32; SIDES],
+    /// How tall each joint laid along the floor stands, 0 for the others.
+    pub joint_heights: [u32; SIDES],
     /// The axis the core's grain runs along.
     pub axis: usize,
     pub parts: Vec<BranchPart>,
+    /// The cell of a wide section this voxel is, if it is one.
+    pub wide: Option<WideCell>,
+}
+
+/// A cell of a wide section, as its layout needs it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WideCell {
+    pub section: WideBranchSection,
+    /// Cells from the core, on x and z.
+    pub offset: [i32; 2],
+    /// This is the core, with its own slice cut away.
+    pub cut: bool,
+    /// Whether the trunk carries on below and above this level: a face
+    /// there is the bark of a ledge, not the rings of an end.
+    pub carries_on: [bool; 2],
+    /// Whether the cell below and above draws a slice covering this one's.
+    pub covered: [bool; 2],
 }
 
 /// The joint a branch of `radius` makes with what lies on one side.
 fn joint_radius(radius: u32, side: BranchSide) -> u32 {
     match side {
         BranchSide::Apart => 0,
-        BranchSide::Branch { radius: other, .. } => radius.min(other),
+        BranchSide::Branch { radius: other, .. } | BranchSide::Fin { radius: other, .. } => {
+            radius.min(other)
+        }
         BranchSide::Socket { max_radius } => {
             if radius <= max_radius {
                 radius
@@ -186,32 +297,82 @@ fn joint_radius(radius: u32, side: BranchSide) -> u32 {
                 0
             }
         }
+        BranchSide::Section => radius,
     }
 }
 
+/// Whether a horizontal joint toward `side` lies along the floor: when the
+/// neighbour does (a root, a fin) or this voxel does.
+fn lies_along_floor(own_seat: BranchSeat, sides: &[BranchSide; SIDES], side: usize) -> bool {
+    side_axis(side) != 1
+        && (own_seat == BranchSeat::Floor
+            || matches!(
+                sides[side],
+                BranchSide::Branch {
+                    seat: BranchSeat::Floor,
+                    ..
+                } | BranchSide::Fin { .. }
+            ))
+}
+
 impl BranchLayout {
-    /// Lay out a voxel of `shape` at `stage` whose neighbours are `sides`.
+    /// Lay out a one-voxel branch of `shape` at `stage` whose neighbours are
+    /// `sides`.
     pub fn new(shape: &BranchShape, stage: u32, sides: [BranchSide; SIDES]) -> Self {
+        let radius = shape.radius(stage);
+        Self::laid(shape, radius, None, sides)
+    }
+
+    /// Lay out a fin of `shape` at `stage`, `height` texels tall.
+    pub fn fin(shape: &BranchShape, stage: u32, height: u32, sides: [BranchSide; SIDES]) -> Self {
+        let radius = shape.radius(stage);
+        Self::laid(
+            shape,
+            radius,
+            Some(height.clamp(1, shape.texels_per_block)),
+            sides,
+        )
+    }
+
+    fn laid(
+        shape: &BranchShape,
+        radius: u32,
+        fin_height: Option<u32>,
+        sides: [BranchSide; SIDES],
+    ) -> Self {
         let t = shape.texels_per_block as i32;
         let c = t / 2;
-        let radius = shape.radius(stage);
         let r = radius as i32;
         let seat = shape.seat;
         let joints = sides.map(|side| joint_radius(radius, side));
 
         // A horizontal joint lies along the floor when either end of it
         // does; a vertical one always runs up the middle.
-        let floor_joint = |side: usize| {
-            side_axis(side) != 1
-                && (seat == BranchSeat::Floor
-                    || matches!(
-                        sides[side],
-                        BranchSide::Branch {
-                            seat: BranchSeat::Floor,
-                            ..
-                        }
-                    ))
+        let floor_joint = |side: usize| lies_along_floor(seat, &sides, side);
+        // A floor joint is as tall as its thinner end, except that a fin
+        // meets its neighbour at the lower of the two heights.
+        let floor_height = |side: usize| match sides[side] {
+            BranchSide::Fin { height, .. } => height,
+            BranchSide::Branch {
+                seat: BranchSeat::Floor,
+                radius,
+            } => radius,
+            _ => t as u32,
         };
+        let own_floor = match (seat, fin_height) {
+            (_, Some(height)) => height,
+            (BranchSeat::Floor, None) => radius,
+            (BranchSeat::Centre, None) => t as u32,
+        };
+        let joint_heights: [u32; SIDES] = std::array::from_fn(|side| {
+            if !floor_joint(side) {
+                0
+            } else if fin_height.is_some() || matches!(sides[side], BranchSide::Fin { .. }) {
+                own_floor.min(floor_height(side)).min(t as u32)
+            } else {
+                joints[side]
+            }
+        });
 
         // The core's grain follows its thickest joint, then the axis with
         // more joints, then vertical before x before z. A root lies along
@@ -233,7 +394,7 @@ impl BranchLayout {
 
         let (low_y, high_y) = match seat {
             BranchSeat::Centre => (c - r, c + r),
-            BranchSeat::Floor => (0, r),
+            BranchSeat::Floor => (0, own_floor as i32),
         };
         let mut core_min = [c - r, low_y, c - r];
         let mut core_max = [c + r, high_y, c + r];
@@ -272,24 +433,15 @@ impl BranchLayout {
             if start >= end {
                 continue;
             }
-            let floor = floor_joint(side);
-            let mut min = [c - j; 3];
-            let mut max = [c + j; 3];
-            let mut centre = [c; 3];
-            if floor {
-                min[1] = 0;
-                max[1] = j;
-                centre[1] = 0;
-            }
-            min[along] = start;
-            max[along] = end;
-            parts.push(BranchPart {
-                kind: BranchPartKind::Arm(side),
-                min,
-                max,
-                axis: along,
-                centre,
-            });
+            parts.push(arm(
+                side,
+                j,
+                start,
+                end,
+                floor_joint(side),
+                joint_heights[side],
+                c,
+            ));
         }
 
         Self {
@@ -298,8 +450,78 @@ impl BranchLayout {
             seat,
             sides,
             joints,
+            joint_heights,
             axis,
             parts,
+            wide: None,
+        }
+    }
+
+    /// Lay out a cell of a wide section: its slice of the section's tube,
+    /// the whole height of the voxel, and an arm from the tube's surface out
+    /// to each one-voxel branch or fin it joins beside it. A cut core lays
+    /// out nothing.
+    pub fn wide(shape: &BranchShape, cell: WideCell, sides: [BranchSide; SIDES]) -> Self {
+        let t = shape.texels_per_block as i32;
+        let c = t / 2;
+        let radius = cell.section.radius;
+        let joints = sides.map(|side| joint_radius(radius, side));
+        let joint_heights: [u32; SIDES] = std::array::from_fn(|side| {
+            match (
+                lies_along_floor(BranchSeat::Centre, &sides, side),
+                sides[side],
+            ) {
+                (true, BranchSide::Fin { height, .. }) => height.min(t as u32),
+                (true, _) => joints[side],
+                (false, _) => 0,
+            }
+        });
+
+        let mut parts = Vec::new();
+        let spans = (
+            cell.section.span(cell.offset[0]),
+            cell.section.span(cell.offset[1]),
+        );
+        if let (false, Some((x0, x1)), Some((z0, z1))) = (cell.cut, spans.0, spans.1) {
+            let slice_min = [x0 as i32, 0, z0 as i32];
+            let slice_max = [x1 as i32, t, z1 as i32];
+            parts.push(BranchPart {
+                kind: BranchPartKind::Core,
+                min: slice_min,
+                max: slice_max,
+                axis: 1,
+                centre: [c; 3],
+            });
+            for side in [0, 1, 4, 5] {
+                let j = joints[side] as i32;
+                if j == 0 || matches!(sides[side], BranchSide::Section | BranchSide::Socket { .. })
+                {
+                    continue;
+                }
+                let along = side_axis(side);
+                let (start, end) = if side_is_positive(side) {
+                    (slice_max[along], t)
+                } else {
+                    (0, slice_min[along])
+                };
+                if start >= end {
+                    continue;
+                }
+                let floor = lies_along_floor(BranchSeat::Centre, &sides, side);
+                parts.push(arm(side, j, start, end, floor, joint_heights[side], c));
+            }
+        }
+
+        Self {
+            texels_per_block: t,
+            radius,
+            seat: BranchSeat::Centre,
+            sides,
+            joints,
+            joint_heights,
+            axis: 1,
+            parts,
+            wide: Some(cell),
         }
     }
 
@@ -343,19 +565,11 @@ impl BranchLayout {
             return None;
         }
         let c = self.texels_per_block / 2;
-        let floor = side_axis(side) != 1
-            && (self.seat == BranchSeat::Floor
-                || matches!(
-                    self.sides[side],
-                    BranchSide::Branch {
-                        seat: BranchSeat::Floor,
-                        ..
-                    }
-                ));
+        let floor = lies_along_floor(self.seat, &self.sides, side);
         let [u, v] = cross_axes(side_axis(side));
         let span = |axis: usize| {
             if floor && axis == 1 {
-                (0, j)
+                (0, self.joint_heights[side] as i32)
             } else {
                 (c - j, c + j)
             }
@@ -376,8 +590,31 @@ impl BranchLayout {
         }
     }
 
+    /// Whether another part presses against the face of part `index`
+    /// toward `side`, at `plane` and covering `rect`, from the far side.
+    fn covered(&self, index: usize, side: usize, plane: i32, rect: [i32; 4]) -> bool {
+        let axis = side_axis(side);
+        let positive = side_is_positive(side);
+        let [u, v] = cross_axes(axis);
+        self.parts.iter().enumerate().any(|(other, box_)| {
+            other != index
+                && (if positive {
+                    box_.min[axis] == plane
+                } else {
+                    box_.max[axis] == plane
+                })
+                && box_.min[u] <= rect[0]
+                && box_.min[v] <= rect[1]
+                && box_.max[u] >= rect[2]
+                && box_.max[v] >= rect[3]
+        })
+    }
+
     /// Every face this voxel shows, given what lies beyond each of its sides.
     pub fn faces(&self, beyond: &[BranchBeyond; SIDES]) -> Vec<BranchQuad> {
+        if let Some(cell) = self.wide {
+            return self.wide_faces(cell, beyond);
+        }
         let t = self.texels_per_block;
         let mut quads = Vec::new();
         for (index, part) in self.parts.iter().enumerate() {
@@ -391,21 +628,7 @@ impl BranchLayout {
                 };
                 let [u, v] = cross_axes(axis);
                 let rect = [part.min[u], part.min[v], part.max[u], part.max[v]];
-
-                // Another part pressed against this face from the far side.
-                let covered = self.parts.iter().enumerate().any(|(other, box_)| {
-                    other != index
-                        && (if positive {
-                            box_.min[axis] == plane
-                        } else {
-                            box_.max[axis] == plane
-                        })
-                        && box_.min[u] <= rect[0]
-                        && box_.min[v] <= rect[1]
-                        && box_.max[u] >= rect[2]
-                        && box_.max[v] >= rect[3]
-                });
-                if covered {
+                if self.covered(index, side, plane, rect) {
                     continue;
                 }
 
@@ -449,6 +672,94 @@ impl BranchLayout {
             }
         }
         quads
+    }
+
+    /// The faces of a wide section's cell. Its slice shows bark on the
+    /// tube's surface. A face on the boundary with the section's next cell
+    /// is dropped, and where that cell is gone (felled, or the cut core) the
+    /// face shows the cut wood's rings. The top and bottom show the bark of a
+    /// ledge, or the rings of the trunk's end where nothing carries it on,
+    /// and are dropped where the level beyond covers them. An arm's far end
+    /// is open: the branch it joins carries on.
+    fn wide_faces(&self, cell: WideCell, beyond: &[BranchBeyond; SIDES]) -> Vec<BranchQuad> {
+        let t = self.texels_per_block;
+        let mut quads = Vec::new();
+        for (index, part) in self.parts.iter().enumerate() {
+            for side in 0..SIDES {
+                let axis = side_axis(side);
+                let positive = side_is_positive(side);
+                let plane = if positive {
+                    part.max[axis]
+                } else {
+                    part.min[axis]
+                };
+                let [u, v] = cross_axes(axis);
+                let rect = [part.min[u], part.min[v], part.max[u], part.max[v]];
+                if self.covered(index, side, plane, rect) {
+                    continue;
+                }
+                let at_boundary = plane == if positive { t } else { 0 };
+                if at_boundary && beyond[side] == BranchBeyond::Opaque {
+                    continue;
+                }
+                let mut texture = BranchTexture::Side;
+                if part.kind == BranchPartKind::Core {
+                    if axis == 1 {
+                        let k = usize::from(positive);
+                        if cell.covered[k] {
+                            continue;
+                        }
+                        if !cell.carries_on[k] {
+                            texture = BranchTexture::End;
+                        }
+                    } else if at_boundary {
+                        if self.sides[side] == BranchSide::Section {
+                            continue;
+                        }
+                        let step = if positive { 1 } else { -1 };
+                        let next = cell.offset[if axis == 0 { 0 } else { 1 }] + step;
+                        if cell.section.span(next).is_some() {
+                            texture = BranchTexture::End;
+                        }
+                    }
+                } else if at_boundary && axis == part.axis {
+                    continue;
+                }
+                quads.push(BranchQuad {
+                    side,
+                    plane,
+                    rect,
+                    axis: part.axis,
+                    centre: part.centre,
+                    texture,
+                });
+            }
+        }
+        quads
+    }
+}
+
+/// The arm toward `side`, `j` texels from the axis, running from `start` to
+/// `end` along the side's axis; laid along the floor and `height` tall for a
+/// floor joint.
+fn arm(side: usize, j: i32, start: i32, end: i32, floor: bool, height: u32, c: i32) -> BranchPart {
+    let along = side_axis(side);
+    let mut min = [c - j; 3];
+    let mut max = [c + j; 3];
+    let mut centre = [c; 3];
+    if floor {
+        min[1] = 0;
+        max[1] = height as i32;
+        centre[1] = 0;
+    }
+    min[along] = start;
+    max[along] = end;
+    BranchPart {
+        kind: BranchPartKind::Arm(side),
+        min,
+        max,
+        axis: along,
+        centre,
     }
 }
 
@@ -620,49 +931,277 @@ impl BranchQuad {
     }
 }
 
-/// How the voxel at `voxel` of `shape` sees each of its neighbours.
-pub(super) fn branch_sides<S: VoxelAccess>(
-    shape: &BranchShape,
+/// What branch layouts read about the blocks of a space. The mesher's
+/// registry and the server's both answer it, so both lay a branch out the
+/// same way.
+pub trait BranchBlocks {
+    fn branch_shape(&self, id: u32) -> Option<&BranchShape>;
+    fn branch_sockets(&self, id: u32) -> &[BranchSocket];
+    /// Whether the block is a shell of wide sections ([`Block::branch_shell`]).
+    fn is_branch_shell(&self, id: u32) -> bool;
+}
+
+impl BranchBlocks for Registry {
+    fn branch_shape(&self, id: u32) -> Option<&BranchShape> {
+        self.get_block_by_id(id)
+            .and_then(|block| block.branch.as_ref())
+    }
+
+    fn branch_sockets(&self, id: u32) -> &[BranchSocket] {
+        self.get_block_by_id(id)
+            .map_or(&[], |block| block.branch_sockets.as_slice())
+    }
+
+    fn is_branch_shell(&self, id: u32) -> bool {
+        self.get_block_by_id(id)
+            .is_some_and(|block| block.branch_shell)
+    }
+}
+
+/// A branch voxel, resolved: a one-voxel branch or fin, or a cell of a wide
+/// section with what it reads from its core.
+#[derive(Clone, Copy, Debug)]
+pub enum BranchCell<'a> {
+    Voxel {
+        id: u32,
+        shape: &'a BranchShape,
+        raw: u32,
+    },
+    Wide {
+        /// The core's block: its shape, and the faces the cell wears.
+        id: u32,
+        shape: &'a BranchShape,
+        core: [i32; 3],
+        section: WideBranchSection,
+        offset: [i32; 2],
+        cut: bool,
+    },
+}
+
+impl<'a> BranchCell<'a> {
+    pub fn shape(&self) -> &'a BranchShape {
+        match self {
+            Self::Voxel { shape, .. } | Self::Wide { shape, .. } => shape,
+        }
+    }
+
+    /// The block whose faces the voxel wears: its own, or its core's.
+    pub fn dressed_by(&self) -> u32 {
+        match self {
+            Self::Voxel { id, .. } | Self::Wide { id, .. } => *id,
+        }
+    }
+
+    fn is_cut_core(&self) -> bool {
+        matches!(self, Self::Wide { cut: true, .. })
+    }
+}
+
+/// The branch voxel at `voxel`, or `None` where there is none. A shell
+/// whose offset does not lead to a core reaching back to it is `None` too:
+/// it draws and collides as nothing.
+pub fn branch_cell<'a, R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
     voxel: [i32; 3],
-    space: &S,
-    registry: &Registry,
-) -> [BranchSide; SIDES] {
-    VOXEL_NEIGHBORS.map(|[dx, dy, dz]| {
-        let (x, y, z) = (voxel[0] + dx, voxel[1] + dy, voxel[2] + dz);
-        registry
-            .get_block_by_id(space.get_voxel(x, y, z))
-            .map_or(BranchSide::Apart, |block| {
-                shape.side(
-                    block.branch.as_ref(),
-                    &block.branch_sockets,
-                    space.get_voxel_stage(x, y, z),
-                )
-            })
+    raw_at: &R,
+    blocks: &'a B,
+) -> Option<BranchCell<'a>> {
+    let [x, y, z] = voxel;
+    let raw = raw_at(x, y, z);
+    let id = BlockUtils::extract_id(raw);
+    if let Some(shape) = blocks.branch_shape(id) {
+        return Some(match shape.kind {
+            BranchKind::Voxel | BranchKind::Fin => BranchCell::Voxel { id, shape, raw },
+            BranchKind::Core => BranchCell::Wide {
+                id,
+                shape,
+                core: voxel,
+                section: WideBranchSection {
+                    radius: WideBranchBits::size(raw),
+                    texels_per_block: shape.texels_per_block,
+                },
+                offset: [0, 0],
+                cut: WideBranchBits::is_cut(raw),
+            },
+        });
+    }
+    if !blocks.is_branch_shell(id) {
+        return None;
+    }
+    let (dx, dz) = WideBranchBits::shell_offset(raw);
+    if (dx, dz) == (0, 0) {
+        return None;
+    }
+    let core = [x + dx, y, z + dz];
+    let core_raw = raw_at(core[0], core[1], core[2]);
+    let core_id = BlockUtils::extract_id(core_raw);
+    let shape = blocks
+        .branch_shape(core_id)
+        .filter(|shape| shape.kind == BranchKind::Core)?;
+    let section = WideBranchSection {
+        radius: WideBranchBits::size(core_raw),
+        texels_per_block: shape.texels_per_block,
+    };
+    let offset = [-dx, -dz];
+    if offset.iter().any(|d| d.abs() > section.reach()) {
+        return None;
+    }
+    Some(BranchCell::Wide {
+        id: core_id,
+        shape,
+        core,
+        section,
+        offset,
+        cut: false,
     })
 }
 
-/// The faces a branch voxel draws, built on its block's side and end faces
-/// so they carry those faces' textures. Laid in world space: a branch never
-/// rotates.
+/// How the branch voxel `cell` at `voxel` sees each of its neighbours.
+fn sides_of<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
+    cell: &BranchCell,
+    voxel: [i32; 3],
+    raw_at: &R,
+    blocks: &B,
+) -> [BranchSide; SIDES] {
+    let shape = cell.shape();
+    let own_core = match cell {
+        BranchCell::Wide { core, .. } => Some(*core),
+        BranchCell::Voxel { .. } => None,
+    };
+    VOXEL_NEIGHBORS.map(|[dx, dy, dz]| {
+        let at = [voxel[0] + dx, voxel[1] + dy, voxel[2] + dz];
+        match branch_cell(at, raw_at, blocks) {
+            Some(BranchCell::Voxel {
+                shape: other, raw, ..
+            }) if other.key == shape.key => shape.side(Some(other), &[], raw),
+            Some(other @ BranchCell::Wide { core, section, .. })
+                if other.shape().key == shape.key =>
+            {
+                if other.is_cut_core() {
+                    BranchSide::Apart
+                } else if own_core == Some(core) {
+                    BranchSide::Section
+                } else {
+                    BranchSide::Branch {
+                        radius: section.radius,
+                        seat: BranchSeat::Centre,
+                    }
+                }
+            }
+            _ => shape.side(
+                None,
+                blocks.branch_sockets(BlockUtils::extract_id(raw_at(at[0], at[1], at[2]))),
+                0,
+            ),
+        }
+    })
+}
+
+/// What a wide section's cell at `voxel` reads from around it: whether the
+/// trunk carries on past its level, and whether the cells below and above
+/// cover its slice.
+fn wide_cell<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
+    cell: &BranchCell,
+    voxel: [i32; 3],
+    raw_at: &R,
+    blocks: &B,
+) -> Option<WideCell> {
+    let BranchCell::Wide {
+        shape,
+        core,
+        section,
+        offset,
+        cut,
+        ..
+    } = *cell
+    else {
+        return None;
+    };
+    let wood = |at: [i32; 3]| match branch_cell(at, raw_at, blocks) {
+        Some(other) => other.shape().key == shape.key && !other.is_cut_core(),
+        None => blocks
+            .branch_sockets(BlockUtils::extract_id(raw_at(at[0], at[1], at[2])))
+            .iter()
+            .any(|socket| socket.key == shape.key),
+    };
+    let own = (section.span(offset[0]), section.span(offset[1]));
+    let covers = |dy: i32| match branch_cell([voxel[0], voxel[1] + dy, voxel[2]], raw_at, blocks) {
+        Some(BranchCell::Wide {
+            shape: other,
+            section: beyond,
+            offset: at,
+            cut: false,
+            ..
+        }) if other.key == shape.key => match (own, (beyond.span(at[0]), beyond.span(at[1]))) {
+            ((Some(a), Some(b)), (Some(c), Some(d))) => {
+                c.0 <= a.0 && c.1 >= a.1 && d.0 <= b.0 && d.1 >= b.1
+            }
+            _ => false,
+        },
+        _ => false,
+    };
+    Some(WideCell {
+        section,
+        offset,
+        cut,
+        carries_on: [
+            wood([core[0], core[1] - 1, core[2]]),
+            wood([core[0], core[1] + 1, core[2]]),
+        ],
+        covered: [covers(-1), covers(1)],
+    })
+}
+
+/// How the branch voxel at `voxel` is laid out, with the block whose faces
+/// it wears; `None` where there is no branch voxel to lay out. `raw_at`
+/// reads a voxel word anywhere a layout may look: a shell's core, and the
+/// neighbours of the voxel and of that core.
+pub fn branch_layout_at<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
+    voxel: [i32; 3],
+    raw_at: &R,
+    blocks: &B,
+) -> Option<(BranchLayout, u32)> {
+    let cell = branch_cell(voxel, raw_at, blocks)?;
+    let sides = sides_of(&cell, voxel, raw_at, blocks);
+    let layout = match cell {
+        BranchCell::Voxel { shape, raw, .. } => {
+            let stage = BlockUtils::extract_stage(raw);
+            match shape.kind {
+                BranchKind::Fin => BranchLayout::fin(shape, stage, shape.fin_height(raw), sides),
+                _ => BranchLayout::new(shape, stage, sides),
+            }
+        }
+        BranchCell::Wide { shape, .. } => {
+            BranchLayout::wide(shape, wide_cell(&cell, voxel, raw_at, blocks)?, sides)
+        }
+    };
+    Some((layout, cell.dressed_by()))
+}
+
+/// The faces a branch voxel draws, built on the side and end faces of the
+/// block it wears (its own, or a shell's core's) so they carry those
+/// textures. Laid in world space: a branch never rotates.
 pub(super) fn branch_faces<S: VoxelAccess>(
-    block: &Block,
-    shape: &BranchShape,
     voxel: [i32; 3],
     space: &S,
     registry: &Registry,
 ) -> Vec<(BlockFace, bool)> {
+    let raw_at = |x: i32, y: i32, z: i32| space.get_raw_voxel(x, y, z);
+    let Some((layout, dressed_by)) = branch_layout_at(voxel, &raw_at, registry) else {
+        return Vec::new();
+    };
+    let Some(dress) = registry.get_block_by_id(dressed_by) else {
+        return Vec::new();
+    };
+    let Some(shape) = dress.branch.as_ref() else {
+        return Vec::new();
+    };
     let (Some(side_face), Some(end_face)) = (
-        block.faces.iter().find(|face| face.name == shape.side_face),
-        block.faces.iter().find(|face| face.name == shape.end_face),
+        dress.faces.iter().find(|face| face.name == shape.side_face),
+        dress.faces.iter().find(|face| face.name == shape.end_face),
     ) else {
         return Vec::new();
     };
     let [vx, vy, vz] = voxel;
-    let layout = BranchLayout::new(
-        shape,
-        space.get_voxel_stage(vx, vy, vz),
-        branch_sides(shape, voxel, space, registry),
-    );
     let beyond = VOXEL_NEIGHBORS.map(|[dx, dy, dz]| {
         match registry.get_block_by_id(space.get_voxel(vx + dx, vy + dy, vz + dz)) {
             Some(block) if block.is_opaque => BranchBeyond::Opaque,

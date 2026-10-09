@@ -133,7 +133,7 @@ import {
 import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
 import { BorderSwapHold } from "./border-swap-hold";
-import { branchAABBs } from "./branch";
+import { branchAABBsAt } from "./branch";
 import { Chunk } from "./chunk";
 import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
@@ -3435,7 +3435,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!block) {
       return [];
     }
-    if (block.branch) {
+    if (block.branch || block.branchShell) {
       return this.getBranchAABBsAt(block, vx, vy, vz);
     }
     if (block.dynamicPatterns && block.dynamicPatterns.length > 0) {
@@ -3457,15 +3457,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /**
    * The boxes the branch voxel of `block` at `vx, vy, vz` is drawn and
-   * collides as, in blocks of the voxel: its core and an arm toward each
-   * joined neighbour (see `branch.ts`). Empty for a block that is not a
-   * branch.
+   * collides as, in blocks of the voxel: a one-voxel branch or fin's core
+   * and arms, or a wide section cell's slice of its core's tube (see
+   * `branch.ts`). Empty for a block that is not a branch, a cut core and a
+   * shell whose core is gone.
    */
   getBranchAABBsAt = (block: Block, vx: number, vy: number, vz: number) => {
-    if (!block.branch) return [];
-    return branchAABBs(block.branch, vx | 0, vy | 0, vz | 0, {
-      getVoxelAt: (x, y, z) => this.getVoxelAt(x, y, z),
-      getVoxelStageAt: (x, y, z) => this.getVoxelStageAt(x, y, z),
+    if (!block.branch && !block.branchShell) return [];
+    return branchAABBsAt(vx | 0, vy | 0, vz | 0, {
+      getRawVoxelAt: (x, y, z) => this.getRawVoxelAt(x, y, z),
       getBlockById: (id) => this.getBlockByIdSafe(id),
     });
   };
@@ -4347,22 +4347,24 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (!Array.isArray(block.branchSockets)) {
         block.branchSockets = [];
       }
+      block.branchShell = block.branchShell ?? false;
       block.rotationBitsAreState = block.rotationBitsAreState ?? false;
 
       if (isDynamic) {
-        block.dynamicFn = block.branch
-          ? (pos) => ({
-              aabbs: this.getBranchAABBsAt(block, pos[0], pos[1], pos[2]),
-              faces: block.faces,
-              isTransparent: block.isTransparent,
-            })
-          : () => {
-              return {
-                aabbs: block.aabbs,
+        block.dynamicFn =
+          block.branch || block.branchShell
+            ? (pos) => ({
+                aabbs: this.getBranchAABBsAt(block, pos[0], pos[1], pos[2]),
                 faces: block.faces,
                 isTransparent: block.isTransparent,
+              })
+            : () => {
+                return {
+                  aabbs: block.aabbs,
+                  faces: block.faces,
+                  isTransparent: block.isTransparent,
+                };
               };
-            };
       }
 
       // Guarantee the `isLight` flag is correctly set even if the server did not provide it
@@ -6797,7 +6799,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const { aabbs, isPassable, isFluid, dynamicPatterns } = block;
 
-        if (block.branch) {
+        if (block.branch || block.branchShell) {
           if (isPassable || isFluid) return [];
           return this.getBranchAABBsAt(block, vx, vy, vz).map((aabb) =>
             aabb.translate([vx, vy, vz]),

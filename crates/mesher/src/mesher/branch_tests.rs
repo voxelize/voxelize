@@ -2,7 +2,7 @@
 //! texture at one density on both axes, whatever its radius and joints; the
 //! joints follow the thinner radius; and only what can be seen is drawn.
 
-use voxelize_core::{BlockFace, CornerData, AABB, UV};
+use voxelize_core::{BlockFace, BlockUtils, CornerData, AABB, UV};
 
 use super::*;
 
@@ -13,6 +13,7 @@ fn shape(seat: BranchSeat) -> BranchShape {
     BranchShape {
         key: KEY,
         seat,
+        kind: BranchKind::Voxel,
         texels_per_block: T,
         radius_mask: 0b0111,
         side_face: "bark".into(),
@@ -456,6 +457,7 @@ fn block(id: u32, name: &str) -> Block {
         dynamic_patterns: None,
         connected: None,
         branch: None,
+        branch_shell: false,
         branch_sockets: vec![],
     }
 }
@@ -465,6 +467,18 @@ const STONE: u32 = 1;
 const LIMB: u32 = 2;
 const LEAF: u32 = 3;
 const SOIL: u32 = 4;
+const TRUNK: u32 = 5;
+const FIN: u32 = 6;
+const SHELL: u32 = 7;
+const INNER: u32 = 8;
+
+fn kind_shape(kind: BranchKind, seat: BranchSeat) -> BranchShape {
+    BranchShape {
+        kind,
+        radius_mask: if kind == BranchKind::Core { 0 } else { 0b0111 },
+        ..shape(seat)
+    }
+}
 
 /// The six axis faces of a unit cube, every one marked `regional_tint`.
 fn regional_cube_faces() -> Vec<BlockFace> {
@@ -516,6 +530,7 @@ fn registry() -> Registry {
             LEAF,
             Block {
                 is_see_through: true,
+                branch_shell: false,
                 branch_sockets: vec![BranchSocket {
                     key: KEY,
                     max_radius: 1,
@@ -529,6 +544,7 @@ fn registry() -> Registry {
                 is_opaque: true,
                 is_transparent: [false; 6],
                 faces: regional_cube_faces(),
+                branch_shell: false,
                 branch_sockets: vec![BranchSocket {
                     key: KEY,
                     max_radius: 8,
@@ -536,9 +552,86 @@ fn registry() -> Registry {
                 ..block(SOIL, "Soil")
             },
         ),
+        (
+            TRUNK,
+            Block {
+                faces: vec![texture_face("bark", 0.0), texture_face("rings", 0.5)],
+                branch: Some(kind_shape(BranchKind::Core, BranchSeat::Centre)),
+                ..block(TRUNK, "Trunk")
+            },
+        ),
+        (
+            FIN,
+            Block {
+                faces: vec![texture_face("bark", 0.0), texture_face("rings", 0.5)],
+                branch: Some(kind_shape(BranchKind::Fin, BranchSeat::Floor)),
+                ..block(FIN, "Fin")
+            },
+        ),
+        (
+            SHELL,
+            Block {
+                branch_shell: true,
+                ..block(SHELL, "Shell")
+            },
+        ),
+        (
+            INNER,
+            Block {
+                branch_shell: true,
+                is_opaque: true,
+                is_transparent: [false; 6],
+                ..block(INNER, "Inner")
+            },
+        ),
     ]);
     registry.build_cache();
     registry
+}
+
+/// One level of a wide section around `core`: the core holding `radius`
+/// (cut or not) and a shell pointing at it in every other cell it reaches.
+fn level(core: [i32; 3], radius: u32, cut: bool) -> Vec<([i32; 3], u32)> {
+    let section = wide(radius, T);
+    let reach = section.reach();
+    let mut cells = Vec::new();
+    for dx in -reach..=reach {
+        for dz in -reach..=reach {
+            let at = [core[0] + dx, core[1], core[2] + dz];
+            let word = if (dx, dz) == (0, 0) {
+                WideBranchBits::with_cut(WideBranchBits::with_size(TRUNK, radius), cut)
+            } else if section.cell_area(dx, dz) == T * T {
+                WideBranchBits::with_shell_offset(INNER, -dx, -dz)
+            } else {
+                WideBranchBits::with_shell_offset(SHELL, -dx, -dz)
+            };
+            cells.push((at, word));
+        }
+    }
+    cells
+}
+
+/// A space holding `words`, read the way layouts read it.
+fn raw_space(words: &[([i32; 3], u32)]) -> impl Fn(i32, i32, i32) -> u32 {
+    let map: std::collections::HashMap<[i32; 3], u32> = words.iter().copied().collect();
+    move |x, y, z| map.get(&[x, y, z]).copied().unwrap_or(AIR)
+}
+
+/// The faces the branch voxel at `at` shows, against nothing but air.
+fn quads_at(words: &[([i32; 3], u32)], at: [i32; 3]) -> Vec<BranchQuad> {
+    let registry = registry();
+    let raw = raw_space(words);
+    let beyond = VOXEL_NEIGHBORS.map(|[dx, dy, dz]| {
+        match registry.get_block_by_id(BlockUtils::extract_id(raw(
+            at[0] + dx,
+            at[1] + dy,
+            at[2] + dz,
+        ))) {
+            Some(block) if block.is_opaque => BranchBeyond::Opaque,
+            _ => BranchBeyond::Other,
+        }
+    });
+    branch_layout_at(at, &raw, &registry).map_or_else(Vec::new, |(layout, _)| layout.faces(&beyond))
 }
 
 /// Meshes one chunk holding `voxels` (raw voxel words at local positions).
@@ -645,4 +738,147 @@ fn opaque_stone_hides_a_full_trunk_face() {
     };
     assert_eq!(quads(&alone), 6);
     assert_eq!(quads(&walled), 5);
+}
+
+#[test]
+fn a_bole_level_between_its_neighbours_draws_only_its_bark() {
+    // Three stacked 3x3 levels: the middle one covers and is covered, and
+    // its cells meet one another, so only its outer bark is left: one quad
+    // per cell face round the outside.
+    let words = [
+        level([2, 1, 2], 24, false),
+        level([2, 2, 2], 24, false),
+        level([2, 3, 2], 24, false),
+    ]
+    .concat();
+    let mut quads = Vec::new();
+    for x in 1..=3 {
+        for z in 1..=3 {
+            quads.extend(quads_at(&words, [x, 2, z]));
+        }
+    }
+    assert_eq!(quads.len(), 12, "{quads:?}");
+    assert!(quads.iter().all(|quad| quad.texture == BranchTexture::Side));
+    assert!(
+        quads.iter().all(|quad| quad.side / 2 != 1),
+        "no top or bottom faces"
+    );
+}
+
+#[test]
+fn a_narrower_level_leaves_a_ledge_of_bark_and_the_last_level_ends_in_rings() {
+    let words = [level([2, 1, 2], 24, false), level([2, 2, 2], 12, false)].concat();
+    let ledge = quads_at(&words, [1, 1, 1]);
+    let top = ledge
+        .iter()
+        .find(|quad| quad.side == 2)
+        .expect("the corner's top shows");
+    assert_eq!(top.texture, BranchTexture::Side, "a ledge is bark");
+    let under = quads_at(&words, [2, 2, 2]);
+    assert!(
+        under.iter().all(|quad| quad.side != 3),
+        "the wider level below covers the narrower one's underside"
+    );
+    let end = under
+        .iter()
+        .find(|quad| quad.side == 2)
+        .expect("the core's top shows");
+    assert_eq!(
+        end.texture,
+        BranchTexture::End,
+        "nothing carries the trunk on"
+    );
+}
+
+#[test]
+fn a_cut_core_draws_nothing_and_its_neighbours_show_the_cut() {
+    let words = level([2, 1, 2], 24, true);
+    assert!(
+        quads_at(&words, [2, 1, 2]).is_empty(),
+        "the cut core's slice is gone"
+    );
+    let raw = raw_space(&words);
+    let (layout, dressed_by) =
+        branch_layout_at([3, 1, 2], &raw, &registry()).expect("the shell still has its core");
+    assert_eq!(dressed_by, TRUNK, "a shell wears its core's faces");
+    assert_eq!(layout.parts.len(), 1);
+    let toward_core = quads_at(&words, [3, 1, 2])
+        .into_iter()
+        .find(|quad| quad.side == 1)
+        .expect("the face toward the cut shows");
+    assert_eq!(
+        toward_core.texture,
+        BranchTexture::End,
+        "cut wood shows its rings"
+    );
+}
+
+#[test]
+fn fins_meet_at_the_lower_height_and_stand_on_their_floor() {
+    let fin =
+        |radius: u32, height: u32| WideBranchBits::with_size(FIN | (stage(radius) << 24), height);
+    let words = [([2, 1, 2], fin(3, 16)), ([1, 1, 2], fin(2, 6))];
+    let raw = raw_space(&words);
+    let (layout, _) = branch_layout_at([2, 1, 2], &raw, &registry()).expect("a fin");
+    assert_eq!(layout.parts[0].min[1], 0, "a fin stands on its floor");
+    assert_eq!(layout.parts[0].max[1], 16);
+    let joint = layout
+        .parts
+        .iter()
+        .find(|part| part.kind == BranchPartKind::Arm(1))
+        .expect("an arm toward the lower fin");
+    assert_eq!(
+        [joint.min[1], joint.max[1]],
+        [0, 6],
+        "the joint takes the lower height"
+    );
+    assert_eq!(
+        [joint.min[2], joint.max[2]],
+        [6, 10],
+        "and the thinner radius"
+    );
+}
+
+#[test]
+fn a_shell_whose_core_is_gone_lays_out_nothing() {
+    let words = [([2, 1, 2], WideBranchBits::with_shell_offset(SHELL, 1, 0))];
+    assert!(branch_layout_at([2, 1, 2], &raw_space(&words), &registry()).is_none());
+}
+
+#[test]
+fn every_wide_face_keeps_one_texel_density_on_both_axes() {
+    let mut checked = 0;
+    for radius in [9, 12, 20, 24, 33, 40, 56, 64] {
+        for above in [0, 9, radius / 2] {
+            for cut in [false, true] {
+                let mut words = level([4, 1, 4], radius, cut);
+                if above > 0 {
+                    words.extend(level([4, 2, 4], above.max(9), false));
+                }
+                let reach = wide(radius, T).reach();
+                for x in 4 - reach..=4 + reach {
+                    for z in 4 - reach..=4 + reach {
+                        for quad in quads_at(&words, [x, 1, z]) {
+                            let corners = quad.corners(T as i32);
+                            for (world, uv) in spans(&corners) {
+                                assert!(
+                                    (world - uv).abs() < 1e-6,
+                                    "R{radius} cell ({x}, {z}): {quad:?} spans {world} but {uv}"
+                                );
+                            }
+                            for corner in &corners {
+                                assert!(
+                                    corner.uv.iter().all(|v| (-1e-6..=1.0 + 1e-6).contains(v)),
+                                    "{quad:?} samples outside its tile: {:?}",
+                                    corner.uv
+                                );
+                            }
+                            checked += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked > 1_000, "the sweep drew {checked} faces");
 }

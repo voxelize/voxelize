@@ -300,6 +300,7 @@ fn full_block_diagonal_block() -> Block {
         dynamic_patterns: None,
         connected: None,
         branch: None,
+        branch_shell: false,
         branch_sockets: vec![],
     }
 }
@@ -699,6 +700,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         dynamic_patterns: None,
         connected: None,
         branch: None,
+        branch_shell: false,
         branch_sockets: vec![],
     };
 
@@ -733,6 +735,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         dynamic_patterns: None,
         connected: None,
         branch: None,
+        branch_shell: false,
         branch_sockets: vec![],
     };
 
@@ -835,6 +838,7 @@ fn plain_block(id: u32, name: &str) -> Block {
         dynamic_patterns: None,
         connected: None,
         branch: None,
+        branch_shell: false,
         branch_sockets: vec![],
     }
 }
