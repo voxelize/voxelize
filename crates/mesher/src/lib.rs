@@ -5,8 +5,8 @@ pub use mesher::{
     mesh_chunk_with_registry_chunks, mesh_space_greedy, Block, BranchBeyond, BranchLayout,
     BranchPart, BranchPartKind, BranchQuad, BranchSeat, BranchShape, BranchSide, BranchSocket,
     BranchTexture, ChunkData, ConnectedFrame, GeometryProtocol, MeshConfig, MeshInput,
-    MeshInputNoRegistry, MeshOutput, Registry, CONNECTIVITY_FACES, CONNECTIVITY_FULL,
-    CONNECTIVITY_SEALED, VOXEL_NEIGHBORS,
+    MeshInputNoRegistry, MeshOutput, Registry, WideBranchSection, CONNECTIVITY_FACES,
+    CONNECTIVITY_FULL, CONNECTIVITY_SEALED, VOXEL_NEIGHBORS,
 };
 
 pub use voxelize_core::{
