@@ -114,6 +114,25 @@ varying vec4 vShadowCoord2;
 varying float vViewDepth;
 `;
 
+/**
+ * Vertex-stage GLSL for self bounds that ride a transform instead of a
+ * uniform: `entityShadowBoundsToWorld(toWorld, localSphere)` carries a
+ * sphere (centre, radius) through `toWorld`, scaling the radius by its
+ * largest axis. An instanced pool passes its instance matrix and the drawn
+ * geometry's own sphere, so every instance is bounded by its own body; the
+ * fragment stage hands the result to `getEntityShadowWithin`.
+ */
+export const ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS = `
+vec4 entityShadowBoundsToWorld(mat4 toWorld, vec4 localSphere) {
+  vec3 center = (toWorld * vec4(localSphere.xyz, 1.0)).xyz;
+  float axisScale = sqrt(max(
+    dot(toWorld[0].xyz, toWorld[0].xyz),
+    max(dot(toWorld[1].xyz, toWorld[1].xyz), dot(toWorld[2].xyz, toWorld[2].xyz))
+  ));
+  return vec4(center, localSphere.w * axisScale);
+}
+`;
+
 export const ENTITY_SHADOW_VERTEX_MAIN = `
 vec4 shadowWorldPos = vec4(worldPosition.xyz + uWorldOffset, 1.0);
 vShadowCoord0 = uShadowMatrix0 * shadowWorldPos;
@@ -178,11 +197,12 @@ float getEntityShadow(vec3 worldNormal) {
 }
 
 // Shadow-map depth from worldPosition, toward the sun, to where the ray
-// leaves the body's own bounding sphere. Unbounded without a sphere, or for
-// a point outside it (bounds that do not describe this surface).
-float entityShadowSelfDepth(vec3 worldPosition) {
-  float radius = uShadowSelfBounds.w;
-  vec3 offset = worldPosition - uShadowSelfBounds.xyz;
+// leaves selfBounds, the body's own bounding sphere in world space (centre,
+// radius). Unbounded for radius 0, or for a point outside the sphere
+// (bounds that do not describe this surface).
+float entityShadowSelfDepthWithin(vec3 worldPosition, vec4 selfBounds) {
+  float radius = selfBounds.w;
+  vec3 offset = worldPosition - selfBounds.xyz;
   float inside = dot(offset, offset) - radius * radius;
   if (radius <= 0.0 || inside > 0.0) {
     return 1e9;
@@ -192,15 +212,30 @@ float entityShadowSelfDepth(vec3 worldPosition) {
   return exitDistance * uShadowDepthPerBlock;
 }
 
+float entityShadowSelfDepth(vec3 worldPosition) {
+  return entityShadowSelfDepthWithin(worldPosition, uShadowSelfBounds);
+}
+
 // getEntityShadow for a body that knows its own bounds: the slope-scaled
 // bias that keeps a sun-averted face out of its own body's shadow never
 // reaches past those bounds, so whatever lies beyond them (a deck, a
-// canopy, another body) still shades every face.
-float getEntityShadowAt(vec3 worldNormal, vec3 worldPosition) {
+// canopy, another body) still shades every face. For bounds that differ per
+// draw or per instance (see ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS).
+float getEntityShadowWithin(
+  vec3 worldNormal,
+  vec3 worldPosition,
+  vec4 selfBounds
+) {
   float cosTheta = clamp(dot(worldNormal, uSunDirection), 0.0, 1.0);
   float slopeBias = uShadowNormalBias * (1.0 - cosTheta);
   return entityShadowWithBias(
-    uShadowBias + min(slopeBias, entityShadowSelfDepth(worldPosition))
+    uShadowBias
+      + min(slopeBias, entityShadowSelfDepthWithin(worldPosition, selfBounds))
   );
+}
+
+// getEntityShadowWithin, bounded by uShadowSelfBounds.
+float getEntityShadowAt(vec3 worldNormal, vec3 worldPosition) {
+  return getEntityShadowWithin(worldNormal, worldPosition, uShadowSelfBounds);
 }
 `;

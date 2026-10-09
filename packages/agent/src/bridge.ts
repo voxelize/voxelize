@@ -737,6 +737,10 @@ export type RenderStats = {
     cascadeNeedsRender: boolean[];
     currentShadowStrength: number;
     lastFrameLightSwing: number;
+    /** That swing over the time since the previous update. */
+    lastLightSwingPerSecond: number;
+    /** Angle between the live light and the one the cascades are fitted to. */
+    lightLagRadians: number;
   } | null;
 };
 

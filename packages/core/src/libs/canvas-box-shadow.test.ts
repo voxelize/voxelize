@@ -13,6 +13,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   createEntityShadowUniforms,
+  ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS,
+  ENTITY_SHADOW_FRAGMENT_PARS,
   shadowDepthPerBlock,
 } from "../core/world/entity-shadow-uniforms";
 
@@ -179,5 +181,56 @@ describe("character shadow self bounds", () => {
 
   it("leaves a fresh uniform set unbounded", () => {
     expect(createEntityShadowUniforms().uShadowSelfBounds.value.w).toBe(0);
+  });
+
+  it("fits an attachment that reaches past the anatomical boxes", () => {
+    const character = new Character({ receiveShadows: true });
+    const tail = new CanvasBox({ width: 2.4, height: 0.2, depth: 0.2 });
+    tail.position.set(0, -0.2, -1.6);
+    character.body.add(tail);
+    const reaches = () => {
+      character.updateMatrixWorld(true);
+      const sphere = sphereOf(character);
+      tail.boxLayers[0].geometry.computeBoundingBox();
+      const { min, max } = tail.boxLayers[0].geometry.boundingBox as Box3;
+      const tip = new Vector3(0, 0, min.z).applyMatrix4(
+        tail.boxLayers[0].matrixWorld,
+      );
+      const root = new Vector3(0, 0, max.z).applyMatrix4(
+        tail.boxLayers[0].matrixWorld,
+      );
+      return [tip, root].every((c) => sphere.containsPoint(c));
+    };
+
+    character.refreshShadowSelfBounds();
+    expect(reaches()).toBe(false);
+
+    const unfitted = character.shadowSelfBounds.w;
+    character.fitShadowSelfBounds();
+    expect(character.shadowSelfBounds.w).toBeGreaterThan(unfitted);
+    expect(reaches()).toBe(true);
+    expect(holds(character)).toBe(true);
+
+    // Measured in the body's own frame, so it travels and scales with it.
+    character.position.set(40, 70, -12);
+    character.rotation.y = 1.9;
+    character.scale.setScalar(1.7);
+    character.refreshShadowSelfBounds();
+    expect(reaches()).toBe(true);
+  });
+});
+
+describe("entity shadow bounds in GLSL", () => {
+  it("lets a caller pass bounds of its own, per draw or per instance", () => {
+    expect(ENTITY_SHADOW_FRAGMENT_PARS).toMatch(
+      /float getEntityShadowWithin\(\s*vec3 worldNormal,\s*vec3 worldPosition,\s*vec4 selfBounds\s*\)/,
+    );
+    // The uniform-bound form is the same rule over the body's uniform.
+    expect(ENTITY_SHADOW_FRAGMENT_PARS).toContain(
+      "return getEntityShadowWithin(worldNormal, worldPosition, uShadowSelfBounds);",
+    );
+    expect(ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS).toContain(
+      "vec4 entityShadowBoundsToWorld(mat4 toWorld, vec4 localSphere)",
+    );
   });
 });

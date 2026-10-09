@@ -8,6 +8,8 @@ import {
   Group,
   LoopOnce,
   MathUtils,
+  Matrix4,
+  Mesh,
   Object3D,
   Quaternion,
   Vector3,
@@ -39,6 +41,9 @@ const identityQuaternion = new Quaternion();
 const headBodyInverse = new Quaternion();
 const ridePivotScratch = new Vector3();
 const shadowBoundsCenter = new Vector3();
+const shadowFitToLocal = new Matrix4();
+const shadowFitMeshToLocal = new Matrix4();
+const shadowFitVertex = new Vector3();
 // Ride attitude pushes arrive once per mount render frame; tolerating a
 // few frames without one keeps update-order differences from flickering
 // the lean while still decaying promptly after a dismount.
@@ -511,6 +516,13 @@ export class Character extends Group {
   public readonly shadowSelfBounds = new Vector4();
 
   /**
+   * How far the farthest mesh under the parts reaches from the centre of
+   * {@link shadowSelfBounds}, in the body's own unscaled frame, as measured
+   * by {@link fitShadowSelfBounds}; 0 until then.
+   */
+  private shadowSelfReach = 0;
+
+  /**
    * A listener called when a character starts moving.
    */
   onMove: () => void;
@@ -830,9 +842,48 @@ export class Character extends Group {
       center.x,
       center.y,
       center.z,
-      Math.hypot(lateral, vertical, reach) * scale +
+      Math.max(Math.hypot(lateral, vertical, reach), this.shadowSelfReach) *
+        scale +
         this.options.shadowSelfBoundsMargin,
     );
+  }
+
+  /**
+   * Grow {@link shadowSelfBounds} to hold every mesh under the parts as
+   * posed now: for a body whose attachments reach past its anatomical boxes
+   * (splayed legs, a tail, a crest). Call once the body is built; the reach
+   * is measured in the body's own frame, so it turns and scales with it.
+   */
+  fitShadowSelfBounds() {
+    this.updateMatrixWorld(true);
+    shadowFitToLocal.copy(this.matrixWorld).invert();
+    const center = shadowBoundsCenter.set(
+      0,
+      this.totalHeight / 2 - this.eyeHeight,
+      0,
+    );
+    let reach = 0;
+    for (const part of this.shadowParts()) {
+      part.traverse((object) => {
+        const mesh = object as Mesh;
+        const position = mesh.isMesh
+          ? mesh.geometry.getAttribute("position")
+          : undefined;
+        if (!position) return;
+        shadowFitMeshToLocal.multiplyMatrices(
+          shadowFitToLocal,
+          mesh.matrixWorld,
+        );
+        for (let i = 0; i < position.count; i++) {
+          shadowFitVertex
+            .fromBufferAttribute(position, i)
+            .applyMatrix4(shadowFitMeshToLocal);
+          reach = Math.max(reach, shadowFitVertex.distanceTo(center));
+        }
+      });
+    }
+    this.shadowSelfReach = reach;
+    this.refreshShadowSelfBounds();
   }
 
   private shadowParts() {

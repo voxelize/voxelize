@@ -15,7 +15,7 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from "three";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CSMRenderer } from "./csm-renderer";
 import { BorrowedCasterScene, isNonCasterEffect } from "./shadow-casters";
@@ -174,6 +174,127 @@ describe("CSMRenderer redraw policy", () => {
     expect(perFrame[2]).toBe(0);
     expect(perFrame[3]).toBe(0);
   });
+});
+
+describe("CSMRenderer light tracking", () => {
+  // A twenty-minute day, held high enough that the sun is never clamped:
+  // the direction turns at its fastest, about 0.005 rad/s.
+  const DAY_SECONDS = 1200;
+  const sunAt = (seconds: number) => {
+    const angle = 0.8 + (seconds / DAY_SECONDS) * Math.PI * 2;
+    return new Vector3(Math.cos(angle), Math.sin(angle), 0.3).normalize();
+  };
+
+  // A cascade's clip depth climbs away from the light, so the depth row of
+  // its matrix points back down the light it was drawn with.
+  const drawnLight = (csm: CSMRenderer, cascade: number) => {
+    const e = (csm.getCascadeMatrix(cascade) as Matrix4).elements;
+    return new Vector3(e[2], e[6], e[10]).normalize().negate();
+  };
+
+  // One accepted step (a 0.01 chord) plus a couple of frames of drift.
+  const STEP_TOLERANCE = 0.0125;
+
+  const position = new Vector3(0, 40, 0);
+  const camera = makeCamera(position, new Vector3(10, 40, 0));
+
+  /** Worst angle between any cascade's map and the live sun, per frame. */
+  const followDay = (
+    csm: CSMRenderer,
+    frames: { worldSeconds: number; cascadeSeconds?: number }[],
+  ) => {
+    const scene = new Scene();
+    const counter = makeRenderer();
+    let seconds = 0;
+    let worst = 0;
+    for (const frame of frames) {
+      seconds += frame.worldSeconds;
+      const sun = sunAt(seconds);
+      csm.update(camera, sun, position, 1, frame.cascadeSeconds);
+      csm.render(counter.renderer, scene);
+      // The first maps land over the opening frames.
+      if (seconds < 1) continue;
+      for (let cascade = 0; cascade < csm.numCascades; cascade++) {
+        worst = Math.max(worst, drawnLight(csm, cascade).angleTo(sun));
+      }
+    }
+    return worst;
+  };
+
+  const steadyFrames = (fps: number, seconds: number) =>
+    Array.from({ length: Math.round(fps * seconds) }, () => ({
+      worldSeconds: 1 / fps,
+      cascadeSeconds: 1 / fps,
+    }));
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([30, 60, 120])(
+    "keeps every cascade on the sun through a day's drift at %i fps",
+    (fps) => {
+      const worst = followDay(new CSMRenderer(), steadyFrames(fps, 120));
+      expect(worst).toBeLessThan(STEP_TOLERANCE);
+    },
+  );
+
+  it("shrugs off jitter between the world clock and the cascade update", () => {
+    // The clock advances by the world's frame delta; the cascades measure
+    // theirs between their own calls, a couple of milliseconds either side.
+    const frames = Array.from({ length: 120 * 120 }, (_, i) => ({
+      worldSeconds: 1 / 120,
+      cascadeSeconds: 1 / 120 + (i % 2 === 0 ? 0.002 : -0.002),
+    }));
+    expect(followDay(new CSMRenderer(), frames)).toBeLessThan(STEP_TOLERANCE);
+  });
+
+  it("measures its own frame time when the caller passes none", () => {
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => (now += 1000 / 30));
+    const frames = Array.from({ length: 30 * 120 }, () => ({
+      worldSeconds: 1 / 30,
+    }));
+    expect(followDay(new CSMRenderer(), frames)).toBeLessThan(STEP_TOLERANCE);
+  });
+
+  it.each([30, 60, 120])(
+    "leaves a fast swing for the first calm frame at %i fps",
+    (fps) => {
+      const csm = new CSMRenderer();
+      const scene = new Scene();
+      const counter = makeRenderer();
+      const frameSeconds = 1 / fps;
+      const light = sunAt(0);
+      for (let frame = 0; frame < 8; frame++) {
+        csm.update(camera, light, position, 1, frameSeconds);
+        csm.render(counter.renderer, scene);
+      }
+      const drawsBefore = counter.count;
+
+      // The dusk handoff's pace, twenty times the day's drift, for two
+      // seconds: no map is redrawn to chase it.
+      const axis = new Vector3(0, 0, 1);
+      for (let frame = 0; frame < fps * 2; frame++) {
+        light.applyAxisAngle(axis, 0.1 * frameSeconds);
+        csm.update(camera, light, position, 1, frameSeconds);
+        csm.render(counter.renderer, scene);
+      }
+      expect(counter.count).toBe(drawsBefore);
+      expect(csm.lightLagRadians).toBeGreaterThan(0.15);
+
+      // The first calm frame takes the settled light, and every map follows.
+      for (let frame = 0; frame < 4; frame++) {
+        csm.update(camera, light, position, 1, frameSeconds);
+        csm.render(counter.renderer, scene);
+      }
+      expect(csm.lightLagRadians).toBeCloseTo(0, 6);
+      expect(counter.count).toBe(drawsBefore + 3);
+      for (let cascade = 0; cascade < csm.numCascades; cascade++) {
+        expect(drawnLight(csm, cascade).angleTo(light)).toBeLessThan(1e-4);
+      }
+    },
+  );
 });
 
 type DrawnMesh = { object: Object3D; material: Material };
