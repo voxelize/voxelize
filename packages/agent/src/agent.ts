@@ -4,6 +4,7 @@ import path from "node:path";
 
 import puppeteer, { Browser, Page } from "puppeteer";
 
+import { signInThrough } from "./auth-url";
 import type {
   AgentEventMap,
   AgentEventName,
@@ -77,6 +78,11 @@ import { composeClientUrl } from "./client-url";
 import { assertUncappedWindow } from "./frame-rate-guard";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
+  PageUnavailableError,
+  openPage,
+  resolveNavigationRetryMs,
+} from "./page-availability";
+import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
   logAgentPerf,
@@ -101,9 +107,17 @@ export type AgentLaunchOptions = {
   /**
    * Visited before joining the world so the response can set session
    * cookies (e.g. a dev-login endpoint), letting the agent run as an
-   * authenticated user with admin-only commands available.
+   * authenticated user with admin-only commands available. An answer other
+   * than 2xx (or 304) rejects the launch with an AuthUrlError, browser
+   * closed, instead of joining without the account.
    */
   authUrl?: string;
+  /**
+   * How long a client page that answers like a server mid-restart (5xx, a
+   * refused connection) is retried before the launch gives up; a 404 gives
+   * up at once (page-availability.ts). Defaults to AGENT_NAVIGATION_RETRY_MS.
+   */
+  navigationRetryMs?: number;
 };
 
 export type ScreenshotOptions = {
@@ -284,11 +298,12 @@ export function truncateLogText(
  * The measurement escape hatch: `--disable-gpu-vsync --disable-frame-rate-limit`
  * uncaps the frame rate so `fps` reports the frame the GPU actually takes
  * instead of the display's refresh. Only well-formed switches pass, so a
- * typo here can never keep the browser from launching.
+ * typo here can never keep the browser from launching. V8's own flags go in
+ * `AGENT_JS_FLAGS` (`--trace-gc-nvp --trace-gc-verbose`): `--js-flags` is one
+ * switch with a space-separated value, which the split cannot carry.
  */
 function extraChromeArgs(): string[] {
-  const raw = process.env.AGENT_CHROME_ARGS;
-  if (raw === undefined || raw.trim() === "") return [];
+  const raw = process.env.AGENT_CHROME_ARGS ?? "";
   const args = raw
     .split(/\s+/)
     .filter((arg) => /^--[a-z0-9][a-z0-9-]*(=[^\s]*)?$/i.test(arg));
@@ -297,6 +312,10 @@ function extraChromeArgs(): string[] {
     console.warn(
       `[voxelize-agent] ignoring malformed AGENT_CHROME_ARGS entries: ${dropped.join(" ")}`,
     );
+  }
+  const jsFlags = process.env.AGENT_JS_FLAGS?.trim();
+  if (jsFlags) {
+    args.push(`--js-flags=${jsFlags}`);
   }
   if (args.length > 0) {
     console.log(`[voxelize-agent] extra chrome args: ${args.join(" ")}`);
@@ -410,6 +429,7 @@ export class Agent {
       waitReadyTimeoutMs = readyTimeout.timeoutMs,
       port = DEFAULT_DAEMON_PORT,
       authUrl,
+      navigationRetryMs = resolveNavigationRetryMs(process.env),
     } = options;
     if (options.waitReadyTimeoutMs === undefined && readyTimeout.isScaled) {
       console.log(
@@ -561,8 +581,18 @@ export class Agent {
     });
 
     if (authUrl) {
-      await page.goto(authUrl, { waitUntil: "domcontentloaded" });
-      console.log(`[voxelize-agent] visited auth url: ${authUrl}`);
+      let status: number;
+      try {
+        status = await signInThrough(page, authUrl);
+      } catch (error) {
+        // Nothing else would close this browser: the daemon registers its
+        // exit hooks only once launch returns.
+        await agent.close();
+        throw error;
+      }
+      console.log(
+        `[voxelize-agent] visited auth url: ${authUrl} (answered ${status})`,
+      );
     }
 
     // Visual tests of held items opt into rendering the first-person arm,
@@ -574,12 +604,43 @@ export class Agent {
     });
     agent.targetUrl = targetUrl;
 
-    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+    await agent.openClientPage(targetUrl, navigationRetryMs);
 
     const ready = Agent.waitForBridge(page, waitReadyTimeoutMs);
 
     agent.trackReadyPromise(ready);
     return agent;
+  }
+
+  /**
+   * Open the client page under page-availability's rule. One that cannot
+   * load closes this browser before the error reaches the daemon: nothing
+   * else would (the daemon registers its exit hooks only once launch
+   * returns), and a session that can never mount must not hold one.
+   */
+  private async openClientPage(url: string, retryMs: number): Promise<void> {
+    try {
+      await openPage(
+        async () => {
+          const response = await this.page.goto(url, {
+            waitUntil: "domcontentloaded",
+          });
+          return response === null
+            ? null
+            : { status: response.status(), statusText: response.statusText() };
+        },
+        { url, retryMs },
+      );
+    } catch (error) {
+      if (error instanceof PageUnavailableError) {
+        const pid = this.browserPid();
+        await this.close();
+        console.log(
+          `[voxelize-agent] closed browser pid=${pid ?? "?"}: its page cannot load, so the session ends instead of waiting for a bridge`,
+        );
+      }
+      throw error;
+    }
   }
 
   private trackReadyPromise(ready: Promise<void>): void {

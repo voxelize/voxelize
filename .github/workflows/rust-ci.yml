@@ -9,6 +9,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The release profile carries full DWARF (`debug = 2`). With it the gen
+# job's four builds need 9.1 GB of target, with line tables 3.7 GB, and a
+# runner that runs out of disk shows it only as lld dying of SIGBUS at
+# link time. Line tables keep file:line in backtraces.
+env:
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+
 jobs:
   # The engine must not know what any game built on it contains. Node
   # builtins only, so it needs no install; well under a second.
@@ -58,6 +66,9 @@ jobs:
     name: cargo test -p voxelize-gen --release
     runs-on: ubuntu-latest
     steps:
+      - name: Disk at job start
+        run: df -h /
+
       - uses: actions/checkout@v4
 
       # voxelize-gen depends on voxelize, whose build.rs shells out to protoc.
@@ -69,6 +80,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+
+      # One line every 20 s across all the build steps below, printed by the
+      # last step, so a job that runs out of disk says so in numbers.
+      - name: Disk before the builds
+        run: |
+          scripts/ci-disk.sh report "before the builds" target ~/.cargo ~/.rustup
+          nohup scripts/ci-disk.sh watch 20 target > "$RUNNER_TEMP/disk-watch.log" 2>&1 &
 
       # Includes walk_bench's own tests (`test = true` in its manifest).
       - name: Run generator tests
@@ -88,3 +106,9 @@ jobs:
       # gated here (the wall-clock gate needs GEN_BUDGET_GATE=1 on a bench host).
       - name: Walk benchmark smoke
         run: cargo run -p voxelize-gen --release --example walk_bench -- --quick --workers 1
+
+      - name: Disk after the builds
+        if: always()
+        run: |
+          cat "$RUNNER_TEMP/disk-watch.log" 2>/dev/null
+          scripts/ci-disk.sh report "after the builds" target ~/.cargo ~/.rustup

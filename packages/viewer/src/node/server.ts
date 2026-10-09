@@ -75,6 +75,8 @@ export type CaptureRequest = {
   preset?: Preset;
   /** Centre (x, z) and half-size for a framed top or iso view. */
   around?: [number, number, number];
+  /** After posing, fly to frame this point as a double-click does; a null y takes the ground. */
+  flyTo?: [number, number | null, number];
   options?: string[];
   size?: [number, number];
   out?: string;
@@ -233,6 +235,77 @@ export class ViewerServer {
     for (const entry of this.sourcesById.values()) entry.backend.stop();
     await this.browser.close(reason);
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
+  }
+
+  /** Bookmarks saved from the page (the wheel's Bookmark), kept next to the caches. */
+  private get userBookmarksFile() {
+    return path.join(this.config.cacheDir, "bookmarks.json");
+  }
+
+  private userBookmarks(): Bookmark[] {
+    if (!fs.existsSync(this.userBookmarksFile)) return [];
+    try {
+      const saved = JSON.parse(
+        fs.readFileSync(this.userBookmarksFile, "utf8"),
+      ) as unknown;
+      if (!Array.isArray(saved)) throw new Error("not a list");
+      return saved as Bookmark[];
+    } catch (error) {
+      this.log(
+        `ignoring ${this.userBookmarksFile}: ${(error as Error).message}; saved bookmarks are not shown until it is fixed`,
+      );
+      return [];
+    }
+  }
+
+  /** The config's bookmarks, then the ones saved from the page. */
+  private allBookmarks(): Bookmark[] {
+    const configured = this.config.bookmarks ?? [];
+    const ids = new Set(configured.map((b) => b.id));
+    return [
+      ...configured,
+      ...this.userBookmarks().filter((b) => !ids.has(b.id)),
+    ];
+  }
+
+  private saveBookmark(input: unknown): Bookmark {
+    const b = input as Partial<Bookmark> | null;
+    const vec = (v: unknown) =>
+      Array.isArray(v) &&
+      v.length === 3 &&
+      v.every((n) => typeof n === "number" && Number.isFinite(n));
+    if (
+      !b ||
+      typeof b.id !== "string" ||
+      !b.id ||
+      typeof b.label !== "string" ||
+      !b.pose ||
+      !vec(b.pose.eye) ||
+      !vec(b.pose.look)
+    ) {
+      throw new Error(
+        "a bookmark needs an id, a label and a pose of two x,y,z triples",
+      );
+    }
+    const bookmark: Bookmark = {
+      id: b.id,
+      label: b.label,
+      pose: { eye: b.pose.eye, look: b.pose.look },
+      ...(b.preset ? { preset: b.preset } : {}),
+      ...(b.world ? { world: b.world } : {}),
+      ...(b.note ? { note: b.note } : {}),
+    };
+    const saved = [
+      ...this.userBookmarks().filter((x) => x.id !== bookmark.id),
+      bookmark,
+    ];
+    fs.mkdirSync(this.config.cacheDir, { recursive: true });
+    fs.writeFileSync(
+      this.userBookmarksFile,
+      `${JSON.stringify(saved, null, 2)}\n`,
+    );
+    this.log(`saved bookmark ${bookmark.id} (${bookmark.label})`);
+    return bookmark;
   }
 
   /** Resolves `spec` (a host source spec, or the id of one already up). */
@@ -440,6 +513,10 @@ export class ViewerServer {
           ".gif": "image/gif",
           ".webp": "image/webp",
           ".svg": "image/svg+xml",
+          ".otf": "font/otf",
+          ".ttf": "font/ttf",
+          ".woff": "font/woff",
+          ".woff2": "font/woff2",
         }[ext] ?? "application/octet-stream";
       res.writeHead(200, {
         "content-type": type,
@@ -496,10 +573,15 @@ export class ViewerServer {
           session: this.session
             ? { loadedAt: new Date(this.sessionLoadedAt).toISOString() }
             : null,
-          bookmarks: this.config.bookmarks ?? [],
+          bookmarks: this.allBookmarks(),
         });
       case "bookmarks":
-        return this.json(res, this.config.bookmarks ?? []);
+        if (req.method === "POST") {
+          return this.json(res, {
+            bookmark: this.saveBookmark(input.bookmark),
+          });
+        }
+        return this.json(res, this.allBookmarks());
       case "sources": {
         const spec = String(
           input.spec ??
@@ -776,6 +858,23 @@ export class ViewerServer {
       }
       aroundPose = { eye: [x, ground + r, z + r], look: [x, ground, z] };
     }
+    if (request.flyTo && request.flyTo[1] === null) {
+      const [x, , z] = request.flyTo;
+      const reply = await a.backend.request<{
+        points: {
+          ground?: { y: number } | null;
+          source?: { surface?: number };
+        }[];
+      }>("query", { points: [[x, z]] });
+      const p = reply.points[0];
+      const ground = p?.ground?.y ?? p?.source?.surface;
+      if (ground === undefined) {
+        throw new Error(
+          `${a.resolved.label} has no ground at ${x},${z} to fly to; pass its height`,
+        );
+      }
+      request.flyTo = [x, ground, z];
+    }
     const state = await page.evaluate(
       async (req, refs, around) => {
         const control = window.__voxelizeViewer;
@@ -794,6 +893,10 @@ export class ViewerServer {
           control.setPose(around, "orbit");
           control.setPreset(req.preset ?? "top", req.around[2] * 2);
         } else if (req.preset) control.setPreset(req.preset);
+        if (req.flyTo) {
+          const [x, y, z] = req.flyTo;
+          await control.flyTo(x, y, z);
+        }
         return control.state();
       },
       request,

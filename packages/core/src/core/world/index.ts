@@ -127,7 +127,12 @@ import { worldDefinitionSignature } from "./definition-signature";
 import { displayCopyMaterialOptions } from "./display-copy-material";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
 import { FarTerrain, FAR_TERRAIN_METHOD } from "./far-terrain";
-import { isChunkColumnPending } from "./far-terrain-tiles";
+import {
+  FarFaceLook,
+  FarFaceSide,
+  isChunkColumnPending,
+  meanLinearRgb,
+} from "./far-terrain-tiles";
 import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
 import { HeldServerUpdates } from "./held-server-updates";
@@ -154,7 +159,11 @@ import type { BoundingBox } from "./lighting";
 import { Loader } from "./loader";
 import { LocalLights } from "./local-lights";
 import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
-import { ChunkPipeline, MeshPipeline } from "./pipelines";
+import {
+  ChunkPipeline,
+  MeshPipeline,
+  describeChunkRequestHistory,
+} from "./pipelines";
 import { computeQuadLightTwist } from "./quad-light";
 import { Registry } from "./registry";
 import {
@@ -197,6 +206,7 @@ import {
 } from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
+import { WORKER_READY_MESSAGE_TYPE } from "./workers/worker-ready";
 import {
   advanceWorldClock,
   elapsedSeconds,
@@ -249,6 +259,9 @@ export * from "./world-options";
 
 const warnedUnknownBlockIds = new Set<number>();
 const warnedUnloadedUpdateChunks = new Set<string>();
+
+/** Overdue chunk requests one report names before summing up the rest. */
+const MAX_OVERDUE_CHUNKS_NAMED = 8;
 
 export type TextureInfo = {
   blockId: number;
@@ -900,6 +913,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   // chunk-request flow.
   private chunkRefreshQueue = new Set<string>();
 
+  /** When overdue chunk requests were last looked for; see `reportOverdueChunkRequests`. */
+  private overdueRequestsCheckedAt = Number.NEGATIVE_INFINITY;
+
   // Loaded chunks answered under a new server id (a restarted server's
   // refresh), logged as one count per burst.
   private chunkIdReplacements = new ChunkIdReplacementReport();
@@ -1102,6 +1118,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxWorker: maxMeshWorkers,
       name: "mesh-worker",
       maxQueuedJobs: maxQueuedWorkerJobs,
+      readyMessageType: WORKER_READY_MESSAGE_TYPE,
     });
 
     this.urgentMeshWorkerPool = new WorkerPool(MeshWorker, {
@@ -1111,6 +1128,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ),
       name: "mesh-worker-urgent",
       maxQueuedJobs: maxQueuedWorkerJobs,
+      readyMessageType: WORKER_READY_MESSAGE_TYPE,
     });
 
     this.lightWorkerPool = new WorkerPool(LightWorker, {
@@ -1331,15 +1349,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     const droppedVoxelHistory = this.oldBlocks.size;
     this.oldBlocks.clear();
 
-    // The reading is the page's own heap and external memory; the workers'
-    // heaps share the renderer's heap cage with it unseen, and replacing the
-    // idle ones is the only thing that hands theirs back.
-    const recycleStartedAt = performance.now();
-    const recycled = WorkerPool.recycleIdleWorkersEverywhere(
-      this.memoryPressureMonitor.options.maxReplayedWorkerRecycles,
-    );
-    const recycleMs = performance.now() - recycleStartedAt;
-
+    // Workers are left as they are. Replacing idle ones handed their heaps
+    // back, but a replacement is a new isolate that needs memory from the
+    // same nearly full cage (it was the isolate that died, on a page at 106%),
+    // and a mesh worker's init is async, so a job landing right behind it
+    // meshed nothing.
     console.warn(
       `[world] page memory pressure at ${heapMb}MB (heap + external) / ${limitMb}MB ` +
         `(${(status.heapRatio * 100).toFixed(1)}%, shed #${
@@ -1348,8 +1362,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         `dropped ${droppedMeshJobs} queued mesh jobs and ${droppedVoxelHistory} ` +
         `voxel history entries; deferred ${deferredJobs.length} light jobs ` +
         `(${deferredSeeds} seeds kept, ${freedLightPayloads} serialized payloads freed) ` +
-        `to replay on the next flush; replaced ${recycled.workers} idle workers ` +
-        `in ${recycled.pools} pools to return their heaps (${recycleMs.toFixed(1)}ms)`,
+        `to replay on the next flush`,
     );
 
     // Deferred light work is not a running job, so a waiter has nothing to
@@ -3071,6 +3084,53 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * What a block's upward (`top`) or sideways (`side`) face looks like from
+   * far away, for the far-terrain layer: the texels the chunks paint it
+   * with, their mean in linear RGB, and whether it takes the regional tint.
+   * Null while its texture is not painted yet. A block the registry lacks,
+   * or a face whose material is not an atlas, answers grey and says so: the
+   * far layer still draws.
+   */
+  private farTerrainFaceLook(
+    blockId: number,
+    side: FarFaceSide,
+  ): FarFaceLook | null {
+    const grey: FarFaceLook = { color: [0.5, 0.5, 0.5], isTinted: false };
+    const block = this.getBlockByIdSafe(blockId);
+    if (!block || block.faces.length === 0) {
+      console.warn(
+        `[far-terrain] block ${blockId} has no faces; its far colour is grey`,
+      );
+      return grey;
+    }
+    const wanted: [number, number, number] =
+      side === "top" ? [0, 1, 0] : [1, 0, 0];
+    const face =
+      block.faces.find(
+        ({ dir }) =>
+          dir[0] === wanted[0] && dir[1] === wanted[1] && dir[2] === wanted[2],
+      ) ?? block.faces[0];
+    const material = this.getBlockFaceMaterial(block.id, face.name);
+    const atlas = material?.map;
+    if (!(atlas instanceof AtlasTexture)) {
+      console.warn(
+        `[far-terrain] ${block.name}'s ${face.name} face has no atlas; its far colour is grey`,
+      );
+      return grey;
+    }
+    const pixels = atlas.readRangePixels(face.range);
+    if (!pixels) return null;
+    const color = meanLinearRgb(pixels);
+    if (!color) return null;
+    return {
+      color,
+      isTinted: (face.stageTintMask ?? 0) !== 0,
+      pixels,
+      size: Math.round(Math.sqrt(pixels.length / 4)),
+    };
+  }
+
+  /**
    * The material bucket a geometry group lands in, mirroring
    * {@link getBlockFaceMaterial}'s resolution exactly. Geometry groups may
    * arrive keyed by face name without the face owning its own material — the
@@ -4581,10 +4641,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         this.initialData = json;
 
-        if (entities) {
-          this.initialEntities = entities;
-        }
-
         // An INIT on an already-initialized world is a rejoin after a
         // reconnect. The server process behind it may be brand new, holding
         // none of the chunks this client renders, so resync every chunk
@@ -4593,6 +4649,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         // immediately instead of idling until the rerequest interval.
         if (this.isInitialized) {
           this.resyncChunkStagesAfterRejoin();
+          this.resyncBlockEntitiesAfterRejoin(entities ?? []);
+        } else if (entities) {
+          this.initialEntities = entities;
         }
 
         break;
@@ -4873,6 +4932,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       fogFarRenderRatio,
       fogDistance,
       farTerrainFogNearRatio,
+      farTerrainFogFarRatio,
     } = this.options;
 
     return computeFogRange({
@@ -4884,6 +4944,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       // Before the constructor builds the layer there is nothing far to fog into.
       farTerrainDistance: this.farTerrain?.reach ?? 0,
       farTerrainFogNearRatio,
+      farTerrainFogFarRatio,
     });
   }
 
@@ -5041,6 +5102,41 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  /**
+   * A rejoin's INIT carries every block entity in the world, and the server
+   * counts each one as delivered: it sends none of them again, and never a
+   * delete for one removed while this client was away. Those entities used
+   * to be parked as initial entities, which only a first join ever reads,
+   * so a rejoined client kept whatever it had from before the drop. The
+   * INIT is the whole truth: record what it carries, and delete what it no
+   * longer has.
+   */
+  private resyncBlockEntitiesAfterRejoin(entities: EntityProtocol<any>[]) {
+    const present = new Set<string>();
+    for (const { type, metadata } of entities) {
+      if (!type.startsWith("block::") || !metadata?.voxel) continue;
+      const [px, py, pz] = metadata.voxel;
+      present.add(
+        ChunkUtils.getVoxelName([
+          Math.floor(px),
+          Math.floor(py),
+          Math.floor(pz),
+        ]),
+      );
+    }
+    const gone: EntityProtocol<any>[] = [];
+    for (const [voxelId, entry] of this.blockEntities.entries()) {
+      if (present.has(voxelId)) continue;
+      gone.push({
+        id: entry.id,
+        type: entry.etype,
+        operation: "DELETE",
+        metadata: { voxel: ChunkUtils.parseVoxelName(voxelId), json: null },
+      });
+    }
+    this.handleEntities([...gone, ...entities]);
+  }
+
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
@@ -5099,7 +5195,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           // The request is considered lost; drop the stage so the chunk is
           // reissued below.
-          this.chunkPipeline.remove(chunkName);
+          this.chunkPipeline.expireRequest(chunkName);
         }
 
         // The view cone is a priority, not a filter: in-view chunks stream
@@ -5154,6 +5250,46 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       });
     }
+
+    this.reportOverdueChunkRequests();
+  }
+
+  /**
+   * Retries keep a lost request moving, but a chunk asked for over and over
+   * with nothing ever arriving is a hole nobody sees until it is looked at.
+   * Name it, with whether its requests ever left this client.
+   */
+  private reportOverdueChunkRequests() {
+    const { chunkRequestOverdueMs, chunkRerequestIntervalMs } = this.options;
+    if (!(chunkRequestOverdueMs > 0)) return;
+    const now = performance.now();
+    // Requests go out a batch per frame, so a wave of them crosses the
+    // threshold over several frames. Looking once per retry interval names
+    // the whole wave in one report instead of one report a frame.
+    if (now - this.overdueRequestsCheckedAt < chunkRerequestIntervalMs) return;
+    this.overdueRequestsCheckedAt = now;
+    const overdue = this.chunkPipeline.takeOverdueRequests(
+      now,
+      chunkRequestOverdueMs,
+    );
+    if (overdue.length === 0) return;
+    const shown = overdue
+      .slice(0, MAX_OVERDUE_CHUNKS_NAMED)
+      .map(
+        (request) =>
+          `${request.name.replace("|", ",")} (${describeChunkRequestHistory(
+            request,
+            now,
+          )})`,
+      );
+    const more = overdue.length - shown.length;
+    console.error(
+      `[voxelize] ${overdue.length} chunk request(s) unanswered for over ` +
+        `${Math.round(chunkRequestOverdueMs / 1000)}s: ${shown.join(", ")}` +
+        `${more > 0 ? ` and ${more} more` : ""}. A request never sent is ` +
+        "stuck in this client's outbound queue; one sent and never answered " +
+        "was lost by the server or on the way back.",
+    );
   }
 
   private reportChunkIdReplacements(force = false) {
@@ -5349,14 +5485,29 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.releaseBorderSwaps(x, z);
     });
 
+    const { renderRadius } = this;
+    const { chunkRerequestIntervalMs } = this.options;
     this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
+      const distanceSquared = (x - centerX) ** 2 + (z - centerZ) ** 2;
 
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+      // `requestChunks` retries a lost request only inside the render
+      // radius. One lost past it, but short of the delete radius that
+      // would evict it, stayed requested for as long as the player stood
+      // there: a hole that counted as pending work forever.
+      const isLostOutsideView =
+        distanceSquared > renderRadius ** 2 &&
+        this.chunkPipeline.isRequestStale(name, chunkRerequestIntervalMs);
+      if (distanceSquared > deleteRadius ** 2 || isLostOutsideView) {
         this.chunkPipeline.remove(name);
         this.sectionVisibility?.removeChunk(x, z);
         deleted.push([x, z]);
       }
+    });
+    // A request between attempts holds no stage for the pass above to find.
+    this.chunkPipeline.forgetRequestsWhere((name) => {
+      const [x, z] = ChunkUtils.parseChunkName(name);
+      return (x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2;
     });
 
     const processingToRemove: string[] = [];
@@ -5803,6 +5954,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.sky.uSunColor.value.copy(lighting.sunColor.value);
     this.sky.uSunlightIntensity.value =
       this.chunkRenderer.uniforms.sunlightIntensity.value;
+    this.sky.uDirectSunlight.value = lighting.directSunlight.value;
 
     const hideClouds = this.waterOptics.submersion >= 0.5;
     if (hideClouds !== this.cloudsHiddenUnderwater && this.clouds) {
@@ -6714,6 +6866,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.chunkRenderer.shaderLightingUniforms.sunColor,
       uSunlightIntensity:
         cloudsOptions.uSunlightIntensity ?? chunkUniforms.sunlightIntensity,
+      uDirectSunlight:
+        cloudsOptions.uDirectSunlight ??
+        this.chunkRenderer.shaderLightingUniforms.directSunlight,
       uCameraSubmersion:
         cloudsOptions.uCameraSubmersion ?? chunkUniforms.cameraSubmersion,
       uCameraWaterPlaneY:
@@ -6742,6 +6897,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         skyFogDimension: chunkUniforms.skyFogDimension,
         skyFogStrength: chunkUniforms.skyFogStrength,
         sunlightIntensity: chunkUniforms.sunlightIntensity,
+        directSunlight: lighting.directSunlight,
         minLightLevel: chunkUniforms.minLightLevel,
         baseAmbient: chunkUniforms.baseAmbient,
         faceShades: chunkUniforms.faceShades,
@@ -6752,6 +6908,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         sunDirection: lighting.sunDirection,
         sunColor: lighting.sunColor,
         ambientColor: lighting.ambientColor,
+        skyTopColor: lighting.skyTopColor,
+        skyMiddleColor: lighting.skyMiddleColor,
+        waterFresnelStrength: lighting.waterFresnelStrength,
         farCoverMask: chunkUniforms.farCoverMask,
         farCover: chunkUniforms.farCover,
         farSeam: chunkUniforms.farSeam,
@@ -6759,9 +6918,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       {
         distance: this.options.farTerrainDistance,
         palette: this.options.farTerrainPalette,
+        faceLook: (block, side) => this.farTerrainFaceLook(block, side),
         waterColor: this.options.farTerrainWaterColor,
         skyTopColor: this.options.farTerrainSkyTopColor,
         skySideColor: this.options.farTerrainSkySideColor,
+        edgeBand: this.options.farTerrainEdgeBand,
         seamBand: this.options.farTerrainSeamBand,
       },
     );

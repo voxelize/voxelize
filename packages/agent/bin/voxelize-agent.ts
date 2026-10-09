@@ -2,13 +2,21 @@
 import { parseArgs } from "node:util";
 
 import { Agent } from "../src/agent";
+import { AuthUrlError } from "../src/auth-url";
 import {
+  AUTH_FAILED_EXIT_CODE,
   IDLE_TTL_EXIT_CODE,
   MOUNT_FAILED_EXIT_CODE,
+  PAGE_UNAVAILABLE_EXIT_CODE,
   resolveIdleTtlMs,
   resolveMountTimeoutMs,
 } from "../src/browser-lifecycle";
 import { AgentDaemon } from "../src/daemon";
+import {
+  DEFAULT_NAVIGATION_RETRY_MS,
+  PageUnavailableError,
+  resolveNavigationRetryMs,
+} from "../src/page-availability";
 import {
   SESSION_META_ENV,
   SESSION_ORIGIN_ENV,
@@ -54,6 +62,7 @@ async function main(): Promise<void> {
     values["lease-minutes"],
     process.env,
   );
+  const navigationRetryMs = resolveNavigationRetryMs(process.env);
   // Labels and provenance are validated here too, before a browser exists:
   // a malformed note is a launcher bug worth a loud exit, not a session that
   // boots with half of what it was told.
@@ -80,6 +89,27 @@ async function main(): Promise<void> {
     isHeadless,
     port,
     authUrl: values.authUrl,
+    navigationRetryMs,
+  }).catch((error: unknown) => {
+    if (error instanceof AuthUrlError) {
+      return exitAfterLogging(
+        `[voxelize-agent] ${error.message}; exiting with code ${AUTH_FAILED_EXIT_CODE}`,
+        AUTH_FAILED_EXIT_CODE,
+      );
+    }
+    // The launch already closed its browser. Exit before the HTTP listener
+    // exists: a page that cannot load never mounts, and waiting out the
+    // bridge or mount deadline would only hold the browser and its slot.
+    if (error instanceof PageUnavailableError) {
+      return exitAfterLogging(
+        `[voxelize-agent] ${error.message}\n` +
+          `[voxelize-agent] exiting with code ${PAGE_UNAVAILABLE_EXIT_CODE}, ${
+            Math.round(process.uptime() * 10) / 10
+          }s after the daemon started: a page that cannot load never mounts, and relaunching cannot fix it`,
+        PAGE_UNAVAILABLE_EXIT_CODE,
+      );
+    }
+    throw error;
   });
 
   process.on("exit", () => {
@@ -181,6 +211,14 @@ async function main(): Promise<void> {
   console.log("[voxelize-agent] agent ready");
 }
 
+// process.exit() can drop a write still queued on a pipe, and this line is
+// the session's only account of why it stopped.
+function exitAfterLogging(line: string, exitCode: number): Promise<never> {
+  return new Promise(() => {
+    process.stderr.write(`${line}\n`, () => process.exit(exitCode));
+  });
+}
+
 function resolveLeaseMinutes(
   flagValue: string | undefined,
   env: Record<string, string | undefined>,
@@ -211,7 +249,10 @@ Options:
   -w, --world <name>     World to join (default: test)
   -p, --port <port>      HTTP daemon port (default: 4099)
   -n, --name <name>      Agent display name (default: agent)
-      --authUrl <url>    Visit this URL first to pick up session cookies
+      --authUrl <url>    Visit this URL first to pick up session cookies. An
+                         answer other than 2xx (or 304) stops the daemon
+                         before the page loads, naming the status and body.
+                         Exits code ${AUTH_FAILED_EXIT_CODE}.
       --headed           Launch a visible browser window (default: headless)
       --idle-ttl-ms <n>  Shut down after n ms without commands (default: 30m;
                          0 disables; env AGENT_IDLE_TTL_MS). Exits code ${IDLE_TTL_EXIT_CODE}.
@@ -227,6 +268,12 @@ Options:
 Environment:
   AGENT_IDLE_TTL_MS        Same as --idle-ttl-ms (flag wins).
   AGENT_LEASE_MINUTES      Same as --lease-minutes (flag wins).
+  AGENT_NAVIGATION_RETRY_MS
+                           How long a client page answering 5xx (or a refused
+                           connection) is retried, default ${DEFAULT_NAVIGATION_RETRY_MS}ms;
+                           0 never retries. A 404 or other 4xx gives up at once.
+                           Either way the daemon exits ${PAGE_UNAVAILABLE_EXIT_CODE} instead of waiting
+                           for a bridge the page will never install.
   ${SESSION_META_ENV}       JSON object of initial session notes (--meta merges over it).
   ${SESSION_ORIGIN_ENV}     JSON provenance captured by the launcher (cwd, user,
                            terminal, parent processes, Cursor conversation);

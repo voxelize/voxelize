@@ -210,6 +210,31 @@ describe("SectionVisibilityGraph", () => {
     // Unknown sections must never be claimed hidden.
     expect(graph.isSectionVisible(1, 0, 0)).toBe(true);
   });
+
+  it("keeps columns on both sides of zero apart, and counts what unloads", () => {
+    const graph = makeGraph();
+    const columns: [number, number][] = [
+      [-1, -1],
+      [-1, 1],
+      [1, -1],
+      [-12, 7],
+    ];
+    for (const [cx, cz] of columns) graph.addChunk(cx, cz);
+    expect(graph.sectionCount).toBe(columns.length * SUB_CHUNKS);
+
+    graph.removeChunk(-1, 1);
+    graph.removeChunk(-1, 1);
+    expect(graph.sectionCount).toBe((columns.length - 1) * SUB_CHUNKS);
+
+    // The camera's column is untouched by its neighbour's unload; a walk
+    // from it completes and reaches its own sections.
+    walk(graph, new Vector3(-8, 8, -8));
+    expect(graph.isComplete).toBe(true);
+    expect(graph.isSectionReached(-1, -1, 0)).toBe(true);
+
+    graph.clear();
+    expect(graph.sectionCount).toBe(0);
+  });
 });
 
 describe("noclip eye probe", () => {

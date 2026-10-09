@@ -27,7 +27,12 @@ import {
   type Camera,
 } from "three";
 
-import { CameraRig } from "./camera";
+import {
+  type CameraFeel,
+  CameraRig,
+  type FlightOptions,
+  type FlightResult,
+} from "./camera";
 import { ChunkLayer, type ChunkLayerOptions } from "./chunk-layer";
 import { FarLayer, FarTileClient, type FarPalette } from "./far-layer";
 import { nearRadiusFor } from "./lod";
@@ -41,7 +46,11 @@ import {
   type SourceMeta,
   type ViewerOverlay,
 } from "./overlays";
+import { type PinAction, PinLayer } from "./pin-layer";
+import type { PinLighting } from "./pin-model";
+import type { Pin, PinFact } from "./pins";
 import {
+  type Bookmark,
   formatVec,
   type Pose,
   type Preset,
@@ -49,6 +58,7 @@ import {
   standInPose,
   type Vec3,
 } from "./pose";
+import { DEFAULT_THEME, type ViewerTheme } from "./theme";
 
 export type SourceRef = {
   /** The server's id for the source (one backend process). */
@@ -78,7 +88,25 @@ export type ViewerHost = {
   labelFont?: string;
   fov?: number;
   chunkLayer?: Partial<ChunkLayerOptions>;
+  /** Tunes how the camera follows the ground and flies (`DEFAULT_CAMERA_FEEL`). */
+  camera?: Partial<CameraFeel>;
+  /** Colours, font and icons of the pins, the wheel and the labels. */
+  theme?: Partial<ViewerTheme>;
+  pins?: {
+    /** Blocks from a top face to the eyes of a player standing on it (spawn links, Look from here). */
+    standingEyeHeight?: number;
+    /** How tall a pin stays on screen, CSS pixels. */
+    screenHeight?: number;
+    /** Keep the pins in the page URL (`pins=`); on by default. */
+    persistInUrl?: boolean;
+    /** Lines for the pin card from the column the backend reports (its `source` field). */
+    describe?: (column: unknown) => PinFact[];
+    /** Actions added to the wheel after the built-in ones. */
+    actions?: PinAction[];
+  };
 };
+
+let viewerCount = 0;
 
 type View = {
   ref: SourceRef;
@@ -102,6 +130,10 @@ export type ViewerState = {
   hover: Vec3 | null;
   shareLink: string | null;
   fps: number;
+  /** A flight under way, or the camera still easing after a move. */
+  camera: { flying: boolean; settling: boolean };
+  pins: Pin[];
+  bookmarks: Bookmark[];
   views: {
     id: string;
     label: string;
@@ -299,6 +331,15 @@ export class WorldViewer {
 
   private pointer: { x: number; y: number } | null = null;
 
+  /** Where the last double-click sent the camera, ringed on the HUD while it flies. */
+  private flightMark: { point: Vec3; at: number } | null = null;
+
+  /** Pins on the terrain and the action wheel around them. */
+  readonly pins: PinLayer;
+
+  /** The places the page offers (the server's, plus those added here). */
+  bookmarks: Bookmark[] = [];
+
   private lastNotify = 0;
 
   constructor(
@@ -329,6 +370,64 @@ export class WorldViewer {
     this.rig = new CameraRig(this.canvas, host.fov ?? 60);
     this.rig.groundAt = (x, z) => this.groundAt(x, z);
     this.rig.onChange = () => this.notify();
+    Object.assign(this.rig.feel, host.camera ?? {});
+    this.applyCameraOptions();
+    const theme: ViewerTheme = { ...DEFAULT_THEME, ...host.theme };
+    viewerCount += 1;
+    this.pins = new PinLayer(
+      container,
+      {
+        pickGround: (x, y) => this.pickGround(x, y),
+        flyTo: (point) => this.flyTo(point),
+        flyToPose: (pose, preset) => this.flyToPose(pose, preset),
+        query: (x, z) => this.query(x, z),
+        linkFor: (pose) => this.linkFor(pose),
+        cameraYaw: () =>
+          this.rig.preset === "free" ? this.rig.fly.yaw : this.rig.orbit.yaw,
+        cameraPitch: () =>
+          this.rig.preset === "free"
+            ? -this.rig.fly.pitch
+            : this.rig.orbit.pitch,
+        releaseCamera: () => this.rig.cancelDrag(),
+        pose: () => this.rig.pose(),
+        preset: () => this.rig.preset,
+        addBookmark: (bookmark) => this.addBookmark(bookmark),
+      },
+      {
+        theme,
+        prefix: `vxv${viewerCount}`,
+        standingEyeHeight: host.pins?.standingEyeHeight ?? 1.6,
+        screenHeight: host.pins?.screenHeight ?? 64,
+        holdMs: 280,
+        clickSlop: 5,
+        doubleClickMs: 600,
+        describe: host.pins?.describe,
+        actions: host.pins?.actions,
+        persistInUrl: host.pins?.persistInUrl ?? true,
+      },
+      () => this.notify(true),
+    );
+    const local = (e: MouseEvent) => {
+      const rect = this.canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    this.rig.claimPointer = (e) => {
+      const p = local(e);
+      const claimed = this.pins.claimPress(p.x, p.y, e.button);
+      // A held pin opens the wheel under the pointer; capture keeps the
+      // flick reporting to the canvas while the pointer crosses the wheel.
+      if (claimed) this.canvas.setPointerCapture(e.pointerId);
+      return claimed;
+    };
+    this.rig.claimKey = (e) => this.pins.key(e);
+    this.canvas.addEventListener("pointerup", (e) => {
+      const p = local(e);
+      this.pins.release(p.x, p.y, e.button);
+    });
+    this.canvas.addEventListener("click", (e) => {
+      const p = local(e);
+      this.pins.click(p.x, p.y, e.detail);
+    });
 
     this.composite = new ShaderMaterial({
       vertexShader: COMPOSITE_VERTEX,
@@ -369,10 +468,29 @@ export class WorldViewer {
     this.canvas.addEventListener("pointermove", (e) => {
       const rect = this.canvas.getBoundingClientRect();
       this.pointer = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      this.pins.move(this.pointer.x, this.pointer.y);
     });
     this.canvas.addEventListener("pointerleave", () => {
       this.pointer = null;
       this.hover = null;
+    });
+    // The second press of a double-click would select page text near the canvas.
+    this.canvas.addEventListener("mousedown", (e) => {
+      if (e.detail > 1) e.preventDefault();
+    });
+    // Double-click flies to the ground under the cursor; Alt keeps the zoom
+    // (Shift is already the zoom-out key and the pan modifier).
+    this.canvas.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      const rect = this.canvas.getBoundingClientRect();
+      // The first click of the pair dropped a pin; the pin layer takes it back.
+      const point = this.pins.doubleClick(
+        e.clientX - rect.left,
+        e.clientY - rect.top,
+      );
+      if (!point) return;
+      this.flightMark = { point, at: performance.now() };
+      void this.flyTo(point, { keepZoom: e.altKey });
     });
 
     new ResizeObserver(() => this.resize()).observe(container);
@@ -420,6 +538,11 @@ export class WorldViewer {
       make(b, this.views.b),
     ]);
     this.views = { a: va, b: vb };
+    this.pins.attach(
+      [va, vb]
+        .filter((v): v is View => v !== null)
+        .map((v) => ({ scene: v.scene, lighting: pinLighting(v.materials) })),
+    );
     if (!vb && this.options.split !== "none")
       this.options = { ...this.options, split: "none" };
     if (vb && this.options.split === "none")
@@ -516,6 +639,7 @@ export class WorldViewer {
     });
     csm.addNeverCaster(far.terrain);
     csm.addNeverCaster(sky);
+    chunks.setShadowCasters(csm);
     return {
       ref,
       meta,
@@ -562,7 +686,134 @@ export class WorldViewer {
     const split = this.options.split;
     this.options = { ...this.options, ...next };
     if (this.options.split !== split) this.resize();
+    this.applyCameraOptions();
     this.notify(true);
+  }
+
+  /**
+   * Flies the camera to frame (x, y, z), keeping the preset; a null y takes
+   * the ground there. Resolves when it lands, or as not completed when input
+   * or another move cuts it short.
+   */
+  flyTo(
+    point: [number, number | null, number],
+    options: FlightOptions = {},
+  ): Promise<FlightResult> {
+    const [x, given, z] = point;
+    const y = given ?? this.surfaceAt(x, z);
+    if (y === null) {
+      return Promise.reject(
+        new Error(`nothing loaded at ${x},${z} to fly to; pass its height`),
+      );
+    }
+    return this.rig
+      .flyToPoint([x, y, z], options)
+      .finally(() => this.notify(true));
+  }
+
+  /** Flies to `pose` in `preset` (default: the current one). */
+  flyToPose(
+    pose: Pose,
+    preset?: Preset,
+    options: FlightOptions = {},
+  ): Promise<FlightResult> {
+    return this.rig
+      .flyToPose(pose, preset ?? this.rig.preset, options)
+      .finally(() => this.notify(true));
+  }
+
+  /** Stops a flight where it is. */
+  cancelFlight() {
+    this.rig.cancelFlight();
+  }
+
+  /** The game's link for `pose` in source A's world, or null when the host has none. */
+  linkFor(pose: Pose): string | null {
+    if (!this.host.shareLink || !this.views.a) return null;
+    return this.host.shareLink(pose, { world: this.views.a.meta.name });
+  }
+
+  setBookmarks(bookmarks: Bookmark[]) {
+    this.bookmarks = [...bookmarks];
+    this.notify(true);
+  }
+
+  /** Saves a bookmark with the viewer server, which keeps it with the others. */
+  async addBookmark(bookmark: Bookmark): Promise<Bookmark> {
+    const response = await fetch(`${this.server}/api/bookmarks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bookmark }),
+    });
+    if (!response.ok) {
+      throw new Error(`could not save the bookmark: ${await response.text()}`);
+    }
+    const saved = (await response.json()) as { bookmark: Bookmark };
+    this.bookmarks = [
+      ...this.bookmarks.filter((b) => b.id !== saved.bookmark.id),
+      saved.bookmark,
+    ];
+    this.notify(true);
+    return saved.bookmark;
+  }
+
+  /**
+   * The ground point under canvas pixel (px, py), in either half of a side
+   * by side split, or null where the ray meets nothing loaded.
+   */
+  pickGround(px: number, py: number): Vec3 | null {
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
+    const split = this.options.split === "side" && this.views.b;
+    const viewWidth = split ? width / 2 : width;
+    const x = split && px > viewWidth ? px - viewWidth : px;
+    const camera = this.rig.camera;
+    const ndc = new Vector3(
+      (x / viewWidth) * 2 - 1,
+      -(py / height) * 2 + 1,
+      -1,
+    );
+    const origin = ndc.clone().unproject(camera);
+    const direction = new Vector3(ndc.x, ndc.y, 1)
+      .unproject(camera)
+      .sub(origin)
+      .normalize();
+    const at = (t: number) => origin.clone().addScaledVector(direction, t);
+    const below = (p: Vector3) => {
+      const ground = this.surfaceAt(p.x, p.z);
+      return ground !== null && p.y <= ground;
+    };
+    let last = 0;
+    let t = 0;
+    for (let i = 0; i < 6000 && t < 12000; i++) {
+      if (below(at(t))) {
+        // March back between the last step above the ground and this one.
+        let lo = last;
+        let hi = t;
+        for (let k = 0; k < 16; k++) {
+          const mid = (lo + hi) / 2;
+          if (below(at(mid))) hi = mid;
+          else lo = mid;
+        }
+        const p = at(hi);
+        return [p.x, this.surfaceAt(p.x, p.z) ?? p.y, p.z];
+      }
+      last = t;
+      t += Math.max(0.5, t * 0.004);
+    }
+    return null;
+  }
+
+  private applyCameraOptions() {
+    this.rig.smoothing = this.options.smoothing;
+    this.rig.levelFlight = this.options.levelFlight;
+  }
+
+  /** Top of the column at (x, z) from the near chunks, else the far layer; null where nothing is loaded. */
+  surfaceAt(x: number, z: number): number | null {
+    const view = this.views.a;
+    if (!view) return null;
+    return view.chunks.heightAt(x, z) ?? view.far.heightAt(x, z);
   }
 
   pose(): Pose {
@@ -613,6 +864,9 @@ export class WorldViewer {
       hover: this.hover,
       shareLink: this.shareLink(),
       fps: this.fps,
+      camera: { flying: this.rig.flying, settling: this.rig.isSettling() },
+      pins: this.pins.list(),
+      bookmarks: [...this.bookmarks],
       views,
     };
   }
@@ -628,7 +882,10 @@ export class WorldViewer {
     while (performance.now() - started < timeoutMs) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const views = this.state().views;
-      const idle = views.length > 0 && views.every((v) => v.idle);
+      const idle =
+        views.length > 0 &&
+        views.every((v) => v.idle) &&
+        !this.rig.isSettling();
       steady = idle ? steady + 1 : 0;
       if (steady >= settleFrames) {
         return {
@@ -670,6 +927,7 @@ export class WorldViewer {
 
   dispose() {
     this.running = false;
+    this.pins.dispose();
     for (const view of [this.views.a, this.views.b])
       if (view) this.disposeView(view);
     this.rig.dispose();
@@ -840,45 +1098,65 @@ export class WorldViewer {
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.quadScene, this.quadCamera);
 
-    this.updateHover(camera);
+    this.updateHover();
+    const cssWidth = this.canvas.clientWidth;
+    this.pins.update(
+      camera,
+      this.options.split === "side" && this.views.b ? cssWidth / 2 : cssWidth,
+      this.canvas.clientHeight,
+    );
     this.drawHud(camera, overlays);
     this.notify();
   }
 
-  private updateHover(camera: Camera) {
+  private updateHover() {
     if (!this.pointer || this.frame % 4 !== 0) return;
-    const width = this.canvas.clientWidth;
-    const height = this.canvas.clientHeight;
-    const split = this.options.split === "side" && this.views.b;
-    const viewWidth = split ? width / 2 : width;
-    const px =
-      split && this.pointer.x > viewWidth
-        ? this.pointer.x - viewWidth
-        : this.pointer.x;
-    const ndc = new Vector3(
-      (px / viewWidth) * 2 - 1,
-      -(this.pointer.y / height) * 2 + 1,
-      -1,
-    );
-    const origin = ndc.clone().unproject(camera);
-    const toward = new Vector3(ndc.x, ndc.y, 1).unproject(camera);
-    const direction = toward.sub(origin).normalize();
-    let t = 0;
-    for (let i = 0; i < 6000 && t < 12000; i++) {
-      const x = origin.x + direction.x * t;
-      const y = origin.y + direction.y * t;
-      const z = origin.z + direction.z * t;
-      const ground =
-        this.views.a?.chunks.heightAt(x, z) ??
-        this.views.a?.far.heightAt(x, z) ??
-        null;
-      if (ground !== null && y <= ground) {
-        this.hover = [x, ground, z];
-        return;
-      }
-      t += Math.max(0.5, t * 0.004);
+    this.hover = this.pickGround(this.pointer.x, this.pointer.y);
+  }
+
+  /**
+   * Four pixel brackets round the double-clicked spot, closing in a step at
+   * a time while the camera flies there, then gone: no fade.
+   */
+  private drawFlightMark(
+    context: CanvasRenderingContext2D,
+    camera: Camera,
+    width: number,
+    height: number,
+  ) {
+    const mark = this.flightMark;
+    if (!mark) return;
+    const age = (performance.now() - mark.at) / 1000;
+    const life = this.rig.feel.flightMax;
+    if (age > life) {
+      this.flightMark = null;
+      return;
     }
-    this.hover = null;
+    const p = new Vector3(...mark.point).project(camera);
+    if (p.z < -1 || p.z > 1) return;
+    const x = Math.round(((p.x + 1) / 2) * width);
+    const y = Math.round(((1 - p.y) / 2) * height);
+    const step = Math.min(
+      FLIGHT_MARK_STEPS.length - 1,
+      Math.floor((age / life) * FLIGHT_MARK_STEPS.length),
+    );
+    const r = FLIGHT_MARK_STEPS[step];
+    const theme = { ...DEFAULT_THEME, ...this.host.theme };
+    for (const [sx, sy] of [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ]) {
+      const cx = x + sx * r;
+      const cy = y + sy * r;
+      context.fillStyle = theme.outline;
+      context.fillRect(cx - (sx > 0 ? 7 : 1), cy - 1, 8, 4);
+      context.fillRect(cx - 1, cy - (sy > 0 ? 7 : 1), 4, 8);
+      context.fillStyle = theme.accent;
+      context.fillRect(cx - (sx > 0 ? 6 : 0), cy, 6, 2);
+      context.fillRect(cx, cy - (sy > 0 ? 6 : 0), 2, 6);
+    }
   }
 
   private drawHud(camera: Camera, overlays: ViewerOverlay[]) {
@@ -887,8 +1165,9 @@ export class WorldViewer {
     const ratio = this.renderer.getPixelRatio();
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, this.hud.width, this.hud.height);
-    if (!this.options.hud) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    this.pins.drawHud(context);
+    if (!this.options.hud) return;
     const font = this.host.labelFont ?? "sans-serif";
     const width = this.hud.width / ratio;
     const height = this.hud.height / ratio;
@@ -906,6 +1185,7 @@ export class WorldViewer {
       context.fillStyle = color;
       context.fillText(text, x, y);
     };
+    this.drawFlightMark(context, camera, width, height);
     const annotationsOn = overlays.some((o) => o.kind === "annotations");
     if (annotationsOn && this.views.a && this.options.split !== "side") {
       const seen: { x: number; y: number }[] = [];
@@ -949,3 +1229,21 @@ export class WorldViewer {
 }
 
 export type { AtlasFilteringMode };
+
+/** Half-widths of the flight mark's brackets, CSS pixels, one per step. */
+const FLIGHT_MARK_STEPS = [22, 16, 11, 7];
+
+/** The chunk lighting a pin shares, so it is lit like the terrain of its view. */
+function pinLighting(materials: ViewerMaterials): PinLighting {
+  const u = materials.chunkRenderer.uniforms;
+  const l = materials.chunkRenderer.shaderLightingUniforms;
+  return {
+    sunDirection: l.sunDirection,
+    sunColor: l.sunColor,
+    sunlightIntensity: u.sunlightIntensity,
+    ambientColor: l.ambientColor,
+    minLightLevel: u.minLightLevel,
+    baseAmbient: u.baseAmbient,
+    faceShades: u.faceShades,
+  };
+}

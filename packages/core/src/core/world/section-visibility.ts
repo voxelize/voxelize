@@ -120,8 +120,20 @@ export type SectionVisibilityGraphOptions = {
  * are occluded — enclosed interiors stop paying for the terrain around them.
  */
 export class SectionVisibilityGraph {
-  private nodes = new Map<string, SectionNode>();
-  private queue: SectionNode[] = [];
+  /**
+   * Sections by chunk column, `cx` then `cz`, one slot per level. Numbers all
+   * the way down: the cull pass asks about every section of every loaded chunk
+   * every frame, and a string key per question was a steady stream of garbage.
+   */
+  private columns = new Map<number, Map<number, (SectionNode | undefined)[]>>();
+  private nodeCount = 0;
+  /**
+   * The walk's work list. Never truncated between walks: setting an array's
+   * length to zero gives V8 leave to drop its storage, and the next walk then
+   * regrew it push by push, every frame.
+   */
+  private queue: (SectionNode | undefined)[] = [];
+  private queueHighWater = 0;
   private generation = 0;
   private isLastWalkComplete = false;
   private lastReachedCount = 0;
@@ -133,8 +145,8 @@ export class SectionVisibilityGraph {
 
   constructor(private options: SectionVisibilityGraphOptions) {}
 
-  private keyOf(cx: number, cz: number, level: number) {
-    return `${cx}|${cz}|${level}`;
+  private nodeAt(cx: number, cz: number, level: number) {
+    return this.columns.get(cx)?.get(cz)?.[level];
   }
 
   private heightPerSubChunk() {
@@ -148,9 +160,10 @@ export class SectionVisibilityGraph {
   }
 
   removeChunk(cx: number, cz: number) {
-    for (let level = 0; level < this.options.subChunks; level++) {
-      const key = this.keyOf(cx, cz, level);
-      const node = this.nodes.get(key);
+    const row = this.columns.get(cx);
+    const column = row?.get(cz);
+    if (!row || !column) return;
+    for (const node of column) {
       if (!node) continue;
       if (node.connectivity !== CONNECTIVITY_FULL) {
         this.sealedConnectivityCount -= 1;
@@ -159,8 +172,10 @@ export class SectionVisibilityGraph {
         const neighbor = node.neighbors[face];
         if (neighbor) neighbor.neighbors[OPPOSITE_FACE[face]] = null;
       }
-      this.nodes.delete(key);
+      this.nodeCount -= 1;
     }
+    row.delete(cz);
+    if (row.size === 0) this.columns.delete(cx);
   }
 
   setConnectivity(cx: number, cz: number, level: number, connectivity: number) {
@@ -180,8 +195,10 @@ export class SectionVisibilityGraph {
   }
 
   clear() {
-    this.nodes.clear();
+    this.columns.clear();
+    this.nodeCount = 0;
     this.queue.length = 0;
+    this.queueHighWater = 0;
     this.isLastWalkComplete = false;
     this.sealedConnectivityCount = 0;
     this.lastReachedCount = 0;
@@ -189,12 +206,12 @@ export class SectionVisibilityGraph {
   }
 
   get sectionCount() {
-    return this.nodes.size;
+    return this.nodeCount;
   }
 
   get stats() {
     return {
-      sections: this.nodes.size,
+      sections: this.nodeCount,
       // "Constrained" counts sections reporting anything other than fully
       // open connectivity — zero means no real connectivity data has arrived.
       constrained: this.sealedConnectivityCount,
@@ -215,14 +232,14 @@ export class SectionVisibilityGraph {
 
   isSectionVisible(cx: number, cz: number, level: number) {
     if (!this.isLastWalkComplete) return true;
-    const node = this.nodes.get(this.keyOf(cx, cz, level));
+    const node = this.nodeAt(cx, cz, level);
     if (!node) return true;
     return node.visibleGen === this.generation;
   }
 
   isSectionReached(cx: number, cz: number, level: number) {
     if (!this.isLastWalkComplete) return true;
-    const node = this.nodes.get(this.keyOf(cx, cz, level));
+    const node = this.nodeAt(cx, cz, level);
     if (!node) return true;
     return node.reachedGen === this.generation;
   }
@@ -268,7 +285,7 @@ export class SectionVisibilityGraph {
       Math.max(0, Math.floor(cameraPosition.y / heightPerSubChunk)),
     );
 
-    const start = this.nodes.get(this.keyOf(startCx, startCz, startLevel));
+    const start = this.nodeAt(startCx, startCz, startLevel);
     if (!start) {
       this.isLastWalkComplete = false;
       this.lastReachedCount = 0;
@@ -281,16 +298,16 @@ export class SectionVisibilityGraph {
 
     const fogFarSquared = fogFar * fogFar;
     const queue = this.queue;
-    queue.length = 0;
+    let tail = 0;
 
     start.reachedGen = gen;
     start.visibleGen = gen;
     start.traveledMask = 0;
     start.entryMask = (1 << FACE_COUNT) - 1;
-    queue.push(start);
+    queue[tail++] = start;
 
-    for (let head = 0; head < queue.length; head++) {
-      const node = queue[head];
+    for (let head = 0; head < tail; head++) {
+      const node = queue[head] as SectionNode;
 
       let exitableMask = 0;
       if (node === start) {
@@ -325,7 +342,7 @@ export class SectionVisibilityGraph {
           neighbor.traveledMask |= traveledMask;
           neighbor.entryMask |= entryFaceBit;
           if (widened) {
-            queue.push(neighbor);
+            queue[tail++] = neighbor;
           }
           continue;
         }
@@ -340,9 +357,16 @@ export class SectionVisibilityGraph {
           visibleCount += 1;
         }
 
-        queue.push(neighbor);
+        queue[tail++] = neighbor;
       }
     }
+
+    // A longer earlier walk left sections past this one's end; let go of
+    // them, or a chunk unloaded since would stay reachable from here.
+    for (let i = tail; i < this.queueHighWater; i++) {
+      queue[i] = undefined;
+    }
+    this.queueHighWater = tail;
 
     this.lastReachedCount = reachedCount;
     this.lastVisibleCount = visibleCount;
@@ -388,8 +412,17 @@ export class SectionVisibilityGraph {
   }
 
   private ensureNode(cx: number, cz: number, level: number) {
-    const key = this.keyOf(cx, cz, level);
-    const existing = this.nodes.get(key);
+    let row = this.columns.get(cx);
+    if (!row) {
+      row = new Map();
+      this.columns.set(cx, row);
+    }
+    let column = row.get(cz);
+    if (!column) {
+      column = new Array<SectionNode | undefined>(this.options.subChunks);
+      row.set(cz, column);
+    }
+    const existing = column[level];
     if (existing) return existing;
 
     const node: SectionNode = {
@@ -403,7 +436,8 @@ export class SectionVisibilityGraph {
       traveledMask: 0,
       entryMask: 0,
     };
-    this.nodes.set(key, node);
+    column[level] = node;
+    this.nodeCount += 1;
 
     for (let face = 0; face < FACE_COUNT; face++) {
       const [dx, dy, dz] = FACE_OFFSETS[face];
@@ -411,9 +445,7 @@ export class SectionVisibilityGraph {
       if (neighborLevel < 0 || neighborLevel >= this.options.subChunks) {
         continue;
       }
-      const neighbor = this.nodes.get(
-        this.keyOf(cx + dx, cz + dz, neighborLevel),
-      );
+      const neighbor = this.nodeAt(cx + dx, cz + dz, neighborLevel);
       if (!neighbor) continue;
       node.neighbors[face] = neighbor;
       neighbor.neighbors[OPPOSITE_FACE[face]] = node;

@@ -661,6 +661,7 @@ uniform float uWaterAbsorption;
 uniform float uWaterLevel;
 uniform float uWaterStreakStrength;
 uniform float uBedCausticScale;
+// uDirectSunlight (the sun's beam) is declared with the sky fog's uniforms.
 uniform float uSurfaceUndersideScale;
 // The underside's continuous ceiling (style 4, A/B): film brightness against
 // the water's scatter, scene shown straight up and at grazing, ripple shading.
@@ -1127,10 +1128,13 @@ if (vEmissive > 0.0) {
 }
 
 // Bed caustics ride on the lit colour, gated by the direct sun that reaches
-// the face (shadow, night, facing). Added before the tone curve they were
+// the face (shadow, night, facing) and by the beam the sky lets through:
+// the smoothstep saturates on any lit bed, so daylight alone cannot fade
+// the net under an overcast. Added before the tone curve they were
 // swallowed by the highlight shoulder of pale sand.
 if (underwaterCaustic > 0.0) {
-  float causticSun = smoothstep(0.02, 0.2, dot(sunContribution * downTransmit, vec3(0.3333)));
+  float causticSun = smoothstep(0.02, 0.2, dot(sunContribution * downTransmit, vec3(0.3333)))
+    * uDirectSunlight;
   outgoingLight.rgb *= 1.0
     + ${WATER_OPTICS.bedCausticStrength.toFixed(4)} * uBedCausticScale * underwaterCaustic * causticSun;
 }
@@ -1338,6 +1342,9 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
   // light: that one is held above a minimum elevation and tilted off the
   // sun's plane for terrain's sake, which put the reflection a good twenty
   // degrees to one side of the sun and closer than its mirror point.
+  // The lobes, the glint, the surface caustics and the glitter from below
+  // are all the sun's beam: a sky that scatters it leaves none to mirror.
+  float sunBeam = uSunlightIntensity * uDirectSunlight;
   vec3 halfVec = normalize(uCelestialDirection + viewDir);
   float specAngle = max(dot(waterNormal, halfVec), 0.0);
   float spec32 = specAngle * specAngle;
@@ -1345,10 +1352,10 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
   spec32 *= spec32;
   spec32 *= spec32;
   spec32 *= spec32;
-  float specMed = spec32 * spec32 * spec32 * uSunlightIntensity
+  float specMed = spec32 * spec32 * spec32 * sunBeam
     * ${WATER_OPTICS.specularMediumStrength.toFixed(4)};
   vec3 specularColor = uSunColor * (
-    spec32 * uSunlightIntensity * (
+    spec32 * sunBeam * (
       ${WATER_OPTICS.specularBroadBaseStrength.toFixed(4)}
       + topWaterFace * ${WATER_OPTICS.specularBroadTopStrength.toFixed(4)}
     )
@@ -1377,7 +1384,7 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
     uWaterSurfaceCrisp
   );
   sunGlint *= topWaterFace * (1.0 - uCameraSubmersion);
-  specularColor += uSunColor * (sunGlint * uSunlightIntensity);
+  specularColor += uSunColor * (sunGlint * sunBeam);
   specularColor *= airSideGloss;
 ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   vec3 baseWater = outgoingLight.rgb;
@@ -1453,7 +1460,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     * ${WATER_OPTICS.floorAbsorptionPathScale.toFixed(4)}
   );
   float wetFloor = mix(1.0, ${WATER_OPTICS.wetFloorDarken.toFixed(4)}, topWaterFace);
-  float causticLight = shadow * sunExposure * uSunlightIntensity;
+  float causticLight = shadow * sunExposure * sunBeam;
   float caustic = causticLens * causticLens
     * exp(-vFluidDepthBelow * ${WATER_OPTICS.causticDepthFalloff.toFixed(4)})
     * causticLight * rippleLod * topWaterFace;
@@ -1623,7 +1630,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     float snellGlint = snellInside * step(
       ${WATER_OPTICS.undersideGlitterCos.toFixed(5)},
       dot(snellOut, uCelestialDirection) / max(length(snellOut), 1e-4)
-    ) * uSunlightIntensity;
+    ) * sunBeam;
 
     vec3 snellAbove;
     float snellAlpha = 1.0;
@@ -1722,7 +1729,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
       }
     }
     float ceilShimmer = waterCausticWeb(ceilShimmerXZ, uTime * 0.001) * ceilWindow
-      * uSunlightIntensity * ${WATER_OPTICS.undersideShimmerStrength.toFixed(4)};
+      * sunBeam * ${WATER_OPTICS.undersideShimmerStrength.toFixed(4)};
     outgoingLight.rgb = mix(ceilMirror, ceilAbove, ceilWindow) + uSunColor * ceilShimmer;
     diffuseColor.a = ceilAlpha;
   }
@@ -1751,11 +1758,11 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
       0.9985,
       dot(ceilOut, uCelestialDirection) / max(length(ceilOut), 1e-4)
     );
-    ceilSky += uSunColor * ceilSun * uSunlightIntensity * 1.4;
+    ceilSky += uSunColor * ceilSun * sunBeam * 1.4;
     vec3 ceilMirror = uUnderwaterAmbient * 0.85;
     float ceilWeb = waterCausticWeb(ceilXZ, uTime * 0.001);
     vec3 ceilColor = mix(ceilMirror, ceilSky, ceilWindow);
-    ceilColor += uSunColor * ceilWeb * uSunlightIntensity
+    ceilColor += uSunColor * ceilWeb * sunBeam
       * ${WATER_OPTICS.undersideWebStrength.toFixed(4)} * mix(0.45, 1.0, ceilWindow);
     outgoingLight.rgb = mix(outgoingLight.rgb, ceilColor, 0.88);
     diffuseColor.a = max(diffuseColor.a, mix(

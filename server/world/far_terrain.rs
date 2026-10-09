@@ -1,13 +1,13 @@
 //! Coarse far-terrain tiles.
 //!
 //! A game registers a [`FarTerrainSampler`] that answers, for one tile of the
-//! world at low resolution, the surface height and a colour class per sample
-//! without generating chunks. Clients ask for tiles with the
+//! world at low resolution, the surface height and a material class per
+//! sample without generating chunks. Clients ask for tiles with the
 //! [`FAR_TERRAIN_METHOD`] method and get each tile back as a method reply on
 //! the bulk lane, the lane chunk data rides. The engine owns the plumbing:
 //! the request shape, per-client rate limiting, a bounded tile cache, and a
 //! worker thread so sampling never runs on the tick thread. What a sample
-//! means (which generator, which colours) is the game's.
+//! means (which generator, which blocks each class is made of) is the game's.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -27,9 +27,50 @@ use crate::{
 /// The method a client calls for tiles, and the name of each reply.
 pub const FAR_TERRAIN_METHOD: &str = "vox-builtin:far-terrain";
 
+/// The blocks one material class is made of, so the client paints the far
+/// layer from the same textures (and climate tint) as the chunks it
+/// continues. Ids are registry block ids.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FarTerrainMaterial {
+    /// The block whose upward face is the class's ground.
+    pub top: u32,
+    /// The block under it: walls show `top`'s side face on their highest
+    /// block, this block's for `side_depth` blocks below, and `deep`
+    /// under that, as a column of terrain does.
+    pub side: u32,
+    /// The block under the side block (rock under soil); `side` when none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deep: Option<u32>,
+    /// Blocks of `side` before `deep` starts; the client takes 3 when none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side_depth: Option<u8>,
+    /// Blocks that hide part of the ground seen from above (a canopy, a
+    /// snow layer, an outcrop), each with the share of the ground it hides;
+    /// the shares sum to at most 1 and `top` shows through the rest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covers: Vec<FarTerrainCover>,
+}
+
+/// One block over part of a material's ground.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FarTerrainCover {
+    pub block: u32,
+    /// Share of the ground it hides, 0..=1.
+    pub share: f32,
+}
+
+/// A tree species the far layer draws crowns of: the block its crown is
+/// made of and the log it stands on.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FarTerrainTree {
+    pub leaves: u32,
+    pub log: u32,
+}
+
 /// What the server tells every client about its far terrain in the INIT
 /// options (`farTerrain`); `None` means the world has no far layer.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FarTerrainDescriptor {
     /// Blocks between samples at the finest level; each coarser level
@@ -43,6 +84,20 @@ pub struct FarTerrainDescriptor {
     /// The y the far water plane sits at: the top face of the sea's top
     /// block.
     pub water_surface: f32,
+    /// What each material class is made of, indexed by the class a sample
+    /// carries. Empty leaves the colours to the client's own palette.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub materials: Vec<FarTerrainMaterial>,
+    /// The class floating land is painted with, when there is any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sky_material: Option<u8>,
+    /// The class of the floor under the sea: shallow far water shows its
+    /// colour through it, as clear water over sand does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seabed_material: Option<u8>,
+    /// The species a tile's canopy samples name, by index.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trees: Vec<FarTerrainTree>,
 }
 
 /// One tile's samples, row-major by z then x: index `j * size + i` is the
@@ -51,11 +106,22 @@ pub struct FarTerrainDescriptor {
 pub struct FarTerrainTile {
     /// The y of the top face of each surface column.
     pub heights: Vec<u16>,
-    /// A colour class per sample; the game's client maps it to a colour.
+    /// A material class per sample, indexing the descriptor's `materials`
+    /// (or the client's palette when the descriptor names none).
     pub colors: Vec<u8>,
     /// Floating land over each sample as `(top, bottom)` pairs, both 0
     /// where there is none. `None` when the world has no floating land.
     pub sky: Option<Vec<u16>>,
+    /// An RGB multiplier per sample for the faces a block opts into
+    /// regional colour (its `stage_tint_mask`), 128 meaning unchanged: the
+    /// encoding of a chunk's `biome_tints`. `None` tints nothing.
+    pub tints: Option<Vec<u8>>,
+    /// The tree crowns over each sample's cell as `(top, bottom, cover,
+    /// kind)`: the crown's top and underside in blocks above the sample's
+    /// surface, the share of the cell crowns cover (255 all of it), and the
+    /// species (an index into the descriptor's `trees`) with bit 7 set on
+    /// the cell its trunk stands in. `None` when the world draws no trees.
+    pub canopy: Option<Vec<u8>>,
 }
 
 /// The game's coarse generator query.
@@ -126,6 +192,12 @@ pub struct FarTerrainReply {
     /// u16 LE `(top, bottom)` per sample, or absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sky: Option<String>,
+    /// u8 RGB per sample, or absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tints: Option<String>,
+    /// u8 `(top, bottom, cover, kind)` per sample, or absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canopy: Option<String>,
 }
 
 impl FarTerrainReply {
@@ -147,6 +219,8 @@ impl FarTerrainReply {
             heights: u16s(&tile.heights),
             colors: engine.encode(&tile.colors),
             sky: tile.sky.as_deref().map(u16s),
+            tints: tile.tints.as_deref().map(|tints| engine.encode(tints)),
+            canopy: tile.canopy.as_deref().map(|canopy| engine.encode(canopy)),
         }
     }
 
@@ -258,7 +332,8 @@ impl FarTerrain {
         for index in 0..2 {
             let worker = TileWorker {
                 sampler: Arc::clone(&sampler),
-                descriptor,
+                base_step: descriptor.base_step,
+                tile_samples: descriptor.tile_samples,
                 cache: Arc::clone(&cache),
                 receiver: receiver.clone(),
             };
@@ -278,8 +353,8 @@ impl FarTerrain {
         }
     }
 
-    pub fn descriptor(&self) -> FarTerrainDescriptor {
-        self.descriptor
+    pub fn descriptor(&self) -> &FarTerrainDescriptor {
+        &self.descriptor
     }
 
     pub fn limits(&self) -> FarTerrainLimits {
@@ -361,7 +436,8 @@ impl FarTerrain {
 
 struct TileWorker {
     sampler: Arc<dyn FarTerrainSampler>,
-    descriptor: FarTerrainDescriptor,
+    base_step: u16,
+    tile_samples: u16,
     cache: Arc<Mutex<FarTileCache>>,
     receiver: Receiver<Job>,
 }
@@ -370,8 +446,8 @@ impl TileWorker {
     fn run(self) {
         while let Ok(job) = self.receiver.recv() {
             let tile = self.tile(job.key);
-            let step = self.descriptor.base_step << job.key.level;
-            let reply = FarTerrainReply::new(job.key, step, self.descriptor.tile_samples, &tile);
+            let step = self.base_step << job.key.level;
+            let reply = FarTerrainReply::new(job.key, step, self.tile_samples, &tile);
             // A closed socket is a client that left; nothing to report.
             let _ = job.sender.send_bulk(encode_message(&reply.message()));
         }
@@ -386,8 +462,8 @@ impl TileWorker {
         {
             return tile;
         }
-        let step = (self.descriptor.base_step as i32) << key.level;
-        let size = self.descriptor.tile_samples as usize;
+        let step = (self.base_step as i32) << key.level;
+        let size = self.tile_samples as usize;
         let tile = Arc::new(
             self.sampler
                 .sample_tile(key.level, key.tx, key.tz, step, size),
@@ -409,7 +485,7 @@ impl World {
         descriptor: FarTerrainDescriptor,
         limits: FarTerrainLimits,
     ) {
-        self.write_resource::<super::WorldConfig>().far_terrain = Some(descriptor);
+        self.write_resource::<super::WorldConfig>().far_terrain = Some(descriptor.clone());
         self.ecs_mut()
             .insert(FarTerrain::new(sampler, descriptor, limits));
         self.set_method_handle("vox-builtin:far-terrain", |world, client_id, payload| {
@@ -459,18 +535,25 @@ mod tests {
             let origin_z = tz * (size as i32 - 1) * step;
             let mut heights = Vec::with_capacity(size * size);
             let mut colors = Vec::with_capacity(size * size);
+            let mut tints = Vec::with_capacity(size * size * 3);
             for j in 0..size as i32 {
                 for i in 0..size as i32 {
                     let x = origin_x + i * step;
                     let z = origin_z + j * step;
                     heights.push((100 + (x + z).rem_euclid(50)) as u16);
                     colors.push(level);
+                    tints.extend_from_slice(&[128, (x.rem_euclid(256)) as u8, 255]);
                 }
             }
+            let canopy = (0..size * size)
+                .flat_map(|at| [9, 3, 255, (at % 2) as u8 | if at == 0 { 0x80 } else { 0 }])
+                .collect();
             FarTerrainTile {
                 heights,
                 colors,
                 sky: None,
+                tints: Some(tints),
+                canopy: Some(canopy),
             }
         }
     }
@@ -481,6 +564,10 @@ mod tests {
             tile_samples: 33,
             levels: 3,
             water_surface: 86.9,
+            materials: Vec::new(),
+            sky_material: None,
+            seabed_material: None,
+            trees: Vec::new(),
         }
     }
 
@@ -514,8 +601,29 @@ mod tests {
             tile.colors
         );
         assert!(back.sky.is_none());
-        // 33x33 samples: 2178 height bytes + 1089 colour bytes in base64, under 5 KB on the wire.
-        assert!(json.len() < 5000, "reply is {} bytes", json.len());
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(back.tints.as_deref().expect("tints ride the reply"))
+                .unwrap(),
+            tile.tints.clone().unwrap()
+        );
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(back.canopy.as_deref().expect("the canopy rides the reply"))
+                .unwrap(),
+            tile.canopy.clone().unwrap()
+        );
+        // 33x33 samples: 2178 height bytes, 1089 class bytes, 3267 tint
+        // bytes and 4356 canopy bytes in base64, under 15.5 KB on the wire.
+        assert!(json.len() < 15500, "reply is {} bytes", json.len());
+        let bare = FarTerrainTile {
+            tints: None,
+            canopy: None,
+            ..tile
+        };
+        let json = serde_json::to_string(&FarTerrainReply::new(key, 16, 33, &bare)).unwrap();
+        assert!(!json.contains("tints"), "an untinted tile sends no tint field");
+        assert!(!json.contains("canopy"), "a treeless tile sends no canopy field");
     }
 
     #[test]
@@ -693,5 +801,51 @@ mod tests {
         assert!(json.contains("\"tileSamples\":33"));
         assert!(json.contains("\"levels\":3"));
         assert!(json.contains("\"waterSurface\":86.9"));
+        assert!(
+            !json.contains("materials") && !json.contains("skyMaterial"),
+            "a palette-only world sends neither"
+        );
+        let painted = FarTerrainDescriptor {
+            materials: vec![
+                FarTerrainMaterial {
+                    top: 2,
+                    side: 1,
+                    deep: None,
+                    side_depth: None,
+                    covers: Vec::new(),
+                },
+                FarTerrainMaterial {
+                    top: 2,
+                    side: 3,
+                    deep: Some(5),
+                    side_depth: Some(4),
+                    covers: vec![
+                        FarTerrainCover {
+                            block: 40,
+                            share: 0.5,
+                        },
+                        FarTerrainCover {
+                            block: 41,
+                            share: 0.25,
+                        },
+                    ],
+                },
+            ],
+            sky_material: Some(1),
+            trees: vec![FarTerrainTree {
+                leaves: 41,
+                log: 42,
+            }],
+            ..descriptor()
+        };
+        let json = serde_json::to_string(&painted).unwrap();
+        assert!(json.contains("\"materials\":[{\"top\":2,\"side\":1}"));
+        assert!(json.contains(
+            "{\"top\":2,\"side\":3,\"deep\":5,\"sideDepth\":4,\"covers\":[{\"block\":40,\"share\":0.5},{\"block\":41,\"share\":0.25}]}"
+        ));
+        assert!(json.contains("\"skyMaterial\":1"));
+        assert!(json.contains("\"trees\":[{\"leaves\":41,\"log\":42}]"));
+        let back: FarTerrainDescriptor = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, painted);
     }
 }

@@ -188,6 +188,9 @@ export class Sky extends CanvasBox {
   public uCelestialDirection = { value: new Vector3(0, 1, 0) };
   public uSunColor = { value: new Color(1, 1, 1) };
   public uSunlightIntensity = { value: 1 };
+  /** The share of the disc's light that reaches the world as a beam (the
+   * chunk renderer's `directSunlight`): a veiled disc is not drawn. */
+  public uDirectSunlight = { value: 1 };
 
   public shadingData: SkyShadingCycleData[] = [];
 
@@ -476,6 +479,7 @@ export class Sky extends CanvasBox {
         uCelestialDirection: this.uCelestialDirection,
         uSunColor: this.uSunColor,
         uSunlightIntensity: this.uSunlightIntensity,
+        uDirectSunlight: this.uDirectSunlight,
       },
       vertexShader: SkyVertexShader,
       fragmentShader: SkyFragmentShader,

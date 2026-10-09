@@ -65,14 +65,35 @@ export type {
   SessionOriginCursor,
   SessionOriginParent,
 } from "./session-meta";
+export { AuthUrlError, signInThrough } from "./auth-url";
+export type { AuthPage, AuthResponse } from "./auth-url";
 export {
+  AUTH_FAILED_EXIT_CODE,
+  AUTH_FAILED_LOG_MARKER,
   DEFAULT_IDLE_TTL_MS,
   IDLE_TTL_EXIT_CODE,
   MOUNT_FAILED_EXIT_CODE,
+  PAGE_UNAVAILABLE_EXIT_CODE,
   agentPidFile,
   resolveIdleTtlMs,
   watchdogLogFile,
 } from "./browser-lifecycle";
+export {
+  DEFAULT_NAVIGATION_RETRY_MS,
+  PageUnavailableError,
+  classifyDocumentStatus,
+  findPageUnavailableLine,
+  formatPageUnavailable,
+  isTransientLoadError,
+  openPage,
+  parsePageUnavailableLine,
+  resolveNavigationRetryMs,
+} from "./page-availability";
+export type {
+  PageLoad,
+  PageUnavailable,
+  PageUnavailableLine,
+} from "./page-availability";
 export * from "./bridge";
 export { formatProfileSummary, summarizeProfile } from "./profile-summary";
 export type {

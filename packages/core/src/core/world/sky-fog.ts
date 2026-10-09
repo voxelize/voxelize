@@ -27,6 +27,11 @@ uniform float uChunkReveal;
 // 0 outdoors (fog by horizontal distance), rising to 1 under deep cover so a
 // tall cave ceiling hazes with its true distance like the walls do.
 uniform float uFogVerticalBlend;
+// The share of the sun reaching the world as a beam (directSunlight in
+// chunk-renderer.ts): glints, caustics, the sun's glitter through a water
+// surface and the sun's halo in the haze scale by it; diffuse daylight does
+// not.
+uniform float uDirectSunlight;
 ${UNDERWATER_FOG_UNIFORM_DECLARATIONS}
 `;
 
@@ -80,10 +85,11 @@ vec3 fogTint = mix(uFogColor, skyColor, uSkyFogStrength);
 
 // The sun's halo in the haze belongs to open air: under rock (the same
 // cover that switches the fog to true 3D distance) there is no sun to see
-// through the walls, and the halo lit far cave walls pale blue-white.
+// through the walls, and the halo lit far cave walls pale blue-white. It is
+// the beam's: under cloud it thins and in rain it is gone.
 float sunAlignment = pow(max(0.0, dot(fogRay, uSunDirection)), 6.0);
-fogTint += uSunColor * sunAlignment * uSunlightIntensity * uSkyFogStrength * 0.35
-  * (1.0 - uFogVerticalBlend);
+fogTint += uSunColor * sunAlignment * uSunlightIntensity * uDirectSunlight
+  * uSkyFogStrength * 0.35 * (1.0 - uFogVerticalBlend);
 
 float effectiveFogFactor = mix(1.0, fogFactor * (1.0 - uCameraSubmersion), ${revealExpression});
 gl_FragColor.rgb = ${isEmission ? "gl_FragColor.rgb * (1.0 - effectiveFogFactor)" : "mix(gl_FragColor.rgb, fogTint, effectiveFogFactor)"};

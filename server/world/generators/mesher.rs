@@ -64,6 +64,14 @@ impl Mesher {
         self.queue.retain(|c| c != coords);
     }
 
+    /// Drop a queued mesh nobody wants any more. A mesh already running is
+    /// left to land: forgetting it would throw the result away. The chunk
+    /// otherwise stays parked at `Meshing`, which neighbors treat as done and
+    /// a later request revives.
+    pub fn drop_queued(&mut self, coords: &Vec2<i32>) {
+        self.queue.retain(|c| c != coords);
+    }
+
     /// Forgets every chunk queued for meshing. Pairs with wiping the chunk map,
     /// where the geometry these entries describe no longer exists.
     pub fn clear(&mut self) {

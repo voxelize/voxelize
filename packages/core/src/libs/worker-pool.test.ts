@@ -182,6 +182,96 @@ const runJob = (pool: WorkerPool): Promise<{ name?: string }> =>
     }),
   );
 
+const READY = "worker-ready";
+
+/**
+ * Starts like the mesh worker: `init` instantiates something asynchronously
+ * and then reports ready, a job that arrives before that has finished is
+ * answered with nothing, and a job that traps asks for a replacement.
+ */
+class AsyncStartWorker extends EventTarget implements Worker {
+  static spawned: AsyncStartWorker[] = [];
+
+  onmessage: Worker["onmessage"] = null;
+  onmessageerror: Worker["onmessageerror"] = null;
+  onerror: Worker["onerror"] = null;
+
+  private isStarted = false;
+
+  constructor() {
+    super();
+    AsyncStartWorker.spawned.push(this);
+  }
+
+  private reply(data: unknown) {
+    queueMicrotask(() =>
+      this.dispatchEvent(new MessageEvent("message", { data })),
+    );
+  }
+
+  postMessage(message: { type?: string; traps?: boolean; rerun?: boolean }) {
+    if (message.type === "init") {
+      setTimeout(() => {
+        this.isStarted = true;
+        this.reply({ type: READY });
+      }, 5);
+      return;
+    }
+    if (!this.isStarted) {
+      this.reply({ geometries: [] });
+      return;
+    }
+    // A registry update mid-job: the worker reports ready again first.
+    if (message.rerun) this.reply({ type: READY });
+    this.reply(
+      message.traps
+        ? { geometries: null, isWorkerPoisoned: true }
+        : { geometries: ["mesh"] },
+    );
+  }
+
+  terminate(): void {}
+}
+
+const runMesh = (pool: WorkerPool, message: object = {}) =>
+  new Promise((resolve) => pool.addJob({ message, resolve }));
+
+describe("WorkerPool ready handshake", () => {
+  it("hands no job to a worker, first or replacement, until it reports ready", async () => {
+    AsyncStartWorker.spawned = [];
+    const pool = new WorkerPool(AsyncStartWorker, {
+      maxWorker: 1,
+      readyMessageType: READY,
+    });
+    pool.postMessage({ type: "init" });
+
+    expect(await runMesh(pool)).toEqual({ geometries: ["mesh"] });
+    expect(await runMesh(pool, { traps: true })).toEqual({
+      geometries: null,
+      isWorkerPoisoned: true,
+    });
+    // The trap swapped in a fresh worker with init replayed; the next job
+    // has to wait for it to finish starting, not mesh to nothing.
+    expect(AsyncStartWorker.spawned).toHaveLength(2);
+    expect(pool.workingCount).toBe(0);
+    expect(await runMesh(pool)).toEqual({ geometries: ["mesh"] });
+    pool.terminate();
+  });
+
+  it("never takes a repeated ready report for a job's answer", async () => {
+    const pool = new WorkerPool(AsyncStartWorker, {
+      maxWorker: 1,
+      readyMessageType: READY,
+    });
+    pool.postMessage({ type: "init" });
+
+    expect(await runMesh(pool, { rerun: true })).toEqual({
+      geometries: ["mesh"],
+    });
+    pool.terminate();
+  });
+});
+
 describe("WorkerPool worker reuse", () => {
   it("hands a light load to the worker released last instead of rotating", async () => {
     EchoWorker.spawned = [];
@@ -192,63 +282,5 @@ describe("WorkerPool worker reuse", () => {
 
     expect(new Set(names)).toEqual(new Set(["echo-0"]));
     pool.terminate();
-  });
-});
-
-describe("WorkerPool.recycleIdleWorkers", () => {
-  it("replaces only idle workers that have run a job", async () => {
-    EchoWorker.spawned = [];
-    const pool = new WorkerPool(EchoWorker, { maxWorker: 3, name: "echo" });
-    const [first] = EchoWorker.spawned;
-
-    await runJob(pool);
-    expect(pool.recycleIdleWorkers()).toBe(1);
-
-    expect(first.isTerminated).toBe(true);
-    expect(EchoWorker.spawned).toHaveLength(4);
-    expect(EchoWorker.spawned[3].workerOptions?.name).toBe("echo-0");
-    // A fresh worker has nothing to hand back.
-    expect(pool.recycleIdleWorkers()).toBe(0);
-    pool.terminate();
-  });
-
-  it("leaves a busy worker alone", () => {
-    const pool = new WorkerPool(SilentWorker, { maxWorker: 2 });
-    pool.addJob(makeJob(0, []));
-
-    expect(pool.recycleIdleWorkers()).toBe(0);
-    expect(pool.workingCount).toBe(1);
-    pool.terminate();
-  });
-
-  it("replays broadcasts onto replacements, at most maxReplays of them", async () => {
-    EchoWorker.spawned = [];
-    const pool = new WorkerPool(EchoWorker, { maxWorker: 2, name: "echo" });
-    pool.postMessage({ type: "init" });
-    // Two jobs in flight together, so both workers have served.
-    await Promise.all([runJob(pool), runJob(pool)]);
-
-    expect(pool.recycleIdleWorkers(1)).toBe(1);
-    const replacement = EchoWorker.spawned[2];
-    expect(replacement.received).toEqual([{ type: "init" }]);
-    expect(pool.recycleIdleWorkers(1)).toBe(1);
-    expect(pool.recycleIdleWorkers(1)).toBe(0);
-    pool.terminate();
-  });
-
-  it("reaches every live pool, and no terminated one", async () => {
-    EchoWorker.spawned = [];
-    const a = new WorkerPool(EchoWorker, { maxWorker: 1, name: "a" });
-    const b = new WorkerPool(EchoWorker, { maxWorker: 1, name: "b" });
-    const gone = new WorkerPool(EchoWorker, { maxWorker: 1, name: "gone" });
-    await Promise.all([runJob(a), runJob(b), runJob(gone)]);
-    gone.terminate();
-
-    expect(WorkerPool.recycleIdleWorkersEverywhere()).toEqual({
-      pools: 2,
-      workers: 2,
-    });
-    a.terminate();
-    b.terminate();
   });
 });

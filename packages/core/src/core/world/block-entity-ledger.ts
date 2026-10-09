@@ -33,6 +33,11 @@ export class BlockEntityLedger<T> {
     return this.byVoxel.get(voxelId);
   }
 
+  /** Every entry, by voxel. */
+  entries(): IterableIterator<[string, BlockEntityLedgerEntry<T>]> {
+    return this.byVoxel.entries();
+  }
+
   /**
    * Record a create or update. A later record for the same voxel replaces
    * the earlier one — the listeners want the latest data, once — and a

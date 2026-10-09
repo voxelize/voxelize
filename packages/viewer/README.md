@@ -69,6 +69,83 @@ source names. Overlays are drawn in a composite pass that reconstructs each
 pixel's world position from depth, so they lie on near meshes and far tiles
 alike.
 
+## Camera
+
+Drag to orbit, right-drag (or Shift-drag) to pan, wheel to zoom, WASD to
+move, Space and Shift to rise and sink, Q and E to turn a quarter. In the
+free preset WASD keeps the camera's height (`levelFlight`; off flies along
+the view).
+
+The camera's height only changes because of something the user did. Once
+he pans, the look point follows the ground under it, read as the median of
+a footprint that scales with the view, so a tree, a pillar or a cliff step
+does not register, and eases there; at rest it ignores the heightfield
+refining as tiles stream in, unless the ground turns out to be a sizeable
+share of the view away. In the orbit preset the eye keeps a clearance over
+the ground beneath it, eased the same way. All of it is a critically
+damped spring solved per elapsed second (`dampTo` in `src/smoothing.ts`),
+so it moves the same at 30 frames a second as at 144. `smoothing` (seconds
+to cover 90% of a height change; 0 snaps, as the first version did) is a
+user option; `ViewerHost.camera` tunes the rest (`DEFAULT_CAMERA_FEEL`:
+footprint, dead bands, clearance, flight timing).
+
+Double-click a spot to fly there: the ground under the cursor is ray
+marched, then the camera eases (smootherstep, no overshoot, 0.6 to 1.2 s
+by distance) to frame it, closing in a step as a map does, in whatever
+preset it is in; on the top-down and isometric maps that is "zoom in
+here". Alt keeps the zoom. Any input during a flight stops it where it
+is. Bookmarks fly the same way, widening the frame mid-way when the trip
+is longer than the view.
+
+```ts
+viewer.flyTo([x, y, z]);                   // y may be null: the ground there
+viewer.flyToPose(pose, "orbit", { duration: 1 });
+window.__voxelizeViewer.flyTo(x, null, z); // the control surface; also pick(px, py), cancelFlight()
+```
+
+```bash
+voxelize-viewer --config my.config.ts fly-to 120,40         # the headless page's camera, as a double-click
+voxelize-viewer --config my.config.ts shot --bookmark a --fly-to 120,64,40
+```
+
+## Pins and the action wheel
+
+Click the terrain to drop a pin: a voxel banner (a pole, a brass finial
+and a lettered cloth, built from boxes at 16 texels per block and lit by
+the chunk shader's own daylight) with a tag over it and a card of what
+the source knows about the column (block, height, and whatever the host's
+`pins.describe` reads from its query). A double-click that follows takes
+the pin back and flies there instead; a drag still orbits.
+
+Click a pin, right-click anywhere, or hold a pin or the right button to
+open the action wheel at the cursor: a ring of 16x16 pixel icons round a
+centre, a label under it. Opened by a click it waits for a click, a key
+(each action's letter, or 1 to 8) or Esc; opened by a hold it follows the
+flick and fires the highlighted action on release. Everything in it moves
+in whole steps. The built-in actions: Spawn here (the host's `shareLink`
+for a player standing on the pin, facing the camera's heading), Fly here,
+Look from here (eye height at the pin), Measure (to another pin: run,
+rise, slope), Bookmark (saved with the viewer server next to the
+config's), Copy share link, Copy coordinates, Remove, and Pin here over
+bare ground. A host adds its own with `pins.actions`.
+
+`ViewerHost.theme` dresses all of it (panel colours, bevels, accent, a
+pixel font, banner colours and an icon per action id); without one it
+uses `DEFAULT_THEME` and built-in icons. Pins live in the page URL
+(`pins=label:x,y,z;...`).
+
+```ts
+window.__voxelizeViewer.dropPin(x, null, z, { label: "camp" });
+window.__voxelizeViewer.pinAction("camp", "spawn");          // { link, pose }
+window.__voxelizeViewer.pinAction("camp", "measure", { to: "B" });
+```
+
+```bash
+voxelize-viewer --config my.config.ts pin 120,40 --label camp
+voxelize-viewer --config my.config.ts pin-action camp spawn
+voxelize-viewer --config my.config.ts pins
+```
+
 ## Hosting it
 
 A config module default-exports `{ port, server }` (`ViewerConfigModule`):

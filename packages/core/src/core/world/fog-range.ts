@@ -33,6 +33,13 @@ export type FogRangeInputs = {
    * starts. Defaults to `0.6`.
    */
   farTerrainFogNearRatio?: number;
+  /**
+   * With the far layer on, where fog closes as a multiple of its reach.
+   * Past 1 the far layer's last stretch stays partly clear and the layer
+   * thins into the haze itself (`FarTerrainOptions.edgeBand`). Defaults to
+   * `1`, fog closing at the reach.
+   */
+  farTerrainFogFarRatio?: number;
 };
 
 /**
@@ -48,6 +55,7 @@ export function computeFogRange({
   fogDistance,
   farTerrainDistance = 0,
   farTerrainFogNearRatio = 0.6,
+  farTerrainFogFarRatio = 1,
 }: FogRangeInputs): WorldFogRange {
   const renderDistance = renderRadius * chunkSize;
   const hasFarLayer = farTerrainDistance > renderDistance;
@@ -59,7 +67,7 @@ export function computeFogRange({
       // the haze and dissolves at its own edge.
       return {
         near: renderDistance * farTerrainFogNearRatio,
-        far: farTerrainDistance,
+        far: farTerrainDistance * Math.max(1, farTerrainFogFarRatio),
       };
     }
     return {

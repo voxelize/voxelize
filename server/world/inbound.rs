@@ -186,9 +186,15 @@ impl World {
 
             drop(interests);
 
+            // Nobody wants these any more: drop their queued stages and
+            // meshes, but let work already running land on the chunk, and
+            // keep the stages of a chunk a neighbor is waiting on. Pulling
+            // in-flight work out threw its result away and left neighbors
+            // waiting on a stage nothing would run.
             to_remove.into_iter().for_each(|coords| {
-                self.pipeline_mut().remove_chunk(coords);
-                self.mesher_mut().remove_chunk(coords);
+                let is_awaited = self.chunks().listeners.contains_key(coords);
+                self.pipeline_mut().release_unwanted(coords, is_awaited);
+                self.mesher_mut().drop_queued(coords);
             })
         }
     }

@@ -54,6 +54,15 @@ export type WorkerPoolOptions = {
    * treat a `null` result as a retryable failure.
    */
   maxQueuedJobs?: number;
+
+  /**
+   * The `type` of the message a worker posts once its start-up has finished,
+   * for workers whose start-up is asynchronous (a wasm module instantiating
+   * on `init`). Until a worker has posted it the pool hands it no job, a
+   * replacement included, and a job's reply is never mistaken for it.
+   * Without it a worker takes jobs as soon as it exists.
+   */
+  readyMessageType?: string;
 };
 
 const defaultOptions: WorkerPoolOptions = {
@@ -95,12 +104,6 @@ export class WorkerPool {
   static WORKING_COUNT = 0;
 
   /**
-   * Every pool in this realm that has not been terminated, so pressure on
-   * the renderer can reach all of their workers at once.
-   */
-  private static livePools = new Set<WorkerPool>();
-
-  /**
    * The list of workers in the pool.
    */
   private workers: Worker[] = [];
@@ -111,11 +114,11 @@ export class WorkerPool {
   private available: number[] = [];
 
   /**
-   * Whether the worker in each slot has run a job since it was spawned. A
-   * worker that has not is still at its smallest; replacing it would only
-   * pay its start-up again.
+   * Whether each slot's worker has finished starting (see
+   * {@link WorkerPoolOptions.readyMessageType}); one still starting is in
+   * neither `available` nor flight.
    */
-  private hasServedSinceSpawn: boolean[] = [];
+  private isReady: boolean[] = [];
 
   /**
    * Broadcast messages (worker init/registry state), replayed onto
@@ -142,11 +145,33 @@ export class WorkerPool {
         : undefined;
       const worker = new Proto(workerOptions);
       this.workers.push(worker);
-      this.available.push(i);
-      this.hasServedSinceSpawn.push(false);
+      if (options.readyMessageType === undefined) {
+        this.isReady.push(true);
+        this.available.push(i);
+      } else {
+        this.isReady.push(false);
+        this.joinWhenReady(i, worker);
+      }
     }
-    WorkerPool.livePools.add(this);
   }
+
+  /**
+   * Puts a slot's worker into `available` once it posts the ready message.
+   * The slot is out of flight by then: a replacement is swapped in by a job's
+   * own settling, whose cleanup leaves a starting worker's slot alone.
+   */
+  private joinWhenReady = (index: number, worker: Worker) => {
+    const { readyMessageType } = this.options;
+    const onMessage = ({ data }: MessageEvent) => {
+      if (data?.type !== readyMessageType) return;
+      worker.removeEventListener("message", onMessage);
+      if (this.workers[index] !== worker) return;
+      this.isReady[index] = true;
+      this.available.unshift(index);
+      this.process();
+    };
+    worker.addEventListener("message", onMessage);
+  };
 
   /**
    * Append a new job to be executed by a worker.
@@ -201,56 +226,8 @@ export class WorkerPool {
     }
   };
 
-  /**
-   * Replace the idle workers that have run jobs with fresh ones. Every worker
-   * is a V8 isolate, and every isolate in a renderer (the page and all of its
-   * workers) draws its heap from one shared pointer-compression cage of about
-   * 4 GB, whatever heap limit each isolate reports. A worker's heap grows with
-   * the jobs it runs and is not handed back while the isolate lives, so
-   * terminating it is the one way to return that memory. A replacement gets
-   * the pool's broadcasts replayed and is indistinguishable from the
-   * original; busy workers are left alone.
-   *
-   * @param maxReplays At most this many replacements in a pool that has
-   * broadcasts to replay: each replay structured-clones them on the calling
-   * thread. A pool without broadcasts replaces every idle worker.
-   * @returns The number of workers replaced.
-   */
-  recycleIdleWorkers = (maxReplays = Number.POSITIVE_INFINITY): number => {
-    const isReplaying = this.broadcastMessages.length > 0;
-    let recycled = 0;
-    for (const index of this.available) {
-      if (!this.hasServedSinceSpawn[index]) continue;
-      if (isReplaying && recycled >= maxReplays) break;
-      this.replaceWorker(index);
-      recycled++;
-    }
-    return recycled;
-  };
-
-  /**
-   * {@link WorkerPool.recycleIdleWorkers} across every live pool in this
-   * realm.
-   *
-   * @returns How many workers were replaced, in how many pools.
-   */
-  static recycleIdleWorkersEverywhere(
-    maxReplaysPerPool = Number.POSITIVE_INFINITY,
-  ): { pools: number; workers: number } {
-    let pools = 0;
-    let workers = 0;
-    for (const pool of WorkerPool.livePools) {
-      const recycled = pool.recycleIdleWorkers(maxReplaysPerPool);
-      if (recycled === 0) continue;
-      pools++;
-      workers += recycled;
-    }
-    return { pools, workers };
-  }
-
   terminate = () => {
     const activeWorkers = this.workingCount;
-    WorkerPool.livePools.delete(this);
 
     for (const worker of this.workers) {
       worker.terminate();
@@ -263,6 +240,7 @@ export class WorkerPool {
     this.queue = [];
     this.workers = [];
     this.available = [];
+    this.isReady = [];
   };
 
   /**
@@ -273,11 +251,11 @@ export class WorkerPool {
     if (this.queue.length !== 0 && this.available.length > 0) {
       // The worker released last takes the job, so a light load keeps one
       // worker warm and leaves the rest at the small heaps they started
-      // with (see recycleIdleWorkers): rotating through every idle worker
-      // grew all of their heaps for a load one could carry.
+      // with: every worker is an isolate drawing on the renderer's one
+      // shared heap cage, and rotating through every idle worker grew all of
+      // their heaps for a load one could carry.
       const index = this.available.shift() as number;
       const worker = this.workers[index];
-      this.hasServedSinceSpawn[index] = true;
 
       const { message, buffers, resolve, timeoutMs } =
         this.queue.shift() as WorkerPoolJob;
@@ -291,13 +269,22 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         worker.removeEventListener("error", workerError);
         worker.removeEventListener("messageerror", workerError);
-        this.available.unshift(index);
+        // A replacement still starting rejoins when it reports ready.
+        if (this.isReady[index]) this.available.unshift(index);
         if (this.queue.length > 0) {
           queueMicrotask(this.process);
         }
       };
 
       const workerCallback = ({ data }: any) => {
+        // A worker re-running `init` (a registry update) reports ready
+        // again; that is not this job's answer.
+        if (
+          this.options.readyMessageType !== undefined &&
+          data?.type === this.options.readyMessageType
+        ) {
+          return;
+        }
         if (isSettled) return;
         isSettled = true;
         // A wasm trap poisons the worker's module state permanently (see
@@ -370,7 +357,12 @@ export class WorkerPool {
       worker.postMessage(message);
     }
     this.workers[index] = worker;
-    this.hasServedSinceSpawn[index] = false;
+    // The replayed `init` has not run yet; a job handed over now would reach
+    // a worker that cannot serve it (the mesh worker answers with nothing).
+    if (this.options.readyMessageType !== undefined) {
+      this.isReady[index] = false;
+      this.joinWhenReady(index, worker);
+    }
   };
 
   /**
@@ -384,7 +376,11 @@ export class WorkerPool {
    * The number of workers that are simultaneously working.
    */
   get workingCount() {
-    return this.workers.length - this.available.length;
+    let starting = 0;
+    for (let i = 0; i < this.workers.length; i++) {
+      if (!this.isReady[i]) starting++;
+    }
+    return this.workers.length - this.available.length - starting;
   }
 
   /**

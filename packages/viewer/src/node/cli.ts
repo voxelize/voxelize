@@ -36,6 +36,7 @@ commands:
     --top-around x,z[,r]     top-down over a square of half-size r (default 128)
     --iso-around x,z[,r]     isometric over the same
     --preset free|orbit|top|iso
+    --fly-to x,y,z | x,z     after posing, fly to frame that point as a double-click does
     --time F --overlay a,b --toggle key=value (repeatable; water=off, fog=game, plants=off, ...)
     --size WxH --out FILE --label TEXT --timeout SEC
   sheet --title T [--columns N] [--out FILE] --view "<shot options>" [--view ...]
@@ -44,7 +45,15 @@ commands:
                              the whole page as a person sees it, toolbar included
   query --source SPEC x,z [x,z ...]   what the backend knows about columns
   call ACTION [JSON ARGS]    drive the server's headless page (state, setPose, setOptions,
-                             applyOptions, goTo, setPreset, shareLink, waitIdle)
+                             applyOptions, goTo, setPreset, flyTo, shareLink, waitIdle)
+  fly-to x,y,z | x,z [--duration SEC] [--keep-zoom]
+                             fly the headless page's camera there, as a double-click does,
+                             and print where it landed
+  pin x,y,z | x,z [--label L]  drop a pin on the headless page; prints what the source knows there
+  pins                       the headless page's pins
+  pin-action PIN|x,y,z ACTION [--to PIN] [--open]
+                             run a wheel action: spawn, fly, look, measure, bookmark, copy-link,
+                             copy-coords, remove, pin (spawn prints the game link; --open opens it)
   sources SPEC               start (or reuse) a source and print where it came from
   bookmarks | state | stop
 
@@ -62,7 +71,9 @@ function parse(argv: string[]): Parsed {
     const a = argv[i];
     if (a.startsWith("--")) {
       const key = a.slice(2);
-      const isSwitch = ["json", "detach", "help"].includes(key);
+      const isSwitch = ["json", "detach", "help", "keep-zoom", "open"].includes(
+        key,
+      );
       const value = isSwitch ? "true" : argv[++i];
       if (value === undefined) throw new UsageError(`${a} needs a value`);
       flags.set(key, [...(flags.get(key) ?? []), value]);
@@ -73,6 +84,20 @@ function parse(argv: string[]): Parsed {
 }
 
 const one = (p: Parsed, key: string) => p.flags.get(key)?.at(-1);
+
+/** `x,y,z`, or `x,z` for the ground there. */
+function parseFlyPoint(
+  text: string,
+  what: string,
+): [number, number | null, number] {
+  const parts = text.split(",").map(Number);
+  if (parts.some((n) => !Number.isFinite(n))) {
+    throw new UsageError(`${what} needs x,y,z or x,z`);
+  }
+  if (parts.length === 2) return [parts[0], null, parts[1]];
+  if (parts.length === 3) return [parts[0], parts[1], parts[2]];
+  throw new UsageError(`${what} needs x,y,z or x,z`);
+}
 
 const outPath = (p: Parsed) => {
   const out = one(p, "out");
@@ -119,6 +144,8 @@ export function captureRequest(p: Parsed): CaptureRequest {
   }
   const bookmark = one(p, "bookmark");
   if (bookmark) request.bookmark = bookmark;
+  const flyTo = one(p, "fly-to");
+  if (flyTo) request.flyTo = parseFlyPoint(flyTo, "--fly-to");
   const time = one(p, "time");
   if (time) options.push(`time=${time}`);
   const overlay = one(p, "overlay");
@@ -358,6 +385,66 @@ export async function main(argv: string[]) {
               action,
               args: Array.isArray(parsedArgs) ? parsedArgs : [parsedArgs],
             }),
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+      case "fly-to": {
+        const base = await ensureServer(configFile, config, port);
+        const [x, y, z] = parseFlyPoint(p.rest[0] ?? "", "fly-to");
+        const duration = one(p, "duration");
+        const result = await api(base, "/api/session", {
+          action: "flyTo",
+          args: [
+            x,
+            y,
+            z,
+            {
+              ...(duration ? { duration: Number(duration) } : {}),
+              ...(p.flags.has("keep-zoom") ? { keepZoom: true } : {}),
+            },
+          ],
+        });
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      case "pin":
+      case "pins":
+      case "pin-action": {
+        const base = await ensureServer(configFile, config, port);
+        let action: string;
+        let args: unknown[];
+        if (p.command === "pin") {
+          const [x, y, z] = parseFlyPoint(p.rest[0] ?? "", "pin");
+          action = "dropPin";
+          args = [x, y, z, { label: one(p, "label") }];
+        } else if (p.command === "pins") {
+          action = "pins";
+          args = [];
+        } else {
+          const [targetText, name] = p.rest;
+          if (!targetText || !name)
+            throw new UsageError(
+              "pin-action needs a pin (or x,y,z) and an action",
+            );
+          const target = /^-?[\d.]+,/.test(targetText)
+            ? parseFlyPoint(targetText, "pin-action")
+            : targetText;
+          action = "pinAction";
+          args = [
+            target,
+            name,
+            {
+              ...(one(p, "to") ? { to: one(p, "to") } : {}),
+              ...(p.flags.has("open") ? { open: true } : {}),
+            },
+          ];
+        }
+        console.log(
+          JSON.stringify(
+            await api(base, "/api/session", { action, args }),
             null,
             2,
           ),

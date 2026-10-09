@@ -221,6 +221,9 @@ export class CSMRenderer {
    * depth consumer, so the sun's maps and the torches' atlas agree.
    */
   private shadowExclusions: Object3D[] = [];
+
+  /** Whether a host's {@link hideNonCasters} is in effect right now. */
+  private isHidingNonCasters = false;
   /**
    * Objects that are never casters at all, whatever the A/B switch says:
    * hidden by {@link hideNonCasters} even with the exclusion off. See
@@ -636,7 +639,8 @@ export class CSMRenderer {
    * far-terrain layer. Its own shader discards it under the loaded chunks,
    * but a depth pass draws it with the shared depth material and no such
    * test, so it would shade the real ground below it. `castShadow` alone
-   * does not keep it out: the cascades render the whole scene.
+   * does not keep it out: the cascades render the whole scene. Holds
+   * whether or not the host brackets its passes in {@link hideNonCasters}.
    */
   addNeverCaster(object: Object3D) {
     if (!this.neverCasters.includes(object)) {
@@ -663,6 +667,7 @@ export class CSMRenderer {
   hideNonCasters(scene: Scene) {
     const hidden = this.hiddenNonCasters;
     if (hidden.length > 0) this.restoreNonCasters();
+    this.isHidingNonCasters = true;
     for (const object of this.neverCasters) {
       if (object.visible) {
         hidden.push(object);
@@ -698,6 +703,7 @@ export class CSMRenderer {
     const hidden = this.hiddenNonCasters;
     for (let i = 0; i < hidden.length; i++) hidden[i].visible = true;
     hidden.length = 0;
+    this.isHidingNonCasters = false;
   }
 
   render(
@@ -770,6 +776,24 @@ export class CSMRenderer {
       if (object.visible) {
         hiddenObjects.push({ object, visible: true });
         object.visible = false;
+      }
+    }
+    // A host that draws the cascades without bracketing them in
+    // hideNonCasters still keeps every never-caster out.
+    if (!this.isHidingNonCasters) {
+      for (const object of this.neverCasters) {
+        if (object.visible) {
+          hiddenObjects.push({ object, visible: true });
+          object.visible = false;
+        }
+      }
+      const sceneChildren = scene.children;
+      for (let i = 0; i < sceneChildren.length; i++) {
+        const child = sceneChildren[i];
+        if (child.visible && isMarkedNeverCaster(child)) {
+          hiddenObjects.push({ object: child, visible: true });
+          child.visible = false;
+        }
       }
     }
 

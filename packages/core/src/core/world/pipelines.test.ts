@@ -1,11 +1,15 @@
 import { ChunkProtocol } from "@voxelize/protocol";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Coords2 } from "../../types";
 import { ChunkUtils } from "../../utils";
 
 import { Chunk } from "./chunk";
-import { ChunkPipeline, MeshPipeline } from "./pipelines";
+import {
+  ChunkPipeline,
+  MeshPipeline,
+  describeChunkRequestHistory,
+} from "./pipelines";
 
 const options = {
   size: 2,
@@ -176,6 +180,138 @@ describe("ChunkPipeline.isRequestStale", () => {
     pipeline.markRequested([0, 0]);
 
     expect(pipeline.isRequestStale(name, 5000)).toBe(false);
+  });
+});
+
+describe("ChunkPipeline request history", () => {
+  let now = 0;
+  const at = (ms: number) => {
+    now = ms;
+  };
+  const pipelineAtClock = () => {
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    return new ChunkPipeline();
+  };
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps a chunk's first request and counts every attempt across retries", () => {
+    const pipeline = pipelineAtClock();
+    const name = ChunkUtils.getChunkName([0, 0]);
+    at(1_000);
+    pipeline.markRequested([0, 0]);
+
+    at(6_000);
+    pipeline.expireRequest(name);
+    expect(pipeline.getStage(name)).toBeNull();
+    pipeline.markRequested([0, 0]);
+    at(11_000);
+    pipeline.expireRequest(name);
+    pipeline.markRequested([0, 0]);
+
+    expect(pipeline.getRequestHistory(name)).toEqual({
+      firstRequestedAt: 1_000,
+      attempts: 3,
+      lastSentAt: null,
+    });
+    expect(pipeline.getTiming(name)?.requestedAt).toBe(11_000);
+  });
+
+  it("keeps the history of the requests a rejoin drops", () => {
+    const pipeline = pipelineAtClock();
+    const name = ChunkUtils.getChunkName([2, 1]);
+    at(500);
+    pipeline.markRequested([2, 1]);
+    pipeline.markSent([2, 1], 520);
+
+    at(9_000);
+    pipeline.resyncForRejoin();
+    expect(pipeline.getStage(name)).toBeNull();
+    pipeline.markRequested([2, 1]);
+
+    expect(pipeline.getRequestHistory(name)).toEqual({
+      firstRequestedAt: 500,
+      attempts: 2,
+      lastSentAt: 520,
+    });
+  });
+
+  it("records when the latest attempt reached the socket", () => {
+    const pipeline = pipelineAtClock();
+    const name = ChunkUtils.getChunkName([3, 3]);
+    pipeline.markRequested([3, 3]);
+    pipeline.markSent([3, 3], 40);
+    pipeline.expireRequest(name);
+    pipeline.markRequested([3, 3]);
+    expect(pipeline.getRequestHistory(name)?.lastSentAt).toBe(40);
+
+    pipeline.markSent([3, 3], 90);
+    expect(pipeline.getRequestHistory(name)?.lastSentAt).toBe(90);
+  });
+
+  it("forgets the history once data for the chunk arrives", () => {
+    const pipeline = pipelineAtClock();
+    const name = ChunkUtils.getChunkName([0, 1]);
+    pipeline.markRequested([0, 1]);
+
+    pipeline.markProcessing([0, 1], "load", protocolFor([0, 1]));
+
+    expect(pipeline.getRequestHistory(name)).toBeUndefined();
+  });
+
+  it("forgets the history of a chunk that is dropped", () => {
+    const pipeline = pipelineAtClock();
+    const name = ChunkUtils.getChunkName([0, 2]);
+    pipeline.markRequested([0, 2]);
+
+    pipeline.remove(name);
+
+    expect(pipeline.getRequestHistory(name)).toBeUndefined();
+  });
+
+  it("reports a request unanswered past the threshold once per interval", () => {
+    const pipeline = pipelineAtClock();
+    const name = ChunkUtils.getChunkName([-10, -5]);
+    at(0);
+    pipeline.markRequested([-10, -5]);
+    pipeline.markSent([-10, -5], 10);
+
+    expect(pipeline.takeOverdueRequests(59_999, 60_000)).toEqual([]);
+    expect(pipeline.takeOverdueRequests(60_000, 60_000)).toEqual([
+      { name, firstRequestedAt: 0, attempts: 1, lastSentAt: 10 },
+    ]);
+    expect(pipeline.takeOverdueRequests(60_001, 60_000)).toEqual([]);
+    expect(pipeline.takeOverdueRequests(120_000, 60_000)).toHaveLength(1);
+  });
+
+  it("forgets requests the caller no longer wants, between attempts too", () => {
+    const pipeline = pipelineAtClock();
+    const near = ChunkUtils.getChunkName([1, 1]);
+    const far = ChunkUtils.getChunkName([40, 40]);
+    pipeline.markRequested([1, 1]);
+    pipeline.markRequested([40, 40]);
+    pipeline.expireRequest(far);
+
+    pipeline.forgetRequestsWhere((name) => name === far);
+
+    expect(pipeline.getRequestHistory(far)).toBeUndefined();
+    expect(pipeline.getRequestHistory(near)).toBeDefined();
+  });
+
+  it("says how long a chunk has been asked for and whether it ever left", () => {
+    expect(
+      describeChunkRequestHistory(
+        { firstRequestedAt: 0, attempts: 13, lastSentAt: 62_800 },
+        64_000,
+      ),
+    ).toBe("asked 13x over 64s, last sent 1.2s ago");
+    expect(
+      describeChunkRequestHistory(
+        { firstRequestedAt: 1_000, attempts: 2, lastSentAt: null },
+        7_500,
+      ),
+    ).toBe("asked 2x over 6.5s, never sent");
   });
 });
 
@@ -366,6 +502,33 @@ describe("MeshPipeline voxel-change remesh", () => {
       "5,5:0",
       "2,2:0",
     ]);
+  });
+
+  it("reads negative and multi-digit columns off the key for that order", () => {
+    const pipeline = new MeshPipeline();
+    const columns: [number, number][] = [
+      [-12, 3],
+      [7, -140],
+      [-1, -1],
+      [0, 0],
+      [33, 21],
+      [-250, 18],
+    ];
+    for (const [cx, cz] of columns) pipeline.onVoxelChange(cx, cz, 3);
+
+    const center: [number, number] = [-3, 2];
+    const byParsedDistance = columns
+      .map(([cx, cz]) => MeshPipeline.makeKey(cx, cz, 3))
+      .sort((a, b) => {
+        const pa = MeshPipeline.parseKey(a);
+        const pb = MeshPipeline.parseKey(b);
+        return (
+          (pa.cx - center[0]) ** 2 +
+          (pa.cz - center[1]) ** 2 -
+          ((pb.cx - center[0]) ** 2 + (pb.cz - center[1]) ** 2)
+        );
+      });
+    expect(pipeline.getDirtyKeys(center)).toEqual(byParsedDistance);
   });
 
   it("keeps the urgent lane in insertion order ahead of sorted regular keys", () => {

@@ -16,6 +16,9 @@ uniform float uUnderwaterInScatterTilt;
 uniform vec3 uCelestialDirection;
 uniform vec3 uSunColor;
 uniform float uSunlightIntensity;
+// The share of that light arriving as a beam: through cloud there is no
+// disc to see, only the overcast's own light.
+uniform float uDirectSunlight;
 
 varying vec3 vWorldPosition;
 
@@ -56,7 +59,8 @@ void main() {
         float sunDisc = step(dot(sunPixel, sunPixel), SNELL_SUN_RADIUS_PIXELS * SNELL_SUN_RADIUS_PIXELS)
           * step(0.0, dot(airDir, uCelestialDirection));
         float sunGlow = pow(max(dot(airDir, uCelestialDirection), 0.0), 48.0);
-        windowSky += uSunColor * uSunlightIntensity * (sunDisc * 2.2 + sunGlow * 0.35);
+        windowSky += uSunColor * uSunlightIntensity * uDirectSunlight
+          * (sunDisc * 2.2 + sunGlow * 0.35);
         float transmit = 1.0 - (0.02 + 0.98 * pow(1.0 - airDir.y, 5.0));
         underColor = mix(inScatter, windowSky, transmit);
       }

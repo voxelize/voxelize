@@ -3,13 +3,17 @@
  * session API and a puppeteer script call, installed on
  * `window.__voxelizeViewer`. Everything is plain data in and out.
  */
+import type { FlightOptions, FlightResult } from "./camera";
 import { applyOptionPairs, parseOptions, type ViewerOptions } from "./options";
+import type { PinActionResult } from "./pin-layer";
+import type { Pin } from "./pins";
 import {
   type Bookmark,
   parseVec,
   type Pose,
   type Preset,
   PRESETS,
+  type Vec3,
 } from "./pose";
 import type { IdleReport, SourceRef, ViewerState, WorldViewer } from "./viewer";
 
@@ -28,7 +32,51 @@ export type ViewerControl = {
     settleFrames?: number;
   }): Promise<IdleReport>;
   bookmarks(): Bookmark[];
-  goTo(bookmarkId: string): ViewerState;
+  /** Jumps to a bookmark; `fly` eases there the way the toolbar does. */
+  goTo(
+    bookmarkId: string,
+    options?: { fly?: boolean } & FlightOptions,
+  ): ViewerState | Promise<ViewerState>;
+  /**
+   * Flies the camera to frame (x, y, z) as a double-click does, keeping the
+   * preset; a null y takes the ground there. Resolves when it lands or is
+   * cut short.
+   */
+  flyTo(
+    x: number,
+    y: number | null,
+    z: number,
+    options?: FlightOptions,
+  ): Promise<FlightResult>;
+  flyToPose(
+    pose: Pose,
+    preset?: Preset,
+    options?: FlightOptions,
+  ): Promise<FlightResult>;
+  cancelFlight(): ViewerState;
+  /** The ground point under canvas pixel (x, y), as a double-click there would fly to; null for sky. */
+  pick(x: number, y: number): Vec3 | null;
+  /** Drops a pin as a click there does; a null y takes the ground. Resolves with what the source knows of the column. */
+  dropPin(
+    x: number,
+    y: number | null,
+    z: number,
+    options?: { label?: string },
+  ): Promise<Pin>;
+  pins(): Pin[];
+  removePin(pin: string): boolean;
+  renamePin(pin: string, label: string): boolean;
+  /**
+   * Runs a wheel action on a pin (by id or label) or on a bare point: spawn,
+   * fly, look, measure (`{ to }`), bookmark, copy-link, copy-coords, remove,
+   * pin, and any the host added. Spawn returns the game link without opening
+   * it unless `{ open: true }`.
+   */
+  pinAction(
+    target: string | [number, number | null, number],
+    action: string,
+    args?: Record<string, unknown>,
+  ): Promise<PinActionResult>;
   query(x: number, z: number, which?: "a" | "b"): Promise<unknown>;
   shareLink(): string | null;
   /** Frame times over `ms` of real frames, for a frame-budget claim. */
@@ -80,6 +128,7 @@ export function installControl(
   base: ViewerOptions = viewer.options,
 ): ViewerControl {
   const initial = { ...base, overlays: [...base.overlays] };
+  if (!viewer.bookmarks.length) viewer.setBookmarks(bookmarks);
   const control: ViewerControl = {
     resetOptions() {
       viewer.setOptions({ ...initial, overlays: [...initial.overlays] });
@@ -107,15 +156,74 @@ export function installControl(
       return viewer.state();
     },
     waitIdle: (options) => viewer.waitIdle(options),
-    bookmarks: () => bookmarks,
-    goTo(id) {
-      const bookmark = bookmarks.find((b) => b.id === id);
+    bookmarks: () => viewer.bookmarks,
+    goTo(id, options = {}) {
+      const bookmark = viewer.bookmarks.find((b) => b.id === id);
       if (!bookmark)
         throw new Error(
-          `no bookmark ${id}; known: ${bookmarks.map((b) => b.id).join(", ")}`,
+          `no bookmark ${id}; known: ${viewer.bookmarks.map((b) => b.id).join(", ")}`,
         );
-      viewer.setPose(bookmark.pose, bookmark.preset ?? viewer.rig.preset);
+      const preset = bookmark.preset ?? viewer.rig.preset;
+      if (options.fly) {
+        return viewer
+          .flyToPose(bookmark.pose, preset, options)
+          .then(() => viewer.state());
+      }
+      viewer.setPose(bookmark.pose, preset);
       return viewer.state();
+    },
+    flyTo: (x, y, z, options) => viewer.flyTo([x, y, z], options),
+    flyToPose: (pose, preset, options) =>
+      viewer.flyToPose(pose, preset, options),
+    cancelFlight() {
+      viewer.cancelFlight();
+      return viewer.state();
+    },
+    pick: (x, y) => viewer.pickGround(x, y),
+    dropPin(x, y, z, options = {}) {
+      const height = y ?? viewer.surfaceAt(x, z);
+      if (height === null) {
+        return Promise.reject(
+          new Error(`nothing loaded at ${x},${z} to pin; pass its height`),
+        );
+      }
+      return viewer.pins.drop([x, height, z], options.label);
+    },
+    pins: () => viewer.pins.list(),
+    removePin(pin) {
+      const found = viewer.pins.find(pin);
+      return found ? viewer.pins.remove(found.id) : false;
+    },
+    renamePin(pin, label) {
+      const found = viewer.pins.find(pin);
+      return found ? viewer.pins.rename(found.id, label) : false;
+    },
+    pinAction(target, action, args = {}) {
+      let resolved: { pin: Pin | null; point: Vec3 };
+      if (typeof target === "string") {
+        const pin = viewer.pins.find(target);
+        if (!pin) {
+          return Promise.reject(
+            new Error(
+              `no pin ${target}; pins: ${
+                viewer.pins
+                  .list()
+                  .map((p) => p.label)
+                  .join(", ") || "none"
+              }`,
+            ),
+          );
+        }
+        resolved = { pin, point: pin.point };
+      } else {
+        const [x, y, z] = target;
+        const height = y ?? viewer.surfaceAt(x, z);
+        if (height === null) {
+          return Promise.reject(new Error(`nothing loaded at ${x},${z}`));
+        }
+        resolved = { pin: null, point: [x, height, z] };
+      }
+      return viewer.pins.run(resolved, action, { open: false, ...args });
     },
     query: (x, z, which) => viewer.query(x, z, which),
     shareLink: () => viewer.shareLink(),

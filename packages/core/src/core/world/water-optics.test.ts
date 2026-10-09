@@ -123,6 +123,39 @@ describe("cheap analytic water gloss", () => {
     expect(fragment).not.toContain("dot(reflectDir, uSunDirection)");
   });
 
+  it("draws every sun term on and under the water from the beam, not the daylight", () => {
+    const fluid = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
+    const terrain = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
+    for (const fragment of [fluid, terrain]) {
+      expect(fragment).toContain("uniform float uDirectSunlight;");
+    }
+    // An overcast still lights the world (diffuse daylight keeps the
+    // weather-dimmed intensity), but leaves no sun on the water to mirror
+    // and nothing for the surface to focus onto the bed.
+    expect(terrain).toContain(
+      "vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity * sunExposure;",
+    );
+    expect(terrain).toMatch(
+      /float causticSun = smoothstep\([^;]*\)\s*\*\s*uDirectSunlight;/,
+    );
+    const beam = "float sunBeam = uSunlightIntensity * uDirectSunlight;";
+    expect(fluid).toContain(
+      "specularColor += uSunColor * (sunGlint * sunBeam);",
+    );
+    expect(fluid).toContain(
+      "float causticLight = shadow * sunExposure * sunBeam;",
+    );
+    // Lobes, glint, surface caustics, the glitter seen from below and the
+    // A/B undersides: none reads the daylight directly.
+    const start = fluid.indexOf(beam);
+    const end = fluid.indexOf("float waterDepth = max(0.0, vWaterSurfaceY");
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(fluid.slice(start + beam.length, end)).not.toMatch(
+      /\buSunlightIntensity\b/,
+    );
+  });
+
   it("reflects the sky dome's own gradient along the reflected ray", () => {
     const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
     // Same offset and exponent as the sky shader and the sky fog, so the
@@ -326,9 +359,9 @@ describe("standing water over ground", () => {
       "texture2D(uSceneColor, refractedUv).rgb * floorShade;",
     );
     expect(fragment).toContain("causticLens = 1.0 - smoothstep(");
-    // Caustics only where the sun reaches the surface.
+    // Caustics only where the sun's beam reaches the surface.
     expect(fragment).toContain(
-      "float causticLight = shadow * sunExposure * uSunlightIntensity;",
+      "float causticLight = shadow * sunExposure * sunBeam;",
     );
   });
 });

@@ -116,4 +116,25 @@ describe("computeFogRange", () => {
       far: 512,
     });
   });
+
+  it("closes fog past the far layer's reach by its far ratio, never inside it", () => {
+    expect(
+      computeFogRange({
+        ...BASE,
+        farTerrainDistance: 1024,
+        farTerrainFogFarRatio: 1.6,
+      }),
+    ).toEqual({ near: 8 * 16 * 0.6, far: 1024 * 1.6 });
+    expect(
+      computeFogRange({
+        ...BASE,
+        farTerrainDistance: 1024,
+        farTerrainFogFarRatio: 0.5,
+      }).far,
+    ).toBe(1024);
+    // The ratio belongs to the far layer: without one the loaded fog stands.
+    expect(computeFogRange({ ...BASE, farTerrainFogFarRatio: 1.6 })).toEqual(
+      computeFogRange(BASE),
+    );
+  });
 });

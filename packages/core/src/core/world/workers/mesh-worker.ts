@@ -15,6 +15,8 @@ import {
   quantizeUvs,
 } from "../vertex-quantization";
 
+import { WORKER_READY_MESSAGE_TYPE } from "./worker-ready";
+
 type ChunkData = {
   voxels: Uint32Array | number[];
   lights: Uint32Array | number[];
@@ -311,6 +313,9 @@ onmessage = async function (e) {
         )
         .map(([id]: [number, RawWasmBlock]) => id),
     );
+    // The pool hands this worker no job until it hears this.
+    // @ts-expect-error postMessage typing
+    postMessage({ type: WORKER_READY_MESSAGE_TYPE }, []);
     return;
   }
 
