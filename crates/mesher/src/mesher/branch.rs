@@ -175,6 +175,14 @@ impl BranchShape {
         (((stage & self.radius_mask) >> self.radius_shift()) + 1).min(self.max_radius())
     }
 
+    /// Whether a voxel of this shape at `stage` leaves room beside its wood
+    /// for water: a one-voxel branch thinner than a full block. At the full
+    /// radius its sides lie on the voxel's faces, where they would fight the
+    /// water's; a wide cell or a fin can lie on its cell's faces as well.
+    pub fn holds_water(&self, stage: u32) -> bool {
+        self.kind == BranchKind::Voxel && self.radius(stage) < self.max_radius()
+    }
+
     /// `stage` with its radius bits set to hold `radius`, every other bit kept.
     pub fn with_radius(&self, stage: u32, radius: u32) -> u32 {
         let radius = radius.clamp(1, self.max_radius());

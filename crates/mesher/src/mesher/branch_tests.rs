@@ -1411,3 +1411,24 @@ fn bole_census() {
         times[times.len() / 2]
     );
 }
+
+#[test]
+fn a_branch_holds_water_beside_its_wood_until_it_fills_its_voxel() {
+    let voxel = shape(BranchSeat::Centre);
+    for radius in 1..T / 2 {
+        assert!(voxel.holds_water(voxel.with_radius(0, radius)), "radius {radius}");
+    }
+    assert!(
+        !voxel.holds_water(voxel.with_radius(0, T / 2)),
+        "a full block's sides lie on the voxel's faces"
+    );
+    let root = shape(BranchSeat::Floor);
+    assert!(root.holds_water(root.with_radius(0, T / 2 - 1)));
+    assert!(!root.holds_water(root.with_radius(0, T / 2)));
+    for kind in [BranchKind::Core, BranchKind::Fin] {
+        assert!(
+            !kind_shape(kind, BranchSeat::Centre).holds_water(0),
+            "{kind:?} can lie on its cell's faces"
+        );
+    }
+}

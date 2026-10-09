@@ -92,14 +92,19 @@ fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
     let Vec3(max_x, max_y, max_z) = chunk.max;
 
     let mut submerged = Vec::new();
+    let mut overfull = Vec::new();
     for vx in min_x..max_x {
         for vz in min_z..max_z {
             for vy in min_y..max_y {
                 let raw = chunk.get_raw_voxel(vx, vy, vz);
+                if registry.is_overfull_waterlog(raw) {
+                    overfull.push(Vec3(vx, vy, vz));
+                    continue;
+                }
                 if BlockUtils::extract_waterlogged(raw) {
                     continue;
                 }
-                if !registry.is_waterloggable(BlockUtils::extract_id(raw)) {
+                if !registry.is_waterloggable_voxel(raw) {
                     continue;
                 }
                 let touches_fluid = ORTHOGONAL_NEIGHBORS.iter().any(|[ox, oy, oz]| {
@@ -116,8 +121,28 @@ fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
     for Vec3(vx, vy, vz) in &submerged {
         chunk.set_voxel_waterlogged(*vx, *vy, *vz, true);
     }
+    // A branch saved waterlogged at a stage that fills its voxel is invalid:
+    // it loads dry, and the water it held is reported lost.
+    for voxel in &overfull {
+        let Vec3(vx, vy, vz) = *voxel;
+        let raw = chunk.get_raw_voxel(vx, vy, vz);
+        error!(
+            "{} at {:?} was saved waterlogged at stage {}, which leaves it no room for water: \
+             loaded it dry, losing water at level {}",
+            registry.get_block_by_id(BlockUtils::extract_id(raw)).name,
+            voxel,
+            BlockUtils::extract_stage(raw),
+            BlockUtils::extract_waterlog_level(raw),
+        );
+        chunk.set_raw_voxel(
+            vx,
+            vy,
+            vz,
+            BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(raw, false), 0),
+        );
+    }
 
-    !submerged.is_empty()
+    !submerged.is_empty() || !overfull.is_empty()
 }
 
 /// Work carried past a tick's budget, from the tick it first was.

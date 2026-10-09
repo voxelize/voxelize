@@ -143,6 +143,14 @@ export function branchRadius(shape: BranchShape, stage: number): number {
   );
 }
 
+/** `BranchShape::holds_water` in crates/mesher/src/mesher/branch.rs. */
+export function branchHoldsWater(shape: BranchShape, stage: number): boolean {
+  return (
+    (shape.kind ?? "voxel") === "voxel" &&
+    branchRadius(shape, stage) < maxRadius(shape)
+  );
+}
+
 /** `stage` with its radius bits set to `radius`, every other bit kept. */
 export function withBranchRadius(
   shape: BranchShape,

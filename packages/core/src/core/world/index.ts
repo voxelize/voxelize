@@ -98,7 +98,7 @@ import {
 import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
 import { BorderSwapHold } from "./border-swap-hold";
-import { branchAABBsAt } from "./branch";
+import { branchAABBsAt, branchHoldsWater } from "./branch";
 import { Chunk } from "./chunk";
 import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
@@ -4177,13 +4177,16 @@ export class World<T = any> extends Scene implements NetIntercept {
    * into water does not watch a block-shaped air pocket for a round trip.
    * The server's echo is authoritative and overwrites whatever this guessed.
    */
-  private predictWaterlogging({ vx, vy, vz, type }: BlockUpdate) {
+  private predictWaterlogging({ vx, vy, vz, type, stage = 0 }: BlockUpdate) {
     const current = this.getBlockAt(vx, vy, vz);
     if (!current) return null;
 
     const holdsFluid =
       current.isFluid || this.getVoxelWaterloggedAt(vx, vy, vz);
-    const canHold = this.getBlockByIdSafe(type)?.isWaterloggable ?? false;
+    const placed = this.getBlockByIdSafe(type);
+    const canHold =
+      (placed?.isWaterloggable ?? false) &&
+      (!placed?.branch || branchHoldsWater(placed.branch, stage));
     if (!holdsFluid || !canHold) return null;
 
     const chunk = this.getChunkByPosition(vx, vy, vz);
