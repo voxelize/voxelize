@@ -5,6 +5,7 @@ mod connected;
 #[cfg(test)]
 mod connected_tests;
 mod connectivity;
+mod coplanar;
 mod faces;
 mod fluid;
 mod greedy;
@@ -31,6 +32,7 @@ pub use vertex_light::*;
 use branch::*;
 use connected::*;
 use connectivity::*;
+use coplanar::*;
 use faces::*;
 use fluid::*;
 use lighting::*;
