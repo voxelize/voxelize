@@ -87,6 +87,20 @@ export function rememberPose(
   };
 }
 
+/**
+ * Whether a command moved the agent after `pose` was remembered, or is moving
+ * it now. Putting such a pose back undoes the newer command: a teleport still
+ * in flight when the rejoin is noticed has to stand. `lastMoveCommandAt` is
+ * when the latest moving command started.
+ */
+export function isPoseSuperseded(
+  pose: RememberedPose,
+  lastMoveCommandAt: number,
+  moveCommandsInFlight: number,
+): boolean {
+  return moveCommandsInFlight > 0 || lastMoveCommandAt > pose.sampledAt;
+}
+
 export function mergePoseIntent(
   intent: PoseIntent,
   patch: Partial<PoseIntent>,
