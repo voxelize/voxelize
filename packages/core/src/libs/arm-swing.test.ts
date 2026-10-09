@@ -1,4 +1,4 @@
-import { Group, Quaternion, Vector3 } from "three";
+import { Group, PerspectiveCamera, Quaternion, Vector3 } from "three";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { Arm, ArmIdleSway, ArmObjectOptions } from "./arm";
@@ -201,5 +201,42 @@ describe("arm swing hold", () => {
     arm.holdSwingAt(null);
     expect(object.position.distanceTo(REST_POSITION)).toBeLessThan(1e-6);
     expect(turnBetween(object.quaternion, new Quaternion())).toBe(0);
+  });
+});
+
+describe("arm fixed field of view", () => {
+  // Where the object's rest point lands on screen through the camera.
+  const projected = (arm: Arm, camera: PerspectiveCamera) => {
+    arm.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    const [held] = arm.children;
+    return held.getWorldPosition(new Vector3()).project(camera);
+  };
+
+  it("keeps a posed object where it is at its field of view, whatever the camera's", () => {
+    const { arm } = equip(swingOptions({ fixedFov: 100 }));
+    const posed = new PerspectiveCamera(100, 16 / 9, 0.1, 100);
+    arm.viewCamera = posed;
+    arm.update();
+    const atPosed = projected(arm, posed);
+
+    for (const fov of [60, 70, 120]) {
+      const camera = new PerspectiveCamera(fov, 16 / 9, 0.1, 100);
+      arm.viewCamera = camera;
+      arm.update();
+      expect(projected(arm, camera).distanceTo(atPosed)).toBeLessThan(1e-6);
+      expect(arm.scale.z).toBe(1);
+    }
+  });
+
+  it("leaves everything else to follow the camera", () => {
+    const { arm } = equip(swingOptions());
+    arm.viewCamera = new PerspectiveCamera(70, 16 / 9, 0.1, 100);
+    arm.update();
+    expect(arm.scale.equals(new Vector3(1, 1, 1))).toBe(true);
+
+    const posed = equip(swingOptions({ fixedFov: 100 })).arm;
+    posed.update();
+    expect(posed.scale.equals(new Vector3(1, 1, 1))).toBe(true);
   });
 });

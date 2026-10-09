@@ -132,6 +132,14 @@ export type ArmObjectOptions = {
   swingRestartBlend?: number;
   /** A breathing sway while the object is at rest. None by default. */
   idleSway?: ArmIdleSway;
+  /**
+   * The field of view, in degrees, the object is posed for. While it is
+   * held, the arm keeps it the size and place on screen it has at that
+   * field of view, whatever {@link Arm.viewCamera} is drawn at, so a pose
+   * tuned once holds when a player widens or narrows the view. Unset, the
+   * object follows the camera's field of view like the world does.
+   */
+  fixedFov?: number;
 };
 
 const defaultOptions: ArmOptions = {
@@ -218,6 +226,12 @@ export class Arm extends THREE.Group {
   private readonly shadowWorldMatrix = new THREE.Matrix4();
 
   public heldLightColor = new THREE.Color(1, 1, 1);
+
+  /**
+   * The camera the arm's scene is drawn with, which an object posed for a
+   * {@link ArmObjectOptions.fixedFov} is held against.
+   */
+  public viewCamera: THREE.PerspectiveCamera | null = null;
 
   /**
    * Whether a left click plays the default arm swing. Consumers that own the
@@ -753,6 +767,27 @@ gl_FragColor.rgb *= shadow * uLightColor;
     }
 
     this.layIdleSway(delta);
+    this.holdFixedFov();
+  }
+
+  /**
+   * Scale the arm across the view, about its axis, so an object posed for a
+   * fixed field of view projects as it would there: a point drawn at
+   * `x / -z` lands where it would at `fixedFov` once x and y are scaled by
+   * the ratio of the two fields' tangents. Depth is left alone, so nothing
+   * comes nearer the eye.
+   */
+  private holdFixedFov() {
+    const fixedFov = this.currentObjectOptions?.fixedFov;
+    const camera = this.viewCamera;
+    if (fixedFov === undefined || !camera) {
+      this.scale.set(1, 1, 1);
+      return;
+    }
+    const across =
+      Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) /
+      Math.tan(THREE.MathUtils.degToRad(fixedFov / 2));
+    this.scale.set(across, across, 1);
   }
 
   /**
