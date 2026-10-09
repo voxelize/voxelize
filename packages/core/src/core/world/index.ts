@@ -910,6 +910,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   // chunk-request flow.
   private chunkRefreshQueue = new Set<string>();
 
+  /** When overdue chunk requests were last looked for; see `reportOverdueChunkRequests`. */
+  private overdueRequestsCheckedAt = Number.NEGATIVE_INFINITY;
+
   // Loaded chunks answered under a new server id (a restarted server's
   // refresh), logged as one count per burst.
   private chunkIdReplacements = new ChunkIdReplacementReport();
@@ -5150,9 +5153,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Name it, with whether its requests ever left this client.
    */
   private reportOverdueChunkRequests() {
-    const { chunkRequestOverdueMs } = this.options;
+    const { chunkRequestOverdueMs, chunkRerequestIntervalMs } = this.options;
     if (!(chunkRequestOverdueMs > 0)) return;
     const now = performance.now();
+    // Requests go out a batch per frame, so a wave of them crosses the
+    // threshold over several frames. Looking once per retry interval names
+    // the whole wave in one report instead of one report a frame.
+    if (now - this.overdueRequestsCheckedAt < chunkRerequestIntervalMs) return;
+    this.overdueRequestsCheckedAt = now;
     const overdue = this.chunkPipeline.takeOverdueRequests(
       now,
       chunkRequestOverdueMs,
