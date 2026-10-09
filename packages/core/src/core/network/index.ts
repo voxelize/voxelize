@@ -82,10 +82,20 @@ export type NetworkOptions = {
   maxDecodeAttempts: number;
 
   /**
-   * Milliseconds a (re)join handshake may await its INIT before the join
-   * request is sent again.
+   * Milliseconds a (re)join handshake may await its INIT before a join
+   * request that never reached an open socket is sent again.
    */
   joinRetryTimeout: number;
+
+  /**
+   * Milliseconds a join request handed to an open socket may go unanswered
+   * before it is sent again, loudly. The server answers every such request
+   * with an INIT, an ERROR or a close, and a repeated JOIN makes it replay
+   * the whole INIT, which the page then applies a second time. A loaded
+   * server can take well over {@link NetworkOptions.joinRetryTimeout} to
+   * answer, so this one only bounds a server that never does.
+   */
+  joinAnswerTimeout: number;
 
   /**
    * Upper bound on command packets (see {@link COMMAND_PACKET_TYPES}) held
@@ -102,6 +112,7 @@ const defaultOptions: NetworkOptions = {
   maxBacklogFactor: 16,
   maxQueuedPackets: 4096,
   joinRetryTimeout: 10000,
+  joinAnswerTimeout: 60000,
   maxPendingCommandPackets: 256,
   maxDecodeWorkers: 4,
   maxPacketsPerDecodeJob: 64,
@@ -269,6 +280,9 @@ export class Network {
   private decodeEpoch = 0;
 
   private joinStartTime = 0;
+
+  /** The socket the pending join request was handed to, if it was. */
+  private joinSocket: ProtocolWS | null = null;
 
   private waitingForInit = false;
 
@@ -551,7 +565,7 @@ export class Network {
     this.initPacketReceived = false;
     this.joinStartTime = performance.now();
 
-    this.send({
+    const isSent = this.send({
       type: "JOIN",
       json: {
         world: this.world,
@@ -570,6 +584,7 @@ export class Network {
             : {},
       },
     });
+    this.joinSocket = isSent ? this.ws : null;
   };
 
   connectWebRTC = async (): Promise<void> => {
@@ -1175,14 +1190,28 @@ export class Network {
       return;
     }
 
+    const isCarried = this.joinSocket !== null && this.joinSocket === this.ws;
+    const waitedMs = performance.now() - this.joinStartTime;
     if (
-      performance.now() - this.joinStartTime <
-      this.options.joinRetryTimeout
+      waitedMs <
+      (isCarried
+        ? this.options.joinAnswerTimeout
+        : this.options.joinRetryTimeout)
     ) {
       return;
     }
 
-    console.log(`[NETWORK] Join for ${this.world} unanswered, retrying...`);
+    if (isCarried) {
+      console.error(
+        `[NETWORK] Join for ${this.world} has had no INIT for ${Math.round(
+          waitedMs / 1000,
+        )}s on the socket that carried it; sending it again`,
+      );
+    } else {
+      console.log(
+        `[NETWORK] Join for ${this.world} never reached an open socket, retrying...`,
+      );
+    }
     this.sendJoinRequest();
   };
 
