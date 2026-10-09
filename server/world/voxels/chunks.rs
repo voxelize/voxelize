@@ -120,6 +120,13 @@ fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
     !submerged.is_empty()
 }
 
+/// Wake work carried past a tick's budget, from the tick it first was.
+#[derive(Clone, Debug)]
+pub(crate) struct WakeBacklog {
+    pub since_tick: u64,
+    pub peak: usize,
+}
+
 /// One chunk's share of pending writes, see
 /// `Chunks::pending_update_head_report`.
 #[derive(Clone, Debug)]
@@ -194,6 +201,33 @@ pub struct Chunks {
 
     pub(crate) active_voxel_heap: BinaryHeap<Reverse<ActiveVoxel>>,
     pub(crate) active_voxel_set: HashMap<Vec3<i32>, u64>,
+
+    /// Due voxels a tick's planning budget (`max_active_plan_ms_per_tick`)
+    /// did not reach, oldest first; they plan ahead of the next tick's own.
+    /// Popped off the schedule as if they had run on time, so a mark meanwhile
+    /// schedules a later run just as it would after one.
+    pub(crate) overdue_active_voxels: VecDeque<Vec3<i32>>,
+
+    /// Exactly the voxels in `overdue_active_voxels`: a voxel that comes due
+    /// again while it waits there runs once, not twice.
+    pub(crate) overdue_active_set: HashSet<Vec3<i32>>,
+
+    /// Voxels a write touched (the written voxel and its neighbors) whose
+    /// active tickers are still to be asked when they next want to run, in
+    /// the order their ticks queued them. Drained under
+    /// `max_ticker_consult_ms_per_tick`; what a tick does not reach waits
+    /// here, ahead of the next tick's own.
+    pub(crate) ticker_consults: VecDeque<Vec3<i32>>,
+
+    /// Whether each queued consult is for a written voxel, which consults
+    /// whatever it became, rather than a neighbor, which only consults real
+    /// blocks and fluids. Holds exactly the voxels in `ticker_consults`.
+    pub(crate) ticker_consult_written: HashMap<Vec3<i32>, bool>,
+
+    /// Since when wake work (`overdue_active_voxels`, `ticker_consults`) has
+    /// been carried past a tick's budget, and the most that waited at once:
+    /// reported once the backlog clears.
+    pub(crate) wake_backlog: Option<WakeBacklog>,
 
     /// A listener for when a chunk is done generating or meshing.
     pub(crate) listeners: HashMap<Vec2<i32>, Vec<Vec2<i32>>>,
@@ -319,6 +353,11 @@ impl Chunks {
         self.to_save.clear();
         self.active_voxel_heap.clear();
         self.active_voxel_set.clear();
+        self.overdue_active_voxels.clear();
+        self.overdue_active_set.clear();
+        self.ticker_consults.clear();
+        self.ticker_consult_written.clear();
+        self.wake_backlog = None;
         self.listeners.clear();
         self.cache.clear();
         self.freshly_created.clear();
@@ -1058,6 +1097,82 @@ impl Chunks {
     /// Number of voxels currently scheduled to run their active updater.
     pub fn active_voxel_count(&self) -> usize {
         self.active_voxel_set.len()
+    }
+
+    /// Due voxels still to plan, carried from ticks that spent their
+    /// planning budget before reaching them. Not in `active_voxel_count`:
+    /// they are off the schedule, waiting to run.
+    pub fn overdue_active_voxel_count(&self) -> usize {
+        self.overdue_active_voxels.len()
+    }
+
+    /// Queue a due voxel to plan, unless it is already waiting to.
+    pub(crate) fn queue_overdue_active_voxel(&mut self, voxel: Vec3<i32>) {
+        if self.overdue_active_set.insert(voxel.clone()) {
+            self.overdue_active_voxels.push_back(voxel);
+        }
+    }
+
+    /// The oldest due voxel still to plan.
+    pub(crate) fn pop_overdue_active_voxel(&mut self) -> Option<Vec3<i32>> {
+        let voxel = self.overdue_active_voxels.pop_front()?;
+        self.overdue_active_set.remove(&voxel);
+        Some(voxel)
+    }
+
+    /// Queue `voxel`'s active ticker to be consulted after the writes that
+    /// touched it have committed. A written voxel consults whatever it
+    /// became; a neighbor, only a real block or a fluid. A voxel is queued
+    /// once however many writes touch it, as written if any did.
+    pub(crate) fn queue_ticker_consult(&mut self, voxel: Vec3<i32>, is_written: bool) {
+        if let Some(written) = self.ticker_consult_written.get_mut(&voxel) {
+            *written |= is_written;
+            return;
+        }
+        self.ticker_consult_written
+            .insert(voxel.clone(), is_written);
+        self.ticker_consults.push_back(voxel);
+    }
+
+    /// The oldest queued consult, and whether it is for a written voxel.
+    pub(crate) fn pop_ticker_consult(&mut self) -> Option<(Vec3<i32>, bool)> {
+        let voxel = self.ticker_consults.pop_front()?;
+        let is_written = match self.ticker_consult_written.remove(&voxel) {
+            Some(is_written) => is_written,
+            None => {
+                error!(
+                    "ticker consult for {:?} was queued without its kind; consulting it as a written voxel",
+                    voxel
+                );
+                true
+            }
+        };
+        Some((voxel, is_written))
+    }
+
+    /// Ticker consults still owed, carried from ticks that spent their
+    /// consult budget before reaching them.
+    pub fn pending_ticker_consults(&self) -> usize {
+        self.ticker_consults.len()
+    }
+
+    /// Note the wake work still carried as `tick` ends. Once a backlog
+    /// clears, returns for how many ticks it was carried and the most that
+    /// waited at once.
+    pub(crate) fn note_wake_backlog(&mut self, tick: u64) -> Option<(u64, usize)> {
+        let carried = self.overdue_active_voxels.len() + self.ticker_consults.len();
+        if carried == 0 {
+            return self
+                .wake_backlog
+                .take()
+                .map(|backlog| (tick.saturating_sub(backlog.since_tick), backlog.peak));
+        }
+        let backlog = self.wake_backlog.get_or_insert(WakeBacklog {
+            since_tick: tick,
+            peak: 0,
+        });
+        backlog.peak = backlog.peak.max(carried);
+        None
     }
 
     /// Number of voxel updates staged or queued but not yet committed, on
