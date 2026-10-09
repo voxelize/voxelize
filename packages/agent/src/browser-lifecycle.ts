@@ -31,6 +31,17 @@ export const IDLE_TTL_EXIT_CODE = 66;
 export const MOUNT_FAILED_EXIT_CODE = 67;
 
 /**
+ * Exit code of a daemon told to sign in first (`--authUrl`) whose sign-in
+ * failed: the URL answered anything but 2xx (or 304), or nothing at all.
+ * Joining anyway would hand back a session that looks healthy without the
+ * account it was started for, so the daemon stops before its page loads and
+ * logs one line, starting with AUTH_FAILED_LOG_MARKER, that names the status
+ * and the body. Host tooling mirrors both values.
+ */
+export const AUTH_FAILED_EXIT_CODE = 68;
+export const AUTH_FAILED_LOG_MARKER = "auth url failed:";
+
+/**
  * How long a freshly launched page may take to mount (its client renders
  * the element AGENT_MOUNT_SELECTOR names, or installs the bridge) before the
  * daemon gives up on it. Separate from the bridge wait, which a loaded box
