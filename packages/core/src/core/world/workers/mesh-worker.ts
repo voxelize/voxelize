@@ -325,7 +325,9 @@ onmessage = async function (e) {
 
   const { chunksData, min, max } = e.data;
   const options = e.data.options as WorldOptions;
-  const { chunkSize } = options;
+  // A free-standing voxel box rides as one chunk as wide as itself; its
+  // geometry still quantizes on the world's own section scale.
+  const chunkSize: number = e.data.meshChunkSize ?? options.chunkSize;
   const positionUnits = positionUnitsPerBlock(options);
 
   const chunks = chunksData.map(
