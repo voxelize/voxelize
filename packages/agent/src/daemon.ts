@@ -48,6 +48,7 @@ import {
   type PoseRestoreRecord,
   type RememberedPose,
 } from "./pose-memory";
+import { replayPose } from "./pose-restore";
 import {
   SessionMetaError,
   applySessionMetaPatch,
@@ -211,7 +212,13 @@ const POSE_CHANGING_ACTIONS = new Set([
 // The pose commands that move the agent: one of these after the pose was
 // remembered means a restore must leave the position alone. Turning the head
 // is not one; it must not cost the restore its position.
-const MOVING_ACTIONS = new Set(["teleport", "walk", "walk-to", "view", "follow"]);
+const MOVING_ACTIONS = new Set([
+  "teleport",
+  "walk",
+  "walk-to",
+  "view",
+  "follow",
+]);
 // The in-page network layer retries on its own every ~3s; the daemon only
 // intervenes after this grace so it never races a reconnect already landing.
 const RECOVERY_GRACE_MS = 10_000;
@@ -891,48 +898,65 @@ export class AgentDaemon {
       to,
       error: null,
     };
-    const isOverridden = () =>
-      isPoseSuperseded(pose, this.lastMoveCommandAt, this.moveCommandsInFlight);
-    try {
-      // Place first, then fly: a rejoin can come back standing on the floor
-      // (a world that saves no player starts every join at its spawn), and
-      // flight that cannot take off there must not cost the position too.
-      if (!isOverridden()) await this.agent.teleport(pose.position);
-      if (!isOverridden()) await this.agent.face({ ...pose.facing });
-      let flightError: string | null = null;
-      if (pose.isFlying !== null) {
-        try {
-          await this.agent.setFlying(pose.isFlying);
-          // Taking off kicks the body up; put the staged pose back exactly.
-          if (pose.isFlying && !isOverridden()) {
-            await this.agent.teleport(pose.position);
+    const report = await replayPose(
+      pose,
+      {
+        // A page busy finishing its join may not answer yet: not finished.
+        isJoinFinished: () =>
+          this.agent
+            .snapshot()
+            .then((snapshot) => snapshot.isReady === true)
+            .catch(() => false),
+        setFlying: (isFlying) => this.agent.setFlying(isFlying),
+        teleport: (position) => this.agent.teleport(position),
+        face: (facing) => this.agent.face({ ...facing }),
+        setRenderRadius: (radius) => this.agent.setRenderRadius(radius),
+        isMoveOverridden: () =>
+          isPoseSuperseded(
+            pose,
+            this.lastMoveCommandAt,
+            this.moveCommandsInFlight,
+          ),
+        isRadiusOverridden: () =>
+          this.poseIntent.renderRadius !== pose.renderRadius,
+        isSameJoin: async () => {
+          const connection = this.freshness.lastConnection;
+          if (this.freshness.isStale || connection === null) return false;
+          if ((connection.joinGeneration ?? null) !== to.joinGeneration) {
+            return false;
           }
-        } catch (error) {
-          flightError = error instanceof Error ? error.message : String(error);
-        }
-      }
-      if (pose.renderRadius !== null) {
-        await this.agent.setRenderRadius(pose.renderRadius);
-      }
-      if (isOverridden()) {
-        record.error = "a command moved the agent first; left where it put it";
-      } else if (flightError !== null) {
-        record.error = `placed, but ${flightError}`;
-      }
-    } catch (error) {
-      record.error = error instanceof Error ? error.message : String(error);
-    }
+          const sample = await this.agent.poseSample().catch(() => null);
+          return sample === null || sample.documentId === to.documentId;
+        },
+      },
+      {
+        retryMs: resolveReadyTimeoutMs().timeoutMs,
+        log: (line) =>
+          console.log(
+            `[agent-daemon] ${new Date().toISOString()} pose restore: ${line}`,
+          ),
+      },
+    );
+    record.error = report.error;
     this.lastPoseRestore = record;
     if (record.error === null) this.poseRestoreCount += 1;
     const age = Math.round((detectedAt - pose.sampledAt) / 1000);
+    const waits = [
+      report.joinWaitMs > 0
+        ? `waited ${Math.round(report.joinWaitMs / 100) / 10}s for the join to finish`
+        : null,
+      report.renderRadiusAttempts > 1
+        ? `render radius took ${report.renderRadiusAttempts} tries`
+        : null,
+    ].filter((wait) => wait !== null);
     console.log(
       `[agent-daemon] ${new Date().toISOString()} ${
         record.error === null ? "restored pose" : "pose restore incomplete"
       } after rejoin (join generation ${pose.join.joinGeneration} -> ${to.joinGeneration}${
         pose.join.documentId !== to.documentId ? ", new page document" : ""
       }): ${describePose(pose)}, remembered ${age}s before${
-        record.error ? ` — ${record.error}` : ""
-      }`,
+        waits.length > 0 ? ` (${waits.join("; ")})` : ""
+      }${record.error ? ` — ${record.error}` : ""}`,
     );
     this.appendEvent("pose-restored", {
       isRestored: record.error === null,

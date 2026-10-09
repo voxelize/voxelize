@@ -115,6 +115,12 @@ export type Snapshot = {
   position: Vec3;
   facing: YawPitch;
   world: string;
+  /**
+   * The host's join has finished: the player is in and the world can be
+   * played and set up (view radius, field of view). A live connection whose
+   * join is still placing the player is not ready yet; the daemon puts a
+   * remembered pose back only once this is true.
+   */
   isReady: boolean;
   raycast: RaycastHit | null;
   nearbyEntities: EntitySnapshot[];
