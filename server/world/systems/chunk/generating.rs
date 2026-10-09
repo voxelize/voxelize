@@ -143,9 +143,17 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         mesher.add_chunk(&chunk.coords, false);
                     }
                     pipeline.remove_chunk(&chunk.coords);
+                    pipeline.forget_released(&chunk.coords);
                 } else {
                     chunk.status = ChunkStatus::Generating(next_stage);
-                    pipeline.requeue_chunk(&chunk.coords, false);
+                    // A chunk unloaded while this stage ran keeps the result
+                    // but goes no further unless something wants it again.
+                    let is_wanted = pipeline.is_demanded(&chunk.coords)
+                        || interests.has_interests(&chunk.coords)
+                        || chunks.listeners.contains_key(&chunk.coords);
+                    if !pipeline.parks_released(&chunk.coords, is_wanted) {
+                        pipeline.requeue_chunk(&chunk.coords, false);
+                    }
                 }
 
                 if let Some(listeners) = chunks.listeners.remove(&chunk.coords) {
@@ -257,7 +265,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                             // it forever.
                             Some(ChunkStatus::Meshing) | Some(ChunkStatus::Ready) => continue,
                             Some(ChunkStatus::Generating(n_stage)) if *n_stage >= index => continue,
-                            Some(ChunkStatus::Generating(_)) => {}
+                            // An unload may have dropped the neighbor's queued
+                            // stages; waiting on it is what brings them back.
+                            Some(ChunkStatus::Generating(_)) => {
+                                pipeline.revive_dropped(&n_coords);
+                            }
                             // The margin neighbor exists nowhere and nothing
                             // else will create it: queue it for its voxel data
                             // only. Each context ring needs one stage less
@@ -542,6 +554,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                 if let Some(n_chunk) = chunks.raw(&n_coords) {
                     if matches!(n_chunk.status, ChunkStatus::Generating(_)) {
+                        pipeline.revive_dropped(&n_coords);
                         ready = false;
                         chunks.add_listener(&n_coords, &coords);
                         break;

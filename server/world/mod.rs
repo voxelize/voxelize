@@ -119,6 +119,8 @@ mod lag_comp_wiring_tests;
 mod lifecycle;
 #[cfg(test)]
 mod mesher_readiness_tests;
+#[cfg(test)]
+mod unload_readiness_tests;
 mod method_guard;
 mod sessions;
 mod spawning;
