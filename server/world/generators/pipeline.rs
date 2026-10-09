@@ -269,6 +269,19 @@ pub struct Pipeline {
     /// Chunks that received requests while being processed - need regeneration after current processing completes.
     pub(crate) pending_regenerate: HashSet<Vec2<i32>>,
 
+    /// Chunks an unload released while one of their stages was running. The
+    /// stage is left to land; the chunk then parks at the stage it reached
+    /// unless something wants it again by then ([`Pipeline::parks_released`]).
+    released: HashSet<Vec2<i32>>,
+
+    /// Chunks parked partway through the pipeline because nobody wants them
+    /// any more: an unload dropped their queued stages, or a released
+    /// chunk's running stage landed. Their status still reads `Generating`,
+    /// so a chunk that later waits on one as a neighbor puts it back on the
+    /// queue ([`Pipeline::revive_dropped`]) instead of waiting on a stage
+    /// nothing will run.
+    dropped: HashSet<Vec2<i32>>,
+
     /// Sender of processed chunks from other threads to main thread.
     sender: Arc<Sender<(Chunk, Vec<VoxelUpdate>)>>,
 
@@ -288,6 +301,8 @@ impl Pipeline {
             leftovers: HashMap::new(),
             deferred: HashMap::new(),
             pending_regenerate: HashSet::new(),
+            released: HashSet::new(),
+            dropped: HashSet::new(),
             demanded: HashSet::new(),
             queue: VecDeque::new(),
             stages: Vec::new(),
@@ -302,6 +317,8 @@ impl Pipeline {
         self.leftovers.clear();
         self.deferred.clear();
         self.pending_regenerate.clear();
+        self.released.clear();
+        self.dropped.clear();
         self.demanded.clear();
     }
 
@@ -341,6 +358,8 @@ impl Pipeline {
             return;
         }
 
+        self.dropped.remove(coords);
+
         // A generation queue this deep means something is conscripting chunks
         // far faster than any client could ask for them (an unbounded world's
         // mesh-prerequisite expansion once filled it with hundreds of
@@ -372,7 +391,60 @@ impl Pipeline {
             return;
         }
 
+        self.dropped.remove(coords);
         self.queue.push_back(coords.to_owned());
+    }
+
+    /// Stop carrying a chunk nobody wants any more. Its demand is forgotten,
+    /// and unless a neighbor is already waiting on it (`is_awaited`) its
+    /// queued stages are dropped (remembered in `dropped`), or, with a stage
+    /// running, it is marked `released` so that stage lands and the chunk
+    /// parks there. Pulling a running stage out of the pipeline used to throw
+    /// its result away and leave the chunk at the stage before, with every
+    /// neighbor waiting on it waiting forever.
+    pub(crate) fn release_unwanted(&mut self, coords: &Vec2<i32>, is_awaited: bool) {
+        self.demanded.remove(coords);
+        if is_awaited {
+            return;
+        }
+        if self.has_chunk(coords) {
+            self.released.insert(coords.to_owned());
+            return;
+        }
+        let queued = self.queue.len();
+        self.queue.retain(|c| c != coords);
+        if self.queue.len() < queued {
+            self.dropped.insert(coords.to_owned());
+        }
+    }
+
+    /// A stage landed for `coords` and the chunk has another one to go.
+    /// Returns whether it parks instead: an unload released it while the
+    /// stage ran and nothing (`is_wanted`) asked for it since. A parked
+    /// chunk is remembered as dropped, so waiting on it revives it.
+    pub(crate) fn parks_released(&mut self, coords: &Vec2<i32>, is_wanted: bool) -> bool {
+        if !self.released.remove(coords) || is_wanted {
+            return false;
+        }
+        self.dropped.insert(coords.to_owned());
+        true
+    }
+
+    /// A released chunk finished its last stage; parking at `Meshing` is the
+    /// mesher's call, so only the mark goes.
+    pub(crate) fn forget_released(&mut self, coords: &Vec2<i32>) {
+        self.released.remove(coords);
+    }
+
+    /// Put a chunk whose queued stages an unload dropped back at the front of
+    /// the queue, because a neighbor is about to wait on it. Returns whether
+    /// it had been dropped.
+    pub(crate) fn revive_dropped(&mut self, coords: &Vec2<i32>) -> bool {
+        if !self.dropped.contains(coords) {
+            return false;
+        }
+        self.requeue_chunk(coords, true);
+        true
     }
 
     /// Whether anything has deliberately asked for these coords. Read-only:
@@ -498,6 +570,14 @@ impl Pipeline {
             if self.chunks.contains(&result.0.coords) {
                 self.remove_chunk(&result.0.coords);
                 results.push(result);
+            } else {
+                // Only a world wipe forgets a chunk mid-stage. A result thrown
+                // away for any other reason leaves the chunk at its previous
+                // stage with nothing left to advance it.
+                log::warn!(
+                    "[pipeline] discarding a finished stage for {:?}: no longer tracked (expected only after a world wipe)",
+                    result.0.coords
+                );
             }
         }
 
@@ -535,6 +615,66 @@ impl Pipeline {
         }
 
         self.stages = new_stages;
+    }
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::*;
+
+    #[test]
+    fn an_unload_drops_queued_stages_and_waiting_on_the_chunk_revives_them() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(3, 4);
+        pipeline.add_chunk(&coords, false);
+
+        pipeline.release_unwanted(&coords, false);
+
+        assert!(!pipeline.queue.contains(&coords));
+        assert!(!pipeline.is_demanded(&coords));
+        assert!(pipeline.revive_dropped(&coords));
+        assert_eq!(pipeline.queue.front(), Some(&coords));
+        assert!(
+            !pipeline.revive_dropped(&coords),
+            "a revived chunk is no longer dropped"
+        );
+    }
+
+    #[test]
+    fn an_unload_lets_a_running_stage_land_then_parks_the_chunk() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(1, 0);
+        // What `process` records when the stage starts.
+        pipeline.chunks.insert(coords.clone());
+
+        pipeline.release_unwanted(&coords, false);
+
+        assert!(pipeline.has_chunk(&coords), "the running stage still lands");
+        assert!(pipeline.parks_released(&coords, false));
+        assert!(pipeline.revive_dropped(&coords));
+    }
+
+    #[test]
+    fn a_released_chunk_that_is_wanted_again_goes_on() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(1, 0);
+        pipeline.chunks.insert(coords.clone());
+        pipeline.release_unwanted(&coords, false);
+
+        assert!(!pipeline.parks_released(&coords, true));
+        assert!(!pipeline.revive_dropped(&coords));
+    }
+
+    #[test]
+    fn a_chunk_a_neighbor_waits_on_keeps_its_stages() {
+        let mut pipeline = Pipeline::new();
+        let coords = Vec2(0, 1);
+        pipeline.add_chunk(&coords, false);
+
+        pipeline.release_unwanted(&coords, true);
+
+        assert!(pipeline.queue.contains(&coords));
+        assert!(!pipeline.revive_dropped(&coords));
     }
 }
 
