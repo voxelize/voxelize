@@ -97,11 +97,13 @@ fn radius_rides_the_masked_stage_bits_and_keeps_the_rest() {
 
 #[test]
 fn joints_take_the_thinner_radius_and_sockets_take_what_fits() {
-    let sides = [branch(3), branch(8), socket(1), socket(8), APART, root(2)];
-    let layout = layout(5, sides);
-    assert_eq!(layout.joints, [3, 5, 0, 5, 0, 2]);
+    let sides = [branch(3), branch(8), branch(6), socket(8), APART, root(2)];
+    assert_eq!(layout(5, sides).joints, [3, 5, 5, 5, 0, 2]);
     let twig = BranchLayout::new(&shape(BranchSeat::Centre), stage(1), sides);
     assert_eq!(twig.joints, [1, 1, 1, 1, 0, 1]);
+    let ahead = [socket(1), branch(5), APART, APART, APART, APART];
+    assert_eq!(layout(1, ahead).joints[0], 1, "a leaf takes a twig's end");
+    assert_eq!(layout(5, ahead).joints[0], 0, "and nothing thicker");
 }
 
 #[test]
@@ -227,7 +229,7 @@ fn joined_ends_stay_open_and_opaque_neighbours_hide_flush_faces() {
 
 #[test]
 fn a_twig_draws_its_end_inside_a_leaf_but_not_inside_soil() {
-    let twig = layout(1, [socket(1), APART, APART, branch(2), APART, APART]);
+    let twig = layout(1, [socket(1), branch(2), APART, APART, APART, APART]);
     let mut beyond = NOTHING;
     beyond[0] = BranchBeyond::SeeThrough;
     let cap = |beyond: &[BranchBeyond; 6]| {
@@ -239,6 +241,49 @@ fn a_twig_draws_its_end_inside_a_leaf_but_not_inside_soil() {
     assert_eq!(cap(&beyond), 1, "the end shows through the leaf's holes");
     beyond[0] = BranchBeyond::Opaque;
     assert_eq!(cap(&beyond), 0, "soil hides it");
+}
+
+#[test]
+fn a_twig_runs_into_the_leaf_ahead_and_not_into_the_leaves_beside_it() {
+    // A tip among leaves: its parent below, a leaf above and on every side.
+    let tip = layout(
+        1,
+        [
+            socket(1),
+            socket(1),
+            socket(1),
+            branch(2),
+            socket(1),
+            socket(1),
+        ],
+    );
+    assert_eq!(
+        tip.joints,
+        [0, 0, 1, 1, 0, 0],
+        "only the leaf ahead takes it"
+    );
+    assert_eq!(
+        tip.parts.len(),
+        1,
+        "one straight core, no stubs into the leaves"
+    );
+    let mut beyond = [BranchBeyond::SeeThrough; 6];
+    beyond[3] = BranchBeyond::Other;
+    let quads = tip.faces(&beyond);
+    assert_eq!(
+        quads.len(),
+        5,
+        "four sides and its end inside the leaf ahead: {quads:?}"
+    );
+    // The ground under a trunk still takes it, whatever its roots set its
+    // grain to.
+    let base = layout(6, [root(6), root(6), branch(6), socket(8), APART, APART]);
+    assert_eq!(base.joints[3], 6);
+    assert!(
+        base.parts.iter().any(|part| part.min[1] == 0),
+        "the trunk reaches its soil: {:?}",
+        base.parts
+    );
 }
 
 #[test]

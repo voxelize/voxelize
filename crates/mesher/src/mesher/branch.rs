@@ -288,6 +288,27 @@ pub struct WideCell {
     pub carried_by: [u32; 2],
 }
 
+const UP: usize = 2;
+const DOWN: usize = 3;
+
+/// The axis a core's grain runs along, of `candidates`: its thickest joint,
+/// then the axis with more joints, then the earlier candidate (vertical
+/// before x before z). A root lies along the floor, so its candidates leave
+/// out the vertical.
+fn grain_axis(joints: &[u32; SIDES], candidates: &[usize]) -> usize {
+    let mut axis = candidates[0];
+    let mut best = (0, 0);
+    for &candidate in candidates {
+        let (a, b) = (joints[candidate * 2], joints[candidate * 2 + 1]);
+        let score = (a.max(b), u32::from(a > 0) + u32::from(b > 0));
+        if score > best {
+            best = score;
+            axis = candidate;
+        }
+    }
+    axis
+}
+
 /// The joint a branch of `radius` makes with what lies on one side.
 fn joint_radius(radius: u32, side: BranchSide) -> u32 {
     match side {
@@ -349,7 +370,41 @@ impl BranchLayout {
         let c = t / 2;
         let r = radius as i32;
         let seat = shape.seat;
-        let joints = sides.map(|side| joint_radius(radius, side));
+        let candidates: &[usize] = match seat {
+            BranchSeat::Centre => &[1, 0, 2],
+            BranchSeat::Floor => &[0, 2],
+        };
+        let offered = sides.map(|side| joint_radius(radius, side));
+        let is_socket = |side: usize| matches!(sides[side], BranchSide::Socket { .. });
+        let own: [u32; SIDES] =
+            std::array::from_fn(|side| if is_socket(side) { 0 } else { offered[side] });
+        let own_count = own.iter().filter(|&&j| j > 0).count();
+        let only = (0..SIDES).find(|&side| own[side] > 0).unwrap_or(0);
+        // A socket (a leaf, the soil) takes only the branch carried on into
+        // it: the ground under a root or under a branch coming down into it,
+        // a tip's free end, and a lone voxel along its grain. A twig among
+        // leaves runs into the leaf ahead of it, not into every leaf beside
+        // it, so it draws no stubs into those.
+        let ground = |side: usize| side == DOWN && (seat == BranchSeat::Floor || own[UP] > 0);
+        let mut joints: [u32; SIDES] = std::array::from_fn(|side| {
+            let kept = !is_socket(side)
+                || own_count == 0
+                || ground(side)
+                || (own_count == 1 && side == only ^ 1);
+            if kept {
+                offered[side]
+            } else {
+                0
+            }
+        });
+        let axis = grain_axis(&joints, candidates);
+        if own_count == 0 {
+            for side in 0..SIDES {
+                if is_socket(side) && side_axis(side) != axis && !ground(side) {
+                    joints[side] = 0;
+                }
+            }
+        }
 
         // A horizontal joint lies along the floor when either end of it
         // does; a vertical one always runs up the middle.
@@ -378,24 +433,6 @@ impl BranchLayout {
                 joints[side]
             }
         });
-
-        // The core's grain follows its thickest joint, then the axis with
-        // more joints, then vertical before x before z. A root lies along
-        // the floor, so its grain is never vertical.
-        let candidates: &[usize] = match seat {
-            BranchSeat::Centre => &[1, 0, 2],
-            BranchSeat::Floor => &[0, 2],
-        };
-        let mut axis = candidates[0];
-        let mut best = (0, 0);
-        for &candidate in candidates {
-            let (a, b) = (joints[candidate * 2], joints[candidate * 2 + 1]);
-            let score = (a.max(b), u32::from(a > 0) + u32::from(b > 0));
-            if score > best {
-                best = score;
-                axis = candidate;
-            }
-        }
 
         let (low_y, high_y) = match seat {
             BranchSeat::Centre => (c - r, c + r),
