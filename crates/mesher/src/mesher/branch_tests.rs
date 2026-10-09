@@ -318,6 +318,25 @@ fn a_lone_voxel_shows_rings_on_both_ends() {
 }
 
 #[test]
+fn volume_is_the_drawn_wood_in_cubic_texels() {
+    assert_eq!(layout(8, [APART; 6]).volume(), 16 * 16 * 16, "a full block");
+    for r in 1..=8 {
+        let run = layout(r, [APART, APART, branch(r), branch(r), APART, APART]);
+        assert_eq!(
+            run.volume(),
+            (2 * r) * (2 * r) * 16,
+            "a straight run at r{r}"
+        );
+    }
+    let bend = layout(2, [branch(1), APART, APART, branch(2), APART, APART]);
+    assert_eq!(
+        bend.volume(),
+        4 * 10 * 4 + 6 * 2 * 2,
+        "core to the floor plus a twig arm"
+    );
+}
+
+#[test]
 fn collision_boxes_are_the_drawn_parts() {
     let layout = layout(2, [branch(1), APART, APART, branch(2), APART, APART]);
     let aabbs = layout.aabbs();
@@ -384,6 +403,27 @@ const AIR: u32 = 0;
 const STONE: u32 = 1;
 const LIMB: u32 = 2;
 const LEAF: u32 = 3;
+const SOIL: u32 = 4;
+
+/// The six axis faces of a unit cube, every one marked `regional_tint`.
+fn regional_cube_faces() -> Vec<BlockFace> {
+    VOXEL_NEIGHBORS
+        .iter()
+        .map(|&dir| BlockFace {
+            name: format!("{dir:?}"),
+            name_lower: format!("{dir:?}"),
+            dir,
+            regional_tint: true,
+            range: UV {
+                start_u: 0.0,
+                end_u: 0.25,
+                start_v: 0.0,
+                end_v: 0.25,
+            },
+            ..Default::default()
+        })
+        .collect()
+}
 
 fn registry() -> Registry {
     let mut registry = Registry::new(vec![
@@ -420,6 +460,19 @@ fn registry() -> Registry {
                     max_radius: 1,
                 }],
                 ..block(LEAF, "Leaf")
+            },
+        ),
+        (
+            SOIL,
+            Block {
+                is_opaque: true,
+                is_transparent: [false; 6],
+                faces: regional_cube_faces(),
+                branch_sockets: vec![BranchSocket {
+                    key: KEY,
+                    max_radius: 8,
+                }],
+                ..block(SOIL, "Soil")
             },
         ),
     ]);
@@ -491,6 +544,32 @@ fn a_branch_is_never_greedy_merged_with_its_neighbour() {
     // Two full-radius voxels side by side join through the shared face, so
     // ten faces show; a greedy merge would draw six.
     assert_eq!(limb.positions.len() / 12, 10);
+}
+
+#[test]
+fn a_regional_face_takes_the_region_whatever_its_stage_holds() {
+    // The soil's stage holds state of its own (a tree's growth budget):
+    // every face it shows is tint-eligible on the neutral palette, so the
+    // client colours it from the chunk's corner field alone.
+    let geometries = mesh(&[([2, 1, 2], SOIL | (9 << 24)), ([2, 2, 2], limb(3))]);
+    let soil = geometries
+        .iter()
+        .find(|g| g.voxel == SOIL)
+        .expect("the soil meshes");
+    assert!(!soil.lights.is_empty());
+    for &light in &soil.lights {
+        assert!(light & STAGE_TINT_BIT != 0, "tint-eligible: {light:#x}");
+        assert_eq!(
+            (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS,
+            0,
+            "on the neutral palette, not the stage's 9"
+        );
+    }
+    let limb = geometries.iter().find(|g| g.voxel == LIMB).unwrap();
+    assert!(
+        limb.lights.iter().all(|light| light & STAGE_TINT_BIT == 0),
+        "the trunk standing in it keeps its bark untinted"
+    );
 }
 
 #[test]

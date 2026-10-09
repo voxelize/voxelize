@@ -31,6 +31,10 @@ pub struct BlockFace {
     /// [`BlockBuilder::face_pigment`]; never regional.
     #[serde(default)]
     pub pigment_mask: u32,
+    /// Take the chunk's regional colour without reading the stage. Set
+    /// through [`BlockBuilder::regional_tint`].
+    #[serde(default)]
+    pub regional_tint: bool,
 }
 
 impl BlockFace {
@@ -52,6 +56,7 @@ impl BlockFace {
             emissive: 0.0,
             stage_tint_mask: 0,
             pigment_mask: 0,
+            regional_tint: false,
         }
     }
 
@@ -102,6 +107,7 @@ impl BlockFace {
             emissive: self.emissive,
             stage_tint_mask: self.stage_tint_mask,
             pigment_mask: self.pigment_mask,
+            regional_tint: self.regional_tint,
         }
     }
 }
@@ -334,6 +340,7 @@ impl DiagonalFacesBuilder {
                     emissive: 0.0,
                     stage_tint_mask: 0,
                     pigment_mask: 0,
+                    regional_tint: false,
                     corners: [
                         CornerData {
                             pos: [
@@ -375,6 +382,7 @@ impl DiagonalFacesBuilder {
                     emissive: 0.0,
                     stage_tint_mask: 0,
                     pigment_mask: 0,
+                    regional_tint: false,
                     corners: [
                         CornerData {
                             pos: [
@@ -416,6 +424,7 @@ impl DiagonalFacesBuilder {
                     emissive: 0.0,
                     stage_tint_mask: 0,
                     pigment_mask: 0,
+                    regional_tint: false,
                     corners: [
                         CornerData {
                             pos: [
@@ -457,6 +466,7 @@ impl DiagonalFacesBuilder {
                     emissive: 0.0,
                     stage_tint_mask: 0,
                     pigment_mask: 0,
+                    regional_tint: false,
                     corners: [
                         CornerData {
                             pos: [
@@ -501,6 +511,7 @@ impl DiagonalFacesBuilder {
                     emissive: 0.0,
                     stage_tint_mask: 0,
                     pigment_mask: 0,
+                    regional_tint: false,
                     corners: [
                         CornerData {
                             pos: [
@@ -538,6 +549,7 @@ impl DiagonalFacesBuilder {
                     emissive: 0.0,
                     stage_tint_mask: 0,
                     pigment_mask: 0,
+                    regional_tint: false,
                     corners: [
                         CornerData {
                             pos: [
@@ -872,6 +884,7 @@ impl SixFacesBuilder {
                 emissive: 0.0,
                 stage_tint_mask: 0,
                 pigment_mask: 0,
+                regional_tint: false,
                 corners: [
                     CornerData {
                         pos: [
@@ -924,6 +937,7 @@ impl SixFacesBuilder {
                 emissive: 0.0,
                 stage_tint_mask: 0,
                 pigment_mask: 0,
+                regional_tint: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
@@ -976,6 +990,7 @@ impl SixFacesBuilder {
                 emissive: 0.0,
                 stage_tint_mask: 0,
                 pigment_mask: 0,
+                regional_tint: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -1028,6 +1043,7 @@ impl SixFacesBuilder {
                 emissive: 0.0,
                 stage_tint_mask: 0,
                 pigment_mask: 0,
+                regional_tint: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
@@ -1076,6 +1092,7 @@ impl SixFacesBuilder {
                 emissive: 0.0,
                 stage_tint_mask: 0,
                 pigment_mask: 0,
+                regional_tint: false,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -1124,6 +1141,7 @@ impl SixFacesBuilder {
                 emissive: 0.0,
                 stage_tint_mask: 0,
                 pigment_mask: 0,
+                regional_tint: false,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
