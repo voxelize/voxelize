@@ -159,7 +159,11 @@ import type { BoundingBox } from "./lighting";
 import { Loader } from "./loader";
 import { LocalLights } from "./local-lights";
 import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
-import { ChunkPipeline, MeshPipeline } from "./pipelines";
+import {
+  ChunkPipeline,
+  MeshPipeline,
+  describeChunkRequestHistory,
+} from "./pipelines";
 import { computeQuadLightTwist } from "./quad-light";
 import { Registry } from "./registry";
 import {
@@ -254,6 +258,9 @@ export * from "./world-options";
 
 const warnedUnknownBlockIds = new Set<number>();
 const warnedUnloadedUpdateChunks = new Set<string>();
+
+/** Overdue chunk requests one report names before summing up the rest. */
+const MAX_OVERDUE_CHUNKS_NAMED = 8;
 
 export type TextureInfo = {
   blockId: number;
@@ -5109,7 +5116,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           // The request is considered lost; drop the stage so the chunk is
           // reissued below.
-          this.chunkPipeline.remove(chunkName);
+          this.chunkPipeline.expireRequest(chunkName);
         }
 
         // The view cone is a priority, not a filter: in-view chunks stream
@@ -5164,6 +5171,41 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       });
     }
+
+    this.reportOverdueChunkRequests();
+  }
+
+  /**
+   * Retries keep a lost request moving, but a chunk asked for over and over
+   * with nothing ever arriving is a hole nobody sees until it is looked at.
+   * Name it, with whether its requests ever left this client.
+   */
+  private reportOverdueChunkRequests() {
+    const { chunkRequestOverdueMs } = this.options;
+    if (!(chunkRequestOverdueMs > 0)) return;
+    const now = performance.now();
+    const overdue = this.chunkPipeline.takeOverdueRequests(
+      now,
+      chunkRequestOverdueMs,
+    );
+    if (overdue.length === 0) return;
+    const shown = overdue
+      .slice(0, MAX_OVERDUE_CHUNKS_NAMED)
+      .map(
+        (request) =>
+          `${request.name.replace("|", ",")} (${describeChunkRequestHistory(
+            request,
+            now,
+          )})`,
+      );
+    const more = overdue.length - shown.length;
+    console.error(
+      `[voxelize] ${overdue.length} chunk request(s) unanswered for over ` +
+        `${Math.round(chunkRequestOverdueMs / 1000)}s: ${shown.join(", ")}` +
+        `${more > 0 ? ` and ${more} more` : ""}. A request never sent is ` +
+        "stuck in this client's outbound queue; one sent and never answered " +
+        "was lost by the server or on the way back.",
+    );
   }
 
   private reportChunkIdReplacements(force = false) {
@@ -5367,6 +5409,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.sectionVisibility?.removeChunk(x, z);
         deleted.push([x, z]);
       }
+    });
+    // A request between attempts holds no stage for the pass above to find.
+    this.chunkPipeline.forgetRequestsWhere((name) => {
+      const [x, z] = ChunkUtils.parseChunkName(name);
+      return (x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2;
     });
 
     const processingToRemove: string[] = [];
