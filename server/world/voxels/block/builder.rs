@@ -54,6 +54,7 @@ pub struct BlockBuilder {
     light_attenuation: u8,
     emissive: f32,
     stage_tint_mask: u32,
+    regional_tint: bool,
     face_pigments: Vec<(String, u32)>,
     face_emissives: Vec<(String, f32)>,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
@@ -279,6 +280,15 @@ impl BlockBuilder {
     /// up to four blocks; longer runs keep their sway and remain untinted.
     pub fn stage_tint(mut self, mask: u32) -> Self {
         self.stage_tint_mask = mask & 15;
+        self
+    }
+
+    /// Shade every face with the chunk's regional colour (its corner colour
+    /// field) on the neutral palette, never reading the stage: for a block
+    /// whose stage holds state of its own but should match the region round
+    /// it, as a tree's soil and foliage match the grass and leaves nearby.
+    pub fn regional_tint(mut self) -> Self {
+        self.regional_tint = true;
         self
     }
 
@@ -558,6 +568,16 @@ impl BlockBuilder {
                 face.stage_tint_mask = self.stage_tint_mask;
             }
         }
+        if self.regional_tint {
+            assert!(
+                !self.is_fluid && self.stage_tint_mask == 0 && self.face_pigments.is_empty(),
+                "{}: a regional tint takes its colour from the region alone, not with a stage tint or pigment",
+                self.name
+            );
+            for face in &mut faces {
+                face.regional_tint = true;
+            }
+        }
         if !self.face_pigments.is_empty() {
             assert!(!self.is_fluid, "a pigment cannot share a fluid field");
             assert!(
@@ -566,10 +586,7 @@ impl BlockBuilder {
             );
         }
         for (prefix, mask) in &self.face_pigments {
-            for face in faces
-                .iter_mut()
-                .filter(|face| face.name.starts_with(prefix))
-            {
+            for face in faces.iter_mut().filter(|face| face.name.starts_with(prefix)) {
                 face.pigment_mask = *mask;
             }
         }

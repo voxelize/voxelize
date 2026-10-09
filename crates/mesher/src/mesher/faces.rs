@@ -891,6 +891,8 @@ pub(super) fn process_face<S: VoxelAccess>(
                 packed,
                 space.get_voxel_stage(vx, vy, vz) & face.stage_tint_mask,
             )
+        } else if face.regional_tint && !is_fluid {
+            with_stage_tint(packed, 0)
         } else {
             packed
         });
