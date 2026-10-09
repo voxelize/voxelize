@@ -2,7 +2,9 @@
 import { parseArgs } from "node:util";
 
 import { Agent } from "../src/agent";
+import { AuthUrlError } from "../src/auth-url";
 import {
+  AUTH_FAILED_EXIT_CODE,
   IDLE_TTL_EXIT_CODE,
   MOUNT_FAILED_EXIT_CODE,
   resolveIdleTtlMs,
@@ -80,6 +82,14 @@ async function main(): Promise<void> {
     isHeadless,
     port,
     authUrl: values.authUrl,
+  }).catch((error: unknown) => {
+    if (error instanceof AuthUrlError) {
+      return exitAfterLogging(
+        `[voxelize-agent] ${error.message}; exiting with code ${AUTH_FAILED_EXIT_CODE}`,
+        AUTH_FAILED_EXIT_CODE,
+      );
+    }
+    throw error;
   });
 
   process.on("exit", () => {
@@ -181,6 +191,14 @@ async function main(): Promise<void> {
   console.log("[voxelize-agent] agent ready");
 }
 
+// process.exit() can drop a write still queued on a pipe, and this line is
+// the session's only account of why it stopped.
+function exitAfterLogging(line: string, exitCode: number): Promise<never> {
+  return new Promise(() => {
+    process.stderr.write(`${line}\n`, () => process.exit(exitCode));
+  });
+}
+
 function resolveLeaseMinutes(
   flagValue: string | undefined,
   env: Record<string, string | undefined>,
@@ -211,7 +229,10 @@ Options:
   -w, --world <name>     World to join (default: test)
   -p, --port <port>      HTTP daemon port (default: 4099)
   -n, --name <name>      Agent display name (default: agent)
-      --authUrl <url>    Visit this URL first to pick up session cookies
+      --authUrl <url>    Visit this URL first to pick up session cookies. An
+                         answer other than 2xx (or 304) stops the daemon
+                         before the page loads, naming the status and body.
+                         Exits code ${AUTH_FAILED_EXIT_CODE}.
       --headed           Launch a visible browser window (default: headless)
       --idle-ttl-ms <n>  Shut down after n ms without commands (default: 30m;
                          0 disables; env AGENT_IDLE_TTL_MS). Exits code ${IDLE_TTL_EXIT_CODE}.
