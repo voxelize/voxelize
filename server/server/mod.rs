@@ -44,7 +44,8 @@ use crate::{
     perf,
     world::{
         check_protocol, Chunks, ClientPreferencesPatch, InboundStateBuffer, MethodGuard,
-        MotionProtocol, Registry, World, PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_VERSION,
+        MethodIndex, MotionProtocol, Registry, World, PROTOCOL_MISMATCH_CLOSE_CODE,
+        PROTOCOL_VERSION,
     },
     ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, Preload, Prepare, RtcSenders,
     SyncWorld, Tick, TransportJoinRequest, TransportLeaveRequest,
@@ -424,6 +425,11 @@ pub struct Server {
     /// hands every call to its handler unchecked.
     pub method_guard: Option<Arc<dyn MethodGuard>>,
 
+    /// Which live world handles which method, shared with every world this
+    /// server adds, so a call to a world without that method is answered
+    /// with the worlds that have it.
+    method_index: MethodIndex,
+
     /// Verified identity of every registered session (pre-join and in-world),
     /// keyed by client id. Handed to the world on join so game code can read
     /// the session's claims from the `SessionIdentities` resource.
@@ -557,11 +563,15 @@ impl Server {
             world.set_method_guard(Arc::clone(guard));
         }
 
+        let methods = world.method_names();
+        world.ecs_mut().insert(self.method_index.clone());
+
         let addr = world.start();
 
         if self.worlds.insert(name.clone(), addr).is_some() {
             return Err(AddWorldError);
         }
+        self.method_index.record(&name, methods);
         self.world_entries.insert(name.clone(), entry);
 
         info!(

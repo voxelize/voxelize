@@ -1,3 +1,7 @@
+import type { MethodOutcome } from "./method-outcome";
+
+export type { MethodOutcome } from "./method-outcome";
+
 export type Vec3 = { x: number; y: number; z: number };
 
 export type ChunkCoord = { cx: number; cz: number };
@@ -155,11 +159,15 @@ export type CommandQueueReason = "disconnected" | "rejoining" | "retrying";
  * socket (`isSent`), or it is queued client-side and goes out automatically
  * once the session is connected and joined again (`isQueued` plus a reason).
  * At most one is true; both false means there was nothing to send.
+ *
+ * `outcome` is what the server did with a sent command, when the bridge
+ * confirmed it; the daemon turns `unhandled` and `rejected` into an error.
  */
 export type CommandDispatch = {
   isSent: boolean;
   isQueued: boolean;
   queuedReason?: CommandQueueReason;
+  outcome?: MethodOutcome;
 };
 
 export type PaintSettleReport = {
@@ -795,6 +803,12 @@ export interface AgentBridge {
    * the current render distance).
    */
   setFogDistance(blocks: number | null): Promise<number | null>;
+  /**
+   * Sends one server method. A result that carries a {@link CommandDispatch}
+   * `outcome` (confirm the call through `Method.confirm`) lets the daemon
+   * fail a call the world has no handler for, or turned down, instead of
+   * reporting it sent.
+   */
   call(method: string, payload: unknown): Promise<unknown>;
   /**
    * Local break prediction plus one transactional `break-block` command.

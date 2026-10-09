@@ -94,6 +94,12 @@ export type {
   PageUnavailable,
   PageUnavailableLine,
 } from "./page-availability";
+export {
+  assertMethodRan,
+  describeMethodFailure,
+  MethodOutcomeError,
+  outcomeOf,
+} from "./method-outcome";
 export * from "./bridge";
 export { formatProfileSummary, summarizeProfile } from "./profile-summary";
 export type {

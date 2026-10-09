@@ -12,6 +12,7 @@
 //! concepts on top by driving these messages; the engine never learns what a
 //! world represents.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -164,6 +165,9 @@ pub(crate) struct PooledSlot {
     pub(crate) addr: Addr<SyncWorld>,
     pub(crate) inbound_state: Arc<InboundStateBuffer>,
     pub(crate) fingerprint: ConfigFingerprint,
+    /// The methods the dormant world handles: it keeps its handlers across a
+    /// reset, so the method index lists them again under the slot's next name.
+    pub(crate) methods: BTreeSet<String>,
 }
 
 /// Lifecycle observability counters (gauge = current world count; the rest are
@@ -423,26 +427,30 @@ impl Server {
         let max_clients = config.max_clients;
         let is_deterministic = config.fixed_timestep.is_some();
 
-        let (addr, inbound_state, reused) = match self.take_pooled_slot(&fingerprint, &name) {
-            Some((addr, inbound_state)) => (addr, inbound_state, true),
-            None => {
-                let mut world = World::new(&name, &config);
-                world.ecs_mut().insert(self.registry.clone());
-                if let Some(rtc_senders) = &self.rtc_senders {
-                    world.ecs_mut().insert(rtc_senders.clone());
+        let (addr, inbound_state, methods, reused) =
+            match self.take_pooled_slot(&fingerprint, &name) {
+                Some(slot) => (slot.addr, slot.inbound_state, slot.methods, true),
+                None => {
+                    let mut world = World::new(&name, &config);
+                    world.ecs_mut().insert(self.registry.clone());
+                    if let Some(rtc_senders) = &self.rtc_senders {
+                        world.ecs_mut().insert(rtc_senders.clone());
+                    }
+                    if let Some(guard) = &self.method_guard {
+                        guard.audit(&world);
+                        world.set_method_guard(Arc::clone(guard));
+                    }
+                    world.ecs_mut().insert(self.method_index.clone());
+                    let methods = world.method_names().into_iter().collect();
+                    let inbound_state = world.inbound_state_handle();
+                    let addr = world.start();
+                    (addr, inbound_state, methods, false)
                 }
-                if let Some(guard) = &self.method_guard {
-                    guard.audit(&world);
-                    world.set_method_guard(Arc::clone(guard));
-                }
-                let inbound_state = world.inbound_state_handle();
-                let addr = world.start();
-                (addr, inbound_state, false)
-            }
-        };
+            };
 
         self.world_inbound_state.insert(name.clone(), inbound_state);
         self.worlds.insert(name.clone(), addr.clone());
+        self.method_index.record(&name, methods);
 
         let created_at = Instant::now();
         self.world_entries.insert(
@@ -487,13 +495,13 @@ impl Server {
     }
 
     /// Pop a warm slot matching `fingerprint`, reset + rename it for reuse, and
-    /// return its address and (cleared) inbound state. `None` when pooling is
+    /// return it with its (cleared) inbound state. `None` when pooling is
     /// off, no slot matches, or the reset policy is not `ReuseWarm`.
     fn take_pooled_slot(
         &mut self,
         fingerprint: &ConfigFingerprint,
         new_name: &str,
-    ) -> Option<(Addr<SyncWorld>, Arc<InboundStateBuffer>)> {
+    ) -> Option<PooledSlot> {
         let reuse = self
             .world_pool
             .as_ref()
@@ -517,7 +525,7 @@ impl Server {
         slot.inbound_state.reset();
 
         self.lifecycle_metrics.reused += 1;
-        Some((slot.addr, slot.inbound_state))
+        Some(slot)
     }
 
     /// Detach a world from the live map with the #129-safe ordering, then stop
@@ -561,6 +569,7 @@ impl Server {
         let addr = self.worlds.remove(name).unwrap();
         self.pending_world_ticks.remove(name);
         let inbound_state = self.world_inbound_state.remove(name);
+        let methods = self.method_index.forget(name).unwrap_or_default();
 
         // Step 5 (server side): eject sessions bound to this world so a stale
         // reconnect can't resurrect a dead world; it takes the clean
@@ -622,6 +631,7 @@ impl Server {
                     addr,
                     inbound_state: inbound_state.clone(),
                     fingerprint: entry.config_fingerprint.clone(),
+                    methods,
                 });
                 self.lifecycle_metrics.pooled += 1;
                 return Ok(None);
@@ -869,6 +879,60 @@ mod runtime_lifecycle_tests {
             let stats_b = handle_b.addr.send(GetWorldStats).await.unwrap();
             assert_eq!(stats_b.client_count, 0, "no client carried over");
             assert_eq!(stats_b.entity_count, 0, "no entity carried over");
+        });
+    }
+
+    // ── Test 1c: the method index lists live worlds only, warm slots included. ─
+    #[test]
+    fn method_index_follows_worlds_through_the_pool() {
+        actix::System::new().block_on(async {
+            let server = Server::new()
+                .debug(false)
+                .world_pool(PoolConfig {
+                    prealloc: 1,
+                    reset: ResetPolicy::ReuseWarm,
+                })
+                .build();
+            let addr = server.start();
+            let config = WorldConfig::new().build();
+            let handling_ping = |addr: Addr<Server>| async move {
+                let (tx, rx) = oneshot::channel();
+                addr.send(RunOnActor(Box::new(move |server, _| {
+                    let _ = tx.send(server.method_index.worlds_handling("vox-builtin:ping"));
+                })))
+                .await
+                .unwrap();
+                rx.await.unwrap()
+            };
+            let create = |name: &str| CreateWorld {
+                name: name.into(),
+                config: config.clone(),
+                gc_policy: GcPolicy::Never,
+            };
+
+            addr.send(create("slot-a")).await.unwrap().expect("create slot-a");
+            assert_eq!(handling_ping(addr.clone()).await, ["slot-a"]);
+
+            addr.send(DestroyWorld {
+                name: "slot-a".into(),
+                force: true,
+            })
+            .await
+            .unwrap()
+            .expect("destroy slot-a");
+            assert!(
+                handling_ping(addr.clone()).await.is_empty(),
+                "a pooled world is not live, so no call is pointed at it"
+            );
+
+            addr.send(create("slot-b")).await.unwrap().expect("create slot-b");
+            let metrics = addr.send(GetLifecycleMetrics).await.unwrap();
+            assert_eq!(metrics.reused, 1, "slot-b came from the warm pool");
+            assert_eq!(
+                handling_ping(addr.clone()).await,
+                ["slot-b"],
+                "the reused slot keeps its handlers under its new name"
+            );
         });
     }
 

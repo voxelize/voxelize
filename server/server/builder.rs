@@ -1,6 +1,6 @@
 use hashbrown::{HashMap, HashSet};
 
-use crate::world::Registry;
+use crate::world::{MethodIndex, Registry};
 
 use super::lifecycle::{PoolConfig, WorldLifecycleMetrics};
 use super::{
@@ -146,6 +146,7 @@ impl ServerBuilder {
             lost_sessions: HashMap::default(),
             transport_sessions: HashMap::default(),
             method_guard: None,
+            method_index: MethodIndex::default(),
             pending_world_ticks: HashSet::default(),
             last_tick_at: None,
             actor_started_at: None,

@@ -29,6 +29,7 @@ import {
   idleDrawIntervalFor,
   resolveIdleDrawAfterMs,
 } from "./idle-draw";
+import { MethodOutcomeError, assertMethodRan } from "./method-outcome";
 import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
@@ -1167,6 +1168,15 @@ export class AgentDaemon {
         void reply.code(400).send({ ok: false, error: error.message });
         return;
       }
+      if (error instanceof MethodOutcomeError) {
+        void reply.code(422).send({
+          ok: false,
+          error: error.message,
+          method: error.method,
+          outcome: error.outcome,
+        });
+        return;
+      }
       if (error instanceof z.ZodError) {
         void reply.code(400).send({ ok: false, error: error.flatten() });
         return;
@@ -1481,6 +1491,15 @@ export class AgentDaemon {
             retryAfterMs: e.retryAfterMs,
           };
         }
+        if (e instanceof MethodOutcomeError) {
+          reply.code(422);
+          return {
+            ok: false,
+            error: e.message,
+            method: e.method,
+            outcome: e.outcome,
+          };
+        }
         const message = e instanceof Error ? e.message : String(e);
         reply.code(500);
         return { ok: false, error: message };
@@ -1694,7 +1713,7 @@ export class AgentDaemon {
 
     this.server.post("/freeze", async (req, reply) => {
       const body = freezeBodySchema.parse(req.body);
-      await this.agent.call("freeze-entity", {
+      await this.callMethod("freeze-entity", {
         entityId: body.entityId,
         durationSecs: body.durationSecs,
       });
@@ -1716,7 +1735,7 @@ export class AgentDaemon {
         const frozenBefore = before.filter(
           (e) => this.metadataFrozenFlag(e.metadata) === true,
         );
-        await this.agent.call("thaw-all", {});
+        await this.callMethod("thaw-all", {});
         const after = await this.agent.entitiesNear(128);
         const thawed = frozenBefore.map((prev) => {
           const now = after.find((e) => e.id === prev.id) ?? prev;
@@ -1741,7 +1760,7 @@ export class AgentDaemon {
         reply.code(400);
         return { ok: false, error: "entityId or all:true required" };
       }
-      await this.agent.call("thaw-entity", { entityId });
+      await this.callMethod("thaw-entity", { entityId });
       const entity = await this.waitForFrozenMetadata(entityId, false);
       if (!entity) {
         reply.code(502);
@@ -1818,7 +1837,12 @@ export class AgentDaemon {
       const { actions, isStoppingOnError } = parsed.data;
       const results: Array<
         | { ok: true; result: unknown }
-        | { ok: false; error: string; retryAfterMs?: number }
+        | {
+            ok: false;
+            error: string;
+            retryAfterMs?: number;
+            outcome?: MethodOutcomeError["outcome"];
+          }
       > = [];
       for (const action of actions) {
         try {
@@ -1830,6 +1854,7 @@ export class AgentDaemon {
             ...(e instanceof PageStallError
               ? { retryAfterMs: e.retryAfterMs }
               : {}),
+            ...(e instanceof MethodOutcomeError ? { outcome: e.outcome } : {}),
           });
           if (isStoppingOnError) break;
         }
@@ -2053,7 +2078,7 @@ export class AgentDaemon {
 
       const isFreezing = body.isFreezing === true;
       if (isFreezing) {
-        await this.agent.call("freeze-entity", {
+        await this.callMethod("freeze-entity", {
           entityId: target.id,
           durationSecs: FRAME_FREEZE_SECONDS,
         });
@@ -2104,7 +2129,7 @@ export class AgentDaemon {
       } finally {
         if (isFreezing) {
           try {
-            await this.agent.call("thaw-entity", { entityId: target.id });
+            await this.callMethod("thaw-entity", { entityId: target.id });
           } catch (e) {
             // The freeze self-expires server-side; a failed thaw only delays
             // the entity, but say so instead of hiding it.
@@ -2426,6 +2451,24 @@ export class AgentDaemon {
     });
   }
 
+  /**
+   * One server method, failed out loud when the server answers that it did
+   * nothing: no handler in this world, or turned down. The thrown
+   * `MethodOutcomeError` reaches the caller as a 422.
+   */
+  private async callMethod(method: string, payload: unknown): Promise<unknown> {
+    const result = await this.agent.call(method, payload);
+    try {
+      assertMethodRan(method, result);
+    } catch (error) {
+      console.log(
+        `[agent-daemon] ${new Date().toISOString()} ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+    return result;
+  }
+
   private async executeAction(
     action: z.infer<typeof actSchema>,
   ): Promise<unknown> {
@@ -2508,7 +2551,7 @@ export class AgentDaemon {
           fogDistance: await this.agent.setFogDistance(action.blocks),
         };
       case "call":
-        return this.agent.call(action.method, action.payload);
+        return this.callMethod(action.method, action.payload);
       case "break-voxel":
         return this.agent.breakVoxel(action.pos);
       case "place-voxel":

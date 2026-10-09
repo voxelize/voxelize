@@ -128,7 +128,9 @@ mod sync;
 
 pub use client_body::*;
 use dispatcher::dispatcher;
-pub use method_guard::{MethodGuard, MethodVerdict};
+pub use method_guard::{
+    MethodGuard, MethodIndex, MethodVerdict, METHOD_REJECTED_REPLY, UNHANDLED_METHOD_REPLY,
+};
 pub use sync::*;
 
 #[derive(Debug, Serialize, Deserialize)]
