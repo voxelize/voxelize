@@ -221,6 +221,15 @@ export class Arm extends THREE.Group {
   private heldObjectShadowUniforms: EntityShadowUniforms =
     createEntityShadowUniforms();
 
+  /**
+   * The arm's own copy of each material a held object arrives with, set up
+   * once. A held object usually shares its materials with every other copy
+   * of the same thing (an item's cached mesh is cloned into each hand with
+   * one material), so the arm never sets up a material it is handed.
+   */
+  private heldMaterials = new WeakMap<THREE.Material, THREE.Material>();
+  private ownHeldMaterials = new WeakSet<THREE.Material>();
+
   private shadowSelfBounds: THREE.Vector4 | null = null;
   private readonly noShadowSelfBounds = new THREE.Vector4();
   private readonly shadowWorldMatrix = new THREE.Matrix4();
@@ -487,11 +496,7 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
-    if (this.shouldReceiveHeldObjectShadows()) {
-      this.injectShadowShaders(object);
-    } else {
-      this.injectHeldObjectLighting(object);
-    }
+    this.adoptHeldMaterials(object);
 
     this.currentObjectOptions = this.options.blockObjectOptions;
     this.mixer = new THREE.AnimationMixer(object);
@@ -516,11 +521,7 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(options.quaternion);
 
-    if (this.shouldReceiveHeldObjectShadows()) {
-      this.injectShadowShaders(object);
-    } else {
-      this.injectHeldObjectLighting(object);
-    }
+    this.adoptHeldMaterials(object);
 
     this.currentObjectOptions = options;
     this.mixer = new THREE.AnimationMixer(object);
@@ -532,94 +533,119 @@ export class Arm extends THREE.Group {
     this.currentArmObject = object;
   };
 
-  private injectHeldObjectLighting(object: THREE.Object3D): void {
+  /** Point every mesh of a held object at the arm's own copy of its material. */
+  private adoptHeldMaterials(object: THREE.Object3D): void {
     object.traverse((child) => {
       if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
-      const materials = Array.isArray(mesh.material)
-        ? mesh.material
-        : [mesh.material];
-
-      for (const material of materials) {
-        if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
-        if (material.userData.heldObjectLighting === true) continue;
-        if (isSelfIlluminated(material)) continue;
-
-        material.userData.heldObjectLighting = true;
-        material.userData.lightEffectSetup = true;
-
-        const lightColorRef = this.heldLightColor;
-        const oldOnBeforeCompile = material.onBeforeCompile;
-        material.onBeforeCompile = (shader, renderer) => {
-          if (oldOnBeforeCompile) {
-            oldOnBeforeCompile(shader, renderer);
-          }
-
-          shader.uniforms.uLightColor = { value: lightColorRef };
-
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "#include <common>",
-              `#include <common>
-uniform vec3 uLightColor;
-`,
-            )
-            .replace(
-              "#include <dithering_fragment>",
-              `#include <dithering_fragment>
-gl_FragColor.rgb *= uLightColor;
-`,
-            );
-        };
-
-        material.onBeforeCompile.toString = () => "held-object-lighting-shader";
-        material.needsUpdate = true;
-      }
+      mesh.material = Array.isArray(mesh.material)
+        ? mesh.material.map(this.heldMaterialFor)
+        : this.heldMaterialFor(mesh.material);
     });
   }
 
-  private injectShadowShaders(object: THREE.Object3D): void {
-    if (!this.shouldReceiveHeldObjectShadows()) return;
+  private heldMaterialFor = (material: THREE.Material): THREE.Material => {
+    if (material.type !== "MeshBasicMaterial") return material;
+    if (isSelfIlluminated(material)) return material;
+    if (this.ownHeldMaterials.has(material)) return material;
+    const cached = this.heldMaterials.get(material);
+    if (cached) return cached;
+
+    // A clone copies flags but not compile hooks, so it must not pass as
+    // set up; a hook the source was built with comes along, an effect's
+    // wrapper does not.
+    const own = material.clone();
+    const isSetUpElsewhere =
+      material.userData.heldObjectLighting === true ||
+      material.userData.lightEffectSetup === true;
+    delete own.userData.heldObjectLighting;
+    delete own.userData.lightEffectSetup;
+    if (
+      !isSetUpElsewhere &&
+      Object.prototype.hasOwnProperty.call(material, "onBeforeCompile")
+    ) {
+      own.onBeforeCompile = material.onBeforeCompile;
+    }
+    if (this.shouldReceiveHeldObjectShadows()) this.setUpHeldShadow(own);
+    else this.setUpHeldLighting(own);
+
+    this.heldMaterials.set(material, own);
+    this.ownHeldMaterials.add(own);
+    material.addEventListener("dispose", () => {
+      this.heldMaterials.delete(material);
+      own.dispose();
+    });
+    return own;
+  };
+
+  /** The program key for a held material, kept apart per hook it wraps. */
+  private heldProgramKey(material: THREE.Material, name: string): string {
+    return Object.prototype.hasOwnProperty.call(material, "onBeforeCompile")
+      ? `${name}|${material.onBeforeCompile.toString()}`
+      : name;
+  }
+
+  private setUpHeldLighting(material: THREE.Material): void {
+    material.userData.heldObjectLighting = true;
+    material.userData.lightEffectSetup = true;
+
+    const key = this.heldProgramKey(material, "held-object-lighting-shader");
+    const lightColorRef = this.heldLightColor;
+    const oldOnBeforeCompile = material.onBeforeCompile;
+    material.onBeforeCompile = (shader, renderer) => {
+      if (oldOnBeforeCompile) {
+        oldOnBeforeCompile(shader, renderer);
+      }
+
+      shader.uniforms.uLightColor = { value: lightColorRef };
+
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
+uniform vec3 uLightColor;
+`,
+        )
+        .replace(
+          "#include <dithering_fragment>",
+          `#include <dithering_fragment>
+gl_FragColor.rgb *= uLightColor;
+`,
+        );
+    };
+
+    material.onBeforeCompile.toString = () => key;
+    material.needsUpdate = true;
+  }
+
+  private setUpHeldShadow(material: THREE.Material): void {
     const shadowUniforms = this.heldObjectShadowUniforms;
+    material.userData.heldObjectLighting = true;
+    material.userData.lightEffectSetup = true;
 
-    object.traverse((child) => {
-      if (!("isMesh" in child) || !(child as THREE.Mesh).isMesh) return;
-      const mesh = child as THREE.Mesh;
-      const materials = Array.isArray(mesh.material)
-        ? mesh.material
-        : [mesh.material];
+    const key = this.heldProgramKey(material, "held-object-shadow-shader");
+    const lightColorRef = this.heldLightColor;
+    const oldOnBeforeCompile = material.onBeforeCompile;
+    material.onBeforeCompile = (shader, renderer) => {
+      if (oldOnBeforeCompile) {
+        oldOnBeforeCompile(shader, renderer);
+      }
 
-      for (const material of materials) {
-        if ((material as THREE.Material).type !== "MeshBasicMaterial") continue;
-        // A viewmodel kept between equips is set up once, either way.
-        if (material.userData.heldObjectLighting === true) continue;
-        if (isSelfIlluminated(material)) continue;
+      Object.assign(shader.uniforms, shadowUniforms);
+      shader.uniforms.uLightColor = { value: lightColorRef };
 
-        material.userData.heldObjectLighting = true;
-        material.userData.lightEffectSetup = true;
-
-        const lightColorRef = this.heldLightColor;
-        const oldOnBeforeCompile = material.onBeforeCompile;
-        material.onBeforeCompile = (shader, renderer) => {
-          if (oldOnBeforeCompile) {
-            oldOnBeforeCompile(shader, renderer);
-          }
-
-          Object.assign(shader.uniforms, shadowUniforms);
-          shader.uniforms.uLightColor = { value: lightColorRef };
-
-          shader.vertexShader = shader.vertexShader
-            .replace(
-              "#include <uv_pars_vertex>",
-              `#include <uv_pars_vertex>
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          "#include <uv_pars_vertex>",
+          `#include <uv_pars_vertex>
 ${ENTITY_SHADOW_VERTEX_PARS}
 varying vec3 vHeldShadowNormal;
 varying vec3 vHeldShadowPosition;
 `,
-            )
-            .replace(
-              "#include <worldpos_vertex>",
-              `#include <worldpos_vertex>
+        )
+        .replace(
+          "#include <worldpos_vertex>",
+          `#include <worldpos_vertex>
 vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
 ${ENTITY_SHADOW_VERTEX_MAIN}
 // Item shapes carry no normals, and a zero vector does not normalize.
@@ -629,34 +655,32 @@ vHeldShadowNormal = dot(heldShadowNormal, heldShadowNormal) > 0.0
   : vec3(0.0, 1.0, 0.0);
 vHeldShadowPosition = shadowWorldPos.xyz;
 `,
-            );
+        );
 
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "#include <common>",
-              `#include <common>
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
 ${ENTITY_SHADOW_FRAGMENT_PARS}
 uniform vec3 uLightColor;
 varying vec3 vHeldShadowNormal;
 varying vec3 vHeldShadowPosition;
 `,
-            )
-            .replace(
-              "#include <dithering_fragment>",
-              `#include <dithering_fragment>
+        )
+        .replace(
+          "#include <dithering_fragment>",
+          `#include <dithering_fragment>
 float shadow = getEntityShadowAt(
   normalize(vHeldShadowNormal),
   vHeldShadowPosition
 );
 gl_FragColor.rgb *= shadow * uLightColor;
 `,
-            );
-        };
+        );
+    };
 
-        material.onBeforeCompile.toString = () => "held-object-shadow-shader";
-        material.needsUpdate = true;
-      }
-    });
+    material.onBeforeCompile.toString = () => key;
+    material.needsUpdate = true;
   }
 
   private shouldReceiveArmShadows(): boolean {

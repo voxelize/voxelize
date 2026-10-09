@@ -1,8 +1,10 @@
 import {
   BoxGeometry,
+  Color,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  Object3D,
   Quaternion,
   ShaderLib,
   UniformsUtils,
@@ -11,6 +13,7 @@ import {
 } from "three";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { World } from "../core";
 import {
   createEntityShadowUniforms,
   ENTITY_SHADOW_FRAGMENT_PARS,
@@ -20,6 +23,7 @@ import {
 
 import { Arm } from "./arm";
 import { CanvasBox } from "./canvas-box";
+import { LightShined } from "./effects/light-shined";
 
 beforeAll(() => {
   vi.stubGlobal("document", {
@@ -64,6 +68,35 @@ function lighting(): ShaderLightingUniforms {
     sunDirection: u.uSunDirection,
     sunColor: u.uSunColor,
   } as unknown as ShaderLightingUniforms;
+}
+
+/** Just enough world for the light effect to sample a plain sunlit spot. */
+function stubWorld(): World {
+  return {
+    chunkRenderer: {
+      uniforms: {
+        sunlightIntensity: { value: 1 },
+        minLightLevel: { value: 0.1 },
+        baseAmbient: { value: 0.1 },
+      },
+      shaderLightingUniforms: {
+        sunColor: { value: new Color(1, 1, 1) },
+        ambientColor: { value: new Color(0.4, 0.4, 0.4) },
+        sunDirection: { value: new Vector3(0, 1, 0) },
+        shadowStrength: { value: 1 },
+      },
+    },
+    options: { maxLightLevel: 15 },
+    csmRenderer: {},
+    localLights: {
+      options: { maskKnee: 0.25 },
+      blockLightOwnership: 0,
+      queryLocalLights: () => undefined,
+    },
+    getLightValuesAt: () => ({ red: 0, green: 0, blue: 0, sunlight: 15 }),
+    measureWaterColumnAt: () => null,
+    raycastVoxels: () => null,
+  } as unknown as World;
 }
 
 const armUniforms = (arm: Arm) => {
@@ -125,9 +158,9 @@ describe("first-person arm shadows", () => {
       receiveShadows: true,
       receiveHeldObjectShadows: true,
     });
-    const material = new MeshBasicMaterial();
-    const block = new Mesh(new BoxGeometry(), material);
+    const block = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
     arm.setArmObject(block, false);
+    const material = block.material as MeshBasicMaterial;
 
     const { vertexShader, fragmentShader, uniforms } = compiled(material);
     expect(vertexShader).toContain(ENTITY_SHADOW_VERTEX_MAIN);
@@ -149,7 +182,132 @@ describe("first-person arm shadows", () => {
     // Equipped again, the material keeps the one program it was given.
     const hook = material.onBeforeCompile;
     arm.setArmObject(block, false);
+    expect(block.material).toBe(material);
     expect(material.onBeforeCompile).toBe(hook);
+  });
+
+  it("never sets up a material it is handed, so every other copy keeps it", () => {
+    const arm = new Arm({
+      receiveShadows: true,
+      receiveHeldObjectShadows: true,
+    });
+    // An item's cached mesh, cloned into a hand on the ground and into
+    // first person, all with the one material.
+    const cached = new Mesh(
+      new BoxGeometry(),
+      new MeshBasicMaterial({ vertexColors: true }),
+    );
+    const shared = cached.material;
+    const elsewhere = cached.clone();
+    const held = cached.clone();
+    arm.setArmObject(held, false);
+
+    expect(elsewhere.material).toBe(shared);
+    expect(shared.userData.heldObjectLighting).toBeUndefined();
+    expect(
+      Object.prototype.hasOwnProperty.call(shared, "onBeforeCompile"),
+    ).toBe(false);
+    const own = held.material as MeshBasicMaterial;
+    expect(own).not.toBe(shared);
+    expect(own.vertexColors).toBe(true);
+    expect(compiled(own).fragmentShader).toContain("getEntityShadowAt(");
+
+    // Every later clone from the cache shares the arm's one copy.
+    const again = cached.clone();
+    arm.setArmObject(again, false);
+    expect(again.material).toBe(own);
+
+    // A copy goes with its source.
+    const onDispose = vi.fn();
+    own.addEventListener("dispose", onDispose);
+    shared.dispose();
+    expect(onDispose).toHaveBeenCalledTimes(1);
+    const fresh = cached.clone();
+    arm.setArmObject(fresh, false);
+    expect(fresh.material).not.toBe(own);
+  });
+
+  it("starts its copy clean when another effect set the source up first", () => {
+    const arm = new Arm({
+      receiveShadows: true,
+      receiveHeldObjectShadows: true,
+    });
+    // What a light effect leaves: its flag and its wrapper. A clone of it
+    // carries the flag without the wrapper.
+    const wrapped = new MeshBasicMaterial();
+    wrapped.userData.lightEffectSetup = true;
+    wrapped.onBeforeCompile = (shader) => {
+      shader.fragmentShader = `uniform vec3 lightEffect;\n${shader.fragmentShader}`;
+    };
+    const flaggedClone = wrapped.clone();
+    flaggedClone.userData.heldObjectLighting = true;
+
+    for (const source of [wrapped, flaggedClone]) {
+      const held = new Mesh(new BoxGeometry(), source);
+      arm.setArmObject(held, false);
+      const { fragmentShader } = compiled(held.material as MeshBasicMaterial);
+      expect(fragmentShader).toContain("getEntityShadowAt(");
+      expect(fragmentShader).not.toContain("lightEffect");
+    }
+  });
+
+  it("keeps a hook the held object was built with, under its own program key", () => {
+    const arm = new Arm({
+      receiveShadows: true,
+      receiveHeldObjectShadows: true,
+    });
+    const tinted = new MeshBasicMaterial();
+    tinted.onBeforeCompile = (shader) => {
+      shader.fragmentShader = `// built-tint\n${shader.fragmentShader}`;
+    };
+    const held = new Mesh(new BoxGeometry(), tinted);
+    arm.setArmObject(held, false);
+    const own = held.material as MeshBasicMaterial;
+    const { fragmentShader } = compiled(own);
+    expect(fragmentShader).toContain("// built-tint");
+    expect(fragmentShader).toContain("getEntityShadowAt(");
+
+    const plain = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    arm.setArmObject(plain, false);
+    expect(own.customProgramCacheKey()).not.toBe(
+      (plain.material as MeshBasicMaterial).customProgramCacheKey(),
+    );
+  });
+
+  it("shades an item whose cached material a lit world copy shares", () => {
+    const shined = new LightShined(stubWorld());
+    const arm = new Arm({
+      receiveShadows: true,
+      receiveHeldObjectShadows: true,
+    });
+    new Object3D().add(arm);
+    shined.add(arm);
+
+    // A peer holds the item first, so the light effect owns its material.
+    const cached = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const shared = cached.material;
+    const peerHand = new Object3D();
+    new Object3D().add(peerHand);
+    peerHand.add(cached.clone());
+    shined.add(peerHand);
+    shined.update();
+
+    const held = cached.clone();
+    arm.setArmObject(held, false);
+    shined.update();
+
+    const firstPerson = compiled(held.material as MeshBasicMaterial);
+    expect(firstPerson.fragmentShader).toContain("getEntityShadowAt(");
+    const peerMesh = peerHand.children[0] as Mesh;
+    expect(peerMesh.material).toBe(shared);
+    const thirdPerson = compiled(shared);
+    expect(thirdPerson.fragmentShader).toContain("lightEffect");
+    expect(thirdPerson.fragmentShader).not.toContain("getEntityShadowAt(");
+
+    const again = cached.clone();
+    arm.setArmObject(again, false);
+    shined.update();
+    expect(again.material).toBe(held.material);
   });
 });
 
