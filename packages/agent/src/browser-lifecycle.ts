@@ -233,6 +233,41 @@ export function clearAgentPidFile(pidFile: string): void {
   rmSync(pidFile, { force: true });
 }
 
+/**
+ * Kills the browser this process recorded in `pidFile`, for a stop that lands
+ * before the daemon can close it gracefully (its launch still running). It
+ * must be `port`'s agent browser and this process's own child, so it is never
+ * another daemon's. Returns the pid it killed, or null if none is recorded.
+ */
+export function killOwnAgentBrowserSync(
+  pidFile: string,
+  port: number,
+): number | null {
+  if (!existsSync(pidFile)) return null;
+  const pid = Number(readFileSync(pidFile, "utf8").trim());
+  if (
+    !Number.isInteger(pid) ||
+    pid <= 0 ||
+    !isProcessAlive(pid) ||
+    Number(processField(pid, "ppid")) !== process.pid ||
+    !isAgentBrowserCommand(processField(pid, "command"), port)
+  ) {
+    return null;
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // not a process group leader, or gone already
+  }
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+  clearAgentPidFile(pidFile);
+  return pid;
+}
+
 const WATCHDOG_POLL_SECONDS = 2;
 const WATCHDOG_LOG_MAX_BYTES = 1024 * 1024;
 

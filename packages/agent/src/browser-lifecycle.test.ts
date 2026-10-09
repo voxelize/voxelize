@@ -12,6 +12,7 @@ import {
   agentBrowserFlag,
   agentBrowserPattern,
   isAgentBrowserCommand,
+  killOwnAgentBrowserSync,
   reapStaleAgentBrowser,
   resolveIdleTtlMs,
   spawnBrowserWatchdog,
@@ -21,8 +22,10 @@ import {
 // Command lines as `ps -ww -o command=` prints them.
 const SYSTEM_CHROME = `/usr/bin/google-chrome-stable ${agentBrowserFlag(4100)} --no-sandbox --headless=new --user-data-dir=/home/me/.cache/voxelize-agent/profiles/port-4100 about:blank`;
 const CHROME_FOR_TESTING = `/home/me/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome ${agentBrowserFlag(4101)} --headless=new about:blank`;
-const LEGACY_PROFILE = "/opt/google/chrome/chrome --headless=new --user-data-dir=/home/me/.cache/voxelize-agent/profiles/port-4102 about:blank";
-const PERSONAL_CHROME = "/opt/google/chrome/chrome --user-data-dir=/home/me/.config/google-chrome --restore-last-session";
+const LEGACY_PROFILE =
+  "/opt/google/chrome/chrome --headless=new --user-data-dir=/home/me/.cache/voxelize-agent/profiles/port-4102 about:blank";
+const PERSONAL_CHROME =
+  "/opt/google/chrome/chrome --user-data-dir=/home/me/.config/google-chrome --restore-last-session";
 
 describe("an agent browser's identity", () => {
   it("is the agent's own mark, whichever Chrome runs", () => {
@@ -87,6 +90,37 @@ function standIn(argv: string[], { detached = false } = {}): ChildProcess {
   return child;
 }
 
+function pidOf(child: ChildProcess): number {
+  if (child.pid === undefined) throw new Error("the stand-in never started");
+  return child.pid;
+}
+
+/** A stand-in daemon that launches a marked browser itself, as its parent. */
+async function daemonWithBrowser(port: number, daemonArgv: string[] = []) {
+  const daemon = spawn(
+    process.execPath,
+    [
+      "-e",
+      `const c = require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1 << 30)", "--", "${agentBrowserFlag(port)}"], { stdio: "ignore" }); console.log(c.pid); setInterval(() => {}, 1 << 30);`,
+      ...daemonArgv,
+    ],
+    { stdio: ["ignore", "pipe", "ignore"] },
+  );
+  children.push(daemon);
+  const { stdout } = daemon;
+  if (stdout === null) throw new Error("the stand-in daemon has no stdout");
+  const browserPid = await new Promise<number>((resolve) =>
+    stdout.once("data", (chunk) => resolve(Number(String(chunk).trim()))),
+  );
+  expect(
+    await waitFor(
+      () => commandOf(browserPid).includes(agentBrowserFlag(port)),
+      5_000,
+    ),
+  ).toBe(true);
+  return { daemon, browserPid };
+}
+
 function commandOf(pid: number): string {
   const ps = spawnSync("ps", ["-ww", "-o", "command=", "-p", String(pid)], {
     encoding: "utf8",
@@ -99,7 +133,9 @@ function commandOf(pid: number): string {
  * the watchdog would take the stand-in daemon for dead on its first poll.
  */
 async function waitForCommand(child: ChildProcess, text: string) {
-  expect(await waitFor(() => commandOf(child.pid!).includes(text), 5_000)).toBe(true);
+  expect(
+    await waitFor(() => commandOf(pidOf(child)).includes(text), 5_000),
+  ).toBe(true);
 }
 
 function isAlive(pid: number): boolean {
@@ -131,8 +167,14 @@ describe("the browser watchdog", () => {
     const browser = standIn(browserArgv, { detached: true });
     await waitForCommand(daemon, "voxelize-agent-stand-in");
     await waitForCommand(browser, browserArgv[0]);
-    spawnBrowserWatchdog({ daemonPid: daemon.pid!, browserPid: browser.pid, port });
-    expect(await waitFor(() => existsSync(watchdogLogFile(port)), 3_000)).toBe(true);
+    spawnBrowserWatchdog({
+      daemonPid: pidOf(daemon),
+      browserPid: browser.pid,
+      port,
+    });
+    expect(await waitFor(() => existsSync(watchdogLogFile(port)), 3_000)).toBe(
+      true,
+    );
     return { daemon, browser };
   }
 
@@ -140,9 +182,14 @@ describe("the browser watchdog", () => {
     const port = 47_121;
     const { daemon, browser } = await guarded(port, [agentBrowserFlag(port)]);
     await new Promise((resolve) => setTimeout(resolve, POLL_MS + 500));
-    expect(isAlive(browser.pid!), "the browser of a live daemon is never shot").toBe(true);
+    expect(
+      isAlive(pidOf(browser)),
+      "the browser of a live daemon is never shot",
+    ).toBe(true);
     daemon.kill("SIGKILL");
-    expect(await waitFor(() => !isAlive(browser.pid!), KILL_DEADLINE_MS)).toBe(true);
+    expect(
+      await waitFor(() => !isAlive(pidOf(browser)), KILL_DEADLINE_MS),
+    ).toBe(true);
     expect(readFileSync(watchdogLogFile(port), "utf8")).toMatch(
       new RegExp(
         `died with browser pid=${browser.pid} still alive \\(it carries port ${port}'s agent mark\\); killing orphaned browser group\\n.*killed orphaned browser pid=${browser.pid} \\(daemon port=${port}\\)`,
@@ -152,20 +199,28 @@ describe("the browser watchdog", () => {
 
   it("leaves a pid that no longer carries the port's mark", async () => {
     const port = 47_122;
-    const { daemon, browser: stranger } = await guarded(port, [agentBrowserFlag(port + 1)]);
+    const { daemon, browser: stranger } = await guarded(port, [
+      agentBrowserFlag(port + 1),
+    ]);
     daemon.kill("SIGKILL");
     expect(
       await waitFor(
-        () => readFileSync(watchdogLogFile(port), "utf8").includes("nothing to kill"),
+        () =>
+          readFileSync(watchdogLogFile(port), "utf8").includes(
+            "nothing to kill",
+          ),
         KILL_DEADLINE_MS,
       ),
     ).toBe(true);
-    expect(isAlive(stranger.pid!)).toBe(true);
+    expect(isAlive(pidOf(stranger))).toBe(true);
   }, 15_000);
 });
 
 describe("the stale browser a new daemon finds", () => {
-  const pidFile = path.join(os.tmpdir(), `voxelize-agent-reap-test-${process.pid}.pid`);
+  const pidFile = path.join(
+    os.tmpdir(),
+    `voxelize-agent-reap-test-${process.pid}.pid`,
+  );
   afterEach(() => rmSync(pidFile, { force: true }));
 
   it("is killed when no daemon owns it", async () => {
@@ -175,47 +230,73 @@ describe("the stale browser a new daemon finds", () => {
     writeFileSync(pidFile, String(orphan.pid));
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     reapStaleAgentBrowser(pidFile, port);
-    expect(await waitFor(() => !isAlive(orphan.pid!), 3_000)).toBe(true);
+    expect(await waitFor(() => !isAlive(pidOf(orphan)), 3_000)).toBe(true);
     expect(log.mock.calls.flat().join("\n")).toMatch(
-      new RegExp(`reaped stale browser pid=${orphan.pid}: port ${port}'s agent browser`),
+      new RegExp(
+        `reaped stale browser pid=${orphan.pid}: port ${port}'s agent browser`,
+      ),
     );
     log.mockRestore();
   });
 
   it("is left alone while its daemon lives, and when its pid runs something else", async () => {
     const port = 47_132;
-    // A stand-in daemon that launches the browser itself, so it is the parent.
-    const daemon = spawn(
-      process.execPath,
-      [
-        "-e",
-        `const c = require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1 << 30)", "--", "${agentBrowserFlag(port)}"], { stdio: "ignore" }); console.log(c.pid); setInterval(() => {}, 1 << 30);`,
-        "voxelize-agent-stand-in",
-      ],
-      { stdio: ["ignore", "pipe", "ignore"] },
-    );
-    children.push(daemon);
-    const browserPid = await new Promise<number>((resolve) =>
-      daemon.stdout!.once("data", (chunk) => resolve(Number(String(chunk).trim()))),
-    );
-    expect(
-      await waitFor(() => commandOf(browserPid).includes(agentBrowserFlag(port)), 5_000),
-    ).toBe(true);
+    const { daemon, browserPid } = await daemonWithBrowser(port, [
+      "voxelize-agent-stand-in",
+    ]);
     await waitForCommand(daemon, "voxelize-agent-stand-in");
     writeFileSync(pidFile, String(browserPid));
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     reapStaleAgentBrowser(pidFile, port);
     expect(isAlive(browserPid)).toBe(true);
     expect(log.mock.calls.flat().join("\n")).toMatch(
-      new RegExp(`left browser pid=${browserPid} alone: .*its daemon pid=${daemon.pid} is alive`),
+      new RegExp(
+        `left browser pid=${browserPid} alone: .*its daemon pid=${daemon.pid} is alive`,
+      ),
     );
     log.mockRestore();
     const stranger = standIn(["--some-other-tool"]);
     await waitForCommand(stranger, "--some-other-tool");
     writeFileSync(pidFile, String(stranger.pid));
     reapStaleAgentBrowser(pidFile, port);
-    expect(isAlive(stranger.pid!)).toBe(true);
+    expect(isAlive(pidOf(stranger))).toBe(true);
     process.kill(browserPid, "SIGKILL");
+  });
+});
+
+describe("the browser a daemon stopped while booting kills itself", () => {
+  const pidFile = path.join(
+    os.tmpdir(),
+    `voxelize-agent-own-test-${process.pid}.pid`,
+  );
+  afterEach(() => rmSync(pidFile, { force: true }));
+
+  it("is the one this process launched and recorded, killed and forgotten", async () => {
+    const port = 47_141;
+    const browser = standIn([agentBrowserFlag(port)], { detached: true });
+    await waitForCommand(browser, agentBrowserFlag(port));
+    writeFileSync(pidFile, String(browser.pid));
+    expect(killOwnAgentBrowserSync(pidFile, port)).toBe(browser.pid);
+    expect(await waitFor(() => browser.signalCode === "SIGKILL", 3_000)).toBe(
+      true,
+    );
+    expect(existsSync(pidFile)).toBe(false);
+  });
+
+  it("is never another process's browser, another port's, or one not recorded yet", async () => {
+    const port = 47_142;
+    expect(killOwnAgentBrowserSync(pidFile, port)).toBe(null);
+    const otherPort = standIn([agentBrowserFlag(port + 1)], { detached: true });
+    await waitForCommand(otherPort, agentBrowserFlag(port + 1));
+    writeFileSync(pidFile, String(otherPort.pid));
+    expect(killOwnAgentBrowserSync(pidFile, port)).toBe(null);
+    expect(isAlive(pidOf(otherPort))).toBe(true);
+    // A browser some other daemon launched: its parent is not this process.
+    const { browserPid: theirs } = await daemonWithBrowser(port);
+    writeFileSync(pidFile, String(theirs));
+    expect(killOwnAgentBrowserSync(pidFile, port)).toBe(null);
+    expect(isAlive(theirs)).toBe(true);
+    process.kill(theirs, "SIGKILL");
   });
 });
 
