@@ -4558,10 +4558,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         this.initialData = json;
 
-        if (entities) {
-          this.initialEntities = entities;
-        }
-
         // An INIT on an already-initialized world is a rejoin after a
         // reconnect. The server process behind it may be brand new, holding
         // none of the chunks this client renders, so resync every chunk
@@ -4570,6 +4566,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         // immediately instead of idling until the rerequest interval.
         if (this.isInitialized) {
           this.resyncChunkStagesAfterRejoin();
+          this.resyncBlockEntitiesAfterRejoin(entities ?? []);
+        } else if (entities) {
+          this.initialEntities = entities;
         }
 
         break;
@@ -5018,6 +5017,41 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (const name of this.chunkPipeline.resyncForRejoin()) {
       this.chunkRefreshQueue.add(name);
     }
+  }
+
+  /**
+   * A rejoin's INIT carries every block entity in the world, and the server
+   * counts each one as delivered: it sends none of them again, and never a
+   * delete for one removed while this client was away. Those entities used
+   * to be parked as initial entities, which only a first join ever reads,
+   * so a rejoined client kept whatever it had from before the drop. The
+   * INIT is the whole truth: record what it carries, and delete what it no
+   * longer has.
+   */
+  private resyncBlockEntitiesAfterRejoin(entities: EntityProtocol<any>[]) {
+    const present = new Set<string>();
+    for (const { type, metadata } of entities) {
+      if (!type.startsWith("block::") || !metadata?.voxel) continue;
+      const [px, py, pz] = metadata.voxel;
+      present.add(
+        ChunkUtils.getVoxelName([
+          Math.floor(px),
+          Math.floor(py),
+          Math.floor(pz),
+        ]),
+      );
+    }
+    const gone: EntityProtocol<any>[] = [];
+    for (const [voxelId, entry] of this.blockEntities.entries()) {
+      if (present.has(voxelId)) continue;
+      gone.push({
+        id: entry.id,
+        type: entry.etype,
+        operation: "DELETE",
+        metadata: { voxel: ChunkUtils.parseVoxelName(voxelId), json: null },
+      });
+    }
+    this.handleEntities([...gone, ...entities]);
   }
 
   private requestChunks(center: Coords2, direction: Vector3) {
