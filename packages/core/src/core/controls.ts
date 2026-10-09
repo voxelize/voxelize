@@ -87,7 +87,8 @@ export type RigidControlState = {
   isJumping: boolean;
 
   /**
-   * The current amount of time spent in the air from jump. Defaults to `0`.
+   * Seconds left of the current jump's push, while its key is held. Defaults
+   * to `0`.
    */
   currentJumpTime: number;
 };
@@ -337,12 +338,15 @@ export type RigidControlsOptions = {
   jumpImpulse: number;
 
   /**
-   * The level of force applied to the client when jumping. Defaults to `1`.
+   * The upward force a held jump key adds for the first `jumpTime` of a
+   * jump, so holding it lifts the jump a little higher than the impulse
+   * alone. Defaults to `3.5`.
    */
   jumpForce: number;
 
   /**
-   * The time, in milliseconds, that a client can be jumping. Defaults to `50`ms.
+   * How long, in milliseconds, a held jump key keeps pushing (`jumpForce`)
+   * after the jump starts. Defaults to `50`ms.
    */
   jumpTime: number;
 
@@ -464,7 +468,7 @@ const defaultOptions: RigidControlsOptions = {
   swimIdleStandDelay: 3000,
   swimRestoreGraceFrames: 2,
   jumpImpulse: 8,
-  jumpForce: 1,
+  jumpForce: 3.5,
   jumpTime: 50,
   airJumps: 0,
 
@@ -1829,9 +1833,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           targetVelocityY = -slowDescentSpeed;
         }
 
-        this.body.velocity[1] +=
+        const velocityY =
+          this.body.velocity[1] +
           (targetVelocityY - this.body.velocity[1]) *
-          (1 - (1 - verticalSmoothing) ** frames);
+            (1 - (1 - verticalSmoothing) ** frames);
+        // A force wakes a resting body and a velocity written onto it does
+        // not: asleep on the floor at a ladder's foot, it would never climb.
+        if (velocityY !== this.body.velocity[1]) this.body.markActive();
+        this.body.velocity[1] = velocityY;
 
         if (!this.state.running) {
           const damping = ladderDamping ** frames;
@@ -1878,7 +1887,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             // start new jump
             this.state.isJumping = true;
             if (!onGround) this.state.jumpCount++;
-            this.state.currentJumpTime = jumpTime;
+            this.state.currentJumpTime = jumpTime / 1000;
             this.body.applyImpulse([0, jumpImpulse, 0]);
             // clear downward velocity on airjump
             if (!onGround && this.body.velocity[1] < 0)

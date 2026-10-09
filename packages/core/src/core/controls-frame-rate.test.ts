@@ -257,3 +257,76 @@ describe("RigidControls over the same wall time at 30, 60 and 120 fps", () => {
     expect(spreadFrom120(climbs)).toBeLessThan(0.02);
   });
 });
+
+/**
+ * A jump from rest on the floor with Space held `holdSeconds`: how high it
+ * peaks, and how fast it rises `atSeconds` after the press.
+ */
+function jumpFromFloor(
+  fps: number,
+  holdSeconds: number,
+  atSeconds: number,
+  options: Partial<RigidControlsOptions> = {},
+) {
+  const body = rig("floor", [0, 1, 0], options);
+  body.run(fps, 1);
+  const y0 = body.position()[1];
+  let apex = 0;
+  let speedAt = Number.NaN;
+  for (let frame = 0; frame < fps * 1.5; frame++) {
+    const isHeld = frame / fps < holdSeconds - 1e-9;
+    body.run(
+      fps,
+      1 / fps,
+      isHeld ? [{ keys: { up: true }, at: 0, for: 1 }] : [],
+    );
+    apex = Math.max(apex, body.position()[1] - y0);
+    if (Math.abs((frame + 1) / fps - atSeconds) < 1e-9) {
+      speedAt = body.controls.body.velocity[1];
+    }
+  }
+  return { apex, speedAt };
+}
+
+describe("RigidControls jumps and ladders at 30, 60 and 120 fps", () => {
+  it("pushes a held jump for jumpTime milliseconds and no longer", () => {
+    const { jumpForce, jumpTime } = rig("sky", [0, 0, 0]).controls.options;
+    for (const fps of FRAME_RATES) {
+      // Held to well past the landing apex, let go just past the push
+      // window, and not pushed at all.
+      const held = jumpFromFloor(fps, 0.5, 0.2);
+      const letGo = jumpFromFloor(fps, 0.1, 0.2);
+      const unpushed = jumpFromFloor(fps, 0.5, 0.2, { jumpForce: 0 });
+
+      expect(held.apex, `${fps} fps`).toBeCloseTo(letGo.apex, 9);
+      expect(held.speedAt - unpushed.speedAt, `${fps} fps`).toBeCloseTo(
+        (jumpForce * jumpTime) / 1000,
+        2,
+      );
+    }
+  });
+
+  it("lifts a held jump as high as a jumpForce of 1 held through the whole rise did", () => {
+    for (const fps of FRAME_RATES) {
+      const held = jumpFromFloor(fps, 0.5, 0.2);
+      const wholeRise = jumpFromFloor(fps, 0.5, 0.2, {
+        jumpForce: 1,
+        jumpTime: 1000,
+      });
+      expect(Math.abs(held.apex - wholeRise.apex), `${fps} fps`).toBeLessThan(
+        0.01,
+      );
+    }
+  });
+
+  it("climbs a ladder from rest at its foot", () => {
+    for (const fps of FRAME_RATES) {
+      const body = rig("ladder", [0, 1, 0]);
+      // Long enough standing still on the floor for the body to fall asleep.
+      body.run(fps, 1);
+      const y0 = body.position()[1];
+      body.run(fps, 1, [{ keys: { up: true }, at: 0, for: 1 }]);
+      expect(body.position()[1] - y0, `${fps} fps`).toBeGreaterThan(4);
+    }
+  });
+});
